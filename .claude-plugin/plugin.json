@@ -3,6 +3,33 @@
   "version": "0.2.0",
   "description": "Odoo codebase intelligence — inheritance chains, field impact, pattern catalogue, upgrade paths",
   "keywords": ["odoo", "erp", "mcp", "inheritance", "impact-analysis"],
-  "author": "Viindoo",
-  "homepage": "https://github.com/Viindoo/odoo-semantic-mcp"
+  "author": {
+    "name": "Viindoo",
+    "url": "https://github.com/Viindoo"
+  },
+  "homepage": "https://github.com/Viindoo/odoo-semantic-mcp",
+  "skills": "../skills/",
+  "agents": [
+    "../agents/odoo-router.md",
+    "../agents/odoo-upgrade-planner.md"
+  ],
+  "commands": [
+    "../commands/odoo-setup.md"
+  ],
+  "mcpServers": "../.mcp.json",
+  "userConfig": {
+    "api_key": {
+      "type": "string",
+      "title": "API Key",
+      "description": "Odoo Semantic API key (starts with osm_). Get one from your server admin or https://odoo-semantic.viindoo.com:9999/install/",
+      "sensitive": true,
+      "required": true
+    },
+    "mcp_url": {
+      "type": "string",
+      "title": "MCP Server URL",
+      "description": "Base URL of your Odoo Semantic MCP server",
+      "default": "https://odoo-semantic.viindoo.com:9999/mcp"
+    }
+  }
 }
