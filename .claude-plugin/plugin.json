@@ -8,15 +8,15 @@
     "url": "https://github.com/Viindoo"
   },
   "homepage": "https://github.com/Viindoo/odoo-semantic-mcp",
-  "skills": "../skills/",
+  "skills": "./skills/",
   "agents": [
-    "../agents/odoo-router.md",
-    "../agents/odoo-upgrade-planner.md"
+    "./agents/odoo-router.md",
+    "./agents/odoo-upgrade-planner.md"
   ],
   "commands": [
-    "../commands/odoo-setup.md"
+    "./commands/odoo-setup.md"
   ],
-  "mcpServers": "../.mcp.json",
+  "mcpServers": "./.mcp.json",
   "userConfig": {
     "api_key": {
       "type": "string",
