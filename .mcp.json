@@ -2,9 +2,9 @@
   "mcpServers": {
     "odoo-semantic": {
       "type": "http",
-      "url": "https://odoo-semantic.viindoo.com:9999/mcp",
+      "url": "${user_config.mcp_url}",
       "headers": {
-        "X-API-Key": "${ODOO_SEMANTIC_API_KEY}"
+        "X-API-Key": "${user_config.api_key}"
       }
     }
   }
