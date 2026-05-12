@@ -1,28 +1,91 @@
-# odoo-override-finder
+---
+name: odoo-override-finder
+description: >
+  Find the correct override point and pattern to extend Odoo behavior safely. Use this skill for:
+  find override point for method X, where to hook into sale order confirmation, best place to
+  extend partner creation, điểm override cho method X, override method Y ở module nào, tôi muốn
+  thêm logic vào lúc xác nhận đơn hàng, how to extend Odoo model, where to write my custom code.
+  Trigger any time a developer wants to add custom behavior to Odoo — even if they don't use the
+  word "override". If they say "I want to do X when Y happens in Odoo", use this skill.
+---
 
-**Persona:** Developer
-**Triggers:** find override point for method X, where to hook into sale order confirmation, best place to extend partner creation, điểm override cho method X, override method Y ở module nào
-**Tools used:** `find_override_point`, `resolve_method`, `suggest_pattern`
+## Persona
+Developer
+
+## MCP tools
+`find_override_point`, `resolve_method`, `suggest_pattern`, `resolve_model`
+
+## Context
+
+Getting the override location wrong causes subtle, hard-to-debug issues:
+- Overriding at the wrong level (patching internal methods instead of public API)
+- Missing `super()` calls in override chains
+- Using deprecated override conventions (`@api.multi`, `@api.one`, OpenERP `_constraints`)
+- Conflicting with existing overrides in multi-module stacks
+
+**Era-specific override patterns:**
+
+- **v8/v9 (OpenERP):** Use `osv.osv` or `orm.TransientModel`. Constraints via `_constraints` list.
+  No `super()` — use `SUPERCLASS._method(self, cr, uid, ids, ...)`. `@api.*` decorators don't exist.
+- **v10–v12 (transition):** `models.Model`, `@api.multi`, `@api.one`, `@api.one` deprecated v13.
+  `super()` with new API: `super(MyModel, self).method(...)`.
+- **v13+ (modern):** `@api.multi` and `@api.one` removed. All methods implicitly recordset-aware.
+  `super()` standard Python 3 style: `super().method(...)`.
+- **Frontend/JS v14+ (OWL primary):** Override via `patch()` utility: `import { patch } from "@web/core/utils/patch"`.
+  Old `web.Widget` `.include()` pattern deprecated in v14, removed completely in v16+.
+  In v13, OWL was introduced but `web.Widget` still coexisted — use `patch()` only for v14+.
+- **XML/QWeb:** Override via `xpath` in XML with `position="replace|before|after|attributes"` on
+  `<template>` or `<record>` with `inherit_id`.
+
+**Data priority:** `find_override_point` and `resolve_method` results reflect the actual indexed
+codebase. If MCP says a method's override chain has 4 entries but training knowledge only knows
+2, trust MCP — it has the current state of all indexed repos.
 
 ## Instructions
 
-This skill helps developers identify the correct place and pattern to override or extend Odoo behavior. It prevents the common mistakes of overriding at the wrong level (e.g., bypassing the ORM by patching internal methods) or using deprecated override conventions.
+**Round 1 — Parallel:** Call `resolve_model` + `find_override_point` simultaneously. Both take
+the model and method name from the user's request — they are independent of each other.
 
-Call `find_override_point` first to get the canonical override location for the target method or behavior. Then call `resolve_method` to retrieve the full override chain, showing all existing modules that already extend this method. Finally, call `suggest_pattern` to recommend the appropriate Odoo override pattern (e.g., `_action_confirm` super() chain vs. onchange vs. compute field).
+**Round 2 — Parallel:** Call `resolve_method` + `suggest_pattern` simultaneously. Both can be
+formulated after Round 1 and are independent of each other. `resolve_method` reveals the override
+chain; `suggest_pattern` recommends the correct Odoo pattern. Different scenarios call for different patterns:
+   - Business logic change → `_inherit` + `super()` override
+   - New computed value → `@api.depends` compute field
+   - Pre/post hook → `create`/`write` override
+   - Wizard step injection → `TransientModel` with `target_model_id`
+   - JS behavior → OWL `patch()` utility (v14+; v13 introduced OWL but `web.Widget` still primary)
 
-Present a concrete code snippet template in the output, pre-filled with the correct class name, method signature, and `super()` call. Include a compatibility note indicating which Odoo versions this override point is stable in. If the method has existing overrides in the chain, warn the developer about potential conflicts.
+Present a concrete code snippet template pre-filled with the correct class name, method signature,
+`super()` call, and proper decorator. Include compatibility note for which Odoo versions this
+pattern is stable in.
+
+**Warn explicitly** when:
+- The override chain already has 3+ overrides (high conflict risk)
+- The target method is marked as internal/private (`_` prefix but not double-underscore)
+- The method has changed signature between versions in the user's range
 
 ## Output format
 
+```
 ## Override Point: `<method_name>` in `<model_name>`
 
-**Recommended override location:** `<module>/<file>.py` line ~<N>
-**Pattern:** <override pattern name>
-**Odoo version stability:** <version range>
+**Recommended location:** `<module>/<file>.py` (line ~<N>)
+**Pattern:** <pattern name>
+**Odoo version compatibility:** <version range>
+**Era:** <OpenERP v8-9 / Legacy v10-12 / Modern v13+>
 
 ### Code template
 ```python
-<code snippet>
+from odoo import models, api
+
+class <ClassName>(models.Model):
+    _inherit = '<model.name>'
+
+    def <method_name>(self, <args>):
+        # <brief comment explaining why this override exists>
+        result = super().<method_name>(<args>)
+        # <custom logic>
+        return result
 ```
 
 ### Existing overrides in chain
@@ -30,10 +93,21 @@ Present a concrete code snippet template in the output, pre-filled with the corr
 |--------|------|-------|
 | ...    | ...  | ...   |
 
+### Conflict risks
+<Any conflicts or call-order issues to watch for>
+
 ### Compatibility notes
-<1–2 sentences>
+<Version-specific notes — e.g., "super() syntax differs in v8/v9">
+```
 
-## Example invocation
+## Examples
 
-User: "where to hook into sale order confirmation to add custom validation"
-Expected output: Recommended override of `_action_confirm` in `sale.order`, a code template with super() chain, and a list of modules that already override this method with conflict warnings if present.
+**Example 1:**
+Prompt: "where to hook into sale order confirmation to add custom validation"
+Output: `_action_confirm` in `sale.order`, code template with `super()` chain, list of existing
+overrides (e.g. `sale_stock`, `sale_payment`), warning if chain is long.
+
+**Example 2:**
+Prompt: "tôi muốn thêm logic tính thuế tùy chỉnh khi lưu hóa đơn Odoo 17"
+Output: Override `_compute_tax_id` or `write` on `account.move`, code template in Vietnamese
+context, note about VAS tax constraints in `viin_account_vat` if installed.

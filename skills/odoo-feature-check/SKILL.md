@@ -1,40 +1,100 @@
-# odoo-feature-check
+---
+name: odoo-feature-check
+description: >
+  Quickly determine whether a client requirement is covered by standard Odoo functionality —
+  and at what edition level (CE, Odoo EE, or Viindoo EE). Use this skill for: does Odoo have
+  module X built-in, check if feature Y exists in standard, is this available out of the box,
+  Odoo có sẵn tính năng X không, module X có trong Odoo CE không, tính năng này có cần custom
+  không, what does standard Odoo cover for requirement Z. Trigger any time a consultant or
+  developer needs to know "is this standard or custom" — even if the question is informal.
+  Prevents the expensive mistake of recommending custom development for features that already exist.
+---
 
-**Persona:** Consultant
-**Triggers:** does Odoo have module X built-in, check if feature Y exists in standard, is this available out of the box, Odoo có sẵn tính năng X không, module X có trong Odoo CE không
-**Tools used:** `check_module_exists`, `resolve_model`, `find_examples`
+## Persona
+Consultant / Developer
+
+## MCP tools
+`check_module_exists`, `resolve_model`, `find_examples`, `suggest_pattern`
+
+## Context
+
+Standard Odoo coverage exists at four levels:
+1. **CE native** — free, zero customization needed
+2. **Odoo EE only** — requires paid Odoo Enterprise subscription
+3. **Viindoo EE** — available via Viindoo Enterprise, may overlap with Odoo EE
+4. **Community App Store** — third-party OCA or Viindoo modules (note: not officially supported)
+
+Version matters — a feature in v17 may not exist in v12. Always ask or infer the target version.
+
+For v8/v9 (OpenERP era): module names and features differ significantly. The `sale` module in v8
+has a very different field set than v16. When checking features for legacy versions, note that
+many "new" features in v12+ didn't exist at all in v8/v9.
+
+Viindoo note: Viindoo modules prefixed `viin_` cover many Vietnamese-specific requirements
+(VAS accounting, Vietnamese tax, HR Vietnamese labor law) that neither CE nor Odoo EE provide.
+
+**Data priority:** When `check_module_exists` result conflicts with training knowledge about
+whether a feature exists, trust the MCP result. MCP reflects the indexed codebase; training
+data about specific Odoo module names and versions is frequently outdated.
 
 ## Instructions
 
-This skill helps consultants quickly determine whether a client requirement is covered by standard Odoo functionality — and at what edition level (Community Edition vs. Enterprise Edition). It prevents the expensive mistake of recommending custom development for features that already exist in Odoo.
+**Round 1 — Parallel:** Call `check_module_exists` + `find_examples` simultaneously.
+`find_examples` takes a semantic query from the requirement text and does not need the
+module check result. Both are independent — fire together.
 
-Call `check_module_exists` with the feature or module name to determine if it exists in standard Odoo and which edition it belongs to. If the module exists, call `resolve_model` on the primary model it introduces to understand what fields and functionality are already provided out of the box. Use `find_examples` to locate code examples that demonstrate the feature in use, which can be shown to clients as evidence.
+**Round 2 — Parallel (after Round 1):** Call `resolve_model` (needs module/model name from
+Round 1) + `suggest_pattern` simultaneously. `suggest_pattern` can be formulated from the
+requirement even if Round 1 shows partial coverage — they are independent of each other.
 
-Present a clear availability verdict: "Available in CE", "Available in EE only", "Not available — custom development required", or "Partial — standard covers X, custom needed for Y". When only partially covered, specify exactly which part requires customization. Always cite the exact module name so clients can verify independently.
+**Verdict levels:**
+- `Available in CE` — standard, zero cost
+- `Available in Odoo EE only` — requires Enterprise subscription
+- `Available in Viindoo EE` — available via Viindoo commercial
+- `Partial — standard covers X, custom needed for Y` — specify the gap precisely
+- `Not available — custom development required` — honest assessment with effort note
+
+Always cite the exact module name so clients can verify independently.
 
 ## Output format
 
+```
 ## Feature Availability Check
 
 **Feature requested:** <feature description>
 **Odoo version:** <version>
 
-| Feature aspect | CE | EE | Module | Notes |
-|---------------|----|----|--------|-------|
-| ...           | ✓/✗ | ✓/✗ | ...  | ...   |
+| Feature aspect | CE | Odoo EE | Viindoo EE | Module | Notes |
+|---------------|:--:|:-------:|:----------:|--------|-------|
+| ...           | ✓/✗ | ✓/✗ | ✓/✗ | ...  | ...   |
 
 ### Verdict
-**<Available in CE / Available in EE only / Partial / Not available>**
+**<Available in CE / Available in EE only / Available in Viindoo EE / Partial / Not available>**
 
 ### Evidence
-- Module: `<module_name>`
-- Key model: `<model_name>`
-- Example usage: <brief description>
+- **Module:** `<module_name>`
+- **Primary model:** `<model_name>`
+- **Key fields:** `<field1>`, `<field2>` — <what they implement>
+- **Example:** <brief description from find_examples>
+
+### Custom development needed (if partial)
+- **Gap:** <what standard doesn't cover>
+- **Extension pattern:** <from suggest_pattern>
+- **Estimated effort:** <S/M/L>
 
 ### Recommendation
-<1–2 sentences on what to tell the client>
+<1–2 sentences for the client>
+```
 
-## Example invocation
+## Examples
 
-User: "does Odoo have a subscription billing module built in?"
-Expected output: Feature availability table showing CE vs EE coverage, module name (`sale_subscription` in EE), key model fields, and a verdict with a client-facing recommendation.
+**Example 1:**
+Prompt: "does Odoo have a subscription billing module built in?"
+Output: Feature table showing `sale_subscription` exists in EE only (not CE), key model
+`sale.order` with `subscription_id` field, verdict "Available in Odoo EE only", plus note that
+Viindoo has `viin_sale_subscription` covering similar needs.
+
+**Example 2:**
+Prompt: "Odoo 17 có sẵn module quản lý tài sản cố định không?"
+Output: `account_asset` exists in EE, not CE. Viindoo EE has `viin_account_asset`. Resolve model
+shows key fields. Recommendation in Vietnamese context.
