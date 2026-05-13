@@ -45,9 +45,64 @@ fails to load.
    - On `✗`: surface the curl output and stop. Common fixes: VPN/firewall,
      server restarted with server-side key rotation, key revoked on the server.
 
-5. Tell the user explicitly:
+5. Offer to auto-allow every `mcp__odoo-semantic__*` tool in the user-scope
+   permissions file so the user is not prompted on every tool call. Plugin
+   manifests cannot declare permissions themselves
+   ([plugin `settings.json` only accepts `agent` + `subagentStatusLine`](https://code.claude.com/docs/en/plugins)),
+   so this is the only safe automated path.
+
+   Ask the user: `Auto-allow every mcp__odoo-semantic__* tool in ~/.claude/settings.json? [Y/n]`.
+   Default `Y`. If the user answers `n` / `no` / `skip`, skip to step 6 and
+   tell them they can re-run `/odoo-semantic:connect` later, or paste the
+   snippet from `docs/client-setup.md#claude-code-auto-trust` manually.
+
+   On `Y`, run the following exact block with the `Bash` tool. It edits
+   `~/.claude/settings.json` (NOT `~/.claude.json`), preserves every other key,
+   refuses to overwrite an invalid-JSON file, backs up before writing, and is
+   idempotent (re-running adds nothing). **Copy the fenced block verbatim
+   without re-indenting** — Python is whitespace-sensitive and the heredoc
+   body must start at column 0.
+
+```bash
+SETTINGS="$HOME/.claude/settings.json"
+python3 - "$SETTINGS" <<'PY'
+import json, os, sys, time, shutil
+p = sys.argv[1]
+data = {}
+if os.path.exists(p):
+    try:
+        with open(p) as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"✗ {p} is not valid JSON ({e}). Refusing to overwrite.", file=sys.stderr)
+        sys.exit(2)
+    shutil.copy2(p, f"{p}.bak.{int(time.time())}")
+perms = data.setdefault("permissions", {})
+allow = perms.setdefault("allow", [])
+entry = "mcp__odoo-semantic"
+if entry in allow:
+    print(f"✓ {entry} already in allow-list — no change.")
+    sys.exit(0)
+allow.append(entry)
+os.makedirs(os.path.dirname(p) or ".", exist_ok=True)
+with open(p, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+print(f"✓ Added {entry} to permissions.allow in {p}.")
+PY
+```
+
+   On exit code 2 (invalid JSON): surface the stderr line to the user verbatim
+   and stop. Do **not** retry, do **not** delete the file. Suggest they fix
+   `~/.claude/settings.json` by hand (or restore from a `.bak.*` copy) and
+   re-run `/odoo-semantic:connect`.
+
+   On exit code 0: continue to step 6.
+
+6. Tell the user explicitly:
    - `✓ Setup complete. Restart Claude Code to activate the MCP tools.`
    - `After restart, verify with: "Dùng odoo-semantic, resolve model res.partner trên Odoo 17.0"`
+   - If step 5 ran successfully, also: `Auto-allow is on — no more per-tool permission prompts for odoo-semantic.`
    - Then list the 15 skill names shipped by this plugin so the user knows what
      to invoke.
 
@@ -58,6 +113,16 @@ fails to load.
   counters, other MCP servers) and direct edits risk corruption.
 - Use the `Bash` tool for step 4. Do **not** attempt to call MCP tool
   `resolve_model` in the same session — it is not yet loaded.
+- Use the `Bash` tool for step 5. Do **not** use `Edit` or `Write` on
+  `~/.claude/settings.json` directly — it may hold the user's other permission
+  rules, hooks, and statusLine config. The Python snippet above is the only
+  approved path: it backs up, refuses to corrupt invalid JSON, and is
+  idempotent. Do **not** substitute `jq` (not guaranteed to be installed on
+  the user's machine).
+- `~/.claude/settings.json` (permissions/hooks) and `~/.claude.json` (MCP
+  server registry) are different files. Step 3 writes to the latter via
+  `claude mcp add`; step 5 writes to the former via the Python snippet. Do not
+  cross the streams.
 - The API key is sensitive. Mask it (`osm_****`) in any output to the user.
 - If the user already has an `odoo-semantic` MCP server registered in a higher
   scope, the plugin's `.mcp.json` template version is suppressed by Claude Code
