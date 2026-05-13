@@ -13,14 +13,14 @@
     "./agents/odoo-upgrade-planner.md"
   ],
   "commands": [
-    "./commands/odoo-setup.md"
+    "./commands/connect.md"
   ],
   "mcpServers": "./.mcp.json",
   "userConfig": {
     "api_key": {
       "type": "string",
       "title": "API Key",
-      "description": "Odoo Semantic API key (starts with osm_). Get one from your server admin or https://odoo-semantic.viindoo.com:9999/install/",
+      "description": "Odoo Semantic API key (starts with osm_). Get one from your server admin or https://odoo-semantic.viindoo.com:9999/install/. If Claude Code does not prompt for this value during install (known v2.1.x bug — github.com/anthropics/claude-code/issues/39455), run /odoo-semantic:connect after install instead.",
       "sensitive": true,
       "required": true
     },
