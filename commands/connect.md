@@ -101,7 +101,7 @@ PY
 
 6. Tell the user explicitly:
    - `✓ Setup complete. Restart Claude Code to activate the MCP tools.`
-   - `After restart, verify with: "Dùng odoo-semantic, resolve model res.partner trên Odoo 17.0"`
+   - `After restart, verify with: "Dùng odoo-semantic, resolve model sale.order trên Odoo 17.0"`
    - If step 5 ran successfully, also: `Auto-allow is on — no more per-tool permission prompts for odoo-semantic.`
    - Then list the 15 skill names shipped by this plugin so the user knows what
      to invoke.
