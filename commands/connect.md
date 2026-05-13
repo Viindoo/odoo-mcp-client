@@ -10,7 +10,7 @@ fails to load.
 
 ## Steps for the AI agent
 
-1. Ask user for MCP server URL. Default: `https://odoo-semantic.viindoo.com:9999/mcp`.
+1. Ask user for MCP server URL. Default: `https://odoo-semantic.viindoo.com/mcp`.
 2. Ask user to paste their API key. Must match `^osm_[A-Za-z0-9_-]+$`.
    Re-prompt on format mismatch. **Do not echo the key back in plain text.**
 3. Run the following with the `Bash` tool (substitute `<URL>` and `<KEY>`):

@@ -69,7 +69,7 @@ Interactive command that:
 
 ## Requirements
 
-- **Odoo Semantic MCP server URL** — `https://odoo-semantic.viindoo.com:9999/mcp` (provided by your admin)
+- **Odoo Semantic MCP server URL** — `https://odoo-semantic.viindoo.com/mcp` (provided by your admin)
 - **API key** — format `osm_<alphanumeric>`, obtain from your server admin or via the `/install/` endpoint
 - Claude Code with MCP support (tested on v2.1.140)
 
