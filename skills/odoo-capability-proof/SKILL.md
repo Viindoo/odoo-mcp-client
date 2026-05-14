@@ -7,7 +7,9 @@ description: >
   show capability evidence for requirement Y, demo material, chứng minh Odoo làm được X, bằng
   chứng tính năng cho khách hàng, khách hàng hỏi Odoo có hỗ trợ tính năng X không. Even if the
   user just says "does Odoo support X" and seems to want a convincing answer for a client — use
-  this skill to build the evidence package.
+  this skill to build the evidence package. Also trigger for: give me proof Odoo can do X, for
+  the demo, demo material for client, prove for the demo, evidence package for sales demo, bằng
+  chứng cho buổi demo.
 ---
 
 ## Persona

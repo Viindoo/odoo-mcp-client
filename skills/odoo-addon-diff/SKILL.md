@@ -6,7 +6,9 @@ description: >
   compare Community and Enterprise for a client proposal, so sánh CE và EE, module nào chỉ có
   trong Enterprise, tính năng nào cần mua EE, Viindoo so với Odoo Enterprise. Also trigger for
   questions about Viindoo-specific modules vs standard CE/EE. If someone asks about edition
-  differences even in passing — use this skill.
+  differences even in passing — use this skill. Also trigger for: Viindoo-specific modules not
+  available in standard, what Viindoo adds beyond CE/EE, modules not available in standard Odoo,
+  Viindoo modules vs standard Odoo, Viindoo-only modules.
 ---
 
 ## Persona
