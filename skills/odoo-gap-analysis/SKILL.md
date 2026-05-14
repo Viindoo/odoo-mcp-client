@@ -7,7 +7,9 @@ description: >
   yêu cầu và Odoo standard, tính năng nào cần custom, scoping workshop for Odoo implementation,
   estimate customization effort, what's out of the box vs needs development. This is the core
   consulting deliverable for presales scoping. Trigger whenever someone lists requirements and
-  asks what Odoo covers — even informally.
+  asks what Odoo covers — even informally. Also trigger for: project estimate, scope for project
+  estimate, ước lượng customization, scope cho estimate, before we give the project estimate,
+  effort matrix for proposal.
 ---
 
 ## Persona
