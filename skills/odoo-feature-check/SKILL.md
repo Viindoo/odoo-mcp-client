@@ -8,6 +8,8 @@ description: >
   không, what does standard Odoo cover for requirement Z. Trigger any time a consultant or
   developer needs to know "is this standard or custom" — even if the question is informal.
   Prevents the expensive mistake of recommending custom development for features that already exist.
+  Also trigger for: tính năng X có trong Odoo không, có trong Odoo standard không, feature X có
+  trong Odoo CE không, does Odoo standard have X built-in.
 ---
 
 ## Persona

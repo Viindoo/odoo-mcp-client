@@ -7,7 +7,9 @@ description: >
   tính năng nổi bật Odoo 17, nêu điểm mạnh so với phiên bản trước, what's new for customers in
   this release, viết nội dung marketing về tính năng Odoo. Trigger whenever someone needs
   business-language descriptions of technical Odoo improvements — even if they say "just summarize
-  what's new" without mentioning marketing.
+  what's new" without mentioning marketing. Also trigger for: ngôn ngữ kinh doanh, cho khách hàng
+  marketing, tóm tắt cho sales deck, business language summary, customer-facing release notes,
+  ngôn ngữ kinh doanh cho khách hàng.
 ---
 
 ## Persona
