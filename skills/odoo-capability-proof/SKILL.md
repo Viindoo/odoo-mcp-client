@@ -24,7 +24,7 @@ Clients are skeptical of ERP vendors' marketing claims. The most effective count
 code from the indexed codebase — specific module names, model fields, and code snippets that
 demonstrate the capability exists and is used in production.
 
-Support Odoo v8 through v20+. When referencing old versions (v8/v9):
+Support Odoo v8 through v19+. When referencing old versions (v8/v9):
 - Modules were under `addons/` of the OpenERP repository
 - Field declarations used `_columns` dict, not class-level attributes
 - The model API was `osv.osv`, not `models.Model`

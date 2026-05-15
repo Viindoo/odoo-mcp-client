@@ -2,7 +2,7 @@
 name: odoo-version-diff
 description: >
   Produce a comprehensive diff of API and feature changes between two Odoo versions (v8 through
-  v20+). Use this skill for: what changed between Odoo 16 and 17, new API in version 17, breaking
+  v19+). Use this skill for: what changed between Odoo 16 and 17, new API in version 17, breaking
   changes in upgrade, API nào thay đổi từ v16 sang v17, tính năng mới Odoo 17, what's different
   in this version, migration guide between versions, what was removed in v13, what's new for
   developers in v16. Trigger for developer questions about version differences and for marketer
@@ -21,7 +21,7 @@ Odoo version diff has two audiences with different needs:
 - **Developers**: need file paths, method signatures, migration instructions for breaking changes
 - **Marketers**: need business-language feature highlights for sales/marketing content
 
-**Major breaking points in Odoo history (v8 → v20+):**
+**Major breaking points in Odoo history (v8 → v19+):**
 
 | Version jump | Key breaking changes |
 |-------------|---------------------|
