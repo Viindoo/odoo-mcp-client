@@ -16,7 +16,7 @@ description: >
 Consultant / Developer
 
 ## MCP tools
-`check_module_exists`, `resolve_model`, `find_examples`, `suggest_pattern`
+`check_module_exists`, `describe_module`, `resolve_model`, `find_examples`, `suggest_pattern`
 
 ## Context
 
@@ -49,6 +49,14 @@ module check result. Both are independent — fire together.
 Round 1) + `suggest_pattern` simultaneously. `suggest_pattern` can be formulated from the
 requirement even if Round 1 shows partial coverage — they are independent of each other.
 
+**Round 3 — Deep dive (when `check_module_exists` confirms presence):** Call
+`describe_module(name=<module_name>, odoo_version=<version>)` to surface the module's full
+architecture: manifest summary, which models it defines vs extends, view count, and JS patch
+count. This gives the consultant a confident, evidence-backed answer about what the module
+actually covers — beyond the bare "exists / does not exist" signal. If the module is confirmed
+to exist, also consider drilling into specifics with `list_fields` or `list_views` in a
+subsequent call if the client asks about exact field coverage.
+
 **Verdict levels:**
 - `Available in CE` — standard, zero cost
 - `Available in Odoo EE only` — requires Enterprise subscription
@@ -76,6 +84,7 @@ Always cite the exact module name so clients can verify independently.
 ### Evidence
 - **Module:** `<module_name>`
 - **Primary model:** `<model_name>`
+- **Module scope:** <N> models defined, <N> models extended, <N> views, <N> JS patches (from describe_module)
 - **Key fields:** `<field1>`, `<field2>` — <what they implement>
 - **Example:** <brief description from find_examples>
 

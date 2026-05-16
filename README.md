@@ -64,7 +64,7 @@ Interactive command that:
 2. Validates key format (`osm_...`)
 3. Registers the MCP server via `claude mcp add --scope user`
 4. Probes `/health` + `/mcp` with `curl` to verify server + key
-5. **Adds `mcp__odoo-semantic` to `permissions.allow` in `~/.claude/settings.json`** so every tool of this server (current 14 + future ones) is pre-approved — no more "Do you want to proceed?" prompts on every call. Idempotent, backs up the file before writing, refuses to overwrite invalid JSON, preserves every other key. Answer `n` at the prompt to skip (you can paste the snippet from [`docs/client-setup.md#claude-code-auto-trust`](../../docs/client-setup.md#claude-code-auto-trust) manually instead).
+5. **Adds `mcp__odoo-semantic` to `permissions.allow` in `~/.claude/settings.json`** so every tool of this server (current 21 + future ones) is pre-approved — no more "Do you want to proceed?" prompts on every call. Idempotent, backs up the file before writing, refuses to overwrite invalid JSON, preserves every other key. Answer `n` at the prompt to skip (you can paste the snippet from [`docs/client-setup.md#claude-code-auto-trust`](../../docs/client-setup.md#claude-code-auto-trust) manually instead).
 6. Tells you to restart Claude Code (required to load MCP tools)
 
 ## Requirements

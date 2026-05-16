@@ -18,7 +18,7 @@ description: >
 Developer
 
 ## MCP tools (odoo-semantic)
-`resolve_model`, `resolve_field`, `suggest_pattern`, `find_examples`, `lint_check`, `lookup_core_api`
+`resolve_model`, `list_fields`, `resolve_field`, `suggest_pattern`, `find_examples`, `lint_check`, `lookup_core_api`
 
 ## Additional tools (ollama-delegate)
 `mcp__ollama-delegate__generate_code`, `mcp__ollama-delegate__complete_code`, `mcp__ollama-delegate__review_code`
@@ -57,10 +57,14 @@ Work in four rounds. Always fire parallel MCP calls within a round — they are 
 
 ### Round 1 — Gather context (parallel)
 
-Call both simultaneously:
+Call all three simultaneously:
 1. `resolve_model(model_name, odoo_version)` — get field list, method list, inheritance chain,
    and `Defined in` module so you know the authoritative source.
-2. `suggest_pattern(feature_description)` — get the canonical Odoo pattern for the feature
+2. `list_fields(model=model_name, odoo_version=odoo_version)` — enumerate all fields currently
+   on the model to catch name conflicts before writing a new field. Compare against the new
+   field name the user wants to add; if a match exists, use `resolve_field` in Round 2 to
+   check type compatibility instead of declaring a duplicate.
+3. `suggest_pattern(feature_description)` — get the canonical Odoo pattern for the feature
    type (computed field, SQL constraint, wizard, etc.).
 
 If you do not yet know the target model name, ask the user before proceeding.

@@ -20,6 +20,13 @@ Given a user message, classify it into exactly one of these categories:
 - `suggest_pattern` — asking for design patterns
 - `check_module_exists` — asking if a module/feature exists
 - `find_override_point` — asking where to override
+- `describe_module` — asking what a module does, what models it defines/extends, or its architecture overview
+- `list_fields` — asking to enumerate fields of a model (all fields, fields by module, or fields by type)
+- `list_methods` — asking to enumerate methods of a model
+- `list_views` — asking to enumerate XML views for a model
+- `list_owl_components` — asking about OWL components in a module (v15+)
+- `list_qweb_templates` — asking about QWeb templates in a module
+- `list_js_patches` — asking about JS patches on a target or in a module (era1/era2/era3)
 - `none` — unrelated to Odoo codebase
 
 ## Output

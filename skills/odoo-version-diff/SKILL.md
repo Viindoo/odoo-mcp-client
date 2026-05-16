@@ -13,7 +13,7 @@ description: >
 Developer + Marketer
 
 ## MCP tools
-`api_version_diff`, `lookup_core_api`, `resolve_method`
+`api_version_diff`, `lookup_core_api`, `resolve_method`, `list_fields`, `list_views`
 
 ## Context
 
@@ -49,6 +49,14 @@ list for all subsequent calls.
 Changed signature symbol) + ALL `resolve_method` calls (for every changed-signature method that
 is commonly overridden) simultaneously. These are independent of each other — firing them as a
 single batch cuts the total round trips dramatically for large version gaps.
+
+**Round 2b — Structural diff (when the user names a specific model):** Call
+`list_fields(model=<name>, odoo_version=<from_version>)` and
+`list_fields(model=<name>, odoo_version=<to_version>)` simultaneously, then diff the results
+to surface field additions and removals between the two versions. Do the same with
+`list_views(model=<name>, odoo_version=<from_version>)` vs
+`list_views(model=<name>, odoo_version=<to_version>)` to identify view-level structural
+changes. These four calls are all independent — fire them as a single batch alongside Round 2.
 
 Categorize findings by impact:
    - **Module developer** changes (APIs used in `_inherit` classes, model definitions)
@@ -87,6 +95,12 @@ explaining the magnitude: Python 2→3 rewrite, decorator removal, frontend fram
 
 ### Era migration (if cross-era)
 <Explanation of the broader migration work required beyond API changes>
+
+### Structural diff — `<model>` (when model-specific diff requested)
+**Fields added:** `<field1>`, `<field2>` …
+**Fields removed:** `<field3>` …
+**Views added:** `<view_id>` (<type>) …
+**Views removed:** `<view_id>` …
 
 ### Feature highlights (business value — for marketers)
 - **<Feature>**: <business-language description>

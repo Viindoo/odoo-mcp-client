@@ -13,7 +13,7 @@ description: >
 CEO / CTO / Project Manager
 
 ## MCP tools
-`check_module_exists`, `resolve_model`, `impact_analysis`
+`check_module_exists`, `resolve_model`, `impact_analysis`, `describe_module`
 
 ## Context
 
@@ -46,6 +46,19 @@ independent. Result: classify each module as Standard (exclude), Viindoo, or Cus
 **Round 2 — Parallel:** Call `resolve_model` for ALL Viindoo + Custom modules simultaneously.
 For each, extract: the base Odoo model being extended, up to 5 most important custom fields,
 and whether key methods are overridden. These calls are independent of each other.
+
+**Round 2.5 — Per-module architecture drill-down (parallel):** For each Viindoo or Custom module
+that the executive wants to understand more deeply, call `describe_module(name, odoo_version)`.
+This returns a concise tree showing the module's manifest metadata, which models it defines vs
+extends, and counts of views and JS patches — giving the executive a one-glance architecture
+picture without reading source code. Fire all `describe_module` calls in parallel (one per module
+of interest). The tree output is ~10–15 lines per module and is safe to include verbatim in the
+inventory report.
+
+Example — understanding `custom_loyalty` on Odoo 17:
+```
+describe_module(name="custom_loyalty", odoo_version="17.0")
+```
 
 **Round 3 — Parallel:** Call `impact_analysis` for modules flagged as high-usage or high-risk
 based on Round 2 results. Fire all high-risk `impact_analysis` calls in one batch.
