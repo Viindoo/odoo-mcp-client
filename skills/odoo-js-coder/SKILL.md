@@ -18,7 +18,7 @@ description: >
 Developer
 
 ## MCP tools (odoo-semantic)
-`find_examples`, `suggest_pattern`, `find_override_point`, `api_version_diff`, `lookup_core_api`
+`find_examples`, `suggest_pattern`, `find_override_point`, `api_version_diff`, `lookup_core_api`, `list_js_patches`
 
 ## Additional tools (ollama-delegate)
 `mcp__ollama-delegate__generate_code`, `mcp__ollama-delegate__explain_code`
@@ -49,8 +49,31 @@ always prefer these over what you know from training when there is a conflict.
 
 ## Instructions
 
-Work in four sequential rounds. Rounds 1 and 2 each contain parallel calls — fire them in the
+Work in five sequential rounds. Rounds 2 and 3 each contain parallel calls — fire them in the
 same message to save round-trips.
+
+### Round 0 — Discover existing JS patches (before writing anything)
+
+When patching or extending an existing widget, JS module, or client action, first call
+`list_js_patches` to see the patch chain that already exists. This prevents writing a conflicting
+or duplicate patch. Two calling patterns:
+
+- **By target file** (when you know what you're patching):
+  ```
+  list_js_patches(target="web/static/src/views/list/list_controller.js", odoo_version="12.0")
+  ```
+- **By module** (when auditing all patches in a module):
+  ```
+  list_js_patches(module="sale_management", odoo_version="12.0")
+  ```
+
+**Era awareness** — the `era` parameter filters by JS era:
+- `era1` — v8–v13: `openerp.define(…)` / `odoo.define(…)` AMD modules, `Widget.include({…})`
+- `era2` — v14–v16: hybrid era, `odoo.define(…)` still dominant but `patch()` utility introduced
+- `era3` — v17+: ES module `import`/`export` with OWL `patch()` (redirect to odoo-owl-coder)
+
+If the existing patch chain has 3+ entries, warn the user about conflict risk before generating
+more patches. Skip this round entirely for brand-new widget creation (no existing target).
 
 ### Round 1 — Version check + real examples (parallel)
 
@@ -74,6 +97,8 @@ find_override_point(model_or_component="<WidgetClass>", method_or_hook="<method>
 ```
 
 This reveals the exact class and hook to inherit/patch, including any existing override chain.
+The patch chain discovered in Round 0 feeds into this — if `list_js_patches` already showed the
+override path, you may skip `find_override_point` and use that data directly.
 Skip this round entirely for greenfield widget creation.
 
 ### Round 3 — Generate boilerplate via ollama-delegate

@@ -13,7 +13,7 @@ description: >
 CEO / CTO / Project Sponsor
 
 ## MCP tools
-`find_deprecated_usage`, `impact_analysis`, `check_module_exists`, `resolve_model`
+`find_deprecated_usage`, `impact_analysis`, `check_module_exists`, `resolve_model`, `describe_module`
 
 ## Context
 
@@ -50,9 +50,12 @@ Use parallel MCP calls — steps 1, 2, and 3 are fully independent. Fire them si
 custom fields known from context) + `check_module_exists` (for all custom module dependencies)
 all at once. None of these depend on each other's results.
 
-**Round 2:** Call `resolve_model` on the most heavily customized models identified from Round 1
-results. If hotspot models are already known from the user's context, include `resolve_model`
-calls in Round 1 as well to reduce to a single round.
+**Round 2 — Parallel:** Call `resolve_model` on the most heavily customized models identified
+from Round 1 results. Simultaneously call `describe_module(name=<module>, odoo_version=<version>)`
+for each custom module in scope — this surfaces JS patch counts, view counts, and models
+defined/extended, which the executive table needs. Both calls are independent; fire them
+together. If hotspot models are already known from context, include `resolve_model` calls in
+Round 1 as well to reduce to a single round.
 
 Focus `impact_analysis` on fields referenced by many other modules (high `used_by` count).
 Count BREAKING vs WARN severity from `find_deprecated_usage` results.
@@ -70,9 +73,9 @@ the data. Always close with a one-sentence recommended action tied to the highes
 **Target upgrade version:** <version or "Not specified">
 **Modules assessed:** <N>
 
-| Module | Type | Deprecated APIs | High-impact fields | Upgrade risk | Priority |
-|--------|------|:---------------:|:------------------:|:------------:|:--------:|
-| ...    | Custom/Viindoo | ... | ... | Low/Med/High | 1/2/3 |
+| Module | Type | Deprecated APIs | JS patches | Views | High-impact fields | Upgrade risk | Priority |
+|--------|------|:---------------:|:----------:|:-----:|:------------------:|:------------:|:--------:|
+| ...    | Custom/Viindoo | ... | ... | ... | ... | Low/Med/High | 1/2/3 |
 
 ### Key findings
 - <finding 1 — most important risk with module name>

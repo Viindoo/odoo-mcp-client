@@ -18,7 +18,7 @@ description: >
 Developer
 
 ## MCP tools (odoo-semantic)
-`find_examples`, `suggest_pattern`, `find_override_point`, `api_version_diff`, `lookup_core_api`
+`find_examples`, `suggest_pattern`, `find_override_point`, `api_version_diff`, `lookup_core_api`, `list_owl_components`, `list_qweb_templates`
 
 ## Additional tools (ollama-delegate)
 `mcp__ollama-delegate__generate_code`, `mcp__ollama-delegate__explain_code`
@@ -77,14 +77,25 @@ breaking changes between the two versions before generating anything.
 
 When the version is ambiguous, default to **v17** (OWL 2.x) and state the assumption.
 
-### Step 2 — Gather examples and override point (parallel)
+### Step 2 — Discover existing components/templates + gather examples (parallel)
 
-Run both simultaneously — they are independent:
+Before writing any code, discover what already exists in the target module to avoid naming
+collisions or duplicating a component that's already there. Run all of the following
+simultaneously — they are all independent:
 
-1. `find_examples(query="OWL component <feature> Odoo v<N>")` — finds real code using the same
+1. `list_owl_components(module=<module>, odoo_version=<N>)` — enumerates OWL components defined
+   in the module (v15+ only; returns empty with a warning for v8–v13). Use this to check whether
+   the component you intend to write or patch already exists under a slightly different name.
+   If you also want to filter by model binding, pass `bound_model` — but note this resolution is
+   heuristic. When the filtered result is empty, fall back to calling without `bound_model` to
+   see all components in the module.
+2. `list_qweb_templates(module=<module>, odoo_version=<N>)` — enumerates QWeb template IDs
+   registered in the module. Use this to verify the exact template name before writing an XPath
+   override and to avoid duplicate `t-name` definitions.
+3. `find_examples(query="OWL component <feature> Odoo v<N>")` — finds real code using the same
    hook, registry, or patch pattern from the indexed codebase. Trust this output for import
    paths.
-2. `find_override_point(component, hook)` — only when patching or extending an existing Odoo
+4. `find_override_point(component, hook)` — only when patching or extending an existing Odoo
    component (e.g. `SaleOrderForm`, `FormController`, a field widget). Skip when creating a
    brand-new component from scratch.
 

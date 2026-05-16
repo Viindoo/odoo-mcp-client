@@ -13,7 +13,7 @@ description: >
 Developer
 
 ## MCP tools
-`find_override_point`, `resolve_method`, `suggest_pattern`, `resolve_model`
+`list_methods`, `find_override_point`, `resolve_method`, `suggest_pattern`, `resolve_model`
 
 ## Context
 
@@ -43,11 +43,27 @@ codebase. If MCP says a method's override chain has 4 entries but training knowl
 
 ## Instructions
 
-**Round 1 — Parallel:** Call `resolve_model` + `find_override_point` simultaneously. Both take
+**Round 1 — Enumerate methods (before drilling in):** Call `list_methods(model, odoo_version)`
+to get the full list of methods on the target model with their override counts. This step is
+critical when the user describes *behavior* they want to change (e.g. "when an invoice is
+confirmed") but hasn't named the exact method yet — the enumeration surfaces the candidate names
+and shows which methods already have overrides in the stack. Pick the best candidate method from
+this list before proceeding.
+
+Example:
+```
+list_methods(model="account.move", odoo_version="17.0")
+```
+
+Output rows look like `action_post : 6 overrides` — a count ≥ 3 is a conflict-risk signal.
+
+If the user has already named an exact method, you may skip this round and go directly to Round 2.
+
+**Round 2 — Parallel:** Call `resolve_model` + `find_override_point` simultaneously. Both take
 the model and method name from the user's request — they are independent of each other.
 
-**Round 2 — Parallel:** Call `resolve_method` + `suggest_pattern` simultaneously. Both can be
-formulated after Round 1 and are independent of each other. `resolve_method` reveals the override
+**Round 3 — Parallel:** Call `resolve_method` + `suggest_pattern` simultaneously. Both can be
+formulated after Round 2 and are independent of each other. `resolve_method` reveals the override
 chain; `suggest_pattern` recommends the correct Odoo pattern. Different scenarios call for different patterns:
    - Business logic change → `_inherit` + `super()` override
    - New computed value → `@api.depends` compute field
