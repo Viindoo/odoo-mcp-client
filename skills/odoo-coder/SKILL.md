@@ -1,24 +1,48 @@
 ---
 name: odoo-coder
 description: >
-  Write complete, production-ready Python/XML Odoo backend code. Use this skill any time a
-  developer wants to generate or extend Odoo backend features — even if they describe the
-  business requirement without using technical terms. Trigger for: tạo computed field, viết
-  onchange, thêm SQL constraint, tạo model mới, viết form view, viết unit test, tạo security
-  rule, viết migration script, implement create/write override, thêm field vào model, write a
-  computed field for, create a new model, add a method to, implement business logic in Odoo,
-  viết code Odoo, làm thế nào để thêm trường, tôi muốn tạo model mới, how to create an Odoo
-  model, write ORM query, create XML view for model. Also trigger when someone describes an
-  Odoo business rule they want to enforce, a calculation they want to automate, or a UI change
-  they want to make on an Odoo form — these are always backend code tasks even without explicit
-  technical vocabulary.
+  Write complete, production-ready Python/XML Odoo backend code — from a single computed
+  field up to a full new module. Use this skill ANY time someone asks for backend changes to
+  an Odoo addon, even if they only describe the business outcome ("khách muốn lock đơn hàng
+  khi tổng > 100 triệu", "I need to auto-fill the delivery address from the partner") and
+  never mention "code", "field", "model", or "Python". Pushy trigger: if the request involves
+  changing what an Odoo record stores, how it computes a value, what it validates, who can
+  read or write it, how it appears on a form, or how it migrates between versions — this
+  skill should fire. Realistic phrases this should catch include "tạo computed field tính VAT
+  10%", "viết onchange cho field partner_id", "thêm SQL constraint unique theo công ty",
+  "tôi muốn tạo model wizard cho việc duyệt đơn", "add a stored field x to sale order line",
+  "override create method on res.partner so it sets default ref", "cần migration script chạy
+  khi nâng cấp từ v15 lên v17", "làm sao set required cho field này khi state = draft",
+  "create a server action that…", "viết unit test cho method này", "add a new model and
+  link it to sale.order via many2many", "khách yêu cầu thêm cột trên form…", "I want the
+  delivery date to default to today + 3 working days", "implement a domain filter that…",
+  plus business-rule descriptions with NO technical vocabulary at all (e.g. "discount can
+  never exceed 20% of unit price"). When the user is asking how to LOOK UP existing code
+  rather than write new code, route to odoo-feature-check or odoo-override-finder instead.
 ---
 
 ## Persona
 Developer
 
 ## MCP tools (odoo-semantic)
-`resolve_model`, `list_fields`, `resolve_field`, `suggest_pattern`, `find_examples`, `lint_check`, `lookup_core_api`
+At the start of each coding session, call `set_active_version(odoo_version='17.0')` (or
+whatever version the user is on) so every subsequent tool call inherits it — eliminates
+parameter repetition for the rest of the session.
+
+Primary inspection tools (v0.5.0 supersets — prefer these):
+
+- `model_inspect(model, method='fields' | 'methods' | 'views' | 'all')` — enumerate or fully
+  describe a model.
+- `entity_lookup(kind='field' | 'method' | 'view', …)` — drill into one specific entity
+  with its full inheritance chain and source module.
+- `suggest_pattern(query)` — canonical Odoo pattern catalogue (computed field, SQL
+  constraint, wizard, etc.).
+- `find_examples(query)` — real-world implementations from the indexed corpus.
+- `lint_check(code | method_name)` — deprecation + style detection.
+- `lookup_core_api(symbol)` — what Odoo core itself exposes for a given API surface.
+
+For bookmark-stable single-entity reads (works in IDE/chat bookmarks), the MCP Resource URI
+is also available: `odoo://17.0/model/sale.order`, `odoo://17.0/field/sale.order/amount_total`.
 
 ## Additional tools (ollama-delegate)
 `mcp__ollama-delegate__generate_code`, `mcp__ollama-delegate__complete_code`, `mcp__ollama-delegate__review_code`
@@ -27,8 +51,8 @@ Developer
 
 Writing Odoo code correctly from the start prevents costly refactors. The main failure modes are:
 
-- **Wrong field types or paths** — always call `resolve_field` before adding a Related or
-  inherited field; the source field type determines what yours must be.
+- **Wrong field types or paths** — always call `entity_lookup(kind='field', …)` before adding
+  a Related or inherited field; the source field type determines what yours must be.
 - **Stale compute cache** — `@api.depends` must list every field path accessed inside the
   compute method, including transitive paths (e.g. `order_line.product_id.categ_id`).
 - **Multi-company isolation** — SQL constraints and Python `@api.constrains` must scope to
@@ -55,15 +79,19 @@ constraint reasoning requires understanding of existing fields, or the override 
 
 Work in four rounds. Always fire parallel MCP calls within a round — they are independent.
 
+### Round 0 — Pin the version (once per session)
+
+`set_active_version(odoo_version='17.0')` — every subsequent tool call inherits this version.
+Skip if already set this session.
+
 ### Round 1 — Gather context (parallel)
 
 Call all three simultaneously:
-1. `resolve_model(model_name, odoo_version)` — get field list, method list, inheritance chain,
-   and `Defined in` module so you know the authoritative source.
-2. `list_fields(model=model_name, odoo_version=odoo_version)` — enumerate all fields currently
-   on the model to catch name conflicts before writing a new field. Compare against the new
-   field name the user wants to add; if a match exists, use `resolve_field` in Round 2 to
-   check type compatibility instead of declaring a duplicate.
+1. `model_inspect(model='<target_model>', method='all')` — one call returns field list,
+   method list, inheritance chain, views, and the authoritative source module.
+2. (Skipped — `model_inspect(method='all')` already covers field enumeration. Use
+   `model_inspect(method='fields')` separately only if you want JUST the field list and
+   nothing else.)
 3. `suggest_pattern(feature_description)` — get the canonical Odoo pattern for the feature
    type (computed field, SQL constraint, wizard, etc.).
 
@@ -71,10 +99,10 @@ If you do not yet know the target model name, ask the user before proceeding.
 
 ### Round 2 — Resolve specifics (parallel when both apply)
 
-- **Extending an existing field** → call `resolve_field(field_name, model_name, odoo_version)`
+- **Extending an existing field** → call `entity_lookup(kind='field', model='<model>', field='<name>')`
   to confirm type, whether it is stored/computed, and which module declares it.
-- **Overriding an existing method** → call `lint_check(method_name, odoo_version)` to detect
-  deprecated signatures (e.g. `@api.multi`, old-style `cr, uid` arguments).
+- **Overriding an existing method** → call `lint_check(method_name=…)` to detect deprecated
+  signatures (e.g. `@api.multi`, old-style `cr, uid` arguments).
 
 Both calls are independent — fire in parallel if the task requires both.
 
@@ -86,7 +114,7 @@ Choose based on complexity:
 ```
 mcp__ollama-delegate__generate_code(
     task="<precise feature description including field names and types from Rounds 1-2>",
-    context="<model class header + relevant fields from resolve_model output>"
+    context="<model class header + relevant fields from model_inspect output>"
 )
 ```
 
@@ -177,8 +205,12 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 **Example 1 — computed field:**
 Prompt: "tạo computed field `amount_vat` tính VAT 10% từ `amount_subtotal` trên `purchase.order`"
 
-- Round 1 (parallel): `resolve_model('purchase.order', '17.0')` → confirm `amount_subtotal` exists and is Float; `suggest_pattern('computed field monetary')` → get `@api.depends` + `currency_field` pattern.
-- Round 2: `resolve_field('amount_subtotal', 'purchase.order', '17.0')` → type=Monetary, currency via `currency_id`.
+- Round 0: `set_active_version('17.0')` (once per session).
+- Round 1 (parallel): `model_inspect(model='purchase.order', method='all')` → confirm
+  `amount_subtotal` exists and is Float; `suggest_pattern('computed field monetary')` → get
+  `@api.depends` + `currency_field` pattern.
+- Round 2: `entity_lookup(kind='field', model='purchase.order', field='amount_subtotal')` →
+  type=Monetary, currency via `currency_id`.
 - Round 3: `generate_code(task="Computed Monetary field amount_vat = amount_subtotal * 0.1 on purchase.order", context="class PurchaseOrder(models.Model): _inherit = 'purchase.order'\n  amount_subtotal: Monetary, currency_id: Many2one")`
 - Round 4: `review_code(…)` → confirm `@api.depends('amount_subtotal')` present, `currency_field='currency_id'` set.
 - Output: full Python class + XPath to add `amount_vat` after `amount_subtotal` in purchase form view.
@@ -186,14 +218,15 @@ Prompt: "tạo computed field `amount_vat` tính VAT 10% từ `amount_subtotal` 
 **Example 2 — SQL constraint:**
 Prompt: "add SQL constraint to prevent duplicate partner name within same company"
 
-- Round 1 (parallel): `resolve_model('res.partner', '17.0')` → confirm `company_id` field; `suggest_pattern('sql constraint unique multi-company')` → get pattern.
+- Round 1 (parallel): `model_inspect(model='res.partner', method='all')` → confirm
+  `company_id` field; `suggest_pattern('sql constraint unique multi-company')` → get pattern.
 - Round 3: `generate_code(task="SQL constraint unique (name, company_id) on res.partner", context="…")`
 - Output: `_sql_constraints` list with `UNIQUE(name, company_id)` + translated error message.
 
 **Example 3 — create override:**
 Prompt: "override `create` on `sale.order` to auto-assign a sequence ref from `ir.sequence`"
 
-- Round 1 (parallel): `resolve_model('sale.order', '17.0')` + `suggest_pattern('create override sequence')`.
-- Round 2: `lint_check('create', '17.0')` → confirm no deprecated signature.
+- Round 1 (parallel): `model_inspect(model='sale.order', method='all')` + `suggest_pattern('create override sequence')`.
+- Round 2: `lint_check('create')` → confirm no deprecated signature.
 - Round 3: Direct Claude (cross-model + `super()` position matters — must call `super().create(vals)` first, then update the returned record).
 - Round 4: `review_code(…)` → confirm `super()` present and `vals` not mutated after super call.

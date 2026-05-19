@@ -1,19 +1,46 @@
 ---
 name: odoo-override-finder
 description: >
-  Find the correct override point and pattern to extend Odoo behavior safely. Use this skill for:
-  find override point for method X, where to hook into sale order confirmation, best place to
-  extend partner creation, điểm override cho method X, override method Y ở module nào, tôi muốn
-  thêm logic vào lúc xác nhận đơn hàng, how to extend Odoo model, where to write my custom code.
-  Trigger any time a developer wants to add custom behavior to Odoo — even if they don't use the
-  word "override". If they say "I want to do X when Y happens in Odoo", use this skill.
+  Find the correct override point and pattern to extend Odoo behavior safely — including the
+  exact method name, the module/file where to add the override, a ready-to-paste code
+  template with proper `super()` call, the existing override chain (so you know who else is
+  touching this hook), and version-specific compatibility notes. Use this skill ANY time
+  someone wants to inject custom behavior into an existing Odoo flow, even when they only
+  describe the BEHAVIOR they want to change without naming a method. Pushy trigger: fire
+  whenever the request matches "I want to do X when Y happens in Odoo" — even informally.
+  Realistic phrases this should catch include "where to hook into sale order confirmation",
+  "khi xác nhận đơn hàng tao muốn chạy thêm validation", "best place to extend partner
+  creation", "I need to run my code when an invoice is posted", "muốn override
+  method gì để thay đổi giá khi tạo PO?", "extend the credit-limit check on customers",
+  "trước khi gửi email, tôi muốn chèn thêm logic", "after a purchase order is approved I
+  want to update a custom field", "what's the safest method to override for adding a
+  discount calculation?", "tôi muốn thêm bước duyệt trước khi confirm", "khi user click
+  nút post, override chỗ nào?", "where do I extend the picking validate flow?", "is there
+  already someone overriding this method?". When the user wants to CHECK if code looks
+  right rather than find a hook point, route to odoo-code-reviewer. When they want to know
+  what changed between versions (rather than where to extend), route to odoo-version-diff
+  or odoo-deprecation-audit.
 ---
 
 ## Persona
 Developer
 
 ## MCP tools
-`list_methods`, `find_override_point`, `resolve_method`, `suggest_pattern`, `resolve_model`
+At session start: `set_active_version(odoo_version=…)` so subsequent calls inherit it.
+
+Primary tools:
+- `model_inspect(model, method='methods')` — enumerate methods on the target model with
+  override counts before drilling in.
+- `find_override_point(model, method, …)` — where in the codebase to place a safe override.
+- `entity_lookup(kind='method', model=…, method=…)` — full override chain (which modules
+  override, in what order, with what change).
+- `model_inspect(model, method='all')` — confirm the model exists and surface neighboring
+  fields/methods that might be relevant context for the override.
+- `suggest_pattern(query)` — canonical Odoo extension pattern for the scenario (compute
+  field, write override, wizard, OWL patch, etc.).
+
+For bookmark-stable reference: `odoo://17.0/method/account.move/action_post` returns the
+method's full override chain as a stable URI.
 
 ## Context
 
@@ -37,34 +64,45 @@ Getting the override location wrong causes subtle, hard-to-debug issues:
 - **XML/QWeb:** Override via `xpath` in XML with `position="replace|before|after|attributes"` on
   `<template>` or `<record>` with `inherit_id`.
 
-**Data priority:** `find_override_point` and `resolve_method` results reflect the actual indexed
-codebase. If MCP says a method's override chain has 4 entries but training knowledge only knows
-2, trust MCP — it has the current state of all indexed repos.
+**Data priority:** `find_override_point` and `entity_lookup(kind='method')` results reflect
+the actual indexed codebase. If MCP says a method's override chain has 4 entries but training
+knowledge only knows 2, trust MCP — it has the current state of all indexed repos.
 
 ## Instructions
 
-**Round 1 — Enumerate methods (before drilling in):** Call `list_methods(model, odoo_version)`
-to get the full list of methods on the target model with their override counts. This step is
-critical when the user describes *behavior* they want to change (e.g. "when an invoice is
-confirmed") but hasn't named the exact method yet — the enumeration surfaces the candidate names
-and shows which methods already have overrides in the stack. Pick the best candidate method from
-this list before proceeding.
+### Round 0 — Pin the version
+
+`set_active_version(odoo_version=…)` once.
+
+### Round 1 — Enumerate methods (before drilling in)
+
+Call `model_inspect(model=…, method='methods')` to get the full list of methods on the target
+model with their override counts. This step is critical when the user describes *behavior*
+they want to change (e.g. "when an invoice is confirmed") but hasn't named the exact method
+yet — the enumeration surfaces the candidate names and shows which methods already have
+overrides in the stack. Pick the best candidate method from this list before proceeding.
 
 Example:
 ```
-list_methods(model="account.move", odoo_version="17.0")
+model_inspect(model="account.move", method="methods")
 ```
 
 Output rows look like `action_post : 6 overrides` — a count ≥ 3 is a conflict-risk signal.
 
 If the user has already named an exact method, you may skip this round and go directly to Round 2.
 
-**Round 2 — Parallel:** Call `resolve_model` + `find_override_point` simultaneously. Both take
-the model and method name from the user's request — they are independent of each other.
+### Round 2 — Parallel
 
-**Round 3 — Parallel:** Call `resolve_method` + `suggest_pattern` simultaneously. Both can be
-formulated after Round 2 and are independent of each other. `resolve_method` reveals the override
-chain; `suggest_pattern` recommends the correct Odoo pattern. Different scenarios call for different patterns:
+Call `model_inspect(model=…, method='all')` + `find_override_point(model=…, method=…)`
+simultaneously. Both take the model and method name from the user's request — they are
+independent of each other.
+
+### Round 3 — Parallel
+
+Call `entity_lookup(kind='method', model=…, method=…)` + `suggest_pattern` simultaneously.
+Both can be formulated after Round 2 and are independent of each other. `entity_lookup`
+reveals the full override chain; `suggest_pattern` recommends the correct Odoo pattern.
+Different scenarios call for different patterns:
    - Business logic change → `_inherit` + `super()` override
    - New computed value → `@api.depends` compute field
    - Pre/post hook → `create`/`write` override

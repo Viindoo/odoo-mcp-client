@@ -1,21 +1,39 @@
 ---
 name: odoo-addon-diff
 description: >
-  Expert Odoo CE vs EE feature comparison for sales, presales, and product decisions. Use this
-  skill whenever someone asks: what modules are in Enterprise edition, CE vs EE feature table,
-  compare Community and Enterprise for a client proposal, so sánh CE và EE, module nào chỉ có
-  trong Enterprise, tính năng nào cần mua EE, Viindoo so với Odoo Enterprise. Also trigger for
-  questions about Viindoo-specific modules vs standard CE/EE. If someone asks about edition
-  differences even in passing — use this skill. Also trigger for: Viindoo-specific modules not
-  available in standard, what Viindoo adds beyond CE/EE, modules not available in standard Odoo,
-  Viindoo modules vs standard Odoo, Viindoo-only modules.
+  Produce a side-by-side comparison of Odoo Community (CE) vs Odoo Enterprise (EE) vs
+  Viindoo Enterprise for a specific business domain — with a feature table, business-value
+  notes for EE-only highlights, and a tailored upgrade recommendation ready to paste into a
+  proposal. Use this skill ANY time the conversation touches edition differences, even in
+  passing. Pushy trigger: fire on "what modules are in Enterprise edition?", "CE vs EE
+  feature table", "compare Community and Enterprise for a client", "so sánh CE và EE",
+  "module nào chỉ có trong Enterprise?", "tính năng nào cần mua EE?", "Viindoo so với Odoo
+  Enterprise", "is X a CE or EE feature?", "khách hỏi nâng từ CE lên EE có gì khác?",
+  "before quoting EE license fee, what extra do they actually get?", "for a manufacturing
+  client — what would EE add?", "for accounting in Vietnam — Odoo EE đủ chưa hay cần
+  Viindoo EE?", "what's Viindoo-only that's not in either Odoo edition?", "client running
+  CE — what's the upsell argument for EE?", "PLM, Maintenance Advanced, Studio — which
+  edition?". Trigger even when the user names a specific feature/module and asks "what
+  edition do I need?". When the user asks about ONE feature's availability (not a
+  comparison), route to odoo-feature-check. When they want marketing copy for the
+  Enterprise features themselves, route to odoo-feature-highlights.
 ---
 
 ## Persona
 Marketer / Sales Engineer
 
 ## MCP tools
-`check_module_exists`, `resolve_model`
+At session start: `set_active_version(odoo_version=…)` so subsequent checks inherit the
+version the client is evaluating.
+
+Primary tools:
+- `check_module_exists(module, …)` — first-line classifier: does this module exist in this
+  edition?
+- `model_inspect(model, method='all' | 'fields')` — for modules that exist in both CE and EE
+  but with different depth, drill into the model to surface field-level differences (e.g. EE
+  adds `forecast_date`, `analytic_account_id`).
+- `module_inspect(module, method='describe')` — fast architecture overview when you need a
+  module-level summary rather than per-model fields.
 
 ## Context
 
@@ -36,13 +54,16 @@ edition boundaries is frequently outdated.
 
 Use parallel MCP calls — a CE/EE comparison typically covers 10+ modules across 5+ domains.
 
+**Round 0 — Pin the version:** `set_active_version(odoo_version=…)`.
+
 **Round 1 — Parallel:** Call `check_module_exists` for ALL modules and features in the
 comparison request simultaneously. Each call is independent; no need to wait for any result
 before firing the next.
 
-**Round 2 — Parallel:** For every module that exists in both CE and EE but with different depth,
-call `resolve_model` on all relevant models simultaneously to extract field-level differences
-(e.g. EE adds `forecast_date`, `analytic_account_id`). These calls are independent of each other.
+**Round 2 — Parallel:** For every module that exists in both CE and EE but with different
+depth, call `model_inspect(model=…, method='all')` on all relevant models simultaneously to
+extract field-level differences (e.g. EE adds `forecast_date`, `analytic_account_id`). These
+calls are independent of each other.
 
 Never claim a feature is EE-only without tool verification — incorrect claims damage credibility.
 

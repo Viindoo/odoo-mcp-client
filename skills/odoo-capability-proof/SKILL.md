@@ -1,22 +1,45 @@
 ---
 name: odoo-capability-proof
 description: >
-  Assemble concrete, evidence-backed proof that Odoo can fulfill a specific client requirement.
-  Use this skill whenever a sales engineer or consultant needs to demonstrate Odoo capability with
-  real code and module references — not marketing claims. Trigger for: prove Odoo can do X,
-  show capability evidence for requirement Y, demo material, chứng minh Odoo làm được X, bằng
-  chứng tính năng cho khách hàng, khách hàng hỏi Odoo có hỗ trợ tính năng X không. Even if the
-  user just says "does Odoo support X" and seems to want a convincing answer for a client — use
-  this skill to build the evidence package. Also trigger for: give me proof Odoo can do X, for
-  the demo, demo material for client, prove for the demo, evidence package for sales demo, bằng
-  chứng cho buổi demo.
+  Assemble an evidence-backed proof package that Odoo can fulfill a specific client
+  requirement — citing real module names, model fields, and code snippets from the indexed
+  codebase, not marketing claims. Use this skill ANY time a sales engineer, consultant, or
+  account manager needs to convince a skeptical client/prospect that "yes, Odoo really does
+  this — here's the proof". Pushy trigger: fire on "prove Odoo can do X", "show capability
+  evidence for requirement Y", "for the demo, give me proof that…", "demo material",
+  "chứng minh Odoo làm được X", "bằng chứng tính năng cho khách hàng", "khách hỏi Odoo có
+  hỗ trợ X không (tôi cần show được code)", "client doesn't believe Odoo handles Z — help
+  me build the evidence", "for the buy-side technical review, evidence of multi-currency
+  invoicing", "before the demo this Friday, package proof of approval workflows",
+  "trước buổi demo cho khách F&B — chứng minh Odoo làm được lot tracking",
+  "RFP response — need to back up every yes with module + code", "competitor said Odoo
+  can't do X — what's our counter-evidence?". Trigger especially when there's a deadline
+  signal ("for the demo", "before Friday", "in the RFP", "buổi demo tuần sau") because the
+  user needs real artifacts fast. When the user only wants a yes/no answer on availability
+  (no proof package needed), route to odoo-feature-check. When they're scoping MANY
+  requirements at once for a quote, route to odoo-gap-analysis.
 ---
 
 ## Persona
 Sales Engineer / Pre-sales Consultant
 
 ## MCP tools
-`find_examples`, `check_module_exists`, `resolve_model`, `resolve_method`
+At session start: `set_active_version(odoo_version=…)` so all evidence calls target the
+client's evaluation version.
+
+Primary tools:
+- `find_examples(query)` — real-world implementations of similar capability in the indexed
+  corpus; the most credible single piece of evidence (real production code beats marketing).
+- `check_module_exists(module, …)` — confirms the standard module exists in this version +
+  edition before naming it in the evidence table.
+- `model_inspect(model, method='all')` — exact field set on the model, useful for showing
+  the client "this is what Odoo actually stores".
+- `entity_lookup(kind='method', model=…, method=…)` — full override chain for method-level
+  requirements (e.g. "show me where Odoo lets you customize the invoice posting flow").
+
+For permalink-stable evidence to drop into proposals / RFPs:
+`odoo://17.0/model/account.move`, `odoo://17.0/field/account.move/currency_id`,
+`odoo://17.0/method/account.move/_post` — URIs survive reindex.
 
 ## Context
 
@@ -40,13 +63,16 @@ Capability verdicts:
 
 Use parallel MCP calls to build the evidence package quickly.
 
+**Round 0 — Pin the version:** `set_active_version(odoo_version=…)`.
+
 **Round 1 — Parallel:** Call `check_module_exists` + `find_examples` simultaneously.
 `find_examples` takes a semantic query derived directly from the requirement text — it does not
 need the module name from `check_module_exists`. Both can fire at the same time.
 
-**Round 2 — Parallel (if module found):** Call `resolve_model` + `resolve_method` simultaneously.
-`resolve_model` shows exact fields; `resolve_method` shows the override chain for method-level
-requirements. If the model name is already known from training knowledge, include these in Round 1.
+**Round 2 — Parallel (if module found):** Call `model_inspect(model=…, method='all')` +
+`entity_lookup(kind='method', model=…, method=…)` simultaneously. `model_inspect` shows
+exact fields; `entity_lookup` shows the override chain for method-level requirements. If the
+model name is already known from training knowledge, include these in Round 1.
 
 Never fabricate capabilities. If the feature doesn't exist, say so and propose the most credible
 workaround. When MCP results conflict with training knowledge (e.g. a module that training data
@@ -89,9 +115,11 @@ the actual indexed codebase.
 **Example 1:**
 Prompt: "prove Odoo can handle multi-currency invoicing for our prospect"
 Output: Verdict "Supported natively", evidence table citing `account.move` fields (`currency_id`,
-`amount_currency`, `currency_rate`), a real code example, and demo steps.
+`amount_currency`, `currency_rate`) from `model_inspect(model='account.move', method='all')`, a
+real code example, and demo steps.
 
 **Example 2:**
 Prompt: "chứng minh Odoo 17 hỗ trợ phê duyệt đa cấp cho đơn mua hàng"
-Output: Verdict with `purchase_stock` + `purchase` module evidence, `approve` method override chain,
-demo steps in Vietnamese context.
+Output: Verdict with `purchase_stock` + `purchase` module evidence,
+`entity_lookup(kind='method', model='purchase.order', method='button_approve')` override
+chain, demo steps in Vietnamese context.

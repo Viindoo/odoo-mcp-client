@@ -1,22 +1,46 @@
 ---
 name: odoo-feature-check
 description: >
-  Quickly determine whether a client requirement is covered by standard Odoo functionality —
-  and at what edition level (CE, Odoo EE, or Viindoo EE). Use this skill for: does Odoo have
-  module X built-in, check if feature Y exists in standard, is this available out of the box,
-  Odoo có sẵn tính năng X không, module X có trong Odoo CE không, tính năng này có cần custom
-  không, what does standard Odoo cover for requirement Z. Trigger any time a consultant or
-  developer needs to know "is this standard or custom" — even if the question is informal.
-  Prevents the expensive mistake of recommending custom development for features that already exist.
-  Also trigger for: tính năng X có trong Odoo không, có trong Odoo standard không, feature X có
-  trong Odoo CE không, does Odoo standard have X built-in.
+  Answer the question "does standard Odoo already do this?" with evidence — module name,
+  edition (CE / Odoo EE / Viindoo EE), key fields/models, and a one-line verdict ready for
+  a client email. Use this skill ANY time someone is checking ONE feature's availability,
+  even if they phrase it as a yes/no question or with no technical vocabulary at all. Pushy
+  trigger: if the user asks "does Odoo have…", "is X available out of the box?", "do we
+  need to build this or is it already there?", "tính năng X có sẵn không?", "Odoo CE có
+  module Y không?", "what edition do I need for Z?" — fire this skill before answering
+  from memory, because training data about Odoo modules drifts fast. Realistic phrases:
+  "does Odoo 17 have subscription billing built-in?", "Odoo có sẵn module quản lý tài sản
+  cố định không?", "is there a standard timesheet approval workflow?", "client asked if
+  Odoo handles SEPA direct debit out of the box", "khách hỏi có sẵn báo cáo VAS không?",
+  "do we need EE for accounting localization?", "tính năng X có cần custom không?",
+  "module Y có trong CE không?", "what's the standard way Odoo does X?". Use this when
+  the user is asking about ONE feature/module; when they list MANY requirements at once
+  route to odoo-gap-analysis instead. When they want to see real source-code examples of
+  X being used, route to odoo-feature-highlights or odoo-capability-proof.
 ---
 
 ## Persona
 Consultant / Developer
 
 ## MCP tools
-`check_module_exists`, `describe_module`, `resolve_model`, `find_examples`, `suggest_pattern`
+At session start: `set_active_version(odoo_version='17.0')` so subsequent calls inherit
+the version.
+
+Primary tools:
+- `check_module_exists(module, …)` — first-line signal: does the module exist in this
+  version at all?
+- `module_inspect(module, method='describe')` — full architecture overview when the module
+  exists (manifest summary, model count, view count, JS patch count).
+- `module_inspect(module, method='fields' | 'views')` — drill into what the module actually
+  declares, when a yes/no answer isn't enough.
+- `model_inspect(model, method='all')` — full schema of the primary model in one call.
+- `find_examples(query)` — real-world usage of similar features, useful when the module
+  exists but you want concrete evidence of coverage.
+- `suggest_pattern(query)` — canonical pattern when partial coverage means an Extension is
+  needed.
+
+For bookmark-stable evidence to paste into proposals/emails:
+`odoo://17.0/module/account_asset` gives the module's full architecture as a stable URI.
 
 ## Context
 
@@ -41,21 +65,25 @@ data about specific Odoo module names and versions is frequently outdated.
 
 ## Instructions
 
+**Round 0 — Pin the version (once):** `set_active_version(odoo_version=…)`.
+
 **Round 1 — Parallel:** Call `check_module_exists` + `find_examples` simultaneously.
 `find_examples` takes a semantic query from the requirement text and does not need the
 module check result. Both are independent — fire together.
 
-**Round 2 — Parallel (after Round 1):** Call `resolve_model` (needs module/model name from
-Round 1) + `suggest_pattern` simultaneously. `suggest_pattern` can be formulated from the
-requirement even if Round 1 shows partial coverage — they are independent of each other.
+**Round 2 — Parallel (after Round 1):** Call `model_inspect(model=…, method='all')` (needs
+module/model name from Round 1) + `suggest_pattern` simultaneously. `suggest_pattern` can
+be formulated from the requirement even if Round 1 shows partial coverage — they are
+independent of each other.
 
 **Round 3 — Deep dive (when `check_module_exists` confirms presence):** Call
-`describe_module(name=<module_name>, odoo_version=<version>)` to surface the module's full
+`module_inspect(module=<name>, method='describe')` to surface the module's full
 architecture: manifest summary, which models it defines vs extends, view count, and JS patch
 count. This gives the consultant a confident, evidence-backed answer about what the module
 actually covers — beyond the bare "exists / does not exist" signal. If the module is confirmed
-to exist, also consider drilling into specifics with `list_fields` or `list_views` in a
-subsequent call if the client asks about exact field coverage.
+to exist, also consider drilling into specifics with `module_inspect(method='fields')` or
+`module_inspect(method='views')` in a subsequent call if the client asks about exact field
+or view coverage.
 
 **Verdict levels:**
 - `Available in CE` — standard, zero cost
@@ -84,7 +112,7 @@ Always cite the exact module name so clients can verify independently.
 ### Evidence
 - **Module:** `<module_name>`
 - **Primary model:** `<model_name>`
-- **Module scope:** <N> models defined, <N> models extended, <N> views, <N> JS patches (from describe_module)
+- **Module scope:** <N> models defined, <N> models extended, <N> views, <N> JS patches (from module_inspect describe)
 - **Key fields:** `<field1>`, `<field2>` — <what they implement>
 - **Example:** <brief description from find_examples>
 
@@ -107,5 +135,6 @@ Viindoo has `viin_sale_subscription` covering similar needs.
 
 **Example 2:**
 Prompt: "Odoo 17 có sẵn module quản lý tài sản cố định không?"
-Output: `account_asset` exists in EE, not CE. Viindoo EE has `viin_account_asset`. Resolve model
-shows key fields. Recommendation in Vietnamese context.
+Output: `account_asset` exists in EE, not CE. Viindoo EE has `viin_account_asset`.
+`model_inspect(model='account.asset', method='all')` shows key fields. Recommendation in
+Vietnamese context.
