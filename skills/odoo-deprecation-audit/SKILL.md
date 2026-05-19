@@ -1,18 +1,43 @@
 ---
 name: odoo-deprecation-audit
 description: >
-  Systematic audit of deprecated Odoo API usage in a codebase to prepare for version upgrade.
-  Use this skill whenever someone needs to find deprecated code before upgrading Odoo, audit API
-  usage for a migration, check upgrade readiness, kiểm tra deprecated API, chuẩn bị upgrade Odoo,
-  tìm code cũ trước khi nâng cấp, migration readiness check. Trigger even for informal questions
-  like "is our code ready for v17" or "what will break when we upgrade".
+  Systematic audit of deprecated Odoo API usage in a codebase before a version upgrade —
+  finds every `@api.multi`, `osv.osv`, `_columns`, `web.Widget`, `fields.Html` and other
+  era-specific APIs that will break or warn in the target version, grouped by file with the
+  exact replacement and urgency level (BREAKING / WARN / STYLE). Use this skill ANY time
+  someone is preparing for, considering, or planning an Odoo version migration — even
+  informally. Pushy trigger: fire whenever the conversation touches "upgrade", "migration",
+  "nâng cấp", "is our code ready for v17?", "what will break when we move from 14 to 17?",
+  "chuẩn bị migrate", "audit before upgrade", "code cũ trước khi nâng cấp", "upgrade
+  readiness check", "khách định nâng lên Odoo 17 — bao nhiêu module cần sửa?", "we still
+  have @api.multi everywhere", "ir.values is still used in our addons", "tìm code OpenERP
+  còn sót lại trong repo", "OWL migration needed?", "from v12 to v16 — what's the breaking
+  list?", "client running v8 wants to upgrade to v17 — feasible?". Trigger even when the user
+  doesn't use the word "deprecation" — if the goal is "before upgrade", that's this skill's
+  job. When the user asks ONLY what changed between two versions (without auditing their
+  code), route to odoo-version-diff instead. When they want to write fresh upgrade-safe
+  code in the target version, route to odoo-coder.
 ---
 
 ## Persona
 Developer / Tech Lead
 
 ## MCP tools
-`find_deprecated_usage`, `api_version_diff`, `lookup_core_api`, `resolve_method`, `list_js_patches`
+At session start: `set_active_version(odoo_version=<source_version>)` so subsequent calls
+inherit the source version of the codebase being audited (the migration TARGET version is
+passed explicitly to `api_version_diff`).
+
+Primary tools:
+- `find_deprecated_usage(pattern, …)` — scans the indexed codebase for usages of a deprecated
+  symbol.
+- `api_version_diff(symbol, from_version, to_version)` — version-to-version delta for a core
+  API (e.g. `fields.Char` signature changes).
+- `lookup_core_api(symbol)` — confirm whether a symbol still exists in the target version and
+  what replaced it if not.
+- `entity_lookup(kind='method', model=…, method=…)` — drill into a specific method's
+  signature changes across versions.
+- `module_inspect(module, method='patches')` — enumerate `web.Widget`-era JS patches that
+  need OWL rewrites.
 
 ## Context
 
@@ -36,14 +61,16 @@ Odoo deprecation happens in layers:
   `_inherits` patterns deprecated. Python 3.10+ required.
 - **v17+**: `float_round` deprecation, `tools.config` partial changes, OWL 2.x stable.
 
-**Data priority:** MCP tool results are ground truth. If `find_deprecated_usage` or `api_version_diff`
-returns a symbol that training knowledge says is still valid, trust the MCP result — it reflects
-the actually indexed codebase. Supplement MCP data with training knowledge for business context
-and effort estimation.
+**Data priority:** MCP tool results are ground truth. If `find_deprecated_usage` or
+`api_version_diff` returns a symbol that training knowledge says is still valid, trust the
+MCP result — it reflects the actually indexed codebase. Supplement MCP data with training
+knowledge for business context and effort estimation.
 
 ## Instructions
 
 Use parallel MCP calls to minimize round trips — the full audit can complete in 3 rounds.
+
+**Round 0 — Pin the source version:** `set_active_version(odoo_version=<source_version>)`.
 
 **Round 1 — Parallel:** Call `find_deprecated_usage` + `api_version_diff` simultaneously.
 These are completely independent: one scans the codebase, the other fetches the version spec.
@@ -52,16 +79,16 @@ No dependency between them.
 **Round 2 — Parallel:** Merge the symbol lists from Round 1. Call `lookup_core_api` for ALL
 deprecated/removed symbols in one batch. Every call is independent — fire them all together.
 
-**Round 3 — Parallel:** Call `resolve_method` for ALL changed-signature methods simultaneously.
-These calls are independent of each other and of Round 2 lookups.
+**Round 3 — Parallel:** Call `entity_lookup(kind='method', …)` for ALL changed-signature
+methods simultaneously. These calls are independent of each other and of Round 2 lookups.
 
 **Round 3b — JS patch audit (when migrating from v8–v13):** Call
-`list_js_patches(odoo_version=<source_version>, era='era1')` to enumerate all legacy
-`web.Widget`-based patches in scope. Era1 covers v8–v13; these patches require manual OWL
-rewrites because the Widget API was removed in v16. Flag each patch as BREAKING if the target
-version is v14+ and the patch still references `AbstractField`, `FieldWidget`, or
-`web.Widget`. This call is independent of Rounds 1–3 — fire it in parallel with Round 3 if
-both apply.
+`module_inspect(module=<scope>, method='patches')` (or query by `era='era1'` at the tool
+level if applicable) to enumerate all legacy `web.Widget`-based patches in scope. Era1
+covers v8–v13; these patches require manual OWL rewrites because the Widget API was removed
+in v16. Flag each patch as BREAKING if the target version is v14+ and the patch still
+references `AbstractField`, `FieldWidget`, or `web.Widget`. This call is independent of
+Rounds 1–3 — fire it in parallel with Round 3 if both apply.
 
 Capture file, line, symbol name, and deprecation message from Round 1 results; merge with
 Round 2 replacement info before building the output table.

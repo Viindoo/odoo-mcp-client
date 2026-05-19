@@ -1,24 +1,47 @@
 ---
 name: odoo-owl-coder
 description: >
-  Write complete OWL (Owl Web Library) component code for Odoo v15+. Use this skill whenever
-  a developer needs JavaScript or frontend code for Odoo version 15 or newer — even if they
-  describe it in plain language without technical terms. Trigger for: tạo OWL component, viết
-  patch() cho Odoo 15 16 17 18 19, client action OWL, useService useStore useEnv, useState
-  useRef onMounted, t-component t-call t-if, field_registry action_registry component_registry
-  OWL, OWL 2.x, OWL template, Odoo frontend v15+, viết giao diện Odoo 15 16 17 18 mới, OWL
-  component for Odoo, create an OWL component, patch a service, write a client action in OWL,
-  customize field widget in Odoo 17, t-model t-on-click t-out, registry.category(), JavaScript
-  Odoo 15 16 17 18 19 20, modern Odoo JS. Always trigger when the developer mentions OWL,
-  patch(), useService, t-component, field widget customization, or any Odoo JS for v15+, even
-  if they don't use the word "OWL" explicitly — any modern Odoo frontend request qualifies.
+  Write complete, production-ready OWL (Owl Web Library) component code for Odoo v15+ —
+  fully assembled with `/** @odoo-module **/` header, correct `patch()` syntax for the
+  target OWL era, registry registration, separate template XML when appropriate, and
+  `__manifest__.py` assets entry. Use this skill ANY time the user needs Odoo frontend JS
+  for v15 or newer — even when they describe it in plain language without saying "OWL".
+  Pushy trigger: fire on "tạo OWL component", "viết patch() cho Odoo 15/16/17/18/19",
+  "client action OWL", "useService useState useRef", "t-component t-if", "field widget
+  customization in Odoo 17", "patch the sale order form", "custom button on form view",
+  "Odoo v17 frontend JS", "JavaScript Odoo v15 v16 v17 v18 v19", "viết giao diện Odoo
+  modern", "register a new field widget", "tôi muốn thêm nút trên form sale order trong
+  Odoo 17", "show partner avatar inside Many2one widget", "patch FormController", "extend
+  ListController", "create dashboard view for sale.order stats", "OWL 2.x lifecycle hook
+  example", "use registry.category to register…", "client action that fetches data via
+  useService('orm')", "Odoo 17 reaction to state change in component". When the user is
+  asking about Odoo v8–v14 JavaScript (`odoo.define()`, `Widget`, `AbstractField`,
+  `FieldChar`), redirect to **odoo-js-coder** because OWL didn't exist before v15. When
+  they ask about backend Python/XML rather than frontend, route to odoo-coder.
 ---
 
 ## Persona
 Developer
 
 ## MCP tools (odoo-semantic)
-`find_examples`, `suggest_pattern`, `find_override_point`, `api_version_diff`, `lookup_core_api`, `list_owl_components`, `list_qweb_templates`
+At session start: `set_active_version(odoo_version='17.0')` (or the version the user is on)
+so every subsequent inspection call inherits it — eliminates parameter repetition.
+
+Primary tools:
+- `module_inspect(module, method='owl')` — enumerate OWL components defined in the module
+  (v15+ only). Use this to check whether the component you intend to write or patch already
+  exists.
+- `module_inspect(module, method='qweb')` — enumerate QWeb template IDs registered in the
+  module. Use to verify exact template names before writing an XPath override and to avoid
+  duplicate `t-name` definitions.
+- `find_examples(query)` — real production code using the same hook, registry, or patch
+  pattern. Trust this for import paths.
+- `suggest_pattern(query)` — canonical OWL pattern catalogue.
+- `find_override_point(component, hook)` — when patching or extending an existing Odoo
+  component (e.g. `SaleOrderForm`, `FormController`, a field widget).
+- `api_version_diff(scope, from_version, to_version)` — surface OWL 1.x → 2.x breaking
+  changes when porting code between v15 and v16+.
+- `lookup_core_api(symbol)` — authoritative hook + registry API details.
 
 ## Additional tools (ollama-delegate)
 `mcp__ollama-delegate__generate_code`, `mcp__ollama-delegate__explain_code`
@@ -83,15 +106,12 @@ Before writing any code, discover what already exists in the target module to av
 collisions or duplicating a component that's already there. Run all of the following
 simultaneously — they are all independent:
 
-1. `list_owl_components(module=<module>, odoo_version=<N>)` — enumerates OWL components defined
-   in the module (v15+ only; returns empty with a warning for v8–v13). Use this to check whether
-   the component you intend to write or patch already exists under a slightly different name.
-   If you also want to filter by model binding, pass `bound_model` — but note this resolution is
-   heuristic. When the filtered result is empty, fall back to calling without `bound_model` to
-   see all components in the module.
-2. `list_qweb_templates(module=<module>, odoo_version=<N>)` — enumerates QWeb template IDs
-   registered in the module. Use this to verify the exact template name before writing an XPath
-   override and to avoid duplicate `t-name` definitions.
+1. `module_inspect(module=<module>, method='owl')` — enumerates OWL components defined in the
+   module (v15+ only; returns empty with a warning for v8–v13). Use this to check whether the
+   component you intend to write or patch already exists under a slightly different name.
+2. `module_inspect(module=<module>, method='qweb')` — enumerates QWeb template IDs registered
+   in the module. Use this to verify the exact template name before writing an XPath override
+   and to avoid duplicate `t-name` definitions.
 3. `find_examples(query="OWL component <feature> Odoo v<N>")` — finds real code using the same
    hook, registry, or patch pattern from the indexed codebase. Trust this output for import
    paths.

@@ -1,19 +1,39 @@
 ---
 name: odoo-version-diff
 description: >
-  Produce a comprehensive diff of API and feature changes between two Odoo versions (v8 through
-  v19+). Use this skill for: what changed between Odoo 16 and 17, new API in version 17, breaking
-  changes in upgrade, API nào thay đổi từ v16 sang v17, tính năng mới Odoo 17, what's different
-  in this version, migration guide between versions, what was removed in v13, what's new for
-  developers in v16. Trigger for developer questions about version differences and for marketer
-  questions about "what's new" — this skill serves both audiences with separate sections.
+  Produce a comprehensive diff of API + feature changes between two Odoo versions (v8 →
+  v19+), split into a developer track (added/removed/deprecated/changed signatures with
+  migration notes) and a marketer track (business-language feature highlights). Use this
+  skill ANY time someone is comparing two Odoo versions — whether they want a migration
+  plan, marketing talking points, or just to understand what's new. Pushy trigger: fire on
+  "what changed between v16 and v17?", "new in Odoo 17", "tính năng mới Odoo 17", "API nào
+  thay đổi từ v16 sang v17", "v18 release notes for developers", "what was removed in v13?",
+  "Odoo 14 vs Odoo 16 for our team", "from v12 to v16 — diff", "what's the headline news in
+  v18 for marketing?", "client running v15 — what would v17 give them?", "khách hỏi sự khác
+  biệt giữa v16 và v17", "Odoo 19 có gì mới?", "is the v17 ORM faster?", "between which
+  versions did OWL become default?", "khi nào @api.multi bị remove?". This skill serves
+  BOTH developer and marketer questions — the developer section is in source-level English,
+  the marketer section is in business-value language. When the user asks to audit THEIR
+  code for deprecation (not just see the version-to-version delta), route to
+  odoo-deprecation-audit. When they want to migrate one specific model field-by-field,
+  route to odoo-coder with the field list.
 ---
 
 ## Persona
 Developer + Marketer
 
 ## MCP tools
-`api_version_diff`, `lookup_core_api`, `resolve_method`, `list_fields`, `list_views`
+At session start: `set_active_version(odoo_version=…)` for the FROM version (subsequent
+inspection calls inherit it; the diff tool itself takes both versions explicitly).
+
+Primary tools:
+- `api_version_diff(symbol | scope, from_version, to_version)` — the core symbol-level delta.
+- `lookup_core_api(symbol)` — confirms existence + signature of a symbol in a given version.
+- `entity_lookup(kind='method', model=…, method=…)` — drill into a specific method's
+  signature changes.
+- `model_inspect(model, method='fields')` — enumerate fields in one version for diffing
+  against the same call in another version.
+- `model_inspect(model, method='views')` — same, for views.
 
 ## Context
 
@@ -46,17 +66,17 @@ the indexed versions. Use training knowledge for era-level historical context (P
 list for all subsequent calls.
 
 **Round 2 — Parallel:** After Round 1, batch ALL `lookup_core_api` calls (for every Removed /
-Changed signature symbol) + ALL `resolve_method` calls (for every changed-signature method that
-is commonly overridden) simultaneously. These are independent of each other — firing them as a
-single batch cuts the total round trips dramatically for large version gaps.
+Changed signature symbol) + ALL `entity_lookup(kind='method', …)` calls (for every
+changed-signature method that is commonly overridden) simultaneously. These are independent
+of each other — firing them as a single batch cuts the total round trips dramatically for
+large version gaps.
 
 **Round 2b — Structural diff (when the user names a specific model):** Call
-`list_fields(model=<name>, odoo_version=<from_version>)` and
-`list_fields(model=<name>, odoo_version=<to_version>)` simultaneously, then diff the results
-to surface field additions and removals between the two versions. Do the same with
-`list_views(model=<name>, odoo_version=<from_version>)` vs
-`list_views(model=<name>, odoo_version=<to_version>)` to identify view-level structural
-changes. These four calls are all independent — fire them as a single batch alongside Round 2.
+`model_inspect(model=<name>, method='fields', odoo_version=<from_version>)` and
+`model_inspect(model=<name>, method='fields', odoo_version=<to_version>)` simultaneously,
+then diff the results to surface field additions and removals between the two versions. Do
+the same with `model_inspect(method='views', …)` to identify view-level structural changes.
+These four calls are all independent — fire them as a single batch alongside Round 2.
 
 Categorize findings by impact:
    - **Module developer** changes (APIs used in `_inherit` classes, model definitions)

@@ -1,24 +1,44 @@
 ---
 name: odoo-js-coder
 description: >
-  Write complete JavaScript/QWeb code for Odoo v8-14 legacy widget system. Use this skill
-  whenever a developer asks for JavaScript or frontend code targeting Odoo versions 8 through 14,
-  OR mentions any of: tạo widget tùy chỉnh, viết field widget cho Odoo 8-14, override ListView
-  controller, tạo client action bằng web.Widget, QWeb template, js field override, AbstractField
-  subclass, create a JavaScript widget, customize a field in Odoo 10, write a widget for Odoo 12,
-  define.js pattern, odoo.define(), require(), widget include, inherit web.Widget, field_registry,
-  JS action manager, deferred/promise chain, RPC call this._rpc, Odoo JS v8 to v14, viết JS cho
-  Odoo 8 đến 14, giao diện Odoo cũ, legacy widget, QWeb2 template, JavaScript Odoo không dùng OWL.
-  Trigger even when the user does not explicitly say "legacy" — if the target Odoo version is 8–14
-  or they mention odoo.define()/require()/web.Widget without specifying OWL, always use this skill.
-  If the user asks for v15+, redirect to the odoo-owl-coder skill instead.
+  Write complete JavaScript/QWeb code for the Odoo v8–v14 legacy widget system — full
+  `odoo.define(…)` module, `web.Widget`/`AbstractField` subclasses or `.include()` patches,
+  QWeb XML template, and the `__manifest__.py` registration block (`assets` dict for v10+,
+  `qweb` list for v8/v9). Use this skill ANY time someone needs frontend JS for Odoo
+  versions 8 through 14, even when they describe the behavior in plain language. Pushy
+  trigger: fire on "tạo widget tùy chỉnh", "viết field widget cho Odoo 8/10/11/12/13/14",
+  "override ListView controller", "tạo client action bằng web.Widget", "QWeb template",
+  "AbstractField subclass for selection field", "customize a field in Odoo 10", "write a
+  widget for Odoo 12", "odoo.define() pattern", "Widget.include({…})", "field_registry
+  add", "deferred chain replace with Promise?", "RPC call this._rpc(model, method, args)",
+  "JS action manager", "viết JS cho Odoo 8 đến 14", "giao diện Odoo cũ", "legacy widget",
+  "QWeb2 template", "JavaScript Odoo không dùng OWL", "color picker widget cho field
+  selection trong Odoo 12", "add total row at bottom of list view in v11", "dashboard
+  client action with chart for Odoo 13". Trigger even when the user does NOT say "legacy"
+  — if the target version is v8–v14 OR they mention `odoo.define()`/`require()`/`web.Widget`
+  without saying OWL, this is the skill. When the user asks for v15+ JS, redirect to
+  **odoo-owl-coder** because `web.Widget` was removed in v16.
 ---
 
 ## Persona
 Developer
 
 ## MCP tools (odoo-semantic)
-`find_examples`, `suggest_pattern`, `find_override_point`, `api_version_diff`, `lookup_core_api`, `list_js_patches`
+At session start: `set_active_version(odoo_version=<version>)` so subsequent inspection
+calls inherit the legacy version target.
+
+Primary tools:
+- `module_inspect(module, method='patches')` — enumerate JS patches (`Widget.include` /
+  `patch()`) already registered in the module or against a specific target.
+- `find_examples(query)` — real production code using the same widget/registry pattern from
+  the indexed codebase. Trust this for import paths.
+- `suggest_pattern(query)` — canonical legacy widget pattern catalogue.
+- `find_override_point(component, hook)` — exact class + hook to extend, with existing
+  override chain.
+- `api_version_diff(scope, from_version, to_version)` — surface JS API breaking changes
+  between two legacy versions.
+- `lookup_core_api(symbol)` — authoritative API details for `AbstractField`, `Widget`,
+  registry helpers.
 
 ## Additional tools (ollama-delegate)
 `mcp__ollama-delegate__generate_code`, `mcp__ollama-delegate__explain_code`
@@ -52,22 +72,22 @@ always prefer these over what you know from training when there is a conflict.
 Work in five sequential rounds. Rounds 2 and 3 each contain parallel calls — fire them in the
 same message to save round-trips.
 
-### Round 0 — Discover existing JS patches (before writing anything)
+### Round 0 — Pin version + discover existing JS patches (before writing anything)
 
-When patching or extending an existing widget, JS module, or client action, first call
-`list_js_patches` to see the patch chain that already exists. This prevents writing a conflicting
-or duplicate patch. Two calling patterns:
+`set_active_version(odoo_version=<version>)` once.
 
-- **By target file** (when you know what you're patching):
-  ```
-  list_js_patches(target="web/static/src/views/list/list_controller.js", odoo_version="12.0")
-  ```
+When patching or extending an existing widget, JS module, or client action, call
+`module_inspect(module=…, method='patches')` to see the patch chain that already exists. This
+prevents writing a conflicting or duplicate patch. Two calling patterns:
+
+- **By target file** (when you know what you're patching): pass the target file path as part
+  of the query; the tool filters patches whose target matches.
 - **By module** (when auditing all patches in a module):
   ```
-  list_js_patches(module="sale_management", odoo_version="12.0")
+  module_inspect(module="sale_management", method="patches")
   ```
 
-**Era awareness** — the `era` parameter filters by JS era:
+**Era awareness** — JS patches divide into eras:
 - `era1` — v8–v13: `openerp.define(…)` / `odoo.define(…)` AMD modules, `Widget.include({…})`
 - `era2` — v14–v16: hybrid era, `odoo.define(…)` still dominant but `patch()` utility introduced
 - `era3` — v17+: ES module `import`/`export` with OWL `patch()` (redirect to odoo-owl-coder)
@@ -80,8 +100,8 @@ more patches. Skip this round entirely for brand-new widget creation (no existin
 Determine the Odoo version from the user's message or ask if ambiguous. Then fire both calls
 simultaneously:
 
-- `api_version_diff(from_version="8.0", to_version="<N>.0")` — surfaces breaking JS API changes
-  the user's version introduced relative to the baseline (skip if version is 8 or 9).
+- `api_version_diff(scope, from_version="8.0", to_version="<N>.0")` — surfaces breaking JS API
+  changes the user's version introduced relative to the baseline (skip if version is 8 or 9).
 - `find_examples(query="<user feature> widget pattern Odoo <N>")` — retrieves real code from the
   indexed codebase that uses the pattern closest to what the user wants.
 
@@ -97,8 +117,8 @@ find_override_point(model_or_component="<WidgetClass>", method_or_hook="<method>
 ```
 
 This reveals the exact class and hook to inherit/patch, including any existing override chain.
-The patch chain discovered in Round 0 feeds into this — if `list_js_patches` already showed the
-override path, you may skip `find_override_point` and use that data directly.
+The patch chain discovered in Round 0 feeds into this — if `module_inspect(method='patches')`
+already showed the override path, you may skip `find_override_point` and use that data directly.
 Skip this round entirely for greenfield widget creation.
 
 ### Round 3 — Generate boilerplate via ollama-delegate

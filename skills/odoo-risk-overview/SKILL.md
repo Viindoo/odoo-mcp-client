@@ -1,19 +1,45 @@
 ---
 name: odoo-risk-overview
 description: >
-  Produce an executive-level risk overview of an organization's Odoo customizations — where
-  technical debt and upgrade risk are concentrated. Use this skill for: give me a risk overview of
-  our Odoo customization, what's the upgrade risk for our system, business risk report for Odoo
-  changes, tổng quan rủi ro customization Odoo, báo cáo rủi ro upgrade, chúng ta có bao nhiêu rủi
-  ro khi nâng cấp Odoo, đánh giá rủi ro trước khi thay đổi hệ thống. Trigger for any C-level
-  or manager question about Odoo health, upgrade readiness, or "how risky is it to change X".
+  Produce an executive-level Odoo risk dashboard — quantifying upgrade risk (deprecated API
+  counts), change blast radius (how widely a field/method is depended on), and dependency
+  health (custom modules vs Viindoo vs Standard) into a one-page summary a CEO or CTO can
+  act on. Use this skill ANY time a manager, sponsor, or executive asks about Odoo system
+  health, upgrade readiness, or "how risky is it to change X?". Pushy trigger: fire on
+  "give me a risk overview of our Odoo customization", "what's the upgrade risk for our
+  system?", "business risk report for Odoo changes", "tổng quan rủi ro customization Odoo",
+  "báo cáo rủi ro upgrade", "đánh giá rủi ro trước khi thay đổi hệ thống", "is it safe to
+  upgrade to v17?", "before the board meeting on Thursday, summarize our Odoo upgrade
+  risk", "for the year-end sponsor review — how exposed are we to migration debt?",
+  "how risky is changing the credit limit logic on res.partner?", "what's the blast radius
+  if we deprecate field X?", "auditor asked about technical debt in our ERP — give me
+  numbers", "C-level wants to know if we should freeze customization until we upgrade",
+  "khách sắp ra quyết định upgrade — risk thế nào?", "before we commit budget for
+  migration, what's the risk picture?". Trigger especially when the user mentions a
+  deadline or decision context ("board meeting", "before we commit", "đánh giá lại", "RFP
+  due") because executives need numbers fast. When the user wants a per-line technical
+  audit of deprecated APIs (not an executive summary), route to odoo-deprecation-audit.
+  When they want module-by-module business inventory, route to odoo-customization-inventory.
 ---
 
 ## Persona
 CEO / CTO / Project Sponsor
 
 ## MCP tools
-`find_deprecated_usage`, `impact_analysis`, `check_module_exists`, `resolve_model`, `describe_module`
+At session start: `set_active_version(odoo_version=<current_version>)` and
+`set_active_profile(profile_name=…)` — both sticky 24h, so the risk report consistently
+targets the same customer baseline.
+
+Primary tools:
+- `find_deprecated_usage(pattern, …)` — counts and locates deprecated API usage; drives the
+  "Deprecated APIs" column.
+- `impact_analysis(symbol | field | model)` — measures change blast radius (how many other
+  modules / fields / methods depend on a hotspot field).
+- `check_module_exists(module, …)` — dependency health check per custom module.
+- `model_inspect(model, method='all')` — drill into the most-customized models to surface
+  field-level dependencies for the table.
+- `module_inspect(module, method='describe')` — per-module architecture (manifest, models
+  defined/extended, view + JS-patch counts).
 
 ## Context
 
@@ -46,16 +72,19 @@ Use training knowledge for interpreting business impact and recommending remedia
 
 Use parallel MCP calls — steps 1, 2, and 3 are fully independent. Fire them simultaneously.
 
+**Round 0 — Pin version + profile:** `set_active_version(...)` + `set_active_profile(...)`.
+
 **Round 1 — Parallel:** Call `find_deprecated_usage` + `impact_analysis` (on highest-usage
 custom fields known from context) + `check_module_exists` (for all custom module dependencies)
 all at once. None of these depend on each other's results.
 
-**Round 2 — Parallel:** Call `resolve_model` on the most heavily customized models identified
-from Round 1 results. Simultaneously call `describe_module(name=<module>, odoo_version=<version>)`
-for each custom module in scope — this surfaces JS patch counts, view counts, and models
-defined/extended, which the executive table needs. Both calls are independent; fire them
-together. If hotspot models are already known from context, include `resolve_model` calls in
-Round 1 as well to reduce to a single round.
+**Round 2 — Parallel:** Call `model_inspect(model=…, method='all')` on the most heavily
+customized models identified from Round 1 results. Simultaneously call
+`module_inspect(module=<name>, method='describe')` for each custom module in scope — this
+surfaces JS patch counts, view counts, and models defined/extended, which the executive
+table needs. Both calls are independent; fire them together. If hotspot models are already
+known from context, include `model_inspect` calls in Round 1 as well to reduce to a single
+round.
 
 Focus `impact_analysis` on fields referenced by many other modules (high `used_by` count).
 Count BREAKING vs WARN severity from `find_deprecated_usage` results.

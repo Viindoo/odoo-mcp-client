@@ -1,20 +1,45 @@
 ---
 name: odoo-objection-handler
 description: >
-  Craft evidence-based responses to client objections about Odoo's capabilities. Use this skill
-  for: handle objection that Odoo can't do X, counter argument for limitation concern, respond to
-  "Odoo doesn't support Y", phản bác lo ngại về tính năng X, xử lý phản đối từ khách hàng,
-  khách hàng nói Odoo không làm được, how to respond when client doubts Odoo. Also trigger for
-  competitive objections like "SAP does X better" or "we heard Odoo doesn't handle Z well".
-  Even if the user just says "the client said Odoo is bad at X" — use this skill to build a
-  response.
+  Craft evidence-based responses to client objections about Odoo's capabilities — using the
+  ACA framework (Acknowledge / Counter / Affirm) backed by indexed-codebase evidence rather
+  than marketing claims. Output includes a ready-to-paste verbatim response paragraph. Use
+  this skill ANY time a sales engineer, account executive, or pre-sales consultant needs to
+  push back on a doubt or competitive claim about Odoo. Pushy trigger: fire on "handle the
+  objection that Odoo can't do X", "counter for the limitation concern about Y", "respond
+  to 'Odoo doesn't support Z'", "phản bác lo ngại về tính năng X", "khách hàng nói Odoo
+  không làm được", "competitor said SAP/Microsoft does X better", "we heard Odoo doesn't
+  handle Y well", "khách phản đối Odoo về…", "prospect doubts Odoo can do multi-level
+  approvals", "client says Odoo's reporting is weak — counter for me", "trước buổi meeting
+  thứ Sáu, giúp tôi chuẩn bị phản hồi cho lo ngại về…", "RFP scoring tool gave Odoo low on
+  X — defend", "competitor pitch said Odoo can't scale beyond 100 users — fact-check",
+  "rep is on the call and the client just said 'Odoo's accounting isn't VAS-compliant'",
+  "I need a confident answer for Friday's QA session — they'll ask about lot tracking".
+  Trigger especially when there's an URGENCY signal ("for the meeting today", "client is
+  on the call", "RFP due tomorrow"). When the objection requires proof artifacts (code +
+  modules + demo steps), route to odoo-capability-proof. When user simply wants to know if
+  a feature exists (not defend it), route to odoo-feature-check.
 ---
 
 ## Persona
 Sales Engineer / Account Executive
 
 ## MCP tools
-`check_module_exists`, `find_examples`, `suggest_pattern`, `resolve_model`
+At session start: `set_active_version(odoo_version=…)` so the rebuttal targets the client's
+evaluation version.
+
+Primary tools:
+- `check_module_exists(module, …)` — first-line truth check: is the objection actually
+  factual?
+- `find_examples(query)` — real production code that demonstrates the capability the client
+  doubts.
+- `suggest_pattern(query)` — when the feature requires a small customization, name the
+  canonical pattern + effort estimate.
+- `model_inspect(model, method='all')` — exact field set to back up "yes, Odoo really
+  stores this".
+
+For permalinks the rep can drop into chat in real-time during a call:
+`odoo://17.0/model/account.move`, `odoo://17.0/module/sale_subscription` — stable URIs.
 
 ## Context
 
@@ -44,10 +69,13 @@ was uncertain, use the MCP result to counter the objection with confidence.
 
 ## Instructions
 
-**Round 1 — Parallel:** Call `check_module_exists` + `find_examples` + `resolve_model`
-simultaneously. All three are independent — `find_examples` uses the objection text as its
-semantic query and doesn't need the module check result; `resolve_model` uses the known model
-name from training knowledge or the objection text.
+**Round 0 — Pin the version:** `set_active_version(odoo_version=…)`.
+
+**Round 1 — Parallel:** Call `check_module_exists` + `find_examples` +
+`model_inspect(model=…, method='all')` simultaneously. All three are independent —
+`find_examples` uses the objection text as its semantic query and doesn't need the module
+check result; `model_inspect` uses the known model name from training knowledge or the
+objection text.
 
 **Round 2 (conditional):** Call `suggest_pattern` only if Round 1 confirms the feature requires
 customization. If the feature exists natively (`check_module_exists` returns CE or EE hit),
@@ -69,7 +97,7 @@ editing. Keep it professional but conversational.
 |--------------|--------|--------|
 | Module exists | `<module_name>` — <edition> | `check_module_exists` |
 | Code example | <description of what it demonstrates> | `find_examples` |
-| Key fields | `<field1>`, `<field2>` on `<model>` | `resolve_model` |
+| Key fields | `<field1>`, `<field2>` on `<model>` | `model_inspect` |
 | Extension pattern | <pattern name, ~N days effort> | `suggest_pattern` |
 
 ### Talking points
@@ -96,5 +124,6 @@ extension); code example of multi-level approval; talking points; verbatim respo
 
 **Example 2:**
 Prompt: "khách hàng nói Odoo không có kế toán theo chuẩn Việt Nam (VAS)"
-Output: Counter: Viindoo `viin_account_vat` + `l10n_vn` modules exist; resolve model shows
-VAS-specific fields; verbatim response in Vietnamese noting Viindoo Enterprise solution.
+Output: Counter: Viindoo `viin_account_vat` + `l10n_vn` modules exist;
+`model_inspect(model='account.move', method='all')` shows VAS-specific fields; verbatim
+response in Vietnamese noting Viindoo Enterprise solution.

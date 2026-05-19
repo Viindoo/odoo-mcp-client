@@ -1,22 +1,42 @@
 ---
 name: odoo-feature-highlights
 description: >
-  Generate marketing-friendly feature highlights for a specific Odoo or Viindoo version, suitable
-  for sales decks, blog posts, announcements, or product comparisons. Use this skill for: highlight
-  new features in Odoo 17, what's exciting in this version, feature comparison for sales deck,
-  tính năng nổi bật Odoo 17, nêu điểm mạnh so với phiên bản trước, what's new for customers in
-  this release, viết nội dung marketing về tính năng Odoo. Trigger whenever someone needs
-  business-language descriptions of technical Odoo improvements — even if they say "just summarize
-  what's new" without mentioning marketing. Also trigger for: ngôn ngữ kinh doanh, cho khách hàng
-  marketing, tóm tắt cho sales deck, business language summary, customer-facing release notes,
-  ngôn ngữ kinh doanh cho khách hàng.
+  Generate marketing-friendly feature highlights for a specific Odoo or Viindoo version —
+  ready for sales decks, blog posts, product announcements, release notes, or competitive
+  comparisons. Output is business-language by default (with a separate technical-notes
+  appendix for developers). Use this skill ANY time someone needs to talk about "what's
+  new" or "what's exciting" in an Odoo/Viindoo release for an audience that isn't reading
+  source code. Pushy trigger: fire on "highlight new features in Odoo 17", "what's
+  exciting in this version?", "feature comparison for sales deck", "tính năng nổi bật Odoo
+  17", "nêu điểm mạnh so với phiên bản trước", "what's new for customers in this release?",
+  "viết nội dung marketing về tính năng Odoo", "blog post about Viindoo 17", "release
+  notes in Vietnamese for our customers", "release notes for non-developers", "khách hỏi
+  Odoo 17 có gì hot — tóm tắt giúp", "for the newsletter — what to feature about Odoo 18?",
+  "competitive talk track — why upgrade from v15 to v17?", "headline value of v18 vs
+  SAP/Microsoft for accounting", "summarize what's new for customers", "talking points for
+  Friday's sales pitch". Trigger even when the user says "just summarize what's new" without
+  mentioning marketing — that's still this skill. When the user asks for source-level
+  developer diff (signatures, removed APIs), route to odoo-version-diff. When they want
+  proof Odoo can do a SPECIFIC capability they care about, route to odoo-capability-proof.
 ---
 
 ## Persona
 Marketer / Product Manager
 
 ## MCP tools
-`api_version_diff`, `find_examples`, `resolve_model`, `check_module_exists`
+At session start: `set_active_version(odoo_version=<target_release_version>)` so subsequent
+calls use the release version being highlighted (the diff tool itself takes both versions
+explicitly).
+
+Primary tools:
+- `api_version_diff(scope, from_version, to_version)` — the symbol-level delta driving the
+  highlight selection.
+- `find_examples(query)` — real-world implementations to ground each highlight in actual
+  shipped code rather than spec text.
+- `model_inspect(model, method='all')` — headline-feature key models, surfaces field set for
+  business-language description.
+- `check_module_exists(module, …)` — confirms a module being highlighted is actually present
+  in the target version.
 
 ## Context
 
@@ -50,10 +70,10 @@ historical context, but never assert a feature "was added in v17" without MCP co
 **Round 1:** Call `api_version_diff` first — this drives which features to highlight.
 
 **Round 2 — Parallel:** After Round 1 results arrive, call `find_examples` (for top impactful
-models: `sale.order`, `account.move`, `mrp.production`, `hr.leave`) + `resolve_model` (for
-headline feature key models) + `check_module_exists` (for all modules being highlighted) all
-simultaneously. None of these depend on each other — batch them in one round to cut total
-latency from 4 sequential calls to 2 total rounds.
+models: `sale.order`, `account.move`, `mrp.production`, `hr.leave`) +
+`model_inspect(model=…, method='all')` (for headline feature key models) + `check_module_exists`
+(for all modules being highlighted) all simultaneously. None of these depend on each other —
+batch them in one round to cut total latency from 4 sequential calls to 2 total rounds.
 
 **Writing rules:**
 - Lead with business outcomes, not technical mechanisms
