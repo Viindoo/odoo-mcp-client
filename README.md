@@ -1,9 +1,9 @@
 # Odoo MCP Client
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://github.com/Viindoo/odoo-semantic-mcp)
+[![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://github.com/Viindoo/odoo-semantic-server)
 
-> MIT-licensed client layer for **[odoo-semantic-mcp](https://github.com/Viindoo/odoo-semantic-mcp)** (AGPL-3.0).
+> MIT-licensed client layer for **[odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-server)** (AGPL-3.0).
 > A Claude Code plugin — plus IDE snippets — that brings Odoo codebase intelligence
 > (inheritance chains, field impact, pattern catalogue, upgrade paths) into your AI coding workflow.
 
@@ -12,7 +12,7 @@ persona-specific skills, 2 orchestration agents, a `connect` command, and ready-
 MCP config for several AI tools. All knowledge and computation live in the Odoo Semantic
 MCP server — query it at the hosted instance
 [`odoo-semantic.viindoo.com`](https://odoo-semantic.viindoo.com) or
-[self-host the server](https://github.com/Viindoo/odoo-semantic-mcp).
+[self-host the server](https://github.com/Viindoo/odoo-semantic-server).
 
 ## Quick install (Claude Code — 3 steps, all required)
 
@@ -96,6 +96,8 @@ Antigravity) and `snippets/` for copy-ready configs:
 | Cursor | [`snippets/cursor-mcp.json`](snippets/cursor-mcp.json) (server config) + [`snippets/cursor-rules.md`](snippets/cursor-rules.md) (routing rules) |
 | ChatGPT Custom GPT | [`snippets/openai-gpt-instructions.md`](snippets/openai-gpt-instructions.md) |
 | Google Gemini Gem | [`snippets/gemini-gem-instructions.md`](snippets/gemini-gem-instructions.md) |
+| Continue.dev | [`snippets/continue-dev-mcp.yaml`](snippets/continue-dev-mcp.yaml) (MCP server config) |
+| JetBrains AI Assistant | [`snippets/jetbrains-mcp-config.md`](snippets/jetbrains-mcp-config.md) (setup guide) |
 
 ## Requirements
 
@@ -119,10 +121,10 @@ SHA-pinning pipeline, and the DCO sign-off requirement.
 | Layer | Repository | License |
 |-------|------------|---------|
 | Client (this repo) — plugin, skills, agents, snippets | `Viindoo/odoo-mcp-client` | MIT |
-| Server — indexer, Neo4j graph, pgvector, MCP server, web UI | [`Viindoo/odoo-semantic-mcp`](https://github.com/Viindoo/odoo-semantic-mcp) | AGPL-3.0-or-later |
+| Server — indexer, Neo4j graph, pgvector, MCP server, web UI | [`Viindoo/odoo-semantic-server`](https://github.com/Viindoo/odoo-semantic-server) | AGPL-3.0-or-later |
 
 Deploy/operate the backend: see the
-[server deploy guide](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/deploy.md).
+[server deploy guide](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/deploy.md).
 
 ## License
 
