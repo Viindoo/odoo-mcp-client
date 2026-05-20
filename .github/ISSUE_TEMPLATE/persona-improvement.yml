@@ -1,0 +1,44 @@
+name: Persona guide improvement
+description: Something in a persona quick-start guide is unclear, missing, or wrong.
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Persona guides live in [`docs/personas/`](../blob/master/docs/personas/).
+        Use this form to flag unclear wording, missing examples, outdated tool names, or suggested additions.
+
+  - type: dropdown
+    id: persona
+    attributes:
+      label: Which persona guide?
+      options:
+        - CEO (docs/personas/ceo.md)
+        - Developer (docs/personas/dev.md)
+        - Consultant (docs/personas/consultant.md)
+        - Marketer (docs/personas/marketer.md)
+        - Sales (docs/personas/sales.md)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-is-unclear
+    attributes:
+      label: What is unclear or missing?
+      description: Quote the section or describe what you expected to find.
+      placeholder: "e.g. The 'Standard Development Workflow' section doesn't explain what to do when set_active_version is not available ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested-wording
+    attributes:
+      label: Suggested wording or addition
+      description: If you have a concrete suggestion, paste it here. Markdown welcome.
+      placeholder: "e.g. Add a note: 'If your server is older than v0.5 you can pass odoo_version= explicitly on every call.'"
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version you were reading
+      placeholder: "e.g. 0.5.0"

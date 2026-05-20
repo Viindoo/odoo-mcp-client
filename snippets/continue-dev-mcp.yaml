@@ -1,0 +1,21 @@
+# Continue.dev MCP server config — Odoo Semantic
+#
+# How to use:
+#   1. Replace <YOUR_API_KEY> with your key (format: osm_...).
+#   2. Paste the block below into your Continue.dev config file
+#      (~/.continue/config.yaml, or .continue/config.yaml at project root).
+#   3. Restart the Continue extension / reload window.
+#
+# NOTE: Continue.dev's MCP support is actively evolving. The field names below
+# (mcpServers, type, url, headers) reflect the HTTP-transport convention as of
+# early 2026.  Please verify the exact schema against the current Continue.dev
+# documentation before deploying: https://docs.continue.dev
+# If the schema has changed, open an issue at
+# https://github.com/Viindoo/odoo-mcp-client/issues so we can update this snippet.
+
+mcpServers:
+  - name: odoo-semantic
+    type: http
+    url: https://odoo-semantic.viindoo.com/mcp
+    headers:
+      X-API-Key: <YOUR_API_KEY>

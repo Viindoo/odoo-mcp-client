@@ -1,0 +1,70 @@
+name: Bug report
+description: Something in the plugin or a snippet is not working as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+        **Client bugs only** (plugin skills, connect command, snippets).
+        For server/indexer/graph bugs open an issue on [odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-server).
+
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Run `claude plugin list` and paste the version shown next to `odoo-semantic`.
+      placeholder: "e.g. 0.5.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ai-client
+    attributes:
+      label: AI client
+      description: Which AI tool are you using?
+      options:
+        - Claude Code
+        - Cursor
+        - Continue.dev
+        - JetBrains AI Assistant
+        - VS Code (manual MCP)
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug. Include any error messages, unexpected output, or tool call failures.
+      placeholder: "e.g. /odoo-semantic:connect exits without writing .mcp.json ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps to reproduce the bug reliably.
+      placeholder: |
+        1. Install plugin via `claude plugin install odoo-semantic@viindoo-plugins`
+        2. Run `/odoo-semantic:connect`
+        3. Enter a valid API key
+        4. Observe ...
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS / Claude Code version (if applicable)
+      placeholder: "e.g. macOS 15.3, Claude Code v2.1.140"
