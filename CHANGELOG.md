@@ -24,11 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Pre-split history. The plugin shipped as `dist/odoo-semantic-plugin/` inside the
   monolith repository. Full server-side changes for this period are recorded in the
-  [server CHANGELOG](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/CHANGELOG.md).
+  [server CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
 
 ## [0.3.x] - 2026-03-01
 
 - M7.5 persona-skill batch: the original 15-skill set and routing agents were
   introduced. See the
-  [server CHANGELOG](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/CHANGELOG.md)
+  [server CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md)
   for the detailed history.
