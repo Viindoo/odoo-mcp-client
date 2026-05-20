@@ -1,3 +1,7 @@
+---
+name: odoo-router
+description: Classifies an Odoo-related user message into exactly one MCP tool category (or none) and returns a confidence-scored JSON verdict without calling any tool.
+---
 # odoo-router
 
 **Model:** haiku
