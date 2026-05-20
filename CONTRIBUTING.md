@@ -2,7 +2,7 @@
 
 Thanks for your interest! This repo is the **MIT client layer** — plugin manifest,
 skills, agents, the connect command, and IDE snippets. The semantic backend lives in
-the separate AGPL [odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-server)
+the separate AGPL [odoo-semantic-mcp](https://github.com/Viindoo/odoo-semantic-mcp)
 repo; open server/indexer/graph issues there.
 
 ## Local development
@@ -21,7 +21,7 @@ make test
 
 You also need a running MCP server to exercise the tools end-to-end — point
 `/odoo-semantic:connect` at the hosted instance (`https://odoo-semantic.viindoo.com/mcp`)
-or a [self-hosted server](https://github.com/Viindoo/odoo-semantic-server).
+or a [self-hosted server](https://github.com/Viindoo/odoo-semantic-mcp).
 
 ## What lives where
 

@@ -1,3 +1,7 @@
+---
+name: odoo-upgrade-planner
+description: Produces a comprehensive Odoo version upgrade plan by orchestrating the MCP tools for API diffs, deprecated usage, module compatibility, and replacement APIs.
+---
 # odoo-upgrade-planner
 
 **Model:** sonnet

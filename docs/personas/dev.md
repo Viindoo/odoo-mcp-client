@@ -58,11 +58,11 @@ The full **28-tool arsenal (v0.5.0)**, optimized for development workflows. From
 | `list_qweb_templates` | `module_inspect(method='qweb')` | Still callable; deprecated banner. |
 | `list_js_patches` | `module_inspect(method='patches')` | Still callable; deprecated banner. |
 
-See the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md) for side-by-side examples.
+See the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/CHANGELOG.md) for side-by-side examples.
 
 ### MCP Resources (M11 Wave F — `odoo://` URI scheme)
 
-Read-only handles for bookmark-stable access. Use these when you already know the entity ID and want the canonical record without a tool call: `odoo://{version}/{kind}/{id}` where `kind` is one of `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`. See [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md).
+Read-only handles for bookmark-stable access. Use these when you already know the entity ID and want the canonical record without a tool call: `odoo://{version}/{kind}/{id}` where `kind` is one of `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`. See [ADR-0030](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md).
 
 ---
 

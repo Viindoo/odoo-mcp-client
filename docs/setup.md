@@ -317,7 +317,7 @@ Starting in v0.5.0 the MCP server supports **sticky session context** so you sto
 
 After step 2, calling `model_inspect(model="sale.order", method="all")` (no `odoo_version=` arg) returns results for `17.0`. Override at any time by passing `odoo_version=` explicitly on a single call (one-off; does **not** clear the sticky value).
 
-> See [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md) for the TTL design and per-key keying rationale.
+> See [ADR-0029](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/adr/0029-implicit-session-context.md) for the TTL design and per-key keying rationale.
 
 ---
 
@@ -343,7 +343,7 @@ odoo://17.0/field/sale.order/amount_total
 odoo://17.0/view/sale.view_order_form
 ```
 
-Clients that implement the MCP `resources/list` and `resources/read` flows surface these as bookmark-style references. See [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md) for the URI grammar and authorization model (same `X-API-Key` header as tool calls).
+Clients that implement the MCP `resources/list` and `resources/read` flows surface these as bookmark-style references. See [ADR-0030](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md) for the URI grammar and authorization model (same `X-API-Key` header as tool calls).
 
 ---
 
@@ -360,7 +360,7 @@ v0.5.0 ships **28 tools** (was 21 in v0.4.x). Three new **supersets** consolidat
 
 The 10 legacy tools still respond in v0.5 — they just emit a `DEPRECATED:` banner in the first line of the response pointing to the superset. Existing snippets keep working, but please plan the swap before v0.6 ships.
 
-**Full side-by-side migration guide:** the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
+**Full side-by-side migration guide:** the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/CHANGELOG.md).
 
 ---
 
@@ -389,4 +389,4 @@ Sau khi add xong, **gõ prompt tự nhiên** dưới đây vào AI tool — agen
 - Không thừa nhận đã gọi tool nào
 
 > 💡 **Self-host test trước khi prod**: thay `<MCP_URL>` bằng `http://127.0.0.1:8002/mcp`
-> và làm theo [Local E2E Quickstart](https://github.com/Viindoo/odoo-semantic-server/blob/master/CONTRIBUTING.md) để chạy MCP server local.
+> và làm theo [Local E2E Quickstart](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/CONTRIBUTING.md) để chạy MCP server local.
