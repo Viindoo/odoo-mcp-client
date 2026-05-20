@@ -1,8 +1,20 @@
-# Odoo Semantic Plugin for Claude Code
+# Odoo MCP Client
 
-A Claude Code plugin that brings Odoo codebase intelligence into your AI coding workflow. Adds 15 persona-specific skills, 2 orchestration agents, and a connect command powered by the Odoo Semantic MCP server.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://github.com/Viindoo/odoo-semantic-server)
 
-## Quick install (3 steps — all required)
+> MIT-licensed client layer for **[odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-server)** (AGPL-3.0).
+> A Claude Code plugin — plus IDE snippets — that brings Odoo codebase intelligence
+> (inheritance chains, field impact, pattern catalogue, upgrade paths) into your AI coding workflow.
+
+This repository ships **no semantic logic**. It is a thin integration surface: 15
+persona-specific skills, 2 orchestration agents, a `connect` command, and ready-to-paste
+MCP config for several AI tools. All knowledge and computation live in the Odoo Semantic
+MCP server — query it at the hosted instance
+[`odoo-semantic.viindoo.com`](https://odoo-semantic.viindoo.com) or
+[self-host the server](https://github.com/Viindoo/odoo-semantic-server).
+
+## Quick install (Claude Code — 3 steps, all required)
 
 Inside Claude Code, run:
 
@@ -26,6 +38,10 @@ Inside Claude Code, run:
 > planned"). The connect command verifies the server via `curl` and tells you
 > when to restart.
 
+You will need an **API key** (format `osm_…`) from your server admin or the
+[install page](https://odoo-semantic.viindoo.com/install/), and the **MCP server URL**
+(default `https://odoo-semantic.viindoo.com/mcp`).
+
 ## Available skills
 
 | Skill | Persona | Description |
@@ -46,6 +62,8 @@ Inside Claude Code, run:
 | `odoo-js-coder` | Developer | Legacy web client (v8–v14) JavaScript coder |
 | `odoo-owl-coder` | Developer | OWL framework (v15+) component coder |
 
+Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
+
 ## Available agents
 
 | Agent | Model | Role |
@@ -64,15 +82,26 @@ Interactive command that:
 2. Validates key format (`osm_...`)
 3. Registers the MCP server via `claude mcp add --scope user`
 4. Probes `/health` + `/mcp` with `curl` to verify server + key
-5. **Adds `mcp__odoo-semantic` to `permissions.allow` in `~/.claude/settings.json`** so every tool of this server (current 21 + future ones) is pre-approved — no more "Do you want to proceed?" prompts on every call. Idempotent, backs up the file before writing, refuses to overwrite invalid JSON, preserves every other key. Answer `n` at the prompt to skip (you can paste the snippet from [`docs/client-setup.md#claude-code-auto-trust`](../../docs/client-setup.md#claude-code-auto-trust) manually instead).
+5. **Adds `mcp__odoo-semantic` to `permissions.allow` in `~/.claude/settings.json`** so every tool of this server is pre-approved — no more "Do you want to proceed?" prompts on every call. Idempotent, backs up the file before writing, refuses to overwrite invalid JSON, preserves every other key. Answer `n` at the prompt to skip (you can paste the snippet from [`docs/setup.md#claude-code-auto-trust`](docs/setup.md#claude-code-auto-trust) manually instead).
 6. Tells you to restart Claude Code (required to load MCP tools)
+
+## Other AI tools
+
+The plugin is Claude Code only. For other tools, paste the matching MCP config — see
+[`docs/setup.md`](docs/setup.md) for full per-client walkthroughs (Codex, Gemini, VS Code,
+Antigravity) and `snippets/` for copy-ready configs:
+
+| Tool | Snippet |
+|------|---------|
+| Cursor | [`snippets/cursor-mcp.json`](snippets/cursor-mcp.json) (server config) + [`snippets/cursor-rules.md`](snippets/cursor-rules.md) (routing rules) |
+| ChatGPT Custom GPT | [`snippets/openai-gpt-instructions.md`](snippets/openai-gpt-instructions.md) |
+| Google Gemini Gem | [`snippets/gemini-gem-instructions.md`](snippets/gemini-gem-instructions.md) |
 
 ## Requirements
 
-- **Odoo Semantic MCP server URL** — `https://odoo-semantic.viindoo.com/mcp` (provided by your admin)
-- **API key** — format `osm_<alphanumeric>`, obtain from your server admin or via the `/install/` endpoint
+- **Odoo Semantic MCP server URL** — `https://odoo-semantic.viindoo.com/mcp` (or your self-hosted server)
+- **API key** — format `osm_<alphanumeric>`, obtain from your server admin or the [install page](https://odoo-semantic.viindoo.com/install/)
 - Claude Code with MCP support (tested on v2.1.140)
-
 
 ## For contributors — local dev install
 
@@ -81,3 +110,22 @@ Test changes from a checkout without going through the marketplace:
 ```bash
 claude --plugin-dir ./
 ```
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full plugin-dev workflow, the release /
+SHA-pinning pipeline, and the DCO sign-off requirement.
+
+## Relationship to the server
+
+| Layer | Repository | License |
+|-------|------------|---------|
+| Client (this repo) — plugin, skills, agents, snippets | `Viindoo/odoo-mcp-client` | MIT |
+| Server — indexer, Neo4j graph, pgvector, MCP server, web UI | [`Viindoo/odoo-semantic-server`](https://github.com/Viindoo/odoo-semantic-server) | AGPL-3.0-or-later |
+
+Deploy/operate the backend: see the
+[server deploy guide](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/deploy.md).
+
+## License
+
+MIT — see [LICENSE](LICENSE) and [NOTICE](NOTICE). Brand assets in `branding/` are
+trademarks of Viindoo Technology JSC and are not covered by the MIT grant — see
+[`branding/TRADEMARK.md`](branding/TRADEMARK.md).

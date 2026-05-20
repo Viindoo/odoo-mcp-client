@@ -54,7 +54,7 @@ fails to load.
    Ask the user: `Auto-allow every mcp__odoo-semantic__* tool in ~/.claude/settings.json? [Y/n]`.
    Default `Y`. If the user answers `n` / `no` / `skip`, skip to step 6 and
    tell them they can re-run `/odoo-semantic:connect` later, or paste the
-   snippet from `docs/client-setup.md#claude-code-auto-trust` manually.
+   snippet from `docs/setup.md#claude-code-auto-trust` manually.
 
    On `Y`, run the following exact block with the `Bash` tool. It edits
    `~/.claude/settings.json` (NOT `~/.claude.json`), preserves every other key,

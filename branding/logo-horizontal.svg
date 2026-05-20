@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 256" role="img" aria-label="Odoo Semantic MCP">
+  <title>Odoo Semantic MCP</title>
+
+  <!-- Symbol: same stack as logo-mark, scaled into a 192x192 area at left. -->
+  <g transform="translate(32 32) scale(0.375)">
+    <rect x="90"  y="126" width="260" height="36" rx="8" fill="#C5A3C8"/>
+    <rect x="108" y="182" width="260" height="36" rx="8" fill="#9F6BA1"/>
+    <rect x="126" y="238" width="260" height="36" rx="8" fill="#7F4282"/>
+    <rect x="144" y="294" width="260" height="36" rx="8" fill="#5E305F"/>
+    <rect x="162" y="350" width="260" height="36" rx="8" fill="#3F1F4B"/>
+    <circle cx="106" cy="256" r="14" fill="#00BBCE"/>
+  </g>
+
+  <!-- Wordmark -->
+  <g font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif" font-weight="700" fill="#1A1A2E">
+    <text x="240" y="120" font-size="56" letter-spacing="-1">Odoo Semantic</text>
+    <text x="240" y="184" font-size="56" letter-spacing="-1">
+      <tspan fill="#7F4282">MCP</tspan>
+    </text>
+  </g>
+</svg>

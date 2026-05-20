@@ -1,0 +1,101 @@
+name: Pin SHA in claude-plugins
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [master]
+    # Allowlist: only functional plugin content re-pins the marketplace SHA.
+    # NOTE: a `paths-ignore: ['**.md']` denylist would be WRONG here — skills are
+    # SKILL.md files, so it would suppress re-pinning on skill content changes.
+    paths:
+      - 'skills/**'
+      - 'agents/**'
+      - 'commands/**'
+      - '.claude-plugin/**'
+      - '.mcp.json'
+
+# Cancel an in-flight pin run when a newer qualifying commit lands.
+concurrency:
+  group: pin-sha-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  pin-sha:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Get SHA
+        id: info
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v6
+        with:
+          repository: Viindoo/claude-plugins
+          token: ${{ secrets.CLAUDE_PLUGINS_PAT }}
+          path: claude-plugins
+
+      - name: Check if already pinned
+        id: check
+        run: |
+          CURRENT=$(python3 -c "
+          import json
+          m = json.load(open('claude-plugins/.claude-plugin/marketplace.json'))
+          for p in m['plugins']:
+              if p['name'] == 'odoo-semantic':
+                  print(p['source'].get('sha', ''))
+          ")
+          [ "$CURRENT" = "${{ steps.info.outputs.sha }}" ] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Update marketplace.json
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          python3 -c "
+          import json
+          path = 'claude-plugins/.claude-plugin/marketplace.json'
+          with open(path) as f: m = json.load(f)
+          for p in m['plugins']:
+              if p['name'] == 'odoo-semantic':
+                  p['source']['sha'] = '${{ steps.info.outputs.sha }}'
+          with open(path, 'w') as f: json.dump(m, f, indent=2); f.write('\n')
+          "
+
+      - name: Create PR with auto-merge
+        if: steps.check.outputs.skip == 'false'
+        working-directory: claude-plugins
+        env:
+          GH_TOKEN: ${{ secrets.CLAUDE_PLUGINS_PAT }}
+        run: |
+          SHA="${{ steps.info.outputs.sha }}"
+          SHA7="${SHA:0:7}"
+          BRANCH="auto-pin/odoo-semantic-${SHA7}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add .claude-plugin/marketplace.json
+          git commit -m "pin odoo-semantic to ${SHA7}"
+          git push origin "$BRANCH"
+          PR_URL=$(gh pr create \
+            --repo Viindoo/claude-plugins \
+            --title "pin odoo-semantic to ${SHA7}" \
+            --body "Auto-pin: plugin content changed in [${SHA7}](https://github.com/Viindoo/odoo-mcp-client/commit/${SHA})." \
+            --label "auto-pin")
+          gh pr merge --auto --squash "$PR_URL"
+
+      - name: Notify on failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+            echo "No SLACK_WEBHOOK_URL configured — skipping alert."
+            exit 0
+          fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -sf -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\":rotating_light: pin-sha failed for odoo-mcp-client @ ${{ steps.info.outputs.sha }}\n${RUN_URL}\"}" \
+            "$SLACK_WEBHOOK_URL"

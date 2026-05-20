@@ -6,7 +6,8 @@
     "name": "Viindoo",
     "url": "https://github.com/Viindoo"
   },
-  "homepage": "https://github.com/Viindoo/odoo-semantic-mcp",
+  "homepage": "https://odoo-semantic.viindoo.com",
+  "license": "MIT",
   "skills": "./skills/",
   "agents": [
     "./agents/odoo-router.md",

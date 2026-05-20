@@ -1,0 +1,28 @@
+Odoo MCP Client
+Copyright (c) 2026 Viindoo Technology JSC
+
+This product is licensed under the MIT License (see LICENSE).
+
+----------------------------------------------------------------------
+Attributions
+----------------------------------------------------------------------
+
+1. Trademarks & branding
+
+   "Viindoo" and the Viindoo logo (files under branding/) are trademarks of
+   Viindoo Technology JSC. The MIT License covers the source files in this
+   repository; it does NOT grant any trademark rights. See branding/TRADEMARK.md
+   for the brand-usage policy.
+
+   "Odoo" is a trademark of Odoo S.A. This project is an independent,
+   community-built client and is not affiliated with or endorsed by Odoo S.A.
+
+2. Backend server
+
+   This client is a thin integration surface. All codebase intelligence is
+   served by the Odoo Semantic backend, distributed separately under
+   AGPL-3.0-or-later at:
+
+       https://github.com/Viindoo/odoo-semantic-server
+
+   The hosted instance is available at https://odoo-semantic.viindoo.com
