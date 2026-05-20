@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Odoo Semantic MCP">
+  <title>Odoo Semantic MCP</title>
+
+  <!-- Inheritance stack: 5 bars cascading right and down.
+       Bar 3 is the "defined_in" anchor, marked by a cyan dot pinned to its left edge. -->
+  <g>
+    <rect x="90"  y="126" width="260" height="36" rx="8" fill="#C5A3C8"/>
+    <rect x="108" y="182" width="260" height="36" rx="8" fill="#9F6BA1"/>
+    <rect x="126" y="238" width="260" height="36" rx="8" fill="#7F4282"/>
+    <rect x="144" y="294" width="260" height="36" rx="8" fill="#5E305F"/>
+    <rect x="162" y="350" width="260" height="36" rx="8" fill="#3F1F4B"/>
+  </g>
+
+  <circle cx="106" cy="256" r="14" fill="#00BBCE"/>
+</svg>

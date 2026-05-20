@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "odoo-semantic": {
+      "type": "http",
+      "url": "https://odoo-semantic.viindoo.com/mcp",
+      "headers": {
+        "X-API-Key": "<YOUR_API_KEY>"
+      }
+    }
+  }
+}

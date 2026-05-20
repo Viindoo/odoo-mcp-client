@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Odoo Semantic MCP">
+  <title>Odoo Semantic MCP</title>
+
+  <!-- Simplified to 3 bars for legibility at 16x16. -->
+  <rect x="4" y="4"  width="20" height="6" rx="2" fill="#A659A8"/>
+  <rect x="6" y="13" width="20" height="6" rx="2" fill="#7F4282"/>
+  <rect x="8" y="22" width="20" height="6" rx="2" fill="#5A2D5D"/>
+
+  <circle cx="3" cy="16" r="2.5" fill="#00BBCE"/>
+</svg>

@@ -1,0 +1,40 @@
+name: validate
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  schema:
+    name: plugin schema + skill format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pytest
+      - run: python -m pytest tests/test_plugin_schema.py tests/test_skill_format.py -q
+
+  e2e-install:
+    name: e2e install (${{ matrix.os }})
+    # Network + global npm install + live marketplace state — keep it off every PR
+    # to avoid flaky external-dependency failures; run on master + manual dispatch.
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: bash tests/test_install_e2e.sh
