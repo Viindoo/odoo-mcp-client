@@ -1,8 +1,8 @@
 # MCP Tool × Persona × Adapter Routing Matrix
 
-> **Status (2026-05-19):** Canonical source for tool routing logic. Adapter files (cursor/gemini/openai/odoo-router) duplicate this content manually. Generator script deferred to M9+ — see [ADR-0012](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/adr/0012-persona-skill-architecture.md). **28-tool surface (v0.5.0, M10.5+M11)**: 14 (M1–M5) + 7 (M9 W-OSM Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E). Plus 7 MCP Resources (`odoo://` URI scheme) for read-only bookmarks (M11 Wave F, [ADR-0030](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md)). See [ADR-0023](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/adr/0023-tool-output-completeness.md), [ADR-0028](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/adr/0028-discriminator-consolidation.md), [ADR-0029](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/adr/0029-implicit-session-context.md).
+> **Status (2026-05-19):** Canonical source for tool routing logic. Adapter files (cursor/gemini/openai/odoo-router) duplicate this content manually. Generator script deferred to M9+ — see [ADR-0012](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0012-persona-skill-architecture.md). **28-tool surface (v0.5.0, M10.5+M11)**: 14 (M1–M5) + 7 (M9 W-OSM Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E). Plus 7 MCP Resources (`odoo://` URI scheme) for read-only bookmarks (M11 Wave F, [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md)). See [ADR-0023](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0023-tool-output-completeness.md), [ADR-0028](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0028-discriminator-consolidation.md), [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md).
 >
-> **Deprecation timeline:** 10 legacy tools — `resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches` — still callable in v0.5 with a `DEPRECATED` banner pointing to their superset replacement. **Removed in v0.6.** See the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/CHANGELOG.md).
+> **Deprecation timeline:** 10 legacy tools — `resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches` — still callable in v0.5 with a `DEPRECATED` banner pointing to their superset replacement. **Removed in v0.6.** See the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
 
 ## Purpose
 
@@ -51,10 +51,10 @@ When adding a new MCP tool or persona, update **this file first**, then propagat
 
 **Legend:** ● = primary (default first choice), ○ = secondary (related context).
 ★ = M11 Wave D superset (discriminator-routed; preferred over legacy siblings).
-☆ = M11 Wave E session-context tool (sticky 24h TTL per API key — see [ADR-0029](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/adr/0029-implicit-session-context.md)).
+☆ = M11 Wave E session-context tool (sticky 24h TTL per API key — see [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md)).
 † = legacy tool: still callable in v0.5 but returns a `DEPRECATED` banner pointing to its superset. Removed in v0.6.
 
-### MCP Resources (M11 Wave F, [ADR-0030](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md))
+### MCP Resources (M11 Wave F, [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md))
 
 Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — preferred over a tool call when the caller already knows the entity ID and just wants the canonical record:
 
@@ -102,7 +102,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — p
 | **Prefer when** | Caller knows the exact ID and wants one entity's full record — drill-down from a `model_inspect`/`module_inspect` enumeration |
 | **Skip when** | Caller wants the full model tree (→ `model_inspect`) or the override chain across modules (→ `resolve_method` legacy still works in v0.5, but prefer `entity_lookup(kind='method', ...)`) |
 
-### set_active_version ☆ (M11 Wave E — sticky session context, [ADR-0029](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/adr/0029-implicit-session-context.md))
+### set_active_version ☆ (M11 Wave E — sticky session context, [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md))
 
 | Attribute | Value |
 |-----------|-------|
@@ -443,7 +443,7 @@ Plugin skills can claim overlapping trigger keywords. Resolution policy:
 
 ## Cross-references
 
-- [ADR-0012 Persona-Skill Architecture](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/docs/adr/0012-persona-skill-architecture.md) — Design rationale, alternatives considered, decision matrix.
+- [ADR-0012 Persona-Skill Architecture](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0012-persona-skill-architecture.md) — Design rationale, alternatives considered, decision matrix.
 - [docs/personas/](../personas/) — Per-persona quick-start guides (CEO, Dev, Consultant, Marketer, Sales).
 - [README.md §Persona Guides](../personas/) — Public entry point linking to persona guides + plugin install instructions.
 - Plugin skills location: `dist/odoo-semantic-plugin/skills/<name>/SKILL.md` — Each skill has `description:` TRIGGER field listing keywords.
@@ -483,4 +483,4 @@ Plugin skills can claim overlapping trigger keywords. Resolution policy:
 | _list_qweb_templates_ † | ✓ | ✓ | ✓ | ✓ | odoo-coder |
 | _list_js_patches_ † | ✓ | ✓ | ✓ | ✓ | odoo-js-coder |
 
-> **Note:** Each adapter implements these tools via HTTP MCP protocol to the Odoo Semantic MCP server; no duplication of logic, only routing heuristics. **28 MCP tools** (v0.5.0, M10.5+M11): 14 (M1–M5) + 7 (M9 W-OSM Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E). Plus 7 MCP Resources (`odoo://` URI scheme, M11 Wave F). The 10 legacy `resolve_*`/`list_*` tools (†) still respond in v0.5 with a `DEPRECATED` banner and are scheduled for removal in v0.6 — see the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-mcp/blob/master/CHANGELOG.md).
+> **Note:** Each adapter implements these tools via HTTP MCP protocol to the Odoo Semantic MCP server; no duplication of logic, only routing heuristics. **28 MCP tools** (v0.5.0, M10.5+M11): 14 (M1–M5) + 7 (M9 W-OSM Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E). Plus 7 MCP Resources (`odoo://` URI scheme, M11 Wave F). The 10 legacy `resolve_*`/`list_*` tools (†) still respond in v0.5 with a `DEPRECATED` banner and are scheduled for removal in v0.6 — see the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
