@@ -9,7 +9,7 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 ## Add to `.cursorrules`
 
 ```
-# Odoo Semantic MCP — Developer Rules (v0.7 tool surface)
+# Odoo Semantic MCP — Developer Rules (v0.8 tool surface)
 # Auto-triggers for Odoo codebase intelligence via MCP
 
 ## Session bootstrap (run once per chat session)
@@ -51,6 +51,13 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
   → call find_style_override(selector_or_variable=<selector_or_var>)
 - User wants to trace @import chains or find branding/theme overrides
   → call find_style_override(selector_or_variable=<var>)
+
+### Validating ORM constructs before writing them (catch hallucinated fields/operators)
+- Before pasting a search domain → call validate_domain(model=<name>, domain="<literal>")
+  (operator validity is version-aware: `any`/`not any` v17+, `parent_of` v9+)
+- Before trusting a compute method's @api.depends → call validate_depends(model=<name>, method=<_compute_x>)
+- Before writing a multi-hop related= or domain path → call resolve_orm_chain(model=<name>, dotted_path="a.b.c")
+- Before writing a related= that hops a relation → call validate_relation(model=<name>, field=<rel_field>, target_model=<expected_comodel>)
 
 ### Before writing any new code
 - Check for existing patterns → call suggest_pattern(description)
@@ -121,7 +128,7 @@ When a Python file with `class .*(models\.Model)` is opened:
 For workspace-agnostic use, paste this shorter version into **Cursor → Settings → Rules for AI**:
 
 ```
-When working with Odoo Python or XML files, use the odoo-semantic MCP tools (v0.7 tool surface):
+When working with Odoo Python or XML files, use the odoo-semantic MCP tools (v0.8 tool surface):
 
 Session bootstrap (once per chat):
 - list_available_versions() / list_available_profiles()
@@ -146,6 +153,10 @@ Targeted tools:
 - "Show me code for" → find_examples
 - "What stylesheets does module X ship" → resolve_stylesheet
 - "Where is selector / SCSS variable X defined or overridden" → find_style_override
+- "Is this domain / are these operators valid" → validate_domain
+- "Are this compute method's @api.depends correct" → validate_depends
+- "What type does dotted path a.b.c resolve to" → resolve_orm_chain
+- "Does field X point to model Y" → validate_relation
 
 MCP Resources (read-only handles): odoo://{version}/<model|field|method|view|module|pattern|stylesheet>/...
 
@@ -170,7 +181,7 @@ When user asks about Odoo models, fields, methods, views, or patterns:
 - Never fabricate module names, field types, or method signatures
 - After getting tool results, summarize clearly with tree notation for chains
 
-## Key mappings (v0.7)
+## Key mappings (v0.8)
 - Session start → list_available_versions + set_active_version("17.0")
 - "how does X work" → entity_lookup(kind="method") or model_inspect(method="summary")
 - "where to override" → find_override_point
@@ -184,6 +195,10 @@ When user asks about Odoo models, fields, methods, views, or patterns:
 - "OWL / QWeb / JS patches in X" → module_inspect(method="owl"|"qweb"|"js")
 - "stylesheets in module X" → resolve_stylesheet(module=X)
 - "where is selector/variable X defined" → find_style_override(selector_or_variable=X)
+- "is this domain / these operators valid" → validate_domain(model=X, domain="...")
+- "are the @api.depends on _compute_x correct" → validate_depends(model=X, method="_compute_x")
+- "what type is path a.b.c" → resolve_orm_chain(model=X, dotted_path="a.b.c")
+- "does field X point to model Y" → validate_relation(model=X, field="X", target_model="Y")
 ```
 
 ---

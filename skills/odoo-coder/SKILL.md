@@ -41,6 +41,20 @@ Primary inspection tools (v0.5.0 supersets — prefer these):
 - `lint_check(code)` — deprecation + style detection (pass the code snippet to check); inline `# noqa: RULE_ID` in the code suppresses findings on that line.
 - `lookup_core_api(symbol)` — what Odoo core itself exposes for a given API surface.
 
+ORM-validation tools (v0.8 — M10.5 Phase 2; validate the construct *before* you emit it, so
+you never ship a hallucinated field-path, operator, or comodel):
+
+- `validate_depends(model, method)` — validate an existing compute method's indexed
+  `@api.depends` paths; flags depends on `id` and suggests the closest field for typos. Run
+  before *or* right after you write a `_compute_*` to confirm every dependency path is real.
+- `validate_domain(model, domain)` — validate each `(field_path, operator, value)` term of a
+  domain you are about to put in a view, `ir.rule`, or `search()`. Operators are
+  **version-aware** (`any`/`not any` v17+, `parent_of` v9+).
+- `resolve_orm_chain(model, dotted_path)` — confirm a multi-hop `related=` chain or domain
+  path resolves to the expected terminal type before you write it.
+- `validate_relation(model, field, target_model)` — assert a relational field's comodel
+  before writing a `related=` that hops through it.
+
 For bookmark-stable single-entity reads (works in IDE/chat bookmarks), the MCP Resource URI
 is also available: `odoo://17.0/model/sale.order`, `odoo://17.0/field/sale.order/amount_total`.
 
@@ -144,6 +158,18 @@ mcp__ollama-delegate__review_code(
 
 Apply any HIGH or MEDIUM severity findings from the review before presenting. Mention LOW
 severity findings as notes to the user ("the reviewer flagged X — worth keeping in mind").
+
+**ORM validation gate (v0.8).** If the generated code contains any of the following, validate
+it against the index before presenting — these calls are cheap and catch the exact failure
+modes the reviewer can only guess at:
+- a computed field → `validate_depends(model, '<_compute_method>')` (after the field is
+  indexed) or `resolve_orm_chain(model, '<each depends path>')` for not-yet-indexed code;
+- a search domain / `ir.rule` / `domain=[…]` → `validate_domain(model, '<domain literal>')`;
+- a `related=` chain → `resolve_orm_chain(model, '<related path>')`;
+- a relational field assertion → `validate_relation(model, '<field>', '<expected comodel>')`.
+
+Any `BROKEN` / `ERROR` / `MISMATCH` result is a blocker — fix the path/operator/comodel before
+presenting, do not ship it.
 
 ### Era detection
 
