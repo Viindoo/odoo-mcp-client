@@ -103,6 +103,10 @@ If a release breaks installs after the marketplace PR merges:
 4. As a last resort, bump `VERSION` (e.g. `0.5.1-revert`) and announce via the usual
    channel.
 
+**Automated kill-switch:** For proactive blocking, add the bad commit's 7-char short SHA to
+[`BLOCKED_VERSIONS.md`](BLOCKED_VERSIONS.md). The `pin-sha.yml` workflow will detect the
+entry and skip the marketplace pin step automatically, without failing the CI run.
+
 ## Code of Conduct
 
 This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
