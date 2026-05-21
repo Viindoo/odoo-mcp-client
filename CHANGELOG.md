@@ -4,6 +4,15 @@ All notable changes to the Odoo MCP Client are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `BLOCKED_VERSIONS.md` kill-switch registry: add a short SHA to block automatic
+  marketplace pin for known-bad commits; `pin-sha.yml` reads the table and skips
+  the pin step (fail-soft — CI stays green) when the HEAD SHA matches.
+- `commands/connect.md`: added missing `name: connect` frontmatter field to match
+  agent/skill convention (`name:` before `description:`).
+
 ## [0.5.0] - 2026-05-19
 
 ### Added
