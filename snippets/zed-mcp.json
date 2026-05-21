@@ -1,0 +1,16 @@
+{
+  "context_servers": [
+    {
+      "name": "odoo-semantic",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/adapter-stdio-http",
+        "--url",
+        "https://odoo-semantic.viindoo.com/mcp",
+        "--header",
+        "X-API-Key: <YOUR_API_KEY>"
+      ]
+    }
+  ]
+}
