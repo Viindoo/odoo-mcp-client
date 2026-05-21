@@ -33,7 +33,7 @@ ARGS: model (dotted, e.g. "sale.order"), method ("summary"|"fields"|"methods"|"v
 TRIGGER: "what is module [X]", "describe module [X]", "what UI artefacts does [X] ship", "OWL / QWeb / JS patches / views in module [X]", "full module inventory for [X]"
 PREFER: module-level architecture overview + UI-layer artefacts in one round-trip
 FRONTS describe_module (via method='summary'); REPLACES the removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (removed in v0.6)
-ARGS: name (technical name), method ("summary"|"views"|"owl"|"qweb"|"js"), odoo_version (optional), profile_name (optional), limit (default 200), view_type (optional — method='views': filter by view type), bound_model (optional — method='owl': filter OWL components by bound model), era (optional — method='js': era1|era2|era3)
+ARGS: name (technical name), method ("summary"|"views"|"owl"|"qweb"|"js"), odoo_version (optional), profile_name (optional), limit (default 200), view_type (optional — method='views': filter by view type), bound_model (optional — method='owl': filter OWL components by bound model), era (optional — method='js': era1|era2|era3), target (optional — method='js': filter by patched target)
 
 ### entity_lookup ★ (superset — drill down on one entity by ID)
 TRIGGER: "lookup field [X] on [model]", "find method [X] on [model]", "lookup view [xmlid]", "what is field/method/view [X]"
