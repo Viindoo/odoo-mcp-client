@@ -347,9 +347,14 @@ Clients that implement the MCP `resources/list` and `resources/read` flows surfa
 
 ---
 
-## Superset Tools — v0.7 Reference
+## Superset Tools — v0.8 Reference
 
-v0.7 expands the tool surface with 2 new stylesheet tools (`resolve_stylesheet`, `find_style_override`) on top of the v0.6 base. The 10 flat `resolve_*` / `list_*` tools that existed in v0.4–v0.5 were deprecated in v0.5 and **removed in v0.6** — they no longer exist on the server. If you encounter prompts or snippets that reference the old names, replace them with the supersets below.
+The server exposes **24 tools** at v0.8. The v0.7 surface added 2 stylesheet tools
+(`resolve_stylesheet`, `find_style_override`) on top of the v0.6 base; v0.8 (M10.5 Phase 2)
+adds 4 ORM-validation tools. The 10 flat `resolve_*` / `list_*` tools that existed in
+v0.4–v0.5 were deprecated in v0.5 and **removed in v0.6** — they no longer exist on the
+server. If you encounter prompts or snippets that reference the old names, replace them with
+the supersets below.
 
 > The old `resolve_*` / `list_*` tools are gone. Use these supersets instead:
 
@@ -358,6 +363,18 @@ v0.7 expands the tool surface with 2 new stylesheet tools (`resolve_stylesheet`,
 | `model_inspect(model, method, ...)` | Model-level inspection: summary, field/method/view inventory | `summary` · `fields` · `methods` · `views` · `field` · `method` |
 | `module_inspect(module, method, ...)` | Module-level inventory: manifest, views, OWL, QWeb, JS patches | `summary` · `views` · `owl` · `qweb` · `js` |
 | `entity_lookup(kind, ...)` | Single entity drill-down by ID | kind: `field` · `method` · `view` |
+
+### ORM-validation tools (v0.8 — M10.5 Phase 2)
+
+Static checks against the indexed graph — run them before an AI client suggests a domain,
+`@api.depends`, or relational field so hallucinated paths/operators are caught up front:
+
+| Tool | Use case |
+|------|----------|
+| `resolve_orm_chain(model, dotted_path, odoo_version="auto")` | Walk a dotted field path; return the terminal type or the first broken hop |
+| `validate_domain(model, domain, odoo_version="auto")` | Validate domain field-paths + operators (operators are **version-aware**) |
+| `validate_depends(model, method, odoo_version="auto")` | Validate a compute method's indexed `@api.depends` paths |
+| `validate_relation(model, field, target_model, odoo_version="auto")` | Assert a relational field's comodel matches the expected target |
 
 **Full side-by-side migration guide:** the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
 

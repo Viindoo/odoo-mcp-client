@@ -4,6 +4,38 @@ All notable changes to the Odoo MCP Client are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-05-21
+
+### Added (v0.8 server surface — M10.5 Phase 2)
+- **4 new ORM-validation tools** documented across all adapter snippets (Cursor, Gemini
+  Gem, OpenAI Custom GPT), routing matrix §1 & §2, Appendix table, dev persona, and the
+  `odoo-coder` / `odoo-code-reviewer` skills. Static checks against the indexed graph that
+  let an AI client catch hallucinated field-paths, operators, dependencies, and relation
+  targets *before* it emits a domain / `@api.depends` / relational field:
+  - **`resolve_orm_chain(model, dotted_path, odoo_version)`** — walks a dotted field path
+    (e.g. `partner_id.country_id.code`) hop by hop, returning the terminal field type or a
+    `BROKEN` line naming the first unresolved hop.
+  - **`validate_domain(model, domain, odoo_version)`** — validates each `(field_path,
+    operator, value)` term of a search domain. Operator validity is **version-aware**:
+    `parent_of` from v9, `any`/`not any` only from v17, v19 access-rights variants.
+  - **`validate_depends(model, method, odoo_version)`** — validates a compute method's
+    indexed `@api.depends('a.b', ...)` paths; flags depends on `id` and suggests the closest
+    field name for typos. Era1 (v8/v9) surfaces a clear "no @api.depends" note.
+  - **`validate_relation(model, field, target_model, odoo_version)`** — asserts a field is a
+    many2one/one2many/many2many whose comodel is `target_model` (or a subtype via
+    inheritance); reports the actual comodel on mismatch.
+
+### Changed
+- **Target server v0.8 tool surface (20 → 24 tools).** Mirrors server v0.8.0 (M10.5 Phase 2,
+  server PR #158). `tools/list` now reports 24 tools. Version references across README,
+  routing matrix, dev persona, snippets, and setup docs bumped v0.7 → v0.8.
+
+### Dependencies
+- The 4 ORM-validation tools require server **v0.8.0** (PR #158). `validate_depends`
+  additionally requires the prod `mth.depends` backfill (`python -m src.indexer index-repo
+  --all --full`) — until it runs, `validate_depends` returns the "no @api.depends" note for
+  methods indexed before the reindex.
+
 ## [0.7.0] - 2026-05-21
 
 ### Added (v0.7 server surface)
