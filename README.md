@@ -98,6 +98,7 @@ Antigravity) and `snippets/` for copy-ready configs:
 | Google Gemini Gem | [`snippets/gemini-gem-instructions.md`](snippets/gemini-gem-instructions.md) |
 | Continue.dev | [`snippets/continue-dev-mcp.yaml`](snippets/continue-dev-mcp.yaml) (MCP server config) |
 | JetBrains AI Assistant | [`snippets/jetbrains-mcp-config.md`](snippets/jetbrains-mcp-config.md) (setup guide) |
+| Zed | [`snippets/zed-mcp.json`](snippets/zed-mcp.json) (server config) |
 
 ## Requirements
 
