@@ -34,9 +34,9 @@ Primary tools:
   API (e.g. `fields.Char` signature changes).
 - `lookup_core_api(symbol)` — confirm whether a symbol still exists in the target version and
   what replaced it if not.
-- `entity_lookup(kind='method', model=…, method=…)` — drill into a specific method's
+- `entity_lookup(kind='method', model=…, method_name=…)` — drill into a specific method's
   signature changes across versions.
-- `module_inspect(module, method='patches')` — enumerate `web.Widget`-era JS patches that
+- `module_inspect(module, method='js')` — enumerate `web.Widget`-era JS patches that
   need OWL rewrites.
 
 ## Context
@@ -83,11 +83,10 @@ deprecated/removed symbols in one batch. Every call is independent — fire them
 methods simultaneously. These calls are independent of each other and of Round 2 lookups.
 
 **Round 3b — JS patch audit (when migrating from v8–v13):** Call
-`module_inspect(module=<scope>, method='patches')` (or query by `era='era1'` at the tool
-level if applicable) to enumerate all legacy `web.Widget`-based patches in scope. Era1
-covers v8–v13; these patches require manual OWL rewrites because the Widget API was removed
-in v16. Flag each patch as BREAKING if the target version is v14+ and the patch still
-references `AbstractField`, `FieldWidget`, or `web.Widget`. This call is independent of
+`module_inspect(module=<scope>, method='js')` to enumerate all legacy `web.Widget`-based
+patches in scope. Era1 (v8–v13) patches require manual OWL rewrites because the Widget API
+was removed in v16. Flag each patch as BREAKING if the target version is v14+ and the patch
+still references `AbstractField`, `FieldWidget`, or `web.Widget`. This call is independent of
 Rounds 1–3 — fire it in parallel with Round 3 if both apply.
 
 Capture file, line, symbol name, and deprecation message from Round 1 results; merge with

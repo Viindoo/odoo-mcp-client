@@ -36,9 +36,9 @@ Primary tools:
 - `impact_analysis(symbol | field | model)` — measures change blast radius (how many other
   modules / fields / methods depend on a hotspot field).
 - `check_module_exists(module, …)` — dependency health check per custom module.
-- `model_inspect(model, method='all')` — drill into the most-customized models to surface
+- `model_inspect(model, method='fields')` — drill into the most-customized models to surface
   field-level dependencies for the table.
-- `module_inspect(module, method='describe')` — per-module architecture (manifest, models
+- `module_inspect(module, method='summary')` — per-module architecture (manifest, models
   defined/extended, view + JS-patch counts).
 
 ## Context
@@ -78,9 +78,9 @@ Use parallel MCP calls — steps 1, 2, and 3 are fully independent. Fire them si
 custom fields known from context) + `check_module_exists` (for all custom module dependencies)
 all at once. None of these depend on each other's results.
 
-**Round 2 — Parallel:** Call `model_inspect(model=…, method='all')` on the most heavily
+**Round 2 — Parallel:** Call `model_inspect(model=…, method='fields')` on the most heavily
 customized models identified from Round 1 results. Simultaneously call
-`module_inspect(module=<name>, method='describe')` for each custom module in scope — this
+`module_inspect(module=<name>, method='summary')` for each custom module in scope — this
 surfaces JS patch counts, view counts, and models defined/extended, which the executive
 table needs. Both calls are independent; fire them together. If hotspot models are already
 known from context, include `model_inspect` calls in Round 1 as well to reduce to a single

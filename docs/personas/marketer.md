@@ -24,7 +24,7 @@ Use cases:
 | `api_version_diff` | What actually changed between two Odoo versions for a specific model/API |
 | `find_examples` | Real code snippets showing how a feature works — useful for technical blog posts |
 | `check_module_exists` | Is this feature CE or EE? What version added it? |
-| `resolve_model` | How many modules and extensions does this core business object have? |
+| `model_inspect` | How many modules and extensions does this core business object have? |
 
 ---
 
@@ -75,7 +75,7 @@ Copy these prompts into your AI tool:
    > "Using odoo-semantic, find_examples for inventory valuation with FIFO costing in Odoo 17. Show me real code so I can describe how it works accurately."
 
 5. **Module ecosystem overview:**
-   > "Using odoo-semantic, resolve_model sale.order in Odoo 17.0. How many modules extend it? This is for a piece about Odoo's extensibility."
+   > "Using odoo-semantic, model_inspect sale.order in Odoo 17.0. How many modules extend it? This is for a piece about Odoo's extensibility."
 
 ---
 

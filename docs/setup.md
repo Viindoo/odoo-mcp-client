@@ -315,7 +315,7 @@ Starting in v0.5.0 the MCP server supports **sticky session context** so you sto
 5. <any tool call with odoo_version omitted>   # falls back to the pinned value
 ```
 
-After step 2, calling `model_inspect(model="sale.order", method="all")` (no `odoo_version=` arg) returns results for `17.0`. Override at any time by passing `odoo_version=` explicitly on a single call (one-off; does **not** clear the sticky value).
+After step 2, calling `model_inspect(model="sale.order", method="summary")` (no `odoo_version=` arg) returns results for `17.0`. Override at any time by passing `odoo_version=` explicitly on a single call (one-off; does **not** clear the sticky value).
 
 > See [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md) for the TTL design and per-key keying rationale.
 
@@ -323,7 +323,7 @@ After step 2, calling `model_inspect(model="sale.order", method="all")` (no `odo
 
 ## MCP Resources (`odoo://` URI scheme, v0.5+)
 
-In addition to the 28 tool calls, the server exposes **7 MCP Resources** addressable via stable URIs — preferred when the caller already knows the entity ID and just wants the canonical record (read-only, bookmark-friendly, no parameters):
+In addition to the tool calls, the server exposes **7 MCP Resources** addressable via stable URIs — preferred when the caller already knows the entity ID and just wants the canonical record (read-only, bookmark-friendly, no parameters):
 
 | URI template | Returns |
 |--------------|---------|
@@ -347,18 +347,17 @@ Clients that implement the MCP `resources/list` and `resources/read` flows surfa
 
 ---
 
-## Tool Surface Change — v0.4 → v0.5 (Read Before You Update Snippets)
+## Superset Tools — v0.6 Reference
 
-v0.5.0 ships **28 tools** (was 21 in v0.4.x). Three new **supersets** consolidate the legacy `resolve_*` and `list_*` tools:
+v0.6 ships **18 tools**. The 10 flat `resolve_*` / `list_*` tools that existed in v0.4–v0.5 were deprecated in v0.5 and **removed in v0.6** — they no longer exist on the server. If you encounter prompts or snippets that reference the old names, replace them with the supersets below.
 
-| If your prompt/snippet currently calls | Switch to | Status of old tool |
-|----------------------------------------|-----------|--------------------|
-| `resolve_model` | `model_inspect(method='all')` | DEPRECATED in v0.5, removed in v0.6 |
-| `resolve_field` / `resolve_method` / `resolve_view` | `entity_lookup(kind='field'\|'method'\|'view')` | DEPRECATED in v0.5, removed in v0.6 |
-| `list_fields` / `list_methods` / `list_views` | `model_inspect(method='fields'\|'methods'\|'views')` | DEPRECATED in v0.5, removed in v0.6 |
-| `list_owl_components` / `list_qweb_templates` / `list_js_patches` | `module_inspect(method='owl'\|'qweb'\|'patches')` | DEPRECATED in v0.5, removed in v0.6 |
+> The old `resolve_*` / `list_*` tools are gone. Use these supersets instead:
 
-The 10 legacy tools still respond in v0.5 — they just emit a `DEPRECATED:` banner in the first line of the response pointing to the superset. Existing snippets keep working, but please plan the swap before v0.6 ships.
+| Superset tool | Use case | Valid `method` values |
+|---------------|----------|-----------------------|
+| `model_inspect(model, method, ...)` | Model-level inspection: summary, field/method/view inventory | `summary` · `fields` · `methods` · `views` · `field` · `method` |
+| `module_inspect(module, method, ...)` | Module-level inventory: manifest, views, OWL, QWeb, JS patches | `summary` · `views` · `owl` · `qweb` · `js` |
+| `entity_lookup(kind, ...)` | Single entity drill-down by ID | kind: `field` · `method` · `view` |
 
 **Full side-by-side migration guide:** the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
 
@@ -366,11 +365,11 @@ The 10 legacy tools still respond in v0.5 — they just emit a `DEPRECATED:` ban
 
 ## Verify After Install — Natural-Language Prompts
 
-Sau khi add xong, **gõ prompt tự nhiên** dưới đây vào AI tool — agent phải tự pick MCP `odoo-semantic` và gọi `resolve_model` (hoặc tool tương đương). Nếu agent trả lời chung chung kiểu textbook về `sale.order` thay vì cite được module name + odoo_version từ index → MCP **chưa load đúng**, quay lại section của client tương ứng.
+Sau khi add xong, **gõ prompt tự nhiên** dưới đây vào AI tool — agent phải tự pick MCP `odoo-semantic` và gọi `model_inspect`. Nếu agent trả lời chung chung kiểu textbook về `sale.order` thay vì cite được module name + odoo_version từ index → MCP **chưa load đúng**, quay lại section của client tương ứng.
 
 **English:**
 - *"Using the odoo-semantic tools, show me the full inheritance chain of `sale.order` in Odoo 17.0 — which modules extend it?"*
-- *"Resolve the model `sale.order` for version 17.0 and list all fields added by extension modules."*
+- *"Inspect the model `sale.order` for version 17.0 and list all fields added by extension modules."*
 
 **Tiếng Việt:**
 - *"Dùng odoo-semantic, liệt kê toàn bộ inheritance chain của model `sale.order` trên Odoo 17.0 và cho biết module nào extend nó."*

@@ -24,7 +24,7 @@ The most common consultant pain points:
 | `check_module_exists` | Is this feature native? CE or EE? What version added it? |
 | `find_examples` | Show me real Odoo code that does something similar |
 | `lookup_core_api` | Does this API exist and is it stable? |
-| `resolve_model` | How complex is this model? How many modules already extend it? |
+| `model_inspect` | How complex is this model? How many modules already extend it? |
 | `impact_analysis` | How risky is the customization the client wants? |
 | `api_version_diff` | What changed between the client's current version and the target upgrade? |
 
@@ -51,7 +51,7 @@ Semantic search across indexed repos — returns real code snippets from the cod
 ### 3. Understand the model complexity
 
 ```
-resolve_model("account.budget", "17.0")
+model_inspect(model="account.budget", method="summary", odoo_version="17.0")
 ```
 
 Field count, module extensions, method list. If the model has 15+ modules extending it, customization risk is higher — factor that into your estimate.
@@ -77,7 +77,7 @@ Copy these prompts into your AI tool:
    > "Using odoo-semantic, check if Odoo 17.0 Community has a subscription / recurring invoice module. If EE-only, what are the key features missing from CE?"
 
 3. **Customization scope:**
-   > "Using odoo-semantic, resolve model account.move in Odoo 17.0. How many modules extend it? Does extending it for invoice approval carry HIGH risk?"
+   > "Using odoo-semantic, model_inspect account.move in Odoo 17.0. How many modules extend it? Does extending it for invoice approval carry HIGH risk?"
 
 4. **Example-based demo prep:**
    > "Using odoo-semantic, find_examples for approval workflow on sale.order with multi-level validation. Show me real code from indexed repos."

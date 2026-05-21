@@ -27,11 +27,11 @@ At session start: `set_active_version(odoo_version=…)` so every subsequent ver
 inherits it.
 
 Primary tools:
-- `model_inspect(model, method='all')` — confirms model exists and surfaces its full field +
+- `model_inspect(model, method='summary')` — confirms model exists and surfaces its full field +
   method + view inventory for cross-checking references.
 - `entity_lookup(kind='field' | 'method', model=…, …)` — verify a specific field or method
   exists on a specific model.
-- `lint_check(code_snippet | method_name)` — deprecation + style detection at the API level.
+- `lint_check(code_snippet)` — deprecation + style detection at the API level.
 - `lookup_core_api(symbol)` — confirms a core Odoo API exists and shows its signature.
 - `suggest_pattern(query)` — canonical Odoo pattern; mismatch with what the developer wrote
   is a MED-severity finding.
@@ -135,12 +135,12 @@ will merge them with MCP results in Step 4.
 Identify all non-trivial identifiers in the code and verify them against the index. Fire all
 calls in parallel since they are independent:
 
-- **`model_inspect(model=…, method='all')`** — if code declares `_inherit` or `_name`, verify
+- **`model_inspect(model=…, method='summary')`** — if code declares `_inherit` or `_name`, verify
   the model exists and note its field/method list for cross-checking references.
 - **`entity_lookup(kind='field', model=…, field=…)`** — for every field that isn't obviously
   a new declaration (i.e., any field *read or written* in a method body, `@api.depends` path,
   or `related=` chain). A "not found" here is CRITICAL.
-- **`entity_lookup(kind='method', model=…, method=…)`** — for every method the code overrides
+- **`entity_lookup(kind='method', model=…, method_name=…)`** — for every method the code overrides
   (e.g., `create`, `write`, `unlink`, or a custom method from a base module). Confirms
   signature and that it is actually defined on the model.
 - **`lint_check(code_snippet)`** — run to detect deprecated decorators and signatures (uses
@@ -221,7 +221,7 @@ User pastes a `_compute_total` method that reads `self.amout_total` (typo).
 
 - Step 1: `review_code` catches missing `@api.depends` decorator.
 - Step 2 (parallel): `entity_lookup(kind='field', model='sale.order', field='amout_total')`
-  → NOT FOUND → CRITICAL. `model_inspect(model='sale.order', method='all')` → confirms
+  → NOT FOUND → CRITICAL. `model_inspect(model='sale.order', method='fields')` → confirms
   `amount_total` is the correct name.
 - Step 3: `suggest_pattern('computed field monetary')` → confirms `@api.depends` +
   `currency_field` pattern.
@@ -243,7 +243,7 @@ User pastes an OWL component `setup()` that does `this.state.items.push(newItem)
 User pastes `def write(self, vals): … self.write({'state': 'done'}) … return super().write(vals)`.
 
 - Step 1: `review_code` flags possible recursion.
-- Step 2: `entity_lookup(kind='method', model=…, method='write')` → confirms override
+- Step 2: `entity_lookup(kind='method', model=…, method_name='write')` → confirms override
   target exists.
 - Step 3: Not applicable (override pattern is correct structurally, issue is the internal call).
 - Output: CRITICAL (infinite recursion — `self.write()` inside `write()`) + fixed code using

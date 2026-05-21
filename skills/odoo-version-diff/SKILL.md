@@ -29,7 +29,7 @@ inspection calls inherit it; the diff tool itself takes both versions explicitly
 Primary tools:
 - `api_version_diff(symbol | scope, from_version, to_version)` — the core symbol-level delta.
 - `lookup_core_api(symbol)` — confirms existence + signature of a symbol in a given version.
-- `entity_lookup(kind='method', model=…, method=…)` — drill into a specific method's
+- `entity_lookup(kind='method', model=…, method_name=…)` — drill into a specific method's
   signature changes.
 - `model_inspect(model, method='fields')` — enumerate fields in one version for diffing
   against the same call in another version.

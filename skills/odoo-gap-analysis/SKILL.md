@@ -32,7 +32,7 @@ gap items.
 
 Primary tools:
 - `check_module_exists(module, …)` — first-pass standard-vs-custom signal per requirement.
-- `model_inspect(model, method='all')` — when a module exists but coverage may be partial,
+- `model_inspect(model, method='fields')` — when a module exists but coverage may be partial,
   pull the full schema of the relevant model in one call.
 - `find_examples(query)` — real-world implementations of similar requirements in the
   indexed corpus, useful for confirming Extension feasibility before committing.
@@ -80,7 +80,7 @@ subsequent call inherits it.
 Each call is independent; there is no reason to wait for one before firing the next.
 
 **Round 2 — Parallel:** For all requirements where coverage is partial (module exists but
-incomplete), call `model_inspect(model=…, method='all')` on each relevant model
+incomplete), call `model_inspect(model=…, method='fields')` on each relevant model
 simultaneously. One call returns fields + methods + views + inheritance chain.
 
 **Round 3 — Parallel:** For all Extension/Custom gap items, call `find_examples` +

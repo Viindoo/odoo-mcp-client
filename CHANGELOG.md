@@ -4,6 +4,23 @@ All notable changes to the Odoo MCP Client are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-05-21
+
+### Changed
+- **Target server v0.6 tool surface (18 tools).** The upstream server removed the 10
+  deprecated flat tools (`resolve_model`, `resolve_field`, `resolve_method`,
+  `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`,
+  `list_qweb_templates`, `list_js_patches`) per server ADR-0028. All client adapter
+  snippets (Cursor, Gemini Gem, OpenAI Custom GPT), persona docs, and the routing
+  matrix have been migrated to reference the 3 superset discriminator tools
+  (`model_inspect`, `module_inspect`, `entity_lookup`) that replace them.
+- **Removed `odoo-router` classifier agent.** The agent was redundant: Claude Code
+  discovers available tools at runtime via the MCP `tools/list` call, and the 3
+  superset discriminator tools (`model_inspect`, `module_inspect`, `entity_lookup`)
+  handle entity-type routing server-side without a dedicated client-side classifier.
+- **Replaced hardcoded tool counts with capability phrasing** across README, snippets,
+  and persona docs so the count never drifts out of sync with the server again.
+
 ## [0.5.0] - 2026-05-21
 
 ### Added
@@ -21,9 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Per-persona quick-start guides under `docs/personas/`.
 
 ### Notes
-- This client targets the v0.5.0 server tool surface (28 tools + 7 MCP Resources).
-  The 10 legacy `resolve_*` / `list_*` tools are deprecated and slated for removal
-  in the server's v0.6.
+- This client targeted the v0.5.0 server tool surface (28 tools + 7 MCP Resources).
+  The 10 legacy `resolve_*` / `list_*` tools were deprecated and have since been
+  removed in the server's v0.6 (see [0.6.0] above).
 
 ## [0.4.x] - 2026-04-15
 
