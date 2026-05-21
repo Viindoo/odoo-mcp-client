@@ -29,11 +29,11 @@ the version.
 Primary tools:
 - `check_module_exists(module, …)` — first-line signal: does the module exist in this
   version at all?
-- `module_inspect(module, method='describe')` — full architecture overview when the module
+- `module_inspect(module, method='summary')` — full architecture overview when the module
   exists (manifest summary, model count, view count, JS patch count).
 - `module_inspect(module, method='fields' | 'views')` — drill into what the module actually
   declares, when a yes/no answer isn't enough.
-- `model_inspect(model, method='all')` — full schema of the primary model in one call.
+- `model_inspect(model, method='fields')` — full schema of the primary model in one call.
 - `find_examples(query)` — real-world usage of similar features, useful when the module
   exists but you want concrete evidence of coverage.
 - `suggest_pattern(query)` — canonical pattern when partial coverage means an Extension is
@@ -71,13 +71,13 @@ data about specific Odoo module names and versions is frequently outdated.
 `find_examples` takes a semantic query from the requirement text and does not need the
 module check result. Both are independent — fire together.
 
-**Round 2 — Parallel (after Round 1):** Call `model_inspect(model=…, method='all')` (needs
+**Round 2 — Parallel (after Round 1):** Call `model_inspect(model=…, method='fields')` (needs
 module/model name from Round 1) + `suggest_pattern` simultaneously. `suggest_pattern` can
 be formulated from the requirement even if Round 1 shows partial coverage — they are
 independent of each other.
 
 **Round 3 — Deep dive (when `check_module_exists` confirms presence):** Call
-`module_inspect(module=<name>, method='describe')` to surface the module's full
+`module_inspect(module=<name>, method='summary')` to surface the module's full
 architecture: manifest summary, which models it defines vs extends, view count, and JS patch
 count. This gives the consultant a confident, evidence-backed answer about what the module
 actually covers — beyond the bare "exists / does not exist" signal. If the module is confirmed
@@ -136,5 +136,5 @@ Viindoo has `viin_sale_subscription` covering similar needs.
 **Example 2:**
 Prompt: "Odoo 17 có sẵn module quản lý tài sản cố định không?"
 Output: `account_asset` exists in EE, not CE. Viindoo EE has `viin_account_asset`.
-`model_inspect(model='account.asset', method='all')` shows key fields. Recommendation in
+`model_inspect(model='account.asset', method='fields')` shows key fields. Recommendation in
 Vietnamese context.

@@ -28,7 +28,7 @@ At session start: `set_active_version(odoo_version=<version>)` so subsequent ins
 calls inherit the legacy version target.
 
 Primary tools:
-- `module_inspect(module, method='patches')` — enumerate JS patches (`Widget.include` /
+- `module_inspect(module, method='js')` — enumerate JS patches (`Widget.include` /
   `patch()`) already registered in the module or against a specific target.
 - `find_examples(query)` — real production code using the same widget/registry pattern from
   the indexed codebase. Trust this for import paths.
@@ -77,14 +77,14 @@ same message to save round-trips.
 `set_active_version(odoo_version=<version>)` once.
 
 When patching or extending an existing widget, JS module, or client action, call
-`module_inspect(module=…, method='patches')` to see the patch chain that already exists. This
+`module_inspect(module=…, method='js')` to see the patch chain that already exists. This
 prevents writing a conflicting or duplicate patch. Two calling patterns:
 
 - **By target file** (when you know what you're patching): pass the target file path as part
   of the query; the tool filters patches whose target matches.
 - **By module** (when auditing all patches in a module):
   ```
-  module_inspect(module="sale_management", method="patches")
+  module_inspect(module="sale_management", method="js")
   ```
 
 **Era awareness** — JS patches divide into eras:
@@ -117,7 +117,7 @@ find_override_point(model_or_component="<WidgetClass>", method_or_hook="<method>
 ```
 
 This reveals the exact class and hook to inherit/patch, including any existing override chain.
-The patch chain discovered in Round 0 feeds into this — if `module_inspect(method='patches')`
+The patch chain discovered in Round 0 feeds into this — if `module_inspect(method='js')`
 already showed the override path, you may skip `find_override_point` and use that data directly.
 Skip this round entirely for greenfield widget creation.
 

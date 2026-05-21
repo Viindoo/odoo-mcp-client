@@ -8,7 +8,7 @@
 > (inheritance chains, field impact, pattern catalogue, upgrade paths) into your AI coding workflow.
 
 This repository ships **no semantic logic**. It is a thin integration surface: 15
-persona-specific skills, 2 orchestration agents, a `connect` command, and ready-to-paste
+persona-specific skills, 1 orchestration agent, a `connect` command, and ready-to-paste
 MCP config for several AI tools. All knowledge and computation live in the Odoo Semantic
 MCP server — query it at the hosted instance
 [`odoo-semantic.viindoo.com`](https://odoo-semantic.viindoo.com) or
@@ -68,7 +68,6 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 
 | Agent | Model | Role |
 |-------|-------|------|
-| `odoo-router` | Haiku | Classify a user query into the correct MCP tool (classify-only, no tool calls) |
 | `odoo-upgrade-planner` | Sonnet | Orchestrate a full upgrade plan from source to target version |
 
 ## Connect command

@@ -31,14 +31,14 @@ parameter repetition for the rest of the session.
 
 Primary inspection tools (v0.5.0 supersets — prefer these):
 
-- `model_inspect(model, method='fields' | 'methods' | 'views' | 'all')` — enumerate or fully
+- `model_inspect(model, method='fields' | 'methods' | 'views' | 'summary')` — enumerate or fully
   describe a model.
 - `entity_lookup(kind='field' | 'method' | 'view', …)` — drill into one specific entity
   with its full inheritance chain and source module.
 - `suggest_pattern(query)` — canonical Odoo pattern catalogue (computed field, SQL
   constraint, wizard, etc.).
 - `find_examples(query)` — real-world implementations from the indexed corpus.
-- `lint_check(code | method_name)` — deprecation + style detection.
+- `lint_check(code)` — deprecation + style detection (pass the code snippet to check).
 - `lookup_core_api(symbol)` — what Odoo core itself exposes for a given API surface.
 
 For bookmark-stable single-entity reads (works in IDE/chat bookmarks), the MCP Resource URI
@@ -87,11 +87,11 @@ Skip if already set this session.
 ### Round 1 — Gather context (parallel)
 
 Call all three simultaneously:
-1. `model_inspect(model='<target_model>', method='all')` — one call returns field list,
-   method list, inheritance chain, views, and the authoritative source module.
-2. (Skipped — `model_inspect(method='all')` already covers field enumeration. Use
-   `model_inspect(method='fields')` separately only if you want JUST the field list and
-   nothing else.)
+1. `model_inspect(model='<target_model>', method='fields')` — returns the field list and
+   authoritative source module. Combine with `method='methods'` if you also need the method
+   list, or `method='summary'` for the full inheritance chain overview.
+2. (Skipped — use `model_inspect(method='fields')` for the field list. Use
+   `model_inspect(method='summary')` when you need the inheritance chain and module overview.)
 3. `suggest_pattern(feature_description)` — get the canonical Odoo pattern for the feature
    type (computed field, SQL constraint, wizard, etc.).
 
@@ -101,8 +101,8 @@ If you do not yet know the target model name, ask the user before proceeding.
 
 - **Extending an existing field** → call `entity_lookup(kind='field', model='<model>', field='<name>')`
   to confirm type, whether it is stored/computed, and which module declares it.
-- **Overriding an existing method** → call `lint_check(method_name=…)` to detect deprecated
-  signatures (e.g. `@api.multi`, old-style `cr, uid` arguments).
+- **Overriding an existing method** → call `lint_check(code=<the method source>)` to detect
+  deprecated signatures (e.g. `@api.multi`, old-style `cr, uid` arguments).
 
 Both calls are independent — fire in parallel if the task requires both.
 
@@ -206,7 +206,7 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 Prompt: "tạo computed field `amount_vat` tính VAT 10% từ `amount_subtotal` trên `purchase.order`"
 
 - Round 0: `set_active_version('17.0')` (once per session).
-- Round 1 (parallel): `model_inspect(model='purchase.order', method='all')` → confirm
+- Round 1 (parallel): `model_inspect(model='purchase.order', method='fields')` → confirm
   `amount_subtotal` exists and is Float; `suggest_pattern('computed field monetary')` → get
   `@api.depends` + `currency_field` pattern.
 - Round 2: `entity_lookup(kind='field', model='purchase.order', field='amount_subtotal')` →
@@ -218,7 +218,7 @@ Prompt: "tạo computed field `amount_vat` tính VAT 10% từ `amount_subtotal` 
 **Example 2 — SQL constraint:**
 Prompt: "add SQL constraint to prevent duplicate partner name within same company"
 
-- Round 1 (parallel): `model_inspect(model='res.partner', method='all')` → confirm
+- Round 1 (parallel): `model_inspect(model='res.partner', method='fields')` → confirm
   `company_id` field; `suggest_pattern('sql constraint unique multi-company')` → get pattern.
 - Round 3: `generate_code(task="SQL constraint unique (name, company_id) on res.partner", context="…")`
 - Output: `_sql_constraints` list with `UNIQUE(name, company_id)` + translated error message.
@@ -226,7 +226,7 @@ Prompt: "add SQL constraint to prevent duplicate partner name within same compan
 **Example 3 — create override:**
 Prompt: "override `create` on `sale.order` to auto-assign a sequence ref from `ir.sequence`"
 
-- Round 1 (parallel): `model_inspect(model='sale.order', method='all')` + `suggest_pattern('create override sequence')`.
+- Round 1 (parallel): `model_inspect(model='sale.order', method='summary')` + `suggest_pattern('create override sequence')`.
 - Round 2: `lint_check('create')` → confirm no deprecated signature.
 - Round 3: Direct Claude (cross-model + `super()` position matters — must call `super().create(vals)` first, then update the returned record).
 - Round 4: `review_code(…)` → confirm `super()` present and `vals` not mutated after super call.

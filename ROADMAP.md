@@ -23,6 +23,11 @@ Items are directional, not commitments, and reflect publicly announced milestone
 
 - **JetBrains plugin wrapper** — a thin native wrapper once demand is clear.
 - **PyPI distribution** — `pip install`-able client for non-Claude IDEs.
+- **Decouple client from server tool surface** — intent-only skill descriptions +
+  build-time generator that reads the server's `tools/list` response and routing
+  matrix to emit adapter snippets (Cursor/Gemini/OpenAI) automatically. Eliminates
+  manual routing duplication; the server-side MCP Prompt becomes the SSOT for routing
+  logic, and the client never needs a hand-rolled classifier agent again.
 
 ## Out of scope for this repo
 

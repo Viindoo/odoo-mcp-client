@@ -24,7 +24,7 @@ Key scenarios:
 |------|----------------|
 | `check_module_exists` | Is this feature native? CE or EE? What versions support it? |
 | `find_examples` | Real code from the codebase showing the feature in action |
-| `resolve_model` | How complete is Odoo's implementation of this business object? |
+| `model_inspect` | How complete is Odoo's implementation of this business object? |
 | `impact_analysis` | (For technical objections) How mature/stable is this feature? |
 
 ---
@@ -50,7 +50,7 @@ Returns actual code from indexed Odoo repos — not a demo script, but real impl
 ### Scope a prospect's existing Odoo instance
 
 ```
-resolve_model("sale.order", "16.0")
+model_inspect(model="sale.order", method="summary", odoo_version="16.0")
 ```
 
 See how many modules extend their core models. If the prospect is on an older version with heavy customization, this tells you the migration complexity before your competitor does.
@@ -74,7 +74,7 @@ Copy these prompts into your AI tool:
    > "Using odoo-semantic, api_version_diff for sale.order between Odoo 14.0 and 17.0. The prospect is on v14. Give me 3 high-value improvements to mention."
 
 5. **Competitive win story:**
-   > "Using odoo-semantic, resolve_model account.move in Odoo 17.0 and show me its full field count and extending modules. I want to demonstrate Odoo's accounting depth vs [competitor]."
+   > "Using odoo-semantic, model_inspect account.move in Odoo 17.0 and show me its full field count and extending modules. I want to demonstrate Odoo's accounting depth vs [competitor]."
 
 ---
 
@@ -106,4 +106,4 @@ Before a major demo, run these checks:
 1. `check_module_exists` for every feature you plan to show — verify CE vs EE
 2. `find_examples` for 2-3 key scenarios — have proof-points ready
 3. `api_version_diff` if the prospect is upgrading — know the upgrade story
-4. `resolve_model` for the core model you're demoing — know the field count and module depth
+4. `model_inspect` for the core model you're demoing — know the field count and module depth

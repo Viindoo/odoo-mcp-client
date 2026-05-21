@@ -33,7 +33,7 @@ Primary tools:
   highlight selection.
 - `find_examples(query)` — real-world implementations to ground each highlight in actual
   shipped code rather than spec text.
-- `model_inspect(model, method='all')` — headline-feature key models, surfaces field set for
+- `model_inspect(model, method='fields')` — headline-feature key models, surfaces field set for
   business-language description.
 - `check_module_exists(module, …)` — confirms a module being highlighted is actually present
   in the target version.
@@ -71,7 +71,7 @@ historical context, but never assert a feature "was added in v17" without MCP co
 
 **Round 2 — Parallel:** After Round 1 results arrive, call `find_examples` (for top impactful
 models: `sale.order`, `account.move`, `mrp.production`, `hr.leave`) +
-`model_inspect(model=…, method='all')` (for headline feature key models) + `check_module_exists`
+`model_inspect(model=…, method='fields')` (for headline feature key models) + `check_module_exists`
 (for all modules being highlighted) all simultaneously. None of these depend on each other —
 batch them in one round to cut total latency from 4 sequential calls to 2 total rounds.
 

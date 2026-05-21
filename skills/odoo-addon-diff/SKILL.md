@@ -29,10 +29,10 @@ version the client is evaluating.
 Primary tools:
 - `check_module_exists(module, …)` — first-line classifier: does this module exist in this
   edition?
-- `model_inspect(model, method='all' | 'fields')` — for modules that exist in both CE and EE
+- `model_inspect(model, method='fields')` — for modules that exist in both CE and EE
   but with different depth, drill into the model to surface field-level differences (e.g. EE
   adds `forecast_date`, `analytic_account_id`).
-- `module_inspect(module, method='describe')` — fast architecture overview when you need a
+- `module_inspect(module, method='summary')` — fast architecture overview when you need a
   module-level summary rather than per-model fields.
 
 ## Context
@@ -61,7 +61,7 @@ comparison request simultaneously. Each call is independent; no need to wait for
 before firing the next.
 
 **Round 2 — Parallel:** For every module that exists in both CE and EE but with different
-depth, call `model_inspect(model=…, method='all')` on all relevant models simultaneously to
+depth, call `model_inspect(model=…, method='fields')` on all relevant models simultaneously to
 extract field-level differences (e.g. EE adds `forecast_date`, `analytic_account_id`). These
 calls are independent of each other.
 

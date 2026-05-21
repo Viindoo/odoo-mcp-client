@@ -26,7 +26,7 @@ fails to load.
    `claude mcp remove odoo-semantic --scope user` first, then retry.
    If exit code is non-zero for any other reason, report stderr to the user and stop.
 4. Verify the server is reachable and the key is accepted via HTTP probe.
-   **Do not try to call the MCP tool `resolve_model` here** — Claude Code v2.x
+   **Do not try to call the MCP tool `model_inspect` here** — Claude Code v2.x
    does not hot-reload MCP servers, so `odoo-semantic` is invisible to the AI
    agent until the user restarts the session
    (anthropics/claude-code#46426 — "not planned"). Use `curl` via the `Bash`
@@ -105,7 +105,7 @@ PY
 
 6. Tell the user explicitly:
    - `✓ Setup complete. Restart Claude Code to activate the MCP tools.`
-   - `After restart, verify with: "Dùng odoo-semantic, resolve model sale.order trên Odoo 17.0"`
+   - `After restart, verify with: "Dùng odoo-semantic, model_inspect sale.order trên Odoo 17.0"`
    - If step 5 ran successfully, also: `Auto-allow is on — no more per-tool permission prompts for odoo-semantic.`
    - Then list the 15 skill names shipped by this plugin so the user knows what
      to invoke.
@@ -116,7 +116,7 @@ PY
   `~/.claude.json` — that file holds unrelated user state (projects, startup
   counters, other MCP servers) and direct edits risk corruption.
 - Use the `Bash` tool for step 4. Do **not** attempt to call MCP tool
-  `resolve_model` in the same session — it is not yet loaded.
+  `model_inspect` in the same session — it is not yet loaded.
 - Use the `Bash` tool for step 5. Do **not** use `Edit` or `Write` on
   `~/.claude/settings.json` directly — it may hold the user's other permission
   rules, hooks, and statusLine config. The Python snippet above is the only

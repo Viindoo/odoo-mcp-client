@@ -1,21 +1,21 @@
 # Odoo Semantic — Developer Guide
 
-<!-- This persona intentionally enumerates the full 28-tool arsenal (v0.5.0) instead of the "Most Useful Tools" template variant — devs need the full surface area, including the 3 M11 supersets and 4 session-context tools. -->
+<!-- This persona intentionally enumerates the full tool arsenal (v0.6) instead of the "Most Useful Tools" template variant — devs need the full surface area, including the 3 M11 supersets and 4 session-context tools. -->
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` → `claude plugin install odoo-semantic@viindoo-plugins` → `/odoo-semantic:connect`. Chi tiết + AI tools khác: [client setup](../setup.md).
 
-The full **28-tool arsenal (v0.5.0)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), this guide covers the daily patterns. v0.5 introduces three discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`) plus four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call.
+The full **tool arsenal (v0.6)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), this guide covers the daily patterns. v0.6 ships three discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`) plus four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call.
 
 ---
 
-## All Tools Available to Developers (v0.5.0)
+## All Tools Available to Developers (v0.6)
 
 ### Supersets (★ M11 Wave D — preferred over legacy siblings)
 
 | Tool | Use case |
 |------|----------|
-| `model_inspect(model, method='fields'\|'methods'\|'views'\|'all', ...)` | One call returns the model's field list, method list, view inventory, or all three together. **Replaces** `resolve_model` + `list_fields` + `list_methods` + `list_views`. |
-| `module_inspect(module, method='describe'\|'fields'\|'views'\|'owl'\|'qweb'\|'patches', ...)` | Module-level inventory across manifest, models, views, OWL, QWeb, JS patches. **Replaces** `describe_module` + `list_views` (module-scoped) + `list_owl_components` + `list_qweb_templates` + `list_js_patches`. |
+| `model_inspect(model, method='summary'\|'fields'\|'methods'\|'views'\|'field'\|'method', ...)` | One call returns the model's summary, field list, method list, view inventory, or a single entity drill-down. **Replaces** `resolve_model` + `list_fields` + `list_methods` + `list_views`. |
+| `module_inspect(module, method='summary'\|'views'\|'owl'\|'qweb'\|'js', ...)` | Module-level inventory across manifest, models, views, OWL, QWeb, JS patches. **Replaces** `describe_module` + `list_views` (module-scoped) + `list_owl_components` + `list_qweb_templates` + `list_js_patches`. |
 | `entity_lookup(kind='field'\|'method'\|'view', ...)` | One entity drill-down by ID. **Replaces** `resolve_field` + `resolve_method` + `resolve_view`. |
 
 ### Session context (☆ M11 Wave E — sticky 24h TTL per API key)
@@ -43,22 +43,11 @@ The full **28-tool arsenal (v0.5.0)**, optimized for development workflows. From
 | `cli_help` | Look up `odoo-bin` flags and options |
 | `describe_module` | Module architecture overview — manifest + defines/extends models + view/JS counts |
 
-### Legacy tools († DEPRECATED in v0.5 — removed in v0.6)
+### Removed in v0.6
 
-| Legacy tool | Replacement | Notes |
-|-------------|-------------|-------|
-| `resolve_model` | `model_inspect(method='all')` | Still callable; returns `DEPRECATED` banner pointing at the superset. |
-| `resolve_field` | `entity_lookup(kind='field')` | Still callable; deprecated banner. |
-| `resolve_method` | `entity_lookup(kind='method')` | Still callable; deprecated banner. |
-| `resolve_view` | `entity_lookup(kind='view')` | Still callable; deprecated banner. |
-| `list_fields` | `model_inspect(method='fields')` | Still callable; deprecated banner. |
-| `list_methods` | `model_inspect(method='methods')` | Still callable; deprecated banner. |
-| `list_views` | `model_inspect(method='views')` or `module_inspect(method='views')` | Still callable; deprecated banner. |
-| `list_owl_components` | `module_inspect(method='owl')` | Still callable; deprecated banner. |
-| `list_qweb_templates` | `module_inspect(method='qweb')` | Still callable; deprecated banner. |
-| `list_js_patches` | `module_inspect(method='patches')` | Still callable; deprecated banner. |
+The 10 flat tools (`resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches`) were deprecated in v0.5 and **removed in v0.6**. They no longer exist on the server. Use the supersets above.
 
-See the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md) for side-by-side examples.
+See the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md) for side-by-side migration examples.
 
 ### MCP Resources (M11 Wave F — `odoo://` URI scheme)
 
@@ -68,7 +57,7 @@ Read-only handles for bookmark-stable access. Use these when you already know th
 
 ## Standard Development Workflow
 
-### 0. Pin the version once (v0.5+)
+### 0. Pin the version once
 
 Before any exploration session, set the version so you can drop `odoo_version=` from every subsequent call:
 
@@ -83,7 +72,7 @@ TTL is 24h per API key. Run `list_available_versions()` first if you're not sure
 Before adding logic to a model:
 
 ```
-model_inspect(model="sale.order", method="all")
+model_inspect(model="sale.order", method="summary")
 ```
 
 Get the full inheritance chain, field count, method list, view inventory, and which modules have already extended this model — all in one call. Know what you're stepping into before writing a single line.
@@ -135,8 +124,8 @@ find_deprecated_usage("17.0")
 
 Copy these prompts into your AI tool:
 
-1. **Model exploration (v0.5 superset):**
-   > "Using odoo-semantic, inspect account.move with method=all in Odoo 17.0. Show the inheritance chain and group fields by module."
+1. **Model exploration (superset):**
+   > "Using odoo-semantic, inspect account.move with method=summary in Odoo 17.0. Show the inheritance chain and group fields by module."
 
 2. **Safe extension:**
    > "Using odoo-semantic, find_override_point for account.move action_post in Odoo 17.0. Is it safe to override? What is the super_ratio?"
@@ -147,11 +136,11 @@ Copy these prompts into your AI tool:
 4. **Pre-upgrade audit:**
    > "Using odoo-semantic, find_deprecated_usage for Odoo 17.0 in our codebase. List all HIGH risk items with file locations."
 
-5. **View override (v0.5 superset):**
+5. **View override (superset):**
    > "Using odoo-semantic, entity_lookup kind=view xmlid=sale.view_order_form in Odoo 17.0. Show the full XPath chain so I know exactly where to inject my override."
 
-6. **Session pin (v0.5):**
-   > "Using odoo-semantic, set_active_version 17.0 for this session. Then inspect sale.order method=all — no need to repeat the version on follow-up calls."
+6. **Session pin:**
+   > "Using odoo-semantic, set_active_version 17.0 for this session. Then inspect sale.order method=summary — no need to repeat the version on follow-up calls."
 
 ---
 
@@ -171,5 +160,5 @@ If you use **Claude Code** with the Odoo Semantic plugin:
 
 - Always pass the `odoo_version` parameter — results differ significantly between versions.
 - `find_override_point` returns `anti_patterns` — read them before writing.
-- If `resolve_model` shows more than 10 modules extending a model, consider whether your extension logic could conflict with others.
+- If `model_inspect` shows more than 10 modules extending a model, consider whether your extension logic could conflict with others.
 - `suggest_pattern` queries are semantic, not keyword — describe what you want to achieve, not what method to use.

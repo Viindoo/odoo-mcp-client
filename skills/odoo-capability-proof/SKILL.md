@@ -32,9 +32,9 @@ Primary tools:
   corpus; the most credible single piece of evidence (real production code beats marketing).
 - `check_module_exists(module, …)` — confirms the standard module exists in this version +
   edition before naming it in the evidence table.
-- `model_inspect(model, method='all')` — exact field set on the model, useful for showing
+- `model_inspect(model, method='fields')` — exact field set on the model, useful for showing
   the client "this is what Odoo actually stores".
-- `entity_lookup(kind='method', model=…, method=…)` — full override chain for method-level
+- `entity_lookup(kind='method', model=…, method_name=…)` — full override chain for method-level
   requirements (e.g. "show me where Odoo lets you customize the invoice posting flow").
 
 For permalink-stable evidence to drop into proposals / RFPs:
@@ -69,8 +69,8 @@ Use parallel MCP calls to build the evidence package quickly.
 `find_examples` takes a semantic query derived directly from the requirement text — it does not
 need the module name from `check_module_exists`. Both can fire at the same time.
 
-**Round 2 — Parallel (if module found):** Call `model_inspect(model=…, method='all')` +
-`entity_lookup(kind='method', model=…, method=…)` simultaneously. `model_inspect` shows
+**Round 2 — Parallel (if module found):** Call `model_inspect(model=…, method='fields')` +
+`entity_lookup(kind='method', model=…, method_name=…)` simultaneously. `model_inspect` shows
 exact fields; `entity_lookup` shows the override chain for method-level requirements. If the
 model name is already known from training knowledge, include these in Round 1.
 
@@ -115,11 +115,11 @@ the actual indexed codebase.
 **Example 1:**
 Prompt: "prove Odoo can handle multi-currency invoicing for our prospect"
 Output: Verdict "Supported natively", evidence table citing `account.move` fields (`currency_id`,
-`amount_currency`, `currency_rate`) from `model_inspect(model='account.move', method='all')`, a
+`amount_currency`, `currency_rate`) from `model_inspect(model='account.move', method='fields')`, a
 real code example, and demo steps.
 
 **Example 2:**
 Prompt: "chứng minh Odoo 17 hỗ trợ phê duyệt đa cấp cho đơn mua hàng"
 Output: Verdict with `purchase_stock` + `purchase` module evidence,
-`entity_lookup(kind='method', model='purchase.order', method='button_approve')` override
+`entity_lookup(kind='method', model='purchase.order', method_name='button_approve')` override
 chain, demo steps in Vietnamese context.
