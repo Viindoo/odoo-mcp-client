@@ -80,7 +80,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — p
 |-----------|-------|
 | **Primary EN** | "inspect module sale_management", "what does viin_sale ship — views, OWL, QWeb, JS patches", "describe module website_sale with all UI artefacts", "full module inventory for X" |
 | **Primary VI** | "inspect module X", "module X có gì — view/OWL/QWeb/patch", "tổng quan module X kèm UI", "module X tổng thể là gì" |
-| **Args** | `name` (required), `method` (required, one of `summary` / `views` / `owl` / `qweb` / `js`), `odoo_version` (optional — session-aware), `profile_name` (optional), `limit` (optional, default 200), `view_type` (optional — when `method='views'`: filter by view type, e.g. `'form'`), `bound_model` (optional — when `method='owl'`: filter OWL components bound to a specific model), `era` (optional — when `method='js'`: filter JS patches by era, one of `era1`/`era2`/`era3`) |
+| **Args** | `name` (required), `method` (required, one of `summary` / `views` / `owl` / `qweb` / `js`), `odoo_version` (optional — session-aware), `profile_name` (optional), `limit` (optional, default 200), `view_type` (optional — when `method='views'`: filter by view type, e.g. `'form'`), `bound_model` (optional — when `method='owl'`: filter OWL components bound to a specific model), `era` (optional — when `method='js'`: filter JS patches by era, one of `era1`/`era2`/`era3`), `target` (optional — when `method='js'`: filter JS patches by patched target) |
 | **Prefer when** | Caller wants the module-level architecture overview *plus* UI-layer artefacts in one round-trip |
 | **Skip when** | Caller only needs YES/NO + edition badge (→ `check_module_exists`, 1 Cypher vs many) |
 

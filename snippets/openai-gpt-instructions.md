@@ -33,7 +33,7 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
 **module_inspect** ★ — module-level inventory across manifest, views, OWL, QWeb, JS patches
   FRONTS describe_module (via method='summary'); REPLACES the removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (removed in v0.6)
   WHEN: "what is module [X]", "describe module [X]", "OWL / QWeb / JS patches / views in module [X]"
-  ARGS: name (required), method ("summary"|"views"|"owl"|"qweb"|"js"), odoo_version (optional), profile_name (optional), view_type (optional — method='views': filter by view type), bound_model (optional — method='owl': filter by bound model), era (optional — method='js': era1|era2|era3)
+  ARGS: name (required), method ("summary"|"views"|"owl"|"qweb"|"js"), odoo_version (optional), profile_name (optional), view_type (optional — method='views': filter by view type), bound_model (optional — method='owl': filter by bound model), era (optional — method='js': era1|era2|era3), target (optional — method='js': filter by patched target)
 
 **entity_lookup** ★ — drill down on one entity by ID
   REPLACES: resolve_field, resolve_method, resolve_view (all removed in v0.6)
