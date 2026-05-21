@@ -4,7 +4,7 @@ All notable changes to the Odoo MCP Client are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.5.0] - 2026-05-21
 
 ### Added
 - `BLOCKED_VERSIONS.md` kill-switch registry: add a short SHA to block automatic
@@ -12,10 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   the pin step (fail-soft — CI stays green) when the HEAD SHA matches.
 - `commands/connect.md`: added missing `name: connect` frontmatter field to match
   agent/skill convention (`name:` before `description:`).
-
-## [0.5.0] - 2026-05-19
-
-### Added
 - Initial **public** release of the Odoo MCP Client as a standalone MIT-licensed
   repository, split out of the `odoo-semantic` monolith.
 - 15 persona-specific skills (CEO, Developer, Consultant, Marketer, Sales).
