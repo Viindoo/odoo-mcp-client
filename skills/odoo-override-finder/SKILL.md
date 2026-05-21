@@ -32,9 +32,9 @@ Primary tools:
 - `model_inspect(model, method='methods')` — enumerate methods on the target model with
   override counts before drilling in.
 - `find_override_point(model, method, …)` — where in the codebase to place a safe override.
-- `entity_lookup(kind='method', model=…, method=…)` — full override chain (which modules
+- `entity_lookup(kind='method', model=…, method_name=…)` — full override chain (which modules
   override, in what order, with what change).
-- `model_inspect(model, method='all')` — confirm the model exists and surface neighboring
+- `model_inspect(model, method='summary')` — confirm the model exists and surface neighboring
   fields/methods that might be relevant context for the override.
 - `suggest_pattern(query)` — canonical Odoo extension pattern for the scenario (compute
   field, write override, wizard, OWL patch, etc.).
@@ -93,13 +93,13 @@ If the user has already named an exact method, you may skip this round and go di
 
 ### Round 2 — Parallel
 
-Call `model_inspect(model=…, method='all')` + `find_override_point(model=…, method=…)`
+Call `model_inspect(model=…, method='summary')` + `find_override_point(model=…, method=…)`
 simultaneously. Both take the model and method name from the user's request — they are
 independent of each other.
 
 ### Round 3 — Parallel
 
-Call `entity_lookup(kind='method', model=…, method=…)` + `suggest_pattern` simultaneously.
+Call `entity_lookup(kind='method', model=…, method_name=…)` + `suggest_pattern` simultaneously.
 Both can be formulated after Round 2 and are independent of each other. `entity_lookup`
 reveals the full override chain; `suggest_pattern` recommends the correct Odoo pattern.
 Different scenarios call for different patterns:

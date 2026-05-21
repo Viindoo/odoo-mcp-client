@@ -29,12 +29,12 @@ key — handy when iterating on a long module list.
 
 Primary tools:
 - `check_module_exists(module, …)` — first-pass classifier: Standard / Viindoo / Custom.
-- `module_inspect(module, method='describe')` — full architecture overview per module
+- `module_inspect(module, method='summary')` — full architecture overview per module
   (manifest, models defined vs extended, view + JS patch counts) — the headline executive
   summary tool.
 - `module_inspect(module, method='fields')` — key custom fields summary when describe is too
   light.
-- `model_inspect(model, method='all')` — when a module extends a single model and the
+- `model_inspect(model, method='summary')` — when a module extends a single model and the
   executive wants to know which standard model is being touched.
 - `impact_analysis(symbol | module)` — for modules flagged high-risk based on usage breadth.
 
@@ -72,23 +72,23 @@ every subsequent call targets the same customer baseline.
 **Round 1 — Parallel:** Call `check_module_exists` for ALL modules simultaneously. Each call is
 independent. Result: classify each module as Standard (exclude), Viindoo, or Custom.
 
-**Round 2 — Parallel:** Call `model_inspect(model=…, method='all')` for ALL Viindoo + Custom
+**Round 2 — Parallel:** Call `model_inspect(model=…, method='fields')` for ALL Viindoo + Custom
 modules simultaneously. For each, extract: the base Odoo model being extended, up to 5 most
 important custom fields, and whether key methods are overridden. These calls are independent
 of each other.
 
 **Round 2.5 — Per-module architecture drill-down (parallel):** For each Viindoo or Custom
 module that the executive wants to understand more deeply, call
-`module_inspect(module=<name>, method='describe')`. This returns a concise tree showing the
+`module_inspect(module=<name>, method='summary')`. This returns a concise tree showing the
 module's manifest metadata, which models it defines vs extends, and counts of views and JS
 patches — giving the executive a one-glance architecture picture without reading source code.
-Fire all `module_inspect(method='describe')` calls in parallel (one per module of interest).
+Fire all `module_inspect(method='summary')` calls in parallel (one per module of interest).
 The tree output is ~10–15 lines per module and is safe to include verbatim in the inventory
 report.
 
 Example — understanding `custom_loyalty` on Odoo 17:
 ```
-module_inspect(module="custom_loyalty", method="describe")
+module_inspect(module="custom_loyalty", method="summary")
 ```
 
 **Round 3 — Parallel:** Call `impact_analysis` for modules flagged as high-usage or high-risk

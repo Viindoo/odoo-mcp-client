@@ -25,7 +25,7 @@ These answers come from live codebase analysis — not guesswork.
 | `impact_analysis` | Risk level (HIGH/MEDIUM/LOW) + what breaks if a field or method is changed |
 | `find_deprecated_usage` | Which parts of your codebase use APIs that Odoo is removing in the next version |
 | `check_module_exists` | Whether a feature is available in Community Edition or requires Enterprise |
-| `resolve_model` | How many modules touch a given business object (e.g., `sale.order`) |
+| `model_inspect` | How many modules touch a given business object (e.g., `sale.order`) |
 
 ---
 
@@ -37,7 +37,7 @@ Copy any of these prompts directly:
    > "Using odoo-semantic, run find_deprecated_usage for Odoo 17.0 on our codebase. Summarize the HIGH-risk items in plain language."
 
 2. **Customization inventory:**
-   > "Using odoo-semantic, resolve the model sale.order in Odoo 17.0 and tell me how many modules extend it. Which are custom vs standard?"
+   > "Using odoo-semantic, model_inspect sale.order in Odoo 17.0 and tell me how many modules extend it. Which are custom vs standard?"
 
 3. **Feature availability check:**
    > "Using odoo-semantic, does Odoo 17.0 Community have a subscription billing module? Or is it Enterprise-only?"

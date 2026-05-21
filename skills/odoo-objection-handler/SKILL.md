@@ -35,7 +35,7 @@ Primary tools:
   doubts.
 - `suggest_pattern(query)` — when the feature requires a small customization, name the
   canonical pattern + effort estimate.
-- `model_inspect(model, method='all')` — exact field set to back up "yes, Odoo really
+- `model_inspect(model, method='fields')` — exact field set to back up "yes, Odoo really
   stores this".
 
 For permalinks the rep can drop into chat in real-time during a call:
@@ -72,7 +72,7 @@ was uncertain, use the MCP result to counter the objection with confidence.
 **Round 0 — Pin the version:** `set_active_version(odoo_version=…)`.
 
 **Round 1 — Parallel:** Call `check_module_exists` + `find_examples` +
-`model_inspect(model=…, method='all')` simultaneously. All three are independent —
+`model_inspect(model=…, method='fields')` simultaneously. All three are independent —
 `find_examples` uses the objection text as its semantic query and doesn't need the module
 check result; `model_inspect` uses the known model name from training knowledge or the
 objection text.
@@ -125,5 +125,5 @@ extension); code example of multi-level approval; talking points; verbatim respo
 **Example 2:**
 Prompt: "khách hàng nói Odoo không có kế toán theo chuẩn Việt Nam (VAS)"
 Output: Counter: Viindoo `viin_account_vat` + `l10n_vn` modules exist;
-`model_inspect(model='account.move', method='all')` shows VAS-specific fields; verbatim
+`model_inspect(model='account.move', method='fields')` shows VAS-specific fields; verbatim
 response in Vietnamese noting Viindoo Enterprise solution.
