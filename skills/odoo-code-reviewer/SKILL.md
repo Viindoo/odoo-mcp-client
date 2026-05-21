@@ -31,7 +31,7 @@ Primary tools:
   method + view inventory for cross-checking references.
 - `entity_lookup(kind='field' | 'method', model=…, …)` — verify a specific field or method
   exists on a specific model.
-- `lint_check(code_snippet)` — deprecation + style detection at the API level.
+- `lint_check(code_snippet)` — deprecation + style detection at the API level; inline `# noqa: RULE_ID` in the code suppresses findings on that line.
 - `lookup_core_api(symbol)` — confirms a core Odoo API exists and shows its signature.
 - `suggest_pattern(query)` — canonical Odoo pattern; mismatch with what the developer wrote
   is a MED-severity finding.

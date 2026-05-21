@@ -9,7 +9,7 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 ## Add to `.cursorrules`
 
 ```
-# Odoo Semantic MCP — Developer Rules (v0.6 — 18-tool surface)
+# Odoo Semantic MCP — Developer Rules (v0.7 tool surface)
 # Auto-triggers for Odoo codebase intelligence via MCP
 
 ## Session bootstrap (run once per chat session)
@@ -44,6 +44,14 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 - User wants JS patches of a module → call module_inspect(module=<name>, method="js")
 - User wants views of a module → call module_inspect(module=<name>, method="views")
 
+### Working with CSS/SCSS stylesheets
+- User wants to know what stylesheets a module ships
+  → call resolve_stylesheet(module=<name>)
+- User asks where a CSS selector or SCSS variable is defined or overridden
+  → call find_style_override(selector_or_variable=<selector_or_var>)
+- User wants to trace @import chains or find branding/theme overrides
+  → call find_style_override(selector_or_variable=<var>)
+
 ### Before writing any new code
 - Check for existing patterns → call suggest_pattern(description)
 - Check module availability → call check_module_exists(module_name)
@@ -55,6 +63,7 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 ### Code review / pre-commit
 - Scan for deprecated usage → call find_deprecated_usage(odoo_version)
 - Check coding standards → call lint_check(code_chunk)
+  (inline `# noqa: RULE_ID` in the code suppresses findings on that line)
 
 ### Risk assessment before major changes
 - Impact of field change → call impact_analysis(entity_type="field", entity_name="model.field_name")
@@ -112,7 +121,7 @@ When a Python file with `class .*(models\.Model)` is opened:
 For workspace-agnostic use, paste this shorter version into **Cursor → Settings → Rules for AI**:
 
 ```
-When working with Odoo Python or XML files, use the odoo-semantic MCP tools (v0.6, 18-tool surface):
+When working with Odoo Python or XML files, use the odoo-semantic MCP tools (v0.7 tool surface):
 
 Session bootstrap (once per chat):
 - list_available_versions() / list_available_profiles()
@@ -132,9 +141,11 @@ Targeted tools:
 - "Is [API] deprecated" → lookup_core_api
 - "What changed in upgrade" → api_version_diff
 - "What breaks if I change X" → impact_analysis
-- "Lint this module" → lint_check
+- "Lint this module" → lint_check (inline # noqa: RULE_ID suppresses findings on that line)
 - "Deprecated APIs in my code" → find_deprecated_usage
 - "Show me code for" → find_examples
+- "What stylesheets does module X ship" → resolve_stylesheet
+- "Where is selector / SCSS variable X defined or overridden" → find_style_override
 
 MCP Resources (read-only handles): odoo://{version}/<model|field|method|view|module|pattern|stylesheet>/...
 
@@ -159,7 +170,7 @@ When user asks about Odoo models, fields, methods, views, or patterns:
 - Never fabricate module names, field types, or method signatures
 - After getting tool results, summarize clearly with tree notation for chains
 
-## Key mappings (v0.6 — 18 tools)
+## Key mappings (v0.7)
 - Session start → list_available_versions + set_active_version("17.0")
 - "how does X work" → entity_lookup(kind="method") or model_inspect(method="summary")
 - "where to override" → find_override_point
@@ -171,6 +182,8 @@ When user asks about Odoo models, fields, methods, views, or patterns:
 - "what is module X" → module_inspect(method="summary")
 - "list fields / methods / views of X" → model_inspect(method="fields"|"methods"|"views")
 - "OWL / QWeb / JS patches in X" → module_inspect(method="owl"|"qweb"|"js")
+- "stylesheets in module X" → resolve_stylesheet(module=X)
+- "where is selector/variable X defined" → find_style_override(selector_or_variable=X)
 ```
 
 ---

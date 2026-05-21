@@ -1,6 +1,6 @@
 # MCP Tool × Persona × Adapter Routing Matrix
 
-> **Status (2026-05-21):** Canonical source for tool routing logic. Adapter files (cursor/gemini/openai) duplicate this content manually. Generator script deferred to M9+ — see [ADR-0012](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0012-persona-skill-architecture.md). **18-tool surface (v0.6)**: 10 core tools (M1–M5) + 1 module overview (M9 Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E). Plus 7 MCP Resources (`odoo://` URI scheme) for read-only bookmarks (M11 Wave F, [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md)). See [ADR-0023](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0023-tool-output-completeness.md), [ADR-0028](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0028-discriminator-consolidation.md), [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md).
+> **Status (2026-05-21):** Canonical source for tool routing logic. Adapter files (cursor/gemini/openai) duplicate this content manually. Generator script deferred to M9+ — see [ADR-0012](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0012-persona-skill-architecture.md). **v0.7 tool surface**: 10 core tools (M1–M5) + 1 module overview (M9 Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E) + 2 stylesheet tools (M10). Plus 7 MCP Resources (`odoo://` URI scheme) for read-only bookmarks (M11 Wave F, [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md)). See [ADR-0023](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0023-tool-output-completeness.md), [ADR-0028](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0028-discriminator-consolidation.md), [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md).
 >
 > **v0.6 change:** 10 legacy tools — `resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches` — were removed in v0.6. Use the superset tools (`model_inspect`, `module_inspect`, `entity_lookup`) instead. See the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
 
@@ -38,10 +38,13 @@ When adding a new MCP tool or persona, update **this file first**, then propagat
 | **set_active_profile** ☆  | ○  | ●  | ○ | ○ | ○ |
 | **list_available_versions** ☆ | ○ | ● | ○ | ○ | ○ |
 | **list_available_profiles** ☆ | ○ | ● | ○ | ○ | ○ |
+| **resolve_stylesheet** ✦  |     | ●  |   |   |   |
+| **find_style_override** ✦ |     | ●  | ○ | ○ |   |
 
 **Legend:** ● = primary (default first choice), ○ = secondary (related context).
 ★ = M11 Wave D superset (discriminator-routed).
 ☆ = M11 Wave E session-context tool (sticky 24h TTL per API key — see [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md)).
+✦ = M10 stylesheet tools (CSS/SCSS indexing — v0.7 new).
 
 ### MCP Resources (M11 Wave F, [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md))
 
@@ -67,7 +70,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — p
 |-----------|-------|
 | **Primary EN** | "inspect model sale.order", "show me sale.order with fields and methods", "everything about res.partner in v17", "full structure of model X" |
 | **Primary VI** | "inspect model X", "cho tôi tất cả thông tin model X", "model X full structure", "đầy đủ field+method+view của X" |
-| **Args** | `model` (required), `method` (required, one of `summary` / `fields` / `methods` / `views` / `field` / `method`), `odoo_version` (optional — falls back to session active version or auto-latest), `field` (when `method='field'`), `method_name` (when `method='method'`), `limit` (optional, default 200), `profile_name` (optional) |
+| **Args** | `model` (required), `method` (required, one of `summary` / `fields` / `methods` / `views` / `field` / `method`), `odoo_version` (optional — falls back to session active version or auto-latest), `field` (when `method='field'`), `method_name` (when `method='method'`), `limit` (optional, default 200), `profile_name` (optional), `from_module` (optional — when `method` in `summary`/`fields`/`field`: restrict to declarations from this module), `kind` (optional — when `method='fields'`: filter fields by type, e.g. `'many2one'`), `view_type` (optional — when `method='views'`: filter by view type, e.g. `'form'`/`'tree'`) |
 | **Prefer when** | Any model-scoped enumeration question — `model_inspect(method='summary')` returns one consolidated tree replacing what previously required 3+ legacy calls |
 | **Skip when** | Caller asks about a *specific* field/method/view ID → `entity_lookup`; or module-level rather than model-level (→ `module_inspect`) |
 
@@ -77,7 +80,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — p
 |-----------|-------|
 | **Primary EN** | "inspect module sale_management", "what does viin_sale ship — views, OWL, QWeb, JS patches", "describe module website_sale with all UI artefacts", "full module inventory for X" |
 | **Primary VI** | "inspect module X", "module X có gì — view/OWL/QWeb/patch", "tổng quan module X kèm UI", "module X tổng thể là gì" |
-| **Args** | `module` (required), `method` (required, one of `summary` / `views` / `owl` / `qweb` / `js`), `odoo_version` (optional — session-aware), `profile_name` (optional), `limit` (optional, default 200) |
+| **Args** | `name` (required), `method` (required, one of `summary` / `views` / `owl` / `qweb` / `js`), `odoo_version` (optional — session-aware), `profile_name` (optional), `limit` (optional, default 200), `view_type` (optional — when `method='views'`: filter by view type, e.g. `'form'`), `bound_model` (optional — when `method='owl'`: filter OWL components bound to a specific model), `era` (optional — when `method='js'`: filter JS patches by era, one of `era1`/`era2`/`era3`) |
 | **Prefer when** | Caller wants the module-level architecture overview *plus* UI-layer artefacts in one round-trip |
 | **Skip when** | Caller only needs YES/NO + edition badge (→ `check_module_exists`, 1 Cypher vs many) |
 
@@ -87,7 +90,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — p
 |-----------|-------|
 | **Primary EN** | "lookup field amount_total on sale.order", "find method action_confirm on sale.order", "lookup view sale.view_order_form" |
 | **Primary VI** | "lookup field/method/view X", "tra cứu method action_confirm trên sale.order", "tra cứu view sale.view_order_form" |
-| **Args** | `kind` (required, one of `field` / `method` / `view`), `odoo_version` (optional — session-aware), plus discriminator-specific args: for `kind='field'` → `model` + `field`; for `kind='method'` → `model` + `method_name`; for `kind='view'` → `xmlid` |
+| **Args** | `kind` (required, one of `field` / `method` / `view`), `odoo_version` (optional — session-aware), plus discriminator-specific args: for `kind='field'` → `model` + `field`; for `kind='method'` → `model` + `method_name`; for `kind='view'` → `xmlid`; `from_module` (optional — when `kind='model'`/`'field'`: restrict to declarations from this module) |
 | **Prefer when** | Caller knows the exact ID and wants one entity's full record — drill-down from a `model_inspect`/`module_inspect` enumeration |
 | **Skip when** | Caller wants the full model tree (→ `model_inspect`) or the override chain across modules (→ `entity_lookup(kind='method', ...)`) |
 
@@ -189,6 +192,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — p
 | **Primary EN** | "lint check this module", "OCA style violations in module X", "check coding standards", "does this code follow Odoo guidelines" |
 | **Primary VI** | "module X có vi phạm coding convention không", "kiểm tra code quality", "code này có vi phạm Odoo style không", "ruff/pylint check cho Odoo" |
 | **Args** | `code` (required, source code chunk), `odoo_version` (optional, default auto), `language` (optional: 'python'/'javascript'/'xml', default 'python') |
+| **noqa** | Inline `# noqa: RULE_ID` (or bare `# noqa`) in the `code` argument suppresses findings on that line. |
 | **Prefer when** | Dev wants to check code against Odoo-specific lint rules before committing |
 | **Skip when** | Question is about deprecated API (→ find_deprecated_usage) or module existence (→ check_module_exists) |
 
@@ -241,6 +245,26 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — p
 | **Args** | `name` (required, module technical name), `odoo_version` (optional, default auto), `profile_name` (optional) |
 | **Prefer when** | Caller needs module contents (models, views, JS) and counts in one round-trip — module-level architecture overview |
 | **Skip when** | Caller only needs YES/NO + edition badge (→ check_module_exists, 1 Cypher vs 5) or wants enumerated entities (→ model_inspect(method='fields'/'views'/'methods')) |
+
+### resolve_stylesheet ✦ (M10 — CSS/SCSS file inventory for a module)
+
+| Attribute | Value |
+|-----------|-------|
+| **Primary EN** | "what stylesheets does module website_sale ship", "list CSS/SCSS files in module X", "show @import chain for module Y", "stylesheet inventory for theme_bootstrap", "selector and variable counts for module Z" |
+| **Primary VI** | "module X có stylesheet nào", "liệt kê file CSS/SCSS trong module Y", "chuỗi @import của module Z", "stylesheet nào module này ship" |
+| **Args** | `module` (required, module technical name), `odoo_version` (optional, default `"auto"`) |
+| **Prefer when** | Caller wants to enumerate all `:Stylesheet` files a module ships — language (CSS/SCSS), selector/variable/mixin/import counts, and the `@import` chain. |
+| **Skip when** | Caller is searching for *where* a specific selector or variable is defined or overridden (→ `find_style_override`) |
+
+### find_style_override ✦ (M10 — semantic search for CSS selector / SCSS variable origin & overrides)
+
+| Attribute | Value |
+|-----------|-------|
+| **Primary EN** | "where is CSS selector .o_kanban defined or overridden", "find SCSS variable $o-brand-primary across modules", "which module overrides .o_form_view padding", "branding override for .o_main_navbar", "where does $o-community-color come from" |
+| **Primary VI** | "selector .o_kanban được định nghĩa ở đâu", "tìm SCSS variable $o-brand-primary", "module nào override style cho .o_form_view", "nguồn gốc của $o-brand-primary" |
+| **Args** | `selector_or_variable` (required, CSS selector or SCSS variable name), `odoo_version` (optional, default `"auto"`), `limit` (optional, default 5) |
+| **Prefer when** | Theming/branding work — need to know which module (and which file) first defines or overrides a given selector or SCSS variable; uses pgvector semantic search + `:IMPORTS` chain traversal. |
+| **Skip when** | Caller wants all stylesheets a module ships (→ `resolve_stylesheet`); or asking about Python/XML view overrides (→ `find_override_point` / `entity_lookup(kind='view')`) |
 
 ---
 
@@ -360,5 +384,7 @@ Plugin skills can claim overlapping trigger keywords. Resolution policy:
 | **set_active_profile** ☆ | ✓ | ✓ | ✓ | _(session-context, no skill)_ |
 | **list_available_versions** ☆ | ✓ | ✓ | ✓ | _(session-context, no skill)_ |
 | **list_available_profiles** ☆ | ✓ | ✓ | ✓ | _(session-context, no skill)_ |
+| **resolve_stylesheet** ✦ | ✓ | ✓ | ✓ | _(stylesheet, no skill)_ |
+| **find_style_override** ✦ | ✓ | ✓ | ✓ | _(stylesheet, no skill)_ |
 
-> **Note:** Each adapter implements these tools via HTTP MCP protocol to the Odoo Semantic MCP server; no duplication of logic, only routing heuristics. **18 MCP tools** (v0.6): 10 core tools (M1–M5) + 1 module overview (M9 Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E). Plus 7 MCP Resources (`odoo://` URI scheme, M11 Wave F). The 10 legacy `resolve_*`/`list_*` tools were removed in v0.6 — see the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
+> **Note:** Each adapter implements these tools via HTTP MCP protocol to the Odoo Semantic MCP server; no duplication of logic, only routing heuristics. **v0.7 tool surface**: 10 core tools (M1–M5) + 1 module overview (M9 Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E) + 2 stylesheet tools (M10). Plus 7 MCP Resources (`odoo://` URI scheme, M11 Wave F). The 10 legacy `resolve_*`/`list_*` tools were removed in v0.6 — see the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).

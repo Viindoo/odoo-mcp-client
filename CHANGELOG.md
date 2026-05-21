@@ -4,10 +4,32 @@ All notable changes to the Odoo MCP Client are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.6.0] - 2026-05-21
+## [0.7.0] - 2026-05-21
 
-### Changed
-- **Target server v0.6 tool surface (18 tools).** The upstream server removed the 10
+### Added (v0.7 server surface)
+- **2 new stylesheet tools** (`resolve_stylesheet`, `find_style_override`) added to all
+  adapter snippets (Cursor, Gemini Gem, OpenAI Custom GPT), routing matrix §1 & §2,
+  Appendix table, and dev persona. `resolve_stylesheet` enumerates a module's CSS/SCSS
+  files; `find_style_override` does pgvector + `:IMPORTS`-chain semantic search for
+  selector/variable origin and overrides.
+- **`from_module` filter** on `model_inspect` (method=`summary`/`fields`/`field`) and
+  `entity_lookup` (kind=`model`/`field`) — restrict results to declarations from a
+  specific module.
+- **`kind` filter** on `model_inspect` (method=`fields`) — filter fields by type
+  (e.g. `'many2one'`).
+- **`view_type` filter** on `model_inspect` (method=`views`) and `module_inspect`
+  (method=`views`) — filter by view type (e.g. `'form'`/`'tree'`).
+- **`bound_model` filter** on `module_inspect` (method=`owl`) — restrict OWL components
+  to those bound to a specific model.
+- **`era` filter** on `module_inspect` (method=`js`) — filter JS patches by era
+  (`era1`/`era2`/`era3`).
+- **`noqa` support in `lint_check`** — inline `# noqa: RULE_ID` (or bare `# noqa`) in
+  the `code` argument suppresses findings on that line. Documented in routing matrix,
+  all three adapter snippets, and both affected skills (`odoo-coder`,
+  `odoo-code-reviewer`).
+
+### Changed (v0.6 migration — also part of this release)
+- **Target server v0.6 tool surface.** The upstream server removed the 10
   deprecated flat tools (`resolve_model`, `resolve_field`, `resolve_method`,
   `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`,
   `list_qweb_templates`, `list_js_patches`) per server ADR-0028. All client adapter
@@ -20,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   handle entity-type routing server-side without a dedicated client-side classifier.
 - **Replaced hardcoded tool counts with capability phrasing** across README, snippets,
   and persona docs so the count never drifts out of sync with the server again.
+- **Fixed `module_inspect` arg name drift**: routing matrix and adapter snippets now
+  consistently use `name` (required) instead of `module` for the module name parameter.
 
 ## [0.5.0] - 2026-05-21
 
