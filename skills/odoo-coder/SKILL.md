@@ -38,7 +38,7 @@ Primary inspection tools (v0.5.0 supersets — prefer these):
 - `suggest_pattern(query)` — canonical Odoo pattern catalogue (computed field, SQL
   constraint, wizard, etc.).
 - `find_examples(query)` — real-world implementations from the indexed corpus.
-- `lint_check(code)` — deprecation + style detection (pass the code snippet to check).
+- `lint_check(code)` — deprecation + style detection (pass the code snippet to check); inline `# noqa: RULE_ID` in the code suppresses findings on that line.
 - `lookup_core_api(symbol)` — what Odoo core itself exposes for a given API surface.
 
 For bookmark-stable single-entity reads (works in IDE/chat bookmarks), the MCP Resource URI

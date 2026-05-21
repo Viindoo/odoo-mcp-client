@@ -347,9 +347,9 @@ Clients that implement the MCP `resources/list` and `resources/read` flows surfa
 
 ---
 
-## Superset Tools — v0.6 Reference
+## Superset Tools — v0.7 Reference
 
-v0.6 ships **18 tools**. The 10 flat `resolve_*` / `list_*` tools that existed in v0.4–v0.5 were deprecated in v0.5 and **removed in v0.6** — they no longer exist on the server. If you encounter prompts or snippets that reference the old names, replace them with the supersets below.
+v0.7 expands the tool surface with 2 new stylesheet tools (`resolve_stylesheet`, `find_style_override`) on top of the v0.6 base. The 10 flat `resolve_*` / `list_*` tools that existed in v0.4–v0.5 were deprecated in v0.5 and **removed in v0.6** — they no longer exist on the server. If you encounter prompts or snippets that reference the old names, replace them with the supersets below.
 
 > The old `resolve_*` / `list_*` tools are gone. Use these supersets instead:
 

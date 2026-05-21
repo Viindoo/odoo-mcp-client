@@ -1,14 +1,14 @@
 # Odoo Semantic — Developer Guide
 
-<!-- This persona intentionally enumerates the full tool arsenal (v0.6) instead of the "Most Useful Tools" template variant — devs need the full surface area, including the 3 M11 supersets and 4 session-context tools. -->
+<!-- This persona intentionally enumerates the full tool arsenal (v0.7) instead of the "Most Useful Tools" template variant — devs need the full surface area, including the 3 M11 supersets, 4 session-context tools, and 2 M10 stylesheet tools. -->
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` → `claude plugin install odoo-semantic@viindoo-plugins` → `/odoo-semantic:connect`. Chi tiết + AI tools khác: [client setup](../setup.md).
 
-The full **tool arsenal (v0.6)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), this guide covers the daily patterns. v0.6 ships three discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`) plus four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call.
+The full **tool arsenal (v0.7)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), and now CSS/SCSS stylesheet analysis — this guide covers the daily patterns. v0.7 ships three discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`), four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call, and two new **stylesheet tools** for theme/branding work.
 
 ---
 
-## All Tools Available to Developers (v0.6)
+## All Tools Available to Developers (v0.7)
 
 ### Supersets (★ M11 Wave D — preferred over legacy siblings)
 
@@ -36,12 +36,19 @@ The full **tool arsenal (v0.6)**, optimized for development workflows. From unde
 | `lookup_core_api` | Verify an API symbol exists and is not deprecated |
 | `api_version_diff` | Identify breaking changes between Odoo versions |
 | `find_deprecated_usage` | Audit your module for deprecated API usage |
-| `lint_check` | Check module against Odoo coding standards |
+| `lint_check` | Check module against Odoo coding standards; inline `# noqa: RULE_ID` in code suppresses findings on that line |
 | `suggest_pattern` | Find the canonical implementation pattern |
 | `check_module_exists` | Verify module availability + CE/EE flag |
 | `find_override_point` | Locate the safest method to override |
 | `cli_help` | Look up `odoo-bin` flags and options |
 | `describe_module` | Module architecture overview — manifest + defines/extends models + view/JS counts |
+
+### Stylesheet tools (✦ M10 — v0.7 new)
+
+| Tool | Use case |
+|------|----------|
+| `resolve_stylesheet(module, odoo_version="auto")` | Enumerate a module's CSS/SCSS `:Stylesheet` files — language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. |
+| `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Semantic search (pgvector + `:IMPORTS` chain) for where a CSS selector or SCSS variable is first defined and all modules that override it. Essential for theming/branding work. |
 
 ### Removed in v0.6
 
