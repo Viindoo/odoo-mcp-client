@@ -33,7 +33,25 @@ jobs:
         id: info
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Check kill-switch (BLOCKED_VERSIONS.md)
+        id: killswitch
+        run: |
+          SHA7="${{ steps.info.outputs.sha }}"
+          SHA7="${SHA7:0:7}"
+          # Extract 7-char SHAs from the SHA column of the blocked table.
+          # Table rows look like: | v0.x.y | abc1234 | reason | workaround |
+          BLOCKED=$(grep -E '^\|[[:space:]]*v[0-9]' BLOCKED_VERSIONS.md \
+            | awk -F'|' '{gsub(/[[:space:]]/,"",$3); print $3}' || true)
+          if echo "$BLOCKED" | grep -qx "$SHA7"; then
+            echo "blocked=true" >> "$GITHUB_OUTPUT"
+            echo "⛔ HEAD ${SHA7} is in BLOCKED_VERSIONS.md — skipping marketplace pin."
+          else
+            echo "blocked=false" >> "$GITHUB_OUTPUT"
+            echo "✓ HEAD ${SHA7} is not blocked — proceeding with pin."
+          fi
+
       - uses: actions/checkout@v6
+        if: steps.killswitch.outputs.blocked == 'false'
         with:
           repository: Viindoo/claude-plugins
           token: ${{ secrets.CLAUDE_PLUGINS_PAT }}
@@ -41,6 +59,7 @@ jobs:
 
       - name: Check if already pinned
         id: check
+        if: steps.killswitch.outputs.blocked == 'false'
         run: |
           CURRENT=$(python3 -c "
           import json
@@ -52,7 +71,7 @@ jobs:
           [ "$CURRENT" = "${{ steps.info.outputs.sha }}" ] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Update marketplace.json
-        if: steps.check.outputs.skip == 'false'
+        if: steps.killswitch.outputs.blocked == 'false' && steps.check.outputs.skip == 'false'
         run: |
           python3 -c "
           import json
@@ -65,7 +84,7 @@ jobs:
           "
 
       - name: Create PR with auto-merge
-        if: steps.check.outputs.skip == 'false'
+        if: steps.killswitch.outputs.blocked == 'false' && steps.check.outputs.skip == 'false'
         working-directory: claude-plugins
         env:
           GH_TOKEN: ${{ secrets.CLAUDE_PLUGINS_PAT }}
