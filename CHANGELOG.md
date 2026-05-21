@@ -34,7 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - The 4 ORM-validation tools require server **v0.8.0** (PR #158). `validate_depends`
   additionally requires the prod `mth.depends` backfill (`python -m src.indexer index-repo
   --all --full`) — until it runs, `validate_depends` returns the "no @api.depends" note for
-  methods indexed before the reindex.
+  methods indexed before the reindex. That backfill is now scheduled as server **PR #159**
+  (M10C polish wave) — the full reindex v8→v19, with the ordered runbook in
+  [`docs/deploy/m10-postmerge-ops.md`](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/deploy/m10-postmerge-ops.md).
+  PR #159 introduces no new MCP tools (surface stays 24), so this client release needs no
+  tool changes for it; recommend landing this release alongside that reindex so
+  `validate_depends` is fully functional on the live surface.
 
 ## [0.7.0] - 2026-05-21
 
