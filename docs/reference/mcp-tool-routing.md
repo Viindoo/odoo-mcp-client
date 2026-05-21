@@ -1,6 +1,6 @@
 # MCP Tool × Persona × Adapter Routing Matrix
 
-> **Status (2026-05-21):** Canonical source for tool routing logic. Adapter files (cursor/gemini/openai) duplicate this content manually. Generator script deferred to M9+ — see [ADR-0012](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0012-persona-skill-architecture.md). **v0.7 tool surface**: 10 core tools (M1–M5) + 1 module overview (M9 Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E) + 2 stylesheet tools (M10). Plus 7 MCP Resources (`odoo://` URI scheme) for read-only bookmarks (M11 Wave F, [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md)). See [ADR-0023](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0023-tool-output-completeness.md), [ADR-0028](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0028-discriminator-consolidation.md), [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md).
+> **Status (2026-05-21):** Canonical source for tool routing logic. Adapter files (cursor/gemini/openai) duplicate this content manually. Generator script deferred to M9+ — see [ADR-0012](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0012-persona-skill-architecture.md). **v0.8 tool surface (24 tools)**: 10 core tools (M1–M5) + 1 module overview (M9 Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E) + 2 stylesheet tools (M10A) + 4 ORM-validation tools (M10.5 Phase 2). Plus 7 MCP Resources (`odoo://` URI scheme) for read-only bookmarks (M11 Wave F, [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md)). See [ADR-0023](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0023-tool-output-completeness.md), [ADR-0028](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0028-discriminator-consolidation.md), [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md).
 >
 > **v0.6 change:** 10 legacy tools — `resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches` — were removed in v0.6. Use the superset tools (`model_inspect`, `module_inspect`, `entity_lookup`) instead. See the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
 
@@ -40,11 +40,16 @@ When adding a new MCP tool or persona, update **this file first**, then propagat
 | **list_available_profiles** ☆ | ○ | ● | ○ | ○ | ○ |
 | **resolve_stylesheet** ✦  |     | ●  |   |   |   |
 | **find_style_override** ✦ |     | ●  | ○ | ○ |   |
+| **resolve_orm_chain** ⊕   |     | ●  |   |   |   |
+| **validate_domain** ⊕     |     | ●  |   |   |   |
+| **validate_depends** ⊕    |     | ●  |   |   |   |
+| **validate_relation** ⊕   |     | ●  |   |   |   |
 
 **Legend:** ● = primary (default first choice), ○ = secondary (related context).
 ★ = M11 Wave D superset (discriminator-routed).
 ☆ = M11 Wave E session-context tool (sticky 24h TTL per API key — see [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md)).
-✦ = M10 stylesheet tools (CSS/SCSS indexing — v0.7 new).
+✦ = M10A stylesheet tools (CSS/SCSS indexing — v0.7 new).
+⊕ = M10.5 Phase 2 ORM-validation tools (static domain / `@api.depends` / relation / dotted-path checks — v0.8 new).
 
 ### MCP Resources (M11 Wave F, [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md))
 
@@ -266,6 +271,46 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — p
 | **Prefer when** | Theming/branding work — need to know which module (and which file) first defines or overrides a given selector or SCSS variable; uses pgvector semantic search + `:IMPORTS` chain traversal. |
 | **Skip when** | Caller wants all stylesheets a module ships (→ `resolve_stylesheet`); or asking about Python/XML view overrides (→ `find_override_point` / `entity_lookup(kind='view')`) |
 
+### resolve_orm_chain ⊕ (M10.5 P2 — walk a dotted ORM field path to its terminal type)
+
+| Attribute | Value |
+|-----------|-------|
+| **Primary EN** | "what type is sale.order.partner_id.country_id.code", "does this dotted path resolve", "trace a field path", "where does partner_id.commercial_partner_id.name end up" |
+| **Primary VI** | "field nào ở cuối chain partner_id.country_id.code", "kiểm tra đường dẫn field a.b.c có hợp lệ không", "trỏ tới đâu khi đi hết chuỗi field", "trace field path trên sale.order" |
+| **Args** | `model` (required, root dotted model e.g. `'sale.order'`), `dotted_path` (required, e.g. `'partner_id.country_id.code'`), `odoo_version` (optional — session-aware, `'auto'` = latest indexed), `profile_name` (optional) |
+| **Prefer when** | You have a *multi-hop* dotted path and need the terminal type, or the exact hop where it breaks — preferred over `entity_lookup(kind='field')` (single field only) |
+| **Skip when** | Validating a whole domain or `@api.depends` → use `validate_domain` / `validate_depends` (they call this primitive per term) |
+
+### validate_domain ⊕ (M10.5 P2 — validate a search domain's field-paths + operators)
+
+| Attribute | Value |
+|-----------|-------|
+| **Primary EN** | "is this domain valid", "check domain [('x','=',1)]", "validate search domain for sale.order", "are these domain operators valid in v16" |
+| **Primary VI** | "domain này có field sai không", "kiểm tra domain trước khi dùng", "validate domain cho sale.order", "operator này hợp lệ ở version nào" |
+| **Args** | `model` (required, model the domain runs on), `domain` (required, domain literal e.g. `"[('partner_id.country_id', '=', 'VN')]"`), `odoo_version` (optional — session-aware), `profile_name` (optional) |
+| **Prefer when** | You have a full domain (≥1 term) and want per-term field-path + operator validation. Operator validity is **version-aware**: `parent_of` from v9, `any`/`not any` only from v17, v19 access-rights variants. Logical connectors (`&`, `|`, `!`) are skipped. |
+| **Skip when** | Validating a `@api.depends` (→ `validate_domain` is for domains; use `validate_depends`); or debugging a single path (→ `resolve_orm_chain`) |
+
+### validate_depends ⊕ (M10.5 P2 — validate a compute method's `@api.depends` paths)
+
+| Attribute | Value |
+|-----------|-------|
+| **Primary EN** | "are the @api.depends on _compute_x correct", "validate depends of this compute method", "check compute dependencies", "does this stored field recompute correctly" |
+| **Primary VI** | "depends của method này có field sai không", "kiểm tra @api.depends", "field tính toán có recompute đúng không", "validate depends của _compute_amount" |
+| **Args** | `model` (required, dotted model), `method` (required, compute method name e.g. `'_compute_amount_total'`), `odoo_version` (optional — session-aware), `profile_name` (optional) |
+| **Prefer when** | Checking an *existing* indexed method's declared `@api.depends` — flags depends on `id` (forbidden) and suggests the closest field for typos. Requires the server's `mth.depends` index. |
+| **Skip when** | The path is in a domain, not a depends (→ `validate_domain`); era1 (v8/v9) methods have no decorator depends and surface a clear note |
+
+### validate_relation ⊕ (M10.5 P2 — assert a relational field points at an expected comodel)
+
+| Attribute | Value |
+|-----------|-------|
+| **Primary EN** | "does sale.order.partner_id point to res.partner", "is this field a many2one to res.users", "check relation target", "confirm field X is a m2o/o2m/m2m to model Y" |
+| **Primary VI** | "field X có trỏ đúng model Y không", "kiểm tra quan hệ field", "partner_id có phải many2one tới res.partner không", "comodel của field này là gì" |
+| **Args** | `model` (required, dotted model), `field` (required, relational field name e.g. `'partner_id'`), `target_model` (required, expected comodel e.g. `'res.partner'`), `odoo_version` (optional — session-aware), `profile_name` (optional) |
+| **Prefer when** | You specifically want to *assert* a field's comodel (or a subtype via inheritance) rather than read full field detail — preferred over `entity_lookup(kind='field')` for the assertion case |
+| **Skip when** | Tracing a multi-hop path (→ `resolve_orm_chain`) |
+
 ---
 
 ## 3. Adapter Sync Map
@@ -386,5 +431,9 @@ Plugin skills can claim overlapping trigger keywords. Resolution policy:
 | **list_available_profiles** ☆ | ✓ | ✓ | ✓ | _(session-context, no skill)_ |
 | **resolve_stylesheet** ✦ | ✓ | ✓ | ✓ | _(stylesheet, no skill)_ |
 | **find_style_override** ✦ | ✓ | ✓ | ✓ | _(stylesheet, no skill)_ |
+| **resolve_orm_chain** ⊕ | ✓ | ✓ | ✓ | odoo-coder |
+| **validate_domain** ⊕ | ✓ | ✓ | ✓ | odoo-coder |
+| **validate_depends** ⊕ | ✓ | ✓ | ✓ | odoo-code-reviewer |
+| **validate_relation** ⊕ | ✓ | ✓ | ✓ | odoo-code-reviewer |
 
-> **Note:** Each adapter implements these tools via HTTP MCP protocol to the Odoo Semantic MCP server; no duplication of logic, only routing heuristics. **v0.7 tool surface**: 10 core tools (M1–M5) + 1 module overview (M9 Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E) + 2 stylesheet tools (M10). Plus 7 MCP Resources (`odoo://` URI scheme, M11 Wave F). The 10 legacy `resolve_*`/`list_*` tools were removed in v0.6 — see the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
+> **Note:** Each adapter implements these tools via HTTP MCP protocol to the Odoo Semantic MCP server; no duplication of logic, only routing heuristics. **v0.8 tool surface (24 tools)**: 10 core tools (M1–M5) + 1 module overview (M9 Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E) + 2 stylesheet tools (M10A) + 4 ORM-validation tools (M10.5 Phase 2). Plus 7 MCP Resources (`odoo://` URI scheme, M11 Wave F). The 10 legacy `resolve_*`/`list_*` tools were removed in v0.6 — see the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).

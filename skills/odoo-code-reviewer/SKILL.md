@@ -36,6 +36,19 @@ Primary tools:
 - `suggest_pattern(query)` — canonical Odoo pattern; mismatch with what the developer wrote
   is a MED-severity finding.
 
+ORM-validation tools (v0.8 — M10.5 Phase 2). These verify the *constructs* generic review and
+even `entity_lookup` miss — a wrong `@api.depends` path, an invalid domain operator for the
+target version, or a relational field pointing at the wrong comodel. A non-OK result here is
+CRITICAL (it would have failed at runtime, not at import):
+
+- `validate_depends(model, method)` — validate the indexed method's `@api.depends` paths;
+  directly catches the "Missing/wrong `@api.depends` path → stale compute" failure mode below.
+- `validate_domain(model, domain)` — validate a domain's field-paths *and* operators against
+  the target version (e.g. `any`/`not any` are invalid before v17).
+- `resolve_orm_chain(model, dotted_path)` — confirm a `related=` or domain dotted path resolves
+  end to end, or pinpoint the broken hop.
+- `validate_relation(model, field, target_model)` — assert a relational field's comodel.
+
 ## Additional tools (ollama-delegate)
 `mcp__ollama-delegate__review_code` — fast first-pass review on the pasted code.
 
@@ -145,6 +158,16 @@ calls in parallel since they are independent:
   signature and that it is actually defined on the model.
 - **`lint_check(code_snippet)`** — run to detect deprecated decorators and signatures (uses
   the version pinned at Step 0).
+- **`validate_depends(model=…, method=…)`** — for every `_compute_*` whose method is already
+  indexed: confirms each `@api.depends` path resolves and isn't `id`. Prefer this over manually
+  cross-checking each path with `entity_lookup`. A non-OK result is CRITICAL.
+- **`validate_domain(model=…, domain="…")`** — for every domain literal in the code (view
+  `domain=`, `ir.rule`, `search([...])`): validates field-paths *and* operator validity for
+  the target version (catches e.g. `any`/`not any` used before v17). A non-OK result is CRITICAL.
+- **`resolve_orm_chain(model=…, dotted_path="…")`** — for any multi-hop `related=` chain or
+  domain path; pinpoints the exact broken hop instead of a generic "field not found".
+- **`validate_relation(model=…, field=…, target_model=…)`** — when the code assumes a
+  relational field's comodel (e.g. a `related=` hopping `partner_id` to `res.partner`).
 
 If Odoo version is not stated, infer from context (profile name, repo path, `_inherit` of a
 version-specific model). Default to 17.0 and note the assumption.

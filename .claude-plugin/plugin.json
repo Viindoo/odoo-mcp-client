@@ -1,6 +1,6 @@
 {
   "name": "odoo-semantic",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Odoo codebase intelligence — inheritance chains, field impact, pattern catalogue, upgrade paths",
   "keywords": ["odoo", "erp", "mcp", "inheritance", "impact-analysis"],
   "author": {

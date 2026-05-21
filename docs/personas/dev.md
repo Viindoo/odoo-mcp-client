@@ -1,14 +1,14 @@
 # Odoo Semantic — Developer Guide
 
-<!-- This persona intentionally enumerates the full tool arsenal (v0.7) instead of the "Most Useful Tools" template variant — devs need the full surface area, including the 3 M11 supersets, 4 session-context tools, and 2 M10 stylesheet tools. -->
+<!-- This persona intentionally enumerates the full tool arsenal (v0.8) instead of the "Most Useful Tools" template variant — devs need the full surface area, including the 3 M11 supersets, 4 session-context tools, 2 M10A stylesheet tools, and 4 M10.5 ORM-validation tools. -->
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` → `claude plugin install odoo-semantic@viindoo-plugins` → `/odoo-semantic:connect`. Chi tiết + AI tools khác: [client setup](../setup.md).
 
-The full **tool arsenal (v0.7)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), and now CSS/SCSS stylesheet analysis — this guide covers the daily patterns. v0.7 ships three discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`), four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call, and two new **stylesheet tools** for theme/branding work.
+The full **tool arsenal (v0.8)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS stylesheet analysis, and now static ORM validation — this guide covers the daily patterns. v0.8 ships three discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`), four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call, two **stylesheet tools** for theme/branding work, and four **ORM-validation tools** that catch hallucinated field-paths, operators, dependencies, and relation targets before you ship a domain / `@api.depends` / relational field.
 
 ---
 
-## All Tools Available to Developers (v0.7)
+## All Tools Available to Developers (v0.8)
 
 ### Supersets (★ M11 Wave D — preferred over legacy siblings)
 
@@ -49,6 +49,19 @@ The full **tool arsenal (v0.7)**, optimized for development workflows. From unde
 |------|----------|
 | `resolve_stylesheet(module, odoo_version="auto")` | Enumerate a module's CSS/SCSS `:Stylesheet` files — language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. |
 | `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Semantic search (pgvector + `:IMPORTS` chain) for where a CSS selector or SCSS variable is first defined and all modules that override it. Essential for theming/branding work. |
+
+### ORM-validation tools (⊕ M10.5 Phase 2 — v0.8 new)
+
+Static checks against the indexed graph. Run them **before** emitting a domain, `@api.depends`, or relational field — they catch hallucinated field-paths, invalid operators, and wrong comodels that would otherwise surface only at runtime.
+
+| Tool | Use case |
+|------|----------|
+| `resolve_orm_chain(model, dotted_path, odoo_version="auto")` | Walk a dotted field path (`partner_id.country_id.code`) hop by hop; returns the terminal field type or a `BROKEN` line naming the first unresolved hop. Use to verify a multi-hop `related=` chain or domain path resolves. |
+| `validate_domain(model, domain, odoo_version="auto")` | Validate every `(field_path, operator, value)` term of a search domain. Operator validity is **version-aware** (`parent_of` v9+, `any`/`not any` v17+). Run before pasting a domain into a view, `ir.rule`, or `search()`. |
+| `validate_depends(model, method, odoo_version="auto")` | Validate an indexed compute method's `@api.depends('a.b', …)` paths; flags depends on `id` (forbidden) and suggests the closest field for typos — directly catches the "stale compute" failure mode. |
+| `validate_relation(model, field, target_model, odoo_version="auto")` | Assert a field is a many2one/one2many/many2many whose comodel is `target_model` (or a subtype via inheritance). Use before writing a `related=` that hops through a relation. |
+
+> Prefer these over `entity_lookup(kind='field')` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) — they reason about the whole construct, not one field.
 
 ### Removed in v0.6
 
@@ -148,6 +161,9 @@ Copy these prompts into your AI tool:
 
 6. **Session pin:**
    > "Using odoo-semantic, set_active_version 17.0 for this session. Then inspect sale.order method=summary — no need to repeat the version on follow-up calls."
+
+7. **ORM validation (before shipping a domain / depends):**
+   > "Using odoo-semantic, validate_domain on sale.order for `[('partner_id.country_id.code', '=', 'VN'), ('state', 'any', ...)]` in Odoo 16 — are the field-paths and operators valid for that version?" (and: "validate_depends for _compute_amount_total on sale.order — are all @api.depends paths real?")
 
 ---
 
