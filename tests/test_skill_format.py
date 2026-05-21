@@ -61,3 +61,14 @@ def test_skill_frontmatter(skill):
         f"{skill.parent.name}: frontmatter name '{fm['name']}' "
         f"does not match directory"
     )
+
+
+@pytest.mark.parametrize("skill", SKILL_FILES, ids=lambda p: p.parent.name)
+def test_skill_description_no_trailing_punctuation(skill):
+    """Skill descriptions should be terse with no trailing punctuation (., !, ?)."""
+    fm = _frontmatter(skill.read_text(encoding="utf-8"))
+    desc = fm.get("description", "")
+    assert not desc.endswith((".", "!", "?")), (
+        f"{skill.parent.name}: description ends with punctuation: '{desc[-1]}' — "
+        "descriptions should be terse without trailing punctuation"
+    )
