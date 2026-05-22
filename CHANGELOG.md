@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.8.0] - 2026-05-21
 
+### Changed (server PR #162 / v0.9.1 surface alignment — c9cf637)
+- **`license_notice` output marker** (server [ADR-0036](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0036-indexer-license-guard.md)) — `describe_module` and `module_inspect(method='summary')` (and the `odoo://{version}/module/{name}` resource) may now emit a `License notice:` line for license-restricted modules. OEEL-1 modules are skipped by default, so the notice is the intentional, non-silent marker that content is withheld — documented as such in the routing matrix so an AI client treats it as expected, not a missing-data bug to retry around.
+- **`lint_check(language='xml')` clarified as corpus-level** — server's RelaxNG validation (WI-E) lints the indexed views against the version-exact grammar at index time, exposing `:LintViolation` nodes. The `xml` mode returns those nodes for a version and **ignores the `code` argument** (it is not a snippet check). Documented in the `lint_check` routing-matrix entry. No new tools — server tool surface remains 24.
+
 ### Changed (server PR #160 surface alignment — f82e1a3)
 - **`view_type` gains `'list'` value** (v18+ alias for `'tree'`) — documented in `view_type`
   arg descriptions for `model_inspect` and `module_inspect` across the routing matrix and all
