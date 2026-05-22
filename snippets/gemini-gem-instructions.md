@@ -75,8 +75,9 @@ ARGS: odoo_version (target version to check against)
 ### lint_check
 TRIGGER: "lint [module]", "code style issues in [module]", "Odoo coding violations in [module]", "check [module] against Odoo standards"
 PREFER: code quality checks
-ARGS: code (source code snippet to check), odoo_version, language (python|javascript|xml)
-NOTE: inline `# noqa: RULE_ID` (or bare `# noqa`) in the code argument suppresses findings on that line
+ARGS: code (source code snippet — required for python/javascript; ignored for xml), odoo_version, language (python|javascript|xml)
+NOTE: language=xml is corpus-level (server v0.9.1+) — returns the version's indexed RelaxNG `:LintViolation` nodes, not a check of `code`
+NOTE: inline `# noqa: RULE_ID` (or bare `# noqa`) in the code argument suppresses findings on that line (python/javascript only)
 
 ### cli_help
 TRIGGER: "what does --[flag] do in odoo-bin", "odoo server option [flag]", "CLI help for [command]"
