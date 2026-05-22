@@ -4,7 +4,7 @@
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` → `claude plugin install odoo-semantic@viindoo-plugins` → `/odoo-semantic:connect`. Chi tiết + AI tools khác: [client setup](../setup.md).
 
-The full **tool arsenal (v0.8)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS stylesheet analysis, and now static ORM validation — this guide covers the daily patterns. v0.8 ships three discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`), four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call, two **stylesheet tools** for theme/branding work, and four **ORM-validation tools** that catch hallucinated field-paths, operators, dependencies, and relation targets before you ship a domain / `@api.depends` / relational field.
+The full **tool arsenal (v0.8)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS/LESS stylesheet analysis, and now static ORM validation — this guide covers the daily patterns. v0.8 ships three discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`), four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call, two **stylesheet tools** for theme/branding work, and four **ORM-validation tools** that catch hallucinated field-paths, operators, dependencies, and relation targets before you ship a domain / `@api.depends` / relational field.
 
 ---
 
@@ -47,8 +47,8 @@ The full **tool arsenal (v0.8)**, optimized for development workflows. From unde
 
 | Tool | Use case |
 |------|----------|
-| `resolve_stylesheet(module, odoo_version="auto")` | Enumerate a module's CSS/SCSS `:Stylesheet` files — language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. |
-| `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Semantic search (pgvector + `:IMPORTS` chain) for where a CSS selector or SCSS variable is first defined and all modules that override it. Essential for theming/branding work. |
+| `resolve_stylesheet(module, odoo_version="auto")` | Enumerate a module's CSS/SCSS/LESS `:Stylesheet` files — language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. LESS covers legacy v8-v11. |
+| `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Semantic search (pgvector + `:IMPORTS` chain) for where a CSS selector or SCSS/LESS variable is first defined and all modules that override it. Essential for theming/branding work. Covers CSS, SCSS, and LESS (LESS for legacy v8-v11). |
 
 ### ORM-validation tools (⊕ M10.5 Phase 2 — v0.8 new)
 
