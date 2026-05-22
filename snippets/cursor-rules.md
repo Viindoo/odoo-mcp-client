@@ -44,10 +44,10 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 - User wants JS patches of a module → call module_inspect(module=<name>, method="js")
 - User wants views of a module → call module_inspect(module=<name>, method="views")
 
-### Working with CSS/SCSS stylesheets
-- User wants to know what stylesheets a module ships
+### Working with CSS/SCSS/LESS stylesheets
+- User wants to know what stylesheets a module ships (CSS, SCSS, or LESS — LESS covers legacy v8-v11)
   → call resolve_stylesheet(module=<name>)
-- User asks where a CSS selector or SCSS variable is defined or overridden
+- User asks where a CSS selector or SCSS/LESS variable is defined or overridden
   → call find_style_override(selector_or_variable=<selector_or_var>)
 - User wants to trace @import chains or find branding/theme overrides
   → call find_style_override(selector_or_variable=<var>)
@@ -83,7 +83,7 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 - odoo://{version}/module/{name}            # = module_inspect(method='summary')
 - odoo://{version}/view/{xmlid}             # = entity_lookup(kind='view')
 - odoo://{version}/pattern/{name}           # canonical pattern catalogue entry
-- odoo://{version}/stylesheet/{file_path}   # CSS/SCSS record
+- odoo://{version}/stylesheet/{file_path}   # CSS/SCSS/LESS record
 
 Use Resources when you already know the entity ID — no tool call overhead.
 

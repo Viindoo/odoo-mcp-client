@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.8.0] - 2026-05-21
 
+### Changed (server PR #160 surface alignment — f82e1a3)
+- **`view_type` gains `'list'` value** (v18+ alias for `'tree'`) — documented in `view_type`
+  arg descriptions for `model_inspect` and `module_inspect` across the routing matrix and all
+  adapter snippets (Cursor, Gemini Gem, OpenAI Custom GPT).
+- **`.less` stylesheet coverage** — `resolve_stylesheet` and `find_style_override` now cover
+  CSS, SCSS, and LESS files (LESS targets legacy v8-v11 modules). Updated routing matrix §2
+  tool entries, legend, dev persona, and all adapter snippets to read "CSS/SCSS/LESS".
+
 ### Added (v0.8 server surface — M10.5 Phase 2)
 - **4 new ORM-validation tools** documented across all adapter snippets (Cursor, Gemini
   Gem, OpenAI Custom GPT), routing matrix §1 & §2, Appendix table, dev persona, and the
