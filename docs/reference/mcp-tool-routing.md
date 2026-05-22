@@ -88,6 +88,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — p
 | **Args** | `name` (required), `method` (required, one of `summary` / `views` / `owl` / `qweb` / `js`), `odoo_version` (optional — session-aware), `profile_name` (optional), `limit` (optional, default 200), `view_type` (optional — when `method='views'`: filter by view type, e.g. `'form'`/`'list'` — `'list'` is the v18+ alias for `'tree'`), `bound_model` (optional — when `method='owl'`: filter OWL components bound to a specific model), `era` (optional — when `method='js'`: filter JS patches by era, one of `era1`/`era2`/`era3`), `target` (optional — when `method='js'`: filter JS patches by patched target) |
 | **Prefer when** | Caller wants the module-level architecture overview *plus* UI-layer artefacts in one round-trip |
 | **Skip when** | Caller only needs YES/NO + edition badge (→ `check_module_exists`, 1 Cypher vs many) |
+| **License notice** | `method='summary'` shares `describe_module`'s output and may include a `License notice:` line for license-restricted modules (server v0.9.1+) — see `describe_module` for how to treat it. |
 
 ### entity_lookup ★ (M11 Wave D — supersedes `resolve_field` + `resolve_method` + `resolve_view`)
 
@@ -196,8 +197,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — p
 |-----------|-------|
 | **Primary EN** | "lint check this module", "OCA style violations in module X", "check coding standards", "does this code follow Odoo guidelines" |
 | **Primary VI** | "module X có vi phạm coding convention không", "kiểm tra code quality", "code này có vi phạm Odoo style không", "ruff/pylint check cho Odoo" |
-| **Args** | `code` (required, source code chunk), `odoo_version` (optional, default auto), `language` (optional: 'python'/'javascript'/'xml', default 'python') |
-| **noqa** | Inline `# noqa: RULE_ID` (or bare `# noqa`) in the `code` argument suppresses findings on that line. |
+| **Args** | `code` (required for `language='python'`/`'javascript'` — source code chunk; **ignored when `language='xml'`**), `odoo_version` (optional, default auto), `language` (optional: 'python'/'javascript'/'xml', default 'python') |
+| **xml mode** | `language='xml'` is **corpus-level** (server v0.9.1+): it returns the indexed RelaxNG `:LintViolation` nodes for the version's views (validated against the version-exact RNG grammar at index time) — it does **not** lint the `code` snippet, so `code` is ignored. Views must be indexed first; v15+ produce violations, v8-v14 produce none. |
+| **noqa** | Inline `# noqa: RULE_ID` (or bare `# noqa`) in the `code` argument suppresses findings on that line (`python`/`javascript` only). |
 | **Prefer when** | Dev wants to check code against Odoo-specific lint rules before committing |
 | **Skip when** | Question is about deprecated API (→ find_deprecated_usage) or module existence (→ check_module_exists) |
 
@@ -250,6 +252,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — p
 | **Args** | `name` (required, module technical name), `odoo_version` (optional, default auto), `profile_name` (optional) |
 | **Prefer when** | Caller needs module contents (models, views, JS) and counts in one round-trip — module-level architecture overview |
 | **Skip when** | Caller only needs YES/NO + edition badge (→ check_module_exists, 1 Cypher vs 5) or wants enumerated entities (→ model_inspect(method='fields'/'views'/'methods')) |
+| **License notice** | Output may include a `License notice:` line for license-restricted modules (server v0.9.1+, [ADR-0036](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0036-indexer-license-guard.md)). OEEL-1 modules are **skipped by default** — the notice is the intentional, non-silent marker that content is withheld, not a missing-data bug. Surface it to the user; do not retry or fabricate the omitted content. |
 
 ### resolve_stylesheet ✦ (M10 — CSS/SCSS/LESS file inventory for a module)
 
