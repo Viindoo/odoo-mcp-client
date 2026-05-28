@@ -1,29 +1,26 @@
 ---
 name: odoo-content-draft
 description: >
-  Draft channel-specific marketing content for Viindoo / Odoo product. Given a topic,
-  channel, and audience, produce ready-to-publish text in Vietnamese (default) or English.
-  Supported channels: LinkedIn post, blog article, YouTube script (3-5 min), email sequence
-  (3-5 emails), landing page copy, social caption (Facebook/Zalo).
-  Trigger on: "viết bài blog về", "viết post LinkedIn", "viết script YouTube",
-  "draft email sequence", "viết landing page", "viết caption FB cho",
-  "viết content marketing về Odoo", "draft a blog post on", "write LinkedIn content",
-  "YouTube script for", "email sequence about", "landing page copy",
-  "social caption for", "write a LinkedIn post", "viết nội dung cho",
-  "soạn email marketing", "viết mô tả landing page", "script video YouTube cho",
-  "viết caption Zalo", "content cho bài đăng Facebook về",
-  "write marketing copy for", "draft content about Odoo", "marketing post about Viindoo".
-  Trigger when user asks to CREATE any of these formats — even without the word "marketing".
-  DO NOT trigger for: proposal/gap-analysis text (→ odoo-gap-analysis),
-  objection-handling rebuttals (→ odoo-objection-handler), feature-highlight decks for
-  slides (→ odoo-feature-highlights), competitive positioning briefs (→ odoo-competitive-brief),
-  multi-channel campaign orchestration (→ odoo-campaign-plan).
-  This skill is STANDALONE-FIRST: works without MCP. OSM tools optional for grounding claims
+  Draft channel-specific marketing content for Odoo or your custom distribution. Given a
+  topic, channel, and audience, produce ready-to-publish text in Vietnamese (default) or
+  English. Supported channels: LinkedIn post, blog article, YouTube script (3-5 min), email
+  sequence (3-5 emails), landing page copy, social caption (Facebook/Zalo).
+  Trigger on: "draft a blog post on", "write a blog article about", "write LinkedIn content",
+  "write a LinkedIn post", "YouTube script for", "draft email sequence", "email sequence
+  about", "landing page copy", "write landing page", "social caption for", "write a Facebook
+  caption", "write marketing copy for", "draft content about Odoo", "marketing post about
+  Odoo", "write a post about", "create content for".
+  Trigger when user asks to CREATE any of these formats - even without the word "marketing".
+  DO NOT trigger for: proposal/gap-analysis text (-> odoo-gap-analysis),
+  objection-handling rebuttals (-> odoo-objection-handler), feature-highlight decks for
+  slides (-> odoo-feature-highlights), competitive positioning briefs (-> odoo-competitive-brief),
+  multi-channel campaign orchestration (-> odoo-campaign-plan).
+  This skill is STANDALONE-FIRST: works without MCP. OSM tools optional for grounding claims.
 ---
 
 ## Persona
 
-Marketer — Viindoo Vietnam SME ERP marketing team. Writing for B2B audiences of Vietnamese
+Marketer on the Odoo or custom distribution go-to-market team. Writing for B2B audiences of
 small-to-medium business owners, finance managers, and operations leads. Content purpose:
 educate, build trust, drive demo/trial requests.
 
