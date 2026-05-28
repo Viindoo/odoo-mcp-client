@@ -1,8 +1,8 @@
-# Odoo Semantic — CEO / Manager Guide
+# Odoo Semantic — Manager / Decision-Maker Guide
 
-> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` → `claude plugin install odoo-semantic@viindoo-plugins` → `/odoo-semantic:connect`. Chi tiết + AI tools khác: [client setup](../setup.md).
+> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic@viindoo-plugins` -> `/odoo-semantic:connect`. For other AI tools, see [client setup](../setup.md).
 
-You don't need to understand Odoo's code to get value from this tool. Ask plain-language questions about risk, upgrade cost, and customization scope — and get structured answers your team can act on.
+You do not need to understand Odoo's code to get value from this tool. Ask plain-language questions about risk, upgrade cost, and customization scope — and get structured answers your team can act on.
 
 ---
 
@@ -18,7 +18,7 @@ These answers come from live codebase analysis — not guesswork.
 
 ---
 
-## Most Useful Tools for CEOs
+## Most Useful Tools for Managers
 
 | Tool | What it answers |
 |------|----------------|
