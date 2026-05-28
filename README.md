@@ -4,13 +4,15 @@
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://github.com/Viindoo/odoo-semantic-server)
 
 > MIT-licensed client layer for **[odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-server)** (AGPL-3.0).
-> A Claude Code plugin — plus IDE snippets — that brings Odoo codebase intelligence
-> (inheritance chains, field impact, pattern catalogue, upgrade paths) into your AI coding workflow.
+> Odoo / Viindoo AI workforce toolkit — **22 skill personas** across 8 work domains
+> (engineering, sales, marketing, strategy, onboarding) + **6 workflow commands** that
+> chain skills into multi-step recipes. Pairs with the OSM (odoo-semantic) MCP server
+> for indexed-codebase grounding.
 
-This repository ships **no semantic logic**. It is a thin integration surface: 15
-persona-specific skills, 1 orchestration agent, a `connect` command, and ready-to-paste
-MCP config for several AI tools. All knowledge and computation live in the Odoo Semantic
-MCP server — query it at the hosted instance
+This repository ships **no semantic logic**. It is a thin integration surface: 22
+persona-specific skills (across 8 personas), 3 agents (2 specialist bundle + 1 deprecated),
+6 commands, and ready-to-paste MCP config for several AI tools. All knowledge and computation
+live in the Odoo Semantic MCP server — query it at the hosted instance
 [`odoo-semantic.viindoo.com`](https://odoo-semantic.viindoo.com) or
 [self-host the server](https://github.com/Viindoo/odoo-semantic-server).
 
@@ -27,7 +29,7 @@ Mỗi specialist tự kích hoạt khi bạn mô tả intent bằng tiếng Vi�
 | Persona | Skill / Agent | Khi nào dùng |
 |---|---|---|
 | Engineer | `odoo-override-finder`, `odoo-deprecation-audit`, `odoo-deploy-checklist` | Custom code, audit pre-upgrade, deploy safety |
-| Coder | `odoo-coder` (agent+skill bundle) | Viết code Python/XML production-ready |
+| Coder | `odoo-coder` (Python/XML, agent+skill bundle), `odoo-frontend-coder` (JS/OWL legacy v8-14 + OWL v15+) | Viết code production-ready |
 | Code-Reviewer | `odoo-code-reviewer` (agent+skill bundle) | Review PR, audit code lý do bugs/security/N+1 |
 | Pre-Sales Consultant | `odoo-feature-check`, `odoo-gap-analysis`, `odoo-capability-proof`, `odoo-addon-diff` | Verify Odoo có tính năng X, scope effort, evidence cho proposal |
 | Sales AE | `odoo-objection-handler`, `odoo-deal-followup`, `odoo-discovery-summarize` | Phản hồi objection, follow-up deal stalled, synthesize discovery |
@@ -135,21 +137,28 @@ You will need an **API key** (format `osm_…`) from your server admin or the
 
 | Skill | Persona | Description |
 |-------|---------|-------------|
-| `odoo-risk-overview` | CEO | Executive risk overview of customizations before upgrade |
-| `odoo-customization-inventory` | CEO | Structured inventory of all custom modules and their business purpose |
-| `odoo-override-finder` | Developer | Find the correct override point and pattern for a method |
-| `odoo-deprecation-audit` | Developer | Audit deprecated API usage for upgrade readiness |
-| `odoo-version-diff` | Developer + Marketer | Categorized diff of API and feature changes between versions |
-| `odoo-feature-check` | Consultant | Check if a feature exists in standard CE or EE |
-| `odoo-gap-analysis` | Consultant | Gap matrix of client requirements vs. standard Odoo |
+| `odoo-risk-overview` | Strategist / CEO | Executive risk overview of customizations before upgrade |
+| `odoo-customization-inventory` | Strategist / CEO | Structured inventory of all custom modules and their business purpose |
+| `odoo-competitive-brief` | Strategist | Competitor capability snapshot structured for board or sales response |
+| `odoo-override-finder` | Engineer | Find the correct override point and pattern for a method |
+| `odoo-deprecation-audit` | Engineer | Audit deprecated API usage for upgrade readiness |
+| `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist covering config, migration, and rollback |
+| `odoo-version-diff` | Engineer + Marketer | Categorized diff of API and feature changes between versions |
+| `odoo-coder` | Coder | Python/XML backend coder with Odoo conventions baked in (slim, paired with agent bundle) |
+| `odoo-frontend-coder` | Coder | JS/OWL coder merging legacy web client (v8-14) and OWL component framework (v15+) |
+| `odoo-code-reviewer` | Code-Reviewer | Review Odoo patches for ORM/inheritance/security pitfalls (slim, paired with agent bundle) |
+| `odoo-feature-check` | Pre-Sales Consultant | Check if a feature exists in standard CE or EE |
+| `odoo-gap-analysis` | Pre-Sales Consultant | Gap matrix of client requirements vs. standard Odoo |
+| `odoo-capability-proof` | Pre-Sales Consultant | Evidence-based proof that Odoo supports a client requirement |
+| `odoo-addon-diff` | Pre-Sales Consultant | Side-by-side CE vs EE feature comparison |
+| `odoo-objection-handler` | Sales AE | ACA-structured responses to capability objections |
+| `odoo-deal-followup` | Sales AE | Risk-scored follow-up email for stalled deals with next-best-action |
+| `odoo-discovery-summarize` | Sales AE | Synthesize discovery session notes into a structured prospect profile |
 | `odoo-feature-highlights` | Marketer | Marketing-friendly feature highlights for a version |
-| `odoo-addon-diff` | Marketer | Side-by-side CE vs EE feature comparison |
-| `odoo-capability-proof` | Sales | Evidence-based proof that Odoo supports a client requirement |
-| `odoo-objection-handler` | Sales | ACA-structured responses to capability objections |
-| `odoo-coder` | Developer | Python/XML backend coder with Odoo conventions baked in |
-| `odoo-code-reviewer` | Developer | Review Odoo patches for ORM/inheritance/security pitfalls |
-| `odoo-js-coder` | Developer | Legacy web client (v8–v14) JavaScript coder |
-| `odoo-owl-coder` | Developer | OWL framework (v15+) component coder |
+| `odoo-content-draft` | Marketer | Draft blog posts, slide decks, or social content around Odoo features |
+| `odoo-campaign-plan` | Marketer | Multi-channel campaign plan from a positioning brief |
+| `odoo-onboard` | Onboarding / Concierge | Bootstrap project context into `.odoo-ai/context.md` for new engagements |
+| `odoo-router` | Onboarding / Concierge | Concierge skill — routes ambiguous user intent to the right specialist |
 
 Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 
@@ -157,7 +166,20 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 
 | Agent | Model | Role |
 |-------|-------|------|
-| `odoo-upgrade-planner` | Sonnet | Orchestrate a full upgrade plan from source to target version |
+| `odoo-coder` | Sonnet | Agent bundle for code writing — invoked by main agent and commands; depth-1 safe with restricted-tool autonomy |
+| `odoo-code-reviewer` | Sonnet | Agent bundle for code review — runs full PR-scope analysis with OSM grounding |
+| `odoo-upgrade-planner` | Sonnet | DEPRECATED → use `/odoo-upgrade-plan-full` command |
+
+## Available commands
+
+| Command | Purpose | Chained skills |
+|---------|---------|----------------|
+| `/odoo-semantic:connect` | Interactive MCP server setup — prompts for URL + API key, registers server, pre-approves tools | — |
+| `/odoo-bid-respond` | Full bid response chain for RFP/requirements documents | `odoo-discovery-summarize` → `odoo-gap-analysis` → `odoo-capability-proof` → `odoo-objection-handler` |
+| `/odoo-customer-followup-draft` | Sales follow-up email saved to `.odoo-ai/followups/` | `odoo-deal-followup` |
+| `/odoo-discovery-quick` | Slash wrapper — synthesize discovery notes into a structured profile | `odoo-discovery-summarize` |
+| `/odoo-feature-positioning` | Positioning copy for marketing and sales use | `odoo-feature-highlights` → `odoo-content-draft` |
+| `/odoo-upgrade-plan-full` | Comprehensive upgrade plan — replaces legacy `odoo-upgrade-planner` agent | `odoo-risk-overview` → `odoo-deprecation-audit` → `odoo-version-diff` → synthesis |
 
 ## Connect command
 

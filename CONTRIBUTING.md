@@ -26,7 +26,7 @@ or a [self-hosted server](https://github.com/Viindoo/odoo-semantic-server).
 ### Pre-commit hooks
 
 Before pushing, install the confidentiality pre-commit hook to catch Viindoo-internal data
-leaks (vault paths, personal email, /home/tuan/. paths):
+leaks (vault paths, personal email, absolute `~/.` paths):
 
 ```bash
 git config --local core.hooksPath .githooks/

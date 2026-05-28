@@ -4,7 +4,7 @@ description: |
   Quick slash-command wrapper for the odoo-discovery-summarize skill. Type `/odoo-discovery-quick` when you want to explicitly synthesize raw meeting or discovery notes into a structured customer profile, bypassing the router to directly invoke the skill.
 ---
 
-# /odoo-discovery-summarize
+# /odoo-discovery-quick
 
 Interactive command to synthesize raw discovery notes into a structured customer profile.
 
@@ -13,7 +13,7 @@ Use this command when you already know you want to run discovery synthesis and w
 ## Steps for the AI agent
 
 1. **Phase 0: Parse input**
-   - Check if `$ARGUMENTS` contains a customer label (e.g., `/odoo-discovery-summarize Khach-A`).
+   - Check if `$ARGUMENTS` contains a customer label (e.g., `/odoo-discovery-quick Khach-A`).
    - If a label is provided, store it. Otherwise, ask the user for one.
    - Ask the user to provide raw notes (either pasted inline or as a file path).
    - If the user provides a file path, read it with the `Read` tool.
@@ -50,7 +50,7 @@ Use this command when you already know you want to run discovery synthesis and w
 **Example 1: Inline notes**
 
 ```
-User: /odoo-discovery-summarize Khach-A
+User: /odoo-discovery-quick Khach-A
 
 Agent: What are the raw discovery notes? (paste or file path)
 

@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install pytest
-      - run: python -m pytest tests/test_plugin_schema.py tests/test_skill_format.py -q
+      - run: python -m pytest tests/ -q
 
   deps-check:
     name: Skill ↔ Tool dependency check

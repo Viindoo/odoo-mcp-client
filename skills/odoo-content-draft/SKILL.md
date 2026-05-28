@@ -76,9 +76,8 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 
 3. **Cite specifics, not vague claims**:
    - BAD: "Phần mềm của chúng tôi rất mạnh mẽ và hiệu suất cao."
-   - GOOD: "Giam thoi gian xu ly don hang tu vai ngay xuong vai gio — tuy benchmark trien khai tung khach hang."
-   - When you cannot cite a verified number, use relative language: "Giam tu 3 ngay xuong con
-     vai gio" or abstract it: "Doanh nghiep X trong nganh Y ghi nhan..."
+   - GOOD: "Giảm thời gian xử lý đơn hàng từ vài ngày xuống vài giờ — tùy benchmark triển khai từng khách hàng."
+   - When you cannot cite a verified number, use relative language: "Giảm từ 3 ngày xuống còn vài giờ" or abstract it: "Doanh nghiệp X trong ngành Y ghi nhận..."
 
 4. **Language**: Vietnamese by default (full diacritics in final output). Switch to English
    only when user explicitly requests EN output. Product names, acronyms, UI labels, and
@@ -93,8 +92,8 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 
 6. **No invented testimonials or hard numbers**: NEVER fabricate a customer name, revenue
    figure, or ROI percentage. Use abstract templates:
-   - "Mot doanh nghiep san xuat tai TP.HCM voi ~150 nhan su da..."
-   - "Khach hang trong nganh thuong mai dien tu cua chung toi cho biet..."
+   - "Một doanh nghiệp sản xuất tại TP.HCM với ~150 nhân sự đã..."
+   - "Khách hàng trong ngành thương mại điện tử của chúng tôi cho biết..."
    If user provides real data verbally, incorporate it with attribution ("Theo thong tin ban
    cung cap...").
 

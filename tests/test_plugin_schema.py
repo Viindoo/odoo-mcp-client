@@ -58,6 +58,14 @@ def test_mcp_template_present(manifest):
     assert "odoo-semantic" in data.get("mcpServers", {})
 
 
+def test_agent_dir_matches_manifest(manifest):
+    """Every agents/*.md must be declared in plugin.json.agents."""
+    declared = {Path(p).name for p in manifest.get("agents", [])}
+    actual = {p.name for p in (ROOT / "agents").glob("*.md")}
+    missing = actual - declared
+    assert not missing, f"Agent files not declared in plugin.json.agents: {sorted(missing)}"
+
+
 def test_no_server_internals_leaked():
     """The MIT client must not embed server-only admin commands or venv paths."""
     banned = (".venv/odoo-semantic-mcp", "src.manager create-api-key")

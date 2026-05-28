@@ -16,15 +16,17 @@ jobs:
 
       - name: Vault path scan (hard fail)
         run: |
-          if grep -rE '/home/tuan/git/obsidian-vault' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . ; then
+          OFFENDERS=$(grep -rlE '/home/tuan/git/obsidian-vault' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
+          if [ -n "$OFFENDERS" ]; then
             echo "::error::Vault path /home/tuan/git/obsidian-vault found in committed files"
+            echo "$OFFENDERS"
             exit 1
           fi
           echo "OK: no vault path leaks"
 
       - name: Personal /home/tuan/. path scan (hard fail, allow plan file regex section)
         run: |
-          OFFENDERS=$(grep -rlE '/home/tuan/\.' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v 'docs/refinement-plan-2026-05-28.md' || true)
+          OFFENDERS=$(grep -rlE '/home/tuan/\.' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v 'docs/refinement-plan-2026-05-28.md' | grep -v '.github/workflows/confidentiality-scan.yml' || true)
           if [ -n "$OFFENDERS" ]; then
             echo "::error::/home/tuan/. paths found in:"
             echo "$OFFENDERS"
@@ -34,8 +36,10 @@ jobs:
 
       - name: Personal email scan (hard fail)
         run: |
-          if grep -rE 'davidtran\.hp@gmail\.com' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . ; then
+          OFFENDERS=$(grep -rlE 'davidtran\.hp@gmail\.com' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
+          if [ -n "$OFFENDERS" ]; then
             echo "::error::Personal email leaked"
+            echo "$OFFENDERS"
             exit 1
           fi
           echo "OK: no personal email"

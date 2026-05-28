@@ -302,7 +302,7 @@ When OSM is unreachable or the skill is used without MCP configuration:
 ### Example 1 - Vietnamese (Manufacturing SME / Miền Bắc)
 
 **Input:**
-- Vertical: san xuat (nganh noi that / go)
+- Vertical: sản xuất (ngành nội thất / gỗ)
 - Geo: Mien Bac (Ha Noi, Binh Duong khu cong nghiep)
 - Objective: lead generation — demo requests
 - Timeline: 6 weeks

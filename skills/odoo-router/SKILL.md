@@ -264,7 +264,7 @@ Intent của bạn có thể map vào 2 skill:
 
 ## Notes for future maintainers
 
-- Routing table currently lists 27 entries (Phase A baseline 15 + Phase B merge & expansion: rows 14–15 consolidated, rows 15–21 added + Phase D command entries: rows 22–27 added). Update both the table AND the collision-test cases when adding entries.
+- Routing table currently lists 27 entries (Phase A: rows 1-13, Phase B: rows 14-21, Phase D: rows 22-27). Update both the table AND the collision-test cases when adding entries.
 - Trigger description optimization is scheduled for Phase D via `/skill-creator` Mode 5 (`run_loop.py`) with a 20-query trigger eval set.
 - Phase A eval set (15 cases in `evals/evals.json`) is descriptive — not graded. Use `/skill-creator` Mode 5 + `run_loop.py` in Phase D AC-D6 for graded trigger accuracy score.
 - See `docs/refinement-plan-2026-05-28.md` §"Phase A — A3 Router skill" for full design rationale.
