@@ -12,6 +12,10 @@ tools:
 ---
 # odoo-upgrade-planner
 
+> **DEPRECATED**: This agent is superseded by the `/odoo-upgrade-plan-full` slash command (`commands/upgrade-plan-full.md`). The command chains the same 4 MCP tools through 4 skills with explicit user-approval gates and proper depth-1 safety. This file is kept for git history; main agent should NOT invoke it directly anymore. Use `/odoo-upgrade-plan-full` instead.
+
+---
+
 **Model:** sonnet
 **Role:** orchestration
 

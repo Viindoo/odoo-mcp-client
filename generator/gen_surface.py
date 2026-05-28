@@ -710,6 +710,21 @@ def main():
                 )
                 return 1
 
+    # Preflight: every commands/*.md must be registered in .claude-plugin/plugin.json
+    # commands array. Catches Phase C regressions where a new command is added but
+    # not declared in the plugin manifest.
+    plugin_json = json.loads((REPO_ROOT / ".claude-plugin" / "plugin.json").read_text())
+    declared_commands = {Path(p).stem for p in plugin_json.get("commands", [])}
+    commands_dir = REPO_ROOT / "commands"
+    if commands_dir.is_dir():
+        for cmd_file in sorted(commands_dir.glob("*.md")):
+            if cmd_file.stem not in declared_commands:
+                print(
+                    f"ERROR: command '{cmd_file.stem}' not declared in .claude-plugin/plugin.json commands: array. Add it or remove the file.",
+                    file=sys.stderr,
+                )
+                return 1
+
     # 1. Generate docs/reference/mcp-tool-routing.md (full replace)
     routing_md_path = REPO_ROOT / "docs" / "reference" / "mcp-tool-routing.md"
     routing_md_content = gen_routing_md(surface)

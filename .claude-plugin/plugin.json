@@ -14,7 +14,12 @@
     "./agents/odoo-upgrade-planner.md"
   ],
   "commands": [
-    "./commands/connect.md"
+    "./commands/connect.md",
+    "./commands/bid-respond.md",
+    "./commands/customer-followup-draft.md",
+    "./commands/discovery-summarize.md",
+    "./commands/feature-positioning.md",
+    "./commands/upgrade-plan-full.md"
   ],
   "mcpServers": "./.mcp.json",
   "userConfig": {
