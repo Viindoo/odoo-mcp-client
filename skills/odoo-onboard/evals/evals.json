@@ -3,21 +3,21 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "tao mới clone repo Odoo về, setup context giúp",
+      "prompt": "I just cloned this Odoo repo, help me set up context",
       "expected_output": "Skill walks the 9-step workflow; writes .odoo-ai/context.md with detected version + modules; updates .gitignore",
-      "category": "should-fire-direct-vi",
+      "category": "should-fire-direct",
       "files": []
     },
     {
       "id": 2,
       "prompt": "first time using odoo-semantic for this project",
       "expected_output": "Skill triggers; runs 9-step flow; produces context file",
-      "category": "should-fire-direct-en",
+      "category": "should-fire-direct",
       "files": []
     },
     {
       "id": 3,
-      "prompt": "muốn pin Odoo 17 và profile viindoo_17 cho repo này",
+      "prompt": "I want to pin Odoo 17 and the viindoo_17 profile for this repo",
       "expected_output": "Skill triggers; uses 17.0 + viindoo_17 as defaults from prompt; confirms with user; writes context",
       "category": "should-fire-version-hint",
       "files": []
@@ -31,9 +31,9 @@
     },
     {
       "id": 5,
-      "prompt": "khởi tạo context Odoo cho dự án mới",
+      "prompt": "Initialize Odoo context for a new project",
       "expected_output": "Skill triggers; full onboard flow",
-      "category": "should-fire-direct-vi",
+      "category": "should-fire-direct",
       "files": []
     },
     {
@@ -45,7 +45,7 @@
     },
     {
       "id": 7,
-      "prompt": "viết computed field cho sale.order",
+      "prompt": "Write a computed field for sale.order",
       "expected_output": "Skill does NOT fire — specific intent matches odoo-coder. If context is missing, odoo-coder may suggest onboard but onboard itself does not auto-fire on this prompt.",
       "category": "should-not-fire-specific-intent",
       "files": []
