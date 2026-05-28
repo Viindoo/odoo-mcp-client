@@ -1,23 +1,21 @@
 ---
 name: odoo-feature-highlights
 description: >
-  Generate marketing-friendly feature highlights for a specific Odoo or Viindoo version —
-  ready for sales decks, blog posts, product announcements, release notes, or competitive
-  comparisons. Output is business-language by default (with a separate technical-notes
+  Generate marketing-friendly feature highlights for a specific Odoo or custom distribution
+  version — ready for sales decks, blog posts, product announcements, release notes, or
+  competitive comparisons. Output is business-language by default (with a separate technical-notes
   appendix for developers). Use this skill ANY time someone needs to talk about "what's
-  new" or "what's exciting" in an Odoo/Viindoo release for an audience that isn't reading
-  source code. Pushy trigger: fire on "highlight new features in Odoo 17", "what's
-  exciting in this version?", "feature comparison for sales deck", "tính năng nổi bật Odoo
-  17", "nêu điểm mạnh so với phiên bản trước", "what's new for customers in this release?",
-  "viết nội dung marketing về tính năng Odoo", "blog post about Viindoo 17", "release
-  notes in Vietnamese for our customers", "release notes for non-developers", "khách hỏi
-  Odoo 17 có gì hot — tóm tắt giúp", "for the newsletter — what to feature about Odoo 18?",
+  new" or "what's exciting" in a release for an audience that isn't reading source code.
+  Pushy trigger: fire on "highlight new features in version X", "what's exciting in this
+  release?", "feature comparison for sales deck", "what's new for customers in this release?",
+  "write marketing content about new features", "blog post about release 17", "release notes
+  for non-developers", "what are the highlights?", "for the newsletter — what to feature?",
   "competitive talk track — why upgrade from v15 to v17?", "headline value of v18 vs
-  SAP/Microsoft for accounting", "summarize what's new for customers", "talking points for
-  Friday's sales pitch". Trigger even when the user says "just summarize what's new" without
-  mentioning marketing — that's still this skill. When the user asks for source-level
-  developer diff (signatures, removed APIs), route to odoo-version-diff. When they want
-  proof Odoo can do a SPECIFIC capability they care about, route to odoo-capability-proof
+  competitors", "summarize what's new for customers", "talking points for Friday's sales pitch".
+  Trigger even when the user says "just summarize what's new" without mentioning marketing —
+  that's still this skill. When the user asks for source-level developer diff (signatures,
+  removed APIs), route to odoo-version-diff. When they want proof a platform can do a
+  SPECIFIC capability, route to odoo-capability-proof
 ---
 
 ## Persona
@@ -39,7 +37,7 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 **Primary tools:**
 - `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
-- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `check_module_exists` — Verify module availability, edition (CE/EE/custom), and cross-version presence.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
 <!-- END GENERATED TOOLS -->
@@ -64,8 +62,8 @@ technical details. This skill serves both.
 - v17: Performance improvements, Python 3.10+, many UX refinements
 - v18+: ORM enhancements, ongoing module restructuring
 
-Viindoo versions track Odoo versions (e.g. Viindoo 17 ≈ Odoo 17 CE + Viindoo add-ons). When
-highlighting Viindoo features, distinguish what's from Odoo CE base vs. Viindoo add-ons.
+Custom distributions track Odoo versions. When highlighting distribution-specific features,
+distinguish what's from Odoo CE base vs. custom or distribution-specific add-ons.
 
 **Data priority:** MCP `api_version_diff` results are ground truth for which APIs and modules
 actually changed between versions. Use training knowledge for business-language narrative and
@@ -97,7 +95,7 @@ Khi OSM unreachable, skill yêu cầu user cung cấp release notes hoặc chang
 
 ```
 ## Feature Highlights: Odoo <version>
-*<Optional: Viindoo <version> highlights if applicable>*
+*<Optional: custom distribution <version> highlights if applicable>*
 
 ### Headline features (top 3–5)
 1. **<Feature name>** — <1–2 sentence business value description>
@@ -132,6 +130,6 @@ Output: 3–5 headline features with business-value descriptions, comparison tab
 suggested talking points for a sales deck slide.
 
 **Example 2:**
-Prompt: "viết nội dung về tính năng nổi bật Viindoo 17 cho blog marketing"
-Output: Headline features in Vietnamese, emphasis on Viindoo-specific add-ons (VAS accounting,
-Vietnamese HR), comparison table vs v16, talking points for Vietnamese SMB audience.
+Prompt: "write feature highlights for your custom distribution version 17 for marketing blog"
+Output: Headline features in business language, emphasis on custom or distribution-specific
+add-ons, comparison table vs prior version, talking points for target audience.

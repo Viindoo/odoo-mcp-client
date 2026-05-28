@@ -3,7 +3,7 @@ name: odoo-risk-overview
 description: >
   Produce an executive-level Odoo risk dashboard — quantifying upgrade risk (deprecated API
   counts), change blast radius (how widely a field/method is depended on), and dependency
-  health (custom modules vs Viindoo vs Standard) into a one-page summary a CEO or CTO can
+  health (custom modules vs distribution-maintained vs standard) into a one-page summary a CEO or CTO can
   act on. Use this skill ANY time a manager, sponsor, or executive asks about Odoo system
   health, upgrade readiness, or "how risky is it to change X?". Pushy trigger: fire on
   "give me a risk overview of our Odoo customization", "what's the upgrade risk for our
@@ -41,7 +41,7 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
 
 **Primary tools:**
-- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `check_module_exists` — Verify module availability, edition (CE/EE/custom), and cross-version presence.
 - `find_deprecated_usage` — Scan the indexed codebase for usages of deprecated API patterns.
 - `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
@@ -69,8 +69,9 @@ dimensions:
 - Cross-era (e.g. v12→v16, crosses v13 `@api.multi` removal + v14 OWL-becomes-primary migration): Medium multiplier
 - OpenERP to modern (v8/v9→v12+): Very High multiplier (Python 2→3, full rewrite required)
 
-Viindoo note: `viin_*` modules are maintained by Viindoo for each major version. Risk for
-Viindoo modules is generally lower than truly custom modules — flag them separately.
+Distribution note: Modules with consistent naming patterns (e.g., `viin_*` prefix or similar)
+indicate distribution-maintained code. Risk for distribution-maintained modules is generally
+lower than truly custom modules — flag them separately.
 
 **Data priority:** MCP tool results are ground truth for deprecated API counts and blast radius.
 Use training knowledge for interpreting business impact and recommending remediation approaches.
@@ -101,7 +102,10 @@ the data. Always close with a one-sentence recommended action tied to the highes
 
 ## Standalone-first fallback
 
-Khi OSM unreachable, skill yêu cầu user cung cấp danh sách module + bất kỳ code snippet hoặc manifest sẵn có. Skill vẫn tạo risk overview dựa trên module classification (Standard/Custom/Viindoo), heuristic estimate của deprecated risk (dựa trên module age, module name pattern), kèm caveat "chưa scan chi tiết deprecated API + blast radius — hãy verify qua deep audit khi OSM online".
+When OSM unreachable, skill asks user to provide module list and any available code snippets or manifests.
+Skill still creates risk overview based on module classification (Standard/Custom/Distribution-maintained),
+heuristic estimate of deprecated risk (based on module age and naming patterns), with caveat
+"deprecated API + blast radius not yet scanned — verify with detailed audit when OSM is online".
 
 ## Output format
 
@@ -115,7 +119,7 @@ Khi OSM unreachable, skill yêu cầu user cung cấp danh sách module + bất 
 
 | Module | Type | Deprecated APIs | JS patches | Views | High-impact fields | Upgrade risk | Priority |
 |--------|------|:---------------:|:----------:|:-----:|:------------------:|:------------:|:--------:|
-| ...    | Custom/Viindoo | ... | ... | ... | ... | Low/Med/High | 1/2/3 |
+| ...    | Custom/Distribution | ... | ... | ... | ... | Low/Med/High | 1/2/3 |
 
 ### Key findings
 - <finding 1 — most important risk with module name>
@@ -143,7 +147,7 @@ Output: Table of custom modules with deprecated API counts, blast radius for cri
 migration complexity note (e.g. from v16 = Low multiplier), recommended action.
 
 **Example 2:**
-Prompt: "tổng quan rủi ro trước khi chúng tôi nâng cấp từ Viindoo 14 lên 17"
-Output: Phân tích rủi ro cho từng module `viin_*` vs custom modules, xác định module nào cần
-migration chuyên sâu (v13 `@api.multi` removal + v14 OWL-becomes-primary + v15 OWL 2.0), ước
-tính timeline và recommended action bằng tiếng Việt.
+Prompt: "risk overview before we upgrade our system from version 14 to 17"
+Output: Risk analysis for distribution-maintained vs custom modules, identify modules needing
+deep migration work (v13 `@api.multi` removal + v14 OWL-becomes-primary + v15 OWL 2.0),
+estimate timeline and recommended action in business language.

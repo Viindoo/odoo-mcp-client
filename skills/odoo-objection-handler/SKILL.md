@@ -39,7 +39,7 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
 
 **Primary tools:**
-- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `check_module_exists` — Verify module availability, edition (CE/EE/custom distributions), and cross-version presence.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
 - `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
@@ -51,16 +51,17 @@ Client objections about Odoo capabilities fall into four categories:
 1. **False** — the feature exists and works well. Counter with evidence.
 2. **Partially true** — standard coverage is limited; custom development closes the gap easily.
    Frame as "standard practice, not a gap."
-3. **True but mitigated** — Odoo doesn't support it natively, but an OCA module, Viindoo module,
+3. **True but mitigated** — Odoo doesn't support it natively, but an OCA module, custom extension,
    or well-established integration pattern exists.
 4. **True and significant** — honestly acknowledge and propose the workaround or alternative.
 
 **Never fabricate capabilities.** Intellectual honesty builds more long-term trust than overselling.
 If the objection is valid, say so clearly and pivot to how the gap is handled in practice.
 
-**Viindoo advantage cases:** Many objections about "Odoo lacks X for Vietnamese market" are
-countered by Viindoo-specific modules (`viin_*`) that cover VAS accounting, Vietnamese HR/payroll,
-Vietnamese tax/e-invoice compliance — things Odoo CE/EE doesn't have.
+**Distribution-specific advantages:** Many objections about capability gaps can be countered by
+distribution-specific modules (custom extensions, partner modules, or third-party add-ons) that
+cover specialized functionality — things Odoo CE/EE base doesn't have. Identify the appropriate
+solution for your customer's platform.
 
 **Data priority:** MCP tool results determine whether the objection is True, False, or Partially
 true. If `check_module_exists` or `find_examples` confirms a feature exists but training knowledge
@@ -131,7 +132,7 @@ Output: Counter-evidence citing `approval` module (EE) or `mail.activity.mixin` 
 extension); code example of multi-level approval; talking points; verbatim response.
 
 **Example 2:**
-Prompt: "khách hàng nói Odoo không có kế toán theo chuẩn Việt Nam (VAS)"
-Output: Counter: Viindoo `viin_account_vat` + `l10n_vn` modules exist;
-`model_inspect(model='account.move', method='fields')` shows VAS-specific fields; verbatim
-response in Vietnamese noting Viindoo Enterprise solution.
+Prompt: "customer says Odoo doesn't have accounting standards compliance for their region"
+Output: Counter: specialized localization modules or custom extensions exist;
+`model_inspect(model='account.move', method='fields')` shows compliance-specific fields; verbatim
+response with region-appropriate solution.
