@@ -7,18 +7,17 @@ description: >
   criteria, decision process, budget signal, timeline urgency, and a fit-score (1-5) with
   explicit per-pain reasoning. Use this skill ANY time a Sales AE or Pre-Sales Consultant
   finishes a discovery call and needs to synthesize their notes into something actionable.
-  Pushy trigger (VI+EN): fire on "khách Acme họp xong tao có note", "tóm tắt buổi gặp
-  khách", "tóm tắt buổi discovery", "synthesize discovery note", "extract customer profile
-  từ buổi gặp", "phân tích buổi demo", "phân tích buổi discovery", "discovery xong rồi
-  cần synthesize", "summarize discovery notes", "extract customer profile", "synthesize
-  meeting notes", "we had a discovery call — analyze", "turn raw notes into proposal input",
-  "I have notes from today's call — help me structure them", "they told us their pain
-  points — can you extract a profile?", "cần làm customer profile cho proposal", "buổi
-  gặp hôm nay có info này — tóm lại giúp tôi", "cho tôi structured summary từ note này",
-  "chuyển note meeting thành profile khách hàng", "khách nói pain point ABC — phân tích
-  giúp", "sau buổi gặp cần tổng hợp thông tin khách", "prospect interview done — what did
-  we learn?", "discovery call recap", "meeting notes to customer profile", "turn
-  conversation notes into a structured discovery profile". Trigger even when the user
+  Pushy trigger: fire on "synthesize discovery note", "extract customer profile",
+  "summarize discovery notes", "synthesize meeting notes",
+  "we had a discovery call — analyze", "turn raw notes into proposal input",
+  "I have notes from today's call — help me structure them",
+  "they told us their pain points — can you extract a profile?",
+  "prospect interview done — what did we learn?",
+  "discovery call recap", "meeting notes to customer profile",
+  "turn conversation notes into a structured discovery profile",
+  "I need a customer profile for the proposal",
+  "we finished a discovery — synthesize the notes",
+  "help me structure what we learned from today's call". Trigger even when the user
   says ONLY a business name + "we had a meeting" — that alone is enough signal. DO NOT
   trigger for: internal team retrospectives, sprint planning sessions, developer standups,
   technical architecture discussions where there is no customer prospect involved; when
@@ -190,7 +189,7 @@ picture by reading it alone.
 
 ## Examples
 
-### Example 1 — Khách A (manufacturing SME, traceability need)
+### Example 1 — Customer A (manufacturing SME, traceability need)
 
 **User input (VI):**
 > "Họp với Khách A hôm nay. Sản xuất linh kiện nhựa, khoảng 80 người, đang dùng
@@ -201,7 +200,7 @@ picture by reading it alone.
 **Expected profile (excerpt):**
 
 ```
-# Discovery Profile — Khách A
+# Discovery Profile — Customer A
 
 ## Snapshot
 - Industry: Manufacturing — plastic components

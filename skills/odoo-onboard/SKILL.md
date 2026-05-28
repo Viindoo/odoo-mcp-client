@@ -5,13 +5,11 @@ description: |
 
   Trigger AGGRESSIVELY when the user signals "new Odoo project" or "first time" or no `.odoo-ai/context.md` exists yet in the working directory:
 
-  Explicit first-time signals (VI): "tao mới clone repo Odoo về", "project Odoo mới setup context", "khởi tạo context Odoo cho repo này", "lần đầu dùng odoo-semantic ở repo này", "đang ở 1 repo Odoo mới", "muốn pin Odoo version cho session", "setup ban đầu Odoo".
-
-  Explicit first-time signals (EN): "set up odoo-semantic for this project", "initialize Odoo context", "first time Odoo setup", "new Odoo project — onboard", "configure Odoo skills for current repo", "I just cloned an Odoo codebase", "where do I start with Odoo MCP for this repo".
+  Explicit first-time signals: "set up odoo-semantic for this project", "initialize Odoo context", "first time Odoo setup", "new Odoo project — onboard", "configure Odoo skills for current repo", "I just cloned an Odoo codebase", "where do I start with Odoo MCP for this repo", "pin Odoo version for this session", "initial Odoo setup".
 
   Implicit signals (proactive): if working directory contains `__manifest__.py` file(s) AND `.odoo-ai/context.md` is ABSENT, then the FIRST `odoo-*` skill the user invokes should pause and recommend running onboard first. The router skill (`odoo-router`) will also escalate to onboard if context is missing.
 
-  DO NOT trigger when: (1) `.odoo-ai/context.md` already exists AND `last_updated` is within the last 30 days — instead, suggest a quick "refresh? (yes/no)" rather than full onboard; (2) the working directory has no `__manifest__.py` files anywhere within 3 levels (not an Odoo project — explain politely); (3) the user is mid-workflow inside another skill (e.g., already in odoo-coder writing code) — don't interrupt; (4) the user explicitly types a different skill's trigger like "viết computed field" — let that skill auto-fire instead.
+  DO NOT trigger when: (1) `.odoo-ai/context.md` already exists AND `last_updated` is within the last 30 days — instead, suggest a quick "refresh? (yes/no)" rather than full onboard; (2) the working directory has no `__manifest__.py` files anywhere within 3 levels (not an Odoo project — explain politely); (3) the user is mid-workflow inside another skill (e.g., already in odoo-coder writing code) — don't interrupt; (4) the user explicitly types a different skill's trigger like "write a computed field" — let that skill auto-fire instead.
 
   This skill writes ONE file (`.odoo-ai/context.md`) and ONE `.gitignore` line (`.odoo-ai/`). It does not modify Odoo source code or any other project file
 ---
@@ -20,7 +18,7 @@ description: |
 
 ## Persona
 
-Front door for **all Viindoo/Odoo personas** (CEO, Developer, Pre-Sales Consultant, Sales AE, Marketer, Strategist, Customer Success). Most useful on the FIRST session against a new Odoo project repo — once context exists, the user rarely runs onboard again (only on quarterly refresh or major version change).
+Front door for **all Odoo personas** (small-team founder, Developer, Pre-Sales Consultant, Sales AE, Marketer, Strategist, Customer Success). Most useful on the FIRST session against a new Odoo project repo — once context exists, the user rarely runs onboard again (only on quarterly refresh or major version change).
 
 ## Out of Scope
 
@@ -37,7 +35,7 @@ The skill follows 9 steps. Each step has a clear success criterion before moving
 ### Step 0 — Pre-flight
 
 Check `.odoo-ai/context.md` existence:
-- If exists AND `last_updated` < 30 days → output: "Context đã có (updated <date>). Refresh? (yes/no)". On "no", end the skill. On "yes", continue but preserve the user's existing `## Notes` section.
+- If exists AND `last_updated` < 30 days → output: "Context already exists (updated <date>). Refresh? (yes/no)". On "no", end the skill. On "yes", continue but preserve the user's existing `## Notes` section.
 - If exists AND stale (>30 days) → say so + continue with refresh.
 - If absent → continue.
 
@@ -47,14 +45,14 @@ Check `.odoo-ai/context.md` existence:
 find . -maxdepth 3 -name "__manifest__.py" 2>/dev/null | head -20
 ```
 
-- If 0 results → output: "Không tìm thấy `__manifest__.py` trong working dir. Đây có phải repo Odoo không? Nếu có, cho tao đường dẫn project root." Wait for user input.
+- If 0 results → output: "No `__manifest__.py` found in working dir. Is this an Odoo repo? If so, provide the project root path." Wait for user input.
 - If ≥1 results → infer project root (common parent of all manifest paths) → continue.
 
 ### Step 2 — Probe available Odoo versions
 
 Call `mcp__odoo-semantic__list_available_versions` (no args). Show user the list with the most likely default highlighted (heuristic: prefer 17.0 if listed; otherwise highest version).
 
-> "Server có các version: 8.0, 12.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0. Project của bạn target version nào? (default: 17.0)"
+> "Available versions: 8.0, 12.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0. Which version does this project target? (default: 17.0)"
 
 Wait for user pick. Validate it's in the available list.
 
@@ -62,9 +60,9 @@ Wait for user pick. Validate it's in the available list.
 
 Call `mcp__odoo-semantic__list_available_profiles` (no args). Show with default heuristic:
 - Pure Odoo project (no `viin_*` module prefix in Step 4) → default profile = `odoo_<version>` or null
-- Viindoo project (≥1 `viin_*` module) → default profile = `viindoo_<version>`
+- Custom distribution project (≥1 `viin_*` module) → default profile = `viindoo_<version>`
 
-> "Profile nào? Detected `<inferred>` based on modules. (yes / pick another)"
+> "Which profile? Detected `<inferred>` based on modules. (yes / pick another)"
 
 Wait for user pick.
 
@@ -85,7 +83,7 @@ Build a list:
 ```
 
 Show to user:
-> "Detected `<N>` module trong repo. Include all? Or edit list? (yes / list to exclude)"
+> "Detected `<N>` modules in this repo. Include all? Or edit list? (yes / list to exclude)"
 
 Wait for user pick. If user wants to exclude, prompt for line numbers or names.
 
@@ -97,7 +95,7 @@ From the confirmed module list, detect:
 - **vcs_branch_pattern**: optional — try `git log --oneline -20 | head -20` to detect branch naming heuristic (`feature/...`, `fix/...`, `OEEL-<N>-...`). Don't probe if not in git repo.
 
 Confirm with user in one batch:
-> "Conventions: prefix=`viin_`, field=`snake_case`, branch=`feature/<ticket>-<slug>`. Đúng không? (yes / sửa)"
+> "Conventions: prefix=`viin_`, field=`snake_case`, branch=`feature/<ticket>-<slug>`. Correct? (yes / edit)"
 
 ### Step 6 — Set session pins
 
@@ -138,7 +136,7 @@ If user provides notes, append to `## Notes` section. Then output the suggest-ne
 ## Environment
 - **odoo_version**: 17.0
 - **viindoo_profile**: viindoo_17  (or `null` if pure Odoo)
-- **edition**: Viindoo  (one of: CE | EE | Viindoo)
+- **edition**: your Odoo distribution  (one of: CE | EE | custom)
 
 ## Custom modules detected
 - viin_sale_advance — Sale order advance payments
@@ -184,14 +182,14 @@ Suggest next: <relevant follow-up — see "Suggest-next logic" below>
 ### Suggest-next logic
 
 Pick ONE based on detected context:
-- If many `viin_*` modules + Viindoo profile → "Run `odoo-customization-inventory` để liệt kê đầy đủ + đánh giá business purpose từng module."
+- If many `viin_*` modules + custom distribution profile → "Run `odoo-customization-inventory` to list all modules and assess business purpose."
 - If user mentioned "upgrade" or "migration" in original prompt → "Run `odoo-deprecation-audit` next."
 - If user mentioned "feature" or "client" → "Try `odoo-feature-check` or `odoo-gap-analysis`."
-- Default → "Ready cho any `odoo-*` skill. Mọi skill sẽ tự đọc `.odoo-ai/context.md` từ Phase B onwards."
+- Default → "Ready for any `odoo-*` skill. All skills will auto-read `.odoo-ai/context.md` from Phase B onwards."
 
 ## Standalone-first fallback
 
-Khi OSM unreachable: fall back to asking user to manually paste/state Odoo version + list of custom module names. Skill vẫn create `.odoo-ai/context.md` với flag `osm_verified: false` để downstream skill biết context là user-asserted (chưa qua index verify).
+When OSM is unreachable: fall back to asking the user to manually paste or state the Odoo version and list of custom module names. The skill still creates `.odoo-ai/context.md` with flag `osm_verified: false` so downstream skills know the context is user-asserted (not index-verified).
 
 ## Integration notes
 
@@ -201,9 +199,9 @@ Khi OSM unreachable: fall back to asking user to manually paste/state Odoo versi
 
 ## Examples
 
-### Example 1 — Fresh Viindoo repo
+### Example 1 — Fresh custom distribution repo
 
-User prompt: "tao mới clone repo Odoo về, setup context giúp"
+User prompt: "I just cloned this Odoo repo — set up context for me"
 
 Skill flow:
 1. Pre-flight: no `.odoo-ai/context.md` → continue.
@@ -228,7 +226,7 @@ Output:
 
 `.gitignore` updated to exclude `.odoo-ai/`.
 
-Suggest next: Run `odoo-customization-inventory` để liệt kê đầy đủ 12 module + đánh giá business purpose.
+Suggest next: Run `odoo-customization-inventory` to list all 12 modules and assess their business purpose.
 ```
 
 ### Example 2 — Pure Odoo CE repo (no Viindoo)
@@ -248,10 +246,10 @@ Skill flow:
 
 ### Example 3 — Refresh existing context
 
-User prompt: "khởi tạo context Odoo" (but `.odoo-ai/context.md` already exists, last_updated yesterday)
+User prompt: "initialize Odoo context" (but `.odoo-ai/context.md` already exists, last_updated yesterday)
 
 Skill flow:
-1. Pre-flight: context exists, last_updated 2026-05-27 (1 day ago, fresh) → output: "Context đã có (updated 2026-05-27). Refresh? (yes/no)". User says "no" → end.
+1. Pre-flight: context exists, last_updated 2026-05-27 (1 day ago, fresh) → output: "Context already exists (updated 2026-05-27). Refresh? (yes/no)". User says "no" → end.
 
 If user said "yes": continue with full flow, but preserve `## Notes` from existing file.
 
@@ -265,10 +263,10 @@ Skill flow:
 3. Output:
 
 ```
-Không tìm thấy `__manifest__.py` trong working dir hoặc 3 cấp dưới. Đây có phải repo Odoo không?
+No `__manifest__.py` found in working dir or 3 levels down. Is this an Odoo repo?
 
-Nếu là Odoo: cho tao đường dẫn project root (vd `/home/user/projects/erp-customer-a`).
-Nếu không: skill này không phù hợp — thử `/odoo-semantic:connect` để setup MCP server kết nối (không liên quan đến project root).
+If yes: provide the project root path (e.g. `/home/user/projects/erp-customer-a`).
+If no: this skill is not applicable — try `/odoo-semantic:connect` to set up the MCP server connection instead (a different scope from project root).
 ```
 
 Wait for user.
