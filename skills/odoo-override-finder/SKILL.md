@@ -25,6 +25,12 @@ description: >
 ## Persona
 Developer
 
+## Out of Scope
+
+- Code review of existing override → use `odoo-code-reviewer`
+- API diff between versions → use `odoo-version-diff`
+- Full code generation for override → use `odoo-coder`
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
@@ -115,6 +121,10 @@ pattern is stable in.
 - The override chain already has 3+ overrides (high conflict risk)
 - The target method is marked as internal/private (`_` prefix but not double-underscore)
 - The method has changed signature between versions in the user's range
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user mô tả behavior + cung cấp model name nếu biết. Skill vẫn recommend override point và code template dựa trên kiến thức Odoo patterns cơ bản (e.g. `write()` override để hook vào create/update, `action_*()` override cho workflow, `@api.depends` + compute field cho derived fields), kèm caveat "chưa verify chain + conflict — hãy check khi OSM online".
 
 ## Output format
 

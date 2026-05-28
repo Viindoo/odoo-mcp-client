@@ -24,6 +24,12 @@ description: >
 ## Persona
 Consultant / Project Manager
 
+## Out of Scope
+
+- Single feature availability check → use `odoo-feature-check`
+- Marketing highlights for version release → use `odoo-feature-highlights`
+- Source-level API diff between versions → use `odoo-version-diff`
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
@@ -94,6 +100,10 @@ Decision logic per requirement (applied after Round 1 results arrive):
 
 **Be conservative**: if in doubt, upgrade the effort tier. It's easier to reduce scope than
 explain overruns.
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp danh sách requirement + bất kỳ context khách cung cấp (workshop notes, RFP). Skill vẫn tạo gap analysis report dựa trên training knowledge Odoo (classify requirement thành Standard/Config/Extension/Custom dựa trên mô hình cơ sở), kèm effort estimate dựa trên heuristic, và caveat "chưa verify qua code examples — hãy double-check effort khi OSM online".
 
 ## Output format
 

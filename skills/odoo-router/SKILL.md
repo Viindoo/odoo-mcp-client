@@ -87,12 +87,16 @@ If user replies "no" or names a different skill, re-route or yield to the user's
 | 9 | "CE vs EE", "edition comparison", "what does Enterprise add", "Viindoo so với Odoo Enterprise" | `odoo-addon-diff` | Three-way edition comparison (vs `odoo-feature-check` which is single-feature) |
 | 10 | "prove Odoo can", "evidence for demo", "RFP evidence", "trước buổi demo", "competitor said Odoo can't" | `odoo-capability-proof` | Evidence PACKAGE (modules + code + demo steps) (vs `odoo-objection-handler` which produces a verbatim response paragraph) |
 | 11 | "respond to objection", "counter 'Odoo can't'", "viết phản hồi", "rep is on the call", "khách bảo Odoo không X" | `odoo-objection-handler` | Verbatim ACA response paragraph (vs `odoo-capability-proof` which is technical evidence) |
-| 12 | "write code", "create field", "implement feature", "viết computed field", "tạo onchange", "thêm SQL constraint" | `odoo-coder` | Backend Python/XML code generation (vs `odoo-js-coder`/`odoo-owl-coder` for frontend, vs `odoo-override-finder` for finding hook location) |
+| 12 | "write code", "create field", "implement feature", "viết computed field", "tạo onchange", "thêm SQL constraint" | `odoo-coder` | Backend Python/XML code generation (vs `odoo-frontend-coder` for frontend, vs `odoo-override-finder` for finding hook location) |
 | 13 | "review code", "check my PR", "audit this", "kiểm tra code này", "smell test before merge" | `odoo-code-reviewer` | Reviewing EXISTING code (vs `odoo-coder` which writes NEW code, vs `odoo-deprecation-audit` which is module-level audit) |
-| 14 | "JS", "widget", "Odoo 8–14 frontend", "odoo.define()", "web.Widget", "AbstractField" | `odoo-js-coder` | Legacy frontend stack (vs `odoo-owl-coder` for v15+) |
-| 15 | "OWL", "Odoo 15+ frontend", "patch component", "useService", "useState", "Odoo 17 JS" | `odoo-owl-coder` | Modern frontend stack (vs `odoo-js-coder` for v8-14) |
-
-(Phase B note: `odoo-js-coder` + `odoo-owl-coder` will merge into a single `odoo-frontend-coder` with internal version gate. Until then, treat them as separate rows; pick based on stated/implied Odoo version.)
+| 14 | "JS", "widget", "OWL", "frontend", "Odoo 8–19", "odoo.define()", "useService", "patch component" | `odoo-frontend-coder` | Frontend code (legacy v8–14 or OWL v15+); skill auto-detects framework via Odoo version in `.odoo-ai/context.md` or user statement |
+| 15 | "follow up khách", "deal stalled", "draft follow-up email", "khách lâu chưa phản hồi" | `odoo-deal-followup` | Sales AE follow-up email writer (vs `odoo-objection-handler` which is for objection response, vs `odoo-discovery-summarize` which is for raw meeting notes) |
+| 16 | "tóm tắt buổi gặp khách", "synthesize discovery notes", "extract customer profile" | `odoo-discovery-summarize` | Pre-proposal structured profile (vs `odoo-gap-analysis` for effort matrix, vs `odoo-deal-followup` for post-meeting follow-up email) |
+| 17 | "viết bài blog/post/script/email/landing/caption về Odoo", "draft a blog post on Odoo", "YouTube script for Odoo" | `odoo-content-draft` | Single-piece content draft (vs `odoo-campaign-plan` which orchestrates multi-piece campaign, vs `odoo-feature-highlights` which is slide-format) |
+| 18 | "lập kế hoạch campaign", "plan campaign Q3", "multi-channel plan", "campaign brief" | `odoo-campaign-plan` | Multi-week orchestration (vs `odoo-content-draft` for single piece) |
+| 19 | "competitor brief", "phân tích đối thủ", "landscape brief", "threat assessment" | `odoo-competitive-brief` | Structured CEO/board briefing on a competitor (vs `odoo-objection-handler` for sales counter-talking-points) |
+| 20 | "deploy checklist", "checklist trước khi đẩy lên prod", "go-live checklist", "pre-deploy safety" | `odoo-deploy-checklist` | Pre-deployment safety items (vs `odoo-deprecation-audit` for code-level upgrade audit) |
+| 21 | "tao mới clone repo Odoo", "set up odoo-semantic for this project", "first time setup" | `odoo-onboard` | Project-context bootstrap (vs `/odoo-semantic:connect` slash command for server URL/key setup) |
 
 ## Collision Test Cases — Worked Examples
 
@@ -130,6 +134,17 @@ If the user had said "API nào thay đổi từ v17 sang v18, dev cần biết" 
 **Discriminator**: "khách hỏi" (customer asks) + no mention of "our code" or "audit" signals the user wants a clean diff to relay, not a code scan. → **Pick `odoo-version-diff`.**
 
 If the user had said "audit codebase của khách trước khi nâng cấp v17" → that would be `odoo-deprecation-audit`.
+
+### Collision 4 — Deal Follow-up vs Objection Handler
+
+**Prompt**: "khách chưa reply lâu rồi, cần viết follow-up"
+
+- `odoo-deal-followup`: description matches "follow up khách", "draft follow-up email", "khách lâu chưa phản hồi" → sales AE follow-up email (cold/warm/engagement).
+- `odoo-objection-handler`: description matches "viết phản hồi", "respond to objection" → counter-response to a stated objection.
+
+**Discriminator**: "chưa reply" (silence) + "follow-up" signal the user wants a re-engagement email, not a counter to an objection. → **Pick `odoo-deal-followup`.**
+
+If the user had said "khách bảo Odoo không support gì, tao cần viết phản hồi" → that would be `odoo-objection-handler`.
 
 ## Output Format
 
@@ -217,7 +232,7 @@ Intent của bạn có thể map vào 2 skill:
 
 ## Notes for future maintainers
 
-- Routing table currently lists 15 entries (Phase A baseline). Phase B will add ~7 new entries for Sales AE / Marketer / Strategist personas. Update both the table AND the collision-test cases when adding entries.
+- Routing table currently lists 21 entries (Phase A baseline 15 + Phase B merge & expansion: rows 14–15 consolidated, rows 15–21 added). Update both the table AND the collision-test cases when adding entries.
 - Trigger description optimization is scheduled for Phase D via `/skill-creator` Mode 5 (`run_loop.py`) with a 20-query trigger eval set.
 - Phase A eval set (15 cases in `evals/evals.json`) is descriptive — not graded. Use `/skill-creator` Mode 5 + `run_loop.py` in Phase D AC-D6 for graded trigger accuracy score.
 - See `docs/refinement-plan-2026-05-28.md` §"Phase A — A3 Router skill" for full design rationale.

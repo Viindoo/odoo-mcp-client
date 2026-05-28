@@ -23,6 +23,12 @@ description: >
 ## Persona
 Sales Engineer / Pre-sales Consultant
 
+## Out of Scope
+
+- Single feature availability (no proof needed) → use `odoo-feature-check`
+- Multi-requirement scope + effort quote → use `odoo-gap-analysis`
+- Customer-facing objection response paragraph → use `odoo-objection-handler`
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
@@ -75,6 +81,10 @@ Never fabricate capabilities. If the feature doesn't exist, say so and propose t
 workaround. When MCP results conflict with training knowledge (e.g. a module that training data
 says should exist but `check_module_exists` doesn't find), trust the MCP result — it reflects
 the actual indexed codebase.
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp requirement trong dạng natural language + bất kỳ tài liệu khách cung cấp (proposal, RFP excerpt). Skill vẫn sản sinh evidence package dựa trên kiến thức cơ bản về Odoo (module + model architecture từ training), nhưng không có code snippet thực tế — kèm caveat "chưa verify qua codebase index, hãy check lại chi tiết code khi OSM online".
 
 ## Output format
 

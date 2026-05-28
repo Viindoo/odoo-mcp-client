@@ -41,9 +41,22 @@ BEGIN_MARKER = "<!-- BEGIN GENERATED TOOLS -->"
 END_MARKER = "<!-- END GENERATED TOOLS -->"
 
 # Skill dirs to skip for MCP-tools section generation.
-# These are pure-text skills with no MCP invocations (router, onboard).
-# Distinct from skills with empty mcp_tools list that still want a marker block.
-SKIP_SKILL_DIRS = {"odoo-router", "odoo-onboard"}
+# These are pure-text skills with no MCP invocations (router, onboard), skills whose
+# marker block is managed manually (new B.2 standalone-first skills), and slim SKILL.md
+# files that are part of an agent+skill bundle (tools live in the agent, not the skill).
+SKIP_SKILL_DIRS = {
+    "odoo-campaign-plan",
+    "odoo-code-reviewer",
+    "odoo-coder",
+    "odoo-competitive-brief",
+    "odoo-content-draft",
+    "odoo-deal-followup",
+    "odoo-deploy-checklist",
+    "odoo-discovery-summarize",
+    "odoo-frontend-coder",
+    "odoo-onboard",
+    "odoo-router",
+}
 
 
 # ---------------------------------------------------------------------------

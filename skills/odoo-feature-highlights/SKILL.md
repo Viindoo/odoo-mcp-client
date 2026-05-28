@@ -23,6 +23,12 @@ description: >
 ## Persona
 Marketer / Product Manager
 
+## Out of Scope
+
+- Source-level API diff for developers → use `odoo-version-diff`
+- Proof of a specific capability requirement → use `odoo-capability-proof`
+- Single feature availability lookup → use `odoo-feature-check`
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
@@ -82,6 +88,10 @@ batch them in one round to cut total latency from 4 sequential calls to 2 total 
 - Avoid acronyms, file paths, developer jargon in the main highlights section
 - Keep a separate "Technical notes" section for developers
 - For Vietnamese market: mention localization features (VAS accounting, Vietnamese tax) prominently
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp release notes hoặc changelog từ trang chính thức Odoo. Skill vẫn tạo marketing highlights dựa trên changelog text parsing + training knowledge, với business language narrative, kèm caveat "chưa verify qua code index — hãy check chi tiết khi OSM online".
 
 ## Output format
 

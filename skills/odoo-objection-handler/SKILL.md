@@ -24,6 +24,12 @@ description: >
 ## Persona
 Sales Engineer / Account Executive
 
+## Out of Scope
+
+- Full evidence package (modules + code + demo steps) → use `odoo-capability-proof`
+- Simple feature availability lookup → use `odoo-feature-check`
+- Effort estimate & scope for proposal → use `odoo-gap-analysis`
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
@@ -81,6 +87,10 @@ skip `suggest_pattern` entirely.
 
 The "Suggested response (verbatim)" section should be ready to use in a client meeting without
 editing. Keep it professional but conversational.
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp objection text chi tiết + context khách hàng (industry, Odoo version). Skill vẫn generate ACA response dựa trên training knowledge về Odoo capabilities, mô hình phổ biến, và pattern quen thuộc, kèm caveat "chưa verify qua codebase — hãy fact-check evidence khi OSM online".
 
 ## Output format
 

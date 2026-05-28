@@ -47,13 +47,25 @@ def _frontmatter(text):
     raise AssertionError("frontmatter not closed with '---'")
 
 
+def _body(text):
+    """Return the content after the closing --- of frontmatter."""
+    lines = text.splitlines()
+    # Find the closing --- that marks end of frontmatter
+    for i, line in enumerate(lines):
+        if i > 0 and line.strip() == "---":
+            # Everything after this line is the body
+            return "\n".join(lines[i + 1 :])
+    return ""
+
+
 def test_at_least_15_skills():
     assert len(SKILL_FILES) >= 15, f"expected >=15 skills, found {len(SKILL_FILES)}"
 
 
 @pytest.mark.parametrize("skill", SKILL_FILES, ids=lambda p: p.parent.name)
 def test_skill_frontmatter(skill):
-    fm = _frontmatter(skill.read_text(encoding="utf-8"))
+    text = skill.read_text(encoding="utf-8")
+    fm = _frontmatter(text)
     assert fm.get("name"), f"{skill.parent.name}: missing 'name'"
     assert fm.get("description"), f"{skill.parent.name}: missing 'description'"
     # directory name should match the declared skill name
@@ -61,3 +73,7 @@ def test_skill_frontmatter(skill):
         f"{skill.parent.name}: frontmatter name '{fm['name']}' "
         f"does not match directory"
     )
+    # Check for required body sections
+    body = _body(text)
+    assert "## Persona" in body, f"{skill.parent.name} SKILL.md missing required ## Persona section"
+    assert "## Out of Scope" in body, f"{skill.parent.name} SKILL.md missing required ## Out of Scope section"

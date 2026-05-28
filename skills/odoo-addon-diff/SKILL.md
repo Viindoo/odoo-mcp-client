@@ -22,6 +22,12 @@ description: >
 ## Persona
 Marketer / Sales Engineer
 
+## Out of Scope
+
+- Single feature availability check → use `odoo-feature-check`
+- Marketing copy for feature highlights → use `odoo-feature-highlights`
+- Pre-sales RFP evidence package → use `odoo-capability-proof`
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
@@ -73,6 +79,10 @@ Write for a non-technical decision-maker. Translate field names to business lang
 Group by business domain: Sales, Accounting, Inventory, Manufacturing, HR, etc.
 
 For EE-only and Viindoo-only features, add a brief business value note ("why does this matter for this client type?").
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user paste manifest + changelog/release notes liên quan từ từng edition. Skill vẫn produce comparison table dựa trên changelog text parsing, kèm note "chưa verify chi tiết trường dữ liệu — hãy check lại khi OSM online".
 
 ## Output format
 

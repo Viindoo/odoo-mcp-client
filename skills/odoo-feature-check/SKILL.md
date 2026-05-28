@@ -22,6 +22,12 @@ description: >
 ## Persona
 Consultant / Developer
 
+## Out of Scope
+
+- Multi-requirement effort matrix → use `odoo-gap-analysis`
+- CE vs EE three-way comparison → use `odoo-addon-diff`
+- Customer-facing objection response → use `odoo-objection-handler`
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
@@ -89,6 +95,10 @@ or view coverage.
 - `Not available — custom development required` — honest assessment with effort note
 
 Always cite the exact module name so clients can verify independently.
+
+## Standalone-first fallback
+
+Khi OSM unreachable (server down hoặc network), skill yêu cầu user paste manifest content + 1-2 model file snippet của module nghi vấn. Skill vẫn produce verdict (module có/không, edition CE/EE/Viindoo) dựa trên text analysis của paste, kèm caveat "chưa verify qua semantic index — hãy double-check khi OSM back online".
 
 ## Output format
 

@@ -22,6 +22,12 @@ description: >
 ## Persona
 CEO / CTO / Project Manager
 
+## Out of Scope
+
+- Upgrade risk scoring + deprecated API scan → use `odoo-deprecation-audit`
+- Executive 1-page risk dashboard → use `odoo-risk-overview`
+- Marketing highlights of features → use `odoo-feature-highlights`
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
@@ -95,6 +101,10 @@ Write "Business purpose" in plain language. Infer from field names and module na
 adding `vat_number`, `tax_id_file` to `res.partner` is clearly "Vietnamese tax compliance".
 
 Flag modules with many deprecated API calls or overrides of unstable methods as "upgrade risk".
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp danh sách module + nếu có `__manifest__.py` snippet (or `__openerp__.py` cho legacy) của từng module. Skill vẫn tạo inventory table dựa trên manifest + text analysis, phân loại mỗi module và dự đoán business purpose dựa trên tên + manifest description, kèm caveat "chưa scan chi tiết code & inheritance — hãy verify khi OSM back online".
 
 ## Output format
 

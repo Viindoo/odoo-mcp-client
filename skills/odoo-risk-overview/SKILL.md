@@ -25,6 +25,12 @@ description: >
 ## Persona
 CEO / CTO / Project Sponsor
 
+## Out of Scope
+
+- Per-line deprecated API technical audit → use `odoo-deprecation-audit`
+- Module-by-module business inventory → use `odoo-customization-inventory`
+- Tactical override/extension guidance → use `odoo-override-finder`
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
@@ -92,6 +98,10 @@ Count BREAKING vs WARN severity from `find_deprecated_usage` results.
 
 Synthesize findings into a concise executive table. Keep prose minimal — let the table carry
 the data. Always close with a one-sentence recommended action tied to the highest-risk item.
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp danh sách module + bất kỳ code snippet hoặc manifest sẵn có. Skill vẫn tạo risk overview dựa trên module classification (Standard/Custom/Viindoo), heuristic estimate của deprecated risk (dựa trên module age, module name pattern), kèm caveat "chưa scan chi tiết deprecated API + blast radius — hãy verify qua deep audit khi OSM online".
 
 ## Output format
 

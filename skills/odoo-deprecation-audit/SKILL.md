@@ -22,6 +22,12 @@ description: >
 ## Persona
 Developer / Tech Lead
 
+## Out of Scope
+
+- Version API diff without code scan → use `odoo-version-diff`
+- Fresh code generation in target version → use `odoo-coder`
+- Executive risk dashboard → use `odoo-risk-overview`
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
@@ -101,6 +107,10 @@ replacement API with a one-line migration note.
 
 **Era upgrade note:** If migrating from v8/v9, add a separate section "OpenERP Era Rewrites"
 listing modules that require full Python 2 → 3 syntax migration, not just API replacements.
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp danh sách module cần audit + bản source code (hoặc grep output của deprecated pattern). Skill vẫn tạo audit report dựa trên static text analysis (tìm kiếm pattern như `@api.multi`, `_columns`, `osv.osv`, `web.Widget` bằng regex), gợi ý replacement từ kiến thức Odoo, kèm caveat "chưa verify qua codebase index — hãy double-check khi OSM online".
 
 ## Output format
 

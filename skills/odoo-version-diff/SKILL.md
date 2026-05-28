@@ -22,6 +22,12 @@ description: >
 ## Persona
 Developer + Marketer
 
+## Out of Scope
+
+- Audit user's codebase for deprecated API usage → use `odoo-deprecation-audit`
+- Marketing highlights (business language only) → use `odoo-feature-highlights`
+- Single-feature availability lookup → use `odoo-feature-check`
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
@@ -86,6 +92,10 @@ Categorize findings by impact:
 
 **Cross-era note:** If the jump spans v8/v9→v10+ or v12→v13, add a special "Era migration" section
 explaining the magnitude: Python 2→3 rewrite, decorator removal, frontend framework replacement.
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp release notes hoặc changelog chính thức từ hai version. Skill vẫn tạo version diff dựa trên changelog text parsing + training knowledge về era-level changes (Python 2→3, `@api.multi` removal, OWL adoption timeline), kèm caveat "chưa verify qua API index — hãy double-check chi tiết signature khi OSM online".
 
 ## Output format
 
