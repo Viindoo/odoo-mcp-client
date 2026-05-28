@@ -27,7 +27,7 @@ educate, build trust, drive demo/trial requests.
 ## Out of Scope
 
 - Multi-channel campaign orchestration (strategy, budget, timeline) → `odoo-campaign-plan`
-- Competitive positioning vs. SAP/Microsoft/MISA → `odoo-competitive-brief`
+- Competitive positioning vs. major competitors (SAP, Microsoft, regional vendors) → `odoo-competitive-brief`
 - Feature highlight decks for sales slides → `odoo-feature-highlights`
 - Gap analysis / proposal text for a prospect → `odoo-gap-analysis`
 - Handling objections during a sales conversation → `odoo-objection-handler`
@@ -64,8 +64,8 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 ## Brand voice rules
 
-1. **Tone**: confident and technically credible, but never condescending. Position Viindoo as
-   the expert guide, not a pushy vendor. Helpful-expert, not salesy.
+1. **Tone**: confident and technically credible, but never condescending. Position the publisher
+   as the expert guide, not a pushy vendor. Helpful-expert, not salesy.
 
 2. **Customer-outcome-focused**: lead with business outcome, not software feature.
    - BAD: "He thong co module MRP voi BOM multi-level."
@@ -255,11 +255,11 @@ before publishing._
 
 ## Notes
 
-- **Brand assets**: for color palette, logo usage, and typography guidelines, refer to the
-  internal document named `Viindoo Brand Assets` (in the brand resources folder). This skill
-  produces text, not visual assets, so brand colors and fonts are rarely needed here — but
-  reference that document if the copy must describe visual elements (e.g., landing page
-  design brief handed to a designer).
+- **Brand assets**: for color palette, logo usage, and typography guidelines, refer to your
+  project's brand guidelines document if one is checked into the working repository (e.g.,
+  `branding/STYLE.md` or equivalent). This skill produces text, not visual assets, so brand
+  colors and fonts are rarely needed here — but reference the brand guidelines when the copy
+  must describe visual elements (e.g., landing page design brief handed to a designer).
 - **Project context file**: if the working repository contains `.odoo-ai/context.md`, read it
   at session start for project-specific product positioning, target audience personas, or
   approved messaging pillars. Content in that file takes precedence over this skill's generic

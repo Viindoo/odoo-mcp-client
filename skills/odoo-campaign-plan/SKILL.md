@@ -32,7 +32,7 @@ requests, and support regional or vertical expansion.
 
 - Drafting individual content pieces (blog posts, LinkedIn posts, email sequences)
   → `odoo-content-draft`
-- Competitive positioning vs. SAP / Microsoft Dynamics / MISA
+- Competitive positioning vs. major competitors (SAP, Microsoft Dynamics, regional vendors)
   → `odoo-competitive-brief`
 - Feature-highlight decks for sales slides or proposal presentations
   → `odoo-feature-highlights`
@@ -352,10 +352,11 @@ When OSM is unreachable or the skill is used without MCP configuration:
   at session start for Odoo version default, target audience personas, approved messaging
   pillars, and any channel restrictions. Settings in that file take precedence over this
   skill's generic defaults.
-- **Brand assets**: for color palette, logo usage, and typography guidelines, refer to the
-  internal document named `Viindoo Brand Assets`. This skill produces a planning document, not
-  visual assets — but reference `Viindoo Brand Assets` when the plan includes a landing page
-  brief or visual design spec that will be handed to a designer.
+- **Brand assets**: for color palette, logo usage, and typography guidelines, refer to your
+  project's brand guidelines document if one is checked into the working repository (e.g.,
+  `branding/STYLE.md` or equivalent). This skill produces a planning document, not visual
+  assets — but reference the brand guidelines when the plan includes a landing page brief
+  or visual design spec that will be handed to a designer.
 - **No fabricated data**: NEVER invent customer names, real revenue figures, or hard ROI
   percentages in the plan. Use abstract templates: "A manufacturing company in the southern
   region with ~150 employees" or "A trading company in the FMCG sector reported...". If the
