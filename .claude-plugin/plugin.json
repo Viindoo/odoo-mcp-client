@@ -17,7 +17,7 @@
     "./commands/connect.md",
     "./commands/bid-respond.md",
     "./commands/customer-followup-draft.md",
-    "./commands/discovery-summarize.md",
+    "./commands/discovery-quick.md",
     "./commands/feature-positioning.md",
     "./commands/upgrade-plan-full.md"
   ],

@@ -66,7 +66,8 @@ Ask explicitly: **"Email draft OK? Reply with `yes` to save, `iterate` to refine
 ### Phase 3: Write to disk and confirm
 On user "yes":
 1. Create directory `.odoo-ai/followups/` if it does not exist.
-2. Derive filename: `<customer-label>-<YYYY-MM-DD>.md` (e.g., `ABC Manufacturing-2026-05-28.md`). If a file for today already exists for this customer, append a short suffix (e.g., `-v2`) or ask the user for a unique name.
+2. Slugify customer-label: lowercase, replace whitespace and non-alphanumeric with `-`, collapse repeats. Example: `ABC Manufacturing` → `abc-manufacturing`.
+3. Derive filename: `<slugified-customer-label>-<YYYY-MM-DD>.md` (e.g., `abc-manufacturing-2026-05-28.md`). If a file for today already exists for this customer, append a short suffix (e.g., `-v2`) or ask the user for a unique name.
 3. Write the draft to the file in Markdown format:
    ```markdown
    # Follow-up Draft: [Customer Label]
@@ -83,11 +84,15 @@ On user "yes":
    
    [email body]
    ```
-4. Confirm to user: `✓ Draft saved to .odoo-ai/followups/ABC Manufacturing-2026-05-28.md`.
+4. Confirm to user: `✓ Draft saved to .odoo-ai/followups/abc-manufacturing-2026-05-28.md`.
 
 ## Examples
 
-**Example 1 (abstract):** Customer: "ACME Manufacturing" (Vietnam-based); last touch: 2026-04-30 (28 days ago); pipeline stage: "Proposal sent"; blocker: "waiting on technical evaluation from customer's IT team". Skill assesses **HIGH risk** (customer is silent, evaluating alternatives), recommends **"schedule a 30-min call to unblock evaluation"**, drafts a warm but concise email offering technical support and a concrete call time.
+**Example 1 (abstract):** Customer: "Khach-A" (Vietnam-based); last touch: 2026-04-30 (28 days ago); pipeline stage: "Proposal sent"; blocker: "waiting on technical evaluation from customer's IT team". Skill assesses **HIGH risk** (customer is silent, evaluating alternatives), recommends **"schedule a 30-min call to unblock evaluation"**, drafts a warm but concise email offering technical support and a concrete call time.
+
+## Standalone fallback
+
+If `odoo-deal-followup` skill is unavailable, prompt the user to manually paste the deal context (customer label, last touch date, prior commitments) and any prior email thread. Command produces a basic follow-up draft from those inputs without risk-score heuristics. User must manually compute urgency and choose CTA.
 
 ## What this command does NOT do
 

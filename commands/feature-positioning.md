@@ -101,12 +101,11 @@ Adapt tone to audience:
 - **Developer**: technical depth, integration patterns, API/module names
 - **Marketer**: messaging hooks, social proof, differentiator framing
 
-### Phase 5: Output and optional save
+### Phase 5: Output and explicit gate
 
 1. Display the positioning copy block in the terminal (syntax highlighting if applicable).
-2. Offer to save to `.odoo-ai/positioning/<feature-slug>-<channel>-<date>.md` (gitignored).
-3. If saved, confirm file path to user.
-4. Done.
+2. Ask explicitly: "Save positioning copy? Reply `yes` to save to `.odoo-ai/positioning/<slug>-<channel>-<date>.md`, `terminal` to keep output here only, or `cancel` to discard."
+3. On `yes` → write file; confirm path. On `terminal` → end command without writing. On `cancel` → end command without writing.
 
 ## Example
 
@@ -154,6 +153,10 @@ Differentiator:
 Odoo's approval engine works across all modules (purchase, sale, expenses, HR)
 — one workflow rule set, applied everywhere. Competitors require module-by-module setup.
 ```
+
+## Standalone fallback
+
+If `odoo-feature-check`, `odoo-addon-diff`, or `odoo-competitive-brief` skills are unavailable, the command prompts the user to manually state: (a) feature available in which edition, (b) key differentiator vs competitor, (c) target audience. Command produces positioning copy from manual inputs only, marked with `<TBD: verify via skill when OSM back>` for any unverified claim.
 
 ## What this command does NOT do
 

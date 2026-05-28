@@ -1,7 +1,7 @@
 ---
-name: odoo-discovery-summarize
+name: odoo-discovery-quick
 description: |
-  Quick wrapper for the odoo-discovery-summarize skill. Type this slash command when you want to explicitly synthesize raw meeting or discovery notes into a structured customer profile, bypassing the router to directly invoke the skill.
+  Quick slash-command wrapper for the odoo-discovery-summarize skill. Type `/odoo-discovery-quick` when you want to explicitly synthesize raw meeting or discovery notes into a structured customer profile, bypassing the router to directly invoke the skill.
 ---
 
 # /odoo-discovery-summarize
@@ -13,7 +13,7 @@ Use this command when you already know you want to run discovery synthesis and w
 ## Steps for the AI agent
 
 1. **Phase 0: Parse input**
-   - Check if `$ARGUMENTS` contains a customer label (e.g., `/odoo-discovery-summarize Acme Corp`).
+   - Check if `$ARGUMENTS` contains a customer label (e.g., `/odoo-discovery-summarize Khach-A`).
    - If a label is provided, store it. Otherwise, ask the user for one.
    - Ask the user to provide raw notes (either pasted inline or as a file path).
    - If the user provides a file path, read it with the `Read` tool.
@@ -50,22 +50,22 @@ Use this command when you already know you want to run discovery synthesis and w
 **Example 1: Inline notes**
 
 ```
-User: /odoo-discovery-summarize Acme Corp
+User: /odoo-discovery-summarize Khach-A
 
 Agent: What are the raw discovery notes? (paste or file path)
 
 User:
-  Met with finance team at Acme.
+  Met with finance team at Khach-A.
   They track invoices in Excel.
   20 invoices/month, growing to 50.
   Pain: no audit trail, manual data entry errors.
-  Goal: automate invoice workflow, reduce errors by 80%.
-  Budget: <$2k/month, 3-month ROI required.
+  Goal: automate invoice workflow, reduce errors significantly.
+  Budget: small SMB tier, ROI required within first quarter.
 
 Agent: [Triggers skill with customer label + notes]
 
 Skill output:
-  ## Acme Corp — Discovery Profile
+  ## Khach-A — Discovery Profile
   
   **Business context:** Manufacturing, 120 employees...
   **Pain points:** Manual invoice tracking...
@@ -73,12 +73,16 @@ Skill output:
   **Recommended product fit:** Odoo Accounting + Invoice Automation...
   **Next step:** Demo accounts module, pricing discussion...
 
-Agent: Save to .odoo-ai/discovery/Acme-Corp-2026-05-28.md? (yes / no / change-name)
+Agent: Save to .odoo-ai/discovery/Khach-A-Corp-2026-05-28.md? (yes / no / change-name)
 
 User: yes
 
-Agent: ✓ Profile saved to .odoo-ai/discovery/Acme-Corp-2026-05-28.md
+Agent: ✓ Profile saved to .odoo-ai/discovery/Khach-A-Corp-2026-05-28.md
 ```
+
+## Standalone fallback
+
+If `odoo-discovery-summarize` skill is unavailable (OSM offline, network error), prompt the user to manually fill in the customer profile fields shown in the skill's output schema (industry, pain points, success criteria, decision process). Continue per `yes/iterate/cancel` gate. Output marked with `<TBD: verify via skill when OSM back>` placeholders for fields that would normally be cross-checked.
 
 ## What this command does NOT do
 
