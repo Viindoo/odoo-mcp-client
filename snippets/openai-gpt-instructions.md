@@ -267,113 +267,113 @@ _Tool surface: server v0.8.0. Generated from `generator/server-surface.json`. Ru
 
 **TOOLS (generated — v0.8.0):**
 
-**model_inspect** ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call
+**model_inspect** ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
   REQUIRED: model, method
   OPTIONAL: odoo_version, field, method_name, limit, profile_name, from_module, kind, view_type
   WHEN: inspect model
 
-**module_inspect** ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call
+**module_inspect** ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
   REQUIRED: name, method
   OPTIONAL: odoo_version, profile_name, limit, view_type, bound_model, era, target
   WHEN: inspect module
 
-**entity_lookup** ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module
+**entity_lookup** ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
   REQUIRED: kind
   OPTIONAL: odoo_version, model, field, method_name, xmlid, from_module
   WHEN: lookup field
 
-**find_examples** — Semantic code search returning real indexed code snippets from the Odoo codebase
+**find_examples** — Semantic code search returning real indexed code snippets from the Odoo codebase.
   REQUIRED: query
   OPTIONAL: odoo_version, limit, chunk_types
   WHEN: show me examples
 
-**impact_analysis** — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields
+**impact_analysis** — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
   REQUIRED: entity_type, entity_name
   OPTIONAL: odoo_version
   WHEN: what breaks if I change
 
-**lookup_core_api** — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement
+**lookup_core_api** — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
   REQUIRED: name
   OPTIONAL: odoo_version
   WHEN: is API deprecated
 
-**api_version_diff** — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items
+**api_version_diff** — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
   REQUIRED: symbol, from_version, to_version
   WHEN: what changed between versions
 
-**find_deprecated_usage** — Scan the indexed codebase for usages of deprecated API patterns
+**find_deprecated_usage** — Scan the indexed codebase for usages of deprecated API patterns.
   REQUIRED: odoo_version
   OPTIONAL: kind
   WHEN: deprecated API in code
 
-**lint_check** — Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0
+**lint_check** — Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.9.1+).
   OPTIONAL: code, odoo_version, language
   WHEN: lint check
 
-**cli_help** — Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags
+**cli_help** — Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags.
   OPTIONAL: command, flag, odoo_version
   WHEN: odoo-bin options
 
-**suggest_pattern** — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns
+**suggest_pattern** — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
   REQUIRED: intent
   OPTIONAL: odoo_version, language, limit
   WHEN: best pattern for
 
-**check_module_exists** — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence
+**check_module_exists** — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
   REQUIRED: name
   OPTIONAL: odoo_version
   WHEN: does module exist
 
-**find_override_point** — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior
+**find_override_point** — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
   REQUIRED: model, method
   OPTIONAL: odoo_version, to_version
   WHEN: where to override
 
-**describe_module** — Module manifest + defined/extended model counts + view/JS inventory in one call
+**describe_module** — Module manifest + defined/extended model counts + view/JS inventory in one call.
   REQUIRED: name
   OPTIONAL: odoo_version, profile_name
   WHEN: what does module do
 
-**set_active_version** ☆ — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version
+**set_active_version** ☆ — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
   REQUIRED: odoo_version
   WHEN: set version
 
-**set_active_profile** ☆ — Pin tenant profile for the session so subsequent calls scope to one customer profile
+**set_active_profile** ☆ — Pin tenant profile for the session so subsequent calls scope to one customer profile.
   REQUIRED: profile_name
   WHEN: set profile
 
-**list_available_versions** ☆ — Enumerate which Odoo versions the server has indexed
+**list_available_versions** ☆ — Enumerate which Odoo versions the server has indexed.
   WHEN: what versions are indexed
 
-**list_available_profiles** ☆ — Enumerate which tenant profiles exist in the server index
+**list_available_profiles** ☆ — Enumerate which tenant profiles exist in the server index.
   WHEN: what profiles exist
 
-**resolve_stylesheet** ✦ — Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain
+**resolve_stylesheet** ✦ — Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain.
   REQUIRED: module
   OPTIONAL: odoo_version
   WHEN: stylesheets in module
 
-**find_style_override** ✦ — Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules
+**find_style_override** ✦ — Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules.
   REQUIRED: selector_or_variable
   OPTIONAL: odoo_version, limit
   WHEN: where is CSS selector defined
 
-**resolve_orm_chain** ⊕ — Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks
+**resolve_orm_chain** ⊕ — Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
   REQUIRED: model, dotted_path
   OPTIONAL: odoo_version, profile_name
   WHEN: trace field path
 
-**validate_domain** ⊕ — Validate search domain terms: field-path resolution and operator version-awareness
+**validate_domain** ⊕ — Validate search domain terms: field-path resolution and operator version-awareness.
   REQUIRED: model, domain
   OPTIONAL: odoo_version, profile_name
   WHEN: is this domain valid
 
-**validate_depends** ⊕ — Validate compute method's `@api
+**validate_depends** ⊕ — Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.
   REQUIRED: model, method
   OPTIONAL: odoo_version, profile_name
   WHEN: validate compute depends
 
-**validate_relation** ⊕ — Assert a relational field points at the expected comodel (many2one/one2many/many2many)
+**validate_relation** ⊕ — Assert a relational field points at the expected comodel (many2one/one2many/many2many).
   REQUIRED: model, field, target_model
   OPTIONAL: odoo_version, profile_name
   WHEN: does field point to model

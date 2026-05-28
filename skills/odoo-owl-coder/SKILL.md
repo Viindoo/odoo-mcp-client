@@ -32,20 +32,17 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
 
 **Primary tools:**
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
-- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
-- `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
 - `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
 - `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 
 **Ollama-delegate tools** (local model, cost-free):
-- `mcp__ollama-delegate__generate_code`
 - `mcp__ollama-delegate__explain_code`
+- `mcp__ollama-delegate__generate_code`
 <!-- END GENERATED TOOLS -->
-
-## Additional tools (ollama-delegate)
-`mcp__ollama-delegate__generate_code`, `mcp__ollama-delegate__explain_code`
 
 ## Context
 

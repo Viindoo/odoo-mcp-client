@@ -247,7 +247,7 @@ _Tool surface: server v0.8.0. Generated from `generator/server-surface.json`. Ru
 - "is API deprecated" → `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
 - "what changed between versions" → `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
 - "deprecated API in code" → `find_deprecated_usage` — Scan the indexed codebase for usages of deprecated API patterns.
-- "lint check" → `lint_check` — Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.
+- "lint check" → `lint_check` — Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.9.1+).
 - "odoo-bin options" → `cli_help` — Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags.
 - "best pattern for" → `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 - "does module exist" → `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -261,6 +261,6 @@ _Tool surface: server v0.8.0. Generated from `generator/server-surface.json`. Ru
 - "where is CSS selector defined" → `find_style_override ✦` — Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules.
 - "trace field path" → `resolve_orm_chain ⊕` — Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
 - "is this domain valid" → `validate_domain ⊕` — Validate search domain terms: field-path resolution and operator version-awareness.
-- "validate compute depends" → `validate_depends ⊕` — Validate compute method's `@api.
+- "validate compute depends" → `validate_depends ⊕` — Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.
 - "does field point to model" → `validate_relation ⊕` — Assert a relational field points at the expected comodel (many2one/one2many/many2many).
 <!-- END GENERATED TOOLS -->

@@ -219,4 +219,5 @@ Intent của bạn có thể map vào 2 skill:
 
 - Routing table currently lists 15 entries (Phase A baseline). Phase B will add ~7 new entries for Sales AE / Marketer / Strategist personas. Update both the table AND the collision-test cases when adding entries.
 - Trigger description optimization is scheduled for Phase D via `/skill-creator` Mode 5 (`run_loop.py`) with a 20-query trigger eval set.
-- See `/home/tuan/.claude/plans/curious-riding-lemon.md` §"Phase A — A3 Router skill" for full design rationale.
+- Phase A eval set (15 cases in `evals/evals.json`) is descriptive — not graded. Use `/skill-creator` Mode 5 + `run_loop.py` in Phase D AC-D6 for graded trigger accuracy score.
+- See `docs/refinement-plan-2026-05-28.md` §"Phase A — A3 Router skill" for full design rationale.

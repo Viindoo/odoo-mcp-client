@@ -31,22 +31,19 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
 
 **Primary tools:**
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
 - `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
-- `lint_check` — Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.
+- `lint_check` — Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.9.1+).
 - `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
-- `validate_depends` ⊕ — Validate compute method's `@api.
-- `validate_domain` ⊕ — Validate search domain terms: field-path resolution and operator version-awareness.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
 - `resolve_orm_chain` ⊕ — Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+- `validate_depends` ⊕ — Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.
+- `validate_domain` ⊕ — Validate search domain terms: field-path resolution and operator version-awareness.
 - `validate_relation` ⊕ — Assert a relational field points at the expected comodel (many2one/one2many/many2many).
 
 **Ollama-delegate tools** (local model, cost-free):
 - `mcp__ollama-delegate__review_code`
 <!-- END GENERATED TOOLS -->
-
-## Additional tools (ollama-delegate)
-`mcp__ollama-delegate__review_code` — fast first-pass review on the pasted code.
 
 ## Context
 

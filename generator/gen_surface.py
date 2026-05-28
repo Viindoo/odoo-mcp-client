@@ -35,12 +35,34 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent.resolve()
 SURFACE_FILE = Path(__file__).parent / "server-surface.json"
+SKILL_TOOL_DEPS_FILE = Path(__file__).parent / "skill_tool_deps.json"
 
 BEGIN_MARKER = "<!-- BEGIN GENERATED TOOLS -->"
 END_MARKER = "<!-- END GENERATED TOOLS -->"
 
-# Skill dirs to skip (created by sibling waves, may not exist yet)
+# Skill dirs to skip for MCP-tools section generation.
+# These are pure-text skills with no MCP invocations (router, onboard).
+# Distinct from skills with empty mcp_tools list that still want a marker block.
 SKIP_SKILL_DIRS = {"odoo-router", "odoo-onboard"}
+
+
+# ---------------------------------------------------------------------------
+# Description helpers
+# ---------------------------------------------------------------------------
+
+def _first_sentence(desc: str) -> str:
+    """Return the first sentence of desc, splitting only at '. ' (period+space).
+
+    This avoids clipping on inline periods like '@api.depends', 'v0.9.1+',
+    'language=\'xml\'', etc.  If no '. ' boundary is found the full string is
+    returned (already a single sentence).
+    """
+    parts = re.split(r'\.\s+', desc, maxsplit=1)
+    sentence = parts[0]
+    # Re-add the trailing period if it was stripped by the split boundary
+    if not sentence.endswith('.'):
+        sentence += '.'
+    return sentence
 
 
 # ---------------------------------------------------------------------------
@@ -346,91 +368,28 @@ def gen_routing_md(surface: dict) -> str:
 # 2. Generate skill ## MCP tools section content
 # ---------------------------------------------------------------------------
 
-# Map skill name → list of primary MCP tool names (derived from SKILL.md section parsing)
-# These are used to produce the generated content for each skill.
-# We derive which tools each skill uses from the existing SKILL.md text to keep fidelity.
-# For skills that do not yet exist, we skip gracefully.
+# SKILL_TO_TOOLS and SKILL_OLLAMA_TOOLS are populated at runtime from
+# generator/skill_tool_deps.json (SSOT written by A2).  The dicts below are
+# assigned inside _load_skill_tool_deps() and referenced by gen_skill_tools_block().
 
-SKILL_TO_TOOLS: dict[str, list[str]] = {
-    "odoo-risk-overview": [
-        "set_active_version", "set_active_profile",
-        "find_deprecated_usage", "impact_analysis",
-        "check_module_exists", "model_inspect", "module_inspect",
-    ],
-    "odoo-customization-inventory": [
-        "set_active_version", "set_active_profile",
-        "check_module_exists", "module_inspect", "model_inspect", "impact_analysis",
-    ],
-    "odoo-override-finder": [
-        "set_active_version",
-        "model_inspect", "find_override_point", "entity_lookup", "suggest_pattern",
-    ],
-    "odoo-deprecation-audit": [
-        "set_active_version",
-        "find_deprecated_usage", "api_version_diff", "lookup_core_api",
-        "entity_lookup", "module_inspect",
-    ],
-    "odoo-version-diff": [
-        "set_active_version",
-        "api_version_diff", "lookup_core_api", "entity_lookup", "model_inspect",
-    ],
-    "odoo-feature-check": [
-        "set_active_version",
-        "check_module_exists", "module_inspect", "model_inspect",
-        "find_examples", "suggest_pattern",
-    ],
-    "odoo-gap-analysis": [
-        "set_active_version", "set_active_profile",
-        "check_module_exists", "model_inspect", "find_examples",
-        "lookup_core_api", "suggest_pattern",
-    ],
-    "odoo-feature-highlights": [
-        "set_active_version",
-        "api_version_diff", "find_examples", "model_inspect", "check_module_exists",
-    ],
-    "odoo-addon-diff": [
-        "set_active_version",
-        "check_module_exists", "model_inspect", "module_inspect",
-    ],
-    "odoo-capability-proof": [
-        "set_active_version",
-        "find_examples", "check_module_exists", "model_inspect", "entity_lookup",
-    ],
-    "odoo-objection-handler": [
-        "set_active_version",
-        "check_module_exists", "find_examples", "suggest_pattern", "model_inspect",
-    ],
-    "odoo-coder": [
-        "set_active_version",
-        "model_inspect", "entity_lookup", "suggest_pattern", "find_examples",
-        "lint_check", "lookup_core_api",
-        "validate_depends", "validate_domain", "resolve_orm_chain", "validate_relation",
-    ],
-    "odoo-code-reviewer": [
-        "set_active_version",
-        "model_inspect", "entity_lookup", "lint_check", "lookup_core_api",
-        "suggest_pattern",
-        "validate_depends", "validate_domain", "resolve_orm_chain", "validate_relation",
-    ],
-    "odoo-js-coder": [
-        "set_active_version",
-        "module_inspect", "find_examples", "suggest_pattern",
-        "find_override_point", "api_version_diff", "lookup_core_api",
-    ],
-    "odoo-owl-coder": [
-        "set_active_version",
-        "module_inspect", "find_examples", "suggest_pattern",
-        "find_override_point", "api_version_diff", "lookup_core_api",
-    ],
-}
+SKILL_TO_TOOLS: dict[str, list[str]] = {}
+SKILL_OLLAMA_TOOLS: dict[str, list[str]] = {}
 
-# Extra Ollama tools per skill (for skills using ollama-delegate)
-SKILL_OLLAMA_TOOLS: dict[str, list[str]] = {
-    "odoo-coder": ["generate_code", "complete_code", "review_code"],
-    "odoo-code-reviewer": ["review_code"],
-    "odoo-js-coder": ["generate_code", "explain_code"],
-    "odoo-owl-coder": ["generate_code", "explain_code"],
-}
+
+def _load_skill_tool_deps() -> None:
+    """Populate SKILL_TO_TOOLS and SKILL_OLLAMA_TOOLS from skill_tool_deps.json.
+
+    The JSON is the SSOT for which MCP/Ollama tools each skill uses.
+    Session bootstrap tools (set_active_version, set_active_profile) are included
+    in each skill's mcp_tools list and separated at render time in
+    gen_skill_tools_block() — same logic as before, just data-driven now.
+    """
+    with open(SKILL_TOOL_DEPS_FILE, encoding="utf-8") as fh:
+        data = json.load(fh)
+
+    for skill_name, entry in data["skills"].items():
+        SKILL_TO_TOOLS[skill_name] = list(entry["mcp_tools"])
+        SKILL_OLLAMA_TOOLS[skill_name] = list(entry["ollama_tools"])
 
 
 def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
@@ -458,7 +417,7 @@ def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
         for st in session_tools:
             t = tools_by_name.get(st)
             if t:
-                lines.append(f"- `{t['example_call']}` — {t['description'].split('.')[0]}.")
+                lines.append(f"- `{t['example_call']}` — {_first_sentence(t['description'])}")
         lines.append("")
 
     if work_tools:
@@ -468,7 +427,7 @@ def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
             if t:
                 label = tool_group_label(t)
                 label_str = f" {label}" if label else ""
-                lines.append(f"- `{tn}`{label_str} — {t['description'].split('.')[0]}.")
+                lines.append(f"- `{tn}`{label_str} — {_first_sentence(t['description'])}")
         lines.append("")
 
     if ollama_tools:
@@ -501,7 +460,7 @@ def gen_cursor_tools_block(surface: dict) -> str:
         label_str = f" {label}" if label else ""
         kw = tool.get("routing_keywords", [])
         trigger = kw[0] if kw else name
-        lines.append(f'- "{trigger}" → `{name}{label_str}` — {tool["description"].split(".")[0]}.')
+        lines.append(f'- "{trigger}" → `{name}{label_str}` — {_first_sentence(tool["description"])}')
     return "\n".join(lines)
 
 
@@ -524,7 +483,7 @@ def gen_openai_tools_block(surface: dict) -> str:
         label_str = f" {label}" if label else ""
         req = tool.get("required_params", [])
         opt = tool.get("optional_params", [])
-        desc = tool["description"].split(".")[0]
+        desc = _first_sentence(tool["description"])
         lines.append(f"**{name}**{label_str} — {desc}")
         if req:
             lines.append(f"  REQUIRED: {', '.join(req)}")
@@ -560,7 +519,7 @@ def gen_gemini_tools_block(surface: dict) -> str:
         label_str = f" {label}" if label else ""
         req = tool.get("required_params", [])
         opt = tool.get("optional_params", [])
-        desc = tool["description"].split(".")[0]
+        desc = _first_sentence(tool["description"])
         kw = tool.get("routing_keywords", [])
         trigger = kw[0] if kw else f"user asks about {name}"
         lines.append(f"### {name}{label_str}")
@@ -713,8 +672,30 @@ def inject_markers_into_snippet(path: Path, new_block: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def main():
+    # Load skill→tools mapping from JSON SSOT (populates SKILL_TO_TOOLS / SKILL_OLLAMA_TOOLS)
+    _load_skill_tool_deps()
+
     surface = load_surface()
     changed_files: list[str] = []
+
+    # Preflight: every skills/<name>/SKILL.md must be either in SKIP_SKILL_DIRS
+    # or registered in skill_tool_deps.json.  Catches Phase B regressions where
+    # a new skill dir is added but its entry is omitted from the JSON.
+    skills_dir = REPO_ROOT / "skills"
+    if skills_dir.exists():
+        for skill_dir in sorted(skills_dir.iterdir()):
+            if not skill_dir.is_dir():
+                continue
+            skill_name = skill_dir.name
+            if skill_name in SKIP_SKILL_DIRS:
+                continue
+            if skill_name not in SKILL_TO_TOOLS:
+                print(
+                    f"ERROR: skill '{skill_name}' is neither in SKIP_SKILL_DIRS nor in "
+                    f"skill_tool_deps.json. Add an entry to one of them.",
+                    file=sys.stderr,
+                )
+                return 1
 
     # 1. Generate docs/reference/mcp-tool-routing.md (full replace)
     routing_md_path = REPO_ROOT / "docs" / "reference" / "mcp-tool-routing.md"
@@ -726,7 +707,6 @@ def main():
         changed_files.append(str(routing_md_path.relative_to(REPO_ROOT)))
 
     # 2. Update each skill's ## MCP tools section
-    skills_dir = REPO_ROOT / "skills"
     for skill_dir in sorted(skills_dir.iterdir()):
         if not skill_dir.is_dir():
             continue

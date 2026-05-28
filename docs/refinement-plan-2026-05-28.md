@@ -3,7 +3,7 @@
 > **Date:** 2026-05-28
 > **Owner:** main agent (orchestrator) + human (David Tran, CEO Viindoo)
 > **Plan ID:** curious-riding-lemon
-> **Repo target:** `/home/tuan/git/odoo-mcp-client` (v0.8.0 → v1.0.0)
+> **Repo target:** `odoo-mcp-client` (this repo, v0.8.0 → v1.0.0)
 > **Plan file (post-approval, in-repo):** `docs/refinement-plan-2026-05-28.md` (mirror of this file, committed)
 > **Survey ground truth:** `/tmp/odoo-mcp-client-survey/01-07.md`
 
@@ -618,7 +618,7 @@ Expected:
 
 ```bash
 # Phase A
-cd /home/tuan/git/odoo-mcp-client
+cd <repo-root>
 make validate && make test && make gen-check && python3 generator/check_deps.py
 
 # Phase B
@@ -661,11 +661,11 @@ Mọi log: agent=`claude-code`, domain=`engineering`, link survey files trong ev
 ## Critical files — reuse map
 
 Đã có sẵn (KHÔNG tạo mới, reuse):
-- `/home/tuan/git/odoo-mcp-client/Makefile` — extend với `gen` + `gen-check` target
-- `/home/tuan/git/odoo-mcp-client/tests/test_skill_format.py` — extend với check `## Persona` + `## Out of Scope`
-- `/home/tuan/git/odoo-mcp-client/.github/workflows/validate.yml` — add dep check step
-- `/home/tuan/git/odoo-mcp-client/docs/reference/mcp-tool-routing.md` — replaced by generator output
-- `/home/tuan/git/odoo-mcp-client/commands/connect.md` — format reference cho Phase C command structure
+- `Makefile` — extend với `gen` + `gen-check` target
+- `tests/test_skill_format.py` — extend với check `## Persona` + `## Out of Scope`
+- `.github/workflows/validate.yml` — add dep check step
+- `docs/reference/mcp-tool-routing.md` — replaced by generator output
+- `commands/connect.md` — format reference cho Phase C command structure
 - 15 skill hiện có trong `skills/` — 11 stay-restructured, 2 merge, 2 upgrade-to-bundle
 
 Existing patterns / utilities to reuse:

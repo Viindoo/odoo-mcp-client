@@ -35,8 +35,8 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 <!-- END GENERATED TOOLS -->
 
 ## Context
