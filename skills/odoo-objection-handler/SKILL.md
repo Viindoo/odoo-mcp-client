@@ -18,28 +18,32 @@ description: >
   Trigger especially when there's an URGENCY signal ("for the meeting today", "client is
   on the call", "RFP due tomorrow"). When the objection requires proof artifacts (code +
   modules + demo steps), route to odoo-capability-proof. When user simply wants to know if
-  a feature exists (not defend it), route to odoo-feature-check.
+  a feature exists (not defend it), route to odoo-feature-check
 ---
 
 ## Persona
 Sales Engineer / Account Executive
 
+## Out of Scope
+
+- Full evidence package (modules + code + demo steps) → use `odoo-capability-proof`
+- Simple feature availability lookup → use `odoo-feature-check`
+- Effort estimate & scope for proposal → use `odoo-gap-analysis`
+
 ## MCP tools
-At session start: `set_active_version(odoo_version=…)` so the rebuttal targets the client's
-evaluation version.
 
-Primary tools:
-- `check_module_exists(module, …)` — first-line truth check: is the objection actually
-  factual?
-- `find_examples(query)` — real production code that demonstrates the capability the client
-  doubts.
-- `suggest_pattern(query)` — when the feature requires a small customization, name the
-  canonical pattern + effort estimate.
-- `model_inspect(model, method='fields')` — exact field set to back up "yes, Odoo really
-  stores this".
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-For permalinks the rep can drop into chat in real-time during a call:
-`odoo://17.0/model/account.move`, `odoo://17.0/module/sale_subscription` — stable URIs.
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 
@@ -83,6 +87,10 @@ skip `suggest_pattern` entirely.
 
 The "Suggested response (verbatim)" section should be ready to use in a client meeting without
 editing. Keep it professional but conversational.
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp objection text chi tiết + context khách hàng (industry, Odoo version). Skill vẫn generate ACA response dựa trên training knowledge về Odoo capabilities, mô hình phổ biến, và pattern quen thuộc, kèm caveat "chưa verify qua codebase — hãy fact-check evidence khi OSM online".
 
 ## Output format
 

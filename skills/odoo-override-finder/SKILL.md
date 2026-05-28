@@ -19,28 +19,32 @@ description: >
   already someone overriding this method?". When the user wants to CHECK if code looks
   right rather than find a hook point, route to odoo-code-reviewer. When they want to know
   what changed between versions (rather than where to extend), route to odoo-version-diff
-  or odoo-deprecation-audit.
+  or odoo-deprecation-audit
 ---
 
 ## Persona
 Developer
 
+## Out of Scope
+
+- Code review of existing override → use `odoo-code-reviewer`
+- API diff between versions → use `odoo-version-diff`
+- Full code generation for override → use `odoo-coder`
+
 ## MCP tools
-At session start: `set_active_version(odoo_version=…)` so subsequent calls inherit it.
 
-Primary tools:
-- `model_inspect(model, method='methods')` — enumerate methods on the target model with
-  override counts before drilling in.
-- `find_override_point(model, method, …)` — where in the codebase to place a safe override.
-- `entity_lookup(kind='method', model=…, method_name=…)` — full override chain (which modules
-  override, in what order, with what change).
-- `model_inspect(model, method='summary')` — confirm the model exists and surface neighboring
-  fields/methods that might be relevant context for the override.
-- `suggest_pattern(query)` — canonical Odoo extension pattern for the scenario (compute
-  field, write override, wizard, OWL patch, etc.).
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-For bookmark-stable reference: `odoo://17.0/method/account.move/action_post` returns the
-method's full override chain as a stable URI.
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 
@@ -117,6 +121,10 @@ pattern is stable in.
 - The override chain already has 3+ overrides (high conflict risk)
 - The target method is marked as internal/private (`_` prefix but not double-underscore)
 - The method has changed signature between versions in the user's range
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user mô tả behavior + cung cấp model name nếu biết. Skill vẫn recommend override point và code template dựa trên kiến thức Odoo patterns cơ bản (e.g. `write()` override để hook vào create/update, `action_*()` override cho workflow, `@api.depends` + compute field cho derived fields), kèm caveat "chưa verify chain + conflict — hãy check khi OSM online".
 
 ## Output format
 

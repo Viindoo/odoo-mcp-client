@@ -347,24 +347,24 @@ Clients that implement the MCP `resources/list` and `resources/read` flows surfa
 
 ---
 
-## Superset Tools — v0.8 Reference
+## Superset Tools — server v0.11.1 Reference
 
-The server exposes **24 tools** at v0.8. The v0.7 surface added 2 stylesheet tools
+The server exposes **24 tools** at v0.11.1. The v0.7 surface added 2 stylesheet tools
 (`resolve_stylesheet`, `find_style_override`) on top of the v0.6 base; v0.8 (M10.5 Phase 2)
-adds 4 ORM-validation tools. The 10 flat `resolve_*` / `list_*` tools that existed in
-v0.4–v0.5 were deprecated in v0.5 and **removed in v0.6** — they no longer exist on the
-server. If you encounter prompts or snippets that reference the old names, replace them with
-the supersets below.
+added 4 ORM-validation tools; v0.10.0 added `module_inspect(method='dependencies')`. The 10
+flat `resolve_*` / `list_*` tools that existed in v0.4–v0.5 were deprecated in v0.5 and
+**removed in v0.6** — they no longer exist on the server. If you encounter prompts or
+snippets that reference the old names, replace them with the supersets below.
 
 > The old `resolve_*` / `list_*` tools are gone. Use these supersets instead:
 
 | Superset tool | Use case | Valid `method` values |
 |---------------|----------|-----------------------|
 | `model_inspect(model, method, ...)` | Model-level inspection: summary, field/method/view inventory | `summary` · `fields` · `methods` · `views` · `field` · `method` |
-| `module_inspect(module, method, ...)` | Module-level inventory: manifest, views, OWL, QWeb, JS patches | `summary` · `views` · `owl` · `qweb` · `js` |
+| `module_inspect(name, method, ...)` | Module-level inventory: manifest, views, OWL, QWeb, JS patches, dependencies | `summary` · `views` · `owl` · `qweb` · `js` · `dependencies` |
 | `entity_lookup(kind, ...)` | Single entity drill-down by ID | kind: `field` · `method` · `view` |
 
-### ORM-validation tools (v0.8 — M10.5 Phase 2)
+### ORM-validation tools (server v0.8.0+ — M10.5 Phase 2)
 
 Static checks against the indexed graph — run them before an AI client suggests a domain,
 `@api.depends`, or relational field so hallucinated paths/operators are caught up front:

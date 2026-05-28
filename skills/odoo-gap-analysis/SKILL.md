@@ -18,28 +18,34 @@ description: >
   RFP mentions 23 requirements — help me classify them". When the user asks about ONE
   specific feature ("does Odoo have lot tracking?") route to odoo-feature-check instead.
   When they want highlights for marketing copy ("what's the headline value of v18?")
-  route to odoo-feature-highlights.
+  route to odoo-feature-highlights
 ---
 
 ## Persona
 Consultant / Project Manager
 
-## MCP tools
-At session start: `set_active_version(odoo_version='17.0')` (or the version the client
-targets) and `set_active_profile(profile_name=…)` if a customer-specific profile exists.
-Both calls are sticky for 24h per API key — eliminates parameter repetition across 10-30
-gap items.
+## Out of Scope
 
-Primary tools:
-- `check_module_exists(module, …)` — first-pass standard-vs-custom signal per requirement.
-- `model_inspect(model, method='fields')` — when a module exists but coverage may be partial,
-  pull the full schema of the relevant model in one call.
-- `find_examples(query)` — real-world implementations of similar requirements in the
-  indexed corpus, useful for confirming Extension feasibility before committing.
-- `lookup_core_api(symbol)` — what Odoo core itself exposes; tells you whether an extension
-  point exists or you're truly in Custom-development territory.
-- `suggest_pattern(query)` — canonical Odoo pattern for the requirement shape (computed
-  field, wizard, server action, etc.) — usable as a sanity check on effort sizing.
+- Single feature availability check → use `odoo-feature-check`
+- Marketing highlights for version release → use `odoo-feature-highlights`
+- Source-level API diff between versions → use `odoo-version-diff`
+
+## MCP tools
+
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 
@@ -94,6 +100,10 @@ Decision logic per requirement (applied after Round 1 results arrive):
 
 **Be conservative**: if in doubt, upgrade the effort tier. It's easier to reduce scope than
 explain overruns.
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp danh sách requirement + bất kỳ context khách cung cấp (workshop notes, RFP). Skill vẫn tạo gap analysis report dựa trên training knowledge Odoo (classify requirement thành Standard/Config/Extension/Custom dựa trên mô hình cơ sở), kèm effort estimate dựa trên heuristic, và caveat "chưa verify qua code examples — hãy double-check effort khi OSM online".
 
 ## Output format
 

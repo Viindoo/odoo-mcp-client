@@ -17,26 +17,32 @@ description: >
   Friday's sales pitch". Trigger even when the user says "just summarize what's new" without
   mentioning marketing — that's still this skill. When the user asks for source-level
   developer diff (signatures, removed APIs), route to odoo-version-diff. When they want
-  proof Odoo can do a SPECIFIC capability they care about, route to odoo-capability-proof.
+  proof Odoo can do a SPECIFIC capability they care about, route to odoo-capability-proof
 ---
 
 ## Persona
 Marketer / Product Manager
 
-## MCP tools
-At session start: `set_active_version(odoo_version=<target_release_version>)` so subsequent
-calls use the release version being highlighted (the diff tool itself takes both versions
-explicitly).
+## Out of Scope
 
-Primary tools:
-- `api_version_diff(scope, from_version, to_version)` — the symbol-level delta driving the
-  highlight selection.
-- `find_examples(query)` — real-world implementations to ground each highlight in actual
-  shipped code rather than spec text.
-- `model_inspect(model, method='fields')` — headline-feature key models, surfaces field set for
-  business-language description.
-- `check_module_exists(module, …)` — confirms a module being highlighted is actually present
-  in the target version.
+- Source-level API diff for developers → use `odoo-version-diff`
+- Proof of a specific capability requirement → use `odoo-capability-proof`
+- Single feature availability lookup → use `odoo-feature-check`
+
+## MCP tools
+
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 
@@ -82,6 +88,10 @@ batch them in one round to cut total latency from 4 sequential calls to 2 total 
 - Avoid acronyms, file paths, developer jargon in the main highlights section
 - Keep a separate "Technical notes" section for developers
 - For Vietnamese market: mention localization features (VAS accounting, Vietnamese tax) prominently
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp release notes hoặc changelog từ trang chính thức Odoo. Skill vẫn tạo marketing highlights dựa trên changelog text parsing + training knowledge, với business language narrative, kèm caveat "chưa verify qua code index — hãy check chi tiết khi OSM online".
 
 ## Output format
 

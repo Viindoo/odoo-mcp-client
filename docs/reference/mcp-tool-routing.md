@@ -1,442 +1,411 @@
 # MCP Tool × Persona × Adapter Routing Matrix
 
-> **Status (2026-05-21):** Canonical source for tool routing logic. Adapter files (cursor/gemini/openai) duplicate this content manually. Generator script deferred to M9+ — see [ADR-0012](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0012-persona-skill-architecture.md). **v0.8 tool surface (24 tools)**: 10 core tools (M1–M5) + 1 module overview (M9 Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E) + 2 stylesheet tools (M10A) + 4 ORM-validation tools (M10.5 Phase 2). Plus 7 MCP Resources (`odoo://` URI scheme) for read-only bookmarks (M11 Wave F, [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md)). See [ADR-0023](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0023-tool-output-completeness.md), [ADR-0028](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0028-discriminator-consolidation.md), [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md).
->
-> **v0.6 change:** 10 legacy tools — `resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches` — were removed in v0.6. Use the superset tools (`model_inspect`, `module_inspect`, `entity_lookup`) instead. See the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
+> **Generated:** 2026-05-28T00:00:00Z  
+> **Server version:** 0.11.1 (PR #162)  
+> **Source:** `generator/server-surface.json` — edit that file and run `make gen` to update.
+> **v0.6 change:** 10 legacy tools (`resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches`) were removed. Use the superset tools (`model_inspect`, `module_inspect`, `entity_lookup`) instead.
 
 ## Purpose
 
 Single-source documentation answering:
 - Which MCP tool maps to which persona?
 - Which trigger phrases route a user prompt to which tool?
-- Where does each adapter (Cursor, Gemini Gem, Custom GPT, Claude plugin, Haiku router) duplicate this routing logic?
+- Where does each adapter (Cursor, Gemini Gem, Custom GPT, Claude plugin) duplicate this routing logic?
 - How are skill keyword conflicts resolved?
 
-When adding a new MCP tool or persona, update **this file first**, then propagate to adapter files manually (paths in §3).
+When adding a new MCP tool or persona, update **`generator/server-surface.json`** first, then run `make gen` to propagate.
 
 ---
 
 ## 1. Tool × Persona Matrix
 
-| MCP Tool                  | CEO | Dev | Consultant | Marketer | Sales |
-|---------------------------|:---:|:---:|:---:|:---:|:---:|
-| **model_inspect** ★       |     | ●  | ○ | ○ | ○ |
-| **module_inspect** ★      | ○  | ●  | ● | ○ | ○ |
-| **entity_lookup** ★       |     | ●  |   |   |   |
-| find_examples             |     | ○  | ● | ● | ● |
-| impact_analysis           | ●  | ○  |   |   |   |
-| lookup_core_api           |     | ●  | ○ |   |   |
-| api_version_diff          |     | ●  |   | ● | ○ |
-| find_deprecated_usage     | ●  | ●  |   |   |   |
-| lint_check                |     | ●  |   |   |   |
-| cli_help                  |     | ●  |   |   |   |
-| suggest_pattern           |     | ●  | ○ |   |   |
-| check_module_exists       | ●  | ○  | ● | ● | ● |
-| find_override_point       |     | ●  |   |   |   |
-| describe_module           | ○  | ●  | ● | ○ | ○ |
-| **set_active_version** ☆  | ○  | ●  | ○ | ○ | ○ |
-| **set_active_profile** ☆  | ○  | ●  | ○ | ○ | ○ |
-| **list_available_versions** ☆ | ○ | ● | ○ | ○ | ○ |
-| **list_available_profiles** ☆ | ○ | ● | ○ | ○ | ○ |
-| **resolve_stylesheet** ✦  |     | ●  |   |   |   |
-| **find_style_override** ✦ |     | ●  | ○ | ○ |   |
-| **resolve_orm_chain** ⊕   |     | ●  |   |   |   |
-| **validate_domain** ⊕     |     | ●  |   |   |   |
-| **validate_depends** ⊕    |     | ●  |   |   |   |
-| **validate_relation** ⊕   |     | ●  |   |   |   |
+| MCP Tool | CEO | dev | consultant | marketer | sales |
+|----------|:---:|:---:|:----------:|:--------:|:-----:|
+| **model_inspect** ★ | ● | ● | ● |  |  |
+| **module_inspect** ★ | ● | ● | ● | ● | ● |
+| **entity_lookup** ★ |  | ● |  |  |  |
+| find_examples |  | ● | ● | ● | ● |
+| impact_analysis | ● | ● |  |  |  |
+| lookup_core_api |  | ● | ● |  |  |
+| api_version_diff |  | ● |  | ● | ● |
+| find_deprecated_usage | ● | ● |  |  |  |
+| lint_check |  | ● |  |  |  |
+| cli_help |  | ● |  |  |  |
+| suggest_pattern |  | ● | ● |  |  |
+| check_module_exists | ● | ● | ● | ● | ● |
+| find_override_point |  | ● |  |  |  |
+| describe_module | ● | ● | ● | ● | ● |
+| **set_active_version** ☆ | ● | ● | ● | ● | ● |
+| **set_active_profile** ☆ | ● | ● | ● | ● | ● |
+| **list_available_versions** ☆ | ● | ● | ● | ● | ● |
+| **list_available_profiles** ☆ | ● | ● | ● | ● | ● |
+| **resolve_stylesheet** ✦ |  | ● |  |  |  |
+| **find_style_override** ✦ |  | ● | ● |  |  |
+| **resolve_orm_chain** ⊕ |  | ● |  |  |  |
+| **validate_domain** ⊕ |  | ● |  |  |  |
+| **validate_depends** ⊕ |  | ● |  |  |  |
+| **validate_relation** ⊕ |  | ● |  |  |  |
 
-**Legend:** ● = primary (default first choice), ○ = secondary (related context).
-★ = M11 Wave D superset (discriminator-routed).
-☆ = M11 Wave E session-context tool (sticky 24h TTL per API key — see [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md)).
-✦ = M10A stylesheet tools (CSS/SCSS/LESS indexing — v0.7 new; LESS covers legacy v8-v11).
-⊕ = M10.5 Phase 2 ORM-validation tools (static domain / `@api.depends` / relation / dotted-path checks — v0.8 new).
+**Legend:** ● = primary persona for this tool.  
+★ = M11 Wave D superset (supersedes removed v0.6 tools).  
+☆ = M11 Wave E session-context tool (sticky 24h TTL per API key).  
+✦ = M10A stylesheet tools (CSS/SCSS/LESS indexing).  
+⊕ = M10.5 Phase 2 ORM-validation tools (static domain / @api.depends / relation / dotted-path checks — v0.8+).
 
-### MCP Resources (M11 Wave F, [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md))
+### MCP Resources (M11 Wave F)
 
-Read-only bookmark-stable handles addressable via the `odoo://` URI scheme — preferred over a tool call when the caller already knows the entity ID and just wants the canonical record:
+Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
-| URI template                                       | Returns                                            |
-|----------------------------------------------------|----------------------------------------------------|
-| `odoo://{version}/model/{name}`                    | Model record (inheritance, field count, modules)   |
-| `odoo://{version}/field/{model}/{field}`           | Field record (type, compute, definition module)    |
-| `odoo://{version}/method/{model}/{method}`         | Method record (override chain, super_ratio)        |
-| `odoo://{version}/module/{name}`                   | Module record (manifest, defines/extends counts)   |
-| `odoo://{version}/view/{xmlid}`                    | View record (xpath chain, inherit_id)              |
-| `odoo://{version}/pattern/{name}`                  | Pattern catalogue entry (code, gotchas)            |
-| `odoo://{version}/stylesheet/{file_path}`          | Stylesheet record (selectors, imports, variables)  |
+| URI template | Returns |
+|---|---|
+| `odoo://{version}/model/{name}` | Model record: inheritance chain, field count, defining modules. |
+| `odoo://{version}/field/{model}/{field}` | Field record: type, compute method, definition module, is_related. |
+| `odoo://{version}/method/{model}/{method}` | Method record: override chain, super_ratio, convention, source file. |
+| `odoo://{version}/view/{xmlid}` | View record: xpath chain, inherit_id, language, arch. |
+| `odoo://{version}/module/{name}` | Module record: manifest, defines/extends counts, license notice if restricted. |
+| `odoo://{version}/pattern/{name}` | Pattern catalogue entry: code snippet, gotchas, language, min version. |
+| `odoo://{version}/stylesheet/{module}/{file_path*}` | Stylesheet record: selectors, imports, variables, language (CSS/SCSS/LESS). |
 
 ---
 
 ## 2. Tool Trigger Phrases
 
-### model_inspect ★ (M11 Wave D — supersedes `resolve_model` + `list_fields` + `list_methods` + `list_views`)
+### model_inspect ★ (added v0.5.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "inspect model sale.order", "show me sale.order with fields and methods", "everything about res.partner in v17", "full structure of model X" |
-| **Primary VI** | "inspect model X", "cho tôi tất cả thông tin model X", "model X full structure", "đầy đủ field+method+view của X" |
-| **Args** | `model` (required), `method` (required, one of `summary` / `fields` / `methods` / `views` / `field` / `method`), `odoo_version` (optional — falls back to session active version or auto-latest), `field` (when `method='field'`), `method_name` (when `method='method'`), `limit` (optional, default 200), `profile_name` (optional), `from_module` (optional — when `method` in `summary`/`fields`/`field`: restrict to declarations from this module), `kind` (optional — when `method='fields'`: filter fields by type, e.g. `'many2one'`), `view_type` (optional — when `method='views'`: filter by view type, e.g. `'form'`/`'tree'`/`'list'` — `'list'` is the v18+ alias for `'tree'`) |
-| **Prefer when** | Any model-scoped enumeration question — `model_inspect(method='summary')` returns one consolidated tree replacing what previously required 3+ legacy calls |
-| **Skip when** | Caller asks about a *specific* field/method/view ID → `entity_lookup`; or module-level rather than model-level (→ `module_inspect`) |
+| **Description** | Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call. Supersedes removed resolve_model, list_fields, list_methods, list_views (v0.6). |
+| **Personas** | dev, CEO, consultant |
+| **Required params** | `model`, `method` |
+| **Optional params** | `odoo_version`, `profile_name`, `field`, `method_name`, `start_index`, `limit`, `from_module`, `kind`, `view_type` |
+| **Example call** | `model_inspect(model='sale.order', method='fields')` |
+| **Routing keywords** | inspect model, fields of model, methods of model, views of model, model summary, full structure of model, everything about model, model schema, list fields, model_inspect |
 
-### module_inspect ★ (M11 Wave D — supersedes `describe_module` + `list_views` (module-scoped) + `list_owl_components` + `list_qweb_templates` + `list_js_patches`)
-
-| Attribute | Value |
-|-----------|-------|
-| **Primary EN** | "inspect module sale_management", "what does viin_sale ship — views, OWL, QWeb, JS patches", "describe module website_sale with all UI artefacts", "full module inventory for X" |
-| **Primary VI** | "inspect module X", "module X có gì — view/OWL/QWeb/patch", "tổng quan module X kèm UI", "module X tổng thể là gì" |
-| **Args** | `name` (required), `method` (required, one of `summary` / `views` / `owl` / `qweb` / `js`), `odoo_version` (optional — session-aware), `profile_name` (optional), `limit` (optional, default 200), `view_type` (optional — when `method='views'`: filter by view type, e.g. `'form'`/`'list'` — `'list'` is the v18+ alias for `'tree'`), `bound_model` (optional — when `method='owl'`: filter OWL components bound to a specific model), `era` (optional — when `method='js'`: filter JS patches by era, one of `era1`/`era2`/`era3`), `target` (optional — when `method='js'`: filter JS patches by patched target) |
-| **Prefer when** | Caller wants the module-level architecture overview *plus* UI-layer artefacts in one round-trip |
-| **Skip when** | Caller only needs YES/NO + edition badge (→ `check_module_exists`, 1 Cypher vs many) |
-| **License notice** | `method='summary'` shares `describe_module`'s output and may include a `License notice:` line for license-restricted modules (server v0.9.1+) — see `describe_module` for how to treat it. |
-
-### entity_lookup ★ (M11 Wave D — supersedes `resolve_field` + `resolve_method` + `resolve_view`)
+### module_inspect ★ (added v0.5.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "lookup field amount_total on sale.order", "find method action_confirm on sale.order", "lookup view sale.view_order_form" |
-| **Primary VI** | "lookup field/method/view X", "tra cứu method action_confirm trên sale.order", "tra cứu view sale.view_order_form" |
-| **Args** | `kind` (required, one of `field` / `method` / `view`), `odoo_version` (optional — session-aware), plus discriminator-specific args: for `kind='field'` → `model` + `field`; for `kind='method'` → `model` + `method_name`; for `kind='view'` → `xmlid`; `from_module` (optional — when `kind='model'`/`'field'`: restrict to declarations from this module) |
-| **Prefer when** | Caller knows the exact ID and wants one entity's full record — drill-down from a `model_inspect`/`module_inspect` enumeration |
-| **Skip when** | Caller wants the full model tree (→ `model_inspect`) or the override chain across modules (→ `entity_lookup(kind='method', ...)`) |
+| **Description** | Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call. method ∈ {summary, views, owl, qweb, js, dependencies}. Supersedes removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (v0.6). method='dependencies' added v0.10.0. method='summary' shares describe_module's output and may include a 'License notice:' line for license-restricted modules (server v0.9.1+) — surface it to the user; do not retry or fabricate omitted content. |
+| **Personas** | dev, CEO, consultant, marketer, sales |
+| **Required params** | `name`, `method` |
+| **Optional params** | `odoo_version`, `profile_name`, `start_index`, `limit`, `view_type`, `bound_model`, `era`, `target` |
+| **Example call** | `module_inspect(name='sale_management', method='summary')` |
+| **Routing keywords** | inspect module, module architecture, module UI artefacts, OWL components in module, QWeb templates in module, JS patches in module, module views, module overview, module_inspect |
 
-### set_active_version ☆ (M11 Wave E — sticky session context, [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md))
-
-| Attribute | Value |
-|-----------|-------|
-| **Primary EN** | "use Odoo 17 for this session", "set active version to 16.0", "pin session to v18" |
-| **Primary VI** | "set version 17", "dùng Odoo 17 cho phiên này", "pin session sang v18" |
-| **Args** | `odoo_version` (required, e.g., `"17.0"`) |
-| **Prefer when** | Caller will make ≥2 tool calls in a row against the same Odoo version — avoid repeating `odoo_version=` on every call |
-| **Skip when** | One-off cross-version comparison (→ `api_version_diff`) — pass `odoo_version` explicitly per call instead |
-| **TTL** | 24h per API key (key+session_id keyed); subsequent calls without `odoo_version` fall back to this value |
-
-### set_active_profile ☆ (M11 Wave E)
+### entity_lookup ★ (added v0.5.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "switch to profile viindoo-internal", "use profile X for this session", "set active profile" |
-| **Primary VI** | "set profile X", "dùng profile X", "đổi sang profile Y" |
-| **Args** | `profile_name` (required) |
-| **Prefer when** | Caller is investigating a specific tenant/profile and wants subsequent calls to scope to it |
-| **Skip when** | Cross-profile audit (→ leave profile arg explicit per call) |
+| **Description** | Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module. Supersedes removed resolve_field, resolve_method, resolve_view (v0.6). |
+| **Personas** | dev |
+| **Required params** | `kind` |
+| **Optional params** | `odoo_version`, `profile_name`, `model`, `field`, `method_name`, `xmlid`, `name`, `from_module` |
+| **Example call** | `entity_lookup(kind='field', model='sale.order', field='amount_total')` |
+| **Routing keywords** | lookup field, lookup method, lookup view, drill down on entity, find method on model, find field on model, override chain, entity_lookup |
 
-### list_available_versions ☆ (M11 Wave E)
-
-| Attribute | Value |
-|-----------|-------|
-| **Primary EN** | "what versions are indexed", "list indexed Odoo versions", "available versions in this MCP" |
-| **Primary VI** | "version nào đã index", "MCP này có version Odoo nào", "list version có sẵn" |
-| **Args** | _(none)_ |
-| **Prefer when** | Caller is unsure which Odoo versions the server has data for, before picking one for `set_active_version` |
-
-### list_available_profiles ☆ (M11 Wave E)
+### find_examples (added v0.1.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "what profiles exist", "list indexed profiles", "available tenant profiles" |
-| **Primary VI** | "profile nào có sẵn", "MCP có profile nào", "list profile của tenant" |
-| **Args** | _(none)_ |
-| **Prefer when** | Caller is picking a profile for `set_active_profile` and needs the canonical list |
+| **Description** | Semantic code search returning real indexed code snippets from the Odoo codebase. |
+| **Personas** | dev, consultant, marketer, sales |
+| **Required params** | `query` |
+| **Optional params** | `odoo_version`, `limit`, `context_module`, `chunk_types`, `profile_name` |
+| **Example call** | `find_examples(query='wizard with transient model')` |
+| **Routing keywords** | show me examples, code example for, how is X used in codebase, real examples of, implementation example, find_examples |
 
----
-
-### find_examples
-
-| Attribute | Value |
-|-----------|-------|
-| **Primary EN** | "show me examples of wizard usage", "how is mail.thread used in codebase", "give me code example for X pattern", "real examples of computing field with dependencies" |
-| **Primary VI** | "ví dụ code dùng X trong codebase", "cách dùng X trong thực tế", "code example cho pattern Y", "mẫu code implement wizard" |
-| **Args** | `query` (required, natural language), `odoo_version` (optional, default auto), `limit` (optional, default 5), `chunk_types` (optional, filter by type) |
-| **Prefer when** | User asks for real code examples from the indexed codebase, not LLM-generated patterns |
-| **Skip when** | User wants pattern guidance with anti-patterns (→ suggest_pattern) or wants to check if module exists (→ check_module_exists) |
-
-### impact_analysis
+### impact_analysis (added v0.1.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "what breaks if I change amount_total", "impact of modifying field X", "dependencies of method Y", "blast radius of removing field Z" |
-| **Primary VI** | "thay đổi field X ảnh hưởng đến gì", "rủi ro khi sửa method Y", "nếu xóa field này thì gây ra gì", "dependencies của field này là gì" |
-| **Args** | `entity_type` (required: 'field'/'method'/'model'), `entity_name` (required), `odoo_version` (optional, default auto) |
-| **Prefer when** | CEO/Manager needs to understand business risk of a change; Dev needs to see all side effects before refactoring |
-| **Skip when** | Question is about just one entity's structure (→ model_inspect or entity_lookup) |
+| **Description** | Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields. |
+| **Personas** | CEO, dev |
+| **Required params** | `entity_type`, `entity_name` |
+| **Optional params** | `odoo_version`, `profile_name` |
+| **Example call** | `impact_analysis(entity_type='field', entity_name='sale.order.amount_total')` |
+| **Routing keywords** | what breaks if I change, impact of modifying, blast radius, dependencies of field, dependencies of method, safe to remove, risk of changing, impact_analysis |
 
-### lookup_core_api
-
-| Attribute | Value |
-|-----------|-------|
-| **Primary EN** | "what does @api.depends do", "signature of fields.Many2one", "how to use Environment.ref()", "is name_get still valid in Odoo 18" |
-| **Primary VI** | "api.model decorator dùng thế nào", "giải thích BaseModel._inherit", "signature của fields.Char là gì", "function X còn hợp lệ không" |
-| **Args** | `name` (required, full or short qualified name), `odoo_version` (optional, default auto) |
-| **Prefer when** | Dev wants to know exact signature, status (stable/deprecated/removed), or replacement of an Odoo core symbol |
-| **Skip when** | Question is about comparing versions (→ api_version_diff) or scanning for deprecated usage (→ find_deprecated_usage) |
-
-### api_version_diff
+### lookup_core_api (added v0.1.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "what changed in Odoo 17 vs 16 API", "new decorators in version 17", "breaking changes between versions", "is name_get removed in 18" |
-| **Primary VI** | "API thay đổi gì từ v16 sang v17", "tính năng mới trong Odoo 17", "breaking changes từ 17 sang 18", "name_get bị xóa từ v17 sang v18" |
-| **Args** | `symbol` (required), `from_version` (required), `to_version` (required) |
-| **Prefer when** | Dev is upgrading and needs to understand what changed in core API between two versions |
-| **Skip when** | Question is about single-version API (→ lookup_core_api) or scanning codebase for deprecated usage (→ find_deprecated_usage) |
+| **Description** | Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement. |
+| **Personas** | dev, consultant |
+| **Required params** | `name` |
+| **Optional params** | `odoo_version` |
+| **Example call** | `lookup_core_api(name='api.depends')` |
+| **Routing keywords** | is API deprecated, signature of, how to use decorator, when was API added, status of API, Odoo core symbol, lookup_core_api |
 
-### find_deprecated_usage
-
-| Attribute | Value |
-|-----------|-------|
-| **Primary EN** | "find deprecated API usage in my codebase", "which modules use old-style _columns", "upgrade risk scan", "what needs to change before upgrading" |
-| **Primary VI** | "code nào dùng API cũ sắp bị xóa", "kiểm tra deprecated usage trước khi upgrade", "module nào dùng pattern lỗi thời", "chuẩn bị gì trước khi upgrade Odoo 18" |
-| **Args** | `odoo_version` (required), `kind` (optional, filter by symbol kind) |
-| **Prefer when** | Dev/CEO scanning entire codebase for deprecated usage before upgrade; CEO needs business risk report |
-| **Skip when** | Question is about one symbol (→ lookup_core_api) or version comparison (→ api_version_diff) |
-
-### lint_check
+### api_version_diff (added v0.1.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "lint check this module", "OCA style violations in module X", "check coding standards", "does this code follow Odoo guidelines" |
-| **Primary VI** | "module X có vi phạm coding convention không", "kiểm tra code quality", "code này có vi phạm Odoo style không", "ruff/pylint check cho Odoo" |
-| **Args** | `code` (required for `language='python'`/`'javascript'` — source code chunk; **ignored when `language='xml'`**), `odoo_version` (optional, default auto), `language` (optional: 'python'/'javascript'/'xml', default 'python') |
-| **xml mode** | `language='xml'` is **corpus-level** (server v0.9.1+): it returns the indexed RelaxNG `:LintViolation` nodes for the version's views (validated against the version-exact RNG grammar at index time) — it does **not** lint the `code` snippet, so `code` is ignored. Views must be indexed first; v15+ produce violations, v8-v14 produce none. |
-| **noqa** | Inline `# noqa: RULE_ID` (or bare `# noqa`) in the `code` argument suppresses findings on that line (`python`/`javascript` only). |
-| **Prefer when** | Dev wants to check code against Odoo-specific lint rules before committing |
-| **Skip when** | Question is about deprecated API (→ find_deprecated_usage) or module existence (→ check_module_exists) |
+| **Description** | Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items. |
+| **Personas** | dev, marketer, sales |
+| **Required params** | `symbol`, `from_version`, `to_version` |
+| **Optional params** | _(none)_ |
+| **Example call** | `api_version_diff(symbol='name_get', from_version='16.0', to_version='17.0')` |
+| **Routing keywords** | what changed between versions, breaking changes, API diff, new in Odoo version, deprecation between versions, api_version_diff |
 
-### cli_help
-
-| Attribute | Value |
-|-----------|-------|
-| **Primary EN** | "how to run odoo-bin scaffold", "what CLI options does odoo-bin have", "is --longpolling-port still valid", "odoo-bin command for database update" |
-| **Primary VI** | "cách dùng odoo-bin shell", "tham số nào để cài module mới", "flag nào để start server", "deprecated CLI option này là gì" |
-| **Args** | `command` (optional: 'server'/'shell'/'scaffold'), `flag` (optional: '--http-port'), `odoo_version` (optional, default auto) |
-| **Prefer when** | Dev needs version-specific Odoo CLI help, including deprecated flag replacements |
-| **Skip when** | Question is about core API (→ lookup_core_api) or module existence (→ check_module_exists) |
-
-### suggest_pattern
+### find_deprecated_usage (added v0.1.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "best pattern for wizard in Odoo", "how to implement multi-company", "pattern for override without breaking upstream", "right way to add computed field" |
-| **Primary VI** | "cách tốt nhất implement X", "design pattern cho Odoo module", "pattern nào tránh breaking upstream", "làm thế nào để add field mà không break" |
-| **Args** | `intent` (required, natural language), `odoo_version` (optional, default auto), `language` (optional: 'python'/'xml'/'js'/'all', default 'python'), `limit` (optional, default 5) |
-| **Prefer when** | Dev wants curated patterns with gotchas from catalogue, not LLM-generated patterns |
-| **Skip when** | Question is about existing code examples (→ find_examples) or method override chain (→ find_override_point) |
+| **Description** | Scan the indexed codebase for usages of deprecated API patterns. |
+| **Personas** | CEO, dev |
+| **Required params** | _(none)_ |
+| **Optional params** | `odoo_version`, `kind`, `profile_name` |
+| **Example call** | `find_deprecated_usage(odoo_version='17.0')` |
+| **Routing keywords** | deprecated API in code, pre-upgrade audit, deprecated patterns, upgrade risk scan, code using old API, find_deprecated_usage |
 
-### check_module_exists
-
-| Attribute | Value |
-|-----------|-------|
-| **Primary EN** | "does module sale_management exist in Odoo 17", "is helpdesk an EE module", "check if feature X is in standard Odoo", "is this module in CE or EE" |
-| **Primary VI** | "module X có trong OCA không", "Odoo 17 có tính năng X chưa", "feature này chỉ có trong Enterprise không", "module nào thay thế feature Y" |
-| **Args** | `name` (required, module technical name), `odoo_version` (optional, default auto) |
-| **Prefer when** | Consultant/Marketer/Sales verifying module existence across CE/EE/Viindoo editions; CEO checking if feature is standard |
-| **Skip when** | Question is about feature comparison table (→ odoo-addon-diff skill) or requirement scoping (→ odoo-feature-check skill) |
-
-### find_override_point
+### lint_check (added v0.1.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "where should I override action_confirm in sale.order", "best override point for partner creation", "how to extend method X without breaking OCA", "safe place to inject custom logic" |
-| **Primary VI** | "override field X ở đâu là đúng", "điểm override phù hợp cho method Y", "cách extend method mà không break upstream", "nơi nào an toàn để thêm logic" |
-| **Args** | `model` (required, e.g., 'sale.order'), `method` (required), `odoo_version` (optional, default auto), `to_version` (optional, for cross-version diff) |
-| **Prefer when** | Dev deciding where to inject custom behavior; needs convention guidance + super() safety + anti-patterns |
-| **Skip when** | Question is about entire override chain (→ entity_lookup(kind='method')) or code examples (→ find_examples) |
+| **Description** | Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.9.1+). Inline # noqa: RULE_ID suppresses findings on that line. |
+| **Personas** | dev |
+| **Required params** | _(none)_ |
+| **Optional params** | `code`, `odoo_version`, `language` |
+| **Example call** | `lint_check(code='...', language='python')` |
+| **Routing keywords** | lint check, coding standards, OCA style violations, Odoo conventions check, code quality, lint_check |
 
-### describe_module
-
-| Attribute | Value |
-|-----------|-------|
-| **Primary EN** | "what does module viin_sale do", "describe sale_management module", "overview of website_sale", "show me the manifest and counts for module Z", "what's inside this module" |
-| **Primary VI** | "module X làm gì", "tóm tắt module Y", "manifest của module Z", "module này có gì bên trong" |
-| **Args** | `name` (required, module technical name), `odoo_version` (optional, default auto), `profile_name` (optional) |
-| **Prefer when** | Caller needs module contents (models, views, JS) and counts in one round-trip — module-level architecture overview |
-| **Skip when** | Caller only needs YES/NO + edition badge (→ check_module_exists, 1 Cypher vs 5) or wants enumerated entities (→ model_inspect(method='fields'/'views'/'methods')) |
-| **License notice** | Output may include a `License notice:` line for license-restricted modules (server v0.9.1+, [ADR-0036](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0036-indexer-license-guard.md)). OEEL-1 modules are **skipped by default** — the notice is the intentional, non-silent marker that content is withheld, not a missing-data bug. Surface it to the user; do not retry or fabricate the omitted content. |
-
-### resolve_stylesheet ✦ (M10 — CSS/SCSS/LESS file inventory for a module)
+### cli_help (added v0.1.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "what stylesheets does module website_sale ship", "list CSS/SCSS/LESS files in module X", "show @import chain for module Y", "stylesheet inventory for theme_bootstrap", "selector and variable counts for module Z" |
-| **Primary VI** | "module X có stylesheet nào", "liệt kê file CSS/SCSS trong module Y", "chuỗi @import của module Z", "stylesheet nào module này ship" |
-| **Args** | `module` (required, module technical name), `odoo_version` (optional, default `"auto"`) |
-| **Prefer when** | Caller wants to enumerate all `:Stylesheet` files a module ships — language (CSS/SCSS/LESS — LESS covers legacy v8-v11), selector/variable/mixin/import counts, and the `@import` chain. |
-| **Skip when** | Caller is searching for *where* a specific selector or variable is defined or overridden (→ `find_style_override`) |
+| **Description** | Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags. |
+| **Personas** | dev |
+| **Required params** | _(none)_ |
+| **Optional params** | `command`, `flag`, `odoo_version` |
+| **Example call** | `cli_help(command='server', flag='--http-port')` |
+| **Routing keywords** | odoo-bin options, CLI flag, odoo server command, deprecated CLI option, odoo-bin scaffold, cli_help |
 
-### find_style_override ✦ (M10 — semantic search for CSS selector / SCSS variable / LESS variable origin & overrides)
-
-| Attribute | Value |
-|-----------|-------|
-| **Primary EN** | "where is CSS selector .o_kanban defined or overridden", "find SCSS variable $o-brand-primary across modules", "which module overrides .o_form_view padding", "branding override for .o_main_navbar", "where does $o-community-color come from" |
-| **Primary VI** | "selector .o_kanban được định nghĩa ở đâu", "tìm SCSS variable $o-brand-primary", "module nào override style cho .o_form_view", "nguồn gốc của $o-brand-primary" |
-| **Args** | `selector_or_variable` (required, CSS selector or SCSS/LESS variable name), `odoo_version` (optional, default `"auto"`), `limit` (optional, default 5) |
-| **Prefer when** | Theming/branding work — need to know which module (and which file) first defines or overrides a given selector or SCSS/LESS variable; uses pgvector semantic search + `:IMPORTS` chain traversal. Covers CSS, SCSS, and LESS (LESS targets legacy v8-v11 modules). |
-| **Skip when** | Caller wants all stylesheets a module ships (→ `resolve_stylesheet`); or asking about Python/XML view overrides (→ `find_override_point` / `entity_lookup(kind='view')`) |
-
-### resolve_orm_chain ⊕ (M10.5 P2 — walk a dotted ORM field path to its terminal type)
+### suggest_pattern (added v0.1.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "what type is sale.order.partner_id.country_id.code", "does this dotted path resolve", "trace a field path", "where does partner_id.commercial_partner_id.name end up" |
-| **Primary VI** | "field nào ở cuối chain partner_id.country_id.code", "kiểm tra đường dẫn field a.b.c có hợp lệ không", "trỏ tới đâu khi đi hết chuỗi field", "trace field path trên sale.order" |
-| **Args** | `model` (required, root dotted model e.g. `'sale.order'`), `dotted_path` (required, e.g. `'partner_id.country_id.code'`), `odoo_version` (optional — session-aware, `'auto'` = latest indexed), `profile_name` (optional) |
-| **Prefer when** | You have a *multi-hop* dotted path and need the terminal type, or the exact hop where it breaks — preferred over `entity_lookup(kind='field')` (single field only) |
-| **Skip when** | Validating a whole domain or `@api.depends` → use `validate_domain` / `validate_depends` (they call this primitive per term) |
+| **Description** | Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns. |
+| **Personas** | dev, consultant |
+| **Required params** | `intent` |
+| **Optional params** | `odoo_version`, `language`, `limit` |
+| **Example call** | `suggest_pattern(intent='wizard with multi-step form')` |
+| **Routing keywords** | best pattern for, design pattern Odoo, how to implement, pattern for wizard, recommended approach, suggest_pattern |
 
-### validate_domain ⊕ (M10.5 P2 — validate a search domain's field-paths + operators)
-
-| Attribute | Value |
-|-----------|-------|
-| **Primary EN** | "is this domain valid", "check domain [('x','=',1)]", "validate search domain for sale.order", "are these domain operators valid in v16" |
-| **Primary VI** | "domain này có field sai không", "kiểm tra domain trước khi dùng", "validate domain cho sale.order", "operator này hợp lệ ở version nào" |
-| **Args** | `model` (required, model the domain runs on), `domain` (required, domain literal e.g. `"[('partner_id.country_id', '=', 'VN')]"`), `odoo_version` (optional — session-aware), `profile_name` (optional) |
-| **Prefer when** | You have a full domain (≥1 term) and want per-term field-path + operator validation. Operator validity is **version-aware**: `parent_of` from v9, `any`/`not any` only from v17, v19 access-rights variants. Logical connectors (`&`, `|`, `!`) are skipped. |
-| **Skip when** | Validating a `@api.depends` (→ `validate_domain` is for domains; use `validate_depends`); or debugging a single path (→ `resolve_orm_chain`) |
-
-### validate_depends ⊕ (M10.5 P2 — validate a compute method's `@api.depends` paths)
+### check_module_exists (added v0.1.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "are the @api.depends on _compute_x correct", "validate depends of this compute method", "check compute dependencies", "does this stored field recompute correctly" |
-| **Primary VI** | "depends của method này có field sai không", "kiểm tra @api.depends", "field tính toán có recompute đúng không", "validate depends của _compute_amount" |
-| **Args** | `model` (required, dotted model), `method` (required, compute method name e.g. `'_compute_amount_total'`), `odoo_version` (optional — session-aware), `profile_name` (optional) |
-| **Prefer when** | Checking an *existing* indexed method's declared `@api.depends` — flags depends on `id` (forbidden) and suggests the closest field for typos. Requires the server's `mth.depends` index. |
-| **Skip when** | The path is in a domain, not a depends (→ `validate_domain`); era1 (v8/v9) methods have no decorator depends and surface a clear note |
+| **Description** | Verify module availability, edition (CE/EE/Viindoo), and cross-version presence. |
+| **Personas** | CEO, dev, consultant, marketer, sales |
+| **Required params** | `name` |
+| **Optional params** | `odoo_version`, `profile_name` |
+| **Example call** | `check_module_exists(name='sale_management', odoo_version='17.0')` |
+| **Routing keywords** | does module exist, is module in CE or EE, check if feature is in standard Odoo, module available in version, is feature standard, CE vs EE check, check_module_exists |
 
-### validate_relation ⊕ (M10.5 P2 — assert a relational field points at an expected comodel)
+### find_override_point (added v0.1.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Primary EN** | "does sale.order.partner_id point to res.partner", "is this field a many2one to res.users", "check relation target", "confirm field X is a m2o/o2m/m2m to model Y" |
-| **Primary VI** | "field X có trỏ đúng model Y không", "kiểm tra quan hệ field", "partner_id có phải many2one tới res.partner không", "comodel của field này là gì" |
-| **Args** | `model` (required, dotted model), `field` (required, relational field name e.g. `'partner_id'`), `target_model` (required, expected comodel e.g. `'res.partner'`), `odoo_version` (optional — session-aware), `profile_name` (optional) |
-| **Prefer when** | You specifically want to *assert* a field's comodel (or a subtype via inheritance) rather than read full field detail — preferred over `entity_lookup(kind='field')` for the assertion case |
-| **Skip when** | Tracing a multi-hop path (→ `resolve_orm_chain`) |
+| **Description** | Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior. |
+| **Personas** | dev |
+| **Required params** | `model`, `method` |
+| **Optional params** | `odoo_version`, `to_version` |
+| **Example call** | `find_override_point(model='sale.order', method='action_confirm')` |
+| **Routing keywords** | where to override, override point for method, safest place to extend, inject custom logic, extend method without breaking, find_override_point |
+
+### describe_module (added v0.1.0+)
+
+| Attribute | Value |
+|-----------|-------|
+| **Description** | Module manifest + defined/extended model counts + view/JS inventory in one call. Note: module_inspect(method='summary') returns the same data plus extras. Output may include a 'License notice:' line for license-restricted modules (server v0.9.1+, ADR-0036). OEEL-1 modules are skipped by default — the notice is the intentional non-silent marker that content is withheld; surface it to the user, do not retry or fabricate the omitted content. |
+| **Personas** | CEO, dev, consultant, marketer, sales |
+| **Required params** | `name` |
+| **Optional params** | `odoo_version`, `profile_name` |
+| **Example call** | `describe_module(name='sale_management', odoo_version='17.0')` |
+| **Routing keywords** | what does module do, describe module, module overview, manifest of module, what is inside module, describe_module |
+
+### set_active_version ☆ (added v0.6.0+)
+
+| Attribute | Value |
+|-----------|-------|
+| **Description** | Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version. Part of M11 Wave E session-context tools. |
+| **Personas** | dev, CEO, consultant, marketer, sales |
+| **Required params** | `odoo_version` |
+| **Optional params** | _(none)_ |
+| **Example call** | `set_active_version(odoo_version='17.0')` |
+| **Routing keywords** | set version, use Odoo version, pin session to version, set active version, set_active_version |
+
+### set_active_profile ☆ (added v0.6.0+)
+
+| Attribute | Value |
+|-----------|-------|
+| **Description** | Pin tenant profile for the session so subsequent calls scope to one customer profile. Part of M11 Wave E session-context tools. |
+| **Personas** | dev, CEO, consultant, marketer, sales |
+| **Required params** | `profile_name` |
+| **Optional params** | _(none)_ |
+| **Example call** | `set_active_profile(profile_name='viindoo-internal')` |
+| **Routing keywords** | set profile, use profile, switch to profile, pin profile, set active profile, set_active_profile |
+
+### list_available_versions ☆ (added v0.6.0+)
+
+| Attribute | Value |
+|-----------|-------|
+| **Description** | Enumerate which Odoo versions the server has indexed. Run before set_active_version when unsure what is available. |
+| **Personas** | dev, CEO, consultant, marketer, sales |
+| **Required params** | _(none)_ |
+| **Optional params** | _(none)_ |
+| **Example call** | `list_available_versions()` |
+| **Routing keywords** | what versions are indexed, list Odoo versions, available versions in MCP, list_available_versions |
+
+### list_available_profiles ☆ (added v0.6.0+)
+
+| Attribute | Value |
+|-----------|-------|
+| **Description** | Enumerate which tenant profiles exist in the server index. Run before set_active_profile. |
+| **Personas** | dev, CEO, consultant, marketer, sales |
+| **Required params** | _(none)_ |
+| **Optional params** | _(none)_ |
+| **Example call** | `list_available_profiles()` |
+| **Routing keywords** | what profiles exist, list indexed profiles, available tenant profiles, list_available_profiles |
+
+### resolve_stylesheet ✦ (added v0.7.0+)
+
+| Attribute | Value |
+|-----------|-------|
+| **Description** | Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain. LESS covers legacy v8-v11. |
+| **Personas** | dev |
+| **Required params** | `module` |
+| **Optional params** | `odoo_version` |
+| **Example call** | `resolve_stylesheet(module='website_sale')` |
+| **Routing keywords** | stylesheets in module, CSS files in module, SCSS files in module, LESS files in module, import chain for module, stylesheet inventory, resolve_stylesheet |
+
+### find_style_override ✦ (added v0.7.0+)
+
+| Attribute | Value |
+|-----------|-------|
+| **Description** | Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules. LESS covers legacy v8-v11. |
+| **Personas** | dev, consultant |
+| **Required params** | `selector_or_variable` |
+| **Optional params** | `odoo_version`, `limit` |
+| **Example call** | `find_style_override(selector_or_variable='.o_kanban_record')` |
+| **Routing keywords** | where is CSS selector defined, find SCSS variable, find LESS variable, which module overrides style, branding override, selector origin, find_style_override |
+
+### resolve_orm_chain ⊕ (added v0.8.0+)
+
+| Attribute | Value |
+|-----------|-------|
+| **Description** | Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks. Preferred over entity_lookup for multi-hop paths. |
+| **Personas** | dev |
+| **Required params** | `model`, `dotted_path` |
+| **Optional params** | `odoo_version`, `profile_name` |
+| **Example call** | `resolve_orm_chain(model='sale.order', dotted_path='partner_id.country_id.code')` |
+| **Routing keywords** | trace field path, dotted path resolve, multi-hop field chain, where does path end, field chain validation, resolve_orm_chain |
+
+### validate_domain ⊕ (added v0.8.0+)
+
+| Attribute | Value |
+|-----------|-------|
+| **Description** | Validate search domain terms: field-path resolution and operator version-awareness. Operator validity is version-aware (parent_of v9+, any/not any v17+). Logical connectors are skipped. |
+| **Personas** | dev |
+| **Required params** | `model`, `domain` |
+| **Optional params** | `odoo_version`, `profile_name` |
+| **Example call** | `validate_domain(model='sale.order', domain="[('partner_id.country_id', '=', 'VN')]")` |
+| **Routing keywords** | is this domain valid, check domain, validate search domain, domain operators valid, validate_domain |
+
+### validate_depends ⊕ (added v0.8.0+)
+
+| Attribute | Value |
+|-----------|-------|
+| **Description** | Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos. Catches stale compute declarations before runtime failure. |
+| **Personas** | dev |
+| **Required params** | `model`, `method` |
+| **Optional params** | `odoo_version`, `profile_name` |
+| **Example call** | `validate_depends(model='sale.order', method='_compute_amount_total')` |
+| **Routing keywords** | validate compute depends, check @api.depends, stale depends paths, validate_depends |
+
+### validate_relation ⊕ (added v0.8.0+)
+
+| Attribute | Value |
+|-----------|-------|
+| **Description** | Assert a relational field points at the expected comodel (many2one/one2many/many2many). Reports the actual comodel on mismatch. |
+| **Personas** | dev |
+| **Required params** | `model`, `field`, `target_model` |
+| **Optional params** | `odoo_version`, `profile_name` |
+| **Example call** | `validate_relation(model='sale.order', field='partner_id', target_model='res.partner')` |
+| **Routing keywords** | does field point to model, check relation target, is field many2one to, comodel of field, validate_relation |
 
 ---
 
 ## 3. Adapter Sync Map
 
-Khi update routing logic trong file này, propagate manual sang các adapter sau:
+When updating the tool surface, run `make gen` to propagate to all adapters.
 
-| Adapter | File path | Section to update | Format |
-|---------|-----------|-------------------|--------|
-| Cursor IDE rules | `snippets/cursor-rules.md` | `## When to call Odoo Semantic tools` | Markdown list + code snippets |
-| Gemini Gem | `snippets/gemini-gem-instructions.md` | `## Tool Routing Rules` + `## Persona Modes` | Instruction prose + tables |
-| Custom GPT | `snippets/openai-gpt-instructions.md` | `## TOOL ROUTING` + `## PERSONA MODES` | System instruction prose |
-| Plugin skills | `dist/odoo-semantic-plugin/skills/<name>/SKILL.md` | `description:` frontmatter TRIGGER line | YAML trigger keywords |
-
-> **Drift surface:** Today 6 edit points per new tool. Future generator (deferred to M9+) will reduce to 1 edit in this file + `make generate-adapters`.
+| Adapter | File path | Format |
+|---------|-----------|--------|
+| Cursor IDE rules | `snippets/cursor-rules.md` | Markdown list + code snippets |
+| Gemini Gem | `snippets/gemini-gem-instructions.md` | Instruction prose + tables |
+| Custom GPT | `snippets/openai-gpt-instructions.md` | System instruction prose |
+| Plugin skills | `skills/*/SKILL.md` | Between `<!-- BEGIN GENERATED TOOLS -->` markers |
 
 ---
 
-## 4. Manual Sync Workflow
+## 4. Skill Conflict Resolution
 
-### Adding a new MCP tool
+Plugin skills can claim overlapping trigger keywords. Standard resolution policy:
 
-1. Update §1 Tool × Persona Matrix (add row with ● or ○ markings).
-2. Update §2 Tool Trigger Phrases (add 4-row table block with EN/VI triggers + args + when to use).
-3. Open each adapter file in §3 table:
-   - For **Cursor rules**: add 3-5 example prompts to tool list
-   - For **Gemini Gem**: add trigger phrases + persona note to Tool Routing Rules section
-   - For **Custom GPT**: add trigger phrases to TOOL ROUTING section
-   - For **Haiku router**: add tool name + category to tool list (odoo-semantic:odoo-<name> format)
-   - For **Plugin skills** (if applicable): create `dist/odoo-semantic-plugin/skills/odoo-<name>/SKILL.md` with TRIGGER frontmatter
-4. Bump `version` in ADR-0012 §Decision matrix if structural change.
-5. Run smoke test from each adapter (verify prompts in their respective IDE/CLI).
+### 4.1 `odoo-risk-overview` vs `odoo-deprecation-audit`
 
-### Adding a new persona
+- **Overlap:** "upgrade risk", "is our code ready for v17", "what breaks in our system"
+- **Resolution:** `odoo-risk-overview` → CEO/Manager persona (executive summary, LOW/MEDIUM/HIGH labels). `odoo-deprecation-audit` → Developer persona (file:line evidence, code-level fixes).
+- **Heuristic:** User mentions "team", "budget", "timeline", "business risk" → `odoo-risk-overview`. User shows code or mentions specific module/file → `odoo-deprecation-audit`.
 
-1. Update §1 (add column with persona name).
-2. Update §5 if new conflicts arise with existing skills.
-3. Create `docs/personas/<name>.md` following template (see other persona files for reference).
-4. Add persona mode block to:
-   - **Gemini Gem** adapter (if not dev-only)
-   - **Custom GPT** adapter (if not dev-only)
-   - Skip **Cursor** (dev-only IDE)
-5. Create corresponding plugin skill(s) under `dist/odoo-semantic-plugin/skills/` if persona has dedicated workflow.
+### 4.2 `odoo-version-diff` vs `odoo-feature-highlights`
 
----
+- **Overlap:** "tính năng mới Odoo 17", "what's new in v17", "feature comparison"
+- **Resolution:** `odoo-version-diff` → Developer persona (API changes, migration guide, breaking changes). `odoo-feature-highlights` → Marketer persona (sales-deck tone, business value, announcement copy).
+- **Heuristic:** "migration", "breaking", "API", "deprecation" → `odoo-version-diff`. "highlight", "sales deck", "blog post", "announcement" → `odoo-feature-highlights`.
 
-## 5. Skill Conflict Resolution
+### 4.3 `odoo-feature-check` vs `odoo-addon-diff`
 
-Plugin skills can claim overlapping trigger keywords. Resolution policy:
+- **Overlap:** "is module X in CE or EE", "do we need Enterprise for feature Y"
+- **Resolution:** `odoo-feature-check` → Consultant (requirement scoping, gap analysis). `odoo-addon-diff` → Marketer/Sales (edition comparison table for proposals).
+- **Heuristic:** Embedded in scoping/gap context → `odoo-feature-check`. Standalone edition comparison → `odoo-addon-diff`.
 
-### 5.1 `odoo-risk-overview` vs `odoo-deprecation-audit`
+### 4.4 `odoo-owl-coder` vs `odoo-js-coder` at Odoo v14
 
-- **Overlap**: "upgrade risk", "is our code ready for v17", "what breaks in our system"
-- **Resolution**: 
-  - `odoo-risk-overview` → **CEO/Manager persona** (no code-level detail, business framing, LOW/MEDIUM/HIGH risk labels, executive summary)
-  - `odoo-deprecation-audit` → **Developer persona** (file:line evidence, code-level fixes, detailed deprecation scan)
-- **Heuristic**: User mentions "team", "budget", "timeline", "business risk" → `odoo-risk-overview`. User shows code or mentions specific module/file → `odoo-deprecation-audit`.
-- **MCP tools involved**: Both use `find_deprecated_usage` + `impact_analysis`; skill adds persona-specific framing + fix suggestions.
-
-### 5.2 `odoo-version-diff` vs `odoo-feature-highlights`
-
-- **Overlap**: "tính năng mới Odoo 17", "what's new in v17", "feature comparison"
-- **Resolution**:
-  - `odoo-version-diff` → **Developer persona** (API changes, breaking changes, migration guide tone, technical detail)
-  - `odoo-feature-highlights` → **Marketer persona** (sales-deck tone, customer-facing language, business value, announcement copy)
-- **Heuristic**: "migration", "breaking", "API", "deprecation" → `odoo-version-diff`. "highlight", "sales deck", "blog post", "announcement" → `odoo-feature-highlights`.
-- **MCP tools involved**: `api_version_diff` (developer), `find_examples` (marketer/sales).
-
-### 5.3 `odoo-feature-check` vs `odoo-addon-diff`
-
-- **Overlap**: "is module X in CE or EE", "do we need Enterprise for feature Y", "CE vs EE feature list"
-- **Resolution**:
-  - `odoo-feature-check` → **Consultant persona** (requirement scoping context, gap analysis, "does standard Odoo have this")
-  - `odoo-addon-diff` → **Marketer/Sales persona** (edition comparison table for proposals, feature-parity matrix)
-- **Heuristic**: Embedded in scoping workshop, RFP analysis, or gap analysis → `odoo-feature-check`. Standalone "which edition for feature X" question → `odoo-addon-diff`.
-- **MCP tools involved**: Both use `check_module_exists`; skill adds persona-specific context (scope vs. sales).
-
-### 5.4 `odoo-owl-coder` vs `odoo-js-coder` at Odoo v14
-
-- **Overlap**: Odoo v14 JavaScript code (grey zone — pre-OWL but post-legacy peak)
-- **Resolution**: Prefer `odoo-js-coder` for v14 (legacy widget system + jQuery/Backbone era still dominant). OWL appeared in v15 but v14 community remains on `web.Widget` patterns.
-- **Heuristic**: 
-  - `odoo-js-coder` if user mentions: `odoo.define()`, `web.Widget`, `field_registry`, `AbstractField`, `inherit`, require(), legacy widget lifecycle
-  - `odoo-owl-coder` if user mentions: `useService`, `t-component`, `patch()`, `useState`, template syntax, reactive component
-- **MCP tools involved**: None (both skills use code generation, not MCP queries).
+- **Overlap:** Odoo v14 JavaScript code (grey zone — pre-OWL but post-legacy peak)
+- **Resolution:** Prefer `odoo-js-coder` for v14 (legacy widget system still dominant).
+- **Heuristic:** `odoo.define()`, `web.Widget`, `field_registry` → `odoo-js-coder`. `useService`, `t-component`, `patch()`, `useState` → `odoo-owl-coder`.
 
 ---
 
-## Cross-references
+## 5. Appendix: Tool × Adapter Quick Reference
 
-- [ADR-0012 Persona-Skill Architecture](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0012-persona-skill-architecture.md) — Design rationale, alternatives considered, decision matrix.
-- [docs/personas/](../personas/) — Per-persona quick-start guides (CEO, Dev, Consultant, Marketer, Sales).
-- [README.md §Persona Guides](../personas/) — Public entry point linking to persona guides + plugin install instructions.
-- Plugin skills location: `dist/odoo-semantic-plugin/skills/<name>/SKILL.md` — Each skill has `description:` TRIGGER field listing keywords.
+| Tool | Cursor | Gemini | OpenAI |
+|------|:------:|:------:|:------:|
+| **model_inspect** ★ | ✓ | ✓ | ✓ |
+| **module_inspect** ★ | ✓ | ✓ | ✓ |
+| **entity_lookup** ★ | ✓ | ✓ | ✓ |
+| **find_examples** | ✓ | ✓ | ✓ |
+| **impact_analysis** | ✓ | ✓ | ✓ |
+| **lookup_core_api** | ✓ | ✓ | ✓ |
+| **api_version_diff** | ✓ | ✓ | ✓ |
+| **find_deprecated_usage** | ✓ | ✓ | ✓ |
+| **lint_check** | ✓ | ✓ | ✓ |
+| **cli_help** | ✓ | ✓ | ✓ |
+| **suggest_pattern** | ✓ | ✓ | ✓ |
+| **check_module_exists** | ✓ | ✓ | ✓ |
+| **find_override_point** | ✓ | ✓ | ✓ |
+| **describe_module** | ✓ | ✓ | ✓ |
+| **set_active_version** ☆ | ✓ | ✓ | ✓ |
+| **set_active_profile** ☆ | ✓ | ✓ | ✓ |
+| **list_available_versions** ☆ | ✓ | ✓ | ✓ |
+| **list_available_profiles** ☆ | ✓ | ✓ | ✓ |
+| **resolve_stylesheet** ✦ | ✓ | ✓ | ✓ |
+| **find_style_override** ✦ | ✓ | ✓ | ✓ |
+| **resolve_orm_chain** ⊕ | ✓ | ✓ | ✓ |
+| **validate_domain** ⊕ | ✓ | ✓ | ✓ |
+| **validate_depends** ⊕ | ✓ | ✓ | ✓ |
+| **validate_relation** ⊕ | ✓ | ✓ | ✓ |
 
----
-
-## Appendix: Tool × Adapter Quick Reference
-
-| Tool | Cursor | Gemini | OpenAI | Plugin Skill |
-|------|:------:|:------:|:------:|:------:|
-| **model_inspect** ★ | ✓ | ✓ | ✓ | odoo-coder |
-| **module_inspect** ★ | ✓ | ✓ | ✓ | odoo-customization-inventory |
-| **entity_lookup** ★ | ✓ | ✓ | ✓ | odoo-coder |
-| find_examples | ✓ | ✓ | ✓ | odoo-coder |
-| impact_analysis | ✓ | ✓ | ✓ | odoo-risk-overview |
-| lookup_core_api | ✓ | ✓ | ✓ | odoo-coder |
-| api_version_diff | ✓ | ✓ | ✓ | odoo-version-diff |
-| find_deprecated_usage | ✓ | ✓ | ✓ | odoo-deprecation-audit |
-| lint_check | ✓ | ✓ | ✓ | odoo-code-reviewer |
-| cli_help | ✓ | ✓ | ✓ | odoo-coder |
-| suggest_pattern | ✓ | ✓ | ✓ | odoo-override-finder |
-| check_module_exists | ✓ | ✓ | ✓ | odoo-addon-diff |
-| find_override_point | ✓ | ✓ | ✓ | odoo-override-finder |
-| describe_module | ✓ | ✓ | ✓ | odoo-customization-inventory |
-| **set_active_version** ☆ | ✓ | ✓ | ✓ | _(session-context, no skill)_ |
-| **set_active_profile** ☆ | ✓ | ✓ | ✓ | _(session-context, no skill)_ |
-| **list_available_versions** ☆ | ✓ | ✓ | ✓ | _(session-context, no skill)_ |
-| **list_available_profiles** ☆ | ✓ | ✓ | ✓ | _(session-context, no skill)_ |
-| **resolve_stylesheet** ✦ | ✓ | ✓ | ✓ | _(stylesheet, no skill)_ |
-| **find_style_override** ✦ | ✓ | ✓ | ✓ | _(stylesheet, no skill)_ |
-| **resolve_orm_chain** ⊕ | ✓ | ✓ | ✓ | odoo-coder |
-| **validate_domain** ⊕ | ✓ | ✓ | ✓ | odoo-coder |
-| **validate_depends** ⊕ | ✓ | ✓ | ✓ | odoo-code-reviewer |
-| **validate_relation** ⊕ | ✓ | ✓ | ✓ | odoo-code-reviewer |
-
-> **Note:** Each adapter implements these tools via HTTP MCP protocol to the Odoo Semantic MCP server; no duplication of logic, only routing heuristics. **v0.8 tool surface (24 tools)**: 10 core tools (M1–M5) + 1 module overview (M9 Wave 1) + 3 inspect supersets (M11 Wave D) + 4 session-context tools (M11 Wave E) + 2 stylesheet tools (M10A) + 4 ORM-validation tools (M10.5 Phase 2). Plus 7 MCP Resources (`odoo://` URI scheme, M11 Wave F). The 10 legacy `resolve_*`/`list_*` tools were removed in v0.6 — see the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
+> **v0.11.1 tool surface (24 tools + 7 resources):** All tools are reached via HTTP MCP protocol to the Odoo Semantic MCP server. No logic is duplicated — only routing heuristics.

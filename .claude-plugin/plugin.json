@@ -1,8 +1,8 @@
 {
   "name": "odoo-semantic",
-  "version": "0.8.0",
-  "description": "Odoo codebase intelligence — inheritance chains, field impact, pattern catalogue, upgrade paths",
-  "keywords": ["odoo", "erp", "mcp", "inheritance", "impact-analysis"],
+  "version": "1.0.0",
+  "description": "Odoo / Viindoo AI workforce toolkit — 22 skill personas + 6 workflow commands across engineering, sales, marketing, strategy, and onboarding. Pairs with the OSM (odoo-semantic) MCP server for indexed-codebase grounding.",
+  "keywords": ["odoo", "erp", "mcp", "ai-workforce", "viindoo", "workflow", "sales", "marketing", "strategy", "onboarding", "code-generation", "code-review", "upgrade"],
   "author": {
     "name": "Viindoo",
     "url": "https://github.com/Viindoo"
@@ -11,10 +11,16 @@
   "license": "MIT",
   "skills": "./skills/",
   "agents": [
-    "./agents/odoo-upgrade-planner.md"
+    "./agents/odoo-coder.md",
+    "./agents/odoo-code-reviewer.md"
   ],
   "commands": [
-    "./commands/connect.md"
+    "./commands/connect.md",
+    "./commands/bid-respond.md",
+    "./commands/customer-followup-draft.md",
+    "./commands/discovery-quick.md",
+    "./commands/feature-positioning.md",
+    "./commands/upgrade-plan-full.md"
   ],
   "mcpServers": "./.mcp.json",
   "userConfig": {

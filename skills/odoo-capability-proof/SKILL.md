@@ -17,29 +17,32 @@ description: >
   signal ("for the demo", "before Friday", "in the RFP", "buổi demo tuần sau") because the
   user needs real artifacts fast. When the user only wants a yes/no answer on availability
   (no proof package needed), route to odoo-feature-check. When they're scoping MANY
-  requirements at once for a quote, route to odoo-gap-analysis.
+  requirements at once for a quote, route to odoo-gap-analysis
 ---
 
 ## Persona
 Sales Engineer / Pre-sales Consultant
 
+## Out of Scope
+
+- Single feature availability (no proof needed) → use `odoo-feature-check`
+- Multi-requirement scope + effort quote → use `odoo-gap-analysis`
+- Customer-facing objection response paragraph → use `odoo-objection-handler`
+
 ## MCP tools
-At session start: `set_active_version(odoo_version=…)` so all evidence calls target the
-client's evaluation version.
 
-Primary tools:
-- `find_examples(query)` — real-world implementations of similar capability in the indexed
-  corpus; the most credible single piece of evidence (real production code beats marketing).
-- `check_module_exists(module, …)` — confirms the standard module exists in this version +
-  edition before naming it in the evidence table.
-- `model_inspect(model, method='fields')` — exact field set on the model, useful for showing
-  the client "this is what Odoo actually stores".
-- `entity_lookup(kind='method', model=…, method_name=…)` — full override chain for method-level
-  requirements (e.g. "show me where Odoo lets you customize the invoice posting flow").
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-For permalink-stable evidence to drop into proposals / RFPs:
-`odoo://17.0/model/account.move`, `odoo://17.0/field/account.move/currency_id`,
-`odoo://17.0/method/account.move/_post` — URIs survive reindex.
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 
@@ -78,6 +81,10 @@ Never fabricate capabilities. If the feature doesn't exist, say so and propose t
 workaround. When MCP results conflict with training knowledge (e.g. a module that training data
 says should exist but `check_module_exists` doesn't find), trust the MCP result — it reflects
 the actual indexed codebase.
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp requirement trong dạng natural language + bất kỳ tài liệu khách cung cấp (proposal, RFP excerpt). Skill vẫn sản sinh evidence package dựa trên kiến thức cơ bản về Odoo (module + model architecture từ training), nhưng không có code snippet thực tế — kèm caveat "chưa verify qua codebase index, hãy check lại chi tiết code khi OSM online".
 
 ## Output format
 
