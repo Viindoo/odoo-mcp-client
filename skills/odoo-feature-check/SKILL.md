@@ -23,24 +23,20 @@ description: >
 Consultant / Developer
 
 ## MCP tools
-At session start: `set_active_version(odoo_version='17.0')` so subsequent calls inherit
-the version.
 
-Primary tools:
-- `check_module_exists(module, …)` — first-line signal: does the module exist in this
-  version at all?
-- `module_inspect(module, method='summary')` — full architecture overview when the module
-  exists (manifest summary, model count, view count, JS patch count).
-- `module_inspect(module, method='fields' | 'views')` — drill into what the module actually
-  declares, when a yes/no answer isn't enough.
-- `model_inspect(model, method='fields')` — full schema of the primary model in one call.
-- `find_examples(query)` — real-world usage of similar features, useful when the module
-  exists but you want concrete evidence of coverage.
-- `suggest_pattern(query)` — canonical pattern when partial coverage means an Extension is
-  needed.
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-For bookmark-stable evidence to paste into proposals/emails:
-`odoo://17.0/module/account_asset` gives the module's full architecture as a stable URI.
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 

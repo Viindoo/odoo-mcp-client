@@ -23,17 +23,19 @@ description: >
 Developer + Marketer
 
 ## MCP tools
-At session start: `set_active_version(odoo_version=…)` for the FROM version (subsequent
-inspection calls inherit it; the diff tool itself takes both versions explicitly).
 
-Primary tools:
-- `api_version_diff(symbol | scope, from_version, to_version)` — the core symbol-level delta.
-- `lookup_core_api(symbol)` — confirms existence + signature of a symbol in a given version.
-- `entity_lookup(kind='method', model=…, method_name=…)` — drill into a specific method's
-  signature changes.
-- `model_inspect(model, method='fields')` — enumerate fields in one version for diffing
-  against the same call in another version.
-- `model_inspect(model, method='views')` — same, for views.
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 

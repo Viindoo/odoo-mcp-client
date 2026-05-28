@@ -1,0 +1,126 @@
+{
+  "skill_name": "odoo-router",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "tao có khách hỏi Odoo của họ chạy chậm, không biết bắt đầu đâu",
+      "expected_output": "Router asks clarifying question (performance is not directly in routing table; should escalate or route to odoo-deprecation-audit / odoo-customization-inventory based on user's follow-up)",
+      "expected_routed_to": "clarifying-question OR odoo-customization-inventory",
+      "category": "should-fire-vague",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "muốn check xem hệ thống Odoo của Acme có vấn đề gì",
+      "expected_output": "Router outputs collision-resolution template offering odoo-risk-overview vs odoo-customization-inventory (Example 3 case)",
+      "expected_routed_to": "ambiguous-resolution OR odoo-risk-overview",
+      "category": "should-fire-collision",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "khách bảo Odoo thiếu tính năng X — giúp tao phản hồi",
+      "expected_output": "Router recommends odoo-objection-handler with Collision 1 reasoning",
+      "expected_routed_to": "odoo-objection-handler",
+      "category": "should-fire-collision",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "không biết Odoo 18 có gì mới — viết slide cho meeting",
+      "expected_output": "Router recommends odoo-feature-highlights with Collision 2 reasoning (slide = marketing output)",
+      "expected_routed_to": "odoo-feature-highlights",
+      "category": "should-fire-collision",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "ai đó hỏi tao Odoo có làm được phê duyệt đa cấp không",
+      "expected_output": "Router recommends odoo-feature-check (single-feature availability) or odoo-capability-proof if proof-package signal; row 6 vs row 10",
+      "expected_routed_to": "odoo-feature-check",
+      "category": "should-fire-vague",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "review giúp tao patch này",
+      "expected_output": "Router recommends odoo-code-reviewer (row 13: review EXISTING code)",
+      "expected_routed_to": "odoo-code-reviewer",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "khách yêu cầu 20 tính năng — Odoo nào có sẵn, nào cần build?",
+      "expected_output": "Router recommends odoo-gap-analysis (row 7: multi-requirement effort matrix)",
+      "expected_routed_to": "odoo-gap-analysis",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "tao có 1 đoạn code Odoo dài, không biết check thế nào",
+      "expected_output": "Router recommends odoo-code-reviewer (row 13: review existing code)",
+      "expected_routed_to": "odoo-code-reviewer",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "module loyalty của customer này, breakdown giúp tao",
+      "expected_output": "Router recommends odoo-customization-inventory OR asks clarifying question (could be feature-check if 'loyalty' module is known); ambiguity expected",
+      "expected_routed_to": "odoo-customization-inventory OR clarifying-question",
+      "category": "should-fire-vague",
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "giúp tao audit hệ thống trước upgrade",
+      "expected_output": "Router recommends odoo-deprecation-audit (row 4: audit before upgrade) OR odoo-risk-overview if exec framing",
+      "expected_routed_to": "odoo-deprecation-audit",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "viết computed field tính total_amount cho sale.order",
+      "expected_output": "Router does NOT fire — direct match to odoo-coder (row 12: write code)",
+      "expected_routed_to": "<NO-ROUTE - direct to odoo-coder>",
+      "category": "should-not-fire",
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "khách hỏi sự khác biệt API giữa v16 và v17",
+      "expected_output": "Router does NOT fire — direct match to odoo-version-diff (row 5: explicit API diff)",
+      "expected_routed_to": "<NO-ROUTE - direct to odoo-version-diff>",
+      "category": "should-not-fire",
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "review code Python này (paste below)",
+      "expected_output": "Router does NOT fire — direct match to odoo-code-reviewer",
+      "expected_routed_to": "<NO-ROUTE - direct to odoo-code-reviewer>",
+      "category": "should-not-fire",
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "what's the weather in Hanoi",
+      "expected_output": "Router declines politely (non-Odoo intent)",
+      "expected_routed_to": "<DECLINE - non-Odoo>",
+      "category": "should-not-fire-non-odoo",
+      "files": []
+    },
+    {
+      "id": 15,
+      "prompt": "/odoo-semantic:connect",
+      "expected_output": "Router does NOT fire — explicit slash command",
+      "expected_routed_to": "<NO-ROUTE - slash command>",
+      "category": "should-not-fire-slash",
+      "files": []
+    }
+  ],
+  "notes": "Full Mode 5 trigger optimization scheduled for Phase D per /home/tuan/.claude/plans/curious-riding-lemon.md AC-D6. Phase A acceptance is verified via inline walkthrough by main agent (see report). 20-query trigger eval set will be built from these 15 + 5 additional edge cases in Phase D."
+}

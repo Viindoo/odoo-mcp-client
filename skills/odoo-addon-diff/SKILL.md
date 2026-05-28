@@ -23,17 +23,18 @@ description: >
 Marketer / Sales Engineer
 
 ## MCP tools
-At session start: `set_active_version(odoo_version=…)` so subsequent checks inherit the
-version the client is evaluating.
 
-Primary tools:
-- `check_module_exists(module, …)` — first-line classifier: does this module exist in this
-  edition?
-- `model_inspect(model, method='fields')` — for modules that exist in both CE and EE
-  but with different depth, drill into the model to surface field-level differences (e.g. EE
-  adds `forecast_date`, `analytic_account_id`).
-- `module_inspect(module, method='summary')` — fast architecture overview when you need a
-  module-level summary rather than per-model fields.
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 

@@ -23,21 +23,20 @@ description: >
 Developer / Tech Lead
 
 ## MCP tools
-At session start: `set_active_version(odoo_version=<source_version>)` so subsequent calls
-inherit the source version of the codebase being audited (the migration TARGET version is
-passed explicitly to `api_version_diff`).
 
-Primary tools:
-- `find_deprecated_usage(pattern, …)` — scans the indexed codebase for usages of a deprecated
-  symbol.
-- `api_version_diff(symbol, from_version, to_version)` — version-to-version delta for a core
-  API (e.g. `fields.Char` signature changes).
-- `lookup_core_api(symbol)` — confirm whether a symbol still exists in the target version and
-  what replaced it if not.
-- `entity_lookup(kind='method', model=…, method_name=…)` — drill into a specific method's
-  signature changes across versions.
-- `module_inspect(module, method='js')` — enumerate `web.Widget`-era JS patches that
-  need OWL rewrites.
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `find_deprecated_usage` — Scan the indexed codebase for usages of deprecated API patterns.
+- `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 

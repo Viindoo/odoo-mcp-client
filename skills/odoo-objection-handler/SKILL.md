@@ -25,21 +25,19 @@ description: >
 Sales Engineer / Account Executive
 
 ## MCP tools
-At session start: `set_active_version(odoo_version=…)` so the rebuttal targets the client's
-evaluation version.
 
-Primary tools:
-- `check_module_exists(module, …)` — first-line truth check: is the objection actually
-  factual?
-- `find_examples(query)` — real production code that demonstrates the capability the client
-  doubts.
-- `suggest_pattern(query)` — when the feature requires a small customization, name the
-  canonical pattern + effort estimate.
-- `model_inspect(model, method='fields')` — exact field set to back up "yes, Odoo really
-  stores this".
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-For permalinks the rep can drop into chat in real-time during a call:
-`odoo://17.0/model/account.move`, `odoo://17.0/module/sale_subscription` — stable URIs.
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 

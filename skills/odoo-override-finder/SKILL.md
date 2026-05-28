@@ -26,21 +26,19 @@ description: >
 Developer
 
 ## MCP tools
-At session start: `set_active_version(odoo_version=…)` so subsequent calls inherit it.
 
-Primary tools:
-- `model_inspect(model, method='methods')` — enumerate methods on the target model with
-  override counts before drilling in.
-- `find_override_point(model, method, …)` — where in the codebase to place a safe override.
-- `entity_lookup(kind='method', model=…, method_name=…)` — full override chain (which modules
-  override, in what order, with what change).
-- `model_inspect(model, method='summary')` — confirm the model exists and surface neighboring
-  fields/methods that might be relevant context for the override.
-- `suggest_pattern(query)` — canonical Odoo extension pattern for the scenario (compute
-  field, write override, wizard, OWL patch, etc.).
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-For bookmark-stable reference: `odoo://17.0/method/account.move/action_post` returns the
-method's full override chain as a stable URI.
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
+- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 

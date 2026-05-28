@@ -24,22 +24,19 @@ description: >
 Sales Engineer / Pre-sales Consultant
 
 ## MCP tools
-At session start: `set_active_version(odoo_version=…)` so all evidence calls target the
-client's evaluation version.
 
-Primary tools:
-- `find_examples(query)` — real-world implementations of similar capability in the indexed
-  corpus; the most credible single piece of evidence (real production code beats marketing).
-- `check_module_exists(module, …)` — confirms the standard module exists in this version +
-  edition before naming it in the evidence table.
-- `model_inspect(model, method='fields')` — exact field set on the model, useful for showing
-  the client "this is what Odoo actually stores".
-- `entity_lookup(kind='method', model=…, method_name=…)` — full override chain for method-level
-  requirements (e.g. "show me where Odoo lets you customize the invoice posting flow").
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-For permalink-stable evidence to drop into proposals / RFPs:
-`odoo://17.0/model/account.move`, `odoo://17.0/field/account.move/currency_id`,
-`odoo://17.0/method/account.move/_post` — URIs survive reindex.
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 

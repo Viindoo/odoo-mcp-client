@@ -1,0 +1,783 @@
+{
+  "schema_version": "1",
+  "server_version": "0.8.0",
+  "server_pr_ref": "#162",
+  "generated_at": "2026-05-28T00:00:00Z",
+  "tools": [
+    {
+      "name": "model_inspect",
+      "version_added": "0.5.0",
+      "version_removed": null,
+      "description": "Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call. Supersedes removed resolve_model, list_fields, list_methods, list_views (v0.6).",
+      "persona_tags": [
+        "dev",
+        "CEO",
+        "consultant"
+      ],
+      "required_params": [
+        "model",
+        "method"
+      ],
+      "optional_params": [
+        "odoo_version",
+        "field",
+        "method_name",
+        "limit",
+        "profile_name",
+        "from_module",
+        "kind",
+        "view_type"
+      ],
+      "return_type": "object",
+      "example_call": "model_inspect(model='sale.order', method='fields')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "inspect model",
+        "fields of model",
+        "methods of model",
+        "views of model",
+        "model summary",
+        "full structure of model",
+        "everything about model",
+        "model schema",
+        "list fields",
+        "model_inspect"
+      ]
+    },
+    {
+      "name": "module_inspect",
+      "version_added": "0.5.0",
+      "version_removed": null,
+      "description": "Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call. Supersedes removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (v0.6).",
+      "persona_tags": [
+        "dev",
+        "CEO",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "required_params": [
+        "name",
+        "method"
+      ],
+      "optional_params": [
+        "odoo_version",
+        "profile_name",
+        "limit",
+        "view_type",
+        "bound_model",
+        "era",
+        "target"
+      ],
+      "return_type": "object",
+      "example_call": "module_inspect(name='sale_management', method='summary')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "inspect module",
+        "module architecture",
+        "module UI artefacts",
+        "OWL components in module",
+        "QWeb templates in module",
+        "JS patches in module",
+        "module views",
+        "module overview",
+        "module_inspect"
+      ]
+    },
+    {
+      "name": "entity_lookup",
+      "version_added": "0.5.0",
+      "version_removed": null,
+      "description": "Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module. Supersedes removed resolve_field, resolve_method, resolve_view (v0.6).",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "kind"
+      ],
+      "optional_params": [
+        "odoo_version",
+        "model",
+        "field",
+        "method_name",
+        "xmlid",
+        "from_module"
+      ],
+      "return_type": "object",
+      "example_call": "entity_lookup(kind='field', model='sale.order', field='amount_total')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "lookup field",
+        "lookup method",
+        "lookup view",
+        "drill down on entity",
+        "find method on model",
+        "find field on model",
+        "override chain",
+        "entity_lookup"
+      ]
+    },
+    {
+      "name": "find_examples",
+      "version_added": "0.1.0",
+      "version_removed": null,
+      "description": "Semantic code search returning real indexed code snippets from the Odoo codebase.",
+      "persona_tags": [
+        "dev",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "required_params": [
+        "query"
+      ],
+      "optional_params": [
+        "odoo_version",
+        "limit",
+        "chunk_types"
+      ],
+      "return_type": "array",
+      "example_call": "find_examples(query='wizard with transient model')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "show me examples",
+        "code example for",
+        "how is X used in codebase",
+        "real examples of",
+        "implementation example",
+        "find_examples"
+      ]
+    },
+    {
+      "name": "impact_analysis",
+      "version_added": "0.1.0",
+      "version_removed": null,
+      "description": "Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.",
+      "persona_tags": [
+        "CEO",
+        "dev"
+      ],
+      "required_params": [
+        "entity_type",
+        "entity_name"
+      ],
+      "optional_params": [
+        "odoo_version"
+      ],
+      "return_type": "object",
+      "example_call": "impact_analysis(entity_type='field', entity_name='sale.order.amount_total')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "what breaks if I change",
+        "impact of modifying",
+        "blast radius",
+        "dependencies of field",
+        "dependencies of method",
+        "safe to remove",
+        "risk of changing",
+        "impact_analysis"
+      ]
+    },
+    {
+      "name": "lookup_core_api",
+      "version_added": "0.1.0",
+      "version_removed": null,
+      "description": "Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.",
+      "persona_tags": [
+        "dev",
+        "consultant"
+      ],
+      "required_params": [
+        "name"
+      ],
+      "optional_params": [
+        "odoo_version"
+      ],
+      "return_type": "object",
+      "example_call": "lookup_core_api(name='api.depends')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "is API deprecated",
+        "signature of",
+        "how to use decorator",
+        "when was API added",
+        "status of API",
+        "Odoo core symbol",
+        "lookup_core_api"
+      ]
+    },
+    {
+      "name": "api_version_diff",
+      "version_added": "0.1.0",
+      "version_removed": null,
+      "description": "Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.",
+      "persona_tags": [
+        "dev",
+        "marketer",
+        "sales"
+      ],
+      "required_params": [
+        "symbol",
+        "from_version",
+        "to_version"
+      ],
+      "optional_params": [],
+      "return_type": "object",
+      "example_call": "api_version_diff(symbol='name_get', from_version='16.0', to_version='17.0')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "what changed between versions",
+        "breaking changes",
+        "API diff",
+        "new in Odoo version",
+        "deprecation between versions",
+        "api_version_diff"
+      ]
+    },
+    {
+      "name": "find_deprecated_usage",
+      "version_added": "0.1.0",
+      "version_removed": null,
+      "description": "Scan the indexed codebase for usages of deprecated API patterns.",
+      "persona_tags": [
+        "CEO",
+        "dev"
+      ],
+      "required_params": [
+        "odoo_version"
+      ],
+      "optional_params": [
+        "kind"
+      ],
+      "return_type": "array",
+      "example_call": "find_deprecated_usage(odoo_version='17.0')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "deprecated API in code",
+        "pre-upgrade audit",
+        "deprecated patterns",
+        "upgrade risk scan",
+        "code using old API",
+        "find_deprecated_usage"
+      ]
+    },
+    {
+      "name": "lint_check",
+      "version_added": "0.1.0",
+      "version_removed": null,
+      "description": "Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.9.1+). Inline # noqa: RULE_ID suppresses findings on that line.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [],
+      "optional_params": [
+        "code",
+        "odoo_version",
+        "language"
+      ],
+      "return_type": "array",
+      "example_call": "lint_check(code='...', language='python')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "lint check",
+        "coding standards",
+        "OCA style violations",
+        "Odoo conventions check",
+        "code quality",
+        "lint_check"
+      ]
+    },
+    {
+      "name": "cli_help",
+      "version_added": "0.1.0",
+      "version_removed": null,
+      "description": "Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [],
+      "optional_params": [
+        "command",
+        "flag",
+        "odoo_version"
+      ],
+      "return_type": "object",
+      "example_call": "cli_help(command='server', flag='--http-port')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "odoo-bin options",
+        "CLI flag",
+        "odoo server command",
+        "deprecated CLI option",
+        "odoo-bin scaffold",
+        "cli_help"
+      ]
+    },
+    {
+      "name": "suggest_pattern",
+      "version_added": "0.1.0",
+      "version_removed": null,
+      "description": "Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.",
+      "persona_tags": [
+        "dev",
+        "consultant"
+      ],
+      "required_params": [
+        "intent"
+      ],
+      "optional_params": [
+        "odoo_version",
+        "language",
+        "limit"
+      ],
+      "return_type": "array",
+      "example_call": "suggest_pattern(intent='wizard with multi-step form')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "best pattern for",
+        "design pattern Odoo",
+        "how to implement",
+        "pattern for wizard",
+        "recommended approach",
+        "suggest_pattern"
+      ]
+    },
+    {
+      "name": "check_module_exists",
+      "version_added": "0.1.0",
+      "version_removed": null,
+      "description": "Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.",
+      "persona_tags": [
+        "CEO",
+        "dev",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "required_params": [
+        "name"
+      ],
+      "optional_params": [
+        "odoo_version"
+      ],
+      "return_type": "object",
+      "example_call": "check_module_exists(name='sale_management', odoo_version='17.0')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "does module exist",
+        "is module in CE or EE",
+        "check if feature is in standard Odoo",
+        "module available in version",
+        "is feature standard",
+        "CE vs EE check",
+        "check_module_exists"
+      ]
+    },
+    {
+      "name": "find_override_point",
+      "version_added": "0.1.0",
+      "version_removed": null,
+      "description": "Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "model",
+        "method"
+      ],
+      "optional_params": [
+        "odoo_version",
+        "to_version"
+      ],
+      "return_type": "object",
+      "example_call": "find_override_point(model='sale.order', method='action_confirm')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "where to override",
+        "override point for method",
+        "safest place to extend",
+        "inject custom logic",
+        "extend method without breaking",
+        "find_override_point"
+      ]
+    },
+    {
+      "name": "describe_module",
+      "version_added": "0.1.0",
+      "version_removed": null,
+      "description": "Module manifest + defined/extended model counts + view/JS inventory in one call. Note: module_inspect(method='summary') returns the same data plus extras. May include a License notice for restricted modules (server v0.9.1+).",
+      "persona_tags": [
+        "CEO",
+        "dev",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "required_params": [
+        "name"
+      ],
+      "optional_params": [
+        "odoo_version",
+        "profile_name"
+      ],
+      "return_type": "object",
+      "example_call": "describe_module(name='sale_management', odoo_version='17.0')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "what does module do",
+        "describe module",
+        "module overview",
+        "manifest of module",
+        "what is inside module",
+        "describe_module"
+      ]
+    },
+    {
+      "name": "set_active_version",
+      "version_added": "0.6.0",
+      "version_removed": null,
+      "description": "Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version. Part of M11 Wave E session-context tools.",
+      "persona_tags": [
+        "dev",
+        "CEO",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "required_params": [
+        "odoo_version"
+      ],
+      "optional_params": [],
+      "return_type": "object",
+      "example_call": "set_active_version(odoo_version='17.0')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "set version",
+        "use Odoo version",
+        "pin session to version",
+        "set active version",
+        "set_active_version"
+      ]
+    },
+    {
+      "name": "set_active_profile",
+      "version_added": "0.6.0",
+      "version_removed": null,
+      "description": "Pin tenant profile for the session so subsequent calls scope to one customer profile. Part of M11 Wave E session-context tools.",
+      "persona_tags": [
+        "dev",
+        "CEO",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "required_params": [
+        "profile_name"
+      ],
+      "optional_params": [],
+      "return_type": "object",
+      "example_call": "set_active_profile(profile_name='viindoo-internal')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "set profile",
+        "use profile",
+        "switch to profile",
+        "pin profile",
+        "set active profile",
+        "set_active_profile"
+      ]
+    },
+    {
+      "name": "list_available_versions",
+      "version_added": "0.6.0",
+      "version_removed": null,
+      "description": "Enumerate which Odoo versions the server has indexed. Run before set_active_version when unsure what is available.",
+      "persona_tags": [
+        "dev",
+        "CEO",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "required_params": [],
+      "optional_params": [],
+      "return_type": "array",
+      "example_call": "list_available_versions()",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "what versions are indexed",
+        "list Odoo versions",
+        "available versions in MCP",
+        "list_available_versions"
+      ]
+    },
+    {
+      "name": "list_available_profiles",
+      "version_added": "0.6.0",
+      "version_removed": null,
+      "description": "Enumerate which tenant profiles exist in the server index. Run before set_active_profile.",
+      "persona_tags": [
+        "dev",
+        "CEO",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "required_params": [],
+      "optional_params": [],
+      "return_type": "array",
+      "example_call": "list_available_profiles()",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "what profiles exist",
+        "list indexed profiles",
+        "available tenant profiles",
+        "list_available_profiles"
+      ]
+    },
+    {
+      "name": "resolve_stylesheet",
+      "version_added": "0.7.0",
+      "version_removed": null,
+      "description": "Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain. LESS covers legacy v8-v11.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "module"
+      ],
+      "optional_params": [
+        "odoo_version"
+      ],
+      "return_type": "array",
+      "example_call": "resolve_stylesheet(module='website_sale')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "stylesheets in module",
+        "CSS files in module",
+        "SCSS files in module",
+        "LESS files in module",
+        "import chain for module",
+        "stylesheet inventory",
+        "resolve_stylesheet"
+      ]
+    },
+    {
+      "name": "find_style_override",
+      "version_added": "0.7.0",
+      "version_removed": null,
+      "description": "Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules. LESS covers legacy v8-v11.",
+      "persona_tags": [
+        "dev",
+        "consultant"
+      ],
+      "required_params": [
+        "selector_or_variable"
+      ],
+      "optional_params": [
+        "odoo_version",
+        "limit"
+      ],
+      "return_type": "array",
+      "example_call": "find_style_override(selector_or_variable='.o_kanban_record')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "where is CSS selector defined",
+        "find SCSS variable",
+        "find LESS variable",
+        "which module overrides style",
+        "branding override",
+        "selector origin",
+        "find_style_override"
+      ]
+    },
+    {
+      "name": "resolve_orm_chain",
+      "version_added": "0.8.0",
+      "version_removed": null,
+      "description": "Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks. Preferred over entity_lookup for multi-hop paths.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "model",
+        "dotted_path"
+      ],
+      "optional_params": [
+        "odoo_version",
+        "profile_name"
+      ],
+      "return_type": "object",
+      "example_call": "resolve_orm_chain(model='sale.order', dotted_path='partner_id.country_id.code')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "trace field path",
+        "dotted path resolve",
+        "multi-hop field chain",
+        "where does path end",
+        "field chain validation",
+        "resolve_orm_chain"
+      ]
+    },
+    {
+      "name": "validate_domain",
+      "version_added": "0.8.0",
+      "version_removed": null,
+      "description": "Validate search domain terms: field-path resolution and operator version-awareness. Operator validity is version-aware (parent_of v9+, any/not any v17+). Logical connectors are skipped.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "model",
+        "domain"
+      ],
+      "optional_params": [
+        "odoo_version",
+        "profile_name"
+      ],
+      "return_type": "object",
+      "example_call": "validate_domain(model='sale.order', domain=\"[('partner_id.country_id', '=', 'VN')]\")",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "is this domain valid",
+        "check domain",
+        "validate search domain",
+        "domain operators valid",
+        "validate_domain"
+      ]
+    },
+    {
+      "name": "validate_depends",
+      "version_added": "0.8.0",
+      "version_removed": null,
+      "description": "Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos. Catches stale compute declarations before runtime failure.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "model",
+        "method"
+      ],
+      "optional_params": [
+        "odoo_version",
+        "profile_name"
+      ],
+      "return_type": "object",
+      "example_call": "validate_depends(model='sale.order', method='_compute_amount_total')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "validate compute depends",
+        "check @api.depends",
+        "stale depends paths",
+        "validate_depends"
+      ]
+    },
+    {
+      "name": "validate_relation",
+      "version_added": "0.8.0",
+      "version_removed": null,
+      "description": "Assert a relational field points at the expected comodel (many2one/one2many/many2many). Reports the actual comodel on mismatch.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "model",
+        "field",
+        "target_model"
+      ],
+      "optional_params": [
+        "odoo_version",
+        "profile_name"
+      ],
+      "return_type": "object",
+      "example_call": "validate_relation(model='sale.order', field='partner_id', target_model='res.partner')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "does field point to model",
+        "check relation target",
+        "is field many2one to",
+        "comodel of field",
+        "validate_relation"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "uri_template": "odoo://{version}/model/{name}",
+      "description": "Model record: inheritance chain, field count, defining modules.",
+      "persona_tags": [
+        "dev",
+        "CEO",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "when_to_use": "Already know the model name; want canonical record without a tool call."
+    },
+    {
+      "uri_template": "odoo://{version}/field/{model}/{field}",
+      "description": "Field record: type, compute method, definition module, is_related.",
+      "persona_tags": [
+        "dev",
+        "CEO",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "when_to_use": "Already know model + field name; want record without a tool call."
+    },
+    {
+      "uri_template": "odoo://{version}/method/{model}/{method}",
+      "description": "Method record: override chain, super_ratio, convention, source file.",
+      "persona_tags": [
+        "dev",
+        "CEO",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "when_to_use": "Already know model + method name; want override guidance without a tool call."
+    },
+    {
+      "uri_template": "odoo://{version}/view/{xmlid}",
+      "description": "View record: xpath chain, inherit_id, language, arch.",
+      "persona_tags": [
+        "dev",
+        "CEO",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "when_to_use": "Already know the view XML ID; want the canonical view definition without a tool call."
+    },
+    {
+      "uri_template": "odoo://{version}/module/{name}",
+      "description": "Module record: manifest, defines/extends counts, license notice if restricted.",
+      "persona_tags": [
+        "CEO",
+        "dev",
+        "consultant",
+        "marketer",
+        "sales"
+      ],
+      "when_to_use": "Already know the module name; want manifest + summary without a tool call."
+    },
+    {
+      "uri_template": "odoo://{version}/pattern/{name}",
+      "description": "Pattern catalogue entry: code snippet, gotchas, language, min version.",
+      "persona_tags": [
+        "dev",
+        "consultant"
+      ],
+      "when_to_use": "Want to learn a curated pattern by name (wizard, multi-company, etc.)."
+    },
+    {
+      "uri_template": "odoo://{version}/stylesheet/{file_path}",
+      "description": "Stylesheet record: selectors, imports, variables, language (CSS/SCSS/LESS).",
+      "persona_tags": [
+        "dev"
+      ],
+      "when_to_use": "Want canonical stylesheet definition without a tool call."
+    }
+  ]
+}

@@ -24,21 +24,25 @@ description: >
 Developer
 
 ## MCP tools (odoo-semantic)
-At session start: `set_active_version(odoo_version=<version>)` so subsequent inspection
-calls inherit the legacy version target.
 
-Primary tools:
-- `module_inspect(module, method='js')` — enumerate JS patches (`Widget.include` /
-  `patch()`) already registered in the module or against a specific target.
-- `find_examples(query)` — real production code using the same widget/registry pattern from
-  the indexed codebase. Trust this for import paths.
-- `suggest_pattern(query)` — canonical legacy widget pattern catalogue.
-- `find_override_point(component, hook)` — exact class + hook to extend, with existing
-  override chain.
-- `api_version_diff(scope, from_version, to_version)` — surface JS API breaking changes
-  between two legacy versions.
-- `lookup_core_api(symbol)` — authoritative API details for `AbstractField`, `Widget`,
-  registry helpers.
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+- `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
+- `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+
+**Ollama-delegate tools** (local model, cost-free):
+- `mcp__ollama-delegate__generate_code`
+- `mcp__ollama-delegate__explain_code`
+<!-- END GENERATED TOOLS -->
 
 ## Additional tools (ollama-delegate)
 `mcp__ollama-delegate__generate_code`, `mcp__ollama-delegate__explain_code`

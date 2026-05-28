@@ -25,38 +25,30 @@ description: >
 Developer
 
 ## MCP tools (odoo-semantic)
-At the start of each coding session, call `set_active_version(odoo_version='17.0')` (or
-whatever version the user is on) so every subsequent tool call inherits it — eliminates
-parameter repetition for the rest of the session.
 
-Primary inspection tools (v0.5.0 supersets — prefer these):
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-- `model_inspect(model, method='fields' | 'methods' | 'views' | 'summary')` — enumerate or fully
-  describe a model.
-- `entity_lookup(kind='field' | 'method' | 'view', …)` — drill into one specific entity
-  with its full inheritance chain and source module.
-- `suggest_pattern(query)` — canonical Odoo pattern catalogue (computed field, SQL
-  constraint, wizard, etc.).
-- `find_examples(query)` — real-world implementations from the indexed corpus.
-- `lint_check(code)` — deprecation + style detection (pass the code snippet to check); inline `# noqa: RULE_ID` in the code suppresses findings on that line.
-- `lookup_core_api(symbol)` — what Odoo core itself exposes for a given API surface.
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
 
-ORM-validation tools (v0.8 — M10.5 Phase 2; validate the construct *before* you emit it, so
-you never ship a hallucinated field-path, operator, or comodel):
+**Primary tools:**
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `lint_check` — Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.
+- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `validate_depends` ⊕ — Validate compute method's `@api.
+- `validate_domain` ⊕ — Validate search domain terms: field-path resolution and operator version-awareness.
+- `resolve_orm_chain` ⊕ — Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
+- `validate_relation` ⊕ — Assert a relational field points at the expected comodel (many2one/one2many/many2many).
 
-- `validate_depends(model, method)` — validate an existing compute method's indexed
-  `@api.depends` paths; flags depends on `id` and suggests the closest field for typos. Run
-  before *or* right after you write a `_compute_*` to confirm every dependency path is real.
-- `validate_domain(model, domain)` — validate each `(field_path, operator, value)` term of a
-  domain you are about to put in a view, `ir.rule`, or `search()`. Operators are
-  **version-aware** (`any`/`not any` v17+, `parent_of` v9+).
-- `resolve_orm_chain(model, dotted_path)` — confirm a multi-hop `related=` chain or domain
-  path resolves to the expected terminal type before you write it.
-- `validate_relation(model, field, target_model)` — assert a relational field's comodel
-  before writing a `related=` that hops through it.
-
-For bookmark-stable single-entity reads (works in IDE/chat bookmarks), the MCP Resource URI
-is also available: `odoo://17.0/model/sale.order`, `odoo://17.0/field/sale.order/amount_total`.
+**Ollama-delegate tools** (local model, cost-free):
+- `mcp__ollama-delegate__generate_code`
+- `mcp__ollama-delegate__complete_code`
+- `mcp__ollama-delegate__review_code`
+<!-- END GENERATED TOOLS -->
 
 ## Additional tools (ollama-delegate)
 `mcp__ollama-delegate__generate_code`, `mcp__ollama-delegate__complete_code`, `mcp__ollama-delegate__review_code`

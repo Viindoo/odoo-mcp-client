@@ -24,24 +24,25 @@ description: >
 Developer
 
 ## MCP tools (odoo-semantic)
-At session start: `set_active_version(odoo_version='17.0')` (or the version the user is on)
-so every subsequent inspection call inherits it — eliminates parameter repetition.
 
-Primary tools:
-- `module_inspect(module, method='owl')` — enumerate OWL components defined in the module
-  (v15+ only). Use this to check whether the component you intend to write or patch already
-  exists.
-- `module_inspect(module, method='qweb')` — enumerate QWeb template IDs registered in the
-  module. Use to verify exact template names before writing an XPath override and to avoid
-  duplicate `t-name` definitions.
-- `find_examples(query)` — real production code using the same hook, registry, or patch
-  pattern. Trust this for import paths.
-- `suggest_pattern(query)` — canonical OWL pattern catalogue.
-- `find_override_point(component, hook)` — when patching or extending an existing Odoo
-  component (e.g. `SaleOrderForm`, `FormController`, a field widget).
-- `api_version_diff(scope, from_version, to_version)` — surface OWL 1.x → 2.x breaking
-  changes when porting code between v15 and v16+.
-- `lookup_core_api(symbol)` — authoritative hook + registry API details.
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+- `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
+- `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+
+**Ollama-delegate tools** (local model, cost-free):
+- `mcp__ollama-delegate__generate_code`
+- `mcp__ollama-delegate__explain_code`
+<!-- END GENERATED TOOLS -->
 
 ## Additional tools (ollama-delegate)
 `mcp__ollama-delegate__generate_code`, `mcp__ollama-delegate__explain_code`

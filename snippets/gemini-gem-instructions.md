@@ -222,3 +222,158 @@ Using odoo-semantic, show me the full inheritance chain of sale.order in Odoo 17
 | Generic textbook answer | Gem not using MCP | Re-check Instructions include TRIGGER rules |
 | "No data indexed" | Indexer not run | Admin: run the indexer (server-side) for that profile |
 | Version-specific queries fail | Version not indexed | Admin: verify the version is indexed on the server |
+
+---
+
+## Generated Tool Surface
+
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. Generated from `generator/server-surface.json`. Run `make gen` to update._
+
+Use these tools based on what the user is asking (v0.8.0 surface):
+
+### model_inspect ★
+TRIGGER: inspect model
+PREFER: Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call
+ARGS (required): model, method
+ARGS (optional): odoo_version, field, method_name, limit, profile_name, from_module, kind, view_type
+
+### module_inspect ★
+TRIGGER: inspect module
+PREFER: Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call
+ARGS (required): name, method
+ARGS (optional): odoo_version, profile_name, limit, view_type, bound_model, era, target
+
+### entity_lookup ★
+TRIGGER: lookup field
+PREFER: Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module
+ARGS (required): kind
+ARGS (optional): odoo_version, model, field, method_name, xmlid, from_module
+
+### find_examples
+TRIGGER: show me examples
+PREFER: Semantic code search returning real indexed code snippets from the Odoo codebase
+ARGS (required): query
+ARGS (optional): odoo_version, limit, chunk_types
+
+### impact_analysis
+TRIGGER: what breaks if I change
+PREFER: Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields
+ARGS (required): entity_type, entity_name
+ARGS (optional): odoo_version
+
+### lookup_core_api
+TRIGGER: is API deprecated
+PREFER: Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement
+ARGS (required): name
+ARGS (optional): odoo_version
+
+### api_version_diff
+TRIGGER: what changed between versions
+PREFER: Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items
+ARGS (required): symbol, from_version, to_version
+
+### find_deprecated_usage
+TRIGGER: deprecated API in code
+PREFER: Scan the indexed codebase for usages of deprecated API patterns
+ARGS (required): odoo_version
+ARGS (optional): kind
+
+### lint_check
+TRIGGER: lint check
+PREFER: Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0
+ARGS (optional): code, odoo_version, language
+
+### cli_help
+TRIGGER: odoo-bin options
+PREFER: Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags
+ARGS (optional): command, flag, odoo_version
+
+### suggest_pattern
+TRIGGER: best pattern for
+PREFER: Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns
+ARGS (required): intent
+ARGS (optional): odoo_version, language, limit
+
+### check_module_exists
+TRIGGER: does module exist
+PREFER: Verify module availability, edition (CE/EE/Viindoo), and cross-version presence
+ARGS (required): name
+ARGS (optional): odoo_version
+
+### find_override_point
+TRIGGER: where to override
+PREFER: Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior
+ARGS (required): model, method
+ARGS (optional): odoo_version, to_version
+
+### describe_module
+TRIGGER: what does module do
+PREFER: Module manifest + defined/extended model counts + view/JS inventory in one call
+ARGS (required): name
+ARGS (optional): odoo_version, profile_name
+
+### set_active_version ☆
+TRIGGER: set version
+PREFER: Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version
+ARGS (required): odoo_version
+
+### set_active_profile ☆
+TRIGGER: set profile
+PREFER: Pin tenant profile for the session so subsequent calls scope to one customer profile
+ARGS (required): profile_name
+
+### list_available_versions ☆
+TRIGGER: what versions are indexed
+PREFER: Enumerate which Odoo versions the server has indexed
+
+### list_available_profiles ☆
+TRIGGER: what profiles exist
+PREFER: Enumerate which tenant profiles exist in the server index
+
+### resolve_stylesheet ✦
+TRIGGER: stylesheets in module
+PREFER: Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain
+ARGS (required): module
+ARGS (optional): odoo_version
+
+### find_style_override ✦
+TRIGGER: where is CSS selector defined
+PREFER: Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules
+ARGS (required): selector_or_variable
+ARGS (optional): odoo_version, limit
+
+### resolve_orm_chain ⊕
+TRIGGER: trace field path
+PREFER: Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks
+ARGS (required): model, dotted_path
+ARGS (optional): odoo_version, profile_name
+
+### validate_domain ⊕
+TRIGGER: is this domain valid
+PREFER: Validate search domain terms: field-path resolution and operator version-awareness
+ARGS (required): model, domain
+ARGS (optional): odoo_version, profile_name
+
+### validate_depends ⊕
+TRIGGER: validate compute depends
+PREFER: Validate compute method's `@api
+ARGS (required): model, method
+ARGS (optional): odoo_version, profile_name
+
+### validate_relation ⊕
+TRIGGER: does field point to model
+PREFER: Assert a relational field points at the expected comodel (many2one/one2many/many2many)
+ARGS (required): model, field, target_model
+ARGS (optional): odoo_version, profile_name
+
+### MCP Resources (read-only, URI-addressable)
+
+- `odoo://{version}/model/{name}` — Model record: inheritance chain, field count, defining modules.
+- `odoo://{version}/field/{model}/{field}` — Field record: type, compute method, definition module, is_related.
+- `odoo://{version}/method/{model}/{method}` — Method record: override chain, super_ratio, convention, source file.
+- `odoo://{version}/view/{xmlid}` — View record: xpath chain, inherit_id, language, arch.
+- `odoo://{version}/module/{name}` — Module record: manifest, defines/extends counts, license notice if restricted.
+- `odoo://{version}/pattern/{name}` — Pattern catalogue entry: code snippet, gotchas, language, min version.
+- `odoo://{version}/stylesheet/{file_path}` — Stylesheet record: selectors, imports, variables, language (CSS/SCSS/LESS).
+<!-- END GENERATED TOOLS -->

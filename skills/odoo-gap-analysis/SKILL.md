@@ -25,21 +25,21 @@ description: >
 Consultant / Project Manager
 
 ## MCP tools
-At session start: `set_active_version(odoo_version='17.0')` (or the version the client
-targets) and `set_active_profile(profile_name=…)` if a customer-specific profile exists.
-Both calls are sticky for 24h per API key — eliminates parameter repetition across 10-30
-gap items.
 
-Primary tools:
-- `check_module_exists(module, …)` — first-pass standard-vs-custom signal per requirement.
-- `model_inspect(model, method='fields')` — when a module exists but coverage may be partial,
-  pull the full schema of the relevant model in one call.
-- `find_examples(query)` — real-world implementations of similar requirements in the
-  indexed corpus, useful for confirming Extension feasibility before committing.
-- `lookup_core_api(symbol)` — what Odoo core itself exposes; tells you whether an extension
-  point exists or you're truly in Custom-development territory.
-- `suggest_pattern(query)` — canonical Odoo pattern for the requirement shape (computed
-  field, wizard, server action, etc.) — usable as a sanity check on effort sizing.
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+- `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
+
+**Primary tools:**
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 

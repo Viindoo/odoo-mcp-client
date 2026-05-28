@@ -1,0 +1,62 @@
+{
+  "skill_name": "odoo-onboard",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "tao mới clone repo Odoo về, setup context giúp",
+      "expected_output": "Skill walks the 9-step workflow; writes .odoo-ai/context.md with detected version + modules; updates .gitignore",
+      "category": "should-fire-direct-vi",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "first time using odoo-semantic for this project",
+      "expected_output": "Skill triggers; runs 9-step flow; produces context file",
+      "category": "should-fire-direct-en",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "muốn pin Odoo 17 và profile viindoo_17 cho repo này",
+      "expected_output": "Skill triggers; uses 17.0 + viindoo_17 as defaults from prompt; confirms with user; writes context",
+      "category": "should-fire-version-hint",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "review this PR (working dir is a fresh Odoo repo with no .odoo-ai/)",
+      "expected_output": "Either: (a) onboard fires proactively due to missing context, OR (b) odoo-code-reviewer fires first but immediately suggests running onboard. Phase A acceptance: skill description should make case (a) preferred but case (b) acceptable.",
+      "category": "should-fire-proactive",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "khởi tạo context Odoo cho dự án mới",
+      "expected_output": "Skill triggers; full onboard flow",
+      "category": "should-fire-direct-vi",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "review this code (context exists, last_updated 1 day ago)",
+      "expected_output": "Skill does NOT fire — context is fresh; odoo-code-reviewer should fire directly. Onboard Step 0 pre-flight catches this case.",
+      "category": "should-not-fire-fresh-context",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "viết computed field cho sale.order",
+      "expected_output": "Skill does NOT fire — specific intent matches odoo-coder. If context is missing, odoo-coder may suggest onboard but onboard itself does not auto-fire on this prompt.",
+      "category": "should-not-fire-specific-intent",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "what's the weather in Hanoi",
+      "expected_output": "Skill does NOT fire — non-Odoo intent.",
+      "category": "should-not-fire-non-odoo",
+      "files": []
+    }
+  ],
+  "notes": "Full Mode 5 trigger optimization scheduled for Phase D AC-D6, combined with odoo-router. Phase A acceptance verified via inline walkthrough (see main agent's A4 report). Test case #4 is the trickiest — it tests proactive onboard triggering when context is missing. Phase B will wire all skills to check for missing context."
+}

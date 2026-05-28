@@ -23,23 +23,20 @@ description: >
 CEO / CTO / Project Manager
 
 ## MCP tools
-At session start: `set_active_version(odoo_version=…)` and `set_active_profile(profile_name=…)`
-so the inventory targets a specific customer profile + version. Both are sticky 24h per API
-key — handy when iterating on a long module list.
 
-Primary tools:
-- `check_module_exists(module, …)` — first-pass classifier: Standard / Viindoo / Custom.
-- `module_inspect(module, method='summary')` — full architecture overview per module
-  (manifest, models defined vs extended, view + JS patch counts) — the headline executive
-  summary tool.
-- `module_inspect(module, method='fields')` — key custom fields summary when describe is too
-  light.
-- `model_inspect(model, method='summary')` — when a module extends a single model and the
-  executive wants to know which standard model is being touched.
-- `impact_analysis(symbol | module)` — for modules flagged high-risk based on usage breadth.
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-For bookmark-stable cross-references: each module is also exposed as
-`odoo://17.0/module/<name>` for direct linking in audit reports.
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+- `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
+
+**Primary tools:**
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 

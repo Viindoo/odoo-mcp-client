@@ -22,6 +22,16 @@ jobs:
       - run: pip install pytest
       - run: python -m pytest tests/test_plugin_schema.py tests/test_skill_format.py -q
 
+  deps-check:
+    name: Skill ↔ Tool dependency check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python3 generator/check_deps.py
+
   e2e-install:
     name: e2e install (${{ matrix.os }})
     # Network + global npm install + live marketplace state — keep it off every PR

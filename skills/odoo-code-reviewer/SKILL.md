@@ -23,31 +23,27 @@ description: >
 Developer / Tech Lead
 
 ## MCP tools (odoo-semantic)
-At session start: `set_active_version(odoo_version=…)` so every subsequent verification call
-inherits it.
 
-Primary tools:
-- `model_inspect(model, method='summary')` — confirms model exists and surfaces its full field +
-  method + view inventory for cross-checking references.
-- `entity_lookup(kind='field' | 'method', model=…, …)` — verify a specific field or method
-  exists on a specific model.
-- `lint_check(code_snippet)` — deprecation + style detection at the API level; inline `# noqa: RULE_ID` in the code suppresses findings on that line.
-- `lookup_core_api(symbol)` — confirms a core Odoo API exists and shows its signature.
-- `suggest_pattern(query)` — canonical Odoo pattern; mismatch with what the developer wrote
-  is a MED-severity finding.
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-ORM-validation tools (v0.8 — M10.5 Phase 2). These verify the *constructs* generic review and
-even `entity_lookup` miss — a wrong `@api.depends` path, an invalid domain operator for the
-target version, or a relational field pointing at the wrong comodel. A non-OK result here is
-CRITICAL (it would have failed at runtime, not at import):
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
 
-- `validate_depends(model, method)` — validate the indexed method's `@api.depends` paths;
-  directly catches the "Missing/wrong `@api.depends` path → stale compute" failure mode below.
-- `validate_domain(model, domain)` — validate a domain's field-paths *and* operators against
-  the target version (e.g. `any`/`not any` are invalid before v17).
-- `resolve_orm_chain(model, dotted_path)` — confirm a `related=` or domain dotted path resolves
-  end to end, or pinpoint the broken hop.
-- `validate_relation(model, field, target_model)` — assert a relational field's comodel.
+**Primary tools:**
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `lint_check` — Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.
+- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+- `validate_depends` ⊕ — Validate compute method's `@api.
+- `validate_domain` ⊕ — Validate search domain terms: field-path resolution and operator version-awareness.
+- `resolve_orm_chain` ⊕ — Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
+- `validate_relation` ⊕ — Assert a relational field points at the expected comodel (many2one/one2many/many2many).
+
+**Ollama-delegate tools** (local model, cost-free):
+- `mcp__ollama-delegate__review_code`
+<!-- END GENERATED TOOLS -->
 
 ## Additional tools (ollama-delegate)
 `mcp__ollama-delegate__review_code` — fast first-pass review on the pasted code.
