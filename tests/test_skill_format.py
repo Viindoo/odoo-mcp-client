@@ -163,3 +163,7 @@ def test_skill_frontmatter(skill):
     body = _body(text)
     assert "## Persona" in body, f"{skill.parent.name} SKILL.md missing required ## Persona section"
     assert "## Out of Scope" in body, f"{skill.parent.name} SKILL.md missing required ## Out of Scope section"
+    assert (
+        "## Standalone-first fallback" in body
+        or "## Standalone fallback" in body
+    ), f"{skill.parent.name} SKILL.md missing required ## Standalone-first fallback section"

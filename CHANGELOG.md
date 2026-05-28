@@ -4,6 +4,48 @@ All notable changes to the Odoo MCP Client are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-05-28
+
+### Added
+- 8 specialist personas: Engineer, Coder (agent+skill bundle), Code-Reviewer (agent+skill bundle), Pre-Sales Consultant, Sales AE, Marketer, Strategist, Onboarding/Concierge.
+- 7 new skills: `odoo-frontend-coder` (merges legacy `odoo-js-coder` + `odoo-owl-coder` with v8-v19 internal version gate), `odoo-deal-followup`, `odoo-discovery-summarize`, `odoo-content-draft`, `odoo-campaign-plan`, `odoo-competitive-brief`, `odoo-deploy-checklist`.
+- 2 new agent bundles in `agents/`: `odoo-coder` + `odoo-code-reviewer` (restricted-tool autonomy for code-write work).
+- 5 slash command-recipes in `commands/`: `/odoo-bid-respond`, `/odoo-customer-followup-draft`, `/odoo-discovery-quick`, `/odoo-feature-positioning`, `/odoo-upgrade-plan-full` (replaces legacy `odoo-upgrade-planner` agent).
+- `odoo-router` skill — silent disambiguation concierge with 21-row routing table + 4 collision-test cases.
+- `odoo-onboard` skill — bootstrap Odoo project context to `.odoo-ai/context.md` (gitignored, portable markdown-bullet schema).
+- SSOT generator (`generator/gen_surface.py`) — emits routing matrix + per-skill `## MCP tools` blocks + IDE snippets from `generator/server-surface.json`. Idempotent.
+- Skill↔tool dependency map (`generator/skill_tool_deps.json`) + CI assertion (`generator/check_deps.py`) — fails if a skill/agent references a removed server tool.
+- Confidentiality pre-commit hook + CI workflow — blocks vault paths and absolute `/home/tuan/...` references in committed files.
+- Multi-runtime smoke test checklist (`tests/smoke/runtime_parity.md`).
+- README section "Một-người-công-ty: cách dùng AI specialist" with VI-first use cases.
+- `## Out of Scope` + `## Standalone-first fallback` sections in all 22 skills + 5 of 5 new commands (CI-enforced by `tests/test_skill_format.py`).
+- Agent format tests (`test_agent_frontmatter`, `test_agent_depth_rule_guard`, `test_agent_skill_invocation_guard`) covering 3 agents.
+
+### Changed
+- Plugin description + keywords updated to reflect post-refinement scope.
+- 11 existing skills (`odoo-addon-diff`, `odoo-capability-proof`, `odoo-customization-inventory`, `odoo-deprecation-audit`, `odoo-feature-check`, `odoo-feature-highlights`, `odoo-gap-analysis`, `odoo-objection-handler`, `odoo-override-finder`, `odoo-risk-overview`, `odoo-version-diff`) gained `## Out of Scope` + `## Standalone-first fallback` sections.
+- `odoo-coder` + `odoo-code-reviewer` skills slimmed (≤100 lines each) into agent+skill bundle pattern; execution detail moved to `agents/<name>.md`.
+- `docs/reference/mcp-tool-routing.md` (442 lines) — fully generator-managed, no longer hand-maintained.
+
+### Removed
+- `skills/odoo-js-coder/` + `skills/odoo-owl-coder/` (merged into `odoo-frontend-coder`).
+- Hardcoded `SKILL_TO_TOOLS` Python dict in generator — replaced by JSON SSOT in `skill_tool_deps.json`.
+
+### Deprecated
+- `agents/odoo-upgrade-planner.md` — kept in tree for git history but marked DEPRECATED; users should invoke `/odoo-upgrade-plan-full` slash command instead.
+
+### Fixed
+- Generator `description.split(".")[0]` clipping bug (truncated descriptions at inline periods like `@api.depends`, decimal version numbers).
+- Confidentiality leak: 3 files referenced `/home/tuan/.claude/plans/curious-riding-lemon.md` absolute path — replaced with in-repo `docs/refinement-plan-2026-05-28.md`.
+- 4 skills had redundant handwritten `## Additional tools (ollama-delegate)` section duplicating generator-managed content — removed.
+- Agent bundle tools allowlist missing `set_active_version` — both `odoo-coder` and `odoo-code-reviewer` agents had this fixed (would have caused runtime denial of the first MCP call).
+- Marker labels in 5 new B.2 skills renamed from `BEGIN GENERATED TOOLS` to honest `BEGIN MANUAL TOOLS — <name>` (since these skills are in `SKIP_SKILL_DIRS`).
+
+### Migration notes
+- Users invoking the legacy `odoo-upgrade-planner` agent should switch to `/odoo-upgrade-plan-full` slash command.
+- `commands/discovery-summarize.md` was renamed to `commands/discovery-quick.md` (slash command is now `/odoo-discovery-quick` — the skill `odoo-discovery-summarize` retains its name for natural-language invocation).
+- Custom modules using `odoo-js-coder` / `odoo-owl-coder` skill names should switch to `odoo-frontend-coder` (handles both legacy and OWL based on detected version).
+
 ## [0.8.0] - 2026-05-21
 
 ### Changed (server PR #162 / v0.9.1 surface alignment — c9cf637)

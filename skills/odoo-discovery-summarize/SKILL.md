@@ -62,7 +62,7 @@ or requests "double-check with Odoo" / "kiem tra Odoo co chua"._
 developer-oriented tools — this skill outputs business analysis, not code.
 <!-- END MANUAL TOOLS -->
 
-## Standalone-first workflow
+## Standalone-first fallback
 
 This skill produces a full Discovery Profile without OSM. Follow rounds in sequence.
 

@@ -52,7 +52,7 @@ thuật về tính năng Odoo được nhắc đến trong email/deal context (v
 best handled by Claude directly. Do not delegate to ollama-delegate tools.
 <!-- END MANUAL TOOLS — odoo-deal-followup -->
 
-## Standalone-first workflow
+## Standalone-first fallback
 
 Skill **luôn hoạt động không cần OSM**. Toàn bộ logic dưới đây chạy trên user-provided text.
 

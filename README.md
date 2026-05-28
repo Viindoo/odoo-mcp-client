@@ -14,6 +14,95 @@ MCP server — query it at the hosted instance
 [`odoo-semantic.viindoo.com`](https://odoo-semantic.viindoo.com) or
 [self-host the server](https://github.com/Viindoo/odoo-semantic-server).
 
+## Một-người-công-ty: cách dùng AI specialist
+
+Bạn là CEO/Founder của một công ty làm Odoo/Viindoo? Một mình lo cả engineering, sales, marketing, strategy? Plugin này biến AI agent thành **8 chuyên gia ảo (AI specialist)** - mỗi specialist là một skill hoặc agent bundle chuyên trách 1 mảng nghiệp vụ. Bạn không cần thuê thêm người để start.
+
+### Cách hoạt động
+
+Mỗi specialist tự kích hoạt khi bạn mô tả intent bằng tiếng Việt hoặc English tự nhiên (không cần biết tên skill). Một số workflow phức tạp được gọi thành slash command `/odoo-*` để gọi tường minh.
+
+### 8 chuyên gia
+
+| Persona | Skill / Agent | Khi nào dùng |
+|---|---|---|
+| Engineer | `odoo-override-finder`, `odoo-deprecation-audit`, `odoo-deploy-checklist` | Custom code, audit pre-upgrade, deploy safety |
+| Coder | `odoo-coder` (agent+skill bundle) | Viết code Python/XML production-ready |
+| Code-Reviewer | `odoo-code-reviewer` (agent+skill bundle) | Review PR, audit code lý do bugs/security/N+1 |
+| Pre-Sales Consultant | `odoo-feature-check`, `odoo-gap-analysis`, `odoo-capability-proof`, `odoo-addon-diff` | Verify Odoo có tính năng X, scope effort, evidence cho proposal |
+| Sales AE | `odoo-objection-handler`, `odoo-deal-followup`, `odoo-discovery-summarize` | Phản hồi objection, follow-up deal stalled, synthesize discovery |
+| Marketer | `odoo-feature-highlights`, `odoo-content-draft`, `odoo-campaign-plan` | Slide/blog content, multi-channel campaign |
+| Strategist | `odoo-risk-overview`, `odoo-customization-inventory`, `odoo-competitive-brief` | Board brief, customization inventory, competitor brief |
+| Onboarding/Concierge | `odoo-onboard`, `odoo-router` | Bootstrap context cho project mới, route ambiguous intent |
+
+Plus 5 slash commands chain các skill thành workflow đa bước: `/odoo-bid-respond`, `/odoo-customer-followup-draft`, `/odoo-discovery-quick`, `/odoo-feature-positioning`, `/odoo-upgrade-plan-full`.
+
+### Use case 1 - Sales AE: deal stalled, viết follow-up email trong 30 giây
+
+Bạn có 1 khách prospect (gọi là Khách A - manufacturing SME) đã 21 ngày không trả lời sau buổi demo. Pipeline stage "evaluation". Bạn cần email follow-up tonight để gửi sáng mai.
+
+```
+Bạn: "deal Khách A stalled 21 ngày sau demo, manufacturing SME đang đánh giá Odoo vs SAP. Cuối lần gặp họ promise sẽ feedback technical questions trong tuần. Viết follow-up email."
+```
+
+Skill `odoo-deal-followup` tự fire. Output: risk score (red, >14d no reply on warm lead), next-best-action ("re-engage with concrete value proof"), 4-paragraph VI follow-up email template ready to paste.
+
+Nếu muốn save vào file: `/odoo-customer-followup-draft` (chains skill + save step to `.odoo-ai/followups/khach-a-2026-MM-DD.md`).
+
+### Use case 2 - Pre-Sales: khách hỏi RFP với 15 yêu cầu
+
+Khách gửi RFP với 15 yêu cầu functional: lot tracking, multi-level approval, VAS reporting, multi-warehouse, customer portal, v.v. Bạn cần phản hồi đầy đủ trong 24h.
+
+```
+Bạn: "/odoo-bid-respond - Khách B (F&B chain, 50-store), 15 yêu cầu paste sau"
+```
+
+Command chạy 7-phase workflow:
+
+1. Parse args + read `.odoo-ai/context.md` (nếu chưa có, gợi ý `odoo-onboard`).
+2. Trigger `odoo-discovery-summarize` - structured profile.
+3. Trigger `odoo-gap-analysis` - effort matrix (Standard / Config / Extension / Custom + S/M/L/XL days).
+4. Trigger `odoo-capability-proof` cho Standard/Config items - evidence package.
+5. Trigger `odoo-objection-handler` cho 2-3 anticipated objections.
+6. Assemble proposal draft (VI default).
+7. Save to `.odoo-ai/bids/khach-b-2026-MM-DD.md` (gated - bạn duyệt từng phase).
+
+### Use case 3 - Strategist/CEO: viết board brief tháng
+
+Bạn cần brief board status tháng: product progress, pipeline health, competitive landscape, top risks.
+
+```
+Bạn: "tóm tắt cạnh tranh từ Competitor A vs Viindoo cho board meeting tuần sau"
+```
+
+Skill `odoo-competitive-brief` fires. Bạn paste signals đã thu thập, skill structure thành: snapshot, capability matrix, GTM moves, threat assessment, recommended Viindoo response. Format ready for board deck.
+
+Combine với:
+- `odoo-risk-overview` cho engineering risk overview (CEO-level dashboard, không phải dev audit).
+- `odoo-customization-inventory` để liệt kê tất cả custom module với business purpose (M&A due-diligence ready).
+
+### Use case 4 - Engineer + Coder: upgrade v15 lên v17
+
+Khách Khách C đang chạy Odoo 15 với 12 custom modules, muốn lên v17 trong Q3.
+
+```
+Bạn: "/odoo-upgrade-plan-full - Khách C v15 to v17, 12 custom modules, deadline Q3"
+```
+
+Chain 4 skill: `odoo-risk-overview` - `odoo-deprecation-audit` - `odoo-version-diff` - synthesis. Output: executive risk overview + code-level deprecation findings + API/feature diff + action ordering + S/M/L/XL effort estimate + rollback plan. Save to `.odoo-ai/upgrade-plans/khach-c-v15-v17-2026-MM-DD.md`.
+
+Nếu cần code thực: invoke `odoo-coder` agent bundle (depth-1 safe, restricted-tool autonomy, có access OSM + ollama-delegate cost-free model).
+
+### Câu thường gặp
+
+**Tao chỉ cần 1 skill, không cần all 22?** OK - skills auto-fire by intent match. Bạn không phải biết hết. Cứ describe what you need; skill phù hợp sẽ trigger.
+
+**OSM server down thì sao?** Mỗi skill có `## Standalone-first fallback` - degrade gracefully bằng cách prompt bạn paste data manually. Plugin không bị broken khi OSM offline.
+
+**Lo confidentiality?** Plugin code public (MIT). Skills KHÔNG chứa customer-specific data hay pricing. Pre-commit hook + CI scan block 8 nhóm leak (vault path, customer name, pricing, OKR, v.v.). Examples dùng abstract labels (Khách A, Customer-A).
+
+**Multi-runtime?** Skills + commands chuẩn Claude Code. Codex/Gemini parity smoke test ở `tests/smoke/runtime_parity.md` - 10 skill đại diện được verify chạy trên cả 3 runtime.
+
 ## Quick install (Claude Code — 3 steps, all required)
 
 Inside Claude Code, run:

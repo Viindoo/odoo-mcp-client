@@ -72,6 +72,17 @@ If user replies "yes", end your turn — the harness will auto-fire the target s
 
 If user replies "no" or names a different skill, re-route or yield to the user's pick.
 
+## Command-vs-skill discriminator
+
+Slash commands (`/odoo-*`) are user-explicit kickoffs that chain multiple skills with approval gates. Skills (`odoo-*`) auto-fire on natural-language intent match.
+
+**Routing rule**: if the user's input begins with a `/` (e.g., `/odoo-bid-respond`), the harness invokes the command directly — router does NOT see this turn. If the user's input is natural language describing intent, router fires on description match against the skill catalogue OR recommends a command if the intent is multi-step (e.g., "make me a full bid response" → recommend `/odoo-bid-respond` command).
+
+Router behaviour when ambiguous between command and skill:
+- If intent is **multi-step** (e.g., "draft a bid response that includes discovery, gap analysis, and proposal") → recommend the COMMAND.
+- If intent is **single-step** (e.g., "synthesize these discovery notes") → recommend the underlying SKILL.
+- If user wants to **save output to file** explicitly → recommend the COMMAND (commands write to `.odoo-ai/<subdir>/`).
+
 ## Routing Table
 
 | # | Intent signal | Target skill | Discriminator (when ambiguous vs neighbour) |
@@ -97,6 +108,12 @@ If user replies "no" or names a different skill, re-route or yield to the user's
 | 19 | "competitor brief", "phân tích đối thủ", "landscape brief", "threat assessment" | `odoo-competitive-brief` | Structured CEO/board briefing on a competitor (vs `odoo-objection-handler` for sales counter-talking-points) |
 | 20 | "deploy checklist", "checklist trước khi đẩy lên prod", "go-live checklist", "pre-deploy safety" | `odoo-deploy-checklist` | Pre-deployment safety items (vs `odoo-deprecation-audit` for code-level upgrade audit) |
 | 21 | "tao mới clone repo Odoo", "set up odoo-semantic for this project", "first time setup" | `odoo-onboard` | Project-context bootstrap (vs `/odoo-semantic:connect` slash command for server URL/key setup) |
+| 22 | "setup MCP server URL + API key" | `/odoo-semantic:connect` (command) | One-time infra setup, not work |
+| 23 | "full bid response" / "viết phản hồi RFP đầy đủ" / "đầy đủ proposal cho prospect" | `/odoo-bid-respond` (command) | Multi-step proposal chain (vs `odoo-discovery-summarize` or `odoo-capability-proof` alone) |
+| 24 | "viết email follow up khách" + explicit save-to-file ask | `/odoo-customer-followup-draft` (command) | Wraps `odoo-deal-followup` with save step (skill alone for just draft text) |
+| 25 | "synthesize discovery notes" + explicit slash kickoff | `/odoo-discovery-quick` (command) | Quick slash for `odoo-discovery-summarize` skill (bypass router for explicit kickoff) |
+| 26 | "position feature X for [slide/blog/email/proposal]" | `/odoo-feature-positioning` (command) | Multi-step chain (vs `odoo-feature-check` for existence-only) |
+| 27 | "full upgrade plan from v<N> to v<M>" | `/odoo-upgrade-plan-full` (command) | Replaces legacy `odoo-upgrade-planner` agent; chains 4 skills + effort estimate |
 
 ## Standalone-first fallback
 
@@ -104,7 +121,7 @@ Router skill là pure text recommendation — không gọi MCP tool nào. Không
 
 ## Collision Test Cases — Worked Examples
 
-These are the three known collision zones where two skill descriptions overlap. Use these as the canonical resolution logic.
+These are the five known collision zones where two skill descriptions overlap. Use these as the canonical resolution logic.
 
 ### Collision 1 — Objection vs Capability Proof
 
@@ -149,6 +166,17 @@ If the user had said "audit codebase của khách trước khi nâng cấp v17" 
 **Discriminator**: "chưa reply" (silence) + "follow-up" signal the user wants a re-engagement email, not a counter to an objection. → **Pick `odoo-deal-followup`.**
 
 If the user had said "khách bảo Odoo không support gì, tao cần viết phản hồi" → that would be `odoo-objection-handler`.
+
+### Collision 5 — Skill vs Command (same domain)
+
+**Prompt**: "synthesize these discovery notes for the Acme deal"
+
+- `odoo-discovery-summarize` (SKILL, row 16): description matches "synthesize discovery notes", "extract customer profile" → produces structured profile.
+- `/odoo-discovery-quick` (COMMAND, row 25): same purpose but is the slash-command wrapper.
+
+**Discriminator**: no slash prefix in user prompt + intent is single-step (just synthesize, not save) → **Pick SKILL `odoo-discovery-summarize`**.
+
+If the user had typed "/odoo-discovery-quick" → command invokes directly (router not consulted). If user said "synthesize discovery + save to .odoo-ai/" → recommend the COMMAND for the save step.
 
 ## Output Format
 
@@ -236,7 +264,7 @@ Intent của bạn có thể map vào 2 skill:
 
 ## Notes for future maintainers
 
-- Routing table currently lists 21 entries (Phase A baseline 15 + Phase B merge & expansion: rows 14–15 consolidated, rows 15–21 added). Update both the table AND the collision-test cases when adding entries.
+- Routing table currently lists 27 entries (Phase A baseline 15 + Phase B merge & expansion: rows 14–15 consolidated, rows 15–21 added + Phase D command entries: rows 22–27 added). Update both the table AND the collision-test cases when adding entries.
 - Trigger description optimization is scheduled for Phase D via `/skill-creator` Mode 5 (`run_loop.py`) with a 20-query trigger eval set.
 - Phase A eval set (15 cases in `evals/evals.json`) is descriptive — not graded. Use `/skill-creator` Mode 5 + `run_loop.py` in Phase D AC-D6 for graded trigger accuracy score.
 - See `docs/refinement-plan-2026-05-28.md` §"Phase A — A3 Router skill" for full design rationale.

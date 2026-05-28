@@ -88,7 +88,7 @@ On user "yes":
 
 ## Examples
 
-**Example 1 (abstract):** Customer: "Khach-A" (Vietnam-based); last touch: 2026-04-30 (28 days ago); pipeline stage: "Proposal sent"; blocker: "waiting on technical evaluation from customer's IT team". Skill assesses **HIGH risk** (customer is silent, evaluating alternatives), recommends **"schedule a 30-min call to unblock evaluation"**, drafts a warm but concise email offering technical support and a concrete call time.
+**Example 1 (abstract):** Customer: "Khách A" (Vietnam-based); last touch: 2026-04-30 (28 days ago); pipeline stage: "Proposal sent"; blocker: "waiting on technical evaluation from customer's IT team". Skill assesses **HIGH risk** (customer is silent, evaluating alternatives), recommends **"schedule a 30-min call to unblock evaluation"**, drafts a warm but concise email offering technical support and a concrete call time.
 
 ## Standalone fallback
 

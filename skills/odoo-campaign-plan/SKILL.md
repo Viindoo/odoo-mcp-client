@@ -311,12 +311,12 @@ When OSM is unreachable or the skill is used without MCP configuration:
 
 **Summary of plan output:**
 
-- **Title**: "Campaign Plan: MRP cho Nha May Noi That Mien Bac — Q3 2026"
-- **Angle**: Vertical pain → product fit ("Quan ly nguyen lieu bang Excel → MRP tu dong hoa
-  ke hoach san xuat")
-- **Timeline**: Tuan 1-2 nhan thuc (bai blog "5 dau hieu Excel khong du"); Tuan 3-4 san pham
-  (demo video MRP, email sequence 3 email); Tuan 5-6 conversion (landing page CTA, Google Ads
-  remarketing den nguoi da doc blog)
+- **Title**: "Campaign Plan: MRP cho Nhà Máy Nội Thất Miền Bắc — Q3 2026"
+- **Angle**: Vertical pain → product fit ("Quản lý nguyên liệu bằng Excel → MRP tự động hóa
+  kế hoạch sản xuất")
+- **Timeline**: Tuần 1-2 nhận thức (bài blog "5 dấu hiệu Excel không đủ"); Tuần 3-4 sản phẩm
+  (demo video MRP, email sequence 3 email); Tuần 5-6 conversion (landing page CTA, Google Ads
+  remarketing đến người đã đọc blog)
 - **Channel mix**: Blog 20% / LinkedIn 25% / Email 25% / Google Ads 20% / Landing page 10%
 - **KPI leading**: blog unique visitors/week (target: +30% vs. baseline), email open rate >30%
 - **KPI lagging**: demo requests submitted (target: 15 trong 6 tuan), cost per demo <$25
@@ -358,8 +358,8 @@ When OSM is unreachable or the skill is used without MCP configuration:
   visual assets — but reference `Viindoo Brand Assets` when the plan includes a landing page
   brief or visual design spec that will be handed to a designer.
 - **No fabricated data**: NEVER invent customer names, real revenue figures, or hard ROI
-  percentages in the plan. Use abstract templates: "Mot doanh nghiep san xuat tai mien Nam
-  voi ~150 nhan su" or "A trading company in the FMCG sector reported...". If the user
+  percentages in the plan. Use abstract templates: "Một doanh nghiệp sản xuất tại miền Nam
+  với ~150 nhân sự" or "A trading company in the FMCG sector reported...". If the user
   provides real data verbally, incorporate it with attribution.
 - **Depth rule**: this skill operates at depth 1 (called from main agent). It does NOT invoke
   other skills or spawn subagents. The campaign plan is a text deliverable — the marketer

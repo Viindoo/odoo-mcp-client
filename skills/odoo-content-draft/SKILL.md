@@ -72,10 +72,10 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 
 2. **Customer-outcome-focused**: lead with business outcome, not software feature.
    - BAD: "He thong co module MRP voi BOM multi-level."
-   - GOOD: "Quan ly nguyen lieu cho 200+ ma hang ma khong lo ton kho - MRP tu dong canh bao."
+   - GOOD: "Quản lý nguyên liệu cho 200+ mã hàng mà không lo tồn kho - MRP tự động cảnh báo."
 
 3. **Cite specifics, not vague claims**:
-   - BAD: "Phan mem cua chung toi rat manh me va hieu suat cao."
+   - BAD: "Phần mềm của chúng tôi rất mạnh mẽ và hiệu suất cao."
    - GOOD: "Giam thoi gian xu ly don hang tu vai ngay xuong vai gio — tuy benchmark trien khai tung khach hang."
    - When you cannot cite a verified number, use relative language: "Giam tu 3 ngay xuong con
      vai gio" or abstract it: "Doanh nghiep X trong nganh Y ghi nhan..."
@@ -86,7 +86,7 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
    "Sales Order", "Odoo 17").
 
 5. **Vocabulary discipline**:
-   - Vietnamese: prefer "phat huy", "van dung", "tich hop", "tu dong hoa" over awkward
+   - Vietnamese: prefer "phát huy", "vận dụng", "tích hợp", "tự động hóa" over awkward
      loan-word jargon. Avoid "synergy" transliterated.
    - English: avoid "leverage", "synergize", "holistic", "game-changer", "revolutionary".
      Prefer "use", "combine", "end-to-end", "practical".
@@ -185,37 +185,37 @@ When OSM is unreachable or the skill is used without MCP configuration:
 
 2. Insert `<TBD: verify Odoo has feature X>` placeholders where a specific module claim
    needs verification before publishing. Example:
-   > "Voi tinh nang quan ly kho da cap do `<TBD: verify module name in target version>`,
-   >  doanh nghiep co the..."
+   > "Với tính năng quản lý kho đa cấp độ `<TBD: verify module name in target version>`,
+   >  doanh nghiệp có thể..."
 
 3. Add a note at the end of the draft:
-   > _Note: Cac placeholder `<TBD: ...>` can duoc nguoi phu trach ky thuat xac nhan truoc
-   > khi xuat ban. Dung cong cu `check_module_exists` khi OSM kha dung._
+   > _Note: Các placeholder `<TBD: ...>` có thể được người phụ trách kỹ thuật xác nhận trước
+   > khi xuất bản. Dùng công cụ `check_module_exists` khi OSM khả dụng._
 
 ## Examples
 
 ### Example 1 - Vietnamese LinkedIn post (Manufacturing / SME audience)
 
-**Input**: Topic = "Odoo MRP giup nha may nho kiem soat nguyen vat lieu", Channel = LinkedIn,
-Audience = Giam doc san xuat / Chu doanh nghiep nganh san xuat, Language = VI
+**Input**: Topic = "Odoo MRP giúp nhà máy nhỏ kiểm soát nguyên vật liệu", Channel = LinkedIn,
+Audience = Giám đốc sản xuất / Chủ doanh nghiệp ngành sản xuất, Language = VI
 
 **Output draft**:
 
-> **Ban dang quan ly nguyen vat lieu bang file Excel - va ban biet minh se sai sot.**
+> **Bạn đang quản lý nguyên vật liệu bằng file Excel - và bạn biết mình sẽ sai sót.**
 >
-> Mot nha may san xuat noi that tai mien Nam voi hon 80 ma nguyen lieu phai doi mat voi bai
-> toan nay moi tuan: ton kho tren giay khac hien thuc nha kho, lenh san xuat phat ra ma
-> nguyen lieu chua ve kip, va ke toan phai goi xuong san de hoi so lieu.
+> Một nhà máy sản xuất nội thất tại miền Nam với hơn 80 mã nguyên liệu phải đối mặt với bài
+> toán này mỗi tuần: tồn kho trên giấy khác hiện thực nhà kho, lệnh sản xuất phát ra mà
+> nguyên liệu chưa về kịp, và kế toán phải gọi xuống sân để hỏi số liệu.
 >
-> Sau khi trien khai module MRP cua Odoo, he thong tu dong:
-> - Tinh toan nhu cau nguyen lieu theo ke hoach san xuat (Bill of Materials tu dong)
-> - Canh bao truoc 5-7 ngay khi nguyen lieu sap het
-> - Dong bo so lieu ton kho theo thoi gian thuc voi ke toan
+> Sau khi triển khai module MRP của Odoo, hệ thống tự động:
+> - Tính toán nhu cầu nguyên liệu theo kế hoạch sản xuất (Bill of Materials tự động)
+> - Cảnh báo trước 5-7 ngày khi nguyên liệu sắp hết
+> - Đồng bộ số liệu tồn kho theo thời gian thực với kế toán
 >
-> Ket qua: giam thoi gian lap ke hoach san xuat tu 2 ngay xuong con vai gio. Khong can them
-> nhan su - chi can he thong lam dung viec.
+> Kết quả: giảm thời gian lập kế hoạch sản xuất từ 2 ngày xuống còn vài giờ. Không cần thêm
+> nhân sự - chỉ cần hệ thống làm đúng việc.
 >
-> Ban dang quan ly san xuat bang cach nao? Comment de minh chia se them kinh nghiem.
+> Bạn đang quản lý sản xuất bằng cách nào? Comment để mình chia sẻ thêm kinh nghiệm.
 >
 > #OdooVietnam #QuanLySanXuat #MRP #ViindooERP #SMEVietNam
 

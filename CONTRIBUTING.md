@@ -23,6 +23,18 @@ You also need a running MCP server to exercise the tools end-to-end — point
 `/odoo-semantic:connect` at the hosted instance (`https://odoo-semantic.viindoo.com/mcp`)
 or a [self-hosted server](https://github.com/Viindoo/odoo-semantic-server).
 
+### Pre-commit hooks
+
+Before pushing, install the confidentiality pre-commit hook to catch Viindoo-internal data
+leaks (vault paths, personal email, /home/tuan/. paths):
+
+```bash
+git config --local core.hooksPath .githooks/
+```
+
+The hook blocks hard-fail patterns (vault path, personal email) and issues warnings for
+sensitive numeric values (pricing/OKR figures). Run `make validate && make test` as well.
+
 ## What lives where
 
 | Path | Contents |
