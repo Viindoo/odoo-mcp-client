@@ -1,7 +1,7 @@
 # MCP Tool × Persona × Adapter Routing Matrix
 
 > **Generated:** 2026-05-28T00:00:00Z  
-> **Server version:** 0.8.0 (PR #162)  
+> **Server version:** 0.11.1 (PR #162)  
 > **Source:** `generator/server-surface.json` — edit that file and run `make gen` to update.
 > **v0.6 change:** 10 legacy tools (`resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches`) were removed. Use the superset tools (`model_inspect`, `module_inspect`, `entity_lookup`) instead.
 
@@ -64,7 +64,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 | `odoo://{version}/view/{xmlid}` | View record: xpath chain, inherit_id, language, arch. |
 | `odoo://{version}/module/{name}` | Module record: manifest, defines/extends counts, license notice if restricted. |
 | `odoo://{version}/pattern/{name}` | Pattern catalogue entry: code snippet, gotchas, language, min version. |
-| `odoo://{version}/stylesheet/{file_path}` | Stylesheet record: selectors, imports, variables, language (CSS/SCSS/LESS). |
+| `odoo://{version}/stylesheet/{module}/{file_path*}` | Stylesheet record: selectors, imports, variables, language (CSS/SCSS/LESS). |
 
 ---
 
@@ -77,7 +77,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 | **Description** | Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call. Supersedes removed resolve_model, list_fields, list_methods, list_views (v0.6). |
 | **Personas** | dev, CEO, consultant |
 | **Required params** | `model`, `method` |
-| **Optional params** | `odoo_version`, `field`, `method_name`, `limit`, `profile_name`, `from_module`, `kind`, `view_type` |
+| **Optional params** | `odoo_version`, `profile_name`, `field`, `method_name`, `start_index`, `limit`, `from_module`, `kind`, `view_type` |
 | **Example call** | `model_inspect(model='sale.order', method='fields')` |
 | **Routing keywords** | inspect model, fields of model, methods of model, views of model, model summary, full structure of model, everything about model, model schema, list fields, model_inspect |
 
@@ -85,10 +85,10 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call. Supersedes removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (v0.6). |
+| **Description** | Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call. method ∈ {summary, views, owl, qweb, js, dependencies}. Supersedes removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (v0.6). method='dependencies' added v0.10.0. method='summary' shares describe_module's output and may include a 'License notice:' line for license-restricted modules (server v0.9.1+) — surface it to the user; do not retry or fabricate omitted content. |
 | **Personas** | dev, CEO, consultant, marketer, sales |
 | **Required params** | `name`, `method` |
-| **Optional params** | `odoo_version`, `profile_name`, `limit`, `view_type`, `bound_model`, `era`, `target` |
+| **Optional params** | `odoo_version`, `profile_name`, `start_index`, `limit`, `view_type`, `bound_model`, `era`, `target` |
 | **Example call** | `module_inspect(name='sale_management', method='summary')` |
 | **Routing keywords** | inspect module, module architecture, module UI artefacts, OWL components in module, QWeb templates in module, JS patches in module, module views, module overview, module_inspect |
 
@@ -99,7 +99,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 | **Description** | Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module. Supersedes removed resolve_field, resolve_method, resolve_view (v0.6). |
 | **Personas** | dev |
 | **Required params** | `kind` |
-| **Optional params** | `odoo_version`, `model`, `field`, `method_name`, `xmlid`, `from_module` |
+| **Optional params** | `odoo_version`, `profile_name`, `model`, `field`, `method_name`, `xmlid`, `name`, `from_module` |
 | **Example call** | `entity_lookup(kind='field', model='sale.order', field='amount_total')` |
 | **Routing keywords** | lookup field, lookup method, lookup view, drill down on entity, find method on model, find field on model, override chain, entity_lookup |
 
@@ -110,7 +110,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 | **Description** | Semantic code search returning real indexed code snippets from the Odoo codebase. |
 | **Personas** | dev, consultant, marketer, sales |
 | **Required params** | `query` |
-| **Optional params** | `odoo_version`, `limit`, `chunk_types` |
+| **Optional params** | `odoo_version`, `limit`, `context_module`, `chunk_types`, `profile_name` |
 | **Example call** | `find_examples(query='wizard with transient model')` |
 | **Routing keywords** | show me examples, code example for, how is X used in codebase, real examples of, implementation example, find_examples |
 
@@ -121,7 +121,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 | **Description** | Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields. |
 | **Personas** | CEO, dev |
 | **Required params** | `entity_type`, `entity_name` |
-| **Optional params** | `odoo_version` |
+| **Optional params** | `odoo_version`, `profile_name` |
 | **Example call** | `impact_analysis(entity_type='field', entity_name='sale.order.amount_total')` |
 | **Routing keywords** | what breaks if I change, impact of modifying, blast radius, dependencies of field, dependencies of method, safe to remove, risk of changing, impact_analysis |
 
@@ -153,8 +153,8 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Scan the indexed codebase for usages of deprecated API patterns. |
 | **Personas** | CEO, dev |
-| **Required params** | `odoo_version` |
-| **Optional params** | `kind` |
+| **Required params** | _(none)_ |
+| **Optional params** | `odoo_version`, `kind`, `profile_name` |
 | **Example call** | `find_deprecated_usage(odoo_version='17.0')` |
 | **Routing keywords** | deprecated API in code, pre-upgrade audit, deprecated patterns, upgrade risk scan, code using old API, find_deprecated_usage |
 
@@ -198,7 +198,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 | **Description** | Verify module availability, edition (CE/EE/Viindoo), and cross-version presence. |
 | **Personas** | CEO, dev, consultant, marketer, sales |
 | **Required params** | `name` |
-| **Optional params** | `odoo_version` |
+| **Optional params** | `odoo_version`, `profile_name` |
 | **Example call** | `check_module_exists(name='sale_management', odoo_version='17.0')` |
 | **Routing keywords** | does module exist, is module in CE or EE, check if feature is in standard Odoo, module available in version, is feature standard, CE vs EE check, check_module_exists |
 
@@ -217,7 +217,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Module manifest + defined/extended model counts + view/JS inventory in one call. Note: module_inspect(method='summary') returns the same data plus extras. May include a License notice for restricted modules (server v0.9.1+). |
+| **Description** | Module manifest + defined/extended model counts + view/JS inventory in one call. Note: module_inspect(method='summary') returns the same data plus extras. Output may include a 'License notice:' line for license-restricted modules (server v0.9.1+, ADR-0036). OEEL-1 modules are skipped by default — the notice is the intentional non-silent marker that content is withheld; surface it to the user, do not retry or fabricate the omitted content. |
 | **Personas** | CEO, dev, consultant, marketer, sales |
 | **Required params** | `name` |
 | **Optional params** | `odoo_version`, `profile_name` |
@@ -408,4 +408,4 @@ Plugin skills can claim overlapping trigger keywords. Standard resolution policy
 | **validate_depends** ⊕ | ✓ | ✓ | ✓ |
 | **validate_relation** ⊕ | ✓ | ✓ | ✓ |
 
-> **v0.8.0 tool surface (24 tools + 7 resources):** All tools are reached via HTTP MCP protocol to the Odoo Semantic MCP server. No logic is duplicated — only routing heuristics.
+> **v0.11.1 tool surface (24 tools + 7 resources):** All tools are reached via HTTP MCP protocol to the Odoo Semantic MCP server. No logic is duplicated — only routing heuristics.

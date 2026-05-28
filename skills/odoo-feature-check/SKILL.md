@@ -31,7 +31,7 @@ Consultant / Developer
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
@@ -40,7 +40,7 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 - `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 <!-- END GENERATED TOOLS -->
 
@@ -79,7 +79,7 @@ be formulated from the requirement even if Round 1 shows partial coverage — th
 independent of each other.
 
 **Round 3 — Deep dive (when `check_module_exists` confirms presence):** Call
-`module_inspect(module=<name>, method='summary')` to surface the module's full
+`module_inspect(name=<name>, method='summary')` to surface the module's full
 architecture: manifest summary, which models it defines vs extends, view count, and JS patch
 count. This gives the consultant a confident, evidence-backed answer about what the module
 actually covers — beyond the bare "exists / does not exist" signal. If the module is confirmed

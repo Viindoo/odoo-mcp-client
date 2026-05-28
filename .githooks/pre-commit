@@ -3,22 +3,19 @@
 # All content checks use `git show :"$f"` to read the STAGED blob,
 # not the working-tree file. Closes the stage-then-clean bypass vector.
 
-set -e
+set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-STAGED=$(git diff --cached --name-only --diff-filter=AM)
-[ -z "$STAGED" ] && exit 0
-
 SCAN_FILES=()
-for f in $STAGED; do
+while IFS= read -r -d '' f; do
     case "$f" in
         *.md|*.json|*.py|*.yaml|*.yml)
             SCAN_FILES+=("$f")
             ;;
     esac
-done
+done < <(git diff --cached --name-only -z --diff-filter=AM)
 
 [ ${#SCAN_FILES[@]} -eq 0 ] && exit 0
 
@@ -29,20 +26,16 @@ staged_content() {
 HARD_FAIL=0
 
 for f in "${SCAN_FILES[@]}"; do
-    # Pattern 1: vault path — allow plan file (documents ban list)
-    if [[ "$f" != "docs/refinement-plan-2026-05-28.md" ]]; then
-        if staged_content "$f" | grep -qE '/home/tuan/git/obsidian-vault'; then
-            echo "ERROR: vault path leaked in staged blob: $f" >&2
-            HARD_FAIL=1
-        fi
+    # Pattern 1: vault path
+    if staged_content "$f" | grep -qE '/home/tuan/git/obsidian-vault'; then
+        echo "ERROR: vault path leaked in staged blob: $f" >&2
+        HARD_FAIL=1
     fi
 
-    # Pattern 2: personal /home/tuan/. — allow plan file
-    if [[ "$f" != "docs/refinement-plan-2026-05-28.md" ]]; then
-        if staged_content "$f" | grep -qE '/home/tuan/\.'; then
-            echo "ERROR: personal path /home/tuan/. leaked in staged blob: $f" >&2
-            HARD_FAIL=1
-        fi
+    # Pattern 2: personal /home/tuan/.
+    if staged_content "$f" | grep -qE '/home/tuan/\.'; then
+        echo "ERROR: personal path /home/tuan/. leaked in staged blob: $f" >&2
+        HARD_FAIL=1
     fi
 
     # Pattern 3: personal email

@@ -168,7 +168,6 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 |-------|-------|------|
 | `odoo-coder` | Sonnet | Agent bundle for code writing — invoked by main agent and commands; depth-1 safe with restricted-tool autonomy |
 | `odoo-code-reviewer` | Sonnet | Agent bundle for code review — runs full PR-scope analysis with OSM grounding |
-| `odoo-upgrade-planner` | Sonnet | DEPRECATED → use `/odoo-upgrade-plan-full` command |
 
 ## Available commands
 

@@ -581,6 +581,14 @@ def inject_markers_into_file(path: Path, new_block: str) -> bool:
             end_idx = i
             break
 
+    # Orphan guard: BEGIN without END corrupts on next gen (Case 2 would insert a
+    # second BEGIN/END pair, then subsequent runs would replace the wrong window).
+    if begin_idx is not None and end_idx is None:
+        raise RuntimeError(
+            f"orphan BEGIN marker in {path}: "
+            f"<!-- BEGIN GENERATED TOOLS --> at line {begin_idx + 1} has no matching END"
+        )
+
     if begin_idx is not None and end_idx is not None:
         # Replace content between markers (keep markers)
         new_content = (
@@ -651,6 +659,14 @@ def inject_markers_into_snippet(path: Path, new_block: str) -> bool:
         elif end_re.match(line) and begin_idx is not None:
             end_idx = i
             break
+
+    # Orphan guard: BEGIN without END would silently get a second pair appended below,
+    # corrupting subsequent gens. Hard-fail with the offending line for a clean fix.
+    if begin_idx is not None and end_idx is None:
+        raise RuntimeError(
+            f"orphan BEGIN marker in {path}: "
+            f"<!-- BEGIN GENERATED TOOLS --> at line {begin_idx + 1} has no matching END"
+        )
 
     if begin_idx is not None and end_idx is not None:
         new_content = (

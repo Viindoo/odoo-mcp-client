@@ -228,39 +228,39 @@ Using odoo-semantic, show me the full inheritance chain of sale.order in Odoo 17
 ## Generated Tool Surface
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.8.0. Generated from `generator/server-surface.json`. Run `make gen` to update._
+_Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. Run `make gen` to update._
 
-Use these tools based on what the user is asking (v0.8.0 surface):
+Use these tools based on what the user is asking (v0.11.1 surface):
 
 ### model_inspect ★
 TRIGGER: inspect model
 PREFER: Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
 ARGS (required): model, method
-ARGS (optional): odoo_version, field, method_name, limit, profile_name, from_module, kind, view_type
+ARGS (optional): odoo_version, profile_name, field, method_name, start_index, limit, from_module, kind, view_type
 
 ### module_inspect ★
 TRIGGER: inspect module
-PREFER: Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+PREFER: Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 ARGS (required): name, method
-ARGS (optional): odoo_version, profile_name, limit, view_type, bound_model, era, target
+ARGS (optional): odoo_version, profile_name, start_index, limit, view_type, bound_model, era, target
 
 ### entity_lookup ★
 TRIGGER: lookup field
 PREFER: Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
 ARGS (required): kind
-ARGS (optional): odoo_version, model, field, method_name, xmlid, from_module
+ARGS (optional): odoo_version, profile_name, model, field, method_name, xmlid, name, from_module
 
 ### find_examples
 TRIGGER: show me examples
 PREFER: Semantic code search returning real indexed code snippets from the Odoo codebase.
 ARGS (required): query
-ARGS (optional): odoo_version, limit, chunk_types
+ARGS (optional): odoo_version, limit, context_module, chunk_types, profile_name
 
 ### impact_analysis
 TRIGGER: what breaks if I change
 PREFER: Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
 ARGS (required): entity_type, entity_name
-ARGS (optional): odoo_version
+ARGS (optional): odoo_version, profile_name
 
 ### lookup_core_api
 TRIGGER: is API deprecated
@@ -276,8 +276,7 @@ ARGS (required): symbol, from_version, to_version
 ### find_deprecated_usage
 TRIGGER: deprecated API in code
 PREFER: Scan the indexed codebase for usages of deprecated API patterns.
-ARGS (required): odoo_version
-ARGS (optional): kind
+ARGS (optional): odoo_version, kind, profile_name
 
 ### lint_check
 TRIGGER: lint check
@@ -299,7 +298,7 @@ ARGS (optional): odoo_version, language, limit
 TRIGGER: does module exist
 PREFER: Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 ARGS (required): name
-ARGS (optional): odoo_version
+ARGS (optional): odoo_version, profile_name
 
 ### find_override_point
 TRIGGER: where to override
@@ -375,5 +374,5 @@ ARGS (optional): odoo_version, profile_name
 - `odoo://{version}/view/{xmlid}` — View record: xpath chain, inherit_id, language, arch.
 - `odoo://{version}/module/{name}` — Module record: manifest, defines/extends counts, license notice if restricted.
 - `odoo://{version}/pattern/{name}` — Pattern catalogue entry: code snippet, gotchas, language, min version.
-- `odoo://{version}/stylesheet/{file_path}` — Stylesheet record: selectors, imports, variables, language (CSS/SCSS/LESS).
+- `odoo://{version}/stylesheet/{module}/{file_path*}` — Stylesheet record: selectors, imports, variables, language (CSS/SCSS/LESS).
 <!-- END GENERATED TOOLS -->

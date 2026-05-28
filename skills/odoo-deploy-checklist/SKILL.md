@@ -42,7 +42,7 @@ to a 3-5 person dev shop. Output is operational and actionable, not executive-le
 ## MCP tools
 
 <!-- BEGIN MANUAL TOOLS — odoo-deploy-checklist -->
-_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (optional — call once if version not already pinned):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version context for the session (24h TTL per API key). Omit `odoo_version` on subsequent calls once pinned.
@@ -163,7 +163,7 @@ If OSM is reachable, fire these calls in parallel:
 
 ```
 check_module_exists(module=<each_module>, odoo_version=<target>)   # one call per module
-module_inspect(module=<each_module>)                                # one call per module
+module_inspect(name=<each_module>)                                # one call per module
 find_deprecated_usage(scope=<module_list>)                         # one call
 ```
 

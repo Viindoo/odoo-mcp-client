@@ -263,33 +263,33 @@ Replace `https://odoo-semantic.viindoo.com` with `http://127.0.0.1:8002` for loc
 ## Generated Tool Surface
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.8.0. Generated from `generator/server-surface.json`. Run `make gen` to update._
+_Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. Run `make gen` to update._
 
-**TOOLS (generated — v0.8.0):**
+**TOOLS (generated — v0.11.1):**
 
 **model_inspect** ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
   REQUIRED: model, method
-  OPTIONAL: odoo_version, field, method_name, limit, profile_name, from_module, kind, view_type
+  OPTIONAL: odoo_version, profile_name, field, method_name, start_index, limit, from_module, kind, view_type
   WHEN: inspect model
 
-**module_inspect** ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+**module_inspect** ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
   REQUIRED: name, method
-  OPTIONAL: odoo_version, profile_name, limit, view_type, bound_model, era, target
+  OPTIONAL: odoo_version, profile_name, start_index, limit, view_type, bound_model, era, target
   WHEN: inspect module
 
 **entity_lookup** ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
   REQUIRED: kind
-  OPTIONAL: odoo_version, model, field, method_name, xmlid, from_module
+  OPTIONAL: odoo_version, profile_name, model, field, method_name, xmlid, name, from_module
   WHEN: lookup field
 
 **find_examples** — Semantic code search returning real indexed code snippets from the Odoo codebase.
   REQUIRED: query
-  OPTIONAL: odoo_version, limit, chunk_types
+  OPTIONAL: odoo_version, limit, context_module, chunk_types, profile_name
   WHEN: show me examples
 
 **impact_analysis** — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
   REQUIRED: entity_type, entity_name
-  OPTIONAL: odoo_version
+  OPTIONAL: odoo_version, profile_name
   WHEN: what breaks if I change
 
 **lookup_core_api** — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
@@ -302,8 +302,7 @@ _Tool surface: server v0.8.0. Generated from `generator/server-surface.json`. Ru
   WHEN: what changed between versions
 
 **find_deprecated_usage** — Scan the indexed codebase for usages of deprecated API patterns.
-  REQUIRED: odoo_version
-  OPTIONAL: kind
+  OPTIONAL: odoo_version, kind, profile_name
   WHEN: deprecated API in code
 
 **lint_check** — Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.9.1+).
@@ -321,7 +320,7 @@ _Tool surface: server v0.8.0. Generated from `generator/server-surface.json`. Ru
 
 **check_module_exists** — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
   REQUIRED: name
-  OPTIONAL: odoo_version
+  OPTIONAL: odoo_version, profile_name
   WHEN: does module exist
 
 **find_override_point** — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
@@ -386,5 +385,5 @@ _Tool surface: server v0.8.0. Generated from `generator/server-surface.json`. Ru
 - `odoo://{version}/view/{xmlid}` — View record: xpath chain, inherit_id, language, arch.
 - `odoo://{version}/module/{name}` — Module record: manifest, defines/extends counts, license notice if restricted.
 - `odoo://{version}/pattern/{name}` — Pattern catalogue entry: code snippet, gotchas, language, min version.
-- `odoo://{version}/stylesheet/{file_path}` — Stylesheet record: selectors, imports, variables, language (CSS/SCSS/LESS).
+- `odoo://{version}/stylesheet/{module}/{file_path*}` — Stylesheet record: selectors, imports, variables, language (CSS/SCSS/LESS).
 <!-- END GENERATED TOOLS -->

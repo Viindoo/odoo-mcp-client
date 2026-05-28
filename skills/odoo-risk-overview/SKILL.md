@@ -34,7 +34,7 @@ CEO / CTO / Project Sponsor
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
@@ -45,7 +45,7 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 - `find_deprecated_usage` — Scan the indexed codebase for usages of deprecated API patterns.
 - `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -87,7 +87,7 @@ all at once. None of these depend on each other's results.
 
 **Round 2 — Parallel:** Call `model_inspect(model=…, method='fields')` on the most heavily
 customized models identified from Round 1 results. Simultaneously call
-`module_inspect(module=<name>, method='summary')` for each custom module in scope — this
+`module_inspect(name=<name>, method='summary')` for each custom module in scope — this
 surfaces JS patch counts, view counts, and models defined/extended, which the executive
 table needs. Both calls are independent; fire them together. If hotspot models are already
 known from context, include `model_inspect` calls in Round 1 as well to reduce to a single

@@ -41,6 +41,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Agent bundle tools allowlist missing `set_active_version` — both `odoo-coder` and `odoo-code-reviewer` agents had this fixed (would have caused runtime denial of the first MCP call).
 - Marker labels in 5 new B.2 skills renamed from `BEGIN GENERATED TOOLS` to honest `BEGIN MANUAL TOOLS — <name>` (since these skills are in `SKIP_SKILL_DIRS`).
 
+### Refinement history (v0.8 → v1.0)
+
+Plugin grew from a thin 24-tool OSM mirror into a 22-skill + 3-agent + 6-command
+AI workforce toolkit organized around 8 specialist personas (Engineer, Coder,
+Code-Reviewer, Pre-Sales, Sales AE, Marketer, Strategist, Onboarding-Concierge).
+
+Delivered across 4 phases (Foundation → Specialists → Workflows → Polish) in
+a multi-wave parallel orchestration using Sonnet subagents with disjoint file
+ownership. Key engineering decisions: persona-as-skill-default with two
+agent+skill bundles for restricted-tool autonomy; SSOT generator for tool surface;
+skill-creator quality-gated router and onboard skills; depth-rule enforced at
+every subagent prompt.
+
+Detailed orchestration log retained internally.
+
 ### Migration notes
 - Users invoking the legacy `odoo-upgrade-planner` agent should switch to `/odoo-upgrade-plan-full` slash command.
 - `commands/discovery-summarize.md` was renamed to `commands/discovery-quick.md` (slash command is now `/odoo-discovery-quick` — the skill `odoo-discovery-summarize` retains its name for natural-language invocation).
@@ -49,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Deferred to v1.1.0
 - AC-D6: router trigger optimization via `/skill-creator` Mode 5 + `run_loop.py`. The 20-query eval set is authored in `skills/odoo-router/evals/evals.json` (15 cases) + the 5 collision-test cases in `skills/odoo-router/SKILL.md`. Mode 5 requires the Claude Code subprocess API, which is CC-only; multi-runtime parity is verified manually via `tests/smoke/runtime_parity.md` for v1.0.0. Re-runnable in v1.1.0 after multi-runtime smoke is fully executed.
 - AC-D8 CI version-sync test: VERSION ↔ plugin.json sync is currently manual. Add a CI assertion in v1.1.0 (e.g., `test_version_sync` in `tests/test_plugin_schema.py`).
-- Confidentiality scan marker convention: PR #14 used file-name allowlist (`docs/refinement-plan-2026-05-28.md` exempted in both CI workflow and pre-commit hook) for minimal change scope. v1.1.0 should adopt a marker convention (e.g., `<!-- confidentiality-exempt: reason -->` HTML comment) so any documentation file can opt into vault-path mention without growing the allowlist; both the CI workflow and the pre-commit hook would key off the marker rather than a hard-coded path list.
+- Confidentiality scan marker convention: PR #14 wave-2 removed the file-name allowlist entirely by moving the refinement plan to internal AI-Memory. v1.1.0 may adopt an opt-in HTML marker convention (e.g., `<!-- confidentiality-exempt: reason -->`) if any future public doc must legitimately reference a vault path — currently no such file exists, so defense-in-depth is restored without an allowlist.
 
 ## [0.8.0] - 2026-05-21
 

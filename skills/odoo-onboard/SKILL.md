@@ -287,4 +287,4 @@ Wait for user.
 - Phase B will add Round -1 to all existing skills; until then, context file is harmless if other skills don't read it.
 - The 30-day refresh threshold is a guess — adjust based on user feedback. Common refresh triggers: Odoo version upgrade, new custom module added, new team member joins (different conventions).
 - Trigger description optimization is scheduled for Phase D via `/skill-creator` Mode 5 with a 20-query trigger eval set (combined with `odoo-router`).
-- See `docs/refinement-plan-2026-05-28.md` §"Phase A — A4 Onboarding skill" for full design rationale.
+- See internal orchestration log for full design rationale.

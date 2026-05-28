@@ -31,7 +31,7 @@ Developer / Tech Lead
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
@@ -41,7 +41,7 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 - `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
 - `find_deprecated_usage` — Scan the indexed codebase for usages of deprecated API patterns.
 - `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -88,7 +88,7 @@ deprecated/removed symbols in one batch. Every call is independent — fire them
 methods simultaneously. These calls are independent of each other and of Round 2 lookups.
 
 **Round 3b — JS patch audit (when migrating from v8–v13):** Call
-`module_inspect(module=<scope>, method='js')` to enumerate all legacy `web.Widget`-based
+`module_inspect(name=<scope>, method='js')` to enumerate all legacy `web.Widget`-based
 patches in scope. Era1 (v8–v13) patches require manual OWL rewrites because the Widget API
 was removed in v16. Flag each patch as BREAKING if the target version is v14+ and the patch
 still references `AbstractField`, `FieldWidget`, or `web.Widget`. This call is independent of

@@ -31,7 +31,7 @@ CEO / CTO / Project Manager
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
@@ -41,7 +41,7 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -82,7 +82,7 @@ of each other.
 
 **Round 2.5 — Per-module architecture drill-down (parallel):** For each Viindoo or Custom
 module that the executive wants to understand more deeply, call
-`module_inspect(module=<name>, method='summary')`. This returns a concise tree showing the
+`module_inspect(name=<name>, method='summary')`. This returns a concise tree showing the
 module's manifest metadata, which models it defines vs extends, and counts of views and JS
 patches — giving the executive a one-glance architecture picture without reading source code.
 Fire all `module_inspect(method='summary')` calls in parallel (one per module of interest).
@@ -91,7 +91,7 @@ report.
 
 Example — understanding `custom_loyalty` on Odoo 17:
 ```
-module_inspect(module="custom_loyalty", method="summary")
+module_inspect(name="custom_loyalty", method="summary")
 ```
 
 **Round 3 — Parallel:** Call `impact_analysis` for modules flagged as high-usage or high-risk

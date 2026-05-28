@@ -55,7 +55,7 @@ This skill covers both frontend eras. The workflow diverges at Round 1 based on 
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
@@ -86,7 +86,7 @@ Work in four rounds. Within each round, fire independent MCP calls in the same m
    [Legacy v8–v14 workflow](#legacy-v8v14-workflow) below; if **v15+**, follow the
    [OWL v15+ workflow](#owl-v15-workflow).
 4. If patching or extending an existing widget/component (not greenfield), call
-   `module_inspect(module=<module>, method='js')` to see the existing patch chain
+   `module_inspect(name=<module>, method='js')` to see the existing patch chain
    and avoid duplicates. If the chain already has 3+ entries, warn the user before proceeding.
 
 ---
@@ -150,9 +150,9 @@ If porting between versions, call `api_version_diff` to surface breaking changes
 
 Run all of the following simultaneously — they are independent:
 
-1. `module_inspect(module=<module>, method='owl')` — enumerates OWL components in the module;
+1. `module_inspect(name=<module>, method='owl')` — enumerates OWL components in the module;
    checks for naming collisions.
-2. `module_inspect(module=<module>, method='qweb')` — enumerates QWeb template IDs; verifies
+2. `module_inspect(name=<module>, method='qweb')` — enumerates QWeb template IDs; verifies
    exact template name before writing XPath overrides.
 3. `find_examples(query="OWL component <feature> Odoo v<N>")` — real import paths and hook
    names from indexed codebase (trust this over training memory for syntax).
@@ -302,7 +302,7 @@ Prompt: "tạo field widget color picker cho field selection trong Odoo 12"
 Prompt: "override list view to add a total row at the bottom in Odoo 11"
 
 - Round 0: `odoo_version: 11.0`. Version gate → Legacy. `set_active_version("11.0")`.
-  `module_inspect(module=<module>, method='js')` → existing patch chain (check conflicts).
+  `module_inspect(name=<module>, method='js')` → existing patch chain (check conflicts).
 - Round 1: `find_examples("ListController renderView total row Odoo 11")`.
 - Round 2: `find_override_point("ListController", "renderView")` → exact class path + chain.
 - Round 3: `generate_code(task="ListController.include patch to append total row, Odoo 11", context=<findings>)`.

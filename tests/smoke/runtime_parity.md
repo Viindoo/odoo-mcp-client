@@ -21,13 +21,13 @@ dependency:
 | 1 | `odoo-router` | A | All — concierge / disambiguation | None (pure text routing) |
 | 2 | `odoo-onboard` | A | All — context bootstrap | Read-only: `list_available_versions`, `list_available_profiles`, `set_active_version`, `set_active_profile` |
 | 3 | `odoo-feature-check` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `suggest_pattern` |
-| 4 | `odoo-gap-analysis` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `suggest_pattern`, `validate_depends` |
+| 4 | `odoo-gap-analysis` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `lookup_core_api`, `suggest_pattern` |
 | 5 | `odoo-objection-handler` | A | Sales AE | `check_module_exists`, `find_examples`, `model_inspect`, `suggest_pattern` |
 | 6 | `odoo-deal-followup` | B | Sales AE | None (deal context is user-provided) |
 | 7 | `odoo-feature-highlights` | B | Marketer | `api_version_diff`, `find_examples` |
 | 8 | `odoo-content-draft` | B | Marketer | Optional: `find_examples` (standalone-first capable) |
-| 9 | `odoo-version-diff` | A | Developer + Marketer | `api_version_diff`, `find_deprecated_usage` |
-| 10 | `odoo-deprecation-audit` | A | Developer | `find_deprecated_usage`, `lint_check`, `entity_lookup` |
+| 9 | `odoo-version-diff` | A | Developer + Marketer | `api_version_diff`, `entity_lookup`, `lookup_core_api`, `model_inspect` |
+| 10 | `odoo-deprecation-audit` | A | Developer | `api_version_diff`, `entity_lookup`, `find_deprecated_usage`, `lookup_core_api`, `module_inspect` |
 
 ### Runtimes under test (3)
 
@@ -194,7 +194,7 @@ Before beginning this checklist, confirm all of the following:
 ### Skill 4: `odoo-gap-analysis`
 
 > Phase A — Pre-Sales. MCP: `check_module_exists`, `model_inspect`,
-> `suggest_pattern`, `validate_depends`.
+> `find_examples`, `lookup_core_api`, `suggest_pattern`.
 
 **Trigger prompt (VI)**: "Khách A yêu cầu 3 tính năng: (1) phê duyệt nhiều cấp cho đơn mua, (2) quản lý serial number, (3) tích hợp chữ ký điện tử — Odoo có sẵn những gì?"
 
@@ -310,7 +310,7 @@ Before beginning this checklist, confirm all of the following:
 ### Skill 9: `odoo-version-diff`
 
 > Phase A — Developer + Marketer cross-cutting. MCP: `api_version_diff`,
-> `find_deprecated_usage`.
+> `entity_lookup`, `lookup_core_api`, `model_inspect`.
 
 **Trigger prompt (VI)**: "API nào thay đổi từ Odoo v16 sang v17, dev cần biết trước khi upgrade"
 
@@ -333,8 +333,8 @@ Before beginning this checklist, confirm all of the following:
 
 ### Skill 10: `odoo-deprecation-audit`
 
-> Phase A — Developer. MCP: `find_deprecated_usage`, `lint_check`,
-> `entity_lookup`.
+> Phase A — Developer. MCP: `api_version_diff`, `entity_lookup`,
+> `find_deprecated_usage`, `lookup_core_api`, `module_inspect`.
 
 **Trigger prompt (VI)**: "audit code Odoo của chúng tôi trước khi nâng cấp từ v16 lên v17, tìm những gì sẽ break"
 

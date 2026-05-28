@@ -17,7 +17,7 @@ Invoke this command when:
 
 - A client asks for a **full upgrade plan** — not just a deprecation audit or version diff alone.
 - You need **executive-readable risk overview** and **dev-readable action items** in the same deliverable.
-- You are replacing a legacy `agents/odoo-upgrade-planner.md` invocation (deprecated; kept for history).
+- You are replacing a legacy `agents/odoo-upgrade-planner.md` invocation (removed; replaced by this command).
 
 Do **not** invoke this command when:
 - You only need a quick deprecation check: use `odoo-deprecation-audit` skill directly.
@@ -265,4 +265,4 @@ Internal team preparing v18 release cut for all custom add-ons. Deadline: long-t
 - `odoo-deploy-checklist` skill — use at deploy time to execute the deploy window and post-deploy verification steps from Phase 4.
 - `odoo-deprecation-audit` skill — direct invocation for deprecation-only checks without full plan overhead.
 - `odoo-version-diff` skill — direct invocation for API diff only.
-- `agents/odoo-upgrade-planner.md` — legacy agent (deprecated, kept for history). Use this command instead.
+- `agents/odoo-upgrade-planner.md` — legacy agent (removed in v1.0.0 wave-2; this command replaces it).

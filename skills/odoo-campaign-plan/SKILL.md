@@ -45,7 +45,7 @@ requests, and support regional or vertical expansion.
 ## MCP tools
 
 <!-- BEGIN MANUAL TOOLS — odoo-campaign-plan -->
-_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Optional — use only when verifying a specific feature claim in the campaign angle:**
 - `check_module_exists` — Confirm that a named Odoo/Viindoo module is present in the

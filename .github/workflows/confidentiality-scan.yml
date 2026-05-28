@@ -17,9 +17,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Vault path scan (hard fail, allow plan file documenting ban list)
+      - name: Vault path scan (hard fail)
         run: |
-          OFFENDERS=$(grep -rlE '/home/tuan/git/obsidian-vault' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v '.github/workflows/confidentiality-scan.yml' | grep -v 'docs/refinement-plan-2026-05-28.md' || true)
+          OFFENDERS=$(grep -rlE '/home/tuan/git/obsidian-vault' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
           if [ -n "$OFFENDERS" ]; then
             echo "::error::Vault path /home/tuan/git/obsidian-vault found in committed files"
             echo "$OFFENDERS"
@@ -27,9 +27,9 @@ jobs:
           fi
           echo "OK: no vault path leaks"
 
-      - name: Personal /home/tuan/. path scan (hard fail, allow plan file regex section)
+      - name: Personal /home/tuan/. path scan (hard fail)
         run: |
-          OFFENDERS=$(grep -rlE '/home/tuan/\.' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v 'docs/refinement-plan-2026-05-28.md' | grep -v '.github/workflows/confidentiality-scan.yml' || true)
+          OFFENDERS=$(grep -rlE '/home/tuan/\.' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
           if [ -n "$OFFENDERS" ]; then
             echo "::error::/home/tuan/. paths found in:"
             echo "$OFFENDERS"

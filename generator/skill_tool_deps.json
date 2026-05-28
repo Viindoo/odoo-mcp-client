@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "generated_at": "2026-05-28T00:00:00Z",
-  "server_version_required": "0.8.0",
+  "server_version_required": "0.11.1",
   "skills": {
     "odoo-addon-diff": {
       "mcp_tools": [
@@ -253,17 +253,6 @@
     }
   },
   "agents": {
-    "odoo-upgrade-planner": {
-      "mcp_tools": [
-        "api_version_diff",
-        "find_deprecated_usage",
-        "check_module_exists",
-        "lookup_core_api"
-      ],
-      "ollama_tools": [],
-      "min_server_version": "0.1.0",
-      "notes": "Hypothetical agent for multi-skill orchestration during upgrade workflows"
-    },
     "odoo-coder": {
       "mcp_tools": [
         "set_active_version",

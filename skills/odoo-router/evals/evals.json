@@ -122,5 +122,5 @@
       "files": []
     }
   ],
-  "notes": "Full Mode 5 trigger optimization scheduled for Phase D per docs/refinement-plan-2026-05-28.md AC-D6. Phase A acceptance is verified via inline walkthrough by main agent (see report). 20-query trigger eval set will be built from these 15 + 5 additional edge cases in Phase D."
+  "notes": "Full Mode 5 trigger optimization scheduled for Phase D per AC-D6 of the v1.0.0 refinement plan (internal). Phase A acceptance is verified via inline walkthrough by main agent (see report). 20-query trigger eval set will be built from these 15 + 5 additional edge cases in Phase D."
 }

@@ -38,11 +38,11 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 
 ### Exploring module architecture
 - User asks "what is module X" or "what does module X do"
-  → call module_inspect(module=<name>, method="summary")
-- User wants OWL components of a module → call module_inspect(module=<name>, method="owl")
-- User wants QWeb templates of a module → call module_inspect(module=<name>, method="qweb")
-- User wants JS patches of a module → call module_inspect(module=<name>, method="js")
-- User wants views of a module → call module_inspect(module=<name>, method="views")
+  → call module_inspect(name=<name>, method="summary")
+- User wants OWL components of a module → call module_inspect(name=<name>, method="owl")
+- User wants QWeb templates of a module → call module_inspect(name=<name>, method="qweb")
+- User wants JS patches of a module → call module_inspect(name=<name>, method="js")
+- User wants views of a module → call module_inspect(name=<name>, method="views")
 
 ### Working with CSS/SCSS/LESS stylesheets
 - User wants to know what stylesheets a module ships (CSS, SCSS, or LESS — LESS covers legacy v8-v11)
@@ -93,7 +93,7 @@ Use Resources when you already know the entity ID — no tool call overhead.
 #   set_active_version("17.0")          # once per session
 #   model_inspect(model="sale.order", method="summary")   # full model overview
 #   model_inspect(model="sale.order", method="fields")    # just fields
-#   module_inspect(module="sale_management", method="js") # JS patches in module
+#   module_inspect(name="sale_management", method="js") # JS patches in module
 
 ## Auto-trigger on file open
 When a Python file with `class .*(models\.Model)` is opened:
@@ -138,7 +138,7 @@ Subsequent calls can omit odoo_version (sticky 24h TTL per API key).
 Superset tools (use these for all model/module/entity queries):
 - Model questions (structure / fields / methods / views) → model_inspect(model=<name>, method="summary"|"fields"|"methods"|"views")
 - One specific field / method / view → entity_lookup(kind="field"|"method"|"view", ...)
-- Module-level (describe / OWL / QWeb / JS patches / views) → module_inspect(module=<name>, method="summary"|"owl"|"qweb"|"js"|"views")
+- Module-level (describe / OWL / QWeb / JS patches / views) → module_inspect(name=<name>, method="summary"|"owl"|"qweb"|"js"|"views")
   NOTE: use method="js" for JS patches
 
 Targeted tools:
@@ -236,11 +236,11 @@ In `~/.cursor/mcp.json` (or project `.cursor/mcp.json`):
 ## Generated Tool Surface
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.8.0. Generated from `generator/server-surface.json`. Run `make gen` to update._
+_Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. Run `make gen` to update._
 
 ## Key mappings (generated)
 - "inspect model" → `model_inspect ★` — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
-- "inspect module" → `module_inspect ★` — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
+- "inspect module" → `module_inspect ★` — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 - "lookup field" → `entity_lookup ★` — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
 - "show me examples" → `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 - "what breaks if I change" → `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.

@@ -49,7 +49,7 @@ prioritizes what the user already knows — it does NOT invent competitive facts
 ## MCP tools
 
 <!-- BEGIN MANUAL TOOLS — odoo-competitive-brief -->
-_Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Optional — call only when grounding "Viindoo has X" or "Odoo can't do Y" claims:**
 - `check_module_exists` — Verify that a Viindoo/Odoo module or feature exists in the
