@@ -1,7 +1,7 @@
 {
   "name": "odoo-semantic",
-  "version": "1.0.0",
-  "description": "Odoo AI workforce toolkit for semantic code analysis — 22 skill personas + 6 workflow commands across engineering, sales, marketing, strategy, and onboarding. Pairs with the OSM (odoo-semantic) MCP server for indexed-codebase grounding.",
+  "version": "1.1.0",
+  "description": "Odoo AI workforce toolkit for semantic code analysis — 22 skill personas + 2 specialist agents + 5 workflow commands + 1 setup command across engineering, sales, marketing, strategy, and onboarding. Pairs with the OSM (odoo-semantic) MCP server for indexed-codebase grounding.",
   "keywords": ["odoo", "erp", "mcp", "ai-workforce", "odoo-semantic", "semantic-search", "workflow", "sales", "marketing", "strategy", "onboarding", "code-generation", "code-review", "upgrade"],
   "author": {
     "name": "Viindoo",

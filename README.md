@@ -221,13 +221,15 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 The server exposes **7 MCP resource URI templates** (in addition to the 24 tools) for
 direct structured data access:
 
-- `odoo://{version}/model/{name}` — model summary
-- `odoo://{version}/model/{name}/fields` — field list
-- `odoo://{version}/model/{name}/field/{field}` — single field detail
-- `odoo://{version}/module/{name}` — module summary
-- `odoo://{version}/module/{name}/views` — module views
-- `odoo://{version}/module/{name}/js` — module JS patches
-- `odoo://{version}/module/{name}/owl` — module OWL components
+- `odoo://{version}/model/{name}` — model record (inheritance, field/method counts, modules)
+- `odoo://{version}/field/{model}/{field}` — field record (type, compute, definition module)
+- `odoo://{version}/method/{model}/{method}` — method record (override chain, super_ratio)
+- `odoo://{version}/module/{name}` — module record (manifest, defines/extends counts)
+- `odoo://{version}/view/{xmlid}` — view record (xpath chain, inherit_id)
+- `odoo://{version}/pattern/{name}` — pattern catalogue entry (snippet, gotchas)
+- `odoo://{version}/stylesheet/{file_path}` — stylesheet record (selectors, imports, variables)
+
+See [`docs/setup.md`](docs/setup.md#mcp-resources-7-uri-templates) for full descriptions and examples.
 
 Supported Odoo versions: **v8.0 through v19.0 (12 versions)**.
 
