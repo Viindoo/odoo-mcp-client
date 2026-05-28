@@ -44,7 +44,7 @@ requests, and support regional or vertical expansion.
 
 ## MCP tools
 
-<!-- BEGIN GENERATED TOOLS -->
+<!-- BEGIN MANUAL TOOLS — odoo-campaign-plan -->
 _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Optional — use only when verifying a specific feature claim in the campaign angle:**
@@ -60,7 +60,7 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 - The campaign angle is generic (digital transformation, SME productivity, regional expansion)
 - OSM is unreachable (see Standalone-first fallback section)
 - User has already confirmed the feature exists or provided a product brief
-<!-- END GENERATED TOOLS -->
+<!-- END MANUAL TOOLS — odoo-campaign-plan -->
 
 ## Workflow
 

@@ -41,7 +41,7 @@ to a 3-5 person dev shop. Output is operational and actionable, not executive-le
 
 ## MCP tools
 
-<!-- BEGIN GENERATED TOOLS -->
+<!-- BEGIN MANUAL TOOLS — odoo-deploy-checklist -->
 _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (optional — call once if version not already pinned):
@@ -53,7 +53,7 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 - `find_deprecated_usage` — Sanity scan for deprecated API usage in deploy scope. Supplements `odoo-deprecation-audit` when a full pre-flight audit was not run separately.
 
 **All three calls are independent — fire in parallel to minimize round trips.**
-<!-- END GENERATED TOOLS -->
+<!-- END MANUAL TOOLS — odoo-deploy-checklist -->
 
 ---
 

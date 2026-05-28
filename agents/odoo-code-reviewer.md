@@ -5,6 +5,7 @@ description: |
 model: sonnet
 color: yellow
 tools:
+  - mcp__odoo-semantic__set_active_version
   - Read
   - Grep
   - Bash

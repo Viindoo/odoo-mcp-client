@@ -98,6 +98,10 @@ If user replies "no" or names a different skill, re-route or yield to the user's
 | 20 | "deploy checklist", "checklist trước khi đẩy lên prod", "go-live checklist", "pre-deploy safety" | `odoo-deploy-checklist` | Pre-deployment safety items (vs `odoo-deprecation-audit` for code-level upgrade audit) |
 | 21 | "tao mới clone repo Odoo", "set up odoo-semantic for this project", "first time setup" | `odoo-onboard` | Project-context bootstrap (vs `/odoo-semantic:connect` slash command for server URL/key setup) |
 
+## Standalone-first fallback
+
+Router skill là pure text recommendation — không gọi MCP tool nào. Không có fallback nào cần thiết vì không có OSM dependency để mất. Logic routing chỉ dựa vào skill description match và routing table.
+
 ## Collision Test Cases — Worked Examples
 
 These are the three known collision zones where two skill descriptions overlap. Use these as the canonical resolution logic.

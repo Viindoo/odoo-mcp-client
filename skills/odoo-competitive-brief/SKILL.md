@@ -48,7 +48,7 @@ prioritizes what the user already knows — it does NOT invent competitive facts
 
 ## MCP tools
 
-<!-- BEGIN GENERATED TOOLS -->
+<!-- BEGIN MANUAL TOOLS — odoo-competitive-brief -->
 _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Optional — call only when grounding "Viindoo has X" or "Odoo can't do Y" claims:**
@@ -59,7 +59,7 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 - `find_examples` — Semantic code search returning real indexed code snippets from the
   Odoo codebase, used when a competitor's marketing claims "Odoo cannot do Y" and the
   CEO needs concrete proof-of-existence before a board meeting.
-<!-- END GENERATED TOOLS -->
+<!-- END MANUAL TOOLS — odoo-competitive-brief -->
 
 **Default posture:** skip MCP calls entirely. The brief is grounded in user-provided
 intelligence. MCP is additive verification only — never a blocker.

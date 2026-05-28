@@ -189,6 +189,10 @@ Pick ONE based on detected context:
 - If user mentioned "feature" or "client" → "Try `odoo-feature-check` or `odoo-gap-analysis`."
 - Default → "Ready cho any `odoo-*` skill. Mọi skill sẽ tự đọc `.odoo-ai/context.md` từ Phase B onwards."
 
+## Standalone-first fallback
+
+Khi OSM unreachable: fall back to asking user to manually paste/state Odoo version + list of custom module names. Skill vẫn create `.odoo-ai/context.md` với flag `osm_verified: false` để downstream skill biết context là user-asserted (chưa qua index verify).
+
 ## Integration notes
 
 - **Phase A (current)**: Onboard writes `.odoo-ai/context.md`; existing 15 skills do NOT yet read it. The file is forward-compatible — its presence does not break anything.

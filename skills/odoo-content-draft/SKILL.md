@@ -37,7 +37,7 @@ educate, build trust, drive demo/trial requests.
 
 ## MCP tools
 
-<!-- BEGIN GENERATED TOOLS -->
+<!-- BEGIN MANUAL TOOLS — odoo-content-draft -->
 _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Optional — use only when grounding a specific feature claim:**
@@ -52,7 +52,7 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 - The topic is generic (ERP benefits, SME pain points, productivity tips)
 - OSM is unreachable (see Standalone-first fallback section)
 - User has already provided feature details verbally
-<!-- END GENERATED TOOLS -->
+<!-- END MANUAL TOOLS — odoo-content-draft -->
 
 ## Channel matrix
 
@@ -76,7 +76,7 @@ _Tool surface: server v0.8.0. See [`docs/reference/mcp-tool-routing.md`](../../d
 
 3. **Cite specifics, not vague claims**:
    - BAD: "Phan mem cua chung toi rat manh me va hieu suat cao."
-   - GOOD: "Xu ly 50,000 don hang/thang ma khong can nang cap server (da ghi nhan thuc te)."
+   - GOOD: "Giam thoi gian xu ly don hang tu vai ngay xuong vai gio — tuy benchmark trien khai tung khach hang."
    - When you cannot cite a verified number, use relative language: "Giam tu 3 ngay xuong con
      vai gio" or abstract it: "Doanh nghiep X trong nganh Y ghi nhan..."
 

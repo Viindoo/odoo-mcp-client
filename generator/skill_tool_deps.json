@@ -266,6 +266,7 @@
     },
     "odoo-coder": {
       "mcp_tools": [
+        "set_active_version",
         "entity_lookup",
         "find_examples",
         "lint_check",
@@ -287,6 +288,7 @@
     },
     "odoo-code-reviewer": {
       "mcp_tools": [
+        "set_active_version",
         "entity_lookup",
         "lint_check",
         "lookup_core_api",

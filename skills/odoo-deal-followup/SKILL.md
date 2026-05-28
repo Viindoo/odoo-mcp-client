@@ -35,7 +35,7 @@ hoặc không biết bước tiếp theo.
 
 ## MCP tools
 
-<!-- BEGIN GENERATED TOOLS -->
+<!-- BEGIN MANUAL TOOLS — odoo-deal-followup -->
 _Skill này là standalone-first — OSM/MCP là OPTIONAL. Đa số lần gọi không cần MCP._
 
 **OSM usage rule:** Chỉ invoke MCP tool khi user tường minh yêu cầu fact-check một claim kỹ
@@ -50,7 +50,7 @@ thuật về tính năng Odoo được nhắc đến trong email/deal context (v
 
 **Ollama delegation:** None. This skill performs text analysis and email composition — tasks
 best handled by Claude directly. Do not delegate to ollama-delegate tools.
-<!-- END GENERATED TOOLS -->
+<!-- END MANUAL TOOLS — odoo-deal-followup -->
 
 ## Standalone-first workflow
 
