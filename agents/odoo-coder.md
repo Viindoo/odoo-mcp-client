@@ -1,7 +1,7 @@
 ---
 name: odoo-coder
 description: |
-  Use this agent when main agent needs to write production-ready Python/XML Odoo backend code — computed fields, ORM overrides, constraints, migration scripts, unit tests. Invoke after odoo-coder skill recommends bundle invocation.
+  Use this agent when main agent needs to write production-ready Python/XML Odoo backend code — computed fields, ORM overrides, constraints, migration scripts, unit tests. Invoke after odoo-coder skill recommends bundle invocation
 model: sonnet
 color: cyan
 tools:
@@ -69,7 +69,7 @@ Call all of the following simultaneously:
 1. `model_inspect(model='<target_model>', method='fields')` — returns the field list and
    authoritative source module. Use `method='methods'` if you also need the method list,
    or `method='summary'` for the full inheritance chain overview.
-2. `suggest_pattern(feature_description='<what the user wants>')` — returns the canonical
+2. `suggest_pattern(intent='<what the user wants>')` — returns the canonical
    Odoo design pattern for the feature type (computed field, SQL constraint, wizard, etc.)
    along with gotchas and anti-patterns.
 
@@ -151,10 +151,10 @@ If the generated code contains any of the following, validate against the index 
 presenting — these calls are cheap and catch exact failure modes the reviewer can only guess at:
 
 - A computed field → `validate_depends(model='<model>', method='<_compute_method_name>')`
-  or `resolve_orm_chain(model='<model>', path='<each depends path>')` for not-yet-indexed code.
+  or `resolve_orm_chain(model='<model>', dotted_path='<each depends path>')` for not-yet-indexed code.
 - A search domain / `ir.rule` / `domain=[…]` → `validate_domain(model='<model>', domain='<domain literal>')`.
-- A `related=` chain → `resolve_orm_chain(model='<model>', path='<related path>')`.
-- A relational field assertion → `validate_relation(model='<model>', field='<field>', comodel='<expected comodel>')`.
+- A `related=` chain → `resolve_orm_chain(model='<model>', dotted_path='<related path>')`.
+- A relational field assertion → `validate_relation(model='<model>', field='<field>', target_model='<expected comodel>')`.
 
 Any `BROKEN` / `ERROR` / `MISMATCH` result is a blocker — fix the path/operator/comodel
 before presenting. Do not ship broken code.

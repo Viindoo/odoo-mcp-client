@@ -24,7 +24,7 @@ description: >
   technical architecture discussions where there is no customer prospect involved; when
   user wants to WRITE a follow-up email route to `odoo-deal-followup` instead; when they
   want a full effort matrix (Standard/Custom/days) route to `odoo-gap-analysis`; when
-  they want to handle an objection route to `odoo-objection-handler`.
+  they want to handle an objection route to `odoo-objection-handler`
 ---
 
 ## Persona

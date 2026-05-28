@@ -87,17 +87,17 @@ ARGS: command, flag, odoo_version
 ### suggest_pattern
 TRIGGER: "best practice for", "pattern for implementing", "how should I implement [X] in Odoo", "recommended approach for"
 PREFER: architecture guidance, implementation patterns
-ARGS: query (natural language description of the pattern needed)
+ARGS: intent (natural language description of the pattern needed)
 
 ### check_module_exists
 TRIGGER: "does Odoo have [feature]", "is [module] available", "is [module] community or enterprise", "EE or CE [module]"
 PREFER: feature availability checks, CE vs EE disambiguation
-ARGS: module_name, odoo_version
+ARGS: name, odoo_version
 
 ### find_override_point
 TRIGGER: "where should I override [method]", "best place to add [behavior]", "override point for [X]", "safest place to extend [model/method]"
 PREFER: extension architecture decisions
-ARGS: model_name, method_name, odoo_version
+ARGS: model, method, odoo_version
 
 ### describe_module
 TRIGGER: "what is module [X]", "what does module [X] do", "describe module [X]", "module [X] làm gì", "overview of module [X]", "architecture of [X]"

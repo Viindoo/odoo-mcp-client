@@ -16,7 +16,7 @@ description: >
   DO NOT trigger for: ongoing code work that is not about to be deployed; debugging
   questions unrelated to a release; questions about what changed between versions (route
   to odoo-version-diff); requests to audit deprecated API usage in code (route to
-  odoo-deprecation-audit); executive risk overview (route to odoo-risk-overview).
+  odoo-deprecation-audit); executive risk overview (route to odoo-risk-overview)
 ---
 
 ## Persona

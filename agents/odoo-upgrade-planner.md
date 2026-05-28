@@ -1,6 +1,6 @@
 ---
 name: odoo-upgrade-planner
-description: Produces a comprehensive Odoo version upgrade plan by orchestrating the MCP tools for API diffs, deprecated usage, module compatibility, and replacement APIs.
+description: Produces a comprehensive Odoo version upgrade plan by orchestrating the MCP tools for API diffs, deprecated usage, module compatibility, and replacement APIs
 model: sonnet
 tools:
   - mcp__odoo-semantic__api_version_diff

@@ -19,7 +19,7 @@ description: >
   feature-highlight slides for a sales deck (→ odoo-feature-highlights),
   capability proof for a prospect (→ odoo-capability-proof).
   This skill is STANDALONE-FIRST: works without MCP. OSM tools optional for
-  feature-claim verification only.
+  feature-claim verification only
 ---
 
 ## Persona

@@ -167,3 +167,30 @@ def test_skill_frontmatter(skill):
         "## Standalone-first fallback" in body
         or "## Standalone fallback" in body
     ), f"{skill.parent.name} SKILL.md missing required ## Standalone-first fallback section"
+
+
+# ---------------------------------------------------------------------------
+# Description trailing-punctuation guard (skills + agents)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("skill", SKILL_FILES, ids=lambda p: p.parent.name)
+def test_skill_description_no_trailing_punctuation(skill):
+    """Skill descriptions must not end in . ! ? — Anthropic plugin marketplace style."""
+    fm = _frontmatter(skill.read_text(encoding="utf-8"))
+    desc = fm.get("description", "").rstrip()
+    assert desc and desc[-1] not in ".!?", (
+        f"{skill.parent.name}: description must not end with '.', '!', or '?' "
+        f"(found: ...{desc[-40:]!r})"
+    )
+
+
+@pytest.mark.parametrize("agent", AGENT_FILES, ids=lambda p: p.stem)
+def test_agent_description_no_trailing_punctuation(agent):
+    """Agent descriptions must not end in . ! ? — Anthropic plugin marketplace style."""
+    fm = _frontmatter(agent.read_text(encoding="utf-8"))
+    desc = fm.get("description", "").rstrip()
+    assert desc and desc[-1] not in ".!?", (
+        f"{agent.stem}: description must not end with '.', '!', or '?' "
+        f"(found: ...{desc[-40:]!r})"
+    )

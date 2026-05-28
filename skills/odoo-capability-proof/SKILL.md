@@ -17,7 +17,7 @@ description: >
   signal ("for the demo", "before Friday", "in the RFP", "buổi demo tuần sau") because the
   user needs real artifacts fast. When the user only wants a yes/no answer on availability
   (no proof package needed), route to odoo-feature-check. When they're scoping MANY
-  requirements at once for a quote, route to odoo-gap-analysis.
+  requirements at once for a quote, route to odoo-gap-analysis
 ---
 
 ## Persona

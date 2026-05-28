@@ -18,7 +18,7 @@ description: >
   RFP mentions 23 requirements — help me classify them". When the user asks about ONE
   specific feature ("does Odoo have lot tracking?") route to odoo-feature-check instead.
   When they want highlights for marketing copy ("what's the headline value of v18?")
-  route to odoo-feature-highlights.
+  route to odoo-feature-highlights
 ---
 
 ## Persona

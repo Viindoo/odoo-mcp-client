@@ -16,7 +16,7 @@ description: >
   DO NOT trigger for: (1) Tóm tắt buổi discovery/demo → dùng odoo-discovery-summarize.
   (2) Phản bác objection kỹ thuật từ khách → dùng odoo-objection-handler.
   (3) Tra cứu/chứng minh tính năng Odoo → dùng odoo-capability-proof hoặc odoo-feature-check.
-  (4) Phân tích gap/scope đề xuất → dùng odoo-gap-analysis.
+  (4) Phân tích gap/scope đề xuất → dùng odoo-gap-analysis
 ---
 
 ## Persona

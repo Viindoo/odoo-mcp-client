@@ -1,7 +1,7 @@
 ---
 name: odoo-discovery-quick
 description: |
-  Quick slash-command wrapper for the odoo-discovery-summarize skill. Type `/odoo-discovery-quick` when you want to explicitly synthesize raw meeting or discovery notes into a structured customer profile, bypassing the router to directly invoke the skill.
+  Quick slash-command wrapper for the odoo-discovery-summarize skill. Type `/odoo-discovery-quick` when you want to explicitly synthesize raw meeting or discovery notes into a structured customer profile, bypassing the router to directly invoke the skill
 ---
 
 # /odoo-discovery-quick

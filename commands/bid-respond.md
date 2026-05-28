@@ -1,7 +1,7 @@
 ---
 name: odoo-bid-respond
 description: |
-  Generate a complete Odoo/Viindoo bid response package from raw prospect input. Chains discovery synthesis → gap analysis → capability proof → objection pre-empt → proposal draft. Invoke when responding to an RFP, proposal request, or post-discovery synthesis needs.
+  Generate a complete Odoo/Viindoo bid response package from raw prospect input. Chains discovery synthesis → gap analysis → capability proof → objection pre-empt → proposal draft. Invoke when responding to an RFP, proposal request, or post-discovery synthesis needs
 ---
 # /odoo-bid-respond
 

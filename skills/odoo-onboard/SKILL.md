@@ -13,7 +13,7 @@ description: |
 
   DO NOT trigger when: (1) `.odoo-ai/context.md` already exists AND `last_updated` is within the last 30 days — instead, suggest a quick "refresh? (yes/no)" rather than full onboard; (2) the working directory has no `__manifest__.py` files anywhere within 3 levels (not an Odoo project — explain politely); (3) the user is mid-workflow inside another skill (e.g., already in odoo-coder writing code) — don't interrupt; (4) the user explicitly types a different skill's trigger like "viết computed field" — let that skill auto-fire instead.
 
-  This skill writes ONE file (`.odoo-ai/context.md`) and ONE `.gitignore` line (`.odoo-ai/`). It does not modify Odoo source code or any other project file.
+  This skill writes ONE file (`.odoo-ai/context.md`) and ONE `.gitignore` line (`.odoo-ai/`). It does not modify Odoo source code or any other project file
 ---
 
 # Odoo Onboard — Project Context Bootstrap

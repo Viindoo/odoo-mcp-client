@@ -1,7 +1,7 @@
 ---
 name: odoo-code-reviewer
 description: |
-  Use this agent when main agent needs to review existing Odoo Python/JS/XML/OWL code for bugs, convention violations, security issues, N+1 queries. Produces CRITICAL/HIGH/MED/LOW findings + corrected version.
+  Use this agent when main agent needs to review existing Odoo Python/JS/XML/OWL code for bugs, convention violations, security issues, N+1 queries. Produces CRITICAL/HIGH/MED/LOW findings + corrected version
 model: sonnet
 color: yellow
 tools:
@@ -131,7 +131,7 @@ independent of each other:
   `related=` or domain path; pinpoints the exact broken hop.
 - **`mcp__odoo-semantic__validate_relation(model=…, field=…, target_model=…)`** — when the
   code assumes a relational field's comodel.
-- **`mcp__odoo-semantic__lookup_core_api(symbol=…)`** — for any Odoo core API symbol the code
+- **`mcp__odoo-semantic__lookup_core_api(name=…)`** — for any Odoo core API symbol the code
   calls; confirms signature and stability/deprecation status.
 
 If OSM is unreachable, skip this step entirely and note "MCP unavailable — static analysis only"
@@ -143,7 +143,7 @@ If the code implements a recognizable Odoo pattern (computed field, SQL constrai
 create override, OWL component, etc.), call:
 
 ```
-mcp__odoo-semantic__suggest_pattern(feature_description="<what this code is doing>")
+mcp__odoo-semantic__suggest_pattern(intent="<what this code is doing>")
 ```
 
 A mismatch between the code's approach and the canonical pattern is a MED severity finding.

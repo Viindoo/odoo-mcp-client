@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Deferred to v1.1.0
 - AC-D6: router trigger optimization via `/skill-creator` Mode 5 + `run_loop.py`. The 20-query eval set is authored in `skills/odoo-router/evals/evals.json` (15 cases) + the 5 collision-test cases in `skills/odoo-router/SKILL.md`. Mode 5 requires the Claude Code subprocess API, which is CC-only; multi-runtime parity is verified manually via `tests/smoke/runtime_parity.md` for v1.0.0. Re-runnable in v1.1.0 after multi-runtime smoke is fully executed.
 - AC-D8 CI version-sync test: VERSION ↔ plugin.json sync is currently manual. Add a CI assertion in v1.1.0 (e.g., `test_version_sync` in `tests/test_plugin_schema.py`).
+- Confidentiality scan marker convention: PR #14 used file-name allowlist (`docs/refinement-plan-2026-05-28.md` exempted in both CI workflow and pre-commit hook) for minimal change scope. v1.1.0 should adopt a marker convention (e.g., `<!-- confidentiality-exempt: reason -->` HTML comment) so any documentation file can opt into vault-path mention without growing the allowlist; both the CI workflow and the pre-commit hook would key off the marker rather than a hard-coded path list.
 
 ## [0.8.0] - 2026-05-21
 

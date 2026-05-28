@@ -28,7 +28,7 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 - User asks for a specific model's views → call model_inspect(model=<name>, method="views")
 - User asks about ONE field → call entity_lookup(kind="field", model=<name>, field=<name>)
 - User asks about ONE method → call entity_lookup(kind="method", model=<name>, method_name=<name>)
-- User wants to add new behavior → call find_override_point(model_name, method_name)
+- User wants to add new behavior → call find_override_point(model=<name>, method=<name>)
 - User wants code examples → call find_examples(natural_language_query)
 
 ### Working with XML view files (views/*.xml, *.xml with inherit_id)
@@ -60,12 +60,12 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 - Before writing a related= that hops a relation → call validate_relation(model=<name>, field=<rel_field>, target_model=<expected_comodel>)
 
 ### Before writing any new code
-- Check for existing patterns → call suggest_pattern(description)
-- Check module availability → call check_module_exists(module_name)
+- Check for existing patterns → call suggest_pattern(intent=<description>)
+- Check module availability → call check_module_exists(name=<module>)
 
 ### Before using any Odoo core API
-- Verify API status → call lookup_core_api(symbol_name)
-- If writing upgrade code → call api_version_diff(symbol_name, from_version, to_version)
+- Verify API status → call lookup_core_api(name=<symbol>)
+- If writing upgrade code → call api_version_diff(symbol=<name>, from_version=<v>, to_version=<v>)
 
 ### Code review / pre-commit
 - Scan for deprecated usage → call find_deprecated_usage(odoo_version)

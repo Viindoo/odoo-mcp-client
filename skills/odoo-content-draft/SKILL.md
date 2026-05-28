@@ -18,7 +18,7 @@ description: >
   objection-handling rebuttals (→ odoo-objection-handler), feature-highlight decks for
   slides (→ odoo-feature-highlights), competitive positioning briefs (→ odoo-competitive-brief),
   multi-channel campaign orchestration (→ odoo-campaign-plan).
-  This skill is STANDALONE-FIRST: works without MCP. OSM tools optional for grounding claims.
+  This skill is STANDALONE-FIRST: works without MCP. OSM tools optional for grounding claims
 ---
 
 ## Persona
@@ -119,7 +119,7 @@ to produce a reasonable first draft, skip clarification and draft — offer to a
 ### Round 1 - Optional MCP grounding
 
 If the topic names a specific Odoo module or feature AND OSM is reachable:
-1. Call `check_module_exists(module_name=<name>)` — confirm CE/EE/Viindoo availability.
+1. Call `check_module_exists(name=<name>)` — confirm CE/EE/Viindoo availability.
 2. Call `find_examples(query=<feature context>, limit=2)` — retrieve 1-2 real snippets for
    technical credibility (use as background; do not paste raw code into marketing copy).
 

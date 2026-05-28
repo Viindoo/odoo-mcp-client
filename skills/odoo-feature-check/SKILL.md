@@ -16,7 +16,7 @@ description: >
   "module Y có trong CE không?", "what's the standard way Odoo does X?". Use this when
   the user is asking about ONE feature/module; when they list MANY requirements at once
   route to odoo-gap-analysis instead. When they want to see real source-code examples of
-  X being used, route to odoo-feature-highlights or odoo-capability-proof.
+  X being used, route to odoo-feature-highlights or odoo-capability-proof
 ---
 
 ## Persona

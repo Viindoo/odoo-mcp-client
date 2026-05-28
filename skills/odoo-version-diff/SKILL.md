@@ -16,7 +16,7 @@ description: >
   the marketer section is in business-value language. When the user asks to audit THEIR
   code for deprecation (not just see the version-to-version delta), route to
   odoo-deprecation-audit. When they want to migrate one specific model field-by-field,
-  route to odoo-coder with the field list.
+  route to odoo-coder with the field list
 ---
 
 ## Persona

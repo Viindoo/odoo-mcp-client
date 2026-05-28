@@ -1,67 +1,63 @@
 #!/usr/bin/env bash
 # Confidentiality pre-commit hook for odoo-mcp-client.
-# Blocks 8 categories of Viindoo-internal data leaks per plan §Confidentiality brief.
-# Hard-fail (cannot bypass): vault paths, /home/tuan/. paths, personal email.
-# Soft-warning (informational): specific numeric figures in markdown that look like pricing/OKR.
+# All content checks use `git show :"$f"` to read the STAGED blob,
+# not the working-tree file. Closes the stage-then-clean bypass vector.
 
 set -e
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
-# Get staged files (added or modified) under tracking
 STAGED=$(git diff --cached --name-only --diff-filter=AM)
 [ -z "$STAGED" ] && exit 0
 
-# Filter to .md/.json/.py/.yaml/.yml
-SCAN_FILES=""
+SCAN_FILES=()
 for f in $STAGED; do
     case "$f" in
         *.md|*.json|*.py|*.yaml|*.yml)
-            [ -f "$f" ] && SCAN_FILES="$SCAN_FILES $f"
+            SCAN_FILES+=("$f")
             ;;
     esac
 done
 
-[ -z "$SCAN_FILES" ] && exit 0
+[ ${#SCAN_FILES[@]} -eq 0 ] && exit 0
 
-# === HARD FAIL: vault and personal paths (8-category ban list) ===
+staged_content() {
+    git show :"$1" 2>/dev/null
+}
 
-# Pattern 1: vault path
-if grep -lE '/home/tuan/git/obsidian-vault' $SCAN_FILES > /dev/null 2>&1; then
-    echo "ERROR: vault path /home/tuan/git/obsidian-vault leaked in:" >&2
-    grep -lE '/home/tuan/git/obsidian-vault' $SCAN_FILES >&2
-    exit 1
-fi
+HARD_FAIL=0
 
-# Pattern 2: /home/tuan/. (dotfile / personal paths). Allow /home/tuan/git/<...> only when it's the OWN repo
-# Banned: /home/tuan/.claude, /home/tuan/.config, /home/tuan/Desktop, /home/tuan/Downloads, etc.
-if grep -lE '/home/tuan/\.' $SCAN_FILES > /dev/null 2>&1; then
-    # Allow within the confidentiality CI regex block (which is documenting the ban list itself)
-    OFFENDERS=$(grep -lE '/home/tuan/\.' $SCAN_FILES | grep -v 'docs/refinement-plan-2026-05-28.md')
-    if [ -n "$OFFENDERS" ]; then
-        echo "ERROR: personal path /home/tuan/. leaked in:" >&2
-        echo "$OFFENDERS" >&2
-        exit 1
+for f in "${SCAN_FILES[@]}"; do
+    # Pattern 1: vault path — allow plan file (documents ban list)
+    if [[ "$f" != "docs/refinement-plan-2026-05-28.md" ]]; then
+        if staged_content "$f" | grep -qE '/home/tuan/git/obsidian-vault'; then
+            echo "ERROR: vault path leaked in staged blob: $f" >&2
+            HARD_FAIL=1
+        fi
     fi
-fi
 
-# Pattern 3: personal email
-if grep -lE 'davidtran\.hp@gmail\.com' $SCAN_FILES > /dev/null 2>&1; then
-    echo "ERROR: personal email leaked in:" >&2
-    grep -lE 'davidtran\.hp@gmail\.com' $SCAN_FILES >&2
-    exit 1
-fi
-
-# === SOFT WARNING: specific numbers that look like pricing/OKR (informational only) ===
-
-if grep -lE '(\$[0-9]{4,}|[0-9]{1,3}([,.][0-9]{3}){2,}\s*(VND|USD)|OKR.*[0-9]{2}%)' $SCAN_FILES > /dev/null 2>&1; then
-    echo "WARNING: possible sensitive number in markdown — review before pushing:" >&2
-    grep -lE '(\$[0-9]{4,}|[0-9]{1,3}([,.][0-9]{3}){2,}\s*(VND|USD)|OKR.*[0-9]{2}%)' $SCAN_FILES >&2
-    # Allow override via commit message tag
-    if git diff --cached --stat | grep -q '\[allow-confidentiality-warning\]'; then
-        echo "(bypassed via [allow-confidentiality-warning] in commit message)" >&2
+    # Pattern 2: personal /home/tuan/. — allow plan file
+    if [[ "$f" != "docs/refinement-plan-2026-05-28.md" ]]; then
+        if staged_content "$f" | grep -qE '/home/tuan/\.'; then
+            echo "ERROR: personal path /home/tuan/. leaked in staged blob: $f" >&2
+            HARD_FAIL=1
+        fi
     fi
-fi
+
+    # Pattern 3: personal email
+    if staged_content "$f" | grep -qE 'davidtran\.hp@gmail\.com'; then
+        echo "ERROR: personal email leaked in staged blob: $f" >&2
+        HARD_FAIL=1
+    fi
+done
+
+[ "$HARD_FAIL" -eq 1 ] && exit 1
+
+for f in "${SCAN_FILES[@]}"; do
+    if staged_content "$f" | grep -qE '(\$[0-9]{4,}|[0-9]{1,3}([,.][0-9]{3}){2,}\s*(VND|USD)|OKR.*[0-9]{2}%)'; then
+        echo "WARNING: possible sensitive number in staged blob — review before pushing: $f" >&2
+    fi
+done
 
 exit 0

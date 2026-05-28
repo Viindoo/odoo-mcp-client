@@ -19,7 +19,7 @@ description: >
   already someone overriding this method?". When the user wants to CHECK if code looks
   right rather than find a hook point, route to odoo-code-reviewer. When they want to know
   what changed between versions (rather than where to extend), route to odoo-version-diff
-  or odoo-deprecation-audit.
+  or odoo-deprecation-audit
 ---
 
 ## Persona

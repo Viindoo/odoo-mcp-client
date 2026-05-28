@@ -19,7 +19,7 @@ description: >
   odoo-objection-handler; (b) feature comparison drill-down between Odoo versions →
   odoo-version-diff; (c) detailed add-on diff → odoo-addon-diff; (d) marketing copy or
   campaign messaging about competitive positioning → odoo-content-draft or
-  odoo-campaign-plan; (e) simple feature availability check → odoo-feature-check.
+  odoo-campaign-plan; (e) simple feature availability check → odoo-feature-check
 ---
 
 ## Persona

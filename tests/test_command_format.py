@@ -96,6 +96,17 @@ def test_command_frontmatter(cmd):
     assert fm.get("description"), f"{cmd.stem}: missing 'description' in frontmatter"
 
 
+@pytest.mark.parametrize("cmd", COMMAND_FILES, ids=lambda p: p.stem)
+def test_command_description_no_trailing_punctuation(cmd):
+    """Command descriptions must not end in . ! ? — Anthropic plugin marketplace style."""
+    fm = _frontmatter(cmd.read_text(encoding="utf-8"))
+    desc = fm.get("description", "").rstrip()
+    assert desc and desc[-1] not in ".!?", (
+        f"{cmd.stem}: description must not end with '.', '!', or '?' "
+        f"(found: ...{desc[-40:]!r})"
+    )
+
+
 def test_command_name_disjoint_from_skill_name():
     """Assert no command name collides with any skill name."""
     skill_names = _skill_names()

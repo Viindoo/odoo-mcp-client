@@ -18,7 +18,7 @@ description: >
   Trigger especially when there's an URGENCY signal ("for the meeting today", "client is
   on the call", "RFP due tomorrow"). When the objection requires proof artifacts (code +
   modules + demo steps), route to odoo-capability-proof. When user simply wants to know if
-  a feature exists (not defend it), route to odoo-feature-check.
+  a feature exists (not defend it), route to odoo-feature-check
 ---
 
 ## Persona

@@ -18,7 +18,7 @@ description: >
   delivery date to default to today + 3 working days", "implement a domain filter that…",
   plus business-rule descriptions with NO technical vocabulary at all (e.g. "discount can
   never exceed 20% of unit price"). When the user is asking how to LOOK UP existing code
-  rather than write new code, route to odoo-feature-check or odoo-override-finder instead.
+  rather than write new code, route to odoo-feature-check or odoo-override-finder instead
 ---
 
 ## Persona

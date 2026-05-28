@@ -23,7 +23,7 @@ description: >
   "QWeb3 template OWL", "show partner avatar Many2one widget". Trigger even when the user
   does NOT say "legacy" or "OWL" — infer from the stated Odoo version or API keywords.
   When the user asks about backend Python/XML rather than frontend JS, route to odoo-coder.
-  When they want a code review rather than code generation, route to odoo-code-reviewer.
+  When they want a code review rather than code generation, route to odoo-code-reviewer
 ---
 
 ## Persona
@@ -105,7 +105,7 @@ Fire both calls simultaneously:
 #### Round 2 — Find override point (only when patching an existing widget)
 
 ```
-find_override_point(model_or_component="<WidgetClass>", method_or_hook="<method>")
+find_override_point(model="<WidgetClass>", method="<method>")
 ```
 
 Reveals the exact class path and override chain. If `module_inspect` in Round 0 already

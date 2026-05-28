@@ -17,7 +17,7 @@ description: >
   CRITICAL bug in production Odoo is expensive. When the user asks how to WRITE new code
   rather than review existing code, route to odoo-coder instead. When they ask for a
   module-level pre-upgrade audit, route to odoo-deprecation-audit instead. When they ask
-  whether a method is safe to override at all, route to odoo-override-finder.
+  whether a method is safe to override at all, route to odoo-override-finder
 ---
 
 ## Persona

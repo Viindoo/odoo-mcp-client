@@ -16,7 +16,7 @@ description: >
   Trigger even if the user just dumps a list of names with no other context — that's the
   signal to enumerate. When the user wants to assess UPGRADE risk specifically (rather than
   just inventory), route to odoo-deprecation-audit. When they want to see business value
-  of features for marketing, route to odoo-feature-highlights.
+  of features for marketing, route to odoo-feature-highlights
 ---
 
 ## Persona

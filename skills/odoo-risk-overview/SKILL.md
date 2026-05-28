@@ -19,7 +19,7 @@ description: >
   deadline or decision context ("board meeting", "before we commit", "đánh giá lại", "RFP
   due") because executives need numbers fast. When the user wants a per-line technical
   audit of deprecated APIs (not an executive summary), route to odoo-deprecation-audit.
-  When they want module-by-module business inventory, route to odoo-customization-inventory.
+  When they want module-by-module business inventory, route to odoo-customization-inventory
 ---
 
 ## Persona

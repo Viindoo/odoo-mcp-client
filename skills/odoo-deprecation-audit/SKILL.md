@@ -16,7 +16,7 @@ description: >
   doesn't use the word "deprecation" — if the goal is "before upgrade", that's this skill's
   job. When the user asks ONLY what changed between two versions (without auditing their
   code), route to odoo-version-diff instead. When they want to write fresh upgrade-safe
-  code in the target version, route to odoo-coder.
+  code in the target version, route to odoo-coder
 ---
 
 ## Persona

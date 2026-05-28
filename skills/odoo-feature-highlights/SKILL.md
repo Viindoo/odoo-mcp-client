@@ -17,7 +17,7 @@ description: >
   Friday's sales pitch". Trigger even when the user says "just summarize what's new" without
   mentioning marketing — that's still this skill. When the user asks for source-level
   developer diff (signatures, removed APIs), route to odoo-version-diff. When they want
-  proof Odoo can do a SPECIFIC capability they care about, route to odoo-capability-proof.
+  proof Odoo can do a SPECIFIC capability they care about, route to odoo-capability-proof
 ---
 
 ## Persona
