@@ -46,7 +46,7 @@ and output channel.
 1. Invoke skill `odoo-feature-check` with the feature name and Odoo version from context.
 2. Output summary:
    - **Feature exists**: Y/N
-   - **Supported editions**: CE / EE / Viindoo (list which ones)
+   - **Supported editions**: CE / EE / your Odoo distribution (list which ones)
    - **Key modules**: names of core modules that provide this feature
    - **Key fields/capabilities**: example field names or API landmarks
 3. Gate: "Feature verdict clear?" If NO, stop and ask user to refine the feature name.
@@ -54,10 +54,10 @@ and output channel.
 
 ### Phase 2: Edition comparison (if applicable)
 
-1. If feature exists in 2+ editions (e.g., CE vs EE, or EE vs Viindoo):
+1. If feature exists in 2+ editions (e.g., CE vs EE, or EE vs your Odoo distribution):
    - Invoke skill `odoo-addon-diff` for the feature across editions.
-   - Output a 3-column table: **Capability**, **CE**, **EE**, **Viindoo** (check as Y/✓, NA, N).
-   - Highlight any edition-specific enhancements or Viindoo-exclusive capabilities.
+   - Output a 3-column table: **Capability**, **CE**, **EE**, **Dist.** (check as Y/✓, NA, N).
+   - Highlight any edition-specific enhancements or distribution-exclusive capabilities.
 2. If feature exists in only 1 edition, note it and proceed.
 3. Gate: "Edition comparison clear?"
 
@@ -117,19 +117,19 @@ Adapt tone to audience:
 
 **Phase 1 output:**
 ```
-✓ Feature exists in: CE, EE, Viindoo
-  Modules: purchase_approval (EE+), workflow (CE), approval_engine (Viindoo)
+✓ Feature exists in: CE, EE, and your Odoo distribution
+  Modules: purchase_approval (EE+), workflow (CE), approval_engine (distribution)
   Key fields: approval_status, approver_id, approval_chain
 ```
 
 **Phase 2 output:**
 ```
-| Capability                | CE  | EE  | Viindoo |
+| Capability                | CE  | EE  | Dist.   |
 |---------------------------|-----|-----|---------|
 | Basic approval rules      | ✓   | ✓   | ✓       |
-| Multi-level chains        | —   | ✓   | ✓       |
-| Dynamic approver routing  | —   | —   | ✓       |
-| Mobile approval           | —   | ✓   | ✓       |
+| Multi-level chains        | -   | ✓   | ✓       |
+| Dynamic approver routing  | -   | -   | ✓       |
+| Mobile approval           | -   | ✓   | ✓       |
 ```
 
 **Phase 3 output:**

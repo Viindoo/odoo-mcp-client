@@ -7,7 +7,7 @@ body:
       value: |
         Thanks for taking the time to file a bug report.
         **Client bugs only** (plugin skills, connect command, snippets).
-        For server/indexer/graph bugs open an issue on [odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-server).
+        For server/indexer/graph bugs open an issue on [odoo-semantic-server](https://odoo-semantic.viindoo.com/).
 
   - type: input
     id: plugin-version

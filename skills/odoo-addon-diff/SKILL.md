@@ -2,21 +2,20 @@
 name: odoo-addon-diff
 description: >
   Produce a side-by-side comparison of Odoo Community (CE) vs Odoo Enterprise (EE) vs
-  Viindoo Enterprise for a specific business domain — with a feature table, business-value
+  custom distributions for a specific business domain — with a feature table, business-value
   notes for EE-only highlights, and a tailored upgrade recommendation ready to paste into a
   proposal. Use this skill ANY time the conversation touches edition differences, even in
   passing. Pushy trigger: fire on "what modules are in Enterprise edition?", "CE vs EE
-  feature table", "compare Community and Enterprise for a client", "so sánh CE và EE",
-  "module nào chỉ có trong Enterprise?", "tính năng nào cần mua EE?", "Viindoo so với Odoo
-  Enterprise", "is X a CE or EE feature?", "khách hỏi nâng từ CE lên EE có gì khác?",
-  "before quoting EE license fee, what extra do they actually get?", "for a manufacturing
-  client — what would EE add?", "for accounting in Vietnam — Odoo EE đủ chưa hay cần
-  Viindoo EE?", "what's Viindoo-only that's not in either Odoo edition?", "client running
-  CE — what's the upsell argument for EE?", "PLM, Maintenance Advanced, Studio — which
-  edition?". Trigger even when the user names a specific feature/module and asks "what
-  edition do I need?". When the user asks about ONE feature's availability (not a
-  comparison), route to odoo-feature-check. When they want marketing copy for the
-  Enterprise features themselves, route to odoo-feature-highlights
+  feature table", "compare Community and Enterprise for a client", "edition comparison",
+  "what features need EE?", "which modules are EE-only?", "is X a CE or EE feature?",
+  "what's the difference between CE and EE?", "what extra do you get with EE?",
+  "for a manufacturing client — what would EE add?", "before quoting license fee, what extra
+  do they get?", "what's EE-only that's not in Community edition?", "client on CE — what's
+  the upsell argument for EE?", "PLM, Maintenance Advanced, Studio — which edition?".
+  Trigger even when the user names a specific feature/module and asks "what edition do I need?".
+  When the user asks about ONE feature's availability (not a comparison), route to
+  odoo-feature-check. When they want marketing copy for the Enterprise features themselves,
+  route to odoo-feature-highlights
 ---
 
 ## Persona
@@ -44,12 +43,12 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 ## Context
 
-Odoo exists in three overlapping editions:
+Odoo exists in multiple editions:
 - **Community Edition (CE)** — open-source, free, covers core ERP flows
 - **Odoo Enterprise (EE)** — proprietary add-ons, requires subscription, adds advanced features
-- **Viindoo Enterprise** — Viindoo's commercial add-ons built on Odoo CE, partially overlaps with Odoo EE
+- **Custom/Partner distributions** — commercial or specialized add-ons built on Odoo CE, may overlap with Odoo EE
 
-Viindoo clients often compare all three. Always clarify which "Enterprise" the user means.
+Always clarify which edition or distribution the user means when comparing options.
 
 Version range matters: CE/EE distinction has existed since Odoo 9 (earlier it was OpenERP with a different commercial model). For v8 and earlier, note that the commercial edition was called "OpenERP Enterprise" and had a different module structure.
 
@@ -78,11 +77,11 @@ Write for a non-technical decision-maker. Translate field names to business lang
 
 Group by business domain: Sales, Accounting, Inventory, Manufacturing, HR, etc.
 
-For EE-only and Viindoo-only features, add a brief business value note ("why does this matter for this client type?").
+For EE-only and distribution-specific features, add a brief business value note ("why does this matter for this client type?").
 
 ## Standalone-first fallback
 
-Khi OSM unreachable, skill yêu cầu user paste manifest + changelog/release notes liên quan từ từng edition. Skill vẫn produce comparison table dựa trên changelog text parsing, kèm note "chưa verify chi tiết trường dữ liệu — hãy check lại khi OSM online".
+When OSM is unreachable, the skill asks the user to paste manifest + relevant changelog/release notes from each edition. The skill still produces a comparison table based on changelog text parsing — with note "field-level details not yet verified; check again when OSM is back online".
 
 ## Output format
 
@@ -91,10 +90,10 @@ Khi OSM unreachable, skill yêu cầu user paste manifest + changelog/release no
 
 **Business domain:** <domain>
 **Odoo version:** <version>
-**Editions compared:** CE / Odoo EE / Viindoo EE (specify which apply)
+**Editions compared:** CE / EE / Custom distribution (specify which apply)
 
-| Feature | CE | Odoo EE | Viindoo EE | Business value |
-|---------|:--:|:-------:|:----------:|----------------|
+| Feature | CE | EE | Your distribution | Business value |
+|---------|:--:|:--:|:-----------------:|----------------|
 | ...     | ✓/✗/Partial | ✓/✗ | ✓/✗ | ... |
 
 ### EE-only highlights
@@ -104,15 +103,15 @@ Khi OSM unreachable, skill yêu cầu user paste manifest + changelog/release no
 - <what CE does well>
 
 ### Upgrade recommendation
-<1 sentence: when should this client consider upgrading to EE or Viindoo EE?>
+<1 sentence: when should this client consider upgrading to EE or a custom distribution?>
 ```
 
 ## Examples
 
 **Example 1 — manufacturing client:**
 Prompt: "compare CE vs EE for a manufacturing client considering Odoo 17"
-Output: Side-by-side table for Manufacturing, Inventory, MRP features; EE-only highlights (e.g. PLM, Maintenance Advanced); Viindoo EE column if relevant; tailored upgrade recommendation.
+Output: Side-by-side table for Manufacturing, Inventory, MRP features; EE-only highlights (e.g. PLM, Maintenance Advanced); custom distribution column if relevant; tailored upgrade recommendation.
 
 **Example 2 — accounting focus:**
-Prompt: "so sánh CE và EE cho khách kế toán Việt Nam"
-Output: Table covering Accounting, Invoicing, Tax; note VAS (Vietnamese Accounting Standard) modules which exist in Viindoo but not Odoo EE; Viindoo EE column prominent.
+Prompt: "compare CE and EE for an accounting-focused customer"
+Output: Table covering Accounting, Invoicing, Tax; note specialized localization modules which may exist in custom distributions but not Odoo EE base.

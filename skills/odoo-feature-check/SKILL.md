@@ -2,21 +2,18 @@
 name: odoo-feature-check
 description: >
   Answer the question "does standard Odoo already do this?" with evidence — module name,
-  edition (CE / Odoo EE / Viindoo EE), key fields/models, and a one-line verdict ready for
-  a client email. Use this skill ANY time someone is checking ONE feature's availability,
-  even if they phrase it as a yes/no question or with no technical vocabulary at all. Pushy
-  trigger: if the user asks "does Odoo have…", "is X available out of the box?", "do we
-  need to build this or is it already there?", "tính năng X có sẵn không?", "Odoo CE có
-  module Y không?", "what edition do I need for Z?" — fire this skill before answering
-  from memory, because training data about Odoo modules drifts fast. Realistic phrases:
-  "does Odoo 17 have subscription billing built-in?", "Odoo có sẵn module quản lý tài sản
-  cố định không?", "is there a standard timesheet approval workflow?", "client asked if
-  Odoo handles SEPA direct debit out of the box", "khách hỏi có sẵn báo cáo VAS không?",
-  "do we need EE for accounting localization?", "tính năng X có cần custom không?",
-  "module Y có trong CE không?", "what's the standard way Odoo does X?". Use this when
-  the user is asking about ONE feature/module; when they list MANY requirements at once
-  route to odoo-gap-analysis instead. When they want to see real source-code examples of
-  X being used, route to odoo-feature-highlights or odoo-capability-proof
+  edition (CE / Odoo EE), key fields/models, and a one-line verdict ready for a client email.
+  Use this skill ANY time someone is checking ONE feature's availability, even if they phrase
+  it as a yes/no question or with no technical vocabulary at all. Pushy trigger: if the user
+  asks "does Odoo have…", "is X available out of the box?", "do we need to build this or is
+  it already there?", "what edition do I need for Z?" — fire this skill before answering from
+  memory, because training data about Odoo modules drifts fast. Realistic phrases: "does Odoo
+  17 have subscription billing built-in?", "is there a standard timesheet approval workflow?",
+  "client asked if Odoo handles SEPA direct debit out of the box", "do we need EE for
+  accounting localization?", "what's the standard way Odoo does X?". Use this when the user
+  is asking about ONE feature/module; when they list MANY requirements at once route to
+  odoo-gap-analysis instead. When they want to see real source-code examples of X being used,
+  route to odoo-feature-highlights or odoo-capability-proof
 ---
 
 ## Persona
@@ -46,20 +43,16 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 ## Context
 
-Standard Odoo coverage exists at four levels:
+Standard Odoo coverage exists at three levels:
 1. **CE native** — free, zero customization needed
 2. **Odoo EE only** — requires paid Odoo Enterprise subscription
-3. **Viindoo EE** — available via Viindoo Enterprise, may overlap with Odoo EE
-4. **Community App Store** — third-party OCA or Viindoo modules (note: not officially supported)
+3. **Community App Store** — third-party OCA modules (note: not officially supported)
 
 Version matters — a feature in v17 may not exist in v12. Always ask or infer the target version.
 
 For v8/v9 (OpenERP era): module names and features differ significantly. The `sale` module in v8
 has a very different field set than v16. When checking features for legacy versions, note that
 many "new" features in v12+ didn't exist at all in v8/v9.
-
-Viindoo note: Viindoo modules prefixed `viin_` cover many Vietnamese-specific requirements
-(VAS accounting, Vietnamese tax, HR Vietnamese labor law) that neither CE nor Odoo EE provide.
 
 **Data priority:** When `check_module_exists` result conflicts with training knowledge about
 whether a feature exists, trust the MCP result. MCP reflects the indexed codebase; training
@@ -90,7 +83,6 @@ or view coverage.
 **Verdict levels:**
 - `Available in CE` — standard, zero cost
 - `Available in Odoo EE only` — requires Enterprise subscription
-- `Available in Viindoo EE` — available via Viindoo commercial
 - `Partial — standard covers X, custom needed for Y` — specify the gap precisely
 - `Not available — custom development required` — honest assessment with effort note
 
@@ -98,7 +90,7 @@ Always cite the exact module name so clients can verify independently.
 
 ## Standalone-first fallback
 
-Khi OSM unreachable (server down hoặc network), skill yêu cầu user paste manifest content + 1-2 model file snippet của module nghi vấn. Skill vẫn produce verdict (module có/không, edition CE/EE/Viindoo) dựa trên text analysis của paste, kèm caveat "chưa verify qua semantic index — hãy double-check khi OSM back online".
+When OSM is unreachable (server down or network), ask the user to paste the module manifest content and 1-2 model file snippets from the module in question. The skill will still produce a verdict (available / unavailable, edition CE/EE) based on text analysis of the paste, with a caveat that verification via the semantic index is pending once the server is back online.
 
 ## Output format
 
@@ -108,12 +100,12 @@ Khi OSM unreachable (server down hoặc network), skill yêu cầu user paste ma
 **Feature requested:** <feature description>
 **Odoo version:** <version>
 
-| Feature aspect | CE | Odoo EE | Viindoo EE | Module | Notes |
-|---------------|:--:|:-------:|:----------:|--------|-------|
-| ...           | ✓/✗ | ✓/✗ | ✓/✗ | ...  | ...   |
+| Feature aspect | CE | Odoo EE | Module | Notes |
+|---------------|:--:|:-------:|--------|-------|
+| ...           | ✓/✗ | ✓/✗ | ...  | ...   |
 
 ### Verdict
-**<Available in CE / Available in EE only / Available in Viindoo EE / Partial / Not available>**
+**<Available in CE / Available in EE only / Partial / Not available>**
 
 ### Evidence
 - **Module:** `<module_name>`
@@ -136,11 +128,10 @@ Khi OSM unreachable (server down hoặc network), skill yêu cầu user paste ma
 **Example 1:**
 Prompt: "does Odoo have a subscription billing module built in?"
 Output: Feature table showing `sale_subscription` exists in EE only (not CE), key model
-`sale.order` with `subscription_id` field, verdict "Available in Odoo EE only", plus note that
-Viindoo has `viin_sale_subscription` covering similar needs.
+`sale.order` with `subscription_id` field, verdict "Available in Odoo EE only".
 
 **Example 2:**
-Prompt: "Odoo 17 có sẵn module quản lý tài sản cố định không?"
-Output: `account_asset` exists in EE, not CE. Viindoo EE has `viin_account_asset`.
-`model_inspect(model='account.asset', method='fields')` shows key fields. Recommendation in
-Vietnamese context.
+Prompt: "Does Odoo have a fixed asset management module?"
+Output: `account_asset` exists in EE, not CE.
+`model_inspect(model='account.asset', method='fields')` shows key fields. Recommendation
+provided.

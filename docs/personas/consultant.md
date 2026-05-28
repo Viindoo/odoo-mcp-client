@@ -1,6 +1,6 @@
 # Odoo Semantic — Consultant Guide
 
-> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` → `claude plugin install odoo-semantic@viindoo-plugins` → `/odoo-semantic:connect`. Chi tiết + AI tools khác: [client setup](../setup.md).
+> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic@viindoo-plugins` -> `/odoo-semantic:connect`. For other AI tools, see [client setup](../setup.md).
 
 For functional consultants and solution architects: quickly verify feature availability, close gap analyses, and scope customizations before committing estimates.
 
@@ -38,7 +38,7 @@ The most common consultant pain points:
 check_module_exists("account_budget", "17.0")
 ```
 
-This tells you: module exists (yes/no), CE vs EE, and whether there's an EE confusion risk (a free addon with a similar name that might mislead).
+This tells you: module exists (yes/no), CE vs EE, and whether there is an EE confusion risk (a free addon with a similar name that might mislead).
 
 ### 2. Find comparable examples
 
@@ -46,7 +46,7 @@ This tells you: module exists (yes/no), CE vs EE, and whether there's an EE conf
 find_examples("budget control with approval workflow and department-level limits")
 ```
 
-Semantic search across indexed repos — returns real code snippets from the codebase that match what you're describing.
+Semantic search across indexed repos — returns real code snippets from the codebase that match what you are describing.
 
 ### 3. Understand the model complexity
 

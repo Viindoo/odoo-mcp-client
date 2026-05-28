@@ -1,6 +1,6 @@
 # Odoo Semantic — Marketer Guide
 
-> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` → `claude plugin install odoo-semantic@viindoo-plugins` → `/odoo-semantic:connect`. Chi tiết + AI tools khác: [client setup](../setup.md).
+> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic@viindoo-plugins` -> `/odoo-semantic:connect`. For other AI tools, see [client setup](../setup.md).
 
 Create accurate, data-backed Odoo content: version comparison articles, feature highlight posts, upgrade guides, and capability summaries — all grounded in real codebase facts, not marketing sheets.
 
@@ -46,7 +46,7 @@ check_module_exists("sign", "17.0")
 check_module_exists("website_livechat", "17.0")
 ```
 
-Build accurate CE/EE comparison tables. The tool returns `is_ee` flag and EE confusion warnings for look-alike module names.
+Build accurate CE/EE comparison tables. The tool returns the `is_ee` flag and EE confusion warnings for look-alike module names.
 
 ### Technical deep-dives
 
@@ -103,6 +103,6 @@ If you use **Claude Code** with the Odoo Semantic plugin:
 
 | Wrong claim | How to verify with MCP |
 |-------------|----------------------|
-| "Odoo 17 has [feature] for free" | `check_module_exists` → verify `is_ee: false` |
-| "In Odoo 17, name_get was replaced by..." | `lookup_core_api("name_get", "17.0")` → check `status` |
-| "Odoo added [API] in version X" | `api_version_diff` → `added_in` field |
+| "Odoo 17 has [feature] for free" | `check_module_exists` -> verify `is_ee: false` |
+| "In Odoo 17, name_get was replaced by..." | `lookup_core_api("name_get", "17.0")` -> check `status` |
+| "Odoo added [API] in version X" | `api_version_diff` -> `added_in` field |

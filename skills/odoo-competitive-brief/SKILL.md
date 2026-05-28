@@ -3,18 +3,17 @@ name: odoo-competitive-brief
 description: >
   Produce a structured competitive intelligence brief for a Strategist / CEO persona — covering
   a named competitor or a competitive landscape question. Output is a board-ready snapshot,
-  capability matrix vs Viindoo/Odoo, GTM moves (from user-provided signals only), threat
-  assessment, and recommended Viindoo response. Fire this skill when the user mentions a
-  competitor name alongside any strategic intent: "competitor brief về", "phân tích REDACTED",
-  "phân tích Bravo", "phân tích REDACTED", "phân tích REDACTED", "phân tích Odoo International",
-  "tóm tắt landscape cạnh tranh", "đối thủ X đang làm gì", "competitive update cho board",
-  "ai đang đe dọa Viindoo ở vertical X", "competitive brief on", "analyze competitor X",
+  capability matrix vs your platform/Odoo, GTM moves (from user-provided signals only), threat
+  assessment, and recommended response strategy. Fire this skill when the user mentions a
+  competitor name alongside any strategic intent: "competitor brief on", "analyze competitor X",
+  "competitive landscape analysis", "competitive update for board",
+  "analyze threats in vertical X", "competitive brief on", "analyze competitor X",
   "landscape brief for board", "what's competitor Y doing in vertical Z",
   "threat assessment for", "positioning vs competitor", "competitive intelligence update",
-  "cập nhật cạnh tranh cho nhà đầu tư", "đánh giá mối đe dọa từ X",
-  "so sánh chiến lược với đối thủ", "đối thủ cạnh tranh mới nổi",
-  "tình hình cạnh tranh Q[1-4]". Standalone-first — works WITHOUT OSM connectivity;
-  OSM optional for capability verification of Viindoo/Odoo claims.
+  "competitive analysis for investors", "competitive threat assessment",
+  "competitive strategy comparison", "emerging competitive threat",
+  "quarterly competitive update". Standalone-first — works WITHOUT OSM connectivity;
+  OSM optional for capability verification of your platform/Odoo claims.
   DO NOT trigger for: (a) sales talking-point objections ("they say Odoo can't do X") →
   odoo-objection-handler; (b) feature comparison drill-down between Odoo versions →
   odoo-version-diff; (c) detailed add-on diff → odoo-addon-diff; (d) marketing copy or
@@ -51,9 +50,9 @@ prioritizes what the user already knows — it does NOT invent competitive facts
 <!-- BEGIN MANUAL TOOLS — odoo-competitive-brief -->
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-**Optional — call only when grounding "Viindoo has X" or "Odoo can't do Y" claims:**
-- `check_module_exists` — Verify that a Viindoo/Odoo module or feature exists in the
-  platform (CE/EE/Viindoo edition), used to substantiate or refute capability claims a
+**Optional — call only when grounding "your platform has X" or "Odoo can't do Y" claims:**
+- `check_module_exists` — Verify that a module or feature exists in your platform
+  (CE/EE/custom distribution), used to substantiate or refute capability claims a
   competitor makes in their messaging. Call when the user says "competitor claims Odoo
   lacks X — is that true?".
 - `find_examples` — Semantic code search returning real indexed code snippets from the
@@ -79,8 +78,8 @@ If the user's prompt already specifies a competitor name and at least one scope 
 skip Round 0 and proceed directly to Round 1.
 
 If subject or scope is missing, ask ONE clarifying question:
-> "Bạn muốn brief về đối thủ cụ thể nào, và focus vào khía cạnh nào (sản phẩm / giá /
-> GTM / positioning, hoặc tất cả)? Mức độ detail: quick scan hay board-deck depth?"
+> "Which competitor would you like a brief on, and which aspect should we focus on (product / pricing /
+> GTM / positioning, or all)? Level of detail: quick scan or board-deck depth?"
 
 Do NOT ask multiple questions. Make reasonable defaults if user is partially specific.
 
@@ -106,7 +105,7 @@ these fields from the paste. Quote the source inline.
 
 ---
 
-### Round 2 — Capability matrix vs Viindoo
+### Round 2 — Capability matrix vs your platform
 
 Build a comparison table on 5-10 dimensions. Select the most relevant from:
 
@@ -123,13 +122,13 @@ Build a comparison table on 5-10 dimensions. Select the most relevant from:
 | Deployment model | Cloud SaaS / on-premise / hybrid; data residency options |
 | Support & SLA | Tiered support, local support language, SLA commitments |
 
-Mark each cell: **+** (competitor advantage) / **-** (Viindoo advantage) /
+Mark each cell: **+** (competitor advantage) / **-** (your platform advantage) /
 **=** (parity) / **?** (Unknown — data not provided).
 
-Viindoo baseline is known to the skill. Competitor column is filled from user-provided
+Your platform baseline is known to the skill. Competitor column is filled from user-provided
 data only. Do NOT infer competitor capabilities not stated by the user.
 
-If OSM is reachable and the user questions a specific Viindoo capability, call
+If OSM is reachable and the user questions a specific platform capability, call
 `check_module_exists` to verify before marking + / - / =.
 
 ---
@@ -154,11 +153,11 @@ If no GTM signals are available, output:
 Score each dimension from Round 2 by threat level: **Low / Med / High / Critical**.
 
 Threat level criteria:
-- **Low** — competitor weak or absent in this dimension; Viindoo has clear advantage
+- **Low** — competitor weak or absent in this dimension; your platform has clear advantage
 - **Med** — competitive parity or minor competitor edge; worth watching
 - **High** — competitor has material advantage in a dimension that matters to target segment
-- **Critical** — competitor advantage is large AND in a dimension central to Viindoo's
-  core value proposition (e.g., Vietnam localization for a local ERP incumbent)
+- **Critical** — competitor advantage is large AND in a dimension central to your platform's
+  core value proposition
 
 Cite specific signals for each High/Critical rating. Do not assign High/Critical without
 a stated signal from Round 1/3.
@@ -167,7 +166,7 @@ Aggregate overall threat: Low / Med / High / Critical — explain rationale in 2
 
 ---
 
-### Round 5 — Recommended Viindoo response
+### Round 5 — Recommended response
 
 Produce 3-5 actionable moves, prioritized by urgency and effort.
 
@@ -209,12 +208,12 @@ generic strategic moves without linking them to a specific threat.
 
 ---
 
-## Capability matrix vs Viindoo
+## Capability matrix vs your platform
 
-| Dimension | Viindoo | <Competitor> | Notes |
+| Dimension | Your platform | <Competitor> | Notes |
 |---|---|---|---|
 | ERP module coverage | <rating> | <rating> | <notes> |
-| Vietnam localization | <rating> | <rating> | <notes> |
+| Localization & compliance | <rating> | <rating> | <notes> |
 | Vertical depth | <rating> | <rating> | <notes> |
 | AI / automation | <rating> | <rating> | <notes> |
 | Integration ecosystem | <rating> | <rating> | <notes> |
@@ -224,7 +223,7 @@ generic strategic moves without linking them to a specific threat.
 | Deployment model | <rating> | <rating> | <notes> |
 | Support & SLA | <rating> | <rating> | <notes> |
 
-_Legend: + = competitor advantage · - = Viindoo advantage · = = parity · ? = Unknown_
+_Legend: + = competitor advantage · - = your platform advantage · = = parity · ? = Unknown_
 
 ---
 
@@ -255,7 +254,7 @@ _No moves listed = no signals provided by user._
 
 ---
 
-## Recommended Viindoo response
+## Recommended response
 
 1. **<Action 1>** — Owner: <CEO/Product/Marketing/Sales/Partner> · Timeline: <Immediate/Short/Medium>
    - Rationale: <link to threat signal>
@@ -282,12 +281,12 @@ _What additional intelligence would sharpen this brief:_
 
 When OSM is unreachable or not configured:
 - Skip `check_module_exists` and `find_examples` calls entirely.
-- Where a Viindoo capability claim cannot be verified, insert placeholder:
+- Where a platform capability claim cannot be verified, insert placeholder:
   `<TBD: verify via odoo-feature-check — module_name>`
 - Proceed with the full brief using user-provided data and training knowledge for
-  Viindoo/Odoo baseline.
+  your platform baseline.
 - Add a footer note to the output:
-  > _OSM not connected. Viindoo capability claims marked `<TBD>` should be verified
+  > _OSM not connected. Platform capability claims marked `<TBD>` should be verified
   > before using in board or investor materials._
 
 The brief remains useful for internal strategy sessions even without OSM verification.
@@ -298,52 +297,49 @@ The brief remains useful for internal strategy sessions even without OSM verific
 
 ### Example 1 — Vietnam ERP incumbent (local-market player)
 
-**User prompt:** "cần competitive brief về Đối thủ A — họ vừa ra gói SME mới, focus vào
-kế toán và HRM, giá khoảng X triệu/năm. Mình cần deck cho board tuần sau."
+**User prompt:** "need competitive brief on Competitor A — they just launched a new SME package,
+focus on accounting and HR, pricing around X per year. I need a deck for board next week."
 
 **Skill action:**
 - Round 0: scope is clear (Product + Pricing, board deck) — skip clarification.
-- Round 1: Extract from user statement — local HQ, Vietnam-primary geo, SME segment,
-  Accounting + HRM modules, published pricing band. Mark unknown fields (headcount, parent).
-- Round 2: Build matrix. Competitor strengths likely in Vietnam localization (local player),
-  pricing (published + aggressive). Viindoo strengths in module breadth, EE features.
-  Mark unknown dimensions as `?` — do not infer.
+- Round 1: Extract from user statement — target segment SME, Accounting + HR modules, published pricing.
+  Mark unknown fields (HQ, headcount, parent).
+- Round 2: Build matrix. Competitor strengths likely in pricing (published + competitive),
+  your platform strengths in module breadth, EE features. Mark unknown dimensions as `?` — do not infer.
 - Round 3: GTM move = new SME bundle launch. Source = user statement. Date = user-stated.
-- Round 4: Threat High on Pricing (published aggressive), Med on Vietnam localization
-  (both are local), Low on AI/automation (not mentioned). Overall threat: Med.
-- Round 5: Recommend (1) Viindoo counter-bundle packaging review — Owner: CEO/Product,
-  Immediate; (2) Publish pricing page with value comparison — Owner: Marketing, Short-term;
-  (3) Accelerate HRM Vietnam compliance feature — Owner: Product, Medium-term.
+- Round 4: Threat High on Pricing (competitive), Med on feature depth (both have core HR/Accounting),
+  Low on AI/automation (not mentioned). Overall threat: Med.
+- Round 5: Recommend (1) Counter-bundle packaging review — Owner: CEO/Product, Immediate;
+  (2) Publish pricing comparison — Owner: Marketing, Short-term; (3) Accelerate HR compliance
+  feature — Owner: Product, Medium-term.
 
-**Note:** This template applies to any Vietnam-domiciled ERP incumbent with local compliance
-depth and aggressive SME pricing. Do not hardcode specific competitor names or pricing
-figures in this skill.
+**Note:** This template applies to any competitor with local market presence, published pricing,
+and focus on SME segment. Do not hardcode specific competitor names.
 
 ---
 
 ### Example 2 — International SaaS player entering Vietnam
 
-**User prompt:** "Đối thủ B là SaaS quốc tế, vừa mở văn phòng Việt Nam, có partner lớn
-ở HCM. Họ push mạnh vào manufacturing vertical. Cần threat assessment nhanh."
+**User prompt:** "Competitor B is international SaaS, just opened Vietnam office with a major partner
+in HCM. They're pushing hard into manufacturing. Need quick threat assessment."
 
 **Skill action:**
 - Round 0: scope is Product + GTM + threat assessment, quick scan. Proceed.
 - Round 1: International HQ, Vietnam entry-stage (new office), partner announcement,
-  Manufacturing vertical focus. Headcount and pricing unknown — mark `?`.
-- Round 2: Competitor strengths likely in global integration ecosystem and AI features
-  (international SaaS). Viindoo strengths in Vietnam localization and local support.
-  Manufacturing vertical: mark `?` for competitor depth until user provides data.
+  Manufacturing focus. Headcount and pricing unknown — mark `?`.
+- Round 2: Competitor strengths likely in global integration ecosystem and AI
+  (international SaaS). Your platform strengths in localization and local support.
+  Manufacturing depth: mark `?` for competitor until user provides data.
 - Round 3: GTM moves = office opening + partner announcement. Source = user statement.
 - Round 4: Threat High on Integration ecosystem (international SaaS breadth),
-  Med on Manufacturing vertical (needs data), Low on Vietnam localization (new entrant),
-  High on Partner ecosystem (named large partner). Overall threat: Med-High.
-- Round 5: Recommend (1) Accelerate Manufacturing vertical case studies — Owner: Marketing,
-  Short-term; (2) Engage Manufacturing sector associations before competitor does — Owner:
-  CEO/Sales, Immediate; (3) Monitor partner's customer wins via LinkedIn — Owner: CEO,
-  Ongoing.
+  Med on Manufacturing vertical (needs data), Low on localization (new entrant),
+  High on Partner ecosystem (named major partner). Overall threat: Med-High.
+- Round 5: Recommend (1) Accelerate Manufacturing case studies — Owner: Marketing,
+  Short-term; (2) Engage Manufacturing sector before competitor — Owner: CEO/Sales,
+  Immediate; (3) Monitor partner's customer wins — Owner: CEO, Ongoing.
 
-**Note:** This template applies to any international SaaS entering a specific Vietnam vertical
-via local partnerships. Adjust threat ratings based on actual user-provided signals.
+**Note:** This template applies to any international SaaS entering a specific vertical
+via local partnerships. Adjust threat ratings based on user-provided signals.
 
 ---
 
@@ -352,11 +348,11 @@ via local partnerships. Adjust threat ratings based on actual user-provided sign
 ### `.odoo-ai/context.md` integration
 
 If the project has an `.odoo-ai/context.md` file, the skill will read it for:
-- Viindoo's current product roadmap signals (to inform capability matrix and response recommendations)
+- Your platform's current product roadmap signals (to inform capability matrix and response recommendations)
 - Known active competitors already tracked by the team
 
-The skill does NOT auto-read vault competitor profiles. If you maintain competitor dossiers
-in Obsidian or another knowledge base, paste the relevant section into the chat —
+The skill does NOT auto-read external competitor profiles. If you maintain competitor dossiers
+in documentation or knowledge base, paste the relevant section into the chat —
 the skill will incorporate it into the appropriate round.
 
 ### Confidentiality notice

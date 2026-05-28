@@ -1,20 +1,16 @@
 # Client Setup — Odoo Semantic MCP
 
-Hướng dẫn này dành cho **end user** muốn kết nối AI tool của mình vào một MCP server đã được admin deploy sẵn.
+This guide is for **end users** who want to connect their AI tool to an MCP server that an admin has already deployed.
 
-> **Bạn không cần cài gì** — chỉ cần URL + API key từ admin, rồi làm theo section tương ứng với AI tool đang dùng.
+> **Nothing to install** — you only need a URL and an API key from your admin, then follow the section that matches your AI tool.
 
-> **Quy ước trong các snippet:** thay `<MCP_URL>` bằng URL admin gửi (production:
+> **Snippet convention:** replace `<MCP_URL>` with the URL your admin sent (production:
 > `https://odoo-semantic.viindoo.com/mcp`; local self-host: `http://127.0.0.1:8002/mcp`),
-> và `<API_KEY>` bằng raw key (`osm_xxxxxxxx...`) admin cấp cho bạn (qua trang `/install/` hoặc Web UI).
+> and `<API_KEY>` with the raw key (`osm_xxxxxxxx...`) your admin issued (via the `/install/` page or Web UI).
 
-> **Sai lầm chung 80% người mắc:** mỗi client lưu MCP config ở **file khác nhau**
-> với **schema khác nhau**. Copy-paste snippet sai client → MCP **không load
-> nhưng client cũng không báo lỗi** (chỉ "tool not found" khi gọi). Mỗi section
-> dưới đây có canonical add command + JSON fallback + verify command + 1 pitfall
-> đặc trưng của client đó.
+> **The most common mistake:** each client stores MCP config in a **different file** with a **different schema**. Copy-pasting the wrong client's snippet means MCP **will not load — but the client will not report an error** (you only notice when a tool call returns "tool not found"). Each section below includes the canonical add command + JSON fallback + verify command + one client-specific pitfall.
 
-> 💡 **Nhanh nhất:** truy cập **https://odoo-semantic.viindoo.com/install/** và dán API key — trang tự sinh snippet đúng cho từng client. Các section dưới đây là tài liệu tham khảo chính thức để setup nâng cao, troubleshooting, và auto-trust patterns.
+> **Fastest path:** go to **https://odoo-semantic.viindoo.com/install/**, paste your API key, and the page generates the correct snippet for each client. The sections below are the official reference for advanced setup, troubleshooting, and auto-trust patterns.
 
 ---
 
@@ -24,7 +20,7 @@ Hướng dẫn này dành cho **end user** muốn kết nối AI tool của mìn
 
 For Claude Code users, the plugin is the fastest path: it bundles the MCP server config, all 15 persona skills, and the setup command in one install.
 
-#### 1. Add the Viindoo marketplace (one-time)
+#### 1. Add the marketplace (one-time)
 
 ```bash
 claude plugin marketplace add Viindoo/claude-plugins --scope user
@@ -76,10 +72,10 @@ After install, 15 skills activate automatically:
 | `odoo-override-finder` | Developer | "where to override method X" |
 | `odoo-deprecation-audit` | Developer | "audit deprecated API usage" |
 | `odoo-version-diff` | Developer | "what changed between v16 and v17" |
-| `odoo-coder` | Developer | "viết model/computed field/onchange" |
-| `odoo-owl-coder` | Developer | "viết OWL component cho Odoo v15+" |
-| `odoo-js-coder` | Developer | "viết JS widget cho Odoo v8-14" |
-| `odoo-code-reviewer` | Developer | "review code Odoo (Python/JS/XML)" |
+| `odoo-coder` | Developer | "write a model/computed field/onchange" |
+| `odoo-owl-coder` | Developer | "write an OWL component for Odoo v15+" |
+| `odoo-js-coder` | Developer | "write a JS widget for Odoo v8-14" |
+| `odoo-code-reviewer` | Developer | "review Odoo code (Python/JS/XML)" |
 | `odoo-feature-check` | Consultant | "does Odoo have module X" |
 | `odoo-gap-analysis` | Consultant | "gap analysis for client requirements" |
 | `odoo-feature-highlights` | Marketer | "new features in Odoo 17" |
@@ -98,13 +94,13 @@ After install, 15 skills activate automatically:
 
 Docs: <https://code.claude.com/docs/en/mcp>
 
-Cách 1 — CLI (recommended, official):
+Option 1 — CLI (recommended, official):
 ```bash
 claude mcp add --scope user --transport http odoo-semantic <MCP_URL> \
     --header "X-API-Key: <API_KEY>"
 ```
 
-Cách 2 — JSON fallback (file `~/.claude.json`, **không phải** `~/.claude/settings.json`):
+Option 2 — JSON fallback (file `~/.claude.json`, **not** `~/.claude/settings.json`):
 ```json
 {
   "mcpServers": {
@@ -117,21 +113,18 @@ Cách 2 — JSON fallback (file `~/.claude.json`, **không phải** `~/.claude/s
 }
 ```
 
-Verify: `/mcp` trong session đang chạy, hoặc `claude mcp list` ngoài shell. Phải thấy `odoo-semantic … ✓ Connected`.
+Verify: run `/mcp` in a live session, or `claude mcp list` from the shell. You should see `odoo-semantic … Connected`.
 
-⚠️ **Pitfall 1 (rất phổ biến):** `~/.claude/settings.json` (cho permissions/hooks) **≠** `~/.claude.json` (cho MCP servers). README cũ ghi nhầm sang `settings.json` → MCP không bao giờ load. Nếu bạn từng làm theo README cũ: xoá entry `mcpServers.odoo-semantic` khỏi `~/.claude/settings.json`, rồi chạy lại `claude mcp add` ở Cách 1.
+**Pitfall 1 (very common):** `~/.claude/settings.json` (for permissions/hooks) is **not** the same as `~/.claude.json` (for MCP servers). Older READMEs incorrectly referenced `settings.json` — MCP never loads from there. If you followed an old README: remove the `mcpServers.odoo-semantic` entry from `~/.claude/settings.json`, then re-run the CLI command above.
 
-⚠️ **Pitfall 2:** Sau khi add phải **restart Claude Code** — entry mới không load runtime.
+**Pitfall 2:** After adding, you must **restart Claude Code** — new entries do not load at runtime.
 
 ### Auto-trust: skip permission prompts
 <a id="claude-code-auto-trust"></a>
 
-> ✅ **Nếu bạn cài qua plugin Viindoo marketplace:** `/odoo-semantic:connect`
-> hiện đã **tự động** thêm entry này vào `~/.claude/settings.json` (idempotent,
-> có backup, không đụng tới các key khác). Trả `Y` ở prompt cuối — không cần
-> đọc tiếp section này. Trả `n` → quay lại làm thủ công theo snippet dưới.
+> **If you installed via the plugin:** `/odoo-semantic:connect` already adds this entry to `~/.claude/settings.json` automatically (idempotent, with backup, no side effects on other keys). Confirm at the final prompt — you can skip the rest of this section. If you declined: follow the manual snippet below.
 
-Snippet manual (cho ai cài qua `claude mcp add` raw, không qua plugin):
+Manual snippet (for users who ran `claude mcp add` directly, without the plugin):
 
 ```json
 {
@@ -141,8 +134,8 @@ Snippet manual (cho ai cài qua `claude mcp add` raw, không qua plugin):
 }
 ```
 
-> Nếu file đã có `permissions.allow`, chỉ thêm chuỗi `"mcp__odoo-semantic"` vào array.
-> Wildcard không có tool name = pre-approve TẤT CẢ tool của server này.
+> If the file already has `permissions.allow`, append the string `"mcp__odoo-semantic"` to the array.
+> A wildcard without a tool name pre-approves all tools on this server.
 
 ---
 
@@ -150,7 +143,7 @@ Snippet manual (cho ai cài qua `claude mcp add` raw, không qua plugin):
 
 Docs: <https://developers.openai.com/codex/mcp>
 
-Edit `~/.codex/config.toml` (CLI `codex mcp add` không có `--header` flag — phải edit TOML trực tiếp):
+Edit `~/.codex/config.toml` (the `codex mcp add` CLI does not support a `--header` flag — you must edit the TOML directly):
 ```toml
 [mcp_servers.odoo-semantic]
 url = "<MCP_URL>"
@@ -159,23 +152,20 @@ http_headers = { "X-API-Key" = "<API_KEY>" }
 
 Restart Codex. Verify: `codex mcp list`.
 
-⚠️ **Pitfall:** Phải dùng key `http_headers` (snake_case + plural). Viết `headers = ...` Codex sẽ silently ignore và server không gửi auth header → 401 từ MCP.
+**Pitfall:** the key must be `http_headers` (snake_case, plural). Writing `headers = ...` causes Codex to silently ignore it and send no auth header, resulting in a 401 from the MCP server.
 
-### auto-trust: skip permission prompts
+### Auto-trust: skip permission prompts
 <a id="codex-cli-auto-trust"></a>
 
-> ⚠️ **Trade-off**: Codex CLI không có cơ chế pre-approve per-server. Mỗi tool sẽ
-> bị hỏi xác nhận lần đầu sử dụng. Đây là giới hạn của OpenAI Codex, không phải
-> server. Workaround duy nhất: set `approval_policy = "never"` trong config —
-> nhưng ảnh hưởng tất cả tool khác, không khuyến nghị.
+> **Trade-off**: Codex CLI has no per-server pre-approval mechanism. Each tool will prompt for confirmation on first use. This is a limitation of the Codex CLI, not the server. The only workaround is setting `approval_policy = "never"` in config — but that affects all tools, which is not recommended.
 
-API key qua envvar (sạch hơn hardcode trong toml):
+API key via environment variable (cleaner than hardcoding in TOML):
 
 ```bash
 echo 'export ODOO_SEMANTIC_KEY="YOUR_API_KEY"' >> ~/.bashrc
 ```
 
-Trong `~/.codex/config.toml`:
+In `~/.codex/config.toml`:
 ```toml
 [mcp_servers.odoo-semantic]
 url = "https://odoo-semantic.viindoo.com/mcp"
@@ -188,7 +178,7 @@ env_http_headers = { "X-API-Key" = "ODOO_SEMANTIC_KEY" }
 
 Docs: <https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md>
 
-Edit `~/.gemini/settings.json` (user-global) hoặc `.gemini/settings.json` (project):
+Edit `~/.gemini/settings.json` (user-global) or `.gemini/settings.json` (project):
 ```json
 {
   "mcpServers": {
@@ -201,14 +191,14 @@ Edit `~/.gemini/settings.json` (user-global) hoặc `.gemini/settings.json` (pro
 }
 ```
 
-Restart `gemini`. Verify: `/mcp` trong CLI.
+Restart `gemini`. Verify: `/mcp` in the CLI.
 
-⚠️ **Pitfall:** Property phải là `httpUrl` (không phải `url`). Viết `url` thì Gemini coi là SSE deprecated transport → handshake hang/fail.
+**Pitfall:** the property must be `httpUrl` (not `url`). Using `url` causes Gemini to treat it as the deprecated SSE transport, resulting in a handshake hang or failure.
 
-### auto-trust: skip permission prompts
+### Auto-trust: skip permission prompts
 <a id="gemini-cli-auto-trust"></a>
 
-Thêm `"trust": true` vào server entry trong `~/.gemini/settings.json`:
+Add `"trust": true` to the server entry in `~/.gemini/settings.json`:
 
 ```json
 {
@@ -222,7 +212,7 @@ Thêm `"trust": true` vào server entry trong `~/.gemini/settings.json`:
 }
 ```
 
-> `"trust": true` = bypass mọi confirmation prompt cho server này.
+> `"trust": true` bypasses all confirmation prompts for this server.
 
 ---
 
@@ -230,7 +220,7 @@ Thêm `"trust": true` vào server entry trong `~/.gemini/settings.json`:
 
 Docs: <https://code.visualstudio.com/docs/copilot/reference/mcp-configuration>
 
-Command Palette (`Ctrl/Cmd+Shift+P`) → **`MCP: Open User Configuration`** — file `mcp.json` mở ra:
+Command Palette (`Ctrl/Cmd+Shift+P`) → **`MCP: Open User Configuration`** — opens `mcp.json`:
 ```json
 {
   "servers": {
@@ -243,29 +233,27 @@ Command Palette (`Ctrl/Cmd+Shift+P`) → **`MCP: Open User Configuration`** — 
 }
 ```
 
-Click **Start** codelens xuất hiện trên server block, hoặc reload window.
+Click the **Start** codelens that appears on the server block, or reload the window.
 
-⚠️ **Pitfall:** Top-level key là `servers` (KHÔNG phải `mcpServers` như Claude/Gemini/Antigravity). `type` phải đúng `"http"` (KHÔNG phải `"streamable-http"`). KHÔNG đặt MCP servers vào `settings.json` — phải file `mcp.json` riêng.
+**Pitfall:** the top-level key is `servers` (not `mcpServers` as in Claude/Gemini/Antigravity). `type` must be exactly `"http"` (not `"streamable-http"`). Do not put MCP servers into `settings.json` — use the separate `mcp.json` file.
 
-### auto-trust: skip permission prompts
+### Auto-trust: skip permission prompts
 <a id="vs-code-auto-trust"></a>
 
-VS Code không có config flag để pre-trust. Phải click **"Always allow for this
-server"** trong Chat UI lần đầu gọi tool.
+VS Code has no config flag for pre-trusting a server. Click **"Always allow for this server"** in the Chat UI on the first tool call.
 
-**One-click install URL** (paste vào browser, VS Code tự xử lý):
+**One-click install URL** (paste into a browser; VS Code handles the rest):
 
 ```
 vscode:mcp/install?%7B%22name%22%3A%22odoo-semantic%22%2C%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fodoo-semantic.viindoo.com%2Fmcp%22%2C%22headers%22%3A%7B%22X-API-Key%22%3A%22YOUR_API_KEY%22%7D%7D
 ```
 
-JSON pre-encode (replace `YOUR_API_KEY`):
+JSON pre-encoded (replace `YOUR_API_KEY`):
 ```json
 {"name":"odoo-semantic","type":"http","url":"https://odoo-semantic.viindoo.com/mcp","headers":{"X-API-Key":"YOUR_API_KEY"}}
 ```
 
-> ⚠️ VS Code hiện chưa rõ có honor `headers` field trong URL handler không. Nếu
-> install xong mà tool 401, thêm `headers` thủ công vào `.vscode/mcp.json`.
+> VS Code's URL handler behavior with the `headers` field is not fully documented. If the tool returns 401 after install, add `headers` manually to `.vscode/mcp.json`.
 
 ---
 
@@ -273,7 +261,7 @@ JSON pre-encode (replace `YOUR_API_KEY`):
 
 Docs: <https://antigravity.google/docs/mcp>
 
-IDE → **Manage MCP Servers → View raw config** — hoặc edit thẳng `~/.gemini/antigravity/mcp_config.json`:
+IDE → **Manage MCP Servers → View raw config** — or edit `~/.gemini/antigravity/mcp_config.json` directly:
 ```json
 {
   "mcpServers": {
@@ -285,19 +273,16 @@ IDE → **Manage MCP Servers → View raw config** — hoặc edit thẳng `~/.g
 }
 ```
 
-Save → click **Refresh** ở MCP panel.
+Save → click **Refresh** in the MCP panel.
 
-⚠️ **Pitfall:** Property phải là `serverUrl` (camelCase, không phải `url` hay `httpUrl`). File ở `~/.gemini/antigravity/` (chia sẻ prefix với Gemini CLI nhưng schema khác).
+**Pitfall:** the property must be `serverUrl` (camelCase, not `url` or `httpUrl`). The file lives under `~/.gemini/antigravity/` — it shares a path prefix with Gemini CLI but has a different schema.
 
-### auto-trust: skip permission prompts
+### Auto-trust: skip permission prompts
 <a id="antigravity-auto-trust"></a>
 
-Sau khi add server: vào **...** → **MCP Servers** → tìm `odoo-semantic` →
-add allow-list pattern `mcp(odoo-semantic.*)` để pre-approve tất cả tool.
+After adding the server: go to **... → MCP Servers** → find `odoo-semantic` → add the allow-list pattern `mcp(odoo-semantic.*)` to pre-approve all tools.
 
-> ⚠️ Antigravity chỉ có global config, không có project-level. API key lưu
-> plaintext trong `~/.gemini/antigravity/mcp_config.json` — đảm bảo file
-> permission 600.
+> Antigravity has only a global config, no project-level config. The API key is stored in plaintext in `~/.gemini/antigravity/mcp_config.json` — ensure the file has `600` permissions.
 
 ---
 
@@ -317,7 +302,7 @@ Starting in v0.5.0 the MCP server supports **sticky session context** so you sto
 
 After step 2, calling `model_inspect(model="sale.order", method="summary")` (no `odoo_version=` arg) returns results for `17.0`. Override at any time by passing `odoo_version=` explicitly on a single call (one-off; does **not** clear the sticky value).
 
-> See [ADR-0029](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0029-implicit-session-context.md) for the TTL design and per-key keying rationale.
+> See [ADR-0029](https://odoo-semantic.viindoo.com/docs/adr/0029-implicit-session-context) for the TTL design and per-key keying rationale.
 
 ---
 
@@ -343,7 +328,7 @@ odoo://17.0/field/sale.order/amount_total
 odoo://17.0/view/sale.view_order_form
 ```
 
-Clients that implement the MCP `resources/list` and `resources/read` flows surface these as bookmark-style references. See [ADR-0030](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0030-mcp-resources-uri-scheme.md) for the URI grammar and authorization model (same `X-API-Key` header as tool calls).
+Clients that implement the MCP `resources/list` and `resources/read` flows surface these as bookmark-style references. See [ADR-0030](https://odoo-semantic.viindoo.com/docs/adr/0030-mcp-resources-uri-scheme) for the URI grammar and authorization model (same `X-API-Key` header as tool calls).
 
 ---
 
@@ -352,7 +337,7 @@ Clients that implement the MCP `resources/list` and `resources/read` flows surfa
 The server exposes **24 tools** at v0.11.1. The v0.7 surface added 2 stylesheet tools
 (`resolve_stylesheet`, `find_style_override`) on top of the v0.6 base; v0.8 (M10.5 Phase 2)
 added 4 ORM-validation tools; v0.10.0 added `module_inspect(method='dependencies')`. The 10
-flat `resolve_*` / `list_*` tools that existed in v0.4–v0.5 were deprecated in v0.5 and
+flat `resolve_*` / `list_*` tools that existed in v0.4-v0.5 were deprecated in v0.5 and
 **removed in v0.6** — they no longer exist on the server. If you encounter prompts or
 snippets that reference the old names, replace them with the supersets below.
 
@@ -376,33 +361,25 @@ Static checks against the indexed graph — run them before an AI client suggest
 | `validate_depends(model, method, odoo_version="auto")` | Validate a compute method's indexed `@api.depends` paths |
 | `validate_relation(model, field, target_model, odoo_version="auto")` | Assert a relational field's comodel matches the expected target |
 
-**Full side-by-side migration guide:** the server [CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
+**Full side-by-side migration guide:** see the server [CHANGELOG](https://odoo-semantic.viindoo.com/changelog).
 
 ---
 
 ## Verify After Install — Natural-Language Prompts
 
-Sau khi add xong, **gõ prompt tự nhiên** dưới đây vào AI tool — agent phải tự pick MCP `odoo-semantic` và gọi `model_inspect`. Nếu agent trả lời chung chung kiểu textbook về `sale.order` thay vì cite được module name + odoo_version từ index → MCP **chưa load đúng**, quay lại section của client tương ứng.
+After adding the server, type one of the prompts below into your AI tool — the agent should automatically invoke the `odoo-semantic` MCP server and call `model_inspect`. If the agent returns a generic textbook description of `sale.order` instead of citing real module names and an `odoo_version` from the index, the MCP server has not loaded correctly — return to the section for your client.
 
-**English:**
 - *"Using the odoo-semantic tools, show me the full inheritance chain of `sale.order` in Odoo 17.0 — which modules extend it?"*
 - *"Inspect the model `sale.order` for version 17.0 and list all fields added by extension modules."*
 
-**Tiếng Việt:**
-- *"Dùng odoo-semantic, liệt kê toàn bộ inheritance chain của model `sale.order` trên Odoo 17.0 và cho biết module nào extend nó."*
-- *"Trên phiên bản Odoo 17.0, model `sale.order` có những field nào và được kế thừa từ đâu?"*
+**Signs the MCP is working correctly:**
+- Concrete module names from the index (`sale`, `sale_management`, `website_sale`, ...)
+- Tree format output `+-- ... L--`
+- `Defined in: [<repo>] <module>` and `Inherits from: ...` blocks
+- Specific counts such as `Fields: 148` / `Methods: 394` (not round estimated numbers)
 
-**Tín hiệu đúng** trong response:
-- Cite concrete module name từ index (`sale`, `sale_management`, `viin_sale`, `website_sale`, …)
-- Có format cây `├─ … └─` (output canonical của tool)
-- Có `Defined in: [<repo>] <module>` và `Inherits from: …` block
-- Counts cụ thể như `Fields: 148` / `Methods: 394` (không phải con số tròn ước lượng)
-
-**Tín hiệu sai** — agent đang answer bằng general knowledge:
-- Trả lời prose dài về "sale.order is a model in Odoo's sales module …"
-- Không có module name từ codebase đã index
-- Không có format cây
-- Không thừa nhận đã gọi tool nào
-
-> 💡 **Self-host test trước khi prod**: thay `<MCP_URL>` bằng `http://127.0.0.1:8002/mcp`
-> và làm theo [Local E2E Quickstart](https://github.com/Viindoo/odoo-semantic-server/blob/master/CONTRIBUTING.md) để chạy MCP server local.
+**Signs the agent is answering from general knowledge (MCP not active):**
+- Long prose response about "sale.order is a model in Odoo's sales module..."
+- No module names from an indexed codebase
+- No tree format
+- No acknowledgment of having called a tool

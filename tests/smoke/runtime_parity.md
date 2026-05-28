@@ -107,7 +107,7 @@ Before beginning this checklist, confirm all of the following:
 - **Claude Code**: trigger prompt is typed as-is into the Claude Code REPL.
   Description match is automatic.
 - **Codex CLI**: prepend the skill name as a system cue if auto-match is absent.
-  Example: `[odoo-feature-check] Khách hỏi Odoo có quản lý nhiều kho không`.
+  Example: `[odoo-feature-check] Customer asks whether Odoo supports multi-warehouse management`.
   If the runtime does not support description-match, criterion (a) is PASS if
   the skill body executes correctly after the cue — document the cue in Notes.
 - **Gemini CLI**: same approach as Codex. Document any prompt prefix needed in
@@ -123,7 +123,7 @@ Before beginning this checklist, confirm all of the following:
 
 > Phase A — concierge / silent disambiguation. No MCP calls.
 
-**Trigger prompt (VI)**: "tao có 1 prompt cần xử lý nhưng không rõ skill nào — Khách A hỏi gì đó về Odoo manufacturing"
+**Trigger prompt (VI)**: "I have a prompt to handle but I'm not sure which skill to use — Customer A has a question about Odoo manufacturing"
 
 **Trigger prompt (EN)**: "I'm not sure which skill to use — Customer A has a question about Odoo manufacturing"
 
@@ -131,7 +131,7 @@ Before beginning this checklist, confirm all of the following:
 - Recommended skill name (exactly ONE, e.g. `odoo-feature-check`)
 - One-sentence justification citing the intent signal (e.g., "single feature availability check")
 - One-line outcome description of what the target skill will do
-- Confirmation question: `yes / no / chọn skill khác`
+- Confirmation question: `yes / no / choose a different skill`
 - NO actual work output (router does not execute the target skill)
 
 | Runtime | Pass? | Notes |
@@ -147,7 +147,7 @@ Before beginning this checklist, confirm all of the following:
 > Phase A — project context bootstrap. Read-only MCP: `list_available_versions`,
 > `list_available_profiles`, `set_active_version`, `set_active_profile`.
 
-**Trigger prompt (VI)**: "tao mới clone repo Odoo về, setup context giúp"
+**Trigger prompt (VI)**: "I just cloned an Odoo repo, help me set up the context"
 
 **Trigger prompt (EN)**: "first time using odoo-semantic for this project — initialize Odoo context"
 
@@ -172,7 +172,7 @@ Before beginning this checklist, confirm all of the following:
 > Phase A — Pre-Sales. MCP: `check_module_exists`, `model_inspect`,
 > `find_examples`, `suggest_pattern`.
 
-**Trigger prompt (VI)**: "Khách A hỏi Odoo có hỗ trợ quản lý nhiều kho không, kể cả trong CE"
+**Trigger prompt (VI)**: "Customer A asks whether Odoo supports multi-warehouse management, including in CE"
 
 **Trigger prompt (EN)**: "Customer A asks whether Odoo supports multi-warehouse management in CE"
 
@@ -196,7 +196,7 @@ Before beginning this checklist, confirm all of the following:
 > Phase A — Pre-Sales. MCP: `check_module_exists`, `model_inspect`,
 > `find_examples`, `lookup_core_api`, `suggest_pattern`.
 
-**Trigger prompt (VI)**: "Khách A yêu cầu 3 tính năng: (1) phê duyệt nhiều cấp cho đơn mua, (2) quản lý serial number, (3) tích hợp chữ ký điện tử — Odoo có sẵn những gì?"
+**Trigger prompt (VI)**: "Customer A requires 3 features: (1) multi-level purchase approval, (2) serial number management, (3) e-signature integration — what does Odoo cover out of the box?"
 
 **Trigger prompt (EN)**: "Customer A needs: (1) multi-level purchase approval, (2) serial number tracking, (3) e-signature integration — what does Odoo cover out of the box?"
 
@@ -220,7 +220,7 @@ Before beginning this checklist, confirm all of the following:
 > Phase A — Sales AE. MCP: `check_module_exists`, `find_examples`,
 > `model_inspect`, `suggest_pattern`.
 
-**Trigger prompt (VI)**: "Khách A bảo Odoo không làm được phê duyệt nhiều cấp, giúp tao viết phản hồi"
+**Trigger prompt (VI)**: "Customer A says Odoo can't do multi-level approval — help me write a counter-response"
 
 **Trigger prompt (EN)**: "Customer A says Odoo can't do multi-level approval — help me write a counter-response"
 
@@ -243,7 +243,7 @@ Before beginning this checklist, confirm all of the following:
 
 > Phase B — Sales AE. No MCP dependency (deal context is user-provided).
 
-**Trigger prompt (VI)**: "Khách A lâu rồi chưa reply email, deal đang stall, giúp tao viết follow-up"
+**Trigger prompt (VI)**: "Customer A hasn't replied in a long time, the deal is stalled — help me write a follow-up"
 
 **Trigger prompt (EN)**: "Customer A hasn't replied in a while, deal is stalled — help me draft a follow-up email"
 
@@ -251,7 +251,7 @@ Before beginning this checklist, confirm all of the following:
 - `## Deal status` block with risk level (red/yellow/green) + last touch + stage health
 - `## Tags` line (ghosting, competitor-present, or other relevant tags)
 - `## Next-best action` — one specific, actionable line
-- `## Draft email (tiếng Việt)` with Subject line and four-paragraph structure:
+- `## Draft email (in Vietnamese)` with Subject line and four-paragraph structure:
   Warm reopener / Value reinforcement / Clear ask / CTA + close
 
 | Runtime | Pass? | Notes |
@@ -266,7 +266,7 @@ Before beginning this checklist, confirm all of the following:
 
 > Phase B — Marketer. MCP: `api_version_diff`, `find_examples`.
 
-**Trigger prompt (VI)**: "tóm tắt tính năng nổi bật Odoo 17 cho slide nội bộ tuần sau, so với Odoo 16"
+**Trigger prompt (VI)**: "summarize the headline features of Odoo 17 for an internal slide deck next week, compared to Odoo 16"
 
 **Trigger prompt (EN)**: "summarize Odoo 17 headline features for an internal slide deck, compared to Odoo 16"
 
@@ -289,7 +289,7 @@ Before beginning this checklist, confirm all of the following:
 
 > Phase B — Marketer. Standalone-first: OSM optional (`find_examples`).
 
-**Trigger prompt (VI)**: "viết bài LinkedIn về tính năng quản lý dự án trong Odoo 17, góc độ SME Việt Nam"
+**Trigger prompt (VI)**: "write a LinkedIn post about project management features in Odoo 17, from the perspective of Vietnamese SMEs"
 
 **Trigger prompt (EN)**: "draft a LinkedIn post about Odoo 17 project management features, targeting Vietnamese SMEs"
 
@@ -312,7 +312,7 @@ Before beginning this checklist, confirm all of the following:
 > Phase A — Developer + Marketer cross-cutting. MCP: `api_version_diff`,
 > `entity_lookup`, `lookup_core_api`, `model_inspect`.
 
-**Trigger prompt (VI)**: "API nào thay đổi từ Odoo v16 sang v17, dev cần biết trước khi upgrade"
+**Trigger prompt (VI)**: "which APIs changed from Odoo v16 to v17, what should developers know before upgrading"
 
 **Trigger prompt (EN)**: "which APIs changed between Odoo v16 and v17 — what should a developer know before upgrading"
 
@@ -336,7 +336,7 @@ Before beginning this checklist, confirm all of the following:
 > Phase A — Developer. MCP: `api_version_diff`, `entity_lookup`,
 > `find_deprecated_usage`, `lookup_core_api`, `module_inspect`.
 
-**Trigger prompt (VI)**: "audit code Odoo của chúng tôi trước khi nâng cấp từ v16 lên v17, tìm những gì sẽ break"
+**Trigger prompt (VI)**: "audit our Odoo codebase before upgrading from v16 to v17 — find everything that will break"
 
 **Trigger prompt (EN)**: "audit our Odoo codebase before upgrading from v16 to v17 — find everything that will break"
 

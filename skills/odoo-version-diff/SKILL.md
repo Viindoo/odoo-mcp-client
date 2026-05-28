@@ -6,12 +6,12 @@ description: >
   migration notes) and a marketer track (business-language feature highlights). Use this
   skill ANY time someone is comparing two Odoo versions — whether they want a migration
   plan, marketing talking points, or just to understand what's new. Pushy trigger: fire on
-  "what changed between v16 and v17?", "new in Odoo 17", "tính năng mới Odoo 17", "API nào
-  thay đổi từ v16 sang v17", "v18 release notes for developers", "what was removed in v13?",
+  "what changed between v16 and v17?", "new in Odoo 17", "what are the new features in Odoo 17",
+  "which APIs changed from v16 to v17", "v18 release notes for developers", "what was removed in v13?",
   "Odoo 14 vs Odoo 16 for our team", "from v12 to v16 — diff", "what's the headline news in
-  v18 for marketing?", "client running v15 — what would v17 give them?", "khách hỏi sự khác
-  biệt giữa v16 và v17", "Odoo 19 có gì mới?", "is the v17 ORM faster?", "between which
-  versions did OWL become default?", "khi nào @api.multi bị remove?". This skill serves
+  v18 for marketing?", "client running v15 — what would v17 give them?", "customer asks about
+  the differences between v16 and v17", "what's new in Odoo 19?", "is the v17 ORM faster?",
+  "between which versions did OWL become default?", "when was @api.multi removed?". This skill serves
   BOTH developer and marketer questions — the developer section is in source-level English,
   the marketer section is in business-value language. When the user asks to audit THEIR
   code for deprecation (not just see the version-to-version delta), route to
@@ -95,7 +95,7 @@ explaining the magnitude: Python 2→3 rewrite, decorator removal, frontend fram
 
 ## Standalone-first fallback
 
-Khi OSM unreachable, skill yêu cầu user cung cấp release notes hoặc changelog chính thức từ hai version. Skill vẫn tạo version diff dựa trên changelog text parsing + training knowledge về era-level changes (Python 2→3, `@api.multi` removal, OWL adoption timeline), kèm caveat "chưa verify qua API index — hãy double-check chi tiết signature khi OSM online".
+When OSM is unreachable, the skill asks the user to provide official release notes or changelog from both versions. The skill still produces a version diff based on changelog text parsing + training knowledge of era-level changes (Python 2→3, `@api.multi` removal, OWL adoption timeline) — with caveat "not yet verified against the API index; double-check signature details when OSM is back online".
 
 ## Output format
 
@@ -152,7 +152,7 @@ Output: Categorized diff with Added/Removed/Deprecated/Changed sections, migrati
 each breaking change, feature highlights, developer sprint plan.
 
 **Example 2:**
-Prompt: "so sánh API Odoo 12 và 16, chúng tôi cần migrate"
+Prompt: "compare API changes between Odoo 12 and 16, we need to migrate"
 Output: Cross-era diff (v12→v13: `@api.multi` removal + OWL introduced; v13→v14: OWL becomes
 primary + `web.Widget` deprecated; v14→v16: OWL 2.0 + `web.Widget` removed). Era migration
-section prominent. Complexity: Very High. Sprint plan in Vietnamese.
+section prominent. Complexity: Very High. Sprint plan with phased migration approach.

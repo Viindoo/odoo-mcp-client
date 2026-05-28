@@ -314,7 +314,7 @@ def gen_routing_md(surface: dict) -> str:
     lines.append("### 4.2 `odoo-version-diff` vs `odoo-feature-highlights`")
     lines.append("")
     lines.append(
-        "- **Overlap:** \"tính năng mới Odoo 17\", \"what's new in v17\", \"feature comparison\""
+        "- **Overlap:** \"what's new in Odoo 17\", \"what's new in v17\", \"feature comparison\""
     )
     lines.append(
         "- **Resolution:** `odoo-version-diff` → Developer persona (API changes, migration guide, "

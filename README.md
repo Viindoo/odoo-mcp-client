@@ -1,109 +1,145 @@
 # Odoo MCP Client
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://github.com/Viindoo/odoo-semantic-server)
+[![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> MIT-licensed client layer for **[odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-server)** (AGPL-3.0).
-> Odoo / Viindoo AI workforce toolkit — **22 skill personas** across 8 work domains
-> (engineering, sales, marketing, strategy, onboarding) + **6 workflow commands** that
-> chain skills into multi-step recipes. Pairs with the OSM (odoo-semantic) MCP server
+> MIT-licensed client layer for the **[Odoo Semantic MCP server](https://odoo-semantic.viindoo.com/)** (AGPL-3.0).
+> Odoo AI workforce toolkit — **22 skill personas** across 8 work domains
+> (engineering, sales, marketing, strategy, onboarding) + **5 workflow commands + 1 setup command**
+> that chain skills into multi-step recipes. Pairs with the OSM (odoo-semantic) MCP server
 > for indexed-codebase grounding.
 
 This repository ships **no semantic logic**. It is a thin integration surface: 22
-persona-specific skills (across 8 personas), 3 agents (2 specialist bundle + 1 deprecated),
-6 commands, and ready-to-paste MCP config for several AI tools. All knowledge and computation
-live in the Odoo Semantic MCP server — query it at the hosted instance
-[`odoo-semantic.viindoo.com`](https://odoo-semantic.viindoo.com) or
-[self-host the server](https://github.com/Viindoo/odoo-semantic-server).
+persona-specific skills (across 8 personas), 2 specialist agents, 5 workflow commands
+plus 1 setup command (`/odoo-semantic:connect`), and ready-to-paste MCP config for
+several AI tools. All knowledge and computation live in the Odoo Semantic MCP server —
+query it at the hosted instance [`odoo-semantic.viindoo.com`](https://odoo-semantic.viindoo.com)
+or sign up for an API key at the [install page](https://odoo-semantic.viindoo.com/install/).
 
-## Một-người-công-ty: cách dùng AI specialist
+## For the small-team Odoo founder
 
-Bạn là CEO/Founder của một công ty làm Odoo/Viindoo? Một mình lo cả engineering, sales, marketing, strategy? Plugin này biến AI agent thành **8 chuyên gia ảo (AI specialist)** - mỗi specialist là một skill hoặc agent bundle chuyên trách 1 mảng nghiệp vụ. Bạn không cần thuê thêm người để start.
+Running a small Odoo consultancy or building go-to-market for Odoo — and wearing every
+hat at once? This plugin turns your AI agent into **8 virtual specialists** (one per
+work domain). Each specialist is a skill or agent bundle that owns a specific
+function: engineering, sales, marketing, strategy, and more. You do not need to know
+skill names — describe your intent in natural language and the right specialist fires
+automatically.
 
-### Cách hoạt động
+### How it works
 
-Mỗi specialist tự kích hoạt khi bạn mô tả intent bằng tiếng Việt hoặc English tự nhiên (không cần biết tên skill). Một số workflow phức tạp được gọi thành slash command `/odoo-*` để gọi tường minh.
+Each specialist self-activates when you describe your intent in plain English (or any
+natural language). Complex multi-step workflows are exposed as explicit slash commands
+(`/odoo-*`) for when you want to control the sequence.
 
-### 8 chuyên gia
+### 8 specialist personas
 
-| Persona | Skill / Agent | Khi nào dùng |
+| Persona | Skill / Agent | When to use |
 |---|---|---|
-| Engineer | `odoo-override-finder`, `odoo-deprecation-audit`, `odoo-deploy-checklist` | Custom code, audit pre-upgrade, deploy safety |
-| Coder | `odoo-coder` (Python/XML, agent+skill bundle), `odoo-frontend-coder` (JS/OWL legacy v8-14 + OWL v15+) | Viết code production-ready |
-| Code-Reviewer | `odoo-code-reviewer` (agent+skill bundle) | Review PR, audit code lý do bugs/security/N+1 |
-| Pre-Sales Consultant | `odoo-feature-check`, `odoo-gap-analysis`, `odoo-capability-proof`, `odoo-addon-diff` | Verify Odoo có tính năng X, scope effort, evidence cho proposal |
-| Sales AE | `odoo-objection-handler`, `odoo-deal-followup`, `odoo-discovery-summarize` | Phản hồi objection, follow-up deal stalled, synthesize discovery |
-| Marketer | `odoo-feature-highlights`, `odoo-content-draft`, `odoo-campaign-plan` | Slide/blog content, multi-channel campaign |
-| Strategist | `odoo-risk-overview`, `odoo-customization-inventory`, `odoo-competitive-brief` | Board brief, customization inventory, competitor brief |
-| Onboarding/Concierge | `odoo-onboard`, `odoo-router` | Bootstrap context cho project mới, route ambiguous intent |
+| Engineer | `odoo-override-finder`, `odoo-deprecation-audit`, `odoo-deploy-checklist` | Custom code, pre-upgrade audit, deploy safety |
+| Coder | `odoo-coder` (Python/XML, agent+skill bundle), `odoo-frontend-coder` (JS/OWL legacy v8-14 + OWL v15+) | Write production-ready code |
+| Code-Reviewer | `odoo-code-reviewer` (agent+skill bundle) | Review PRs, audit for bugs, security, N+1 queries |
+| Pre-Sales Consultant | `odoo-feature-check`, `odoo-gap-analysis`, `odoo-capability-proof`, `odoo-addon-diff` | Verify feature availability, scope effort, build evidence for proposals |
+| Sales AE | `odoo-objection-handler`, `odoo-deal-followup`, `odoo-discovery-summarize` | Handle objections, follow up stalled deals, synthesize discovery |
+| Marketer | `odoo-feature-highlights`, `odoo-content-draft`, `odoo-campaign-plan` | Slide and blog content, multi-channel campaigns |
+| Strategist | `odoo-risk-overview`, `odoo-customization-inventory`, `odoo-competitive-brief` | Board briefs, customization inventory, competitor analysis |
+| Onboarding / Concierge | `odoo-onboard`, `odoo-router` | Bootstrap context for a new project, route ambiguous intent |
 
-Plus 5 slash commands chain các skill thành workflow đa bước: `/odoo-bid-respond`, `/odoo-customer-followup-draft`, `/odoo-discovery-quick`, `/odoo-feature-positioning`, `/odoo-upgrade-plan-full`.
+Plus 5 slash commands that chain skills into multi-step workflows: `/odoo-bid-respond`,
+`/odoo-customer-followup-draft`, `/odoo-discovery-quick`, `/odoo-feature-positioning`,
+`/odoo-upgrade-plan-full`.
 
-### Use case 1 - Sales AE: deal stalled, viết follow-up email trong 30 giây
+### Use case 1 - Sales AE: stalled deal, draft a follow-up email in 30 seconds
 
-Bạn có 1 khách prospect (gọi là Khách A - manufacturing SME) đã 21 ngày không trả lời sau buổi demo. Pipeline stage "evaluation". Bạn cần email follow-up tonight để gửi sáng mai.
-
-```
-Bạn: "deal Khách A stalled 21 ngày sau demo, manufacturing SME đang đánh giá Odoo vs SAP. Cuối lần gặp họ promise sẽ feedback technical questions trong tuần. Viết follow-up email."
-```
-
-Skill `odoo-deal-followup` tự fire. Output: risk score (red, >14d no reply on warm lead), next-best-action ("re-engage with concrete value proof"), 4-paragraph VI follow-up email template ready to paste.
-
-Nếu muốn save vào file: `/odoo-customer-followup-draft` (chains skill + save step to `.odoo-ai/followups/khach-a-2026-MM-DD.md`).
-
-### Use case 2 - Pre-Sales: khách hỏi RFP với 15 yêu cầu
-
-Khách gửi RFP với 15 yêu cầu functional: lot tracking, multi-level approval, VAS reporting, multi-warehouse, customer portal, v.v. Bạn cần phản hồi đầy đủ trong 24h.
+You have a prospect (manufacturing SME) that has not replied in 21 days after the demo.
+Pipeline stage is "evaluation". You need a follow-up email tonight to send tomorrow
+morning.
 
 ```
-Bạn: "/odoo-bid-respond - Khách B (F&B chain, 50-store), 15 yêu cầu paste sau"
+You: "Deal with Customer A stalled 21 days after demo, manufacturing SME evaluating
+Odoo vs SAP. At the last meeting they promised technical feedback within the week.
+Write a follow-up email."
 ```
 
-Command chạy 7-phase workflow:
+Skill `odoo-deal-followup` fires. Output: risk score (red — warm lead, >14 days no
+reply), next-best-action ("re-engage with concrete value proof"), 4-paragraph follow-up
+email template ready to paste.
 
-1. Parse args + read `.odoo-ai/context.md` (nếu chưa có, gợi ý `odoo-onboard`).
-2. Trigger `odoo-discovery-summarize` - structured profile.
-3. Trigger `odoo-gap-analysis` - effort matrix (Standard / Config / Extension / Custom + S/M/L/XL days).
-4. Trigger `odoo-capability-proof` cho Standard/Config items - evidence package.
-5. Trigger `odoo-objection-handler` cho 2-3 anticipated objections.
-6. Assemble proposal draft (VI default).
-7. Save to `.odoo-ai/bids/khach-b-2026-MM-DD.md` (gated - bạn duyệt từng phase).
+To save to a file: `/odoo-customer-followup-draft` (chains the skill and saves to
+`.odoo-ai/followups/customer-a-2026-MM-DD.md`).
 
-### Use case 3 - Strategist/CEO: viết board brief tháng
+### Use case 2 - Pre-Sales: RFP with 15 requirements
 
-Bạn cần brief board status tháng: product progress, pipeline health, competitive landscape, top risks.
-
-```
-Bạn: "tóm tắt cạnh tranh từ Competitor A vs Viindoo cho board meeting tuần sau"
-```
-
-Skill `odoo-competitive-brief` fires. Bạn paste signals đã thu thập, skill structure thành: snapshot, capability matrix, GTM moves, threat assessment, recommended Viindoo response. Format ready for board deck.
-
-Combine với:
-- `odoo-risk-overview` cho engineering risk overview (CEO-level dashboard, không phải dev audit).
-- `odoo-customization-inventory` để liệt kê tất cả custom module với business purpose (M&A due-diligence ready).
-
-### Use case 4 - Engineer + Coder: upgrade v15 lên v17
-
-Khách Khách C đang chạy Odoo 15 với 12 custom modules, muốn lên v17 trong Q3.
+A prospect sends an RFP with 15 functional requirements: lot tracking, multi-level
+approval, reporting, multi-warehouse, customer portal, and more. You need a complete
+response within 24 hours.
 
 ```
-Bạn: "/odoo-upgrade-plan-full - Khách C v15 to v17, 12 custom modules, deadline Q3"
+You: "/odoo-bid-respond - Customer B (F&B chain, 50 locations), 15 requirements
+listed below"
 ```
 
-Chain 4 skill: `odoo-risk-overview` - `odoo-deprecation-audit` - `odoo-version-diff` - synthesis. Output: executive risk overview + code-level deprecation findings + API/feature diff + action ordering + S/M/L/XL effort estimate + rollback plan. Save to `.odoo-ai/upgrade-plans/khach-c-v15-v17-2026-MM-DD.md`.
+The command runs a 7-phase workflow:
 
-Nếu cần code thực: invoke `odoo-coder` agent bundle (depth-1 safe, restricted-tool autonomy, có access OSM + ollama-delegate cost-free model).
+1. Parse args and read `.odoo-ai/context.md` (if missing, suggest `odoo-onboard`).
+2. Trigger `odoo-discovery-summarize` — structured prospect profile.
+3. Trigger `odoo-gap-analysis` — effort matrix (Standard / Config / Extension / Custom + S/M/L/XL days).
+4. Trigger `odoo-capability-proof` for Standard/Config items — evidence package.
+5. Trigger `odoo-objection-handler` for 2-3 anticipated objections.
+6. Assemble proposal draft.
+7. Save to `.odoo-ai/bids/customer-b-2026-MM-DD.md` (gated — you approve each phase).
 
-### Câu thường gặp
+### Use case 3 - Strategist / founder: monthly board brief
 
-**Tao chỉ cần 1 skill, không cần all 22?** OK - skills auto-fire by intent match. Bạn không phải biết hết. Cứ describe what you need; skill phù hợp sẽ trigger.
+You need a board status brief covering product progress, pipeline health, competitive
+landscape, and top risks.
 
-**OSM server down thì sao?** Mỗi skill có `## Standalone-first fallback` - degrade gracefully bằng cách prompt bạn paste data manually. Plugin không bị broken khi OSM offline.
+```
+You: "Summarize competitive landscape — Competitor A vs your Odoo distribution — for
+next week's board meeting."
+```
 
-**Lo confidentiality?** Plugin code public (MIT). Skills KHÔNG chứa customer-specific data hay pricing. Pre-commit hook + CI scan block 8 nhóm leak (vault path, customer name, pricing, OKR, v.v.). Examples dùng abstract labels (Khách A, Customer-A).
+Skill `odoo-competitive-brief` fires. Paste your collected signals; the skill
+structures them into: market snapshot, capability matrix, GTM moves, threat assessment,
+and recommended product response. Format is ready for a board deck.
 
-**Multi-runtime?** Skills + commands chuẩn Claude Code. Codex/Gemini parity smoke test ở `tests/smoke/runtime_parity.md` - 10 skill đại diện được verify chạy trên cả 3 runtime.
+Combine with:
+- `odoo-risk-overview` for engineering risk overview (founder-level dashboard, not a
+  dev audit).
+- `odoo-customization-inventory` to list all custom modules with their business purpose
+  (M&A due-diligence ready).
+
+### Use case 4 - Engineer + Coder: upgrade v15 to v17
+
+Customer C is running Odoo 15 with 12 custom modules and wants to move to v17 in Q3.
+
+```
+You: "/odoo-upgrade-plan-full - Customer C, v15 to v17, 12 custom modules, deadline Q3"
+```
+
+Chains 4 skills: `odoo-risk-overview` - `odoo-deprecation-audit` - `odoo-version-diff`
+- synthesis. Output: executive risk overview + code-level deprecation findings + API/
+feature diff + action ordering + S/M/L/XL effort estimate + rollback plan. Saves to
+`.odoo-ai/upgrade-plans/customer-c-v15-v17-2026-MM-DD.md`.
+
+When you need actual code written: invoke the `odoo-coder` agent bundle (depth-1 safe,
+restricted-tool autonomy, with OSM access and an optional cost-free local model).
+
+### Frequently asked questions
+
+**I only need one skill — do I have to know all 22?** No. Skills auto-fire by intent
+match. Describe what you need; the right skill triggers.
+
+**What if the OSM server is offline?** Each skill has a `## Standalone-first fallback`
+section — it degrades gracefully by prompting you to paste data manually. The plugin
+does not break when OSM is offline.
+
+**What about confidentiality?** Plugin code is public (MIT). Skills contain no
+customer-specific data or pricing. A pre-commit hook and CI scan block several
+categories of sensitive content. Examples use abstract labels (Customer A, Customer B).
+
+**Multi-runtime?** Skills and commands are written for Claude Code. Codex/Gemini
+parity is smoke-tested in `tests/smoke/runtime_parity.md` — 10 representative skills
+verified across all three runtimes.
 
 ## Quick install (Claude Code — 3 steps, all required)
 
@@ -115,7 +151,7 @@ Inside Claude Code, run:
 /odoo-semantic:connect
 ```
 
-> ⚠️ **`/odoo-semantic:connect` is mandatory on Claude Code v2.1.x.** Plugin manifests use a
+> **`/odoo-semantic:connect` is mandatory on Claude Code v2.1.x.** Plugin manifests use a
 > `userConfig` block to collect the API key + MCP URL, but the CLI currently
 > does not prompt for those values at install time
 > ([anthropics/claude-code#39455](https://github.com/anthropics/claude-code/issues/39455),
@@ -123,13 +159,13 @@ Inside Claude Code, run:
 > the plugin loads its skills but the MCP server silently fails — `claude mcp list`
 > will not show `odoo-semantic`.
 >
-> ⚠️ **Restart Claude Code after `/odoo-semantic:connect`** to actually load the
+> **Restart Claude Code after `/odoo-semantic:connect`** to actually load the
 > MCP tools. Claude Code v2.x does not hot-reload MCP servers within a session
 > ([#46426](https://github.com/anthropics/claude-code/issues/46426) — "not
 > planned"). The connect command verifies the server via `curl` and tells you
 > when to restart.
 
-You will need an **API key** (format `osm_…`) from your server admin or the
+You will need an **API key** (format `osm_...`) from the
 [install page](https://odoo-semantic.viindoo.com/install/), and the **MCP server URL**
 (default `https://odoo-semantic.viindoo.com/mcp`).
 
@@ -174,11 +210,28 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | Command | Purpose | Chained skills |
 |---------|---------|----------------|
 | `/odoo-semantic:connect` | Interactive MCP server setup — prompts for URL + API key, registers server, pre-approves tools | — |
-| `/odoo-bid-respond` | Full bid response chain for RFP/requirements documents | `odoo-discovery-summarize` → `odoo-gap-analysis` → `odoo-capability-proof` → `odoo-objection-handler` |
+| `/odoo-bid-respond` | Full bid response chain for RFP/requirements documents | `odoo-discovery-summarize` -> `odoo-gap-analysis` -> `odoo-capability-proof` -> `odoo-objection-handler` |
 | `/odoo-customer-followup-draft` | Sales follow-up email saved to `.odoo-ai/followups/` | `odoo-deal-followup` |
 | `/odoo-discovery-quick` | Slash wrapper — synthesize discovery notes into a structured profile | `odoo-discovery-summarize` |
-| `/odoo-feature-positioning` | Positioning copy for marketing and sales use | `odoo-feature-highlights` → `odoo-content-draft` |
-| `/odoo-upgrade-plan-full` | Comprehensive upgrade plan — replaces legacy `odoo-upgrade-planner` agent | `odoo-risk-overview` → `odoo-deprecation-audit` → `odoo-version-diff` → synthesis |
+| `/odoo-feature-positioning` | Positioning copy for marketing and sales use | `odoo-feature-highlights` -> `odoo-content-draft` |
+| `/odoo-upgrade-plan-full` | Comprehensive upgrade plan — replaces legacy `odoo-upgrade-planner` agent | `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis |
+
+## MCP resources
+
+The server exposes **7 MCP resource URI templates** (in addition to the 24 tools) for
+direct structured data access:
+
+- `odoo://{version}/model/{name}` — model record (inheritance, field/method counts, modules)
+- `odoo://{version}/field/{model}/{field}` — field record (type, compute, definition module)
+- `odoo://{version}/method/{model}/{method}` — method record (override chain, super_ratio)
+- `odoo://{version}/module/{name}` — module record (manifest, defines/extends counts)
+- `odoo://{version}/view/{xmlid}` — view record (xpath chain, inherit_id)
+- `odoo://{version}/pattern/{name}` — pattern catalogue entry (snippet, gotchas)
+- `odoo://{version}/stylesheet/{file_path}` — stylesheet record (selectors, imports, variables)
+
+See [`docs/setup.md`](docs/setup.md#mcp-resources-7-uri-templates) for full descriptions and examples.
+
+Supported Odoo versions: **v8.0 through v19.0 (12 versions)**.
 
 ## Connect command
 
@@ -210,8 +263,8 @@ Antigravity) and `snippets/` for copy-ready configs:
 
 ## Requirements
 
-- **Odoo Semantic MCP server URL** — `https://odoo-semantic.viindoo.com/mcp` (or your self-hosted server)
-- **API key** — format `osm_<alphanumeric>`, obtain from your server admin or the [install page](https://odoo-semantic.viindoo.com/install/)
+- **Odoo Semantic MCP server URL** — `https://odoo-semantic.viindoo.com/mcp` (or your self-hosted instance)
+- **API key** — format `osm_<alphanumeric>`, obtain from the [install page](https://odoo-semantic.viindoo.com/install/)
 - Claude Code with MCP support (tested on v2.1.140)
 
 ## For contributors — local dev install
@@ -230,10 +283,12 @@ SHA-pinning pipeline, and the DCO sign-off requirement.
 | Layer | Repository | License |
 |-------|------------|---------|
 | Client (this repo) — plugin, skills, agents, snippets | `Viindoo/odoo-mcp-client` | MIT |
-| Server — indexer, Neo4j graph, pgvector, MCP server, web UI | [`Viindoo/odoo-semantic-server`](https://github.com/Viindoo/odoo-semantic-server) | AGPL-3.0-or-later |
+| Server — indexer, Neo4j graph, pgvector, MCP server, web UI | [odoo-semantic.viindoo.com](https://odoo-semantic.viindoo.com/) | AGPL-3.0-or-later |
 
-Deploy/operate the backend: see the
-[server deploy guide](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/deploy.md).
+To use the hosted instance, sign up for an API key at
+[odoo-semantic.viindoo.com/install](https://odoo-semantic.viindoo.com/install/).
+Self-hosting instructions are available in the server's own documentation,
+accessible after registration.
 
 ## License
 

@@ -1,18 +1,16 @@
 ---
 name: odoo-customization-inventory
 description: >
-  Generate a structured executive-level inventory of all custom + Viindoo modules in an Odoo
-  deployment — classifying each as Standard / Viindoo / True custom, surfacing business
-  purpose in plain language, base model extended, key custom fields, and upgrade risk flag.
-  Use this skill ANY time a CEO/CTO/PM needs to understand the scope of their Odoo
-  investment, even if they only paste a list of module names. Pushy trigger: fire on "list
-  all our Odoo customizations", "inventory of custom modules", "what have we built on top
-  of Odoo?", "liệt kê tất cả customization", "bản kiểm kê module tùy chỉnh", "chúng ta đang
-  custom những gì?", "scope of customization before we upgrade", "before the audit, can
-  you summarize our customizations?", "I have a list of modules — what do they do?", "are
-  these standard or custom?", "for the M&A due diligence, list our Odoo extensions", "tổng
-  hợp module custom phục vụ báo cáo cho ban giám đốc", "we have 47 addons in production —
-  what's actually in there?", "what's safe to keep vs deprecate after we move to v17?".
+  Generate a structured executive-level inventory of all custom + distribution modules in an
+  Odoo deployment — classifying each as Standard / Distribution-maintained / True custom,
+  surfacing business purpose in plain language, base model extended, key custom fields, and
+  upgrade risk flag. Use this skill ANY time a CEO/CTO/PM needs to understand the scope of
+  their Odoo investment, even if they only paste a list of module names. Pushy trigger: fire on
+  "list all our Odoo customizations", "inventory of custom modules", "what have we built on
+  top of Odoo?", "module inventory", "audit our extensions", "scope of customization before
+  upgrade", "summarize our customizations", "I have a list of modules — what do they do?",
+  "are these standard or custom?", "for M&A due diligence, list our extensions", "we have
+  47 addons in production — what's in there?", "what's safe to keep vs deprecate?".
   Trigger even if the user just dumps a list of names with no other context — that's the
   signal to enumerate. When the user wants to assess UPGRADE risk specifically (rather than
   just inventory), route to odoo-deprecation-audit. When they want to see business value
@@ -56,7 +54,7 @@ Custom modules in Odoo typically:
 - Override methods (business logic changes)
 - Add computed fields, constraints, or security rules
 
-Viindoo-specific: distinguish between Viindoo base modules (prefix `viin_`) and true custom
+Distribution-specific: distinguish between distribution-maintained base modules and true custom
 modules written by the client's IT team or a system integrator.
 
 Version caveat: In Odoo v8/v9, `__openerp__.py` was used instead of `__manifest__.py`. If modules
@@ -73,14 +71,14 @@ Use parallel MCP calls — for a list of N modules, sequential calls are N× slo
 every subsequent call targets the same customer baseline.
 
 **Round 1 — Parallel:** Call `check_module_exists` for ALL modules simultaneously. Each call is
-independent. Result: classify each module as Standard (exclude), Viindoo, or Custom.
+independent. Result: classify each module as Standard (exclude), Distribution-maintained, or Custom.
 
-**Round 2 — Parallel:** Call `model_inspect(model=…, method='fields')` for ALL Viindoo + Custom
+**Round 2 — Parallel:** Call `model_inspect(model=…, method='fields')` for ALL distribution-maintained + Custom
 modules simultaneously. For each, extract: the base Odoo model being extended, up to 5 most
 important custom fields, and whether key methods are overridden. These calls are independent
 of each other.
 
-**Round 2.5 — Per-module architecture drill-down (parallel):** For each Viindoo or Custom
+**Round 2.5 — Per-module architecture drill-down (parallel):** For each distribution-maintained or Custom
 module that the executive wants to understand more deeply, call
 `module_inspect(name=<name>, method='summary')`. This returns a concise tree showing the
 module's manifest metadata, which models it defines vs extends, and counts of views and JS
@@ -104,7 +102,11 @@ Flag modules with many deprecated API calls or overrides of unstable methods as 
 
 ## Standalone-first fallback
 
-Khi OSM unreachable, skill yêu cầu user cung cấp danh sách module + nếu có `__manifest__.py` snippet (or `__openerp__.py` cho legacy) của từng module. Skill vẫn tạo inventory table dựa trên manifest + text analysis, phân loại mỗi module và dự đoán business purpose dựa trên tên + manifest description, kèm caveat "chưa scan chi tiết code & inheritance — hãy verify khi OSM back online".
+When OSM unreachable, skill asks user to provide module list and any available `__manifest__.py`
+snippets (or `__openerp__.py` for legacy modules). Skill still creates inventory table based
+on manifest + text analysis, classifying each module and inferring business purpose from name
++ manifest description, with caveat "detailed code & inheritance not yet scanned — verify
+when OSM is back online".
 
 ## Output format
 
@@ -113,13 +115,13 @@ Khi OSM unreachable, skill yêu cầu user cung cấp danh sách module + nếu 
 
 **Total modules reviewed:** <N>
 **Standard Odoo modules:** <N> (excluded from inventory)
-**Viindoo base modules:** <N>
+**Distribution-maintained modules:** <N>
 **True custom modules:** <N>
 **Base Odoo models extended:** <N distinct>
 
 | Module | Type | Base model | Key custom fields | Business purpose | Upgrade risk |
 |--------|------|-----------|-------------------|-----------------|--------------|
-| ...    | Custom/Viindoo | ... | ... | ... | Low/Med/High |
+| ...    | Custom/Distribution | ... | ... | ... | Low/Med/High |
 
 ### High-risk modules
 <List modules with High risk and brief explanation>
@@ -139,6 +141,6 @@ Output: Inventory table, each module classified as custom or Viindoo, business p
 language, upgrade risk flag.
 
 **Example 2:**
-Prompt: "chúng tôi có các module: viin_sale_advance, viin_account_vat, custom_loyalty — liệt kê"
-Output: `viin_sale_advance` → Viindoo (sale management), `viin_account_vat` → Viindoo (Vietnamese
-tax), `custom_loyalty` → Custom (loyalty program) — with field details and business purpose.
+Prompt: "we have modules: dist_sale_advance, dist_account_vat, custom_loyalty — list them"
+Output: `dist_sale_advance` → Distribution-maintained (sale management), `dist_account_vat` → Distribution-maintained
+(tax compliance), `custom_loyalty` → Custom (loyalty program) — with field details and business purpose.

@@ -3,22 +3,17 @@ name: odoo-coder
 description: >
   Write complete, production-ready Python/XML Odoo backend code — from a single computed
   field up to a full new module. Use this skill ANY time someone asks for backend changes to
-  an Odoo addon, even if they only describe the business outcome ("khách muốn lock đơn hàng
-  khi tổng > 100 triệu", "I need to auto-fill the delivery address from the partner") and
-  never mention "code", "field", "model", or "Python". Pushy trigger: if the request involves
-  changing what an Odoo record stores, how it computes a value, what it validates, who can
-  read or write it, how it appears on a form, or how it migrates between versions — this
-  skill should fire. Realistic phrases this should catch include "tạo computed field tính VAT
-  10%", "viết onchange cho field partner_id", "thêm SQL constraint unique theo công ty",
-  "tôi muốn tạo model wizard cho việc duyệt đơn", "add a stored field x to sale order line",
-  "override create method on res.partner so it sets default ref", "cần migration script chạy
-  khi nâng cấp từ v15 lên v17", "làm sao set required cho field này khi state = draft",
-  "create a server action that…", "viết unit test cho method này", "add a new model and
-  link it to sale.order via many2many", "khách yêu cầu thêm cột trên form…", "I want the
-  delivery date to default to today + 3 working days", "implement a domain filter that…",
-  plus business-rule descriptions with NO technical vocabulary at all (e.g. "discount can
-  never exceed 20% of unit price"). When the user is asking how to LOOK UP existing code
-  rather than write new code, route to odoo-feature-check or odoo-override-finder instead
+  an Odoo addon, even if they only describe the business outcome or never mention "code",
+  "field", "model", or "Python". Pushy trigger: if the request involves changing what an
+  Odoo record stores, how it computes a value, what it validates, who can read or write it,
+  how it appears on a form, or how it migrates between versions — this skill should fire.
+  Realistic phrases this should catch include "add a stored field x to sale order line",
+  "override create method on res.partner so it sets default ref", "create a server action
+  that…", "add a new model and link it to sale.order via many2many", "I want the delivery
+  date to default to today + 3 working days", "implement a domain filter that…", plus
+  business-rule descriptions with NO technical vocabulary at all (e.g. "discount can never
+  exceed 20% of unit price"). When the user is asking how to LOOK UP existing code rather
+  than write new code, route to odoo-feature-check or odoo-override-finder instead
 ---
 
 ## Persona
@@ -53,7 +48,7 @@ Key failure modes the agent guards against:
 - **Era-specific API** — v8/v9 use `_columns`/`cr, uid`; v10-v12 use `@api.multi`; v13+ are recordset-aware with no-arg `super()`.
 - **Silent XML failures** — wrong `string` attribute on a `<field>` tag loads silently but breaks labels.
 
-Viindoo conventions (v17 primary):
+Standard conventions (v17 primary):
 
 - Default Odoo version: 17.0 unless user states otherwise.
 - Boilerplate (computed field skeleton, form/tree view shell, unit test setUp, migration stub) → delegate to `mcp__ollama-delegate__generate_code` (fast + cost-free).

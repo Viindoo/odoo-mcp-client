@@ -7,7 +7,7 @@ body:
       value: |
         Thanks for suggesting a feature!
         **Client-side only** — new skills, snippet formats, connect-command improvements, agent changes.
-        Server-side feature requests go to [odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-server).
+        Server-side feature requests go to [odoo-semantic-server](https://odoo-semantic.viindoo.com/).
 
   - type: textarea
     id: feature-description
