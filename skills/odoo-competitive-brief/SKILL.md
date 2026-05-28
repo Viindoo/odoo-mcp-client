@@ -78,8 +78,8 @@ If the user's prompt already specifies a competitor name and at least one scope 
 skip Round 0 and proceed directly to Round 1.
 
 If subject or scope is missing, ask ONE clarifying question:
-> "Bạn muốn brief về đối thủ cụ thể nào, và focus vào khía cạnh nào (sản phẩm / giá /
-> GTM / positioning, hoặc tất cả)? Mức độ detail: quick scan hay board-deck depth?"
+> "Which competitor would you like a brief on, and which aspect should we focus on (product / pricing /
+> GTM / positioning, or all)? Level of detail: quick scan or board-deck depth?"
 
 Do NOT ask multiple questions. Make reasonable defaults if user is partially specific.
 

@@ -89,7 +89,7 @@ batch them in one round to cut total latency from 4 sequential calls to 2 total 
 
 ## Standalone-first fallback
 
-Khi OSM unreachable, skill yêu cầu user cung cấp release notes hoặc changelog từ trang chính thức Odoo. Skill vẫn tạo marketing highlights dựa trên changelog text parsing + training knowledge, với business language narrative, kèm caveat "chưa verify qua code index — hãy check chi tiết khi OSM online".
+When OSM is unreachable, the skill asks the user to provide official Odoo release notes or changelog. The skill still produces marketing highlights based on changelog text parsing + training knowledge, with business-language narrative — with caveat "not yet verified against the code index; check details when OSM is back online".
 
 ## Output format
 

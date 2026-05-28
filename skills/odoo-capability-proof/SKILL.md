@@ -7,14 +7,14 @@ description: >
   account manager needs to convince a skeptical client/prospect that "yes, Odoo really does
   this — here's the proof". Pushy trigger: fire on "prove Odoo can do X", "show capability
   evidence for requirement Y", "for the demo, give me proof that…", "demo material",
-  "chứng minh Odoo làm được X", "bằng chứng tính năng cho khách hàng", "khách hỏi Odoo có
-  hỗ trợ X không (tôi cần show được code)", "client doesn't believe Odoo handles Z — help
-  me build the evidence", "for the buy-side technical review, evidence of multi-currency
-  invoicing", "before the demo this Friday, package proof of approval workflows",
-  "trước buổi demo cho khách F&B — chứng minh Odoo làm được lot tracking",
+  "prove Odoo can do X", "feature evidence for customer requirement Y",
+  "customer asks does Odoo support X — I need to show the code", "client doesn't believe
+  Odoo handles Z — help me build the evidence", "for the buy-side technical review,
+  evidence of multi-currency invoicing", "before the demo this Friday, package proof of
+  approval workflows", "before the F&B demo — prove Odoo can do lot tracking",
   "RFP response — need to back up every yes with module + code", "competitor said Odoo
   can't do X — what's our counter-evidence?". Trigger especially when there's a deadline
-  signal ("for the demo", "before Friday", "in the RFP", "buổi demo tuần sau") because the
+  signal ("for the demo", "before Friday", "in the RFP", "before next week's demo") because the
   user needs real artifacts fast. When the user only wants a yes/no answer on availability
   (no proof package needed), route to odoo-feature-check. When they're scoping MANY
   requirements at once for a quote, route to odoo-gap-analysis
@@ -84,7 +84,7 @@ the actual indexed codebase.
 
 ## Standalone-first fallback
 
-Khi OSM unreachable, skill yêu cầu user cung cấp requirement trong dạng natural language + bất kỳ tài liệu khách cung cấp (proposal, RFP excerpt). Skill vẫn sản sinh evidence package dựa trên kiến thức cơ bản về Odoo (module + model architecture từ training), nhưng không có code snippet thực tế — kèm caveat "chưa verify qua codebase index, hãy check lại chi tiết code khi OSM online".
+When OSM is unreachable, the skill asks the user to provide the requirement in natural language + any customer-supplied documents (proposal, RFP excerpt). The skill still produces an evidence package based on core Odoo knowledge (module + model architecture from training), but without real code snippets — with caveat "not yet verified against the codebase index; double-check code details when OSM is back online".
 
 ## Output format
 

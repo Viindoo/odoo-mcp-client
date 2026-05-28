@@ -192,7 +192,7 @@ picture by reading it alone.
 ### Example 1 — Customer A (manufacturing SME, traceability need)
 
 **User input (VI):**
-> "Họp với Khách A hôm nay. Sản xuất linh kiện nhựa, khoảng 80 người, đang dùng
+> "Họp với Customer A hôm nay. Sản xuất linh kiện nhựa, khoảng 80 người, đang dùng
 > Excel + phần mềm kế toán cũ. Họ nói 'chúng tôi không biết lô nào gây ra lỗi trả về
 > vì không có trace'. Muốn quản lý lô hàng, truy xuất nguồn gốc, báo cáo sản xuất.
 > Ngân sách chưa chốt, cần demo trước. Quyết định do giám đốc sản xuất + CFO."

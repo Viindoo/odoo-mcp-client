@@ -81,7 +81,7 @@ For EE-only and distribution-specific features, add a brief business value note 
 
 ## Standalone-first fallback
 
-Khi OSM unreachable, skill yêu cầu user paste manifest + changelog/release notes liên quan từ từng edition. Skill vẫn produce comparison table dựa trên changelog text parsing, kèm note "chưa verify chi tiết trường dữ liệu — hãy check lại khi OSM online".
+When OSM is unreachable, the skill asks the user to paste manifest + relevant changelog/release notes from each edition. The skill still produces a comparison table based on changelog text parsing — with note "field-level details not yet verified; check again when OSM is back online".
 
 ## Output format
 

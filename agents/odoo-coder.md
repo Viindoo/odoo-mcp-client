@@ -227,7 +227,7 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 
 ### Example 1 — computed field
 
-Prompt: "tạo computed field `amount_vat` tính VAT 10% từ `amount_subtotal` trên `purchase.order`"
+Prompt: "create computed field `amount_vat` computing 10% VAT from `amount_subtotal` on `purchase.order`"
 
 - Round 0: `set_active_version('17.0')` (once per session).
 - Round 1 (parallel): `model_inspect(model='purchase.order', method='fields')` to confirm

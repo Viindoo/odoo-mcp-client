@@ -181,12 +181,12 @@ When OSM is unreachable or the skill is used without MCP configuration:
 
 2. Insert `<TBD: verify Odoo has feature X>` placeholders where a specific module claim
    needs verification before publishing. Example:
-   > "Với tính năng quản lý kho đa cấp độ `<TBD: verify module name in target version>`,
-   >  doanh nghiệp có thể..."
+   > "With the multi-level warehouse management feature `<TBD: verify module name in target version>`,
+   >  businesses can..."
 
 3. Add a note at the end of the draft:
-   > _Note: Các placeholder `<TBD: ...>` có thể được người phụ trách kỹ thuật xác nhận trước
-   > khi xuất bản. Dùng công cụ `check_module_exists` khi OSM khả dụng._
+   > _Note: `<TBD: ...>` placeholders can be verified by a technical lead before publishing.
+   > Use `check_module_exists` when OSM is available._
 
 ## Examples
 

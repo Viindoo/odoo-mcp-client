@@ -151,7 +151,7 @@ Confirm three parameters — ask for all three in a single message (do not multi
 2. **Environment** — `staging` or `prod`
 3. **Module list** — comma-separated list OR `"all"` (meaning every custom module in scope)
 
-Also ask: "Đã chạy `odoo-deprecation-audit` và `odoo-version-diff` chưa?" (Y/N).
+Also ask: "Have you already run `odoo-deprecation-audit` and `odoo-version-diff`?" (Y/N).
 If yes, ask user to paste or link the output; use it to auto-fill Domain 1 items.
 
 ### Round 2 — Auto-fill checklist via MCP (parallel)
@@ -301,7 +301,7 @@ The checklist remains fully usable — 7 of 8 domains require no OSM access.
 
 ### Example 1 — Single module upgrade, staging
 
-**User prompt:** "Mình sắp deploy module `custom_loyalty_program` từ Odoo 16 lên 17 trên staging. Cần kiểm tra gì?"
+**User prompt:** "I'm about to deploy module `custom_loyalty_program` from Odoo 16 to 17 on staging. What do I need to check?"
 
 **Skill action:**
 - Round 1: Confirm scope — version 17.0, environment staging, module `custom_loyalty_program`.

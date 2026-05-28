@@ -7,16 +7,16 @@ description: >
   act on. Use this skill ANY time a manager, sponsor, or executive asks about Odoo system
   health, upgrade readiness, or "how risky is it to change X?". Pushy trigger: fire on
   "give me a risk overview of our Odoo customization", "what's the upgrade risk for our
-  system?", "business risk report for Odoo changes", "tổng quan rủi ro customization Odoo",
-  "báo cáo rủi ro upgrade", "đánh giá rủi ro trước khi thay đổi hệ thống", "is it safe to
+  system?", "business risk report for Odoo changes", "Odoo customization risk overview",
+  "upgrade risk report", "risk assessment before changing the system", "is it safe to
   upgrade to v17?", "before the board meeting on Thursday, summarize our Odoo upgrade
   risk", "for the year-end sponsor review — how exposed are we to migration debt?",
   "how risky is changing the credit limit logic on res.partner?", "what's the blast radius
   if we deprecate field X?", "auditor asked about technical debt in our ERP — give me
   numbers", "C-level wants to know if we should freeze customization until we upgrade",
-  "khách sắp ra quyết định upgrade — risk thế nào?", "before we commit budget for
+  "client is about to decide on upgrade — what's the risk?", "before we commit budget for
   migration, what's the risk picture?". Trigger especially when the user mentions a
-  deadline or decision context ("board meeting", "before we commit", "đánh giá lại", "RFP
+  deadline or decision context ("board meeting", "before we commit", "reassess", "RFP
   due") because executives need numbers fast. When the user wants a per-line technical
   audit of deprecated APIs (not an executive summary), route to odoo-deprecation-audit.
   When they want module-by-module business inventory, route to odoo-customization-inventory
