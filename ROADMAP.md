@@ -1,7 +1,8 @@
 # Roadmap
 
 This roadmap covers the **client** layer (this repository). The semantic backend has
-its own roadmap in [odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-server).
+its own roadmap, accessible after registration at
+[odoo-semantic.viindoo.com](https://odoo-semantic.viindoo.com/).
 Items are directional, not commitments, and reflect publicly announced milestones only.
 
 ## Now

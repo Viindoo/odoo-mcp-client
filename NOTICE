@@ -21,8 +21,8 @@ Attributions
 
    This client is a thin integration surface. All codebase intelligence is
    served by the Odoo Semantic backend, distributed separately under
-   AGPL-3.0-or-later at:
+   AGPL-3.0-or-later. The hosted instance is available at:
 
-       https://github.com/Viindoo/odoo-semantic-server
+       https://odoo-semantic.viindoo.com
 
-   The hosted instance is available at https://odoo-semantic.viindoo.com
+   Sign up for an API key at https://odoo-semantic.viindoo.com/install/
