@@ -37,7 +37,7 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 **Primary tools:**
 - `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
-- `check_module_exists` — Verify module availability, edition (CE/EE/custom), and cross-version presence.
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
 <!-- END GENERATED TOOLS -->

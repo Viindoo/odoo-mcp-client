@@ -39,7 +39,7 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
 
 **Primary tools:**
-- `check_module_exists` — Verify module availability, edition (CE/EE/custom distributions), and cross-version presence.
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
 - `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.

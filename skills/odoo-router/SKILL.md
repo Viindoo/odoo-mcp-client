@@ -13,7 +13,7 @@ description: |
 
   DO NOT trigger when: (1) intent matches exactly one specialist skill clearly (e.g., "write a computed field for sale.order" -> odoo-coder direct; "what changed between v16 and v17" -> odoo-version-diff direct; "review this PR" -> odoo-code-reviewer direct); (2) prompt is non-Odoo entirely; (3) user explicitly types a slash command like /odoo-semantic:connect; (4) user is mid-workflow inside another skill (already routed once this session).
 
-  This skill NEVER does work itself — it only recommends a target skill name + asks for confirmation. The actual specialist work happens in the next conversation turn after user confirms.
+  This skill NEVER does work itself — it only recommends a target skill name + asks for confirmation. The actual specialist work happens in the next conversation turn after user confirms
 ---
 
 # Odoo Router - Silent Disambiguation Concierge

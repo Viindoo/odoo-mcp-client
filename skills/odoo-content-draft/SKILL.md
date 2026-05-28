@@ -15,7 +15,7 @@ description: >
   objection-handling rebuttals (-> odoo-objection-handler), feature-highlight decks for
   slides (-> odoo-feature-highlights), competitive positioning briefs (-> odoo-competitive-brief),
   multi-channel campaign orchestration (-> odoo-campaign-plan).
-  This skill is STANDALONE-FIRST: works without MCP. OSM tools optional for grounding claims.
+  This skill is STANDALONE-FIRST: works without MCP. OSM tools optional for grounding claims
 ---
 
 ## Persona

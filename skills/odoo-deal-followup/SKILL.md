@@ -16,7 +16,7 @@ description: >
   DO NOT trigger for: (1) Discovery/demo session summary -> use odoo-discovery-summarize.
   (2) Responding to technical objections from the customer -> use odoo-objection-handler.
   (3) Verifying or proving Odoo features -> use odoo-capability-proof or odoo-feature-check.
-  (4) Gap analysis or scope estimation -> use odoo-gap-analysis.
+  (4) Gap analysis or scope estimation -> use odoo-gap-analysis
 ---
 
 ## Persona

@@ -33,10 +33,11 @@ Consultant / Project Manager
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
+- `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
 
 **Primary tools:**
-- `check_module_exists` — Verify module availability, edition (CE/EE), and cross-version presence.
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
