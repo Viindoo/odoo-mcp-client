@@ -19,27 +19,34 @@ description: >
   deadline or decision context ("board meeting", "before we commit", "đánh giá lại", "RFP
   due") because executives need numbers fast. When the user wants a per-line technical
   audit of deprecated APIs (not an executive summary), route to odoo-deprecation-audit.
-  When they want module-by-module business inventory, route to odoo-customization-inventory.
+  When they want module-by-module business inventory, route to odoo-customization-inventory
 ---
 
 ## Persona
 CEO / CTO / Project Sponsor
 
-## MCP tools
-At session start: `set_active_version(odoo_version=<current_version>)` and
-`set_active_profile(profile_name=…)` — both sticky 24h, so the risk report consistently
-targets the same customer baseline.
+## Out of Scope
 
-Primary tools:
-- `find_deprecated_usage(pattern, …)` — counts and locates deprecated API usage; drives the
-  "Deprecated APIs" column.
-- `impact_analysis(symbol | field | model)` — measures change blast radius (how many other
-  modules / fields / methods depend on a hotspot field).
-- `check_module_exists(module, …)` — dependency health check per custom module.
-- `model_inspect(model, method='fields')` — drill into the most-customized models to surface
-  field-level dependencies for the table.
-- `module_inspect(module, method='summary')` — per-module architecture (manifest, models
-  defined/extended, view + JS-patch counts).
+- Per-line deprecated API technical audit → use `odoo-deprecation-audit`
+- Module-by-module business inventory → use `odoo-customization-inventory`
+- Tactical override/extension guidance → use `odoo-override-finder`
+
+## MCP tools
+
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `find_deprecated_usage` — Scan the indexed codebase for usages of deprecated API patterns.
+- `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 
@@ -80,7 +87,7 @@ all at once. None of these depend on each other's results.
 
 **Round 2 — Parallel:** Call `model_inspect(model=…, method='fields')` on the most heavily
 customized models identified from Round 1 results. Simultaneously call
-`module_inspect(module=<name>, method='summary')` for each custom module in scope — this
+`module_inspect(name=<name>, method='summary')` for each custom module in scope — this
 surfaces JS patch counts, view counts, and models defined/extended, which the executive
 table needs. Both calls are independent; fire them together. If hotspot models are already
 known from context, include `model_inspect` calls in Round 1 as well to reduce to a single
@@ -91,6 +98,10 @@ Count BREAKING vs WARN severity from `find_deprecated_usage` results.
 
 Synthesize findings into a concise executive table. Keep prose minimal — let the table carry
 the data. Always close with a one-sentence recommended action tied to the highest-risk item.
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp danh sách module + bất kỳ code snippet hoặc manifest sẵn có. Skill vẫn tạo risk overview dựa trên module classification (Standard/Custom/Viindoo), heuristic estimate của deprecated risk (dựa trên module age, module name pattern), kèm caveat "chưa scan chi tiết deprecated API + blast radius — hãy verify qua deep audit khi OSM online".
 
 ## Output format
 

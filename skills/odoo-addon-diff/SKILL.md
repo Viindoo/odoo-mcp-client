@@ -16,24 +16,31 @@ description: >
   edition?". Trigger even when the user names a specific feature/module and asks "what
   edition do I need?". When the user asks about ONE feature's availability (not a
   comparison), route to odoo-feature-check. When they want marketing copy for the
-  Enterprise features themselves, route to odoo-feature-highlights.
+  Enterprise features themselves, route to odoo-feature-highlights
 ---
 
 ## Persona
 Marketer / Sales Engineer
 
-## MCP tools
-At session start: `set_active_version(odoo_version=…)` so subsequent checks inherit the
-version the client is evaluating.
+## Out of Scope
 
-Primary tools:
-- `check_module_exists(module, …)` — first-line classifier: does this module exist in this
-  edition?
-- `model_inspect(model, method='fields')` — for modules that exist in both CE and EE
-  but with different depth, drill into the model to surface field-level differences (e.g. EE
-  adds `forecast_date`, `analytic_account_id`).
-- `module_inspect(module, method='summary')` — fast architecture overview when you need a
-  module-level summary rather than per-model fields.
+- Single feature availability check → use `odoo-feature-check`
+- Marketing copy for feature highlights → use `odoo-feature-highlights`
+- Pre-sales RFP evidence package → use `odoo-capability-proof`
+
+## MCP tools
+
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 
@@ -72,6 +79,10 @@ Write for a non-technical decision-maker. Translate field names to business lang
 Group by business domain: Sales, Accounting, Inventory, Manufacturing, HR, etc.
 
 For EE-only and Viindoo-only features, add a brief business value note ("why does this matter for this client type?").
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user paste manifest + changelog/release notes liên quan từ từng edition. Skill vẫn produce comparison table dựa trên changelog text parsing, kèm note "chưa verify chi tiết trường dữ liệu — hãy check lại khi OSM online".
 
 ## Output format
 

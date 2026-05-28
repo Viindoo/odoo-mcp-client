@@ -16,31 +16,33 @@ description: >
   "module Y có trong CE không?", "what's the standard way Odoo does X?". Use this when
   the user is asking about ONE feature/module; when they list MANY requirements at once
   route to odoo-gap-analysis instead. When they want to see real source-code examples of
-  X being used, route to odoo-feature-highlights or odoo-capability-proof.
+  X being used, route to odoo-feature-highlights or odoo-capability-proof
 ---
 
 ## Persona
 Consultant / Developer
 
+## Out of Scope
+
+- Multi-requirement effort matrix → use `odoo-gap-analysis`
+- CE vs EE three-way comparison → use `odoo-addon-diff`
+- Customer-facing objection response → use `odoo-objection-handler`
+
 ## MCP tools
-At session start: `set_active_version(odoo_version='17.0')` so subsequent calls inherit
-the version.
 
-Primary tools:
-- `check_module_exists(module, …)` — first-line signal: does the module exist in this
-  version at all?
-- `module_inspect(module, method='summary')` — full architecture overview when the module
-  exists (manifest summary, model count, view count, JS patch count).
-- `module_inspect(module, method='fields' | 'views')` — drill into what the module actually
-  declares, when a yes/no answer isn't enough.
-- `model_inspect(model, method='fields')` — full schema of the primary model in one call.
-- `find_examples(query)` — real-world usage of similar features, useful when the module
-  exists but you want concrete evidence of coverage.
-- `suggest_pattern(query)` — canonical pattern when partial coverage means an Extension is
-  needed.
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-For bookmark-stable evidence to paste into proposals/emails:
-`odoo://17.0/module/account_asset` gives the module's full architecture as a stable URI.
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 
@@ -77,7 +79,7 @@ be formulated from the requirement even if Round 1 shows partial coverage — th
 independent of each other.
 
 **Round 3 — Deep dive (when `check_module_exists` confirms presence):** Call
-`module_inspect(module=<name>, method='summary')` to surface the module's full
+`module_inspect(name=<name>, method='summary')` to surface the module's full
 architecture: manifest summary, which models it defines vs extends, view count, and JS patch
 count. This gives the consultant a confident, evidence-backed answer about what the module
 actually covers — beyond the bare "exists / does not exist" signal. If the module is confirmed
@@ -93,6 +95,10 @@ or view coverage.
 - `Not available — custom development required` — honest assessment with effort note
 
 Always cite the exact module name so clients can verify independently.
+
+## Standalone-first fallback
+
+Khi OSM unreachable (server down hoặc network), skill yêu cầu user paste manifest content + 1-2 model file snippet của module nghi vấn. Skill vẫn produce verdict (module có/không, edition CE/EE/Viindoo) dựa trên text analysis của paste, kèm caveat "chưa verify qua semantic index — hãy double-check khi OSM back online".
 
 ## Output format
 

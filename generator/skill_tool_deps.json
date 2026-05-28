@@ -1,0 +1,298 @@
+{
+  "schema_version": "1",
+  "generated_at": "2026-05-28T00:00:00Z",
+  "server_version_required": "0.11.1",
+  "skills": {
+    "odoo-addon-diff": {
+      "mcp_tools": [
+        "check_module_exists",
+        "model_inspect",
+        "module_inspect",
+        "set_active_version"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    },
+    "odoo-campaign-plan": {
+      "mcp_tools": [
+        "check_module_exists",
+        "find_examples"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Standalone-first. OSM tools optional for feature claim grounding only."
+    },
+    "odoo-capability-proof": {
+      "mcp_tools": [
+        "check_module_exists",
+        "entity_lookup",
+        "find_examples",
+        "model_inspect",
+        "set_active_version"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    },
+    "odoo-competitive-brief": {
+      "mcp_tools": [
+        "check_module_exists",
+        "find_examples"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Standalone-first. OSM tools optional for feature verification only."
+    },
+    "odoo-content-draft": {
+      "mcp_tools": [
+        "check_module_exists",
+        "find_examples"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Standalone-first. OSM tools optional for grounding feature claims in content."
+    },
+    "odoo-customization-inventory": {
+      "mcp_tools": [
+        "check_module_exists",
+        "impact_analysis",
+        "model_inspect",
+        "module_inspect",
+        "set_active_profile",
+        "set_active_version"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    },
+    "odoo-deal-followup": {
+      "mcp_tools": [
+        "check_module_exists"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Standalone-first. check_module_exists optional — only when user requests feature fact-check."
+    },
+    "odoo-deploy-checklist": {
+      "mcp_tools": [
+        "check_module_exists",
+        "find_deprecated_usage",
+        "module_inspect",
+        "set_active_version"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.8.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    },
+    "odoo-deprecation-audit": {
+      "mcp_tools": [
+        "api_version_diff",
+        "entity_lookup",
+        "find_deprecated_usage",
+        "lookup_core_api",
+        "module_inspect",
+        "set_active_version"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    },
+    "odoo-discovery-summarize": {
+      "mcp_tools": [
+        "check_module_exists",
+        "find_examples"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Standalone-first. OSM tools optional — only when user requests pain-point verification."
+    },
+    "odoo-feature-check": {
+      "mcp_tools": [
+        "check_module_exists",
+        "find_examples",
+        "model_inspect",
+        "module_inspect",
+        "set_active_version",
+        "suggest_pattern"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    },
+    "odoo-feature-highlights": {
+      "mcp_tools": [
+        "api_version_diff",
+        "check_module_exists",
+        "find_examples",
+        "model_inspect",
+        "set_active_version"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    },
+    "odoo-frontend-coder": {
+      "mcp_tools": [
+        "api_version_diff",
+        "find_examples",
+        "find_override_point",
+        "lookup_core_api",
+        "module_inspect",
+        "set_active_version",
+        "suggest_pattern"
+      ],
+      "ollama_tools": [
+        "explain_code",
+        "generate_code"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Merged from odoo-js-coder + odoo-owl-coder. Covers all Odoo frontend JS (v8-v19)."
+    },
+    "odoo-gap-analysis": {
+      "mcp_tools": [
+        "check_module_exists",
+        "find_examples",
+        "lookup_core_api",
+        "model_inspect",
+        "set_active_profile",
+        "set_active_version",
+        "suggest_pattern"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    },
+    "odoo-objection-handler": {
+      "mcp_tools": [
+        "check_module_exists",
+        "find_examples",
+        "model_inspect",
+        "set_active_version",
+        "suggest_pattern"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    },
+    "odoo-onboard": {
+      "mcp_tools": [
+        "check_module_exists",
+        "list_available_profiles",
+        "list_available_versions",
+        "set_active_profile",
+        "set_active_version"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    },
+    "odoo-override-finder": {
+      "mcp_tools": [
+        "entity_lookup",
+        "find_override_point",
+        "model_inspect",
+        "set_active_version",
+        "suggest_pattern"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    },
+    "odoo-risk-overview": {
+      "mcp_tools": [
+        "check_module_exists",
+        "find_deprecated_usage",
+        "impact_analysis",
+        "model_inspect",
+        "module_inspect",
+        "set_active_profile",
+        "set_active_version"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    },
+    "odoo-router": {
+      "mcp_tools": [],
+      "ollama_tools": [],
+      "min_server_version": "0.1.0",
+      "deprecated_tools_used": [],
+      "notes": "Pure text routing — no MCP tool calls. Tool names mentioned in routing table discriminators are references to OTHER skills' tools, not invocations by router itself."
+    },
+    "odoo-version-diff": {
+      "mcp_tools": [
+        "api_version_diff",
+        "entity_lookup",
+        "lookup_core_api",
+        "model_inspect",
+        "set_active_version"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": ""
+    }
+  },
+  "agents": {
+    "odoo-coder": {
+      "mcp_tools": [
+        "set_active_version",
+        "entity_lookup",
+        "find_examples",
+        "lint_check",
+        "lookup_core_api",
+        "model_inspect",
+        "resolve_orm_chain",
+        "suggest_pattern",
+        "validate_depends",
+        "validate_domain",
+        "validate_relation"
+      ],
+      "ollama_tools": [
+        "complete_code",
+        "generate_code",
+        "review_code"
+      ],
+      "min_server_version": "0.8.0",
+      "notes": "Agent bundle — companion to odoo-coder slim SKILL.md. Tool list from agents/odoo-coder.md frontmatter."
+    },
+    "odoo-code-reviewer": {
+      "mcp_tools": [
+        "set_active_version",
+        "entity_lookup",
+        "lint_check",
+        "lookup_core_api",
+        "model_inspect",
+        "resolve_orm_chain",
+        "suggest_pattern",
+        "validate_depends",
+        "validate_domain",
+        "validate_relation"
+      ],
+      "ollama_tools": [
+        "review_code"
+      ],
+      "min_server_version": "0.8.0",
+      "notes": "Agent bundle — companion to odoo-code-reviewer slim SKILL.md. Tool list from agents/odoo-code-reviewer.md frontmatter."
+    }
+  }
+}

@@ -16,24 +16,32 @@ description: >
   the marketer section is in business-value language. When the user asks to audit THEIR
   code for deprecation (not just see the version-to-version delta), route to
   odoo-deprecation-audit. When they want to migrate one specific model field-by-field,
-  route to odoo-coder with the field list.
+  route to odoo-coder with the field list
 ---
 
 ## Persona
 Developer + Marketer
 
-## MCP tools
-At session start: `set_active_version(odoo_version=…)` for the FROM version (subsequent
-inspection calls inherit it; the diff tool itself takes both versions explicitly).
+## Out of Scope
 
-Primary tools:
-- `api_version_diff(symbol | scope, from_version, to_version)` — the core symbol-level delta.
-- `lookup_core_api(symbol)` — confirms existence + signature of a symbol in a given version.
-- `entity_lookup(kind='method', model=…, method_name=…)` — drill into a specific method's
-  signature changes.
-- `model_inspect(model, method='fields')` — enumerate fields in one version for diffing
-  against the same call in another version.
-- `model_inspect(model, method='views')` — same, for views.
+- Audit user's codebase for deprecated API usage → use `odoo-deprecation-audit`
+- Marketing highlights (business language only) → use `odoo-feature-highlights`
+- Single-feature availability lookup → use `odoo-feature-check`
+
+## MCP tools
+
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 
@@ -84,6 +92,10 @@ Categorize findings by impact:
 
 **Cross-era note:** If the jump spans v8/v9→v10+ or v12→v13, add a special "Era migration" section
 explaining the magnitude: Python 2→3 rewrite, decorator removal, frontend framework replacement.
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp release notes hoặc changelog chính thức từ hai version. Skill vẫn tạo version diff dựa trên changelog text parsing + training knowledge về era-level changes (Python 2→3, `@api.multi` removal, OWL adoption timeline), kèm caveat "chưa verify qua API index — hãy double-check chi tiết signature khi OSM online".
 
 ## Output format
 

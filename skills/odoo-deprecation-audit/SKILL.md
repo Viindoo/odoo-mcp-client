@@ -16,28 +16,33 @@ description: >
   doesn't use the word "deprecation" — if the goal is "before upgrade", that's this skill's
   job. When the user asks ONLY what changed between two versions (without auditing their
   code), route to odoo-version-diff instead. When they want to write fresh upgrade-safe
-  code in the target version, route to odoo-coder.
+  code in the target version, route to odoo-coder
 ---
 
 ## Persona
 Developer / Tech Lead
 
-## MCP tools
-At session start: `set_active_version(odoo_version=<source_version>)` so subsequent calls
-inherit the source version of the codebase being audited (the migration TARGET version is
-passed explicitly to `api_version_diff`).
+## Out of Scope
 
-Primary tools:
-- `find_deprecated_usage(pattern, …)` — scans the indexed codebase for usages of a deprecated
-  symbol.
-- `api_version_diff(symbol, from_version, to_version)` — version-to-version delta for a core
-  API (e.g. `fields.Char` signature changes).
-- `lookup_core_api(symbol)` — confirm whether a symbol still exists in the target version and
-  what replaced it if not.
-- `entity_lookup(kind='method', model=…, method_name=…)` — drill into a specific method's
-  signature changes across versions.
-- `module_inspect(module, method='js')` — enumerate `web.Widget`-era JS patches that
-  need OWL rewrites.
+- Version API diff without code scan → use `odoo-version-diff`
+- Fresh code generation in target version → use `odoo-coder`
+- Executive risk dashboard → use `odoo-risk-overview`
+
+## MCP tools
+
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `find_deprecated_usage` — Scan the indexed codebase for usages of deprecated API patterns.
+- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 
@@ -83,7 +88,7 @@ deprecated/removed symbols in one batch. Every call is independent — fire them
 methods simultaneously. These calls are independent of each other and of Round 2 lookups.
 
 **Round 3b — JS patch audit (when migrating from v8–v13):** Call
-`module_inspect(module=<scope>, method='js')` to enumerate all legacy `web.Widget`-based
+`module_inspect(name=<scope>, method='js')` to enumerate all legacy `web.Widget`-based
 patches in scope. Era1 (v8–v13) patches require manual OWL rewrites because the Widget API
 was removed in v16. Flag each patch as BREAKING if the target version is v14+ and the patch
 still references `AbstractField`, `FieldWidget`, or `web.Widget`. This call is independent of
@@ -102,6 +107,10 @@ replacement API with a one-line migration note.
 
 **Era upgrade note:** If migrating from v8/v9, add a separate section "OpenERP Era Rewrites"
 listing modules that require full Python 2 → 3 syntax migration, not just API replacements.
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp danh sách module cần audit + bản source code (hoặc grep output của deprecated pattern). Skill vẫn tạo audit report dựa trên static text analysis (tìm kiếm pattern như `@api.multi`, `_columns`, `osv.osv`, `web.Widget` bằng regex), gợi ý replacement từ kiến thức Odoo, kèm caveat "chưa verify qua codebase index — hãy double-check khi OSM online".
 
 ## Output format
 

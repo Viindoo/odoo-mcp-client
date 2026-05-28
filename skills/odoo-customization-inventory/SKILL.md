@@ -16,30 +16,33 @@ description: >
   Trigger even if the user just dumps a list of names with no other context — that's the
   signal to enumerate. When the user wants to assess UPGRADE risk specifically (rather than
   just inventory), route to odoo-deprecation-audit. When they want to see business value
-  of features for marketing, route to odoo-feature-highlights.
+  of features for marketing, route to odoo-feature-highlights
 ---
 
 ## Persona
 CEO / CTO / Project Manager
 
+## Out of Scope
+
+- Upgrade risk scoring + deprecated API scan → use `odoo-deprecation-audit`
+- Executive 1-page risk dashboard → use `odoo-risk-overview`
+- Marketing highlights of features → use `odoo-feature-highlights`
+
 ## MCP tools
-At session start: `set_active_version(odoo_version=…)` and `set_active_profile(profile_name=…)`
-so the inventory targets a specific customer profile + version. Both are sticky 24h per API
-key — handy when iterating on a long module list.
 
-Primary tools:
-- `check_module_exists(module, …)` — first-pass classifier: Standard / Viindoo / Custom.
-- `module_inspect(module, method='summary')` — full architecture overview per module
-  (manifest, models defined vs extended, view + JS patch counts) — the headline executive
-  summary tool.
-- `module_inspect(module, method='fields')` — key custom fields summary when describe is too
-  light.
-- `model_inspect(model, method='summary')` — when a module extends a single model and the
-  executive wants to know which standard model is being touched.
-- `impact_analysis(symbol | module)` — for modules flagged high-risk based on usage breadth.
+<!-- BEGIN GENERATED TOOLS -->
+_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
-For bookmark-stable cross-references: each module is also exposed as
-`odoo://17.0/module/<name>` for direct linking in audit reports.
+**Session bootstrap** (call once at session start):
+- `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+
+**Primary tools:**
+- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+<!-- END GENERATED TOOLS -->
 
 ## Context
 
@@ -79,7 +82,7 @@ of each other.
 
 **Round 2.5 — Per-module architecture drill-down (parallel):** For each Viindoo or Custom
 module that the executive wants to understand more deeply, call
-`module_inspect(module=<name>, method='summary')`. This returns a concise tree showing the
+`module_inspect(name=<name>, method='summary')`. This returns a concise tree showing the
 module's manifest metadata, which models it defines vs extends, and counts of views and JS
 patches — giving the executive a one-glance architecture picture without reading source code.
 Fire all `module_inspect(method='summary')` calls in parallel (one per module of interest).
@@ -88,7 +91,7 @@ report.
 
 Example — understanding `custom_loyalty` on Odoo 17:
 ```
-module_inspect(module="custom_loyalty", method="summary")
+module_inspect(name="custom_loyalty", method="summary")
 ```
 
 **Round 3 — Parallel:** Call `impact_analysis` for modules flagged as high-usage or high-risk
@@ -98,6 +101,10 @@ Write "Business purpose" in plain language. Infer from field names and module na
 adding `vat_number`, `tax_id_file` to `res.partner` is clearly "Vietnamese tax compliance".
 
 Flag modules with many deprecated API calls or overrides of unstable methods as "upgrade risk".
+
+## Standalone-first fallback
+
+Khi OSM unreachable, skill yêu cầu user cung cấp danh sách module + nếu có `__manifest__.py` snippet (or `__openerp__.py` cho legacy) của từng module. Skill vẫn tạo inventory table dựa trên manifest + text analysis, phân loại mỗi module và dự đoán business purpose dựa trên tên + manifest description, kèm caveat "chưa scan chi tiết code & inheritance — hãy verify khi OSM back online".
 
 ## Output format
 
