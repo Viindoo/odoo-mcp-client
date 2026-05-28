@@ -13,7 +13,7 @@ Invoke this command when you have a stalled or at-risk deal and need to compose 
 
 Type: `/odoo-customer-followup-draft [customer-label]`
 
-Optional: supply customer label on the command line (e.g., `Khách A`). If omitted, the command will prompt you for it.
+Optional: supply customer label on the command line (e.g., `Customer A`). If omitted, the command will prompt you for it.
 
 ## Hard rules
 
@@ -88,7 +88,7 @@ On user "yes":
 
 ## Examples
 
-**Example 1 (abstract):** Customer: "Khách A" (Vietnam-based); last touch: 2026-04-30 (28 days ago); pipeline stage: "Proposal sent"; blocker: "waiting on technical evaluation from customer's IT team". Skill assesses **HIGH risk** (customer is silent, evaluating alternatives), recommends **"schedule a 30-min call to unblock evaluation"**, drafts a warm but concise email offering technical support and a concrete call time.
+**Example 1 (abstract):** Customer: "Customer A"; last touch: 2026-04-30 (28 days ago); pipeline stage: "Proposal sent"; blocker: "waiting on technical evaluation from customer's IT team". Skill assesses **HIGH risk** (customer is silent, evaluating alternatives), recommends **"schedule a 30-min call to unblock evaluation"**, drafts a warm but concise email offering technical support and a concrete call time.
 
 ## Standalone fallback
 
@@ -97,7 +97,7 @@ If `odoo-deal-followup` skill is unavailable, prompt the user to manually paste 
 ## What this command does NOT do
 
 - **Does NOT send email**: only drafts to disk. You copy-paste or forward from the draft file to your email client.
-- **Does NOT update CRM**: no Viindoo ERP, Salesforce, or HubSpot sync. Manual step required.
+- **Does NOT update CRM**: no ERP, Salesforce, or HubSpot sync. Manual step required.
 - **Does NOT handle objections directly**: if the customer raises a technical or pricing objection, use the `odoo-objection-handler` skill separately for a deeper response.
 - **Does NOT escalate**: no manager notification or workflow trigger.
 

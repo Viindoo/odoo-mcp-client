@@ -4,6 +4,28 @@ All notable changes to the Odoo MCP Client are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-05-28
+
+### Changed
+- **Full English rewrite of all top-level documentation** (`README.md`, `CHANGELOG.md`,
+  `CONTRIBUTING.md`, `ROADMAP.md`, `BLOCKED_VERSIONS.md`, `CODE_OF_CONDUCT.md`,
+  `NOTICE`, `VERSION`). No Vietnamese-language content remains in any public doc.
+- **Neutralized Viindoo-specific framing** in `README.md`: "Viindoo CEO use case" ->
+  "small-team founder use case"; "vs Viindoo" -> "vs your Odoo distribution"; Viindoo
+  as legitimate project sponsor and trademark holder is retained throughout.
+- **Replaced private server repository links** — all references to
+  `github.com/Viindoo/odoo-semantic-server` replaced with the public hosted endpoint
+  `https://odoo-semantic.viindoo.com/` or the sign-up page; self-host instructions
+  redirect to post-registration server docs.
+- **Fixed count claims** in `README.md`: "3 agents (2 + 1 deprecated)" corrected to
+  "2 specialist agents" (deprecated agent removed from tree); "6 workflow commands"
+  corrected to "5 workflow commands + 1 setup command (`/odoo-semantic:connect`)".
+- **Added MCP resource URI templates section** to `README.md` documenting all 7
+  `odoo://` resource templates and the 12 supported Odoo versions (v8.0 - v19.0).
+- **VERSION bumped** from `1.0.0` to `1.1.0`.
+
+No functional changes to skills, agents, or commands in this release.
+
 ## [1.0.0] - 2026-05-28
 
 ### Added
@@ -17,9 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Skill↔tool dependency map (`generator/skill_tool_deps.json`) + CI assertion (`generator/check_deps.py`) — fails if a skill/agent references a removed server tool.
 - Confidentiality pre-commit hook + CI workflow — blocks vault paths and absolute `~/.` references in committed files.
 - Multi-runtime smoke test checklist (`tests/smoke/runtime_parity.md`).
-- README section "Một-người-công-ty: cách dùng AI specialist" with VI-first use cases.
+- README section "For the small-team Odoo founder" with use cases covering all 8 personas.
 - `## Out of Scope` + `## Standalone-first fallback` sections in all 22 skills + 5 of 5 new commands (CI-enforced by `tests/test_skill_format.py`).
-- Agent format tests (`test_agent_frontmatter`, `test_agent_depth_rule_guard`, `test_agent_skill_invocation_guard`) covering 3 agents.
+- Agent format tests (`test_agent_frontmatter`, `test_agent_depth_rule_guard`, `test_agent_skill_invocation_guard`) covering the 2 active specialist agents.
 
 ### Changed
 - Plugin description + keywords updated to reflect post-refinement scope.
@@ -43,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Refinement history (v0.8 → v1.0)
 
-Plugin grew from a thin 24-tool OSM mirror into a 22-skill + 3-agent + 6-command
+Plugin grew from a thin 24-tool OSM mirror into a 22-skill + 2-agent + 5-workflow-command
 AI workforce toolkit organized around 8 specialist personas (Engineer, Coder,
 Code-Reviewer, Pre-Sales, Sales AE, Marketer, Strategist, Onboarding-Concierge).
 
@@ -69,7 +91,7 @@ Detailed orchestration log retained internally.
 ## [0.8.0] - 2026-05-21
 
 ### Changed (server PR #162 / v0.9.1 surface alignment — c9cf637)
-- **`license_notice` output marker** (server [ADR-0036](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/adr/0036-indexer-license-guard.md)) — `describe_module` and `module_inspect(method='summary')` (and the `odoo://{version}/module/{name}` resource) may now emit a `License notice:` line for license-restricted modules. OEEL-1 modules are skipped by default, so the notice is the intentional, non-silent marker that content is withheld — documented as such in the routing matrix so an AI client treats it as expected, not a missing-data bug to retry around.
+- **`license_notice` output marker** (server ADR-0036) — `describe_module` and `module_inspect(method='summary')` (and the `odoo://{version}/module/{name}` resource) may now emit a `License notice:` line for license-restricted modules. OEEL-1 modules are skipped by default, so the notice is the intentional, non-silent marker that content is withheld — documented as such in the routing matrix so an AI client treats it as expected, not a missing-data bug to retry around.
 - **`lint_check(language='xml')` clarified as corpus-level** — server's RelaxNG validation (WI-E) lints the indexed views against the version-exact grammar at index time, exposing `:LintViolation` nodes. The `xml` mode returns those nodes for a version and **ignores the `code` argument** (it is not a snippet check). Documented in the `lint_check` routing-matrix entry. No new tools — server tool surface remains 24.
 
 ### Changed (server PR #160 surface alignment — f82e1a3)
@@ -110,7 +132,7 @@ Detailed orchestration log retained internally.
   --all --full`) — until it runs, `validate_depends` returns the "no @api.depends" note for
   methods indexed before the reindex. That backfill is now scheduled as server **PR #159**
   (M10C polish wave) — the full reindex v8→v19, with the ordered runbook in
-  [`docs/deploy/m10-postmerge-ops.md`](https://github.com/Viindoo/odoo-semantic-server/blob/master/docs/deploy/m10-postmerge-ops.md).
+  `docs/deploy/m10-postmerge-ops.md` (in the server repository).
   PR #159 introduces no new MCP tools (surface stays 24), so this client release needs no
   tool changes for it; recommend landing this release alongside that reindex so
   `validate_depends` is fully functional on the live surface.
@@ -181,11 +203,11 @@ Detailed orchestration log retained internally.
 
 - Pre-split history. The plugin shipped as `dist/odoo-semantic-plugin/` inside the
   monolith repository. Full server-side changes for this period are recorded in the
-  [server CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md).
+  server CHANGELOG (available after sign-up at https://odoo-semantic.viindoo.com/).
 
 ## [0.3.x] - 2026-03-01
 
 - M7.5 persona-skill batch: the original 15-skill set and routing agents were
   introduced. See the
-  [server CHANGELOG](https://github.com/Viindoo/odoo-semantic-server/blob/master/CHANGELOG.md)
+  server CHANGELOG (available after sign-up at https://odoo-semantic.viindoo.com/)
   for the detailed history.

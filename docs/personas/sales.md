@@ -1,6 +1,6 @@
 # Odoo Semantic — Sales Guide
 
-> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` → `claude plugin install odoo-semantic@viindoo-plugins` → `/odoo-semantic:connect`. Chi tiết + AI tools khác: [client setup](../setup.md).
+> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic@viindoo-plugins` -> `/odoo-semantic:connect`. For other AI tools, see [client setup](../setup.md).
 
 Turn objections into answered questions in seconds. Verify Odoo capabilities on the spot, pull real code examples as proof, and never get caught off-guard by a "does Odoo do X?" during a demo.
 
@@ -14,7 +14,7 @@ Key scenarios:
 - **Feature verification:** "Does Odoo Community have [feature], or is it Enterprise?"
 - **Capability demonstration:** "Show me that Odoo actually handles [business scenario]"
 - **Objection handling:** "The prospect says Odoo can't do X — prove them wrong (or right)"
-- **Competitive positioning:** "What's in Odoo that competitors don't have?"
+- **Competitive positioning:** "What does Odoo have that competitors don't?"
 
 ---
 
@@ -62,7 +62,7 @@ See how many modules extend their core models. If the prospect is on an older ve
 Copy these prompts into your AI tool:
 
 1. **Quick capability check:**
-   > "Using odoo-semantic, does Odoo 17.0 Community have an eSignature module? Or is it Enterprise-only? The prospect is on CE budget."
+   > "Using odoo-semantic, does Odoo 17.0 Community have an eSignature module? Or is it Enterprise-only? The prospect is on a CE budget."
 
 2. **Feature proof for a skeptical prospect:**
    > "Using odoo-semantic, find_examples for multi-company intercompany purchase-to-sale flow in Odoo 17. I need to show the prospect this is a real native feature."
@@ -74,7 +74,7 @@ Copy these prompts into your AI tool:
    > "Using odoo-semantic, api_version_diff for sale.order between Odoo 14.0 and 17.0. The prospect is on v14. Give me 3 high-value improvements to mention."
 
 5. **Competitive win story:**
-   > "Using odoo-semantic, model_inspect account.move in Odoo 17.0 and show me its full field count and extending modules. I want to demonstrate Odoo's accounting depth vs [competitor]."
+   > "Using odoo-semantic, model_inspect account.move in Odoo 17.0 and show me its full field count and extending modules. I want to demonstrate Odoo's accounting depth vs a competing platform."
 
 ---
 
@@ -95,7 +95,7 @@ If you use **Claude Code** with the Odoo Semantic plugin:
 - **`is_ee: true`** — Requires Enterprise license. Factor into pricing discussion.
 - **`is_ee_confusion: true`** — There is a CE module AND an EE module with similar names. Be careful — clarify which tier the prospect expects.
 - **`Fields: 148`** — The model has 148 fields across all versions. This is evidence of a mature, feature-rich implementation.
-- **Real code from `find_examples`** — This is not a demo — it's actual production code from Odoo's codebase. That's your credibility advantage.
+- **Real code from `find_examples`** — This is not a demo — it is actual production code from Odoo's codebase. That is your credibility advantage.
 
 ---
 

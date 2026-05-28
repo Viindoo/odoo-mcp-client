@@ -1,19 +1,18 @@
 ---
 name: odoo-campaign-plan
 description: >
-  Plan a multi-week, multi-channel marketing campaign for a Viindoo / Odoo vertical or
+  Plan a multi-week, multi-channel marketing campaign for an Odoo vertical or
   geography push. Given target vertical or geo, campaign objective, timeline, budget
   category (S/M/L), and available channels, produce a complete campaign blueprint:
   week-by-week timeline, channel mix matrix, content asset inventory, KPI definitions,
   and an owner map that distinguishes AI-doable tasks from human-required tasks.
   This skill ORCHESTRATES campaigns; it does NOT draft individual content pieces.
-  Trigger on: "lập kế hoạch campaign", "plan campaign Q3 cho manufacturing",
-  "campaign brief cho vertical X", "lập chiến dịch marketing 4 tuần",
-  "thiết kế campaign multi-channel", "plan a campaign for", "campaign brief",
+  Trigger on: "plan a campaign for", "campaign brief",
   "multi-channel plan for vertical X", "Q3 marketing push plan",
-  "build a campaign blueprint", "marketing push plan for", "lên kế hoạch chiến dịch",
-  "campaign roadmap cho", "kế hoạch go-to-market cho", "4-week campaign plan",
-  "8-week campaign for", "go-to-market blueprint".
+  "build a campaign blueprint", "marketing push plan for",
+  "campaign roadmap for", "4-week campaign plan",
+  "8-week campaign for", "go-to-market blueprint",
+  "plan campaign Q3 for manufacturing", "campaign brief for vertical X".
   DO NOT trigger for: drafting an individual piece of content (→ odoo-content-draft),
   competitive positioning analysis (→ odoo-competitive-brief),
   feature-highlight slides for a sales deck (→ odoo-feature-highlights),
@@ -24,8 +23,8 @@ description: >
 
 ## Persona
 
-Marketer — Viindoo Vietnam SME ERP go-to-market team. Planning B2B campaigns targeting
-Vietnamese small-to-medium business owners, department heads (finance, operations,
+Marketer — Odoo / your Odoo distribution go-to-market team. Planning B2B campaigns targeting
+small-to-medium business owners, department heads (finance, operations,
 manufacturing), and IT decision-makers. Campaign purpose: generate awareness, drive demo
 requests, and support regional or vertical expansion.
 
@@ -33,7 +32,7 @@ requests, and support regional or vertical expansion.
 
 - Drafting individual content pieces (blog posts, LinkedIn posts, email sequences)
   → `odoo-content-draft`
-- Competitive positioning vs. SAP / Microsoft Dynamics / MISA
+- Competitive positioning vs. major competitors (SAP, Microsoft Dynamics, regional vendors)
   → `odoo-competitive-brief`
 - Feature-highlight decks for sales slides or proposal presentations
   → `odoo-feature-highlights`
@@ -198,7 +197,7 @@ Define 2-3 leading metrics and 2-3 lagging metrics, specific to the campaign obj
 For each metric, provide a concrete measurement method (Google Analytics event, LinkedIn
 Analytics export, email platform dashboard) so ownership is clear.
 
-### Round 6 - Owner map (one-man-company aware)
+### Round 6 - Owner map (small-team founder aware)
 
 For each task in the campaign, classify as:
 
@@ -258,7 +257,7 @@ Present the campaign plan in the following Markdown structure:
 - **Leading**: <metric 1> (measure via: <tool/dashboard>), <metric 2>, <metric 3>
 - **Lagging**: <metric 1> (measure via: <tool/dashboard>), <metric 2>, <metric 3>
 
-## Owner map (one-man-company)
+## Owner map (small-team founder)
 ### AI-doable (delegate)
 - <task> → `odoo-content-draft` / `odoo-competitive-brief` / OSM / this skill
 ...
@@ -283,7 +282,7 @@ When OSM is unreachable or the skill is used without MCP configuration:
 
 1. Do NOT block. Produce the full campaign plan using:
    - User's verbal description of the product angle and target market
-   - General Odoo/Viindoo product knowledge from training data
+   - General Odoo / your Odoo distribution product knowledge from training data
    - Abstract SME examples and relative performance benchmarks (no fabricated hard numbers)
 
 2. Insert `<TBD: verify Odoo has feature X in version Y>` placeholders for any specific
@@ -293,9 +292,9 @@ When OSM is unreachable or the skill is used without MCP configuration:
    > in target version>` — confirm before finalizing messaging."
 
 3. Add a note at the end of the plan:
-   > _Note: Cac placeholder `<TBD: ...>` can xac nhan bang `check_module_exists` khi OSM kha
-   > dung. Nhung placeholder nay khong can thiet neu goc do campaign la chung (vi du: chuyen
-   > doi so, tang nang suat SME)._
+   > _Note: `<TBD: ...>` placeholders can be confirmed with `check_module_exists` once OSM is
+   > available. These placeholders are not needed if the campaign angle is generic (e.g.,
+   > digital transformation, SME productivity improvement)._
 
 ## Examples
 
@@ -353,18 +352,18 @@ When OSM is unreachable or the skill is used without MCP configuration:
   at session start for Odoo version default, target audience personas, approved messaging
   pillars, and any channel restrictions. Settings in that file take precedence over this
   skill's generic defaults.
-- **Brand assets**: for color palette, logo usage, and typography guidelines, refer to the
-  internal document named `Viindoo Brand Assets`. This skill produces a planning document, not
-  visual assets — but reference `Viindoo Brand Assets` when the plan includes a landing page
-  brief or visual design spec that will be handed to a designer.
+- **Brand assets**: for color palette, logo usage, and typography guidelines, refer to your
+  project's brand guidelines document if one is checked into the working repository (e.g.,
+  `branding/STYLE.md` or equivalent). This skill produces a planning document, not visual
+  assets — but reference the brand guidelines when the plan includes a landing page brief
+  or visual design spec that will be handed to a designer.
 - **No fabricated data**: NEVER invent customer names, real revenue figures, or hard ROI
-  percentages in the plan. Use abstract templates: "Một doanh nghiệp sản xuất tại miền Nam
-  với ~150 nhân sự" or "A trading company in the FMCG sector reported...". If the user
-  provides real data verbally, incorporate it with attribution.
+  percentages in the plan. Use abstract templates: "A manufacturing company in the southern
+  region with ~150 employees" or "A trading company in the FMCG sector reported...". If the
+  user provides real data verbally, incorporate it with attribution.
 - **Depth rule**: this skill operates at depth 1 (called from main agent). It does NOT invoke
   other skills or spawn subagents. The campaign plan is a text deliverable — the marketer
   executes it, the main agent does not chain it into another automated tool.
-- **Localization note**: output defaults to Vietnamese with full diacritics. Switch to English
-  only when the user explicitly requests it. Product names, module names, and channel names
-  remain in English regardless of output language (e.g., "module MRP", "LinkedIn Ads",
-  "Google Search Console").
+- **Localization note**: output language follows the user's request language. Product names,
+  module names, and channel names remain in English regardless of output language
+  (e.g., "MRP module", "LinkedIn Ads", "Google Search Console").

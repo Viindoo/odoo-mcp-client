@@ -7,18 +7,15 @@ description: >
   someone is about to quote, scope, or estimate an Odoo project — even if they don't say the
   word "gap". Pushy trigger: if the conversation contains a list of customer requirements +
   any hint of "what does Odoo do natively?" / "what needs to be built?" / "how many days?" /
-  "what should we charge?", fire this skill. Realistic phrases to catch include "khách yêu
-  cầu A, B, C — Odoo có sẵn không?", "tính năng nào cần custom?", "trước khi báo giá cho
-  prospect này, cái gì là standard, cái gì cần dev?", "before we send the project estimate
-  on Monday, can you tell me what's out of the box?", "scope cho proposal", "ước lượng
-  customization effort", "client wants multi-company invoicing + approval workflows + a
-  custom loyalty program — what's the breakdown?", "phân tích gap cho khách sản xuất với
-  MRP và lô…", "is this in standard Odoo or do we need to build it?", "list of features →
-  effort matrix", "presales workshop notes ready, can you turn into a gap report?", "the
-  RFP mentions 23 requirements — help me classify them". When the user asks about ONE
-  specific feature ("does Odoo have lot tracking?") route to odoo-feature-check instead.
-  When they want highlights for marketing copy ("what's the headline value of v18?")
-  route to odoo-feature-highlights
+  "what should we charge?", fire this skill. Realistic phrases to catch include "before we
+  send the project estimate on Monday, can you tell me what's out of the box?", "client wants
+  multi-company invoicing + approval workflows + a custom loyalty program — what's the
+  breakdown?", "is this in standard Odoo or do we need to build it?", "list of features →
+  effort matrix", "presales workshop notes ready, can you turn into a gap report?", "the RFP
+  mentions 23 requirements — help me classify them". When the user asks about ONE specific
+  feature ("does Odoo have lot tracking?") route to odoo-feature-check instead. When they want
+  highlights for marketing copy ("what's the headline value of v18?") route to
+  odoo-feature-highlights
 ---
 
 ## Persona
@@ -63,8 +60,6 @@ determines project budget. Errors in either direction are costly:
 - **Custom** — no standard module; requires new model, complex logic, or integration.
   5+ days per requirement.
 
-**Viindoo caveat:** Before classifying as "Custom", check Viindoo modules (`viin_*`) — they often
-cover Vietnamese-specific requirements (VAS accounting, labor law, tax) that Odoo CE/EE doesn't.
 
 **Version matters:** A feature classified "Custom" on v12 may be "Standard" on v16. Always note
 the target version. For v8/v9 migrations, effort is higher — Python 2 syntax, `_columns` dict,
@@ -103,7 +98,7 @@ explain overruns.
 
 ## Standalone-first fallback
 
-Khi OSM unreachable, skill yêu cầu user cung cấp danh sách requirement + bất kỳ context khách cung cấp (workshop notes, RFP). Skill vẫn tạo gap analysis report dựa trên training knowledge Odoo (classify requirement thành Standard/Config/Extension/Custom dựa trên mô hình cơ sở), kèm effort estimate dựa trên heuristic, và caveat "chưa verify qua code examples — hãy double-check effort khi OSM online".
+When OSM is unreachable, ask the user to provide the requirement list and any context they have (workshop notes, RFP). The skill will still create a gap analysis report based on Odoo training knowledge — classify each requirement as Standard/Config/Extension/Custom based on core patterns — with effort estimates using heuristics. Include a caveat: "Classification not yet verified against code examples; double-check effort estimates once OSM is online."
 
 ## Output format
 
@@ -149,7 +144,8 @@ Output: Multi-company invoicing → Standard (CE) S; Approval workflows → Exte
 `mail.activity.mixin`); Custom loyalty → Custom XL. Total effort: Medium. Suggested phasing.
 
 **Example 2:**
-Prompt: "phân tích gap cho khách hàng sản xuất, cần MRP, kế hoạch sản xuất theo lô, và tích hợp
-máy CNC qua IoT"
-Output: MRP → Standard CE; Lô sản xuất → Standard CE (lot/serial tracking); IoT CNC integration
-→ Custom XL (EE IoT module exists nhưng custom adapter cần thiết). Total effort: High.
+Prompt: "Gap analysis for a manufacturing client: needs MRP, batch production planning, and CNC
+machine integration via IoT"
+Output: MRP → Standard CE; Batch production planning → Standard CE (lot/serial tracking); CNC
+IoT integration → Custom XL (EE IoT module exists but custom adapter required). Total effort:
+High.

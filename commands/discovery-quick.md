@@ -13,7 +13,7 @@ Use this command when you already know you want to run discovery synthesis and w
 ## Steps for the AI agent
 
 1. **Phase 0: Parse input**
-   - Check if `$ARGUMENTS` contains a customer label (e.g., `/odoo-discovery-quick Khach-A`).
+   - Check if `$ARGUMENTS` contains a customer label (e.g., `/odoo-discovery-quick Customer-A`).
    - If a label is provided, store it. Otherwise, ask the user for one.
    - Ask the user to provide raw notes (either pasted inline or as a file path).
    - If the user provides a file path, read it with the `Read` tool.
@@ -50,12 +50,12 @@ Use this command when you already know you want to run discovery synthesis and w
 **Example 1: Inline notes**
 
 ```
-User: /odoo-discovery-quick Khach-A
+User: /odoo-discovery-quick Customer-A
 
 Agent: What are the raw discovery notes? (paste or file path)
 
 User:
-  Met with finance team at Khach-A.
+  Met with finance team at Customer-A.
   They track invoices in Excel.
   20 invoices/month, growing to 50.
   Pain: no audit trail, manual data entry errors.
@@ -65,7 +65,7 @@ User:
 Agent: [Triggers skill with customer label + notes]
 
 Skill output:
-  ## Khach-A — Discovery Profile
+  ## Customer-A — Discovery Profile
   
   **Business context:** Manufacturing, 120 employees...
   **Pain points:** Manual invoice tracking...
@@ -73,11 +73,11 @@ Skill output:
   **Recommended product fit:** Odoo Accounting + Invoice Automation...
   **Next step:** Demo accounts module, pricing discussion...
 
-Agent: Save to .odoo-ai/discovery/Khach-A-Corp-2026-05-28.md? (yes / no / change-name)
+Agent: Save to .odoo-ai/discovery/Customer-A-Corp-2026-05-28.md? (yes / no / change-name)
 
 User: yes
 
-Agent: ✓ Profile saved to .odoo-ai/discovery/Khach-A-Corp-2026-05-28.md
+Agent: ✓ Profile saved to .odoo-ai/discovery/Customer-A-Corp-2026-05-28.md
 ```
 
 ## Standalone fallback

@@ -1,52 +1,52 @@
 ---
 name: odoo-deal-followup
 description: >
-  Phân tích tình trạng deal Odoo/Viindoo và tạo hành động tiếp theo cho Sales AE hoặc CEO một-người
-  vận hành go-to-market. Nhận context deal (tên khách, ngày liên hệ cuối, giai đoạn pipeline, cam
-  kết trước đó) cộng với email/note thread tùy chọn, rồi xuất: (a) risk score (red/yellow/green),
-  (b) next-best action recommendation, (c) draft email follow-up tiếng Việt (mặc định) hoặc tiếng
-  Anh. Optionally gắn tag lý do deal bị blocked/at-risk nếu phát hiện tín hiệu. Kích hoạt ngay
-  khi: "deal stalled", "khách lâu rồi chưa phản hồi", "follow up khách X", "viết email follow up",
-  "phải làm gì với deal này", "khách trễ deadline phản hồi", "follow up on deal",
-  "draft follow-up email", "customer hasn't replied", "what should I do with this stale
-  opportunity", "đã hứa gửi báo giá mà chưa thấy phản hồi", "deal im lặng mấy tuần rồi",
-  "mình nên gọi hay email khách này". Đặc biệt kích hoạt khi có tín hiệu thời gian ("đã 3 tuần",
-  "2 tháng không liên hệ", "deadline tháng này") hoặc trạng thái mơ hồ ("không biết khách nghĩ
-  gì", "không dám gọi vì sợ quấy rầy").
-  DO NOT trigger for: (1) Tóm tắt buổi discovery/demo → dùng odoo-discovery-summarize.
-  (2) Phản bác objection kỹ thuật từ khách → dùng odoo-objection-handler.
-  (3) Tra cứu/chứng minh tính năng Odoo → dùng odoo-capability-proof hoặc odoo-feature-check.
-  (4) Phân tích gap/scope đề xuất → dùng odoo-gap-analysis
+  Analyze deal health for Odoo or a custom distribution and generate next actions for a Sales
+  AE or small-team founder running go-to-market solo. Accepts deal context (customer label,
+  last contact date, pipeline stage, prior commitments) plus an optional email or note thread,
+  then produces: (a) a risk score (red/yellow/green), (b) a next-best action recommendation,
+  (c) a draft follow-up email in English (default) or the language matching the thread.
+  Optionally tags the reason a deal is blocked or at-risk when signals are present.
+  Trigger on: "deal stalled", "customer hasn't replied", "follow up on deal", "draft follow-up
+  email", "what should I do with this stale opportunity", "follow up with customer X",
+  "need to re-engage", "deal gone quiet", "customer missed the deadline", "should I call or
+  email this prospect", "promised to send a quote and heard nothing", "deal silent for weeks",
+  "time signal" ("it's been 3 weeks", "2 months no contact", "deadline this month"),
+  "ambiguous status" ("not sure what the customer is thinking", "afraid to reach out").
+  DO NOT trigger for: (1) Discovery/demo session summary -> use odoo-discovery-summarize.
+  (2) Responding to technical objections from the customer -> use odoo-objection-handler.
+  (3) Verifying or proving Odoo features -> use odoo-capability-proof or odoo-feature-check.
+  (4) Gap analysis or scope estimation -> use odoo-gap-analysis
 ---
 
 ## Persona
 
-Sales AE / CEO một-người-công-ty đang tự làm go-to-market Odoo hoặc Viindoo. Không có SDR hay
-team sales hỗ trợ. Mỗi deal đều quan trọng. Skill này giúp tránh để deal nguội vì quên follow-up
-hoặc không biết bước tiếp theo.
+You are a Sales AE or founder running go-to-market for an Odoo or your custom distribution.
+No SDR or sales team backing you up. Every deal matters. This skill prevents deals from going
+cold due to missed follow-ups or unclear next steps.
 
 ## Out of Scope
 
-- Tóm tắt buổi discovery / ghi chú demo → dùng `odoo-discovery-summarize`
-- Phản bác objection kỹ thuật của khách ("Odoo không làm được X") → dùng `odoo-objection-handler`
-- Chứng minh tính năng bằng code evidence → dùng `odoo-capability-proof`
-- Tra cứu feature đơn giản → dùng `odoo-feature-check`
-- Phân tích gap / ước tính effort implementation → dùng `odoo-gap-analysis`
+- Discovery session summary / demo notes -> use `odoo-discovery-summarize`
+- Responding to technical objections ("Odoo can't do X") -> use `odoo-objection-handler`
+- Proving a feature with code evidence -> use `odoo-capability-proof`
+- Simple feature lookup -> use `odoo-feature-check`
+- Gap analysis / implementation effort estimate -> use `odoo-gap-analysis`
 
 ## MCP tools
 
 <!-- BEGIN MANUAL TOOLS — odoo-deal-followup -->
-_Skill này là standalone-first — OSM/MCP là OPTIONAL. Đa số lần gọi không cần MCP._
+_This skill is standalone-first — OSM/MCP is OPTIONAL. Most invocations do not need MCP._
 
-**OSM usage rule:** Chỉ invoke MCP tool khi user tường minh yêu cầu fact-check một claim kỹ
-thuật về tính năng Odoo được nhắc đến trong email/deal context (ví dụ: "khách hỏi Odoo có làm
-được multi-warehouse không — kiểm tra giúp"). Không tự động gọi MCP chỉ vì deal có liên quan
-đến Odoo.
+**OSM usage rule:** Only invoke an MCP tool when the user explicitly asks to fact-check a
+specific Odoo feature claim mentioned in the email or deal context (e.g., "the customer asked
+whether Odoo supports multi-warehouse — please verify"). Do not call MCP automatically just
+because the deal involves Odoo.
 
 **Optional tool (on-demand only):**
 - `check_module_exists` — Verify whether a specific Odoo module/feature exists and in which
-  edition (CE/EE/Viindoo). Call only when user asks to fact-check a feature claim present in
-  the deal thread or email. Do NOT call speculatively.
+  edition (CE/EE/your custom distribution). Call only when user asks to fact-check a feature
+  claim present in the deal thread or email. Do NOT call speculatively.
 
 **Ollama delegation:** None. This skill performs text analysis and email composition — tasks
 best handled by Claude directly. Do not delegate to ollama-delegate tools.
@@ -54,215 +54,220 @@ best handled by Claude directly. Do not delegate to ollama-delegate tools.
 
 ## Standalone-first fallback
 
-Skill **luôn hoạt động không cần OSM**. Toàn bộ logic dưới đây chạy trên user-provided text.
+Skill **always operates without OSM**. All logic below runs on user-provided text.
 
-### Round 0 — Parse deal context
+### Round 0 - Parse deal context
 
-Thu thập input từ user. Hỏi nếu thiếu.
+Collect input from the user. Ask if anything is missing.
 
 **Required inputs:**
-- Tên/nhãn khách (có thể abstract: "Khách A", "Công ty B") — KHÔNG cần tên thật nếu user muốn
-  giữ bí mật
-- Ngày liên hệ cuối cùng (hoặc "khoảng X ngày/tuần trước")
-- Giai đoạn pipeline hiện tại (ví dụ: Qualified, Proposal sent, Negotiation, Demo done,
+- Customer label (may be abstract: "Customer A", "Company B") — real name not required if
+  the user prefers to keep it private
+- Last contact date (or "approximately X days/weeks ago")
+- Current pipeline stage (e.g., Qualified, Proposal sent, Negotiation, Demo done,
   Contract review)
-- Cam kết / hứa hẹn đã đưa ra (ví dụ: "hứa gửi báo giá", "hẹn call thứ Sáu", "chờ họ xem demo")
+- Prior commitment / promise made (e.g., "promised to send a quote", "scheduled a Friday
+  call", "waiting for them to review the demo")
 
 **Optional inputs:**
-- Email / note thread dán vào (bất kỳ ngôn ngữ nào)
+- Email / note thread pasted in (any language)
 - Expected close date
-- Deal size category: Small (<50tr VND hoặc <$2K), Medium (50-500tr VND hoặc $2K-$20K),
-  Large (>500tr VND hoặc >$20K) — KHÔNG cần số thực
+- Deal size category: Small (<$2K), Medium ($2K-$20K), Large (>$20K) — exact figures not
+  required
 
-Nếu user chỉ paste email thread mà không cung cấp context, extract thông tin từ thread trước
-khi tiếp tục. Xác nhận lại nếu không chắc.
+If the user pastes an email thread without additional context, extract the required fields
+from the thread first, then confirm before proceeding.
 
-### Round 1 — Compute risk score
+### Round 1 - Compute risk score
 
-Dùng heuristic sau để phân loại:
+Apply the following heuristic:
 
-| Signal | Điểm rủi ro |
+| Signal | Risk points |
 |---|---|
-| >30 ngày không phản hồi từ warm lead (đã có engagement) | +3 (Red trigger) |
-| 14-30 ngày không phản hồi | +2 (Yellow trigger) |
-| <14 ngày không phản hồi | +0 (Green, bình thường) |
-| Deadline cam kết đã qua mà chưa deliver | +2 |
-| Deal xuống stage thấp hơn (back-tracking) | +2 |
-| Khách thay đổi điểm liên hệ (đổi người) | +1 |
-| Khách đang trong giai đoạn procurement/tender (nhiều bên) | +1 |
-| Có tín hiệu tích cực gần đây (khách chủ động hỏi) | -2 |
-| Expected close date còn >60 ngày | -1 |
+| >30 days no reply from a warm lead (had prior engagement) | +3 (Red trigger) |
+| 14-30 days no reply | +2 (Yellow trigger) |
+| <14 days no reply | +0 (Green, normal) |
+| Committed deadline passed without delivery | +2 |
+| Deal moved to an earlier / lower stage (back-tracking) | +2 |
+| Customer changed point of contact | +1 |
+| Customer is in a procurement / multi-vendor tender process | +1 |
+| Positive signal recently (customer proactively reached out) | -2 |
+| Expected close date still >60 days away | -1 |
 
-**Kết quả:**
-- **Green** (tổng ≤1): Đang đi đúng hướng, follow-up thường.
-- **Yellow** (tổng 2-3): Cần chủ động, có rủi ro nguội.
-- **Red** (tổng ≥4): Deal có thể mất, cần hành động ngay.
+**Result:**
+- **Green** (total <= 1): On track; standard follow-up cadence.
+- **Yellow** (total 2-3): Needs proactive outreach; at risk of going cold.
+- **Red** (total >= 4): Deal may be lost; act immediately.
 
-Nếu thread email có tín hiệu "ghosting" (khách bỏ qua nhiều lần) hoặc "competitor mention"
-→ bump thêm +1 Red.
+If the email thread shows "ghosting" (customer ignored multiple attempts) or a competitor
+mention -> add an extra +1 Red.
 
-### Round 2 — Identify next-best action
+### Round 2 - Identify next-best action
 
-Dựa trên risk score + stage:
+Based on risk score + stage:
 
-| Tình huống | Next-best action |
+| Situation | Next-best action |
 |---|---|
-| Green — stage Proposal sent | Gentle check-in email, hỏi thêm câu hỏi |
-| Yellow — stage Demo done | Re-engage with proof: gửi case study hoặc ROI mini |
-| Yellow — stage Negotiation | Schedule call: đặt lịch cụ thể, không hỏi "bao giờ rảnh" |
-| Red — stage bất kỳ, >30 ngày | Break-up email: trực tiếp, tôn trọng, để door open |
-| Red — cam kết quá hạn | Apologize + deliver ngay + đặt lịch call |
-| Red — tín hiệu đang so sánh đối thủ | Escalate with incentive: proof of value + ưu đãi giới hạn |
-| Bất kỳ — không còn champion | Tìm lại stakeholder, hand-off nếu cần |
+| Green - stage Proposal sent | Gentle check-in email with an open question |
+| Yellow - stage Demo done | Re-engage with proof: send a case study or mini ROI summary |
+| Yellow - stage Negotiation | Schedule a call: propose a specific time slot, avoid "whenever you're free" |
+| Red - any stage, >30 days | Break-up email: direct, respectful, leave door open |
+| Red - commitment overdue | Apologize + deliver immediately + schedule a call |
+| Red - competitor comparison signals | Escalate with incentive: proof of value + limited-time offer |
+| Any stage - no champion left | Find another stakeholder; hand off if needed |
 
-Kết quả Round 2 là **một dòng hành động ưu tiên cao nhất**.
+Round 2 output is **one top-priority action**.
 
-### Round 3 — Draft follow-up email
+### Round 3 - Draft follow-up email
 
-Viết email theo ngôn ngữ mặc định **tiếng Việt** (chuyển sang tiếng Anh nếu user yêu cầu hoặc
-nếu khách là công ty nước ngoài).
+Write the email in the language matching the customer's thread or explicitly requested by the
+user. Default to English unless context clearly indicates another language is more appropriate.
 
-**Template 4 đoạn:**
+**4-paragraph template:**
 
-1. **Warm reopener** — Mở đầu thân thiện, nhắc lại điểm liên hệ / buổi trao đổi cuối, KHÔNG
-   mở bằng "Tôi chưa nhận được phản hồi từ bạn" (dễ gây áp lực tiêu cực).
-2. **Value reinforcement** — Nhắc lại 1-2 giá trị cụ thể liên quan đến nhu cầu khách đã chia
-   sẻ. Personalised — không dùng generic pitch.
-3. **Clear ask** — Một hành động duy nhất, rõ ràng: đặt lịch call, xác nhận quyết định,
-   review báo giá. Không hỏi nhiều câu hỏi cùng lúc.
-4. **Low-friction CTA** — Đề xuất 2-3 khung giờ cụ thể HOẶC link đặt lịch. Kết bằng câu mở
-   (leave door open) nếu đây là break-up email.
+1. **Warm reopener** - Friendly opening that references the last interaction or meeting point.
+   Do NOT open with "I haven't heard back from you" (creates negative pressure).
+2. **Value reinforcement** - Remind them of 1-2 specific points of value tied to their stated
+   needs. Personalised - no generic pitch.
+3. **Clear ask** - One single, clear action: schedule a call, confirm a decision, review the
+   quote. Do not ask multiple questions at once.
+4. **Low-friction CTA** - Offer 2-3 specific time slots OR a calendar link. End with an open
+   sentence (leave door open) if this is a break-up email.
 
-**Giọng văn:** Tự tin, tôn trọng, không năn nỉ. Phù hợp cho B2B Việt Nam.
+**Tone:** Confident, respectful, not pleading. Appropriate for B2B.
 
-### Round 4 — Output assembly
+### Round 4 - Output assembly
 
-Tổng hợp kết quả từ Round 1-3 theo Output format bên dưới. Nếu thread email chứa claim kỹ
-thuật về tính năng Odoo mà user có thể muốn fact-check, liệt kê vào mục "Optional: feature
-claims to verify" — KHÔNG tự gọi MCP trừ khi user xác nhận muốn verify.
+Combine results from Rounds 1-3 into the Output format below. If the email thread contains
+technical Odoo feature claims the user might want to verify, list them under "Optional: feature
+claims to verify" - do NOT call MCP unless the user confirms they want verification.
 
 ## Output format
 
 ```
 ## Deal status
-- Risk: <red|yellow|green> — <lý do 1 câu>
-- Last touch: <N> ngày trước
+- Risk: <red|yellow|green> - <one-sentence reason>
+- Last touch: <N> days ago
 - Stage health: <on-track|slipping|stalled>
 - Deal size category: <Small|Medium|Large|Unknown>
 
-## Tags (nếu có tín hiệu)
-<danh sách: blocked-by-procurement | ghosting | competitor-present | champion-changed |
+## Tags (if signals present)
+<list: blocked-by-procurement | ghosting | competitor-present | champion-changed |
 commitment-overdue | budget-freeze | none>
 
 ## Next-best action
-<Một dòng hành động ưu tiên — cụ thể, có thể thực hiện ngay>
+<One action line - specific and immediately executable>
 
-## Draft email (tiếng Việt)
+## Draft email
 
-**Subject:** <subject line gợi ý>
+**Subject:** <suggested subject line>
 
-<Đoạn 1 — Warm reopener>
+<Paragraph 1 - Warm reopener>
 
-<Đoạn 2 — Value reinforcement>
+<Paragraph 2 - Value reinforcement>
 
-<Đoạn 3 — Clear ask>
+<Paragraph 3 - Clear ask>
 
-<Đoạn 4 — CTA + close>
+<Paragraph 4 - CTA + close>
 
 ---
-_Chuyển sang tiếng Anh: thêm yêu cầu "viết tiếng Anh" hoặc "in English" vào prompt._
+_Language note: Add "in Vietnamese" or "in French" to the prompt to switch the draft language._
 
 ## Optional: feature claims to verify
-<Danh sách các claim kỹ thuật về Odoo/Viindoo trong thread — nếu có.
-Ví dụ: "khách hỏi multi-warehouse → có thể fact-check bằng odoo-feature-check".
-Nếu không có claim → ghi "None detected.">
+<List any Odoo/your-distribution technical claims in the thread - if any.
+Example: "customer asked about multi-warehouse -> can be verified with odoo-feature-check".
+If none found -> write "None detected.">
 
 ## Suggest next skill
-<Nếu cần: "Suggest: run odoo-objection-handler nếu khách đang phản đối tính năng cụ thể"
-hoặc "Suggest: run odoo-capability-proof nếu cần gửi evidence package cho khách">
+<If applicable: "Suggest: run odoo-objection-handler if the customer is pushing back on a
+specific feature" or "Suggest: run odoo-capability-proof if you need an evidence package for
+the customer">
 ```
 
 ## Examples
 
-### Example 1 — Yellow deal, manufacturing SME
+### Example 1 - Yellow deal, manufacturing SME
 
-**Context user cung cấp:**
-- Khách: Khách A — SME sản xuất, ~200 nhân viên
-- Liên hệ cuối: 18 ngày trước (sau buổi demo)
+**Context provided by user:**
+- Customer: Customer A - manufacturing SME, ~200 employees
+- Last contact: 18 days ago (after a demo session)
 - Stage: Proposal sent
-- Cam kết: đã gửi báo giá 3 tuần trước, hứa follow-up sau 1 tuần nhưng quên
-- Thread: khách trả lời 1 lần sau demo nói "cần thời gian xem xét nội bộ"
+- Commitment: sent the quote 3 weeks ago, promised to follow up after 1 week but forgot
+- Thread: customer replied once after the demo saying "we need time for internal review"
 
 **Output:**
-- Risk: **yellow** — 18 ngày không phản hồi sau proposal, đã quá deadline follow-up tự cam kết
+- Risk: **yellow** - 18 days no reply after proposal; self-imposed follow-up deadline missed
 - Stage health: slipping
 - Tags: commitment-overdue
-- Next-best action: Gửi email check-in nhẹ nhàng, thừa nhận delay follow-up, đặt lịch call
-  15 phút để giải đáp câu hỏi nội bộ (nếu có)
-- Draft email: Mở bằng "Chào anh/chị [tên], hy vọng quá trình đánh giá nội bộ đang thuận
-  lợi..." → nhắc lại 2 điểm mạnh phù hợp với sản xuất đã thảo luận trong demo → hỏi "Anh/chị
-  có cần thêm thông tin gì để hoàn thiện đánh giá?" → đề xuất call 15 phút vào thứ Tư hoặc
-  thứ Năm tuần này.
+- Next-best action: Send a light check-in email, acknowledge the follow-up delay, propose a
+  15-minute call to answer any internal questions
+- Draft email: Open with "Hi [name], hope the internal review is going well..." -> remind them
+  of 2 manufacturing-specific strengths discussed in the demo -> ask "Is there anything you
+  need from us to complete the evaluation?" -> propose a 15-minute call on Wednesday or
+  Thursday this week.
 
 ---
 
-### Example 2 — Red deal, F&B chain, ghosting
+### Example 2 - Red deal, F&B chain, ghosting
 
-**Context user cung cấp:**
-- Khách: Khách B — chuỗi F&B, 5 cửa hàng
-- Liên hệ cuối: 35 ngày trước
-- Stage: Negotiation (đã qua demo + báo giá + 1 buổi negotiate)
-- Cam kết: khách hứa "tuần sau trả lời" — đã 5 tuần trôi qua
-- Thread paste vào: 3 email follow-up không có phản hồi
+**Context provided by user:**
+- Customer: Customer B - F&B chain, 5 locations
+- Last contact: 35 days ago
+- Stage: Negotiation (past demo + quote + one negotiate session)
+- Commitment: customer promised "will reply next week" - 5 weeks have passed
+- Thread pasted: 3 follow-up emails with no reply
 
 **Output:**
-- Risk: **red** — 35 ngày không phản hồi sau negotiate, ghosting sau 3 follow-up
+- Risk: **red** - 35 days no reply post-negotiate; ghosting after 3 follow-ups
 - Stage health: stalled
 - Tags: ghosting, commitment-overdue
-- Next-best action: Gửi break-up email — trực tiếp, tôn trọng, để door open. Không gửi thêm
-  follow-up nếu không nhận phản hồi sau email này.
+- Next-best action: Send a break-up email - direct, respectful, leave the door open. Do not
+  send further follow-ups if no response after this email.
 - Draft email:
-  - Subject: "Kết thúc hành trình — và để ngỏ nếu timing thay đổi"
-  - Đoạn 1: Nhắc lại cuộc trao đổi negotiate, thừa nhận mình đã follow-up nhiều lần.
-  - Đoạn 2: Tóm gọn 1 câu giá trị: "Nếu bài toán quản lý chuỗi F&B vẫn còn — giải pháp
-    vẫn phù hợp."
-  - Đoạn 3: "Tôi sẽ đóng cơ hội này từ phía mình để không tiếp tục làm phiền anh/chị."
-  - Đoạn 4: "Khi timing phù hợp hơn, anh/chị có thể liên hệ lại bất cứ lúc nào."
+  - Subject: "Closing this out - and leaving the door open"
+  - Paragraph 1: Reference the negotiate session; acknowledge multiple follow-up attempts.
+  - Paragraph 2: One-sentence value recap: "If managing a multi-location F&B operation is
+    still on the agenda - our solution is still a fit."
+  - Paragraph 3: "I'll close this opportunity on my end so I'm not adding noise to your
+    inbox."
+  - Paragraph 4: "Whenever the timing is right, feel free to reach back out."
 - Optional: feature claims to verify: None detected.
 
 ---
 
-### Example 3 — Green deal, SaaS startup, proactive check-in
+### Example 3 - Green deal, SaaS startup, proactive check-in
 
-**Context user cung cấp:**
-- Khách: Khách C — startup SaaS, 30 nhân viên
-- Liên hệ cuối: 8 ngày trước (khách chủ động email hỏi thêm về module HR)
-- Stage: Qualified (mới vào pipeline)
-- Cam kết: chưa có cam kết cụ thể, đang nurture
+**Context provided by user:**
+- Customer: Customer C - SaaS startup, 30 employees
+- Last contact: 8 days ago (customer proactively emailed asking about the HR module)
+- Stage: Qualified (just entered pipeline)
+- Commitment: no specific commitment yet; currently nurturing
 - Deal size: Small
 
 **Output:**
-- Risk: **green** — 8 ngày, khách chủ động hỏi gần đây, stage mới vào pipeline
+- Risk: **green** - 8 days, customer proactively reached out recently, early pipeline stage
 - Stage health: on-track
 - Tags: none
-- Next-best action: Trả lời câu hỏi về module HR + đề xuất buổi discovery call ngắn
-- Draft email: Trả lời câu hỏi HR cụ thể → giới thiệu 1-2 tính năng liên quan khách chưa
-  hỏi nhưng phù hợp startup → đề xuất "30-phút discovery call để mình hiểu thêm bài toán
-  của team" → đề xuất 2 khung giờ tuần tới.
-- Optional: feature claims to verify: "Khách hỏi Odoo HR có tích hợp chấm công qua app
-  không → có thể fact-check bằng odoo-feature-check nếu muốn trả lời chính xác."
-- Suggest next skill: Nếu khách bắt đầu đặt câu hỏi kỹ thuật sâu hơn → Suggest: run
+- Next-best action: Answer the HR module question + propose a short discovery call
+- Draft email: Answer the specific HR question -> introduce 1-2 related features the customer
+  hasn't asked about yet but relevant to a startup -> propose "a 30-minute discovery call to
+  understand your team's needs better" -> offer 2 time slots next week.
+- Optional: feature claims to verify: "Customer asked if Odoo HR integrates with a mobile
+  attendance app -> can be verified with odoo-feature-check if you want a confirmed answer."
+- Suggest next skill: If the customer starts asking deeper technical questions -> Suggest: run
   `odoo-feature-check`.
 
 ## Notes
 
-- **Odoo version context:** Nếu user hoặc khách đề cập "Odoo X.0 có thể làm Y" trong email,
-  skill sẽ flag claim đó vào mục "Optional: feature claims to verify". Nếu project có file
-  `.odoo-ai/context.md`, main agent có thể đọc file đó để lấy Odoo version đang triển khai
-  trước khi fact-check. (Phase B wiring — forward reference.)
-- **Ngôn ngữ email:** Mặc định tiếng Việt. Chuyển tiếng Anh khi: (1) user yêu cầu, (2) khách
-  là công ty nước ngoài rõ ràng từ context/thread, (3) thread email gốc viết tiếng Anh.
-- **Không bịa thông tin:** Nếu user không cung cấp ngày liên hệ cuối hoặc stage, hỏi trước
-  khi tính risk score. Không giả định.
-- **Depth rule:** Skill này KHÔNG spawn subagent, KHÔNG invoke Skill tool. Mọi tham chiếu
-  đến skill khác chỉ là gợi ý text ("Suggest: run X") — user tự quyết định có chạy không.
+- **Odoo version context:** If the user or customer mentions "Odoo X.0 can do Y" in an email,
+  the skill will flag that claim under "Optional: feature claims to verify". If the project
+  has an `.odoo-ai/context.md` file, the main agent can read it to get the deployed Odoo
+  version before fact-checking. (Phase B wiring - forward reference.)
+- **Email language:** Default matches the thread language or the user's explicit request. If
+  thread is in Vietnamese, draft Vietnamese. If thread is in English, draft English. If no
+  thread is provided, default to English.
+- **No invented information:** If the user does not provide the last contact date or pipeline
+  stage, ask before computing the risk score. Do not assume.
+- **Depth rule:** This skill does NOT spawn subagents, does NOT invoke the Skill tool. All
+  references to other skills are text suggestions only ("Suggest: run X") - the user decides
+  whether to run them.

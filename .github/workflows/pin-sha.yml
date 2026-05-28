@@ -16,7 +16,7 @@ on:
       - '.claude-plugin/**'
       - '.mcp.json'
 
-# Cancel an in-flight pin run when a newer qualifying commit lands.
+# Cancel in-flight pin run when a newer qualifying commit lands.
 concurrency:
   group: pin-sha-${{ github.workflow }}
   cancel-in-progress: true

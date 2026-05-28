@@ -1,36 +1,33 @@
 ---
 name: odoo-content-draft
 description: >
-  Draft channel-specific marketing content for Viindoo / Odoo product. Given a topic,
-  channel, and audience, produce ready-to-publish text in Vietnamese (default) or English.
-  Supported channels: LinkedIn post, blog article, YouTube script (3-5 min), email sequence
-  (3-5 emails), landing page copy, social caption (Facebook/Zalo).
-  Trigger on: "viết bài blog về", "viết post LinkedIn", "viết script YouTube",
-  "draft email sequence", "viết landing page", "viết caption FB cho",
-  "viết content marketing về Odoo", "draft a blog post on", "write LinkedIn content",
-  "YouTube script for", "email sequence about", "landing page copy",
-  "social caption for", "write a LinkedIn post", "viết nội dung cho",
-  "soạn email marketing", "viết mô tả landing page", "script video YouTube cho",
-  "viết caption Zalo", "content cho bài đăng Facebook về",
-  "write marketing copy for", "draft content about Odoo", "marketing post about Viindoo".
-  Trigger when user asks to CREATE any of these formats — even without the word "marketing".
-  DO NOT trigger for: proposal/gap-analysis text (→ odoo-gap-analysis),
-  objection-handling rebuttals (→ odoo-objection-handler), feature-highlight decks for
-  slides (→ odoo-feature-highlights), competitive positioning briefs (→ odoo-competitive-brief),
-  multi-channel campaign orchestration (→ odoo-campaign-plan).
+  Draft channel-specific marketing content for Odoo or your custom distribution. Given a
+  topic, channel, and audience, produce ready-to-publish text in Vietnamese (default) or
+  English. Supported channels: LinkedIn post, blog article, YouTube script (3-5 min), email
+  sequence (3-5 emails), landing page copy, social caption (Facebook/Zalo).
+  Trigger on: "draft a blog post on", "write a blog article about", "write LinkedIn content",
+  "write a LinkedIn post", "YouTube script for", "draft email sequence", "email sequence
+  about", "landing page copy", "write landing page", "social caption for", "write a Facebook
+  caption", "write marketing copy for", "draft content about Odoo", "marketing post about
+  Odoo", "write a post about", "create content for".
+  Trigger when user asks to CREATE any of these formats - even without the word "marketing".
+  DO NOT trigger for: proposal/gap-analysis text (-> odoo-gap-analysis),
+  objection-handling rebuttals (-> odoo-objection-handler), feature-highlight decks for
+  slides (-> odoo-feature-highlights), competitive positioning briefs (-> odoo-competitive-brief),
+  multi-channel campaign orchestration (-> odoo-campaign-plan).
   This skill is STANDALONE-FIRST: works without MCP. OSM tools optional for grounding claims
 ---
 
 ## Persona
 
-Marketer — Viindoo Vietnam SME ERP marketing team. Writing for B2B audiences of Vietnamese
+Marketer on the Odoo or custom distribution go-to-market team. Writing for B2B audiences of
 small-to-medium business owners, finance managers, and operations leads. Content purpose:
 educate, build trust, drive demo/trial requests.
 
 ## Out of Scope
 
 - Multi-channel campaign orchestration (strategy, budget, timeline) → `odoo-campaign-plan`
-- Competitive positioning vs. SAP/Microsoft/MISA → `odoo-competitive-brief`
+- Competitive positioning vs. major competitors (SAP, Microsoft, regional vendors) → `odoo-competitive-brief`
 - Feature highlight decks for sales slides → `odoo-feature-highlights`
 - Gap analysis / proposal text for a prospect → `odoo-gap-analysis`
 - Handling objections during a sales conversation → `odoo-objection-handler`
@@ -67,8 +64,8 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 ## Brand voice rules
 
-1. **Tone**: confident and technically credible, but never condescending. Position Viindoo as
-   the expert guide, not a pushy vendor. Helpful-expert, not salesy.
+1. **Tone**: confident and technically credible, but never condescending. Position the publisher
+   as the expert guide, not a pushy vendor. Helpful-expert, not salesy.
 
 2. **Customer-outcome-focused**: lead with business outcome, not software feature.
    - BAD: "He thong co module MRP voi BOM multi-level."
@@ -184,12 +181,12 @@ When OSM is unreachable or the skill is used without MCP configuration:
 
 2. Insert `<TBD: verify Odoo has feature X>` placeholders where a specific module claim
    needs verification before publishing. Example:
-   > "Với tính năng quản lý kho đa cấp độ `<TBD: verify module name in target version>`,
-   >  doanh nghiệp có thể..."
+   > "With the multi-level warehouse management feature `<TBD: verify module name in target version>`,
+   >  businesses can..."
 
 3. Add a note at the end of the draft:
-   > _Note: Các placeholder `<TBD: ...>` có thể được người phụ trách kỹ thuật xác nhận trước
-   > khi xuất bản. Dùng công cụ `check_module_exists` khi OSM khả dụng._
+   > _Note: `<TBD: ...>` placeholders can be verified by a technical lead before publishing.
+   > Use `check_module_exists` when OSM is available._
 
 ## Examples
 
@@ -258,11 +255,11 @@ before publishing._
 
 ## Notes
 
-- **Brand assets**: for color palette, logo usage, and typography guidelines, refer to the
-  internal document named `Viindoo Brand Assets` (in the brand resources folder). This skill
-  produces text, not visual assets, so brand colors and fonts are rarely needed here — but
-  reference that document if the copy must describe visual elements (e.g., landing page
-  design brief handed to a designer).
+- **Brand assets**: for color palette, logo usage, and typography guidelines, refer to your
+  project's brand guidelines document if one is checked into the working repository (e.g.,
+  `branding/STYLE.md` or equivalent). This skill produces text, not visual assets, so brand
+  colors and fonts are rarely needed here — but reference the brand guidelines when the copy
+  must describe visual elements (e.g., landing page design brief handed to a designer).
 - **Project context file**: if the working repository contains `.odoo-ai/context.md`, read it
   at session start for project-specific product positioning, target audience personas, or
   approved messaging pillars. Content in that file takes precedence over this skill's generic

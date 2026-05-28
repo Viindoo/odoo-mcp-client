@@ -7,11 +7,11 @@ description: >
   this skill ANY time a sales engineer, account executive, or pre-sales consultant needs to
   push back on a doubt or competitive claim about Odoo. Pushy trigger: fire on "handle the
   objection that Odoo can't do X", "counter for the limitation concern about Y", "respond
-  to 'Odoo doesn't support Z'", "phản bác lo ngại về tính năng X", "khách hàng nói Odoo
-  không làm được", "competitor said SAP/Microsoft does X better", "we heard Odoo doesn't
-  handle Y well", "khách phản đối Odoo về…", "prospect doubts Odoo can do multi-level
-  approvals", "client says Odoo's reporting is weak — counter for me", "trước buổi meeting
-  thứ Sáu, giúp tôi chuẩn bị phản hồi cho lo ngại về…", "RFP scoring tool gave Odoo low on
+  to 'Odoo doesn't support Z'", "counter the concern about feature X", "client says Odoo
+  can't do it", "competitor said SAP/Microsoft does X better", "we heard Odoo doesn't
+  handle Y well", "client objects to Odoo on…", "prospect doubts Odoo can do multi-level
+  approvals", "client says Odoo's reporting is weak — counter for me", "before Friday's
+  meeting, help me prepare a response to the concern about…", "RFP scoring tool gave Odoo low on
   X — defend", "competitor pitch said Odoo can't scale beyond 100 users — fact-check",
   "rep is on the call and the client just said 'Odoo's accounting isn't VAS-compliant'",
   "I need a confident answer for Friday's QA session — they'll ask about lot tracking".
@@ -51,16 +51,17 @@ Client objections about Odoo capabilities fall into four categories:
 1. **False** — the feature exists and works well. Counter with evidence.
 2. **Partially true** — standard coverage is limited; custom development closes the gap easily.
    Frame as "standard practice, not a gap."
-3. **True but mitigated** — Odoo doesn't support it natively, but an OCA module, Viindoo module,
+3. **True but mitigated** — Odoo doesn't support it natively, but an OCA module, custom extension,
    or well-established integration pattern exists.
 4. **True and significant** — honestly acknowledge and propose the workaround or alternative.
 
 **Never fabricate capabilities.** Intellectual honesty builds more long-term trust than overselling.
 If the objection is valid, say so clearly and pivot to how the gap is handled in practice.
 
-**Viindoo advantage cases:** Many objections about "Odoo lacks X for Vietnamese market" are
-countered by Viindoo-specific modules (`viin_*`) that cover VAS accounting, Vietnamese HR/payroll,
-Vietnamese tax/e-invoice compliance — things Odoo CE/EE doesn't have.
+**Distribution-specific advantages:** Many objections about capability gaps can be countered by
+distribution-specific modules (custom extensions, partner modules, or third-party add-ons) that
+cover specialized functionality — things Odoo CE/EE base doesn't have. Identify the appropriate
+solution for your customer's platform.
 
 **Data priority:** MCP tool results determine whether the objection is True, False, or Partially
 true. If `check_module_exists` or `find_examples` confirms a feature exists but training knowledge
@@ -90,7 +91,7 @@ editing. Keep it professional but conversational.
 
 ## Standalone-first fallback
 
-Khi OSM unreachable, skill yêu cầu user cung cấp objection text chi tiết + context khách hàng (industry, Odoo version). Skill vẫn generate ACA response dựa trên training knowledge về Odoo capabilities, mô hình phổ biến, và pattern quen thuộc, kèm caveat "chưa verify qua codebase — hãy fact-check evidence khi OSM online".
+When OSM is unreachable, the skill asks the user to provide detailed objection text + customer context (industry, Odoo version). The skill still generates an ACA response based on training knowledge of Odoo capabilities, common patterns, and familiar implementation patterns — with caveat "not yet verified against the codebase; fact-check evidence when OSM is back online".
 
 ## Output format
 
@@ -131,7 +132,7 @@ Output: Counter-evidence citing `approval` module (EE) or `mail.activity.mixin` 
 extension); code example of multi-level approval; talking points; verbatim response.
 
 **Example 2:**
-Prompt: "khách hàng nói Odoo không có kế toán theo chuẩn Việt Nam (VAS)"
-Output: Counter: Viindoo `viin_account_vat` + `l10n_vn` modules exist;
-`model_inspect(model='account.move', method='fields')` shows VAS-specific fields; verbatim
-response in Vietnamese noting Viindoo Enterprise solution.
+Prompt: "customer says Odoo doesn't have accounting standards compliance for their region"
+Output: Counter: specialized localization modules or custom extensions exist;
+`model_inspect(model='account.move', method='fields')` shows compliance-specific fields; verbatim
+response with region-appropriate solution.

@@ -361,7 +361,7 @@ Plugin skills can claim overlapping trigger keywords. Standard resolution policy
 
 ### 4.2 `odoo-version-diff` vs `odoo-feature-highlights`
 
-- **Overlap:** "tính năng mới Odoo 17", "what's new in v17", "feature comparison"
+- **Overlap:** "what's new in Odoo 17", "what's new in v17", "feature comparison"
 - **Resolution:** `odoo-version-diff` → Developer persona (API changes, migration guide, breaking changes). `odoo-feature-highlights` → Marketer persona (sales-deck tone, business value, announcement copy).
 - **Heuristic:** "migration", "breaking", "API", "deprecation" → `odoo-version-diff`. "highlight", "sales deck", "blog post", "announcement" → `odoo-feature-highlights`.
 

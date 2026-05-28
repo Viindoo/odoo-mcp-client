@@ -43,6 +43,30 @@ for f in "${SCAN_FILES[@]}"; do
         echo "ERROR: personal email leaked in staged blob: $f" >&2
         HARD_FAIL=1
     fi
+
+    # Pattern 4: Vietnam regulation (BVDLCN)
+    if staged_content "$f" | grep -qiE 'BVDLCN'; then
+        echo "ERROR: Vietnam regulation reference (BVDLCN) found in staged blob: $f" >&2
+        HARD_FAIL=1
+    fi
+
+    # Pattern 5: Vietnam competitor (MISA)
+    if staged_content "$f" | grep -qiE '\bMISA\b'; then
+        echo "ERROR: Vietnam competitor reference (MISA) found in staged blob: $f" >&2
+        HARD_FAIL=1
+    fi
+
+    # Pattern 6: Vietnam competitors (1Office, Portcities)
+    if staged_content "$f" | grep -qiE '(1Office|Portcities)'; then
+        echo "ERROR: Vietnam competitor reference (1Office/Portcities) found in staged blob: $f" >&2
+        HARD_FAIL=1
+    fi
+
+    # Pattern 7: Vietnam SME framing
+    if staged_content "$f" | grep -qE 'một-người-công-ty'; then
+        echo "ERROR: Vietnam SME framing reference found in staged blob: $f" >&2
+        HARD_FAIL=1
+    fi
 done
 
 [ "$HARD_FAIL" -eq 1 ] && exit 1
