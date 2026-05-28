@@ -6,24 +6,20 @@ description: >
   components with `patch()`/`useState`/`useService` for v15+. Internally gates to the
   correct framework based on the target version so callers never need to choose between
   legacy and OWL skills. Use this skill ANY time someone needs Odoo frontend JS,
-  regardless of version. Pushy trigger (EN+VI): fire on "tạo widget tùy chỉnh",
-  "viết field widget cho Odoo", "customize a field in Odoo", "color picker widget",
-  "AbstractField subclass", "odoo.define() pattern", "Widget.include", "field_registry add",
-  "QWeb template", "QWeb2 template", "giao diện Odoo cũ", "legacy widget",
-  "JavaScript Odoo không dùng OWL", "add total row list view", "dashboard client action",
-  "tạo OWL component", "viết patch() cho Odoo 15/16/17/18/19", "client action OWL",
-  "useService useState useRef", "t-component t-if", "field widget customization Odoo 17",
-  "patch the sale order form", "custom button on form view", "Odoo v17 frontend JS",
-  "JavaScript Odoo v15 v16 v17 v18 v19", "viết giao diện Odoo modern",
-  "register a new field widget", "thêm nút trên form sale order", "patch FormController",
-  "extend ListController", "create dashboard view", "OWL lifecycle hook",
-  "use registry.category", "client action that fetches data via useService",
-  "viết JS cho Odoo 8 đến 14", "viết JS cho Odoo 15 đến 19", "override ListView controller",
-  "tạo client action bằng web.Widget", "RPC call this._rpc", "JS action manager",
-  "QWeb3 template OWL", "show partner avatar Many2one widget". Trigger even when the user
-  does NOT say "legacy" or "OWL" — infer from the stated Odoo version or API keywords.
-  When the user asks about backend Python/XML rather than frontend JS, route to odoo-coder.
-  When they want a code review rather than code generation, route to odoo-code-reviewer
+  regardless of version. Pushy trigger: fire on "customize a field in Odoo", "color picker
+  widget", "AbstractField subclass", "odoo.define() pattern", "Widget.include",
+  "field_registry add", "QWeb template", "QWeb2 template", "legacy widget", "add total row
+  list view", "dashboard client action", "client action OWL", "useService useState useRef",
+  "t-component t-if", "field widget customization Odoo 17", "patch the sale order form",
+  "custom button on form view", "Odoo v17 frontend JS", "JavaScript Odoo v15 v16 v17 v18
+  v19", "register a new field widget", "patch FormController", "extend ListController",
+  "create dashboard view", "OWL lifecycle hook", "use registry.category", "client action
+  that fetches data via useService", "override ListView controller", "RPC call this._rpc",
+  "JS action manager", "QWeb3 template OWL", "show partner avatar Many2one widget". Trigger
+  even when the user does NOT say "legacy" or "OWL" — infer from the stated Odoo version or
+  API keywords. When the user asks about backend Python/XML rather than frontend JS, route
+  to odoo-coder. When they want a code review rather than code generation, route to
+  odoo-code-reviewer
 ---
 
 ## Persona
@@ -79,8 +75,8 @@ Work in four rounds. Within each round, fire independent MCP calls in the same m
 
 ### Round 0 — Read context file + pin version
 
-1. If `.odoo-ai/context.md` exists, read it to obtain `odoo_version` and `viindoo_profile`
-   (Phase B forward-wiring — see Notes). Skip if missing; fall back to user-stated version.
+1. If `.odoo-ai/context.md` exists, read it to obtain `odoo_version` and `profile` (Phase B
+   forward-wiring — see Notes). Skip if missing; fall back to user-stated version.
 2. Call `set_active_version(odoo_version=<version>)` once.
 3. Apply the version gate table above: if version is **v8–v14**, follow the
    [Legacy v8–v14 workflow](#legacy-v8v14-workflow) below; if **v15+**, follow the
@@ -286,7 +282,7 @@ Output must be copy-pasteable. If imports differ by version, show both with a co
 
 **Example 1 — v12 legacy: color picker field widget**
 
-Prompt: "tạo field widget color picker cho field selection trong Odoo 12"
+Prompt: "Create a color picker field widget for selection field in Odoo 12"
 
 - Round 0: read `.odoo-ai/context.md` → `odoo_version: 12.0`. Version gate → Legacy workflow.
   `set_active_version("12.0")`.
@@ -310,7 +306,7 @@ Prompt: "override list view to add a total row at the bottom in Odoo 11"
 
 **Example 3 — v17 OWL: dashboard client action**
 
-Prompt: "tạo OWL component hiển thị dashboard tổng quan đơn hàng trong Odoo 17"
+Prompt: "Create an OWL component to display a sales order summary dashboard in Odoo 17"
 
 - Round 0: `odoo_version: 17.0`. Version gate → OWL. `set_active_version("17.0")`.
 - Round 1: v17 → OWL 2.x, `patch(Class, {…})`, lifecycle hooks from `@odoo/owl`.
@@ -335,10 +331,10 @@ Prompt: "patch the sale order form to add a custom button using OWL in Odoo 16"
 ## Notes
 
 - **`.odoo-ai/context.md` integration (Phase B forward-wiring):** If the project has been
-  initialized with `odoo-onboard`, `.odoo-ai/context.md` contains `odoo_version`,
-  `viindoo_profile`, and `custom_modules`. Round 0 reads this file first so the skill
-  auto-selects the correct framework without asking the user for the version each time.
-  If the file is absent, the skill asks the user to state the Odoo version.
+  initialized with `odoo-onboard`, `.odoo-ai/context.md` contains `odoo_version`, `profile`,
+  and `custom_modules`. Round 0 reads this file first so the skill auto-selects the correct
+  framework without asking the user for the version each time. If the file is absent, the skill
+  asks the user to state the Odoo version.
 - **Why indexed examples beat training memory:** Internal hook names and registration APIs
   shift between minor releases. `find_examples` and `find_override_point` reflect the actual
   indexed code for the user's repo — always prefer these over training knowledge when there is

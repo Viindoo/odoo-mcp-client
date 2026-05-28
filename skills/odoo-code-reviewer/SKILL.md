@@ -5,19 +5,17 @@ description: >
   issues, and performance problems — with severity-graded findings, suggested fixes, and a
   corrected version. Use this skill ANY time someone shares Odoo code and wants feedback —
   even if they don't say "review". Pushy trigger: if the user pastes code AND any of these
-  signals appear, fire this skill — "review this", "kiểm tra code này", "có lỗi gì không?",
-  "xem giúp tao đoạn này", "why isn't this working?", "is this the right way?", "does this
-  look correct?", "tại sao code này không chạy?", "I'm not sure about this implementation",
-  "check my Odoo code", "audit this PR", "convention check", "performance review", "is this
-  the canonical Odoo pattern?", "OWL component review", "QWeb template check", "smell test
-  this method", "before I merge this…", "should I worry about N+1 here?", "có ổn không?".
-  Trigger especially aggressively when the code has model overrides, write/create overrides,
-  computed fields, OWL components, or XML view overrides — these have specific Odoo failure
-  modes a generic reviewer will miss. A false positive trigger here is cheap; missing a
-  CRITICAL bug in production Odoo is expensive. When the user asks how to WRITE new code
-  rather than review existing code, route to odoo-coder instead. When they ask for a
-  module-level pre-upgrade audit, route to odoo-deprecation-audit instead. When they ask
-  whether a method is safe to override at all, route to odoo-override-finder
+  signals appear, fire this skill — "review this", "why isn't this working?", "is this the
+  right way?", "does this look correct?", "I'm not sure about this implementation", "check my
+  Odoo code", "audit this PR", "convention check", "performance review", "is this the canonical
+  Odoo pattern?", "OWL component review", "QWeb template check", "smell test this method",
+  "before I merge this…", "should I worry about N+1 here?". Trigger especially aggressively
+  when the code has model overrides, write/create overrides, computed fields, OWL components,
+  or XML view overrides — these have specific Odoo failure modes a generic reviewer will miss.
+  A false positive trigger here is cheap; missing a CRITICAL bug in production Odoo is expensive.
+  When the user asks how to WRITE new code rather than review existing code, route to odoo-coder
+  instead. When they ask for a module-level pre-upgrade audit, route to odoo-deprecation-audit
+  instead. When they ask whether a method is safe to override at all, route to odoo-override-finder
 ---
 
 ## Persona

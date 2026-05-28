@@ -4,18 +4,15 @@ description: >
   Generate a pre-deployment safety checklist for an Odoo upgrade or new-module go-live —
   auto-fills 8 domains (pre-flight, backup, data migration, downtime, deploy mechanics,
   smoke tests, monitoring, rollback), marks each item as READY / NEEDS WORK / NOT READY,
-  and surfaces blockers before you push to prod. Use this skill ANY time someone is
-  about to deploy Odoo to staging or production — even informally. Pushy trigger: fire
-  on "deploy checklist", "checklist trước khi đẩy lên prod", "chuẩn bị deploy", "go-live
-  checklist", "pre-deploy safety", "kiểm tra trước khi đẩy upgrade", "before pushing to
-  prod", "ready to deploy this Odoo upgrade?", "chúng tôi sắp go-live", "release
-  checklist", "deployment readiness", "we're going live this weekend — what to check?",
-  "danh sách cần làm trước khi deploy", "kiểm tra trước go-live", "deploy lên staging
-  trước", "pre-production checklist", "deployment safety gate". Trigger even when the
-  user says only "deploy" in the context of Odoo — the checklist is this skill's job.
-  DO NOT trigger for: ongoing code work that is not about to be deployed; debugging
-  questions unrelated to a release; questions about what changed between versions (route
-  to odoo-version-diff); requests to audit deprecated API usage in code (route to
+  and surfaces blockers before you push to prod. Use this skill ANY time someone is about to
+  deploy Odoo to staging or production — even informally. Pushy trigger: fire on "deploy
+  checklist", "go-live checklist", "pre-deploy safety", "before pushing to prod", "ready to
+  deploy this Odoo upgrade?", "release checklist", "deployment readiness", "we're going live
+  this weekend — what to check?", "pre-production checklist", "deployment safety gate". Trigger
+  even when the user says only "deploy" in the context of Odoo — the checklist is this skill's
+  job. DO NOT trigger for: ongoing code work that is not about to be deployed; debugging
+  questions unrelated to a release; questions about what changed between versions (route to
+  odoo-version-diff); requests to audit deprecated API usage in code (route to
   odoo-deprecation-audit); executive risk overview (route to odoo-risk-overview)
 ---
 
@@ -314,7 +311,7 @@ The checklist remains fully usable — 7 of 8 domains require no OSM access.
 
 ### Example 2 — Multi-module Q3 release, production go-live
 
-**User prompt:** "Tuần tới chúng tôi go-live Q3 release trên prod — khoảng 5 module custom trên Odoo 17. Checklist đầy đủ."
+**User prompt:** "Next week we're going live with our Q3 release to production — about 5 custom modules on Odoo 17. Full checklist."
 
 **Skill action:**
 - Round 1: Confirm the 5 module names, environment = prod, version 17.0, downtime window (ask explicitly).

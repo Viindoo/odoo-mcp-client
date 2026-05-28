@@ -2,24 +2,20 @@
 name: odoo-override-finder
 description: >
   Find the correct override point and pattern to extend Odoo behavior safely — including the
-  exact method name, the module/file where to add the override, a ready-to-paste code
-  template with proper `super()` call, the existing override chain (so you know who else is
-  touching this hook), and version-specific compatibility notes. Use this skill ANY time
-  someone wants to inject custom behavior into an existing Odoo flow, even when they only
-  describe the BEHAVIOR they want to change without naming a method. Pushy trigger: fire
-  whenever the request matches "I want to do X when Y happens in Odoo" — even informally.
-  Realistic phrases this should catch include "where to hook into sale order confirmation",
-  "khi xác nhận đơn hàng tao muốn chạy thêm validation", "best place to extend partner
-  creation", "I need to run my code when an invoice is posted", "muốn override
-  method gì để thay đổi giá khi tạo PO?", "extend the credit-limit check on customers",
-  "trước khi gửi email, tôi muốn chèn thêm logic", "after a purchase order is approved I
-  want to update a custom field", "what's the safest method to override for adding a
-  discount calculation?", "tôi muốn thêm bước duyệt trước khi confirm", "khi user click
-  nút post, override chỗ nào?", "where do I extend the picking validate flow?", "is there
-  already someone overriding this method?". When the user wants to CHECK if code looks
-  right rather than find a hook point, route to odoo-code-reviewer. When they want to know
-  what changed between versions (rather than where to extend), route to odoo-version-diff
-  or odoo-deprecation-audit
+  exact method name, the module/file where to add the override, a ready-to-paste code template
+  with proper `super()` call, the existing override chain (so you know who else is touching this
+  hook), and version-specific compatibility notes. Use this skill ANY time someone wants to
+  inject custom behavior into an existing Odoo flow, even when they only describe the BEHAVIOR
+  they want to change without naming a method. Pushy trigger: fire whenever the request matches
+  "I want to do X when Y happens in Odoo" — even informally. Realistic phrases this should
+  catch include "where to hook into sale order confirmation", "best place to extend partner
+  creation", "I need to run my code when an invoice is posted", "extend the credit-limit check
+  on customers", "after a purchase order is approved I want to update a custom field", "what's
+  the safest method to override for adding a discount calculation?", "where do I extend the
+  picking validate flow?", "is there already someone overriding this method?". When the user
+  wants to CHECK if code looks right rather than find a hook point, route to odoo-code-reviewer.
+  When they want to know what changed between versions (rather than where to extend), route to
+  odoo-version-diff or odoo-deprecation-audit
 ---
 
 ## Persona
@@ -124,7 +120,7 @@ pattern is stable in.
 
 ## Standalone-first fallback
 
-Khi OSM unreachable, skill yêu cầu user mô tả behavior + cung cấp model name nếu biết. Skill vẫn recommend override point và code template dựa trên kiến thức Odoo patterns cơ bản (e.g. `write()` override để hook vào create/update, `action_*()` override cho workflow, `@api.depends` + compute field cho derived fields), kèm caveat "chưa verify chain + conflict — hãy check khi OSM online".
+When OSM is unreachable, ask the user to describe the behavior they want to inject and provide the model name if known. The skill will still recommend an override point and code template based on core Odoo patterns — e.g. `write()` override for create/update hooks, `action_*()` override for workflow changes, `@api.depends` + compute field for derived fields — with a caveat: "Override chain and conflict checks not yet verified; confirm compatibility once OSM is online."
 
 ## Output format
 
@@ -170,6 +166,6 @@ Output: `_action_confirm` in `sale.order`, code template with `super()` chain, l
 overrides (e.g. `sale_stock`, `sale_payment`), warning if chain is long.
 
 **Example 2:**
-Prompt: "tôi muốn thêm logic tính thuế tùy chỉnh khi lưu hóa đơn Odoo 17"
-Output: Override `_compute_tax_id` or `write` on `account.move`, code template in Vietnamese
-context, note about VAS tax constraints in `viin_account_vat` if installed.
+Prompt: "I want to add custom tax calculation logic when saving an invoice in Odoo 17"
+Output: Override `_compute_tax_id` or `write` on `account.move`, code template with usage
+context, note about tax constraints if custom tax modules are installed.

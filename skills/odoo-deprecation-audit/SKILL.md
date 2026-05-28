@@ -7,16 +7,14 @@ description: >
   exact replacement and urgency level (BREAKING / WARN / STYLE). Use this skill ANY time
   someone is preparing for, considering, or planning an Odoo version migration — even
   informally. Pushy trigger: fire whenever the conversation touches "upgrade", "migration",
-  "nâng cấp", "is our code ready for v17?", "what will break when we move from 14 to 17?",
-  "chuẩn bị migrate", "audit before upgrade", "code cũ trước khi nâng cấp", "upgrade
-  readiness check", "khách định nâng lên Odoo 17 — bao nhiêu module cần sửa?", "we still
-  have @api.multi everywhere", "ir.values is still used in our addons", "tìm code OpenERP
-  còn sót lại trong repo", "OWL migration needed?", "from v12 to v16 — what's the breaking
+  "is our code ready for v17?", "what will break when we move from 14 to 17?", "audit before
+  upgrade", "upgrade readiness check", "we still have @api.multi everywhere", "ir.values is
+  still used in our addons", "OWL migration needed?", "from v12 to v16 — what's the breaking
   list?", "client running v8 wants to upgrade to v17 — feasible?". Trigger even when the user
   doesn't use the word "deprecation" — if the goal is "before upgrade", that's this skill's
-  job. When the user asks ONLY what changed between two versions (without auditing their
-  code), route to odoo-version-diff instead. When they want to write fresh upgrade-safe
-  code in the target version, route to odoo-coder
+  job. When the user asks ONLY what changed between two versions (without auditing their code),
+  route to odoo-version-diff instead. When they want to write fresh upgrade-safe code in the
+  target version, route to odoo-coder
 ---
 
 ## Persona
@@ -110,7 +108,7 @@ listing modules that require full Python 2 → 3 syntax migration, not just API 
 
 ## Standalone-first fallback
 
-Khi OSM unreachable, skill yêu cầu user cung cấp danh sách module cần audit + bản source code (hoặc grep output của deprecated pattern). Skill vẫn tạo audit report dựa trên static text analysis (tìm kiếm pattern như `@api.multi`, `_columns`, `osv.osv`, `web.Widget` bằng regex), gợi ý replacement từ kiến thức Odoo, kèm caveat "chưa verify qua codebase index — hãy double-check khi OSM online".
+When OSM is unreachable, ask the user to provide the module list to audit plus source code (or grep output of suspected deprecated patterns). The skill will still create an audit report using static text analysis — searching for patterns like `@api.multi`, `_columns`, `osv.osv`, `web.Widget` via regex — and suggest replacements from Odoo knowledge, with a caveat: "Classification not yet verified against the codebase index; confirm findings once OSM is online."
 
 ## Output format
 
@@ -155,7 +153,8 @@ Output: Table of deprecated/removed APIs by file, urgency ratings, migration not
 breaking changes (e.g. `fields.Html` rename, `amount_by_group` signature), effort estimate.
 
 **Example 2:**
-Prompt: "chúng tôi đang dùng Odoo 12, muốn nâng lên 16 — cần sửa những gì"
-Output: Phân tích ba giai đoạn: v12→v13 (@api.multi removal, OWL introduced), v13→v15 (OWL
-becomes primary in v14, OWL 2.0 in v15, web.Widget deprecated then removed), và v15→v16 (Html
-field, web.Widget fully removed), ước tính effort tổng thể là Very High, sprint plan chi tiết.
+Prompt: "We are running Odoo 12 and want to upgrade to v16 — what needs to be fixed?"
+Output: Three-phase analysis: v12→v13 (@api.multi removal, OWL introduced), v13→v15 (OWL
+becomes primary in v14, OWL 2.0 in v15, web.Widget deprecated then removed), v15→v16 (Html
+field rename, web.Widget fully removed). Effort estimate: Very High. Includes sprint planning
+recommendations.
