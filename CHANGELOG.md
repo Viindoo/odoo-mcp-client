@@ -4,6 +4,48 @@ All notable changes to the Odoo MCP Client are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-05-29
+
+### Added
+- **Visual UI testing stack** for the `odoo-semantic-skills` plugin — review, debug,
+  regression-test, and record a *rendered* Odoo UI in a live browser (complementing the
+  existing source-level skills). Four new skills:
+  - `odoo-ui-reviewer` — five-lens verdict (aesthetics, functional correctness, runtime
+    stability, accessibility, performance) on a rendered screen (slim; paired with the new
+    `odoo-ui-reviewer` agent bundle).
+  - `odoo-ui-debug` — root-cause a broken/misbehaving UI at runtime (console errors, failed
+    requests, blank OWL renders, CSS that renders wrong) and point at the exact override point.
+  - `odoo-visual-regression` — screenshot-baseline + diff between two Odoo states (before/after
+    an upgrade, module install, theme change, or code edit) with blast-radius assessment.
+  - `odoo-demo-recorder` — record an MP4/GIF screen-capture of a scripted Odoo click-path for a
+    demo, sales walkthrough, or marketing clip.
+- **`odoo-ui-reviewer` agent bundle** (`agents/odoo-ui-reviewer.md`, Sonnet) — drives the
+  multi-step browser review with screenshot/console/Lighthouse evidence plus OSM source pointers.
+- **Bundled browser MCP servers** (`.mcp.json`) — `chrome-devtools`, `playwright`, and
+  `pagecast` (local stdio `npx` servers) load automatically when the plugin is installed,
+  powering the visual stack.
+- **`/odoo-semantic-skills:setup` command** — one-shot, idempotent, extensible setup for the
+  visual workflow. Drives a registry of numbered step scripts (`scripts/setup-steps/`), each
+  with a `describe | check | apply` contract: wires the 3 browser MCP servers across Claude
+  Code / Codex CLI / Gemini CLI, installs browser dependencies (Node >= 20, Playwright
+  Chromium, ffmpeg), auto-allows the browser tool permissions, discovers local Odoo repos into
+  `.odoo-ai/instances.toml`, and optionally spins up a declared instance.
+- **SessionStart hook** (`hooks/hooks.json` + `hooks/check-setup-deps.sh`) — read-only
+  readiness probe that hints `/odoo-semantic-skills:setup` when visual-stack deps are missing;
+  silent when everything is ready, never installs or blocks.
+- **Shared setup utilities** (`scripts/lib/`) — `config_merge.py` (idempotent cross-runtime MCP
+  config merge) and `discover_odoo.sh` (local Odoo instance discovery), reused by the
+  setup-step scripts.
+
+### Changed
+- Plugin description + keywords bumped to reflect the visual stack — now **26 skill personas +
+  3 specialist agents + 6 workflow commands** across engineering, sales, marketing, strategy,
+  onboarding, and visual UI testing.
+- Documentation counts corrected from `22 skills / 2 agents / 5 commands` to
+  `26 skills / 3 agents / 6 commands` across `README.md` and `docs/setup.md`.
+- **VERSION bumped** from `2.0.1` to `2.1.0`, kept in sync with the skills plugin's
+  `plugin.json.version`.
+
 ## [2.0.1] - 2026-05-29
 
 ### Fixed

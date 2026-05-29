@@ -28,6 +28,7 @@ Sales Engineer / Pre-sales Consultant
 - Single feature availability (no proof needed) → use `odoo-feature-check`
 - Multi-requirement scope + effort quote → use `odoo-gap-analysis`
 - Customer-facing objection response paragraph → use `odoo-objection-handler`
+- A REAL recorded video/screencast of the flow (not text/code evidence) → use `odoo-demo-recorder`
 
 ## MCP tools
 
@@ -130,3 +131,10 @@ Prompt: "chứng minh Odoo 17 hỗ trợ phê duyệt đa cấp cho đơn mua h�
 Output: Verdict with `purchase_stock` + `purchase` module evidence,
 `entity_lookup(kind='method', model='purchase.order', method_name='button_approve')` override
 chain, demo steps in Vietnamese context.
+
+## Notes / Integration
+
+- This skill produces TEXT/code evidence and written demo steps — not a video. To turn the
+  written demo steps above into a REAL screencast running on a live instance, hand them to
+  `odoo-demo-recorder` (which drives the instance through the same steps and saves an MP4/GIF).
+  Mention this as an optional next step; do not invoke it from here (depth rule).

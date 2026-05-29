@@ -47,9 +47,9 @@ When triggered, do this in ONE turn:
 Identify the **dominant intent signal** in the user's prompt. Look for:
 
 - **Audience tag**: CEO/exec, dev/engineer, pre-sales/consultant, sales rep, marketer, customer-facing
-- **Output format hint**: slide, blog, email, code, table, diff, evidence package
-- **Action verb**: check, write, compare, audit, fix, ask
-- **Domain noun**: module, field, version, deprecation, customization, feature, objection, gap, proposal
+- **Output format hint**: slide, blog, email, code, table, diff, evidence package, screenshot, video, diff-image
+- **Action verb**: check, write, compare, audit, fix, ask, screenshot, record, capture, inspect-UI, debug-render
+- **Domain noun**: module, field, version, deprecation, customization, feature, objection, gap, proposal, UI/screen, render, baseline
 
 If the prompt is too short to extract signals (e.g., "Odoo help"), ask ONE clarifying question:
 
@@ -133,6 +133,11 @@ Router behaviour when ambiguous between command and skill:
 | 25 | "synthesize discovery notes" + explicit slash kickoff | `/odoo-discovery-quick` (command) | Quick slash for `odoo-discovery-summarize` skill (bypass router for explicit kickoff) |
 | 26 | "position feature X for [slide/blog/email/proposal]" | `/odoo-feature-positioning` (command) | Multi-step chain (vs `odoo-feature-check` for existence-only) |
 | 27 | "full upgrade plan from v<N> to v<M>" | `/odoo-upgrade-plan-full` (command) | Replaces legacy `odoo-upgrade-planner` agent; chains 4 skills + effort estimate |
+| 28 | "kiểm tra giao diện / form hiển thị sai / UI review / responsive / layout vỡ" | `odoo-ui-reviewer` | Rates a RENDERED screen in the browser (vs `odoo-frontend-coder` which WRITES the JS, vs `odoo-code-reviewer` which reads source STATICALLY without a browser) |
+| 29 | "console error / OWL render lỗi / trang trắng / widget không hiện / JS runtime error" | `odoo-ui-debug` | Finds ROOT CAUSE of a broken screen at runtime (vs `odoo-ui-reviewer` which rates a working screen, vs `odoo-frontend-coder` which writes the fix after the cause is known) |
+| 30 | "visual regression / so ảnh trước-sau / UI có đổi sau khi sửa / baseline screenshot" | `odoo-visual-regression` | Diffs TWO states/builds for drift (vs `odoo-ui-reviewer` which judges ONE screen once) |
+| 31 | "quay video tính năng / demo video / screencast / video marketing" | `odoo-demo-recorder` | Produces a REAL video/GIF of a live instance (vs `odoo-capability-proof` which produces TEXT/code evidence, vs `odoo-content-draft` which writes the SCRIPT only) |
+| 32 | "setup môi trường / wire MCP / cấu hình instance URL cho visual / lần đầu setup visual" | `/odoo-semantic-skills:setup` (command) | One-time environment bootstrap for the visual stack — wires browser MCP + writes instance URL/visual config to `.odoo-ai/context.md` (vs `odoo-onboard` which bootstraps project CODE context, vs `/odoo-semantic-mcp:connect` which only sets the OSM server URL/key) |
 
 ## Standalone-first fallback
 
@@ -142,7 +147,7 @@ and the routing table.
 
 ## Collision Test Cases - Worked Examples
 
-These are the five known collision zones where two skill descriptions overlap. Use these as
+These are the known collision zones where two skill descriptions overlap. Use these as
 the canonical resolution logic.
 
 ### Collision 1 - Objection vs Capability Proof
@@ -219,6 +224,36 @@ not save) -> **Pick SKILL `odoo-discovery-summarize`**.
 If the user had typed "/odoo-discovery-quick" -> command invokes directly (router not
 consulted). If user said "synthesize discovery + save to .odoo-ai/" -> recommend the COMMAND
 for the save step.
+
+### Collision 6 - Capability Proof (text evidence) vs Demo Recorder (real video)
+
+**Prompt**: "I need a demo of multi-currency invoicing for the prospect this Friday"
+
+- `odoo-capability-proof`: description matches "demo material", "for the demo, give me proof"
+  -> produces a TEXT evidence package (module names + code snippets + written demo steps).
+- `odoo-demo-recorder`: description matches "record a demo", "make a video walkthrough"
+  -> drives the live instance and produces a REAL MP4/GIF screencast.
+
+**Discriminator**: "demo" alone is ambiguous. If the deliverable is written proof / RFP
+evidence the rep can paste, -> **Pick `odoo-capability-proof`**. If the user wants an actual
+recorded video/clip of the flow running on a live instance ("record", "video", "screencast",
+"GIF"), -> **Pick `odoo-demo-recorder`**. When unclear, ask: "written evidence package, or a
+recorded video of the flow?"
+
+### Collision 7 - Frontend Coder (write JS) vs UI Debug (debug runtime)
+
+**Prompt**: "my OWL widget isn't showing up in the Odoo 17 form"
+
+- `odoo-frontend-coder`: description matches "field widget customization Odoo 17", "patch
+  component" -> WRITES new/changed frontend JS source.
+- `odoo-ui-debug`: description matches "widget không hiện", "OWL component not rendering" ->
+  investigates the live runtime to find the ROOT CAUSE of the missing render.
+
+**Discriminator**: a symptom + "why / not showing / isn't working" signals the user needs the
+cause first, not new code. -> **Pick `odoo-ui-debug`**. Once the cause is known and the user
+asks for the fix to be written, -> route to `odoo-frontend-coder`. If the user is starting
+from scratch ("create a color picker widget"), there is no runtime to debug ->
+`odoo-frontend-coder`.
 
 ## Output Format
 
@@ -317,8 +352,9 @@ score for the exec, or a full module inventory to review each component?
 
 ## Notes for future maintainers
 
-- Routing table currently lists 27 entries (Phase A: rows 1-13, Phase B: rows 14-21, Phase D:
-  rows 22-27). Update both the table AND the collision-test cases when adding entries.
+- Routing table currently lists 32 entries (Phase A: rows 1-13, Phase B: rows 14-21, Phase D:
+  rows 22-27, Phase E — Visual: rows 28-32). Update both the table AND the collision-test cases
+  when adding entries.
 - Trigger description optimization is scheduled for Phase D via `/skill-creator` Mode 5
   (`run_loop.py`) with a 20-query trigger eval set.
 - Phase A eval set (15 cases in `evals/evals.json`) is descriptive - not graded. Use

@@ -160,7 +160,9 @@ Present the draft in the channel-native format:
 - **Blog article**: full Markdown with H1 title, H2 section headers, paragraph body, and
   `[CTA button: ...]` placeholder at end.
 - **YouTube script**: structured with timestamp markers in bold (`**0:00-0:15 Hook**`) and
-  `[NOTE: show screen of X]` cues for the editor.
+  `[NOTE: show screen of X]` cues for the editor. The script + timestamps can be handed to
+  `odoo-demo-recorder` to capture a real Odoo screencast for the `[NOTE: show screen]` cues
+  instead of sourcing footage separately (forward suggestion only — this skill stays text).
 - **Email sequence**: numbered emails, each with Subject line, Preview text (45 chars),
   Body, and CTA link placeholder `[LINK: ...]`.
 - **Landing page copy**: sectioned with HTML-comment labels `<!-- HERO -->`, `<!-- VALUE PROPS -->`,
@@ -259,7 +261,9 @@ before publishing._
   project's brand guidelines document if one is checked into the working repository (e.g.,
   `branding/STYLE.md` or equivalent). This skill produces text, not visual assets, so brand
   colors and fonts are rarely needed here — but reference the brand guidelines when the copy
-  must describe visual elements (e.g., landing page design brief handed to a designer).
+  must describe visual elements (e.g., landing page design brief handed to a designer). When a
+  video script is the deliverable, `odoo-demo-recorder` can realize the script/timestamps as a
+  real Odoo screencast (this skill still only writes the text).
 - **Project context file**: if the working repository contains `.odoo-ai/context.md`, read it
   at session start for project-specific product positioning, target audience personas, or
   approved messaging pillars. Content in that file takes precedence over this skill's generic

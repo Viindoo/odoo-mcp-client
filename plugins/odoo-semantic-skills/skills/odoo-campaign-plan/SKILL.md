@@ -271,6 +271,7 @@ Present the campaign plan in the following Markdown structure:
 - `odoo-competitive-brief` — if angle is competitive displacement
 - `odoo-feature-highlights` — if angle is release announcement and slide deck is needed
 - `odoo-capability-proof` — if a specific prospect demo is part of the campaign
+- `odoo-demo-recorder` — if the asset inventory includes demo videos / screencasts (capture them for real from a live instance instead of briefing a designer)
 ```
 
 After the plan, add a short `---` section: **Campaign health checks** (2-3 bullets) — the
@@ -356,7 +357,9 @@ When OSM is unreachable or the skill is used without MCP configuration:
   project's brand guidelines document if one is checked into the working repository (e.g.,
   `branding/STYLE.md` or equivalent). This skill produces a planning document, not visual
   assets — but reference the brand guidelines when the plan includes a landing page brief
-  or visual design spec that will be handed to a designer.
+  or visual design spec that will be handed to a designer. When the asset inventory lists demo
+  videos or screencasts, `odoo-demo-recorder` can capture them from a live instance (forward
+  suggestion only — this skill stays a planning document).
 - **No fabricated data**: NEVER invent customer names, real revenue figures, or hard ROI
   percentages in the plan. Use abstract templates: "A manufacturing company in the southern
   region with ~150 employees" or "A trading company in the FMCG sector reported...". If the

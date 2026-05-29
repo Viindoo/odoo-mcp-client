@@ -31,6 +31,7 @@ Developer (Odoo frontend, all versions v8–v19)
 - **Backend Python / XML** (models, views, wizards, security, ORM) → use `odoo-coder`
 - **Code review / audit of existing frontend code** → use `odoo-code-reviewer`
 - **Deprecation analysis or upgrade planning** → use `odoo-deprecation-audit` or `odoo-version-diff`
+- **Verifying the rendered UI / debugging a runtime render error / image regression** → use `odoo-ui-reviewer` / `odoo-ui-debug` / `odoo-visual-regression`
 
 ## Version gate
 
@@ -125,6 +126,19 @@ Combine boilerplate with full scaffolding (see Output format below):
 - `__manifest__.py` registration (`assets` dict for v10+; `qweb` list for v8/v9)
 - For v14: note whether `ir.asset` records should be used instead of the assets dict
 
+#### Round 5 — Suggest visual verification (forward-wiring)
+
+This code touches the DOM / QWeb render, so after presenting the output, suggest (TEXT only —
+do NOT invoke any skill, to respect the depth rule) that the user verify the change on a live
+instance:
+
+- `odoo-ui-reviewer` — to check layout / spacing / responsive once the widget renders.
+- `odoo-ui-debug` — if the widget does not appear or the console shows a runtime error.
+- `odoo-visual-regression` — if this patches an existing view and they want a before/after diff.
+
+These run via `/odoo-semantic-skills:setup` (browser MCP + instance URL). Mention them as an
+optional next step; never auto-run them.
+
 ---
 
 ### OWL v15+ workflow {#owl-v15-workflow}
@@ -182,6 +196,18 @@ Write logic directly (without delegating) when:
 2. **XML template file** — separate file preferred for templates over ~10 lines.
 3. **`__manifest__.py` assets block** — list both `.js` and `.xml` under `web.assets_backend`.
 4. **OWL version notes** — briefly note any 1.x→2.x differences relevant to the generated code.
+
+#### Round 5 — Suggest visual verification (forward-wiring)
+
+This component touches OWL render, so after presenting the output, suggest (TEXT only — do NOT
+invoke any skill, to respect the depth rule) that the user verify it on a live instance:
+
+- `odoo-ui-reviewer` — to check layout / spacing / responsive once the component renders.
+- `odoo-ui-debug` — if the component does not mount or the console shows a runtime error.
+- `odoo-visual-regression` — if this patches an existing view and they want a before/after diff.
+
+These run via `/odoo-semantic-skills:setup` (browser MCP + instance URL). Mention them as an
+optional next step; never auto-run them.
 
 ---
 
