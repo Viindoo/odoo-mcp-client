@@ -20,7 +20,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PARITY_FILE = REPO_ROOT / "tests" / "smoke" / "runtime_parity.md"
-DEPS_FILE = REPO_ROOT / "generator" / "skill_tool_deps.json"
+# After the v2 split, the generator SSOT moved under the skills plugin.
+DEPS_FILE = (
+    REPO_ROOT / "plugins" / "odoo-semantic-skills" / "generator" / "skill_tool_deps.json"
+)
 
 SESSION_BOOTSTRAP_TOOLS = {
     "set_active_version",

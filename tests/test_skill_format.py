@@ -9,8 +9,9 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-SKILL_FILES = sorted((ROOT / "skills").glob("*/SKILL.md"))
-AGENT_FILES = sorted((ROOT / "agents").glob("*.md"))
+SKILLS_PLUGIN = ROOT / "plugins" / "odoo-semantic-skills"
+SKILL_FILES = sorted((SKILLS_PLUGIN / "skills").glob("*/SKILL.md"))
+AGENT_FILES = sorted((SKILLS_PLUGIN / "agents").glob("*.md"))
 
 
 def _frontmatter(text):

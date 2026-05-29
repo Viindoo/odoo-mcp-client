@@ -2,15 +2,15 @@
 name: connect
 description: Connect Claude Code to the Odoo Semantic MCP server by registering the server URL and API key, probing reachability, and optionally auto-allowing its tools
 ---
-# /odoo-semantic:connect
+# /odoo-semantic-mcp:connect
 
 Interactive command to connect Claude Code to your Odoo Semantic MCP server.
 
 Run this **after** `claude plugin install` because Claude Code v2.1.x has a known
 bug where `userConfig` values are never prompted at install time
-(github.com/anthropics/claude-code/issues/39455). Without this step the plugin's
-`.mcp.json` template cannot resolve and the `odoo-semantic` MCP server silently
-fails to load.
+(github.com/anthropics/claude-code/issues/39455). Without this step the
+`odoo-semantic-mcp` plugin's `.mcp.json` template cannot resolve and the
+`odoo-semantic` MCP server silently fails to load.
 
 ## Steps for the AI agent
 
@@ -57,7 +57,7 @@ fails to load.
 
    Ask the user: `Auto-allow every mcp__odoo-semantic__* tool in ~/.claude/settings.json? [Y/n]`.
    Default `Y`. If the user answers `n` / `no` / `skip`, skip to step 6 and
-   tell them they can re-run `/odoo-semantic:connect` later, or paste the
+   tell them they can re-run `/odoo-semantic-mcp:connect` later, or paste the
    snippet from `docs/setup.md#claude-code-auto-trust` manually.
 
    On `Y`, run the following exact block with the `Bash` tool. It edits
@@ -99,7 +99,7 @@ PY
    On exit code 2 (invalid JSON): surface the stderr line to the user verbatim
    and stop. Do **not** retry, do **not** delete the file. Suggest they fix
    `~/.claude/settings.json` by hand (or restore from a `.bak.*` copy) and
-   re-run `/odoo-semantic:connect`.
+   re-run `/odoo-semantic-mcp:connect`.
 
    On exit code 0: continue to step 6.
 
@@ -107,8 +107,11 @@ PY
    - `✓ Setup complete. Restart Claude Code to activate the MCP tools.`
    - `After restart, verify with: "Use odoo-semantic, model_inspect sale.order on Odoo 17.0"`
    - If step 5 ran successfully, also: `Auto-allow is on — no more per-tool permission prompts for odoo-semantic.`
-   - Then list the 15 skill names shipped by this plugin so the user knows what
-     to invoke.
+   - The Odoo `odoo-*` skills live in a separate plugin, `odoo-semantic-skills`.
+     If the user has NOT installed it yet, suggest:
+     `For the odoo-* skills, install odoo-semantic-skills@viindoo-plugins — it pulls in this MCP plugin as a dependency.`
+     If they already have it installed, the `odoo-*` skills are ready to invoke
+     after the restart above.
 
 ## Hard rules
 

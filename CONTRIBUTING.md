@@ -1,8 +1,10 @@
 # Contributing to Odoo MCP Client
 
-Thanks for your interest! This repo is the **MIT client layer** — plugin manifest,
-skills, agents, the connect command, and IDE snippets. The semantic backend lives in
-the separate AGPL server; open server/indexer/graph issues via
+Thanks for your interest! This repo is the **MIT client layer**, published as **two
+plugins** under `plugins/`: `odoo-semantic-skills` (skills, agents, workflow commands,
+the SSOT generator, and IDE snippets) and `odoo-semantic-mcp` (the MCP server connection
+plus the `/odoo-semantic-mcp:connect` setup command). The semantic backend lives in the
+separate AGPL server; open server/indexer/graph issues via
 [odoo-semantic.viindoo.com](https://odoo-semantic.viindoo.com/).
 
 ## Local development
@@ -11,8 +13,8 @@ the separate AGPL server; open server/indexer/graph issues via
 git clone https://github.com/Viindoo/odoo-mcp-client
 cd odoo-mcp-client
 
-# Load the plugin from this checkout (no marketplace round-trip):
-claude --plugin-dir ./
+# Load a plugin from this checkout (no marketplace round-trip):
+claude --plugin-dir ./plugins/odoo-semantic-skills   # or ./plugins/odoo-semantic-mcp
 
 # Validate manifest + skill frontmatter + run the test suite:
 make validate
@@ -20,7 +22,7 @@ make test
 ```
 
 You also need a running MCP server to exercise the tools end-to-end — point
-`/odoo-semantic:connect` at the hosted instance (`https://odoo-semantic.viindoo.com/mcp`).
+`/odoo-semantic-mcp:connect` at the hosted instance (`https://odoo-semantic.viindoo.com/mcp`).
 Use the hosted instance at https://odoo-semantic.viindoo.com/ (sign up for an API key).
 
 ### Pre-commit hooks
@@ -39,17 +41,20 @@ sensitive numeric values (pricing/OKR figures). Run `make validate && make test`
 
 | Path | Contents |
 |------|----------|
-| `.claude-plugin/plugin.json` | Plugin manifest (skills/agents/commands/userConfig) |
-| `.mcp.json` | MCP server template (resolved from `userConfig`) |
-| `skills/<name>/SKILL.md` | One skill per directory, YAML frontmatter + body |
-| `agents/*.md` | Orchestration agents |
-| `commands/connect.md` | The `/odoo-semantic:connect` slash command |
-| `snippets/` | MCP config for non-Claude clients |
-| `docs/` | Persona guides, client setup, tool routing reference |
+| `plugins/odoo-semantic-skills/.claude-plugin/plugin.json` | Skills plugin manifest (skills/agents/commands; declares `odoo-semantic-mcp` as a dependency) |
+| `plugins/odoo-semantic-skills/skills/<name>/SKILL.md` | One skill per directory, YAML frontmatter + body |
+| `plugins/odoo-semantic-skills/agents/*.md` | Orchestration agents |
+| `plugins/odoo-semantic-skills/commands/*.md` | Workflow slash commands |
+| `plugins/odoo-semantic-skills/generator/` | SSOT generator (`gen_surface.py`) + server-surface inputs |
+| `plugins/odoo-semantic-skills/snippets/` | MCP config for non-Claude clients |
+| `plugins/odoo-semantic-skills/docs/` | Persona guides, client setup, tool routing reference |
+| `plugins/odoo-semantic-mcp/.claude-plugin/plugin.json` | MCP plugin manifest (userConfig for URL + API key) |
+| `plugins/odoo-semantic-mcp/.mcp.json` | MCP server template (resolved from `userConfig`) |
+| `plugins/odoo-semantic-mcp/commands/connect.md` | The `/odoo-semantic-mcp:connect` slash command |
 
 ### Skill format
 
-Each `skills/<name>/SKILL.md` must start with YAML frontmatter containing at least a
+Each `plugins/odoo-semantic-skills/skills/<name>/SKILL.md` must start with YAML frontmatter containing at least a
 `name` and a `description`. The description is what drives routing — keep it specific and
 trigger-rich. `make test` runs `tests/test_skill_format.py` to enforce this.
 
