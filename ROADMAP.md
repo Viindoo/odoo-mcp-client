@@ -7,18 +7,25 @@ Items are directional, not commitments, and reflect publicly announced milestone
 
 ## Now
 
-- **Tool-surface parity with server v0.5** — skills and snippets reference the M11
-  superset tools (`model_inspect`, `module_inspect`, `entity_lookup`) and the 7
-  `odoo://` MCP Resources (ADR-0028 / ADR-0029 / ADR-0030).
+- **Tool-surface parity with server v0.11.1 (24 tools)** — skills and snippets
+  reference the full surface: 24 tools incl. the superset trio (`model_inspect`,
+  `module_inspect`, `entity_lookup`) plus the 7 `odoo://` MCP Resources
+  (ADR-0028 / ADR-0029 / ADR-0030).
 - **Marketplace publishing pipeline** — automatic SHA pinning into
   `Viindoo/claude-plugins` on each release.
 
+## Recently shipped
+
+- **Continue.dev + JetBrains snippets** — `snippets/continue-dev-mcp.yaml` and
+  `snippets/jetbrains-mcp-config.md` now join the existing Cursor / ChatGPT / Gemini
+  snippets.
+
 ## Next
 
-- **More client snippets** — Continue.dev (`continue-dev-mcp.yaml`) and a JetBrains AI
-  Assistant config placeholder, alongside the existing Cursor / ChatGPT / Gemini snippets.
-- **v0.6 deprecation cleanup** — once the server removes the 10 legacy
-  `resolve_*` / `list_*` tools, drop their mentions from skills and snippets.
+- **Audit residual legacy-tool mentions** — the server already removed the 10 legacy
+  `resolve_*` / `list_*` tools at v0.6 (done); sweep skills and snippets for any
+  remaining references beyond the intentional "Supersedes removed …" notes in the
+  superset tool descriptions.
 
 ## Later / exploring
 

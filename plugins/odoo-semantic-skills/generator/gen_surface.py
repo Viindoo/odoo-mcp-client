@@ -340,17 +340,23 @@ def gen_routing_md(surface: dict) -> str:
         "Standalone edition comparison → `odoo-addon-diff`."
     )
     lines.append("")
-    lines.append("### 4.4 `odoo-owl-coder` vs `odoo-js-coder` at Odoo v14")
+    lines.append("### 4.4 `odoo-frontend-coder`: legacy JS widgets vs OWL (version-aware)")
     lines.append("")
     lines.append(
-        "- **Overlap:** Odoo v14 JavaScript code (grey zone — pre-OWL but post-legacy peak)"
+        "- **No skill conflict:** A single skill — `odoo-frontend-coder` — owns all Odoo "
+        "front-end work and handles both paradigms internally (merged from the former "
+        "`odoo-js-coder` + `odoo-owl-coder`)."
     )
     lines.append(
-        "- **Resolution:** Prefer `odoo-js-coder` for v14 (legacy widget system still dominant)."
+        "- **Resolution (internal):** `odoo-frontend-coder` selects the paradigm by version. "
+        "Legacy JS widget system on older Odoo; OWL components on newer Odoo. Odoo v14 is the "
+        "grey zone (pre-OWL but post-legacy peak) — prefer the legacy widget system there since "
+        "it is still dominant."
     )
     lines.append(
-        "- **Heuristic:** `odoo.define()`, `web.Widget`, `field_registry` → `odoo-js-coder`. "
-        "`useService`, `t-component`, `patch()`, `useState` → `odoo-owl-coder`."
+        "- **Heuristic (paradigm signals):** `odoo.define()`, `web.Widget`, `field_registry` "
+        "→ legacy JS widget path. `useService`, `t-component`, `patch()`, `useState` "
+        "→ OWL path. Both resolve to `odoo-frontend-coder`."
     )
     lines.append("")
     lines.append("---")

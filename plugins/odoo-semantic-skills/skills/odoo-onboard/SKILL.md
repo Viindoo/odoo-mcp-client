@@ -266,7 +266,7 @@ Skill flow:
 No `__manifest__.py` found in working dir or 3 levels down. Is this an Odoo repo?
 
 If yes: provide the project root path (e.g. `/home/user/projects/erp-customer-a`).
-If no: this skill is not applicable — try `/odoo-semantic:connect` to set up the MCP server connection instead (a different scope from project root).
+If no: this skill is not applicable — try `/odoo-semantic-mcp:connect` to set up the MCP server connection instead (a different scope from project root).
 ```
 
 Wait for user.
@@ -277,7 +277,7 @@ Wait for user.
 - Does NOT auto-discover modules outside working directory (no global filesystem scan).
 - Does NOT call MCP write/import tools (only read + session-pin tools).
 - Does NOT remember context across machines (file is local to project repo; commit `.gitignore` so other machines don't see context).
-- Does NOT replace `/odoo-semantic:connect` (which sets up the MCP server connection itself — a different scope).
+- Does NOT replace `/odoo-semantic-mcp:connect` (which sets up the MCP server connection itself — a different scope).
 
 ## Notes for future maintainers
 
