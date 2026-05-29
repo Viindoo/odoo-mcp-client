@@ -2,7 +2,7 @@
 
 <!-- This persona intentionally enumerates the full tool arsenal (server v0.11.1) instead of the "Most Useful Tools" template variant — devs need the full surface area, including the 3 M11 supersets, 4 session-context tools, 2 M10A stylesheet tools, and 4 M10.5 ORM-validation tools. -->
 
-> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic@viindoo-plugins` -> `/odoo-semantic:connect`. For other AI tools, see [client setup](../setup.md).
+> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic-skills@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
 The full **tool arsenal (server v0.11.1)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS/LESS stylesheet analysis, and now static ORM validation — this guide covers the daily patterns. Server v0.11.1 ships three discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`), four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call, two **stylesheet tools** for theme/branding work, and four **ORM-validation tools** that catch hallucinated field-paths, operators, dependencies, and relation targets before you ship a domain / `@api.depends` / relational field.
 

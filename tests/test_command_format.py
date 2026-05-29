@@ -12,8 +12,24 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-COMMAND_FILES = sorted((ROOT / "commands").glob("*.md"))
-SKILL_FILES = sorted((ROOT / "skills").glob("*/SKILL.md"))
+PLUGINS_DIR = ROOT / "plugins"
+SKILLS_PLUGIN = PLUGINS_DIR / "odoo-semantic-skills"
+MCP_PLUGIN = PLUGINS_DIR / "odoo-semantic-mcp"
+
+# After the v2 split, commands live in two plugins:
+#   - 5 workflow commands under odoo-semantic-skills/commands/
+#   - the connect command under odoo-semantic-mcp/commands/
+COMMAND_FILES = sorted(
+    list((SKILLS_PLUGIN / "commands").glob("*.md"))
+    + list((MCP_PLUGIN / "commands").glob("*.md"))
+)
+SKILL_FILES = sorted((SKILLS_PLUGIN / "skills").glob("*/SKILL.md"))
+
+
+def _plugin_root_for(command_path):
+    """Return the plugin root directory that contains the given command file."""
+    # commands/<file>.md lives directly under <plugin_root>/commands/
+    return command_path.parent.parent
 
 
 def _frontmatter(text):
@@ -74,9 +90,9 @@ def _command_names():
     return names
 
 
-def _plugin_json_commands():
-    """Return the list of command paths listed in plugin.json."""
-    plugin_file = ROOT / ".claude-plugin" / "plugin.json"
+def _plugin_json_commands(plugin_root):
+    """Return the list of command paths listed in the given plugin's plugin.json."""
+    plugin_file = plugin_root / ".claude-plugin" / "plugin.json"
     if not plugin_file.exists():
         return []
     with open(plugin_file, encoding="utf-8") as f:
@@ -118,13 +134,17 @@ def test_command_name_disjoint_from_skill_name():
     assert not collisions, f"command/skill name collision(s): {collisions}"
 
 
-def test_command_in_plugin_manifest():
-    """Assert every command file is listed in plugin.json."""
-    plugin_commands = _plugin_json_commands()
-    plugin_paths = {Path(p).stem for p in plugin_commands}
-    command_stems = {cmd.stem for cmd in COMMAND_FILES}
-    missing = command_stems - plugin_paths
-    assert not missing, (
-        f"command(s) not listed in plugin.json: {missing}. "
-        f"Add to .claude-plugin/plugin.json 'commands' array."
+@pytest.mark.parametrize("cmd", COMMAND_FILES, ids=lambda p: p.stem)
+def test_command_in_plugin_manifest(cmd):
+    """Each command must be declared in the plugin.json of the plugin that contains it.
+
+    After the v2 split, the 5 workflow commands belong to the skills manifest
+    and connect.md belongs to the mcp manifest — a command declared in the wrong
+    manifest (or in neither) is a packaging bug.
+    """
+    plugin_root = _plugin_root_for(cmd)
+    declared_stems = {Path(p).stem for p in _plugin_json_commands(plugin_root)}
+    assert cmd.stem in declared_stems, (
+        f"command '{cmd.stem}' not listed in {plugin_root.name}'s plugin.json. "
+        f"Add './commands/{cmd.name}' to its '.claude-plugin/plugin.json' 'commands' array."
     )
