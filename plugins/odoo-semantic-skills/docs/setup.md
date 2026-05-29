@@ -34,13 +34,18 @@ Or inside Claude Code:
 #### 2. Install the plugin
 
 ```bash
-claude plugin install odoo-semantic@viindoo-plugins --scope user
+claude plugin install odoo-semantic-skills@viindoo-plugins --scope user   # auto-pulls odoo-semantic-mcp
 ```
 
 Or:
 ```
-/plugin install odoo-semantic@viindoo-plugins
+/plugin install odoo-semantic-skills@viindoo-plugins
 ```
+
+Installing `odoo-semantic-skills` automatically pulls in the `odoo-semantic-mcp` plugin
+(declared as a dependency), which provides the MCP server connection and the
+`/odoo-semantic-mcp:connect` setup command. If you only need the MCP tools, install
+`odoo-semantic-mcp@viindoo-plugins` on its own.
 
 #### 3. Configure API key and server URL
 
@@ -50,7 +55,7 @@ On first use, Claude Code will prompt for:
 
 Or run the interactive setup command:
 ```
-/odoo-semantic:connect
+/odoo-semantic-mcp:connect
 ```
 
 #### 4. Verify
@@ -122,7 +127,7 @@ Verify: run `/mcp` in a live session, or `claude mcp list` from the shell. You s
 ### Auto-trust: skip permission prompts
 <a id="claude-code-auto-trust"></a>
 
-> **If you installed via the plugin:** `/odoo-semantic:connect` already adds this entry to `~/.claude/settings.json` automatically (idempotent, with backup, no side effects on other keys). Confirm at the final prompt — you can skip the rest of this section. If you declined: follow the manual snippet below.
+> **If you installed via the plugin:** `/odoo-semantic-mcp:connect` already adds this entry to `~/.claude/settings.json` automatically (idempotent, with backup, no side effects on other keys). Confirm at the final prompt — you can skip the rest of this section. If you declined: follow the manual snippet below.
 
 Manual snippet (for users who ran `claude mcp add` directly, without the plugin):
 

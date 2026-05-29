@@ -1,6 +1,6 @@
 # Odoo Semantic — Consultant Guide
 
-> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic@viindoo-plugins` -> `/odoo-semantic:connect`. For other AI tools, see [client setup](../setup.md).
+> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic-skills@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
 For functional consultants and solution architects: quickly verify feature availability, close gap analyses, and scope customizations before committing estimates.
 

@@ -4,17 +4,27 @@
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
 > MIT-licensed client layer for the **[Odoo Semantic MCP server](https://odoo-semantic.viindoo.com/)** (AGPL-3.0).
-> Odoo AI workforce toolkit — **22 skill personas** across 8 work domains
-> (engineering, sales, marketing, strategy, onboarding) + **5 workflow commands + 1 setup command**
-> that chain skills into multi-step recipes. Pairs with the OSM (odoo-semantic) MCP server
-> for indexed-codebase grounding.
+> Odoo AI workforce toolkit, shipped as **two plugins** on the `viindoo-plugins`
+> marketplace: **`odoo-semantic-skills`** (22 skill personas across 8 work domains —
+> engineering, sales, marketing, strategy, onboarding — plus 2 specialist agents and
+> 5 workflow commands that chain skills into multi-step recipes) and
+> **`odoo-semantic-mcp`** (the MCP server connection + the `/odoo-semantic-mcp:connect`
+> setup command). The skills plugin declares the MCP plugin as a dependency, so
+> installing it pulls in both. Pairs with the OSM (odoo-semantic) MCP server for
+> indexed-codebase grounding.
 
-This repository ships **no semantic logic**. It is a thin integration surface: 22
-persona-specific skills (across 8 personas), 2 specialist agents, 5 workflow commands
-plus 1 setup command (`/odoo-semantic:connect`), and ready-to-paste MCP config for
-several AI tools. All knowledge and computation live in the Odoo Semantic MCP server —
-query it at the hosted instance [`odoo-semantic.viindoo.com`](https://odoo-semantic.viindoo.com)
-or sign up for an API key at the [install page](https://odoo-semantic.viindoo.com/install/).
+This repository ships **no semantic logic**. It is a thin integration surface split
+across two plugins:
+
+- **`odoo-semantic-skills`** — 22 persona-specific skills (across 8 personas), 2
+  specialist agents, and 5 workflow commands.
+- **`odoo-semantic-mcp`** — the MCP server connection plus the setup command
+  (`/odoo-semantic-mcp:connect`).
+
+Plus ready-to-paste MCP config for several other AI tools. All knowledge and
+computation live in the Odoo Semantic MCP server — query it at the hosted instance
+[`odoo-semantic.viindoo.com`](https://odoo-semantic.viindoo.com) or sign up for an API
+key at the [install page](https://odoo-semantic.viindoo.com/install/).
 
 ## For the small-team Odoo founder
 
@@ -147,11 +157,23 @@ Inside Claude Code, run:
 
 ```
 /plugin marketplace add Viindoo/claude-plugins   # one-time, if not already registered
-/plugin install odoo-semantic@viindoo-plugins
-/odoo-semantic:connect
+/plugin install odoo-semantic-skills@viindoo-plugins   # auto-pulls odoo-semantic-mcp
+/odoo-semantic-mcp:connect
 ```
 
-> **`/odoo-semantic:connect` is mandatory on Claude Code v2.1.x.** Plugin manifests use a
+Installing `odoo-semantic-skills` **automatically pulls in `odoo-semantic-mcp`** via the
+plugin dependency, so you get the skills, agents, commands, and the MCP connection in one
+step.
+
+> **MCP-only?** If you only want the MCP tools (no persona skills/agents/commands), install
+> just the MCP plugin instead:
+>
+> ```
+> /plugin install odoo-semantic-mcp@viindoo-plugins
+> /odoo-semantic-mcp:connect
+> ```
+
+> **`/odoo-semantic-mcp:connect` is mandatory on Claude Code v2.1.x.** Plugin manifests use a
 > `userConfig` block to collect the API key + MCP URL, but the CLI currently
 > does not prompt for those values at install time
 > ([anthropics/claude-code#39455](https://github.com/anthropics/claude-code/issues/39455),
@@ -159,7 +181,7 @@ Inside Claude Code, run:
 > the plugin loads its skills but the MCP server silently fails — `claude mcp list`
 > will not show `odoo-semantic`.
 >
-> **Restart Claude Code after `/odoo-semantic:connect`** to actually load the
+> **Restart Claude Code after `/odoo-semantic-mcp:connect`** to actually load the
 > MCP tools. Claude Code v2.x does not hot-reload MCP servers within a session
 > ([#46426](https://github.com/anthropics/claude-code/issues/46426) — "not
 > planned"). The connect command verifies the server via `curl` and tells you
@@ -168,6 +190,25 @@ Inside Claude Code, run:
 You will need an **API key** (format `osm_...`) from the
 [install page](https://odoo-semantic.viindoo.com/install/), and the **MCP server URL**
 (default `https://odoo-semantic.viindoo.com/mcp`).
+
+## Migration / upgrading from v1.x
+
+The single `odoo-semantic` plugin has been **split and renamed** into `odoo-semantic-skills`
+and `odoo-semantic-mcp`. If you previously installed the old `odoo-semantic` plugin, uninstall
+it and reinstall the new plugins:
+
+```
+/plugin uninstall odoo-semantic@viindoo-plugins
+/plugin install odoo-semantic-skills@viindoo-plugins   # auto-pulls odoo-semantic-mcp
+/odoo-semantic-mcp:connect
+```
+
+Then **restart Claude Code**.
+
+> **Note:** your API key + MCP URL must be re-entered after installing the new MCP plugin —
+> `/odoo-semantic-mcp:connect` will prompt for them again. The MCP server name (`odoo-semantic`,
+> tools `mcp__odoo-semantic__*`) is unchanged, so anything that references the tool namespace
+> keeps working.
 
 ## Available skills
 
@@ -196,7 +237,7 @@ You will need an **API key** (format `osm_...`) from the
 | `odoo-onboard` | Onboarding / Concierge | Bootstrap project context into `.odoo-ai/context.md` for new engagements |
 | `odoo-router` | Onboarding / Concierge | Concierge skill — routes ambiguous user intent to the right specialist |
 
-Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
+Per-persona quick-start guides live in [`docs/personas/`](plugins/odoo-semantic-skills/docs/personas/).
 
 ## Available agents
 
@@ -209,7 +250,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 
 | Command | Purpose | Chained skills |
 |---------|---------|----------------|
-| `/odoo-semantic:connect` | Interactive MCP server setup — prompts for URL + API key, registers server, pre-approves tools | — |
+| `/odoo-semantic-mcp:connect` | Interactive MCP server setup — prompts for URL + API key, registers server, pre-approves tools (ships in the `odoo-semantic-mcp` plugin) | — |
 | `/odoo-bid-respond` | Full bid response chain for RFP/requirements documents | `odoo-discovery-summarize` -> `odoo-gap-analysis` -> `odoo-capability-proof` -> `odoo-objection-handler` |
 | `/odoo-customer-followup-draft` | Sales follow-up email saved to `.odoo-ai/followups/` | `odoo-deal-followup` |
 | `/odoo-discovery-quick` | Slash wrapper — synthesize discovery notes into a structured profile | `odoo-discovery-summarize` |
@@ -229,37 +270,37 @@ direct structured data access:
 - `odoo://{version}/pattern/{name}` — pattern catalogue entry (snippet, gotchas)
 - `odoo://{version}/stylesheet/{file_path}` — stylesheet record (selectors, imports, variables)
 
-See [`docs/setup.md`](docs/setup.md#mcp-resources-7-uri-templates) for full descriptions and examples.
+See [`docs/setup.md`](plugins/odoo-semantic-skills/docs/setup.md#mcp-resources-7-uri-templates) for full descriptions and examples.
 
 Supported Odoo versions: **v8.0 through v19.0 (12 versions)**.
 
 ## Connect command
 
 ```
-/odoo-semantic:connect
+/odoo-semantic-mcp:connect
 ```
 
-Interactive command that:
+Ships in the `odoo-semantic-mcp` plugin. Interactive command that:
 1. Prompts for your MCP server URL and API key
 2. Validates key format (`osm_...`)
 3. Registers the MCP server via `claude mcp add --scope user`
 4. Probes `/health` + `/mcp` with `curl` to verify server + key
-5. **Adds `mcp__odoo-semantic` to `permissions.allow` in `~/.claude/settings.json`** so every tool of this server is pre-approved — no more "Do you want to proceed?" prompts on every call. Idempotent, backs up the file before writing, refuses to overwrite invalid JSON, preserves every other key. Answer `n` at the prompt to skip (you can paste the snippet from [`docs/setup.md#claude-code-auto-trust`](docs/setup.md#claude-code-auto-trust) manually instead).
+5. **Adds `mcp__odoo-semantic` to `permissions.allow` in `~/.claude/settings.json`** so every tool of this server is pre-approved — no more "Do you want to proceed?" prompts on every call. Idempotent, backs up the file before writing, refuses to overwrite invalid JSON, preserves every other key. Answer `n` at the prompt to skip (you can paste the snippet from [`docs/setup.md#claude-code-auto-trust`](plugins/odoo-semantic-skills/docs/setup.md#claude-code-auto-trust) manually instead).
 6. Tells you to restart Claude Code (required to load MCP tools)
 
 ## Other AI tools
 
 The plugin is Claude Code only. For other tools, paste the matching MCP config — see
-[`docs/setup.md`](docs/setup.md) for full per-client walkthroughs (Codex, Gemini, VS Code,
+[`docs/setup.md`](plugins/odoo-semantic-skills/docs/setup.md) for full per-client walkthroughs (Codex, Gemini, VS Code,
 Antigravity) and `snippets/` for copy-ready configs:
 
 | Tool | Snippet |
 |------|---------|
-| Cursor | [`snippets/cursor-mcp.json`](snippets/cursor-mcp.json) (server config) + [`snippets/cursor-rules.md`](snippets/cursor-rules.md) (routing rules) |
-| ChatGPT Custom GPT | [`snippets/openai-gpt-instructions.md`](snippets/openai-gpt-instructions.md) |
-| Google Gemini Gem | [`snippets/gemini-gem-instructions.md`](snippets/gemini-gem-instructions.md) |
-| Continue.dev | [`snippets/continue-dev-mcp.yaml`](snippets/continue-dev-mcp.yaml) (MCP server config) |
-| JetBrains AI Assistant | [`snippets/jetbrains-mcp-config.md`](snippets/jetbrains-mcp-config.md) (setup guide) |
+| Cursor | [`snippets/cursor-mcp.json`](plugins/odoo-semantic-skills/snippets/cursor-mcp.json) (server config) + [`snippets/cursor-rules.md`](plugins/odoo-semantic-skills/snippets/cursor-rules.md) (routing rules) |
+| ChatGPT Custom GPT | [`snippets/openai-gpt-instructions.md`](plugins/odoo-semantic-skills/snippets/openai-gpt-instructions.md) |
+| Google Gemini Gem | [`snippets/gemini-gem-instructions.md`](plugins/odoo-semantic-skills/snippets/gemini-gem-instructions.md) |
+| Continue.dev | [`snippets/continue-dev-mcp.yaml`](plugins/odoo-semantic-skills/snippets/continue-dev-mcp.yaml) (MCP server config) |
+| JetBrains AI Assistant | [`snippets/jetbrains-mcp-config.md`](plugins/odoo-semantic-skills/snippets/jetbrains-mcp-config.md) (setup guide) |
 
 ## Requirements
 
@@ -269,10 +310,12 @@ Antigravity) and `snippets/` for copy-ready configs:
 
 ## For contributors — local dev install
 
-Test changes from a checkout without going through the marketplace:
+Test changes from a checkout without going through the marketplace. Each plugin now
+lives under `plugins/` — point `--plugin-dir` at the one you are working on:
 
 ```bash
-claude --plugin-dir ./
+claude --plugin-dir ./plugins/odoo-semantic-skills   # skills + agents + commands
+claude --plugin-dir ./plugins/odoo-semantic-mcp      # MCP connection + connect command
 ```
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full plugin-dev workflow, the release /

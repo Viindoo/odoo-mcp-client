@@ -1,6 +1,6 @@
 # Odoo Semantic — Sales Guide
 
-> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic@viindoo-plugins` -> `/odoo-semantic:connect`. For other AI tools, see [client setup](../setup.md).
+> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic-skills@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
 Turn objections into answered questions in seconds. Verify Odoo capabilities on the spot, pull real code examples as proof, and never get caught off-guard by a "does Odoo do X?" during a demo.
 

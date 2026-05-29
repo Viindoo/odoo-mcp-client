@@ -9,12 +9,10 @@ on:
     # Allowlist: only functional plugin content re-pins the marketplace SHA.
     # NOTE: a `paths-ignore: ['**.md']` denylist would be WRONG here — skills are
     # SKILL.md files, so it would suppress re-pinning on skill content changes.
+    # After the v2 split, all functional content lives under plugins/<name>/.
     paths:
-      - 'skills/**'
-      - 'agents/**'
-      - 'commands/**'
-      - '.claude-plugin/**'
-      - '.mcp.json'
+      - 'plugins/odoo-semantic-skills/**'
+      - 'plugins/odoo-semantic-mcp/**'
 
 # Cancel in-flight pin run when a newer qualifying commit lands.
 concurrency:
@@ -60,26 +58,36 @@ jobs:
       - name: Check if already pinned
         id: check
         if: steps.killswitch.outputs.blocked == 'false'
+        env:
+          HEAD_SHA: ${{ steps.info.outputs.sha }}
         run: |
-          CURRENT=$(python3 -c "
-          import json
+          # Both split plugins must already be at HEAD for us to skip.
+          ALL_PINNED=$(python3 -c "
+          import json, os
+          head = os.environ['HEAD_SHA']
+          names = {'odoo-semantic-skills', 'odoo-semantic-mcp'}
           m = json.load(open('claude-plugins/.claude-plugin/marketplace.json'))
-          for p in m['plugins']:
-              if p['name'] == 'odoo-semantic':
-                  print(p['source'].get('sha', ''))
+          seen = {p['name']: p['source'].get('sha', '') for p in m['plugins'] if p['name'] in names}
+          ok = names.issubset(seen) and all(seen[n] == head for n in names)
+          print('true' if ok else 'false')
           ")
-          [ "$CURRENT" = "${{ steps.info.outputs.sha }}" ] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
+          [ "$ALL_PINNED" = "true" ] && echo "skip=true" >> "$GITHUB_OUTPUT" || echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Update marketplace.json
         if: steps.killswitch.outputs.blocked == 'false' && steps.check.outputs.skip == 'false'
+        env:
+          HEAD_SHA: ${{ steps.info.outputs.sha }}
         run: |
+          # Pin BOTH split plugins (odoo-semantic-skills + odoo-semantic-mcp) to the same HEAD SHA.
           python3 -c "
-          import json
+          import json, os
+          head = os.environ['HEAD_SHA']
+          names = {'odoo-semantic-skills', 'odoo-semantic-mcp'}
           path = 'claude-plugins/.claude-plugin/marketplace.json'
           with open(path) as f: m = json.load(f)
           for p in m['plugins']:
-              if p['name'] == 'odoo-semantic':
-                  p['source']['sha'] = '${{ steps.info.outputs.sha }}'
+              if p['name'] in names:
+                  p['source']['sha'] = head
           with open(path, 'w') as f: json.dump(m, f, indent=2); f.write('\n')
           "
 
@@ -91,17 +99,17 @@ jobs:
         run: |
           SHA="${{ steps.info.outputs.sha }}"
           SHA7="${SHA:0:7}"
-          BRANCH="auto-pin/odoo-semantic-${SHA7}"
+          BRANCH="auto-pin/odoo-semantic-plugins-${SHA7}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git add .claude-plugin/marketplace.json
-          git commit -m "pin odoo-semantic to ${SHA7}"
+          git commit -m "pin odoo-semantic plugins to ${SHA7}"
           git push origin "$BRANCH"
           PR_URL=$(gh pr create \
             --repo Viindoo/claude-plugins \
-            --title "pin odoo-semantic to ${SHA7}" \
-            --body "Auto-pin: plugin content changed in [${SHA7}](https://github.com/Viindoo/odoo-mcp-client/commit/${SHA})." \
+            --title "pin odoo-semantic plugins to ${SHA7}" \
+            --body "Auto-pin: plugin content changed in [${SHA7}](https://github.com/Viindoo/odoo-mcp-client/commit/${SHA}). Pins both odoo-semantic-skills and odoo-semantic-mcp." \
             --label "auto-pin")
           gh pr merge --auto --squash "$PR_URL"
 

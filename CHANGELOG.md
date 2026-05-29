@@ -4,6 +4,24 @@ All notable changes to the Odoo MCP Client are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-05-29
+
+### Changed
+- **BREAKING:** Split the single `odoo-semantic` plugin into two: `odoo-semantic-skills`
+  (22 skills + 2 agents + 5 workflow commands) and `odoo-semantic-mcp` (MCP server
+  connection + `/odoo-semantic-mcp:connect`). Install either independently, or install
+  `odoo-semantic-skills` to auto-pull `odoo-semantic-mcp` via the plugin dependency.
+- Renamed the setup command `/odoo-semantic:connect` -> `/odoo-semantic-mcp:connect`.
+- Relocated plugin content under `plugins/` (`plugins/odoo-semantic-skills/` and
+  `plugins/odoo-semantic-mcp/`); updated `README.md` and `CONTRIBUTING.md` paths and
+  per-client snippet/doc links accordingly.
+
+### Migration
+- Existing users: uninstall `odoo-semantic@viindoo-plugins`, then install
+  `odoo-semantic-skills@viindoo-plugins` (pulls the MCP plugin), and re-run
+  `/odoo-semantic-mcp:connect`. The MCP server name (`odoo-semantic`, tools
+  `mcp__odoo-semantic__*`) is unchanged, and the marketplace name remains `viindoo-plugins`.
+
 ## [1.1.0] - 2026-05-28
 
 ### Changed

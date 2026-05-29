@@ -9,7 +9,10 @@ help:
 
 # Structural validation: official CLI check (if available) + our schema/format tests.
 validate:
-	@command -v claude >/dev/null 2>&1 && claude plugin validate . || \
+	@command -v claude >/dev/null 2>&1 && { \
+		claude plugin validate plugins/odoo-semantic-skills && \
+		claude plugin validate plugins/odoo-semantic-mcp; \
+	} || \
 		echo "(claude CLI not found — skipping 'claude plugin validate'; running pytest checks)"
 	python3 -m pytest tests/test_plugin_schema.py tests/test_skill_format.py -q
 
@@ -18,13 +21,13 @@ test:
 
 # SSOT generator: read generator/server-surface.json → emit routing matrix + skill sections + snippets.
 gen:
-	python3 generator/gen_surface.py
+	python3 plugins/odoo-semantic-skills/generator/gen_surface.py
 
 # CI idempotency check: gen must produce zero diff on a clean tree.
 gen-check: gen
 	@git diff --exit-code || \
-		(echo "ERROR: make gen produced uncommitted changes — update generator/server-surface.json and commit the output." && exit 1)
+		(echo "ERROR: make gen produced uncommitted changes — update plugins/odoo-semantic-skills/generator/server-surface.json and commit the output." && exit 1)
 
 # Dependency check: assert all skill ↔ tool refs are valid (live, not removed).
 deps-check:
-	python3 generator/check_deps.py
+	python3 plugins/odoo-semantic-skills/generator/check_deps.py

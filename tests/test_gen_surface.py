@@ -14,9 +14,12 @@ from pathlib import Path
 import pytest
 
 # Make the generator package importable when tests are run from the repo root.
+# After the v2 split, the generator lives under the skills plugin, so its parent
+# (the skills-plugin root) is what must be on sys.path for `import generator`.
 REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+SKILLS_PLUGIN = REPO_ROOT / "plugins" / "odoo-semantic-skills"
+if str(SKILLS_PLUGIN) not in sys.path:
+    sys.path.insert(0, str(SKILLS_PLUGIN))
 
 from generator.gen_surface import (  # noqa: E402
     inject_markers_into_file,
