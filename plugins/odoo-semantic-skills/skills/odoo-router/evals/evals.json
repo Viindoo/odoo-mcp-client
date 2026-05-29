@@ -120,6 +120,46 @@
       "expected_routed_to": "<NO-ROUTE - slash command>",
       "category": "should-not-fire-slash",
       "files": []
+    },
+    {
+      "id": 16,
+      "prompt": "Review the sale order form in my Odoo 17 browser before the demo — does it look right and is it accessible?",
+      "expected_output": "Router recommends odoo-ui-reviewer (row 28: rate a RENDERED screen in the browser, vs odoo-code-reviewer which reads source statically)",
+      "expected_routed_to": "odoo-ui-reviewer",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 17,
+      "prompt": "OWL component không hiện, trang trắng và có console error — tìm nguyên nhân giúp tôi",
+      "expected_output": "Router recommends odoo-ui-debug (row 29: find ROOT CAUSE of a broken screen at runtime, vs odoo-ui-reviewer which rates a working screen)",
+      "expected_routed_to": "odoo-ui-debug",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 18,
+      "prompt": "Compare the before/after screenshots of the kanban view to see if my CSS change caused any visual drift",
+      "expected_output": "Router recommends odoo-visual-regression (row 30: diff TWO states/builds for drift, vs odoo-ui-reviewer which judges ONE screen once)",
+      "expected_routed_to": "odoo-visual-regression",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 19,
+      "prompt": "Record a short demo video of the inventory app walkthrough on my live instance",
+      "expected_output": "Router recommends odoo-demo-recorder (row 31: produce a REAL video/GIF of a live instance, vs odoo-content-draft which writes the script only)",
+      "expected_routed_to": "odoo-demo-recorder",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 20,
+      "prompt": "First time setting up the visual stack — wire the browser MCP and configure my instance URL",
+      "expected_output": "Router recommends /odoo-semantic-skills:setup command (row 32: one-time environment bootstrap for the visual stack, vs odoo-onboard which bootstraps project CODE context)",
+      "expected_routed_to": "/odoo-semantic-skills:setup",
+      "category": "should-fire-direct",
+      "files": []
     }
   ],
   "notes": "Full Mode 5 trigger optimization scheduled for Phase D per AC-D6 of the v1.0.0 refinement plan (internal). Phase A acceptance is verified via inline walkthrough by main agent (see report). 20-query trigger eval set will be built from these 15 + 5 additional edge cases in Phase D."

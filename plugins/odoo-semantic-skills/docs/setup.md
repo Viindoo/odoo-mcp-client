@@ -18,7 +18,7 @@ This guide is for **end users** who want to connect their AI tool to an MCP serv
 
 ### Plugin install (recommended)
 
-For Claude Code users, the plugin is the fastest path: it bundles the MCP server config, all 22 persona skills, and the setup command in one install.
+For Claude Code users, the plugin is the fastest path: it bundles the MCP server config, all 26 persona skills, and the setup command in one install.
 
 #### 1. Add the marketplace (one-time)
 
@@ -68,7 +68,7 @@ Expected: tree output with module names, `Defined in:`, field counts.
 
 #### Available persona skills
 
-After install, 22 skills activate automatically:
+After install, 26 skills activate automatically:
 
 | Skill | Persona | What it does |
 |-------|---------|-------------|
@@ -94,6 +94,15 @@ After install, 22 skills activate automatically:
 | `odoo-objection-handler` | Sales | Evidence-based responses to capability objections using the Acknowledge / Counter / Affirm framework |
 | `odoo-deal-followup` | Sales | Score deal health, recommend a next-best action, and draft a follow-up email |
 | `odoo-router` | Utility | Silently route a vague Odoo request to the single best specialist skill, then confirm before running |
+| `odoo-ui-reviewer` | Visual | Five-lens review of a rendered Odoo screen in a live browser — aesthetics, function, runtime stability, accessibility, performance — with screenshot/console/Lighthouse evidence |
+| `odoo-ui-debug` | Visual | Root-cause a broken/misbehaving Odoo UI at runtime (console errors, failed requests, blank OWL renders, wrong CSS) and pinpoint the override point |
+| `odoo-visual-regression` | Visual | Capture a screenshot baseline of one Odoo state and diff it against another (before/after upgrade, module install, theme change) with blast-radius assessment |
+| `odoo-demo-recorder` | Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
+
+> **Visual skills need browser setup.** The four `Visual` skills above drive a live browser
+> and depend on the bundled browser MCP servers + browser binaries. Run
+> **`/odoo-semantic-skills:setup`** once to provision them — see
+> [Visual stack / browser MCP setup](#visual-stack--browser-mcp-setup) below.
 
 ---
 
@@ -148,6 +157,58 @@ Manual snippet (for users who ran `claude mcp add` directly, without the plugin)
 
 > If the file already has `permissions.allow`, append the string `"mcp__odoo-semantic"` to the array.
 > A wildcard without a tool name pre-approves all tools on this server.
+
+---
+
+## Visual stack / browser MCP setup
+<a id="visual-stack--browser-mcp-setup"></a>
+
+The four `Visual` skills (`odoo-ui-reviewer`, `odoo-ui-debug`, `odoo-visual-regression`,
+`odoo-demo-recorder`) and the `odoo-ui-reviewer` agent drive a **rendered Odoo screen in a
+live browser**. They depend on three browser MCP servers — `chrome-devtools`, `playwright`,
+and `pagecast` (local stdio `npx` servers) — plus browser binaries and `ffmpeg`.
+
+### One command: `/odoo-semantic-skills:setup`
+
+Inside Claude Code, run it once:
+
+```
+/odoo-semantic-skills:setup
+```
+
+It is **idempotent and extensible** — re-running only applies what is missing, and it drives
+a registry of numbered step scripts (`scripts/setup-steps/`), so new capabilities are
+drop-in. What it does:
+
+1. **Browser MCP** — registers `chrome-devtools`, `playwright`, `pagecast` into Claude Code,
+   Codex CLI, and Gemini CLI (cross-runtime).
+2. **Browser deps** — checks Node >= 20, installs Playwright Chromium, checks `ffmpeg`.
+3. **Permissions** — auto-allows the browser MCP tools in Claude permissions.
+4. **Instance profile** — discovers local Odoo repos and writes `.odoo-ai/instances.toml`.
+5. **Instance spin-up** (optional) — launches a declared Odoo instance and waits for HTTP 200.
+
+> For Claude Code, the three browser MCP servers also load automatically from the plugin's
+> bundled `.mcp.json` once the plugin is installed. The setup command additionally wires the
+> **other** runtimes (Codex, Gemini) and installs the browser dependencies, which the bundle
+> alone does not.
+
+A **SessionStart** hint (read-only, never installs or blocks) nudges you to run
+`/odoo-semantic-skills:setup` whenever a dependency is missing.
+
+### Cross-runtime MCP wiring (what the setup writes)
+
+Each runtime stores browser MCP config in a **different file with a different schema** — the
+setup command writes the correct shape for each, merging idempotently into existing config:
+
+| Runtime | Config file | Schema |
+|---------|-------------|--------|
+| Claude Code | `~/.claude.json` (key `mcpServers`) | JSON — `{ "command": "npx", "args": [...] }` per server |
+| Codex CLI | `~/.codex/config.toml` | TOML — `[mcp_servers.<name>]` with `command` / `args` |
+| Gemini CLI | `~/.gemini/settings.json` (key `mcpServers`) | JSON — per-server entry plus `"trust": true` to skip prompts |
+
+The browser servers are local stdio `npx` servers (no API key needed), unlike the
+`odoo-semantic` HTTP server documented above — so this wiring is independent of the
+`/odoo-semantic-mcp:connect` flow.
 
 ---
 

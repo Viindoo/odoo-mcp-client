@@ -45,6 +45,10 @@ sensitive numeric values (pricing/OKR figures). Run `make validate && make test`
 | `plugins/odoo-semantic-skills/skills/<name>/SKILL.md` | One skill per directory, YAML frontmatter + body |
 | `plugins/odoo-semantic-skills/agents/*.md` | Orchestration agents |
 | `plugins/odoo-semantic-skills/commands/*.md` | Workflow slash commands |
+| `plugins/odoo-semantic-skills/.mcp.json` | Bundled browser MCP servers (`chrome-devtools`, `playwright`, `pagecast`) loaded with the plugin for the visual stack |
+| `plugins/odoo-semantic-skills/hooks/` | Plugin lifecycle hooks (`hooks.json` + scripts) — e.g. the SessionStart visual-stack readiness probe |
+| `plugins/odoo-semantic-skills/scripts/lib/` | Shared bash/python setup utilities (`config_merge.py`, `discover_odoo.sh`) reused by setup steps |
+| `plugins/odoo-semantic-skills/scripts/setup-steps/` | Numbered, idempotent setup steps (`describe \| check \| apply`) driven by `/odoo-semantic-skills:setup` |
 | `plugins/odoo-semantic-skills/generator/` | SSOT generator (`gen_surface.py`) + server-surface inputs |
 | `plugins/odoo-semantic-skills/snippets/` | MCP config for non-Claude clients |
 | `plugins/odoo-semantic-skills/docs/` | Persona guides, client setup, tool routing reference |
@@ -105,7 +109,7 @@ repo, but rotate immediately if exposure is suspected.
 
 `VERSION` is the single source of truth for the client version. The repo ships **two
 plugins** with independent version numbers: the `odoo-semantic-skills` plugin's
-`plugin.json.version` tracks `VERSION` (currently `2.0.0`), while the
+`plugin.json.version` tracks `VERSION` (currently `2.1.0`), while the
 `odoo-semantic-mcp` plugin versions independently (currently `1.0.0`). Tagging `v*`
 should bump `VERSION` together with the skills plugin's `plugin.json.version`; bump the
 mcp plugin's version only when its own contents change. `pin-sha.yml` updates `source.sha`

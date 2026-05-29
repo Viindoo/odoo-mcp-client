@@ -35,7 +35,7 @@ The skill follows 9 steps. Each step has a clear success criterion before moving
 ### Step 0 — Pre-flight
 
 Check `.odoo-ai/context.md` existence:
-- If exists AND `last_updated` < 30 days → output: "Context already exists (updated <date>). Refresh? (yes/no)". On "no", end the skill. On "yes", continue but preserve the user's existing `## Notes` section.
+- If exists AND `last_updated` < 30 days → output: "Context already exists (updated <date>). Refresh? (yes/no)". On "no", end the skill. On "yes", continue but preserve the user's existing `## Notes` section AND the `## Instance / Visual` section (written by `/odoo-semantic-skills:setup`, not re-derivable by onboard).
 - If exists AND stale (>30 days) → say so + continue with refresh.
 - If absent → continue.
 
@@ -111,7 +111,7 @@ Create `.odoo-ai/` directory if absent:
 mkdir -p .odoo-ai
 ```
 
-Write `.odoo-ai/context.md` per the schema below. If refreshing, preserve user's `## Notes` section verbatim.
+Write `.odoo-ai/context.md` per the schema below. If refreshing, preserve the user's `## Notes` section verbatim AND the `## Instance / Visual` section verbatim (onboard does not own those keys — `/odoo-semantic-skills:setup` writes the instance/visual config and the user owns notes).
 
 ### Step 8 — Update `.gitignore`
 
@@ -152,6 +152,12 @@ If user provides notes, append to `## Notes` section. Then output the suggest-ne
 - **set_active_version**: 17.0 (TTL 24h — re-pin if stale)
 - **set_active_profile**: viindoo_17
 
+## Instance / Visual  (optional — populated by /odoo-semantic-skills:setup)
+- **instance_base_url**: http://localhost:8069
+- **instance_login**: admin  (password NEVER stored here — agreed credential source only)
+- **visual_mcp**: chrome-devtools  (the browser MCP wired for the visual skills)
+- **screenshot_baseline_dir**: .odoo-ai/visual/baseline
+
 ## last_updated
 2026-05-28T11:30:00Z
 
@@ -185,6 +191,7 @@ Pick ONE based on detected context:
 - If many `viin_*` modules + custom distribution profile → "Run `odoo-customization-inventory` to list all modules and assess business purpose."
 - If user mentioned "upgrade" or "migration" in original prompt → "Run `odoo-deprecation-audit` next."
 - If user mentioned "feature" or "client" → "Try `odoo-feature-check` or `odoo-gap-analysis`."
+- If the repo has frontend assets (`static/src/js`, `*.scss`, OWL/QWeb templates) OR the user mentioned UI / giao diện / demo / video → "Run `/odoo-semantic-skills:setup` to wire the visual stack (browser MCP + instance URL), so `odoo-ui-reviewer`, `odoo-ui-debug`, `odoo-visual-regression`, and `odoo-demo-recorder` can drive a live instance."
 - Default → "Ready for any `odoo-*` skill. All skills will auto-read `.odoo-ai/context.md` from Phase B onwards."
 
 ## Standalone-first fallback
@@ -196,6 +203,7 @@ When OSM is unreachable: fall back to asking the user to manually paste or state
 - **Phase A (current)**: Onboard writes `.odoo-ai/context.md`; existing 15 skills do NOT yet read it. The file is forward-compatible — its presence does not break anything.
 - **Phase B**: All `odoo-*` skills will be updated to add Round -1: read `.odoo-ai/context.md` if present, use values to skip user-prompts for version/profile/prefix. Onboard's context becomes the single source for project-scoped state.
 - **Cross-runtime** (Phase D): Codex and Gemini will read the same `.odoo-ai/context.md` format. The schema is intentionally markdown (not JSON) for portability.
+- **Phase E (Visual)**: `.odoo-ai/context.md` is the single source of truth for instance URL and visual config. `/odoo-semantic-skills:setup` writes the `## Instance / Visual` section (instance_base_url, instance_login, visual_mcp, screenshot_baseline_dir); the visual skills (`odoo-ui-reviewer`, `odoo-ui-debug`, `odoo-visual-regression`, `odoo-demo-recorder`) read it at Round 0. Onboard preserves that section across refresh.
 
 ## Examples
 

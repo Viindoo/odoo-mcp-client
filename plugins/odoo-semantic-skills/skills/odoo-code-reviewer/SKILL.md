@@ -27,6 +27,7 @@ Developer / Tech Lead reviewing Odoo code with semantic MCP enrichment.
 - **Writing new code** → route to `odoo-coder`
 - **Module-level pre-upgrade audit** → route to `odoo-deprecation-audit`
 - **Override safety analysis** → route to `odoo-override-finder`
+- **Verifying a render error in a real browser** → route to `odoo-ui-debug`
 
 ## When to invoke
 
@@ -44,7 +45,7 @@ Key failure modes the agent is aware of:
 2. **Inheritance breaks** — missing `super()` in `create`/`write`/`unlink` breaks tracking, compute triggers, and downstream module overrides (always CRITICAL).
 3. **`@api.depends` errors** — stale or wrong dotted paths; `id` in depends list; constraint on relational field (silently skipped).
 4. **Deprecated API** — `@api.multi`, `@api.one` removed in v13/v14; raise at call time, not import.
-5. **OWL reactivity** — direct `this.state.items.push()` bypasses OWL reactivity; `position="replace"` in XML views breaks other override chains.
+5. **OWL reactivity** — direct `this.state.items.push()` bypasses OWL reactivity; `position="replace"` in XML views breaks other override chains. These render-level defects should be confirmed visually on a live instance with `odoo-ui-debug` once the static review flags them.
 
 ## Agent invocation
 

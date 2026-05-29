@@ -221,6 +221,9 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 - [ ] ORM validation gate passed (or skipped with reason noted)
 ```
 
+If the change includes view XML that affects form/list rendering, suggest the user verify the
+result visually with `odoo-ui-reviewer` (this agent does not run it — text suggestion only).
+
 ---
 
 ## Examples

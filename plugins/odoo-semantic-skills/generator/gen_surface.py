@@ -56,6 +56,7 @@ SKIP_SKILL_DIRS = {
     "odoo-frontend-coder",
     "odoo-onboard",
     "odoo-router",
+    "odoo-ui-reviewer",
 }
 
 

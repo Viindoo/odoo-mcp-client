@@ -197,6 +197,12 @@ worth acknowledging.>
 ### Suggested Pattern
 <Only include if suggest_pattern returned a materially different approach. Name the pattern
 and explain why it is preferred over the submitted implementation.>
+
+### Visual verification suggested
+<Optional — include only when a finding touches an OWL component, an XML view, or SCSS.
+Suggest the user confirm the rendered result on a live instance: `odoo-ui-debug` for a
+reactivity/render-failure finding, or `odoo-ui-reviewer` for a layout/styling finding. This
+agent is read-only and does not run them — text suggestion only.>
 ```
 
 If there are no issues:
