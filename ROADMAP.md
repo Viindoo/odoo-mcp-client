@@ -16,6 +16,14 @@ Items are directional, not commitments, and reflect publicly announced milestone
 
 ## Recently shipped
 
+- **Visual UI testing stack** (v2.1.0) — review, debug, regression-test, and record a
+  *rendered* Odoo screen in a live browser: skills `odoo-ui-reviewer`, `odoo-ui-debug`,
+  `odoo-visual-regression`, `odoo-demo-recorder`, the `odoo-ui-reviewer` agent, and three
+  bundled browser MCP servers (`chrome-devtools`, `playwright`, `pagecast`).
+- **Unified `/odoo-semantic-skills:setup`** (v2.1.0) — one-shot, idempotent, extensible
+  setup that wires the browser MCP servers across Claude / Codex / Gemini, installs browser
+  deps, auto-allows tool permissions, and discovers + optionally spins up a local Odoo
+  instance; plus a SessionStart readiness hint.
 - **Continue.dev + JetBrains snippets** — `snippets/continue-dev-mcp.yaml` and
   `snippets/jetbrains-mcp-config.md` now join the existing Cursor / ChatGPT / Gemini
   snippets.
@@ -29,6 +37,12 @@ Items are directional, not commitments, and reflect publicly announced milestone
 
 ## Later / exploring
 
+- **OS-level screen recording** for `odoo-demo-recorder` — capture beyond the browser
+  viewport (native windows, OS chrome) for richer demo clips.
+- **Pin browser MCP versions** — replace the `@latest` tags in the bundled `.mcp.json`
+  with pinned versions for reproducible visual runs.
+- **Marketplace entry for the visual stack** — surface the visual skills/setup as a
+  discoverable capability in `Viindoo/claude-plugins`.
 - **JetBrains plugin wrapper** — a thin native wrapper once demand is clear.
 - **PyPI distribution** — `pip install`-able client for non-Claude IDEs.
 - **Decouple client from server tool surface** — intent-only skill descriptions +

@@ -19,7 +19,7 @@ jobs:
 
       - name: Vault path scan (hard fail)
         run: |
-          OFFENDERS=$(grep -rlE '/home/USER/git/notes-vault' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
+          OFFENDERS=$(grep -rlE '/home/USER/git/notes-vault' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' --include='*.sh' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
           if [ -n "$OFFENDERS" ]; then
             echo "::error::Vault path /home/USER/git/notes-vault found in committed files"
             echo "$OFFENDERS"
@@ -29,7 +29,7 @@ jobs:
 
       - name: Personal /home/USER/. path scan (hard fail)
         run: |
-          OFFENDERS=$(grep -rlE '/home/USER/\.' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
+          OFFENDERS=$(grep -rlE '/home/USER/\.' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' --include='*.sh' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
           if [ -n "$OFFENDERS" ]; then
             echo "::error::/home/USER/. paths found in:"
             echo "$OFFENDERS"
@@ -39,7 +39,7 @@ jobs:
 
       - name: Personal email scan (hard fail)
         run: |
-          OFFENDERS=$(grep -rlE 'davidtranhp@users.noreply.github.com' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
+          OFFENDERS=$(grep -rlE 'davidtranhp@users.noreply.github.com' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' --include='*.sh' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
           if [ -n "$OFFENDERS" ]; then
             echo "::error::Personal email leaked"
             echo "$OFFENDERS"
@@ -49,7 +49,7 @@ jobs:
 
       - name: Vietnam regulation scan (hard fail)
         run: |
-          OFFENDERS=$(grep -rlEi 'REDACTED' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
+          OFFENDERS=$(grep -rlEi 'REDACTED' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' --include='*.sh' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
           if [ -n "$OFFENDERS" ]; then
             echo "::error::Vietnam regulation reference (REDACTED) found in:"
             echo "$OFFENDERS"
@@ -59,7 +59,7 @@ jobs:
 
       - name: Vietnam competitor scan - REDACTED (hard fail)
         run: |
-          OFFENDERS=$(grep -rlEi '\bMISA\b' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
+          OFFENDERS=$(grep -rlEi '\bMISA\b' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' --include='*.sh' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
           if [ -n "$OFFENDERS" ]; then
             echo "::error::Vietnam competitor reference (REDACTED) found in:"
             echo "$OFFENDERS"
@@ -69,7 +69,7 @@ jobs:
 
       - name: Vietnam competitor scan - REDACTED/REDACTED (hard fail)
         run: |
-          OFFENDERS=$(grep -rlEi '(REDACTED|REDACTED)' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
+          OFFENDERS=$(grep -rlEi '(REDACTED|REDACTED)' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' --include='*.sh' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
           if [ -n "$OFFENDERS" ]; then
             echo "::error::Vietnam competitor reference (REDACTED/REDACTED) found in:"
             echo "$OFFENDERS"
@@ -79,7 +79,7 @@ jobs:
 
       - name: Vietnam SME framing scan (hard fail)
         run: |
-          OFFENDERS=$(grep -rlE 'REDACTED' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
+          OFFENDERS=$(grep -rlE 'REDACTED' --include='*.md' --include='*.json' --include='*.py' --include='*.yaml' --include='*.yml' --include='*.sh' . | grep -v '.github/workflows/confidentiality-scan.yml' || true)
           if [ -n "$OFFENDERS" ]; then
             echo "::error::Vietnam SME framing reference found in:"
             echo "$OFFENDERS"

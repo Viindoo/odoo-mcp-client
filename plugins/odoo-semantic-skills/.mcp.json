@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "chrome-devtools": { "type": "stdio", "command": "npx", "args": ["-y", "chrome-devtools-mcp@latest"] },
+    "playwright": { "type": "stdio", "command": "npx", "args": ["-y", "@playwright/mcp@latest", "--caps=devtools"] },
+    "pagecast": { "type": "stdio", "command": "npx", "args": ["-y", "@mcpware/pagecast"] }
+  }
+}

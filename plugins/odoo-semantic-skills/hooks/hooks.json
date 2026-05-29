@@ -1,0 +1,16 @@
+{
+  "description": "odoo-semantic-skills SessionStart hook — checks visual stack readiness and hints /odoo-semantic-skills:setup when deps are missing.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/check-setup-deps.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -5,9 +5,9 @@
 
 > MIT-licensed client layer for the **[Odoo Semantic MCP server](https://odoo-semantic.viindoo.com/)** (AGPL-3.0).
 > Odoo AI workforce toolkit, shipped as **two plugins** on the `viindoo-plugins`
-> marketplace: **`odoo-semantic-skills`** (22 skill personas across 8 work domains —
-> engineering, sales, marketing, strategy, onboarding — plus 2 specialist agents and
-> 5 workflow commands that chain skills into multi-step recipes) and
+> marketplace: **`odoo-semantic-skills`** (26 skill personas across work domains —
+> engineering, sales, marketing, strategy, onboarding, and visual UI testing — plus 3
+> specialist agents and 6 workflow commands that chain skills into multi-step recipes) and
 > **`odoo-semantic-mcp`** (the MCP server connection + the `/odoo-semantic-mcp:connect`
 > setup command). The skills plugin declares the MCP plugin as a dependency, so
 > installing it pulls in both. Pairs with the OSM (odoo-semantic) MCP server for
@@ -16,8 +16,9 @@
 This repository ships **no semantic logic**. It is a thin integration surface split
 across two plugins:
 
-- **`odoo-semantic-skills`** — 22 persona-specific skills (across 8 personas), 2
-  specialist agents, and 5 workflow commands.
+- **`odoo-semantic-skills`** — 26 persona-specific skills, 3 specialist agents, and 6
+  workflow commands. Includes a visual UI testing stack (review / debug / regression /
+  demo-record a rendered Odoo screen) backed by bundled browser MCP servers.
 - **`odoo-semantic-mcp`** — the MCP server connection plus the setup command
   (`/odoo-semantic-mcp:connect`).
 
@@ -29,9 +30,9 @@ key at the [install page](https://odoo-semantic.viindoo.com/install/).
 ## For the small-team Odoo founder
 
 Running a small Odoo consultancy or building go-to-market for Odoo — and wearing every
-hat at once? This plugin turns your AI agent into **8 virtual specialists** (one per
+hat at once? This plugin turns your AI agent into **9 virtual specialists** (one per
 work domain). Each specialist is a skill or agent bundle that owns a specific
-function: engineering, sales, marketing, strategy, and more. You do not need to know
+function: engineering, visual UI QA, sales, marketing, strategy, and more. You do not need to know
 skill names — describe your intent in natural language and the right specialist fires
 automatically.
 
@@ -41,13 +42,14 @@ Each specialist self-activates when you describe your intent in plain English (o
 natural language). Complex multi-step workflows are exposed as explicit slash commands
 (`/odoo-*`) for when you want to control the sequence.
 
-### 8 specialist personas
+### 9 specialist personas
 
 | Persona | Skill / Agent | When to use |
 |---|---|---|
 | Engineer | `odoo-override-finder`, `odoo-deprecation-audit`, `odoo-deploy-checklist` | Custom code, pre-upgrade audit, deploy safety |
 | Coder | `odoo-coder` (Python/XML, agent+skill bundle), `odoo-frontend-coder` (JS/OWL legacy v8-14 + OWL v15+) | Write production-ready code |
 | Code-Reviewer | `odoo-code-reviewer` (agent+skill bundle) | Review PRs, audit for bugs, security, N+1 queries |
+| Visual / UI QA | `odoo-ui-reviewer` (agent+skill bundle), `odoo-ui-debug`, `odoo-visual-regression`, `odoo-demo-recorder` | Review rendered UI (aesthetics/function/stability/a11y/performance), debug runtime/render, catch visual regressions, record demo/marketing video |
 | Pre-Sales Consultant | `odoo-feature-check`, `odoo-gap-analysis`, `odoo-capability-proof`, `odoo-addon-diff` | Verify feature availability, scope effort, build evidence for proposals |
 | Sales AE | `odoo-objection-handler`, `odoo-deal-followup`, `odoo-discovery-summarize` | Handle objections, follow up stalled deals, synthesize discovery |
 | Marketer | `odoo-feature-highlights`, `odoo-content-draft`, `odoo-campaign-plan` | Slide and blog content, multi-channel campaigns |
@@ -56,7 +58,35 @@ natural language). Complex multi-step workflows are exposed as explicit slash co
 
 Plus 5 slash commands that chain skills into multi-step workflows: `/odoo-bid-respond`,
 `/odoo-customer-followup-draft`, `/odoo-discovery-quick`, `/odoo-feature-positioning`,
-`/odoo-upgrade-plan-full`.
+`/odoo-upgrade-plan-full` — and a 6th, `/odoo-semantic-skills:setup`, that provisions the
+visual UI testing stack (see below).
+
+### Visual UI testing (rendered-screen review, debug, regression, demo)
+
+Beyond reasoning over Odoo *source*, the plugin can also review, debug, regression-test, and
+record a *rendered* Odoo screen in a live browser. Four skills cover it — `odoo-ui-reviewer`
+(five-lens verdict: aesthetics, function, runtime stability, accessibility, performance),
+`odoo-ui-debug` (root-cause a broken UI), `odoo-visual-regression` (screenshot baseline +
+diff), and `odoo-demo-recorder` (record an MP4/GIF walkthrough) — backed by the
+`odoo-ui-reviewer` agent and three bundled browser MCP servers (`chrome-devtools`,
+`playwright`, `pagecast`).
+
+Run **`/odoo-semantic-skills:setup`** once to provision the stack: it wires the three browser
+MCP servers across Claude Code, Codex CLI, and Gemini CLI; installs browser dependencies
+(Node >= 20, Playwright Chromium, ffmpeg); auto-allows the browser tool permissions; and
+discovers (and can spin up) a local Odoo instance. The setup is idempotent — re-running only
+applies what is missing. A SessionStart hint nudges you to run it whenever a dependency is
+absent.
+
+Example — record a marketing demo clip:
+
+```
+You: "Record a 20-second GIF of creating and confirming a sale order in my local Odoo
+for the website hero section."
+```
+
+Skill `odoo-demo-recorder` fires, drives the live instance through the click path, and saves
+the clip ready to embed.
 
 ### Use case 1 - Sales AE: stalled deal, draft a follow-up email in 30 seconds
 
@@ -136,7 +166,7 @@ restricted-tool autonomy, with OSM access and an optional cost-free local model)
 
 ### Frequently asked questions
 
-**I only need one skill — do I have to know all 22?** No. Skills auto-fire by intent
+**I only need one skill — do I have to know all 26?** No. Skills auto-fire by intent
 match. Describe what you need; the right skill triggers.
 
 **What if the OSM server is offline?** Each skill has a `## Standalone-first fallback`
@@ -236,6 +266,10 @@ Then **restart Claude Code**.
 | `odoo-campaign-plan` | Marketer | Multi-channel campaign plan from a positioning brief |
 | `odoo-onboard` | Onboarding / Concierge | Bootstrap project context into `.odoo-ai/context.md` for new engagements |
 | `odoo-router` | Onboarding / Concierge | Concierge skill — routes ambiguous user intent to the right specialist |
+| `odoo-ui-reviewer` | Coder / Visual | Five-lens review of a *rendered* Odoo screen in a live browser (aesthetics, function, stability, accessibility, performance); slim, paired with agent bundle |
+| `odoo-ui-debug` | Coder / Visual | Root-cause a broken Odoo UI at runtime (console errors, failed requests, blank OWL renders, wrong CSS) and pinpoint the override point |
+| `odoo-visual-regression` | Coder / Visual | Screenshot baseline + diff between two Odoo states (before/after upgrade, module install, theme change) with blast-radius assessment |
+| `odoo-demo-recorder` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
 
 Per-persona quick-start guides live in [`docs/personas/`](plugins/odoo-semantic-skills/docs/personas/).
 
@@ -245,6 +279,7 @@ Per-persona quick-start guides live in [`docs/personas/`](plugins/odoo-semantic-
 |-------|-------|------|
 | `odoo-coder` | Sonnet | Agent bundle for code writing — invoked by main agent and commands; depth-1 safe with restricted-tool autonomy |
 | `odoo-code-reviewer` | Sonnet | Agent bundle for code review — runs full PR-scope analysis with OSM grounding |
+| `odoo-ui-reviewer` | Sonnet | Agent bundle for visual UI review — drives a live browser through a five-lens audit with screenshot, console, and Lighthouse evidence plus OSM source pointers |
 
 ## Available commands
 
@@ -256,6 +291,7 @@ Per-persona quick-start guides live in [`docs/personas/`](plugins/odoo-semantic-
 | `/odoo-discovery-quick` | Slash wrapper — synthesize discovery notes into a structured profile | `odoo-discovery-summarize` |
 | `/odoo-feature-positioning` | Positioning copy for marketing and sales use | `odoo-feature-highlights` -> `odoo-content-draft` |
 | `/odoo-upgrade-plan-full` | Comprehensive upgrade plan — replaces legacy `odoo-upgrade-planner` agent | `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis |
+| `/odoo-semantic-skills:setup` | One-shot idempotent setup for the visual workflow — wires the 3 browser MCP servers across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance | — |
 
 ## MCP resources
 

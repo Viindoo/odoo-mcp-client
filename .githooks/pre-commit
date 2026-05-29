@@ -11,7 +11,7 @@ cd "$REPO_ROOT"
 SCAN_FILES=()
 while IFS= read -r -d '' f; do
     case "$f" in
-        *.md|*.json|*.py|*.yaml|*.yml)
+        *.md|*.json|*.py|*.yaml|*.yml|*.sh)
             SCAN_FILES+=("$f")
             ;;
     esac

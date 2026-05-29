@@ -1,8 +1,8 @@
 {
   "name": "odoo-semantic-skills",
-  "version": "2.0.0",
-  "description": "Odoo AI workforce toolkit — 22 skill personas + 2 specialist agents + 5 workflow commands across engineering, sales, marketing, strategy, and onboarding. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed).",
-  "keywords": ["odoo", "erp", "ai-workforce", "odoo-semantic", "semantic-search", "workflow", "sales", "marketing", "strategy", "onboarding", "code-generation", "code-review", "upgrade"],
+  "version": "2.1.0",
+  "description": "Odoo AI workforce toolkit — 26 skill personas + 3 specialist agents + 6 workflow commands across engineering, sales, marketing, strategy, onboarding, and visual UI testing. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed). Includes browser-automation agents for Odoo UI review and automated setup.",
+  "keywords": ["odoo", "erp", "ai-workforce", "odoo-semantic", "semantic-search", "workflow", "sales", "marketing", "strategy", "onboarding", "code-generation", "code-review", "upgrade", "visual-testing", "browser-automation", "ui-review", "setup"],
   "author": {
     "name": "Viindoo",
     "url": "https://github.com/Viindoo"
@@ -12,14 +12,18 @@
   "skills": "./skills/",
   "agents": [
     "./agents/odoo-coder.md",
-    "./agents/odoo-code-reviewer.md"
+    "./agents/odoo-code-reviewer.md",
+    "./agents/odoo-ui-reviewer.md"
   ],
   "commands": [
     "./commands/bid-respond.md",
     "./commands/customer-followup-draft.md",
     "./commands/discovery-quick.md",
     "./commands/feature-positioning.md",
-    "./commands/upgrade-plan-full.md"
+    "./commands/upgrade-plan-full.md",
+    "./commands/setup.md"
   ],
+  "mcpServers": "./.mcp.json",
+  "hooks": "./hooks/hooks.json",
   "dependencies": ["odoo-semantic-mcp"]
 }

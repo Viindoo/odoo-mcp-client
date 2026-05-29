@@ -81,6 +81,18 @@
       "deprecated_tools_used": [],
       "notes": "Standalone-first. check_module_exists optional — only when user requests feature fact-check."
     },
+    "odoo-demo-recorder": {
+      "mcp_tools": [
+        "check_module_exists",
+        "find_examples",
+        "model_inspect",
+        "module_inspect"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Standalone-first. OSM optional — only to plan the demo click path; video capture is browser-MCP side."
+    },
     "odoo-deploy-checklist": {
       "mcp_tools": [
         "check_module_exists",
@@ -238,6 +250,33 @@
       "deprecated_tools_used": [],
       "notes": "Pure text routing — no MCP tool calls. Tool names mentioned in routing table discriminators are references to OTHER skills' tools, not invocations by router itself."
     },
+    "odoo-ui-debug": {
+      "mcp_tools": [
+        "resolve_stylesheet",
+        "find_style_override",
+        "find_override_point",
+        "find_examples",
+        "module_inspect",
+        "lookup_core_api"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.7.0",
+      "deprecated_tools_used": [],
+      "notes": "Runtime UI debugging. Browser MCP (chrome-devtools) drives the live instance; OSM localizes the cause. Known gap: no JS/OWL override-point tool — location inferred via module_inspect(js/owl) + find_examples."
+    },
+    "odoo-ui-reviewer": {
+      "mcp_tools": [
+        "resolve_stylesheet",
+        "find_style_override",
+        "model_inspect",
+        "module_inspect",
+        "check_module_exists"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.7.0",
+      "deprecated_tools_used": [],
+      "notes": "Rendered-UI review (aesthetics/functional/stability/a11y/performance). Browser MCP (chrome-devtools) captures the live screen; OSM grounds findings in code. Companion agent: agents/odoo-ui-reviewer.md."
+    },
     "odoo-version-diff": {
       "mcp_tools": [
         "api_version_diff",
@@ -250,6 +289,19 @@
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
+    },
+    "odoo-visual-regression": {
+      "mcp_tools": [
+        "impact_analysis",
+        "api_version_diff",
+        "find_style_override",
+        "module_inspect",
+        "model_inspect"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.7.0",
+      "deprecated_tools_used": [],
+      "notes": "Screenshot baseline + diff between two states/builds. OSM scopes the comparison via blast radius; browser MCP captures and diffs."
     }
   },
   "agents": {
@@ -293,6 +345,21 @@
       ],
       "min_server_version": "0.8.0",
       "notes": "Agent bundle — companion to odoo-code-reviewer slim SKILL.md. Tool list from agents/odoo-code-reviewer.md frontmatter."
+    },
+    "odoo-ui-reviewer": {
+      "mcp_tools": [
+        "resolve_stylesheet",
+        "find_style_override",
+        "model_inspect",
+        "module_inspect",
+        "find_override_point",
+        "suggest_pattern",
+        "lint_check",
+        "check_module_exists"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.7.0",
+      "notes": "Agent bundle — companion to odoo-ui-reviewer slim SKILL.md. Tool list from agents/odoo-ui-reviewer.md frontmatter."
     }
   }
 }
