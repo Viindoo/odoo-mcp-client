@@ -265,12 +265,12 @@ direct structured data access:
 - `odoo://{version}/model/{name}` — model record (inheritance, field/method counts, modules)
 - `odoo://{version}/field/{model}/{field}` — field record (type, compute, definition module)
 - `odoo://{version}/method/{model}/{method}` — method record (override chain, super_ratio)
-- `odoo://{version}/module/{name}` — module record (manifest, defines/extends counts)
+- `odoo://{version}/module/{name}` — module record (manifest, defines/extends counts, + license notice if restricted)
 - `odoo://{version}/view/{xmlid}` — view record (xpath chain, inherit_id)
 - `odoo://{version}/pattern/{name}` — pattern catalogue entry (snippet, gotchas)
-- `odoo://{version}/stylesheet/{file_path}` — stylesheet record (selectors, imports, variables)
+- `odoo://{version}/stylesheet/{module}/{file_path*}` — stylesheet record (selectors, imports, variables)
 
-See [`docs/setup.md`](plugins/odoo-semantic-skills/docs/setup.md#mcp-resources-7-uri-templates) for full descriptions and examples.
+See [`docs/setup.md`](plugins/odoo-semantic-skills/docs/setup.md#mcp-resources-odoo-uri-scheme-v05) for full descriptions and examples.
 
 Supported Odoo versions: **v8.0 through v19.0 (12 versions)**.
 
@@ -306,7 +306,7 @@ Antigravity) and `snippets/` for copy-ready configs:
 
 - **Odoo Semantic MCP server URL** — `https://odoo-semantic.viindoo.com/mcp` (or your self-hosted instance)
 - **API key** — format `osm_<alphanumeric>`, obtain from the [install page](https://odoo-semantic.viindoo.com/install/)
-- Claude Code with MCP support (tested on v2.1.140)
+- Claude Code with MCP support (tested on v2.1.156)
 
 ## For contributors — local dev install
 

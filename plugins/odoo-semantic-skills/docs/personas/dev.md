@@ -15,7 +15,7 @@ The full **tool arsenal (server v0.11.1)**, optimized for development workflows.
 | Tool | Use case |
 |------|----------|
 | `model_inspect(model, method='summary'\|'fields'\|'methods'\|'views'\|'field'\|'method', ...)` | One call returns the model's summary, field list, method list, view inventory, or a single entity drill-down. **Replaces** `resolve_model` + `list_fields` + `list_methods` + `list_views`. |
-| `module_inspect(module, method='summary'\|'views'\|'owl'\|'qweb'\|'js', ...)` | Module-level inventory across manifest, models, views, OWL, QWeb, JS patches. **Replaces** `describe_module` + `list_views` (module-scoped) + `list_owl_components` + `list_qweb_templates` + `list_js_patches`. |
+| `module_inspect(module, method='summary'\|'views'\|'owl'\|'qweb'\|'js'\|'dependencies', ...)` | Module-level inventory across manifest, models, views, OWL, QWeb, JS patches, dependencies. **Replaces** `describe_module` + `list_views` (module-scoped) + `list_owl_components` + `list_qweb_templates` + `list_js_patches`. |
 | `entity_lookup(kind='field'\|'method'\|'view', ...)` | One entity drill-down by ID. **Replaces** `resolve_field` + `resolve_method` + `resolve_view`. |
 
 ### Session context (M11 Wave E — sticky 24h TTL per API key)

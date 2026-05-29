@@ -7,7 +7,7 @@ body:
       value: |
         Thanks for taking the time to file a bug report.
         **Client bugs only** (plugin skills, connect command, snippets).
-        For server/indexer/graph bugs open an issue on [odoo-semantic-server](https://odoo-semantic.viindoo.com/).
+        For server/indexer/graph bugs open an issue on [the Odoo Semantic service](https://odoo-semantic.viindoo.com/).
 
   - type: input
     id: plugin-version
@@ -38,7 +38,7 @@ body:
     attributes:
       label: What happened?
       description: Describe the bug. Include any error messages, unexpected output, or tool call failures.
-      placeholder: "e.g. /odoo-semantic:connect exits without writing .mcp.json ..."
+      placeholder: "e.g. /odoo-semantic-mcp:connect exits without writing .mcp.json ..."
     validations:
       required: true
 
@@ -56,8 +56,8 @@ body:
       label: Steps to reproduce
       description: Numbered steps to reproduce the bug reliably.
       placeholder: |
-        1. Install plugin via `claude plugin install odoo-semantic@viindoo-plugins`
-        2. Run `/odoo-semantic:connect`
+        1. Install plugin via `claude plugin install odoo-semantic-skills@viindoo-plugins`
+        2. Run `/odoo-semantic-mcp:connect`
         3. Enter a valid API key
         4. Observe ...
     validations:

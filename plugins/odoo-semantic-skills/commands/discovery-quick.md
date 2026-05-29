@@ -94,5 +94,5 @@ If `odoo-discovery-summarize` skill is unavailable (OSM offline, network error),
 ## See also
 
 - `/odoo-bid-respond` — Full discovery → gap analysis → proposal chain.
-- `/odoo-semantic:connect` — Setup the Odoo Semantic MCP server (prerequisite).
+- `/odoo-semantic-mcp:connect` — Setup the Odoo Semantic MCP server (prerequisite).
 - `odoo-discovery-summarize` skill — The underlying skill triggered by this command.
