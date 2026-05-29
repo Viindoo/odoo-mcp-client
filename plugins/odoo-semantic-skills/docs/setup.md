@@ -2,7 +2,7 @@
 
 This guide is for **end users** who want to connect their AI tool to an MCP server that an admin has already deployed.
 
-> **Nothing to install** — you only need a URL and an API key from your admin, then follow the section that matches your AI tool.
+> **For non-Claude-Code clients, nothing to install** — you only need a URL and an API key from your admin, then follow the section that matches your AI tool. (Claude Code users install the plugin — see the Claude Code section below.)
 
 > **Snippet convention:** replace `<MCP_URL>` with the URL your admin sent (production:
 > `https://odoo-semantic.viindoo.com/mcp`; local self-host: `http://127.0.0.1:8002/mcp`),
@@ -18,7 +18,7 @@ This guide is for **end users** who want to connect their AI tool to an MCP serv
 
 ### Plugin install (recommended)
 
-For Claude Code users, the plugin is the fastest path: it bundles the MCP server config, all 15 persona skills, and the setup command in one install.
+For Claude Code users, the plugin is the fastest path: it bundles the MCP server config, all 22 persona skills, and the setup command in one install.
 
 #### 1. Add the marketplace (one-time)
 
@@ -68,25 +68,32 @@ Expected: tree output with module names, `Defined in:`, field counts.
 
 #### Available persona skills
 
-After install, 15 skills activate automatically:
+After install, 22 skills activate automatically:
 
-| Skill | Persona | Trigger |
-|-------|---------|---------|
-| `odoo-risk-overview` | CEO | "upgrade risk for our codebase" |
-| `odoo-customization-inventory` | CEO | "list all our customizations" |
-| `odoo-override-finder` | Developer | "where to override method X" |
-| `odoo-deprecation-audit` | Developer | "audit deprecated API usage" |
-| `odoo-version-diff` | Developer | "what changed between v16 and v17" |
-| `odoo-coder` | Developer | "write a model/computed field/onchange" |
-| `odoo-owl-coder` | Developer | "write an OWL component for Odoo v15+" |
-| `odoo-js-coder` | Developer | "write a JS widget for Odoo v8-14" |
-| `odoo-code-reviewer` | Developer | "review Odoo code (Python/JS/XML)" |
-| `odoo-feature-check` | Consultant | "does Odoo have module X" |
-| `odoo-gap-analysis` | Consultant | "gap analysis for client requirements" |
-| `odoo-feature-highlights` | Marketer | "new features in Odoo 17" |
-| `odoo-addon-diff` | Marketer | "CE vs EE comparison" |
-| `odoo-capability-proof` | Sales | "prove Odoo can do X" |
-| `odoo-objection-handler` | Sales | "handle objection about feature Y" |
+| Skill | Persona | What it does |
+|-------|---------|-------------|
+| `odoo-risk-overview` | CEO / Exec | One-page upgrade-risk dashboard: deprecated-API counts, change blast radius, dependency health |
+| `odoo-customization-inventory` | CEO / Exec | Executive inventory of every custom/distribution module, classified with business purpose and upgrade-risk flags |
+| `odoo-override-finder` | Developer | Find the safe method to override, with the existing override chain and a ready-to-paste `super()` template |
+| `odoo-deprecation-audit` | Developer | Scan a codebase for deprecated Odoo APIs before an upgrade, grouped by file with replacements and urgency |
+| `odoo-version-diff` | Developer | Comprehensive API + feature diff between two Odoo versions (developer track + marketer track) |
+| `odoo-coder` | Developer | Write production-ready Python/XML backend code, from a single computed field to a full module |
+| `odoo-frontend-coder` | Developer | Write Odoo frontend JS for any version — legacy `web.Widget` (v8-v14) or OWL 2.x components (v15+) |
+| `odoo-code-reviewer` | Developer | Review Odoo Python/JS/XML/OWL code for bugs, conventions, security, and performance with graded findings |
+| `odoo-deploy-checklist` | Developer | Pre-deployment safety checklist across 8 domains (backup, migration, smoke tests, rollback, ...) |
+| `odoo-feature-check` | Consultant | Answer "does standard Odoo already do this?" with module name, edition, and a client-ready verdict |
+| `odoo-gap-analysis` | Consultant | Compare client requirements vs Odoo standard, ending in an effort matrix with day estimates |
+| `odoo-discovery-summarize` | Consultant | Turn raw discovery-call notes into a structured customer profile with a fit score |
+| `odoo-onboard` | Consultant | Bootstrap per-project Odoo context (version, custom modules, profile) so other skills skip setup |
+| `odoo-feature-highlights` | Marketer | Generate business-language feature highlights for a version, ready for decks, blogs, or release notes |
+| `odoo-addon-diff` | Marketer | Side-by-side CE vs EE vs custom-distribution comparison for a business domain, with upgrade recommendation |
+| `odoo-content-draft` | Marketer | Draft channel-specific marketing content (LinkedIn, blog, YouTube script, email, landing copy) |
+| `odoo-campaign-plan` | Marketer | Plan a multi-week, multi-channel marketing campaign with timeline, channel mix, KPIs, and owner map |
+| `odoo-competitive-brief` | Strategist | Board-ready competitive brief on a named competitor: capability matrix, threat assessment, response strategy |
+| `odoo-capability-proof` | Sales | Evidence-backed proof package that Odoo can meet a requirement, citing real modules and code |
+| `odoo-objection-handler` | Sales | Evidence-based responses to capability objections using the Acknowledge / Counter / Affirm framework |
+| `odoo-deal-followup` | Sales | Score deal health, recommend a next-best action, and draft a follow-up email |
+| `odoo-router` | Utility | Silently route a vague Odoo request to the single best specialist skill, then confirm before running |
 
 ---
 
@@ -323,7 +330,7 @@ In addition to the tool calls, the server exposes **7 MCP Resources** addressabl
 | `odoo://{version}/module/{name}` | Module record (manifest, defines/extends counts) |
 | `odoo://{version}/view/{xmlid}` | View record (xpath chain, inherit_id) |
 | `odoo://{version}/pattern/{name}` | Pattern catalogue entry (code snippet + gotchas) |
-| `odoo://{version}/stylesheet/{file_path}` | Stylesheet record (selectors, imports, variables) |
+| `odoo://{version}/stylesheet/{module}/{file_path*}` | Stylesheet record (selectors, imports, variables) |
 
 **Example:**
 

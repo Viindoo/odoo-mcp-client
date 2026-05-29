@@ -115,7 +115,7 @@
     },
     {
       "id": 15,
-      "prompt": "/odoo-semantic:connect",
+      "prompt": "/odoo-semantic-mcp:connect",
       "expected_output": "Router does NOT fire — explicit slash command",
       "expected_routed_to": "<NO-ROUTE - slash command>",
       "category": "should-not-fire-slash",

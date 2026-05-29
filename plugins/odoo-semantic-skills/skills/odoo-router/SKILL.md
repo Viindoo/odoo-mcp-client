@@ -11,7 +11,7 @@ description: |
 
   Sales/marketing/strategy/executive-level Odoo asks where the user may not know skill names: "customer asked something about Odoo", "boss wants a brief on Odoo", "I have an Odoo meeting next week".
 
-  DO NOT trigger when: (1) intent matches exactly one specialist skill clearly (e.g., "write a computed field for sale.order" -> odoo-coder direct; "what changed between v16 and v17" -> odoo-version-diff direct; "review this PR" -> odoo-code-reviewer direct); (2) prompt is non-Odoo entirely; (3) user explicitly types a slash command like /odoo-semantic:connect; (4) user is mid-workflow inside another skill (already routed once this session).
+  DO NOT trigger when: (1) intent matches exactly one specialist skill clearly (e.g., "write a computed field for sale.order" -> odoo-coder direct; "what changed between v16 and v17" -> odoo-version-diff direct; "review this PR" -> odoo-code-reviewer direct); (2) prompt is non-Odoo entirely; (3) user explicitly types a slash command like /odoo-semantic-mcp:connect; (4) user is mid-workflow inside another skill (already routed once this session).
 
   This skill NEVER does work itself — it only recommends a target skill name + asks for confirmation. The actual specialist work happens in the next conversation turn after user confirms
 ---
@@ -126,8 +126,8 @@ Router behaviour when ambiguous between command and skill:
 | 18 | "plan a campaign", "plan campaign Q3", "multi-channel plan", "campaign brief" | `odoo-campaign-plan` | Multi-week orchestration (vs `odoo-content-draft` for single piece) |
 | 19 | "competitor brief", "competitive analysis", "landscape brief", "threat assessment" | `odoo-competitive-brief` | Structured CEO/board briefing on a competitor (vs `odoo-objection-handler` for sales counter-talking-points) |
 | 20 | "deploy checklist", "checklist before going live", "go-live checklist", "pre-deploy safety" | `odoo-deploy-checklist` | Pre-deployment safety items (vs `odoo-deprecation-audit` for code-level upgrade audit) |
-| 21 | "I just cloned the Odoo repo", "set up odoo-semantic for this project", "first time setup" | `odoo-onboard` | Project-context bootstrap (vs `/odoo-semantic:connect` slash command for server URL/key setup) |
-| 22 | "setup MCP server URL + API key" | `/odoo-semantic:connect` (command) | One-time infra setup, not work |
+| 21 | "I just cloned the Odoo repo", "set up odoo-semantic for this project", "first time setup" | `odoo-onboard` | Project-context bootstrap (vs `/odoo-semantic-mcp:connect` slash command for server URL/key setup) |
+| 22 | "setup MCP server URL + API key" | `/odoo-semantic-mcp:connect` (command) | One-time infra setup, not work |
 | 23 | "full bid response" / "write a complete RFP response" / "full proposal for prospect" | `/odoo-bid-respond` (command) | Multi-step proposal chain (vs `odoo-discovery-summarize` or `odoo-capability-proof` alone) |
 | 24 | "write follow-up email for customer" + explicit save-to-file ask | `/odoo-customer-followup-draft` (command) | Wraps `odoo-deal-followup` with save step (skill alone for just draft text) |
 | 25 | "synthesize discovery notes" + explicit slash kickoff | `/odoo-discovery-quick` (command) | Quick slash for `odoo-discovery-summarize` skill (bypass router for explicit kickoff) |

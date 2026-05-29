@@ -23,7 +23,7 @@ make test
 
 You also need a running MCP server to exercise the tools end-to-end — point
 `/odoo-semantic-mcp:connect` at the hosted instance (`https://odoo-semantic.viindoo.com/mcp`).
-Use the hosted instance at https://odoo-semantic.viindoo.com/ (sign up for an API key).
+Use the hosted instance at https://odoo-semantic.viindoo.com/install/ (sign up for an API key).
 
 ### Pre-commit hooks
 
@@ -82,7 +82,8 @@ sign-off will be asked to amend.
 
 The plugin is published through the `Viindoo/claude-plugins` marketplace. A push to
 `master` that touches plugin content triggers `.github/workflows/pin-sha.yml`, which
-opens an auto-merge PR on the marketplace repo pinning `source.sha` to the new commit.
+opens an auto-merge PR on the marketplace repo pinning both split plugins' `source.sha`
+(`odoo-semantic-skills` and `odoo-semantic-mcp`) to the new commit.
 
 ### Required secret: `CLAUDE_PLUGINS_PAT`
 
@@ -102,9 +103,14 @@ repo, but rotate immediately if exposure is suspected.
 
 ### Versioning
 
-`VERSION` is the single source of truth for the client version. Tagging `v*` should bump
-`VERSION` and `plugin.json.version` together. `pin-sha.yml` updates `source.sha` on every
-qualifying push; the marketplace `source.version` tracks `VERSION`.
+`VERSION` is the single source of truth for the client version. The repo ships **two
+plugins** with independent version numbers: the `odoo-semantic-skills` plugin's
+`plugin.json.version` tracks `VERSION` (currently `2.0.0`), while the
+`odoo-semantic-mcp` plugin versions independently (currently `1.0.0`). Tagging `v*`
+should bump `VERSION` together with the skills plugin's `plugin.json.version`; bump the
+mcp plugin's version only when its own contents change. `pin-sha.yml` updates `source.sha`
+for both plugins on every qualifying push; each marketplace entry's `source.version`
+tracks its respective `plugin.json.version`.
 
 ### Rollback runbook
 
@@ -117,7 +123,7 @@ If a release breaks installs after the marketplace PR merges:
    the good SHA for everyone.
 3. If a bad commit must be pulled entirely, fix forward on `master` here — a new
    qualifying push re-pins automatically.
-4. As a last resort, bump `VERSION` (e.g. `0.5.1-revert`) and announce via the usual
+4. As a last resort, bump `VERSION` (e.g. `2.0.1-revert`) and announce via the usual
    channel.
 
 **Automated kill-switch:** For proactive blocking, add the bad commit's 7-char short SHA to

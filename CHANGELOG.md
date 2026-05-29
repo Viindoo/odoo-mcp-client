@@ -4,6 +4,26 @@ All notable changes to the Odoo MCP Client are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.1] - 2026-05-29
+
+### Fixed
+- **Broken docs anchor in `README.md`** — the MCP-resources link pointed at the stale
+  `docs/setup.md#mcp-resources-7-uri-templates` fragment; corrected to the actual
+  `plugins/odoo-semantic-skills/docs/setup.md#mcp-resources-odoo-uri-scheme-v05` heading.
+- **Stylesheet resource URI template** corrected to
+  `odoo://{version}/stylesheet/{module}/{file_path*}` (was missing the `{module}` segment
+  and `*` wildcard), matching the server surface.
+- **Module resource description** now notes the `license notice if restricted` line,
+  aligning the README with the server surface.
+
+### Changed
+- **Server-surface reference bumped to v0.11.1** (from the v0.8 surface the changelog
+  previously implied as current). The v0.11.1 surface keeps the 24-tool / 7-resource
+  count and folds in the v0.9.1 `license_notice` output marker and the v0.10.0
+  `module_inspect(method='dependencies')` capability, so the changelog no longer reads
+  v0.8 as the live target.
+- **README tested-build note** updated to Claude Code v2.1.156.
+
 ## [2.0.0] - 2026-05-29
 
 ### Changed
