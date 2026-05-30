@@ -299,27 +299,27 @@ When OSM is unreachable or the skill is used without MCP configuration:
 
 ## Examples
 
-### Example 1 - Vietnamese (Manufacturing SME / Miền Bắc)
+### Example 1 - Manufacturing SME / Northern Vietnam
 
 **Input:**
-- Vertical: sản xuất (ngành nội thất / gỗ)
-- Geo: Mien Bac (Ha Noi, Binh Duong khu cong nghiep)
-- Objective: lead generation — demo requests
+- Vertical: manufacturing (furniture / wood industry)
+- Geo: Northern Vietnam (Hanoi, Binh Duong industrial zones)
+- Objective: lead generation - demo requests
 - Timeline: 6 weeks
 - Budget: M
 - Channels: Blog, LinkedIn company, email list (~500 contacts), light Google Ads remarketing
 
 **Summary of plan output:**
 
-- **Title**: "Campaign Plan: MRP cho Nhà Máy Nội Thất Miền Bắc — Q3 2026"
-- **Angle**: Vertical pain → product fit ("Quản lý nguyên liệu bằng Excel → MRP tự động hóa
-  kế hoạch sản xuất")
-- **Timeline**: Tuần 1-2 nhận thức (bài blog "5 dấu hiệu Excel không đủ"); Tuần 3-4 sản phẩm
-  (demo video MRP, email sequence 3 email); Tuần 5-6 conversion (landing page CTA, Google Ads
-  remarketing đến người đã đọc blog)
+- **Title**: "Campaign Plan: MRP for Furniture Factories in Northern Vietnam - Q3 2026"
+- **Angle**: Vertical pain → product fit ("Managing materials in Excel → MRP automates the
+  production plan")
+- **Timeline**: Weeks 1-2 awareness (blog post "5 signs Excel is not enough"); Weeks 3-4
+  product (MRP demo video, 3-email sequence); Weeks 5-6 conversion (landing page CTA, Google
+  Ads remarketing to people who read the blog)
 - **Channel mix**: Blog 20% / LinkedIn 25% / Email 25% / Google Ads 20% / Landing page 10%
 - **KPI leading**: blog unique visitors/week (target: +30% vs. baseline), email open rate >30%
-- **KPI lagging**: demo requests submitted (target: 15 trong 6 tuan), cost per demo <$25
+- **KPI lagging**: demo requests submitted (target: 15 in 6 weeks), cost per demo <$25
 - **Owner map**: draft all 7 assets → `odoo-content-draft`; ad setup + publish + sales
   follow-up → Human
 

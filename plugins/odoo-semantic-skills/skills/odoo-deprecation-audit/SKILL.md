@@ -9,8 +9,8 @@ description: >
   informally. Pushy trigger: fire whenever the conversation touches "upgrade", "migration",
   "is our code ready for v17?", "what will break when we move from 14 to 17?", "audit before
   upgrade", "upgrade readiness check", "we still have @api.multi everywhere", "ir.values is
-  still used in our addons", "OWL migration needed?", "from v12 to v16 — what's the breaking
-  list?", "client running v8 wants to upgrade to v17 — feasible?". Trigger even when the user
+  still used in our addons", "OWL migration needed?", "from v12 to v16 — what in our code
+  breaks?", "client running v8 wants to upgrade to v17 — feasible?". Trigger even when the user
   doesn't use the word "deprecation" — if the goal is "before upgrade", that's this skill's
   job. When the user asks ONLY what changed between two versions (without auditing their code),
   route to odoo-version-diff instead. When they want to write fresh upgrade-safe code in the
