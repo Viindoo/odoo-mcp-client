@@ -100,8 +100,10 @@ def _plugin_json_commands(plugin_root):
     return data.get("commands", [])
 
 
-def test_at_least_4_commands():
-    assert len(COMMAND_FILES) >= 4, f"expected >=4 commands, found {len(COMMAND_FILES)}"
+def test_at_least_6_commands():
+    # Floor at the real count (6 workflow commands today) so a dropped command
+    # trips CI, while adding commands never breaks it.
+    assert len(COMMAND_FILES) >= 6, f"expected >=6 commands, found {len(COMMAND_FILES)}"
 
 
 @pytest.mark.parametrize("cmd", COMMAND_FILES, ids=lambda p: p.stem)

@@ -105,11 +105,10 @@ _SKILL_GUARD_RE = re.compile(
 )
 
 
-def test_at_least_2_agents():
-    # After v1.0.0 wave-2 deletion of legacy odoo-upgrade-planner (replaced by
-    # /odoo-upgrade-plan-full command), the plugin ships two agent bundles:
-    # odoo-coder + odoo-code-reviewer.
-    assert len(AGENT_FILES) >= 2, f"expected >=2 agents, found {len(AGENT_FILES)}"
+def test_at_least_3_agents():
+    # The plugin ships three agent bundles: odoo-coder, odoo-code-reviewer, and
+    # odoo-ui-reviewer. Floor at the real count so a dropped agent trips CI.
+    assert len(AGENT_FILES) >= 3, f"expected >=3 agents, found {len(AGENT_FILES)}"
 
 
 @pytest.mark.parametrize("agent", AGENT_FILES, ids=lambda p: p.stem)
@@ -148,8 +147,10 @@ def test_agent_skill_invocation_guard(agent):
 # ---------------------------------------------------------------------------
 
 
-def test_at_least_15_skills():
-    assert len(SKILL_FILES) >= 15, f"expected >=15 skills, found {len(SKILL_FILES)}"
+def test_at_least_26_skills():
+    # Floor at the real count (26 today) so a dropped skill trips CI, while
+    # adding skills never breaks it.
+    assert len(SKILL_FILES) >= 26, f"expected >=26 skills, found {len(SKILL_FILES)}"
 
 
 @pytest.mark.parametrize("skill", SKILL_FILES, ids=lambda p: p.parent.name)

@@ -32,6 +32,19 @@ jobs:
           python-version: '3.12'
       - run: python3 plugins/odoo-semantic-skills/generator/check_deps.py
 
+  gen-check:
+    name: Generated artifacts in sync with SSOT
+    runs-on: ubuntu-latest
+    # Catch generated artifacts (routing matrix, skill ## MCP tools sections,
+    # IDE snippets) drifting from server-surface.json. Runs on PRs so drift
+    # surfaces before merge.
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python3 plugins/odoo-semantic-skills/generator/gen_surface.py check
+
   e2e-install:
     name: e2e install (${{ matrix.os }})
     # Network + global npm install + live marketplace state — keep it off every PR
