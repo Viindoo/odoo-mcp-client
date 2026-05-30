@@ -2,8 +2,9 @@
 name: odoo-content-draft
 description: >
   Draft channel-specific marketing content for Odoo or your custom distribution. Given a
-  topic, channel, and audience, produce ready-to-publish text in Vietnamese (default) or
-  English. Supported channels: LinkedIn post, blog article, YouTube script (3-5 min), email
+  topic, channel, audience, and target language, produce ready-to-publish text. Output
+  language follows the user's request (English by default; Vietnamese and other locales on
+  request). Supported channels: LinkedIn post, blog article, YouTube script (3-5 min), email
   sequence (3-5 emails), landing page copy, social caption (Facebook/Zalo).
   Trigger on: "draft a blog post on", "write a blog article about", "write LinkedIn content",
   "write a LinkedIn post", "YouTube script for", "draft email sequence", "email sequence
@@ -56,11 +57,11 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 | Channel | Length / structure | CTA pattern |
 |---|---|---|
 | **LinkedIn post** | 150-300 words; hook line (1 sentence) + insight/story + reflection question | End with an open question inviting comments; no link unless critical; use 3-5 hashtags |
-| **Blog article** | 800-1,500 words; H2 sections: Intro - Problem - Solution - How It Works - Outcome - Conclusion; internal links placeholder `[Link: X]` | "Dung thu mien phi" / "Dat lich demo" CTA button text in final paragraph |
+| **Blog article** | 800-1,500 words; H2 sections: Intro - Problem - Solution - How It Works - Outcome - Conclusion; internal links placeholder `[Link: X]` | "Start a free trial" / "Book a demo" CTA button text in final paragraph (localize to the output language) |
 | **YouTube script** | 3-5 min (~450-750 words spoken); timed sections: Hook 0:00-0:15, Problem 0:15-1:00, Solution 1:00-3:00, Demo/Visual note 2:00-3:00, CTA 3:00-3:30, Outro 3:30-3:45 | Verbal CTA: subscribe + link in description + comment question |
 | **Email sequence** | 3-5 emails; cadence Day 0 (welcome/value), Day 2 (problem education), Day 7 (solution proof), Day 14 (social proof), Day 21 (offer/CTA); 150-250 words each | Each email: 1 primary CTA link; subject line A/B variant provided |
-| **Landing page copy** | Above-fold hero (headline + subhead + CTA button) + 3 value props (icon + title + 2 sentences each) + social proof block (abstract template) + FAQ (5 Q&A) + footer CTA | Primary CTA: "Dung thu 15 ngay mien phi" or "Dat lich tham quan"; secondary: "Xem video" |
-| **Social caption** | 60-100 words for Facebook/Zalo; conversational, emoji-light (1-2 max), relatable SME scenario | End with a question or a soft "Nhan tin de biet them" nudge; include relevant hashtags |
+| **Landing page copy** | Above-fold hero (headline + subhead + CTA button) + 3 value props (icon + title + 2 sentences each) + social proof block (abstract template) + FAQ (5 Q&A) + footer CTA | Primary CTA: "Start a 15-day free trial" or "Book a guided tour"; secondary: "Watch the video" |
+| **Social caption** | 60-100 words for Facebook/Zalo; conversational, emoji-light (1-2 max), relatable SME scenario | End with a question or a soft "Message us to learn more" nudge; include relevant hashtags |
 
 ## Brand voice rules
 
@@ -68,36 +69,36 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
    as the expert guide, not a pushy vendor. Helpful-expert, not salesy.
 
 2. **Customer-outcome-focused**: lead with business outcome, not software feature.
-   - BAD: "He thong co module MRP voi BOM multi-level."
-   - GOOD: "Quản lý nguyên liệu cho 200+ mã hàng mà không lo tồn kho - MRP tự động cảnh báo."
+   - BAD: "The system has an MRP module with multi-level BOM."
+   - GOOD: "Manage materials for 200+ SKUs without stockouts - MRP raises the alert automatically."
 
 3. **Cite specifics, not vague claims**:
-   - BAD: "Phần mềm của chúng tôi rất mạnh mẽ và hiệu suất cao."
-   - GOOD: "Giảm thời gian xử lý đơn hàng từ vài ngày xuống vài giờ — tùy benchmark triển khai từng khách hàng."
-   - When you cannot cite a verified number, use relative language: "Giảm từ 3 ngày xuống còn vài giờ" or abstract it: "Doanh nghiệp X trong ngành Y ghi nhận..."
+   - BAD: "Our software is powerful and high-performance."
+   - GOOD: "Cut order-processing time from days to hours - exact figures depend on each customer's deployment benchmark."
+   - When you cannot cite a verified number, use relative language ("down from 3 days to a few hours") or abstract it ("Company X in industry Y reported...").
 
-4. **Language**: Vietnamese by default (full diacritics in final output). Switch to English
-   only when user explicitly requests EN output. Product names, acronyms, UI labels, and
-   module names remain in English regardless of output language (e.g., "module MRP",
-   "Sales Order", "Odoo 17").
+4. **Language**: write in the language the user requests; default to English when the user
+   does not specify one. When the requested output is Vietnamese, use full diacritics. Product
+   names, acronyms, UI labels, and module names stay in English regardless of output language
+   (e.g., "MRP module", "Sales Order", "Odoo 17").
 
 5. **Vocabulary discipline**:
-   - Vietnamese: prefer "phát huy", "vận dụng", "tích hợp", "tự động hóa" over awkward
-     loan-word jargon. Avoid "synergy" transliterated.
    - English: avoid "leverage", "synergize", "holistic", "game-changer", "revolutionary".
      Prefer "use", "combine", "end-to-end", "practical".
+   - When the requested output is Vietnamese: prefer natural verbs ("phát huy", "vận dụng",
+     "tích hợp", "tự động hóa") over awkward loan-word jargon; avoid transliterated "synergy".
 
 6. **No invented testimonials or hard numbers**: NEVER fabricate a customer name, revenue
    figure, or ROI percentage. Use abstract templates:
-   - "Một doanh nghiệp sản xuất tại TP.HCM với ~150 nhân sự đã..."
-   - "Khách hàng trong ngành thương mại điện tử của chúng tôi cho biết..."
-   If user provides real data verbally, incorporate it with attribution ("Theo thong tin ban
-   cung cap...").
+   - "A manufacturer with ~150 staff..."
+   - "One of our e-commerce customers reported..."
+   If the user provides real data verbally, incorporate it with attribution ("Based on the
+   information you provided...").
 
-7. **SME Vietnam context**: anchor examples in industries common to Vietnamese SMEs —
-   manufacturing (May mac, Noi that, Thuc pham), trading (Phan phoi, Xuat nhap khau),
-   services (Ke toan, Logistics). Avoid enterprise-scale assumptions (1,000-seat rollout)
-   unless user specifies.
+7. **Target-market context**: anchor examples in industries that fit the audience's market.
+   For Vietnam-based SMEs, that means manufacturing (garment, furniture, food), trading
+   (distribution, import/export), and services (accounting, logistics). Avoid enterprise-scale
+   assumptions (1,000-seat rollout) unless the user specifies.
 
 ## Workflow
 
@@ -192,30 +193,30 @@ When OSM is unreachable or the skill is used without MCP configuration:
 
 ## Examples
 
-### Example 1 - Vietnamese LinkedIn post (Manufacturing / SME audience)
+### Example 1 - LinkedIn post (Manufacturing / SME audience)
 
-**Input**: Topic = "Odoo MRP giúp nhà máy nhỏ kiểm soát nguyên vật liệu", Channel = LinkedIn,
-Audience = Giám đốc sản xuất / Chủ doanh nghiệp ngành sản xuất, Language = VI
+**Input**: Topic = "Odoo MRP helps small factories control raw materials", Channel = LinkedIn,
+Audience = Production manager / Owner of a manufacturing SME, Language = EN
 
 **Output draft**:
 
-> **Bạn đang quản lý nguyên vật liệu bằng file Excel - và bạn biết mình sẽ sai sót.**
+> **You are managing raw materials in an Excel file - and you know mistakes are coming.**
 >
-> Một nhà máy sản xuất nội thất tại miền Nam với hơn 80 mã nguyên liệu phải đối mặt với bài
-> toán này mỗi tuần: tồn kho trên giấy khác hiện thực nhà kho, lệnh sản xuất phát ra mà
-> nguyên liệu chưa về kịp, và kế toán phải gọi xuống sân để hỏi số liệu.
+> A furniture factory with more than 80 material codes faces the same problem every week:
+> the stock on paper differs from the warehouse reality, production orders go out before the
+> materials have arrived, and accounting has to call the floor to confirm the numbers.
 >
-> Sau khi triển khai module MRP của Odoo, hệ thống tự động:
-> - Tính toán nhu cầu nguyên liệu theo kế hoạch sản xuất (Bill of Materials tự động)
-> - Cảnh báo trước 5-7 ngày khi nguyên liệu sắp hết
-> - Đồng bộ số liệu tồn kho theo thời gian thực với kế toán
+> After rolling out Odoo's MRP module, the system automatically:
+> - Calculates material demand from the production plan (automatic Bill of Materials)
+> - Warns 5-7 days ahead when a material is about to run out
+> - Syncs inventory figures with accounting in real time
 >
-> Kết quả: giảm thời gian lập kế hoạch sản xuất từ 2 ngày xuống còn vài giờ. Không cần thêm
-> nhân sự - chỉ cần hệ thống làm đúng việc.
+> The result: production planning dropped from 2 days to a few hours. No extra headcount -
+> just the system doing its job.
 >
-> Bạn đang quản lý sản xuất bằng cách nào? Comment để mình chia sẻ thêm kinh nghiệm.
+> How do you manage production today? Comment and I will share more of what we have learned.
 >
-> #OdooVietnam #QuanLySanXuat #MRP #ViindooERP #SMEVietNam
+> #Odoo #Manufacturing #MRP #ERP #SME
 
 ---
 
