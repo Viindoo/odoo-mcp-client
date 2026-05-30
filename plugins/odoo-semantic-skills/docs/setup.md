@@ -82,36 +82,38 @@ Expected: tree output with module names, `Defined in:`, field counts.
 
 After install, 26 skills activate automatically:
 
+> Persona labels are the navigation buckets defined in the [README skill table](../../../README.md#skills-26) - the single source of truth for the skill-to-persona mapping. The five role guides in [`personas/`](personas/) (Manager/CEO, Developer, Consultant, Marketer, Sales) group these buckets.
+
 | Skill | Persona | What it does |
 |-------|---------|-------------|
-| `odoo-risk-overview` | CEO / Exec | One-page upgrade-risk dashboard: deprecated-API counts, change blast radius, dependency health |
-| `odoo-customization-inventory` | CEO / Exec | Executive inventory of every custom/distribution module, classified with business purpose and upgrade-risk flags |
-| `odoo-override-finder` | Developer | Find the safe method to override, with the existing override chain and a ready-to-paste `super()` template |
-| `odoo-deprecation-audit` | Developer | Scan a codebase for deprecated Odoo APIs before an upgrade, grouped by file with replacements and urgency |
-| `odoo-version-diff` | Developer | Comprehensive API + feature diff between two Odoo versions (developer track + marketer track) |
-| `odoo-coder` | Developer | Write production-ready Python/XML backend code, from a single computed field to a full module |
-| `odoo-frontend-coder` | Developer | Write Odoo frontend JS for any version — legacy `web.Widget` (v8-v14) or OWL 2.x components (v15+) |
-| `odoo-code-reviewer` | Developer | Review Odoo Python/JS/XML/OWL code for bugs, conventions, security, and performance with graded findings |
-| `odoo-deploy-checklist` | Developer | Pre-deployment safety checklist across 8 domains (backup, migration, smoke tests, rollback, ...) |
-| `odoo-feature-check` | Consultant | Answer "does standard Odoo already do this?" with module name, edition, and a client-ready verdict |
-| `odoo-gap-analysis` | Consultant | Compare client requirements vs Odoo standard, ending in an effort matrix with day estimates |
-| `odoo-discovery-summarize` | Consultant | Turn raw discovery-call notes into a structured customer profile with a fit score |
-| `odoo-onboard` | Consultant | Bootstrap per-project Odoo context (version, custom modules, profile) so other skills skip setup |
+| `odoo-risk-overview` | Strategist / CEO | One-page upgrade-risk dashboard: deprecated-API counts, change blast radius, dependency health |
+| `odoo-customization-inventory` | Strategist / CEO | Executive inventory of every custom/distribution module, classified with business purpose and upgrade-risk flags |
+| `odoo-competitive-brief` | Strategist | Board-ready competitive brief on a named competitor: capability matrix, threat assessment, response strategy |
+| `odoo-override-finder` | Engineer | Find the safe method to override, with the existing override chain and a ready-to-paste `super()` template |
+| `odoo-deprecation-audit` | Engineer | Scan a codebase for deprecated Odoo APIs before an upgrade, grouped by file with replacements and urgency |
+| `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist across 8 domains (backup, migration, smoke tests, rollback, ...) |
+| `odoo-version-diff` | Engineer + Marketer | Comprehensive API + feature diff between two Odoo versions (developer track + marketer track) |
+| `odoo-coder` | Coder | Write production-ready Python/XML backend code, from a single computed field to a full module |
+| `odoo-frontend-coder` | Coder | Write Odoo frontend JS for any version - legacy `web.Widget` (v8-v14) or OWL 2.x components (v15+) |
+| `odoo-code-reviewer` | Code-Reviewer | Review Odoo Python/JS/XML/OWL code for bugs, conventions, security, and performance with graded findings |
+| `odoo-feature-check` | Pre-Sales Consultant | Answer "does standard Odoo already do this?" with module name, edition, and a client-ready verdict |
+| `odoo-gap-analysis` | Pre-Sales Consultant | Compare client requirements vs Odoo standard, ending in an effort matrix with day estimates |
+| `odoo-capability-proof` | Pre-Sales Consultant | Evidence-backed proof package that Odoo can meet a requirement, citing real modules and code |
+| `odoo-addon-diff` | Pre-Sales Consultant | Side-by-side CE vs EE vs custom-distribution comparison for a business domain, with upgrade recommendation |
+| `odoo-objection-handler` | Sales AE | Evidence-based responses to capability objections using the Acknowledge / Counter / Affirm framework |
+| `odoo-deal-followup` | Sales AE | Score deal health, recommend a next-best action, and draft a follow-up email |
+| `odoo-discovery-summarize` | Sales AE | Turn raw discovery-call notes into a structured customer profile with a fit score |
 | `odoo-feature-highlights` | Marketer | Generate business-language feature highlights for a version, ready for decks, blogs, or release notes |
-| `odoo-addon-diff` | Marketer | Side-by-side CE vs EE vs custom-distribution comparison for a business domain, with upgrade recommendation |
 | `odoo-content-draft` | Marketer | Draft channel-specific marketing content (LinkedIn, blog, YouTube script, email, landing copy) |
 | `odoo-campaign-plan` | Marketer | Plan a multi-week, multi-channel marketing campaign with timeline, channel mix, KPIs, and owner map |
-| `odoo-competitive-brief` | Strategist | Board-ready competitive brief on a named competitor: capability matrix, threat assessment, response strategy |
-| `odoo-capability-proof` | Sales | Evidence-backed proof package that Odoo can meet a requirement, citing real modules and code |
-| `odoo-objection-handler` | Sales | Evidence-based responses to capability objections using the Acknowledge / Counter / Affirm framework |
-| `odoo-deal-followup` | Sales | Score deal health, recommend a next-best action, and draft a follow-up email |
-| `odoo-router` | Utility | Silently route a vague Odoo request to the single best specialist skill, then confirm before running |
-| `odoo-ui-reviewer` | Visual | Five-lens review of a rendered Odoo screen in a live browser — aesthetics, function, runtime stability, accessibility, performance — with screenshot/console/Lighthouse evidence |
-| `odoo-ui-debug` | Visual | Root-cause a broken/misbehaving Odoo UI at runtime (console errors, failed requests, blank OWL renders, wrong CSS) and pinpoint the override point |
-| `odoo-visual-regression` | Visual | Capture a screenshot baseline of one Odoo state and diff it against another (before/after upgrade, module install, theme change) with blast-radius assessment |
-| `odoo-demo-recorder` | Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
+| `odoo-onboard` | Onboarding / Concierge | Bootstrap per-project Odoo context (version, custom modules, profile) so other skills skip setup |
+| `odoo-router` | Onboarding / Concierge | Silently route a vague Odoo request to the single best specialist skill, then confirm before running |
+| `odoo-ui-reviewer` | Coder / Visual | Five-lens review of a rendered Odoo screen in a live browser - aesthetics, function, runtime stability, accessibility, performance - with screenshot/console/Lighthouse evidence |
+| `odoo-ui-debug` | Coder / Visual | Root-cause a broken/misbehaving Odoo UI at runtime (console errors, failed requests, blank OWL renders, wrong CSS) and pinpoint the override point |
+| `odoo-visual-regression` | Coder / Visual | Capture a screenshot baseline of one Odoo state and diff it against another (before/after upgrade, module install, theme change) with blast-radius assessment |
+| `odoo-demo-recorder` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
 
-> **Visual skills need browser setup.** The four `Visual` skills above drive a live browser
+> **Visual skills need browser setup.** The four `Coder / Visual` skills above (`odoo-ui-reviewer`, `odoo-ui-debug`, `odoo-visual-regression`, `odoo-demo-recorder`) drive a live browser
 > and depend on the bundled browser MCP servers + browser binaries. Run
 > **`/odoo-semantic-skills:setup`** once to provision them — see
 > [Visual stack / browser MCP setup](#visual-stack--browser-mcp-setup) below.
