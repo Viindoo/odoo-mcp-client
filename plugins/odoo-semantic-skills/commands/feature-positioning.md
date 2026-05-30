@@ -167,8 +167,8 @@ If `odoo-feature-check`, `odoo-addon-diff`, or `odoo-competitive-brief` skills a
 
 ## See also
 
-- `/odoo-feature-check` — verify a feature exists and which edition(s) support it (also available as skill `odoo-semantic:odoo-feature-check`)
-- `/odoo-addon-diff` — compare feature parity across Odoo editions (also available as skill `odoo-semantic:odoo-addon-diff`)
-- `/odoo-competitive-brief` — deep competitive analysis for sales (also available as skill `odoo-semantic:odoo-objection-handler`)
+- `/odoo-feature-check` — verify a feature exists and which edition(s) support it (also available as skill `odoo-semantic-skills:odoo-feature-check`)
+- `/odoo-addon-diff` — compare feature parity across Odoo editions (also available as skill `odoo-semantic-skills:odoo-addon-diff`)
+- `/odoo-competitive-brief` — deep competitive analysis for sales (also available as skill `odoo-semantic-skills:odoo-competitive-brief`)
 - `/odoo-content-draft` — produce full marketing pieces (blog, guide, landing page copy)
 - `/odoo-bid-respond` — position Odoo in the context of an RFP or customer proposal
