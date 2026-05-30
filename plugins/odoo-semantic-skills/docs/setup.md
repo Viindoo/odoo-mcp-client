@@ -16,6 +16,18 @@ This guide is for **end users** who want to connect their AI tool to an MCP serv
 
 ## Claude Code
 
+### First-time setup flow — three steps, different scopes
+
+These three steps are easy to confuse. Only the first is required:
+
+| Step | Command / skill | Scope | When |
+|------|-----------------|-------|------|
+| 1. Connect the MCP server | `/odoo-semantic-mcp:connect` | Once per machine | **Required** — registers server URL + API key so `mcp__odoo-semantic__*` tools load |
+| 2. Wire the visual stack | `/odoo-semantic-skills:setup` | Once per machine | **Optional** — browser MCP + Playwright + local Odoo instance, only for the `Visual` skills |
+| 3. Onboard a project | `odoo-onboard` skill | Once per repo | **Optional** — writes `.odoo-ai/context.md` (repo version/modules/conventions); runs even without the server |
+
+Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual-stack--browser-mcp-setup). Step 3 runs automatically the first time you invoke an `odoo-*` skill in a new repo.
+
 ### Plugin install (recommended)
 
 For Claude Code users, the plugin is the fastest path: it bundles the MCP server config, all 26 persona skills, and the setup command in one install.

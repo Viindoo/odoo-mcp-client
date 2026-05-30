@@ -55,7 +55,7 @@ tools. The agent does NOT spawn further subagents and does NOT invoke any Skill 
 
 ## Standalone-first fallback
 
-When OSM (odoo-semantic MCP) is unreachable, the agent falls back to static analysis only
+When OSM (the odoo-semantic-mcp server) is unreachable, the agent falls back to static analysis only
 using `mcp__ollama-delegate__review_code` plus manual pattern matching from the context
 window. MCP-enriched findings (existence verification, `validate_depends`, etc.) are skipped
 and the output notes "MCP unavailable — static analysis only".

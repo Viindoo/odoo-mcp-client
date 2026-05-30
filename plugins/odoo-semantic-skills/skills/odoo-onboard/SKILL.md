@@ -5,7 +5,7 @@ description: |
 
   Trigger AGGRESSIVELY when the user signals "new Odoo project" or "first time" or no `.odoo-ai/context.md` exists yet in the working directory:
 
-  Explicit first-time signals: "set up odoo-semantic for this project", "initialize Odoo context", "first time Odoo setup", "new Odoo project — onboard", "configure Odoo skills for current repo", "I just cloned an Odoo codebase", "where do I start with Odoo MCP for this repo", "pin Odoo version for this session", "initial Odoo setup".
+  Explicit first-time signals: "set up Odoo for this project", "initialize Odoo context", "first time Odoo setup", "new Odoo project — onboard", "configure Odoo skills for current repo", "I just cloned an Odoo codebase", "where do I start with Odoo MCP for this repo", "pin Odoo version for this session", "initial Odoo setup".
 
   Implicit signals (proactive): if working directory contains `__manifest__.py` file(s) AND `.odoo-ai/context.md` is ABSENT, then the FIRST `odoo-*` skill the user invokes should pause and recommend running onboard first. The router skill (`odoo-router`) will also escalate to onboard if context is missing.
 
@@ -196,7 +196,7 @@ Pick ONE based on detected context:
 
 ## Standalone-first fallback
 
-When OSM is unreachable: fall back to asking the user to manually paste or state the Odoo version and list of custom module names. The skill still creates `.odoo-ai/context.md` with flag `osm_verified: false` so downstream skills know the context is user-asserted (not index-verified).
+When OSM (the `odoo-semantic-mcp` server) is unreachable: fall back to asking the user to manually paste or state the Odoo version and list of custom module names. The skill still creates `.odoo-ai/context.md` with flag `osm_verified: false` so downstream skills know the context is user-asserted (not index-verified).
 
 ## Integration notes
 
@@ -239,7 +239,7 @@ Suggest next: Run `odoo-customization-inventory` to list all 12 modules and asse
 
 ### Example 2 — Pure Odoo CE repo (no Viindoo)
 
-User prompt: "first time using odoo-semantic for this project — it's a pure Odoo 16 CE deployment"
+User prompt: "first time using Odoo for this project — it's a pure Odoo 16 CE deployment"
 
 Skill flow:
 1. Pre-flight: no context → continue.
@@ -263,7 +263,7 @@ If user said "yes": continue with full flow, but preserve `## Notes` from existi
 
 ### Example 4 — Not an Odoo project
 
-User prompt: "set up odoo-semantic for this project" (working dir is a React app, no `__manifest__.py`)
+User prompt: "set up Odoo for this project" (working dir is a React app, no `__manifest__.py`)
 
 Skill flow:
 1. Pre-flight: no context.

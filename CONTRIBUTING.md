@@ -56,6 +56,27 @@ sensitive numeric values (pricing/OKR figures). Run `make validate && make test`
 | `plugins/odoo-semantic-mcp/.mcp.json` | MCP server template (resolved from `userConfig`) |
 | `plugins/odoo-semantic-mcp/commands/connect.md` | The `/odoo-semantic-mcp:connect` slash command |
 
+### Naming policy: `odoo-semantic` and its variants
+
+This repo grew out of a single plugin once called `odoo-semantic`, later split into two
+plugins. To keep docs unambiguous for both humans and AI agents, always pick the form that
+matches what you actually mean:
+
+| You mean… | Write exactly | Where it appears |
+|-----------|---------------|------------------|
+| The plugin that ships the MCP server connection + connect command | `odoo-semantic-mcp` | Plugin name, `/odoo-semantic-mcp:connect`, dependency declarations |
+| The plugin that ships the skills / agents / commands | `odoo-semantic-skills` | Plugin name, `/odoo-semantic-skills:setup`, etc. |
+| The product / brand / hosted service | `Odoo Semantic` (prose) or `OSM` (abbrev) | README prose, "the Odoo Semantic service"; URL `odoo-semantic.viindoo.com` |
+| The **MCP server id** (runtime identifier) | `odoo-semantic` in backticks, config/code only | `.mcp.json`, editor snippets — naming the registered server id. NEVER as a plugin name |
+| The **tool-call prefix** | `mcp__odoo-semantic__*` | Tool names in skills/agents/docs/tests — always the full `mcp__…__` form |
+| The running MCP server, as a noun in prose | `the odoo-semantic-mcp server` | Fallback / standalone sections ("when the … server is unreachable") |
+
+Rule of thumb: a bare `odoo-semantic` token that is **not** inside `mcp__…__`, **not** a
+config server-id field, **not** part of a URL, and **not** the brand words "Odoo Semantic" /
+"OSM" is suspect — it should usually carry a `-mcp` / `-skills` suffix or be rephrased.
+`tests/test_naming_consistency.py` enforces this on the skill / command / trigger-phrase
+surface; historical entries in `CHANGELOG.md` are intentionally exempt.
+
 ### Skill format
 
 Each `plugins/odoo-semantic-skills/skills/<name>/SKILL.md` must start with YAML frontmatter containing at least a

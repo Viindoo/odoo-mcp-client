@@ -228,7 +228,7 @@ Display the assembled plan to the user in full. Then gate:
 
 ## Standalone fallback (OSM unreachable)
 
-If the `odoo-semantic` MCP server is unreachable during any skill invocation:
+If the `odoo-semantic-mcp` server is unreachable during any skill invocation:
 
 1. Note the degraded phase inline: `[DEGRADED — OSM unreachable: Phase 1 risk overview skipped]`.
 2. Prompt the user to provide manual input for that phase:

@@ -10,7 +10,7 @@
     },
     {
       "id": 2,
-      "prompt": "first time using odoo-semantic for this project",
+      "prompt": "first time using Odoo for this project",
       "expected_output": "Skill triggers; runs 9-step flow; produces context file",
       "category": "should-fire-direct",
       "files": []

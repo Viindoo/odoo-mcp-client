@@ -73,7 +73,7 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    - Filter-aware: for `all` and `instance`, Gate #1 is a HARD block (those
      flows need the backend). For browser-only filters (`browser`, `runtime`,
      `permissions`) it is a SOFT warning - those steps wire the browser MCP and
-     do not use `odoo-semantic`, so the user may proceed.
+     do not use the `odoo-semantic-mcp` server, so the user may proceed.
 
    **Gate #2 — Host prerequisites.** Only after Gate #1 passes. Skip this gate
    entirely for `permissions` and `runtime` (they only edit config files).

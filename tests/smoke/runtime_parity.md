@@ -149,7 +149,7 @@ Before beginning this checklist, confirm all of the following:
 
 **Trigger prompt (VI)**: "I just cloned an Odoo repo, help me set up the context"
 
-**Trigger prompt (EN)**: "first time using odoo-semantic for this project — initialize Odoo context"
+**Trigger prompt (EN)**: "first time using Odoo for this project — initialize Odoo context"
 
 **Expected output**:
 - Pre-flight check result (context present or absent)
