@@ -26,8 +26,8 @@ dependency:
 | 6 | `odoo-deal-followup` | B | Sales AE | None (deal context is user-provided) |
 | 7 | `odoo-feature-highlights` | B | Marketer | `api_version_diff`, `find_examples` |
 | 8 | `odoo-content-draft` | B | Marketer | Optional: `find_examples` (standalone-first capable) |
-| 9 | `odoo-version-diff` | A | Developer + Marketer | `api_version_diff`, `entity_lookup`, `lookup_core_api`, `model_inspect` |
-| 10 | `odoo-deprecation-audit` | A | Developer | `api_version_diff`, `entity_lookup`, `find_deprecated_usage`, `lookup_core_api`, `module_inspect` |
+| 9 | `odoo-version-diff` | A | Engineer + Marketer | `api_version_diff`, `entity_lookup`, `lookup_core_api`, `model_inspect` |
+| 10 | `odoo-deprecation-audit` | A | Engineer | `api_version_diff`, `entity_lookup`, `find_deprecated_usage`, `lookup_core_api`, `module_inspect` |
 
 ### Runtimes under test (3)
 
