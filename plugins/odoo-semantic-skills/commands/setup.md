@@ -24,21 +24,71 @@ What it sets up:
 
 | Arg            | Runs steps |
 |----------------|------------|
-| `all` / (none) | every step in `scripts/setup-steps/` |
-| `browser`      | `10-browser-mcp` + `20-browser-deps` |
-| `runtime`      | `10-browser-mcp` (cross-runtime wiring only) |
-| `permissions`  | `30-permissions` |
-| `instance`     | `40-instance-profile` + `50-instance-spinup` |
+| `all` / (none) | Preflight (Gate #1 + Gate #2) then every step in `scripts/setup-steps/` |
+| `browser`      | Preflight (Gate #1 soft, Gate #2) then `10-browser-mcp` + `20-browser-deps` |
+| `runtime`      | Preflight (Gate #1 soft) then `10-browser-mcp` (cross-runtime wiring only) |
+| `permissions`  | `30-permissions` (no preflight needed - config file only) |
+| `instance`     | Preflight (Gate #1 + Gate #2) then `40-instance-profile` + optional `45-venv` + `50-instance-spinup` |
 
 Parse `$ARGUMENTS` (first token). If it is not one of the above, tell the user
 the valid filters and stop. For `instance` spin-up, also accept a trailing
 `--version X.Y` and pass it through to `50-instance-spinup`.
+
+Preflight (`00-osm-gate` + `05-prereq-check`) always runs first - see Step 0.
+`45-venv` is an optional instance sub-step (offered between `40` and `50`).
 
 ## Steps for the AI agent
 
 Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
 (`${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps` when available, else the
 `scripts/setup-steps` dir alongside this command's plugin).
+
+0. **Preflight — two gates before anything else.** Run these BEFORE listing the
+   plan or touching any file. They make no changes; they only verify the ground
+   is ready so setup does not half-configure a broken environment.
+
+   **Gate #1 — Odoo Semantic MCP connection.** The instance steps rely on the
+   indexing backend, so confirm it is actually reachable in THIS session.
+   - Authoritative check (AI-level): try calling the MCP tool
+     `mcp__odoo-semantic__list_available_versions` with no arguments (fallback:
+     `mcp__odoo-semantic__cli_help`). Only the AI can see whether the tool is
+     loaded in the current session, so this call - not a shell probe - is the
+     source of truth.
+     - Responds normally → connected. Continue to Gate #2.
+     - Tool is "not found" / unavailable → the server is not loaded in this
+       session. **Stop setup and make no changes.** Tell the user: run
+       `/odoo-semantic-mcp:connect`, then restart Claude Code and open a NEW
+       session (MCP servers do not hot-reload), then re-run
+       `/odoo-semantic-skills:setup`.
+     - Tool returns a 401 / auth error → the API key is likely invalid. Stop and
+       suggest re-running `/odoo-semantic-mcp:connect` to re-enter the key.
+     - Tool returns some other error (server down, self-hosted instance offline)
+       → this is a server issue, not a session issue. You MAY continue with a
+       clear warning that indexed-codebase grounding will be unavailable until
+       the server is back.
+   - Shell fallback: `00-osm-gate.sh check` confirms the server is registered in
+     `~/.claude.json` and its `/health` endpoint answers. Use it only as a
+     secondary signal (e.g. non-interactive runs); the tool call above is
+     authoritative for session-load state. It never prints the API key.
+   - Filter-aware: for `all` and `instance`, Gate #1 is a HARD block (those
+     flows need the backend). For browser-only filters (`browser`, `runtime`,
+     `permissions`) it is a SOFT warning - those steps wire the browser MCP and
+     do not use `odoo-semantic`, so the user may proceed.
+
+   **Gate #2 — Host prerequisites.** Only after Gate #1 passes. Skip this gate
+   entirely for `permissions` and `runtime` (they only edit config files).
+   - Run `SETUP_FILTER=<filter> "$STEPS_DIR/05-prereq-check.sh" apply` and show
+     the checklist. It probes (read-only, never sudo) the tools setup cannot
+     install for you - Node, Python, a running PostgreSQL, cloned Odoo repos,
+     etc. - and lists the items only you can confirm (DB role/password, system
+     build deps, an Odoo venv).
+   - Then require an explicit choice from the user before continuing:
+     - `ready` → all required items are satisfied; proceed.
+     - `skip instance` → run only browser/permissions steps; skip `40`, `45`,
+       and `50`.
+     - `cancel` → stop, make no changes.
+   - Any REQUIRED auto-detected item shown as missing (marked `[ -- ]`) must be
+     fixed before `ready` - point the user at the suggested fix command.
 
 1. **List the plan.** Enumerate the step scripts and show the user what setup
    will cover, filtered by `$ARGUMENTS`:
@@ -85,10 +135,31 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
   in `$CLAUDE_SETTINGS` = `~/.claude/settings.json`. Asks [Y/n] itself.
 - **40-instance-profile** — runs the Odoo repo discovery, prints the discovered
   TSV for you to confirm the addons-path ordering, writes
-  `.odoo-ai/instances.toml` (NO password stored), and gitignores `.odoo-ai/`.
+  `.odoo-ai/instances.toml` as `[[instance]]` array-of-tables entries keyed by a
+  `series` field (one per Odoo series, each with a distinct `http_port`; NO
+  password stored), and gitignores `.odoo-ai/`. If no Odoo repo is found it
+  writes nothing and tells the user to clone a repo or set `ODOO_GIT_BASE`.
+- **45-venv** *(optional, source instances only — offered between 40 and 50)* —
+  each Odoo series supports only certain Python versions, so a source instance
+  needs an interpreter whose deps match. After `40` declares the profile, offer
+  this flow for the series the user wants to spin up:
+  1. Show the recommended Python: `"$STEPS_DIR/45-venv.sh" suggest <series>`.
+  2. Then let the user choose:
+     - **Reuse an existing venv** — set the `python` field on the matching
+       `[[instance]]` in `.odoo-ai/instances.toml`, or export `ODOO_PYTHON`.
+       Step 50 prefers the `python` field, then `ODOO_PYTHON`, then `python3`.
+     - **Build a new venv** (opt-in; needs system build deps):
+       `"$STEPS_DIR/45-venv.sh" create-venv --series <X.Y> --tool uv|pip [--python <VER>]`.
+       This creates the venv, installs the series' `requirements.txt`, and records
+       the interpreter back onto the instance.
+  Never silently pick an incompatible Python. If the user declines, just print
+  the suggestion and move on - step 50 will fall back to `python3`.
 - **50-instance-spinup** — generates a temp `odoo.conf`, launches Odoo (source
   `odoo-bin --dev=all` or `docker compose up -d`), polls `/web/login` to HTTP
-  200, prints the URL. The DB password is read only from `$ODOO_PG_PASSWORD`.
+  200, prints the URL. With no `--version` it selects the highest declared
+  series. The Python interpreter comes from the instance `python` field /
+  `$ODOO_PYTHON` / `python3`. The DB password is read only from
+  `$ODOO_PG_PASSWORD`.
 
 ## Hard rules
 
@@ -109,9 +180,13 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
 
 ## Standalone / fallback
 
+- Preflight scripts (`00-osm-gate.sh`, `05-prereq-check.sh`) are detect-only and
+  never change anything; if either is missing the plugin is only partially
+  installed (reinstall, see below). The authoritative Gate #1 check is still the
+  MCP tool call, so preflight degrades gracefully even without `00-osm-gate.sh`.
 - If a step script reports the shared lib is missing
-  (`scripts/lib/config_merge.py` or `discover_odoo.sh`), the plugin is only
-  partially installed. Tell the user to reinstall
+  (`scripts/lib/config_merge.py`, `discover_odoo.sh`, or `instances_io.py`), the
+  plugin is only partially installed. Tell the user to reinstall
   `odoo-semantic-skills@viindoo-plugins` fully, then point them at the manual
   equivalents:
   - Browser MCP (must match the plugin's `.mcp.json` command + args exactly):
