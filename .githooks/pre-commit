@@ -1,78 +1,85 @@
 #!/usr/bin/env bash
 # Confidentiality pre-commit hook for odoo-mcp-client.
-# All content checks use `git show :"$f"` to read the STAGED blob,
-# not the working-tree file. Closes the stage-then-clean bypass vector.
+#
+# Design notes:
+#   * Reads the STAGED blob (`git show :"$f"`), never the working-tree file —
+#     closes the stage-then-clean bypass vector.
+#   * Scans EVERY added/modified text file regardless of extension, including
+#     this hook itself and CI workflow files. (A previous version restricted the
+#     scan to a fixed extension allowlist, which excluded extensionless files
+#     like this hook — letting the guard leak the very terms it was guarding.)
+#   * Carries NO sensitive literal in-tree. Project-confidential exact terms live
+#     in .githooks/patterns.local (gitignored). The committed file holds only
+#     generic structural regexes that name nothing.
 
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
+# Collect staged added/modified files (NUL-delimited, every path — no extension filter).
 SCAN_FILES=()
 while IFS= read -r -d '' f; do
-    case "$f" in
-        *.md|*.json|*.py|*.yaml|*.yml|*.sh)
-            SCAN_FILES+=("$f")
-            ;;
-    esac
+    SCAN_FILES+=("$f")
 done < <(git diff --cached --name-only -z --diff-filter=AM)
 
 [ ${#SCAN_FILES[@]} -eq 0 ] && exit 0
 
-staged_content() {
-    git show :"$1" 2>/dev/null
-}
+staged_content() { git show :"$1" 2>/dev/null; }
+
+# --- Generic structural config (always on; reference nothing sensitive) -------
+# Placeholder usernames that are legitimate documentation, not real paths.
+ALLOW_USER='(user|username|youruser|USER|me|example)'
+
+# --- Project-confidential exact terms loaded from an untracked file ----------
+# Format: one extended-regex per line; '#' comments and blank lines ignored.
+LOCAL_PATTERNS_FILE="${REPO_ROOT}/.githooks/patterns.local"
+declare -a LOCAL_PATTERNS=()
+if [ -f "$LOCAL_PATTERNS_FILE" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in ''|\#*) continue ;; esac
+        LOCAL_PATTERNS+=("$line")
+    done < "$LOCAL_PATTERNS_FILE"
+else
+    echo "note: .githooks/patterns.local not found — running structural checks only." >&2
+    echo "      Copy .githooks/patterns.local.example to patterns.local and fill in real terms." >&2
+fi
 
 HARD_FAIL=0
 
 for f in "${SCAN_FILES[@]}"; do
-    # Pattern 1: vault path
-    if staged_content "$f" | grep -qE '/home/USER/git/notes-vault'; then
-        echo "ERROR: vault path leaked in staged blob: $f" >&2
+    content="$(staged_content "$f")" || continue
+
+    # Personal gmail address (a public repo should use a noreply/company address).
+    if printf '%s' "$content" | grep -qIE '[A-Za-z0-9._%+-]+@gmail\.com'; then
+        echo "ERROR: personal gmail address in staged blob: $f" >&2
         HARD_FAIL=1
     fi
 
-    # Pattern 2: personal /home/USER/.
-    if staged_content "$f" | grep -qE '/home/USER/\.'; then
-        echo "ERROR: personal path /home/USER/. leaked in staged blob: $f" >&2
+    # Absolute /home/<user>/ or /Users/<user>/ path (non-portable), excluding
+    # generic placeholder usernames used in documentation examples.
+    if printf '%s' "$content" | grep -IE '/(home|Users)/[A-Za-z0-9._-]+/' \
+            | grep -qvE "/(home|Users)/${ALLOW_USER}/"; then
+        echo "ERROR: absolute /home|/Users/<user>/ path (non-portable) in staged blob: $f" >&2
         HARD_FAIL=1
     fi
 
-    # Pattern 3: personal email
-    if staged_content "$f" | grep -qE 'davidtranhp@users.noreply.github.com'; then
-        echo "ERROR: personal email leaked in staged blob: $f" >&2
-        HARD_FAIL=1
-    fi
-
-    # Pattern 4: Vietnam regulation (REDACTED)
-    if staged_content "$f" | grep -qiE 'REDACTED'; then
-        echo "ERROR: Vietnam regulation reference (REDACTED) found in staged blob: $f" >&2
-        HARD_FAIL=1
-    fi
-
-    # Pattern 5: Vietnam competitor (REDACTED)
-    if staged_content "$f" | grep -qiE '\bMISA\b'; then
-        echo "ERROR: Vietnam competitor reference (REDACTED) found in staged blob: $f" >&2
-        HARD_FAIL=1
-    fi
-
-    # Pattern 6: Vietnam competitors (REDACTED, REDACTED)
-    if staged_content "$f" | grep -qiE '(REDACTED|REDACTED)'; then
-        echo "ERROR: Vietnam competitor reference (REDACTED/REDACTED) found in staged blob: $f" >&2
-        HARD_FAIL=1
-    fi
-
-    # Pattern 7: Vietnam SME framing
-    if staged_content "$f" | grep -qE 'REDACTED'; then
-        echo "ERROR: Vietnam SME framing reference found in staged blob: $f" >&2
-        HARD_FAIL=1
-    fi
+    for regex in "${LOCAL_PATTERNS[@]}"; do
+        if printf '%s' "$content" | grep -qIE "$regex"; then
+            echo "ERROR: confidential term /${regex}/ in staged blob: $f" >&2
+            HARD_FAIL=1
+        fi
+    done
 done
 
-[ "$HARD_FAIL" -eq 1 ] && exit 1
+[ "$HARD_FAIL" -eq 1 ] && {
+    echo "Commit blocked by confidentiality pre-commit hook." >&2
+    exit 1
+}
 
+# Soft warning: possible sensitive numbers (money / OKR percentages).
 for f in "${SCAN_FILES[@]}"; do
-    if staged_content "$f" | grep -qE '(\$[0-9]{4,}|[0-9]{1,3}([,.][0-9]{3}){2,}\s*(VND|USD)|OKR.*[0-9]{2}%)'; then
+    if staged_content "$f" | grep -qIE '(\$[0-9]{4,}|[0-9]{1,3}([,.][0-9]{3}){2,}[[:space:]]*(VND|USD)|OKR.*[0-9]{2}%)'; then
         echo "WARNING: possible sensitive number in staged blob — review before pushing: $f" >&2
     fi
 done

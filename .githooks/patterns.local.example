@@ -1,0 +1,18 @@
+# Confidentiality blocklist — copy this file to `.githooks/patterns.local` and
+# fill in your real, project-confidential exact terms. `patterns.local` is
+# gitignored (matched by `*.local`) so the real terms never enter the repo.
+#
+# Format: one POSIX extended-regex (ERE) per line.
+#   * Lines starting with `#` and blank lines are ignored.
+#   * Each pattern is matched (grep -E) against every staged file's content.
+#   * A match hard-fails the commit.
+#
+# Put here the terms that must never be committed to this public repo but that
+# cannot be expressed as a generic structural pattern — e.g. competitor names,
+# internal codenames, regulation acronyms, personal handles, private vault dirs.
+#
+# Examples (replace with your real terms — these are placeholders):
+# \bAcmeCompetitor\b
+# INTERNAL_CODENAME
+# private-notes-vault
+# REG_ACRONYM
