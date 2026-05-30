@@ -132,7 +132,13 @@ cmd_create_venv() {
             ;;
         pip)
             local py="python3"
-            [[ -n "$pyver" ]] && command -v "python$pyver" >/dev/null 2>&1 && py="python$pyver"
+            if [[ -n "$pyver" ]]; then
+                if command -v "python$pyver" >/dev/null 2>&1; then
+                    py="python$pyver"
+                else
+                    echo "  Note: python$pyver not found on PATH; falling back to python3" >&2
+                fi
+            fi
             "$py" -m venv "$path" || { echo "x venv creation failed." >&2; return 1; }
             if [[ -n "$reqs" && -f "$reqs" ]]; then
                 "$path/bin/pip" install -r "$reqs" \
@@ -145,6 +151,9 @@ cmd_create_venv() {
     esac
 
     # Record the interpreter on the instance so step 50 uses it.
+    # NOTE: this only REPLACES an existing `python = ...` line in the matched
+    # [[instance]] block; it assumes step 40 already wrote a `python = ""`
+    # placeholder line into that block. If the line is absent, nothing is written.
     if [[ -f "$INSTANCES_TOML" && -x "$path/bin/python" ]]; then
         python3 - "$INSTANCES_TOML" "$series" "$path/bin/python" <<'PY' || true
 import sys

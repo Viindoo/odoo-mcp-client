@@ -28,11 +28,16 @@ fi
 
 echo ">> checking skill count (soft)"
 info="$(claude plugin info odoo-semantic-skills 2>/dev/null || true)"
-if printf '%s' "$info" | grep -Eq '[0-9]+[[:space:]]+skills'; then
-  echo "OK: skill count reported"
+# Meaningful floor: the plugin ships >=20 skills, so a bare "0 skills" or a
+# single-digit count signals a broken install and must trip the WARN. We match
+# >=20 (two-or-more digits, first group >= 20) while keeping this SOFT - it
+# warns but never fails the e2e, since the exact CLI wording may still drift.
+if printf '%s' "$info" | grep -Eq '(2[0-9]|[3-9][0-9])[[:space:]]+skills'; then
+  echo "OK: skill count reported (>=20)"
 else
-  echo "WARN: could not confirm '[0-9]+ skills' from 'claude plugin info' output" \
-       "(CLI format may differ); install + listing checks passed."
+  echo "WARN: could not confirm a '>=20 skills' count from 'claude plugin info'" \
+       "output (CLI format may differ, or the install is incomplete);" \
+       "install + listing checks passed."
 fi
 
 echo ">> e2e install OK"

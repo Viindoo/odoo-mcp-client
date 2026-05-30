@@ -133,7 +133,14 @@ cmd_apply() {
     # the counter from the number of instances already declared so re-running
     # never changes an existing instance's port (idempotent).
     local base_port=8069 port_idx
-    port_idx="$(grep -cE '^\[\[instance\]\]' "$INSTANCES_TOML" 2>/dev/null || echo 0)"
+    # NOTE: `grep -c` prints "0" on stdout AND exits 1 when the file exists but
+    # has zero matches. A `|| echo 0` fallback would ALSO fire in that case,
+    # yielding the two-line string "0\n0", which crashes the `port=$((...))`
+    # arithmetic below under `set -euo pipefail` ("arithmetic syntax error").
+    # Use `|| true` plus a default expansion so we always get a single integer
+    # whether the file is absent, present-with-0-matches, or present-with-N.
+    port_idx="$(grep -cE '^\[\[instance\]\]' "$INSTANCES_TOML" 2>/dev/null || true)"
+    port_idx="${port_idx:-0}"
 
     # Build the addons_path per series: join paths whose series matches, in the
     # role-priority order discover_odoo.sh already emits. Each series becomes an

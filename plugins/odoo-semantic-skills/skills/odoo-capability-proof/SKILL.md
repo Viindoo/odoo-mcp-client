@@ -127,10 +127,10 @@ Output: Verdict "Supported natively", evidence table citing `account.move` field
 real code example, and demo steps.
 
 **Example 2:**
-Prompt: "chứng minh Odoo 17 hỗ trợ phê duyệt đa cấp cho đơn mua hàng"
+Prompt: "prove Odoo 17 supports multi-level approval for purchase orders"
 Output: Verdict with `purchase_stock` + `purchase` module evidence,
 `entity_lookup(kind='method', model='purchase.order', method_name='button_approve')` override
-chain, demo steps in Vietnamese context.
+chain, and demo steps.
 
 ## Notes / Integration
 

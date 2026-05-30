@@ -41,7 +41,12 @@ srv = (data.get("mcpServers") or {}).get("odoo-semantic")
 if not isinstance(srv, dict):
     sys.exit(0)
 url = str(srv.get("url") or srv.get("serverUrl") or "")
-print(url.rstrip("/").removesuffix("/mcp"))
+# str.removesuffix is Python 3.9+. This runs on the user's SYSTEM python3,
+# which may be 3.8 (where removesuffix raises AttributeError, gets swallowed
+# by `2>/dev/null || true`, and the gate falsely reports "not connected" and
+# loops the user). Use version-agnostic slicing instead.
+u = url.rstrip("/")
+print(u[:-4] if u.endswith("/mcp") else u)
 PY
 }
 

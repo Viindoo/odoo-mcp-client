@@ -15,13 +15,16 @@ field value (never a dotted/quoted table header):
 
 Parsing uses tomllib (py3.11+) and falls back to a minimal text scan on older
 Python so spin-up still works without a 3.11 interpreter. A legacy dict-of-tables
-shape ([instance.X]) is tolerated for backward compatibility.
+shape ([instance.X] / [instance."X"]) is tolerated on every supported Python
+version: both the tomllib path and the text-scan fallback fold the trailing
+header key into the item's `series`, so the two paths return the same instances.
 
 CLI:
     python3 instances_io.py read <instances.toml> [series]
         Emit shell-eval-able KEY=VALUE lines (shlex.quote'd) for one instance.
         With no series the highest valid X.Y series is chosen.
-        Exit 1 if the file has no usable instance.
+        Exit 1 (with an actionable message on stderr and nothing on stdout) if
+        the file has no usable instance.
 """
 
 import re
@@ -54,8 +57,26 @@ def _parse_value(raw):
     return raw
 
 
+_LEGACY_HEADER_RE = re.compile(r"^\[\s*instance\.(?P<key>.+?)\s*\]$")
+
+
+def _strip_quotes(text):
+    """Strip a single matching pair of surrounding single or double quotes."""
+    text = text.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
+        return text[1:-1]
+    return text
+
+
 def _load_textscan(path):
-    """Minimal fallback parser for [[instance]] array-of-tables (Python < 3.11)."""
+    """Minimal fallback parser for instance tables (Python < 3.11).
+
+    Recognizes the canonical ``[[instance]]`` array-of-tables format and the
+    legacy dict-of-tables format ``[instance.<x>]`` / ``[instance."<x>"]``. For
+    a legacy header the trailing key segment (with surrounding quotes stripped)
+    is folded into the item as its ``series``. This mirrors the ``tomllib`` path
+    so a legacy file yields the same instances on Python 3.10 and 3.11+.
+    """
     instances = []
     cur = None
     with open(path, encoding="utf-8") as fh:
@@ -65,6 +86,11 @@ def _load_textscan(path):
                 continue
             if line == "[[instance]]":
                 cur = {}
+                instances.append(cur)
+                continue
+            legacy = _LEGACY_HEADER_RE.match(line)
+            if legacy:
+                cur = {"series": _strip_quotes(legacy.group("key"))}
                 instances.append(cur)
                 continue
             if line.startswith("["):
@@ -118,7 +144,9 @@ def select_instance(items, want=None):
     Otherwise return the highest valid X.Y series (placeholders skipped).
 
     Returns ``(item, defaulted)`` where ``defaulted`` is True when the choice
-    was made by the highest-series rule. Returns ``(None, False)`` if none match.
+    was made by the highest-series rule. Returns ``(None, False)`` if none match
+    -- including the case where ``want`` is None but no item carries a valid
+    ``X.Y`` series (no garbage/placeholder fallback).
     """
     if not items:
         return None, False
@@ -128,8 +156,9 @@ def select_instance(items, want=None):
                 return it, False
         return None, False
     valid = [it for it in items if _series_key(series_of(it)) != (-1, -1)]
-    pool = valid or items
-    chosen = max(pool, key=lambda it: _series_key(series_of(it)))
+    if not valid:
+        return None, False
+    chosen = max(valid, key=lambda it: _series_key(series_of(it)))
     return chosen, True
 
 
@@ -151,6 +180,11 @@ def _cmd_read(argv):
         return 1
     tbl, defaulted = select_instance(items, want or None)
     if tbl is None:
+        sys.stderr.write(
+            f"No valid Odoo instance found in {path}. "
+            "Run the setup step that writes [[instance]] entries, or edit the "
+            "file to add a valid series like 17.0.\n"
+        )
         return 1
     if defaulted:
         sys.stderr.write(

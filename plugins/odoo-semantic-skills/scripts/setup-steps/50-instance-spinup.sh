@@ -9,7 +9,7 @@
 # Unlike the other steps this one is PARAMETERISED by version:
 #   50-instance-spinup.sh apply --version 17.0
 #   50-instance-spinup.sh check --version 17.0
-# If --version is omitted, the FIRST [instance.*] table in the file is used.
+# If --version is omitted, the highest valid X.Y [[instance]] in the file is used.
 #
 # Subcommands:
 #   describe   One-line description.
@@ -89,8 +89,10 @@ _http_status() {
 # check
 # ---------------------------------------------------------------------------
 cmd_check() {
-    local kv port
-    kv="$(_read_instance "$VERSION")" || return 1
+    # Non-zero exit OR empty output from the loader = no instance to check.
+    local kv port rc=0
+    kv="$(_read_instance "$VERSION")" || rc=$?
+    [[ "$rc" -eq 0 && -n "$kv" ]] || return 1
     eval "$kv"
     port="${INST_HTTP_PORT:-8069}"
     [[ "$(_http_status "$port")" == "200" ]]
@@ -133,11 +135,19 @@ _poll_until_up() {
 }
 
 cmd_apply() {
-    local kv
-    kv="$(_read_instance "$VERSION")" || {
-        echo "x No instance found in $INSTANCES_TOML. Run step 40 first." >&2
+    # The loader (lib/instances_io.py read) prints guidance to STDERR and exits
+    # non-zero with EMPTY stdout when no valid instance exists. Capture the exit
+    # status separately (`|| rc=$?` keeps `set -e` from aborting here) and treat
+    # BOTH a non-zero exit AND empty output as "nothing to spin up" so we never
+    # proceed with empty INST_* vars.
+    local kv rc=0
+    kv="$(_read_instance "$VERSION")" || rc=$?
+    if [[ "$rc" -ne 0 || -z "$kv" ]]; then
+        echo "x No usable Odoo instance found in $INSTANCES_TOML." >&2
+        echo "  Declare one first: run the instance-profile step" >&2
+        echo "  (40-instance-profile.sh apply) or edit instances.toml by hand." >&2
         return 1
-    }
+    fi
     eval "$kv"
     local port="${INST_HTTP_PORT:-8069}"
 
@@ -166,7 +176,12 @@ cmd_apply() {
                 echo "x Could not locate odoo-bin. Set ODOO_BIN=/path/to/odoo-bin and retry." >&2
                 return 1
             }
-            conf="$(mktemp -t odoo-spinup-${INST_VERSION}.XXXXXX.conf)"
+            # Portable mktemp: `mktemp -t PREFIX.XXXXXX.conf` is GNU-specific.
+            # On BSD/macOS `-t` treats the arg as a prefix only, a suffix after
+            # the X's is not honored, and ${INST_VERSION} contains a dot. Create
+            # a bare temp file with a trailing-X template, then rename to add the
+            # .conf suffix - works on both GNU and BSD/macOS.
+            conf="$(mktemp "${TMPDIR:-/tmp}/odoo-spinup-XXXXXX")" && mv "$conf" "$conf.conf" && conf="$conf.conf"
             {
                 echo "[options]"
                 echo "addons_path = $(printf '%s' "${INST_ADDONS_PATH:-}" | tr ':' ',')"
@@ -197,7 +212,8 @@ cmd_apply() {
             # Capture the PID directly (no subshell `( )`, which would hide it)
             # so a poll timeout can terminate the orphaned process.
             local logf
-            logf="$(mktemp -t odoo-spinup-${INST_VERSION}.XXXXXX.log)"
+            # Portable mktemp (see the conf note above): bare template + rename.
+            logf="$(mktemp "${TMPDIR:-/tmp}/odoo-spinup-XXXXXX")" && mv "$logf" "$logf.log" && logf="$logf.log"
             "$py" "$bin" -c "$conf" -d "${INST_DB_NAME:-odoo}" --dev=all >"$logf" 2>&1 &
             odoo_pid=$!
             echo "  Odoo starting (pid: $odoo_pid, log: $logf)"
