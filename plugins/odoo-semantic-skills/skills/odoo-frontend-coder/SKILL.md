@@ -213,7 +213,7 @@ optional next step; never auto-run them.
 
 ## Standalone-first fallback
 
-When OSM (`odoo-semantic`) is unreachable or returns errors:
+When OSM (the `odoo-semantic-mcp` server) is unreachable or returns errors:
 
 1. Ask the user to paste the relevant existing code (widget class, component, or manifest excerpt).
 2. Ask the user to confirm the **exact Odoo version** (e.g., "12.0", "17.0").

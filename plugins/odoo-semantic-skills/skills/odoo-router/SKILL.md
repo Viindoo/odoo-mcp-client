@@ -126,7 +126,7 @@ Router behaviour when ambiguous between command and skill:
 | 18 | "plan a campaign", "plan campaign Q3", "multi-channel plan", "campaign brief" | `odoo-campaign-plan` | Multi-week orchestration (vs `odoo-content-draft` for single piece) |
 | 19 | "competitor brief", "competitive analysis", "landscape brief", "threat assessment" | `odoo-competitive-brief` | Structured CEO/board briefing on a competitor (vs `odoo-objection-handler` for sales counter-talking-points) |
 | 20 | "deploy checklist", "checklist before going live", "go-live checklist", "pre-deploy safety" | `odoo-deploy-checklist` | Pre-deployment safety items (vs `odoo-deprecation-audit` for code-level upgrade audit) |
-| 21 | "I just cloned the Odoo repo", "set up odoo-semantic for this project", "first time setup" | `odoo-onboard` | Project-context bootstrap (vs `/odoo-semantic-mcp:connect` slash command for server URL/key setup) |
+| 21 | "I just cloned the Odoo repo", "set up Odoo for this project", "first time setup" | `odoo-onboard` | Project-context bootstrap (vs `/odoo-semantic-mcp:connect` slash command for server URL/key setup) |
 | 22 | "setup MCP server URL + API key" | `/odoo-semantic-mcp:connect` (command) | One-time infra setup, not work |
 | 23 | "full bid response" / "write a complete RFP response" / "full proposal for prospect" | `/odoo-bid-respond` (command) | Multi-step proposal chain (vs `odoo-discovery-summarize` or `odoo-capability-proof` alone) |
 | 24 | "write follow-up email for customer" + explicit save-to-file ask | `/odoo-customer-followup-draft` (command) | Wraps `odoo-deal-followup` with save step (skill alone for just draft text) |

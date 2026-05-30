@@ -60,7 +60,7 @@ Standard conventions (v17 primary):
 
 When the user confirms intent, main agent invokes the `odoo-coder` agent via Agent tool.
 The agent runs Round 0-4 (version pin → context gather → resolve specifics → generate →
-inline review) using restricted tools: Read, Grep, Bash (read-only), MCP odoo-semantic tools,
+inline review) using restricted tools: Read, Grep, Bash (read-only), odoo-semantic-mcp server tools,
 and MCP ollama-delegate tools. The agent does NOT spawn further subagents or invoke skills.
 
 ## Standalone-first fallback

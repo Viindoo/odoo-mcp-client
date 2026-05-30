@@ -4,6 +4,32 @@ All notable changes to the Odoo MCP Client are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### odoo-semantic-skills
+
+#### Changed
+
+- Disambiguated the `odoo-semantic` name left over from the pre-split single
+  plugin. Skill trigger phrases in `odoo-onboard` and `odoo-router` now say
+  `Odoo` (the onboarding skill bootstraps Odoo project context and installs no
+  plugin), and standalone-fallback prose in `odoo-coder`, `odoo-code-reviewer`,
+  `odoo-ui-reviewer`, `odoo-frontend-coder`, `odoo-onboard`, `upgrade-plan-full`,
+  and `setup` now names `the odoo-semantic-mcp server` explicitly. Runtime
+  identifiers (the MCP server id `odoo-semantic`, the `mcp__odoo-semantic__*`
+  tool prefix, the brand `Odoo Semantic`, and the product URL) are unchanged.
+
+#### Added
+
+- `tests/test_naming_consistency.py` guardrail: fails if a bare `odoo-semantic`
+  token reappears in the skill / command / trigger-phrase surface, allowlisting
+  the server id, tool prefix, suffixed plugin names, and product URL.
+- A naming-policy table in `CONTRIBUTING.md` documenting which form to use.
+- A "First-time setup flow" table in `README.md` and `docs/setup.md` that
+  distinguishes the three easily-confused setup steps: `/odoo-semantic-mcp:connect`
+  (required, per machine), `/odoo-semantic-skills:setup` (optional visual stack,
+  per machine), and the `odoo-onboard` skill (optional, per repo).
+
 ## [2.1.0] - 2026-05-29
 
 ### Added

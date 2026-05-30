@@ -57,13 +57,13 @@ Key things the agent watches for:
 
 When the user confirms intent (or main detects a running instance + a "how does it look" request),
 main invokes the `odoo-ui-reviewer` agent via Agent tool. The agent runs its review steps with
-restricted tools (OSM odoo-semantic + chrome-devtools browser tools, read-only). The agent does
+restricted tools (the odoo-semantic-mcp server + chrome-devtools browser tools, read-only). The agent does
 NOT spawn further subagents and does NOT invoke any Skill tool. It never edits Odoo source — fixes
 are handed to `odoo-frontend-coder`.
 
 ## Standalone-first fallback
 
-- **OSM (`odoo-semantic`) unreachable:** the agent skips the code-grounding steps and instead greps
+- **OSM (the `odoo-semantic-mcp` server) unreachable:** the agent skips the code-grounding steps and instead greps
   the repo on disk for the relevant view and stylesheet, prefixing the output with
   `⚠ OSM unreachable — style/view origin inferred from disk, verify against the live module`.
 - **Browser MCP or instance unreachable:** the agent asks the user to paste the screen URL and
