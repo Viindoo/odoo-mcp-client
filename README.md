@@ -328,7 +328,7 @@ Ships in the `odoo-semantic-mcp` plugin. Interactive command that:
 
 The plugin is Claude Code only. For other tools, paste the matching MCP config — see
 [`docs/setup.md`](plugins/odoo-semantic-skills/docs/setup.md) for full per-client walkthroughs (Codex, Gemini, VS Code,
-Antigravity) and `snippets/` for copy-ready configs:
+Antigravity, Windsurf, Zed, JetBrains Junie) and `snippets/` for copy-ready configs:
 
 | Tool | Snippet |
 |------|---------|
@@ -337,6 +337,11 @@ Antigravity) and `snippets/` for copy-ready configs:
 | Google Gemini Gem | [`snippets/gemini-gem-instructions.md`](plugins/odoo-semantic-skills/snippets/gemini-gem-instructions.md) |
 | Continue.dev | [`snippets/continue-dev-mcp.yaml`](plugins/odoo-semantic-skills/snippets/continue-dev-mcp.yaml) (MCP server config) |
 | JetBrains AI Assistant | [`snippets/jetbrains-mcp-config.md`](plugins/odoo-semantic-skills/snippets/jetbrains-mcp-config.md) (setup guide) |
+| VS Code (v1.99+) | [`snippets/vscode-mcp.json`](plugins/odoo-semantic-skills/snippets/vscode-mcp.json) (top-level key is `servers`, not `mcpServers`) |
+| Google Antigravity | [`snippets/antigravity-mcp.json`](plugins/odoo-semantic-skills/snippets/antigravity-mcp.json) (uses `serverUrl`, not `url`) |
+| Zed | [`snippets/zed-mcp.json`](plugins/odoo-semantic-skills/snippets/zed-mcp.json) (`context_servers` key, native HTTP - older Zed needs the `mcp-remote` proxy) |
+| Windsurf | [`snippets/windsurf-mcp.json`](plugins/odoo-semantic-skills/snippets/windsurf-mcp.json) (uses `serverUrl`, not `url`) |
+| JetBrains Junie | [`snippets/junie-mcp.json`](plugins/odoo-semantic-skills/snippets/junie-mcp.json) (place in `.junie/mcp/mcp.json` in your project) |
 
 ## Requirements
 

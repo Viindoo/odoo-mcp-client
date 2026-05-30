@@ -106,7 +106,7 @@ After install, 26 skills activate automatically:
 
 ---
 
-> **Other AI tools (Codex, Gemini, VS Code, Antigravity):** The plugin is Claude Code only. For other tools, follow the per-client MCP config sections below.
+> **Other AI tools (Codex, Gemini, VS Code, Antigravity, Windsurf, Zed, JetBrains Junie):** The plugin is Claude Code only. For other tools, follow the per-client MCP config sections below.
 
 ---
 
@@ -306,6 +306,8 @@ Command Palette (`Ctrl/Cmd+Shift+P`) → **`MCP: Open User Configuration`** — 
 }
 ```
 
+Copy-ready snippet (uses `${input:odoo-api-key}` for secure key prompting): [`snippets/vscode-mcp.json`](../snippets/vscode-mcp.json)
+
 Click the **Start** codelens that appears on the server block, or reload the window.
 
 **Pitfall:** the top-level key is `servers` (not `mcpServers` as in Claude/Gemini/Antigravity). `type` must be exactly `"http"` (not `"streamable-http"`). Do not put MCP servers into `settings.json` — use the separate `mcp.json` file.
@@ -346,6 +348,8 @@ IDE → **Manage MCP Servers → View raw config** — or edit `~/.gemini/antigr
 }
 ```
 
+Copy-ready snippet: [`snippets/antigravity-mcp.json`](../snippets/antigravity-mcp.json)
+
 Save → click **Refresh** in the MCP panel.
 
 **Pitfall:** the property must be `serverUrl` (camelCase, not `url` or `httpUrl`). The file lives under `~/.gemini/antigravity/` — it shares a path prefix with Gemini CLI but has a different schema.
@@ -356,6 +360,99 @@ Save → click **Refresh** in the MCP panel.
 After adding the server: go to **... → MCP Servers** → find `odoo-semantic` → add the allow-list pattern `mcp(odoo-semantic.*)` to pre-approve all tools.
 
 > Antigravity has only a global config, no project-level config. The API key is stored in plaintext in `~/.gemini/antigravity/mcp_config.json` — ensure the file has `600` permissions.
+
+---
+
+## Windsurf
+
+Docs: <https://docs.windsurf.com/windsurf/mcp>
+
+Edit `~/.windsurf/mcp_config.json` (global) or `.windsurf/mcp_config.json` (project):
+```json
+{
+  "mcpServers": {
+    "odoo-semantic": {
+      "serverUrl": "https://odoo-semantic.viindoo.com/mcp",
+      "headers": { "X-API-Key": "<YOUR_API_KEY>" }
+    }
+  }
+}
+```
+
+Copy-ready snippet: [`snippets/windsurf-mcp.json`](../snippets/windsurf-mcp.json)
+
+Restart Windsurf after saving. Verify: open the MCP panel and confirm the server status shows **Connected**.
+
+**Pitfall:** Windsurf uses `serverUrl` (camelCase) just like Antigravity, not `url`. Using `url` causes the server entry to be silently ignored.
+
+---
+
+## Zed
+
+Docs: <https://zed.dev/docs/assistant/model-context-protocol>
+
+Edit `~/.config/zed/settings.json` and add (or merge) the `context_servers` block:
+```json
+{
+  "context_servers": {
+    "odoo-semantic": {
+      "url": "https://odoo-semantic.viindoo.com/mcp",
+      "headers": { "X-API-Key": "<YOUR_API_KEY>" }
+    }
+  }
+}
+```
+
+Copy-ready snippet: [`snippets/zed-mcp.json`](../snippets/zed-mcp.json)
+
+Reload the window (`Cmd+Shift+P` -> **zed: reload**) after saving.
+
+**Pitfall:** Zed uses the top-level key `context_servers`, not `mcpServers`. Placing the config under `mcpServers` means Zed will not find it.
+
+**Older Zed (pre-native HTTP MCP):** If your Zed version does not yet support native HTTP MCP, use the `mcp-remote` proxy:
+
+```json
+{
+  "context_servers": {
+    "odoo-semantic": {
+      "command": {
+        "path": "npx",
+        "args": [
+          "-y",
+          "mcp-remote",
+          "https://odoo-semantic.viindoo.com/mcp",
+          "--header",
+          "X-API-Key:<YOUR_API_KEY>"
+        ]
+      }
+    }
+  }
+}
+```
+
+---
+
+## JetBrains Junie
+
+Docs: <https://www.jetbrains.com/help/idea/junie.html>
+
+Create (or edit) `.junie/mcp/mcp.json` in your project root:
+```json
+{
+  "mcpServers": {
+    "odoo-semantic": {
+      "url": "https://odoo-semantic.viindoo.com/mcp",
+      "headers": { "X-API-Key": "<YOUR_API_KEY>" }
+    }
+  }
+}
+```
+
+Copy-ready snippet: [`snippets/junie-mcp.json`](../snippets/junie-mcp.json)
+
+Commit or `.gitignore` the file as appropriate for your team (the key is sensitive - do not commit a real key to version control). Restart the Junie panel after saving.
+
+**Pitfall:** the file must be placed at `.junie/mcp/mcp.json` relative to the project root, not at the IDE-global config level. A file placed elsewhere will not be picked up.
 
 ---
 
