@@ -12,9 +12,9 @@ description: >
   Odoo handles Z — help me build the evidence", "for the buy-side technical review,
   evidence of multi-currency invoicing", "before the demo this Friday, package proof of
   approval workflows", "before the F&B demo — prove Odoo can do lot tracking",
-  "RFP response — need to back up every yes with module + code", "competitor said Odoo
-  can't do X — what's our counter-evidence?". Trigger especially when there's a deadline
-  signal ("for the demo", "before Friday", "in the RFP", "before next week's demo") because the
+  "RFP response — need to back up every yes with module + code". Trigger especially when
+  there's a deadline signal ("for the demo", "before Friday", "in the RFP", "before next
+  week's demo") because the
   user needs real artifacts fast. When the user only wants a yes/no answer on availability
   (no proof package needed), route to odoo-feature-check. When they're scoping MANY
   requirements at once for a quote, route to odoo-gap-analysis
@@ -127,10 +127,10 @@ Output: Verdict "Supported natively", evidence table citing `account.move` field
 real code example, and demo steps.
 
 **Example 2:**
-Prompt: "chứng minh Odoo 17 hỗ trợ phê duyệt đa cấp cho đơn mua hàng"
+Prompt: "prove Odoo 17 supports multi-level approval for purchase orders"
 Output: Verdict with `purchase_stock` + `purchase` module evidence,
 `entity_lookup(kind='method', model='purchase.order', method_name='button_approve')` override
-chain, demo steps in Vietnamese context.
+chain, and demo steps.
 
 ## Notes / Integration
 

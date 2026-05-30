@@ -128,10 +128,35 @@ PY
 # ---------------------------------------------------------------------------
 # Collect all data first, then print header + sorted rows
 # ---------------------------------------------------------------------------
-declare -A SEEN_REPOS   # track repo roots to avoid duplicates
-declare -A REPO_ROLE
-declare -A REPO_VERSION
-declare -A REPO_HAS_MANIFEST
+# bash 3.2 compatibility: stock macOS /bin/bash is 3.2 and has NO associative
+# arrays (`declare -A` errors "invalid option" and aborts discovery under
+# `set -e`, so step 40 then reports "no repos discovered" even when repos
+# exist). We therefore use PARALLEL INDEXED arrays keyed by position, plus a
+# newline-delimited "seen" string for O(1)-ish dedup via a case glob. (No
+# mapfile/readarray either - both are bash 4+.) Output order/columns are
+# unchanged from the associative-array version.
+SEEN=$'\n'          # membership index: contains "\n<repo_root>\n" per seen repo
+REPO_PATHS=()       # parallel arrays, same index = same repo
+REPO_ROLES=()
+REPO_VERSIONS=()
+REPO_MANIFESTS=()
+
+# _seen <repo_root> -> 0 if already recorded, 1 otherwise.
+_seen() {
+    case "$SEEN" in
+        *"$(printf '\n%s\n' "$1")"*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# _record <repo_root> <role> <version> <has_manifest>
+_record() {
+    SEEN="${SEEN}$1"$'\n'
+    REPO_PATHS+=("$1")
+    REPO_ROLES+=("$2")
+    REPO_VERSIONS+=("$3")
+    REPO_MANIFESTS+=("$4")
+}
 
 # ---------------------------------------------------------------------------
 # Phase 1: Detect Odoo core repos (has odoo-bin + odoo/release.py)
@@ -141,12 +166,9 @@ while IFS= read -r odoobin; do
     release_py="$repo_root/odoo/release.py"
     [[ -f "$release_py" ]] || continue
 
-    if [[ -z "${SEEN_REPOS[$repo_root]+set}" ]]; then
-        SEEN_REPOS[$repo_root]=1
+    if ! _seen "$repo_root"; then
         version="$(_odoo_version_from_release "$release_py")"
-        REPO_ROLE[$repo_root]="core"
-        REPO_VERSION[$repo_root]="${version:-unknown}"
-        REPO_HAS_MANIFEST[$repo_root]="yes"
+        _record "$repo_root" "core" "${version:-unknown}" "yes"
     fi
 done < <(find "$BASE_DIR" -maxdepth 3 -name "odoo-bin" 2>/dev/null)
 
@@ -159,31 +181,28 @@ while IFS= read -r manifest; do
     # repo root is one level above the module dir
     repo_root="$(dirname "$module_dir")"
 
-    # Skip Odoo core repos already classified in Phase 1
-    [[ -n "${SEEN_REPOS[$repo_root]+set}" ]] && continue
+    # Skip repos already classified (core in Phase 1, or earlier addon module)
+    _seen "$repo_root" && continue
 
-    SEEN_REPOS[$repo_root]=1
     role="$(_classify_role "$repo_root")"
-    REPO_ROLE[$repo_root]="$role"
-    REPO_HAS_MANIFEST[$repo_root]="yes"
 
     # Try to infer version from __manifest__.py (best-effort, first module wins)
-    if [[ -z "${REPO_VERSION[$repo_root]+set}" ]]; then
-        ver="$(python3 - "$manifest" <<'PY' 2>/dev/null || true
+    ver="$(python3 - "$manifest" <<'PY' 2>/dev/null || true
 import ast, sys
 try:
     data = ast.literal_eval(open(sys.argv[1]).read())
     v = data.get('version', '')
-    # version field is often "17.0.x.y.z"; extract series
+    # version field is often "17.0.x.y.z"; extract the Odoo series. Odoo series
+    # are always major>=8 with minor 0 (e.g. 17.0). Reject module-local versions
+    # like "0.1"/"2.1"/"1.0" that do not map to a real Odoo series.
     parts = str(v).split('.')
-    if len(parts) >= 2 and parts[0].isdigit():
+    if len(parts) >= 2 and parts[0].isdigit() and int(parts[0]) >= 8 and parts[1] == '0':
         print(f"{parts[0]}.{parts[1]}")
 except Exception:
     pass
 PY
 )"
-        REPO_VERSION[$repo_root]="${ver:-unknown}"
-    fi
+    _record "$repo_root" "$role" "${ver:-unknown}" "yes"
 done < <(find "$BASE_DIR" -maxdepth 4 -name "__manifest__.py" 2>/dev/null)
 
 # ---------------------------------------------------------------------------
@@ -195,13 +214,20 @@ echo "# Recommended addons-path order: custom -> theme -> oca -> enterprise -> c
 echo "# Columns: role<TAB>version<TAB>path<TAB>has_manifest"
 echo "# role is 'guessed' from directory name - review before committing to config"
 
-# Emit in role-priority order so caller sees them already sorted for addons-path
+# Emit in role-priority order so caller sees them already sorted for addons-path.
+# Iterate the parallel arrays by index (bash 3.2 safe).
 for priority_role in custom theme oca enterprise core; do
-    for repo_root in "${!REPO_ROLE[@]}"; do
-        [[ "${REPO_ROLE[$repo_root]}" == "$priority_role" ]] || continue
-        ver="${REPO_VERSION[$repo_root]:-unknown}"
-        # printf (not echo -e) so a path containing backslashes is not mangled by
-        # escape interpretation, keeping the TSV columns intact.
-        printf '%s\t%s\t%s\t%s\n' "$priority_role" "$ver" "$repo_root" "${REPO_HAS_MANIFEST[$repo_root]:-no}"
+    i=0
+    while [[ $i -lt ${#REPO_PATHS[@]} ]]; do
+        if [[ "${REPO_ROLES[$i]}" == "$priority_role" ]]; then
+            # printf (not echo -e) so a path containing backslashes is not
+            # mangled by escape interpretation, keeping the TSV columns intact.
+            printf '%s\t%s\t%s\t%s\n' \
+                "$priority_role" \
+                "${REPO_VERSIONS[$i]:-unknown}" \
+                "${REPO_PATHS[$i]}" \
+                "${REPO_MANIFESTS[$i]:-no}"
+        fi
+        i=$((i + 1))
     done
 done

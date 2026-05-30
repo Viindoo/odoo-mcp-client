@@ -13,7 +13,7 @@ body:
     id: plugin-version
     attributes:
       label: Plugin version
-      description: Run `claude plugin list` and paste the version shown next to `odoo-semantic`.
+      description: Run `claude plugin list` and paste the version shown next to `odoo-semantic-skills` (or `odoo-semantic-mcp`).
       placeholder: "e.g. 0.5.0"
     validations:
       required: true

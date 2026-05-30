@@ -1,0 +1,19 @@
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "odoo-api-key",
+      "description": "Odoo Semantic MCP - X-API-Key",
+      "password": true
+    }
+  ],
+  "servers": {
+    "odoo-semantic": {
+      "type": "http",
+      "url": "https://odoo-semantic.viindoo.com/mcp",
+      "headers": {
+        "X-API-Key": "${input:odoo-api-key}"
+      }
+    }
+  }
+}

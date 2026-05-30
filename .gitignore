@@ -17,3 +17,5 @@ node_modules/
 # Local env / secrets
 .env
 *.local
+.claude/settings.local.json
+.claude/*.local.json

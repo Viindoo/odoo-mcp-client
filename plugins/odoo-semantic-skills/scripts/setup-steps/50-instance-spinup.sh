@@ -9,7 +9,7 @@
 # Unlike the other steps this one is PARAMETERISED by version:
 #   50-instance-spinup.sh apply --version 17.0
 #   50-instance-spinup.sh check --version 17.0
-# If --version is omitted, the FIRST [instance.*] table in the file is used.
+# If --version is omitted, the highest valid X.Y [[instance]] in the file is used.
 #
 # Subcommands:
 #   describe   One-line description.
@@ -34,6 +34,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ODOO_AI_DIR="${ODOO_AI_DIR:-$PWD/.odoo-ai}"
 INSTANCES_TOML="$ODOO_AI_DIR/instances.toml"
+INSTANCES_IO="$SCRIPT_DIR/../lib/instances_io.py"
 SPINUP_TIMEOUT="${SPINUP_TIMEOUT:-120}"
 
 # ---------------------------------------------------------------------------
@@ -64,102 +65,16 @@ cmd_describe() {
 }
 
 # ---------------------------------------------------------------------------
-# TOML reader - emit shell-eval-able KEY=VALUE lines for one instance table.
-# Uses tomllib (py3.11+); falls back to a minimal `[instance.<key>]` text scan
-# on older Python so spin-up still works without a 3.11 interpreter.
+# TOML reader - emit shell-eval-able KEY=VALUE lines for one instance.
+# Delegates to lib/instances_io.py (tomllib on py3.11+, text-scan fallback on
+# older Python). Selects by --version, else the highest valid X.Y series.
 # ---------------------------------------------------------------------------
 _read_instance() {
-    # $1 = version (may be empty -> first table).
-    # Prints shell-safe KEY=VALUE lines (values quoted via shlex.quote) so the
-    # caller can `eval` them safely even when a path contains spaces or shell
-    # metacharacters (e.g. macOS "/Users/me/My Repos/odoo").
+    # $1 = series (may be empty -> highest valid series).
+    # Prints shell-safe KEY=VALUE lines (values shlex.quote'd) so the caller can
+    # `eval` them even when a path contains spaces or shell metacharacters.
     [[ -f "$INSTANCES_TOML" ]] || return 1
-    python3 - "$INSTANCES_TOML" "${1:-}" <<'PY'
-import sys, shlex, re
-path, want = sys.argv[1], (sys.argv[2] if len(sys.argv) > 2 else "")
-
-def _load_tomllib(p):
-    import tomllib  # py3.11+; ImportError -> caller falls back to text scan
-    with open(p, "rb") as f:
-        return tomllib.load(f)
-
-def _load_textscan(p):
-    """Minimal fallback parser for `[instance.<key>]` tables on Python < 3.11.
-
-    Handles the subset this file writes: string/int scalars and inline arrays
-    of strings. Not a general TOML parser — just enough for instances.toml.
-    """
-    def parse_value(raw):
-        raw = raw.strip()
-        if raw.startswith("[") and raw.endswith("]"):
-            items = []
-            for part in raw[1:-1].split(","):
-                part = part.strip().strip('"').strip("'")
-                if part:
-                    items.append(part)
-            return items
-        if (raw.startswith('"') and raw.endswith('"')) or \
-           (raw.startswith("'") and raw.endswith("'")):
-            return raw[1:-1]
-        if re.fullmatch(r"-?\d+", raw):
-            return int(raw)
-        return raw
-    inst, cur = {}, None
-    with open(p, encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            m = re.match(r"^\[instance\.([^\]]+)\]$", line)
-            if m:
-                cur = m.group(1).strip().strip('"').strip("'")
-                inst[cur] = {}
-                continue
-            if cur is None or line.startswith("["):
-                # A non-instance table ends the current instance scope.
-                if line.startswith("["):
-                    cur = None
-                continue
-            if "=" in line:
-                k, _, v = line.partition("=")
-                inst[cur][k.strip()] = parse_value(v)
-    return {"instance": inst}
-
-try:
-    data = _load_tomllib(path)
-except ImportError:
-    try:
-        data = _load_textscan(path)
-    except Exception:
-        sys.exit(1)
-except Exception:
-    sys.exit(1)
-inst = (data.get("instance") or {})
-if not inst:
-    sys.exit(1)
-if want:
-    tbl = inst.get(want)
-    key = want
-else:
-    key = sorted(inst)[0]
-    tbl = inst[key]
-if not isinstance(tbl, dict):
-    sys.exit(1)
-def sh(v):
-    if isinstance(v, list):
-        return ":".join(str(x) for x in v)
-    return str(v)
-def emit(name, value):
-    # shlex.quote makes the RHS a single, injection-safe shell word.
-    print(f"{name}={shlex.quote(sh(value))}")
-emit("INST_VERSION", tbl.get('version', key))
-emit("INST_ADDONS_PATH", tbl.get('addons_path', []))
-emit("INST_RUN_MODE", tbl.get('run_mode', 'source'))
-emit("INST_HTTP_PORT", tbl.get('http_port', 8069))
-emit("INST_DB_NAME", tbl.get('db_name', 'odoo'))
-emit("INST_DB_HOST", tbl.get('db_host', 'localhost'))
-emit("INST_DB_USER", tbl.get('db_user', 'odoo'))
-PY
+    python3 "$INSTANCES_IO" read "$INSTANCES_TOML" "${1:-}"
 }
 
 # ---------------------------------------------------------------------------
@@ -174,8 +89,10 @@ _http_status() {
 # check
 # ---------------------------------------------------------------------------
 cmd_check() {
-    local kv port
-    kv="$(_read_instance "$VERSION")" || return 1
+    # Non-zero exit OR empty output from the loader = no instance to check.
+    local kv port rc=0
+    kv="$(_read_instance "$VERSION")" || rc=$?
+    [[ "$rc" -eq 0 && -n "$kv" ]] || return 1
     eval "$kv"
     port="${INST_HTTP_PORT:-8069}"
     [[ "$(_http_status "$port")" == "200" ]]
@@ -218,11 +135,19 @@ _poll_until_up() {
 }
 
 cmd_apply() {
-    local kv
-    kv="$(_read_instance "$VERSION")" || {
-        echo "x No instance found in $INSTANCES_TOML. Run step 40 first." >&2
+    # The loader (lib/instances_io.py read) prints guidance to STDERR and exits
+    # non-zero with EMPTY stdout when no valid instance exists. Capture the exit
+    # status separately (`|| rc=$?` keeps `set -e` from aborting here) and treat
+    # BOTH a non-zero exit AND empty output as "nothing to spin up" so we never
+    # proceed with empty INST_* vars.
+    local kv rc=0
+    kv="$(_read_instance "$VERSION")" || rc=$?
+    if [[ "$rc" -ne 0 || -z "$kv" ]]; then
+        echo "x No usable Odoo instance found in $INSTANCES_TOML." >&2
+        echo "  Declare one first: run the instance-profile step" >&2
+        echo "  (40-instance-profile.sh apply) or edit instances.toml by hand." >&2
         return 1
-    }
+    fi
     eval "$kv"
     local port="${INST_HTTP_PORT:-8069}"
 
@@ -251,7 +176,12 @@ cmd_apply() {
                 echo "x Could not locate odoo-bin. Set ODOO_BIN=/path/to/odoo-bin and retry." >&2
                 return 1
             }
-            conf="$(mktemp -t odoo-spinup-${INST_VERSION}.XXXXXX.conf)"
+            # Portable mktemp: `mktemp -t PREFIX.XXXXXX.conf` is GNU-specific.
+            # On BSD/macOS `-t` treats the arg as a prefix only, a suffix after
+            # the X's is not honored, and ${INST_VERSION} contains a dot. Create
+            # a bare temp file with a trailing-X template, then rename to add the
+            # .conf suffix - works on both GNU and BSD/macOS.
+            conf="$(mktemp "${TMPDIR:-/tmp}/odoo-spinup-XXXXXX")" && mv "$conf" "$conf.conf" && conf="$conf.conf"
             {
                 echo "[options]"
                 echo "addons_path = $(printf '%s' "${INST_ADDONS_PATH:-}" | tr ':' ',')"
@@ -265,13 +195,26 @@ cmd_apply() {
                 fi
             } >"$conf"
             echo "  Generated temp conf: $conf"
-            echo "  Launching: python '$bin' -c '$conf' -d '${INST_DB_NAME:-odoo}' --dev=all"
+            # Resolve the Python interpreter: the instance's own `python` field
+            # (a venv with Odoo deps) wins, then $ODOO_PYTHON, else system python3.
+            local py
+            py="${INST_PYTHON:-}"
+            [[ -z "$py" ]] && py="${ODOO_PYTHON:-}"
+            [[ -z "$py" ]] && py="python3"
+            if ! command -v "$py" >/dev/null 2>&1 && [[ ! -x "$py" ]]; then
+                echo "x Python interpreter '$py' not found. Set 'python' in" \
+                     "instances.toml (a venv with Odoo deps) or ODOO_PYTHON, or" \
+                     "install python3." >&2
+                return 1
+            fi
+            echo "  Launching: $py '$bin' -c '$conf' -d '${INST_DB_NAME:-odoo}' --dev=all"
             # Run in background so we can poll. Logs to a temp file.
             # Capture the PID directly (no subshell `( )`, which would hide it)
             # so a poll timeout can terminate the orphaned process.
             local logf
-            logf="$(mktemp -t odoo-spinup-${INST_VERSION}.XXXXXX.log)"
-            python3 "$bin" -c "$conf" -d "${INST_DB_NAME:-odoo}" --dev=all >"$logf" 2>&1 &
+            # Portable mktemp (see the conf note above): bare template + rename.
+            logf="$(mktemp "${TMPDIR:-/tmp}/odoo-spinup-XXXXXX")" && mv "$logf" "$logf.log" && logf="$logf.log"
+            "$py" "$bin" -c "$conf" -d "${INST_DB_NAME:-odoo}" --dev=all >"$logf" 2>&1 &
             odoo_pid=$!
             echo "  Odoo starting (pid: $odoo_pid, log: $logf)"
             ;;

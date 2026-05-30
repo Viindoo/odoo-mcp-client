@@ -1,0 +1,10 @@
+{
+  "context_servers": {
+    "odoo-semantic": {
+      "url": "https://odoo-semantic.viindoo.com/mcp",
+      "headers": {
+        "X-API-Key": "<YOUR_API_KEY>"
+      }
+    }
+  }
+}
