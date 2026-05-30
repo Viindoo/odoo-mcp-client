@@ -43,6 +43,7 @@ Usage examples:
 
 import json
 import os
+import re
 import shutil
 import sys
 import time
@@ -186,6 +187,36 @@ def cmd_json_merge(args: list[str]) -> int:
 # Subcommand: toml-ensure-table
 # ---------------------------------------------------------------------------
 
+def _split_toml_key(key_str: str) -> list[str]:
+    """Split a dotted TOML key path on '.' that lies OUTSIDE quotes, stripping
+    the surrounding quotes from each segment.
+
+    Plain ``str.split(".")`` is wrong for quoted keys: a header like
+    ``instance."17.0"`` must split to ``['instance', '17.0']``, not
+    ``['instance', '"17', '0"']``.
+    """
+    parts: list[str] = []
+    buf: list[str] = []
+    in_quote = False
+    quote_char = ""
+    for ch in key_str:
+        if in_quote:
+            if ch == quote_char:
+                in_quote = False
+            else:
+                buf.append(ch)
+        elif ch in ('"', "'"):
+            in_quote = True
+            quote_char = ch
+        elif ch == ".":
+            parts.append("".join(buf))
+            buf = []
+        else:
+            buf.append(ch)
+    parts.append("".join(buf))
+    return [p.strip() for p in parts]
+
+
 def _toml_table_exists_tomllib(path: str, header: str) -> bool:
     """Use tomllib to detect if a TOML table header is already present.
     header is the raw bracket form, e.g. '[tool.my-server]' or
@@ -214,14 +245,65 @@ def _toml_table_exists_tomllib(path: str, header: str) -> bool:
         # Cannot parse; fall back to text scan
         return _toml_table_exists_text(path, header)
 
-    # Walk the parsed tree along the key path
-    parts = key_str.split(".")
+    # Walk the parsed tree along the key path (quote-aware split)
+    parts = _split_toml_key(key_str)
     node = data
     for part in parts:
         if not isinstance(node, dict) or part not in node:
             return False
         node = node[part]
     return True
+
+
+def _toml_array_has_item(path: str, array_name: str, field: str, value: str) -> bool:
+    """True if the array-of-tables ``[[array_name]]`` already contains an item
+    whose ``field`` equals ``value``. Uses tomllib (py3.11+) when available,
+    else a minimal text scan over ``[[array_name]]`` blocks.
+    """
+    if not os.path.exists(path):
+        return False
+    try:
+        import tomllib  # py3.11+
+    except ImportError:
+        return _toml_array_has_item_text(path, array_name, field, value)
+    try:
+        with open(path, "rb") as fh:
+            data = tomllib.load(fh)
+    except Exception:
+        return _toml_array_has_item_text(path, array_name, field, value)
+    items = data.get(array_name)
+    if not isinstance(items, list):
+        return False
+    return any(
+        isinstance(it, dict) and str(it.get(field)) == str(value) for it in items
+    )
+
+
+def _toml_array_has_item_text(path: str, array_name: str, field: str, value: str) -> bool:
+    """Fallback for Python < 3.11: scan ``[[array_name]]`` blocks for a line
+    ``field = "value"`` (string/bare scalar)."""
+    if not os.path.exists(path):
+        return False
+    header = f"[[{array_name}]]"
+    in_block = False
+    pat = re.compile(
+        r"^\s*" + re.escape(field) + r'\s*=\s*["\']?' + re.escape(str(value)) + r'["\']?\s*(#.*)?$'
+    )
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                stripped = line.strip()
+                if stripped == header:
+                    in_block = True
+                    continue
+                if stripped.startswith("["):  # any other table/array ends the block
+                    in_block = False
+                    continue
+                if in_block and pat.match(stripped):
+                    return True
+    except OSError:
+        pass
+    return False
 
 
 def _toml_table_exists_text(path: str, header: str) -> bool:
@@ -291,6 +373,54 @@ def cmd_toml_ensure_table(args: list[str]) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Subcommand: toml-append-array-item
+# ---------------------------------------------------------------------------
+
+def cmd_toml_append_array_item(args: list[str]) -> int:
+    """toml-append-array-item <target.toml> <array_name> <match_field> <match_value>
+
+    Read key=value body lines from stdin. Ensure the array-of-tables
+    [[array_name]] contains an item whose <match_field> == <match_value>.
+    If such an item already exists: print "exists" and exit 0 (no change).
+    Otherwise append a new [[array_name]] block with the body, backing up first.
+    Creates the file if it does not exist. Idempotent.
+
+    Unlike toml-ensure-table this keys uniqueness off a FIELD value rather than
+    the table header, so it is safe for repeated [[array_name]] items.
+    """
+    if not args or args[0] in ("-h", "--help"):
+        print(cmd_toml_append_array_item.__doc__)
+        return 0
+    if len(args) != 4:
+        print(
+            "Usage: config_merge.py toml-append-array-item "
+            "<target.toml> <array_name> <match_field> <match_value>",
+            file=sys.stderr,
+        )
+        return 1
+
+    target_path, array_name, field, value = args
+    body_raw = sys.stdin.read()
+
+    if os.path.exists(target_path):
+        if _toml_array_has_item(target_path, array_name, field, value):
+            print("exists")
+            return 0
+        bak = _backup(target_path)
+        print(f"backup -> {bak}")
+
+    os.makedirs(os.path.dirname(os.path.abspath(target_path)), exist_ok=True)
+    with open(target_path, "a", encoding="utf-8") as fh:
+        fh.write("\n")
+        fh.write(f"[[{array_name}]]\n")
+        if body_raw.strip():
+            fh.write(body_raw.rstrip("\n") + "\n")
+
+    print(f"appended -> {target_path}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Subcommand: json-ensure-allow
 # ---------------------------------------------------------------------------
 
@@ -347,6 +477,7 @@ def cmd_json_ensure_allow(args: list[str]) -> int:
 SUBCOMMANDS = {
     "json-merge": cmd_json_merge,
     "toml-ensure-table": cmd_toml_ensure_table,
+    "toml-append-array-item": cmd_toml_append_array_item,
     "json-ensure-allow": cmd_json_ensure_allow,
 }
 

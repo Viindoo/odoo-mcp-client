@@ -1,0 +1,17 @@
+{
+  "_comment": "Odoo series -> supported/recommended Python version. Sourced from Odoo setup.py / release.py / official install docs (v8-v19). 'min'/'max' are the officially supported range; 'recommended' is the most stable dev choice. 'python2' marks series that require Python 2.7 (EOL - no Python 3).",
+  "odoo_python_matrix": {
+    "8.0":  {"min": "2.7",  "max": "2.7",  "recommended": "2.7",  "python2": true},
+    "9.0":  {"min": "2.7",  "max": "2.7",  "recommended": "2.7",  "python2": true},
+    "10.0": {"min": "2.7",  "max": "2.7",  "recommended": "2.7",  "python2": true},
+    "11.0": {"min": "3.5",  "max": "3.7",  "recommended": "3.6"},
+    "12.0": {"min": "3.5",  "max": "3.8",  "recommended": "3.6"},
+    "13.0": {"min": "3.6",  "max": "3.8",  "recommended": "3.7"},
+    "14.0": {"min": "3.6",  "max": "3.9",  "recommended": "3.8"},
+    "15.0": {"min": "3.7",  "max": "3.10", "recommended": "3.10"},
+    "16.0": {"min": "3.7",  "max": "3.12", "recommended": "3.10"},
+    "17.0": {"min": "3.10", "max": "3.12", "recommended": "3.12"},
+    "18.0": {"min": "3.10", "max": "3.13", "recommended": "3.12"},
+    "19.0": {"min": "3.10", "max": "3.13", "recommended": "3.12"}
+  }
+}

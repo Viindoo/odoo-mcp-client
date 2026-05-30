@@ -174,9 +174,11 @@ import ast, sys
 try:
     data = ast.literal_eval(open(sys.argv[1]).read())
     v = data.get('version', '')
-    # version field is often "17.0.x.y.z"; extract series
+    # version field is often "17.0.x.y.z"; extract the Odoo series. Odoo series
+    # are always major>=8 with minor 0 (e.g. 17.0). Reject module-local versions
+    # like "0.1"/"2.1"/"1.0" that do not map to a real Odoo series.
     parts = str(v).split('.')
-    if len(parts) >= 2 and parts[0].isdigit():
+    if len(parts) >= 2 and parts[0].isdigit() and int(parts[0]) >= 8 and parts[1] == '0':
         print(f"{parts[0]}.{parts[1]}")
 except Exception:
     pass

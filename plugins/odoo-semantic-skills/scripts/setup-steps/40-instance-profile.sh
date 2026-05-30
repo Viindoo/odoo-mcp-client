@@ -27,6 +27,23 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$SCRIPT_DIR/../lib/config_merge.py"
+MATRIX_JSON="$SCRIPT_DIR/../lib/odoo-python-matrix.json"
+
+# Look up the recommended Python version for an Odoo series (e.g. "17.0").
+# Prints the recommended version or nothing. Data-driven from MATRIX_JSON.
+_suggested_python() {
+    [[ -f "$MATRIX_JSON" ]] || return 0
+    python3 - "$MATRIX_JSON" "$1" <<'PY' 2>/dev/null || true
+import json, sys
+try:
+    m = json.load(open(sys.argv[1]))
+    e = m.get("odoo_python_matrix", {}).get(sys.argv[2])
+    if e and e.get("recommended"):
+        print(e["recommended"])
+except Exception:
+    pass
+PY
+}
 DISCOVER="$SCRIPT_DIR/../lib/discover_odoo.sh"
 
 ODOO_AI_DIR="${ODOO_AI_DIR:-$PWD/.odoo-ai}"
@@ -41,11 +58,11 @@ cmd_describe() {
 }
 
 # ---------------------------------------------------------------------------
-# check - true when instances.toml exists with >=1 [instance.<version>] table
+# check - true when instances.toml exists with >=1 [[instance]] item
 # ---------------------------------------------------------------------------
 cmd_check() {
     [[ -f "$INSTANCES_TOML" ]] || return 1
-    grep -qE '^\[instance\.' "$INSTANCES_TOML"
+    grep -qE '^\[\[instance\]\]' "$INSTANCES_TOML"
 }
 
 # ---------------------------------------------------------------------------
@@ -100,41 +117,64 @@ cmd_apply() {
         | awk -F'\t' 'NF>=2 && $2!="unknown" && $2!="" {print $2}' \
         | sort -u || true)"
 
-    # If nothing discovered, write a single placeholder instance so `check`
-    # has something and the AI agent/user can edit it.
+    # If nothing was discovered, do NOT write a junk placeholder instance.
+    # Guide the user to clone a repo / point ODOO_GIT_BASE and re-run instead.
     if [[ -z "$versions" ]]; then
-        versions="0.0"
+        echo "  No Odoo series discovered under \${ODOO_GIT_BASE:-\$HOME/git}."
+        echo "  Clone an Odoo repo (e.g. 'git clone https://github.com/odoo/odoo -b 17.0 ~/git/odoo17')"
+        echo "  or set ODOO_GIT_BASE to where your repos live, then re-run this step."
+        echo "  (No instance profile written - nothing to declare yet.)"
+        _ensure_gitignore
+        return 0
     fi
 
-    # Build the addons_path per version: join paths whose version matches, in
-    # the role-priority order discover_odoo.sh already emits.
+    # Port allocation: assign a distinct http_port per NEW instance, stepping by
+    # 10 so each instance leaves room for a longpolling/gevent port later. Seed
+    # the counter from the number of instances already declared so re-running
+    # never changes an existing instance's port (idempotent).
+    local base_port=8069 port_idx
+    port_idx="$(grep -cE '^\[\[instance\]\]' "$INSTANCES_TOML" 2>/dev/null || echo 0)"
+
+    # Build the addons_path per series: join paths whose series matches, in the
+    # role-priority order discover_odoo.sh already emits. Each series becomes an
+    # [[instance]] array-of-tables item keyed by the `series` field (no dotted
+    # table headers, so every Python TOML parser reads it back correctly).
     local ver
     while IFS= read -r ver; do
         [[ -n "$ver" ]] || continue
-        if cmd_check && grep -qE "^\[instance\.${ver//./\\.}\]" "$INSTANCES_TOML" 2>/dev/null; then
-            echo "  [instance.$ver] already present - skip"
-            continue
-        fi
-        local paths
+        local paths port suggested_py out pyline
         paths="$(printf '%s\n' "$tsv" \
             | grep -vE '^#' \
             | awk -F'\t' -v v="$ver" 'NF>=3 && $2==v {printf "\"%s\", ", $3}' \
             | sed 's/, $//' || true)"
         [[ -z "$paths" ]] && paths=""
+        port=$((base_port + port_idx * 10))
+        suggested_py="$(_suggested_python "$ver")"
+        if [[ -n "$suggested_py" ]]; then
+            pyline=$(printf 'python = ""                     # venv python for source mode; suggested Python for %s: %s' "$ver" "$suggested_py")
+        else
+            pyline='python = ""                     # venv python for source mode (empty = system python3)'
+        fi
 
         # Body: no password. Host/user/db/port are sensible local defaults the
         # user/agent confirms; password stays in env (ODOO_PG_PASSWORD).
-        {
-            printf 'version = "%s"\n' "$ver"
+        out="$( {
+            printf 'series = "%s"\n' "$ver"
             printf 'addons_path = [%s]\n' "$paths"
             printf 'run_mode = "source"            # source | docker\n'
-            printf 'http_port = 8069\n'
+            printf 'http_port = %s\n' "$port"
             printf 'db_name = "odoo_%s"\n' "${ver//./_}"
             printf 'db_host = "localhost"\n'
             printf 'db_user = "odoo"\n'
+            printf '%s\n' "$pyline"
             printf '# db_password: DO NOT store here. Use env ODOO_PG_PASSWORD or your keychain.\n'
-        } | python3 "$LIB" toml-ensure-table "$INSTANCES_TOML" "[instance.$ver]" >/dev/null
-        echo "  wrote [instance.$ver] -> $INSTANCES_TOML"
+        } | python3 "$LIB" toml-append-array-item "$INSTANCES_TOML" instance series "$ver" )"
+        if printf '%s' "$out" | grep -q '^exists'; then
+            echo "  [[instance]] series=$ver already present - skip"
+        else
+            echo "  wrote [[instance]] series=$ver (http_port=$port) -> $INSTANCES_TOML"
+            port_idx=$((port_idx + 1))
+        fi
     done <<<"$versions"
 
     _ensure_gitignore

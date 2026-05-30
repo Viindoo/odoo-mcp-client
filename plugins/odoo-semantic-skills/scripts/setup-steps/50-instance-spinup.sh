@@ -34,6 +34,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ODOO_AI_DIR="${ODOO_AI_DIR:-$PWD/.odoo-ai}"
 INSTANCES_TOML="$ODOO_AI_DIR/instances.toml"
+INSTANCES_IO="$SCRIPT_DIR/../lib/instances_io.py"
 SPINUP_TIMEOUT="${SPINUP_TIMEOUT:-120}"
 
 # ---------------------------------------------------------------------------
@@ -64,102 +65,16 @@ cmd_describe() {
 }
 
 # ---------------------------------------------------------------------------
-# TOML reader - emit shell-eval-able KEY=VALUE lines for one instance table.
-# Uses tomllib (py3.11+); falls back to a minimal `[instance.<key>]` text scan
-# on older Python so spin-up still works without a 3.11 interpreter.
+# TOML reader - emit shell-eval-able KEY=VALUE lines for one instance.
+# Delegates to lib/instances_io.py (tomllib on py3.11+, text-scan fallback on
+# older Python). Selects by --version, else the highest valid X.Y series.
 # ---------------------------------------------------------------------------
 _read_instance() {
-    # $1 = version (may be empty -> first table).
-    # Prints shell-safe KEY=VALUE lines (values quoted via shlex.quote) so the
-    # caller can `eval` them safely even when a path contains spaces or shell
-    # metacharacters (e.g. macOS "/Users/me/My Repos/odoo").
+    # $1 = series (may be empty -> highest valid series).
+    # Prints shell-safe KEY=VALUE lines (values shlex.quote'd) so the caller can
+    # `eval` them even when a path contains spaces or shell metacharacters.
     [[ -f "$INSTANCES_TOML" ]] || return 1
-    python3 - "$INSTANCES_TOML" "${1:-}" <<'PY'
-import sys, shlex, re
-path, want = sys.argv[1], (sys.argv[2] if len(sys.argv) > 2 else "")
-
-def _load_tomllib(p):
-    import tomllib  # py3.11+; ImportError -> caller falls back to text scan
-    with open(p, "rb") as f:
-        return tomllib.load(f)
-
-def _load_textscan(p):
-    """Minimal fallback parser for `[instance.<key>]` tables on Python < 3.11.
-
-    Handles the subset this file writes: string/int scalars and inline arrays
-    of strings. Not a general TOML parser — just enough for instances.toml.
-    """
-    def parse_value(raw):
-        raw = raw.strip()
-        if raw.startswith("[") and raw.endswith("]"):
-            items = []
-            for part in raw[1:-1].split(","):
-                part = part.strip().strip('"').strip("'")
-                if part:
-                    items.append(part)
-            return items
-        if (raw.startswith('"') and raw.endswith('"')) or \
-           (raw.startswith("'") and raw.endswith("'")):
-            return raw[1:-1]
-        if re.fullmatch(r"-?\d+", raw):
-            return int(raw)
-        return raw
-    inst, cur = {}, None
-    with open(p, encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            m = re.match(r"^\[instance\.([^\]]+)\]$", line)
-            if m:
-                cur = m.group(1).strip().strip('"').strip("'")
-                inst[cur] = {}
-                continue
-            if cur is None or line.startswith("["):
-                # A non-instance table ends the current instance scope.
-                if line.startswith("["):
-                    cur = None
-                continue
-            if "=" in line:
-                k, _, v = line.partition("=")
-                inst[cur][k.strip()] = parse_value(v)
-    return {"instance": inst}
-
-try:
-    data = _load_tomllib(path)
-except ImportError:
-    try:
-        data = _load_textscan(path)
-    except Exception:
-        sys.exit(1)
-except Exception:
-    sys.exit(1)
-inst = (data.get("instance") or {})
-if not inst:
-    sys.exit(1)
-if want:
-    tbl = inst.get(want)
-    key = want
-else:
-    key = sorted(inst)[0]
-    tbl = inst[key]
-if not isinstance(tbl, dict):
-    sys.exit(1)
-def sh(v):
-    if isinstance(v, list):
-        return ":".join(str(x) for x in v)
-    return str(v)
-def emit(name, value):
-    # shlex.quote makes the RHS a single, injection-safe shell word.
-    print(f"{name}={shlex.quote(sh(value))}")
-emit("INST_VERSION", tbl.get('version', key))
-emit("INST_ADDONS_PATH", tbl.get('addons_path', []))
-emit("INST_RUN_MODE", tbl.get('run_mode', 'source'))
-emit("INST_HTTP_PORT", tbl.get('http_port', 8069))
-emit("INST_DB_NAME", tbl.get('db_name', 'odoo'))
-emit("INST_DB_HOST", tbl.get('db_host', 'localhost'))
-emit("INST_DB_USER", tbl.get('db_user', 'odoo'))
-PY
+    python3 "$INSTANCES_IO" read "$INSTANCES_TOML" "${1:-}"
 }
 
 # ---------------------------------------------------------------------------
@@ -265,13 +180,25 @@ cmd_apply() {
                 fi
             } >"$conf"
             echo "  Generated temp conf: $conf"
-            echo "  Launching: python '$bin' -c '$conf' -d '${INST_DB_NAME:-odoo}' --dev=all"
+            # Resolve the Python interpreter: the instance's own `python` field
+            # (a venv with Odoo deps) wins, then $ODOO_PYTHON, else system python3.
+            local py
+            py="${INST_PYTHON:-}"
+            [[ -z "$py" ]] && py="${ODOO_PYTHON:-}"
+            [[ -z "$py" ]] && py="python3"
+            if ! command -v "$py" >/dev/null 2>&1 && [[ ! -x "$py" ]]; then
+                echo "x Python interpreter '$py' not found. Set 'python' in" \
+                     "instances.toml (a venv with Odoo deps) or ODOO_PYTHON, or" \
+                     "install python3." >&2
+                return 1
+            fi
+            echo "  Launching: $py '$bin' -c '$conf' -d '${INST_DB_NAME:-odoo}' --dev=all"
             # Run in background so we can poll. Logs to a temp file.
             # Capture the PID directly (no subshell `( )`, which would hide it)
             # so a poll timeout can terminate the orphaned process.
             local logf
             logf="$(mktemp -t odoo-spinup-${INST_VERSION}.XXXXXX.log)"
-            python3 "$bin" -c "$conf" -d "${INST_DB_NAME:-odoo}" --dev=all >"$logf" 2>&1 &
+            "$py" "$bin" -c "$conf" -d "${INST_DB_NAME:-odoo}" --dev=all >"$logf" 2>&1 &
             odoo_pid=$!
             echo "  Odoo starting (pid: $odoo_pid, log: $logf)"
             ;;
