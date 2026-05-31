@@ -13,6 +13,7 @@ description: >
   or in-context skill chaining (use workflow-runner).
   Never auto-merge - HUMAN-CONFIRM is the terminal gate
 model: opus
+disallowed-tools: Write Edit
 ---
 
 ## Persona
@@ -161,7 +162,15 @@ After plan approval:
 
 ## Phase 2 - Dispatch WI Subagents
 
-Dispatch up to 3 concurrent WI subagents. Each subagent receives a **Phase-4 WI brief**:
+Dispatch up to 3 concurrent WI subagents using the **Agent tool** — one Agent tool call per
+WI. Make all Agent tool calls in a **single turn (same message, parallel)** so they run
+concurrently. Pass the WI brief as the `prompt` parameter of each Agent call.
+
+**MANDATORY**: You MUST make real Agent tool calls. Do NOT describe dispatch in prose
+instead of calling the tool — the user must see actual Agent tool invocations. If you
+narrate dispatch without calling the Agent tool, that is a hard violation of this phase.
+
+Each subagent receives a **Phase-4 WI brief** as its `prompt`:
 
 ```
 ## WI-<ID> Brief
@@ -185,7 +194,13 @@ Hard rules:
   - Only edit files listed in your "Files in scope". Do not touch files owned by other WIs.
   - Commit your work to branch wave/wi-<slug>-<id> using the repo commit convention.
   - Run the verify command and confirm it passes before declaring done.
-  - Output: commit SHA + verify result + brief summary of changes made.
+  - Return your result using EXACTLY this template (no prose substitution):
+
+## WI-<ID> Result
+Status:  DONE | FAILED
+SHA:     <commit sha or "no-commit (orchestrator commits)">
+Verify:  PASS | FAIL — <command + result>
+Changes: <1-3 bullets: file + what changed>
 
 Confidentiality: <8-group restriction if restricted; otherwise "public repo - standard caution">
 
