@@ -15,6 +15,7 @@ description: >
   For a SINGLE feature use odoo-feature-check; for a short ad-hoc gap matrix with no cost,
   no chunked pipeline, and no scale requirement use odoo-gap-analysis
 model: opus
+disallowed-tools: Write Edit
 ---
 
 ## Persona

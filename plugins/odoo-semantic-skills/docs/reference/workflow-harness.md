@@ -276,11 +276,33 @@ Business-logic and data-flow edges come from Opus cluster reasoning.
 
 ## 4. Soft-plan-gate convention
 
-### 4.1 Why skills cannot force plan mode (A1 constraint)
+### 4.1 Plan mode and skills — what is and isn't possible
 
-Skills, commands, and hooks cannot set `permission_mode=plan`. Plan mode is only
-user-activated (Shift+Tab, `/plan`, CLI flag, `defaultMode` in settings).
-The harness achieves an equivalent read-only planning turn through two mechanisms:
+Skills, commands, and hooks **cannot declaratively set** `permission_mode=plan` in
+their frontmatter or configuration. User-initiated plan mode (Shift+Tab, `/plan`, CLI
+flag, `defaultMode` in settings) is separate from anything a skill can declare.
+
+However, this does **not** mean plan mode is unreachable from within a skill-driven
+flow:
+
+- **Main agent (depth-0) CAN call `EnterPlanMode` / `ExitPlanMode`** — these are
+  platform tools available to the main context. A skill running at depth-0 (e.g.,
+  `intake`) may instruct the main agent to invoke `EnterPlanMode` before any
+  file-touching execution, producing genuine UI-approved Plan Mode — a stronger
+  enforcement than a text gate.
+- **Subagents cannot call `EnterPlanMode`** — the tool is only reachable from the
+  main context. `ExitPlanMode` is only available to a subagent whose `permissionMode`
+  is already `plan`.
+
+#### Intake-initiated Plan Mode pattern
+
+When a depth-0 skill (`intake`) reaches the execute phase after the user approves a
+Proposed Plan, the main agent may call `EnterPlanMode` → compose the execution plan
+for UI review → receive user approval via `ExitPlanMode` → then dispatch the
+file-touching specialist. This is a first-class enforcement option, not a workaround.
+
+For skills that **cannot** rely on depth-0 context (e.g., skills invoked from inside
+a subagent), the harness falls back to two mechanisms:
 
 1. **`disallowed-tools: Write Edit`** in the skill frontmatter — platform-enforced
    for the current turn, clearing automatically when the user sends the next message.
@@ -288,7 +310,8 @@ The harness achieves an equivalent read-only planning turn through two mechanism
    has approved a Proposed Plan". Paired with a Red Flags table listing rationalizations
    the agent must refuse (e.g., "This is simple, I'll just start coding" → STOP).
 
-This combination is the only A1-legal substitute for plan mode in a plugin skill.
+The text-gate combination (mechanisms 1+2) is the A1-legal fallback when `EnterPlanMode`
+is not available (non-depth-0 context); it is not the only option.
 
 ### 4.2 Gate template
 
