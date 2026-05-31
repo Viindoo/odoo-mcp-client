@@ -51,6 +51,12 @@ what they want or what outcome they need. This skill's job is to:
      exists, resume it (Tier 2).
    - If neither exists and the working directory has `__manifest__.py` but no context
      file, note that `odoo-onboard` can bootstrap it and mention this in the plan.
+   - **OSM availability check**: if `.odoo-ai/context.md` contains an `odoo_version`
+     field AND the `mcp__odoo-semantic__*` tools are reachable in this session →
+     mark the path as `backed` (the specialist skill will call `set_active_version`
+     automatically). If OSM tools are absent or unreachable → mark the path as
+     `standalone` (no OSM enforcement; specialist relies on user-provided context).
+     Record the result as `OSM: backed | standalone` in the Proposed Plan.
 4. **Confidentiality (public repo — 8 banned groups).** Do not surface, quote, or
    transmit: CEO personal info, customer PII/contracts, internal pricing, competitor
    intelligence beyond public sources, product roadmap details, marketing-in-draft,
@@ -63,6 +69,15 @@ what they want or what outcome they need. This skill's job is to:
 
 > **No execution skill fires until the user has approved a Proposed Plan.**
 
+The gate has two enforcement layers — both are required; neither is optional:
+
+1. **Text gate (Proposed Plan block)** — brainstorm / route / soft-plan-gate. Always
+   present; user types `approve / refine / cancel`.
+2. **Plan Mode (harness-level guarantee)** — applies on top of the text gate whenever the
+   approved next step is an execute-skill that **touches files** (see "Plan Mode" section
+   below). Plan Mode is the stronger, machine-level enforcement; the text gate alone is
+   insufficient when file writes are about to occur.
+
 **Red Flags — phrases that trigger STOP + re-gate:**
 - "This is simple, I'll just start coding" → STOP. Still propose + gate.
 - "The user clearly wants X, skip the questions" → only valid via Tier-1 fast-path, NOT
@@ -70,6 +85,41 @@ what they want or what outcome they need. This skill's job is to:
 - "I'll plan and edit in the same turn" → BANNED. Parse verb order: "plan" means produce
   a plan and stop. No edits, even one line. (Memory: `started-editing-during-plan-request`.)
 - "The gate is unnecessary friction here" → wrong. The gate IS the contract.
+- "The text gate was enough, I can skip Plan Mode" → WRONG. Plan Mode is mandatory when
+  an execute-skill will write files. The text gate and Plan Mode are independent layers.
+
+## Plan Mode — harness-level pre-execute gate
+
+**When it applies**: after the user approves the Proposed Plan AND the chosen next step is
+an execute-skill that will **write or modify files** — specifically any of: `odoo-coder`,
+`odoo-frontend-coder`, `wave`, `odoo-brl`, `workflow-runner`, or any skill whose output
+column is NOT "chat only".
+
+**Why intake can do this**: intake runs at depth-0 (main context). `EnterPlanMode` /
+`ExitPlanMode` are only callable from the main context — subagents cannot invoke them.
+Intake MUST be the one to initiate Plan Mode; specialist skills running later do not have
+this capability.
+
+**Does NOT apply** for chat-only / read-only skills: `odoo-feature-check`,
+`odoo-version-diff`, `odoo-risk-overview`, `odoo-deprecation-audit`, `odoo-gap-analysis`,
+`odoo-discovery-summarize`, `odoo-capability-proof`, `odoo-objection-handler`,
+`odoo-content-draft`, `odoo-competitive-brief`, any skill whose Output field is "chat only".
+
+**Procedure** (execute-skill that touches files):
+1. User sends `approve` on the Proposed Plan.
+2. Main agent calls **`EnterPlanMode`** tool.
+3. Main agent writes an implementation plan (files to be changed, approach, acceptance
+   criteria) inside Plan Mode.
+4. Main agent calls **`ExitPlanMode`** tool → Plan Mode UI is shown to the user.
+5. User reviews and approves the plan in the Plan Mode UI.
+6. ONLY after Plan Mode approval: main agent invokes the execute-skill or workflow via the
+   **Agent tool**.
+
+**Red flags for Plan Mode**:
+- "The user already said approve, I can skip EnterPlanMode" → NO. Text-gate approval and
+  Plan Mode approval are two separate steps.
+- "I'll enter Plan Mode after I've already started editing" → BANNED. EnterPlanMode must
+  come before any file touch.
 
 ## 4-tier routing
 
@@ -127,19 +177,21 @@ Approach:    <skill name | workflow name | command>
 Chain:       <skill> → <skill> ...   (for multi-step; "single turn" for atomic asks)
 Output:      .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
 Est. effort: <S / M / L / XL / "single turn">
+OSM:         backed | standalone   (backed if odoo-semantic tools are available; standalone if not)
+Next turn:   invoke `<skill/workflow>` via the **Agent tool** (you will see the tool call)
 
 Gate: approve / refine: [your feedback] / cancel
 ```
 
 Enforcement stack:
 1. `disallowed-tools: Write Edit` → platform-blocks file edits during this planning turn.
-2. Iron Law + Red Flags above → behavioral enforcement.
-3. On `approve` → intake ENDS its turn. The user's next prompt fires the specialist or
-   workflow by NL description-match (writes now allowed in the specialist's context).
-4. On `refine: [feedback]` → loop back within brainstorm. On `cancel` → stop + brief report.
-
-Intake does NOT auto-enter plan mode (not A1-legal from a plugin skill). The soft plan gate
-is the A1-compliant substitute.
+2. Iron Law + Red Flags above → behavioral enforcement (text gate layer).
+3. Plan Mode (EnterPlanMode / ExitPlanMode) → harness-level guarantee before any
+   execute-skill that writes files (see § Plan Mode). This is the stronger layer.
+4. On `approve` → if the next step writes files, main agent MUST call EnterPlanMode before
+   invoking the specialist. If the next step is chat-only/read-only, intake ends its turn
+   and the specialist fires via the Agent tool on the next turn.
+5. On `refine: [feedback]` → loop back within brainstorm. On `cancel` → stop + brief report.
 
 ## Routing Table
 
@@ -368,9 +420,15 @@ Intake behaviour when ambiguous between command and skill:
 
 ## Standalone-first fallback
 
-Intake is pure-text routing and brainstorm — no MCP tool calls. No OSM dependency.
-If `.odoo-ai/context.md` is absent, intake operates on user-provided context alone and
-notes that `odoo-onboard` can bootstrap the project context file.
+Intake is pure-text routing and brainstorm — no MCP tool calls beyond Phase 0 context reads.
+OSM is optional, not required:
+- **backed path**: `.odoo-ai/context.md` has `odoo_version` AND `mcp__odoo-semantic__*` tools
+  are reachable → specialist skills receive `set_active_version` automatically; intake records
+  `OSM: backed` in the Proposed Plan.
+- **standalone path**: `.odoo-ai/context.md` is absent, lacks `odoo_version`, or OSM tools
+  are not reachable → intake operates on user-provided context alone; intake records
+  `OSM: standalone` and notes that `odoo-onboard` can bootstrap the context file. OSM is
+  NOT forced on the specialist in this path.
 
 ## Output Format
 
@@ -389,6 +447,8 @@ Approach:    <skill name | workflow name | command>
 Chain:       <skill> → <skill> ...   (or "single turn")
 Output:      .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
 Est. effort: <S / M / L / XL / "single turn">
+OSM:         backed | standalone   (backed if odoo-semantic tools are available; standalone if not)
+Next turn:   invoke `<skill/workflow>` via the **Agent tool** (you will see the tool call)
 
 Gate: approve / refine: [your feedback] / cancel
 ```
