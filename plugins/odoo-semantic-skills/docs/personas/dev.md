@@ -1,16 +1,16 @@
 # Odoo Semantic — Developer Guide
 
-<!-- This persona intentionally enumerates the full tool arsenal (server v0.11.1) instead of the "Most Useful Tools" template variant — devs need the full surface area, including the 3 M11 supersets, 4 session-context tools, 2 M10A stylesheet tools, and 4 M10.5 ORM-validation tools. -->
+<!-- This persona intentionally enumerates the full tool arsenal (server v0.11.1) instead of the "Most Useful Tools" template variant — devs need the full surface area, including the 3 superset tools, 4 session-context tools, 2 stylesheet tools, and 4 ORM-validation tools. -->
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic-skills@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
-The full **tool arsenal (server v0.11.1)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS/LESS stylesheet analysis, and now static ORM validation — this guide covers the daily patterns. Server v0.11.1 ships three discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`), four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call, two **stylesheet tools** for theme/branding work, and four **ORM-validation tools** that catch hallucinated field-paths, operators, dependencies, and relation targets before you ship a domain / `@api.depends` / relational field.
+The full **tool arsenal (server v0.11.1)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS/LESS stylesheet analysis, and now static ORM validation — this guide covers the daily patterns. Server v0.11.1 ships three discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`), four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call (v0.6+), two **stylesheet tools** for theme/branding work (v0.7+), and four **ORM-validation tools** that catch hallucinated field-paths, operators, dependencies, and relation targets before you ship a domain / `@api.depends` / relational field (v0.8+).
 
 ---
 
 ## All Tools Available to Developers (server v0.11.1)
 
-### Supersets (M11 Wave D — preferred over legacy siblings)
+### Supersets (v0.5+ — preferred over legacy siblings)
 
 | Tool | Use case |
 |------|----------|
@@ -18,7 +18,7 @@ The full **tool arsenal (server v0.11.1)**, optimized for development workflows.
 | `module_inspect(module, method='summary'\|'views'\|'owl'\|'qweb'\|'js'\|'dependencies', ...)` | Module-level inventory across manifest, models, views, OWL, QWeb, JS patches, dependencies. **Replaces** `describe_module` + `list_views` (module-scoped) + `list_owl_components` + `list_qweb_templates` + `list_js_patches`. |
 | `entity_lookup(kind='field'\|'method'\|'view', ...)` | One entity drill-down by ID. **Replaces** `resolve_field` + `resolve_method` + `resolve_view`. |
 
-### Session context (M11 Wave E — sticky 24h TTL per API key)
+### Session context (v0.6+ — sticky 24h TTL per API key)
 
 | Tool | Use case |
 |------|----------|
@@ -27,7 +27,7 @@ The full **tool arsenal (server v0.11.1)**, optimized for development workflows.
 | `list_available_versions()` | Discover which Odoo versions the server has indexed. |
 | `list_available_profiles()` | Discover which profiles exist. |
 
-### Existing tools (M1-M9, unchanged)
+### Existing tools (v0.1-v0.4, unchanged)
 
 | Tool | Use case |
 |------|----------|
@@ -43,14 +43,14 @@ The full **tool arsenal (server v0.11.1)**, optimized for development workflows.
 | `cli_help` | Look up `odoo-bin` flags and options |
 | `describe_module` | Module architecture overview — manifest + defines/extends models + view/JS counts |
 
-### Stylesheet tools (M10 — v0.7 new)
+### Stylesheet tools (v0.7+)
 
 | Tool | Use case |
 |------|----------|
 | `resolve_stylesheet(module, odoo_version="auto")` | Enumerate a module's CSS/SCSS/LESS `:Stylesheet` files — language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. LESS covers legacy v8-v11. |
-| `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Semantic search (pgvector + `:IMPORTS` chain) for where a CSS selector or SCSS/LESS variable is first defined and all modules that override it. Essential for theming/branding work. Covers CSS, SCSS, and LESS (LESS for legacy v8-v11). |
+| `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is first defined and all modules that override it. Essential for theming/branding work. Covers CSS, SCSS, and LESS (LESS for legacy v8-v11). |
 
-### ORM-validation tools (M10.5 Phase 2 — server v0.8.0+)
+### ORM-validation tools (server v0.8.0+)
 
 Static checks against the indexed graph. Run them **before** emitting a domain, `@api.depends`, or relational field — they catch hallucinated field-paths, invalid operators, and wrong comodels that would otherwise surface only at runtime.
 
@@ -69,7 +69,7 @@ The 10 flat tools (`resolve_model`, `resolve_field`, `resolve_method`, `resolve_
 
 See the server [CHANGELOG](https://odoo-semantic.viindoo.com/changelog) for side-by-side migration examples.
 
-### MCP Resources (M11 Wave F — `odoo://` URI scheme)
+### MCP Resources (`odoo://` URI scheme, v0.5+)
 
 Read-only handles for bookmark-stable access. Use these when you already know the entity ID and want the canonical record without a tool call: `odoo://{version}/{kind}/{id}` where `kind` is one of `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`. See [ADR-0030](https://odoo-semantic.viindoo.com/docs/adr/0030-mcp-resources-uri-scheme).
 

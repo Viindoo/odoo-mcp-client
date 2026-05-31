@@ -1,0 +1,87 @@
+# feature-positioning.workflow.yaml
+# Encode the four-phase feature positioning pipeline as a declarative workflow.
+# Phases: feature-check -> addon-diff -> competitive-brief -> positioning-copy (inline)
+# Output lands under .odoo-ai/positioning/ — same as the prose command SSOT.
+name: feature-positioning
+domain: marketing
+team_pattern: Pipeline
+description: |
+  Generate positioning copy for a specific Odoo feature or capability. Chains four gated
+  phases: verify the feature exists (feature-check), compare editions (addon-diff),
+  optionally benchmark against a named competitor (competitive-brief), then produce a
+  positioning copy block adapted to the target audience and output channel (slide / blog /
+  email / proposal). Phase 3 is skipped automatically when no competitor is named.
+  Trigger: "position this feature", "generate positioning copy", "feature talking points",
+  "Odoo feature vs competitor", "positioning for sales deck", "feature marketing copy",
+  "RFP feature positioning", "what is Odoo's story for feature X"
+output_dir: .odoo-ai/positioning
+inputs:
+  - feature_name
+  - target_audience
+  - competitor_name
+  - output_channel
+
+phases:
+  - id: feature-check
+    skill: odoo-feature-check
+    nl_trigger: >
+      Check whether the Odoo feature or capability described by the user exists in the
+      current Odoo version (read from .odoo-ai/context.md if present). Report: feature
+      exists Y/N, supported editions (CE / EE / distribution), key modules that provide
+      the feature, and key fields or API landmarks. If the feature does not exist in any
+      edition, stop and inform the user.
+    model_tier: haiku
+    gate: "approve / refine: [feedback] / cancel"
+
+  - id: addon-diff
+    skill: odoo-addon-diff
+    nl_trigger: >
+      Compare the feature identified in the feature-check phase across Odoo editions (CE,
+      EE, and your distribution). Produce a 3-column capability table: Capability | CE |
+      EE | Dist., using Y/check for available and N/dash for not available. Highlight any
+      edition-specific enhancements or distribution-exclusive capabilities. If the feature
+      exists in only one edition, note that and proceed without a full table.
+    model_tier: haiku
+    gate: "approve / refine: [feedback] / cancel"
+
+  - id: competitive-brief
+    skill: odoo-competitive-brief
+    nl_trigger: >
+      Using the feature identified in the feature-check phase and the competitor name
+      provided by the user, produce a focused competitive comparison. Output a 2-column
+      capability matrix (Odoo vs competitor) covering this feature only. Highlight
+      Odoo's unique strengths and any gaps. Use generic labels (e.g., "leading mid-market
+      ERP") rather than hardcoding real competitor names in examples. If the user did not
+      provide a competitor name or answered "none", skip this phase entirely.
+    model_tier: sonnet
+    gate: "approve / skip / cancel"
+
+  # ------------------------------------------------------------------
+  # Phase positioning-copy — produce copy block adapted to audience + channel (inline)
+  # Encodes the old Phase 4 prose contract: per-channel structure + per-audience tone.
+  # ------------------------------------------------------------------
+  - id: positioning-copy
+    inline: true
+    model_tier: sonnet
+    gate: "save / terminal / cancel"
+    # Produce a positioning block whose SHAPE is chosen by output_channel:
+    #   slide    -> 1 headline value statement + 2-3 concrete benefit-focused bullets
+    #               + 1 differentiator (Odoo vs typical alternatives)
+    #               + optional competitive callout if competitive-brief ran
+    #   blog     -> 1-paragraph intro (what the feature is, why it matters)
+    #               + 3 key benefits/use-cases (bullets) + 1 closing paragraph w/ next step
+    #   email    -> single focused ~80-word paragraph, lead with business outcome
+    #               (not feature name), close with a CTA (schedule demo / download guide)
+    #   proposal -> 1 paragraph mapping Odoo's capability to the RFP requirement
+    #               + an evidence pointer (module docs / demo / proof section)
+    # Calibrate TONE by target_audience:
+    #   exec      -> business outcome, ROI / time-to-value, competitive advantage
+    #   sales     -> proof points, customer success, objection removal
+    #   developer -> technical depth, integration patterns, API / module names
+    #   marketer  -> messaging hooks, social proof, differentiator framing
+    # On gate "save": write .odoo-ai/positioning/<slug>-<channel>-<YYYY-MM-DD>.md.
+    # On "terminal": display only. On "cancel": discard.
+    # Use generic competitor labels (e.g. "leading mid-market ERP") in saved copy.
+
+resume: true
+fallback: standalone

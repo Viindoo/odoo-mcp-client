@@ -16,6 +16,17 @@ Items are directional, not commitments, and reflect publicly announced milestone
 
 ## Recently shipped
 
+- **Workflow harness + `intake` front door** (v2.2.0) — three-layer architecture (Entry/Intake,
+  Workflow, Execution). `intake` replaces `odoo-router` as the universal front door: brainstorms
+  when vague, fast-paths when clear, always gates with a Proposed Plan before dispatching. The
+  generic `workflow-runner` executes `*.workflow.yaml` declarative workflows - adding a new
+  workflow is one YAML file, no orchestration code. 10 workflows shipped at launch.
+- **BRL engine** (v2.2.0) — `odoo-brl` skill + `/odoo-brl-run` command for classifying and
+  costing tens-to-thousands of business requirements: 4-way classification, deterministic cost
+  lookup, dependency DAG with Kahn topological sort, and checkpoint/resume for large jobs.
+- **Support triage + QA suite skills** (v2.2.0) — `odoo-support-triage` (ticket classification,
+  root-cause hint, customer-ready resolution draft) and `odoo-qa-suite` (test cases, pre-deploy
+  checklist, bug triage pipeline) expand the specialist coverage to 30 skills.
 - **Visual UI testing stack** (v2.1.0) — review, debug, regression-test, and record a
   *rendered* Odoo screen in a live browser: skills `odoo-ui-reviewer`, `odoo-ui-debug`,
   `odoo-visual-regression`, `odoo-demo-recorder`, the `odoo-ui-reviewer` agent, and three

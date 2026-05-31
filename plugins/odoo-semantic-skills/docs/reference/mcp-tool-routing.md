@@ -1,7 +1,7 @@
 # MCP Tool × Persona × Adapter Routing Matrix
 
 > **Generated:** 2026-05-28T00:00:00Z  
-> **Server version:** 0.11.1 (PR #162)  
+> **Server version:** 0.11.1  
 > **Source:** `generator/server-surface.json` — edit that file and run `make gen` to update.
 > **v0.6 change:** 10 legacy tools (`resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches`) were removed. Use the superset tools (`model_inspect`, `module_inspect`, `entity_lookup`) instead.
 
@@ -47,12 +47,12 @@ When adding a new MCP tool or persona, update **`generator/server-surface.json`*
 | **validate_relation** ⊕ |  | ● |  |  |  |
 
 **Legend:** ● = primary persona for this tool.  
-★ = M11 Wave D superset (supersedes removed v0.6 tools).  
-☆ = M11 Wave E session-context tool (sticky 24h TTL per API key).  
-✦ = M10A stylesheet tools (CSS/SCSS/LESS indexing).  
-⊕ = M10.5 Phase 2 ORM-validation tools (static domain / @api.depends / relation / dotted-path checks — v0.8+).
+★ = superset tool (supersedes removed v0.6 tools).  
+☆ = session-context tool (sticky 24h TTL per API key).  
+✦ = stylesheet tools (CSS/SCSS/LESS indexing, v0.7+).  
+⊕ = ORM-validation tools (static domain / @api.depends / relation / dotted-path checks, v0.8+).
 
-### MCP Resources (M11 Wave F)
+### MCP Resources
 
 Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
@@ -228,7 +228,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version. Part of M11 Wave E session-context tools. |
+| **Description** | Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version. |
 | **Personas** | dev, CEO, consultant, marketer, sales |
 | **Required params** | `odoo_version` |
 | **Optional params** | _(none)_ |
@@ -239,7 +239,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Pin tenant profile for the session so subsequent calls scope to one customer profile. Part of M11 Wave E session-context tools. |
+| **Description** | Pin tenant profile for the session so subsequent calls scope to one customer profile. |
 | **Personas** | dev, CEO, consultant, marketer, sales |
 | **Required params** | `profile_name` |
 | **Optional params** | _(none)_ |

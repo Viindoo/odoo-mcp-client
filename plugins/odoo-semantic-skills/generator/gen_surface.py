@@ -55,8 +55,10 @@ SKIP_SKILL_DIRS = {
     "odoo-discovery-summarize",
     "odoo-frontend-coder",
     "odoo-onboard",
-    "odoo-router",
+    "intake",
     "odoo-ui-reviewer",
+    # Pure orchestration runner — no direct MCP invocations; dispatches via NL only.
+    "workflow-runner",
 }
 
 
@@ -144,7 +146,6 @@ TAG_TO_COL = {
 
 def gen_routing_md(surface: dict) -> str:
     server_ver = surface["server_version"]
-    pr_ref = surface.get("server_pr_ref", "")
     # Use the surface's own generated_at timestamp (not wall-clock) to keep output idempotent.
     now_iso = surface.get("generated_at", "")
     tools = surface["tools"]
@@ -169,7 +170,7 @@ def gen_routing_md(surface: dict) -> str:
         f"> **Generated:** {now_iso}  "
     )
     lines.append(
-        f"> **Server version:** {server_ver} (PR {pr_ref})  "
+        f"> **Server version:** {server_ver}  "
     )
     lines.append(
         "> **Source:** `generator/server-surface.json` — edit that file and run `make gen` to update."
@@ -223,15 +224,15 @@ def gen_routing_md(surface: dict) -> str:
     lines.append("")
     lines.append(
         "**Legend:** ● = primary persona for this tool.  \n"
-        "★ = M11 Wave D superset (supersedes removed v0.6 tools).  \n"
-        "☆ = M11 Wave E session-context tool (sticky 24h TTL per API key).  \n"
-        "✦ = M10A stylesheet tools (CSS/SCSS/LESS indexing).  \n"
-        "⊕ = M10.5 Phase 2 ORM-validation tools (static domain / @api.depends / relation / dotted-path checks — v0.8+)."
+        "★ = superset tool (supersedes removed v0.6 tools).  \n"
+        "☆ = session-context tool (sticky 24h TTL per API key).  \n"
+        "✦ = stylesheet tools (CSS/SCSS/LESS indexing, v0.7+).  \n"
+        "⊕ = ORM-validation tools (static domain / @api.depends / relation / dotted-path checks, v0.8+)."
     )
     lines.append("")
 
     # MCP Resources sub-table
-    lines.append("### MCP Resources (M11 Wave F)")
+    lines.append("### MCP Resources")
     lines.append("")
     lines.append("Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:")
     lines.append("")

@@ -18,7 +18,7 @@ dependency:
 
 | # | Skill | Phase introduced | Persona | MCP dependency |
 |---|-------|-----------------|---------|---------------|
-| 1 | `odoo-router` | A | All — concierge / disambiguation | None (pure text routing) |
+| 1 | `intake` | A | All — universal front door / brainstorm + route | None (pure text routing) |
 | 2 | `odoo-onboard` | A | All — context bootstrap | Read-only: `list_available_versions`, `list_available_profiles`, `set_active_version`, `set_active_profile` |
 | 3 | `odoo-feature-check` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `suggest_pattern` |
 | 4 | `odoo-gap-analysis` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `lookup_core_api`, `suggest_pattern` |
@@ -119,20 +119,19 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-### Skill 1: `odoo-router`
+### Skill 1: `intake`
 
-> Phase A — concierge / silent disambiguation. No MCP calls.
+> Phase A — universal front door / brainstorm + 4-tier route + soft-plan-gate. No MCP calls.
 
 **Trigger prompt (VI)**: "I have a prompt to handle but I'm not sure which skill to use — Customer A has a question about Odoo manufacturing"
 
 **Trigger prompt (EN)**: "I'm not sure which skill to use — Customer A has a question about Odoo manufacturing"
 
 **Expected output**:
-- Recommended skill name (exactly ONE, e.g. `odoo-feature-check`)
-- One-sentence justification citing the intent signal (e.g., "single feature availability check")
-- One-line outcome description of what the target skill will do
-- Confirmation question: `yes / no / choose a different skill`
-- NO actual work output (router does not execute the target skill)
+- Recommended skill name (exactly ONE, e.g. `odoo-feature-check`) OR brainstorm clarifying options if vague
+- One-sentence justification citing the intent signal
+- Proposed Plan gate: `approve / refine / cancel`
+- NO actual work output (intake does not execute the target skill)
 
 | Runtime | Pass? | Notes |
 |---------|-------|-------|

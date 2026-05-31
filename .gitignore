@@ -19,3 +19,6 @@ node_modules/
 *.local
 .claude/settings.local.json
 .claude/*.local.json
+
+# AI workflow runtime artifacts (project context, BRL jobs, brainstorm state) — never commit (may contain customer data)
+.odoo-ai/

@@ -3,6 +3,24 @@
   "generated_at": "2026-05-28T00:00:00Z",
   "server_version_required": "0.11.1",
   "skills": {
+    "odoo-brl": {
+      "mcp_tools": [
+        "check_module_exists",
+        "find_examples",
+        "model_inspect",
+        "module_inspect",
+        "suggest_pattern",
+        "lookup_core_api",
+        "set_active_version",
+        "set_active_profile",
+        "list_available_versions",
+        "list_available_profiles"
+      ],
+      "ollama_tools": [],
+      "min_server_version": "0.10.0",
+      "deprecated_tools_used": [],
+      "notes": "BRL engine: chunked 4-way classify (double-profile check_module_exists) + deterministic cost (cost-config.json) + RTM deliverables. Phase D DAG (module_inspect dependencies) deferred. min_server 0.10.0 for set_active_profile + list_available_profiles."
+    },
     "odoo-addon-diff": {
       "mcp_tools": [
         "check_module_exists",
@@ -243,12 +261,12 @@
       "deprecated_tools_used": [],
       "notes": ""
     },
-    "odoo-router": {
+    "intake": {
       "mcp_tools": [],
       "ollama_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
-      "notes": "Pure text routing — no MCP tool calls. Tool names mentioned in routing table discriminators are references to OTHER skills' tools, not invocations by router itself."
+      "notes": "Pure text routing and brainstorm — no MCP tool calls. Tool names mentioned in routing table discriminators are references to OTHER skills' tools, not invocations by intake itself."
     },
     "odoo-ui-debug": {
       "mcp_tools": [
@@ -302,6 +320,20 @@
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
       "notes": "Screenshot baseline + diff between two states/builds. OSM scopes the comparison via blast radius; browser MCP captures and diffs."
+    },
+    "odoo-support-triage": {
+      "mcp_tools": [],
+      "ollama_tools": [],
+      "min_server_version": "0.1.0",
+      "deprecated_tools_used": [],
+      "notes": "Composition skill — no MCP tools called directly. NL-dispatches to odoo-ui-debug (bug path) and odoo-feature-check (feature-request path) via description-match. All outputs to .odoo-ai/support/ (gitignored, confidentiality-safe)."
+    },
+    "odoo-qa-suite": {
+      "mcp_tools": [],
+      "ollama_tools": [],
+      "min_server_version": "0.1.0",
+      "deprecated_tools_used": [],
+      "notes": "Composition skill — no MCP tools called directly. NL-dispatches to odoo-deploy-checklist (QA checklist) and odoo-ui-debug (bug triage) via description-match. All outputs to .odoo-ai/qa/."
     }
   },
   "agents": {

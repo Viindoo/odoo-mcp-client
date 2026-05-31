@@ -107,7 +107,7 @@ After install, 26 skills activate automatically:
 | `odoo-content-draft` | Marketer | Draft channel-specific marketing content (LinkedIn, blog, YouTube script, email, landing copy) |
 | `odoo-campaign-plan` | Marketer | Plan a multi-week, multi-channel marketing campaign with timeline, channel mix, KPIs, and owner map |
 | `odoo-onboard` | Onboarding / Concierge | Bootstrap per-project Odoo context (version, custom modules, profile) so other skills skip setup |
-| `odoo-router` | Onboarding / Concierge | Silently route a vague Odoo request to the single best specialist skill, then confirm before running |
+| `intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths when clear, always gates with a Proposed Plan before execution |
 | `odoo-ui-reviewer` | Coder / Visual | Five-lens review of a rendered Odoo screen in a live browser - aesthetics, function, runtime stability, accessibility, performance - with screenshot/console/Lighthouse evidence |
 | `odoo-ui-debug` | Coder / Visual | Root-cause a broken/misbehaving Odoo UI at runtime (console errors, failed requests, blank OWL renders, wrong CSS) and pinpoint the override point |
 | `odoo-visual-regression` | Coder / Visual | Capture a screenshot baseline of one Odoo state and diff it against another (before/after upgrade, module install, theme change) with blast-radius assessment |
@@ -519,8 +519,8 @@ Clients that implement the MCP `resources/list` and `resources/read` flows surfa
 ## Superset Tools — server v0.11.1 Reference
 
 The server exposes **24 tools** at v0.11.1. The v0.7 surface added 2 stylesheet tools
-(`resolve_stylesheet`, `find_style_override`) on top of the v0.6 base; v0.8 (M10.5 Phase 2)
-added 4 ORM-validation tools; v0.10.0 added `module_inspect(method='dependencies')`. The 10
+(`resolve_stylesheet`, `find_style_override`) on top of the v0.6 base; v0.8 added 4
+ORM-validation tools; v0.10.0 added `module_inspect(method='dependencies')`. The 10
 flat `resolve_*` / `list_*` tools that existed in v0.4-v0.5 were deprecated in v0.5 and
 **removed in v0.6** — they no longer exist on the server. If you encounter prompts or
 snippets that reference the old names, replace them with the supersets below.
@@ -533,7 +533,7 @@ snippets that reference the old names, replace them with the supersets below.
 | `module_inspect(name, method, ...)` | Module-level inventory: manifest, views, OWL, QWeb, JS patches, dependencies | `summary` · `views` · `owl` · `qweb` · `js` · `dependencies` |
 | `entity_lookup(kind, ...)` | Single entity drill-down by ID | kind: `field` · `method` · `view` |
 
-### ORM-validation tools (server v0.8.0+ — M10.5 Phase 2)
+### ORM-validation tools (server v0.8.0+)
 
 Static checks against the indexed graph — run them before an AI client suggests a domain,
 `@api.depends`, or relational field so hallucinated paths/operators are caught up front:

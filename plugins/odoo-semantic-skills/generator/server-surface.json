@@ -1,7 +1,6 @@
 {
   "schema_version": "1",
   "server_version": "0.11.1",
-  "server_pr_ref": "#162",
   "generated_at": "2026-05-28T00:00:00Z",
   "tools": [
     {
@@ -444,7 +443,7 @@
       "name": "set_active_version",
       "version_added": "0.6.0",
       "version_removed": null,
-      "description": "Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version. Part of M11 Wave E session-context tools.",
+      "description": "Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.",
       "persona_tags": [
         "dev",
         "CEO",
@@ -471,7 +470,7 @@
       "name": "set_active_profile",
       "version_added": "0.6.0",
       "version_removed": null,
-      "description": "Pin tenant profile for the session so subsequent calls scope to one customer profile. Part of M11 Wave E session-context tools.",
+      "description": "Pin tenant profile for the session so subsequent calls scope to one customer profile.",
       "persona_tags": [
         "dev",
         "CEO",

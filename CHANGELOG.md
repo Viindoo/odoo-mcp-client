@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 #### Changed
 
 - Disambiguated the `odoo-semantic` name left over from the pre-split single
-  plugin. Skill trigger phrases in `odoo-onboard` and `odoo-router` now say
+  plugin. Skill trigger phrases in `odoo-onboard` and `intake` now say
   `Odoo` (the onboarding skill bootstraps Odoo project context and installs no
   plugin), and standalone-fallback prose in `odoo-coder`, `odoo-code-reviewer`,
   `odoo-ui-reviewer`, `odoo-frontend-coder`, `odoo-onboard`, `upgrade-plan-full`,
@@ -29,6 +29,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   distinguishes the three easily-confused setup steps: `/odoo-semantic-mcp:connect`
   (required, per machine), `/odoo-semantic-skills:setup` (optional visual stack,
   per machine), and the `odoo-onboard` skill (optional, per repo).
+
+## [2.2.0] - 2026-05-31
+
+### odoo-semantic-skills
+
+#### Added
+
+- **`intake` skill** — universal front door for all 9 persona buckets (CEO/strategist,
+  consultant, sales AE, pre-sales, marketer, developer, QA, customer-success). Handles
+  vague prompts via a 4-tier brainstorm-or-fast-path routing flow, proposes a plan gate
+  before any execution skill fires, and is depth-0 only (never spawns subagents).
+- **`odoo-brl` skill** — BRL engine for classifying and costing tens-to-thousands of
+  business requirements: 4-way classification (CE/EE/Viindoo/Custom), deterministic cost
+  lookup, dependency DAG with Kahn topological sort, and checkpoint/resume support for
+  large jobs.
+- **3 domain workflow YAMLs** — `bid-respond.workflow.yaml`, `discovery-pipeline.workflow.yaml`,
+  and `feature-positioning.workflow.yaml` added as composition-runnable workflows using
+  the `workflow-runner` skill as the execution harness.
+- **Security hardening** — confidentiality guard expanded to cover 8 banned content groups
+  across all skill/agent/command surface; intake hard-rule enforces depth-0 constraint.
+
+#### Changed
+
+- **Plugin command count corrected**: `commands` array now has 8 entries (added
+  `odoo-brl-run.md` and `odoo-video-produce.md`); plugin.json description updated from
+  "7 workflow commands" to "8 workflow commands".
+- **Renamed `odoo-router` → `intake`**: the universal front-door skill was renamed for
+  clarity; all cross-references updated.
+- **VERSION bumped** from `2.1.0` to `2.2.0`, kept in sync with `plugin.json.version`.
 
 ## [2.1.0] - 2026-05-29
 
@@ -196,11 +225,11 @@ Detailed orchestration log retained internally.
 
 ## [0.8.0] - 2026-05-21
 
-### Changed (server PR #162 / v0.9.1 surface alignment — c9cf637)
-- **`license_notice` output marker** (server ADR-0036) — `describe_module` and `module_inspect(method='summary')` (and the `odoo://{version}/module/{name}` resource) may now emit a `License notice:` line for license-restricted modules. OEEL-1 modules are skipped by default, so the notice is the intentional, non-silent marker that content is withheld — documented as such in the routing matrix so an AI client treats it as expected, not a missing-data bug to retry around.
-- **`lint_check(language='xml')` clarified as corpus-level** — server's RelaxNG validation (WI-E) lints the indexed views against the version-exact grammar at index time, exposing `:LintViolation` nodes. The `xml` mode returns those nodes for a version and **ignores the `code` argument** (it is not a snippet check). Documented in the `lint_check` routing-matrix entry. No new tools — server tool surface remains 24.
+### Changed (server v0.9.1 surface alignment)
+- **`license_notice` output marker** — `describe_module` and `module_inspect(method='summary')` (and the `odoo://{version}/module/{name}` resource) may now emit a `License notice:` line for license-restricted modules. OEEL-1 modules are skipped by default, so the notice is the intentional, non-silent marker that content is withheld — documented as such in the routing matrix so an AI client treats it as expected, not a missing-data bug to retry around.
+- **`lint_check(language='xml')` clarified as corpus-level** — the server lints indexed views against the version-exact grammar at index time, exposing server-indexed XML lint findings. The `xml` mode returns those findings for a version and **ignores the `code` argument** (it is not a snippet check). Documented in the `lint_check` routing-matrix entry. No new tools — server tool surface remains 24.
 
-### Changed (server PR #160 surface alignment — f82e1a3)
+### Changed (server v0.9.0 surface alignment)
 - **`view_type` gains `'list'` value** (v18+ alias for `'tree'`) — documented in `view_type`
   arg descriptions for `model_inspect` and `module_inspect` across the routing matrix and all
   adapter snippets (Cursor, Gemini Gem, OpenAI Custom GPT).
@@ -208,7 +237,7 @@ Detailed orchestration log retained internally.
   CSS, SCSS, and LESS files (LESS targets legacy v8-v11 modules). Updated routing matrix §2
   tool entries, legend, dev persona, and all adapter snippets to read "CSS/SCSS/LESS".
 
-### Added (v0.8 server surface — M10.5 Phase 2)
+### Added (v0.8 server surface)
 - **4 new ORM-validation tools** documented across all adapter snippets (Cursor, Gemini
   Gem, OpenAI Custom GPT), routing matrix §1 & §2, Appendix table, dev persona, and the
   `odoo-coder` / `odoo-code-reviewer` skills. Static checks against the indexed graph that
@@ -228,20 +257,16 @@ Detailed orchestration log retained internally.
     inheritance); reports the actual comodel on mismatch.
 
 ### Changed
-- **Target server v0.8 tool surface (20 → 24 tools).** Mirrors server v0.8.0 (M10.5 Phase 2,
-  server PR #158). `tools/list` now reports 24 tools. Version references across README,
+- **Target server v0.8 tool surface (20 → 24 tools).** Mirrors server v0.8.0. `tools/list` now reports 24 tools. Version references across README,
   routing matrix, dev persona, snippets, and setup docs bumped v0.7 → v0.8.
 
 ### Dependencies
-- The 4 ORM-validation tools require server **v0.8.0** (PR #158). `validate_depends`
-  additionally requires the prod `mth.depends` backfill (`python -m src.indexer index-repo
-  --all --full`) — until it runs, `validate_depends` returns the "no @api.depends" note for
-  methods indexed before the reindex. That backfill is now scheduled as server **PR #159**
-  (M10C polish wave) — the full reindex v8→v19, with the ordered runbook in
-  `docs/deploy/m10-postmerge-ops.md` (in the server repository).
-  PR #159 introduces no new MCP tools (surface stays 24), so this client release needs no
-  tool changes for it; recommend landing this release alongside that reindex so
-  `validate_depends` is fully functional on the live surface.
+- The 4 ORM-validation tools require server **v0.8.0**. `validate_depends`
+  additionally requires a server-side backfill operation (see server docs) — until it runs,
+  `validate_depends` returns the "no @api.depends" note for methods indexed before the
+  reindex. The backfill introduces no new MCP tools (surface stays 24), so this client
+  release needs no tool changes for it; recommend landing this release alongside that
+  reindex so `validate_depends` is fully functional on the live surface.
 
 ## [0.7.0] - 2026-05-21
 
@@ -249,7 +274,7 @@ Detailed orchestration log retained internally.
 - **2 new stylesheet tools** (`resolve_stylesheet`, `find_style_override`) added to all
   adapter snippets (Cursor, Gemini Gem, OpenAI Custom GPT), routing matrix §1 & §2,
   Appendix table, and dev persona. `resolve_stylesheet` enumerates a module's CSS/SCSS
-  files; `find_style_override` does pgvector + `:IMPORTS`-chain semantic search for
+  files; `find_style_override` does pgvector semantic search (with import-chain traversal) for
   selector/variable origin and overrides.
 - **`from_module` filter** on `model_inspect` (method=`summary`/`fields`/`field`) and
   `entity_lookup` (kind=`model`/`field`) — restrict results to declarations from a

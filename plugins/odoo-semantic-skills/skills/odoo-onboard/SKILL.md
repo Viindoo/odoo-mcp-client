@@ -7,7 +7,7 @@ description: |
 
   Explicit first-time signals: "set up Odoo for this project", "initialize Odoo context", "first time Odoo setup", "new Odoo project — onboard", "configure Odoo skills for current repo", "I just cloned an Odoo codebase", "where do I start with Odoo MCP for this repo", "pin Odoo version for this session", "initial Odoo setup".
 
-  Implicit signals (proactive): if working directory contains `__manifest__.py` file(s) AND `.odoo-ai/context.md` is ABSENT, then the FIRST `odoo-*` skill the user invokes should pause and recommend running onboard first. The router skill (`odoo-router`) will also escalate to onboard if context is missing.
+  Implicit signals (proactive): if working directory contains `__manifest__.py` file(s) AND `.odoo-ai/context.md` is ABSENT, then the FIRST `odoo-*` skill the user invokes should pause and recommend running onboard first. The intake skill (`intake`) will also escalate to onboard if context is missing.
 
   DO NOT trigger when: (1) `.odoo-ai/context.md` already exists AND `last_updated` is within the last 30 days — instead, suggest a quick "refresh? (yes/no)" rather than full onboard; (2) the working directory has no `__manifest__.py` files anywhere within 3 levels (not an Odoo project — explain politely); (3) the user is mid-workflow inside another skill (e.g., already in odoo-coder writing code) — don't interrupt; (4) the user explicitly types a different skill's trigger like "write a computed field" — let that skill auto-fire instead.
 
@@ -292,5 +292,5 @@ Wait for user.
 - The schema (markdown bullets, not YAML) is intentional for portability across Claude Code / Codex / Gemini.
 - Phase B will add Round -1 to all existing skills; until then, context file is harmless if other skills don't read it.
 - The 30-day refresh threshold is a guess — adjust based on user feedback. Common refresh triggers: Odoo version upgrade, new custom module added, new team member joins (different conventions).
-- Trigger description optimization is scheduled for Phase D via `/skill-creator` Mode 5 with a 20-query trigger eval set (combined with `odoo-router`).
-- See internal orchestration log for full design rationale.
+- Trigger description optimization is scheduled for Phase D via `/skill-creator` Mode 5 with a 20-query trigger eval set (combined with `intake`).
+- See the harness reference doc (`docs/reference/workflow-harness.md`) for full design rationale.

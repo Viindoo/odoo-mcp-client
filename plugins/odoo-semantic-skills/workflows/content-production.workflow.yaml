@@ -1,0 +1,86 @@
+# content-production.workflow.yaml
+# Declarative SSOT for the content production workflow.
+# Runner: skills/workflow-runner — auto-discovered at runtime.
+# Pattern: Producer-Reviewer — draft produced by odoo-content-draft (producer), then
+# reviewed in an inline read-only pass against explicit content-quality criteria before
+# the publish schedule is finalized. The reviewer is intentionally inline (runner-driven):
+# this is a TEXT/editorial review, not a rendered-UI review, so no browser/UI agent is used.
+name: content-production
+domain: content
+team_pattern: Producer-Reviewer
+description: |
+  Run a full content production cycle: collect a content brief inline, draft
+  channel-specific marketing content via odoo-content-draft (producer), review for
+  quality and brand alignment in an inline read-only editorial pass, then finalize
+  the publish schedule inline. Trigger: "content production workflow", "write and review
+  content", "full content cycle", "produce and review a post", "draft then review my
+  content", "content pipeline", "quy trình sản xuất nội dung", "viết và review bài",
+  "draft review publish", "write blog and review it", "produce marketing content",
+  "content workflow from brief to publish"
+output_dir: .odoo-ai/content
+inputs:
+  - content_brief
+
+resume: false
+fallback: standalone
+
+phases:
+  # ------------------------------------------------------------------
+  # Phase 0 — Collect content brief (inline: runner handles)
+  # ------------------------------------------------------------------
+  - id: brief
+    inline: true
+    model_tier: inherit
+    # Runner collects: topic, channel (LinkedIn/blog/YouTube/email/landing/social),
+    # target audience, target language (default English), tone guidance (optional),
+    # SEO keywords (optional), word/character limit (optional), deadline (optional).
+    # Enforces: abstract product label; no confidential roadmap details in artifacts.
+
+  # ------------------------------------------------------------------
+  # Phase 1 — Draft content (Producer: odoo-content-draft)
+  # ------------------------------------------------------------------
+  - id: draft
+    skill: odoo-content-draft
+    nl_trigger: >
+      Using the content brief collected in the brief phase, draft the requested
+      channel-specific marketing content. Produce a complete, ready-to-publish draft
+      for the specified channel (LinkedIn post, blog article, YouTube script, email
+      sequence, landing page copy, or social caption). Match the target audience, tone,
+      language, and any SEO or length constraints from the brief. The draft must be
+      fully self-contained — no placeholder sections left for the user to fill in.
+    model_tier: sonnet
+    gate: "approve / refine: [feedback] / cancel"
+
+  # ------------------------------------------------------------------
+  # Phase 2 — Review for quality and brand alignment (Reviewer: read-only)
+  # ------------------------------------------------------------------
+  - id: review
+    inline: true
+    model_tier: sonnet
+    gate: "accept / revise: [feedback] / cancel"
+    # Inline editorial review (read-only) of the draft phase output against:
+    #   (a) message clarity and audience fit,
+    #   (b) tone consistency with the brief's stated guidance,
+    #   (c) factual accuracy of any Odoo product claims,
+    #   (d) CTA effectiveness,
+    #   (e) channel-norm compliance (character limits, hashtag usage, link placement).
+    # Runner produces a structured verdict (approved / approved-with-minor-edits /
+    # needs-revision) with specific, actionable feedback per issue. Does NOT rewrite the
+    # draft — only flags and annotates. Intentionally inline, not the odoo-ui-reviewer
+    # agent: that agent reviews a RENDERED Odoo UI in a live browser (five-lens visual
+    # verdict), which is the wrong instrument for editorial review of marketing copy.
+
+  # ------------------------------------------------------------------
+  # Phase 3 — Publish schedule (inline assembly)
+  # ------------------------------------------------------------------
+  - id: publish-schedule
+    inline: true
+    model_tier: sonnet
+    gate: "save / discard / cancel"
+    # Runner finalizes the publish artifact:
+    #   1. Final approved draft (incorporating any review edits)
+    #   2. Recommended publish date and time band (by channel best-practice)
+    #   3. Distribution checklist (platforms, hashtags, UTM parameters if applicable)
+    #   4. Brief performance-tracking note (what metric to check after 48 hours)
+    # Writes to .odoo-ai/content/<topic-slug>-<YYYY-MM-DD>-<channel>.md
+    # Reminder: .odoo-ai/ is gitignored; content artifacts are never committed to the repo.
