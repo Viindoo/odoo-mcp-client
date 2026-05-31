@@ -1,0 +1,99 @@
+# upgrade-plan-full.workflow.yaml
+# Declarative SSOT for the end-to-end Odoo upgrade planning workflow.
+# Replaces the prose phase definitions that previously lived in
+# commands/upgrade-plan-full.md. The command becomes a thin dispatcher.
+name: upgrade-plan-full
+domain: engineering
+team_pattern: Pipeline
+description: |
+  Generate a comprehensive Odoo upgrade plan from source version to target version.
+  Chains executive risk overview -> deprecation audit -> API/feature version diff ->
+  action ordering + effort synthesis into one gated, developer-readable action checklist
+  and executive-readable effort estimate. Replaces the legacy odoo-upgrade-planner agent.
+  Trigger: "full upgrade plan", "upgrade from v16 to v17", "odoo migration plan",
+  "upgrade plan with risk overview and deprecation audit", "end-to-end upgrade planning",
+  "upgrade checklist and effort estimate"
+output_dir: .odoo-ai/upgrade-plans
+inputs:
+  - source_version
+  - target_version
+  - scope
+  - deadline
+
+phases:
+  - id: risk-overview
+    skill: odoo-risk-overview
+    nl_trigger: >
+      Generate an executive risk overview for an Odoo upgrade from the confirmed source
+      version to the confirmed target version. Produce a CEO-level risk dashboard covering:
+      migration complexity rating (LOW / MEDIUM / HIGH / CRITICAL), top 3-5 risk factors
+      (breaking framework changes, OWL migration, removed APIs, ecosystem readiness), and
+      a go/no-go signal with rationale.
+    model_tier: sonnet
+    gate: "yes / dig deeper / cancel"
+
+  - id: deprecation-audit
+    skill: odoo-deprecation-audit
+    nl_trigger: >
+      Run a deprecation audit scoped to the user's confirmed module list and source version.
+      Scan for deprecated symbol usage and group findings by severity tier: BREAKING (must
+      fix before upgrade), WARN (should fix; runtime warnings or unexpected behavior), and
+      STYLE (optional cleanup; no functional impact). Show a count summary first, then the
+      full findings table (file | symbol | line | tier | recommended replacement).
+    model_tier: sonnet
+    gate: "yes / export / cancel"
+
+  - id: version-diff
+    skill: odoo-version-diff
+    nl_trigger: >
+      Run an API and feature version diff for the source to target version pair, using the
+      developer track (not the feature highlights track). Output: new/changed/removed ORM
+      APIs, controller and route changes, JavaScript / OWL framework changes, removed XML
+      qweb template namespaces or view keys, and any relevant ir.model.data external ID
+      renames.
+    model_tier: sonnet
+    gate: "yes / cancel"
+
+  # ------------------------------------------------------------------
+  # Phase synthesis — action ordering + effort estimate + assemble (inline)
+  # Encodes the old Phase 4 (action ordering) + Phase 5 (effort) + Phase 6
+  # (document assembly) prose contract. The runner performs all of this inline.
+  # ------------------------------------------------------------------
+  - id: synthesis
+    inline: true
+    model_tier: opus
+    gate: "save / terminal / cancel"
+    # 1. ACTION ORDERING — fixed order regardless of which items are present:
+    #    (1) Pre-flight CRITICAL fixes (BREAKING tier from deprecation audit + any
+    #        CRITICAL risk factors needing code changes before upgrade starts)
+    #    (2) Per-module migration scripts (one per custom module; dependency order,
+    #        base modules first)
+    #    (3) Test plan (smoke -> integration -> critical user flows, scoped to
+    #        affected modules)
+    #    (4) Deploy window (link odoo-deploy-checklist; staging -> UAT -> production)
+    #    (5) Post-deploy verification (key business flows within 48h of cutover)
+    #    (6) Rollback plan (snapshot/restore, rollback decision criteria, owner)
+    #    For each action item record: description, severity (CRITICAL/HIGH/MEDIUM/LOW),
+    #    owner role (developer/analyst/DevOps/business), effort placeholder.
+    # 2. EFFORT ESTIMATION — assign S/M/L/XL per item:
+    #    S = 0.5-1 d (single-file fix, well-understood API swap, trivial test update)
+    #    M = 1-3 d   (multi-file change, partial OWL rewrite, moderate test coverage)
+    #    L = 3-5 d   (module-level rewrite, significant controller/view rework)
+    #    XL = 5+ d   (full subsystem migration, unknown API, cross-module chain)
+    #    BREAKING items touching OWL 3 / Python 3.12 runtime: bump one tier up
+    #    (S->M, M->L, L->XL) as a complexity premium. Sum to a total dev-day band.
+    #    Add a plain-language deadline-fit verdict (FEASIBLE / TIGHT / UNLIKELY)
+    #    against the deadline from Phase 0.
+    # 3. DOCUMENT ASSEMBLY — write the final plan with sections in order:
+    #    Executive Summary (complexity, top risks, effort range, go/no-go),
+    #    Risk Overview (Phase 1), Deprecation Findings (Phase 2),
+    #    API and Feature Diff (Phase 3), Action Order (this phase, numbered with
+    #    severity + owner), Effort Estimate (table + totals + deadline fit),
+    #    Rollback Plan (expanded snapshot procedure + decision criteria + owner).
+    # On gate "save": write .odoo-ai/upgrade-plans/<source>-<target>-<YYYY-MM-DD>.md
+    # (create dir if needed). On "terminal": display only, no file. On "cancel": discard.
+    # Standalone (OSM unreachable): mark degraded phases with TBD placeholders and
+    # prefix the plan header "PARTIAL PLAN - verify TBD sections before use".
+
+resume: true
+fallback: standalone

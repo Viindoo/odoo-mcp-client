@@ -1,0 +1,81 @@
+{
+  "version": "v1",
+  "description": "BRL cost estimation lookup table. Numbers are public industry benchmarks (USD, Vietnam day-rate region). Override at .odoo-ai/cost-config.json to change rate_region or risk_profile for a specific job.",
+  "effort_lookup": {
+    "Standard": {
+      "min_days": 0,
+      "max_days": 0,
+      "description": "CE/EE native feature, zero dev. Activate module or enable setting."
+    },
+    "Config": {
+      "min_days": 0.25,
+      "max_days": 1,
+      "description": "Standard module exists, requires setup only (no code). Tax config, workflow rule, multi-company setup."
+    },
+    "Extension-M": {
+      "min_days": 1,
+      "max_days": 3,
+      "description": "_inherit existing model/view, simple extend. Add field, override method, extend view."
+    },
+    "Extension-L": {
+      "min_days": 3,
+      "max_days": 10,
+      "description": "Multi-model extension, complex workflow, integration adapter, non-trivial report."
+    },
+    "Custom-XL": {
+      "min_days": 10,
+      "max_days": 30,
+      "description": "New module from scratch, complex business logic, external API integration, no existing model match."
+    }
+  },
+  "rate_card": {
+    "functional_consultant_vn": 350,
+    "technical_developer_vn": 250,
+    "project_manager_vn": 400,
+    "data_specialist_vn": 200,
+    "blended_vn": 300,
+    "_note": "USD per man-day, Vietnam/Southeast Asia region, Odoo partner rate. Based on public industry benchmarks. For other regions use a job-level override."
+  },
+  "risk_multipliers": {
+    "customization_heavy": 1.5,
+    "data_migration_complex": 1.3,
+    "first_erp": 1.2,
+    "multi_site": 1.4,
+    "manufacturing": 1.3,
+    "_note": "Multiply project base effort by the applicable factor. Multiple factors are NOT multiplied together - use the highest single factor or discuss with PM."
+  },
+  "contingency": {
+    "low": 0.10,
+    "medium": 0.15,
+    "high": 0.20,
+    "very_high": 0.25,
+    "_note": "Applied as (1 + contingency_pct) on top of project budget. 'medium' is the default for standard SME projects."
+  },
+  "phase_distribution": {
+    "discovery_blueprint": 0.12,
+    "config_development": 0.35,
+    "data_migration": 0.20,
+    "testing_uat": 0.12,
+    "training": 0.08,
+    "project_management": 0.05,
+    "golive_hypercare": 0.08,
+    "_note": "Fractions of the FINAL budget_usd (contingency already included) allocated to each implementation phase. Sums to exactly 1.0 so phase_breakdown reconciles to budget. Contingency is NOT a phase line here - it is applied once via the 'contingency' multiplier in the budget formula; double-listing it would double-count. The 6 implementation phases (0.95) plus a 0.05 project_management/buffer line = 1.0."
+  },
+  "customization_coefficient_breaks": {
+    "_description": "Map custom_item_pct to Customization_Coefficient for roll-up formula.",
+    "lt_20pct": 1.0,
+    "20_to_40pct": 1.3,
+    "gt_40pct": 1.5
+  },
+  "cross_module_factor_formula": {
+    "_description": "cross_module_factor = 0.08 * max(0, unique_modules - 3). Industry benchmark: +8% effort per module beyond baseline 3.",
+    "per_module_above_3": 0.08,
+    "baseline_modules": 3
+  },
+  "annual_maintenance_pct": 0.10,
+  "_meta": {
+    "schema_version": "cost-config/v1",
+    "override_path": ".odoo-ai/cost-config.json",
+    "last_updated": "2026-05-31"
+  }
+}

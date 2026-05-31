@@ -1,0 +1,77 @@
+# video-produce.workflow.yaml
+# Declarative SSOT for the /odoo-video-produce command.
+# Runner: skills/workflow-runner — auto-discovered at runtime.
+name: video-produce
+domain: marketing
+team_pattern: Pipeline
+description: |
+  Produce a multi-scene Odoo demo video: author a storyboard (scene list with click
+  paths and timing), record each scene via the odoo-demo-recorder primitive, then
+  assemble all clips into a single MP4 or GIF deliverable. Trigger: "multi-scene
+  Odoo demo video", "storyboard and record", "assemble scenes into one video",
+  "record storyboard", "multi-take product demo", "quay nhiều scene ghép thành
+  một video demo", "make a 3-scene walkthrough", "record and stitch demo clips"
+output_dir: .odoo-ai/video
+inputs:
+  - project_label
+  - scenes
+  - output_format
+
+resume: true
+fallback: standalone
+
+phases:
+  # ------------------------------------------------------------------
+  # Phase 0 — Parse args + context check + storyboard (inline gate)
+  # ------------------------------------------------------------------
+  - id: storyboard
+    inline: true
+    model_tier: sonnet
+    gate: "approve / edit / cancel"
+    # Runner collects:
+    #   - project_label  (default "Demo-Project")
+    #   - scenes         (ordered list of scene descriptions, e.g. "1. Create invoice 2. Confirm")
+    #   - output_format  (mp4 or gif; default mp4)
+    # Checks for .odoo-ai/context.md; extracts odoo_version, instance_base_url.
+    # Produces a Markdown storyboard: scene index, workflow description, estimated
+    # duration, key actions (menu → record → field → action), and output filename.
+    # Hard rules enforced inline:
+    #   - No writes before gate approval
+    #   - Abstract labels only (no real customer names in saved files)
+    #   - Each scene maps to one odoo-demo-recorder invocation
+
+  # ------------------------------------------------------------------
+  # Phase 1 — Record scenes (odoo-demo-recorder, one invocation per scene)
+  # ------------------------------------------------------------------
+  - id: record-scenes
+    skill: odoo-demo-recorder
+    nl_trigger: >
+      Record all scenes from the storyboard produced in the storyboard phase.
+      For each scene in order: plan the click path using the storyboard description,
+      set up deterministic demo state (login, navigate, fill), start the recorder,
+      drive the planned path (click / fill / fill_form / hover / take_screenshot),
+      stop the recorder, and save the clip to
+      .odoo-ai/video/{project_label}/{scene-N}-<timestamp>.{mp4,gif}.
+      After all scenes are recorded, report each clip path and duration so the user
+      can review before assembly. Support retake: if the user marks a scene for retake,
+      re-record that scene only before proceeding to assembly.
+    model_tier: sonnet
+    gate: "approve-all / retake: [scene numbers] / cancel"
+
+  # ------------------------------------------------------------------
+  # Phase 2 — Assemble clips into final deliverable (inline gate)
+  # ------------------------------------------------------------------
+  - id: assemble
+    inline: true
+    model_tier: sonnet
+    gate: "save / discard / cancel"
+    # Runner assembles the individual scene clips into a single deliverable:
+    #   1. Concatenate clips in storyboard order using pagecast convert_to_mp4 / convert_to_gif
+    #      or, if concatenation is unavailable, produce a numbered frame sequence with a
+    #      scene-boundary annotation and a per-scene GIF fallback.
+    #   2. Write final file to .odoo-ai/video/<project_label>-<YYYY-MM-DD>.<mp4|gif>
+    #   3. Print artifact path, total duration, scene count, and the re-runnable storyboard.
+    #   4. Remind: .odoo-ai/ is gitignored; final file is not committed to the repo.
+    # Fallback: if only screenshot capture was available for any scene, the assembler
+    # stitches frame sequences and prefixes the output with:
+    #   ⚠ Recorder unavailable for scene(s) N — assembled from screenshot frames.

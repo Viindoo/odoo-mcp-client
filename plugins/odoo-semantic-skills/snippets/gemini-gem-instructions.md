@@ -41,7 +41,7 @@ PREFER: drilling down on one specific entity by ID (typically after a model_insp
 REPLACES: the removed resolve_field, resolve_method, resolve_view (removed in v0.6)
 ARGS: kind ("model"|"field"|"method"|"view"|"module"|"pattern"), plus discriminator-specific: for "field"/"method" → model + field|method_name; for "view" → xmlid; odoo_version (optional — session-aware), from_module (optional — kind='model'/'field': restrict to declarations from this module)
 
-### Session-context tools ☆ (M11 Wave E)
+### Session-context tools ☆ (v0.6+)
 - set_active_version(odoo_version)  — pin version (24h TTL per API key)
 - set_active_profile(profile_name)  — pin tenant profile
 - list_available_versions()         — discover indexed versions
@@ -76,7 +76,7 @@ ARGS: odoo_version (target version to check against)
 TRIGGER: "lint [module]", "code style issues in [module]", "Odoo coding violations in [module]", "check [module] against Odoo standards"
 PREFER: code quality checks
 ARGS: code (source code snippet — required for python/javascript; ignored for xml), odoo_version, language (python|javascript|xml)
-NOTE: language=xml is corpus-level (server v0.9.1+) — returns the version's indexed RelaxNG `:LintViolation` nodes, not a check of `code`
+NOTE: language=xml is corpus-level (server v0.9.1+) — returns the version's server-indexed XML lint findings, not a check of `code`
 NOTE: inline `# noqa: RULE_ID` (or bare `# noqa`) in the code argument suppresses findings on that line (python/javascript only)
 
 ### cli_help
@@ -104,32 +104,32 @@ TRIGGER: "what is module [X]", "what does module [X] do", "describe module [X]",
 PREFER: module-level orientation before diving into models or views; module_inspect(method="summary") returns the same data plus extras
 ARGS: name (module technical name), odoo_version, profile_name (optional)
 
-### resolve_stylesheet ✦ (M10 — enumerate a module's CSS/SCSS/LESS files)
+### resolve_stylesheet ✦ (v0.7+ — enumerate a module's CSS/SCSS/LESS files)
 TRIGGER: "what stylesheets does module [X] ship", "list CSS/SCSS/LESS files in module [X]", "@import chain for module [X]", "stylesheet inventory for [X]", "selector/variable counts for module [X]"
 PREFER: getting the full list of `:Stylesheet` nodes for a module — language (CSS/SCSS/LESS — LESS covers legacy v8-v11), selector/variable/mixin/import counts, @import chain
 ARGS: module (module technical name), odoo_version (optional, default "auto")
 
-### find_style_override ✦ (M10 — find where a CSS selector / SCSS/LESS variable is defined or overridden)
+### find_style_override ✦ (v0.7+ — find where a CSS selector / SCSS/LESS variable is defined or overridden)
 TRIGGER: "where is CSS selector [X] defined", "find SCSS variable [X]", "find LESS variable [X]", "which module overrides [selector]", "branding override for [selector]", "where does $[variable] come from"
-PREFER: theming/branding analysis — pgvector semantic search + :IMPORTS chain to locate origin and all overrides of a selector or SCSS/LESS variable; covers CSS, SCSS, and LESS (LESS targets legacy v8-v11)
+PREFER: theming/branding analysis — pgvector semantic search with import-chain traversal to locate origin and all overrides of a selector or SCSS/LESS variable; covers CSS, SCSS, and LESS (LESS targets legacy v8-v11)
 ARGS: selector_or_variable (required), odoo_version (optional, default "auto"), limit (optional, default 5)
 
-### resolve_orm_chain ⊕ (M10.5 P2 — walk a dotted ORM field path to its terminal type)
+### resolve_orm_chain ⊕ (v0.8+ — walk a dotted ORM field path to its terminal type)
 TRIGGER: "what type is [model].a.b.c", "does this dotted path resolve", "trace a field path", "where does partner_id.country_id.code end up"
 PREFER: a multi-hop dotted path — returns terminal type or the exact hop where it breaks; preferred over entity_lookup(kind='field') (single field only)
 ARGS: model (required, root dotted model), dotted_path (required, e.g. "partner_id.country_id.code"), odoo_version (optional — session-aware), profile_name (optional)
 
-### validate_domain ⊕ (M10.5 P2 — validate a search domain's field-paths + operators)
+### validate_domain ⊕ (v0.8+ — validate a search domain's field-paths + operators)
 TRIGGER: "is this domain valid", "check domain [(...)]", "validate search domain for [model]", "are these domain operators valid in v[N]"
 PREFER: a full domain — validates each (field_path, operator, value) term. Operator validity is VERSION-AWARE: parent_of from v9, any/not any only from v17, v19 access-rights variants. Logical connectors (&, |, !) are skipped.
 ARGS: model (required), domain (required, domain literal), odoo_version (optional — session-aware), profile_name (optional)
 
-### validate_depends ⊕ (M10.5 P2 — validate a compute method's @api.depends paths)
+### validate_depends ⊕ (v0.8+ — validate a compute method's @api.depends paths)
 TRIGGER: "are the @api.depends on _compute_x correct", "validate depends of this compute method", "check compute dependencies", "does this stored field recompute correctly"
 PREFER: checking an existing indexed method's declared @api.depends — flags depends on 'id' (forbidden) and suggests the closest field for typos. Era1 (v8/v9) surfaces a "no @api.depends" note.
 ARGS: model (required), method (required, compute method name), odoo_version (optional — session-aware), profile_name (optional)
 
-### validate_relation ⊕ (M10.5 P2 — assert a relational field points at an expected comodel)
+### validate_relation ⊕ (v0.8+ — assert a relational field points at an expected comodel)
 TRIGGER: "does [model].partner_id point to res.partner", "is this field a many2one to [model]", "check relation target", "what comodel does field X point to"
 PREFER: asserting a field's comodel (or a subtype via inheritance) rather than reading full field detail — preferred over entity_lookup(kind='field') for the assertion case
 ARGS: model (required), field (required, relational field), target_model (required, expected comodel), odoo_version (optional — session-aware), profile_name (optional)

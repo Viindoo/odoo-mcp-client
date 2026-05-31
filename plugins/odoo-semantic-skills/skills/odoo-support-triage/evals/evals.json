@@ -1,0 +1,102 @@
+{
+  "skill_name": "odoo-support-triage",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Customer says the Pricelist option has disappeared from the Sales menu after upgrading to Odoo 17",
+      "expected_output": "Skill classifies as 'config' (high confidence) — pricelist feature is controlled by a setting in Sales > Configuration > Settings. Root-cause hint: check 'Pricelists' toggle in Sales settings. Resolution draft: customer-facing reply with step-by-step re-enable path. No NL-dispatch to odoo-ui-debug or odoo-feature-check.",
+      "expected_routed_to": "inline-config",
+      "category": "classify-config",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "User gets a Python traceback: 'AttributeError: account.move has no attribute _compute_payment_state' when confirming an invoice",
+      "expected_output": "Skill classifies as 'bug' (high confidence). Root-cause phase emits NL-dispatch trigger to odoo-ui-debug: asks for runtime root cause of the AttributeError on account.move. Internal escalation note produced. Customer-facing reply acknowledges the error and promises investigation.",
+      "expected_routed_to": "odoo-ui-debug",
+      "category": "dispatch-bug-to-ui-debug",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Customer asks: 'Can Odoo handle automatic replenishment based on demand forecasting? We can't find this in our v16 CE installation.'",
+      "expected_output": "Skill classifies as 'feature-request' (medium confidence — may exist in EE). Root-cause phase emits NL-dispatch trigger to odoo-feature-check to verify demand-forecasting replenishment availability in Odoo 16 CE vs EE. Resolution draft notes the feature gap or edition difference.",
+      "expected_routed_to": "odoo-feature-check",
+      "category": "dispatch-feature-request-to-feature-check",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "User writes: 'I don't know how to create a Purchase Order from a reordering rule. The system seems to do nothing when I click.'",
+      "expected_output": "Skill classifies as 'training' (high confidence) — this is a known workflow in Inventory > Operations > Replenishment. Resolution draft: customer-facing reply with menu path and numbered steps. No NL-dispatch to odoo-ui-debug (no error) or odoo-feature-check (feature exists).",
+      "expected_routed_to": "inline-training",
+      "category": "classify-training",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Customer reports: 'Odoo shows HTTP 500 error on the manufacturing order list view — the page won't load at all.'",
+      "expected_output": "Skill classifies as 'bug' (high confidence). NL-dispatch trigger to odoo-ui-debug emitted: debug HTTP 500 on manufacturing order list view — identify affected module and reproduction path. Escalation note produced for engineering team with severity 'high'.",
+      "expected_routed_to": "odoo-ui-debug",
+      "category": "dispatch-bug-to-ui-debug",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Ticket says: 'We want Odoo to automatically send WhatsApp messages when a sale order is confirmed. Is this possible?'",
+      "expected_output": "Skill classifies as 'feature-request' (medium confidence — WhatsApp connector exists in some editions/apps). NL-dispatch trigger to odoo-feature-check: verify WhatsApp integration availability in Odoo (CE vs EE vs OCA app). Resolution draft notes options: built-in, OCA module, or custom dev.",
+      "expected_routed_to": "odoo-feature-check",
+      "category": "dispatch-feature-request-to-feature-check",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Support case: user cannot find the 'Lock' button to lock a fiscal period in accounting. They insist it was there before.",
+      "expected_output": "Skill classifies as 'config' (medium confidence) — fiscal period lock is controlled by Accounting > Configuration > Settings > Lock Date. Ambiguity flagged: could be 'training' if the user never had access. Resolution draft: check Accounting settings + user access rights. No NL-dispatch.",
+      "expected_routed_to": "inline-config",
+      "category": "classify-config",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Customer says 'Odoo sent duplicate invoices to all our customers last night — 200 extra emails went out.'",
+      "expected_output": "Skill classifies as 'bug' (high confidence, severity: blocker). NL-dispatch trigger to odoo-ui-debug: investigate duplicate invoice send event — identify trigger (scheduled action, user action, race condition). Escalation note produced with blocker severity. Customer-facing reply: acknowledge, apologize, confirm investigation underway.",
+      "expected_routed_to": "odoo-ui-debug",
+      "category": "dispatch-bug-to-ui-debug",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "Ticket: 'Can we have the employee self-service portal show remaining leave balance by type? Currently it only shows total.'",
+      "expected_output": "Skill classifies as 'feature-request' (medium confidence). NL-dispatch trigger to odoo-feature-check: does Odoo HR portal show leave balance by type? Verify CE vs EE availability. Resolution draft: if available, provide config path; if not, note custom-dev or roadmap path.",
+      "expected_routed_to": "odoo-feature-check",
+      "category": "dispatch-feature-request-to-feature-check",
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "User complaint: 'I keep getting AccessError when I try to validate a delivery — I have the Inventory / User role.'",
+      "expected_output": "Skill classifies as 'config' (high confidence) — AccessError on delivery validation with Inventory/User role indicates a permission group mismatch. Root-cause hint: check if user needs 'Inventory / Administrator' or if a multi-step route requires additional groups. Resolution draft: check user security group + delivery steps config. No NL-dispatch.",
+      "expected_routed_to": "inline-config",
+      "category": "classify-config",
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "Customer says they have a bug but the description is: 'I want to export data to Excel but I can't find the export button.'",
+      "expected_output": "Skill re-classifies to 'training' (medium confidence) — customer labeled it 'bug' but the description is a training issue (Export button appears in list view when records are selected). Ambiguity flagged. Resolution draft: training reply with steps to use list view export. Note: if button truly absent, could be 'config' (group or export option disabled).",
+      "expected_routed_to": "inline-training",
+      "category": "classify-training-mislabeled",
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "Support request: customer wants to triage a ticket but provides no description at all.",
+      "expected_output": "Skill enters Phase 0 collect loop — asks for ticket description and Odoo version before proceeding. Does NOT attempt classification or emit NL-dispatch without input. Does NOT produce a resolution draft with empty data.",
+      "expected_routed_to": "collect-loop",
+      "category": "input-validation",
+      "files": []
+    }
+  ],
+  "notes": "12 eval cases. Categories: classify-config (3), dispatch-bug-to-ui-debug (3), dispatch-feature-request-to-feature-check (3), classify-training (1), classify-training-mislabeled (1), input-validation (1). Each case tests one behavioral rule (ETHOS#11): correct classification OR correct NL-dispatch target OR correct collect-loop behavior. Cases 2/5/8 verify bug->odoo-ui-debug dispatch. Cases 3/6/9 verify feature-request->odoo-feature-check dispatch. Case 12 verifies the collect-loop guard (no triage without input). Each case has a wrong answer that would fail it (e.g., case 2 fails if skill classifies as training or skips NL-dispatch)."
+}

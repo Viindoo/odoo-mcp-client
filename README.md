@@ -15,8 +15,13 @@ flowchart LR
     You["You<br/>(natural-language intent)"]
 
     subgraph client["odoo-mcp-client (MIT)"]
-        skills["odoo-semantic-skills<br/>26 skills / 3 agents / 6 commands"]
+        intake["intake<br/>universal front door"]
+        wfrunner["workflow-runner<br/>declarative YAML executor"]
+        skills["odoo-semantic-skills<br/>30 skills / 3 agents / 8 commands"]
         mcp["odoo-semantic-mcp<br/>MCP connection + /connect"]
+        intake --> wfrunner
+        intake --> skills
+        wfrunner --> skills
         skills -."depends on".-> mcp
     end
 
@@ -25,6 +30,7 @@ flowchart LR
     out1["answer in chat"]
     out2["file in .odoo-ai/"]
 
+    You --> intake
     You --> skills
     You --> mcp
     mcp --> server
@@ -33,7 +39,7 @@ flowchart LR
     server --> out2
 ```
 
-_Installing `odoo-semantic-skills` pulls in `odoo-semantic-mcp` automatically (declared dependency). All knowledge and computation live on the OSM server; this repo is a thin routing layer._
+_Installing `odoo-semantic-skills` pulls in `odoo-semantic-mcp` automatically (declared dependency). All knowledge and computation live on the OSM server; this repo is a thin routing and orchestration layer._
 
 ## What you get
 
@@ -41,22 +47,31 @@ Nine virtual specialists that self-activate from plain-language intent - no slas
 commands to memorize. Describe what you need; the right persona fires automatically.
 You do not need to know skill names.
 
-Six workflow commands (`/odoo-bid-respond`, `/odoo-customer-followup-draft`,
-`/odoo-discovery-quick`, `/odoo-feature-positioning`, `/odoo-upgrade-plan-full`,
-`/odoo-semantic-skills:setup`) chain skills into multi-step recipes and write
-structured output to `.odoo-ai/`.
+`intake` acts as the universal front door: for vague intent it brainstorms with you
+(6-step with clarifying options), for clear intent it fast-paths to the right specialist,
+and for multi-phase work it routes to the `workflow-runner` which executes a declarative
+`*.workflow.yaml` - all behind a soft-plan-gate so no execution fires before you approve.
 
-> **Counts at a glance:** `odoo-semantic-skills` ships **26 skills + 3 agents +
-> 6 commands**, grouped into **9 persona buckets** for navigation. A 7th slash command,
-> `/odoo-semantic-mcp:connect`, belongs to the companion `odoo-semantic-mcp` plugin and
-> is pulled in automatically when you install the skills plugin.
+Eight workflow commands (`/odoo-bid-respond`, `/odoo-customer-followup-draft`,
+`/odoo-discovery-quick`, `/odoo-feature-positioning`, `/odoo-upgrade-plan-full`,
+`/odoo-brl-run`, `/odoo-video-produce`, `/odoo-semantic-skills:setup`) chain skills
+into multi-step recipes and write structured output to `.odoo-ai/`. Ten declarative
+workflows (driven by `workflows/*.workflow.yaml` + `workflow-runner`) cover QA,
+support triage, sales, video production, and more - adding a new workflow requires
+only one YAML file, no orchestration code.
+
+> **Counts at a glance (v2.2.0):** `odoo-semantic-skills` ships **30 skills + 3 agents +
+> 8 commands**, grouped into **9 persona buckets** for navigation, plus **10 declarative
+> workflows** driven by `workflows/*.workflow.yaml`. A further slash command,
+> `/odoo-semantic-mcp:connect`, belongs to the companion `odoo-semantic-mcp` plugin
+> and is pulled in automatically when you install the skills plugin.
 
 ## Who is it for
 
 ```mermaid
 flowchart LR
     subgraph concierge["Onboarding / Concierge (serves every persona)"]
-        router["odoo-router"]
+        intake_skill["intake<br/>(universal front door)"]
         onboard["odoo-onboard"]
     end
 
@@ -73,15 +88,18 @@ flowchart LR
     qa --> uidbg["odoo-ui-debug"]
     qa --> visreg["odoo-visual-regression"]
     qa --> demo["odoo-demo-recorder"]
+    qa --> qasuite["odoo-qa-suite"]
 
     presales["Pre-Sales Consultant"] --> featchk["odoo-feature-check"]
     presales --> gap["odoo-gap-analysis"]
     presales --> cap["odoo-capability-proof"]
     presales --> addon["odoo-addon-diff"]
+    presales --> brl["odoo-brl (BRL engine)"]
 
     sales["Sales AE"] --> obj["odoo-objection-handler"]
     sales --> followup["odoo-deal-followup"]
     sales --> disc["odoo-discovery-summarize"]
+    sales --> support["odoo-support-triage"]
 
     mkt["Marketer"] --> highlights["odoo-feature-highlights"]
     mkt --> content["odoo-content-draft"]
@@ -99,32 +117,38 @@ flowchart LR
 - **Engineer** - Find the correct override point, audit deprecated API usage before an upgrade, or validate a deployment is safe.
 - **Coder** - Write Odoo backend (Python/XML) or frontend (JS/OWL) code that is idiomatic and convention-correct, without looking up every framework rule.
 - **Code-Reviewer** - Review pull requests or audit patches for ORM misuse, inheritance anti-patterns, security holes, or N+1 query issues.
-- **Visual / UI QA** - Review a live Odoo screen through five lenses (aesthetics, function, stability, accessibility, performance), debug a broken render, catch visual regressions, or record a demo clip.
-- **Pre-Sales Consultant** - Verify feature availability, build a gap matrix, produce evidence for a proposal, or compare CE vs EE side-by-side.
-- **Sales AE** - Get ACA-structured responses to objections, risk-scored follow-up emails for stalled deals, or a synthesized prospect profile from discovery notes.
+- **Visual / UI QA** - Review a live Odoo screen through five lenses (aesthetics, function, stability, accessibility, performance), debug a broken render, catch visual regressions, record a demo clip, or run a full QA pipeline (test cases + checklist + bug triage).
+- **Pre-Sales Consultant** - Verify feature availability, build a gap matrix, produce evidence for a proposal, compare CE vs EE side-by-side, or classify and cost hundreds of business requirements at scale with the BRL engine.
+- **Sales AE** - Get ACA-structured responses to objections, risk-scored follow-up emails for stalled deals, a synthesized prospect profile from discovery notes, or triage an inbound support ticket into a customer-ready resolution draft.
 - **Marketer** - Create content around Odoo features - blog posts, slide decks, social copy, multi-channel campaign plans - in marketing-ready language.
 - **Strategist / CEO** - Get an executive risk overview of customizations, a structured customization inventory, or a competitor capability snapshot ready for a board or sales response.
-- **Onboarding / Concierge** - Cross-cutting for every persona: `odoo-onboard` bootstraps project context on a new engagement; `odoo-router` takes ambiguous intent and routes it to the right specialist automatically.
+- **Onboarding / Concierge** - Cross-cutting for every persona: `odoo-onboard` bootstraps project context on a new engagement; `intake` takes ambiguous intent, brainstorms when vague, fast-paths when clear, routes to the right workflow or specialist, and always proposes a plan before any execution skill fires.
 
 ### How it works
 
-Skills self-activate from plain-language intent - you describe what you want and the matching specialist fires automatically. When intent is ambiguous or spans two specialists, `odoo-router` acts as a silent concierge: it maps your prompt to exactly one target skill and asks for a single confirmation before any work runs - it never does the work itself. For explicit multi-step workflows, slash commands (`/odoo-bid-respond`, `/odoo-upgrade-plan-full`, and others) let you control the full chain: each command sequences skills with approval gates and saves output to `.odoo-ai/`. On a new Odoo project, `odoo-onboard` bootstraps context automatically - if it detects `__manifest__.py` but no `.odoo-ai/context.md`, it probes your environment, confirms version and module list, and writes `.odoo-ai/context.md` so every later skill skips boilerplate setup. Every skill grounds its answers through the OSM MCP server; output is either a direct answer or a saved file under `.odoo-ai/`.
+The harness is organized in three layers: **Entry/Intake** (depth 0), **Workflow** (depth 0-1), and **Execution** (depth 1-2). `intake` is the universal front door and always the first stop for unstructured intent. When intent is ambiguous or open-ended, `intake` brainstorms with you (6-step with clarifying options). When intent is clear, it fast-paths directly to the matching specialist. For multi-phase work, it routes to `workflow-runner`, which reads a `*.workflow.yaml` file and executes the declared phase sequence - with approval gates between phases and artifact writes to `.odoo-ai/`. The `intake` skill always emits a soft-plan-gate (Proposed Plan block) and ends its turn; no execution fires until you approve. On a new Odoo project, `odoo-onboard` bootstraps context automatically - if it detects `__manifest__.py` but no `.odoo-ai/context.md`, it probes your environment, confirms version and module list, and writes `.odoo-ai/context.md` so every later skill skips boilerplate setup. Every skill grounds its answers through the OSM MCP server; output is either a direct answer or a saved file under `.odoo-ai/`.
 
 ```mermaid
 flowchart TD
     A([User intent]) --> B{"Slash command /odoo-... ?"}
 
     B -->|Yes| C["Command recipe<br/>chains skills with gates<br/>saves to .odoo-ai/"]
-    B -->|"No: plain English"| D{"Clear single-skill intent?"}
+    B -->|"No: plain English"| D{"intake front door"}
 
-    D -->|Ambiguous| E["odoo-router<br/>silent concierge<br/>recommends 1 specialist"]
-    D -->|Clear| F["Specialist skill auto-fires"]
-    E -->|User confirms| F
+    D -->|"Vague / open-ended"| E["intake: brainstorm<br/>6-step clarify + soft-plan-gate"]
+    D -->|"Clear single-skill intent"| F["Specialist skill auto-fires"]
+    D -->|"Multi-phase workflow"| WF["workflow-runner<br/>reads *.workflow.yaml<br/>gated phase sequence"]
+    E -->|User approves plan| F
+    E -->|"Workflow chosen"| WF
 
-    F --> G{"Needs heavy code or UI work?"}
-    G -->|Yes| H["Agent bundle<br/>odoo-coder /<br/>odoo-code-reviewer /<br/>odoo-ui-reviewer"]
-    G -->|No| I[("OSM MCP grounding")]
+    WF --> G{"Phase type?"}
+    G -->|Specialist skill| F
+    G -->|"Agent bundle (code/review/UI)"| H["Agent bundle<br/>odoo-coder /<br/>odoo-code-reviewer /<br/>odoo-ui-reviewer"]
+    G -->|"BRL / fan-out"| BRL["odoo-brl<br/>chunked classify + cost<br/>checkpoint/resume"]
+
+    F --> I[("OSM MCP grounding")]
     H --> I
+    BRL --> I
     C --> I
     I --> J([Answer or .odoo-ai/ file])
 
@@ -133,6 +157,24 @@ flowchart TD
 ```
 
 ## Workflows
+
+The plugin ships 10 declarative workflows in `workflows/*.workflow.yaml`. Each workflow is
+executed by the generic `workflow-runner` skill, which reads the YAML and runs the declared
+phase sequence with approval gates between phases. Adding a new workflow is a single YAML
+file drop - no orchestration code required.
+
+| Workflow | Trigger | Output dir |
+|----------|---------|------------|
+| `bid-respond` | Full bid / RFP response chain | `.odoo-ai/bids/` |
+| `upgrade-plan-full` | Comprehensive upgrade plan | `.odoo-ai/upgrade-plans/` |
+| `feature-positioning` | Positioning copy for marketing and sales | `.odoo-ai/positioning/` |
+| `discovery-pipeline` | Synthesize and structure discovery notes | `.odoo-ai/discovery/` |
+| `qa-suite` | Generate test cases, QA checklist, bug triage | `.odoo-ai/qa/` |
+| `support-triage` | Classify + root-cause + draft resolution for a support ticket | `.odoo-ai/support/` |
+| `video-produce` | Multi-scene Odoo demo video (storyboard -> record -> assemble) | `.odoo-ai/video/` |
+| `sales-closing-cycle` | Late-stage sales cycle: objection handling + closing steps | `.odoo-ai/sales/` |
+| `ui-debug-session` | Resumable multi-turn UI debug with browser evidence | `.odoo-ai/ui-debug/` |
+| `content-production` | Multi-asset content from a positioning brief | `.odoo-ai/content/` |
 
 Commands come in two shapes: multi-phase orchestrators that chain several skills in a
 gated sequence, and single-step wrappers that run one skill and offer a save step. The
@@ -166,9 +208,17 @@ flowchart TD
         U5 -->|Gate 4 - save| U6[(upgrade-plans/SRC-TGT-DATE.md)]
     end
 
+    subgraph BRL_CMD["/odoo-brl-run -> .odoo-ai/brl/"]
+        R0([Ingest requirements]) -->|Gate 0 - approve chunk plan| R1[Classify + cost chunks]
+        R1 --> R2[Build dependency DAG]
+        R2 -->|Gate E - approve deliverables| R3[Write RTM + report]
+        R3 --> R4[(brl/JOB-ID/)]
+    end
+
     subgraph WRAP["Single-step wrappers"]
         W1["/odoo-customer-followup-draft"] -->|deal-followup| WS1[(followups/LABEL-DATE.md)]
         W2["/odoo-discovery-quick"] -->|discovery-summarize| WS2[(discovery/LABEL-DATE.md)]
+        W3["/odoo-video-produce"] -->|demo-recorder per scene| WS3[(video/TITLE-DATE/)]
     end
 ```
 
@@ -199,7 +249,7 @@ flowchart TD
 
 ### Available commands
 
-> `/odoo-semantic-mcp:connect` ships in the `odoo-semantic-mcp` plugin and is not counted among the 6 commands of the skills plugin.
+> `/odoo-semantic-mcp:connect` ships in the `odoo-semantic-mcp` plugin and is not counted among the 8 commands of the skills plugin.
 
 | Command | Purpose | Chained skills |
 |---------|---------|----------------|
@@ -208,6 +258,8 @@ flowchart TD
 | `/odoo-discovery-quick` | Synthesize discovery notes into a structured profile, saves to `.odoo-ai/discovery/` | `odoo-discovery-summarize` |
 | `/odoo-feature-positioning` | Positioning copy for marketing and sales use, saves to `.odoo-ai/positioning/` | `odoo-feature-check` -> `odoo-addon-diff` -> `odoo-competitive-brief` -> positioning copy |
 | `/odoo-upgrade-plan-full` | Comprehensive upgrade plan (replaces legacy `odoo-upgrade-planner` agent), saves to `.odoo-ai/upgrade-plans/` | `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis |
+| `/odoo-brl-run` | Bulk requirement-list classification at scale (chunked, resumable), saves to `.odoo-ai/brl/<job-id>/` | `odoo-brl` (sequential-outer-parallel-inner) |
+| `/odoo-video-produce` | Multi-scene Odoo demo video (storyboard -> record -> assemble), saves to `.odoo-ai/video/` | `odoo-demo-recorder` (per scene) |
 | `/odoo-semantic-skills:setup` | One-shot idempotent setup for the visual workflow - wires 3 browser MCP servers across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance | - |
 
 ## Use cases - day in the life
@@ -234,7 +286,17 @@ You: "/odoo-bid-respond - Customer B (F&B chain, 50 locations), 15 requirements 
 
 The command runs a gated workflow: `odoo-discovery-summarize` (prospect profile) -> `odoo-gap-analysis` (effort matrix: Standard / Config / Extension / Custom + S/M/L/XL days) -> `odoo-capability-proof` (evidence for covered items) -> `odoo-objection-handler` (2-3 anticipated objections) -> assemble proposal -> save to `.odoo-ai/bids/customer-b-2026-MM-DD.md`. You approve each phase before the next fires.
 
-### Use case 3 - Strategist / founder: monthly board brief
+### Use case 3 - Pre-Sales: BRL scoping for a large implementation
+
+A prospect hands you a spreadsheet with 800 business requirements. You need a full implementation cost estimate, dependency ordering, and a requirement traceability matrix (RTM) before the proposal meeting.
+
+```
+You: "/odoo-brl-run - Customer C (retail chain), 800 requirements, Odoo 17, VN rates"
+```
+
+The BRL engine runs in a chunked pipeline (50 requirements per chunk): 4-way classification (CE / EE / Viindoo / Custom) with OSM evidence per item, deterministic cost lookup (no fabricated numbers), dependency DAG with Kahn topological sort, and phase-by-phase implementation sequencing. Two gates keep you in control - Gate 0 (approve chunk plan and cost config) and Gate E (approve deliverables before any file is written). Output: `rtm.csv` (Excel-ready RTM), `dag.mermaid` (implementation phases), `cost.json` (project budget roll-up with phase breakdown), and `report.md` (executive summary). The session is fully resumable: if interrupted, re-run the command and it picks up from the last completed chunk.
+
+### Use case 4 - Strategist / founder: monthly board brief
 
 You need a board status brief covering product progress, pipeline health, competitive landscape, and top risks before next week's investor meeting.
 
@@ -245,17 +307,17 @@ for next week's board meeting."
 
 Skill `odoo-competitive-brief` fires. Paste your collected signals; the skill structures them into a market snapshot, capability matrix, GTM moves, threat assessment, and recommended product response - ready for a board deck. Combine with `odoo-risk-overview` (founder-level engineering risk dashboard) and `odoo-customization-inventory` (all custom modules with business purpose, M&A due-diligence ready).
 
-### Use case 4 - Engineer + Coder: upgrade v15 to v17
+### Use case 5 - Engineer + Coder: upgrade v15 to v17
 
-Customer C is running Odoo 15 with 12 custom modules and wants to move to v17 in Q3.
+Customer D is running Odoo 15 with 12 custom modules and wants to move to v17 in Q3.
 
 ```
-You: "/odoo-upgrade-plan-full - Customer C, v15 to v17, 12 custom modules, deadline Q3"
+You: "/odoo-upgrade-plan-full - Customer D, v15 to v17, 12 custom modules, deadline Q3"
 ```
 
-Chains `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis. Output: executive risk overview, code-level deprecation findings, API/feature diff, action ordering, S/M/L/XL effort estimate, and rollback plan. Saves to `.odoo-ai/upgrade-plans/customer-c-v15-v17-2026-MM-DD.md`. When you need actual code written, invoke the `odoo-coder` agent bundle (depth-1 safe, restricted-tool autonomy, OSM access, optional cost-free local model).
+Chains `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis. Output: executive risk overview, code-level deprecation findings, API/feature diff, action ordering, S/M/L/XL effort estimate, and rollback plan. Saves to `.odoo-ai/upgrade-plans/customer-d-v15-v17-2026-MM-DD.md`. When you need actual code written, invoke the `odoo-coder` agent bundle (depth-1 safe, restricted-tool autonomy, OSM access, optional cost-free local model).
 
-### Use case 5 - Marketer: launch a new feature campaign
+### Use case 6 - Marketer: launch a new feature campaign
 
 You just shipped a new inventory forecasting feature and need launch positioning plus ready-to-publish copy for blog, LinkedIn, and email.
 
@@ -266,26 +328,39 @@ launch window 2 weeks, main competitor SAP Business One"
 
 The command chains `odoo-feature-check` (verifies the feature and reads its scope from OSM) -> `odoo-addon-diff` (CE vs EE edition framing) -> `odoo-competitive-brief` (how it lands against SAP B1) -> positioning synthesis. Output: a one-line value proposition, three proof points, objection rebuttals, and channel-by-channel copy. Saves to `.odoo-ai/positioning/inventory-forecasting-2026-MM-DD.md`. For a full multi-week campaign blueprint, follow up with `odoo-campaign-plan`; for per-asset drafts (blog, email sequence, social), call `odoo-content-draft`.
 
-### Use case 6 - QA / Visual: catch visual regressions after installing a module
+### Use case 7 - QA / Visual: catch visual regressions after installing a module
 
 Your team just installed a third-party module and you need to confirm no existing screens broke before handing off to the client.
 
 ```
 You: "Run visual regression on the invoicing list and form views after installing
-module account_followup on Customer D's staging instance."
+module account_followup on Customer E's staging instance."
 ```
 
 Run `/odoo-semantic-skills:setup` once to provision the browser automation stack. Then skill `odoo-visual-regression` fires: it captures before/after screenshots of targeted views, diffs them, and flags regressions with severity labels. Where a defect is confirmed, `odoo-ui-reviewer` follows up with a 5-lens audit (aesthetics / function / stability / accessibility / performance) and surfaces the exact CSS or XML path to fix. Fixes are handed to `odoo-frontend-coder`, which writes the override and shows a patch preview before applying.
 
+### Use case 8 - Support: triage an inbound customer ticket
+
+A customer reports that their invoice approval workflow is broken after a recent module update. You need to classify, root-cause, and draft a resolution note in one pass.
+
+```
+You: "Customer F reports: invoice approval button disappeared after installing
+account_invoice_approval v14. Users are blocked."
+```
+
+Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression), generates a root-cause hint using OSM to inspect the `account` module's approval flow and the installed module's view overrides, and drafts a resolution note ready to send to the customer. If a live browser is available, it NL-dispatches to `odoo-ui-debug` to capture the console error and pinpoint the broken view. Output saved to `.odoo-ai/support/customer-f-2026-MM-DD.md`.
+
 ### Frequently asked questions
 
-**I only need one skill - do I have to know all 26?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers.
+**I only need one skill - do I have to know all 30?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `intake` acts as a brainstorm partner when you are not sure which skill to use.
 
 **What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by prompting you to paste data manually. The plugin does not break when OSM is offline.
 
-**What about confidentiality?** Plugin code is public (MIT). Skills contain no customer-specific data or pricing. A pre-commit hook and CI scan block several categories of sensitive content. Examples use abstract labels (Customer A, Customer B, Customer C, Customer D).
+**What about confidentiality?** Plugin code is public (MIT). Skills contain no customer-specific data or pricing. A pre-commit hook and CI scan block several categories of sensitive content. Examples use abstract labels (Customer A through Customer F).
 
 **Multi-runtime?** Skills and commands are written for Claude Code. Codex/Gemini parity is smoke-tested in `tests/smoke/runtime_parity.md` - 10 representative skills verified across all three runtimes.
+
+**How do I add a new workflow?** Drop a `*.workflow.yaml` file in `plugins/odoo-semantic-skills/workflows/` following the schema in `workflows/_schema.md`. The `workflow-runner` auto-discovers it. No `plugin.json` edit needed.
 
 ## Quick install (Claude Code - 3 steps, all required)
 
@@ -342,7 +417,7 @@ Then **restart Claude Code**.
 
 ## Reference
 
-### Skills (26)
+### Skills (30)
 
 Per-persona quick-start guides live in [`docs/personas/`](plugins/odoo-semantic-skills/docs/personas/).
 
@@ -362,18 +437,22 @@ Per-persona quick-start guides live in [`docs/personas/`](plugins/odoo-semantic-
 | `odoo-gap-analysis` | Pre-Sales Consultant | Gap matrix of client requirements vs. standard Odoo |
 | `odoo-capability-proof` | Pre-Sales Consultant | Evidence-based proof that Odoo supports a client requirement |
 | `odoo-addon-diff` | Pre-Sales Consultant | Side-by-side CE vs EE feature comparison |
+| `odoo-brl` | Pre-Sales Consultant | BRL engine - classify and cost tens-to-thousands of business requirements into a phased RTM with dependency DAG and checkpoint/resume |
 | `odoo-objection-handler` | Sales AE | ACA-structured responses to capability objections |
 | `odoo-deal-followup` | Sales AE | Risk-scored follow-up email for stalled deals with next-best-action |
 | `odoo-discovery-summarize` | Sales AE | Synthesize discovery session notes into a structured prospect profile |
+| `odoo-support-triage` | Sales AE / Support | Parse an inbound support ticket into classification, root-cause hint, and a customer-ready resolution draft |
 | `odoo-feature-highlights` | Marketer | Marketing-friendly feature highlights for a version |
 | `odoo-content-draft` | Marketer | Draft blog posts, slide decks, or social content around Odoo features |
 | `odoo-campaign-plan` | Marketer | Multi-channel campaign plan from a positioning brief |
 | `odoo-onboard` | Onboarding / Concierge | Bootstrap project context into `.odoo-ai/context.md` for new engagements |
-| `odoo-router` | Onboarding / Concierge | Concierge skill - routes ambiguous user intent to the right specialist |
+| `intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths when clear, routes to workflow-runner for multi-phase work, always gates with a Proposed Plan before execution |
 | `odoo-ui-reviewer` | Coder / Visual | Five-lens review of a rendered Odoo screen in a live browser (aesthetics, function, stability, accessibility, performance); slim, paired with agent bundle |
 | `odoo-ui-debug` | Coder / Visual | Root-cause a broken Odoo UI at runtime (console errors, failed requests, blank OWL renders, wrong CSS) and pinpoint the override point |
 | `odoo-visual-regression` | Coder / Visual | Screenshot baseline + diff between two Odoo states (before/after upgrade, module install, theme change) with blast-radius assessment |
 | `odoo-demo-recorder` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
+| `odoo-qa-suite` | Coder / Visual | Full QA pipeline - generate structured test cases, produce a pre-deploy checklist, and triage bugs with severity classification and reproduction steps |
+| `workflow-runner` | Internal (harness) | Generic declarative workflow executor - reads `*.workflow.yaml` and runs gated phase sequences; invoked by intake via NL-dispatch, not directly by users |
 
 ### Agents (3)
 

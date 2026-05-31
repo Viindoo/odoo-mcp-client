@@ -1,0 +1,102 @@
+# support-triage.workflow.yaml
+# Declarative SSOT for the odoo-support-triage composition workflow.
+# Runner: skills/workflow-runner — auto-discovered at runtime.
+# Pattern note: Pipeline with two mutually-exclusive conditional phases
+# (root-cause-bug / root-cause-feature) gated by `when:` predicates. The runner
+# evaluates `when:` in Pipeline and skips the non-matching branch, so exactly one
+# root-cause phase fires per ticket (matches the SKILL.md classify->single-dispatch
+# design and the evals' single-target expectation).
+name: support-triage
+domain: support
+team_pattern: Pipeline
+description: |
+  Triage an Odoo support ticket end-to-end: classify (config / bug / feature-request /
+  training), generate a root-cause hint (dispatching to odoo-ui-debug for runtime bugs or
+  odoo-feature-check for feature gaps), then draft a customer-facing resolution or an
+  internal escalation note in B2B tone. Trigger: "triage this ticket", "support ticket",
+  "customer reports Odoo issue", "classify this bug", "draft resolution for support case",
+  "root cause for customer complaint", "escalate this issue", "Odoo not working for customer",
+  "customer training gap", "bug report from client"
+output_dir: .odoo-ai/support
+
+resume: true
+fallback: standalone
+
+phases:
+  # ------------------------------------------------------------------
+  # Phase 0 — Collect ticket + context (inline: runner handles)
+  # ------------------------------------------------------------------
+  - id: collect-ticket
+    inline: true
+    model_tier: inherit
+    # Runner collects: ticket description (pasted text or summary), Odoo version,
+    # module/menu path (optional), customer label (abstract), severity (optional).
+    # Enforces confidentiality: abstract labels only; no real company/contact names
+    # in any artifact. Warns user that .odoo-ai/ must be in .gitignore.
+
+  # ------------------------------------------------------------------
+  # Phase 1 — Classify the ticket (inline: no specialist needed)
+  # ------------------------------------------------------------------
+  - id: classify
+    inline: true
+    model_tier: sonnet
+    gate: "approve / refine: [feedback] / cancel"
+    # Runner applies classification logic (config / bug / feature-request / training)
+    # with confidence (high/medium/low) and one-line rationale.
+    # Output: classification block written to .odoo-ai/support/<slug>-classify.md.
+
+  # ------------------------------------------------------------------
+  # Phase 2a — Root-cause via odoo-ui-debug (bug path)
+  # ------------------------------------------------------------------
+  - id: root-cause-bug
+    skill: odoo-ui-debug
+    nl_trigger: >
+      Debug the Odoo runtime issue described in the support ticket collected in the
+      collect-ticket phase. Identify the root cause, the affected module, and provide
+      a concrete fix recommendation or reproduction steps. The ticket classification is
+      "bug". Focus on runtime symptoms: console errors, broken UI state, wrong computed
+      values, access-rights violations, or data anomalies.
+    model_tier: sonnet
+    when: "classification == 'bug'"
+
+  # ------------------------------------------------------------------
+  # Phase 2b — Root-cause via odoo-feature-check (feature-request path)
+  # ------------------------------------------------------------------
+  - id: root-cause-feature
+    skill: odoo-feature-check
+    nl_trigger: >
+      Verify whether the Odoo feature described in the support ticket collected in the
+      collect-ticket phase exists in standard Odoo (CE or EE). The ticket classification
+      is "feature-request". Provide: module name (if exists), edition (CE/EE), one-line
+      verdict (available / not available / partial), and recommended next step for the
+      support team (configure / custom-dev / roadmap item).
+    model_tier: sonnet
+    when: "classification == 'feature-request'"
+
+  # ------------------------------------------------------------------
+  # Phase 3 — Resolution draft (inline assembly)
+  # ------------------------------------------------------------------
+  - id: resolution-draft
+    inline: true
+    model_tier: sonnet
+    gate: "approve / refine: [feedback] / cancel"
+    # Runner assembles the resolution artifact from prior phases:
+    # - config/training: customer-facing reply (B2B tone, odoo-deal-followup style)
+    # - bug: internal escalation note + customer acknowledgement
+    # - feature-request: roadmap memo + customer reply noting the gap
+    # Structure: classification summary + root-cause hint + draft reply or escalation note
+    # + "Suggest next skill" block.
+
+  # ------------------------------------------------------------------
+  # Phase 4 — Write artifact (inline, confidentiality-safe)
+  # ------------------------------------------------------------------
+  - id: output
+    inline: true
+    model_tier: inherit
+    gate: "save / discard / cancel"
+    # On Gate confirm:
+    #   1. Write .odoo-ai/support/<customer-label>-<YYYY-MM-DD>.md (abstract labels only)
+    #   2. Print full triage to terminal for copy-paste
+    #   3. Show summary: "Support triage saved: .odoo-ai/support/<file>"
+    #   4. Remind: .odoo-ai/ must be in .gitignore (customer data protection)
+    # CONFIDENTIALITY: no real company/contact names in saved file; use abstract labels.

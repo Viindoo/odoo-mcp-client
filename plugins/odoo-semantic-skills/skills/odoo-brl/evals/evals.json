@@ -1,0 +1,220 @@
+{
+  "skill_name": "odoo-brl",
+  "schema_version": "1",
+  "notes": "Evals cover: (1) dispatch boundary - odoo-brl vs feature-check vs gap-analysis; (2) 4-way classification golden cases (CE/EE/Viindoo/Custom/OEEL-1); (3) behavioral contracts (GATE 0 gate, resume, resume-idempotency/no-duplicate-rows, OSM-down degrade, no-cost-fabrication); (4) Phase D DAG behavior (acyclic topo output, explicit cycle report, cluster size cap <=120). Each case has a precise expected_behavior so it can fail for the right reason (ETHOS#11).",
+  "evals": [
+    {
+      "id": 1,
+      "category": "dispatch-boundary",
+      "prompt": "We have a BRL of 800 requirements from a manufacturing client. We need to classify them, estimate cost, and build a full RTM.",
+      "expected_routed_to": "odoo-brl",
+      "expected_behavior": "Skill fires. Produces GATE 0 plan showing N=800 items, chunk count, estimated MCP calls, estimated cost band. Does NOT start classification until user sends 'approve'.",
+      "must_not": "Start writing chunk files or calling check_module_exists before GATE 0 is approved.",
+      "tags": ["dispatch", "gate-0", "large-brl"]
+    },
+    {
+      "id": 2,
+      "category": "dispatch-boundary",
+      "prompt": "Does Odoo have multi-level approval for purchase orders?",
+      "expected_routed_to": "odoo-feature-check",
+      "expected_behavior": "Single feature question. odoo-brl does NOT fire. Routes to odoo-feature-check via NL dispatch or direct match.",
+      "must_not": "Launch BRL pipeline for a single feature question.",
+      "tags": ["dispatch", "single-feature", "should-not-fire"]
+    },
+    {
+      "id": 3,
+      "category": "dispatch-boundary",
+      "prompt": "Client wants multi-company invoicing, approval workflows, and a custom loyalty program. What is the breakdown?",
+      "expected_routed_to": "odoo-gap-analysis",
+      "expected_behavior": "Short ad-hoc list (3 items), no cost/DAG/scale requirement. Routes to odoo-gap-analysis, not odoo-brl.",
+      "must_not": "Launch BRL chunked pipeline for a 3-item list. BRL is for multi-item lists (tens to thousands) where cost, RTM, and scale matter.",
+      "tags": ["dispatch", "small-list", "gap-analysis-boundary"]
+    },
+    {
+      "id": 4,
+      "category": "dispatch-boundary",
+      "prompt": "We have a 50-item requirement list and need classification, cost estimate per item, and an Excel-ready RTM.",
+      "expected_routed_to": "odoo-brl",
+      "expected_behavior": "50 items with explicit cost + RTM requirement -> odoo-brl fires. Even at small scale, the explicit cost+RTM request distinguishes BRL from gap-analysis.",
+      "must_not": "Route to odoo-gap-analysis when cost per item and RTM export are explicitly requested.",
+      "tags": ["dispatch", "medium-brl", "cost-rtm-trigger"]
+    },
+    {
+      "id": 5,
+      "category": "classification-golden",
+      "classification_class": "Available-in-Odoo-CE",
+      "req_text": "Sales order management with quotation workflow",
+      "expected_classification": "Available-in-Odoo-CE",
+      "expected_module": "sale",
+      "expected_edition": "CE",
+      "expected_effort_tier": "Standard",
+      "expected_cost_usd_max": 0,
+      "rationale": "sale module is CE native. check_module_exists(name='sale', profile=odoo) returns exists=true, edition=CE. No dev needed.",
+      "tags": ["classification-golden", "CE", "standard"]
+    },
+    {
+      "id": 6,
+      "category": "classification-golden",
+      "classification_class": "Available-in-Odoo-EE",
+      "req_text": "IoT device integration for production line monitoring",
+      "expected_classification": "Available-in-Odoo-EE",
+      "expected_module": "iot",
+      "expected_edition": "EE",
+      "expected_effort_tier": "Config",
+      "rationale": "iot module is EE-only. check_module_exists returns exists=true, edition=EE. Config effort for device setup.",
+      "tags": ["classification-golden", "EE", "config"]
+    },
+    {
+      "id": 7,
+      "category": "classification-golden",
+      "classification_class": "Available-in-Viindoo",
+      "req_text": "Vietnam e-invoice (TT78 hoa don dien tu) integration with a national e-invoice provider",
+      "expected_classification": "Available-in-Viindoo",
+      "expected_edition": "Viindoo",
+      "rationale": "Vietnam e-invoice connector not in odoo profile (CE/EE). check_module_exists(profile=viindoo-internal) returns exists=true. Classified Available-in-Viindoo.",
+      "tags": ["classification-golden", "Viindoo"]
+    },
+    {
+      "id": 8,
+      "category": "classification-golden",
+      "classification_class": "Available-in-Viindoo",
+      "req_text": "OEEL-1 restricted enterprise feature",
+      "expected_classification": "Available-in-Viindoo",
+      "expected_notes_contains": "OEEL-1 restricted detail",
+      "expected_evidence_field": null,
+      "rationale": "OEEL-1 license notice from check_module_exists -> classify as Available-in-Viindoo, notes='OEEL-1 restricted detail', evidence_field=null. Must NOT retry, must NOT fabricate field detail.",
+      "must_not": "Retry check_module_exists after OEEL-1 notice. Fabricate evidence_field for OEEL-1 module.",
+      "tags": ["classification-golden", "OEEL-1", "license-restricted"]
+    },
+    {
+      "id": 9,
+      "category": "classification-golden",
+      "classification_class": "Custom",
+      "req_text": "Custom 3-level approval workflow for Vietnamese government procurement",
+      "expected_classification": "Custom",
+      "expected_effort_tier_one_of": ["Extension-M", "Extension-L", "Custom-XL"],
+      "rationale": "No exact module match for this custom workflow. check_module_exists misses on both profiles. model_inspect may find account.move as extension point -> Extension-M/L; or no match -> Custom-XL.",
+      "tags": ["classification-golden", "Custom", "extension-point-check"]
+    },
+    {
+      "id": 10,
+      "category": "behavior",
+      "test_name": "gate-0-blocks-execution",
+      "description": "GATE 0 must block all Phase A work until user approves.",
+      "setup": "User provides a 100-item BRL and requests analysis.",
+      "expected_behavior": "Skill shows GATE 0 plan with item count, chunk count, MCP budget, and cost band estimate. Ends turn. Does NOT call check_module_exists. Does NOT write chunk files. Waits for user 'approve'.",
+      "must_not": "Call any MCP tool or write any chunk-NNN.A.jsonl file before GATE 0 approval.",
+      "tags": ["behavior", "gate-0", "no-execution-before-gate"]
+    },
+    {
+      "id": 11,
+      "category": "behavior",
+      "test_name": "resume-from-checkpoint",
+      "description": "Resume skips completed chunks.",
+      "setup": "checkpoint.json shows last_completed_chunk=6, chunks_done=[0..6], processed=350, total=1000.",
+      "expected_behavior": "Outer loop starts at chunk 7. Does NOT reprocess chunks 0-6. Reports 'Resuming from chunk 7/20. 350/1000 requirements already classified.'",
+      "must_not": "Reprocess completed chunks. Overwrite already-written chunk-000..006.*.jsonl files.",
+      "tags": ["behavior", "resume", "checkpoint"]
+    },
+    {
+      "id": 19,
+      "category": "behavior",
+      "test_name": "chunk-rerun-idempotent-no-duplicate-rows",
+      "description": "Re-running a chunk (crash between writing chunk files and updating checkpoint.json) must NOT duplicate rows in results.jsonl.",
+      "setup": "Chunk 7 was fully processed: chunk-007.A/B/C/merged.jsonl written, results.jsonl rebuilt to include chunk 7's 50 rows. Then a crash occurred BEFORE checkpoint.json was updated, so last_completed_chunk is still 6. The job is resumed.",
+      "expected_behavior": "Resume re-processes chunk 7 (checkpoint says it is not done). It OVERWRITES chunk-007.*.jsonl + chunk-007.merged.jsonl, then results.jsonl is REBUILT by concatenating chunk-*.merged.jsonl in order. Final results.jsonl contains each req_id exactly once. checkpoint.json is the last write.",
+      "must_not": "Append chunk 7's rows to results.jsonl a second time. Produce a results.jsonl where any req_id appears more than once. Rely on append semantics that duplicate on re-run.",
+      "tags": ["behavior", "resume", "idempotent", "no-duplicate-rows"]
+    },
+    {
+      "id": 12,
+      "category": "behavior",
+      "test_name": "osm-down-degrade",
+      "description": "OSM unreachable -> degrade gracefully without fabricating classifications.",
+      "setup": "Bootstrap calls fail with connection error. OSM server unreachable.",
+      "expected_behavior": "Classify all items with LLM training knowledge. Set classification_source='unverified-llm', risk_flag='osm-unreachable' for all items. Complete Phase B and Phase E normally. report.md has WARNING banner. Does NOT fabricate MCP-verified classifications.",
+      "must_not": "Claim classification_source='mcp-verified' when MCP is down. Fabricate evidence_module or evidence_field values. Halt the pipeline when OSM is unreachable.",
+      "tags": ["behavior", "osm-down", "fallback"]
+    },
+    {
+      "id": 13,
+      "category": "behavior",
+      "test_name": "no-cost-fabrication",
+      "description": "Cost figures must come from cost-config.json, not LLM generation.",
+      "setup": "cost-config.json is present. Requirement classified as Extension-M.",
+      "expected_behavior": "effort_days_min=1, effort_days_max=3, cost_usd_min=300, cost_usd_max=900 (blended_vn=300). Values match effort_lookup[Extension-M] * rate_card[blended_vn] exactly.",
+      "must_not": "Generate cost figures using LLM reasoning. Produce cost numbers that do not match the cost-config.json lookup formula.",
+      "tags": ["behavior", "cost-deterministic", "no-fabrication"]
+    },
+    {
+      "id": 14,
+      "category": "behavior",
+      "test_name": "cache-deduplication",
+      "description": "Multiple requirements mapping to the same module should only call check_module_exists once.",
+      "setup": "10 requirements all map to 'account' module. cache.json is empty at start of chunk.",
+      "expected_behavior": "First requirement: calls check_module_exists twice (odoo + viindoo profiles), writes to cache. Remaining 9 requirements: cache HIT, no MCP call. Only 2 MCP calls for 10 items.",
+      "must_not": "Call check_module_exists 20 times for 10 requirements that share the same module.",
+      "tags": ["behavior", "cache", "mcp-budget"]
+    },
+    {
+      "id": 15,
+      "category": "behavior",
+      "test_name": "gate-e-before-deliverables",
+      "description": "GATE E blocks final deliverable writes until approved.",
+      "setup": "All chunks processed. results.jsonl has all items.",
+      "expected_behavior": "Skill shows GATE E summary: classification mix %, total cost range, flagged items count. Ends turn. Does NOT write final rtm.csv, cost.json, or report.md until user sends 'approve'.",
+      "must_not": "Write rtm.csv, cost.json, or report.md before GATE E is approved.",
+      "tags": ["behavior", "gate-e", "no-write-before-gate"]
+    },
+    {
+      "id": 16,
+      "category": "behavior",
+      "test_name": "dag-acyclic-topological-output",
+      "description": "Phase D on a non-circular BRL produces a valid acyclic ordering with phases and a critical path.",
+      "setup": "results.jsonl has classified+costed items with a clean DAG: REQ-0001 (Chart of Accounts, Config) -> REQ-0042 (3-Level Approval, Extension-M) -> REQ-0080 (Loyalty, Custom-XL). No cycles.",
+      "expected_behavior": "Phase D runs technical bootstrap (module_inspect dependencies), cluster-cut, intra-cluster reasoning, then Kahn topological sort. dag.json has cycles=[], a topological_order covering ALL requirements (len(order)==N), phases assigned by in-degree peel, impl_phase back-filled on every results.jsonl row, and a critical_path with critical_path_days computed via EST/EFT over effort_days_max. dag.mermaid groups nodes into subgraphs by impl_phase with class-based fill (CE green / EE yellow / Viindoo purple / Custom red).",
+      "must_not": "Use impact_analysis (reverse direction) for forward planning. Do pairwise O(n^2) reasoning across all requirements. Leave impl_phase=null after Phase D completes on an acyclic graph. Omit critical_path or critical_path_days.",
+      "tags": ["behavior", "dag", "acyclic", "topological-sort", "critical-path"]
+    },
+    {
+      "id": 17,
+      "category": "behavior",
+      "test_name": "dag-cycle-detected-explicit-report",
+      "description": "A circular dependency must be reported explicitly with resolution options, never silently dropped.",
+      "setup": "results.jsonl contains a mutual dependency: REQ-0042 depends on REQ-0061 AND REQ-0061 depends on REQ-0042 (cycle). Other requirements form an acyclic remainder.",
+      "expected_behavior": "Kahn sort detects len(order) != N. dag.json.cycles lists the cycle members [REQ-0042, REQ-0061] with resolution_options [split, manual, shared-prereq]. The cycle is surfaced in the GATE E summary (Cycles detected > 0) and in report.md with the three resolution options. A partial topological_order is still emitted for the acyclic remainder so the rest of the plan is usable.",
+      "must_not": "Silently drop the back-edge to force a DAG. Crash or halt the pipeline on a cycle. Report Cycles detected = 0 when a cycle exists. Omit the resolution options.",
+      "tags": ["behavior", "dag", "cycle-detection", "explicit-report"]
+    },
+    {
+      "id": 18,
+      "category": "behavior",
+      "test_name": "dag-cluster-size-cap-120",
+      "description": "Cluster reasoning must respect the documented 120-item cap (heuristic bound, acceptance I6).",
+      "setup": "A single (module_family, business_domain) cluster would contain 132 requirements (e.g. account-Finance).",
+      "expected_behavior": "Before intra-cluster Opus reasoning, the oversized cluster is split deterministically by a secondary key into sub-clusters of <=120 items each (account-Finance#1, account-Finance#2). The split is recorded in dag.json.meta.cluster_caps and meta.cluster_size_cap=120. No single Opus reasoning call receives more than 120 requirements.",
+      "must_not": "Pass a cluster of >120 requirements to a single Opus reasoning call. Reason pairwise across the entire BRL. Drop the over-cap requirements instead of splitting.",
+      "tags": ["behavior", "dag", "cluster-cap", "heuristic-bound"]
+    },
+    {
+      "id": 20,
+      "category": "behavior",
+      "test_name": "r2-solution-field-present-and-class-appropriate",
+      "description": "Every results.jsonl row and rtm.csv row must contain a non-null solution field whose content matches the classification class pattern.",
+      "setup": "BRL with four requirements: (A) sale module -> Available-in-Odoo-CE, Standard; (B) iot module -> Available-in-Odoo-EE, Config; (C) VN e-invoice -> Available-in-Viindoo; (D) custom 3-level approval -> Custom, Extension-M.",
+      "expected_behavior": "After Phase A/C completes: (A) solution starts with 'Activate module `sale`'; (B) solution starts with 'Activate module `iot`'; (C) solution starts with 'Activate Viindoo module'; (D) solution references '_inherit' and the evidence model (e.g. 'account.move'). rtm.csv has a `solution` column between `cost_usd_max` and `dependencies`. No solution field is null or empty for any row.",
+      "must_not": "Emit a null or empty solution for any classified requirement. Use LLM to generate cost figures (solution is separate from cost). Write solution text that does not match the classification class (e.g. 'New module: ...' for a CE item).",
+      "tags": ["behavior", "r2", "solution-field", "rtm"]
+    },
+    {
+      "id": 21,
+      "category": "behavior",
+      "test_name": "r4-custom-inter-cluster-dag-edge-captured",
+      "description": "Phase D D4-B must derive inter-cluster edges for Custom clusters via business-domain affinity, not leave them isolated.",
+      "setup": "results.jsonl has two clusters: 'sale-Sales' (REQ-0010, sale module, Config) and 'custom-Sales' (REQ-0090, module_family='custom', Custom-XL loyalty integration). REQ-0090 cannot be implemented before sale order flow (REQ-0010) exists. D1 module_inspect returns no deps for Custom items (no module to inspect).",
+      "expected_behavior": "Phase D D4-B identifies that cluster 'custom-Sales' (loyalty integration) has business-domain affinity with cluster 'sale-Sales'. It emits ONE representative edge: from=REQ-0010, to=REQ-0090, type='business-logic', reason contains 'custom cluster' and 'sale-Sales'. dag.json.meta.custom_affinity_edges >= 1. Kahn sort places REQ-0010 in an earlier impl_phase than REQ-0090.",
+      "must_not": "Leave REQ-0090 with zero inter-cluster incoming edges when a clear business dependency on the sale cluster exists. Use pairwise O(n^2) item reasoning for this heuristic. Emit more than one representative edge per (custom_cluster, source_cluster) pair. Fabricate a technical edge where none exists in module manifest.",
+      "tags": ["behavior", "dag", "r4", "custom-inter-cluster", "business-affinity"]
+    }
+  ]
+}

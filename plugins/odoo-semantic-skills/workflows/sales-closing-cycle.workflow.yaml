@@ -1,0 +1,74 @@
+# sales-closing-cycle.workflow.yaml
+# Declarative SSOT for the sales closing cycle workflow.
+# Runner: skills/workflow-runner — auto-discovered at runtime.
+# Pattern: Pipeline — assess deal health, draft re-engagement, plan concrete next steps.
+name: sales-closing-cycle
+domain: sales
+team_pattern: Pipeline
+description: |
+  Guide a stalled or at-risk deal through a structured closing cycle: assess deal health
+  (risk score + blockers), draft a re-engagement message via odoo-deal-followup, then
+  produce a concrete next-step action plan to move the deal forward. Trigger: "close this
+  deal", "deal is stalling", "help me close", "deal hasn't moved", "stuck in pipeline",
+  "re-engage stalled opportunity", "deal closing cycle", "move deal to close", "opportunity
+  is at risk", "draft closing plan", "what do I do to close", "thương vụ bị dừng",
+  "cần chốt deal", "cơ hội đang bị treo"
+output_dir: .odoo-ai/sales
+inputs:
+  - deal_context
+
+resume: false
+fallback: standalone
+
+phases:
+  # ------------------------------------------------------------------
+  # Phase 0 — Collect deal context (inline: runner handles)
+  # ------------------------------------------------------------------
+  - id: collect-context
+    inline: true
+    model_tier: inherit
+    # Runner collects: customer label (abstract), pipeline stage, last contact date,
+    # prior commitments or quotes sent, deal value band, any email/note thread.
+    # Enforces confidentiality: abstract labels only; no real customer names in artifacts.
+
+  # ------------------------------------------------------------------
+  # Phase 1 — Assess deal health (inline: classify + risk score)
+  # ------------------------------------------------------------------
+  - id: assess-deal-health
+    inline: true
+    model_tier: sonnet
+    gate: "approve / refine: [feedback] / cancel"
+    # Runner evaluates: risk score (red/yellow/green), primary blocker category
+    # (price / timing / competition / technical / internal / silent), confidence band,
+    # and one-line rationale. Output written inline as a structured block.
+
+  # ------------------------------------------------------------------
+  # Phase 2 — Re-engagement draft via odoo-deal-followup
+  # ------------------------------------------------------------------
+  - id: re-engagement-draft
+    skill: odoo-deal-followup
+    nl_trigger: >
+      Using the deal context and health assessment from the previous phases, generate
+      a re-engagement action plan for this stalled opportunity. Produce: (a) a risk score
+      (red/yellow/green) confirming the assessment, (b) a next-best action recommendation
+      (call / email / demo / pricing discussion), and (c) a draft follow-up email or
+      message in the appropriate language. The tone must be B2B professional, not pushy.
+      Flag any blockers that require escalation or a new internal alignment before
+      contacting the customer.
+    model_tier: sonnet
+    gate: "approve / refine: [feedback] / cancel"
+
+  # ------------------------------------------------------------------
+  # Phase 3 — Next-step action plan (inline assembly)
+  # ------------------------------------------------------------------
+  - id: next-step-plan
+    inline: true
+    model_tier: sonnet
+    gate: "save / discard / cancel"
+    # Runner assembles the final closing plan:
+    #   1. Deal health summary (risk score + blocker)
+    #   2. Recommended sequence of closing actions with owner and deadline band
+    #   3. Re-engagement draft from Phase 2 (ready to send)
+    #   4. "If no reply in X days" contingency action
+    # Writes to .odoo-ai/sales/<customer-label>-<YYYY-MM-DD>-closing-plan.md
+    # Reminder: .odoo-ai/ is gitignored; artifacts are never committed to the repo.

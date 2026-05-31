@@ -1,0 +1,56 @@
+name: qa-suite
+domain: qa
+team_pattern: Pipeline
+description: |
+  End-to-end QA pipeline for an Odoo feature or module: generate structured test cases
+  (business-rule-first, happy path + edge + error + permission), gate on a pre-deploy
+  safety checklist across 8 domains, and triage open bugs with severity classification,
+  reproduction steps, and suspected module assignment.
+  Trigger: "full QA suite", "test cases and checklist", "QA pipeline for this change",
+  "generate tests and triage bugs", "acceptance tests plus deploy gate",
+  "write test plan and check deploy readiness", "qa this module before release"
+output_dir: .odoo-ai/qa
+inputs:
+  - feature_or_module
+  - odoo_version
+
+phases:
+  - id: generate-tests
+    skill: odoo-qa-suite
+    nl_trigger: >
+      Generate a structured test suite for the following Odoo feature or module.
+      Produce one test-case row per business rule (happy path, edge case, error path,
+      permission check). Each test name must state the business rule, not the
+      implementation. Output to .odoo-ai/qa/ as a markdown table.
+    model_tier: sonnet
+    gate: "approve / refine: [feedback] / cancel"
+
+  - id: qa-checklist
+    skill: odoo-deploy-checklist
+    nl_trigger: >
+      Generate a pre-deployment QA checklist for the module identified in the previous
+      phase, covering all 8 domains: pre-flight, backup, data migration, downtime,
+      deploy mechanics, smoke tests, monitoring, and rollback. Target environment:
+      staging. Use the Odoo version from context. Return a verdict (READY / NEEDS WORK
+      / NOT READY) and write the checklist to .odoo-ai/qa/.
+    model_tier: sonnet
+    gate: "approve / skip / cancel"
+
+  - id: bug-triage
+    skill: odoo-qa-suite
+    nl_trigger: >
+      Triage the open bugs provided by the user for the module under test. For each
+      bug, classify severity (Critical/High/Medium/Low), provide reproduction steps,
+      identify the suspected Odoo module, and recommend the next action. Write triage
+      output to .odoo-ai/qa/. If no bugs were provided, output "No bugs to triage"
+      and skip.
+    model_tier: sonnet
+    gate: "approve / skip / cancel"
+
+  - id: synthesize
+    inline: true
+    model_tier: inherit
+    gate: "save / discard / cancel"
+
+resume: true
+fallback: standalone

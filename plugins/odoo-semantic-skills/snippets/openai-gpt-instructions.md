@@ -78,7 +78,7 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
   WHEN: "what stylesheets does module [X] ship", "list CSS/SCSS/LESS files in [X]", "@import chain for module [X]", "stylesheet inventory for [X]"
   ARGS: module (required), odoo_version (optional, default "auto")
 
-**find_style_override** ✦ — semantic search for where a CSS selector / SCSS/LESS variable is defined or overridden (pgvector + :IMPORTS chain; LESS covers legacy v8-v11)
+**find_style_override** ✦ — semantic search for where a CSS selector / SCSS/LESS variable is defined or overridden (pgvector with import-chain traversal; LESS covers legacy v8-v11)
   WHEN: "where is selector [X] defined", "find SCSS variable $[X]", "find LESS variable @[X]", "which module overrides [selector]", "branding/theming override for [X]"
   ARGS: selector_or_variable (required), odoo_version (optional, default "auto"), limit (optional, default 5)
 
@@ -99,7 +99,7 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
   WHEN: "does [model].partner_id point to res.partner", "is this field a many2one to [model]", "check relation target"
   ARGS: model (required), field (required, relational field), target_model (required, expected comodel), odoo_version (optional — session-aware), profile_name (optional)
 
-## SESSION-CONTEXT TOOLS (☆ M11 Wave E)
+## SESSION-CONTEXT TOOLS (☆ v0.6+)
 
 **set_active_version(odoo_version)** — pin Odoo version for this session (24h TTL per API key)
   WHEN: at conversation start, or whenever switching focus to a different Odoo version
