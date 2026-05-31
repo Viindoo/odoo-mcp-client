@@ -112,6 +112,15 @@ if [ -z "${_domain}" ]; then
   _domain="general"
 fi
 
+# --- OSM-availability probe ---
+# Grep for "odoo-semantic" in the Claude config file (same pattern as check-setup-deps.sh
+# uses for chrome-devtools). Safe when the file is absent: grep returns non-zero, no error.
+_osm_wired=false
+_claude_cfg="${CLAUDE_CONFIG:-$HOME/.claude.json}"
+if [ -f "${_claude_cfg}" ] && grep -q "odoo-semantic" "${_claude_cfg}" 2>/dev/null; then
+  _osm_wired=true
+fi
+
 # --- Vagueness heuristic: short prompt / multi-fragment / no strong action verb ---
 # Word count proxy via wc -w
 _word_count=$(printf '%s' "${_prompt}" | wc -w | tr -d ' ')
@@ -129,8 +138,22 @@ if [ "${_word_count}" -le 12 ] 2>/dev/null || [ "${_has_action}" = "false" ]; th
   _is_vague=true
 fi
 
-# If intent is specific (long + has action verb) → fire specialist directly, no hint needed
-if [ "${_is_vague}" = "false" ]; then
+# --- OSM reminder block (emitted BEFORE any early-exit) ---
+# Emitted when odoo-semantic MCP is wired AND domain is engineering/upgrade/visual-UI.
+# Fires regardless of vague/specific — specific prompts need it most.
+_osm_context=""
+case "${_domain}" in
+  engineering|upgrade|visual-UI)
+    if [ "${_osm_wired}" = "true" ]; then
+      _osm_r1="[OSM] odoo-semantic index is AVAILABLE — before generating or editing Odoo code, call mcp__odoo-semantic__set_active_version then model_inspect/entity_lookup; do NOT code from memory. If a tool errors at call time, fall back to standalone (paste-context) mode."
+      _osm_r2="[Tip] Type /plan or press Shift+Tab to enter Plan Mode and review the full plan before any file is changed."
+      _osm_context="${_osm_r1}\n${_osm_r2}"
+    fi
+    ;;
+esac
+
+# If intent is specific (long + has action verb) AND no OSM context to emit → exit early
+if [ "${_is_vague}" = "false" ] && [ -z "${_osm_context}" ]; then
   exit 0
 fi
 
@@ -140,10 +163,24 @@ fi
 # not a literal control character — a raw newline inside a JSON string is invalid
 # JSON and Claude Code silently drops the hook. Build the message with literal
 # "\n" separators and emit valid JSON (prefer jq; safe printf fallback).
-_hint="Business/Odoo intent detected (domain: ${_domain})."
-_line2="If the goal is still broad or you want to explore options first, the intake front door can brainstorm approaches and route to the right specialist."
-_line3="If the intent is already specific and single-step, the matching specialist will fire directly - no extra step needed."
-_context="${_hint}\n${_line2}\n${_line3}"
+
+# Build context: OSM block (if any) + vague-dispatch hint (if vague)
+_context=""
+if [ -n "${_osm_context}" ]; then
+  _context="${_osm_context}"
+fi
+
+if [ "${_is_vague}" = "true" ]; then
+  _hint="Business/Odoo intent detected (domain: ${_domain})."
+  _line2="If the goal is still broad or you want to explore options first, the intake front door can brainstorm approaches and route to the right specialist."
+  _line3="If the intent is already specific and single-step, the matching specialist will fire directly - no extra step needed."
+  _nl_hint="${_hint}\n${_line2}\n${_line3}"
+  if [ -n "${_context}" ]; then
+    _context="${_context}\n${_nl_hint}"
+  else
+    _context="${_nl_hint}"
+  fi
+fi
 
 if command -v jq >/dev/null 2>&1; then
   # jq emits a properly escaped JSON string (handles the \n + any quoting).
