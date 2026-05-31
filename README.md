@@ -499,6 +499,8 @@ Antigravity, Windsurf, Zed, JetBrains Junie) and `snippets/` for copy-ready conf
 
 ## For contributors - local dev install
 
+**Prerequisite:** Python 3.12+ (needed by `make setup` / `make test`).
+
 Test changes from a checkout without going through the marketplace. Each plugin lives
 under `plugins/` - point `--plugin-dir` at the one you are working on:
 

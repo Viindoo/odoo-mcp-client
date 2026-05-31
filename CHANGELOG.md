@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Build / CI
+
+#### Added
+
+- **`requirements.txt`** — single source of truth for test dependencies (`pytest` + `PyYAML`);
+  previously undeclared, causing contributors to install deps ad-hoc and PyYAML-gated
+  workflow tests to silently skip (~99 parametrized cases masked by the missing import).
+- **`make setup`** — bootstraps `.venv` by probing for Python >= 3.12 (`python3.12` through
+  `python`). All Makefile targets (`make test`, `make validate`, etc.) now run through
+  `$(VENV)/bin/python` and auto-bootstrap the venv on first use if `make setup` was skipped.
+- **Python 3.12+ prerequisite** documented in `README.md` (contributor section) and
+  `CONTRIBUTING.md` (local development prerequisite).
+
+#### Changed
+
+- **CI `validate.yml` `schema` job** now runs `pip install -r requirements.txt` (was
+  `pip install pytest`), ensuring PyYAML is present and the workflow-format test suite
+  runs its full parametrized case set.
+
 ### odoo-semantic-skills
 
 #### Changed

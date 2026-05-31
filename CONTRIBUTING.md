@@ -9,9 +9,14 @@ separate AGPL server; open server/indexer/graph issues via
 
 ## Local development
 
+**Prerequisite:** Python 3.12 or newer must be on your PATH.
+
 ```bash
 git clone https://github.com/Viindoo/odoo-mcp-client
 cd odoo-mcp-client
+
+# One-time setup: create .venv and install dependencies from requirements.txt:
+make setup
 
 # Load a plugin from this checkout (no marketplace round-trip):
 claude --plugin-dir ./plugins/odoo-semantic-skills   # or ./plugins/odoo-semantic-mcp
@@ -20,6 +25,10 @@ claude --plugin-dir ./plugins/odoo-semantic-skills   # or ./plugins/odoo-semanti
 make validate
 make test
 ```
+
+> `make setup` creates `.venv/` and installs all test dependencies. `make test` and
+> `make validate` both use `.venv` automatically; if you skip `make setup`, the first
+> `make test` run will bootstrap the venv for you.
 
 You also need a running MCP server to exercise the tools end-to-end — point
 `/odoo-semantic-mcp:connect` at the hosted instance (`https://odoo-semantic.viindoo.com/mcp`).
@@ -130,7 +139,7 @@ repo, but rotate immediately if exposure is suspected.
 
 `VERSION` is the single source of truth for the client version. The repo ships **two
 plugins** with independent version numbers: the `odoo-semantic-skills` plugin's
-`plugin.json.version` tracks `VERSION` (currently `2.1.0`), while the
+`plugin.json.version` tracks `VERSION` (currently `2.2.0`), while the
 `odoo-semantic-mcp` plugin versions independently (currently `1.0.0`). Tagging `v*`
 should bump `VERSION` together with the skills plugin's `plugin.json.version`; bump the
 mcp plugin's version only when its own contents change. `pin-sha.yml` updates `source.sha`
