@@ -187,6 +187,7 @@ The **Discriminator** column resolves close ties.
 | 37 | "deal close cycle", "full sales closing cycle", "multi-step deal closing", "sales follow-up sequence end-to-end", "close this deal from discovery to signature" | `sales-closing-cycle` (workflow) | End-to-end deal-closing pipeline (vs `odoo-deal-followup` which is a single email draft, vs `/odoo-bid-respond` which produces an RFP response document) |
 | 38 | "long debug session", "investigate phiên dài", "multi-turn UI debug", "ui-debug-session", "sustained troubleshooting session for Odoo UI" | `ui-debug-session` (workflow) | Sustained multi-turn UI debug session with state tracking (vs `odoo-ui-debug` which is a single-turn root-cause investigation) |
 | 39 | "content brief to publish", "full content production", "content from brief to done", "multi-step content workflow", "brief → draft → review → publish" | `content-production` (workflow) | End-to-end content pipeline: brief → draft → review → publish (vs `odoo-content-draft` which is single-piece draft only, vs `odoo-campaign-plan` which plans the campaign, not produces the pieces) |
+| 40 | "do this as a wave", "parallelize these changes", "multi-WI PR with review and squash", "land N related changes safely without touching main", "git-wave orchestration", "split this work into parallel worktrees" | `wave` | Depth-0 git-wave orchestration: integration branch + parallel WI worktrees + cherry-pick + end-of-wave review + 1 PR + squash + human-confirm merge (vs `odoo-coder` which handles a SINGLE change with no git orchestration; vs `odoo-brl` which classifies/costs requirements but writes NO code) |
 
 ## Collision Test Cases — Worked Examples
 
@@ -312,6 +313,29 @@ asks for the fix to be written, -> route to `odoo-frontend-coder`. If the user i
 from scratch ("create a color picker widget"), there is no runtime to debug ->
 `odoo-frontend-coder`.
 
+### Collision 9 — Wave (git orchestration) vs BRL (requirement classification) vs Odoo-Coder (single change)
+
+**Prompt**: "I have 5 changes to make across 3 files — parallelize them and land as a single reviewed PR"
+
+- `wave`: description matches "parallelize these changes", "multi-WI PR with review + squash" ->
+  git-wave depth-0 orchestrator: creates an integration branch, dispatches parallel WI subagents,
+  cherry-picks, runs end-of-wave review, creates 1 PR, squashes, and waits for human-confirm merge.
+- `odoo-brl`: description matches "classify changes", "requirements" -> classifies and costs a
+  list of BUSINESS REQUIREMENTS — produces an RTM/cost/DAG but writes NO code and does NOT touch git.
+- `odoo-coder`: description matches "implement feature", "write code" -> writes code for a SINGLE
+  change in the current working directory; no git orchestration, no worktrees.
+
+**Discriminator**:
+- "parallelize" + "N changes" + "PR" + "squash" signal the user wants git-wave orchestration ->
+  **Pick `wave`.**
+- "classify/cost requirements" or "RTM/DAG" with no code-generation intent -> **Pick `odoo-brl`.**
+- Single change, single feature, no git coordination needed -> **Pick `odoo-coder`.**
+
+If the user said "write a computed field for sale.order" -> `odoo-coder` (single, no orchestration).
+If the user said "classify 200 requirements from the RFP" -> `odoo-brl` (no code, no git).
+If the user said "we have a bug fix, a test addition, and a docs update — land them as one reviewed PR"
+-> `wave` (multiple disjoint changes, git coordination, end-of-wave review required).
+
 ## Command-vs-skill discriminator
 
 Slash commands (`/odoo-*`) are user-explicit kickoffs that chain multiple skills with
@@ -388,10 +412,10 @@ Mirror the user's language (English or the language they wrote in).
 
 ## Notes for future maintainers
 
-- Routing table currently lists 39 entries (rows 1-13 = Phase A/B core; rows 14-21 = Phase B
+- Routing table currently lists 40 entries (rows 1-13 = Phase A/B core; rows 14-21 = Phase B
   sales+marketing+engineering; rows 22-27 = Phase D commands; rows 28-32 = Phase E visual;
-  rows 33-39 = Phase E+ BRL flagship + workflow domains). Update both the table AND the
-  collision-test cases when adding entries.
+  rows 33-39 = Phase E+ BRL flagship + workflow domains; row 40 = wave git-orchestration).
+  Update both the table AND the collision-test cases when adding entries.
 - Trigger description optimization is scheduled for Phase D via `/skill-creator` Mode 5
   (`run_loop.py`) with a 20-query trigger eval set.
 - Eval set (31 cases in `evals/evals.json`) is descriptive — not graded. Use

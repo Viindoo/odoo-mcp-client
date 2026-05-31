@@ -49,6 +49,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (required, per machine), `/odoo-semantic-skills:setup` (optional visual stack,
   per machine), and the `odoo-onboard` skill (optional, per repo).
 
+## [2.3.0] - 2026-05-31
+
+### odoo-semantic-skills
+
+#### Added
+
+- **`wave` skill** — depth-0 multi-subagent git-wave orchestration: integration branch +
+  WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate
+  + human-confirm merge. Self-spawning, principal-branch-locked, auto-merge never allowed.
+  Covers 1-WI minimal through ≥4-WI full plan-artifact (`.odoo-ai/wave/<slug>/plan.md`)
+  with topology diagram and disjoint ownership map.
+- **`/odoo-semantic-skills:wave-run` command** — thin dispatcher to the `wave` skill;
+  accepts optional work-item description, emits plan gate before any branch is created.
+
 ## [2.2.0] - 2026-05-31
 
 ### odoo-semantic-skills
@@ -240,7 +254,7 @@ Detailed orchestration log retained internally.
 ### Deferred to v1.1.0
 - AC-D6: router trigger optimization via `/skill-creator` Mode 5 + `run_loop.py`. The 20-query eval set is authored in `skills/odoo-router/evals/evals.json` (15 cases) + the 5 collision-test cases in `skills/odoo-router/SKILL.md`. Mode 5 requires the Claude Code subprocess API, which is CC-only; multi-runtime parity is verified manually via `tests/smoke/runtime_parity.md` for v1.0.0. Re-runnable in v1.1.0 after multi-runtime smoke is fully executed.
 - AC-D8 CI version-sync test: VERSION ↔ plugin.json sync is currently manual. Add a CI assertion in v1.1.0 (e.g., `test_version_sync` in `tests/test_plugin_schema.py`).
-- Confidentiality scan marker convention: PR #14 wave-2 removed the file-name allowlist entirely by moving the refinement plan to internal AI-Memory. v1.1.0 may adopt an opt-in HTML marker convention (e.g., `<!-- confidentiality-exempt: reason -->`) if any future public doc must legitimately reference a vault path — currently no such file exists, so defense-in-depth is restored without an allowlist.
+- Confidentiality scan marker convention: PR #14 wave-2 removed the file-name allowlist entirely by moving the refinement plan to an internal planning document. v1.1.0 may adopt an opt-in HTML marker convention (e.g., `<!-- confidentiality-exempt: reason -->`) if any future public doc must legitimately reference an internal-only path — currently no such file exists, so defense-in-depth is restored without an allowlist.
 
 ## [0.8.0] - 2026-05-21
 

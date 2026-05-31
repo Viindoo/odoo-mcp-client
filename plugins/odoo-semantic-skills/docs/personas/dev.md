@@ -176,6 +176,7 @@ If you use **Claude Code** with the Odoo Semantic plugin:
 | `/odoo-override-finder` | Given a model + method, returns safe override point + existing overrides + suggest_pattern |
 | `/odoo-deprecation-audit` | Full deprecated API scan with replacement suggestions |
 | `/odoo-version-diff` | Side-by-side API diff between two Odoo versions for a given symbol |
+| `/odoo-semantic-skills:wave-run` | Depth-0 git-wave orchestration: integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + 1 PR + squash + tree-identity gate + human-confirm merge. Use when landing N parallel WI changes safely without touching the principal branch. |
 
 ---
 
