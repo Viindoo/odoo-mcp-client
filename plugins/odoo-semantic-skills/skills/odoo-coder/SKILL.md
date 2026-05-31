@@ -14,6 +14,26 @@ description: >
   business-rule descriptions with NO technical vocabulary at all (e.g. "discount can never
   exceed 20% of unit price"). When the user is asking how to LOOK UP existing code rather
   than write new code, route to odoo-feature-check or odoo-override-finder instead
+disallowed-tools: Write Edit
+---
+
+## Phase 0 — Scope confirm (1-turn gate)
+
+Before invoking the agent or writing any code, emit the following confirmation block and
+**stop**. Do not write or edit any file in this turn.
+
+```
+Proposed: <short description of what will be created or modified>.
+OSM: backed | standalone
+Proceed? (yes / refine: [feedback] / cancel)
+```
+
+- **backed** — the OSM semantic index is reachable and will be used for validation.
+- **standalone** — OSM is unreachable; will proceed via user-paste fallback.
+
+Wait for the user's reply before proceeding. This gate applies even if the request arrived
+directly (e.g. intake bypass) — it is the single mandatory confirmation checkpoint.
+
 ---
 
 ## Persona
@@ -56,12 +76,28 @@ Standard conventions (v17 primary):
 - Always tell the user which file to create/edit and what to add to `__manifest__.py`.
 - Field strings must use `_('…')` for translatability.
 
-## Agent invocation
+## Agent invocation — prompt template (P1)
 
-When the user confirms intent, main agent invokes the `odoo-coder` agent via Agent tool.
-The agent runs Round 0-4 (version pin → context gather → resolve specifics → generate →
-inline review) using restricted tools: Read, Grep, Bash (read-only), odoo-semantic-mcp server tools,
-and MCP ollama-delegate tools. The agent does NOT spawn further subagents or invoke skills.
+When the user confirms intent (Phase 0 gate passed), the main agent invokes the `odoo-coder`
+agent via the Agent tool. Use the following template **verbatim** as the agent prompt, filling
+in the bracketed placeholders:
+
+```
+You are the odoo-coder agent. Produce production-ready Python/XML Odoo code for the
+following request:
+
+REQUEST: [full user request, with target model, Odoo version, and any constraints stated]
+
+Step 0 (ONLY if mcp__odoo-semantic__* tools are available): call
+set_active_version('<version>'), then proceed Rounds 1-4. If OSM is unavailable, use
+the Standalone-first fallback. Do NOT generate code from memory when OSM is reachable.
+
+Follow Rounds 1-4 as defined in your system prompt. Do not spawn subagents or invoke skills.
+```
+
+The agent runs Rounds 0-4 (version pin → context gather → resolve specifics → generate →
+inline review) using its restricted tool allowlist. The agent does NOT spawn further
+subagents or invoke skills.
 
 ## Standalone-first fallback
 

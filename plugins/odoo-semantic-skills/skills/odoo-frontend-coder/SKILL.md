@@ -1,5 +1,6 @@
 ---
 name: odoo-frontend-coder
+disallowed-tools: Write Edit
 description: >
   Write complete, production-ready Odoo frontend JS code for ANY Odoo version (v8–v19) —
   legacy `web.Widget`/`AbstractField`/`odoo.define()` system for v8–v14, or OWL 2.x
@@ -69,6 +70,20 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `mcp__ollama-delegate__explain_code`
 - `mcp__ollama-delegate__generate_code`
 <!-- END GENERATED TOOLS -->
+
+## Phase 0 — Scope confirm (1-turn gate)
+
+Before writing any code, emit the following confirmation block and **stop** — do not write files or generate code in this turn:
+
+```
+Proposed: <brief description of the component / view / asset to be created or modified>.
+OSM: backed | standalone
+Proceed? (yes / refine: [feedback] / cancel)
+```
+
+- **Proposed** — one sentence: what JS/OWL/XML artifact will be created or changed, and in which module.
+- **OSM** — set to `backed` when the OSM MCP server is reachable and its tools (`find_examples`, `module_inspect`, etc.) will be used in subsequent rounds; set to `standalone` when OSM is unreachable and the skill will fall back to pasted code only. OSM tools are optional for pure-frontend work but improve accuracy when available.
+- Wait for the user to reply `yes` before proceeding to Round 0 below. If they reply `refine: …`, update the scope and re-emit the block. If they reply `cancel`, stop.
 
 ## Instructions
 

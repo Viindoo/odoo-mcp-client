@@ -10,6 +10,7 @@ description: >
   Invoked by the intake skill (or concierge) via NL-dispatch after a workflow is chosen at the
   soft-plan-gate — never called directly by the user
 model: inherit
+disallowed-tools: Write Edit
 ---
 
 # workflow-runner — Generic Declarative Workflow Runner
@@ -83,6 +84,22 @@ Run phases in order. Before each phase:
 4. Dispatch via NL: write a prompt that naturally matches the target skill's `description`.
    For `inline: true` phases, handle the work in-line without dispatching.
 5. After phase completes, write output to `output_dir` and update the state checkpoint.
+
+### Phase output contract
+
+After each phase finishes (whether dispatched or inline), present the specialist's output
+to the user wrapped in the following boundary block:
+
+```
+## Phase <id> — <description> [DONE | FAILED]
+<specialist output>
+---
+```
+
+Use `DONE` when the phase completed without error; use `FAILED` when the specialist
+reported an error or produced no usable output. This wrapper is mandatory for every
+phase — including conditional phases that actually fired and fan-out aggregation — so
+phase boundaries remain clearly visible throughout a multi-phase run.
 
 ### Fan-out / Fan-in (parallel workers, ≤3 concurrent)
 
