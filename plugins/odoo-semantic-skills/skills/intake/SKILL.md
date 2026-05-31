@@ -180,7 +180,7 @@ Approach:    <skill name | workflow name | command>
 Chain:       <skill> → <skill> ...   (for multi-step; "single turn" for atomic asks)
 Output:      .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
 Est. effort: <S / M / L / XL / "single turn">
-OSM:         backed | standalone   (backed if odoo-semantic tools are available; standalone if not)
+OSM:         backed | standalone   (backed if OSM (`mcp__odoo-semantic__*`) tools are available; standalone if not)
 Next turn:   invoke `<skill/workflow>` via the **Agent tool** (you will see the tool call)
 
 Gate: approve / refine: [your feedback] / cancel
@@ -450,7 +450,7 @@ Approach:    <skill name | workflow name | command>
 Chain:       <skill> → <skill> ...   (or "single turn")
 Output:      .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
 Est. effort: <S / M / L / XL / "single turn">
-OSM:         backed | standalone   (backed if odoo-semantic tools are available; standalone if not)
+OSM:         backed | standalone   (backed if OSM (`mcp__odoo-semantic__*`) tools are available; standalone if not)
 Next turn:   invoke `<skill/workflow>` via the **Agent tool** (you will see the tool call)
 
 Gate: approve / refine: [your feedback] / cancel
