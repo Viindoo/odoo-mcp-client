@@ -17,7 +17,7 @@ flowchart LR
     subgraph client["odoo-mcp-client (MIT)"]
         intake["intake<br/>universal front door"]
         wfrunner["workflow-runner<br/>declarative YAML executor"]
-        skills["odoo-semantic-skills<br/>30 skills / 3 agents / 8 commands"]
+        skills["odoo-semantic-skills<br/>31 skills / 3 agents / 9 commands"]
         mcp["odoo-semantic-mcp<br/>MCP connection + /connect"]
         intake --> wfrunner
         intake --> skills
@@ -52,16 +52,17 @@ You do not need to know skill names.
 and for multi-phase work it routes to the `workflow-runner` which executes a declarative
 `*.workflow.yaml` - all behind a soft-plan-gate so no execution fires before you approve.
 
-Eight workflow commands (`/odoo-bid-respond`, `/odoo-customer-followup-draft`,
+Nine workflow commands (`/odoo-bid-respond`, `/odoo-customer-followup-draft`,
 `/odoo-discovery-quick`, `/odoo-feature-positioning`, `/odoo-upgrade-plan-full`,
-`/odoo-brl-run`, `/odoo-video-produce`, `/odoo-semantic-skills:setup`) chain skills
-into multi-step recipes and write structured output to `.odoo-ai/`. Ten declarative
+`/odoo-brl-run`, `/odoo-video-produce`, `/odoo-semantic-skills:setup`,
+`/odoo-semantic-skills:wave-run`) chain skills into multi-step recipes and write
+structured output to `.odoo-ai/`. Ten declarative
 workflows (driven by `workflows/*.workflow.yaml` + `workflow-runner`) cover QA,
 support triage, sales, video production, and more - adding a new workflow requires
 only one YAML file, no orchestration code.
 
-> **Counts at a glance (v2.2.0):** `odoo-semantic-skills` ships **30 skills + 3 agents +
-> 8 commands**, grouped into **9 persona buckets** for navigation, plus **10 declarative
+> **Counts at a glance (v2.3.0):** `odoo-semantic-skills` ships **31 skills + 3 agents +
+> 9 commands**, grouped into **9 persona buckets** for navigation, plus **10 declarative
 > workflows** driven by `workflows/*.workflow.yaml`. A further slash command,
 > `/odoo-semantic-mcp:connect`, belongs to the companion `odoo-semantic-mcp` plugin
 > and is pulled in automatically when you install the skills plugin.
@@ -249,7 +250,7 @@ flowchart TD
 
 ### Available commands
 
-> `/odoo-semantic-mcp:connect` ships in the `odoo-semantic-mcp` plugin and is not counted among the 8 commands of the skills plugin.
+> `/odoo-semantic-mcp:connect` ships in the `odoo-semantic-mcp` plugin and is not counted among the 9 commands of the skills plugin.
 
 | Command | Purpose | Chained skills |
 |---------|---------|----------------|
@@ -261,6 +262,7 @@ flowchart TD
 | `/odoo-brl-run` | Bulk requirement-list classification at scale (chunked, resumable), saves to `.odoo-ai/brl/<job-id>/` | `odoo-brl` (sequential-outer-parallel-inner) |
 | `/odoo-video-produce` | Multi-scene Odoo demo video (storyboard -> record -> assemble), saves to `.odoo-ai/video/` | `odoo-demo-recorder` (per scene) |
 | `/odoo-semantic-skills:setup` | One-shot idempotent setup for the visual workflow - wires 3 browser MCP servers across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance | - |
+| `/odoo-semantic-skills:wave-run` | Depth-0 git-wave orchestration: integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge (auto-merge never allowed) | `wave` |
 
 ## Use cases - day in the life
 
@@ -352,7 +354,7 @@ Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression
 
 ### Frequently asked questions
 
-**I only need one skill - do I have to know all 30?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `intake` acts as a brainstorm partner when you are not sure which skill to use.
+**I only need one skill - do I have to know all 31?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `intake` acts as a brainstorm partner when you are not sure which skill to use.
 
 **What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by prompting you to paste data manually. The plugin does not break when OSM is offline.
 
@@ -417,7 +419,7 @@ Then **restart Claude Code**.
 
 ## Reference
 
-### Skills (30)
+### Skills (31)
 
 Per-persona quick-start guides live in [`docs/personas/`](plugins/odoo-semantic-skills/docs/personas/).
 
@@ -453,6 +455,7 @@ Per-persona quick-start guides live in [`docs/personas/`](plugins/odoo-semantic-
 | `odoo-demo-recorder` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
 | `odoo-qa-suite` | Coder / Visual | Full QA pipeline - generate structured test cases, produce a pre-deploy checklist, and triage bugs with severity classification and reproduction steps |
 | `workflow-runner` | Internal (harness) | Generic declarative workflow executor - reads `*.workflow.yaml` and runs gated phase sequences; invoked by intake via NL-dispatch, not directly by users |
+| `wave` | Internal (orchestration) | Depth-0 git-wave orchestration - integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge; self-spawning, principal-branch-locked |
 
 ### Agents (3)
 

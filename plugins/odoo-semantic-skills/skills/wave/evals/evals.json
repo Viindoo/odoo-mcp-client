@@ -1,0 +1,97 @@
+{
+  "skill_name": "wave",
+  "schema_version": "1",
+  "notes": "Evals cover: (1) dispatch boundaries - wave vs odoo-coder vs odoo-brl vs workflow-runner; (2) scaling rule - 1-WI minimal / 2-3 WI plan-gate / >=4 WI full-plan-artifact; (3) behavioral contracts - plan gate before branch creation, principal-branch-lock, human-confirm-merge, squash-tree-identity abort; (4) conflict resolver path; (5) subagent nesting rule. Each case has a precise expected_behavior so it can fail for the right reason (ETHOS#11).",
+  "evals": [
+    {
+      "id": 1,
+      "category": "dispatch-boundary",
+      "prompt": "Parallelize these 3 changes: add a computed field to sale.order, add an OWL widget for the kanban view, and update the unit tests. Land them safely without touching main.",
+      "expected_routed_to": "wave",
+      "expected_behavior": "Wave fires. Phase 0 produces an ownership map (3 disjoint file sets), selects independent topology, emits a plan gate. Does NOT create any branch or worktree until user approves.",
+      "must_not": "Create any git branch, worktree, or commit before the user approves the plan gate.",
+      "tags": ["dispatch", "should-fire", "3-wi-parallel"]
+    },
+    {
+      "id": 2,
+      "category": "dispatch-boundary",
+      "prompt": "Fix the typo in the account.move description field.",
+      "expected_routed_to": "odoo-coder",
+      "expected_behavior": "Single-file change. Wave does NOT fire. Routes to odoo-coder via NL dispatch or direct match. If wave is invoked, it must immediately present the standalone-first fallback and offer to run the task directly.",
+      "must_not": "Launch wave infrastructure (integration branch, worktrees, cherry-pick) for a single-file fix.",
+      "tags": ["dispatch", "should-not-fire", "single-file-boundary"]
+    },
+    {
+      "id": 3,
+      "category": "dispatch-boundary",
+      "prompt": "We have 1200 requirements from the RFP. Classify them, cost them, and produce a dependency graph.",
+      "expected_routed_to": "odoo-brl",
+      "expected_behavior": "Requirement scoping at scale. Wave does NOT fire. Routes to odoo-brl. Wave is for git-orchestrating code changes, not for BRL classification pipelines.",
+      "must_not": "Attempt to treat BRL items as WIs in a git wave.",
+      "tags": ["dispatch", "should-not-fire", "odoo-brl-boundary"]
+    },
+    {
+      "id": 4,
+      "category": "dispatch-boundary",
+      "prompt": "Chain odoo-feature-check then odoo-gap-analysis for this customer's requirements - no code changes needed.",
+      "expected_routed_to": "workflow-runner",
+      "expected_behavior": "In-context NL skill chaining with no git branches required. Wave does NOT fire. Routes to workflow-runner (or inline skill chain).",
+      "must_not": "Create git branches or worktrees for a pure in-context skill chain that produces no code commits.",
+      "tags": ["dispatch", "should-not-fire", "workflow-runner-boundary"]
+    },
+    {
+      "id": 5,
+      "category": "scaling-rule",
+      "prompt": "Do this as a wave: refactor the _compute_amount_total method in sale.order.",
+      "expected_routed_to": "wave",
+      "expected_behavior": "1-WI wave. Skill fires but immediately presents the standalone-first fallback: 'This is a single-WI change - wave overhead may not be needed. Run odoo-coder directly? Or confirm you want a wave.' Waits for user choice before proceeding.",
+      "must_not": "Launch full wave infrastructure for a 1-WI change without first presenting the standalone-first fallback.",
+      "tags": ["scaling", "1-wi-minimal", "standalone-fallback"]
+    },
+    {
+      "id": 6,
+      "category": "scaling-rule",
+      "prompt": "Parallelize and land 5 independent changes to our custom module: new field, new method, new view, new test, and updated manifest.",
+      "expected_routed_to": "wave",
+      "expected_behavior": "5-WI wave (>=4). Full plan-artifact mode: writes .odoo-ai/wave/<slug>/plan.md before creating any branch. Plan gate shown to user. After approve, dispatches max 3 concurrent subagents, queues the remaining 2.",
+      "must_not": "Skip the plan artifact for >=4 WIs. Must NOT dispatch all 5 subagents concurrently (cap is 3).",
+      "tags": ["scaling", "4-plus-wi-full-artifact", "concurrency-cap"]
+    },
+    {
+      "id": 7,
+      "category": "behavioral-contract",
+      "prompt": "Do this as a wave - skip the plan gate, just start the worktrees now.",
+      "expected_routed_to": "wave",
+      "expected_behavior": "Wave fires. Iron Law enforced: plan gate is non-negotiable. Skill produces and presents the plan gate regardless of the user's request to skip it. Worktrees are NOT created until the user approves.",
+      "must_not": "Create any branch or worktree before user approval, even if user explicitly requests skipping the gate.",
+      "tags": ["behavioral", "plan-gate-enforced", "iron-law"]
+    },
+    {
+      "id": 8,
+      "category": "behavioral-contract",
+      "prompt": "The wave PR is ready - auto-merge it.",
+      "expected_routed_to": "wave",
+      "expected_behavior": "Hard rule 4 enforced: no auto-merge. Skill stops at Phase 6, presents the PR URL, and waits for explicit user confirmation ('merge' or 'yes'). It does not merge until the user sends a positive confirmation in this session.",
+      "must_not": "Merge or trigger a merge automatically. Must present the human-confirm gate and wait.",
+      "tags": ["behavioral", "human-confirm-merge", "no-auto-merge"]
+    },
+    {
+      "id": 9,
+      "category": "conflict-resolver-path",
+      "prompt": "Context: WI-A and WI-B both unexpectedly modified __init__.py (missed in Phase 0 ownership audit). Cherry-pick of WI-B fails with a merge conflict.",
+      "expected_routed_to": "wave",
+      "expected_behavior": "Wave handles the conflict in Phase 3: dispatches a brief Sonnet resolver subagent with the conflicting diff and both WI briefs. Resolver subagent resolves, commits, verifies. Wave re-runs the verify command after the resolution commit. Continues to Phase 4.",
+      "must_not": "Silently skip or ignore the conflict. Must not attempt to auto-resolve without a resolver subagent. Must re-run verify after resolution.",
+      "tags": ["behavioral", "conflict-resolver", "cherry-pick-fail"]
+    },
+    {
+      "id": 10,
+      "category": "behavioral-contract",
+      "prompt": "Context: squash step on 3-WI integration branch. git diff --quiet wave-backup-<slug> exits with code 1.",
+      "expected_routed_to": "wave",
+      "expected_behavior": "Squash tree-identity FAILED. Skill aborts: reports the mismatch, restores from the backup tag, and does NOT force-push. Reports which files differ. Waits for user guidance before any further action.",
+      "must_not": "Force-push when tree-identity check fails. Must not silently continue after a failed squash verification.",
+      "tags": ["behavioral", "squash-mismatch-abort", "tree-identity"]
+    }
+  ]
+}

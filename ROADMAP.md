@@ -16,6 +16,10 @@ Items are directional, not commitments, and reflect publicly announced milestone
 
 ## Recently shipped
 
+- **Git-wave orchestration** (v2.3.0) — `wave` skill + `/odoo-semantic-skills:wave-run` command
+  for depth-0 multi-subagent git-wave: integration branch + WI worktrees + cherry-pick +
+  end-of-wave Opus review + `/code-review` inline + 1 PR + squash + tree-identity gate +
+  human-confirm merge. Self-spawning, principal-branch-locked, auto-merge never allowed.
 - **Workflow harness + `intake` front door** (v2.2.0) — three-layer architecture (Entry/Intake,
   Workflow, Execution). `intake` replaces `odoo-router` as the universal front door: brainstorms
   when vague, fast-paths when clear, always gates with a Proposed Plan before dispatching. The

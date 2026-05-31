@@ -15,6 +15,7 @@
 4. [Soft-plan-gate convention](#4-soft-plan-gate-convention)
 5. [Composition contract](#5-composition-contract)
 6. [Skill delegation depth rule](#6-skill-delegation-depth-rule)
+7. [Git-wave orchestration (depth-0)](#7-git-wave-orchestration-depth-0)
 
 ---
 
@@ -79,6 +80,7 @@ artifacts are written here; nothing under `.odoo-ai/` is committed to the repo.
 | BRL job artifacts | `.odoo-ai/brl/<job-id>/` | `odoo-brl` skill |
 | Workflow phase state | `<output_dir>/<slug>-state.json` (output_dir is the full `.odoo-ai/...` path) | `workflow-runner` |
 | QA artifacts | `.odoo-ai/qa/` | `qa-suite` workflow |
+| Wave plan artifact | `.odoo-ai/wave/<slug>/` | `wave` skill (depth-0) |
 
 Every new workflow declares its `output_dir` in its `*.workflow.yaml` file
 (see §5). `output_dir` is the full path (e.g. `.odoo-ai/qa`) and is the single
@@ -483,3 +485,98 @@ calls and leaf worker turns use the tier assigned in the chunk/phase declaration
 *This document is the SSOT for the workflow harness. When the artifact schema, gate
 convention, or composition contract changes, update this file first and propagate to
 referencing skills via the marker-block or direct reference.*
+
+---
+
+## 7. Git-wave orchestration (depth-0)
+
+### 7.1 What it is
+
+The `wave` skill is a **depth-0 git orchestrator** that lands multiple related
+work-item (WI) changes as one reviewed, squashed PR without ever touching the
+principal branch directly.
+
+```
+principal branch (untouched throughout)
+  |
+  └── integration branch  (wave/integration-<slug>)
+        |
+        ├── WI-A worktree  (wave/wi-<slug>-a)  ← Sonnet subagent, leaf depth-2
+        ├── WI-B worktree  (wave/wi-<slug>-b)  ← Sonnet subagent, leaf depth-2
+        └── WI-C worktree  (wave/wi-<slug>-c)  ← Sonnet subagent, leaf depth-2
+              |
+              (cherry-pick A → B → C onto integration)
+              |
+        end-of-wave Opus review  (inline, depth-0)
+              |
+        /code-review invoked inline from main context (depth-0)
+              |
+        1 PR  (integration → principal)
+              |
+        squash + tree-identity verify  (backup ref + git diff --quiet)
+              |
+        HUMAN-CONFIRM MERGE  (mandatory stop — never auto-merge)
+              |
+        cleanup: worktrees + branches + wave dir removed
+```
+
+### 7.2 Why wave is NOT a workflow-runner team-pattern
+
+This is the **authoritative decision record** for why git-wave is a depth-0 skill,
+not a `team_pattern` inside the declarative workflow system.
+
+| Axis | workflow-runner (depth-1) | wave skill (depth-0) |
+|------|--------------------------|----------------------|
+| Depth | Runs at depth 1; fork workers are depth-2 ceiling | Runs at depth 0; WI subagents are depth-2 ceiling |
+| Git authority | None — runner does NL-dispatch only; no git ops | Full git authority: worktree add, cherry-pick, PR creation, squash, force-with-lease |
+| /code-review legality | Cannot call /code-review (self-spawn only legal at depth-0) | Calls /code-review inline from main context (depth-0) — the only legal call site |
+| State machine | Declarative phases in `.workflow.yaml`; runner executes them | Imperative phases (0-6) encoded in the skill body; git refs/worktrees ARE the state |
+| Coupling | Coupled to workflow schema; adding GitWave would require new `team_pattern: GitWave` + new runner branch + new yaml keys | Self-contained; no schema changes to existing runner or yaml format |
+| Crash risk | Injecting git orchestration into depth-1 runner would push fork workers to depth-3 — exceeds platform ceiling | Depth ceiling respected: 0 (wave) → 2 (WI subagent) |
+
+**Decision**: git-wave is a depth-0 actor that sits alongside `intake` at the top
+layer, not below `workflow-runner`. This is final and must not be revisited without
+updating this section.
+
+### 7.3 Phase sequence (summary)
+
+| Phase | Action | Actor |
+|-------|--------|-------|
+| 0 — Discovery + plan gate | Read repo capability, draft WI ownership map, emit plan gate | wave (depth-0) |
+| 1 — Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration | wave (depth-0) |
+| 2 — Dispatch WI subagents | Parallel Sonnet subagents; each carries Phase-4 brief + nesting line | WI workers (depth-2) |
+| 3 — Cherry-pick + resolver | Cherry-pick A → B → C onto integration; Sonnet resolver if conflict | wave (depth-0) |
+| 4 — End-of-wave review | Inline Opus review (4.1) for plan-adherence + correctness, then `/code-review` invoked inline from main context (4.2) | wave (depth-0) |
+| 5 — PR + squash + tree-identity | Create 1 PR (integration → principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup | wave (depth-0) |
+| 6 — Human-confirm merge + cleanup | STOP and wait for explicit user approval before merge; remove worktrees/branches/wave dir after | human + wave (depth-0) |
+
+### 7.4 Nesting rule for WI subagents (leaf depth-2)
+
+Every WI subagent brief MUST contain the following line verbatim:
+
+```
+You are a leaf worker (depth-2). You MAY NL-dispatch a non-spawning specialist skill
+(e.g. odoo-coder, odoo-code-reviewer) if it helps. Do NOT invoke the Skill tool
+directly. Do NOT spawn a sub-agent. Do NOT call self-spawning skills (/code-review,
+skill-creator, wave). Do NOT git branch/cherry-pick/merge/push; stay in your assigned
+worktree. Only Read/Grep/Glob/Edit/Write/Bash.
+```
+
+This line is the boundary that prevents depth-3 violations. Omitting it is a
+hard-rules violation in the wave skill.
+
+### 7.5 Scaling rule
+
+| WI count | Action |
+|----------|--------|
+| 1 WI | Minimal — skip integration branch; dispatch single worktree; squash still applies |
+| 2-3 WI | Standard — use integration branch + plan gate before dispatch |
+| >=4 WI | Full plan artifact required: `.odoo-ai/wave/<slug>/plan.md` (topology + DAG + model-tier per WI) before any worktree is created |
+
+Maximum 3 concurrent WI subagents (OOM ceiling).
+
+### 7.6 Artifact location
+
+Wave plan and state files land under `.odoo-ai/wave/<slug>/` (gitignored by
+`odoo-onboard`). The `<slug>` is a short kebab-case descriptor chosen at Phase 0.
+The directory is cleaned up after a successful human-confirm merge.
