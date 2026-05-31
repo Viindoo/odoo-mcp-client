@@ -42,9 +42,12 @@ what they want or what outcome they need. This skill's job is to:
 1. **NEVER write or edit files during a brainstorm or plan turn.** Platform-enforced by
    `disallowed-tools: Write Edit`. This clears on the user's next message (the approval
    turn) — exactly when execution is intentionally allowed.
-2. **NEVER invoke the Skill tool or Agent tool.** Yield to the chosen specialist via a
-   NL-dispatch description (the harness fires it on the next turn by description match).
-   This is depth-0 — intake lives in the main context only.
+2. **NEVER invoke the Skill tool or Agent tool *during this brainstorm/plan turn*.** Yield
+   to the chosen specialist via a NL-dispatch description (the harness fires it on the next
+   turn by description match). The actual specialist dispatch happens on a LATER turn: after
+   the user approves the Proposed Plan (and, for file-touching skills, after Plan-Mode
+   approval), the **main agent — not intake during this turn —** calls the Agent tool
+   (see § Plan Mode). This is depth-0 — intake lives in the main context only.
 3. **Phase 0 — read context first.** At the start of every invocation:
    - Read `.odoo-ai/context.md` if it exists (version, module list, instance URL).
    - Check `.odoo-ai/brainstorm/state.json` — if an in-progress brainstorm session
