@@ -6,7 +6,7 @@
 
 | Skill | spawn_class | depth_policy | stack | instance | spawns |
 |-------|-------------|--------------|-------|----------|--------|
-| `intake` | orchestrator-nl | depth0-only | none | — | — |
+| `intake` | spawner-agent | depth0-only | none | — | (Phase R: ≤2 read-only recon agents — Explore or specialist in read-only mode; no writes, no further spawn) |
 | `odoo-addon-diff` | leaf | any-depth | none | — | — |
 | `odoo-brl` | spawner-agent | depth0-only | none | — | (conditional DAG workers when >10 large clusters) |
 | `odoo-campaign-plan` | leaf | any-depth | none | — | — |
