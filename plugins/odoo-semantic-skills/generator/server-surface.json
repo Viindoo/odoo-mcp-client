@@ -15,10 +15,10 @@
       ],
       "required_params": [
         "model",
-        "method"
+        "method",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "profile_name",
         "field",
         "method_name",
@@ -29,7 +29,7 @@
         "view_type"
       ],
       "return_type": "object",
-      "example_call": "model_inspect(model='sale.order', method='fields')",
+      "example_call": "model_inspect(model='sale.order', method='fields', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "inspect model",
@@ -58,10 +58,10 @@
       ],
       "required_params": [
         "name",
-        "method"
+        "method",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "profile_name",
         "start_index",
         "limit",
@@ -71,7 +71,7 @@
         "target"
       ],
       "return_type": "object",
-      "example_call": "module_inspect(name='sale_management', method='summary')",
+      "example_call": "module_inspect(name='sale_management', method='summary', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "inspect module",
@@ -94,10 +94,10 @@
         "dev"
       ],
       "required_params": [
-        "kind"
+        "kind",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "profile_name",
         "model",
         "field",
@@ -107,7 +107,7 @@
         "from_module"
       ],
       "return_type": "object",
-      "example_call": "entity_lookup(kind='field', model='sale.order', field='amount_total')",
+      "example_call": "entity_lookup(kind='field', model='sale.order', field='amount_total', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "lookup field",
@@ -132,17 +132,17 @@
         "sales"
       ],
       "required_params": [
-        "query"
+        "query",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "limit",
         "context_module",
         "chunk_types",
         "profile_name"
       ],
       "return_type": "array",
-      "example_call": "find_examples(query='wizard with transient model')",
+      "example_call": "find_examples(query='wizard with transient model', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "show me examples",
@@ -164,14 +164,14 @@
       ],
       "required_params": [
         "entity_type",
-        "entity_name"
+        "entity_name",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "profile_name"
       ],
       "return_type": "object",
-      "example_call": "impact_analysis(entity_type='field', entity_name='sale.order.amount_total')",
+      "example_call": "impact_analysis(entity_type='field', entity_name='sale.order.amount_total', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "what breaks if I change",
@@ -194,13 +194,12 @@
         "consultant"
       ],
       "required_params": [
-        "name"
-      ],
-      "optional_params": [
+        "name",
         "odoo_version"
       ],
+      "optional_params": [],
       "return_type": "object",
-      "example_call": "lookup_core_api(name='api.depends')",
+      "example_call": "lookup_core_api(name='api.depends', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "is API deprecated",
@@ -249,9 +248,10 @@
         "CEO",
         "dev"
       ],
-      "required_params": [],
+      "required_params": [
+        "odoo_version"
+      ],
       "optional_params": [
-        "odoo_version",
         "kind",
         "profile_name"
       ],
@@ -275,14 +275,15 @@
       "persona_tags": [
         "dev"
       ],
-      "required_params": [],
+      "required_params": [
+        "odoo_version"
+      ],
       "optional_params": [
         "code",
-        "odoo_version",
         "language"
       ],
       "return_type": "array",
-      "example_call": "lint_check(code='...', language='python')",
+      "example_call": "lint_check(code='...', language='python', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "lint check",
@@ -301,14 +302,15 @@
       "persona_tags": [
         "dev"
       ],
-      "required_params": [],
-      "optional_params": [
-        "command",
-        "flag",
+      "required_params": [
         "odoo_version"
       ],
+      "optional_params": [
+        "command",
+        "flag"
+      ],
       "return_type": "object",
-      "example_call": "cli_help(command='server', flag='--http-port')",
+      "example_call": "cli_help(command='server', flag='--http-port', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "odoo-bin options",
@@ -329,15 +331,15 @@
         "consultant"
       ],
       "required_params": [
-        "intent"
+        "intent",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "language",
         "limit"
       ],
       "return_type": "array",
-      "example_call": "suggest_pattern(intent='wizard with multi-step form')",
+      "example_call": "suggest_pattern(intent='wizard with multi-step form', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "best pattern for",
@@ -361,10 +363,10 @@
         "sales"
       ],
       "required_params": [
-        "name"
+        "name",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "profile_name"
       ],
       "return_type": "object",
@@ -390,14 +392,14 @@
       ],
       "required_params": [
         "model",
-        "method"
+        "method",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "to_version"
       ],
       "return_type": "object",
-      "example_call": "find_override_point(model='sale.order', method='action_confirm')",
+      "example_call": "find_override_point(model='sale.order', method='action_confirm', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "where to override",
@@ -421,10 +423,10 @@
         "sales"
       ],
       "required_params": [
-        "name"
+        "name",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "profile_name"
       ],
       "return_type": "object",
@@ -551,13 +553,12 @@
         "dev"
       ],
       "required_params": [
-        "module"
-      ],
-      "optional_params": [
+        "module",
         "odoo_version"
       ],
+      "optional_params": [],
       "return_type": "array",
-      "example_call": "resolve_stylesheet(module='website_sale')",
+      "example_call": "resolve_stylesheet(module='website_sale', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "stylesheets in module",
@@ -579,14 +580,14 @@
         "consultant"
       ],
       "required_params": [
-        "selector_or_variable"
+        "selector_or_variable",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "limit"
       ],
       "return_type": "array",
-      "example_call": "find_style_override(selector_or_variable='.o_kanban_record')",
+      "example_call": "find_style_override(selector_or_variable='.o_kanban_record', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "where is CSS selector defined",
@@ -608,14 +609,14 @@
       ],
       "required_params": [
         "model",
-        "dotted_path"
+        "dotted_path",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "profile_name"
       ],
       "return_type": "object",
-      "example_call": "resolve_orm_chain(model='sale.order', dotted_path='partner_id.country_id.code')",
+      "example_call": "resolve_orm_chain(model='sale.order', dotted_path='partner_id.country_id.code', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "trace field path",
@@ -636,14 +637,14 @@
       ],
       "required_params": [
         "model",
-        "domain"
+        "domain",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "profile_name"
       ],
       "return_type": "object",
-      "example_call": "validate_domain(model='sale.order', domain=\"[('partner_id.country_id', '=', 'VN')]\")",
+      "example_call": "validate_domain(model='sale.order', domain=\"[('partner_id.country_id', '=', 'VN')]\", odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "is this domain valid",
@@ -663,14 +664,14 @@
       ],
       "required_params": [
         "model",
-        "method"
+        "method",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "profile_name"
       ],
       "return_type": "object",
-      "example_call": "validate_depends(model='sale.order', method='_compute_amount_total')",
+      "example_call": "validate_depends(model='sale.order', method='_compute_amount_total', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "validate compute depends",
@@ -690,14 +691,14 @@
       "required_params": [
         "model",
         "field",
-        "target_model"
+        "target_model",
+        "odoo_version"
       ],
       "optional_params": [
-        "odoo_version",
         "profile_name"
       ],
       "return_type": "object",
-      "example_call": "validate_relation(model='sale.order', field='partner_id', target_model='res.partner')",
+      "example_call": "validate_relation(model='sale.order', field='partner_id', target_model='res.partner', odoo_version='17.0')",
       "deprecated_by": null,
       "routing_keywords": [
         "does field point to model",

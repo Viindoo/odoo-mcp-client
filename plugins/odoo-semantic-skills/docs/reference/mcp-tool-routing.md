@@ -76,9 +76,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call. Supersedes removed resolve_model, list_fields, list_methods, list_views (v0.6). |
 | **Personas** | dev, CEO, consultant |
-| **Required params** | `model`, `method` |
-| **Optional params** | `odoo_version`, `profile_name`, `field`, `method_name`, `start_index`, `limit`, `from_module`, `kind`, `view_type` |
-| **Example call** | `model_inspect(model='sale.order', method='fields')` |
+| **Required params** | `model`, `method`, `odoo_version` |
+| **Optional params** | `profile_name`, `field`, `method_name`, `start_index`, `limit`, `from_module`, `kind`, `view_type` |
+| **Example call** | `model_inspect(model='sale.order', method='fields', odoo_version='17.0')` |
 | **Routing keywords** | inspect model, fields of model, methods of model, views of model, model summary, full structure of model, everything about model, model schema, list fields, model_inspect |
 
 ### module_inspect ★ (added v0.5.0+)
@@ -87,9 +87,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call. method ∈ {summary, views, owl, qweb, js, dependencies}. Supersedes removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (v0.6). method='dependencies' added v0.10.0. method='summary' shares describe_module's output and may include a 'License notice:' line for license-restricted modules (server v0.9.1+) — surface it to the user; do not retry or fabricate omitted content. |
 | **Personas** | dev, CEO, consultant, marketer, sales |
-| **Required params** | `name`, `method` |
-| **Optional params** | `odoo_version`, `profile_name`, `start_index`, `limit`, `view_type`, `bound_model`, `era`, `target` |
-| **Example call** | `module_inspect(name='sale_management', method='summary')` |
+| **Required params** | `name`, `method`, `odoo_version` |
+| **Optional params** | `profile_name`, `start_index`, `limit`, `view_type`, `bound_model`, `era`, `target` |
+| **Example call** | `module_inspect(name='sale_management', method='summary', odoo_version='17.0')` |
 | **Routing keywords** | inspect module, module architecture, module UI artefacts, OWL components in module, QWeb templates in module, JS patches in module, module views, module overview, module_inspect |
 
 ### entity_lookup ★ (added v0.5.0+)
@@ -98,9 +98,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module. Supersedes removed resolve_field, resolve_method, resolve_view (v0.6). |
 | **Personas** | dev |
-| **Required params** | `kind` |
-| **Optional params** | `odoo_version`, `profile_name`, `model`, `field`, `method_name`, `xmlid`, `name`, `from_module` |
-| **Example call** | `entity_lookup(kind='field', model='sale.order', field='amount_total')` |
+| **Required params** | `kind`, `odoo_version` |
+| **Optional params** | `profile_name`, `model`, `field`, `method_name`, `xmlid`, `name`, `from_module` |
+| **Example call** | `entity_lookup(kind='field', model='sale.order', field='amount_total', odoo_version='17.0')` |
 | **Routing keywords** | lookup field, lookup method, lookup view, drill down on entity, find method on model, find field on model, override chain, entity_lookup |
 
 ### find_examples (added v0.1.0+)
@@ -109,9 +109,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Semantic code search returning real indexed code snippets from the Odoo codebase. |
 | **Personas** | dev, consultant, marketer, sales |
-| **Required params** | `query` |
-| **Optional params** | `odoo_version`, `limit`, `context_module`, `chunk_types`, `profile_name` |
-| **Example call** | `find_examples(query='wizard with transient model')` |
+| **Required params** | `query`, `odoo_version` |
+| **Optional params** | `limit`, `context_module`, `chunk_types`, `profile_name` |
+| **Example call** | `find_examples(query='wizard with transient model', odoo_version='17.0')` |
 | **Routing keywords** | show me examples, code example for, how is X used in codebase, real examples of, implementation example, find_examples |
 
 ### impact_analysis (added v0.1.0+)
@@ -120,9 +120,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields. |
 | **Personas** | CEO, dev |
-| **Required params** | `entity_type`, `entity_name` |
-| **Optional params** | `odoo_version`, `profile_name` |
-| **Example call** | `impact_analysis(entity_type='field', entity_name='sale.order.amount_total')` |
+| **Required params** | `entity_type`, `entity_name`, `odoo_version` |
+| **Optional params** | `profile_name` |
+| **Example call** | `impact_analysis(entity_type='field', entity_name='sale.order.amount_total', odoo_version='17.0')` |
 | **Routing keywords** | what breaks if I change, impact of modifying, blast radius, dependencies of field, dependencies of method, safe to remove, risk of changing, impact_analysis |
 
 ### lookup_core_api (added v0.1.0+)
@@ -131,9 +131,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement. |
 | **Personas** | dev, consultant |
-| **Required params** | `name` |
-| **Optional params** | `odoo_version` |
-| **Example call** | `lookup_core_api(name='api.depends')` |
+| **Required params** | `name`, `odoo_version` |
+| **Optional params** | _(none)_ |
+| **Example call** | `lookup_core_api(name='api.depends', odoo_version='17.0')` |
 | **Routing keywords** | is API deprecated, signature of, how to use decorator, when was API added, status of API, Odoo core symbol, lookup_core_api |
 
 ### api_version_diff (added v0.1.0+)
@@ -153,8 +153,8 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Scan the indexed codebase for usages of deprecated API patterns. |
 | **Personas** | CEO, dev |
-| **Required params** | _(none)_ |
-| **Optional params** | `odoo_version`, `kind`, `profile_name` |
+| **Required params** | `odoo_version` |
+| **Optional params** | `kind`, `profile_name` |
 | **Example call** | `find_deprecated_usage(odoo_version='17.0')` |
 | **Routing keywords** | deprecated API in code, pre-upgrade audit, deprecated patterns, upgrade risk scan, code using old API, find_deprecated_usage |
 
@@ -164,9 +164,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.9.1+). Inline # noqa: RULE_ID suppresses findings on that line. |
 | **Personas** | dev |
-| **Required params** | _(none)_ |
-| **Optional params** | `code`, `odoo_version`, `language` |
-| **Example call** | `lint_check(code='...', language='python')` |
+| **Required params** | `odoo_version` |
+| **Optional params** | `code`, `language` |
+| **Example call** | `lint_check(code='...', language='python', odoo_version='17.0')` |
 | **Routing keywords** | lint check, coding standards, OCA style violations, Odoo conventions check, code quality, lint_check |
 
 ### cli_help (added v0.1.0+)
@@ -175,9 +175,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags. |
 | **Personas** | dev |
-| **Required params** | _(none)_ |
-| **Optional params** | `command`, `flag`, `odoo_version` |
-| **Example call** | `cli_help(command='server', flag='--http-port')` |
+| **Required params** | `odoo_version` |
+| **Optional params** | `command`, `flag` |
+| **Example call** | `cli_help(command='server', flag='--http-port', odoo_version='17.0')` |
 | **Routing keywords** | odoo-bin options, CLI flag, odoo server command, deprecated CLI option, odoo-bin scaffold, cli_help |
 
 ### suggest_pattern (added v0.1.0+)
@@ -186,9 +186,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns. |
 | **Personas** | dev, consultant |
-| **Required params** | `intent` |
-| **Optional params** | `odoo_version`, `language`, `limit` |
-| **Example call** | `suggest_pattern(intent='wizard with multi-step form')` |
+| **Required params** | `intent`, `odoo_version` |
+| **Optional params** | `language`, `limit` |
+| **Example call** | `suggest_pattern(intent='wizard with multi-step form', odoo_version='17.0')` |
 | **Routing keywords** | best pattern for, design pattern Odoo, how to implement, pattern for wizard, recommended approach, suggest_pattern |
 
 ### check_module_exists (added v0.1.0+)
@@ -197,8 +197,8 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Verify module availability, edition (CE/EE/Viindoo), and cross-version presence. |
 | **Personas** | CEO, dev, consultant, marketer, sales |
-| **Required params** | `name` |
-| **Optional params** | `odoo_version`, `profile_name` |
+| **Required params** | `name`, `odoo_version` |
+| **Optional params** | `profile_name` |
 | **Example call** | `check_module_exists(name='sale_management', odoo_version='17.0')` |
 | **Routing keywords** | does module exist, is module in CE or EE, check if feature is in standard Odoo, module available in version, is feature standard, CE vs EE check, check_module_exists |
 
@@ -208,9 +208,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior. |
 | **Personas** | dev |
-| **Required params** | `model`, `method` |
-| **Optional params** | `odoo_version`, `to_version` |
-| **Example call** | `find_override_point(model='sale.order', method='action_confirm')` |
+| **Required params** | `model`, `method`, `odoo_version` |
+| **Optional params** | `to_version` |
+| **Example call** | `find_override_point(model='sale.order', method='action_confirm', odoo_version='17.0')` |
 | **Routing keywords** | where to override, override point for method, safest place to extend, inject custom logic, extend method without breaking, find_override_point |
 
 ### describe_module (added v0.1.0+)
@@ -219,8 +219,8 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Module manifest + defined/extended model counts + view/JS inventory in one call. Note: module_inspect(method='summary') returns the same data plus extras. Output may include a 'License notice:' line for license-restricted modules (server v0.9.1+, ADR-0036). OEEL-1 modules are skipped by default — the notice is the intentional non-silent marker that content is withheld; surface it to the user, do not retry or fabricate the omitted content. |
 | **Personas** | CEO, dev, consultant, marketer, sales |
-| **Required params** | `name` |
-| **Optional params** | `odoo_version`, `profile_name` |
+| **Required params** | `name`, `odoo_version` |
+| **Optional params** | `profile_name` |
 | **Example call** | `describe_module(name='sale_management', odoo_version='17.0')` |
 | **Routing keywords** | what does module do, describe module, module overview, manifest of module, what is inside module, describe_module |
 
@@ -274,9 +274,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain. LESS covers legacy v8-v11. |
 | **Personas** | dev |
-| **Required params** | `module` |
-| **Optional params** | `odoo_version` |
-| **Example call** | `resolve_stylesheet(module='website_sale')` |
+| **Required params** | `module`, `odoo_version` |
+| **Optional params** | _(none)_ |
+| **Example call** | `resolve_stylesheet(module='website_sale', odoo_version='17.0')` |
 | **Routing keywords** | stylesheets in module, CSS files in module, SCSS files in module, LESS files in module, import chain for module, stylesheet inventory, resolve_stylesheet |
 
 ### find_style_override ✦ (added v0.7.0+)
@@ -285,9 +285,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules. LESS covers legacy v8-v11. |
 | **Personas** | dev, consultant |
-| **Required params** | `selector_or_variable` |
-| **Optional params** | `odoo_version`, `limit` |
-| **Example call** | `find_style_override(selector_or_variable='.o_kanban_record')` |
+| **Required params** | `selector_or_variable`, `odoo_version` |
+| **Optional params** | `limit` |
+| **Example call** | `find_style_override(selector_or_variable='.o_kanban_record', odoo_version='17.0')` |
 | **Routing keywords** | where is CSS selector defined, find SCSS variable, find LESS variable, which module overrides style, branding override, selector origin, find_style_override |
 
 ### resolve_orm_chain ⊕ (added v0.8.0+)
@@ -296,9 +296,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks. Preferred over entity_lookup for multi-hop paths. |
 | **Personas** | dev |
-| **Required params** | `model`, `dotted_path` |
-| **Optional params** | `odoo_version`, `profile_name` |
-| **Example call** | `resolve_orm_chain(model='sale.order', dotted_path='partner_id.country_id.code')` |
+| **Required params** | `model`, `dotted_path`, `odoo_version` |
+| **Optional params** | `profile_name` |
+| **Example call** | `resolve_orm_chain(model='sale.order', dotted_path='partner_id.country_id.code', odoo_version='17.0')` |
 | **Routing keywords** | trace field path, dotted path resolve, multi-hop field chain, where does path end, field chain validation, resolve_orm_chain |
 
 ### validate_domain ⊕ (added v0.8.0+)
@@ -307,9 +307,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Validate search domain terms: field-path resolution and operator version-awareness. Operator validity is version-aware (parent_of v9+, any/not any v17+). Logical connectors are skipped. |
 | **Personas** | dev |
-| **Required params** | `model`, `domain` |
-| **Optional params** | `odoo_version`, `profile_name` |
-| **Example call** | `validate_domain(model='sale.order', domain="[('partner_id.country_id', '=', 'VN')]")` |
+| **Required params** | `model`, `domain`, `odoo_version` |
+| **Optional params** | `profile_name` |
+| **Example call** | `validate_domain(model='sale.order', domain="[('partner_id.country_id', '=', 'VN')]", odoo_version='17.0')` |
 | **Routing keywords** | is this domain valid, check domain, validate search domain, domain operators valid, validate_domain |
 
 ### validate_depends ⊕ (added v0.8.0+)
@@ -318,9 +318,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos. Catches stale compute declarations before runtime failure. |
 | **Personas** | dev |
-| **Required params** | `model`, `method` |
-| **Optional params** | `odoo_version`, `profile_name` |
-| **Example call** | `validate_depends(model='sale.order', method='_compute_amount_total')` |
+| **Required params** | `model`, `method`, `odoo_version` |
+| **Optional params** | `profile_name` |
+| **Example call** | `validate_depends(model='sale.order', method='_compute_amount_total', odoo_version='17.0')` |
 | **Routing keywords** | validate compute depends, check @api.depends, stale depends paths, validate_depends |
 
 ### validate_relation ⊕ (added v0.8.0+)
@@ -329,9 +329,9 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 |-----------|-------|
 | **Description** | Assert a relational field points at the expected comodel (many2one/one2many/many2many). Reports the actual comodel on mismatch. |
 | **Personas** | dev |
-| **Required params** | `model`, `field`, `target_model` |
-| **Optional params** | `odoo_version`, `profile_name` |
-| **Example call** | `validate_relation(model='sale.order', field='partner_id', target_model='res.partner')` |
+| **Required params** | `model`, `field`, `target_model`, `odoo_version` |
+| **Optional params** | `profile_name` |
+| **Example call** | `validate_relation(model='sale.order', field='partner_id', target_model='res.partner', odoo_version='17.0')` |
 | **Routing keywords** | does field point to model, check relation target, is field many2one to, comodel of field, validate_relation |
 
 ---
