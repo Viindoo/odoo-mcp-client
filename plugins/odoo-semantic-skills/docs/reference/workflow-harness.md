@@ -13,6 +13,13 @@
 2. [`.odoo-ai/` artifact convention](#2-odoo-ai-artifact-convention)
 3. [BRL job schema](#3-brl-job-schema)
 4. [Soft-plan-gate convention](#4-soft-plan-gate-convention)
+   - [4.1 Plan mode and skills — what is and isn't possible](#41-plan-mode-and-skills--what-is-and-isnt-possible)
+   - [4.2 Gate template](#42-gate-template)
+   - [4.3 Enforcement stack](#43-enforcement-stack)
+   - [4.4 BRL-specific gates](#44-brl-specific-gates)
+   - [4.5 Phase R — Recon (read-only current-state survey)](#45-phase-r--recon-read-only-current-state-survey)
+   - [4.6 Plan Mode Content Schema](#46-plan-mode-content-schema)
+   - [4.7 Inventory discovery — hybrid SSOT rules](#47-inventory-discovery--hybrid-ssot-rules)
 5. [Composition contract](#5-composition-contract)
 6. [Skill delegation depth rule](#6-skill-delegation-depth-rule)
 7. [Git-wave orchestration (depth-0)](#7-git-wave-orchestration-depth-0)
@@ -28,10 +35,11 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 ┌────────────────────────────────────────────────────────────────┐
 │  ENTRY / INTAKE LAYER  (depth 0)                                │
 │  intake skill — domain-agnostic front door                      │
-│  · 4-tier routing (regex → state → keyword → LLM)              │
-│  · brainstorm-when-vague (6-step), pro fast-path                │
-│  · always emits a soft-plan-gate before dispatching            │
-│  · disallowed-tools: Write Edit (platform-enforced this turn)   │
+│  · Phase 0: 4-tier routing + intent gate (mandatory)           │
+│  · Phase R: read-only Recon (≤1–2 agents, depth-1, no writes)  │
+│  · Proposed Plan + soft-plan-gate                               │
+│  · Plan Mode (EnterPlanMode/ExitPlanMode) for writes-files      │
+│  · disallowed-tools: Write Edit (platform-enforced plan turn)   │
 └───────────────────────────────────┬────────────────────────────┘
                                     │ NL-dispatch (never Skill tool)
                                     ▼
@@ -294,11 +302,26 @@ flow:
   main context. `ExitPlanMode` is only available to a subagent whose `permissionMode`
   is already `plan`.
 
+#### Plan Mode decision tree
+
+Run this before any execute-skill dispatch. Intake reads the chosen Approach's
+`output_mode` (resolved via Phase R inventory discovery — §4.7):
+
+- `output_mode = writes-files` → **Plan Mode is REQUIRED**. Proceed through the full
+  EnterPlanMode → content schema → ExitPlanMode procedure (see §4.6).
+- `output_mode = chat-only` → **SKIP Plan Mode**. Intake ends its turn; the specialist
+  fires via the Agent tool on the next turn (NL-dispatch). Chat-only skills include:
+  `odoo-feature-check`, `odoo-version-diff`, `odoo-risk-overview`,
+  `odoo-deprecation-audit`, `odoo-gap-analysis`, `odoo-discovery-summarize`,
+  `odoo-capability-proof`, `odoo-objection-handler`, `odoo-content-draft`,
+  `odoo-competitive-brief`, and any skill whose output column is "chat only".
+
 #### Intake-initiated Plan Mode pattern
 
 When a depth-0 skill (`intake`) reaches the execute phase after the user approves a
-Proposed Plan, the main agent may call `EnterPlanMode` → compose the execution plan
-for UI review → receive user approval via `ExitPlanMode` → then dispatch the
+Proposed Plan and the Approach `output_mode = writes-files`, the main agent calls
+`EnterPlanMode` → writes the implementation plan (see §4.6 Content Schema) for UI
+review → receives user approval via `ExitPlanMode` → then dispatches the
 file-touching specialist. This is a first-class enforcement option, not a workaround.
 
 For skills that **cannot** rely on depth-0 context (e.g., skills invoked from inside
@@ -333,15 +356,24 @@ Gate: approve / refine: [feedback] / cancel
 
 | Layer | Mechanism | Scope |
 |-------|-----------|-------|
-| Platform | `disallowed-tools: Write Edit` | Blocks file writes for this turn |
-| Behavioral | Iron Law + Red Flags in skill body | Blocks execution dispatch |
+| Platform | `disallowed-tools: Write Edit` | Blocks file writes for the plan turn |
+| Behavioral | Iron Law + Red Flags in skill body | Blocks writes-files dispatch |
+| Recon boundary | Phase R agents: read-only, depth-1, no spawn, no writes | Allows current-state survey without breaching gate |
+| Plan Mode | `EnterPlanMode` / `ExitPlanMode` | Harness-level enforcement before writes-files execution |
 | Approval | `intake` ends turn; next user prompt enables writes | Write unlock |
 | Refine loop | Gate loops inside brainstorm; no writes until `approve` | Iteration |
 
-On `approve`: the skill ends its turn. The user's next message fires the specialist
-or workflow via NL description-match dispatch (writes are now allowed).  
+On `approve` (text gate) + Plan Mode approved (harness level): the specialist fires
+via the Agent tool (writes-files path). For chat-only Approaches, Plan Mode is skipped
+and the specialist fires immediately on the next turn.  
 On `refine: [feedback]`: the brainstorm loop continues within the current turn.  
 On `cancel`: the skill stops and reports.
+
+**What intake CAN do before the gate closes**: Phase R read-only Recon — dispatching
+≤1–2 read-only agents (Explore or read-only specialists) and calling read-only OSM
+tools (`model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`).
+Recon is depth-1, no file writes, no sub-agent spawning. This is NOT a breach of the
+gate; it feeds into the Proposed Plan's Findings (Recon) field.
 
 ### 4.4 BRL-specific gates
 
@@ -357,6 +389,175 @@ The BRL engine has two gates (not one per chunk — that would break UX at 20 ch
 Internal state files (`manifest.json`, `input.jsonl`, `checkpoint.json`) are written
 before Gate 0 (they are not deliverables). Final deliverables (`results.jsonl`,
 `rtm.csv`, `cost.json`, `dag.*`, `report.md`) are written only after Gate E approval.
+
+---
+
+### 4.5 Phase R — Recon (read-only current-state survey)
+
+Phase R is a **formal stage** in the intake 5-phase flow that runs **after** Phase 0
+closes the intent gate and **before** the Proposed Plan is written. Its purpose is to
+turn a generic plan into a context-aware one — surveying what already exists rather
+than guessing.
+
+#### Position in the 5-phase flow
+
+```
+Phase 0 (Context, Detect & Clarify — closes intent/purpose/outcomes gate)
+    ↓
+Phase R (Recon — read-only current-state survey)   ← NEW formal stage
+    ↓
+Proposed Plan  (context-rich, informed by Recon findings)
+    ↓
+Plan Mode  (EnterPlanMode → Content Schema → ExitPlanMode)
+    ↓
+Execute  (writes-files specialist dispatched via Agent tool)
+```
+
+#### What Phase R does
+
+- **Dispatches ≤1–2 READ-ONLY agents** via the Agent tool: `Explore`, or a specialist
+  in read-only mode (e.g. `odoo-feature-check`, `odoo-override-finder`). These agents
+  map the code or modules relevant to the stated intent.
+- **Calls read-only OSM tools** as needed: `model_inspect`, `check_module_exists`,
+  `find_override_point`, `impact_analysis`.
+- **Never mutates** the filesystem. No `Write`, no `Edit`, no writes-files specialist.
+
+#### Hard limits for Phase R agents
+
+| Constraint | Rule |
+|------------|------|
+| Depth | depth-1 (one hop from main context; these agents are leaves) |
+| Nesting | Recon agents MUST NOT spawn further sub-agents |
+| File writes | PROHIBITED — Read/Grep/Glob/Bash (read-only) only |
+| OSM | Read-only calls allowed; if unreachable, proceed on user-provided context |
+| Count | ≤1–2 agents per Recon; not a fan-out pipeline |
+
+The nesting guard is described in full at
+`${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`. Every Recon agent brief MUST
+include the mandatory hard-rules line from §6 (adapted to read-only: no Write/Edit,
+no Skill tool, no sub-agent spawn).
+
+#### Rationale
+
+Without Phase R, intake writes a Proposed Plan based only on user descriptions — it
+cannot confirm which modules exist, what the current hook points are, or what the
+blast radius of a change would be. Phase R answers these questions cheaply (read-only,
+depth-1) so the Proposed Plan's `Findings (Recon)` field is concrete rather than
+speculative. This is the same principle as `odoo-override-finder` confirming a hook
+before `odoo-coder` writes the override.
+
+---
+
+### 4.6 Plan Mode Content Schema
+
+When `output_mode = writes-files` (see decision tree in §4.1), the implementation
+plan written inside Plan Mode (step 3 of the EnterPlanMode procedure) MUST contain
+three blocks. None is optional.
+
+#### Block 1 — Workitem list
+
+Borrow the WI-Brief shape from `skills/wave/SKILL.md` (~lines 174–219) and/or the
+requirement shape in `odoo-brl/reference/schema.md` (~lines 116–197). Each WI carries:
+
+- `id` — short identifier (WI-A, WI-B, …)
+- one-line description of what changes
+- `files-in-scope` — the set of files this WI owns
+
+**File-ownership invariant**: the `files-in-scope` sets across all WIs MUST be
+**disjoint**. No two WIs may claim the same file. For multi-WI deliveries also note:
+worktree name, branch name, and verify command (from the Repo Capability Card).
+
+#### Block 2 — Dependency graph
+
+For deliveries with a small number of WIs, pick **one of the four topologies** from
+`wave/reference/wave-templates.md` (~lines 29–92):
+
+| Topology | When to use |
+|----------|-------------|
+| `independent` | WIs have no ordering constraint; can run in parallel |
+| `linear` | Each WI depends on the previous (strict chain) |
+| `mixed` | Some WIs parallel, some sequential |
+| `diamond` | Two parallel WIs converge into a final WI |
+
+For deliveries with many WIs, use the full **DAG schema** from
+`odoo-brl/reference/schema.md` (~lines 316–385): `nodes` + `edges` where each edge
+carries:
+
+```json
+{
+  "from": "WI-A",
+  "to": "WI-B",
+  "type": "technical | business-logic | data-flow",
+  "reason": "one-line rationale"
+}
+```
+
+Also include: `topological_order` (Kahn's algorithm), `critical_path`, and `cycles`
+(must be empty `[]` for a valid DAG — a cycle is reported, never silently dropped).
+A mermaid diagram is encouraged.
+
+#### Block 3 — Assignment
+
+One line per WI:
+
+```
+WI-X → <skill | command | agent>  (model: <from frontmatter>, effort: <S|M|L|XL>)
+```
+
+Also include per-WI:
+- **acceptance criteria** — observable signal that the WI is done
+- **verify command** — runnable command from the Repo Capability Card
+
+`model` is read from the candidate's `SKILL.md` or `agents/*.md` frontmatter
+(`model:` field) — never guessed or hard-coded in the plan. `effort` follows the
+gap-analysis legend: **S = <1 day · M = 1–3 days · L = 3–10 days · XL = >10 days**.
+
+#### Short examples
+
+```
+# Full-stack feature (2 WIs, linear)
+WI-A → odoo-coder (sonnet, M)        adds backend field + ORM method
+WI-B → odoo-frontend-coder (sonnet, M) renders OWL widget
+DAG: linear  WI-A --data-flow--> WI-B
+  (field must exist before widget binds)
+Verify: ./run_tests.sh sale_order
+
+# Three disjoint fixes (independent, candidate for wave)
+WI-A → odoo-coder (sonnet, S)        bug fix in account_move
+WI-B → odoo-coder (sonnet, S)        unit test for WI-A
+WI-C → (inline edit) (haiku, S)      docs update
+DAG: independent (no edges) → hand to `wave` for parallel delivery
+```
+
+---
+
+### 4.7 Inventory discovery — hybrid SSOT rules
+
+When Phase R or plan-writing needs to know which skills, agents, or commands exist
+and their runtime attributes, pull each fact from its **single source of truth**.
+Do NOT copy fields between sources — duplication creates drift.
+
+| Attribute | SSOT | How to fetch |
+|-----------|------|--------------|
+| skill/agent/command **exists** + its description | Runtime context (harness-injected by the platform) | Already available — do NOT read files for this |
+| `model_tier` (Haiku / Sonnet / Opus / inherit) | `model:` field in the candidate's `SKILL.md` or `agents/*.md` frontmatter | Read the frontmatter of the **chosen candidate only** at plan time |
+| `output_mode` (`chat-only` ↔ `writes-files`) | `spawn_class` + `stack` in the generator / `skill_tool_deps.json` registry | Look up the existing registry entry |
+| `effort` (S / M / L / XL) | NOT registered — it is a skill × task property | Reason per the `odoo-gap-analysis` legend: S <1d · M 1–3d · L 3–10d · XL >10d |
+
+**Key invariants:**
+
+- `model_tier` lives in frontmatter and MUST NOT be copied into any registry or plan
+  as a constant. Read it fresh at plan time from the candidate's own SKILL.md.
+- `effort` is per-task, not per-skill. Two invocations of the same skill can have
+  different effort tiers depending on scope.
+- `output_mode` is the only attribute whose SSOT is the registry (`skill_tool_deps.json`
+  via `spawn_class`/`stack`). This is what drives the Plan Mode decision tree (§4.1).
+
+**Why hybrid?** Each attribute lives where it is cheapest to keep accurate:
+description in runtime context (maintained by the platform), model in the skill's own
+frontmatter (maintained by skill authors), output_mode in the generator registry
+(maintained by the generator pipeline), and effort left to per-task reasoning
+(no registry can capture task-specific scope).
 
 ---
 
