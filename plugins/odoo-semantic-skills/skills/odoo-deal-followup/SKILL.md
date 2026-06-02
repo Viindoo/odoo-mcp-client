@@ -6,10 +6,10 @@ description: >
   contact, stage, prior commitments) + an optional email/note thread; produces (a) a risk
   score (red/yellow/green), (b) a next-best action, (c) a draft follow-up email in English or
   the thread's language.
-  Trigger on: "deal stalled", "customer hasn't replied", "follow up on deal", "draft
-  follow-up email", "need to re-engage", "deal gone quiet", time signals ("it's been 3
-  weeks", "deadline this month"), ambiguous-status signals ("not sure what the customer is
-  thinking", "afraid to reach out"). DO NOT trigger for: (1) Discovery/demo session summary
+  Trigger on: "deal stalled", "customer hasn't replied", "draft follow-up email", time
+  signals ("it's been 3 weeks", "deadline this month"), ambiguous-status signals ("not sure
+  what the customer is thinking"). Also fires on Vietnamese: "deal đang đứng im", "khách
+  chưa trả lời", "soạn email follow-up", "cần hâm nóng lại deal". DO NOT trigger for: (1) Discovery/demo session summary
   -> use odoo-discovery-summarize. (2) Responding to technical objections -> use
   odoo-objection-handler. (3) Verifying or proving Odoo features -> use
   odoo-capability-proof or odoo-feature-check. (4) Gap analysis or scope estimation -> use

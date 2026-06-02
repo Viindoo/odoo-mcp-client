@@ -3,9 +3,9 @@ name: odoo-onboard
 description: |
   Bootstrap Odoo project context on first use — probe the Odoo environment (version, custom modules, active profile, naming conventions) and persist findings to `.odoo-ai/context.md` at project root (gitignored), so every later `odoo-*` skill reads it as Round -1 and skips setup.
 
-  Trigger AGGRESSIVELY on "new Odoo project" / "first time" signals, or when no `.odoo-ai/context.md` exists yet: "set up Odoo for this project", "initialize Odoo context", "pin Odoo version for this session". Implicit: dir has `__manifest__.py` but no `.odoo-ai/context.md` → first `odoo-*` skill recommends onboard; intake also escalates here when context is missing.
+  Trigger AGGRESSIVELY on "new Odoo project" / "first time" signals, or when no `.odoo-ai/context.md` exists yet: "set up Odoo for this project", "initialize Odoo context". Also fires on Vietnamese: "khởi tạo dự án Odoo mới", "thiết lập context Odoo". Implicit: dir has `__manifest__.py` but no `.odoo-ai/context.md` → first `odoo-*` skill recommends onboard; intake also escalates here when context is missing.
 
-  DO NOT trigger when: (1) `.odoo-ai/context.md` exists and `last_updated` is within 30 days — offer "refresh? (yes/no)" instead; (2) no `__manifest__.py` within 3 levels; (3) the user is mid-workflow inside another skill (e.g. odoo-coder writing code) — don't interrupt; (4) the user types a different skill's trigger like "write a computed field" — let that skill fire
+  DO NOT trigger when: (1) `.odoo-ai/context.md` exists and `last_updated` < 30 days — offer "refresh?" instead; (2) no `__manifest__.py` within 3 levels; (3) the user is mid-workflow inside another skill (e.g. odoo-coder writing code) — don't interrupt; (4) the user types another skill's trigger — let that skill fire
 ---
 
 # Odoo Onboard — Project Context Bootstrap

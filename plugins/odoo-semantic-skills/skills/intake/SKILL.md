@@ -9,9 +9,9 @@ description: |
   Trigger AGGRESSIVELY on any of: open-ended "what can Odoo / you help me with", "I have an
   idea but not sure where to start", a short Odoo/ERP prompt with no concrete verb, any
   business outcome stated without a named skill ("I need to win this deal", "make our v17
-  upgrade safe", "I have 1200 requirements to scope"), "not sure which skill", implicit
-  ambiguity (short <10-word Odoo prompt with no intent keyword, OR fragments that map to
-  >=2 specialist skills).
+  upgrade safe"), "not sure which skill", implicit
+  ambiguity (short Odoo prompt, no intent keyword, or one mapping to >=2 skills). Also fires
+  on Vietnamese: "Odoo giúp được gì cho tôi", "chưa biết nên dùng skill nào".
 
   DO NOT trigger when: the user types an explicit /slash command; intent matches exactly ONE
   specialist clearly AND is single-step (let that skill fire directly); user is already
