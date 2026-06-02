@@ -36,7 +36,7 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 **Primary tools:**
 - `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
 - `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
-- `find_style_override` ✦ — Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules.
+- `find_style_override` ✦ — Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain.
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
 <!-- END GENERATED TOOLS -->
@@ -82,7 +82,7 @@ Predict which screens are likely to drift so the baseline set is targeted:
 - Styling change: `find_style_override(selector_or_variable=<selector>)`.
 - Theme/token change: when a diff shows a screen gone "flat" (empty surfaces, washed-out text,
   badges without fill), treat it as a design-token regression — check token reality per
-  `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md` (empty or
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (empty or
   self-referential CSS custom properties), not just a pixel diff.
 - Map results to screens: `module_inspect(name=<module>, method='views')` and `model_inspect(model=<model>, method='summary')`.
 

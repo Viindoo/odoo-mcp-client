@@ -110,7 +110,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 | **Description** | Semantic code search returning real indexed code snippets from the Odoo codebase. |
 | **Personas** | dev, consultant, marketer, sales |
 | **Required params** | `query`, `odoo_version` |
-| **Optional params** | `limit`, `context_module`, `chunk_types`, `profile_name` |
+| **Optional params** | `limit`, `context_module`, `profile_name` |
 | **Example call** | `find_examples(query='wizard with transient model', odoo_version='17.0')` |
 | **Routing keywords** | show me examples, code example for, how is X used in codebase, real examples of, implementation example, find_examples |
 
@@ -217,7 +217,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Module manifest + defined/extended model counts + view/JS inventory in one call. Note: module_inspect(method='summary') returns the same data plus extras. Output may include a 'License notice:' line for license-restricted modules (server v0.9.1+, ADR-0036). OEEL-1 modules are skipped by default — the notice is the intentional non-silent marker that content is withheld; surface it to the user, do not retry or fabricate the omitted content. |
+| **Description** | Module manifest + defined/extended model counts + view/JS inventory in one call. Note: module_inspect(method='summary') returns the same data plus extras. Output may include a 'License notice:' line for license-restricted modules (server v0.9.1+). OEEL-1 modules are skipped by default — the notice is the intentional non-silent marker that content is withheld; surface it to the user, do not retry or fabricate the omitted content. |
 | **Personas** | CEO, dev, consultant, marketer, sales |
 | **Required params** | `name`, `odoo_version` |
 | **Optional params** | `profile_name` |
@@ -283,7 +283,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules. LESS covers legacy v8-v11. |
+| **Description** | Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain. Covers CSS, SCSS, and LESS (LESS for the legacy pre-SCSS era, ~v8-v12). |
 | **Personas** | dev, consultant |
 | **Required params** | `selector_or_variable`, `odoo_version` |
 | **Optional params** | `limit` |

@@ -50,10 +50,12 @@ Key things the agent watches for:
 3. **Six-lens coverage** — a finding in one lens (e.g. a console error) often explains a defect in another (a control that silently fails); the agent cross-references them.
 4. **Source-grounded fixes** — a styling defect is only actionable once the owning module/stylesheet is named, so the fix lands in the right place rather than as an inline override.
 5. **Design-system / theme lens** — run a token-reality check per
-   `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md`: read
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`: read
    `getComputedStyle` on `:root` + representative elements and flag empty/transparent
    surfaces, self-referential CSS custom properties (a var whose value references itself — a
-   cycle that resolves to empty), hardcoded palette, and divergence from the mockup. Emit
+   cycle that resolves to empty), `--bs-*` references (Odoo sets `$variable-prefix:''`, so
+   Bootstrap `--bs-*` runtime vars are absent across v16+ (confirmed through v19) — reference `--primary` /
+   `--o-color-*` instead), hardcoded palette, and divergence from the mockup. Emit
    remediation as a token+file pointer (which token, which stylesheet), not an inline patch.
 
 ## Agent invocation

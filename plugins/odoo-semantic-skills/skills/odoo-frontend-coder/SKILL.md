@@ -87,8 +87,8 @@ dependency cycle that resolves to the empty value (the fallback is never reached
 every downstream surface/border/text/badge token. Build theme-correct from the first line:
 
 **Pre-write grounding** — before emitting any SCSS or styled OWL:
-1. Read `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md` (build-rules +
-   token-reality method + the worked example of the `--bs-*` self-reference bug).
+1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (era-aware SSOT: build-rules +
+   token-reality method, the `--bs-*` self-reference worked example, AND the OWL pitfall catalogue).
 2. Resolve which design tokens the **target version** really emits — `resolve_stylesheet(<module>)`
    + `find_style_override(<selector_or_variable>)`, then confirm at runtime with
    `getComputedStyle(document.documentElement)`. Never assume a token (e.g. any `--bs-*`) exists
@@ -108,7 +108,7 @@ every downstream surface/border/text/badge token. Build theme-correct from the f
 
 ## Instructions
 
-Work in four rounds. Within each round, fire independent MCP calls in the same message.
+Work in rounds (Round 0 -> 0.5 grounding -> framework rounds -> Round 6 verify). Within each round, fire independent MCP calls in the same message.
 
 ### Round 0 — Read context file + pin version
 
@@ -179,6 +179,19 @@ optional next step; never auto-run them.
 
 ### OWL v15+ workflow {#owl-v15-workflow}
 
+#### Round 0.5 — OWL pitfall grounding checklist (gate)
+
+Before emitting any OWL/JS, assert each class in the catalogue at
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (section "OWL pitfall catalogue")
+is satisfied for the target version. Do not duplicate the catalogue here - ground each item against it:
+
+- [ ] **t-on handlers** - no bare free-identifier arrow call (`() => onFoo()`); use `() => this.onFoo()`, the auto-bound `t-on-click="onFoo"`, or `onChange.bind="onFoo"` for props (all valid).
+- [ ] **useService reactivity** - a service that drives the template is reactivity-preserved per version (v16: wrap in `useState`; v17-18: canonical `useState(useService(...))`; v19: plain `useService` ok, the service is already `reactive()`).
+- [ ] **No raw `contenteditable`** - delegate to `web_editor` Wysiwyg, lazy-loaded in `onWillStart`, with stable props built once.
+- [ ] **SCSS in `calc()`** - interpolate Sass functions: `calc(#{map-get(...)} * 2)`, never bare `map-get(`/`min(` inside `calc(`.
+- [ ] **No `--bs-*` assumptions** - Odoo sets `$variable-prefix:''`; reference `--primary`/`--o-color-*`, never a self-referential shim.
+- [ ] **`Dialog` body** - body content goes in the default slot; only `header`/`footer` are named slots.
+
 #### Round 1 — Detect OWL sub-version (parallel when porting)
 
 Map the version to the OWL era:
@@ -244,6 +257,24 @@ invoke any skill, to respect the depth rule) that the user verify it on a live i
 
 These run via `/odoo-semantic-skills:setup` (browser MCP + instance URL). Mention them as an
 optional next step; never auto-run them.
+
+---
+
+### Round 6 — Post-write verify gate (both workflows)
+
+Mirror the `odoo-coder` Round-4 self-verify discipline: do not declare the change done until the
+static gate is green. Run the shared gate on the files you wrote:
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <changed-files>
+```
+
+- Tier-2 static OWL/SCSS pitfall checks always run (no toolchain needed) - a BLOCK (classes 1/3/6)
+  is a hard stop: fix and re-run. A WARN (classes 2/4/5) must be justified or fixed.
+- Tier-1 format/lint runs `ruff check` (Python) and prettier (JS) when available, and **degrades
+  gracefully** to a soft warning when the JS toolchain or config is absent - never a false hard-fail.
+- If OSM is reachable, cross-check with `lint_check(language='javascript', odoo_version='<N>.0', code=...)`
+  (note: `odoo_version` is a required argument for these tools).
 
 ---
 

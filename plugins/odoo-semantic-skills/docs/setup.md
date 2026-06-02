@@ -502,7 +502,7 @@ Starting in v0.5.0 the MCP server supports **sticky session context** so you sto
 
 After step 2, calling `model_inspect(model="sale.order", method="summary")` (no `odoo_version=` arg) returns results for `17.0`. Override at any time by passing `odoo_version=` explicitly on a single call (one-off; does **not** clear the sticky value).
 
-> See [ADR-0029](https://odoo-semantic.viindoo.com/docs/adr/0029-implicit-session-context) for the TTL design and per-key keying rationale.
+> See the [implicit session context docs](https://odoo-semantic.viindoo.com/docs/adr/0029-implicit-session-context) for the TTL behavior and per-key keying rationale.
 
 ---
 
@@ -528,7 +528,7 @@ odoo://17.0/field/sale.order/amount_total
 odoo://17.0/view/sale.view_order_form
 ```
 
-Clients that implement the MCP `resources/list` and `resources/read` flows surface these as bookmark-style references. See [ADR-0030](https://odoo-semantic.viindoo.com/docs/adr/0030-mcp-resources-uri-scheme) for the URI grammar and authorization model (same `X-API-Key` header as tool calls).
+Clients that implement the MCP `resources/list` and `resources/read` flows surface these as bookmark-style references. See the [MCP resources URI scheme docs](https://odoo-semantic.viindoo.com/docs/adr/0030-mcp-resources-uri-scheme) for the URI grammar and authorization model (same `X-API-Key` header as tool calls).
 
 ---
 

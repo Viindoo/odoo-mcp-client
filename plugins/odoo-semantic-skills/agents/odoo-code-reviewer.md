@@ -68,13 +68,27 @@ returned NOT FOUND for field `amout_total` on `sale.order`"). You do not guess �
 
 ### OWL (v15+)
 
-- **Direct `useState` mutation** — `this.state.items.push(x)` bypasses OWL reactivity.
-  Always assign a new value: `this.state.items = [...this.state.items, x]`.
-- **Missing `onWillDestroy` cleanup** — timers, external listeners, subscriptions registered
-  in `setup()` must be torn down.
-- **`patch()` targeting wrong level** — OWL 1.x patches prototype; OWL 2.x patches class.
-  Prototype patch in OWL 2.x crashes at runtime, not load time.
-- **`t-name` mismatch with JS import** — causes runtime error when component mounts.
+Full catalogue with file:line citations + per-version applicability:
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (section "OWL pitfall catalogue").
+The recurring classes to flag:
+
+- **`t-on` bare free-identifier arrow** — `t-on-click="() => onFoo()"` where `onFoo` is not a
+  component method resolves to `undefined` and crashes. Use `() => this.onFoo()` or the
+  auto-bound `t-on-click="onFoo"`. Do NOT flag `t-on-click="onFoo"` (no arrow) nor
+  `() => this.onFoo()` — both are valid (OWL injects `this`=component into the template context).
+- **Non-reactive `useService` in a template** — version-dependent: v16 requires
+  `useState(useService("ui"))`; v17/v18 keep it as the canonical form; v19 dropped it (the
+  service is already `reactive()`). Flag a missing wrap on v16-v18 only.
+- **Raw `contenteditable`** — bypasses OdooEditor sanitisation; delegate to `web_editor` Wysiwyg,
+  lazy-loaded in `onWillStart` with stable props (fresh props each render drop the editor instance).
+- **`Dialog` body in a named slot** — `<t t-set-slot="body">` targets a slot Dialog never renders;
+  body content belongs in the default slot (only `header`/`footer` are named).
+- **Direct `useState` mutation** — `this.state.items.push(x)` bypasses reactivity; assign a new
+  value: `this.state.items = [...this.state.items, x]`.
+- **Missing `onWillDestroy` cleanup** — timers, listeners, subscriptions from `setup()` must be torn down.
+- **`patch()` wrong level / arity** — OWL 1.x (v15) `patch(Class.prototype, 'name', {…})`;
+  OWL 2.x (v16+) `patch(Class, {…})` — the 2-arg form throws on a string second arg (v17+).
+- **`t-name` mismatch with JS import** — runtime error when the component mounts.
 
 ### XML views
 
@@ -92,9 +106,15 @@ returned NOT FOUND for field `amout_total` on `sale.order`"). You do not guess �
   dependency cycle that resolves to empty, flattening every downstream surface/border/text/
   badge. Classic when styling chains into Bootstrap `--bs-*` tokens the target version does
   not emit at runtime. Backfill non-self-referentially against a token the version actually
-  emits. Flag per `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md`;
+  emits. Flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`;
   confirm at runtime with `odoo-ui-debug`/`odoo-ui-reviewer`; route the fix to
   `odoo-frontend-coder` (this reviewer reads, it does not write frontend source).
+- **Sass function inside `calc()`** — `calc(map-get(...))` / `calc(min(...))` without `#{}`
+  interpolation is dropped by LibSass (the property silently vanishes). Require
+  `calc(#{map-get(...)} * 2)`.
+
+When a finding touches JS/OWL/SCSS, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <files>`
+and cite its output (BLOCK/WARN per pitfall class) as evidence.
 
 ---
 

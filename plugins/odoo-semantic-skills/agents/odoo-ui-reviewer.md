@@ -88,12 +88,14 @@ screenshot at each.
 
 ### Step 4b — Design-system / theme (token-reality check)
 
-Follow `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md`. Use
+Follow `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`. Use
 `evaluate_script` to read `getComputedStyle(document.documentElement)` (and a few representative
 elements — a pane, a muted-text node, a badge) and flag:
 - tokens that resolve **EMPTY** or to a transparent surface where a fill/border is expected;
 - **self-referential** custom properties (a CSS variable whose value references itself — a cycle
   that resolves to empty), the classic cause of a "flat" theme;
+- **`--bs-*` references** that resolve EMPTY — Odoo sets `$variable-prefix:''`, so Bootstrap
+  `--bs-*` runtime custom properties are absent across v16+ (confirmed through v19; verify new majors via OSM); reference `--primary` / `--o-color-*`;
 - **hardcoded** hex/rgba palette where a runtime design token should be reused;
 - divergence from the project mockup.
 Resolve the real token names/origins for the version with `resolve_stylesheet` /

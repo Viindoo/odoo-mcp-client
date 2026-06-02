@@ -57,6 +57,10 @@ Odoo version diff has two audiences with different needs:
 | v16 → v17 | Python 3.10+ required; performance improvements; several `tools.*` cleanup |
 | v17 → v18+ | ORM enhancements; module restructuring (ongoing) |
 
+> Not exhaustive. Odoo ships a new major roughly yearly; this table captures the historical
+> breaking points only. For any target newer than the last row, resolve the real diff via OSM
+> (`api_version_diff`) and the release notes rather than assuming.
+
 Always specify if the diff spans an **era boundary** (OpenERP → Odoo, or pre-OWL → post-OWL)
 because these require significantly more migration work than within-era upgrades.
 

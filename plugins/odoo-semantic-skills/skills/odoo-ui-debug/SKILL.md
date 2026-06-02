@@ -35,7 +35,7 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 **Primary tools:**
 - `resolve_stylesheet` ✦ — Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain.
-- `find_style_override` ✦ — Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules.
+- `find_style_override` ✦ — Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain.
 - `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
@@ -98,7 +98,7 @@ Based on the symptom class, fire the relevant calls in parallel:
 - **CSS wrong / not applying:** `find_style_override(selector_or_variable=<selector>)` +
   `resolve_stylesheet(module=<module>)` → which rule wins and where it is defined.
 - **Flat / off-theme render (empty surfaces, invisible muted text, badges lost fill):** run the
-  token-reality check from `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md` —
+  token-reality check from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` —
   read `getComputedStyle(:root)` for tokens that resolve EMPTY and for self-referential custom
   properties (a CSS var whose value references itself — a cycle that resolves to empty), the
   classic cause when styling chains into `--bs-*` tokens the target version does not emit.

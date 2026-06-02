@@ -1,0 +1,58 @@
+# OWL pitfall rules for verify-frontend.sh  (Tier 2 static grep scan)
+#
+# Format (one rule per non-comment line):
+#   pattern|severity|message
+#
+# severity: BLOCK (exit non-zero) | WARN (log but continue)
+#
+# Pattern language: ERE (grep -E).  Patterns are applied per relevant file type:
+#   .js / .xml  — all non-BLOCK and BLOCK rules
+#   .scss       — class 4 and class 5 only (SCSS-specific)
+#
+# ---  Class 1 — arrow-wrapped bare free-identifier call in t-on-*  ---
+# BLOCK: `t-on-...="() => foo(` where foo has no `this.`, `props.`, or known slot-var prefix.
+# FALSE-POSITIVE GUARD (critical):
+#   - `t-on-click="foo"`                 → NO arrow → auto-bound → SAFE, must NOT match
+#   - `t-on-click="() => this.foo()"`    → explicit this. prefix → SAFE, must NOT match
+#   - `t-on-click="() => props.foo()"`   → explicit props. prefix → SAFE, must NOT match
+# Only the bare-arrow-free-ident form matches:  `() => someIdent(`  without this./props. guard.
+# Regex: t-on[-a-z.]*= then (optional spaces) a quote char, then () =>, then optional spaces,
+# then a lowercase identifier NOT preceded by this. or props., then literal `(`.
+# We use a two-part approach: match the arrow pattern, then a negative check is applied
+# in the shell script; here the pattern captures the unsafe form directly:
+#   matches:  t-on-click="() => onSave("   ← bare ident
+#   matches:  t-on-click="() => doThing("  ← bare ident
+#   NOT match: t-on-click="foo"            ← no arrow
+#   NOT match: t-on-click="() => this.onSave("  ← has this.
+#   NOT match: t-on-click="() => props.onSave(" ← has props.
+t-on[-a-zA-Z.]*=["\'][(][)] =>[[:space:]]*[a-z][a-zA-Z0-9_]*[(]|BLOCK|class-1: bare free-identifier arrow call in t-on-* (e.g. '() => foo('); use 'this.foo()' or 'props.foo()' instead. See OWL pitfall catalogue §1.
+
+# ---  Class 3 — raw contenteditable in OWL template  ---
+# BLOCK: any `contenteditable=` attribute that is NOT inside a javascript string assignment.
+# This catches inline contenteditable usage without the Wysiwyg lazy-load pattern.
+contenteditable=|BLOCK|class-3: raw contenteditable= in OWL template; use loadBundle('web_editor.backend_assets_wysiwyg') in onWillStart instead. See OWL pitfall catalogue §3.
+
+# ---  Class 6 — Dialog body slot  ---
+# BLOCK: `t-set-slot="body"` used as a named slot under a <Dialog> component.
+# In Odoo v16+ (OWL 2), the default slot IS the body — naming it explicitly is an error.
+t-set-slot=["\']body["\']|BLOCK|class-6: t-set-slot="body" is invalid under <Dialog> (default slot IS the body in OWL2 Odoo Dialog); remove the t-set-slot wrapper. See OWL pitfall catalogue §6.
+
+# ---  Class 2 — useService("ui") not wrapped in useState  ---
+# WARN: useService("ui") without a useState() wrapper makes the result non-reactive.
+# This is intentional in v19 (service is reactive() itself), so only warn.
+# Pattern: useService followed by ("ui") with no `useState` wrapping on the same expression.
+useService[(]["\']ui["\'][)]|WARN|class-2: useService("ui") should be wrapped in useState() for reactive updates (v16-18). In v19 the service is already reactive — suppress if targeting v19 only. See OWL pitfall catalogue §2.
+
+# ---  Class 4 — Sass functions inside calc() without #{} interpolation  ---
+# WARN: `calc(` containing `map-get(` or `min(` without LibSass #{} interpolation.
+# LibSass (libsass-python, all Odoo versions) cannot resolve Sass functions inside
+# CSS calc() — use `#{map-get(...)}` interpolation instead.
+# Applied to .scss files only (enforced in script).
+calc[(][^)]*map-get[(]|WARN|class-4: calc() contains map-get() without #{} interpolation (LibSass cannot resolve Sass functions in calc); use calc(#{map-get(...)} * value). See OWL pitfall catalogue §4.
+calc[(][^)]*min[(]|WARN|class-4: calc() contains min() without #{} interpolation (LibSass cannot resolve Sass functions in calc); use calc(#{min(...)}). See OWL pitfall catalogue §4.
+
+# ---  Class 5 — --bs-* Bootstrap CSS variables in addon SCSS  ---
+# WARN: `var(--bs-` references Bootstrap-namespaced runtime variables.
+# Odoo sets $variable-prefix:'' so runtime vars are `--primary`, `--o-color-*`, NOT `--bs-*`.
+# Applied to .scss files only (enforced in script).
+var[(]--bs-|WARN|class-5: var(--bs-*) references Bootstrap-namespaced vars; Odoo overrides $variable-prefix to '' so use var(--primary) / var(--o-color-*) / var(--o-*) instead. See OWL pitfall catalogue §5.

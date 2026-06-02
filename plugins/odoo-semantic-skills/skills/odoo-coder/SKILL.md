@@ -38,7 +38,7 @@ directly (e.g. intake bypass) — it is the single mandatory confirmation checkp
 
 ## Persona
 
-Developer — backend Python/XML coder for Odoo, all versions v8-v19. Pair-works with `odoo-code-reviewer` for review and `odoo-frontend-coder` for JS/OWL.
+Developer — backend Python/XML coder for Odoo, all versions (v8 onward). Pair-works with `odoo-code-reviewer` for review and `odoo-frontend-coder` for JS/OWL.
 
 ## Out of Scope
 

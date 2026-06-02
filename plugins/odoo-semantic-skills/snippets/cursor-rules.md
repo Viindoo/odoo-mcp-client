@@ -258,7 +258,7 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
 - "what versions are indexed" → `list_available_versions ☆` — Enumerate which Odoo versions the server has indexed.
 - "what profiles exist" → `list_available_profiles ☆` — Enumerate which tenant profiles exist in the server index.
 - "stylesheets in module" → `resolve_stylesheet ✦` — Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain.
-- "where is CSS selector defined" → `find_style_override ✦` — Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules.
+- "where is CSS selector defined" → `find_style_override ✦` — Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain.
 - "trace field path" → `resolve_orm_chain ⊕` — Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
 - "is this domain valid" → `validate_domain ⊕` — Validate search domain terms: field-path resolution and operator version-awareness.
 - "validate compute depends" → `validate_depends ⊕` — Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.

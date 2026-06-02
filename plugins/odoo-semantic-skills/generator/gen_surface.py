@@ -57,6 +57,8 @@ SKIP_SKILL_DIRS = {
     "odoo-onboard",
     "intake",
     "odoo-ui-reviewer",
+    # Shared reference docs (e.g. odoo-frontend-fidelity.md), not a skill — no SKILL.md, no tool deps.
+    "_shared",
     # Pure orchestration runner — no direct MCP invocations; dispatches via NL only.
     "workflow-runner",
 }

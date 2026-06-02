@@ -78,7 +78,7 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
   WHEN: "what stylesheets does module [X] ship", "list CSS/SCSS/LESS files in [X]", "@import chain for module [X]", "stylesheet inventory for [X]"
   ARGS: module (required), odoo_version (optional, default "auto")
 
-**find_style_override** ✦ — semantic search for where a CSS selector / SCSS/LESS variable is defined or overridden (pgvector with import-chain traversal; LESS covers legacy v8-v11)
+**find_style_override** ✦ — find where a CSS selector / SCSS/LESS variable is first defined and which modules override it, with the full override chain (LESS for the legacy pre-SCSS era, ~v8-v12)
   WHEN: "where is selector [X] defined", "find SCSS variable $[X]", "find LESS variable @[X]", "which module overrides [selector]", "branding/theming override for [X]"
   ARGS: selector_or_variable (required), odoo_version (optional, default "auto"), limit (optional, default 5)
 
@@ -111,7 +111,7 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
 
 **list_available_profiles()** — discover indexed tenant profiles
 
-## MCP RESOURCES (read-only, URI-addressable, ADR-0030)
+## MCP RESOURCES (read-only, URI-addressable)
 
 Seven `odoo://` Resources for bookmark-stable reads when the caller already knows the entity ID — no tool-call overhead:
 
@@ -284,7 +284,7 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
 
 **find_examples** — Semantic code search returning real indexed code snippets from the Odoo codebase.
   REQUIRED: query, odoo_version
-  OPTIONAL: limit, context_module, chunk_types, profile_name
+  OPTIONAL: limit, context_module, profile_name
   WHEN: show me examples
 
 **impact_analysis** — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
@@ -353,7 +353,7 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
   REQUIRED: module, odoo_version
   WHEN: stylesheets in module
 
-**find_style_override** ✦ — Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules.
+**find_style_override** ✦ — Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain.
   REQUIRED: selector_or_variable, odoo_version
   OPTIONAL: limit
   WHEN: where is CSS selector defined

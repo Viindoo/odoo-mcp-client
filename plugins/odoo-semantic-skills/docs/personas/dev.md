@@ -47,8 +47,8 @@ The full **tool arsenal (server v0.11.1)**, optimized for development workflows.
 
 | Tool | Use case |
 |------|----------|
-| `resolve_stylesheet(module, odoo_version="auto")` | Enumerate a module's CSS/SCSS/LESS `:Stylesheet` files — language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. LESS covers legacy v8-v11. |
-| `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is first defined and all modules that override it. Essential for theming/branding work. Covers CSS, SCSS, and LESS (LESS for legacy v8-v11). |
+| `resolve_stylesheet(module, odoo_version="auto")` | Enumerate a module's CSS/SCSS/LESS stylesheet files — language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. LESS covers the legacy pre-SCSS era (~v8-v12). |
+| `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain. Essential for theming/branding work. Covers CSS, SCSS, and LESS (LESS for the legacy pre-SCSS era, ~v8-v12). |
 
 ### ORM-validation tools (server v0.8.0+)
 
@@ -71,7 +71,7 @@ See the server [CHANGELOG](https://odoo-semantic.viindoo.com/changelog) for side
 
 ### MCP Resources (`odoo://` URI scheme, v0.5+)
 
-Read-only handles for bookmark-stable access. Use these when you already know the entity ID and want the canonical record without a tool call: `odoo://{version}/{kind}/{id}` where `kind` is one of `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`. See [ADR-0030](https://odoo-semantic.viindoo.com/docs/adr/0030-mcp-resources-uri-scheme).
+Read-only handles for bookmark-stable access. Use these when you already know the entity ID and want the canonical record without a tool call: `odoo://{version}/{kind}/{id}` where `kind` is one of `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`. See the [MCP resources URI scheme docs](https://odoo-semantic.viindoo.com/docs/adr/0030-mcp-resources-uri-scheme).
 
 ---
 
@@ -117,7 +117,7 @@ Before implementing a new pattern (computed cross-model field, wizard, report):
 suggest_pattern("computed field that aggregates from child records with currency conversion")
 ```
 
-Returns curated `PatternExample` nodes with code snippets, gotchas, and anti-pattern warnings from the indexed codebase.
+Returns curated pattern entries with code snippets, gotchas, and anti-pattern warnings from the indexed codebase.
 
 ### 4. Verify the API
 

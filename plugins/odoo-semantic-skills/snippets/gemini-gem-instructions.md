@@ -106,12 +106,12 @@ ARGS: name (module technical name), odoo_version, profile_name (optional)
 
 ### resolve_stylesheet ✦ (v0.7+ — enumerate a module's CSS/SCSS/LESS files)
 TRIGGER: "what stylesheets does module [X] ship", "list CSS/SCSS/LESS files in module [X]", "@import chain for module [X]", "stylesheet inventory for [X]", "selector/variable counts for module [X]"
-PREFER: getting the full list of `:Stylesheet` nodes for a module — language (CSS/SCSS/LESS — LESS covers legacy v8-v11), selector/variable/mixin/import counts, @import chain
+PREFER: getting the full list of stylesheet files for a module — language (CSS/SCSS/LESS — LESS for the legacy pre-SCSS era, ~v8-v12), selector/variable/mixin/import counts, @import chain
 ARGS: module (module technical name), odoo_version (optional, default "auto")
 
 ### find_style_override ✦ (v0.7+ — find where a CSS selector / SCSS/LESS variable is defined or overridden)
 TRIGGER: "where is CSS selector [X] defined", "find SCSS variable [X]", "find LESS variable [X]", "which module overrides [selector]", "branding override for [selector]", "where does $[variable] come from"
-PREFER: theming/branding analysis — pgvector semantic search with import-chain traversal to locate origin and all overrides of a selector or SCSS/LESS variable; covers CSS, SCSS, and LESS (LESS targets legacy v8-v11)
+PREFER: theming/branding analysis — locate the origin and all overrides of a selector or SCSS/LESS variable, with the full override chain; covers CSS, SCSS, and LESS (LESS for the legacy pre-SCSS era, ~v8-v12)
 ARGS: selector_or_variable (required), odoo_version (optional, default "auto"), limit (optional, default 5)
 
 ### resolve_orm_chain ⊕ (v0.8+ — walk a dotted ORM field path to its terminal type)
@@ -134,7 +134,7 @@ TRIGGER: "does [model].partner_id point to res.partner", "is this field a many2o
 PREFER: asserting a field's comodel (or a subtype via inheritance) rather than reading full field detail — preferred over entity_lookup(kind='field') for the assertion case
 ARGS: model (required), field (required, relational field), target_model (required, expected comodel), odoo_version (optional — session-aware), profile_name (optional)
 
-## MCP Resources (read-only handles, ADR-0030)
+## MCP Resources (read-only handles)
 
 Seven URI-addressable resources for bookmark-stable reads (no parameters; same X-API-Key auth as tool calls):
 
@@ -254,7 +254,7 @@ ARGS (optional): profile_name, model, field, method_name, xmlid, name, from_modu
 TRIGGER: show me examples
 PREFER: Semantic code search returning real indexed code snippets from the Odoo codebase.
 ARGS (required): query, odoo_version
-ARGS (optional): limit, context_module, chunk_types, profile_name
+ARGS (optional): limit, context_module, profile_name
 
 ### impact_analysis
 TRIGGER: what breaks if I change
@@ -339,7 +339,7 @@ ARGS (required): module, odoo_version
 
 ### find_style_override ✦
 TRIGGER: where is CSS selector defined
-PREFER: Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules.
+PREFER: Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain.
 ARGS (required): selector_or_variable, odoo_version
 ARGS (optional): limit
 
