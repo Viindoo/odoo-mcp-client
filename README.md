@@ -385,6 +385,25 @@ Installing `odoo-semantic-skills` **automatically pulls in `odoo-semantic-mcp`**
 
 You will need an **API key** (format `osm_...`) from the [install page](https://odoo-semantic.viindoo.com/install/), and the **MCP server URL** (default `https://odoo-semantic.viindoo.com/mcp`).
 
+### Browser MCP servers / cross-CLI install
+
+The four Visual skills (`odoo-ui-reviewer`, `odoo-ui-debug`, `odoo-visual-regression`,
+`odoo-demo-recorder`) need three browser MCP servers: `chrome-devtools`, `playwright`,
+and `pagecast`. Each runtime bundles them natively:
+
+| Runtime | How it ships | What to run |
+|---------|-------------|-------------|
+| **Claude Code** | Bundled `.mcp.json` (auto-loaded on plugin install). Claude deduplicates by command — a same-command server already in your config wins silently. No manual step. | Nothing extra after `claude plugin install`. |
+| **Gemini CLI** | `gemini-extension.json` in the plugin directory. **Gemini requires a repo root**, so install via local path: `gemini extensions install <your-clone>/plugins/odoo-semantic-skills` (or `...link ...` for live dev). Dedup is by server name. The `trust` field is not allowed in the extension manifest. | `gemini extensions install <your-clone>/plugins/odoo-semantic-skills` |
+| **Codex CLI** | `.codex-plugin/plugin.json`. Installed from a marketplace snapshot: `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-semantic-skills@<marketplace>` (marketplace.json to be published separately). | `codex plugin add odoo-semantic-skills@<marketplace>` |
+
+**Fallback (Codex/Gemini without native install):** run `/odoo-semantic-skills:setup runtime`
+inside Claude Code — it writes the correct browser server config for Codex and Gemini
+idempotently. It does **not** write to `~/.claude.json` for Claude Code (served by the
+bundled `.mcp.json`).
+
+Full details and manual snippets: [`docs/setup.md` - Visual stack / browser MCP setup](plugins/odoo-semantic-skills/docs/setup.md#visual-stack--browser-mcp-setup).
+
 <details>
 <summary>Known Claude Code bugs affecting this install (v2.1.x)</summary>
 

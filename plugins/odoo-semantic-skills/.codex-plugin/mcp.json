@@ -1,0 +1,24 @@
+{
+  "chrome-devtools": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "chrome-devtools-mcp@latest"
+    ]
+  },
+  "playwright": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@playwright/mcp@latest",
+      "--caps=devtools"
+    ]
+  },
+  "pagecast": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@mcpware/pagecast"
+    ]
+  }
+}

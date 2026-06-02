@@ -123,12 +123,36 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    > MCP servers do NOT hot-reload — restart your Claude Code / Codex / Gemini
    > session for the newly wired browser servers and permissions to take effect.
 
+## Per-runtime native MCP provisioning
+
+The three browser MCP servers (`chrome-devtools`, `playwright`, `pagecast`) are
+provisioned natively by each runtime when the plugin is installed — no manual
+step required in the normal flow:
+
+| Runtime | How servers are bundled | Dedup rule |
+|---------|------------------------|------------|
+| **Claude Code** | Plugin's bundled `.mcp.json` (loaded automatically on install) | Claude deduplicates by command/endpoint: an already-configured server with the same command simply wins; the bundled copy is skipped — this is normal, not an error. No manual step. |
+| **Gemini CLI** | Bundled `gemini-extension.json` (installed via `gemini extensions install <your-clone>/plugins/odoo-semantic-skills` or `gemini extensions link ...` for live dev). **Note:** Gemini cannot install an extension from a subdirectory of a git repo — the manifest must be at a repo root, so you must install via **local path** after cloning, not directly from a GitHub URL. | Dedup is by server *name*: if the user already has a same-named server in `~/.gemini/settings.json`, that entry wins (no error). The `trust` field is not allowed in the extension manifest. |
+| **Codex CLI** | Bundled `.codex-plugin/plugin.json` (installed from a marketplace snapshot). Install flow: `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-semantic-skills@<marketplace>`. A Codex marketplace.json publishing this plugin is a separate distribution step (to be published); the manifest ships with the plugin now. | Same dedup-by-name behaviour as Claude. |
+
+> **Fallback:** If you need to wire the browser servers into Codex or Gemini without
+> going through the plugin marketplace, run `/odoo-semantic-skills:setup runtime` —
+> it writes the correct config for each runtime idempotently. See the
+> [Standalone / fallback](#standalone--fallback) section for manual equivalents.
+>
+> **Claude-specific change:** `/setup` no longer writes the browser servers into
+> `~/.claude.json` for Claude Code — Claude is served by the bundled `.mcp.json`,
+> so re-running `/setup` will not recreate the "skipped duplicate" notes there.
+> Step `10-browser-mcp` never touches `~/.claude.json` at all (it wires Codex and
+> Gemini only).
+
 ## Step-specific notes (what each `apply` does)
 
-- **10-browser-mcp** — writes the MCP *registry*: `claude mcp add` (or merges
-  into `$CLAUDE_CONFIG` = `~/.claude.json`), a `[mcp_servers.*]` table in
-  `$CODEX_CONFIG`, and an `mcpServers.*` entry (with `"trust": true`) in
-  `$GEMINI_SETTINGS`. No secrets.
+- **10-browser-mcp** — wires the browser MCP *registry* for **Codex CLI** and
+  **Gemini CLI** only (a `[mcp_servers.*]` table in `$CODEX_CONFIG` and an
+  `mcpServers.*` entry with `"trust": true` in `$GEMINI_SETTINGS`). For
+  **Claude Code** it writes nothing: Claude is served by the plugin's bundled
+  `.mcp.json`, so this step never touches `~/.claude.json`. No secrets.
 - **20-browser-deps** — runs `npx -y playwright install chromium`. For ffmpeg it
   ONLY prints install guidance for your OS — it never runs sudo/apt for you.
 - **30-permissions** — appends browser tool prefixes to `permissions.allow[]`
@@ -163,8 +187,9 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
 
 ## Hard rules
 
-- **Two different Claude files, never crossed.** `$CLAUDE_CONFIG`
-  (`~/.claude.json`) is the MCP server *registry* — step 10 writes there.
+- **Two different Claude files, never crossed.** `~/.claude.json` is the MCP
+  server *registry* — but step 10 deliberately does **not** write there (Claude's
+  browser servers come from the plugin's bundled `.mcp.json`).
   `$CLAUDE_SETTINGS` (`~/.claude/settings.json`) holds *permissions* — step 30
   writes there. Do not edit either file by hand with `Edit`/`Write`; the step
   scripts back up, refuse invalid JSON, and stay idempotent.
@@ -195,8 +220,10 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
     `pagecast` → `npx -y @mcpware/pagecast`).
   - Permissions: add `mcp__chrome-devtools`, `mcp__playwright`, `mcp__pagecast`
     to `permissions.allow[]` in `~/.claude/settings.json`.
-- If `claude` CLI is absent, step 10 automatically falls back to merging
-  `~/.claude.json` directly — no action needed.
+- The manual `claude mcp add` line above is only for using these servers
+  **without** the plugin installed. If the plugin is installed, do **not** add
+  them to `~/.claude.json` — the bundled `.mcp.json` already provides them, and a
+  duplicate entry is exactly what produces the "skipped — same command" notes.
 
 ## See also
 
