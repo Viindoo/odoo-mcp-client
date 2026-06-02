@@ -152,6 +152,22 @@ case "${_domain}" in
     ;;
 esac
 
+# --- Stack-aware routing hints (named specialists, so a JS/OWL or full-stack task never
+# silently skips the frontend specialists). Appended to whatever OSM context exists. ---
+case "${_domain}" in
+  visual-UI)
+    _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work → odoo-frontend-coder (write); odoo-ui-debug (runtime render/console errors); odoo-ui-reviewer (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity → see odoo-design-system-fidelity (build theme-correct, never hardcode hex / self-reference a CSS var)."
+    _osm_context="${_osm_context:+${_osm_context}\n}${_fe_hint}"
+    ;;
+  engineering)
+    # Only when OSM context already fired (i.e. OSM wired) — avoids noising every prompt.
+    if [ -n "${_osm_context}" ]; then
+      _fe_hint="[Stack check] If the change touches JS/OWL/QWeb or an asset bundle, also engage odoo-frontend-coder — backend (odoo-coder) does not cover frontend. Full-stack tasks need both."
+      _osm_context="${_osm_context}\n${_fe_hint}"
+    fi
+    ;;
+esac
+
 # If intent is specific (long + has action verb) AND no OSM context to emit → exit early
 if [ "${_is_vague}" = "false" ] && [ -z "${_osm_context}" ]; then
   exit 0

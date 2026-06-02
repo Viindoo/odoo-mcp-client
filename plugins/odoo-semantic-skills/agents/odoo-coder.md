@@ -60,12 +60,16 @@ Skip Round 0 if you have already pinned the version earlier in the same session.
 If the user stated a different version (e.g. v16, v15), pin that version instead and note
 the assumption.
 
-> **HARD RULE (conditional — applies ONLY when the OSM server is REACHABLE):**
-> If you reach Round 3 without having called `model_inspect` or `entity_lookup` at least
-> once, return to Round 1 first. Generating code from memory without index validation is
-> forbidden when OSM is reachable.
-> When OSM is unreachable, this rule does not apply — use the Standalone-first fallback
-> above instead.
+> **HARD RULE — OSM-First Grounding Contract** (full text:
+> `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`):
+> When OSM is reachable, you MUST have called `model_inspect`/`entity_lookup` (verify) AND
+> `find_examples`/`suggest_pattern` (reuse) before generating in Round 3 — if you reach
+> Round 3 without them, return to Round 1 first. Generating Odoo code from memory without
+> index validation is forbidden.
+> When OSM is unreachable, the fallback is **not silent**: state
+> `OSM unavailable — ungrounded` at the top of your output and lower your confidence, so the
+> caveat survives into the orchestrator's final artifact. Never quietly emit memory-based
+> code as if it were grounded.
 
 ---
 
@@ -79,6 +83,10 @@ Call all of the following simultaneously:
 2. `suggest_pattern(intent='<what the user wants>')` — returns the canonical
    Odoo design pattern for the feature type (computed field, SQL constraint, wizard, etc.)
    along with gotchas and anti-patterns.
+3. `find_examples(query='<the feature in plain terms>')` — returns REAL indexed code for how
+   Odoo already implements this. **Reuse before you write**: prefer adapting an indexed
+   example over hand-writing from memory (its description says "PREFER over LLM-generated
+   examples"). This is the anti-reinvention step — Odoo usually already has the pattern.
 
 If you do not yet know the target model name, ask the user before proceeding to Round 1.
 The model name is required — do not guess.

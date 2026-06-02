@@ -1,4 +1,4 @@
-.PHONY: validate test gen gen-check deps-check workflows-check help setup bump-patch bump-minor bump-major
+.PHONY: validate test gen gen-check deps-check workflows-check orchestration-check help setup bump-patch bump-minor bump-major
 
 VENV ?= .venv
 PYTHON ?= $(VENV)/bin/python
@@ -11,6 +11,7 @@ help:
 	@echo "make gen-check       - run gen then assert git diff is empty (CI idempotency check)"
 	@echo "make deps-check      - check skill ↔ tool dependencies (no broken/removed tool refs)"
 	@echo "make workflows-check - validate all workflows/*.workflow.yaml against the schema"
+	@echo "make orchestration-check - lint the capability/contract layer (warn-first; ORCH_STRICT=1 to enforce)"
 	@echo "make setup           - create .venv (Python >= 3.12) and install requirements.txt"
 	@echo "make bump-patch      - bump VERSION + plugin.json + cut CHANGELOG (x.y.Z -> x.y.Z+1)"
 	@echo "make bump-minor      - bump minor (x.Y.z -> x.Y+1.0) for backward-compatible features"
@@ -68,6 +69,12 @@ gen-check: gen
 # Dependency check: assert all skill ↔ tool refs are valid (live, not removed).
 deps-check: $(VENV_STAMP)
 	$(PYTHON) plugins/odoo-semantic-skills/generator/check_deps.py
+
+# Orchestration/contract lint: spawn-class coverage, OSM-first + design-system + instance
+# references, spawn-truth, no-hardcode/no-leak. WARN-FIRST by default (exits 0); set
+# ORCH_STRICT=1 to enforce (exits 1 on any finding) once all skills comply.
+orchestration-check: $(VENV_STAMP)
+	$(PYTHON) plugins/odoo-semantic-skills/generator/check_orchestration.py $(if $(ORCH_STRICT),--strict,)
 
 # Version bump + release cut. Keeps VERSION and the odoo-semantic-skills
 # plugin.json in lockstep (enforced by tests/test_version_consistency.py) and

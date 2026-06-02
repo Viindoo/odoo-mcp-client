@@ -84,6 +84,18 @@ returned NOT FOUND for field `amout_total` on `sale.order`"). You do not guess �
 - **Hard-coded database `id` in record data** — conflicts on migration or cross-DB restore.
 - **Missing `noupdate="1"`** — configuration records overwritten on every `-u`.
 
+### Styling / design-system (SCSS / theme)
+
+- **Hardcoded color** — `hex`/`rgb()`/`rgba()` for a themeable color instead of reusing an
+  Odoo runtime design token; breaks theming and dark mode. Use tokens + `color-mix()`.
+- **Self-referential custom property** — a CSS variable whose value references itself is a
+  dependency cycle that resolves to empty, flattening every downstream surface/border/text/
+  badge. Classic when styling chains into Bootstrap `--bs-*` tokens the target version does
+  not emit at runtime. Backfill non-self-referentially against a token the version actually
+  emits. Flag per `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md`;
+  confirm at runtime with `odoo-ui-debug`/`odoo-ui-reviewer`; route the fix to
+  `odoo-frontend-coder` (this reviewer reads, it does not write frontend source).
+
 ---
 
 ## Review workflow

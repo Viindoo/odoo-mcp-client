@@ -8,6 +8,8 @@ description: >
   Trigger on: "AbstractField subclass", "Widget.include / odoo.define()", "patch
   FormController / extend ListController", "OWL lifecycle hook / useService", "dashboard
   client action", "register field widget via registry.category", "QWeb template override".
+  Also fires on Vietnamese requests: "viết widget OWL", "sửa giao diện form", "thêm field
+  widget", "override JS", "viết / sửa SCSS theme đúng design-system Odoo".
   Infer framework from version or API keywords even without "legacy"/"OWL". After code
   generation, suggest verifying via odoo-ui-debug (runtime render errors), odoo-ui-reviewer
   (layout), or odoo-visual-regression (before/after diff) — do not auto-invoke (depth rule).
@@ -73,8 +75,36 @@ Proceed? (yes / refine: [feedback] / cancel)
 ```
 
 - **Proposed** — one sentence: what JS/OWL/XML artifact will be created or changed, and in which module.
-- **OSM** — set to `backed` when the OSM MCP server is reachable and its tools (`find_examples`, `module_inspect`, etc.) will be used in subsequent rounds; set to `standalone` when OSM is unreachable and the skill will fall back to pasted code only. OSM tools are optional for pure-frontend work but improve accuracy when available.
+- **OSM** — set to `backed` when the OSM MCP server is reachable and its tools (`find_examples`, `module_inspect`, etc.) will be used in subsequent rounds; set to `standalone` when OSM is unreachable and the skill will fall back to pasted code only. OSM tools improve accuracy for all frontend work and are **required for any styling/theme work** to ground design tokens (see Design-system fidelity below); when OSM is unreachable, say so and lower confidence rather than inventing token names.
 - Wait for the user to reply `yes` before proceeding to Round 0 below. If they reply `refine: …`, update the scope and re-emit the block. If they reply `cancel`, stop.
+
+## Design-system fidelity (mandatory whenever you touch SCSS / theme / component styling)
+
+Off-theme UI is generated when colors are hardcoded, or when surface tokens are chained into
+Bootstrap `--bs-*` custom properties that the target Odoo version does not actually emit at
+runtime. The classic failure is a "shim" custom property whose value references itself — a CSS
+dependency cycle that resolves to the empty value (the fallback is never reached), flattening
+every downstream surface/border/text/badge token. Build theme-correct from the first line:
+
+**Pre-write grounding** — before emitting any SCSS or styled OWL:
+1. Read `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md` (build-rules +
+   token-reality method + the worked example of the `--bs-*` self-reference bug).
+2. Resolve which design tokens the **target version** really emits — `resolve_stylesheet(<module>)`
+   + `find_style_override(<selector_or_variable>)`, then confirm at runtime with
+   `getComputedStyle(document.documentElement)`. Never assume a token (e.g. any `--bs-*`) exists
+   across versions — re-derive per version; the token reality differs by Bootstrap/Odoo version.
+3. Consult the project mockup / UI spec for intent (mockup-first).
+
+**Output self-check (gate — do not emit code until every box is checked):**
+- [ ] No hardcoded `hex` / `rgb()` / `rgba()` for themeable colors — reuse runtime design
+      tokens; use `color-mix()` for tints/shades.
+- [ ] No self-referential custom property (a CSS variable whose value references itself) — to
+      backfill a missing variable, anchor it to a token the target version actually emits, with
+      a literal fallback, never to itself.
+- [ ] Every referenced token verified to resolve at runtime for the target version (read the
+      computed value — do not trust that an edit "took").
+- [ ] Output matches the mockup / Odoo design system; fix the token **foundation**, not
+      per-component patches (right altitude).
 
 ## Instructions
 

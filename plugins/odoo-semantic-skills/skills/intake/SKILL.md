@@ -243,6 +243,17 @@ The **Discriminator** column resolves close ties.
 | 39 | "content brief to publish", "full content production", "content from brief to done", "multi-step content workflow", "brief → draft → review → publish" | `content-production` (workflow) | End-to-end content pipeline: brief → draft → review → publish (vs `odoo-content-draft` which is single-piece draft only, vs `odoo-campaign-plan` which plans the campaign, not produces the pieces) |
 | 40 | "do this as a wave", "parallelize these changes", "multi-WI PR with review and squash", "land N related changes safely without touching main", "git-wave orchestration", "split this work into parallel worktrees" | `wave` | Depth-0 git-wave orchestration: integration branch + parallel WI worktrees + cherry-pick + end-of-wave review + 1 PR + squash + human-confirm merge (vs `odoo-coder` which handles a SINGLE change with no git orchestration; vs `odoo-brl` which classifies/costs requirements but writes NO code) |
 
+## Full-stack tasks — route to BOTH, not either/or
+
+Some requests span backend **and** frontend: e.g. "add a `priority` field to sale order **and
+show it as a star widget on the form**", "thêm field rồi hiển thị bằng widget tùy biến", "new
+dashboard: a computed KPI on the model **plus** an OWL component to render it". `odoo-coder`
+owns the Python/XML; `odoo-frontend-coder` owns the JS/OWL/SCSS/QWeb. **Plan both** (backend
+first so the field/method exists, then frontend to render it) instead of silently picking one —
+a full-stack change is incomplete if the UI half is dropped. If the styling must match the Odoo
+theme, the frontend step follows the design-system fidelity contract. For ≥4 such work items or
+a git-orchestrated delivery, escalate to `wave`.
+
 ## Collision Test Cases — Worked Examples
 
 These are the known collision zones where two skill descriptions overlap. Use these as

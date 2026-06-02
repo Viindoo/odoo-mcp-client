@@ -6,7 +6,9 @@ description: >
   smoke tests, monitoring, rollback), marks each item READY / NEEDS WORK / NOT READY, and
   surfaces blockers before you push to prod. Use ANY time someone is about to deploy Odoo to
   staging or production. Pushy trigger: "deploy checklist", "go-live checklist", "before
-  pushing to prod", "ready to deploy this Odoo upgrade?", "deployment readiness". Trigger
+  pushing to prod", "ready to deploy this Odoo upgrade?", "deployment readiness". Also fires
+  on Vietnamese: "checklist trước khi lên prod", "sẵn sàng deploy chưa", "kiểm tra trước
+  go-live". Trigger
   even when the user says only "deploy" in the context of Odoo. DO NOT trigger for: ongoing
   code work not about to be deployed; debugging unrelated to a release; questions about what
   changed between versions (route to odoo-version-diff); requests to audit deprecated API
@@ -98,6 +100,11 @@ _Goal: confirm the deploy itself will be deterministic and repeatable._
 - [ ] CI pipeline green on the commit to be deployed
 - [ ] Deploy branch / tag pinned to a specific commit SHA (not a floating branch head)
 - [ ] Assets compiled and committed (`odoo-bin --addons-path ... --stop-after-init` verified)
+- [ ] CLI flags grounded for the TARGET version, not assumed — resolve via OSM `cli_help`
+      (`set_active_version` first); install/upgrade/reinstall classified per
+      ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md; tests invoked per
+      ODOO-TESTING.md. Odoo CLI/test flags differ across versions — never reuse one
+      version's command line for another.
 - [ ] Deploy script / runbook documented and rehearsed on staging
 - [ ] Feature flags in place if partial rollout is intended
 
