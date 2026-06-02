@@ -1,4 +1,4 @@
-.PHONY: validate test gen gen-check deps-check workflows-check help setup
+.PHONY: validate test gen gen-check deps-check workflows-check help setup bump-patch bump-minor bump-major
 
 VENV ?= .venv
 PYTHON ?= $(VENV)/bin/python
@@ -12,6 +12,9 @@ help:
 	@echo "make deps-check      - check skill ↔ tool dependencies (no broken/removed tool refs)"
 	@echo "make workflows-check - validate all workflows/*.workflow.yaml against the schema"
 	@echo "make setup           - create .venv (Python >= 3.12) and install requirements.txt"
+	@echo "make bump-patch      - bump VERSION + plugin.json + cut CHANGELOG (x.y.Z -> x.y.Z+1)"
+	@echo "make bump-minor      - bump minor (x.Y.z -> x.Y+1.0) for backward-compatible features"
+	@echo "make bump-major      - bump major (X.y.z -> X+1.0.0) for breaking changes"
 
 # Venv stamp: rebuilt whenever requirements.txt changes so new deps are always
 # installed (no stale-venv silent-skip). The build is atomic — on any failure
@@ -65,3 +68,14 @@ gen-check: gen
 # Dependency check: assert all skill ↔ tool refs are valid (live, not removed).
 deps-check: $(VENV_STAMP)
 	$(PYTHON) plugins/odoo-semantic-skills/generator/check_deps.py
+
+# Version bump + release cut. Keeps VERSION and the odoo-semantic-skills
+# plugin.json in lockstep (enforced by tests/test_version_consistency.py) and
+# stamps the CHANGELOG. Pick the level by impact: patch = fix/refactor/docs,
+# minor = backward-compatible feature, major = breaking change.
+bump-patch:
+	./scripts/bump-version.sh patch
+bump-minor:
+	./scripts/bump-version.sh minor
+bump-major:
+	./scripts/bump-version.sh major
