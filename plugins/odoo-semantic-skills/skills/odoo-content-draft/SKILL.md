@@ -7,6 +7,8 @@ description: >
   Trigger on: "draft a blog post", "write a LinkedIn post", "YouTube script for",
   "draft email sequence", "landing page copy", "social caption for".
   Trigger when user asks to CREATE any of these formats — even without the word "marketing".
+  Also fires on Vietnamese: "viết bài blog", "soạn bài LinkedIn", "kịch bản YouTube",
+  "chuỗi email", "nội dung landing page", "caption mạng xã hội".
   DO NOT trigger for: proposal/gap-analysis text (-> odoo-gap-analysis),
   objection-handling rebuttals (-> odoo-objection-handler),
   feature-highlight decks (-> odoo-feature-highlights),

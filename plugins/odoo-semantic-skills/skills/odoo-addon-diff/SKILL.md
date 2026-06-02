@@ -8,6 +8,8 @@ description: >
   Trigger on: "CE vs EE feature table", "edition comparison", "which modules are EE-only?",
   "is X a CE or EE feature?", "upsell argument for EE", "PLM / Studio / Maintenance — which
   edition?", "which edition is module X in?".
+  Also fires on Vietnamese: "so sánh CE và EE", "tính năng nào chỉ có ở Enterprise",
+  "module X thuộc bản nào", "cần bản Community hay Enterprise".
   Trigger even when the user names a specific feature/module and asks "what edition do I need?".
   When the user asks about ONE feature's availability (not a comparison), route to
   odoo-feature-check. When they want marketing copy for the Enterprise features themselves,

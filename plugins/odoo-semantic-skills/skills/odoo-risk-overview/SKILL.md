@@ -8,6 +8,7 @@ description: >
   executive asks about Odoo system health, upgrade readiness, or "how risky is it to change
   X?". Pushy trigger: "give me a risk overview", "what's the upgrade risk", "is it safe to
   upgrade", "blast radius if we deprecate field X", "technical debt — give me numbers".
+  Also fires on Vietnamese: "rủi ro nâng cấp", "nâng cấp có an toàn không".
   Trigger especially on a deadline or decision context ("board meeting", "before we commit
   budget", "RFP due"). When the user wants a per-line technical audit of deprecated APIs (not
   an executive summary), route to odoo-deprecation-audit. When they want module-by-module

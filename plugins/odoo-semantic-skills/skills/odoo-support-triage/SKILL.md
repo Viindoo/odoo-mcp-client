@@ -10,6 +10,8 @@ description: >
   tracked files. Trigger on: "support ticket", "customer issue", "bug report",
   "user complaint", "triage this ticket", "classify this issue", "draft response to
   customer complaint", "escalate this issue", "config issue reported by customer".
+  Also fires on Vietnamese: "ticket hỗ trợ", "phân loại sự cố", "soạn phản hồi khiếu nại
+  khách hàng", "escalate vấn đề".
   Do NOT trigger for: pre-release test authoring
   (use odoo-qa-suite); a live render/UI bug with no customer-facing triage output
   (use odoo-ui-debug)

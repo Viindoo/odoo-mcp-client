@@ -8,7 +8,9 @@ description: >
   "gap". Fire when the conversation contains a list of customer requirements + any hint of
   "what does Odoo do natively?" / "what needs to be built?" / "how many days?" / "what
   should we charge?" — catch phrases like "is this standard Odoo or do we need to build it?",
-  "list of features → effort matrix", "RFP mentions 23 requirements — classify them". When
+  "list of features → effort matrix", "RFP mentions 23 requirements — classify them".
+  Also fires on Vietnamese: "phân tích gap", "cái này Odoo có sẵn hay phải build thêm",
+  "ước lượng bao nhiêu ngày công", "ma trận effort cho báo giá". When
   the user asks about ONE specific feature route to odoo-feature-check instead. When they
   want highlights for marketing copy route to odoo-feature-highlights
 ---

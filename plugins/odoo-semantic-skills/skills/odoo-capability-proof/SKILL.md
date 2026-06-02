@@ -9,7 +9,8 @@ description: >
   requirement Y", "customer asks does Odoo support X — I need to show the code", "client
   doesn't believe Odoo handles Z — build the evidence", "RFP response — back up every yes
   with module + code". Trigger especially on deadline signals ("for the demo", "before
-  Friday", "in the RFP") — user needs real artifacts fast. When the user only wants a yes/no
+  Friday", "in the RFP") — user needs real artifacts fast. Also fires on Vietnamese:
+  "chứng minh Odoo làm được X cho khách". When the user only wants a yes/no
   answer on availability (no proof package needed), route to odoo-feature-check. When they're
   scoping MANY requirements at once for a quote, route to odoo-gap-analysis
 ---

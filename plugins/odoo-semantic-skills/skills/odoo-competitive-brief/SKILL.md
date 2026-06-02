@@ -7,6 +7,8 @@ description: >
   strategic intent: "competitor brief on", "analyze competitor X",
   "competitive landscape analysis", "competitive update for board",
   "threat assessment for", "competitive intelligence update".
+  Also fires on Vietnamese: "phân tích đối thủ X", "brief cạnh tranh cho ban lãnh đạo",
+  "đánh giá mối đe doạ cạnh tranh".
   DO NOT trigger for: (a) sales talking-point objections ("they say Odoo can't do X") →
   odoo-objection-handler; (b) feature comparison drill-down between Odoo versions →
   odoo-version-diff; (c) detailed add-on diff → odoo-addon-diff; (d) marketing copy or

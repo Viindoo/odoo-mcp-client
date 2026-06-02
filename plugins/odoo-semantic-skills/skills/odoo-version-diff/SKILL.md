@@ -6,7 +6,9 @@ description: >
   marketer track (business-language highlights). Serves BOTH developer and marketer
   questions. Resolve the target version from context; if unstated, confirm it. Use ANY time
   someone compares two Odoo versions: "what changed between these versions", "what's new in
-  Odoo N", "what was removed", era-boundary probes ("when did OWL become default"). When the
+  Odoo N", "what was removed", era-boundary probes ("when did OWL become default").
+  Also fires on Vietnamese: "khác nhau giữa hai phiên bản", "có gì mới ở Odoo N", "cái gì bị
+  bỏ đi", "khi nào OWL thành mặc định". When the
   user asks to audit THEIR code for deprecation (not just see the version-to-version delta),
   route to odoo-deprecation-audit. When they want marketing-only highlights, route to
   odoo-feature-highlights. When they want to migrate one specific model field-by-field,
