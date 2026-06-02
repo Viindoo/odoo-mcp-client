@@ -37,9 +37,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   and `setup` now names `the odoo-semantic-mcp server` explicitly. Runtime
   identifiers (the MCP server id `odoo-semantic`, the `mcp__odoo-semantic__*`
   tool prefix, the brand `Odoo Semantic`, and the product URL) are unchanged.
+- Compacted every specialist skill `description` under the 1024-character per-entry
+  cap (28 skills; ~40,071 → ~27,051 chars, −32%). This eliminates skill-listing
+  truncation — previously 28 descriptions exceeded the cap, forcing Claude to drop
+  descriptions and degrade triggering. All `route to …` / `DO NOT trigger → …`
+  disambiguation clauses, bilingual (EN+VN) triggers, version-resolution, and
+  OSM-grounding signals are preserved; skill bodies, generated `## MCP tools` blocks,
+  and output contracts are untouched. Validated against an isolated real-skill
+  triggering eval (NEW vs OLD descriptions, flat aggregate). `intake` collision-zone
+  guidance re-synced (`description matches` → `handles`).
 
 #### Added
 
+- `tests/test_skill_description_budget.py` (every skill description ≤ 1024 chars) and
+  `tests/test_intake_quote_sync.py` (every skill/workflow the `intake` router names must
+  exist) guardrails, locking in the description compaction above.
 - `tests/test_naming_consistency.py` guardrail: fails if a bare `odoo-semantic`
   token reappears in the skill / command / trigger-phrase surface, allowlisting
   the server id, tool prefix, suffixed plugin names, and product URL.
