@@ -268,33 +268,32 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
 **TOOLS (generated — v0.11.1):**
 
 **model_inspect** ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
-  REQUIRED: model, method
-  OPTIONAL: odoo_version, profile_name, field, method_name, start_index, limit, from_module, kind, view_type
+  REQUIRED: model, method, odoo_version
+  OPTIONAL: profile_name, field, method_name, start_index, limit, from_module, kind, view_type
   WHEN: inspect model
 
 **module_inspect** ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
-  REQUIRED: name, method
-  OPTIONAL: odoo_version, profile_name, start_index, limit, view_type, bound_model, era, target
+  REQUIRED: name, method, odoo_version
+  OPTIONAL: profile_name, start_index, limit, view_type, bound_model, era, target
   WHEN: inspect module
 
 **entity_lookup** ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
-  REQUIRED: kind
-  OPTIONAL: odoo_version, profile_name, model, field, method_name, xmlid, name, from_module
+  REQUIRED: kind, odoo_version
+  OPTIONAL: profile_name, model, field, method_name, xmlid, name, from_module
   WHEN: lookup field
 
 **find_examples** — Semantic code search returning real indexed code snippets from the Odoo codebase.
-  REQUIRED: query
-  OPTIONAL: odoo_version, limit, context_module, chunk_types, profile_name
+  REQUIRED: query, odoo_version
+  OPTIONAL: limit, context_module, chunk_types, profile_name
   WHEN: show me examples
 
 **impact_analysis** — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
-  REQUIRED: entity_type, entity_name
-  OPTIONAL: odoo_version, profile_name
+  REQUIRED: entity_type, entity_name, odoo_version
+  OPTIONAL: profile_name
   WHEN: what breaks if I change
 
 **lookup_core_api** — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-  REQUIRED: name
-  OPTIONAL: odoo_version
+  REQUIRED: name, odoo_version
   WHEN: is API deprecated
 
 **api_version_diff** — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
@@ -302,35 +301,38 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
   WHEN: what changed between versions
 
 **find_deprecated_usage** — Scan the indexed codebase for usages of deprecated API patterns.
-  OPTIONAL: odoo_version, kind, profile_name
+  REQUIRED: odoo_version
+  OPTIONAL: kind, profile_name
   WHEN: deprecated API in code
 
 **lint_check** — Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.9.1+).
-  OPTIONAL: code, odoo_version, language
+  REQUIRED: odoo_version
+  OPTIONAL: code, language
   WHEN: lint check
 
 **cli_help** — Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags.
-  OPTIONAL: command, flag, odoo_version
+  REQUIRED: odoo_version
+  OPTIONAL: command, flag
   WHEN: odoo-bin options
 
 **suggest_pattern** — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
-  REQUIRED: intent
-  OPTIONAL: odoo_version, language, limit
+  REQUIRED: intent, odoo_version
+  OPTIONAL: language, limit
   WHEN: best pattern for
 
 **check_module_exists** — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
-  REQUIRED: name
-  OPTIONAL: odoo_version, profile_name
+  REQUIRED: name, odoo_version
+  OPTIONAL: profile_name
   WHEN: does module exist
 
 **find_override_point** — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
-  REQUIRED: model, method
-  OPTIONAL: odoo_version, to_version
+  REQUIRED: model, method, odoo_version
+  OPTIONAL: to_version
   WHEN: where to override
 
 **describe_module** — Module manifest + defined/extended model counts + view/JS inventory in one call.
-  REQUIRED: name
-  OPTIONAL: odoo_version, profile_name
+  REQUIRED: name, odoo_version
+  OPTIONAL: profile_name
   WHEN: what does module do
 
 **set_active_version** ☆ — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
@@ -348,33 +350,32 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
   WHEN: what profiles exist
 
 **resolve_stylesheet** ✦ — Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain.
-  REQUIRED: module
-  OPTIONAL: odoo_version
+  REQUIRED: module, odoo_version
   WHEN: stylesheets in module
 
 **find_style_override** ✦ — Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules.
-  REQUIRED: selector_or_variable
-  OPTIONAL: odoo_version, limit
+  REQUIRED: selector_or_variable, odoo_version
+  OPTIONAL: limit
   WHEN: where is CSS selector defined
 
 **resolve_orm_chain** ⊕ — Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
-  REQUIRED: model, dotted_path
-  OPTIONAL: odoo_version, profile_name
+  REQUIRED: model, dotted_path, odoo_version
+  OPTIONAL: profile_name
   WHEN: trace field path
 
 **validate_domain** ⊕ — Validate search domain terms: field-path resolution and operator version-awareness.
-  REQUIRED: model, domain
-  OPTIONAL: odoo_version, profile_name
+  REQUIRED: model, domain, odoo_version
+  OPTIONAL: profile_name
   WHEN: is this domain valid
 
 **validate_depends** ⊕ — Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.
-  REQUIRED: model, method
-  OPTIONAL: odoo_version, profile_name
+  REQUIRED: model, method, odoo_version
+  OPTIONAL: profile_name
   WHEN: validate compute depends
 
 **validate_relation** ⊕ — Assert a relational field points at the expected comodel (many2one/one2many/many2many).
-  REQUIRED: model, field, target_model
-  OPTIONAL: odoo_version, profile_name
+  REQUIRED: model, field, target_model, odoo_version
+  OPTIONAL: profile_name
   WHEN: does field point to model
 
 **MCP RESOURCES (generated):**

@@ -4,10 +4,15 @@ Covers safety-critical behavior of the marker-based file injection helpers:
 - Orphan BEGIN marker (no matching END) must hard-fail, not silently corrupt
   by inserting a second BEGIN/END pair (which would shift subsequent gens to
   replace the wrong window).
+
+Also covers server-surface.json invariants:
+- 19 tools must declare odoo_version as REQUIRED (mirror of server ADR-0029 amend)
+- 4 session/version-diff tools must NOT have odoo_version in required_params
 """
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -25,6 +30,80 @@ from generator.gen_surface import (  # noqa: E402
     inject_markers_into_file,
     inject_markers_into_snippet,
 )
+
+
+# ---------------------------------------------------------------------------
+# server-surface.json odoo_version invariants (mirrors server ADR-0029 amend)
+# ---------------------------------------------------------------------------
+
+SURFACE_FILE = SKILLS_PLUGIN / "generator" / "server-surface.json"
+
+# Tools that MUST have odoo_version in required_params
+TOOLS_REQUIRE_VERSION = {
+    "find_examples",
+    "impact_analysis",
+    "lookup_core_api",
+    "find_deprecated_usage",
+    "lint_check",
+    "cli_help",
+    "suggest_pattern",
+    "check_module_exists",
+    "find_override_point",
+    "describe_module",
+    "model_inspect",
+    "module_inspect",
+    "entity_lookup",
+    "resolve_stylesheet",
+    "find_style_override",
+    "resolve_orm_chain",
+    "validate_domain",
+    "validate_depends",
+    "validate_relation",
+}
+
+# Tools that must NOT have odoo_version in required_params
+# (set_active_version already requires it as its payload — intentional; not in this set)
+TOOLS_KEEP_VERSION_OPTIONAL = {
+    "list_available_versions",
+    "list_available_profiles",
+    "set_active_profile",
+    "api_version_diff",
+}
+
+
+@pytest.fixture(scope="module")
+def surface_tools() -> dict[str, dict]:
+    """Load server-surface.json and return a name→tool dict."""
+    with open(SURFACE_FILE, encoding="utf-8") as fh:
+        data = json.load(fh)
+    return {t["name"]: t for t in data["tools"]}
+
+
+def test_required_version_tools_have_odoo_version_in_required(surface_tools):
+    """19 tools must list odoo_version in required_params (not optional)."""
+    failures = []
+    for name in sorted(TOOLS_REQUIRE_VERSION):
+        tool = surface_tools.get(name)
+        assert tool is not None, f"Tool '{name}' not found in server-surface.json"
+        req = tool.get("required_params", [])
+        opt = tool.get("optional_params", [])
+        if "odoo_version" not in req:
+            failures.append(f"{name}: odoo_version missing from required_params (required={req})")
+        if "odoo_version" in opt:
+            failures.append(f"{name}: odoo_version still in optional_params")
+    assert not failures, "odoo_version invariant failures:\n" + "\n".join(failures)
+
+
+def test_exempt_tools_do_not_have_odoo_version_in_required(surface_tools):
+    """4 exempt tools must NOT have odoo_version in required_params."""
+    failures = []
+    for name in sorted(TOOLS_KEEP_VERSION_OPTIONAL):
+        tool = surface_tools.get(name)
+        assert tool is not None, f"Tool '{name}' not found in server-surface.json"
+        req = tool.get("required_params", [])
+        if "odoo_version" in req:
+            failures.append(f"{name}: odoo_version must NOT be in required_params")
+    assert not failures, "exempt-tool invariant failures:\n" + "\n".join(failures)
 
 
 def test_orphan_begin_marker_raises_in_inject_markers_into_file(tmp_path):
