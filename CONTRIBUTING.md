@@ -152,6 +152,14 @@ mcp plugin's version only when its own contents change. `pin-sha.yml` updates `s
 for both plugins on every qualifying push; each marketplace entry's `source.version`
 tracks its respective `plugin.json.version`.
 
+**Bumping.** Run `make bump-patch` / `make bump-minor` / `make bump-major` (or
+`scripts/bump-version.sh <level>`). It updates `VERSION`, the `odoo-semantic-skills`
+`plugin.json.version`, and cuts the `## [Unreleased]` CHANGELOG block to `## [x.y.z] - DATE`
+in one step — so the version and changelog never drift apart. Pick the level by impact:
+**patch** = fixes / internal refactors / docs, **minor** = backward-compatible features,
+**major** = breaking changes. `tests/test_version_consistency.py` fails CI if `VERSION` and
+the skills `plugin.json.version` ever diverge, or if `VERSION` is not valid `MAJOR.MINOR.PATCH`.
+
 ### Rollback runbook
 
 If a release breaks installs after the marketplace PR merges:
