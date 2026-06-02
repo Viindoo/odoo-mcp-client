@@ -59,7 +59,10 @@ assert n == 1, f"expected exactly one top-level version in {path}, replaced {n}"
 open(path, "w", encoding="utf-8").write(s2)
 PY
 
-# 3) CHANGELOG: cut [Unreleased] -> [new] - date, leave a fresh empty [Unreleased]
+# 3) regenerate version-derived artifacts (gemini-extension.json embeds the version)
+python3 "$root/plugins/odoo-semantic-skills/generator/gen_mcp_manifests.py" >/dev/null
+
+# 4) CHANGELOG: cut [Unreleased] -> [new] - date, leave a fresh empty [Unreleased]
 python3 - "$changelog" "$new" "$date_str" <<'PY'
 import sys
 path, new, date = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -71,5 +74,5 @@ open(path, "w", encoding="utf-8").write(s.replace(needle, replacement, 1))
 PY
 
 echo "bumped $cur -> $new"
-echo "  VERSION, odoo-semantic-skills/plugin.json, CHANGELOG cut to [$new] - $date_str"
+echo "  VERSION, odoo-semantic-skills/plugin.json, generated manifests, CHANGELOG cut to [$new] - $date_str"
 echo "Next: review 'git diff', then commit. odoo-semantic-mcp version is independent (untouched)."
