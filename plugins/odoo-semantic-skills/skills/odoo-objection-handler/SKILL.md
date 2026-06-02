@@ -6,9 +6,9 @@ description: >
   than marketing claims. Output includes a ready-to-paste verbatim response paragraph. Use
   this skill ANY time a sales engineer, account executive, or pre-sales consultant needs to
   push back on a doubt or competitive claim about Odoo. Fire on "handle the objection that
-  Odoo can't do X", "respond to 'Odoo doesn't support Z'", "client says Odoo can't do it",
-  "competitor said SAP/Microsoft does X better", "RFP scoring tool gave Odoo low on X —
-  defend", "competitor pitch said Odoo can't scale — fact-check". Trigger especially on
+  Odoo can't do X", "respond to 'Odoo doesn't support Z'", "competitor said SAP/Microsoft
+  does X better", "RFP scoring tool gave Odoo low on X — defend". Also fires on Vietnamese:
+  "xử lý phản đối của khách về Odoo", "khách nói Odoo không làm được X". Trigger especially on
   URGENCY signals ("for the meeting today", "client is on the call", "RFP due tomorrow").
   When the objection requires proof artifacts (code + modules + demo steps), route to
   odoo-capability-proof. When user simply wants to know if a feature exists (not defend it),
