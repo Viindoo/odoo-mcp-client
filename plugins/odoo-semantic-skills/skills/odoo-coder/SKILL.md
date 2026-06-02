@@ -2,18 +2,15 @@
 name: odoo-coder
 description: >
   Write complete, production-ready Python/XML Odoo backend code — from a single computed
-  field up to a full new module. Use this skill ANY time someone asks for backend changes to
-  an Odoo addon, even if they only describe the business outcome or never mention "code",
-  "field", "model", or "Python". Pushy trigger: if the request involves changing what an
-  Odoo record stores, how it computes a value, what it validates, who can read or write it,
-  how it appears on a form, or how it migrates between versions — this skill should fire.
-  Realistic phrases this should catch include "add a stored field x to sale order line",
-  "override create method on res.partner so it sets default ref", "create a server action
-  that…", "add a new model and link it to sale.order via many2many", "I want the delivery
-  date to default to today + 3 working days", "implement a domain filter that…", plus
+  field up to a full new module. Dispatches to the odoo-coder agent for multi-round MCP
+  enrichment. Use this skill ANY time someone asks for backend changes to an Odoo addon,
+  even if they only describe the business outcome. Fire when the request involves changing
+  what an Odoo record stores, how it computes a value, what it validates, who can read or
+  write it, how it appears on a form, or how it migrates between versions — including
   business-rule descriptions with NO technical vocabulary at all (e.g. "discount can never
-  exceed 20% of unit price"). When the user is asking how to LOOK UP existing code rather
-  than write new code, route to odoo-feature-check or odoo-override-finder instead
+  exceed 20% of unit price" or "add a field to sale order line"). When the user is asking
+  how to LOOK UP existing code rather than write new code, route to odoo-feature-check or
+  odoo-override-finder instead
 disallowed-tools: Write Edit
 ---
 

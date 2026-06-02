@@ -1,17 +1,13 @@
 ---
 name: odoo-addon-diff
 description: >
-  Produce a side-by-side comparison of Odoo Community (CE) vs Odoo Enterprise (EE) vs
-  custom distributions for a specific business domain — with a feature table, business-value
-  notes for EE-only highlights, and a tailored upgrade recommendation ready to paste into a
-  proposal. Use this skill ANY time the conversation touches edition differences, even in
-  passing. Pushy trigger: fire on "what modules are in Enterprise edition?", "CE vs EE
-  feature table", "compare Community and Enterprise for a client", "edition comparison",
-  "what features need EE?", "which modules are EE-only?", "is X a CE or EE feature?",
-  "what's the difference between CE and EE?", "what extra do you get with EE?",
-  "for a manufacturing client — what would EE add?", "before quoting license fee, what extra
-  do they get?", "what's EE-only that's not in Community edition?", "client on CE — what's
-  the upsell argument for EE?", "PLM, Maintenance Advanced, Studio — which edition?".
+  Produce a CE vs EE vs custom-distribution comparison for a business domain — feature table,
+  EE-only business-value notes, and an upgrade recommendation ready for a proposal.
+  Version-aware: uses MCP check_module_exists/model_inspect; confirm version when unspecified.
+  Trigger when edition differences come up, even in passing.
+  Trigger on: "CE vs EE feature table", "edition comparison", "which modules are EE-only?",
+  "is X a CE or EE feature?", "upsell argument for EE", "PLM / Studio / Maintenance — which
+  edition?", "which edition is module X in?".
   Trigger even when the user names a specific feature/module and asks "what edition do I need?".
   When the user asks about ONE feature's availability (not a comparison), route to
   odoo-feature-check. When they want marketing copy for the Enterprise features themselves,

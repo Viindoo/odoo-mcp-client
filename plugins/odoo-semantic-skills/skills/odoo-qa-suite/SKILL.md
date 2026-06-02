@@ -1,18 +1,16 @@
 ---
 name: odoo-qa-suite
 description: >
-  Orchestrate a full QA cycle for an Odoo feature or module: generate structured test
-  cases from a feature description, produce a pre-deploy QA checklist, and triage any
-  open bugs with severity classification, reproduction steps, and suspected module.
-  Delegates each phase via NL-dispatch to leaf skills (odoo-deploy-checklist for
-  checklist; odoo-ui-debug for runtime triage) and handles test-case generation and
-  bug-triage inline. Trigger on: "write test cases for this feature", "QA checklist
-  before release", "triage this bug", "what tests should I write for this module",
-  "QA pipeline for this change", "generate test cases and checklist", "full QA suite",
-  "bug triage with severity and repro steps", "acceptance tests for this Odoo module",
-  "test plan for this release". Do NOT trigger for: pure code review (route to
-  odoo-code-reviewer); UI rendering defects that need live browser inspection without
-  a triage output (route to odoo-ui-debug directly); pre-deploy mechanical safety gate
+  Orchestrate a full QA cycle for an Odoo feature or module in one pass: generate
+  structured test cases from a feature description, produce a pre-deploy QA checklist,
+  and triage open bugs with severity, repro steps, and suspected module. Delegates
+  phases via NL-dispatch (odoo-deploy-checklist for checklist; odoo-ui-debug for
+  runtime triage), handles test-gen and bug-triage inline. Trigger on: "write test
+  cases for this feature", "QA checklist before release", "triage this bug", "QA
+  pipeline for this change", "full QA suite", "test plan for this release",
+  "acceptance tests for this module". Do NOT trigger for: pure code review (route to
+  odoo-code-reviewer); a UI rendering defect needing live browser inspection with no
+  triage output (route to odoo-ui-debug directly); pre-deploy mechanical safety gate
   alone (route to odoo-deploy-checklist directly)
 disallowed-tools: Write Edit
 ---

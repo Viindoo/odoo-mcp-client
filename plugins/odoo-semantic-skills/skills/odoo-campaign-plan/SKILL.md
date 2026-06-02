@@ -1,24 +1,17 @@
 ---
 name: odoo-campaign-plan
 description: >
-  Plan a multi-week, multi-channel marketing campaign for an Odoo vertical or
-  geography push. Given target vertical or geo, campaign objective, timeline, budget
-  category (S/M/L), and available channels, produce a complete campaign blueprint:
-  week-by-week timeline, channel mix matrix, content asset inventory, KPI definitions,
-  and an owner map that distinguishes AI-doable tasks from human-required tasks.
-  This skill ORCHESTRATES campaigns; it does NOT draft individual content pieces.
-  Trigger on: "plan a campaign for", "campaign brief",
-  "multi-channel plan for vertical X", "Q3 marketing push plan",
-  "build a campaign blueprint", "marketing push plan for",
-  "campaign roadmap for", "4-week campaign plan",
-  "8-week campaign for", "go-to-market blueprint",
-  "plan campaign Q3 for manufacturing", "campaign brief for vertical X".
-  DO NOT trigger for: drafting an individual piece of content (→ odoo-content-draft),
+  Plan a multi-week, multi-channel marketing campaign for an Odoo vertical or geography push
+  — blueprint with timeline, channel mix matrix, asset inventory, KPIs, and owner map
+  (AI-doable vs human-required). ORCHESTRATES campaigns; does NOT draft individual content.
+  Trigger on: "plan a campaign for", "campaign brief", "multi-channel plan for vertical X",
+  "build a campaign blueprint", "marketing push plan for", "campaign roadmap for",
+  "go-to-market blueprint".
+  DO NOT trigger for: individual content draft (→ odoo-content-draft),
   competitive positioning analysis (→ odoo-competitive-brief),
   feature-highlight slides for a sales deck (→ odoo-feature-highlights),
   capability proof for a prospect (→ odoo-capability-proof).
-  This skill is STANDALONE-FIRST: works without MCP. OSM tools optional for
-  feature-claim verification only
+  STANDALONE-FIRST: works without MCP; OSM optional for feature-claim verification only
 ---
 
 ## Persona

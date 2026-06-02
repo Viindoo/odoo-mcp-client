@@ -2,21 +2,18 @@
 name: odoo-deal-followup
 description: >
   Analyze deal health for Odoo or a custom distribution and generate next actions for a Sales
-  AE or small-team founder running go-to-market solo. Accepts deal context (customer label,
-  last contact date, pipeline stage, prior commitments) plus an optional email or note thread,
-  then produces: (a) a risk score (red/yellow/green), (b) a next-best action recommendation,
-  (c) a draft follow-up email in English (default) or the language matching the thread.
-  Optionally tags the reason a deal is blocked or at-risk when signals are present.
-  Trigger on: "deal stalled", "customer hasn't replied", "follow up on deal", "draft follow-up
-  email", "what should I do with this stale opportunity", "follow up with customer X",
-  "need to re-engage", "deal gone quiet", "customer missed the deadline", "should I call or
-  email this prospect", "promised to send a quote and heard nothing", "deal silent for weeks",
-  "time signal" ("it's been 3 weeks", "2 months no contact", "deadline this month"),
-  "ambiguous status" ("not sure what the customer is thinking", "afraid to reach out").
-  DO NOT trigger for: (1) Discovery/demo session summary -> use odoo-discovery-summarize.
-  (2) Responding to technical objections from the customer -> use odoo-objection-handler.
-  (3) Verifying or proving Odoo features -> use odoo-capability-proof or odoo-feature-check.
-  (4) Gap analysis or scope estimation -> use odoo-gap-analysis
+  AE or small-team founder running go-to-market solo. Accepts deal context (label, last
+  contact, stage, prior commitments) + an optional email/note thread; produces (a) a risk
+  score (red/yellow/green), (b) a next-best action, (c) a draft follow-up email in English or
+  the thread's language.
+  Trigger on: "deal stalled", "customer hasn't replied", "follow up on deal", "draft
+  follow-up email", "need to re-engage", "deal gone quiet", time signals ("it's been 3
+  weeks", "deadline this month"), ambiguous-status signals ("not sure what the customer is
+  thinking", "afraid to reach out"). DO NOT trigger for: (1) Discovery/demo session summary
+  -> use odoo-discovery-summarize. (2) Responding to technical objections -> use
+  odoo-objection-handler. (3) Verifying or proving Odoo features -> use
+  odoo-capability-proof or odoo-feature-check. (4) Gap analysis or scope estimation -> use
+  odoo-gap-analysis
 ---
 
 ## Persona

@@ -1,17 +1,18 @@
 ---
 name: odoo-support-triage
 description: >
-  Parse an Odoo support ticket and produce a structured triage: (1) classify the ticket as
-  config / bug / feature-request / training, (2) generate a root-cause hint using runtime
-  symptoms or feature-gap evidence, (3) draft a resolution note or escalation memo ready to
-  send to the customer. NL-dispatches to odoo-ui-debug for runtime bug symptoms, to
+  Parse an Odoo support ticket and produce a structured triage: (1) classify it as
+  config / bug / feature-request / training, (2) generate a root-cause hint from runtime
+  symptoms or feature-gap evidence, (3) draft a resolution note or escalation memo ready
+  to send to the customer. NL-dispatches to odoo-ui-debug for runtime bug symptoms, to
   odoo-feature-check for feature-gap questions, and borrows odoo-deal-followup tone for
-  customer-facing reply drafts. Outputs land in .odoo-ai/support/ (gitignored) - never in
-  tracked files. Trigger on: "support ticket", "customer issue", "bug report", "help request",
-  "user complaint", "Odoo not working", "client reports error", "triage this ticket",
-  "classify this issue", "draft response to customer complaint", "customer says X is broken",
-  "escalate this issue", "root cause for this bug", "resolution draft for support case",
-  "customer training gap", "user doesn't know how to", "config issue reported by customer"
+  customer-facing replies. Outputs land in .odoo-ai/support/ (gitignored), never in
+  tracked files. Trigger on: "support ticket", "customer issue", "bug report",
+  "user complaint", "triage this ticket", "classify this issue", "draft response to
+  customer complaint", "escalate this issue", "config issue reported by customer".
+  Do NOT trigger for: pre-release test authoring
+  (use odoo-qa-suite); a live render/UI bug with no customer-facing triage output
+  (use odoo-ui-debug)
 ---
 
 ## Persona

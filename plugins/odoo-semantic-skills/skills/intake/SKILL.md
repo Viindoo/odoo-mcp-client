@@ -4,15 +4,14 @@ description: |
   Universal front door for ALL work across 9 personas (CEO/strategist, consultant,
   sales AE, pre-sales, marketer, developer, QA, customer-success) — brainstorms WHEN intent
   is vague or open-ended, fast-paths WHEN intent is already clear, and always proposes a plan
-  + gate before any execution skill fires.
+  + gate before execution.
 
   Trigger AGGRESSIVELY on any of: open-ended "what can Odoo / you help me with", "I have an
-  idea but not sure where to start", "help me think through X", "where do I begin", a short
-  Odoo/ERP prompt with no concrete verb, any business outcome stated without a named skill
-  ("I need to win this deal", "make our v17 upgrade safe", "I have 1200 requirements to scope"),
-  "not sure which skill", "advise on Odoo", "help with our ERP", implicit ambiguity where prompt
-  is short (<10 words) AND mentions Odoo AND has no specific intent keyword, OR multiple intent
-  fragments that could plausibly map to >=2 specialist skills.
+  idea but not sure where to start", a short Odoo/ERP prompt with no concrete verb, any
+  business outcome stated without a named skill ("I need to win this deal", "make our v17
+  upgrade safe", "I have 1200 requirements to scope"), "not sure which skill", implicit
+  ambiguity (short <10-word Odoo prompt with no intent keyword, OR fragments that map to
+  >=2 specialist skills).
 
   DO NOT trigger when: the user types an explicit /slash command; intent matches exactly ONE
   specialist clearly AND is single-step (let that skill fire directly); user is already
@@ -253,9 +252,9 @@ the canonical resolution logic.
 
 **Prompt**: "write a response to the customer saying Odoo doesn't support multi-level approval"
 
-- `odoo-objection-handler`: description matches "respond to objection", "customer says Odoo
+- `odoo-objection-handler`: handles "respond to objection", "customer says Odoo
   can't" -> produces a verbatim ACA-framework response paragraph.
-- `odoo-capability-proof`: description matches "Odoo doesn't support X" -> produces a
+- `odoo-capability-proof`: handles "Odoo doesn't support X" -> produces a
   technical evidence package (modules + code snippets + demo steps).
 
 **Discriminator**: the verb "write a response" signals the user wants a customer-facing
@@ -268,9 +267,9 @@ would be `odoo-capability-proof`.
 
 **Prompt**: "summarize the key highlights in Odoo 18 for an internal slide next week"
 
-- `odoo-version-diff`: description matches "new features in Odoo X" -> produces dev-track
+- `odoo-version-diff`: handles "new features in Odoo X" -> produces dev-track
   diff + marketer-track summary.
-- `odoo-feature-highlights`: description matches "feature highlights", "slide", "for the
+- `odoo-feature-highlights`: handles "feature highlights", "slide", "for the
   newsletter" -> produces business-language highlights with optional dev appendix.
 
 **Discriminator**: "internal slide" + "summarize" signal marketing/non-developer output.
@@ -283,9 +282,9 @@ would be `odoo-version-diff`.
 
 **Prompt**: "customer is asking what's different between v16 and v17"
 
-- `odoo-deprecation-audit`: description matches "what will break", "audit before upgrade" ->
+- `odoo-deprecation-audit`: handles "what will break", "audit before upgrade" ->
   scans the user's codebase for deprecated API usage.
-- `odoo-version-diff`: description matches "what changed between v16 and v17", "diff v16 v17"
+- `odoo-version-diff`: handles "what changed between two versions", "version-to-version diff"
   -> pure API/feature diff without scanning user code.
 
 **Discriminator**: "customer is asking" + no mention of "our code" or "audit" signals the user
@@ -298,9 +297,9 @@ If the user had said "audit the customer's codebase before upgrading to v17" -> 
 
 **Prompt**: "customer hasn't replied in a while, need to write a follow-up"
 
-- `odoo-deal-followup`: description matches "customer hasn't replied", "draft follow-up email"
+- `odoo-deal-followup`: handles "customer hasn't replied", "draft follow-up email"
   -> sales AE re-engagement email (cold/warm/engagement).
-- `odoo-objection-handler`: description matches "write a response", "respond to objection" ->
+- `odoo-objection-handler`: handles "write a response", "respond to objection" ->
   counter-response to a stated objection.
 
 **Discriminator**: "hasn't replied" (silence) + "follow-up" signal the user wants a
@@ -313,7 +312,7 @@ that would be `odoo-objection-handler`.
 
 **Prompt**: "synthesize these discovery notes for the Acme deal"
 
-- `odoo-discovery-summarize` (SKILL, row 16): description matches "synthesize discovery
+- `odoo-discovery-summarize` (SKILL, row 16): handles "synthesize discovery
   notes", "extract customer profile" -> produces structured profile.
 - `/odoo-discovery-quick` (COMMAND, row 25): same purpose but is the slash-command wrapper.
 
@@ -328,9 +327,9 @@ for the save step.
 
 **Prompt**: "I need a demo of multi-currency invoicing for the prospect this Friday"
 
-- `odoo-capability-proof`: description matches "demo material", "for the demo, give me proof"
+- `odoo-capability-proof`: handles "demo material", "for the demo, give me proof"
   -> produces a TEXT evidence package (module names + code snippets + written demo steps).
-- `odoo-demo-recorder`: description matches "record a demo", "make a video walkthrough"
+- `odoo-demo-recorder`: handles "record a demo", "make a video walkthrough"
   -> drives the live instance and produces a REAL MP4/GIF screencast.
 
 **Discriminator**: "demo" alone is ambiguous. If the deliverable is written proof / RFP
@@ -357,9 +356,9 @@ recorded video of the flow?"
 
 **Prompt**: "my OWL widget isn't showing up in the Odoo 17 form"
 
-- `odoo-frontend-coder`: description matches "field widget customization Odoo 17", "patch
+- `odoo-frontend-coder`: handles "field widget customization Odoo 17", "patch
   component" -> WRITES new/changed frontend JS source.
-- `odoo-ui-debug`: description matches "widget không hiện", "OWL component not rendering" ->
+- `odoo-ui-debug`: handles "widget không hiện", "OWL component not rendering" ->
   investigates the live runtime to find the ROOT CAUSE of the missing render.
 
 **Discriminator**: a symptom + "why / not showing / isn't working" signals the user needs the
@@ -372,12 +371,12 @@ from scratch ("create a color picker widget"), there is no runtime to debug ->
 
 **Prompt**: "I have 5 changes to make across 3 files — parallelize them and land as a single reviewed PR"
 
-- `wave`: description matches "parallelize these changes", "multi-WI PR with review + squash" ->
+- `wave`: handles "parallelize these changes", "multi-WI PR with review + squash" ->
   git-wave depth-0 orchestrator: creates an integration branch, dispatches parallel WI subagents,
   cherry-picks, runs end-of-wave review, creates 1 PR, squashes, and waits for human-confirm merge.
-- `odoo-brl`: description matches "classify changes", "requirements" -> classifies and costs a
+- `odoo-brl`: handles "classify changes", "requirements" -> classifies and costs a
   list of BUSINESS REQUIREMENTS — produces an RTM/cost/DAG but writes NO code and does NOT touch git.
-- `odoo-coder`: description matches "implement feature", "write code" -> writes code for a SINGLE
+- `odoo-coder`: handles "implement feature", "write code" -> writes code for a SINGLE
   change in the current working directory; no git orchestration, no worktrees.
 
 **Discriminator**:

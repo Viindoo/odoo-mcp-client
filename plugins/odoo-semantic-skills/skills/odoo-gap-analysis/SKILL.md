@@ -4,18 +4,13 @@ description: >
   Produce a structured gap analysis comparing client requirements against Odoo standard
   functionality, ending in a concrete effort matrix (Standard / Configuration / Extension /
   Custom + S/M/L/XL day estimates) ready to paste into a proposal. Use this skill ANY time
-  someone is about to quote, scope, or estimate an Odoo project — even if they don't say the
-  word "gap". Pushy trigger: if the conversation contains a list of customer requirements +
-  any hint of "what does Odoo do natively?" / "what needs to be built?" / "how many days?" /
-  "what should we charge?", fire this skill. Realistic phrases to catch include "before we
-  send the project estimate on Monday, can you tell me what's out of the box?", "client wants
-  multi-company invoicing + approval workflows + a custom loyalty program — what's the
-  breakdown?", "is this in standard Odoo or do we need to build it?", "list of features →
-  effort matrix", "presales workshop notes ready, can you turn into a gap report?", "the RFP
-  mentions 23 requirements — help me classify them". When the user asks about ONE specific
-  feature ("does Odoo have lot tracking?") route to odoo-feature-check instead. When they want
-  highlights for marketing copy ("what's the headline value of v18?") route to
-  odoo-feature-highlights
+  someone is about to quote, scope, or estimate an Odoo project — even if they don't say
+  "gap". Fire when the conversation contains a list of customer requirements + any hint of
+  "what does Odoo do natively?" / "what needs to be built?" / "how many days?" / "what
+  should we charge?" — catch phrases like "is this standard Odoo or do we need to build it?",
+  "list of features → effort matrix", "RFP mentions 23 requirements — classify them". When
+  the user asks about ONE specific feature route to odoo-feature-check instead. When they
+  want highlights for marketing copy route to odoo-feature-highlights
 ---
 
 ## Persona

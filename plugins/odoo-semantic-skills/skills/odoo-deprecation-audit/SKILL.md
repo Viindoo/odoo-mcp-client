@@ -2,19 +2,15 @@
 name: odoo-deprecation-audit
 description: >
   Systematic audit of deprecated Odoo API usage in a codebase before a version upgrade —
-  finds every `@api.multi`, `osv.osv`, `_columns`, `web.Widget`, `fields.Html` and other
-  era-specific APIs that will break or warn in the target version, grouped by file with the
-  exact replacement and urgency level (BREAKING / WARN / STYLE). Use this skill ANY time
-  someone is preparing for, considering, or planning an Odoo version migration — even
-  informally. Pushy trigger: fire whenever the conversation touches "upgrade", "migration",
-  "is our code ready for v17?", "what will break when we move from 14 to 17?", "audit before
-  upgrade", "upgrade readiness check", "we still have @api.multi everywhere", "ir.values is
-  still used in our addons", "OWL migration needed?", "from v12 to v16 — what in our code
-  breaks?", "client running v8 wants to upgrade to v17 — feasible?". Trigger even when the user
-  doesn't use the word "deprecation" — if the goal is "before upgrade", that's this skill's
-  job. When the user asks ONLY what changed between two versions (without auditing their code),
-  route to odoo-version-diff instead. When they want to write fresh upgrade-safe code in the
-  target version, route to odoo-coder
+  finds `@api.multi`, `osv.osv`, `_columns`, `web.Widget`, `fields.Html` and other
+  era-specific APIs that break or warn in the target version, grouped by file with the exact
+  replacement and urgency (BREAKING / WARN / STYLE). Resolve the target version from context;
+  if unstated, confirm it. Pushy trigger: "upgrade", "migration", "is our code ready for vN",
+  "what will break when we move from X to Y", "audit before upgrade", deprecated-symbol
+  mentions ("we still have @api.multi everywhere", "ir.values is still used", "OWL migration
+  needed"). Trigger even without the word "deprecation". When the user asks ONLY what changed
+  between two versions (without auditing their code), route to odoo-version-diff instead. When
+  they want to write fresh upgrade-safe code in the target version, route to odoo-coder
 ---
 
 ## Persona

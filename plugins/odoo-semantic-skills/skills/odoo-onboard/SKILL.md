@@ -1,17 +1,11 @@
 ---
 name: odoo-onboard
 description: |
-  Bootstrap Odoo project context on first use — probe the user's Odoo environment (version, custom modules, active profile, team naming conventions), persist findings to `.odoo-ai/context.md` at project root (gitignored), so every subsequent `odoo-*` skill can read project context as Round -1 and skip boilerplate setup.
+  Bootstrap Odoo project context on first use — probe the Odoo environment (version, custom modules, active profile, naming conventions) and persist findings to `.odoo-ai/context.md` at project root (gitignored), so every later `odoo-*` skill reads it as Round -1 and skips setup.
 
-  Trigger AGGRESSIVELY when the user signals "new Odoo project" or "first time" or no `.odoo-ai/context.md` exists yet in the working directory:
+  Trigger AGGRESSIVELY on "new Odoo project" / "first time" signals, or when no `.odoo-ai/context.md` exists yet: "set up Odoo for this project", "initialize Odoo context", "pin Odoo version for this session". Implicit: dir has `__manifest__.py` but no `.odoo-ai/context.md` → first `odoo-*` skill recommends onboard; intake also escalates here when context is missing.
 
-  Explicit first-time signals: "set up Odoo for this project", "initialize Odoo context", "first time Odoo setup", "new Odoo project — onboard", "configure Odoo skills for current repo", "I just cloned an Odoo codebase", "where do I start with Odoo MCP for this repo", "pin Odoo version for this session", "initial Odoo setup".
-
-  Implicit signals (proactive): if working directory contains `__manifest__.py` file(s) AND `.odoo-ai/context.md` is ABSENT, then the FIRST `odoo-*` skill the user invokes should pause and recommend running onboard first. The intake skill (`intake`) will also escalate to onboard if context is missing.
-
-  DO NOT trigger when: (1) `.odoo-ai/context.md` already exists AND `last_updated` is within the last 30 days — instead, suggest a quick "refresh? (yes/no)" rather than full onboard; (2) the working directory has no `__manifest__.py` files anywhere within 3 levels (not an Odoo project — explain politely); (3) the user is mid-workflow inside another skill (e.g., already in odoo-coder writing code) — don't interrupt; (4) the user explicitly types a different skill's trigger like "write a computed field" — let that skill auto-fire instead.
-
-  This skill writes ONE file (`.odoo-ai/context.md`) and ONE `.gitignore` line (`.odoo-ai/`). It does not modify Odoo source code or any other project file
+  DO NOT trigger when: (1) `.odoo-ai/context.md` exists and `last_updated` is within 30 days — offer "refresh? (yes/no)" instead; (2) no `__manifest__.py` within 3 levels; (3) the user is mid-workflow inside another skill (e.g. odoo-coder writing code) — don't interrupt; (4) the user types a different skill's trigger like "write a computed field" — let that skill fire
 ---
 
 # Odoo Onboard — Project Context Bootstrap

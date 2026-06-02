@@ -2,21 +2,14 @@
 name: odoo-ui-debug
 description: >
   Investigate a broken or misbehaving Odoo UI at runtime — console errors, failed network
-  requests, blank OWL renders, widgets that do not appear, CSS that renders wrong, or actions
-  that silently do nothing. Use this skill when an Odoo screen is misbehaving in the browser and
-  the user needs the ROOT CAUSE and the exact override point to fix it. Pushy trigger: fire on
-  "why is this Odoo view blank", "the widget isn't showing up", "console error on my Odoo form",
-  "OWL component not rendering", "network request failing in Odoo", "the button does nothing",
-  "debug this Odoo screen", "my SCSS override isn't applying", "tại sao view Odoo trống",
-  "widget không hiện", "lỗi console Odoo", "why does the kanban render empty", "JS error after
-  upgrade", "the form crashes on save", "trace this runtime error", "investigate why the menu
-  is missing", "RPC call returns error in the UI", "figure out which override broke the view".
-  Trigger when the user describes a symptom and wants the cause, not a cosmetic verdict. When the
-  user wants to RATE a working screen (aesthetics / a11y / performance), route to odoo-ui-reviewer
-  instead. When they want to compare two builds for visual drift, route to odoo-visual-regression
-  instead. When they want a demo video, route to odoo-demo-recorder instead. When the diagnosis is
-  done and they want the fix written, route to odoo-frontend-coder; for a static code audit route
-  to odoo-code-reviewer
+  requests, blank OWL renders, missing widgets, wrong CSS, or actions that silently do nothing.
+  Use when an Odoo screen misbehaves in the browser and the user needs the ROOT CAUSE plus the
+  exact override point, not a cosmetic verdict. Pushy trigger: fire on "why is this Odoo view
+  blank", "OWL component not rendering", "network request failing in Odoo", "my SCSS override
+  isn't applying", "JS error after upgrade", "tại sao view Odoo trống", "widget không hiện",
+  "lỗi console Odoo". Routing: RATE a working screen (aesthetics/a11y/perf) → odoo-ui-reviewer;
+  compare two builds for drift → odoo-visual-regression; demo video → odoo-demo-recorder; write
+  the fix → odoo-frontend-coder; static code audit → odoo-code-reviewer
 ---
 
 ## Persona

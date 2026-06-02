@@ -3,17 +3,15 @@ name: odoo-deploy-checklist
 description: >
   Generate a pre-deployment safety checklist for an Odoo upgrade or new-module go-live —
   auto-fills 8 domains (pre-flight, backup, data migration, downtime, deploy mechanics,
-  smoke tests, monitoring, rollback), marks each item as READY / NEEDS WORK / NOT READY,
-  and surfaces blockers before you push to prod. Use this skill ANY time someone is about to
-  deploy Odoo to staging or production — even informally. Pushy trigger: fire on "deploy
-  checklist", "go-live checklist", "pre-deploy safety", "before pushing to prod", "ready to
-  deploy this Odoo upgrade?", "release checklist", "deployment readiness", "we're going live
-  this weekend — what to check?", "pre-production checklist", "deployment safety gate". Trigger
-  even when the user says only "deploy" in the context of Odoo — the checklist is this skill's
-  job. DO NOT trigger for: ongoing code work that is not about to be deployed; debugging
-  questions unrelated to a release; questions about what changed between versions (route to
-  odoo-version-diff); requests to audit deprecated API usage in code (route to
-  odoo-deprecation-audit); executive risk overview (route to odoo-risk-overview)
+  smoke tests, monitoring, rollback), marks each item READY / NEEDS WORK / NOT READY, and
+  surfaces blockers before you push to prod. Use ANY time someone is about to deploy Odoo to
+  staging or production. Pushy trigger: "deploy checklist", "go-live checklist", "before
+  pushing to prod", "ready to deploy this Odoo upgrade?", "deployment readiness". Trigger
+  even when the user says only "deploy" in the context of Odoo. DO NOT trigger for: ongoing
+  code work not about to be deployed; debugging unrelated to a release; questions about what
+  changed between versions (route to odoo-version-diff); requests to audit deprecated API
+  usage in code (route to odoo-deprecation-audit); executive risk overview (route to
+  odoo-risk-overview)
 ---
 
 ## Persona

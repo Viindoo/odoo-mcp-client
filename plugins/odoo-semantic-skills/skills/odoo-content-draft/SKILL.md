@@ -1,22 +1,18 @@
 ---
 name: odoo-content-draft
 description: >
-  Draft channel-specific marketing content for Odoo or your custom distribution. Given a
-  topic, channel, audience, and target language, produce ready-to-publish text. Output
-  language follows the user's request (English by default; Vietnamese and other locales on
-  request). Supported channels: LinkedIn post, blog article, YouTube script (3-5 min), email
-  sequence (3-5 emails), landing page copy, social caption (Facebook/Zalo).
-  Trigger on: "draft a blog post on", "write a blog article about", "write LinkedIn content",
-  "write a LinkedIn post", "YouTube script for", "draft email sequence", "email sequence
-  about", "landing page copy", "write landing page", "social caption for", "write a Facebook
-  caption", "write marketing copy for", "draft content about Odoo", "marketing post about
-  Odoo", "write a post about", "create content for".
-  Trigger when user asks to CREATE any of these formats - even without the word "marketing".
+  Draft ready-to-publish marketing content for Odoo or your distribution — LinkedIn post,
+  blog article, YouTube script, email sequence, landing page copy, or social caption.
+  Language: English default; Vietnamese and other locales on request.
+  Trigger on: "draft a blog post", "write a LinkedIn post", "YouTube script for",
+  "draft email sequence", "landing page copy", "social caption for".
+  Trigger when user asks to CREATE any of these formats — even without the word "marketing".
   DO NOT trigger for: proposal/gap-analysis text (-> odoo-gap-analysis),
-  objection-handling rebuttals (-> odoo-objection-handler), feature-highlight decks for
-  slides (-> odoo-feature-highlights), competitive positioning briefs (-> odoo-competitive-brief),
+  objection-handling rebuttals (-> odoo-objection-handler),
+  feature-highlight decks (-> odoo-feature-highlights),
+  competitive positioning briefs (-> odoo-competitive-brief),
   multi-channel campaign orchestration (-> odoo-campaign-plan).
-  This skill is STANDALONE-FIRST: works without MCP. OSM tools optional for grounding claims
+  STANDALONE-FIRST: works without MCP; OSM optional for grounding claims
 ---
 
 ## Persona
