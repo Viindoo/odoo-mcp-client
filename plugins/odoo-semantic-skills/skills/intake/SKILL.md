@@ -41,24 +41,64 @@ what they want or what outcome they need. This skill's job is to:
 1. **NEVER write or edit files during a brainstorm or plan turn.** Platform-enforced by
    `disallowed-tools: Write Edit`. This clears on the user's next message (the approval
    turn) — exactly when execution is intentionally allowed.
-2. **NEVER invoke the Skill tool or Agent tool *during this brainstorm/plan turn*.** Yield
-   to the chosen specialist via a NL-dispatch description (the harness fires it on the next
-   turn by description match). The actual specialist dispatch happens on a LATER turn: after
-   the user approves the Proposed Plan (and, for file-touching skills, after Plan-Mode
-   approval), the **main agent — not intake during this turn —** calls the Agent tool
-   (see § Plan Mode). This is depth-0 — intake lives in the main context only.
-3. **Phase 0 — read context first.** At the start of every invocation:
-   - Read `.odoo-ai/context.md` if it exists (version, module list, instance URL).
-   - Check `.odoo-ai/brainstorm/state.json` — if an in-progress brainstorm session
-     exists, resume it (Tier 2).
-   - If neither exists and the working directory has `__manifest__.py` but no context
-     file, note that `odoo-onboard` can bootstrap it and mention this in the plan.
-   - **OSM availability check**: if `.odoo-ai/context.md` contains an `odoo_version`
-     field AND the `mcp__odoo-semantic__*` tools are reachable in this session →
-     mark the path as `backed` (the specialist skill will call `set_active_version`
-     automatically). If OSM tools are absent or unreachable → mark the path as
-     `standalone` (no OSM enforcement; specialist relies on user-provided context).
-     Record the result as `OSM: backed | standalone` in the Proposed Plan.
+2. **No file writes, and no writes-files specialist, before Plan Mode is approved — but
+   read-only Recon IS allowed.** Four sub-rules, none optional:
+   - (1) **Write/Edit stay platform-blocked on the plan turn** via `disallowed-tools: Write
+     Edit`. Intake itself never touches the filesystem; this clears only on the approval turn.
+   - (2) **NEVER invoke a writes-files execute-skill (a `writes-files` specialist) — nor the
+     Skill tool running such a specialist — BEFORE Plan Mode is approved.** That includes
+     `odoo-coder`, `odoo-frontend-coder`, `wave`, `odoo-brl`, `workflow-runner`, or any skill
+     whose output mode is `writes-files`. Yield to it via a NL-dispatch description; the actual
+     dispatch happens on a LATER turn, AFTER Plan-Mode approval (see § Plan Mode).
+   - (3) **Phase R (Recon) MAY dispatch a READ-ONLY agent via the Agent tool** — `Explore`, or
+     a specialist in read-only mode (e.g. `odoo-feature-check`, `odoo-override-finder`) — to
+     survey current state. That agent **MUST NOT write any file and MUST NOT spawn a further
+     sub-agent** (nesting guard — see § Phase R and `${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`).
+     Read-only OSM calls (`model_inspect`, `check_module_exists`, `find_override_point`,
+     `impact_analysis`) are likewise allowed in Phase R.
+   - (4) **Dispatch of a writes-files specialist happens ONLY after Plan Mode is approved**, and
+     it is the **main agent — not intake during the plan turn —** that calls the Agent tool.
+   This skill is depth-0 — intake lives in the main context only.
+3. **Phase 0 — Context, Detect & Clarify (mandatory).** Runs at the start of every
+   invocation. It does three things — read context, detect what kind of place we are in, and
+   close the **intent gate** — before anything else proceeds.
+
+   **3a. Read existing context / resume.**
+   - Read `.odoo-ai/context.md` if it exists (version, edition, module list, instance URL).
+   - Check `.odoo-ai/brainstorm/state.json` — if an in-progress brainstorm session exists,
+     resume it (Tier 2).
+
+   **3b. Detect the working directory (4 branches).** Locate Odoo manifests with the same
+   probe `odoo-onboard` uses (its SKILL.md Step 1, ~lines 38–43):
+   ```bash
+   find . -maxdepth 3 -name "__manifest__.py" 2>/dev/null | head -20
+   ```
+   Branch on the result:
+   - **(i) Odoo addon dir (≥1 manifest, no usable context file)** → dig deeper: ask for
+     Odoo **version / edition (CE|EE|custom) / target module(s) / instance URL**. Note that
+     `odoo-onboard` can bootstrap a full `.odoo-ai/context.md` (its schema — environment,
+     modules, conventions, session pins — is documented in `odoo-onboard` SKILL.md
+     ~lines 125–162; do **not** copy it here, point to it).
+   - **(ii) Project root (manifests under nested dirs / mono-repo)** → infer the common parent
+     as project root; confirm version/edition once, then continue.
+   - **(iii) Non-Odoo dir (0 manifests)** → intake is future-proof: either handle the request
+     if it is a general ERP / planning task, or decline politely ("This doesn't seem to be an
+     Odoo/ERP workspace — want me to proceed anyway, or is this the wrong tool?").
+   - **(iv) `.odoo-ai/context.md` already present and usable** → use it as-is; **skip** re-asking
+     version/edition/module.
+
+   **3c. OSM probe.** Call `mcp__odoo-semantic__list_available_versions`. If it returns AND
+   `.odoo-ai/context.md` carries an `odoo_version` → mark the path `backed` (specialist calls
+   `set_active_version` automatically). If OSM tools are absent/unreachable → mark `standalone`
+   (no OSM enforcement; specialist relies on user-provided context). Record `OSM: backed |
+   standalone` in the Proposed Plan.
+
+   **3d. GATE — Intent / Purpose / Expected outcomes (MANDATORY).** Before Phase R may run,
+   all three MUST be clear: **what** the user wants, **why**, and **what done looks like**.
+   If any is missing, resolve it with **pre-structured options** (ETHOS #2 / #9 — e.g. "Is the
+   goal (a) ship a code change, (b) scope a proposal, (c) produce marketing copy?"), never an
+   open-ended "what do you want?". **If intent / purpose / expected outcomes are not all clear,
+   you MUST NOT proceed to Phase R (Recon).**
 4. **Confidentiality (public repo — 8 banned groups).** Do not surface, quote, or
    transmit: CEO personal info, customer PII/contracts, internal pricing, competitor
    intelligence beyond public sources, product roadmap details, marketing-in-draft,
@@ -90,7 +130,46 @@ The gate has two enforcement layers — both are required; neither is optional:
 - "The text gate was enough, I can skip Plan Mode" → WRONG. Plan Mode is mandatory when
   an execute-skill will write files. The text gate and Plan Mode are independent layers.
 
+## Phase R — Recon (read-only current-state + inventory discovery)
+
+**When**: AFTER Phase 0 closes the intent gate (intent / purpose / expected outcomes all
+clear), and BEFORE the Proposed Plan is written. Recon turns a generic plan into a
+context-aware one — it confirms what already exists rather than guessing.
+
+**What it does** — survey, never mutate:
+- Dispatch **≤1–2 READ-ONLY agents** via the Agent tool — `Explore`, or a specialist in
+  read-only mode (e.g. `odoo-feature-check`, `odoo-override-finder`) — to map the code /
+  modules relevant to the stated intent. These agents do not write files and do not spawn.
+- Call read-only OSM tools as needed: `model_inspect`, `check_module_exists`,
+  `find_override_point`, `impact_analysis`.
+
+**Inventory discovery (hybrid).** When the plan needs to know which skills/agents/commands
+exist and their attributes, pull each fact from its SSOT — do NOT duplicate model/effort into
+any registry:
+
+| Need | Source | How to fetch |
+|---|---|---|
+| skill / agent / command exists + its description | runtime context (harness-injected) | already available — do NOT read files for this |
+| `model_tier` (Haiku/Sonnet/Opus/inherit) | the `model:` frontmatter of the candidate's `SKILL.md` / `agents/*.md` (SSOT) | read the frontmatter of the CHOSEN candidate only |
+| `output_mode` (`chat-only` ⇄ `writes-files`) | `spawn_class` + `stack` in the generator / `skill_tool_deps.json` registry | look up the existing registry entry |
+| `effort` (S / M / L / XL) | NOT registered — it is a skill×task property | reason per the `odoo-gap-analysis` legend: **S = <1d · M = 1–3d · L = 3–10d · XL = >10d** |
+
+**SSOT note**: `model_tier` lives in frontmatter and `effort` is per-task — NEVER copy either
+into a registry. Read `model:` from the candidate's own frontmatter at plan time.
+
+**Hard limits**: read-only, **depth-1** (one hop from main; the Recon agent is a leaf and must
+not spawn further — full text `${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`), and **no file
+writes**. If OSM is unreachable, say so and proceed on user-provided context (standalone).
+
 ## Plan Mode — harness-level pre-execute gate
+
+**Decision tree (run first)**: intake reads the chosen Approach's `output_mode` (Phase R
+discovery — from `spawn_class`+`stack` in the registry).
+- `output_mode = writes-files` → **Plan Mode is REQUIRED** before dispatch (proceed through the
+  full procedure + content schema below).
+- `output_mode = chat-only` → **SKIP Plan Mode** (unchanged behaviour); intake ends its turn and
+  the specialist fires via the Agent tool on the next turn. The chat-only set is listed under
+  "Does NOT apply" below.
 
 **When it applies**: after the user approves the Proposed Plan AND the chosen next step is
 an execute-skill that will **write or modify files** — specifically any of: `odoo-coder`,
@@ -122,6 +201,46 @@ this capability.
   Plan Mode approval are two separate steps.
 - "I'll enter Plan Mode after I've already started editing" → BANNED. EnterPlanMode must
   come before any file touch.
+
+### Plan Mode Content Schema
+
+The implementation plan written inside Plan Mode (step 3 above) MUST contain three blocks.
+None is optional for a `writes-files` Approach.
+
+**Block 1 — Workitem list.** Borrow the WI-Brief shape from `skills/wave/SKILL.md`
+(~lines 174–219) and/or the requirement shape in `odoo-brl/reference/schema.md` (~lines
+116–197). Each WI carries: `id`, a one-line description, and `files-in-scope` (the file sets
+across WIs MUST be **disjoint**). For a multi-WI delivery also note worktree + branch + verify
+command per WI (Repo Capability Card).
+
+**Block 2 — Dependency graph.** Borrow the DAG schema from `odoo-brl/reference/schema.md`
+(~lines 316–385): `nodes` + `edges` where each edge has a `type` of
+`technical | business-logic | data-flow` and a `reason`; a `topological_order` (Kahn's
+algorithm), a `critical_path`, and `cycles` (empty `[]` for a valid DAG — a cycle is reported,
+never silently dropped). For only a few WIs, instead pick one of the four topologies in
+`wave/reference/wave-templates.md` (~lines 29–92): **independent | linear | mixed | diamond**.
+A mermaid diagram is encouraged.
+
+**Block 3 — Assignment.** One line per WI:
+`WI → skill | command | agent  (model from frontmatter, effort by legend) → which skill that agent uses`.
+Add per-WI **acceptance criteria** + a **verify command** (Repo Capability Card). `model` is read
+from the candidate's `SKILL.md`/`agents/*.md` frontmatter; `effort` follows the gap-analysis
+legend (S/M/L/XL).
+
+*Examples (short):*
+- Full-stack feature → `WI-A: odoo-coder (sonnet, M)` adds the backend field/method;
+  `WI-B: odoo-frontend-coder (sonnet, M)` renders the OWL widget. DAG: **linear**, edge
+  `WI-B --data-flow--> depends-on WI-A` (the field must exist before the widget binds to it).
+- Three disjoint fixes (bug + test + docs) → `WI-A odoo-coder`, `WI-B odoo-coder`,
+  `WI-C` docs edit; DAG: **independent** (no edges) → hand to `wave` for parallel delivery.
+
+### Rejection flow
+
+If the user refines or rejects in the Plan Mode UI (step 5), loop back to the
+**soft-plan-gate**, not to execution: re-run the relevant part — pick a different skill, adjust
+WI parameters (scope / files / assignment / effort), or `cancel`. Re-enter Plan Mode only once
+the revised plan is re-approved at the text gate. Never dispatch a writes-files specialist off a
+rejected plan.
 
 ## 4-tier routing
 
@@ -174,13 +293,20 @@ Universal gate emitted by intake at the end of every brainstorm or fast-path tur
 
 ```
 ## Proposed Plan
-Domain:      <one of 9 persona buckets>
-Approach:    <skill name | workflow name | command>
-Chain:       <skill> → <skill> ...   (for multi-step; "single turn" for atomic asks)
-Output:      .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
-Est. effort: <S / M / L / XL / "single turn">
-OSM:         backed | standalone   (backed if OSM (`mcp__odoo-semantic__*`) tools are available; standalone if not)
-Next turn:   invoke `<skill/workflow>` via the **Agent tool** (you will see the tool call)
+Project:        <repo / project root, or "non-Odoo workspace">
+Odoo version/edition: <e.g. 17.0 / EE | CE | custom | "n/a">
+Intent / Purpose / Expected outcomes: <what / why / what done looks like — from the Phase 0 gate>
+Domain:         <one of 9 persona buckets>
+Approach:       <skill name | workflow name | command>
+Chain:          <skill> → <skill> ...   (for multi-step; "single turn" for atomic asks)
+Findings (Recon): <1-3 bullets from Phase R: what already exists / hook points / impact>
+Workitems (preview): <WI-A …, WI-B … — disjoint files; "single WI" for atomic asks>
+Assignment (skill/agent + model + effort): <WI → skill|agent (model from frontmatter, effort S/M/L/XL)>
+Output:         .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
+Est. effort:    <S / M / L / XL / "single turn">
+OSM:            backed | standalone   (backed if OSM (`mcp__odoo-semantic__*`) tools are available; standalone if not)
+Plan Mode:      required | not   (required when Approach output_mode = writes-files)
+Next turn:      invoke `<skill/workflow>` via the **Agent tool** (you will see the tool call)
 
 Gate: approve / refine: [your feedback] / cancel
 ```
@@ -420,8 +546,10 @@ Intake behaviour when ambiguous between command and skill:
 
 ## Out of Scope
 
-- **NEVER execute work yourself.** No code generation, no proposal drafting, no analysis, no
-  MCP tool calls beyond Phase 0 context reads.
+- **NEVER execute work yourself.** No code generation, no proposal drafting, no file writes.
+  MCP / agent calls are limited to **read-only** context: Phase 0 context reads and Phase R
+  read-only Recon (read-only OSM + read-only survey agents that do not write or spawn). No
+  writes-files specialist runs before Plan Mode is approved.
 - **NEVER recommend more than one skill.** If 2 skills are close, use the Discriminator column
   to pick the winner; if you truly cannot decide, escalate to the user with both names + the
   1-line difference.
@@ -433,7 +561,8 @@ Intake behaviour when ambiguous between command and skill:
 
 ## Standalone-first fallback
 
-Intake is pure-text routing and brainstorm — no MCP tool calls beyond Phase 0 context reads.
+Intake is routing + brainstorm + read-only Recon — no file writes, and no MCP calls beyond
+Phase 0 context reads and Phase R read-only OSM probes.
 OSM is optional, not required:
 - **backed path**: `.odoo-ai/context.md` has `odoo_version` AND `mcp__odoo-semantic__*` tools
   are reachable → specialist skills receive `set_active_version` automatically; intake records
@@ -455,13 +584,20 @@ Proceed? (yes / brainstorm instead / cancel)
 **Brainstorm Proposed Plan** (Tier 4 vague branch — full gate block):
 ```
 ## Proposed Plan
-Domain:      <one of 9 persona buckets>
-Approach:    <skill name | workflow name | command>
-Chain:       <skill> → <skill> ...   (or "single turn")
-Output:      .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
-Est. effort: <S / M / L / XL / "single turn">
-OSM:         backed | standalone   (backed if OSM (`mcp__odoo-semantic__*`) tools are available; standalone if not)
-Next turn:   invoke `<skill/workflow>` via the **Agent tool** (you will see the tool call)
+Project:        <repo / project root, or "non-Odoo workspace">
+Odoo version/edition: <e.g. 17.0 / EE | CE | custom | "n/a">
+Intent / Purpose / Expected outcomes: <what / why / what done looks like — from the Phase 0 gate>
+Domain:         <one of 9 persona buckets>
+Approach:       <skill name | workflow name | command>
+Chain:          <skill> → <skill> ...   (or "single turn")
+Findings (Recon): <1-3 bullets from Phase R: what already exists / hook points / impact>
+Workitems (preview): <WI-A …, WI-B … — disjoint files; "single WI" for atomic asks>
+Assignment (skill/agent + model + effort): <WI → skill|agent (model from frontmatter, effort S/M/L/XL)>
+Output:         .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
+Est. effort:    <S / M / L / XL / "single turn">
+OSM:            backed | standalone   (backed if OSM (`mcp__odoo-semantic__*`) tools are available; standalone if not)
+Plan Mode:      required | not   (required when Approach output_mode = writes-files)
+Next turn:      invoke `<skill/workflow>` via the **Agent tool** (you will see the tool call)
 
 Gate: approve / refine: [your feedback] / cancel
 ```
@@ -485,6 +621,22 @@ Mirror the user's language (English or the language they wrote in).
 
 ## Notes for future maintainers
 
+- **5-phase flow**: Phase 0 (Context, Detect & Clarify — closes the intent/purpose/outcomes
+  gate + 4 detect branches) → **Phase R (Recon, read-only — NEW)** → Proposed Plan
+  (context-rich) → Plan Mode (workitem + DAG + assignment) → Execute. Phase R is the new stage:
+  it dispatches ≤1–2 read-only agents (depth-1, no writes, no spawn) to survey current state
+  before the plan is written.
+- **Inventory discovery is hybrid, SSOT-respecting**: skill/agent/command existence + description
+  come from runtime context; `output_mode` from the `spawn_class`/`stack` registry; **`model_tier`
+  is read from each candidate's own frontmatter (`model:`) — NEVER copied into a registry**; and
+  `effort` (S/M/L/XL) is a per-task property reasoned via the gap-analysis legend, also not
+  registered.
+- **Plan Mode Content Schema**: a `writes-files` Approach now requires 3 blocks in the Plan-Mode
+  plan — Workitem list (disjoint files), Dependency graph (DAG edge-types + topology, or one of
+  the 4 wave topologies for few WIs), and Assignment (WI → skill/agent + model + effort + verify).
+  A chat-only Approach still skips Plan Mode (decision tree at the top of § Plan Mode).
+- See `docs/reference/workflow-harness.md` for the full design rationale of the harness and the
+  schemas borrowed here (wave WI brief, BRL DAG, wave topologies, gap-analysis effort legend).
 - Routing table currently lists 40 entries (rows 1-13 = Phase A/B core; rows 14-21 = Phase B
   sales+marketing+engineering; rows 22-27 = Phase D commands; rows 28-32 = Phase E visual;
   rows 33-39 = Phase E+ BRL flagship + workflow domains; row 40 = wave git-orchestration).
