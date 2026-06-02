@@ -2,25 +2,16 @@
 name: odoo-frontend-coder
 disallowed-tools: Write Edit
 description: >
-  Write complete, production-ready Odoo frontend JS code for ANY Odoo version (v8–v19) —
-  legacy `web.Widget`/`AbstractField`/`odoo.define()` system for v8–v14, or OWL 2.x
-  components with `patch()`/`useState`/`useService` for v15+. Internally gates to the
-  correct framework based on the target version so callers never need to choose between
-  legacy and OWL skills. Use this skill ANY time someone needs Odoo frontend JS,
-  regardless of version. Pushy trigger: fire on "customize a field in Odoo", "color picker
-  widget", "AbstractField subclass", "odoo.define() pattern", "Widget.include",
-  "field_registry add", "QWeb template", "QWeb2 template", "legacy widget", "add total row
-  list view", "dashboard client action", "client action OWL", "useService useState useRef",
-  "t-component t-if", "field widget customization Odoo 17", "patch the sale order form",
-  "custom button on form view", "Odoo v17 frontend JS", "JavaScript Odoo v15 v16 v17 v18
-  v19", "register a new field widget", "patch FormController", "extend ListController",
-  "create dashboard view", "OWL lifecycle hook", "use registry.category", "client action
-  that fetches data via useService", "override ListView controller", "RPC call this._rpc",
-  "JS action manager", "QWeb3 template OWL", "show partner avatar Many2one widget". Trigger
-  even when the user does NOT say "legacy" or "OWL" — infer from the stated Odoo version or
-  API keywords. When the user asks about backend Python/XML rather than frontend JS, route
-  to odoo-coder. When they want a code review rather than code generation, route to
-  odoo-code-reviewer
+  Write complete, production-ready Odoo frontend JS for ANY version (v8–v19) — auto-gates
+  to legacy `web.Widget`/`AbstractField`/`odoo.define()` (v8–v14) or OWL 2.x
+  `patch()`/`useState`/`useService` (v15+) so callers never choose between frameworks.
+  Trigger on: "AbstractField subclass", "Widget.include / odoo.define()", "patch
+  FormController / extend ListController", "OWL lifecycle hook / useService", "dashboard
+  client action", "register field widget via registry.category", "QWeb template override".
+  Infer framework from version or API keywords even without "legacy"/"OWL". After code
+  generation, suggest verifying via odoo-ui-debug (runtime render errors), odoo-ui-reviewer
+  (layout), or odoo-visual-regression (before/after diff) — do not auto-invoke (depth rule).
+  Backend Python/XML → odoo-coder. Code review → odoo-code-reviewer
 ---
 
 ## Persona

@@ -5,19 +5,13 @@ description: >
   requirement — citing real module names, model fields, and code snippets from the indexed
   codebase, not marketing claims. Use this skill ANY time a sales engineer, consultant, or
   account manager needs to convince a skeptical client/prospect that "yes, Odoo really does
-  this — here's the proof". Pushy trigger: fire on "prove Odoo can do X", "show capability
-  evidence for requirement Y", "for the demo, give me proof that…", "demo material",
-  "prove Odoo can do X", "feature evidence for customer requirement Y",
-  "customer asks does Odoo support X — I need to show the code", "client doesn't believe
-  Odoo handles Z — help me build the evidence", "for the buy-side technical review,
-  evidence of multi-currency invoicing", "before the demo this Friday, package proof of
-  approval workflows", "before the F&B demo — prove Odoo can do lot tracking",
-  "RFP response — need to back up every yes with module + code". Trigger especially when
-  there's a deadline signal ("for the demo", "before Friday", "in the RFP", "before next
-  week's demo") because the
-  user needs real artifacts fast. When the user only wants a yes/no answer on availability
-  (no proof package needed), route to odoo-feature-check. When they're scoping MANY
-  requirements at once for a quote, route to odoo-gap-analysis
+  this — here's the proof". Fire on "prove Odoo can do X", "feature evidence for customer
+  requirement Y", "customer asks does Odoo support X — I need to show the code", "client
+  doesn't believe Odoo handles Z — build the evidence", "RFP response — back up every yes
+  with module + code". Trigger especially on deadline signals ("for the demo", "before
+  Friday", "in the RFP") — user needs real artifacts fast. When the user only wants a yes/no
+  answer on availability (no proof package needed), route to odoo-feature-check. When they're
+  scoping MANY requirements at once for a quote, route to odoo-gap-analysis
 ---
 
 ## Persona

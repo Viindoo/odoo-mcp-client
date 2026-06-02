@@ -1,21 +1,16 @@
 ---
 name: odoo-visual-regression
 description: >
-  Catch visual regressions in an Odoo UI by capturing a screenshot baseline of one state/build
-  and diffing it against another — before vs after an upgrade, a module install, a theme change,
-  or a code edit. Use this skill when the user wants to know what changed visually between two
-  Odoo states and how wide the blast radius is. Pushy trigger: fire on "did this change break the
-  UI", "compare before and after the upgrade", "visual diff of the Odoo backend", "screenshot
-  baseline for Odoo", "regression test the website pages", "what looks different after installing
-  this module", "snapshot the UI so I can compare later", "so sánh giao diện trước và sau",
-  "ảnh chụp baseline Odoo", "check for visual drift", "did the v16 to v17 upgrade change any
-  screens", "diff the kanban before and after my SCSS change", "pixel diff two Odoo builds",
-  "establish a UI baseline then re-test". Trigger whenever two states must be compared visually.
-  When the user wants a one-time aesthetic verdict on a single working screen, route to
-  odoo-ui-reviewer instead. When a screen is broken and they need the root cause, route to
-  odoo-ui-debug instead. When they want a demo/marketing video, route to odoo-demo-recorder
-  instead. When the diff reveals a defect to fix in source, route to odoo-frontend-coder; for a
-  static code audit route to odoo-code-reviewer
+  Catch visual regressions by capturing a screenshot baseline of one Odoo state/build and
+  diffing it against another — before vs after an upgrade, module install, theme change, or
+  code edit. Use when two states must be compared visually and the user wants to know what
+  drifted and how wide the blast radius is. Determinism rule: same login/data/breakpoint/scroll
+  or the diff is noise. Pushy trigger: fire on "compare before and after the upgrade",
+  "screenshot baseline for Odoo", "pixel diff two Odoo builds", "so sánh giao diện trước và
+  sau", "ảnh chụp baseline Odoo". Routing: one-time aesthetic verdict on a single working
+  screen → odoo-ui-reviewer; broken screen needing root cause → odoo-ui-debug; demo/marketing
+  video → odoo-demo-recorder; fix the defect in source → odoo-frontend-coder; static code audit
+  → odoo-code-reviewer
 ---
 
 ## Persona

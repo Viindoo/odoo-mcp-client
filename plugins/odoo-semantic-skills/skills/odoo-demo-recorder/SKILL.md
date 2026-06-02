@@ -1,19 +1,16 @@
 ---
 name: odoo-demo-recorder
 description: >
-  Record a screen-capture video (MP4/GIF) of an Odoo workflow for a demo, sales walkthrough, or
-  marketing clip — driving the live instance through a scripted click path and saving the result.
-  Use this skill when the user wants a recorded walkthrough of an Odoo feature, not a static
-  review or a bug hunt. Pushy trigger: fire on "record a demo of this Odoo workflow", "make a
-  video walkthrough of the sales process", "capture a GIF of creating an invoice in Odoo",
-  "screen recording for the marketing page", "record me clicking through onboarding", "quay video
-  demo Odoo", "tạo video hướng dẫn quy trình", "make a product demo clip", "record the kanban
-  drag-and-drop for the deck", "capture a short MP4 of this feature for the website", "demo video
-  of the portal", "record the approval flow end to end". Trigger when the deliverable is a video
-  or animated clip of a live Odoo flow. When the user wants to RATE how a screen looks, route to
-  odoo-ui-reviewer instead. When a screen is broken and needs diagnosis, route to odoo-ui-debug
-  instead. When they want to compare two builds visually, route to odoo-visual-regression instead.
-  When they want frontend code written, route to odoo-frontend-coder; for a code audit route to
+  Record a screen-capture video (MP4/GIF) of one Odoo workflow for a demo, sales walkthrough,
+  or marketing clip — driving the live instance through a scripted click path and saving the
+  result. Capture runs via pagecast/Playwright-video MCP (chrome-devtools drives the path;
+  screenshot→GIF fallback when the recorder is unreachable). Use when the deliverable is a
+  video of a live flow, not a static review or bug hunt. Pushy trigger: fire on "record a demo
+  of this Odoo workflow", "capture a GIF of creating an invoice in Odoo", "capture a short MP4
+  for the website", "quay video demo Odoo", "tạo video hướng dẫn quy trình". Routing: stitch
+  many scenes / multi-scene walkthrough into one video → odoo-video-produce; RATE how a screen
+  looks → odoo-ui-reviewer; broken screen → odoo-ui-debug; compare two builds →
+  odoo-visual-regression; write frontend code → odoo-frontend-coder; code audit →
   odoo-code-reviewer
 ---
 

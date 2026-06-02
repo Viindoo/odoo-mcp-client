@@ -1,21 +1,15 @@
 ---
 name: odoo-override-finder
 description: >
-  Find the correct override point and pattern to extend Odoo behavior safely — including the
-  exact method name, the module/file where to add the override, a ready-to-paste code template
-  with proper `super()` call, the existing override chain (so you know who else is touching this
-  hook), and version-specific compatibility notes. Use this skill ANY time someone wants to
-  inject custom behavior into an existing Odoo flow, even when they only describe the BEHAVIOR
-  they want to change without naming a method. Pushy trigger: fire whenever the request matches
-  "I want to do X when Y happens in Odoo" — even informally. Realistic phrases this should
-  catch include "where to hook into sale order confirmation", "best place to extend partner
-  creation", "I need to run my code when an invoice is posted", "extend the credit-limit check
-  on customers", "after a purchase order is approved I want to update a custom field", "what's
-  the safest method to override for adding a discount calculation?", "where do I extend the
-  picking validate flow?", "is there already someone overriding this method?". When the user
-  wants to CHECK if code looks right rather than find a hook point, route to odoo-code-reviewer.
-  When they want to know what changed between versions (rather than where to extend), route to
-  odoo-version-diff or odoo-deprecation-audit
+  Find the correct override point and pattern to extend Odoo behavior safely — exact method
+  name, module/file location, ready-to-paste `super()` template, existing override chain, and
+  version-specific compatibility notes. Use this skill ANY time someone wants to inject
+  custom behavior into an existing Odoo flow, even describing only the BEHAVIOR without naming
+  a method. Fire on "I want to do X when Y happens in Odoo" — even informal descriptions.
+  Trigger on: "where to hook into sale order confirmation", "run my code when an invoice is
+  posted", "is there already someone overriding this method?". Version-aware: pins target
+  version when unspecified and applies era-correct pattern. Check existing code → odoo-code-reviewer.
+  API diff between versions → odoo-version-diff or odoo-deprecation-audit
 ---
 
 ## Persona

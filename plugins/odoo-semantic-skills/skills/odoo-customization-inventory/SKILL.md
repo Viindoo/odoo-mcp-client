@@ -3,18 +3,13 @@ name: odoo-customization-inventory
 description: >
   Generate a structured executive-level inventory of all custom + distribution modules in an
   Odoo deployment — classifying each as Standard / Distribution-maintained / True custom,
-  surfacing business purpose in plain language, base model extended, key custom fields, and
-  upgrade risk flag. Use this skill ANY time a CEO/CTO/PM needs to understand the scope of
-  their Odoo investment, even if they only paste a list of module names. Pushy trigger: fire on
-  "list all our Odoo customizations", "inventory of custom modules", "what have we built on
-  top of Odoo?", "module inventory", "audit our extensions", "scope of customization before
-  upgrade", "summarize our customizations", "I have a list of modules — what do they do?",
-  "are these standard or custom?", "for M&A due diligence, list our extensions", "we have
-  47 addons in production — what's in there?", "what's safe to keep vs deprecate?".
-  Trigger even if the user just dumps a list of names with no other context — that's the
-  signal to enumerate. When the user wants to assess UPGRADE risk specifically (rather than
-  just inventory), route to odoo-deprecation-audit. When they want to see business value
-  of features for marketing, route to odoo-feature-highlights
+  surfacing business purpose, base model extended, key custom fields, and upgrade risk flag.
+  Use this skill ANY time a CEO/CTO/PM needs to understand the scope of their Odoo investment,
+  even if they only paste a list of module names. Trigger on: "what have we built on top of
+  Odoo?", "scope of customization before upgrade", "M&A due diligence list our extensions",
+  "what's safe to keep vs deprecate?". Trigger even if the user dumps a list of names with
+  no context — that's the signal to enumerate. Upgrade risk scoring → odoo-deprecation-audit.
+  Marketing feature highlights → odoo-feature-highlights
 ---
 
 ## Persona

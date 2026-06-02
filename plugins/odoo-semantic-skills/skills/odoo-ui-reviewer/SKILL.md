@@ -1,23 +1,16 @@
 ---
 name: odoo-ui-reviewer
 description: >
-  Review a rendered Odoo UI in a live browser — aesthetics (layout, spacing, alignment, brand
-  consistency), functional correctness (buttons, forms, navigation actually work), runtime
-  stability (no console errors), accessibility (semantic HTML, ARIA, contrast, tap targets,
-  keyboard nav), and performance (Lighthouse, render timing). Use this skill when someone has
-  an Odoo instance running and wants a verdict on how a screen looks and behaves, not on its
-  source code. Pushy trigger: fire on "review this Odoo screen", "how does this form look",
-  "check the kanban view in the browser", "is this page accessible", "run a Lighthouse audit
-  on Odoo", "audit the UI of my Odoo backend", "đánh giá giao diện Odoo", "kiểm tra UI đã render",
-  "review the rendered website page", "does this layout match our brand", "check spacing and
-  alignment on this view", "is the portal page mobile-friendly", "responsive check on Odoo",
-  "screenshot and critique this screen", "a11y review of Odoo form". Trigger even when the user
-  only describes the outcome ("make sure this looks right before the demo"). When the user wants
-  to investigate WHY a screen is broken or throwing errors rather than rate a working one, route
-  to odoo-ui-debug instead. When they want to compare two states/builds for visual drift, route
-  to odoo-visual-regression instead. When they want to record a walkthrough video, route to
-  odoo-demo-recorder instead. When they want to change Odoo frontend JS source, route to
-  odoo-frontend-coder; when they want a source-level code review, route to odoo-code-reviewer
+  Review a rendered Odoo UI in a live browser across five lenses — aesthetics (layout, spacing,
+  brand), functional correctness (buttons, forms, nav), runtime stability (no console errors),
+  accessibility (ARIA, contrast, keyboard), performance (Lighthouse). Dispatched as a read-only
+  agent (odoo-semantic-mcp + chrome-devtools) when an instance is running and the user wants a
+  verdict on how a working screen looks and behaves, not its source. Pushy trigger: fire on
+  "review this Odoo screen", "is this page accessible", "run a Lighthouse audit on Odoo", "make
+  sure this looks right before the demo", "đánh giá giao diện Odoo", "kiểm tra UI đã render".
+  Routing: investigate WHY a screen is broken not rate a working one → odoo-ui-debug; compare
+  two states for drift → odoo-visual-regression; record a video → odoo-demo-recorder; change
+  frontend source → odoo-frontend-coder; source-level review → odoo-code-reviewer
 ---
 
 ## Persona

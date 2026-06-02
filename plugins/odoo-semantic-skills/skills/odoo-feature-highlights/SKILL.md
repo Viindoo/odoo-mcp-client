@@ -1,21 +1,17 @@
 ---
 name: odoo-feature-highlights
 description: >
-  Generate marketing-friendly feature highlights for a specific Odoo or custom distribution
-  version — ready for sales decks, blog posts, product announcements, release notes, or
-  competitive comparisons. Output is business-language by default (with a separate technical-notes
-  appendix for developers). Use this skill ANY time someone needs to talk about "what's
-  new" or "what's exciting" in a release for an audience that isn't reading source code.
-  Pushy trigger: fire on "highlight new features in version X", "what's exciting in this
-  release?", "feature comparison for sales deck", "what's new for customers in this release?",
-  "write marketing content about new features", "blog post about release 17", "release notes
-  for non-developers", "what are the highlights?", "for the newsletter — what to feature?",
-  "competitive talk track — why upgrade from v15 to v17?", "headline value of v18 vs
-  competitors", "summarize what's new for customers", "talking points for Friday's sales pitch".
-  Trigger even when the user says "just summarize what's new" without mentioning marketing —
-  that's still this skill. When the user asks for source-level developer diff (signatures,
-  removed APIs), route to odoo-version-diff. When they want proof a platform can do a
-  SPECIFIC capability, route to odoo-capability-proof
+  Generate marketing-friendly feature highlights for a specific Odoo version or distribution
+  — for sales decks, blog posts, announcements, or release notes. Output: business-language
+  (+ technical-notes appendix). Version-aware: uses MCP api_version_diff; confirm version
+  when unspecified. Use this ANY time someone needs "what's new" for an audience not reading
+  source code. Trigger on: "highlight new features in version X", "write highlight copy for
+  the new features", "marketing highlights for the new modules", "what's exciting in this
+  release?", "feature comparison for sales deck", "release notes for non-developers".
+  Trigger even when the user says "just summarize what's new" without mentioning marketing.
+  When the user asks for source-level developer diff (signatures, removed APIs), route to
+  odoo-version-diff. When they want proof a platform can do a SPECIFIC capability, route to
+  odoo-capability-proof
 ---
 
 ## Persona

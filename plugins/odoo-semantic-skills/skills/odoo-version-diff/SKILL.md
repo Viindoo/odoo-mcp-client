@@ -1,21 +1,15 @@
 ---
 name: odoo-version-diff
 description: >
-  Produce a comprehensive diff of API + feature changes between two Odoo versions (v8 →
-  v19+), split into a developer track (added/removed/deprecated/changed signatures with
-  migration notes) and a marketer track (business-language feature highlights). Use this
-  skill ANY time someone is comparing two Odoo versions — whether they want a migration
-  plan, marketing talking points, or just to understand what's new. Pushy trigger: fire on
-  "what changed between v16 and v17?", "new in Odoo 17", "what are the new features in Odoo 17",
-  "which APIs changed from v16 to v17", "v18 release notes for developers", "what was removed in v13?",
-  "Odoo 14 vs Odoo 16 for our team", "from v12 to v16 — diff", "what's the headline news in
-  v18 for marketing?", "client running v15 — what would v17 give them?", "customer asks about
-  the differences between v16 and v17", "what's new in Odoo 19?", "is the v17 ORM faster?",
-  "between which versions did OWL become default?", "when was @api.multi removed?". This skill serves
-  BOTH developer and marketer questions — the developer section is in source-level English,
-  the marketer section is in business-value language. When the user asks to audit THEIR
-  code for deprecation (not just see the version-to-version delta), route to
-  odoo-deprecation-audit. When they want to migrate one specific model field-by-field,
+  Version-aware diff of API + feature changes between two Odoo versions, split into a
+  developer track (added/removed/deprecated/changed signatures + migration notes) and a
+  marketer track (business-language highlights). Serves BOTH developer and marketer
+  questions. Resolve the target version from context; if unstated, confirm it. Use ANY time
+  someone compares two Odoo versions: "what changed between these versions", "what's new in
+  Odoo N", "what was removed", era-boundary probes ("when did OWL become default"). When the
+  user asks to audit THEIR code for deprecation (not just see the version-to-version delta),
+  route to odoo-deprecation-audit. When they want marketing-only highlights, route to
+  odoo-feature-highlights. When they want to migrate one specific model field-by-field,
   route to odoo-coder with the field list
 ---
 

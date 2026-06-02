@@ -1,19 +1,12 @@
 ---
 name: odoo-competitive-brief
 description: >
-  Produce a structured competitive intelligence brief for a Strategist / CEO persona — covering
-  a named competitor or a competitive landscape question. Output is a board-ready snapshot,
-  capability matrix vs your platform/Odoo, GTM moves (from user-provided signals only), threat
-  assessment, and recommended response strategy. Fire this skill when the user mentions a
-  competitor name alongside any strategic intent: "competitor brief on", "analyze competitor X",
+  Produce a competitive intelligence brief for a Strategist / CEO — board-ready capability
+  matrix vs Odoo, GTM moves (user-provided only), threat assessment, and recommended response.
+  Standalone-first — works WITHOUT OSM. Fire when user mentions a competitor alongside
+  strategic intent: "competitor brief on", "analyze competitor X",
   "competitive landscape analysis", "competitive update for board",
-  "analyze threats in vertical X", "competitive brief on", "analyze competitor X",
-  "landscape brief for board", "what's competitor Y doing in vertical Z",
-  "threat assessment for", "positioning vs competitor", "competitive intelligence update",
-  "competitive analysis for investors", "competitive threat assessment",
-  "competitive strategy comparison", "emerging competitive threat",
-  "quarterly competitive update". Standalone-first — works WITHOUT OSM connectivity;
-  OSM optional for capability verification of your platform/Odoo claims.
+  "threat assessment for", "competitive intelligence update".
   DO NOT trigger for: (a) sales talking-point objections ("they say Odoo can't do X") →
   odoo-objection-handler; (b) feature comparison drill-down between Odoo versions →
   odoo-version-diff; (c) detailed add-on diff → odoo-addon-diff; (d) marketing copy or

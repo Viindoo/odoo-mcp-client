@@ -5,20 +5,14 @@ description: >
   ACA framework (Acknowledge / Counter / Affirm) backed by indexed-codebase evidence rather
   than marketing claims. Output includes a ready-to-paste verbatim response paragraph. Use
   this skill ANY time a sales engineer, account executive, or pre-sales consultant needs to
-  push back on a doubt or competitive claim about Odoo. Pushy trigger: fire on "handle the
-  objection that Odoo can't do X", "counter for the limitation concern about Y", "respond
-  to 'Odoo doesn't support Z'", "counter the concern about feature X", "client says Odoo
-  can't do it", "competitor said SAP/Microsoft does X better", "we heard Odoo doesn't
-  handle Y well", "client objects to Odoo on…", "prospect doubts Odoo can do multi-level
-  approvals", "client says Odoo's reporting is weak — counter for me", "before Friday's
-  meeting, help me prepare a response to the concern about…", "RFP scoring tool gave Odoo low on
-  X — defend", "competitor pitch said Odoo can't scale beyond 100 users — fact-check",
-  "rep is on the call and the client just said 'Odoo's accounting isn't VAS-compliant'",
-  "I need a confident answer for Friday's QA session — they'll ask about lot tracking".
-  Trigger especially when there's an URGENCY signal ("for the meeting today", "client is
-  on the call", "RFP due tomorrow"). When the objection requires proof artifacts (code +
-  modules + demo steps), route to odoo-capability-proof. When user simply wants to know if
-  a feature exists (not defend it), route to odoo-feature-check
+  push back on a doubt or competitive claim about Odoo. Fire on "handle the objection that
+  Odoo can't do X", "respond to 'Odoo doesn't support Z'", "client says Odoo can't do it",
+  "competitor said SAP/Microsoft does X better", "RFP scoring tool gave Odoo low on X —
+  defend", "competitor pitch said Odoo can't scale — fact-check". Trigger especially on
+  URGENCY signals ("for the meeting today", "client is on the call", "RFP due tomorrow").
+  When the objection requires proof artifacts (code + modules + demo steps), route to
+  odoo-capability-proof. When user simply wants to know if a feature exists (not defend it),
+  route to odoo-feature-check
 ---
 
 ## Persona

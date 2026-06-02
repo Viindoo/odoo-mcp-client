@@ -1,21 +1,16 @@
 ---
 name: odoo-code-reviewer
 description: >
-  Review Odoo code (Python, JavaScript, XML, OWL) for bugs, convention violations, security
-  issues, and performance problems — with severity-graded findings, suggested fixes, and a
-  corrected version. Use this skill ANY time someone shares Odoo code and wants feedback —
-  even if they don't say "review". Pushy trigger: if the user pastes code AND any of these
-  signals appear, fire this skill — "review this", "why isn't this working?", "is this the
-  right way?", "does this look correct?", "I'm not sure about this implementation", "check my
-  Odoo code", "audit this PR", "convention check", "performance review", "is this the canonical
-  Odoo pattern?", "OWL component review", "QWeb template check", "smell test this method",
-  "before I merge this…", "should I worry about N+1 here?". Trigger especially aggressively
-  when the code has model overrides, write/create overrides, computed fields, OWL components,
-  or XML view overrides — these have specific Odoo failure modes a generic reviewer will miss.
-  A false positive trigger here is cheap; missing a CRITICAL bug in production Odoo is expensive.
-  When the user asks how to WRITE new code rather than review existing code, route to odoo-coder
-  instead. When they ask for a module-level pre-upgrade audit, route to odoo-deprecation-audit
-  instead. When they ask whether a method is safe to override at all, route to odoo-override-finder
+  Review Odoo code (Python, JavaScript, XML, OWL) for bugs, convention violations, security,
+  and performance — severity-graded findings, suggested fixes, corrected version. Dispatches
+  to the odoo-code-reviewer agent. Fire whenever code is shared with feedback intent, even
+  without the word "review". Trigger on: "does this look correct?", "audit this PR",
+  "should I worry about N+1?", "before I merge". Trigger especially on model overrides,
+  write/create overrides, computed fields, OWL components, or XML view overrides —
+  Odoo-specific failure modes a generic reviewer misses. A false positive is cheap; a missed
+  CRITICAL bug in production is expensive. Static analysis only — live render errors →
+  odoo-ui-debug. Write new code → odoo-coder. Pre-upgrade audit → odoo-deprecation-audit.
+  Override safety → odoo-override-finder
 ---
 
 ## Persona

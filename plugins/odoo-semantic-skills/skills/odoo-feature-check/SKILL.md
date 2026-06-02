@@ -1,19 +1,15 @@
 ---
 name: odoo-feature-check
 description: >
-  Answer the question "does standard Odoo already do this?" with evidence — module name,
-  edition (CE / Odoo EE), key fields/models, and a one-line verdict ready for a client email.
-  Use this skill ANY time someone is checking ONE feature's availability, even if they phrase
-  it as a yes/no question or with no technical vocabulary at all. Pushy trigger: if the user
-  asks "does Odoo have…", "is X available out of the box?", "do we need to build this or is
-  it already there?", "what edition do I need for Z?" — fire this skill before answering from
-  memory, because training data about Odoo modules drifts fast. Realistic phrases: "does Odoo
-  17 have subscription billing built-in?", "is there a standard timesheet approval workflow?",
-  "client asked if Odoo handles SEPA direct debit out of the box", "do we need EE for
-  accounting localization?", "what's the standard way Odoo does X?". Use this when the user
-  is asking about ONE feature/module; when they list MANY requirements at once route to
-  odoo-gap-analysis instead. When they want to see real source-code examples of X being used,
-  route to odoo-feature-highlights or odoo-capability-proof
+  Answer "does standard Odoo already do this?" with evidence — module name, edition (CE / EE),
+  key fields/models, and a one-line verdict ready for a client email. Version-aware: uses MCP
+  check_module_exists/find_examples; confirm version when unspecified. Fire before answering
+  from memory — training data about Odoo modules drifts fast.
+  Trigger on: "does Odoo have…", "is X available out of the box?", "do we need to build this
+  or is it already there?", "what edition do I need for Z?".
+  Use this when the user is asking about ONE feature/module; when they list MANY requirements
+  at once route to odoo-gap-analysis instead. When they want to see real source-code examples
+  of X being used, route to odoo-feature-highlights or odoo-capability-proof
 ---
 
 ## Persona

@@ -1,29 +1,17 @@
 ---
 name: odoo-discovery-summarize
 description: >
-  Transform raw discovery meeting notes (pasted text, bullet dump, or free-form description)
-  into a structured customer profile ready for proposal drafting — extracting industry
-  vertical, headcount band, current ERP/systems, verbatim pain-point quotes, success
-  criteria, decision process, budget signal, timeline urgency, and a fit-score (1-5) with
-  explicit per-pain reasoning. Use this skill ANY time a Sales AE or Pre-Sales Consultant
-  finishes a discovery call and needs to synthesize their notes into something actionable.
-  Pushy trigger: fire on "synthesize discovery note", "extract customer profile",
-  "summarize discovery notes", "synthesize meeting notes",
-  "we had a discovery call — analyze", "turn raw notes into proposal input",
-  "I have notes from today's call — help me structure them",
-  "they told us their pain points — can you extract a profile?",
-  "prospect interview done — what did we learn?",
-  "discovery call recap", "meeting notes to customer profile",
-  "turn conversation notes into a structured discovery profile",
-  "I need a customer profile for the proposal",
-  "we finished a discovery — synthesize the notes",
-  "help me structure what we learned from today's call". Trigger even when the user
-  says ONLY a business name + "we had a meeting" — that alone is enough signal. DO NOT
-  trigger for: internal team retrospectives, sprint planning sessions, developer standups,
-  technical architecture discussions where there is no customer prospect involved; when
-  user wants to WRITE a follow-up email route to `odoo-deal-followup` instead; when they
-  want a full effort matrix (Standard/Custom/days) route to `odoo-gap-analysis`; when
-  they want to handle an objection route to `odoo-objection-handler`
+  Transform raw discovery meeting notes (pasted or free-form) into a structured customer
+  profile for proposal drafting — industry, current ERP, verbatim pain quotes, budget signal,
+  timeline urgency, fit-score (1-5). Use ANY time a Sales AE or Pre-Sales Consultant finishes
+  a discovery call and needs to synthesize notes. Fire on "synthesize discovery notes",
+  "extract customer profile", "discovery call recap", "meeting notes to customer profile",
+  "we had a discovery call — analyze", "tóm tắt notes cuộc họp tìm hiểu khách hàng",
+  "vừa họp khách xong giúp tóm tắt thành hồ sơ". Trigger even on a business name +
+  "we had a meeting". DO NOT trigger for internal team retrospectives, sprint planning, or
+  developer standups with no customer prospect. When user wants to WRITE a follow-up email
+  route to `odoo-deal-followup`; for a full effort matrix (Standard/Custom/days) route to
+  `odoo-gap-analysis`; to handle an objection route to `odoo-objection-handler`
 ---
 
 ## Persona

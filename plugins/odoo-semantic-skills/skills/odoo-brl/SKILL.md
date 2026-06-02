@@ -4,14 +4,12 @@ description: >
   Process a business requirement list (BRL) of any size - tens to thousands of items -
   into a classified, costed, dependency-ordered implementation plan. For each requirement:
   4-way classification (Available-in-Odoo-CE / Available-in-Odoo-EE / Available-in-Viindoo / Custom)
-  via double-profile odoo-semantic-mcp tool calls, a deterministic cost estimate (lookup table, no
-  fabrication), and a requirements traceability matrix (RTM) ready for consultant export.
-  Runs as a sequential-outer / parallel-inner chunked pipeline with checkpoint/resume so the
-  session can be interrupted and restarted without losing work.
-  Fire this skill ANY time someone pastes or points to a multi-item requirement list and wants
-  it scoped end-to-end: "classify these 400 requirements", "turn this RFP spreadsheet into an
-  effort + cost plan", "we have a BRL of 1200 lines - what is Odoo-native, what is Viindoo,
-  what is custom, and what does it cost?".
+  via double-profile odoo-semantic-mcp tool calls, a deterministic cost estimate (lookup
+  table, no fabrication), and a requirements traceability matrix (RTM) for consultant
+  export. Runs as a sequential-outer / parallel-inner chunked pipeline with
+  checkpoint/resume so an interrupted session can restart without losing work. Fire ANY
+  time someone pastes or points to a multi-item requirement list to scope end-to-end:
+  "classify these 400 requirements", "turn this RFP spreadsheet into an effort + cost plan".
   For a SINGLE feature use odoo-feature-check; for a short ad-hoc gap matrix with no cost,
   no chunked pipeline, and no scale requirement use odoo-gap-analysis
 model: opus
