@@ -90,7 +90,13 @@ surface; historical entries in `CHANGELOG.md` are intentionally exempt.
 
 Each `plugins/odoo-semantic-skills/skills/<name>/SKILL.md` must start with YAML frontmatter containing at least a
 `name` and a `description`. The description is what drives routing — keep it specific and
-trigger-rich. `make test` runs `tests/test_skill_format.py` to enforce this.
+trigger-rich, but **under 1024 characters**: Claude truncates longer descriptions out of the
+skill listing, which silently degrades triggering. Trim duplicate trigger phrases and
+illustrative examples before cutting any `route to …` / `DO NOT trigger → …` disambiguation
+clause. `make test` enforces all of this via `tests/test_skill_format.py` (frontmatter
+shape), `tests/test_skill_description_budget.py` (the 1024-char cap), and
+`tests/test_intake_quote_sync.py` (every skill/workflow the `intake` router points at must
+exist).
 
 ## Pull requests
 
@@ -139,8 +145,8 @@ repo, but rotate immediately if exposure is suspected.
 
 `VERSION` is the single source of truth for the client version. The repo ships **two
 plugins** with independent version numbers: the `odoo-semantic-skills` plugin's
-`plugin.json.version` tracks `VERSION` (currently `2.2.0`), while the
-`odoo-semantic-mcp` plugin versions independently (currently `1.0.0`). Tagging `v*`
+`plugin.json.version` is kept in lockstep with `VERSION`, while the
+`odoo-semantic-mcp` plugin versions independently. Tagging `v*`
 should bump `VERSION` together with the skills plugin's `plugin.json.version`; bump the
 mcp plugin's version only when its own contents change. `pin-sha.yml` updates `source.sha`
 for both plugins on every qualifying push; each marketplace entry's `source.version`
