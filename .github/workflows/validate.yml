@@ -44,6 +44,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: python3 plugins/odoo-semantic-skills/generator/gen_surface.py check
+      - run: python3 plugins/odoo-semantic-skills/generator/gen_mcp_manifests.py check
 
   e2e-install:
     name: e2e install (${{ matrix.os }})

@@ -52,8 +52,10 @@ test: $(VENV_STAMP)
 	$(PYTHON) -m pytest tests/ -q
 
 # SSOT generator: read generator/server-surface.json → emit routing matrix + skill sections + snippets.
+# Also regenerates Codex CLI + Gemini CLI MCP manifests from .mcp.json SSOT.
 gen: $(VENV_STAMP)
 	$(PYTHON) plugins/odoo-semantic-skills/generator/gen_surface.py
+	$(PYTHON) plugins/odoo-semantic-skills/generator/gen_mcp_manifests.py
 
 # CI idempotency check: gen must produce zero diff on a clean tree.
 gen-check: gen

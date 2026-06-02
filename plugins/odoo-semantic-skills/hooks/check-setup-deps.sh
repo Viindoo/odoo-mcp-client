@@ -43,25 +43,20 @@ command -v ffmpeg >/dev/null 2>&1 || missing+=("ffmpeg (not in PATH)")
 # Claude Code itself is already wired by virtue of this plugin bundling its own
 # .mcp.json (the three browser servers load when the plugin is installed) — so a
 # running Claude Code session that executes this hook is by definition wired.
-# This probe therefore only needs to confirm the cross-runtime CLIs (Codex /
-# Gemini), where step 10 writes the registry. For Claude we still check its real
-# MCP registry path — ~/.claude.json (key mcpServers), NOT the Claude *Desktop*
-# config (~/.claude/claude_desktop_config.json), which step 10 never touches.
-_browser_mcp_wired=false
+# We do NOT check ~/.claude.json: step 10 intentionally never writes there to
+# avoid duplicate-skip notes. We only check cross-runtime CLIs (Codex / Gemini)
+# where step 10 writes the registry.
+_browser_mcp_wired=true  # Claude is always wired via bundled .mcp.json
 _codex_cfg="${CODEX_CONFIG:-${HOME}/.codex/config.toml}"
 _gemini_cfg="${GEMINI_SETTINGS:-${HOME}/.gemini/settings.json}"
-_claude_cfg="${CLAUDE_CONFIG:-${HOME}/.claude.json}"
-if [ -f "${_codex_cfg}" ] && grep -q "chrome-devtools" "${_codex_cfg}" 2>/dev/null; then
-  _browser_mcp_wired=true
+if [ -f "${_codex_cfg}" ] && ! grep -q "chrome-devtools" "${_codex_cfg}" 2>/dev/null; then
+  _browser_mcp_wired=false
 fi
-if [ -f "${_gemini_cfg}" ] && grep -q "chrome-devtools" "${_gemini_cfg}" 2>/dev/null; then
-  _browser_mcp_wired=true
-fi
-if [ -f "${_claude_cfg}" ] && grep -q "chrome-devtools" "${_claude_cfg}" 2>/dev/null; then
-  _browser_mcp_wired=true
+if [ -f "${_gemini_cfg}" ] && ! grep -q "chrome-devtools" "${_gemini_cfg}" 2>/dev/null; then
+  _browser_mcp_wired=false
 fi
 
-${_browser_mcp_wired} || missing+=("chrome-devtools MCP (not wired in any CLI config)")
+${_browser_mcp_wired} || missing+=("chrome-devtools MCP (not wired in Codex/Gemini — run setup)")
 
 # Emit hint only when something is missing
 if [ "${#missing[@]}" -gt 0 ]; then

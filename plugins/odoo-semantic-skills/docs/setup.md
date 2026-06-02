@@ -182,6 +182,21 @@ The four `Visual` skills (`odoo-ui-reviewer`, `odoo-ui-debug`, `odoo-visual-regr
 live browser**. They depend on three browser MCP servers — `chrome-devtools`, `playwright`,
 and `pagecast` (local stdio `npx` servers) — plus browser binaries and `ffmpeg`.
 
+### Per-runtime native provisioning
+
+Each supported AI runtime ships the three browser MCP servers as part of the plugin
+bundle. For most users, install the plugin and the servers are wired automatically:
+
+| Runtime | Bundle file | Install command | Dedup behaviour |
+|---------|-------------|-----------------|-----------------|
+| **Claude Code** | `.mcp.json` (auto-loaded on plugin install) | `claude plugin install odoo-semantic-skills@viindoo-plugins` | Claude deduplicates by command/endpoint: a same-command server already in your config simply wins; the bundled copy is skipped — normal, not an error. No extra step. |
+| **Gemini CLI** | `gemini-extension.json` (in the plugin directory) | `gemini extensions install <your-clone>/plugins/odoo-semantic-skills` (or `...link ...` for live dev) | Dedup is by server **name**: a same-named server already in `~/.gemini/settings.json` wins (no error). **Important:** Gemini cannot install an extension from a subdirectory of a git repo — use the local path after cloning, not a raw GitHub URL. The `trust` field is not permitted in the extension manifest. |
+| **Codex CLI** | `.codex-plugin/plugin.json` | `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-semantic-skills@<marketplace>` (marketplace.json is to be published as a separate distribution step; the manifest ships now) | Same dedup-by-name behaviour as Claude. |
+
+> **Fallback for Codex / Gemini non-native installs:** run
+> `/odoo-semantic-skills:setup runtime` — it writes the correct config for each
+> runtime idempotently without touching the rest of the setup steps.
+
 ### One command: `/odoo-semantic-skills:setup`
 
 Inside Claude Code, run it once:
@@ -194,31 +209,32 @@ It is **idempotent and extensible** — re-running only applies what is missing,
 a registry of numbered step scripts (`scripts/setup-steps/`), so new capabilities are
 drop-in. What it does:
 
-1. **Browser MCP** — registers `chrome-devtools`, `playwright`, `pagecast` into Claude Code,
-   Codex CLI, and Gemini CLI (cross-runtime).
+1. **Browser MCP** — registers `chrome-devtools`, `playwright`, `pagecast` into Codex CLI
+   and Gemini CLI only. For Claude Code the bundled `.mcp.json` provides them, so step 10
+   never writes to `~/.claude.json`.
 2. **Browser deps** — checks Node >= 20, installs Playwright Chromium, checks `ffmpeg`.
 3. **Permissions** — auto-allows the browser MCP tools in Claude permissions.
 4. **Instance profile** — discovers local Odoo repos and writes `.odoo-ai/instances.toml`.
 5. **Instance spin-up** (optional) — launches a declared Odoo instance and waits for HTTP 200.
 
-> For Claude Code, the three browser MCP servers also load automatically from the plugin's
-> bundled `.mcp.json` once the plugin is installed. The setup command additionally wires the
-> **other** runtimes (Codex, Gemini) and installs the browser dependencies, which the bundle
-> alone does not.
+> **Note for Claude Code users:** `/setup` no longer writes the browser servers into
+> `~/.claude.json` — Claude is served by the bundled `.mcp.json`. Re-running `/setup`
+> will therefore not recreate any "skipped duplicate" entries there; that is expected.
 
 A **SessionStart** hint (read-only, never installs or blocks) nudges you to run
 `/odoo-semantic-skills:setup` whenever a dependency is missing.
 
-### Cross-runtime MCP wiring (what the setup writes)
+### Cross-runtime MCP wiring (what `/setup runtime` writes)
 
-Each runtime stores browser MCP config in a **different file with a different schema** — the
-setup command writes the correct shape for each, merging idempotently into existing config:
+Each runtime stores browser MCP config in a **different file with a different schema**.
+When the per-runtime native bundle is not used, the setup command writes the correct
+shape for each, merging idempotently into existing config:
 
-| Runtime | Config file | Schema |
-|---------|-------------|--------|
-| Claude Code | `~/.claude.json` (key `mcpServers`) | JSON — `{ "command": "npx", "args": [...] }` per server |
-| Codex CLI | `~/.codex/config.toml` | TOML — `[mcp_servers.<name>]` with `command` / `args` |
-| Gemini CLI | `~/.gemini/settings.json` (key `mcpServers`) | JSON — per-server entry plus `"trust": true` to skip prompts |
+| Runtime | Config file | Schema | Note |
+|---------|-------------|--------|------|
+| Claude Code | — (none) | — | Not written by `/setup`. Served by the plugin's bundled `.mcp.json`; adding a duplicate to `~/.claude.json` is what causes the "skipped" notes. |
+| Codex CLI | `~/.codex/config.toml` | TOML — `[mcp_servers.<name>]` with `command` / `args` | Written only when `~/.codex/config.toml` already exists (Codex is installed). |
+| Gemini CLI | `~/.gemini/settings.json` (key `mcpServers`) | JSON — per-server entry plus `"trust": true` to skip prompts | Written only when `~/.gemini/settings.json` already exists. |
 
 The browser servers are local stdio `npx` servers (no API key needed), unlike the
 `odoo-semantic` HTTP server documented above — so this wiring is independent of the
