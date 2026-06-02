@@ -63,8 +63,12 @@ gen: $(VENV_STAMP)
 
 # CI idempotency check: gen must produce zero diff on a clean tree.
 gen-check: gen
-	@git diff --exit-code || \
-		(echo "ERROR: make gen produced uncommitted changes — update plugins/odoo-semantic-skills/generator/server-surface.json and commit the output." && exit 1)
+	@dirty="$$(git status --porcelain)"; \
+	if [ -n "$$dirty" ]; then \
+		echo "ERROR: make gen produced uncommitted changes (incl. new untracked artifacts) — commit the generated output."; \
+		echo "$$dirty"; \
+		exit 1; \
+	fi
 
 # Dependency check: assert all skill ↔ tool refs are valid (live, not removed).
 deps-check: $(VENV_STAMP)

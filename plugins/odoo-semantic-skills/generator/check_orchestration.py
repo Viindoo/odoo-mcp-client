@@ -18,7 +18,7 @@ is complete and that skills thread the shared contracts they are required to:
                     absolute paths, and hardcoded hex inside skill SCSS code fences.
 
 WARN-FIRST: by default this prints findings and exits 0 (migration-friendly). Pass --strict
-(or set OSS_LINT_STRICT=1) to exit 1 on any finding — flip that on once all skills comply.
+(or set ORCH_STRICT=1) to exit 1 on any finding — flip that on once all skills comply.
 
 Run from the repo root or anywhere; paths are resolved relative to this file.
 """
@@ -40,6 +40,13 @@ INSTANCE_REFS = ("cli_help", "INSTANCE-LIFECYCLE", "ODOO-TESTING")
 # Skills that fan-out / spawn workers which may write Odoo code → must carry OSM-first.
 OSM_REQUIRED = {"wave", "workflow-runner", "odoo-brl"}
 
+# Allowed enum values for the orchestration SSOT. A typo (e.g. "spawner_agent") must be a
+# loud finding, not a silent drop from the generated digest — otherwise the planner is told
+# a real spawner is safe to forbid, defeating the whole nesting guard this layer provides.
+VALID_SPAWN_CLASS = {"leaf", "orchestrator-nl", "spawner-agent", "spawner-wave"}
+VALID_DEPTH_POLICY = {"any-depth", "depth0-only"}
+VALID_STACK = {"backend", "frontend", "fullstack", "none"}
+
 # High-precision ACTIVE dispatch signals in a SKILL.md body. Deliberately narrow: a generic
 # "spawn subagents" phrase is NOT included because it appears in negated capability statements
 # ("this skill does not invoke other skills or spawn subagents") and is pure noise. We only
@@ -49,7 +56,9 @@ SPAWN_BODY_RE = re.compile(
     r"(invoke the Agent tool|call the Agent tool|dispatch(?:es)? (?:to )?the [a-z][a-z-]+ agent)",
     re.I,
 )
-NEGATION_RE = re.compile(r"\b(not|never|cannot|non-|n't|may not)\b", re.I)
+# Negation tokens that suppress a spawn match. Note: "non-" is deliberately excluded — it
+# matches innocuous words like "non-blocking"/"non-trivial" and caused false negatives.
+NEGATION_RE = re.compile(r"(\bnot\b|\bnever\b|\bcannot\b|n't\b|\bno longer\b)", re.I)
 
 
 def _has_positive_spawn(body: str) -> bool:
@@ -62,8 +71,12 @@ def _has_positive_spawn(body: str) -> bool:
     return False
 SELF_REF_RE = re.compile(r"--([a-z0-9-]+)\s*:\s*var\(\s*--\1\b", re.I)
 MACHINE_PATH_RE = re.compile(r"/(?:home|Users)/([A-Za-z0-9._-]+)/")
-# Placeholder usernames are documentation, not a leak of this machine's real home.
-PLACEHOLDER_USERS = {"user", "username", "you", "youruser", "your-user", "me", "name", "odoo"}
+# Usernames that are NOT a leak of this machine's real home: doc placeholders + standard
+# system/CI accounts (e.g. GitHub Actions runs under /home/runner, containers under /root).
+PLACEHOLDER_USERS = {
+    "user", "username", "you", "youruser", "your-user", "me", "name", "odoo",
+    "runner", "root", "shared", "dev", "developer", "ci", "ubuntu", "vagrant", "app",
+}
 
 
 def _machine_path_leak(text: str) -> bool:
@@ -84,7 +97,7 @@ def skill_body(name: str) -> str | None:
 
 
 def main(argv: list[str]) -> int:
-    strict = "--strict" in argv or os.environ.get("OSS_LINT_STRICT") == "1"
+    strict = "--strict" in argv or os.environ.get("ORCH_STRICT") == "1"
     findings: list[str] = []
 
     orch = load_orch()
@@ -96,11 +109,30 @@ def main(argv: list[str]) -> int:
     for extra in sorted(set(orch) - dirs):
         findings.append(f"[coverage] orchestration entry '{extra}' has no skills/ dir")
 
+    # 1c. The shared contract files the per-skill checks reference by substring must actually
+    #     exist — otherwise a rename leaves every skill "passing" (stale substring) with a dead
+    #     link. Verify the SSOT targets on disk once.
+    for rel in (f"snippets/{OSM_SNIPPET}.md", f"snippets/nesting-guard.md",
+                f"docs/reference/{DESIGN_DOC}.md", "docs/reference/INSTANCE-LIFECYCLE.md",
+                "docs/reference/ODOO-TESTING.md"):
+        if not (PLUGIN_ROOT / rel).is_file():
+            findings.append(f"[ref-target] shared contract file '{rel}' is referenced but missing on disk")
+
     for name in sorted(set(orch) & dirs):
         e = orch[name]
         body = skill_body(name) or ""
         spawn_class = e.get("spawn_class", "")
         stack = e.get("stack", "none")
+        depth_policy = e.get("depth_policy", "")
+
+        # 1b. Enum validity — a typo'd value silently drops the skill from the generated
+        #     spawner/depth0 digest (the planner is then misled), so treat it as a finding.
+        if spawn_class not in VALID_SPAWN_CLASS:
+            findings.append(f"[enum] '{name}' has invalid spawn_class '{spawn_class}' (not in {sorted(VALID_SPAWN_CLASS)})")
+        if depth_policy not in VALID_DEPTH_POLICY:
+            findings.append(f"[enum] '{name}' has invalid depth_policy '{depth_policy}' (not in {sorted(VALID_DEPTH_POLICY)})")
+        if stack not in VALID_STACK:
+            findings.append(f"[enum] '{name}' has invalid stack '{stack}' (not in {sorted(VALID_STACK)})")
 
         # 2. OSM-first contract
         if name in OSM_REQUIRED and OSM_SNIPPET not in body:
