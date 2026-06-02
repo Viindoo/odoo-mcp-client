@@ -304,7 +304,47 @@
       "expected_routed_to": "odoo-gap-analysis",
       "category": "should-fire-collision",
       "files": []
+    },
+    {
+      "id": 39,
+      "prompt": "I want to do something with Odoo for our sales team",
+      "expected_output": "Phase 0 GATE fires: intent is vague (no concrete verb, no domain, purpose unclear). Intake MUST NOT proceed to Phase R (Recon) or produce a Proposed Plan until all three GATE items are resolved: WHAT the user wants (intent), WHY (purpose), and WHAT done looks like (expected outcomes). Intake presents pre-structured options — e.g. '(a) automate follow-up emails, (b) configure a sales pipeline, (c) assess what Odoo can do for your team' — and waits for the user to select before continuing. Fails correctly if it skips the gate and jumps to Recon or a Proposed Plan.",
+      "expected_routed_to": "phase-0-gate-clarify",
+      "category": "phase0-gate-mandatory",
+      "files": []
+    },
+    {
+      "id": 40,
+      "prompt": "I need to add a custom approval step to the sale order workflow — can you survey what already exists in our codebase before planning?",
+      "expected_output": "Phase 0 gate closes immediately (intent = add approval step, purpose = extend sale order workflow, expected outcome = code implementing the approval gate). Phase R (Recon) then dispatches ≤1–2 READ-ONLY agents (e.g. Explore or odoo-override-finder in read-only mode) or OSM tools (find_override_point, model_inspect) to map existing override points and current workflow code. Phase R agents MUST NOT write any file and MUST NOT spawn further sub-agents. After Recon, intake writes the Proposed Plan enriched with Recon findings (hook location, relevant method names). Plan Mode is required because the Approach is odoo-coder (writes-files). Fails correctly if Phase R writes a file or spawns a sub-agent.",
+      "expected_routed_to": "odoo-coder (after Phase R Recon)",
+      "category": "phase-r-recon-dispatch",
+      "files": []
+    },
+    {
+      "id": 41,
+      "prompt": "Add a `priority` field to sale.order (backend) and render it as a star widget on the form (frontend) — multi-file change, I want the full plan",
+      "expected_output": "Intake fires (full-stack request spanning backend + frontend). After Phase 0 gate + Phase R Recon, the Proposed Plan includes Plan Mode: required. Inside Plan Mode the implementation plan MUST contain all three blocks: (1) Workitem list — WI-A (odoo-coder: adds Python field + XML attribute; files: models/sale_order.py, views/sale_order_form.xml) and WI-B (odoo-frontend-coder: adds OWL star widget; files: static/src/components/priority_widget.js, static/src/components/priority_widget.xml) — file sets are DISJOINT; (2) Dependency graph — linear topology, edge WI-B --data-flow--> WI-A (widget binds to field that must exist first), with topological_order [WI-A, WI-B] and critical_path [WI-A, WI-B]; (3) Assignment — WI-A: odoo-coder (sonnet, M); WI-B: odoo-frontend-coder (sonnet, M) — each with acceptance criteria and verify command. Fails correctly if any of the three Plan Mode blocks is absent or if file sets overlap.",
+      "expected_routed_to": "plan-mode-workitem-dag-assignment",
+      "category": "plan-mode-full-schema",
+      "files": []
+    },
+    {
+      "id": 42,
+      "prompt": "[User has approved the Proposed Plan for a sale.order field change; Plan Mode UI is shown; user types: 'Actually the field should be on purchase.order, not sale.order — please revise']",
+      "expected_output": "Plan Mode rejection flow: user refines inside Plan Mode UI (step 5 of the procedure). Intake MUST loop back to the soft-plan-gate (NOT to execution). It updates the Proposed Plan with purchase.order as the target, adjusts Workitem list (files: models/purchase_order.py, views/purchase_order_form.xml) and Assignment accordingly, then re-emits the Proposed Plan gate for re-approval. MUST NOT dispatch a writes-files specialist off a rejected plan. Re-enters Plan Mode only after the revised plan is re-approved at the text gate. Fails correctly if it dispatches odoo-coder before the revised Proposed Plan is re-approved.",
+      "expected_routed_to": "soft-plan-gate-loop (rejection → re-plan → re-approve)",
+      "category": "plan-mode-rejection-flow",
+      "files": []
+    },
+    {
+      "id": 43,
+      "prompt": "Does Odoo 17 CE support multi-currency invoicing out of the box?",
+      "expected_output": "Regression: Intake Tier-3 row 6 matches odoo-feature-check (single feature lookup, chat-only output_mode). Plan Mode decision tree: output_mode = chat-only → SKIP Plan Mode (unchanged behavior). Intake ends its turn with a fast-path gate ('Plan: run odoo-feature-check to verify multi-currency invoicing availability in Odoo 17 CE. Proceed?'). On approval, the specialist fires via the Agent tool on the next turn — NO EnterPlanMode call. Fails correctly if Plan Mode is entered for a chat-only skill.",
+      "expected_routed_to": "odoo-feature-check (chat-only, Plan Mode skipped)",
+      "category": "plan-mode-regression-chat-only",
+      "files": []
     }
   ],
-  "notes": "38 eval cases total: IDs 1-20 ported from the prior router skill (updated skill_name to 'intake'); IDs 21-31 are new cases covering vague->brainstorm (21-24, 31), clear->fast-path (26-28), slash->no-fire (29-30), BRL-handoff (25 updated); IDs 32-38 cover new routing rows 33-39: brl-handoff (32), qa-suite (33), support-triage (34), ui-debug-session (35), content-production (36), sales-closing-cycle (37), BRL-vs-gap-analysis collision (38). Full Mode 5 trigger optimization scheduled for Phase D per AC-D6 of the v1.0.0 refinement plan. Phase A acceptance is verified via inline walkthrough by main agent (see report)."
+  "notes": "43 eval cases total: IDs 1-20 ported from the prior router skill (updated skill_name to 'intake'); IDs 21-31 are new cases covering vague->brainstorm (21-24, 31), clear->fast-path (26-28), slash->no-fire (29-30), BRL-handoff (25 updated); IDs 32-38 cover new routing rows 33-39: brl-handoff (32), qa-suite (33), support-triage (34), ui-debug-session (35), content-production (36), sales-closing-cycle (37), BRL-vs-gap-analysis collision (38). IDs 39-43 cover the 5-phase planner behavior added by WI-A: phase-0-gate-mandatory (39), phase-r-recon-dispatch (40), plan-mode-full-schema with workitem+DAG+assignment (41), plan-mode-rejection-flow (42), plan-mode-regression-chat-only-skip (43). Full Mode 5 trigger optimization scheduled for Phase D per AC-D6 of the v1.0.0 refinement plan. Phase A acceptance is verified via inline walkthrough by main agent (see report)."
 }
