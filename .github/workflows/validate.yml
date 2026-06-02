@@ -35,16 +35,37 @@ jobs:
   gen-check:
     name: Generated artifacts in sync with SSOT
     runs-on: ubuntu-latest
-    # Catch generated artifacts (routing matrix, skill ## MCP tools sections,
-    # IDE snippets) drifting from server-surface.json. Runs on PRs so drift
-    # surfaces before merge.
+    # Catch generated artifacts (routing matrix, orchestration map + digest, skill
+    # ## MCP tools sections, IDE snippets, Codex/Gemini MCP manifests) drifting from
+    # their SSOT (server-surface.json / skill_tool_deps.json / .mcp.json). Runs the
+    # generators then asserts a clean git tree — the proven idempotency mechanism
+    # (the previous `gen_surface.py check` arg was a no-op and never caught drift).
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - run: python3 plugins/odoo-semantic-skills/generator/gen_surface.py check
-      - run: python3 plugins/odoo-semantic-skills/generator/gen_mcp_manifests.py check
+      - run: python3 plugins/odoo-semantic-skills/generator/gen_surface.py
+      - run: python3 plugins/odoo-semantic-skills/generator/gen_mcp_manifests.py
+      - run: |
+          git diff --exit-code || {
+            echo "ERROR: generated artifacts drifted from SSOT — run 'make gen' and commit the output." >&2
+            exit 1
+          }
+
+  orchestration-check:
+    name: Capability/contract lint (warn-first)
+    runs-on: ubuntu-latest
+    # Lints the Declarative Capability & Contract Layer: orchestration coverage,
+    # OSM-first + design-system + instance references, spawn-truth, no-hardcode/no-leak.
+    # WARN-FIRST: non-blocking during migration (exits 0, prints findings). Flip to
+    # enforcing by adding `--strict` (or env ORCH_STRICT=1) once all skills comply.
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python3 plugins/odoo-semantic-skills/generator/check_orchestration.py
 
   e2e-install:
     name: e2e install (${{ matrix.os }})

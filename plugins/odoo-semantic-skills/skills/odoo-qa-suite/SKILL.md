@@ -8,7 +8,9 @@ description: >
   runtime triage), handles test-gen and bug-triage inline. Trigger on: "write test
   cases for this feature", "QA checklist before release", "triage this bug", "QA
   pipeline for this change", "full QA suite", "test plan for this release",
-  "acceptance tests for this module". Do NOT trigger for: pure code review (route to
+  "acceptance tests for this module". Also fires on Vietnamese: "viết test case", "checklist
+  QA trước release", "triage bug / phân loại lỗi", "kế hoạch test cho bản phát hành". Do NOT
+  trigger for: pure code review (route to
   odoo-code-reviewer); a UI rendering defect needing live browser inspection with no
   triage output (route to odoo-ui-debug directly); pre-deploy mechanical safety gate
   alone (route to odoo-deploy-checklist directly)
@@ -89,6 +91,11 @@ Rules (ETHOS#11):
 - Cover at minimum: happy path, edge case (empty/zero/boundary), error path (invalid
   input), permission check (user without access gets rejected).
 - Separate unit tests (no DB, no UI) from integration tests (multi-model or multi-user).
+- Ground the test mechanics in the TARGET version — test classes, tag syntax and the JS
+  framework (QUnit vs Hoot) differ across Odoo versions. Resolve the real invocation via
+  OSM (`set_active_version` + `cli_help` for `--test-enable`/`--test-tags`) and follow
+  ${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md; never assume one version's test
+  command line applies to another.
 - Output file: `.odoo-ai/qa/<slug>-test-cases.md`
 
 ---

@@ -120,6 +120,13 @@ Never write real company names, VND figures, or internal pricing into any commit
 
 ### Phase A - CLASSIFY (outer sequential per chunk, inner <=3 parallel MCP)
 
+> **OSM-First Grounding Contract** (${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md):
+> A0 below uses training knowledge only to *propose* candidate modules — the final
+> classification of every requirement MUST be confirmed against OSM (`check_module_exists`
+> per profile/version, `find_examples` for the unmapped), never asserted from memory. If
+> OSM is unreachable, mark the item ungrounded (`classification_source="osm-error"`) rather
+> than guessing a CE/EE/Viindoo verdict. Any optional Phase D subagent inherits this contract.
+
 For each chunk (outer loop, sequential):
 
 **A0 - LLM module mapping (no MCP, fastest):**

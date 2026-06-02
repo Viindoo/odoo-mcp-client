@@ -58,11 +58,29 @@ fi
 
 ${_browser_mcp_wired} || missing+=("chrome-devtools MCP (not wired in Codex/Gemini — run setup)")
 
-# Emit hint only when something is missing
+# Emit the human dep hint on STDERR (visible console nudge; does not collide with the
+# JSON we put on stdout for SessionStart context injection).
 if [ "${#missing[@]}" -gt 0 ]; then
   _list=$(IFS=", "; echo "${missing[*]}")
-  echo "i  Odoo visual stack incomplete: ${_list}."
-  echo "   Run /odoo-semantic-skills:setup to complete the installation."
+  echo "i  Odoo visual stack incomplete: ${_list}." >&2
+  echo "   Run /odoo-semantic-skills:setup to complete the installation." >&2
+fi
+
+# SessionStart context injection: always surface the orchestration digest so the
+# planning/main agent knows up front which skills spawn subagents (never forbids a
+# legitimate spawn) and which are depth0-only. Tiny payload (~80 tokens), plugin-local,
+# no machine-specific data. SSOT: docs/reference/orchestration-digest.txt (generated).
+_plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)"
+_digest_file="${_plugin_root}/docs/reference/orchestration-digest.txt"
+if [ -f "${_digest_file}" ]; then
+  _ctx="$(cat "${_digest_file}")"
+  if command -v jq >/dev/null 2>&1; then
+    jq -cn --arg ctx "${_ctx}" \
+      '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $ctx}}'
+  else
+    # Fallback when jq is unavailable: emit as a plain console hint (no structured inject).
+    printf '%s\n' "${_ctx}" >&2
+  fi
 fi
 
 exit 0

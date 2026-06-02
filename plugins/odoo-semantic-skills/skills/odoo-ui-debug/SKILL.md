@@ -97,6 +97,11 @@ Based on the symptom class, fire the relevant calls in parallel:
 
 - **CSS wrong / not applying:** `find_style_override(selector_or_variable=<selector>)` +
   `resolve_stylesheet(module=<module>)` → which rule wins and where it is defined.
+- **Flat / off-theme render (empty surfaces, invisible muted text, badges lost fill):** run the
+  token-reality check from `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md` —
+  read `getComputedStyle(:root)` for tokens that resolve EMPTY and for self-referential custom
+  properties (a CSS var whose value references itself — a cycle that resolves to empty), the
+  classic cause when styling chains into `--bs-*` tokens the target version does not emit.
 - **Server-side action/data wrong:** `find_override_point(model=<model>, method=<method>)`.
 - **JS/OWL render / widget missing:** `module_inspect(name=<module>, method='js')` +
   `module_inspect(name=<module>, method='owl')` + `find_examples(query='<symptom> OWL widget')`

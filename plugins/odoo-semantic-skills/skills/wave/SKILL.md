@@ -186,14 +186,24 @@ Repo Capability Card:
   confidential: <level>
 
 Hard rules:
-  - You are a leaf worker (depth-2). You MAY NL-dispatch a non-spawning specialist skill
-    (e.g. odoo-coder, odoo-code-reviewer) if it helps. Do NOT invoke the Skill tool
-    directly. Do NOT spawn a sub-agent. Do NOT call self-spawning skills (/code-review,
-    skill-creator, wave). Do NOT git branch/cherry-pick/merge/push; stay in your assigned
-    worktree. Only Read/Grep/Glob/Edit/Write/Bash.
+  - Ground in OSM first — follow the OSM-First Grounding Contract
+    (${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md): you are in an Odoo context, so
+    verify every model/field/method/module/CLI/design-token claim via OSM
+    (set_active_version + model_inspect / entity_lookup / find_examples /
+    resolve_stylesheet) BEFORE writing, reuse indexed patterns before hand-writing, and if
+    OSM is unreachable say so ("OSM unavailable — ungrounded"). Never code Odoo from memory.
+  - Nesting guard (full text: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md): you are a
+    leaf worker (depth-2). You MAY NL-dispatch a non-spawning specialist skill (e.g.
+    odoo-coder, odoo-code-reviewer, odoo-frontend-coder) if it helps. Do NOT invoke the
+    Skill tool directly. Do NOT spawn a sub-agent. Do NOT call self-spawning / depth0-only
+    skills (/code-review, skill-creator, wave). Do NOT git branch/cherry-pick/merge/push;
+    stay in your assigned worktree. Only Read/Grep/Glob/Edit/Write/Bash.
   - Only edit files listed in your "Files in scope". Do not touch files owned by other WIs.
   - Commit your work to branch wave/wi-<slug>-<id> using the repo commit convention.
-  - Run the verify command and confirm it passes before declaring done.
+  - Run the verify command and confirm it passes before declaring done. If verify involves
+    `odoo-bin` (install/upgrade/test), resolve the target version's real CLI via OSM
+    `cli_help` first and follow ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md
+    and ODOO-TESTING.md — never assume one version's flags apply to another.
   - Return your result using EXACTLY this template (no prose substitution):
 
 ## WI-<ID> Result
@@ -237,12 +247,14 @@ For each WI (in topology order):
    - The conflicting diff
    - The two WI briefs whose files overlap (for context)
    - Instruction: resolve conflict, verify, commit.
-   - Nesting line (verbatim, mandatory): "You are a leaf worker (depth-2). You MAY
-     NL-dispatch a non-spawning specialist skill (e.g. odoo-coder, odoo-code-reviewer)
-     if it helps. Do NOT invoke the Skill tool directly. Do NOT spawn a sub-agent. Do NOT
-     call self-spawning skills (/code-review, skill-creator, wave). Do NOT git
-     branch/cherry-pick/merge/push; stay in your assigned worktree. Only
-     Read/Grep/Glob/Edit/Write/Bash."
+   - Nesting guard (verbatim, mandatory — SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md):
+     "You are a leaf worker (depth-2). You MAY NL-dispatch a non-spawning specialist skill
+     (e.g. odoo-coder, odoo-code-reviewer) if it helps. Do NOT invoke the Skill tool
+     directly. Do NOT spawn a sub-agent. Do NOT call self-spawning skills (/code-review,
+     skill-creator, wave). Do NOT git branch/cherry-pick/merge/push; stay in your assigned
+     worktree. Only Read/Grep/Glob/Edit/Write/Bash."
+   - Also hand the resolver the OSM-First Grounding Contract
+     (${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md) when the conflict touches Odoo code.
 
 4. Record the cherry-pick SHA and verify result in the plan artifact.
 

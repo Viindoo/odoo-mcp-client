@@ -25,6 +25,7 @@ level="${1:?usage: bump-version.sh <major|minor|patch|X.Y.Z>}"
 root="$(git rev-parse --show-toplevel)"
 version_file="$root/VERSION"
 plugin_json="$root/plugins/odoo-semantic-skills/.claude-plugin/plugin.json"
+codex_plugin_json="$root/plugins/odoo-semantic-skills/.codex-plugin/plugin.json"
 changelog="$root/CHANGELOG.md"
 
 cur="$(tr -d '[:space:]' < "$version_file")"
@@ -49,14 +50,17 @@ date_str="$(date +%F)"
 # 1) VERSION file
 printf '%s\n' "$new" > "$version_file"
 
-# 2) odoo-semantic-skills plugin.json (top-level "version" only, format preserved)
-python3 - "$plugin_json" "$new" <<'PY'
+# 2) odoo-semantic-skills plugin.json — both the Claude (.claude-plugin) and Codex
+#    (.codex-plugin) manifests, which carry their own top-level "version" and must stay
+#    in lockstep with VERSION (gemini-extension.json is regenerated in step 3).
+python3 - "$new" "$plugin_json" "$codex_plugin_json" <<'PY'
 import re, sys
-path, new = sys.argv[1], sys.argv[2]
-s = open(path, encoding="utf-8").read()
-s2, n = re.subn(r'("version"\s*:\s*")[0-9]+\.[0-9]+\.[0-9]+(")', rf'\g<1>{new}\g<2>', s, count=1)
-assert n == 1, f"expected exactly one top-level version in {path}, replaced {n}"
-open(path, "w", encoding="utf-8").write(s2)
+new, paths = sys.argv[1], sys.argv[2:]
+for path in paths:
+    s = open(path, encoding="utf-8").read()
+    s2, n = re.subn(r'("version"\s*:\s*")[0-9]+\.[0-9]+\.[0-9]+(")', rf'\g<1>{new}\g<2>', s, count=1)
+    assert n == 1, f"expected exactly one top-level version in {path}, replaced {n}"
+    open(path, "w", encoding="utf-8").write(s2)
 PY
 
 # 3) regenerate version-derived artifacts (gemini-extension.json embeds the version)

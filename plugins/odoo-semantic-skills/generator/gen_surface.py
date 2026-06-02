@@ -395,12 +395,16 @@ def gen_routing_md(surface: dict) -> str:
 
 SKILL_TO_TOOLS: dict[str, list[str]] = {}
 SKILL_OLLAMA_TOOLS: dict[str, list[str]] = {}
+# Orchestration SSOT (spawn_class / depth_policy / spawns / stack / instance_touching)
+# per skill dir, loaded from skill_tool_deps.json -> "orchestration".
+ORCHESTRATION: dict[str, dict] = {}
 
 
 def _load_skill_tool_deps() -> None:
-    """Populate SKILL_TO_TOOLS and SKILL_OLLAMA_TOOLS from skill_tool_deps.json.
+    """Populate SKILL_TO_TOOLS, SKILL_OLLAMA_TOOLS and ORCHESTRATION from skill_tool_deps.json.
 
-    The JSON is the SSOT for which MCP/Ollama tools each skill uses.
+    The JSON is the SSOT for which MCP/Ollama tools each skill uses, and (in the
+    "orchestration" block) for each skill's spawn class, depth policy and stack.
     Session bootstrap tools (set_active_version, set_active_profile) are included
     in each skill's mcp_tools list and separated at render time in
     gen_skill_tools_block() — same logic as before, just data-driven now.
@@ -411,6 +415,63 @@ def _load_skill_tool_deps() -> None:
     for skill_name, entry in data["skills"].items():
         SKILL_TO_TOOLS[skill_name] = list(entry["mcp_tools"])
         SKILL_OLLAMA_TOOLS[skill_name] = list(entry["ollama_tools"])
+
+    for skill_name, entry in data.get("orchestration", {}).items():
+        if skill_name.startswith("_"):
+            continue  # skip _doc and other metadata keys
+        ORCHESTRATION[skill_name] = dict(entry)
+
+
+def gen_orchestration_map(orch: dict[str, dict]) -> str:
+    """Full human/agent-readable orchestration map: one row per skill dir."""
+    lines = [
+        "# Orchestration Map (GENERATED — do not edit by hand)",
+        "",
+        "> SSOT: `generator/skill_tool_deps.json` → `orchestration`. Regenerate with `make gen`.",
+        "> Tells any planning/main agent which skills spawn subagents (so it never forbids a",
+        "> legitimate spawn) and which are depth0-only (so a subagent never illegally invokes them).",
+        "",
+        "| Skill | spawn_class | depth_policy | stack | instance | spawns |",
+        "|-------|-------------|--------------|-------|----------|--------|",
+    ]
+    for name in sorted(orch):
+        e = orch[name]
+        spawns = ", ".join(e.get("spawns", [])) or "—"
+        inst = "yes" if e.get("instance_touching") else "—"
+        lines.append(
+            f"| `{name}` | {e.get('spawn_class','?')} | {e.get('depth_policy','?')} | "
+            f"{e.get('stack','none')} | {inst} | {spawns} |"
+        )
+    lines.append("")
+    lines.append("## Legend")
+    lines.append("")
+    lines.append("- **spawn_class** — `leaf` (runs inline) · `orchestrator-nl` (chains other skills via")
+    lines.append("  natural-language dispatch, no Agent-tool spawn) · `spawner-agent` (dispatches a named")
+    lines.append("  agent, depth 0→1) · `spawner-wave` (worktree fan-out, depth 0→1→2).")
+    lines.append("- **depth_policy** — `depth0-only` skills must be invoked only from the main agent,")
+    lines.append("  never from inside a subagent (nesting-crash guard). `any-depth` is safe to NL-dispatch.")
+    lines.append("- **stack** — drives backend↔frontend routing; `fullstack` work must engage both a")
+    lines.append("  backend and a frontend specialist.")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def gen_orchestration_digest(orch: dict[str, dict]) -> str:
+    """Tiny digest injected at SessionStart so the planning agent knows, up front,
+    which skills spawn subagents and which are depth0-only. Kept terse on purpose."""
+    spawners = sorted(
+        n for n, e in orch.items()
+        if e.get("spawn_class", "").startswith("spawner")
+    )
+    depth0 = sorted(n for n, e in orch.items() if e.get("depth_policy") == "depth0-only")
+    lines = [
+        "[odoo-semantic-skills] Orchestration registry (so you never forbid a legitimate spawn):",
+        "- Skills that SPAWN subagents (let them; invoke only from the main agent): "
+        + (", ".join(spawners) or "none"),
+        "- depth0-only (never invoke these from inside a subagent): " + (", ".join(depth0) or "none"),
+        "- Full map: docs/reference/ORCHESTRATION-MAP.md",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
@@ -757,6 +818,23 @@ def main():
     if original != routing_md_content:
         routing_md_path.write_text(routing_md_content, encoding="utf-8")
         changed_files.append(str(routing_md_path.relative_to(REPO_ROOT)))
+
+    # 1b. Generate orchestration map + SessionStart digest (full replace) from the
+    #     skill_tool_deps.json "orchestration" SSOT.
+    orch_map_path = REPO_ROOT / "docs" / "reference" / "ORCHESTRATION-MAP.md"
+    orch_map_content = gen_orchestration_map(ORCHESTRATION)
+    orch_map_path.parent.mkdir(parents=True, exist_ok=True)
+    original = orch_map_path.read_text(encoding="utf-8") if orch_map_path.exists() else None
+    if original != orch_map_content:
+        orch_map_path.write_text(orch_map_content, encoding="utf-8")
+        changed_files.append(str(orch_map_path.relative_to(REPO_ROOT)))
+
+    orch_digest_path = REPO_ROOT / "docs" / "reference" / "orchestration-digest.txt"
+    orch_digest_content = gen_orchestration_digest(ORCHESTRATION)
+    original = orch_digest_path.read_text(encoding="utf-8") if orch_digest_path.exists() else None
+    if original != orch_digest_content:
+        orch_digest_path.write_text(orch_digest_content, encoding="utf-8")
+        changed_files.append(str(orch_digest_path.relative_to(REPO_ROOT)))
 
     # 2. Update each skill's ## MCP tools section
     for skill_dir in sorted(skills_dir.iterdir()):

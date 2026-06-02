@@ -106,8 +106,14 @@ phase boundaries remain clearly visible throughout a multi-phase run.
 For phases marked `fanout: true` with a `chunk_by` field:
 1. Split the input into chunks according to `chunk_by`.
 2. Cap concurrent workers at 3 (memory ceiling — see failure log `unbounded-opus-fanout-oom`).
-3. Each worker prompt MUST begin with: "Do NOT invoke Skill tool. Do NOT spawn sub-agent.
-   Only Read/Grep/Glob/Write/Bash."
+3. Each worker prompt MUST begin with the nesting guard
+   (${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md): "Do NOT invoke the Skill tool. Do NOT
+   spawn a sub-agent. Only Read/Grep/Glob/Write/Bash." For any worker that touches Odoo
+   (classifies modules, writes/reviews code, makes capability claims), also include the
+   OSM-First Grounding Contract (${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md):
+   verify every Odoo model/field/CLI/token claim via OSM before asserting, reuse indexed
+   patterns before hand-writing, and flag "OSM unavailable — ungrounded" if OSM is down —
+   never classify or code Odoo from memory.
 4. Aggregate worker results before proceeding to the next phase.
 
 ### Expert-Pool (predicate-based specialist selection)

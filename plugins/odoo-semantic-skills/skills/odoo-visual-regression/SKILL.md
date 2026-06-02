@@ -80,6 +80,10 @@ Predict which screens are likely to drift so the baseline set is targeted:
 - Upgrade: `api_version_diff(symbol=<scope>, from_version=<old>, to_version=<new>)`.
 - Code change: `impact_analysis(entity_type=<field|method|model>, entity_name=<dotted>)`.
 - Styling change: `find_style_override(selector_or_variable=<selector>)`.
+- Theme/token change: when a diff shows a screen gone "flat" (empty surfaces, washed-out text,
+  badges without fill), treat it as a design-token regression — check token reality per
+  `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md` (empty or
+  self-referential CSS custom properties), not just a pixel diff.
 - Map results to screens: `module_inspect(name=<module>, method='views')` and `model_inspect(model=<model>, method='summary')`.
 
 ### Round 2 — Capture baseline (browser)
