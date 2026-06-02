@@ -48,10 +48,15 @@ jobs:
       - run: python3 plugins/odoo-semantic-skills/generator/gen_surface.py
       - run: python3 plugins/odoo-semantic-skills/generator/gen_mcp_manifests.py
       - run: |
-          git diff --exit-code || {
+          # Catch BOTH modified tracked files and brand-new untracked artifacts (a generator
+          # that emits a new file would slip past `git diff --exit-code`).
+          dirty="$(git status --porcelain)"
+          if [ -n "$dirty" ]; then
             echo "ERROR: generated artifacts drifted from SSOT — run 'make gen' and commit the output." >&2
+            echo "$dirty" >&2
+            git diff >&2 || true
             exit 1
-          }
+          fi
 
   orchestration-check:
     name: Capability/contract lint (warn-first)
