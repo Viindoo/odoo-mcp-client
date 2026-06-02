@@ -7,6 +7,8 @@ description: >
   Trigger on: "plan a campaign for", "campaign brief", "multi-channel plan for vertical X",
   "build a campaign blueprint", "marketing push plan for", "campaign roadmap for",
   "go-to-market blueprint".
+  Also fires on Vietnamese: "lập kế hoạch chiến dịch", "kế hoạch marketing đa kênh",
+  "chiến dịch go-to-market cho ngành X", "lộ trình truyền thông".
   DO NOT trigger for: individual content draft (→ odoo-content-draft),
   competitive positioning analysis (→ odoo-competitive-brief),
   feature-highlight slides for a sales deck (→ odoo-feature-highlights),

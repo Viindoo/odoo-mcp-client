@@ -7,6 +7,8 @@ description: >
   from memory — training data about Odoo modules drifts fast.
   Trigger on: "does Odoo have…", "is X available out of the box?", "do we need to build this
   or is it already there?", "what edition do I need for Z?".
+  Also fires on Vietnamese: "Odoo có sẵn tính năng này không", "cần code thêm hay đã có sẵn",
+  "cần bản CE hay EE cho Z".
   Use this when the user is asking about ONE feature/module; when they list MANY requirements
   at once route to odoo-gap-analysis instead. When they want to see real source-code examples
   of X being used, route to odoo-feature-highlights or odoo-capability-proof

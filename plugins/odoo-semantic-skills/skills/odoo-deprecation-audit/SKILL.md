@@ -8,7 +8,8 @@ description: >
   if unstated, confirm it. Pushy trigger: "upgrade", "migration", "is our code ready for vN",
   "what will break when we move from X to Y", "audit before upgrade", deprecated-symbol
   mentions ("we still have @api.multi everywhere", "ir.values is still used", "OWL migration
-  needed"). Trigger even without the word "deprecation". When the user asks ONLY what changed
+  needed"). Also fires on Vietnamese: "rà API lỗi thời trước khi nâng cấp", "code chạy được
+  trên vN không", "cái gì sẽ vỡ khi nâng cấp". Trigger even without the word "deprecation". When the user asks ONLY what changed
   between two versions (without auditing their code), route to odoo-version-diff instead. When
   they want to write fresh upgrade-safe code in the target version, route to odoo-coder
 ---
