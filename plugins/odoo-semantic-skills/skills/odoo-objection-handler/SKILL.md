@@ -128,5 +128,5 @@ extension); code example of multi-level approval; talking points; verbatim respo
 **Example 2:**
 Prompt: "customer says Odoo doesn't have accounting standards compliance for their region"
 Output: Counter: specialized localization modules or custom extensions exist;
-`model_inspect(model='account.move', method='fields')` shows compliance-specific fields; verbatim
+`model_inspect(model='account.move', method='fields', odoo_version='auto')` shows compliance-specific fields; verbatim
 response with region-appropriate solution.

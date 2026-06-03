@@ -132,7 +132,7 @@ v8); UI is `Widget.extend({...})` / `AbstractField.extend({...})` with `web.Widg
 For the **target version**:
 
 1. `set_active_version(<target>)`.
-2. `resolve_stylesheet(<module>)` + `find_style_override(<selector_or_variable>)` to discover
+2. `resolve_stylesheet(<module>, odoo_version='auto')` + `find_style_override(<selector_or_variable>, odoo_version='auto')` to discover
    which tokens/selectors actually exist and where they are defined/overridden.
 3. On the running instance, read `getComputedStyle(document.documentElement)` (and key
    elements) to list which tokens **RESOLVE** vs are **EMPTY**, and to detect self-ref cycles

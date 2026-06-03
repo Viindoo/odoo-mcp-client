@@ -22,49 +22,49 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 
 ### Working with Python model files (models/*.py, *.py with `models.Model`)
 - User asks about model structure / fields / methods / views in one go
-  → call model_inspect(model=<name>, method="summary")
-- User asks for a specific model's fields → call model_inspect(model=<name>, method="fields")
-- User asks for a specific model's methods → call model_inspect(model=<name>, method="methods")
-- User asks for a specific model's views → call model_inspect(model=<name>, method="views")
-- User asks about ONE field → call entity_lookup(kind="field", model=<name>, field=<name>)
-- User asks about ONE method → call entity_lookup(kind="method", model=<name>, method_name=<name>)
-- User wants to add new behavior → call find_override_point(model=<name>, method=<name>)
-- User wants code examples → call find_examples(natural_language_query)
+  → call model_inspect(model=<name>, method="summary", odoo_version='auto')
+- User asks for a specific model's fields → call model_inspect(model=<name>, method="fields", odoo_version='auto')
+- User asks for a specific model's methods → call model_inspect(model=<name>, method="methods", odoo_version='auto')
+- User asks for a specific model's views → call model_inspect(model=<name>, method="views", odoo_version='auto')
+- User asks about ONE field → call entity_lookup(kind="field", model=<name>, field=<name>, odoo_version='auto')
+- User asks about ONE method → call entity_lookup(kind="method", model=<name>, method_name=<name>, odoo_version='auto')
+- User wants to add new behavior → call find_override_point(model=<name>, method=<name>, odoo_version='auto')
+- User wants code examples → call find_examples(natural_language_query, odoo_version='auto')
 
 ### Working with XML view files (views/*.xml, *.xml with inherit_id)
-- User asks about view structure → call entity_lookup(kind="view", xmlid=<id>)
-- User wants every view for a model → call model_inspect(model=<name>, method="views")
+- User asks about view structure → call entity_lookup(kind="view", xmlid=<id>, odoo_version='auto')
+- User wants every view for a model → call model_inspect(model=<name>, method="views", odoo_version='auto')
 - User wants to override a view → entity_lookup first, then suggest XPath from the chain
 
 ### Exploring module architecture
 - User asks "what is module X" or "what does module X do"
-  → call module_inspect(name=<name>, method="summary")
-- User wants OWL components of a module → call module_inspect(name=<name>, method="owl")
-- User wants QWeb templates of a module → call module_inspect(name=<name>, method="qweb")
-- User wants JS patches of a module → call module_inspect(name=<name>, method="js")
-- User wants views of a module → call module_inspect(name=<name>, method="views")
+  → call module_inspect(name=<name>, method="summary", odoo_version='auto')
+- User wants OWL components of a module → call module_inspect(name=<name>, method="owl", odoo_version='auto')
+- User wants QWeb templates of a module → call module_inspect(name=<name>, method="qweb", odoo_version='auto')
+- User wants JS patches of a module → call module_inspect(name=<name>, method="js", odoo_version='auto')
+- User wants views of a module → call module_inspect(name=<name>, method="views", odoo_version='auto')
 
 ### Working with CSS/SCSS/LESS stylesheets
 - User wants to know what stylesheets a module ships (CSS, SCSS, or LESS — LESS covers legacy v8-v11)
-  → call resolve_stylesheet(module=<name>)
+  → call resolve_stylesheet(module=<name>, odoo_version='auto')
 - User asks where a CSS selector or SCSS/LESS variable is defined or overridden
-  → call find_style_override(selector_or_variable=<selector_or_var>)
+  → call find_style_override(selector_or_variable=<selector_or_var>, odoo_version='auto')
 - User wants to trace @import chains or find branding/theme overrides
-  → call find_style_override(selector_or_variable=<var>)
+  → call find_style_override(selector_or_variable=<var>, odoo_version='auto')
 
 ### Validating ORM constructs before writing them (catch hallucinated fields/operators)
-- Before pasting a search domain → call validate_domain(model=<name>, domain="<literal>")
+- Before pasting a search domain → call validate_domain(model=<name>, domain="<literal>", odoo_version='auto')
   (operator validity is version-aware: `any`/`not any` v17+, `parent_of` v9+)
-- Before trusting a compute method's @api.depends → call validate_depends(model=<name>, method=<_compute_x>)
-- Before writing a multi-hop related= or domain path → call resolve_orm_chain(model=<name>, dotted_path="a.b.c")
-- Before writing a related= that hops a relation → call validate_relation(model=<name>, field=<rel_field>, target_model=<expected_comodel>)
+- Before trusting a compute method's @api.depends → call validate_depends(model=<name>, method=<_compute_x>, odoo_version='auto')
+- Before writing a multi-hop related= or domain path → call resolve_orm_chain(model=<name>, dotted_path="a.b.c", odoo_version='auto')
+- Before writing a related= that hops a relation → call validate_relation(model=<name>, field=<rel_field>, target_model=<expected_comodel>, odoo_version='auto')
 
 ### Before writing any new code
-- Check for existing patterns → call suggest_pattern(intent=<description>)
-- Check module availability → call check_module_exists(name=<module>)
+- Check for existing patterns → call suggest_pattern(intent=<description>, odoo_version='auto')
+- Check module availability → call check_module_exists(name=<module>, odoo_version='auto')
 
 ### Before using any Odoo core API
-- Verify API status → call lookup_core_api(name=<symbol>)
+- Verify API status → call lookup_core_api(name=<symbol>, odoo_version='auto')
 - If writing upgrade code → call api_version_diff(symbol=<name>, from_version=<v>, to_version=<v>)
 
 ### Code review / pre-commit
@@ -73,15 +73,15 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
   (inline `# noqa: RULE_ID` in the code suppresses findings on that line)
 
 ### Risk assessment before major changes
-- Impact of field change → call impact_analysis(entity_type="field", entity_name="model.field_name")
-- Impact of method change → call impact_analysis(entity_type="method", entity_name="model.method_name")
+- Impact of field change → call impact_analysis(entity_type="field", entity_name="model.field_name", odoo_version='auto')
+- Impact of method change → call impact_analysis(entity_type="method", entity_name="model.method_name", odoo_version='auto')
 
 ## MCP Resources (read-only, bookmark-stable)
-- odoo://{version}/model/{name}             # = model_inspect(method='summary') equivalent
-- odoo://{version}/field/{model}/{field}    # = entity_lookup(kind='field')
-- odoo://{version}/method/{model}/{method}  # = entity_lookup(kind='method')
-- odoo://{version}/module/{name}            # = module_inspect(method='summary')
-- odoo://{version}/view/{xmlid}             # = entity_lookup(kind='view')
+- odoo://{version}/model/{name}             # = model_inspect(method='summary', odoo_version='auto') equivalent
+- odoo://{version}/field/{model}/{field}    # = entity_lookup(kind='field', odoo_version='auto')
+- odoo://{version}/method/{model}/{method}  # = entity_lookup(kind='method', odoo_version='auto')
+- odoo://{version}/module/{name}            # = module_inspect(method='summary', odoo_version='auto')
+- odoo://{version}/view/{xmlid}             # = entity_lookup(kind='view', odoo_version='auto')
 - odoo://{version}/pattern/{name}           # canonical pattern catalogue entry
 - odoo://{version}/stylesheet/{module}/{file_path*}   # CSS/SCSS/LESS record
 
@@ -91,9 +91,9 @@ Use Resources when you already know the entity ID — no tool call overhead.
 
 # Efficient (one call after set_active_version):
 #   set_active_version("17.0")          # once per session
-#   model_inspect(model="sale.order", method="summary")   # full model overview
-#   model_inspect(model="sale.order", method="fields")    # just fields
-#   module_inspect(name="sale_management", method="js") # JS patches in module
+#   model_inspect(model="sale.order", method="summary", odoo_version='auto')   # full model overview
+#   model_inspect(model="sale.order", method="fields", odoo_version='auto')    # just fields
+#   module_inspect(name="sale_management", method="js", odoo_version='auto') # JS patches in module
 
 ## Auto-trigger on file open
 When a Python file with `class .*(models\.Model)` is opened:
@@ -113,7 +113,7 @@ When a Python file with `class .*(models\.Model)` is opened:
 - Module names: always in `backticks`
 
 ## Developer workflow
-1. Open model file → model_inspect(method="summary") to understand inheritance
+1. Open model file → model_inspect(method="summary", odoo_version='auto') to understand inheritance
 2. Find extension point → find_override_point before writing override
 3. Check pattern → suggest_pattern for the implementation approach
 4. Verify API → lookup_core_api for any core methods used
@@ -136,9 +136,9 @@ Session bootstrap (once per chat):
 Subsequent calls pass odoo_version='auto' to reuse the pinned version (sticky 24h TTL per API key).
 
 Superset tools (use these for all model/module/entity queries):
-- Model questions (structure / fields / methods / views) → model_inspect(model=<name>, method="summary"|"fields"|"methods"|"views")
+- Model questions (structure / fields / methods / views) → model_inspect(model=<name>, method="summary"|"fields"|"methods"|"views", odoo_version='auto')
 - One specific field / method / view → entity_lookup(kind="field"|"method"|"view", ...)
-- Module-level (describe / OWL / QWeb / JS patches / views) → module_inspect(name=<name>, method="summary"|"owl"|"qweb"|"js"|"views")
+- Module-level (describe / OWL / QWeb / JS patches / views) → module_inspect(name=<name>, method="summary"|"owl"|"qweb"|"js"|"views", odoo_version='auto')
   NOTE: use method="js" for JS patches
 
 Targeted tools:
@@ -183,22 +183,22 @@ When user asks about Odoo models, fields, methods, views, or patterns:
 
 ## Key mappings (v0.8)
 - Session start → list_available_versions + set_active_version("17.0")
-- "how does X work" → entity_lookup(kind="method") or model_inspect(method="summary")
+- "how does X work" → entity_lookup(kind="method", odoo_version='auto') or model_inspect(method="summary", odoo_version='auto')
 - "where to override" → find_override_point
 - "add functionality to" → find_override_point + suggest_pattern
 - "impact of changing" → impact_analysis
 - "deprecated / upgrade" → find_deprecated_usage + api_version_diff
 - "show me code for" → find_examples
 - "does Odoo have" → check_module_exists
-- "what is module X" → module_inspect(method="summary")
-- "list fields / methods / views of X" → model_inspect(method="fields"|"methods"|"views")
-- "OWL / QWeb / JS patches in X" → module_inspect(method="owl"|"qweb"|"js")
-- "stylesheets in module X" → resolve_stylesheet(module=X)
-- "where is selector/variable X defined" → find_style_override(selector_or_variable=X)
+- "what is module X" → module_inspect(method="summary", odoo_version='auto')
+- "list fields / methods / views of X" → model_inspect(method="fields"|"methods"|"views", odoo_version='auto')
+- "OWL / QWeb / JS patches in X" → module_inspect(method="owl"|"qweb"|"js", odoo_version='auto')
+- "stylesheets in module X" → resolve_stylesheet(module=X, odoo_version='auto')
+- "where is selector/variable X defined" → find_style_override(selector_or_variable=X, odoo_version='auto')
 - "is this domain / these operators valid" → validate_domain(model=X, domain="...")
-- "are the @api.depends on _compute_x correct" → validate_depends(model=X, method="_compute_x")
-- "what type is path a.b.c" → resolve_orm_chain(model=X, dotted_path="a.b.c")
-- "does field X point to model Y" → validate_relation(model=X, field="X", target_model="Y")
+- "are the @api.depends on _compute_x correct" → validate_depends(model=X, method="_compute_x", odoo_version='auto')
+- "what type is path a.b.c" → resolve_orm_chain(model=X, dotted_path="a.b.c", odoo_version='auto')
+- "does field X point to model Y" → validate_relation(model=X, field="X", target_model="Y", odoo_version='auto')
 ```
 
 ---

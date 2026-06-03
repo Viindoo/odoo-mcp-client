@@ -81,7 +81,7 @@ all at once. None of these depend on each other's results.
 
 **Round 2 — Parallel:** Call `model_inspect(model=…, method='fields')` on the most heavily
 customized models identified from Round 1 results. Simultaneously call
-`module_inspect(name=<name>, method='summary')` for each custom module in scope — this
+`module_inspect(name=<name>, method='summary', odoo_version='auto')` for each custom module in scope — this
 surfaces JS patch counts, view counts, and models defined/extended, which the executive
 table needs. Both calls are independent; fire them together. If hotspot models are already
 known from context, include `model_inspect` calls in Round 1 as well to reduce to a single

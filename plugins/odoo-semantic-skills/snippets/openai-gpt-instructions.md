@@ -71,7 +71,7 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
 **find_override_point** — safest extension points
   WHEN: "where to override [method]", "best place to extend [model]", "override point for"
 
-**describe_module** — module architecture overview; module_inspect(method="summary") returns the same data plus extras
+**describe_module** — module architecture overview; module_inspect(method="summary", odoo_version='auto') returns the same data plus extras
   WHEN: "what is module [X]", "what does module [X] do", "describe module [X]", "overview of [X]", "module [X] làm gì"
 
 **resolve_stylesheet** ✦ — enumerate a module's CSS/SCSS/LESS stylesheet files (language, selector/var/mixin/import counts, @import chain; LESS covers legacy v8-v11)
@@ -84,7 +84,7 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
 
 **resolve_orm_chain** ⊕ — walk a dotted ORM field path and return the terminal field type (or the hop where it breaks)
   WHEN: "what type is [model].a.b.c", "does this dotted path resolve", "trace field path partner_id.country_id.code"
-  PREFER over entity_lookup(kind='field') when you have a multi-hop path rather than a single field
+  PREFER over entity_lookup(kind='field', odoo_version='auto') when you have a multi-hop path rather than a single field
   ARGS: model (required, root dotted model), dotted_path (required), odoo_version (required; pass 'auto' to reuse the pinned session), profile_name (optional)
 
 **validate_domain** ⊕ — validate each (field_path, operator, value) term of a search domain; operator validity is VERSION-AWARE (parent_of v9+, any/not any v17+, v19 access-rights variants); connectors (&, |, !) skipped

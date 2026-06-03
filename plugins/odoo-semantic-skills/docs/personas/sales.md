@@ -42,7 +42,7 @@ Returns: module exists yes/no, CE vs EE, EE confusion warnings if relevant. Answ
 ### Demonstrate real functionality
 
 ```
-find_examples("digital signature on purchase order approval workflow")
+find_examples("digital signature on purchase order approval workflow", odoo_version='auto')
 ```
 
 Returns actual code from indexed Odoo repos — not a demo script, but real implementation evidence. Use this when prospects want proof that Odoo's feature is production-ready, not just a checkbox.

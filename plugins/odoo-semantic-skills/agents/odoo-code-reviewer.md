@@ -153,7 +153,7 @@ independent of each other:
 - **`mcp__odoo-semantic__entity_lookup(kind='method', model=…, method_name=…)`** — for every
   method the code overrides (`create`, `write`, `unlink`, or any custom base method). Confirms
   signature and that it is actually defined on the model.
-- **`mcp__odoo-semantic__lint_check(code_snippet=…)`** — detect deprecated decorators and
+- **`mcp__odoo-semantic__lint_check(code=…, odoo_version=…)`** — detect deprecated decorators and
   signatures against the pinned version.
 - **`mcp__odoo-semantic__validate_depends(model=…, method=…)`** — for every `_compute_*`
   already indexed: confirms each `@api.depends` path resolves and isn't `id`. Non-OK = CRITICAL.
@@ -253,10 +253,10 @@ No CRITICAL or HIGH issues found. Code follows Odoo conventions correctly.
 User pastes `_compute_total` that reads `self.amout_total` (typo).
 
 - Step 1: `review_code` catches missing `@api.depends` decorator.
-- Step 2 (parallel): `entity_lookup(kind='field', model='sale.order', field='amout_total')`
-  → NOT FOUND → CRITICAL. `model_inspect(model='sale.order', method='fields')` → confirms
+- Step 2 (parallel): `entity_lookup(kind='field', model='sale.order', field='amout_total', odoo_version='auto')`
+  → NOT FOUND → CRITICAL. `model_inspect(model='sale.order', method='fields', odoo_version='auto')` → confirms
   `amount_total` is the correct name.
-- Step 3: `suggest_pattern('computed field monetary')` → confirms `@api.depends` +
+- Step 3: `suggest_pattern('computed field monetary', odoo_version='auto')` → confirms `@api.depends` +
   `currency_field` pattern.
 - Output: CRITICAL (typo `amout_total`) + HIGH (missing `@api.depends`) + corrected code.
 
@@ -266,7 +266,7 @@ User pastes OWL component `setup()` doing `this.state.items.push(newItem)`.
 
 - Step 1: `review_code` catches direct mutation as reactivity bug.
 - Step 2: `model_inspect` not applicable (JS, no `_inherit`). Skip.
-- Step 3: `suggest_pattern('OWL component useState list update')` → confirms immutable update.
+- Step 3: `suggest_pattern('OWL component useState list update', odoo_version='auto')` → confirms immutable update.
 - Output: HIGH (reactivity lost) + corrected OWL with `this.state.items = [...this.state.items, x]`.
 
 **Example 3 — `write()` override with self-call:**

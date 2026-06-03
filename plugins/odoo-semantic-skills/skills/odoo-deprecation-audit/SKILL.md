@@ -83,7 +83,7 @@ deprecated/removed symbols in one batch. Every call is independent — fire them
 methods simultaneously. These calls are independent of each other and of Round 2 lookups.
 
 **Round 3b — JS patch audit (when migrating from v8–v13):** Call
-`module_inspect(name=<scope>, method='js')` to enumerate all legacy `web.Widget`-based
+`module_inspect(name=<scope>, method='js', odoo_version='auto')` to enumerate all legacy `web.Widget`-based
 patches in scope. Era1 (v8–v13) patches require manual OWL rewrites because the Widget API
 was removed in v16. Flag each patch as BREAKING if the target version is v14+ and the patch
 still references `AbstractField`, `FieldWidget`, or `web.Widget`. This call is independent of

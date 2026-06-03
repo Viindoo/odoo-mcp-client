@@ -61,7 +61,7 @@ Static checks against the indexed graph. Run them **before** emitting a domain, 
 | `validate_depends(model, method, odoo_version="auto")` | Validate an indexed compute method's `@api.depends('a.b', ...)` paths; flags depends on `id` (forbidden) and suggests the closest field for typos — directly catches the "stale compute" failure mode. |
 | `validate_relation(model, field, target_model, odoo_version="auto")` | Assert a field is a many2one/one2many/many2many whose comodel is `target_model` (or a subtype via inheritance). Use before writing a `related=` that hops through a relation. |
 
-> Prefer these over `entity_lookup(kind='field')` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) — they reason about the whole construct, not one field.
+> Prefer these over `entity_lookup(kind='field', odoo_version='auto')` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) — they reason about the whole construct, not one field.
 
 ### Removed in v0.6
 
@@ -92,12 +92,12 @@ TTL is 24h per API key. Run `list_available_versions()` first if you are not sur
 Before adding logic to a model:
 
 ```
-model_inspect(model="sale.order", method="summary")
+model_inspect(model="sale.order", method="summary", odoo_version='auto')
 ```
 
 Get the full inheritance chain, field count, method list, view inventory, and which modules have already extended this model — all in one call. Know what you are stepping into before writing a single line.
 
-> Need one specific entity? Drill down with `entity_lookup(kind="field", model="sale.order", field="amount_total")` (or `kind="method"` / `kind="view"`).
+> Need one specific entity? Drill down with `entity_lookup(kind="field", model="sale.order", field="amount_total", odoo_version='auto')` (or `kind="method"` / `kind="view"`).
 
 ### 2. Find the right extension point
 
@@ -114,7 +114,7 @@ Returns `super_safety` score and which modules are already overriding this metho
 Before implementing a new pattern (computed cross-model field, wizard, report):
 
 ```
-suggest_pattern("computed field that aggregates from child records with currency conversion")
+suggest_pattern("computed field that aggregates from child records with currency conversion", odoo_version='auto')
 ```
 
 Returns curated pattern entries with code snippets, gotchas, and anti-pattern warnings from the indexed codebase.

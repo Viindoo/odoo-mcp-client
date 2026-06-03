@@ -217,7 +217,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Module manifest + defined/extended model counts + view/JS inventory in one call. Note: module_inspect(method='summary') returns the same data plus extras. Output may include a 'License notice:' line for license-restricted modules (server v0.9.1+). OEEL-1 modules are skipped by default — the notice is the intentional non-silent marker that content is withheld; surface it to the user, do not retry or fabricate the omitted content. |
+| **Description** | Module manifest + defined/extended model counts + view/JS inventory in one call. Note: module_inspect with method='summary' returns the same data plus extras. Output may include a 'License notice:' line for license-restricted modules (server v0.9.1+). OEEL-1 modules are skipped by default — the notice is the intentional non-silent marker that content is withheld; surface it to the user, do not retry or fabricate the omitted content. |
 | **Personas** | CEO, dev, consultant, marketer, sales |
 | **Required params** | `name`, `odoo_version` |
 | **Optional params** | `profile_name` |

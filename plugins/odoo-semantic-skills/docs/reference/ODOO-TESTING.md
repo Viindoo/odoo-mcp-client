@@ -49,6 +49,6 @@ odoo-bin -d <DB> -i <module> --test-enable --test-tags /<module> --stop-after-in
 1. `set_active_version(<target>)`.
 2. `cli_help("server", "--test-tags")` and `cli_help("server", "--test-enable")` — confirm the
    flags exist and their exact semantics for this version.
-3. `find_examples(query="<feature> test")` — reuse the real test pattern from the indexed code.
+3. `find_examples(query="<feature> test", odoo_version='auto')` — reuse the real test pattern from the indexed code.
 4. Pick the JS test framework by inspecting the version's web assets, not from memory.
 5. State the chosen invocation + why before running.

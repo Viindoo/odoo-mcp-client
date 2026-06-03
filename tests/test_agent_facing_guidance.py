@@ -66,15 +66,158 @@ _WRONG_PARAM_TOKENS = ("target_type", "target_name", "symbol_name")
 
 
 def test_no_drifted_param_names_in_agent_snippets():
-    """Snippet/agent prose must not document parameter names no tool accepts."""
+    """Skill/snippet/agent prose must not document parameter names no tool accepts."""
     offenders: list[str] = []
-    for f in _md_files("snippets", "agents"):
+    for f in _md_files("skills", "snippets", "agents"):
         for i, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
             for tok in _WRONG_PARAM_TOKENS:
                 if tok in line:
                     offenders.append(f"{f.relative_to(REPO_ROOT)}:{i}: '{tok}' in: {line.strip()}")
     assert not offenders, (
-        "Snippet/agent prose uses parameter names no current tool accepts "
+        "Prose uses parameter names no current tool accepts "
         "(drifted from server-surface.json required/optional params):\n"
         + "\n".join(offenders)
+    )
+
+
+# --- Concrete example tool calls must include the required odoo_version ----------
+# Agents copy example calls verbatim. An example like `find_examples(query="...")`
+# for a tool that requires odoo_version makes the agent emit a call the server
+# rejects. We scan inline-code and fenced example calls for the 19 required tools
+# and assert each call's argument span carries odoo_version. set_active_version is
+# excluded — its sole argument *is* the version (passed positionally or by name).
+import json  # noqa: E402
+
+_SURFACE = json.loads((PLUGIN / "generator" / "server-surface.json").read_text(encoding="utf-8"))
+_REQ_VERSION_TOOLS = sorted(
+    t["name"]
+    for t in _SURFACE["tools"]
+    if "odoo_version" in t.get("required_params", []) and t["name"] != "set_active_version"
+)
+_TOOL_CALL_RE = re.compile(r"\b(" + "|".join(_REQ_VERSION_TOOLS) + r")\(")
+
+
+_REQUIRED_PARAM_COUNT = {
+    t["name"]: len(t.get("required_params", []))
+    for t in _SURFACE["tools"]
+}
+
+
+def _arg_span(text: str, open_paren_idx: int) -> str:
+    """Return the substring from the opening '(' to its matching ')' (across newlines)."""
+    depth = 0
+    for j in range(open_paren_idx, len(text)):
+        c = text[j]
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return text[open_paren_idx : j + 1]
+    return text[open_paren_idx:]  # unbalanced — return the rest
+
+
+def _top_level_args(inner: str) -> list[str]:
+    """Split call args on top-level commas (ignoring quotes and nested brackets)."""
+    args: list[str] = []
+    depth = 0
+    quote: str | None = None
+    cur = ""
+    for c in inner:
+        if quote:
+            cur += c
+            if c == quote:
+                quote = None
+            continue
+        if c in "\"'":
+            quote = c
+            cur += c
+        elif c in "([{":
+            depth += 1
+            cur += c
+        elif c in ")]}":
+            depth -= 1
+            cur += c
+        elif c == "," and depth == 0:
+            args.append(cur)
+            cur = ""
+        else:
+            cur += c
+    if cur.strip():
+        args.append(cur)
+    return [a for a in args if a.strip()]
+
+
+_ALLOWED_PARAMS = {
+    t["name"]: set(t.get("required_params", [])) | set(t.get("optional_params", []))
+    for t in _SURFACE["tools"]
+}
+_ALL_TOOLS = sorted(_ALLOWED_PARAMS)
+_ANY_TOOL_CALL_RE = re.compile(r"\b(" + "|".join(_ALL_TOOLS) + r")\(")
+_NAMED_ARG_RE = re.compile(r"^\s*([A-Za-z_]\w*)\s*=(?!=)")
+
+
+def test_example_tool_calls_use_valid_param_names():
+    """Named arguments in example calls must be real params of the tool (per server-surface.json).
+
+    Catches drifted/renamed params (e.g. check_module_exists(module=…) → must be `name`,
+    find_deprecated_usage(scope=…) → no such param, lint_check(code_snippet=…) → `code`).
+    Sketches with an ellipsis are skipped; positional args carry no name to validate.
+    """
+    offenders: list[str] = []
+    for f in _md_files("skills", "snippets", "agents", "docs"):
+        text = f.read_text(encoding="utf-8")
+        for m in _ANY_TOOL_CALL_RE.finditer(text):
+            tool = m.group(1)
+            span = _arg_span(text, m.end() - 1)
+            if "..." in span or "…" in span:
+                continue
+            inner = span[1:-1] if span.startswith("(") and span.endswith(")") else span
+            allowed = _ALLOWED_PARAMS[tool]
+            for arg in _top_level_args(inner):
+                nm = _NAMED_ARG_RE.match(arg)
+                if nm and nm.group(1) not in allowed:
+                    line_no = text.count("\n", 0, m.start()) + 1
+                    offenders.append(
+                        f"{f.relative_to(REPO_ROOT)}:{line_no}: {tool}(...) has param "
+                        f"'{nm.group(1)}' not in {sorted(allowed)}"
+                    )
+    assert not offenders, (
+        "Example tool calls use parameter names the tool does not accept "
+        "(drifted from server-surface.json):\n" + "\n".join(offenders)
+    )
+
+
+def test_example_tool_calls_pass_required_odoo_version():
+    """Every concrete, copyable example call to a version-required tool must supply odoo_version.
+
+    An agent copies example calls verbatim, so a call to a tool that requires odoo_version
+    but doesn't supply it makes the server reject the call. A call is considered to supply it
+    when EITHER it names `odoo_version=` OR it passes enough positional arguments to cover all
+    of the tool's required params (examples list required params first). Signature sketches —
+    spans containing an ellipsis (`...`/`…`) — are illustrative, not verbatim-copyable, so they
+    are skipped (they should still read sensibly, but they don't produce a literal failing call).
+    """
+    offenders: list[str] = []
+    for f in _md_files("skills", "snippets", "agents", "docs"):
+        text = f.read_text(encoding="utf-8")
+        for m in _TOOL_CALL_RE.finditer(text):
+            tool = m.group(1)
+            span = _arg_span(text, m.end() - 1)
+            if "odoo_version" in span or "..." in span or "…" in span:
+                continue
+            inner = span[1:-1] if span.startswith("(") and span.endswith(")") else span
+            # Only POSITIONAL args (no `name=`) count toward covering odoo_version; a
+            # named-but-wrong arg (e.g. scope=...) does not satisfy the required param.
+            positional = [a for a in _top_level_args(inner)
+                          if not re.match(r"\s*[A-Za-z_]\w*\s*=(?!=)", a)]
+            if len(positional) >= _REQUIRED_PARAM_COUNT.get(tool, 0):
+                continue  # all required params covered positionally
+            line_no = text.count("\n", 0, m.start()) + 1
+            snippet = (tool + span).replace("\n", " ")[:90]
+            offenders.append(f"{f.relative_to(REPO_ROOT)}:{line_no}: {snippet}")
+    assert not offenders, (
+        "Example tool calls omit the now-required odoo_version (agents copy these verbatim "
+        "and the server rejects the call; pass odoo_version='auto' to reuse the pinned "
+        "session, or supply all required params positionally):\n" + "\n".join(offenders)
     )

@@ -101,7 +101,7 @@ ARGS: model, method, odoo_version
 
 ### describe_module
 TRIGGER: "what is module [X]", "what does module [X] do", "describe module [X]", "module [X] làm gì", "overview of module [X]", "architecture of [X]"
-PREFER: module-level orientation before diving into models or views; module_inspect(method="summary") returns the same data plus extras
+PREFER: module-level orientation before diving into models or views; module_inspect(method="summary", odoo_version='auto') returns the same data plus extras
 ARGS: name (module technical name), odoo_version, profile_name (optional)
 
 ### resolve_stylesheet ✦ (v0.7+ — enumerate a module's CSS/SCSS/LESS files)
@@ -116,7 +116,7 @@ ARGS: selector_or_variable (required), odoo_version (required; pass 'auto' to re
 
 ### resolve_orm_chain ⊕ (v0.8+ — walk a dotted ORM field path to its terminal type)
 TRIGGER: "what type is [model].a.b.c", "does this dotted path resolve", "trace a field path", "where does partner_id.country_id.code end up"
-PREFER: a multi-hop dotted path — returns terminal type or the exact hop where it breaks; preferred over entity_lookup(kind='field') (single field only)
+PREFER: a multi-hop dotted path — returns terminal type or the exact hop where it breaks; preferred over entity_lookup(kind='field', odoo_version='auto') (single field only)
 ARGS: model (required, root dotted model), dotted_path (required, e.g. "partner_id.country_id.code"), odoo_version (required; pass 'auto' to reuse the pinned session), profile_name (optional)
 
 ### validate_domain ⊕ (v0.8+ — validate a search domain's field-paths + operators)
@@ -131,7 +131,7 @@ ARGS: model (required), method (required, compute method name), odoo_version (re
 
 ### validate_relation ⊕ (v0.8+ — assert a relational field points at an expected comodel)
 TRIGGER: "does [model].partner_id point to res.partner", "is this field a many2one to [model]", "check relation target", "what comodel does field X point to"
-PREFER: asserting a field's comodel (or a subtype via inheritance) rather than reading full field detail — preferred over entity_lookup(kind='field') for the assertion case
+PREFER: asserting a field's comodel (or a subtype via inheritance) rather than reading full field detail — preferred over entity_lookup(kind='field', odoo_version='auto') for the assertion case
 ARGS: model (required), field (required, relational field), target_model (required, expected comodel), odoo_version (required; pass 'auto' to reuse the pinned session), profile_name (optional)
 
 ## MCP Resources (read-only handles)

@@ -77,16 +77,16 @@ of each other.
 
 **Round 2.5 — Per-module architecture drill-down (parallel):** For each distribution-maintained or Custom
 module that the executive wants to understand more deeply, call
-`module_inspect(name=<name>, method='summary')`. This returns a concise tree showing the
+`module_inspect(name=<name>, method='summary', odoo_version='auto')`. This returns a concise tree showing the
 module's manifest metadata, which models it defines vs extends, and counts of views and JS
 patches — giving the executive a one-glance architecture picture without reading source code.
-Fire all `module_inspect(method='summary')` calls in parallel (one per module of interest).
+Fire all `module_inspect(method='summary', odoo_version='auto')` calls in parallel (one per module of interest).
 The tree output is ~10–15 lines per module and is safe to include verbatim in the inventory
 report.
 
 Example — understanding `custom_loyalty` on Odoo 17:
 ```
-module_inspect(name="custom_loyalty", method="summary")
+module_inspect(name="custom_loyalty", method="summary", odoo_version='auto')
 ```
 
 **Round 3 — Parallel:** Call `impact_analysis` for modules flagged as high-usage or high-risk

@@ -60,7 +60,7 @@ Getting the override location wrong causes subtle, hard-to-debug issues:
 - **XML/QWeb:** Override via `xpath` in XML with `position="replace|before|after|attributes"` on
   `<template>` or `<record>` with `inherit_id`.
 
-**Data priority:** `find_override_point` and `entity_lookup(kind='method')` results reflect
+**Data priority:** `find_override_point` and `entity_lookup(kind='method', odoo_version='auto')` results reflect
 the actual indexed codebase. If MCP says a method's override chain has 4 entries but training
 knowledge only knows 2, trust MCP — it has the current state of all indexed repos.
 
@@ -80,7 +80,7 @@ overrides in the stack. Pick the best candidate method from this list before pro
 
 Example:
 ```
-model_inspect(model="account.move", method="methods")
+model_inspect(model="account.move", method="methods", odoo_version='auto')
 ```
 
 Output rows look like `action_post : 6 overrides` — a count ≥ 3 is a conflict-risk signal.

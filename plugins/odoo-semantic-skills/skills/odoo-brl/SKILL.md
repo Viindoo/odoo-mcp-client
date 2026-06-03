@@ -150,9 +150,9 @@ requirements share modules.
 
 **A2 - Double-profile MCP (parallel within item, <=3 concurrent total across chunk):**
 For each candidate NOT in cache, call in parallel:
-- `check_module_exists(name=<candidate>)` with active profile = odoo
-- `check_module_exists(name=<candidate>, profile_name='viindoo-internal')`
-- `find_examples(query=<req_text>)` ONLY if A0 produced 0 candidates OR all candidates missed
+- `check_module_exists(name=<candidate>, odoo_version='auto')` with active profile = odoo
+- `check_module_exists(name=<candidate>, profile_name='viindoo-internal', odoo_version='auto')`
+- `find_examples(query=<req_text>, odoo_version='auto')` ONLY if A0 produced 0 candidates OR all candidates missed
 
 After each call, write result to `cache.json`.
 
@@ -233,9 +233,9 @@ For Standard and Config items: SKIP (module + edition already = proof).
 For Extension and Custom items only:
 
 Call in parallel (<=3 concurrent):
-- `model_inspect(model=<candidate_model>, method='fields')` - confirm extension point exists
-- `suggest_pattern(query=<req_text>)` - find pattern; guides effort-tier refinement
-- `lookup_core_api(symbol=<method_name>)` - if Extension needs method-level confirmation
+- `model_inspect(model=<candidate_model>, method='fields', odoo_version='auto')` - confirm extension point exists
+- `suggest_pattern(intent=<req_text>, odoo_version='auto')` - find pattern; guides effort-tier refinement
+- `lookup_core_api(name=<method_name>, odoo_version='auto')` - if Extension needs method-level confirmation
 
 From results:
 - If model exists with relevant field/method -> `extension_point_confirmed = true`; keep Extension tier
@@ -286,7 +286,7 @@ Opus only reasons inside a cluster. The full reasoning prompt lives in `referenc
 Collect the set of UNIQUE module names across `results.jsonl` (dedup; null/Custom-only items
 contribute no module). For each unique module call, with inner concurrency <=3:
 ```
-module_inspect(name=<module>, method='dependencies')   # -> {"depends": ["base","mail",...]}
+module_inspect(name=<module>, method='dependencies', odoo_version='auto')   # -> {"depends": ["base","mail",...]}
 ```
 Build a technical module-adjacency map `{module -> [depends_on_modules]}`. Cache results in
 `cache.json` under key `deps:<module>:<version>` so a resumed Phase D does not re-call.
@@ -415,7 +415,7 @@ critical_path_days = max EFT
 **Do NOT use `impact_analysis`** for Phase D. That tool is REVERSE direction (who depends on
 me / blast radius) and is wrong for forward implementation planning.
 
-**Standalone (OSM down):** if D1 `module_inspect(dependencies)` is unreachable, skip technical
+**Standalone (OSM down):** if D1 `module_inspect(dependencies, odoo_version='auto')` is unreachable, skip technical
 edges (D1/D4), still run D2/D3 (LLM business/data-flow) + D5/D6, and flag in `dag.json.meta`:
 `"technical_edges": "skipped-osm-unreachable"`.
 
@@ -619,7 +619,7 @@ When OSM is unreachable (bootstrap fails or `check_module_exists` returns repeat
 1. **Phase A degrade:** Classify using LLM training knowledge only. Mark each item:
    `classification_source = "unverified-llm"`, `risk_flag = "osm-unreachable"`.
 2. **Phase C skip:** `evidence_module = null`, `evidence_field = null`.
-3. **Phase D degrade:** `module_inspect(dependencies)` is unreachable -> skip technical edges
+3. **Phase D degrade:** `module_inspect(dependencies, odoo_version='auto')` is unreachable -> skip technical edges
    (D1/D4); still run D2/D3 (LLM business/data-flow) + D5/D6. Set
    `dag.json.meta.technical_edges = "skipped-osm-unreachable"`.
 4. **Phase B/E:** Run normally (cost lookup and roll-up do not need MCP).

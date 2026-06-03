@@ -65,10 +65,10 @@ calls when known; default to 17.0 and note the assumption if ambiguous.
 
 ### Step 1 — Ground the screen in code (parallel, OSM)
 
-- `module_inspect(name=<module>, method='views')` and/or `method='owl'` — which view/component renders the screen.
-- `resolve_stylesheet(module=<module>)` — which stylesheets ship.
-- `model_inspect(model=<model>, method='summary')` — confirm the backing model.
-- `check_module_exists(name=<module>)` — confirm module/edition presence when relevant.
+- `module_inspect(name=<module>, method='views', odoo_version='auto')` and/or `method='owl'` — which view/component renders the screen.
+- `resolve_stylesheet(module=<module>, odoo_version='auto')` — which stylesheets ship.
+- `model_inspect(model=<model>, method='summary', odoo_version='auto')` — confirm the backing model.
+- `check_module_exists(name=<module>, odoo_version='auto')` — confirm module/edition presence when relevant.
 
 ### Step 2 — Capture and exercise the live screen (browser)
 
@@ -104,7 +104,7 @@ finding as a token+file remediation pointer, not an inline patch (fixes go to `o
 
 ### Step 5 — Source pointers + compile
 
-For each styling defect, `find_style_override(selector_or_variable=<selector>)` to name the module
+For each styling defect, `find_style_override(selector_or_variable=<selector>, odoo_version='auto')` to name the module
 that owns the rule; `suggest_pattern` / `find_override_point` when a structural fix needs a safe
 location. Compile the six-lens verdict.
 
