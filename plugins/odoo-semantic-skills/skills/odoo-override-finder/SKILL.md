@@ -29,7 +29,7 @@ Developer
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 
 **Primary tools:**
 - `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
@@ -60,7 +60,7 @@ Getting the override location wrong causes subtle, hard-to-debug issues:
 - **XML/QWeb:** Override via `xpath` in XML with `position="replace|before|after|attributes"` on
   `<template>` or `<record>` with `inherit_id`.
 
-**Data priority:** `find_override_point` and `entity_lookup(kind='method')` results reflect
+**Data priority:** `find_override_point` and `entity_lookup(kind='method', odoo_version='auto')` results reflect
 the actual indexed codebase. If MCP says a method's override chain has 4 entries but training
 knowledge only knows 2, trust MCP — it has the current state of all indexed repos.
 
@@ -80,7 +80,7 @@ overrides in the stack. Pick the best candidate method from this list before pro
 
 Example:
 ```
-model_inspect(model="account.move", method="methods")
+model_inspect(model="account.move", method="methods", odoo_version='auto')
 ```
 
 Output rows look like `action_post : 6 overrides` — a count ≥ 3 is a conflict-risk signal.

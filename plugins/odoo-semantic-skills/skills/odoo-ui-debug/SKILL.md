@@ -35,7 +35,7 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 **Primary tools:**
 - `resolve_stylesheet` ✦ — Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain.
-- `find_style_override` ✦ — Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules.
+- `find_style_override` ✦ — Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain.
 - `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
@@ -51,7 +51,7 @@ whether a called Odoo core symbol changed/was removed (a common post-upgrade cau
 
 > **Known gap:** OSM has `find_override_point` for Python methods but no dedicated JS/OWL
 > override-point tool. For JS/OWL render bugs, infer the override location from
-> `module_inspect(method='js'|'owl')` + `find_examples` + `suggest_pattern`, and say so explicitly
+> `module_inspect(method='js'|'owl', odoo_version='auto')` + `find_examples` + `suggest_pattern`, and say so explicitly
 > in the output rather than over-claiming certainty.
 
 ## Browser tools
@@ -95,19 +95,19 @@ navigating. Do not guess.
 
 Based on the symptom class, fire the relevant calls in parallel:
 
-- **CSS wrong / not applying:** `find_style_override(selector_or_variable=<selector>)` +
-  `resolve_stylesheet(module=<module>)` → which rule wins and where it is defined.
+- **CSS wrong / not applying:** `find_style_override(selector_or_variable=<selector>, odoo_version='auto')` +
+  `resolve_stylesheet(module=<module>, odoo_version='auto')` → which rule wins and where it is defined.
 - **Flat / off-theme render (empty surfaces, invisible muted text, badges lost fill):** run the
-  token-reality check from `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md` —
+  token-reality check from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` —
   read `getComputedStyle(:root)` for tokens that resolve EMPTY and for self-referential custom
   properties (a CSS var whose value references itself — a cycle that resolves to empty), the
   classic cause when styling chains into `--bs-*` tokens the target version does not emit.
-- **Server-side action/data wrong:** `find_override_point(model=<model>, method=<method>)`.
-- **JS/OWL render / widget missing:** `module_inspect(name=<module>, method='js')` +
-  `module_inspect(name=<module>, method='owl')` + `find_examples(query='<symptom> OWL widget')`
-  + `suggest_pattern(intent='<what the widget should do>')` to infer the override location
+- **Server-side action/data wrong:** `find_override_point(model=<model>, method=<method>, odoo_version='auto')`.
+- **JS/OWL render / widget missing:** `module_inspect(name=<module>, method='js', odoo_version='auto')` +
+  `module_inspect(name=<module>, method='owl', odoo_version='auto')` + `find_examples(query='<symptom> OWL widget', odoo_version='auto')`
+  + `suggest_pattern(intent='<what the widget should do>', odoo_version='auto')` to infer the override location
   (see the known-gap note above).
-- **Post-upgrade error:** `lookup_core_api(name=<symbol>)` to confirm a changed/removed symbol.
+- **Post-upgrade error:** `lookup_core_api(name=<symbol>, odoo_version='auto')` to confirm a changed/removed symbol.
 
 ### Round 3 — State the root cause + fix location
 
@@ -151,7 +151,7 @@ Prompt: "My custom OWL field widget doesn't show up in the Odoo 17 form."
 
 - Round 0: context → `odoo_version: 17.0`, base URL, login.
 - Round 1: navigate + reproduce; `list_console_messages` → `Error: Missing template`; `take_snapshot` → node absent.
-- Round 2 (parallel): `module_inspect(name=<module>, method='owl')` + `module_inspect(name=<module>, method='js')` + `find_examples(query='register field widget OWL Odoo 17')`.
+- Round 2 (parallel): `module_inspect(name=<module>, method='owl', odoo_version='auto')` + `module_inspect(name=<module>, method='js', odoo_version='auto')` + `find_examples(query='register field widget OWL Odoo 17', odoo_version='auto')`.
 - Round 3: Root cause = `t-name` mismatch between JS registration and the QWeb template id. Fix location named. Confidence MEDIUM (JS location inferred — known gap).
 
 **Example 2 — SCSS override not applying**
@@ -159,7 +159,7 @@ Prompt: "My custom OWL field widget doesn't show up in the Odoo 17 form."
 Prompt: "My brand color SCSS override isn't taking effect on the website."
 
 - Round 1: navigate, `evaluate_script` reads the computed color → still default.
-- Round 2 (parallel): `find_style_override(selector_or_variable='$o-brand-primary')` + `resolve_stylesheet(module=<theme>)` → a later module re-defines the variable after the override.
+- Round 2 (parallel): `find_style_override(selector_or_variable='$o-brand-primary', odoo_version='auto')` + `resolve_stylesheet(module=<theme>, odoo_version='auto')` → a later module re-defines the variable after the override.
 - Round 3: Root cause = import order; override loaded before the winning definition. Confidence HIGH.
 
 ## Notes / Integration

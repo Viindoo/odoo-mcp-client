@@ -31,7 +31,7 @@ Sales Engineer / Pre-sales Consultant
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -118,13 +118,13 @@ When OSM is unreachable, the skill asks the user to provide the requirement in n
 **Example 1:**
 Prompt: "prove Odoo can handle multi-currency invoicing for our prospect"
 Output: Verdict "Supported natively", evidence table citing `account.move` fields (`currency_id`,
-`amount_currency`, `currency_rate`) from `model_inspect(model='account.move', method='fields')`, a
+`amount_currency`, `currency_rate`) from `model_inspect(model='account.move', method='fields', odoo_version='auto')`, a
 real code example, and demo steps.
 
 **Example 2:**
 Prompt: "prove Odoo 17 supports multi-level approval for purchase orders"
 Output: Verdict with `purchase_stock` + `purchase` module evidence,
-`entity_lookup(kind='method', model='purchase.order', method_name='button_approve')` override
+`entity_lookup(kind='method', model='purchase.order', method_name='button_approve', odoo_version='auto')` override
 chain, and demo steps.
 
 ## Notes / Integration

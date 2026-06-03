@@ -30,7 +30,7 @@ Developer + Marketer
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 
 **Primary tools:**
 - `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
@@ -56,6 +56,10 @@ Odoo version diff has two audiences with different needs:
 | v15 → v16 | `web.Widget` removed completely; `fields.Text` with `widget='html'` replaced by `fields.Html`; new `HtmlField` widget; `body_html` field type changes; accounting model restructure |
 | v16 → v17 | Python 3.10+ required; performance improvements; several `tools.*` cleanup |
 | v17 → v18+ | ORM enhancements; module restructuring (ongoing) |
+
+> Not exhaustive. Odoo ships a new major roughly yearly; this table captures the historical
+> breaking points only. For any target newer than the last row, resolve the real diff via OSM
+> (`api_version_diff`) and the release notes rather than assuming.
 
 Always specify if the diff spans an **era boundary** (OpenERP → Odoo, or pre-OWL → post-OWL)
 because these require significantly more migration work than within-era upgrades.

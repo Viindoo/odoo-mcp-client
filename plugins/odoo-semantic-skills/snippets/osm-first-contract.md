@@ -33,7 +33,7 @@ Before generating any non-trivial Odoo artifact, find what already exists and pr
 - **Frontend (JS/OWL/SCSS/QWeb):** call `find_examples(query=…)` for real widget/
   component patterns, and `resolve_stylesheet` / `find_style_override` to discover the
   **real design tokens and style origins for the target version** (see
-  `odoo-design-system-fidelity.md`). Never invent token or selector names.
+  `skills/_shared/odoo-frontend-fidelity.md`). Never invent token or selector names.
 
 If the index genuinely has nothing relevant, say so explicitly — then write.
 
@@ -44,7 +44,7 @@ If the index genuinely has nothing relevant, say so explicitly — then write.
   `validate_relation`. Any BROKEN/MISMATCH is a blocker, not a warning. Run `lint_check`.
 - **Frontend:** verify against the running instance — read `getComputedStyle` to confirm
   tokens resolve (not empty/cyclic) and the UI matches the mockup; recompile assets and
-  re-read, never trust that an edit "took" (see `odoo-design-system-fidelity.md`).
+  re-read, never trust that an edit "took" (see `skills/_shared/odoo-frontend-fidelity.md`).
 - **Instance / CLI:** before emitting any `odoo-bin` command, resolve the target version's
   real CLI with `cli_help` — do not assume one version's flags apply to another (see
   `INSTANCE-LIFECYCLE.md`, `ODOO-TESTING.md`).

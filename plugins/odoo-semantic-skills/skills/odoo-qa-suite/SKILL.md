@@ -14,7 +14,6 @@ description: >
   odoo-code-reviewer); a UI rendering defect needing live browser inspection with no
   triage output (route to odoo-ui-debug directly); pre-deploy mechanical safety gate
   alone (route to odoo-deploy-checklist directly)
-disallowed-tools: Write Edit
 ---
 
 ## Persona

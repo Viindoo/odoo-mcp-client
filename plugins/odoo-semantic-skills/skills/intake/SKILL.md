@@ -16,7 +16,6 @@ description: |
   DO NOT trigger when: the user types an explicit /slash command; intent matches exactly ONE
   specialist clearly AND is single-step (let that skill fire directly); user is already
   mid-workflow inside another skill (already routed this session)
-disallowed-tools: Write Edit
 model: inherit
 ---
 
@@ -33,18 +32,23 @@ what they want or what outcome they need. This skill's job is to:
 1. **Detect** whether the intent is clear (fast-path) or vague (brainstorm).
 2. **Route** via 4-tier logic to the single best specialist skill or workflow.
 3. **Gate** every execution with a Proposed Plan before any work runs.
-4. **Never do work itself** — all execution happens in the next conversation turn after
-   user approval.
+4. **Never do the routed work itself** — it MAY produce plan/design artifacts during its
+   turn, but the routed *execution* (production code, proposals) happens after approval.
 
 ## Hard rules
 
-1. **NEVER write or edit files during a brainstorm or plan turn.** Platform-enforced by
-   `disallowed-tools: Write Edit`. This clears on the user's next message (the approval
-   turn) — exactly when execution is intentionally allowed.
-2. **No file writes, and no writes-files specialist, before Plan Mode is approved — but
-   read-only Recon IS allowed.** Four sub-rules, none optional:
-   - (1) **Write/Edit stay platform-blocked on the plan turn** via `disallowed-tools: Write
-     Edit`. Intake itself never touches the filesystem; this clears only on the approval turn.
+1. **Intake MAY write planning/design artifacts (brainstorm notes, design docs, `state.json`)
+   during the plan turn — Write/Edit are available.** What it MUST NOT do before the Proposed
+   Plan is approved is produce the *routed deliverable itself* (production code, generated
+   proposals) or dispatch a writes-files specialist. The gate is behavioral (this rule + Plan
+   Mode), not a blanket file-write block — producing a design doc on the plan turn is encouraged.
+2. **No routed-deliverable production, and no writes-files specialist dispatch, before Plan
+   Mode is approved — but read-only Recon and planning-artifact writes ARE allowed.** Four
+   sub-rules, none optional:
+   - (1) **Intake MAY write planning/design artifacts (design docs, brainstorm notes,
+     `state.json`) on the plan turn**, but MUST NOT write the routed deliverable's files
+     (production code, generated proposals) before Plan-Mode approval. The constraint is
+     behavioral, not a `disallowed-tools` block.
    - (2) **NEVER invoke a writes-files execute-skill (a `writes-files` specialist) — nor the
      Skill tool running such a specialist — BEFORE Plan Mode is approved.** That includes
      `odoo-coder`, `odoo-frontend-coder`, `wave`, `odoo-brl`, `workflow-runner`, or any skill
@@ -124,8 +128,9 @@ The gate has two enforcement layers — both are required; neither is optional:
 - "This is simple, I'll just start coding" → STOP. Still propose + gate.
 - "The user clearly wants X, skip the questions" → only valid via Tier-1 fast-path, NOT
   a rationalization to skip the gate.
-- "I'll plan and edit in the same turn" → BANNED. Parse verb order: "plan" means produce
-  a plan and stop. No edits, even one line. (Memory: `started-editing-during-plan-request`.)
+- "I'll plan, then build the deliverable in the same turn" → STILL GATED. Writing a design/plan
+  artifact is fine; producing the routed deliverable (production code, proposal) or dispatching a
+  writes-files specialist before approval is not. (Memory: `started-editing-during-plan-request`.)
 - "The gate is unnecessary friction here" → wrong. The gate IS the contract.
 - "The text gate was enough, I can skip Plan Mode" → WRONG. Plan Mode is mandatory when
   an execute-skill will write files. The text gate and Plan Mode are independent layers.
@@ -282,8 +287,9 @@ Only runs in the **vague branch** (Tier-4 miss or explicit "I'm not sure").
    recommendation. Make concrete.
 4. **Present Proposed Plan** (soft-plan-gate — see § Soft plan gate). This IS the gate;
    do not write anything before approval.
-5. **Write design doc** — ONLY after user approval (next turn, `disallowed-tools` clears):
-   `.odoo-ai/brainstorm/<slug>-<date>.md`.
+5. **Write design doc** — intake MAY write this during the plan turn (no need to wait):
+   `.odoo-ai/brainstorm/<slug>-<date>.md`. The approval gate covers the *routed deliverable*,
+   not the planning artifact.
 6. **Transition** — emit the NL-dispatch prompt for the chosen skill/workflow; update
    `.odoo-ai/brainstorm/state.json`.
 
@@ -312,7 +318,8 @@ Gate: approve / refine: [your feedback] / cancel
 ```
 
 Enforcement stack:
-1. `disallowed-tools: Write Edit` → platform-blocks file edits during this planning turn.
+1. Behavioral rule (Hard rule 1) → intake may write planning/design artifacts, but NOT the
+   routed deliverable, before approval. (No `disallowed-tools` block — Write/Edit are available.)
 2. Iron Law + Red Flags above → behavioral enforcement (text gate layer).
 3. Plan Mode (EnterPlanMode / ExitPlanMode) → harness-level guarantee before any
    execute-skill that writes files (see § Plan Mode). This is the stronger layer.
@@ -341,7 +348,7 @@ The **Discriminator** column resolves close ties.
 | 11 | "respond to objection", "counter 'Odoo can't'", "write a response", "rep is on the call", "customer says Odoo can't do X" | `odoo-objection-handler` | Verbatim ACA response paragraph (vs `odoo-capability-proof` which is technical evidence) |
 | 12 | "write code", "create field", "implement feature", "write computed field", "add onchange", "add SQL constraint" | `odoo-coder` | Backend Python/XML code generation (vs `odoo-frontend-coder` for frontend, vs `odoo-override-finder` for finding hook location) |
 | 13 | "review code", "check my PR", "audit this", "smell test before merge" | `odoo-code-reviewer` | Reviewing EXISTING code (vs `odoo-coder` which writes NEW code, vs `odoo-deprecation-audit` which is module-level audit) |
-| 14 | "JS", "widget", "OWL", "frontend", "Odoo 8-19", "odoo.define()", "useService", "patch component" | `odoo-frontend-coder` | Frontend code (legacy v8-14 or OWL v15+); skill auto-detects framework via Odoo version in `.odoo-ai/context.md` or user statement |
+| 14 | "JS", "widget", "OWL", "frontend", "any Odoo version", "odoo.define()", "useService", "patch component" | `odoo-frontend-coder` | Frontend code (legacy v8-14 or OWL v15+); skill auto-detects framework via Odoo version in `.odoo-ai/context.md` or user statement |
 | 15 | "follow up with customer", "deal stalled", "draft follow-up email", "customer hasn't replied" | `odoo-deal-followup` | Sales AE follow-up email writer (vs `odoo-objection-handler` for objection response, vs `odoo-discovery-summarize` for raw meeting notes) |
 | 16 | "summarize the customer meeting", "synthesize discovery notes", "extract customer profile" | `odoo-discovery-summarize` | Pre-proposal structured profile (vs `odoo-gap-analysis` for effort matrix, vs `odoo-deal-followup` for post-meeting follow-up email) |
 | 17 | "write a blog post on Odoo", "draft a LinkedIn post", "YouTube script for Odoo", "email sequence about", "landing page copy" | `odoo-content-draft` | Single-piece content draft (vs `odoo-campaign-plan` which orchestrates multi-piece campaign, vs `odoo-feature-highlights` which is slide-format) |

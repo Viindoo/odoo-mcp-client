@@ -47,8 +47,8 @@ The full **tool arsenal (server v0.11.1)**, optimized for development workflows.
 
 | Tool | Use case |
 |------|----------|
-| `resolve_stylesheet(module, odoo_version="auto")` | Enumerate a module's CSS/SCSS/LESS `:Stylesheet` files — language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. LESS covers legacy v8-v11. |
-| `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is first defined and all modules that override it. Essential for theming/branding work. Covers CSS, SCSS, and LESS (LESS for legacy v8-v11). |
+| `resolve_stylesheet(module, odoo_version="auto")` | Enumerate a module's CSS/SCSS/LESS stylesheet files — language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. LESS covers the legacy pre-SCSS era (~v8-v12). |
+| `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain. Essential for theming/branding work. Covers CSS, SCSS, and LESS (LESS for the legacy pre-SCSS era, ~v8-v12). |
 
 ### ORM-validation tools (server v0.8.0+)
 
@@ -61,7 +61,7 @@ Static checks against the indexed graph. Run them **before** emitting a domain, 
 | `validate_depends(model, method, odoo_version="auto")` | Validate an indexed compute method's `@api.depends('a.b', ...)` paths; flags depends on `id` (forbidden) and suggests the closest field for typos — directly catches the "stale compute" failure mode. |
 | `validate_relation(model, field, target_model, odoo_version="auto")` | Assert a field is a many2one/one2many/many2many whose comodel is `target_model` (or a subtype via inheritance). Use before writing a `related=` that hops through a relation. |
 
-> Prefer these over `entity_lookup(kind='field')` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) — they reason about the whole construct, not one field.
+> Prefer these over `entity_lookup(kind='field', odoo_version='auto')` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) — they reason about the whole construct, not one field.
 
 ### Removed in v0.6
 
@@ -71,7 +71,7 @@ See the server [CHANGELOG](https://odoo-semantic.viindoo.com/changelog) for side
 
 ### MCP Resources (`odoo://` URI scheme, v0.5+)
 
-Read-only handles for bookmark-stable access. Use these when you already know the entity ID and want the canonical record without a tool call: `odoo://{version}/{kind}/{id}` where `kind` is one of `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`. See [ADR-0030](https://odoo-semantic.viindoo.com/docs/adr/0030-mcp-resources-uri-scheme).
+Read-only handles for bookmark-stable access. Use these when you already know the entity ID and want the canonical record without a tool call: `odoo://{version}/{kind}/{id}` where `kind` is one of `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`. See the [MCP resources URI scheme docs](https://odoo-semantic.viindoo.com/docs/adr/0030-mcp-resources-uri-scheme).
 
 ---
 
@@ -92,12 +92,12 @@ TTL is 24h per API key. Run `list_available_versions()` first if you are not sur
 Before adding logic to a model:
 
 ```
-model_inspect(model="sale.order", method="summary")
+model_inspect(model="sale.order", method="summary", odoo_version='auto')
 ```
 
 Get the full inheritance chain, field count, method list, view inventory, and which modules have already extended this model — all in one call. Know what you are stepping into before writing a single line.
 
-> Need one specific entity? Drill down with `entity_lookup(kind="field", model="sale.order", field="amount_total")` (or `kind="method"` / `kind="view"`).
+> Need one specific entity? Drill down with `entity_lookup(kind="field", model="sale.order", field="amount_total", odoo_version='auto')` (or `kind="method"` / `kind="view"`).
 
 ### 2. Find the right extension point
 
@@ -114,10 +114,10 @@ Returns `super_safety` score and which modules are already overriding this metho
 Before implementing a new pattern (computed cross-model field, wizard, report):
 
 ```
-suggest_pattern("computed field that aggregates from child records with currency conversion")
+suggest_pattern("computed field that aggregates from child records with currency conversion", odoo_version='auto')
 ```
 
-Returns curated `PatternExample` nodes with code snippets, gotchas, and anti-pattern warnings from the indexed codebase.
+Returns curated pattern entries with code snippets, gotchas, and anti-pattern warnings from the indexed codebase.
 
 ### 4. Verify the API
 
@@ -134,8 +134,8 @@ If the result shows `status: deprecated` or `removed_in: 17.0` — find the repl
 After writing the module:
 
 ```
-lint_check("my_module", "17.0")
-find_deprecated_usage("17.0")
+lint_check(code=<module source>, odoo_version='auto')
+find_deprecated_usage(odoo_version='auto')
 ```
 
 ---

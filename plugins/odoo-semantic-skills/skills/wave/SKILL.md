@@ -13,7 +13,6 @@ description: >
   or in-context skill chaining (use workflow-runner).
   Never auto-merge - HUMAN-CONFIRM is the terminal gate
 model: opus
-disallowed-tools: Write Edit
 ---
 
 ## Persona

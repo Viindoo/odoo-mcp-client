@@ -10,7 +10,6 @@ description: >
   Invoked by the intake skill (or concierge) via NL-dispatch after a workflow is chosen at the
   soft-plan-gate — never called directly by the user
 model: inherit
-disallowed-tools: Write Edit
 ---
 
 # workflow-runner — Generic Declarative Workflow Runner

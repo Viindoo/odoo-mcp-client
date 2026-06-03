@@ -156,7 +156,7 @@ esac
 # silently skips the frontend specialists). Appended to whatever OSM context exists. ---
 case "${_domain}" in
   visual-UI)
-    _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work → odoo-frontend-coder (write); odoo-ui-debug (runtime render/console errors); odoo-ui-reviewer (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity → see odoo-design-system-fidelity (build theme-correct, never hardcode hex / self-reference a CSS var)."
+    _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work → odoo-frontend-coder (write); odoo-ui-debug (runtime render/console errors); odoo-ui-reviewer (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity → see skills/_shared/odoo-frontend-fidelity.md (build theme-correct, never hardcode hex / self-reference a CSS var)."
     _osm_context="${_osm_context:+${_osm_context}\n}${_fe_hint}"
     ;;
   engineering)

@@ -37,7 +37,7 @@ version-dependent part.
 |--------------|----------------------|---------------------------|
 | v8–v14 | Legacy `web.Widget` / `odoo.define()` (QWeb2) | Render failures show as missing DOM nodes; check `field_registry` and template names. |
 | v15 | OWL 1.x (`patch(Class.prototype, …)`) | Reactivity via `useState`; prototype-level patches. |
-| v16–v19 | OWL 2.x (`patch(Class, …)`, ES modules) | `odoo.define` removed; registries via `registry.category(...)`; class-level patches. |
+| v16+ | OWL 2.x (`patch(Class, …)`, ES modules) | `odoo.define` removed; registries via `registry.category(...)`; class-level patches. Confirmed through v19; verify new majors via OSM. |
 
 A render-then-error symptom and an empty-render symptom have different root causes — confirm which
 via a DOM snapshot before attributing the cause to JS.

@@ -9,7 +9,7 @@ is complete and that skills thread the shared contracts they are required to:
   2. OSM-first    — skills that spawn/fan-out workers writing Odoo (wave, workflow-runner,
                     odoo-brl) reference snippets/osm-first-contract.md.
   3. Design-sys   — skills with stack in {frontend, fullstack} reference
-                    docs/reference/odoo-design-system-fidelity.md.
+                    skills/_shared/odoo-frontend-fidelity.md.
   4. Instance     — skills with instance_touching=true reference cli_help / the lifecycle
                     docs (so they ground the CLI per target version instead of assuming).
   5. Spawn truth  — spawn_class is consistent with the SKILL.md body (a 'leaf' must not show
@@ -34,7 +34,8 @@ DEPS_FILE = Path(__file__).parent / "skill_tool_deps.json"
 SKILLS_DIR = PLUGIN_ROOT / "skills"
 
 OSM_SNIPPET = "osm-first-contract"
-DESIGN_DOC = "odoo-design-system-fidelity"
+DESIGN_DOC = "odoo-frontend-fidelity"
+DESIGN_DOC_PATH = "skills/_shared/odoo-frontend-fidelity.md"
 INSTANCE_REFS = ("cli_help", "INSTANCE-LIFECYCLE", "ODOO-TESTING")
 
 # Skills that fan-out / spawn workers which may write Odoo code → must carry OSM-first.
@@ -101,7 +102,8 @@ def main(argv: list[str]) -> int:
     findings: list[str] = []
 
     orch = load_orch()
-    dirs = {p.name for p in SKILLS_DIR.iterdir() if p.is_dir()} if SKILLS_DIR.exists() else set()
+    # A skill dir is one that actually ships a SKILL.md; shared-doc dirs (e.g. _shared/) are not skills.
+    dirs = {p.name for p in SKILLS_DIR.iterdir() if p.is_dir() and (p / "SKILL.md").exists()} if SKILLS_DIR.exists() else set()
 
     # 1. Coverage
     for missing in sorted(dirs - set(orch)):
@@ -113,7 +115,7 @@ def main(argv: list[str]) -> int:
     #     exist — otherwise a rename leaves every skill "passing" (stale substring) with a dead
     #     link. Verify the SSOT targets on disk once.
     for rel in (f"snippets/{OSM_SNIPPET}.md", f"snippets/nesting-guard.md",
-                f"docs/reference/{DESIGN_DOC}.md", "docs/reference/INSTANCE-LIFECYCLE.md",
+                DESIGN_DOC_PATH, "docs/reference/INSTANCE-LIFECYCLE.md",
                 "docs/reference/ODOO-TESTING.md"):
         if not (PLUGIN_ROOT / rel).is_file():
             findings.append(f"[ref-target] shared contract file '{rel}' is referenced but missing on disk")

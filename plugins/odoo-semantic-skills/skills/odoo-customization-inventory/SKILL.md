@@ -30,7 +30,7 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 **Session bootstrap** (call once at session start):
 - `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -77,16 +77,16 @@ of each other.
 
 **Round 2.5 — Per-module architecture drill-down (parallel):** For each distribution-maintained or Custom
 module that the executive wants to understand more deeply, call
-`module_inspect(name=<name>, method='summary')`. This returns a concise tree showing the
+`module_inspect(name=<name>, method='summary', odoo_version='auto')`. This returns a concise tree showing the
 module's manifest metadata, which models it defines vs extends, and counts of views and JS
 patches — giving the executive a one-glance architecture picture without reading source code.
-Fire all `module_inspect(method='summary')` calls in parallel (one per module of interest).
+Fire all `module_inspect(method='summary', odoo_version='auto')` calls in parallel (one per module of interest).
 The tree output is ~10–15 lines per module and is safe to include verbatim in the inventory
 report.
 
 Example — understanding `custom_loyalty` on Odoo 17:
 ```
-module_inspect(name="custom_loyalty", method="summary")
+module_inspect(name="custom_loyalty", method="summary", odoo_version='auto')
 ```
 
 **Round 3 — Parallel:** Call `impact_analysis` for modules flagged as high-usage or high-risk

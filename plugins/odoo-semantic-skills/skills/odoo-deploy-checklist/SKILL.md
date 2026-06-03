@@ -42,7 +42,7 @@ to a 3-5 person dev shop. Output is operational and actionable, not executive-le
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (optional — call once if version not already pinned):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version context for the session (24h TTL per API key). Omit `odoo_version` on subsequent calls once pinned.
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version context for the session (24h TTL per API key). Pass `odoo_version='auto'` on subsequent calls to reuse it (it can no longer be omitted).
 
 **Primary tools:**
 - `check_module_exists` — Verify that each module in the deploy scope actually exists in the target Odoo version. Use in Round 2 to auto-fill module existence items.
@@ -164,9 +164,9 @@ If yes, ask user to paste or link the output; use it to auto-fill Domain 1 items
 If OSM is reachable, fire these calls in parallel:
 
 ```
-check_module_exists(module=<each_module>, odoo_version=<target>)   # one call per module
-module_inspect(name=<each_module>)                                # one call per module
-find_deprecated_usage(scope=<module_list>)                         # one call
+check_module_exists(name=<each_module>, odoo_version=<target>)     # one call per module
+module_inspect(name=<each_module>, odoo_version='auto')                                # one call per module
+find_deprecated_usage(odoo_version='auto')                                             # one call per version (kind= to filter)
 ```
 
 Use results to fill:
@@ -310,7 +310,7 @@ The checklist remains fully usable — 7 of 8 domains require no OSM access.
 
 **Skill action:**
 - Round 1: Confirm scope — version 17.0, environment staging, module `custom_loyalty_program`.
-- Round 2: Call `check_module_exists(module='loyalty', odoo_version='17.0')` to verify the base `loyalty` module (which `custom_loyalty_program` inherits) exists in v17; call `module_inspect` for manifest and migration script presence; call `find_deprecated_usage` for the module scope.
+- Round 2: Call `check_module_exists(name='loyalty', odoo_version='17.0')` to verify the base `loyalty` module (which `custom_loyalty_program` inherits) exists in v17; call `module_inspect` for manifest and migration script presence; call `find_deprecated_usage` for the module scope.
 - Round 3-4: Auto-fill Domain 1 from MCP results; mark Domains 2-8 as `⚠ Manual check` (staging environment — backup and rollback still required for staging too).
 - Output: checklist with verdict `NEEDS WORK ⚠` (backup and rollback items manual), blockers section empty or with module-specific gaps.
 

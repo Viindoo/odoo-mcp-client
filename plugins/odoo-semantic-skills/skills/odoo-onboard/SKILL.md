@@ -88,8 +88,27 @@ From the confirmed module list, detect:
 - **field_naming**: assume `snake_case` (Odoo standard). Override only if user says otherwise.
 - **vcs_branch_pattern**: optional — try `git log --oneline -20 | head -20` to detect branch naming heuristic (`feature/...`, `fix/...`, `OEEL-<N>-...`). Don't probe if not in git repo.
 
+Also detect lint/format provenance for downstream skills (especially the frontend verify gate):
+
+**Python linter (ruff) line-length:**
+```bash
+# Check pyproject.toml first, then ruff.toml
+grep -m1 'line-length' pyproject.toml ruff.toml 2>/dev/null | head -1
+```
+- If a `line-length` value is found (e.g. `line-length = 120`), record it as-is.
+- If absent (Odoo core has no ruff line-length; v19 ruff.toml ignores E501), record `"none"`.
+- Never assume a default — Odoo core sets no ruff line-length, while some projects pin one (e.g. 120). Read the value from the project config; do not guess.
+
+**JS formatter/linter config:**
+```bash
+# Check for Odoo checkout with committed web tooling (present v15+)
+find . "${ODOO_GIT_BASE:-$HOME/git}" -maxdepth 6 -path "*/addons/web/tooling" -type d 2>/dev/null | head -1
+```
+- If `addons/web/tooling/` is locatable (an Odoo checkout with committed eslint/prettier config, available from v15+), record `"web/tooling"`.
+- Otherwise record `"fallback"` (the plugin's `scripts/odoo-prettierrc.json` will be used: tabWidth 4, printWidth 100).
+
 Confirm with user in one batch:
-> "Conventions: prefix=`viin_`, field=`snake_case`, branch=`feature/<ticket>-<slug>`. Correct? (yes / edit)"
+> "Conventions: prefix=`viin_`, field=`snake_case`, branch=`feature/<ticket>-<slug>`. Lint: ruff line-length=`120`, JS=`web/tooling`. Correct? (yes / edit)"
 
 ### Step 6 — Set session pins
 
@@ -142,6 +161,10 @@ If user provides notes, append to `## Notes` section. Then output the suggest-ne
 - **field_naming**: snake_case
 - **vcs_branch_pattern**: feature/<ticket-id>-<slug>
 
+## Lint / Format
+- **ruff_line_length**: 120  (read from pyproject.toml/ruff.toml; "none" if absent)
+- **js_config_source**: web/tooling  (or "fallback" when no Odoo checkout with addons/web/tooling/ is locatable)
+
 ## Active session pins
 - **set_active_version**: 17.0 (TTL 24h — re-pin if stale)
 - **set_active_profile**: viindoo_17
@@ -173,6 +196,7 @@ After Step 9, output exactly this template:
 - Profile: <name or "(none)">
 - Modules detected: <N> (top: <m1>, <m2>, <m3>)
 - Module prefix: <prefix>
+- Lint: ruff line-length=<value or "none">, JS=<"web/tooling" or "fallback">
 
 `.gitignore` updated to exclude `.odoo-ai/`.
 
@@ -225,6 +249,7 @@ Output:
 - Profile: viindoo_17
 - Modules detected: 12 (top: viin_sale_advance, viin_account_vat, viin_purchase_advance)
 - Module prefix: viin_
+- Lint: ruff line-length=120, JS=web/tooling
 
 `.gitignore` updated to exclude `.odoo-ai/`.
 

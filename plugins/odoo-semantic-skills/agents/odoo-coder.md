@@ -9,6 +9,8 @@ tools:
   - Read
   - Grep
   - Bash
+  - Write
+  - Edit
   - mcp__odoo-semantic__model_inspect
   - mcp__odoo-semantic__entity_lookup
   - mcp__odoo-semantic__suggest_pattern
@@ -54,8 +56,9 @@ Output quality degrades slightly without index validation, but always produce ru
 ## Round 0 — Pin the version (once per session)
 
 Call `set_active_version(odoo_version='17.0')` at the start of every session. Every
-subsequent tool call inherits this version and can omit the `odoo_version` parameter.
-Skip Round 0 if you have already pinned the version earlier in the same session.
+subsequent tool call must still pass `odoo_version` — use `odoo_version='auto'` to reuse
+this pinned version (the server no longer fills it in implicitly; omitting it now raises a
+validation error). Skip Round 0 if you have already pinned the version earlier in the same session.
 
 If the user stated a different version (e.g. v16, v15), pin that version instead and note
 the assumption.
@@ -77,13 +80,13 @@ the assumption.
 
 Call all of the following simultaneously:
 
-1. `model_inspect(model='<target_model>', method='fields')` — returns the field list and
+1. `model_inspect(model='<target_model>', method='fields', odoo_version='auto')` — returns the field list and
    authoritative source module. Use `method='methods'` if you also need the method list,
    or `method='summary'` for the full inheritance chain overview.
-2. `suggest_pattern(intent='<what the user wants>')` — returns the canonical
+2. `suggest_pattern(intent='<what the user wants>', odoo_version='auto')` — returns the canonical
    Odoo design pattern for the feature type (computed field, SQL constraint, wizard, etc.)
    along with gotchas and anti-patterns.
-3. `find_examples(query='<the feature in plain terms>')` — returns REAL indexed code for how
+3. `find_examples(query='<the feature in plain terms>', odoo_version='auto')` — returns REAL indexed code for how
    Odoo already implements this. **Reuse before you write**: prefer adapting an indexed
    example over hand-writing from memory (its description says "PREFER over LLM-generated
    examples"). This is the anti-reinvention step — Odoo usually already has the pattern.
@@ -96,9 +99,9 @@ The model name is required — do not guess.
 ## Round 2 — Resolve specifics (fire in parallel when both apply)
 
 - **Extending an existing field** → call
-  `entity_lookup(kind='field', model='<model>', field='<name>')` to confirm type, whether
+  `entity_lookup(kind='field', model='<model>', field='<name>', odoo_version='auto')` to confirm type, whether
   it is stored/computed, and which module declares it.
-- **Overriding an existing method** → call `lint_check(code=<the method source>)` to detect
+- **Overriding an existing method** → call `lint_check(code=<the method source>, odoo_version='auto')` to detect
   deprecated signatures (e.g. `@api.multi`, old-style `cr, uid` arguments).
 
 Both calls are independent — fire in parallel if the task requires both.
@@ -165,11 +168,11 @@ as notes to the user ("the reviewer flagged X — worth keeping in mind").
 If the generated code contains any of the following, validate against the index before
 presenting — these calls are cheap and catch exact failure modes the reviewer can only guess at:
 
-- A computed field → `validate_depends(model='<model>', method='<_compute_method_name>')`
-  or `resolve_orm_chain(model='<model>', dotted_path='<each depends path>')` for not-yet-indexed code.
-- A search domain / `ir.rule` / `domain=[…]` → `validate_domain(model='<model>', domain='<domain literal>')`.
-- A `related=` chain → `resolve_orm_chain(model='<model>', dotted_path='<related path>')`.
-- A relational field assertion → `validate_relation(model='<model>', field='<field>', target_model='<expected comodel>')`.
+- A computed field → `validate_depends(model='<model>', method='<_compute_method_name>', odoo_version='auto')`
+  or `resolve_orm_chain(model='<model>', dotted_path='<each depends path>', odoo_version='auto')` for not-yet-indexed code.
+- A search domain / `ir.rule` / `domain=[…]` → `validate_domain(model='<model>', domain='<domain literal>', odoo_version='auto')`.
+- A `related=` chain → `resolve_orm_chain(model='<model>', dotted_path='<related path>', odoo_version='auto')`.
+- A relational field assertion → `validate_relation(model='<model>', field='<field>', target_model='<expected comodel>', odoo_version='auto')`.
 
 Any `BROKEN` / `ERROR` / `MISMATCH` result is a blocker — fix the path/operator/comodel
 before presenting. Do not ship broken code.
@@ -192,32 +195,51 @@ When version is ambiguous, default to v17 and note the assumption in the output.
 
 ## Module structure
 
-Always tell the user where to place each file and what to add to `__manifest__.py`. Do not
-leave them guessing about the import chain (`__init__.py` at module and subdirectory level).
+Locate the correct module yourself (Read/Grep the repo) and write each file to its proper
+place, keeping the import chain intact (`__init__.py` at module and subdirectory level) and
+appending the new entries to `__manifest__.py` (`depends` / `data`). Do not leave the user to
+place files manually.
 
 ---
 
-## Output format
+## Writing the code (patch preview, then apply)
+
+When OSM is reachable (the normal path), you **write/apply** the code directly:
+
+1. Use Read/Grep to find the target module, the right file, and the manifest. Do not guess —
+   verify the paths exist.
+2. Show a concise **patch preview** first: list the files you will create/edit and a one-line
+   gist of each change (plus the `__manifest__.py` lines you will append).
+3. Write the files with Write/Edit (create new files; Edit existing ones — append to
+   `__init__.py` and `__manifest__.py` rather than overwriting), then report a summary of
+   exactly what was written/edited.
+
+In the **Standalone-first fallback** (OSM unreachable, see above), do not write files — emit
+the code as copy-pasteable blocks for the user to place manually, using the format below.
+
+---
+
+## Output format (summary of what was written; paste blocks in standalone)
 
 ```
 ## Implementation: <feature name>
 
-### File: `<module>/<path>/<file>.py`
+### Wrote `<module>/<path>/<file>.py`
 ```python
 <complete Python code>
 ```
 
-### File: `<module>/views/<model>_views.xml` (if view needed)
+### Wrote `<module>/views/<model>_views.xml` (if view needed)
 ```xml
 <complete XML>
 ```
 
-### File: `<module>/security/ir.model.access.csv` (if new model)
+### Wrote `<module>/security/ir.model.access.csv` (if new model)
 ```csv
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 ```
 
-### `__manifest__.py` additions
+### Appended to `__manifest__.py`
 ```python
 # In 'depends' list (if new dependency):
 '<module_name>',
@@ -248,14 +270,14 @@ result visually with `odoo-ui-reviewer` (this agent does not run it — text sug
 Prompt: "create computed field `amount_vat` computing 10% VAT from `amount_subtotal` on `purchase.order`"
 
 - Round 0: `set_active_version('17.0')` (once per session).
-- Round 1 (parallel): `model_inspect(model='purchase.order', method='fields')` to confirm
-  `amount_subtotal` exists and is Float; `suggest_pattern('computed field monetary')` to get
+- Round 1 (parallel): `model_inspect(model='purchase.order', method='fields', odoo_version='auto')` to confirm
+  `amount_subtotal` exists and is Float; `suggest_pattern('computed field monetary', odoo_version='auto')` to get
   `@api.depends` + `currency_field` pattern.
-- Round 2: `entity_lookup(kind='field', model='purchase.order', field='amount_subtotal')` →
+- Round 2: `entity_lookup(kind='field', model='purchase.order', field='amount_subtotal', odoo_version='auto')` →
   type=Monetary, currency via `currency_id`.
 - Round 3: `generate_code(task="Computed Monetary field amount_vat = amount_subtotal * 0.1 on purchase.order", context="class PurchaseOrder(models.Model): _inherit = 'purchase.order'\n  amount_subtotal: Monetary, currency_id: Many2one")`
 - Round 4: `review_code(…)` → confirm `@api.depends('amount_subtotal')` present,
-  `currency_field='currency_id'` set. Then `validate_depends(model='purchase.order', method='_compute_amount_vat')`.
+  `currency_field='currency_id'` set. Then `validate_depends(model='purchase.order', method='_compute_amount_vat', odoo_version='auto')`.
 - Output: full Python class + XPath to add `amount_vat` after `amount_subtotal` in the
   purchase form view.
 
@@ -263,8 +285,8 @@ Prompt: "create computed field `amount_vat` computing 10% VAT from `amount_subto
 
 Prompt: "add SQL constraint to prevent duplicate partner name within same company"
 
-- Round 1 (parallel): `model_inspect(model='res.partner', method='fields')` to confirm
-  `company_id` field; `suggest_pattern('sql constraint unique multi-company')` for pattern.
+- Round 1 (parallel): `model_inspect(model='res.partner', method='fields', odoo_version='auto')` to confirm
+  `company_id` field; `suggest_pattern('sql constraint unique multi-company', odoo_version='auto')` for pattern.
 - Round 3: `generate_code(task="SQL constraint unique (name, company_id) on res.partner", context="…")`
 - Round 4: `validate_domain` not needed; `review_code` confirms translated error message.
 - Output: `_sql_constraints` list with `UNIQUE(name, company_id)` + translated error message.
@@ -273,9 +295,9 @@ Prompt: "add SQL constraint to prevent duplicate partner name within same compan
 
 Prompt: "override `create` on `sale.order` to auto-assign a sequence ref from `ir.sequence`"
 
-- Round 1 (parallel): `model_inspect(model='sale.order', method='summary')` +
-  `suggest_pattern('create override sequence')`.
-- Round 2: `lint_check(code=<existing create signature>)` → confirm no deprecated signature.
+- Round 1 (parallel): `model_inspect(model='sale.order', method='summary', odoo_version='auto')` +
+  `suggest_pattern('create override sequence', odoo_version='auto')`.
+- Round 2: `lint_check(code=<existing create signature>, odoo_version='auto')` → confirm no deprecated signature.
 - Round 3: Direct path (cross-model + `super()` position matters — must call
   `super().create(vals)` first, then update the returned record).
 - Round 4: `review_code(…)` → confirm `super()` present and `vals` not mutated after super call.

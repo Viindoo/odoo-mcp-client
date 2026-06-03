@@ -19,7 +19,7 @@ Before answering codebase questions:
 2. set_active_version("17.0") — pin the version (sticky 24h TTL per API key)
 3. Optional: set_active_profile("<name>") for multi-tenant deployments
 
-Subsequent tool calls can omit odoo_version — the sticky value applies. The four session-context tools also include list_available_profiles().
+Subsequent tool calls pass odoo_version='auto' to reuse the pinned session (it can no longer be omitted). The four session-context tools also include list_available_profiles().
 
 ## TOOL ROUTING
 
@@ -28,17 +28,17 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
 **model_inspect** ★ — one call returns the model's fields, methods, views, or summary
   REPLACES: resolve_model, list_fields, list_methods, list_views (all removed in v0.6)
   WHEN: "show me [model]", "inheritance of [model]", "fields/methods/views on [model]", "full structure of [model]"
-  ARGS: model (dotted), method ("summary"|"fields"|"methods"|"views"|"field"|"method"), odoo_version (optional — session-aware), field (when method='field'), method_name (when method='method'), limit (default 200), from_module (optional — method in summary/fields/field: restrict to this module), kind (optional — method='fields': filter by field type e.g. 'many2one'), view_type (optional — method='views': filter by view type e.g. 'form'/'list' — 'list' is the v18+ alias for 'tree')
+  ARGS: model (dotted), method ("summary"|"fields"|"methods"|"views"|"field"|"method"), odoo_version (required; pass 'auto' to reuse the pinned session), field (when method='field'), method_name (when method='method'), limit (default 200), from_module (optional — method in summary/fields/field: restrict to this module), kind (optional — method='fields': filter by field type e.g. 'many2one'), view_type (optional — method='views': filter by view type e.g. 'form'/'list' — 'list' is the v18+ alias for 'tree')
 
 **module_inspect** ★ — module-level inventory across manifest, views, OWL, QWeb, JS patches
   FRONTS describe_module (via method='summary'); REPLACES the removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (removed in v0.6)
   WHEN: "what is module [X]", "describe module [X]", "OWL / QWeb / JS patches / views in module [X]"
-  ARGS: name (required), method ("summary"|"views"|"owl"|"qweb"|"js"|"dependencies"), odoo_version (optional), profile_name (optional), view_type (optional — method='views': filter by view type e.g. 'form'/'list' — 'list' is the v18+ alias for 'tree'), bound_model (optional — method='owl': filter by bound model), era (optional — method='js': era1|era2|era3), target (optional — method='js': filter by patched target)
+  ARGS: name (required), method ("summary"|"views"|"owl"|"qweb"|"js"|"dependencies"), odoo_version (required), profile_name (optional), view_type (optional — method='views': filter by view type e.g. 'form'/'list' — 'list' is the v18+ alias for 'tree'), bound_model (optional — method='owl': filter by bound model), era (optional — method='js': era1|era2|era3), target (optional — method='js': filter by patched target)
 
 **entity_lookup** ★ — drill down on one entity by ID
   REPLACES: resolve_field, resolve_method, resolve_view (all removed in v0.6)
   WHEN: "lookup field [X] on [model]", "find method [X] on [model]", "lookup view [xmlid]"
-  ARGS: kind ("model"|"field"|"method"|"view"|"module"|"pattern"), plus model + field|method_name (for field/method) OR xmlid (for view), odoo_version (optional — session-aware), from_module (optional — kind='model'/'field': restrict to declarations from this module)
+  ARGS: kind ("model"|"field"|"method"|"view"|"module"|"pattern"), plus model + field|method_name (for field/method) OR xmlid (for view), odoo_version (required; pass 'auto' to reuse the pinned session), from_module (optional — kind='model'/'field': restrict to declarations from this module)
 
 **find_examples** — semantic code search
   WHEN: "example of", "how to implement", "code pattern for", "show me code that"
@@ -71,33 +71,33 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
 **find_override_point** — safest extension points
   WHEN: "where to override [method]", "best place to extend [model]", "override point for"
 
-**describe_module** — module architecture overview; module_inspect(method="summary") returns the same data plus extras
+**describe_module** — module architecture overview; module_inspect(method="summary", odoo_version='auto') returns the same data plus extras
   WHEN: "what is module [X]", "what does module [X] do", "describe module [X]", "overview of [X]", "module [X] làm gì"
 
 **resolve_stylesheet** ✦ — enumerate a module's CSS/SCSS/LESS stylesheet files (language, selector/var/mixin/import counts, @import chain; LESS covers legacy v8-v11)
   WHEN: "what stylesheets does module [X] ship", "list CSS/SCSS/LESS files in [X]", "@import chain for module [X]", "stylesheet inventory for [X]"
-  ARGS: module (required), odoo_version (optional, default "auto")
+  ARGS: module (required), odoo_version (required; pass 'auto' to reuse the pinned session)
 
-**find_style_override** ✦ — semantic search for where a CSS selector / SCSS/LESS variable is defined or overridden (pgvector with import-chain traversal; LESS covers legacy v8-v11)
+**find_style_override** ✦ — find where a CSS selector / SCSS/LESS variable is first defined and which modules override it, with the full override chain (LESS for the legacy pre-SCSS era, ~v8-v12)
   WHEN: "where is selector [X] defined", "find SCSS variable $[X]", "find LESS variable @[X]", "which module overrides [selector]", "branding/theming override for [X]"
-  ARGS: selector_or_variable (required), odoo_version (optional, default "auto"), limit (optional, default 5)
+  ARGS: selector_or_variable (required), odoo_version (required; pass 'auto' to reuse the pinned session), limit (optional, default 5)
 
 **resolve_orm_chain** ⊕ — walk a dotted ORM field path and return the terminal field type (or the hop where it breaks)
   WHEN: "what type is [model].a.b.c", "does this dotted path resolve", "trace field path partner_id.country_id.code"
-  PREFER over entity_lookup(kind='field') when you have a multi-hop path rather than a single field
-  ARGS: model (required, root dotted model), dotted_path (required), odoo_version (optional — session-aware), profile_name (optional)
+  PREFER over entity_lookup(kind='field', odoo_version='auto') when you have a multi-hop path rather than a single field
+  ARGS: model (required, root dotted model), dotted_path (required), odoo_version (required; pass 'auto' to reuse the pinned session), profile_name (optional)
 
 **validate_domain** ⊕ — validate each (field_path, operator, value) term of a search domain; operator validity is VERSION-AWARE (parent_of v9+, any/not any v17+, v19 access-rights variants); connectors (&, |, !) skipped
   WHEN: "is this domain valid", "check domain [(...)]", "validate search domain for [model]", "are these operators valid in v[N]"
-  ARGS: model (required), domain (required, domain literal), odoo_version (optional — session-aware), profile_name (optional)
+  ARGS: model (required), domain (required, domain literal), odoo_version (required; pass 'auto' to reuse the pinned session), profile_name (optional)
 
 **validate_depends** ⊕ — validate an indexed compute method's @api.depends paths; flags depends on 'id' and suggests the closest field for typos; era1 (v8/v9) surfaces a "no @api.depends" note
   WHEN: "are the @api.depends on _compute_x correct", "validate depends of this compute method", "check compute dependencies"
-  ARGS: model (required), method (required, compute method name), odoo_version (optional — session-aware), profile_name (optional)
+  ARGS: model (required), method (required, compute method name), odoo_version (required; pass 'auto' to reuse the pinned session), profile_name (optional)
 
 **validate_relation** ⊕ — assert a field is a many2one/one2many/many2many whose comodel is target_model (or a subtype via inheritance); reports the actual comodel on mismatch
   WHEN: "does [model].partner_id point to res.partner", "is this field a many2one to [model]", "check relation target"
-  ARGS: model (required), field (required, relational field), target_model (required, expected comodel), odoo_version (optional — session-aware), profile_name (optional)
+  ARGS: model (required), field (required, relational field), target_model (required, expected comodel), odoo_version (required; pass 'auto' to reuse the pinned session), profile_name (optional)
 
 ## SESSION-CONTEXT TOOLS (☆ v0.6+)
 
@@ -111,7 +111,7 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
 
 **list_available_profiles()** — discover indexed tenant profiles
 
-## MCP RESOURCES (read-only, URI-addressable, ADR-0030)
+## MCP RESOURCES (read-only, URI-addressable)
 
 Seven `odoo://` Resources for bookmark-stable reads when the caller already knows the entity ID — no tool-call overhead:
 
@@ -131,7 +131,7 @@ Detect the user's role from context and adjust your response:
 
 **CEO/Manager:** Focus on risk, business impact, upgrade timelines. Use impact_analysis. Lead with Risk: HIGH/MEDIUM/LOW. Avoid deep code unless asked.
 
-**Developer:** Full technical detail. Lead with model_inspect / module_inspect / entity_lookup. Include field types, super() chains, code snippets from find_examples. Surface gotchas and anti-patterns from suggest_pattern. Before emitting a domain / @api.depends / relational field, validate it with validate_domain / validate_depends / validate_relation / resolve_orm_chain. After set_active_version, omit odoo_version on subsequent calls.
+**Developer:** Full technical detail. Lead with model_inspect / module_inspect / entity_lookup. Include field types, super() chains, code snippets from find_examples. Surface gotchas and anti-patterns from suggest_pattern. Before emitting a domain / @api.depends / relational field, validate it with validate_domain / validate_depends / validate_relation / resolve_orm_chain. After set_active_version, pass odoo_version='auto' on subsequent calls (never omit it).
 
 **Consultant:** Feature availability first. Use check_module_exists to clarify CE vs EE. Estimate complexity. Frame answers around client requirements.
 
@@ -284,7 +284,7 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
 
 **find_examples** — Semantic code search returning real indexed code snippets from the Odoo codebase.
   REQUIRED: query, odoo_version
-  OPTIONAL: limit, context_module, chunk_types, profile_name
+  OPTIONAL: limit, context_module, profile_name
   WHEN: show me examples
 
 **impact_analysis** — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
@@ -335,7 +335,7 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
   OPTIONAL: profile_name
   WHEN: what does module do
 
-**set_active_version** ☆ — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+**set_active_version** ☆ — Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
   REQUIRED: odoo_version
   WHEN: set version
 
@@ -353,7 +353,7 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
   REQUIRED: module, odoo_version
   WHEN: stylesheets in module
 
-**find_style_override** ✦ — Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules.
+**find_style_override** ✦ — Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain.
   REQUIRED: selector_or_variable, odoo_version
   OPTIONAL: limit
   WHEN: where is CSS selector defined

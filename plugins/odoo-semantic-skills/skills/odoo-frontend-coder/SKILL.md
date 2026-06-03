@@ -1,6 +1,5 @@
 ---
 name: odoo-frontend-coder
-disallowed-tools: Write Edit
 description: >
   Write complete, production-ready Odoo frontend JS for ANY version (v8–v19) — auto-gates
   to legacy `web.Widget`/`AbstractField`/`odoo.define()` (v8–v14) or OWL 2.x
@@ -49,7 +48,7 @@ This skill covers both frontend eras. The workflow diverges at Round 1 based on 
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key); subsequent calls pass `odoo_version='auto'` to reuse it (it can no longer be omitted).
 
 **Primary tools:**
 - `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
@@ -64,19 +63,23 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `mcp__ollama-delegate__generate_code`
 <!-- END GENERATED TOOLS -->
 
-## Phase 0 — Scope confirm (1-turn gate)
+## Phase 0 — Scope preview (1-turn gate)
 
-Before writing any code, emit the following confirmation block and **stop** — do not write files or generate code in this turn:
+You are the **fix writer**: you write the override/component to the correct file and show a
+**patch preview before applying**. Before writing, emit the following preview block and
+**stop** for confirmation — this is a preview, not a write-block:
 
 ```
 Proposed: <brief description of the component / view / asset to be created or modified>.
+Files: <module>/static/src/js/<file>.js, <module>/static/src/xml/<file>.xml, __manifest__.py (assets)
 OSM: backed | standalone
 Proceed? (yes / refine: [feedback] / cancel)
 ```
 
-- **Proposed** — one sentence: what JS/OWL/XML artifact will be created or changed, and in which module.
-- **OSM** — set to `backed` when the OSM MCP server is reachable and its tools (`find_examples`, `module_inspect`, etc.) will be used in subsequent rounds; set to `standalone` when OSM is unreachable and the skill will fall back to pasted code only. OSM tools improve accuracy for all frontend work and are **required for any styling/theme work** to ground design tokens (see Design-system fidelity below); when OSM is unreachable, say so and lower confidence rather than inventing token names.
-- Wait for the user to reply `yes` before proceeding to Round 0 below. If they reply `refine: …`, update the scope and re-emit the block. If they reply `cancel`, stop.
+- **Proposed** — one sentence: what JS/OWL/XML artifact will be created or changed, and in which module (located via `module_inspect` / Read / Grep — you find the right file yourself).
+- **Files** — the files you will write/edit, plus the `__manifest__.py` assets entry.
+- **OSM** — set to `backed` when the OSM MCP server is reachable and its tools (`find_examples`, `module_inspect`, etc.) will be used in subsequent rounds; after confirmation you **write/apply** the code to those files. Set to `standalone` when OSM is unreachable and the skill will fall back to pasted code only (no file writes). OSM tools improve accuracy for all frontend work and are **required for any styling/theme work** to ground design tokens (see Design-system fidelity below); when OSM is unreachable, say so and lower confidence rather than inventing token names.
+- Wait for the user to reply `yes` before proceeding to Round 0 below. On `yes`, write the files to their correct locations. If they reply `refine: …`, update the scope and re-emit the block. If they reply `cancel`, stop.
 
 ## Design-system fidelity (mandatory whenever you touch SCSS / theme / component styling)
 
@@ -87,10 +90,10 @@ dependency cycle that resolves to the empty value (the fallback is never reached
 every downstream surface/border/text/badge token. Build theme-correct from the first line:
 
 **Pre-write grounding** — before emitting any SCSS or styled OWL:
-1. Read `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md` (build-rules +
-   token-reality method + the worked example of the `--bs-*` self-reference bug).
-2. Resolve which design tokens the **target version** really emits — `resolve_stylesheet(<module>)`
-   + `find_style_override(<selector_or_variable>)`, then confirm at runtime with
+1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (era-aware SSOT: build-rules +
+   token-reality method, the `--bs-*` self-reference worked example, AND the OWL pitfall catalogue).
+2. Resolve which design tokens the **target version** really emits — `resolve_stylesheet(<module>, odoo_version='auto')`
+   + `find_style_override(<selector_or_variable>, odoo_version='auto')`, then confirm at runtime with
    `getComputedStyle(document.documentElement)`. Never assume a token (e.g. any `--bs-*`) exists
    across versions — re-derive per version; the token reality differs by Bootstrap/Odoo version.
 3. Consult the project mockup / UI spec for intent (mockup-first).
@@ -108,7 +111,7 @@ every downstream surface/border/text/badge token. Build theme-correct from the f
 
 ## Instructions
 
-Work in four rounds. Within each round, fire independent MCP calls in the same message.
+Work in rounds (Round 0 -> 0.5 grounding -> framework rounds -> Round 6 verify). Within each round, fire independent MCP calls in the same message.
 
 ### Round 0 — Read context file + pin version
 
@@ -119,7 +122,7 @@ Work in four rounds. Within each round, fire independent MCP calls in the same m
    [Legacy v8–v14 workflow](#legacy-v8v14-workflow) below; if **v15+**, follow the
    [OWL v15+ workflow](#owl-v15-workflow).
 4. If patching or extending an existing widget/component (not greenfield), call
-   `module_inspect(name=<module>, method='js')` to see the existing patch chain
+   `module_inspect(name=<module>, method='js', odoo_version='auto')` to see the existing patch chain
    and avoid duplicates. If the chain already has 3+ entries, warn the user before proceeding.
 
 ---
@@ -130,15 +133,15 @@ Work in four rounds. Within each round, fire independent MCP calls in the same m
 
 Fire both calls simultaneously:
 
-- `api_version_diff(scope, from_version="8.0", to_version="<N>.0")` — surfaces breaking JS API
+- `api_version_diff(symbol=<symbol>, from_version="8.0", to_version="<N>.0")` — surfaces breaking JS API
   changes relative to v8 baseline (skip if version is 8 or 9).
-- `find_examples(query="<user feature> widget pattern Odoo <N>")` — retrieves real indexed code
+- `find_examples(query="<user feature> widget pattern Odoo <N>", odoo_version='auto')` — retrieves real indexed code
   using the closest matching pattern.
 
 #### Round 2 — Find override point (only when patching an existing widget)
 
 ```
-find_override_point(model="<WidgetClass>", method="<method>")
+find_override_point(model="<WidgetClass>", method="<method>", odoo_version='auto')
 ```
 
 Reveals the exact class path and override chain. If `module_inspect` in Round 0 already
@@ -179,6 +182,19 @@ optional next step; never auto-run them.
 
 ### OWL v15+ workflow {#owl-v15-workflow}
 
+#### Round 0.5 — OWL pitfall grounding checklist (gate)
+
+Before emitting any OWL/JS, assert each class in the catalogue at
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (section "OWL pitfall catalogue")
+is satisfied for the target version. Do not duplicate the catalogue here - ground each item against it:
+
+- [ ] **t-on handlers** - no bare free-identifier arrow call (`() => onFoo()`); use `() => this.onFoo()`, the auto-bound `t-on-click="onFoo"`, or `onChange.bind="onFoo"` for props (all valid).
+- [ ] **useService reactivity** - a service that drives the template is reactivity-preserved per version (v16: wrap in `useState`; v17-18: canonical `useState(useService(...))`; v19: plain `useService` ok, the service is already `reactive()`).
+- [ ] **No raw `contenteditable`** - delegate to `web_editor` Wysiwyg, lazy-loaded in `onWillStart`, with stable props built once.
+- [ ] **SCSS in `calc()`** - interpolate Sass functions: `calc(#{map-get(...)} * 2)`, never bare `map-get(`/`min(` inside `calc(`.
+- [ ] **No `--bs-*` assumptions** - Odoo sets `$variable-prefix:''`; reference `--primary`/`--o-color-*`, never a self-referential shim.
+- [ ] **`Dialog` body** - body content goes in the default slot; only `header`/`footer` are named slots.
+
 #### Round 1 — Detect OWL sub-version (parallel when porting)
 
 Map the version to the OWL era:
@@ -196,13 +212,13 @@ If porting between versions, call `api_version_diff` to surface breaking changes
 
 Run all of the following simultaneously — they are independent:
 
-1. `module_inspect(name=<module>, method='owl')` — enumerates OWL components in the module;
+1. `module_inspect(name=<module>, method='owl', odoo_version='auto')` — enumerates OWL components in the module;
    checks for naming collisions.
-2. `module_inspect(name=<module>, method='qweb')` — enumerates QWeb template IDs; verifies
+2. `module_inspect(name=<module>, method='qweb', odoo_version='auto')` — enumerates QWeb template IDs; verifies
    exact template name before writing XPath overrides.
-3. `find_examples(query="OWL component <feature> Odoo v<N>")` — real import paths and hook
+3. `find_examples(query="OWL component <feature> Odoo v<N>", odoo_version='auto')` — real import paths and hook
    names from indexed codebase (trust this over training memory for syntax).
-4. `find_override_point(component, hook)` — only when patching an existing Odoo component.
+4. `find_override_point(model=<Component>, method=<method>, odoo_version='auto')` — only when patching an existing Odoo component.
    Skip for brand-new components.
 
 If authoritative hook/registry API details are still missing after step 3, also call
@@ -244,6 +260,24 @@ invoke any skill, to respect the depth rule) that the user verify it on a live i
 
 These run via `/odoo-semantic-skills:setup` (browser MCP + instance URL). Mention them as an
 optional next step; never auto-run them.
+
+---
+
+### Round 6 — Post-write verify gate (both workflows)
+
+Mirror the `odoo-coder` Round-4 self-verify discipline: do not declare the change done until the
+static gate is green. Run the shared gate on the files you wrote:
+
+```bash
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <changed-files>
+```
+
+- Tier-2 static OWL/SCSS pitfall checks always run (no toolchain needed) - a BLOCK (classes 1/3/6)
+  is a hard stop: fix and re-run. A WARN (classes 2/4/5) must be justified or fixed.
+- Tier-1 format/lint runs `ruff check` (Python) and prettier (JS) when available, and **degrades
+  gracefully** to a soft warning when the JS toolchain or config is absent - never a false hard-fail.
+- If OSM is reachable, cross-check with `lint_check(language='javascript', odoo_version='<N>.0', code=...)`
+  (note: `odoo_version` is a required argument for these tools).
 
 ---
 
@@ -338,7 +372,11 @@ registry.category("<category>").add("<key>", <ComponentName>);
 <1.x vs 2.x differences affecting this specific code>
 ```
 
-Output must be copy-pasteable. If imports differ by version, show both with a comment.
+When OSM is reachable, write these files to their correct locations (creating new files,
+editing existing ones — append the assets entries to `__manifest__.py` rather than
+overwriting) and report a patch-preview summary of what you wrote. In the Standalone-first
+fallback, emit the same blocks as copy-pasteable code for the user to place manually. If
+imports differ by version, show both with a comment.
 
 ## Examples
 
@@ -349,7 +387,7 @@ Prompt: "Create a color picker field widget for selection field in Odoo 12"
 - Round 0: read `.odoo-ai/context.md` → `odoo_version: 12.0`. Version gate → Legacy workflow.
   `set_active_version("12.0")`.
 - Round 1 (parallel): `api_version_diff("8.0", "12.0")` → confirms `AbstractField` stable since v10.
-  `find_examples("color picker widget AbstractField Odoo 12")` → real examples from index.
+  `find_examples("color picker widget AbstractField Odoo 12", odoo_version='auto')` → real examples from index.
 - Round 2: greenfield widget — skip `find_override_point`.
 - Round 3: `generate_code(task="AbstractField subclass ColorPickerWidget for selection field, Odoo 12", context=<findings>)`.
 - Round 4: Output — full JS subclassing `AbstractField` + jQuery color picker init in `start()` +
@@ -360,9 +398,9 @@ Prompt: "Create a color picker field widget for selection field in Odoo 12"
 Prompt: "override list view to add a total row at the bottom in Odoo 11"
 
 - Round 0: `odoo_version: 11.0`. Version gate → Legacy. `set_active_version("11.0")`.
-  `module_inspect(name=<module>, method='js')` → existing patch chain (check conflicts).
-- Round 1: `find_examples("ListController renderView total row Odoo 11")`.
-- Round 2: `find_override_point("ListController", "renderView")` → exact class path + chain.
+  `module_inspect(name=<module>, method='js', odoo_version='auto')` → existing patch chain (check conflicts).
+- Round 1: `find_examples("ListController renderView total row Odoo 11", odoo_version='auto')`.
+- Round 2: `find_override_point("ListController", "renderView", odoo_version='auto')` → exact class path + chain.
 - Round 3: `generate_code(task="ListController.include patch to append total row, Odoo 11", context=<findings>)`.
 - Round 4: `odoo.define` with `Widget.include({renderView: …})` + QWeb2 partial for row + manifest.
 
@@ -372,8 +410,8 @@ Prompt: "Create an OWL component to display a sales order summary dashboard in O
 
 - Round 0: `odoo_version: 17.0`. Version gate → OWL. `set_active_version("17.0")`.
 - Round 1: v17 → OWL 2.x, `patch(Class, {…})`, lifecycle hooks from `@odoo/owl`.
-- Round 2 (parallel): `module_inspect(method='owl')` + `module_inspect(method='qweb')` +
-  `find_examples("dashboard OWL component Odoo 17")`. No override point — new component.
+- Round 2 (parallel): `module_inspect(method='owl', odoo_version='auto')` + `module_inspect(method='qweb', odoo_version='auto')` +
+  `find_examples("dashboard OWL component Odoo 17", odoo_version='auto')`. No override point — new component.
 - Round 3: `generate_code(task="OWL 2.x dashboard component fetching sale.order stats via useService('orm') with useState + onWillStart", context=<examples>)`.
 - Round 4: Output — JS with `/** @odoo-module **/`, `SaleOrderDashboard` class with `setup()`,
   template XML with KPI cards, action registration under `registry.category('actions')`, manifest entry.
@@ -383,8 +421,8 @@ Prompt: "Create an OWL component to display a sales order summary dashboard in O
 Prompt: "patch the sale order form to add a custom button using OWL in Odoo 16"
 
 - Round 0: `odoo_version: 16.0`. Version gate → OWL 2.x.
-- Round 2 (parallel): `find_examples("patch FormController OWL Odoo 16")` +
-  `find_override_point("SaleOrderForm", "actionConfirm")`.
+- Round 2 (parallel): `find_examples("patch FormController OWL Odoo 16", odoo_version='auto')` +
+  `find_override_point("SaleOrderForm", "actionConfirm", odoo_version='auto')`.
 - Round 3: `generate_code(task="OWL 2.x patch FormController adding confirmWithComment button", context=<findings>)`.
 - Round 4: JS `patch(FormController, { confirmWithComment() {…} })` + XPath template override +
   manifest. OWL version note: "In v15 use `patch(FormController.prototype, 'sale_custom.patch', {…})`

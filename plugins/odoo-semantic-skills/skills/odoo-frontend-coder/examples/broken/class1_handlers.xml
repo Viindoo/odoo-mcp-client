@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Deliberately-broken class-1 sample. verify-frontend.sh must BLOCK every button below:
+  each is a bare free-identifier arrow handler (no this./props. prefix). These exercise the
+  broadened class-1 catches added in the gate hardening — params-before-arrow, PascalCase,
+  and leading-underscore handlers — which the original empty-parens/lowercase-only rule
+  missed. Do NOT copy this into real code; it is an acceptance-test fixture.
+-->
+<templates xml:space="preserve">
+    <t t-name="my_module.Class1Handlers">
+        <div>
+            <!-- BUG class 1: params before the arrow, free identifier -->
+            <button t-on-click="(ev) => onSave(ev)">Save</button>
+            <!-- BUG class 1: PascalCase free-identifier handler -->
+            <button t-on-click="() => OnSave()">PascalSave</button>
+            <!-- BUG class 1: leading-underscore free-identifier handler -->
+            <button t-on-click="() => _onSave()">PrivateSave</button>
+        </div>
+    </t>
+</templates>

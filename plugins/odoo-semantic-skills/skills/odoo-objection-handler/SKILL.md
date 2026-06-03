@@ -30,7 +30,7 @@ Sales Engineer / Account Executive
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -128,5 +128,5 @@ extension); code example of multi-level approval; talking points; verbatim respo
 **Example 2:**
 Prompt: "customer says Odoo doesn't have accounting standards compliance for their region"
 Output: Counter: specialized localization modules or custom extensions exist;
-`model_inspect(model='account.move', method='fields')` shows compliance-specific fields; verbatim
+`model_inspect(model='account.move', method='fields', odoo_version='auto')` shows compliance-specific fields; verbatim
 response with region-appropriate solution.

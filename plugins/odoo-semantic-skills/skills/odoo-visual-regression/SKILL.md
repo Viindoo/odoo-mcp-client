@@ -36,7 +36,7 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 **Primary tools:**
 - `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
 - `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
-- `find_style_override` ✦ — Semantic search (pgvector + import-chain traversal) for where a CSS selector or SCSS/LESS variable is defined and overridden across modules.
+- `find_style_override` ✦ — Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain.
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
 <!-- END GENERATED TOOLS -->
@@ -78,13 +78,13 @@ e.g. "before/after which change?") in a single message. Do not guess.
 Predict which screens are likely to drift so the baseline set is targeted:
 
 - Upgrade: `api_version_diff(symbol=<scope>, from_version=<old>, to_version=<new>)`.
-- Code change: `impact_analysis(entity_type=<field|method|model>, entity_name=<dotted>)`.
-- Styling change: `find_style_override(selector_or_variable=<selector>)`.
+- Code change: `impact_analysis(entity_type=<field|method|model>, entity_name=<dotted>, odoo_version='auto')`.
+- Styling change: `find_style_override(selector_or_variable=<selector>, odoo_version='auto')`.
 - Theme/token change: when a diff shows a screen gone "flat" (empty surfaces, washed-out text,
   badges without fill), treat it as a design-token regression — check token reality per
-  `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-design-system-fidelity.md` (empty or
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (empty or
   self-referential CSS custom properties), not just a pixel diff.
-- Map results to screens: `module_inspect(name=<module>, method='views')` and `model_inspect(model=<model>, method='summary')`.
+- Map results to screens: `module_inspect(name=<module>, method='views', odoo_version='auto')` and `model_inspect(model=<model>, method='summary', odoo_version='auto')`.
 
 ### Round 2 — Capture baseline (browser)
 
@@ -147,7 +147,7 @@ impact analysis as a higher-priority surprise.
 Prompt: "We upgraded from Odoo 16 to 17 — did any backend screens change visually?"
 
 - Round 0: context → `odoo_version: 17.0`; ask source = 16.0; base URLs for both; `screenshot_baseline_dir`.
-- Round 1: `api_version_diff(symbol='web', from_version='16.0', to_version='17.0')` + `module_inspect(name=<module>, method='views')` → scope to the affected screens.
+- Round 1: `api_version_diff(symbol='web', from_version='16.0', to_version='17.0')` + `module_inspect(name=<module>, method='views', odoo_version='auto')` → scope to the affected screens.
 - Round 2: capture baseline on the v16 instance.
 - Round 3: capture current on the v17 instance; diff pairs.
 - Round 4: report DRIFTED form header + UNCHANGED list view, with both screenshots.
@@ -156,7 +156,7 @@ Prompt: "We upgraded from Odoo 16 to 17 — did any backend screens change visua
 
 Prompt: "I changed our brand SCSS variable — what screens drifted?"
 
-- Round 1: `find_style_override(selector_or_variable='$o-brand-primary')` → modules/screens touched.
+- Round 1: `find_style_override(selector_or_variable='$o-brand-primary', odoo_version='auto')` → modules/screens touched.
 - Rounds 2–3: capture before/after for those screens at 375/768/1280.
 - Round 4: report drift; flag any drifted screen outside the predicted set as a surprise.
 

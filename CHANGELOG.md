@@ -6,6 +6,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-06-03
+
+### Added
+
+- **Frontend fidelity (#37)** — make AI-authored Odoo OWL/JS + SCSS correct and lint-compliant
+  by construction: an era-sectioned SSOT pitfall catalogue
+  (`skills/_shared/odoo-frontend-fidelity.md`, v8–v19+), a write-time OWL grounding checklist
+  plus a post-write verify gate (`scripts/verify-frontend.sh`, `scripts/rules/owl-pitfalls.txt`,
+  `scripts/odoo-prettierrc.json`), and passing/broken `odoo-frontend-coder` examples.
+- **Agent-facing guidance guard** (`tests/test_agent_facing_guidance.py`) — four checks keeping
+  skills/snippets/agents/docs in sync with the server tool surface: no "omit/optional
+  odoo_version" prose, no drifted parameter names, every named argument is a real parameter of
+  its tool, and every example call to a version-required tool supplies `odoo_version`.
+
+### Fixed
+
+- Corrected AI-agent-facing tool guidance for the now-required `odoo_version`: removed
+  "can omit / optional, default auto" prose, added `odoo_version='auto'` to ~166 example calls,
+  and fixed drifted parameter names (`check_module_exists(module=)`→`name`,
+  `find_deprecated_usage(scope=)` dropped, `lint_check(code_snippet=)`→`code`,
+  `suggest_pattern(query=)`→`intent`, `lookup_core_api(symbol=)`→`name`,
+  `api_version_diff(scope)`→`symbol`) across skills, the cursor/gemini/openai snippets, and
+  agent definitions.
+- **Tool-permission grants for file-authoring skills** — removed the `disallowed-tools: Write Edit`
+  frontmatter block from the four skills whose own contract is to write deliverables to disk
+  (`odoo-brl` → `.odoo-ai/brl/` rtm.csv/cost.json/dag/report.md, `odoo-qa-suite` →
+  `.odoo-ai/qa/*.md`, `workflow-runner` → `output_dir` artifacts + checkpoints, `wave` →
+  `.odoo-ai/wave/<slug>/plan.md`), which were previously blocked from delivering their output.
+- Restored `odoo-coder` / `odoo-frontend-coder` to write/apply code directly (with a patch
+  preview before applying), per the README's coder intent ("Coder — Write Odoo backend or
+  frontend code", "fix writer … writes the override and shows a patch preview before
+  applying") — undoing the v2.4.0 `disallowed-tools: Write Edit` drift that had reduced them
+  to copy-paste-only. Removed the block from both skills, added `Write`/`Edit` to the
+  `odoo-coder` agent's tool list, and reframed Phase 0 as a patch preview (not a write-block).
+  The OSM-unreachable Standalone-first fallback stays paste-only.
+- **AI-agent-consumer review follow-ups:**
+  - Workflow-harness doc sync — `docs/reference/workflow-harness.md` no longer claims a
+    platform-enforced `disallowed-tools: Write Edit` write-block (the gate is now behavioral
+    Iron Law + Plan Mode; coders preview a patch then write). Updated the layer diagram,
+    enforcement-stack table, and the mechanisms prose.
+  - `set_active_version` 'auto'-needs-pin warning — clarified in `generator/server-surface.json`
+    (the regeneration SSOT) that the tool needs a CONCRETE version (sentinels rejected), other
+    calls reuse the pin via `odoo_version='auto'`, and `'auto'` is only safe AFTER a pin —
+    without a pinned session it silently falls back to the latest indexed version. Regenerated
+    all derived blocks.
+  - Frontend gate hardening (`scripts/verify-frontend.sh` + `scripts/rules/owl-pitfalls.txt`):
+    class-3 (`contenteditable`) now anchors on a quoted template attribute and only scans
+    `.xml`/`.html`, so a JS CSS-selector string like `querySelector("[contenteditable=true]")`
+    no longer hard-blocks; class-1 now also catches params-before-arrow (`(ev) => onSave(ev)`),
+    PascalCase, and leading-underscore handlers while still ignoring `this.`/`props.` forms;
+    portability fixes for macOS bash 3.2 (`mapfile`→read-loop, guarded empty-array expansion).
+    Added a `class1_handlers.xml` fixture and a JS-selector case to the good fixture.
+  - Agent-facing guard (`tests/test_agent_facing_guidance.py`) now matches the fully-qualified
+    `mcp__<server>__tool(...)` call form (not just the bare name) and credits a positional
+    toward `odoo_version` only when positionals reach its slot in the tool's canonical
+    signature order — catching `suggest_pattern(...)`, `lint_check(code_chunk)`, and bare
+    `cli_help(...)`/`lint_check(...)` calls that omitted the now-required version; fixed all
+    the calls it newly caught.
+  - Corrected the class-4 SCSS literal in `skills/_shared/odoo-frontend-fidelity.md` to the
+    real Odoo source line `calc(#{map-get($spacers, 1 )} / 2)`
+    (`calendar_renderer.scss:2`), replacing a fabricated `calc(#{map-get($spacers, 2)} * 2)`.
+
 ## [2.4.2] - 2026-06-02
 
 ### Build / CI

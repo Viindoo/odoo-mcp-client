@@ -43,7 +43,7 @@ This tells you: module exists (yes/no), CE vs EE, and whether there is an EE con
 ### 2. Find comparable examples
 
 ```
-find_examples("budget control with approval workflow and department-level limits")
+find_examples("budget control with approval workflow and department-level limits", odoo_version='auto')
 ```
 
 Semantic search across indexed repos — returns real code snippets from the codebase that match what you are describing.

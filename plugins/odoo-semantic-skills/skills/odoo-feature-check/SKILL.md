@@ -29,7 +29,7 @@ Consultant / Developer
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -70,12 +70,12 @@ be formulated from the requirement even if Round 1 shows partial coverage — th
 independent of each other.
 
 **Round 3 — Deep dive (when `check_module_exists` confirms presence):** Call
-`module_inspect(name=<name>, method='summary')` to surface the module's full
+`module_inspect(name=<name>, method='summary', odoo_version='auto')` to surface the module's full
 architecture: manifest summary, which models it defines vs extends, view count, and JS patch
 count. This gives the consultant a confident, evidence-backed answer about what the module
 actually covers — beyond the bare "exists / does not exist" signal. If the module is confirmed
-to exist, also consider drilling into specifics with `module_inspect(method='fields')` or
-`module_inspect(method='views')` in a subsequent call if the client asks about exact field
+to exist, also consider drilling into specifics with `module_inspect(method='fields', odoo_version='auto')` or
+`module_inspect(method='views', odoo_version='auto')` in a subsequent call if the client asks about exact field
 or view coverage.
 
 **Verdict levels:**
@@ -131,5 +131,5 @@ Output: Feature table showing `sale_subscription` exists in EE only (not CE), ke
 **Example 2:**
 Prompt: "Does Odoo have a fixed asset management module?"
 Output: `account_asset` exists in EE, not CE.
-`model_inspect(model='account.asset', method='fields')` shows key fields. Recommendation
+`model_inspect(model='account.asset', method='fields', odoo_version='auto')` shows key fields. Recommendation
 provided.
