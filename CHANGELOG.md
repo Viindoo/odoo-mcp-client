@@ -34,8 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (`odoo-brl` → `.odoo-ai/brl/` rtm.csv/cost.json/dag/report.md, `odoo-qa-suite` →
   `.odoo-ai/qa/*.md`, `workflow-runner` → `output_dir` artifacts + checkpoints, `wave` →
   `.odoo-ai/wave/<slug>/plan.md`), which were previously blocked from delivering their output.
-  The two emit-as-chat coders (`odoo-coder`, `odoo-frontend-coder`) intentionally keep the block
-  since their contract is copy-pasteable code output, not file writes.
+- Restored `odoo-coder` / `odoo-frontend-coder` to write/apply code directly (with a patch
+  preview before applying), per the README's coder intent ("Coder — Write Odoo backend or
+  frontend code", "fix writer … writes the override and shows a patch preview before
+  applying") — undoing the v2.4.0 `disallowed-tools: Write Edit` drift that had reduced them
+  to copy-paste-only. Removed the block from both skills, added `Write`/`Edit` to the
+  `odoo-coder` agent's tool list, and reframed Phase 0 as a patch preview (not a write-block).
+  The OSM-unreachable Standalone-first fallback stays paste-only.
 
 ## [2.4.2] - 2026-06-02
 

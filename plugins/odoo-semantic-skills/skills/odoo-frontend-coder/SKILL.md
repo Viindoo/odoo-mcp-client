@@ -1,6 +1,5 @@
 ---
 name: odoo-frontend-coder
-disallowed-tools: Write Edit
 description: >
   Write complete, production-ready Odoo frontend JS for ANY version (v8–v19) — auto-gates
   to legacy `web.Widget`/`AbstractField`/`odoo.define()` (v8–v14) or OWL 2.x
@@ -64,19 +63,23 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `mcp__ollama-delegate__generate_code`
 <!-- END GENERATED TOOLS -->
 
-## Phase 0 — Scope confirm (1-turn gate)
+## Phase 0 — Scope preview (1-turn gate)
 
-Before writing any code, emit the following confirmation block and **stop** — do not write files or generate code in this turn:
+You are the **fix writer**: you write the override/component to the correct file and show a
+**patch preview before applying**. Before writing, emit the following preview block and
+**stop** for confirmation — this is a preview, not a write-block:
 
 ```
 Proposed: <brief description of the component / view / asset to be created or modified>.
+Files: <module>/static/src/js/<file>.js, <module>/static/src/xml/<file>.xml, __manifest__.py (assets)
 OSM: backed | standalone
 Proceed? (yes / refine: [feedback] / cancel)
 ```
 
-- **Proposed** — one sentence: what JS/OWL/XML artifact will be created or changed, and in which module.
-- **OSM** — set to `backed` when the OSM MCP server is reachable and its tools (`find_examples`, `module_inspect`, etc.) will be used in subsequent rounds; set to `standalone` when OSM is unreachable and the skill will fall back to pasted code only. OSM tools improve accuracy for all frontend work and are **required for any styling/theme work** to ground design tokens (see Design-system fidelity below); when OSM is unreachable, say so and lower confidence rather than inventing token names.
-- Wait for the user to reply `yes` before proceeding to Round 0 below. If they reply `refine: …`, update the scope and re-emit the block. If they reply `cancel`, stop.
+- **Proposed** — one sentence: what JS/OWL/XML artifact will be created or changed, and in which module (located via `module_inspect` / Read / Grep — you find the right file yourself).
+- **Files** — the files you will write/edit, plus the `__manifest__.py` assets entry.
+- **OSM** — set to `backed` when the OSM MCP server is reachable and its tools (`find_examples`, `module_inspect`, etc.) will be used in subsequent rounds; after confirmation you **write/apply** the code to those files. Set to `standalone` when OSM is unreachable and the skill will fall back to pasted code only (no file writes). OSM tools improve accuracy for all frontend work and are **required for any styling/theme work** to ground design tokens (see Design-system fidelity below); when OSM is unreachable, say so and lower confidence rather than inventing token names.
+- Wait for the user to reply `yes` before proceeding to Round 0 below. On `yes`, write the files to their correct locations. If they reply `refine: …`, update the scope and re-emit the block. If they reply `cancel`, stop.
 
 ## Design-system fidelity (mandatory whenever you touch SCSS / theme / component styling)
 
@@ -369,7 +372,11 @@ registry.category("<category>").add("<key>", <ComponentName>);
 <1.x vs 2.x differences affecting this specific code>
 ```
 
-Output must be copy-pasteable. If imports differ by version, show both with a comment.
+When OSM is reachable, write these files to their correct locations (creating new files,
+editing existing ones — append the assets entries to `__manifest__.py` rather than
+overwriting) and report a patch-preview summary of what you wrote. In the Standalone-first
+fallback, emit the same blocks as copy-pasteable code for the user to place manually. If
+imports differ by version, show both with a comment.
 
 ## Examples
 

@@ -9,6 +9,8 @@ tools:
   - Read
   - Grep
   - Bash
+  - Write
+  - Edit
   - mcp__odoo-semantic__model_inspect
   - mcp__odoo-semantic__entity_lookup
   - mcp__odoo-semantic__suggest_pattern
@@ -193,32 +195,51 @@ When version is ambiguous, default to v17 and note the assumption in the output.
 
 ## Module structure
 
-Always tell the user where to place each file and what to add to `__manifest__.py`. Do not
-leave them guessing about the import chain (`__init__.py` at module and subdirectory level).
+Locate the correct module yourself (Read/Grep the repo) and write each file to its proper
+place, keeping the import chain intact (`__init__.py` at module and subdirectory level) and
+appending the new entries to `__manifest__.py` (`depends` / `data`). Do not leave the user to
+place files manually.
 
 ---
 
-## Output format
+## Writing the code (patch preview, then apply)
+
+When OSM is reachable (the normal path), you **write/apply** the code directly:
+
+1. Use Read/Grep to find the target module, the right file, and the manifest. Do not guess —
+   verify the paths exist.
+2. Show a concise **patch preview** first: list the files you will create/edit and a one-line
+   gist of each change (plus the `__manifest__.py` lines you will append).
+3. Write the files with Write/Edit (create new files; Edit existing ones — append to
+   `__init__.py` and `__manifest__.py` rather than overwriting), then report a summary of
+   exactly what was written/edited.
+
+In the **Standalone-first fallback** (OSM unreachable, see above), do not write files — emit
+the code as copy-pasteable blocks for the user to place manually, using the format below.
+
+---
+
+## Output format (summary of what was written; paste blocks in standalone)
 
 ```
 ## Implementation: <feature name>
 
-### File: `<module>/<path>/<file>.py`
+### Wrote `<module>/<path>/<file>.py`
 ```python
 <complete Python code>
 ```
 
-### File: `<module>/views/<model>_views.xml` (if view needed)
+### Wrote `<module>/views/<model>_views.xml` (if view needed)
 ```xml
 <complete XML>
 ```
 
-### File: `<module>/security/ir.model.access.csv` (if new model)
+### Wrote `<module>/security/ir.model.access.csv` (if new model)
 ```csv
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 ```
 
-### `__manifest__.py` additions
+### Appended to `__manifest__.py`
 ```python
 # In 'depends' list (if new dependency):
 '<module_name>',
