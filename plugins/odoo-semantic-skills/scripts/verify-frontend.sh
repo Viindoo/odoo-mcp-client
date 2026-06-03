@@ -72,8 +72,12 @@ _skip()  { echo "  [skip ] $*"; }
 if [[ $# -gt 0 ]]; then
     FILES=("$@")
 else
-    # Default: files changed relative to base
-    mapfile -t FILES < <(git diff --name-only "${VERIFY_BASE}" 2>/dev/null || true)
+    # Default: files changed relative to base.
+    # `mapfile` is bash 4+; read in a loop instead so this runs on macOS bash 3.2.
+    FILES=()
+    while IFS= read -r _line; do
+        FILES+=("$_line")
+    done < <(git diff --name-only "${VERIFY_BASE}" 2>/dev/null || true)
 fi
 
 # Filter to existing files only (ignore deletions)
@@ -179,8 +183,9 @@ PY
             _info "ruff: no pyproject.toml/ruff.toml found — using ruff default"
         fi
 
-        # Run ruff check (read-only; never ruff format)
-        if ruff check "${RUFF_EXTRA_ARGS[@]}" "${PY_FILES[@]}" 2>&1; then
+        # Run ruff check (read-only; never ruff format).
+        # Guard the array expansion: an empty array under `set -u` aborts on bash 3.2.
+        if ruff check ${RUFF_EXTRA_ARGS[@]+"${RUFF_EXTRA_ARGS[@]}"} "${PY_FILES[@]}" 2>&1; then
             _ok "ruff check passed"
         else
             _block "ruff check failed (see output above)"
@@ -328,7 +333,7 @@ else
             #          (the grep -v filter keeps only truly bare-ident cases).
             # Also skip XML comment lines (<!-- ... -->).
             matched_lines=$(grep -nE "$pattern" "$file" 2>/dev/null \
-                | grep -vE 't-on[-a-zA-Z.]*=["\'"'"'][(][)] =>[[:space:]]*(this|props)\.' \
+                | grep -vE 't-on[-a-zA-Z.]*=["\'"'"'][(][^)]*[)] =>[[:space:]]*(this|props)\.' \
                 | grep -vE '^[0-9]+:[[:space:]]*<!--' \
                 || true)
 
@@ -341,7 +346,18 @@ else
                 || true)
 
         elif [[ "$message" == "class-3:"* ]]; then
-            # Class-3: raw contenteditable — skip XML/HTML comment lines.
+            # Class-3: raw contenteditable in an OWL *template*.
+            # Only applies to template files (.xml/.html) — a bare `contenteditable=`
+            # in .js is almost always a CSS/attribute SELECTOR string
+            # (e.g. querySelector("[contenteditable=true]")), which is legitimate and
+            # must NOT block. Restricting to templates removes that false positive.
+            case "$file" in
+                *.xml|*.html) ;;
+                *) return 0 ;;
+            esac
+            # Anchor on the template-attribute form: contenteditable= followed by a
+            # quote (contenteditable="true" / ='true'), not an unquoted selector token.
+            # Skip XML/HTML comment lines.
             matched_lines=$(grep -nE "$pattern" "$file" 2>/dev/null \
                 | grep -vE '^[0-9]+:[[:space:]]*<!--' \
                 || true)

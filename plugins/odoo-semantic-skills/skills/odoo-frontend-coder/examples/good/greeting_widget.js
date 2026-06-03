@@ -21,6 +21,13 @@ export class GreetingWidget extends Component {
     onIncrement() {
         this.state.count = this.state.count + 1;
     }
+
+    // class-3 precision check: a `contenteditable` CSS *selector* string in JS is
+    // legitimate (it is NOT a raw contenteditable template attribute) and must NOT
+    // block — class-3 only applies to .xml/.html templates with a quoted attribute.
+    findEditable() {
+        return this.el.querySelector("[contenteditable=true]");
+    }
 }
 
 registry.category("public_components").add("my_module.GreetingWidget", GreetingWidget);

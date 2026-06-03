@@ -69,7 +69,7 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 
 ### Code review / pre-commit
 - Scan for deprecated usage → call find_deprecated_usage(odoo_version)
-- Check coding standards → call lint_check(code_chunk)
+- Check coding standards → call lint_check(code=<snippet>, odoo_version='auto')
   (inline `# noqa: RULE_ID` in the code suppresses findings on that line)
 
 ### Risk assessment before major changes
@@ -253,7 +253,7 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
 - "does module exist" → `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - "where to override" → `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
 - "what does module do" → `describe_module` — Module manifest + defined/extended model counts + view/JS inventory in one call.
-- "set version" → `set_active_version ☆` — Pin Odoo version for the session (24h TTL per API key); subsequent calls pass odoo_version='auto' to reuse it instead of repeating the version (it can no longer be omitted).
+- "set version" → `set_active_version ☆` — Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 - "set profile" → `set_active_profile ☆` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - "what versions are indexed" → `list_available_versions ☆` — Enumerate which Odoo versions the server has indexed.
 - "what profiles exist" → `list_available_profiles ☆` — Enumerate which tenant profiles exist in the server index.

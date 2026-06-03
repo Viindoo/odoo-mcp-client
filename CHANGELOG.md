@@ -41,6 +41,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   to copy-paste-only. Removed the block from both skills, added `Write`/`Edit` to the
   `odoo-coder` agent's tool list, and reframed Phase 0 as a patch preview (not a write-block).
   The OSM-unreachable Standalone-first fallback stays paste-only.
+- **AI-agent-consumer review follow-ups:**
+  - Workflow-harness doc sync — `docs/reference/workflow-harness.md` no longer claims a
+    platform-enforced `disallowed-tools: Write Edit` write-block (the gate is now behavioral
+    Iron Law + Plan Mode; coders preview a patch then write). Updated the layer diagram,
+    enforcement-stack table, and the mechanisms prose.
+  - `set_active_version` 'auto'-needs-pin warning — clarified in `generator/server-surface.json`
+    (the regeneration SSOT) that the tool needs a CONCRETE version (sentinels rejected), other
+    calls reuse the pin via `odoo_version='auto'`, and `'auto'` is only safe AFTER a pin —
+    without a pinned session it silently falls back to the latest indexed version. Regenerated
+    all derived blocks.
+  - Frontend gate hardening (`scripts/verify-frontend.sh` + `scripts/rules/owl-pitfalls.txt`):
+    class-3 (`contenteditable`) now anchors on a quoted template attribute and only scans
+    `.xml`/`.html`, so a JS CSS-selector string like `querySelector("[contenteditable=true]")`
+    no longer hard-blocks; class-1 now also catches params-before-arrow (`(ev) => onSave(ev)`),
+    PascalCase, and leading-underscore handlers while still ignoring `this.`/`props.` forms;
+    portability fixes for macOS bash 3.2 (`mapfile`→read-loop, guarded empty-array expansion).
+    Added a `class1_handlers.xml` fixture and a JS-selector case to the good fixture.
+  - Agent-facing guard (`tests/test_agent_facing_guidance.py`) now matches the fully-qualified
+    `mcp__<server>__tool(...)` call form (not just the bare name) and credits a positional
+    toward `odoo_version` only when positionals reach its slot in the tool's canonical
+    signature order — catching `suggest_pattern(...)`, `lint_check(code_chunk)`, and bare
+    `cli_help(...)`/`lint_check(...)` calls that omitted the now-required version; fixed all
+    the calls it newly caught.
+  - Corrected the class-4 SCSS literal in `skills/_shared/odoo-frontend-fidelity.md` to the
+    real Odoo source line `calc(#{map-get($spacers, 1 )} / 2)`
+    (`calendar_renderer.scss:2`), replacing a fabricated `calc(#{map-get($spacers, 2)} * 2)`.
 
 ## [2.4.2] - 2026-06-02
 

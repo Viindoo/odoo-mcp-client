@@ -39,7 +39,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 │  · Phase R: read-only Recon (≤1–2 agents, depth-1, no writes)  │
 │  · Proposed Plan + soft-plan-gate                               │
 │  · Plan Mode (EnterPlanMode/ExitPlanMode) for writes-files      │
-│  · disallowed-tools: Write Edit (platform-enforced plan turn)   │
+│  · gate is BEHAVIORAL (Iron Law) + Plan Mode — not a write-block │
 └───────────────────────────────────┬────────────────────────────┘
                                     │ NL-dispatch (never Skill tool)
                                     ▼
@@ -324,17 +324,21 @@ Proposed Plan and the Approach `output_mode = writes-files`, the main agent call
 review → receives user approval via `ExitPlanMode` → then dispatches the
 file-touching specialist. This is a first-class enforcement option, not a workaround.
 
-For skills that **cannot** rely on depth-0 context (e.g., skills invoked from inside
-a subagent), the harness falls back to two mechanisms:
+There is **no platform write-block** behind the gate. `intake` does not declare
+`disallowed-tools: Write Edit`, and the coders (`odoo-coder`, `odoo-frontend-coder`)
+DO write/apply code — that is their job. The gate is enforced by two behavioral
+mechanisms, with Plan Mode as the strongest layer when depth-0 context is available:
 
-1. **`disallowed-tools: Write Edit`** in the skill frontmatter — platform-enforced
-   for the current turn, clearing automatically when the user sends the next message.
-2. **Iron Law** in the skill body — behavioral: "no execution fires until the user
+1. **Iron Law** in the skill body — behavioral: "no execution fires until the user
    has approved a Proposed Plan". Paired with a Red Flags table listing rationalizations
    the agent must refuse (e.g., "This is simple, I'll just start coding" → STOP).
+2. **Coder preview-then-write** — before mutating a file a coder previews the proposed
+   patch in its turn; the write follows the same turn once the approach is settled.
+   This is a discipline, not a tool restriction.
 
-The text-gate combination (mechanisms 1+2) is the A1-legal fallback when `EnterPlanMode`
-is not available (non-depth-0 context); it is not the only option.
+For skills that **cannot** rely on depth-0 context (e.g., skills invoked from inside
+a subagent), the behavioral Iron Law gate (mechanism 1) is the fallback when
+`EnterPlanMode` is not available; it is not the only option.
 
 ### 4.2 Gate template
 
@@ -356,8 +360,8 @@ Gate: approve / refine: [feedback] / cancel
 
 | Layer | Mechanism | Scope |
 |-------|-----------|-------|
-| Platform | `disallowed-tools: Write Edit` | Blocks file writes for the plan turn |
-| Behavioral | Iron Law + Red Flags in skill body | Blocks writes-files dispatch |
+| Behavioral | Iron Law + Red Flags in skill body | Blocks writes-files dispatch until plan approved |
+| Coder discipline | Preview patch, then write in-turn | Coders apply code; no platform write-block |
 | Recon boundary | Phase R agents: read-only, depth-1, no spawn, no writes | Allows current-state survey without breaching gate |
 | Plan Mode | `EnterPlanMode` / `ExitPlanMode` | Harness-level enforcement before writes-files execution |
 | Approval | `intake` ends turn; next user prompt enables writes | Write unlock |

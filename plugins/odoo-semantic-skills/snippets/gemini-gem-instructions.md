@@ -316,7 +316,7 @@ ARGS (optional): profile_name
 
 ### set_active_version ☆
 TRIGGER: set version
-PREFER: Pin Odoo version for the session (24h TTL per API key); subsequent calls pass odoo_version='auto' to reuse it instead of repeating the version (it can no longer be omitted).
+PREFER: Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 ARGS (required): odoo_version
 
 ### set_active_profile ☆

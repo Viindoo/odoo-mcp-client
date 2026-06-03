@@ -94,7 +94,33 @@ _REQ_VERSION_TOOLS = sorted(
     for t in _SURFACE["tools"]
     if "odoo_version" in t.get("required_params", []) and t["name"] != "set_active_version"
 )
-_TOOL_CALL_RE = re.compile(r"\b(" + "|".join(_REQ_VERSION_TOOLS) + r")\(")
+# Agents/snippets emit BOTH the bare name (`suggest_pattern(...)`) and the
+# fully-qualified MCP form (`mcp__odoo-semantic__suggest_pattern(...)`). Match an
+# optional server prefix so the qualified form is scanned too (real failing calls
+# were slipping through on the bare-name-only regex).
+_MCP_PREFIX = r"(?:mcp__[\w-]+__)?"
+_TOOL_CALL_RE = re.compile(r"\b" + _MCP_PREFIX + r"(" + "|".join(_REQ_VERSION_TOOLS) + r")\(")
+
+# Positional index of odoo_version in each tool's canonical signature ORDER.
+# A bare positional only covers odoo_version when the call supplies positionals up
+# to and including that slot — "enough positionals to fill the required COUNT" is
+# not enough, because some tools (lint_check, cli_help) take optional positionals
+# (code/command) BEFORE odoo_version, so a single positional fills the optional
+# slot, not odoo_version. The SSOT for that signature order is each tool's own
+# `example_call` (odoo_version is the last positional in every example). We parse
+# the example to find odoo_version's slot rather than trusting required_params order.
+def _odoo_version_positional_index(tool: dict) -> int | None:
+    ec = tool.get("example_call", "")
+    open_i, close_i = ec.find("("), ec.rfind(")")
+    if open_i < 0 or close_i < 0:
+        return None
+    args = _top_level_args(ec[open_i + 1 : close_i])
+    for idx, arg in enumerate(args):
+        nm = _NAMED_ARG_RE.match(arg)
+        name = nm.group(1) if nm else arg.strip()
+        if name == "odoo_version":
+            return idx
+    return None
 
 
 _REQUIRED_PARAM_COUNT = {
@@ -153,8 +179,15 @@ _ALLOWED_PARAMS = {
     for t in _SURFACE["tools"]
 }
 _ALL_TOOLS = sorted(_ALLOWED_PARAMS)
-_ANY_TOOL_CALL_RE = re.compile(r"\b(" + "|".join(_ALL_TOOLS) + r")\(")
+_ANY_TOOL_CALL_RE = re.compile(r"\b" + _MCP_PREFIX + r"(" + "|".join(_ALL_TOOLS) + r")\(")
 _NAMED_ARG_RE = re.compile(r"^\s*([A-Za-z_]\w*)\s*=(?!=)")
+
+# Built after _top_level_args / _NAMED_ARG_RE exist (the helper uses both).
+_ODOO_VERSION_POS_INDEX = {
+    t["name"]: _odoo_version_positional_index(t)
+    for t in _SURFACE["tools"]
+    if "odoo_version" in t.get("required_params", [])
+}
 
 
 def test_example_tool_calls_use_valid_param_names():
@@ -211,8 +244,16 @@ def test_example_tool_calls_pass_required_odoo_version():
             # named-but-wrong arg (e.g. scope=...) does not satisfy the required param.
             positional = [a for a in _top_level_args(inner)
                           if not re.match(r"\s*[A-Za-z_]\w*\s*=(?!=)", a)]
-            if len(positional) >= _REQUIRED_PARAM_COUNT.get(tool, 0):
-                continue  # all required params covered positionally
+            # A positional covers odoo_version only when the call supplies positionals
+            # up to and including odoo_version's slot in the canonical signature ORDER
+            # (from the tool's example_call) — NOT merely "enough positionals to fill
+            # the required count". lint_check(code, language, odoo_version) puts
+            # odoo_version at slot 2, so lint_check(code_chunk) (1 positional) fills the
+            # `code` slot, not odoo_version → still flagged. find_deprecated_usage puts
+            # odoo_version at slot 0, so a single positional there DOES cover it.
+            ver_idx = _ODOO_VERSION_POS_INDEX.get(tool)
+            if ver_idx is not None and len(positional) > ver_idx:
+                continue  # odoo_version slot covered positionally
             line_no = text.count("\n", 0, m.start()) + 1
             snippet = (tool + span).replace("\n", " ")[:90]
             offenders.append(f"{f.relative_to(REPO_ROOT)}:{line_no}: {snippet}")

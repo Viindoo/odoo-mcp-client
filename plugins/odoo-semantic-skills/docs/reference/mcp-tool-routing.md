@@ -228,7 +228,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Pin Odoo version for the session (24h TTL per API key); subsequent calls pass odoo_version='auto' to reuse it instead of repeating the version (it can no longer be omitted). |
+| **Description** | Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted). 'auto' is only safe after a pin — with no pinned session it silently falls back to the latest indexed version. |
 | **Personas** | dev, CEO, consultant, marketer, sales |
 | **Required params** | `odoo_version` |
 | **Optional params** | _(none)_ |

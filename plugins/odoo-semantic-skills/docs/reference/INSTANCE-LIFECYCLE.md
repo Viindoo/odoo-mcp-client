@@ -4,7 +4,7 @@
 > subcommands and module semantics differ across versions (8.0 → 19.0). The version-specific
 > details below are **illustrative snapshots** — before you act on any of them for a given
 > target version, **confirm against OSM**: `set_active_version(<target>)` then
-> `cli_help(command, flag)` for CLI facts, and `api_version_diff` / `find_deprecated_usage`
+> `cli_help(command, flag, odoo_version='auto')` for CLI facts, and `api_version_diff` / `find_deprecated_usage`
 > / `module_inspect` for API/era facts. OSM + the running instance are the ground truth.
 >
 > Consumed by: `odoo-deploy-checklist`, `odoo-qa-suite`, `wave` (when building/refreshing an
@@ -50,7 +50,7 @@
 
 1. **Resolve the target version explicitly** — confirm it is indexed (`list_available_versions`)
    and pin it (`set_active_version`).
-2. **Query the CLI for that version — never assume.** `cli_help(command, flag)` for every
+2. **Query the CLI for that version — never assume.** `cli_help(command, flag, odoo_version='auto')` for every
    non-trivial subcommand/flag (entry script, DB management, module management, port flags).
    Do not hardcode one version's CLI for another.
 3. **Classify the change** (decision tree above) → choose `-i` / `-u` / restart-only /

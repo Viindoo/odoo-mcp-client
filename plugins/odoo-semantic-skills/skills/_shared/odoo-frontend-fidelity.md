@@ -275,8 +275,8 @@ instance.
 - **Root cause / ground truth:** all supported versions compile with **LibSass**
   (libsass-python); the real fix is `#{}` interpolation so the Sass value is resolved before it
   reaches the CSS `calc()`. Core does exactly this:
-  `calc(#{map-get($spacers, 2)} * 2)` (`web/.../views/calendar/calendar_renderer.scss:2`).
-- **Correct pattern:** interpolate - `calc(#{map-get($spacers, 2)} * 2)`,
+  `calc(#{map-get($spacers, 1 )} / 2)` (`web/.../views/calendar/calendar_renderer.scss:2`).
+- **Correct pattern:** interpolate - `calc(#{map-get($spacers, 1 )} / 2)`,
   `calc(#{$gutter} / 2)` - rather than calling the Sass function bare inside `calc()`.
 - **Citation:** `web/.../views/calendar/calendar_renderer.scss:2`.
 - **Version applicability:** all versions (LibSass throughout).

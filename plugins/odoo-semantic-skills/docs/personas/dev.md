@@ -134,8 +134,8 @@ If the result shows `status: deprecated` or `removed_in: 17.0` — find the repl
 After writing the module:
 
 ```
-lint_check("my_module", "17.0")
-find_deprecated_usage("17.0")
+lint_check(code=<module source>, odoo_version='auto')
+find_deprecated_usage(odoo_version='auto')
 ```
 
 ---

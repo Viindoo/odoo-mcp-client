@@ -175,7 +175,7 @@ If the code implements a recognizable Odoo pattern (computed field, SQL constrai
 create override, OWL component, etc.), call:
 
 ```
-mcp__odoo-semantic__suggest_pattern(intent="<what this code is doing>")
+mcp__odoo-semantic__suggest_pattern(intent="<what this code is doing>", odoo_version='auto')
 ```
 
 A mismatch between the code's approach and the canonical pattern is a MED severity finding.

@@ -335,7 +335,7 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
   OPTIONAL: profile_name
   WHEN: what does module do
 
-**set_active_version** ☆ — Pin Odoo version for the session (24h TTL per API key); subsequent calls pass odoo_version='auto' to reuse it instead of repeating the version (it can no longer be omitted).
+**set_active_version** ☆ — Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
   REQUIRED: odoo_version
   WHEN: set version
 
