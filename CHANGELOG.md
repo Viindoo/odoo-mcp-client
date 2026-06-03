@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `suggest_pattern(query=)`→`intent`, `lookup_core_api(symbol=)`→`name`,
   `api_version_diff(scope)`→`symbol`) across skills, the cursor/gemini/openai snippets, and
   agent definitions.
+- **Tool-permission grants for file-authoring skills** — removed the `disallowed-tools: Write Edit`
+  frontmatter block from the four skills whose own contract is to write deliverables to disk
+  (`odoo-brl` → `.odoo-ai/brl/` rtm.csv/cost.json/dag/report.md, `odoo-qa-suite` →
+  `.odoo-ai/qa/*.md`, `workflow-runner` → `output_dir` artifacts + checkpoints, `wave` →
+  `.odoo-ai/wave/<slug>/plan.md`), which were previously blocked from delivering their output.
+  The two emit-as-chat coders (`odoo-coder`, `odoo-frontend-coder`) intentionally keep the block
+  since their contract is copy-pasteable code output, not file writes.
 
 ## [2.4.2] - 2026-06-02
 
