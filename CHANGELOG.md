@@ -6,6 +6,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-06-03
+
+### Added
+
+- **Frontend fidelity (#37)** — make AI-authored Odoo OWL/JS + SCSS correct and lint-compliant
+  by construction: an era-sectioned SSOT pitfall catalogue
+  (`skills/_shared/odoo-frontend-fidelity.md`, v8–v19+), a write-time OWL grounding checklist
+  plus a post-write verify gate (`scripts/verify-frontend.sh`, `scripts/rules/owl-pitfalls.txt`,
+  `scripts/odoo-prettierrc.json`), and passing/broken `odoo-frontend-coder` examples.
+- **Agent-facing guidance guard** (`tests/test_agent_facing_guidance.py`) — four checks keeping
+  skills/snippets/agents/docs in sync with the server tool surface: no "omit/optional
+  odoo_version" prose, no drifted parameter names, every named argument is a real parameter of
+  its tool, and every example call to a version-required tool supplies `odoo_version`.
+
+### Fixed
+
+- Corrected AI-agent-facing tool guidance for the now-required `odoo_version`: removed
+  "can omit / optional, default auto" prose, added `odoo_version='auto'` to ~166 example calls,
+  and fixed drifted parameter names (`check_module_exists(module=)`→`name`,
+  `find_deprecated_usage(scope=)` dropped, `lint_check(code_snippet=)`→`code`,
+  `suggest_pattern(query=)`→`intent`, `lookup_core_api(symbol=)`→`name`,
+  `api_version_diff(scope)`→`symbol`) across skills, the cursor/gemini/openai snippets, and
+  agent definitions.
+
 ## [2.4.2] - 2026-06-02
 
 ### Build / CI
