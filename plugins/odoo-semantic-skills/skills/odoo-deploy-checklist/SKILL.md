@@ -42,7 +42,7 @@ to a 3-5 person dev shop. Output is operational and actionable, not executive-le
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (optional — call once if version not already pinned):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version context for the session (24h TTL per API key). Omit `odoo_version` on subsequent calls once pinned.
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version context for the session (24h TTL per API key). Pass `odoo_version='auto'` on subsequent calls to reuse it (it can no longer be omitted).
 
 **Primary tools:**
 - `check_module_exists` — Verify that each module in the deploy scope actually exists in the target Odoo version. Use in Round 2 to auto-fill module existence items.

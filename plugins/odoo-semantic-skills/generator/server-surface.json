@@ -444,7 +444,7 @@
       "name": "set_active_version",
       "version_added": "0.6.0",
       "version_removed": null,
-      "description": "Pin Odoo version for the session (24h TTL per API key) so subsequent calls can omit odoo_version.",
+      "description": "Pin Odoo version for the session (24h TTL per API key); subsequent calls pass odoo_version='auto' to reuse it instead of repeating the version (it can no longer be omitted).",
       "persona_tags": [
         "dev",
         "CEO",

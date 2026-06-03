@@ -54,8 +54,9 @@ Output quality degrades slightly without index validation, but always produce ru
 ## Round 0 — Pin the version (once per session)
 
 Call `set_active_version(odoo_version='17.0')` at the start of every session. Every
-subsequent tool call inherits this version and can omit the `odoo_version` parameter.
-Skip Round 0 if you have already pinned the version earlier in the same session.
+subsequent tool call must still pass `odoo_version` — use `odoo_version='auto'` to reuse
+this pinned version (the server no longer fills it in implicitly; omitting it now raises a
+validation error). Skip Round 0 if you have already pinned the version earlier in the same session.
 
 If the user stated a different version (e.g. v16, v15), pin that version instead and note
 the assumption.
