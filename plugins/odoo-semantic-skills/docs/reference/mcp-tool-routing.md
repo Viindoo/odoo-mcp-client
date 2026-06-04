@@ -1,6 +1,6 @@
 # MCP Tool × Persona × Adapter Routing Matrix
 
-> **Generated:** 2026-05-28T00:00:00Z  
+> **Generated:** 2026-06-04T00:00:00Z  
 > **Server version:** 0.11.1  
 > **Source:** `generator/server-surface.json` — edit that file and run `make gen` to update.
 > **v0.6 change:** 10 legacy tools (`resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches`) were removed. Use the superset tools (`model_inspect`, `module_inspect`, `entity_lookup`) instead.
@@ -48,7 +48,7 @@ When adding a new MCP tool or persona, update **`generator/server-surface.json`*
 
 **Legend:** ● = primary persona for this tool.  
 ★ = superset tool (supersedes removed v0.6 tools).  
-☆ = session-context tool (sticky 24h TTL per API key).  
+☆ = session-context tool (per live MCP session, 24h idle TTL; resets on server restart).  
 ✦ = stylesheet tools (CSS/SCSS/LESS indexing, v0.7+).  
 ⊕ = ORM-validation tools (static domain / @api.depends / relation / dotted-path checks, v0.8+).
 
@@ -228,7 +228,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted). 'auto' is only safe after a pin — with no pinned session it silently falls back to the latest indexed version. |
+| **Description** | Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted). 'auto' is only safe after a pin — with no pinned session it silently falls back to the latest indexed version. |
 | **Personas** | dev, CEO, consultant, marketer, sales |
 | **Required params** | `odoo_version` |
 | **Optional params** | _(none)_ |

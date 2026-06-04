@@ -18,7 +18,7 @@ The full **tool arsenal (server v0.11.1)**, optimized for development workflows.
 | `module_inspect(module, method='summary'\|'views'\|'owl'\|'qweb'\|'js'\|'dependencies', ...)` | Module-level inventory across manifest, models, views, OWL, QWeb, JS patches, dependencies. **Replaces** `describe_module` + `list_views` (module-scoped) + `list_owl_components` + `list_qweb_templates` + `list_js_patches`. |
 | `entity_lookup(kind='field'\|'method'\|'view', ...)` | One entity drill-down by ID. **Replaces** `resolve_field` + `resolve_method` + `resolve_view`. |
 
-### Session context (v0.6+ — sticky 24h TTL per API key)
+### Session context (v0.6+ — per live MCP session, 24h idle TTL; resets on server restart)
 
 | Tool | Use case |
 |------|----------|
@@ -85,7 +85,7 @@ Before any exploration session, set the version so you can drop `odoo_version=` 
 set_active_version("17.0")
 ```
 
-TTL is 24h per API key. Run `list_available_versions()` first if you are not sure which versions are indexed.
+TTL is 24h idle, keyed per live MCP session, and the pin resets on server restart. Run `list_available_versions()` first if you are not sure which versions are indexed.
 
 ### 1. Understand before touching
 

@@ -488,7 +488,7 @@ Commit or `.gitignore` the file as appropriate for your team (the key is sensiti
 
 ## Session Context Setup (v0.5+) — `set_active_version` / `set_active_profile`
 
-Starting in v0.5.0 the MCP server supports **sticky session context** so you stop repeating `odoo_version="17.0"` on every call. Run `set_active_version` once and the value is remembered for 24h per API key. Similarly `set_active_profile` pins the tenant profile.
+Starting in v0.5.0 the MCP server supports **sticky session context** so you stop repeating `odoo_version="17.0"` on every call. Run `set_active_version` once and the value is remembered per live MCP session (24h idle TTL; resets on server restart). Similarly `set_active_profile` pins the tenant profile.
 
 **Recommended startup flow** for any AI client (Claude Code, Codex, Gemini, VS Code, Antigravity):
 
@@ -502,7 +502,7 @@ Starting in v0.5.0 the MCP server supports **sticky session context** so you sto
 
 After step 2, calling `model_inspect(model="sale.order", method="summary", odoo_version='auto')` (no `odoo_version=` arg) returns results for `17.0`. Override at any time by passing `odoo_version=` explicitly on a single call (one-off; does **not** clear the sticky value).
 
-> See the [implicit session context docs](https://odoo-semantic.viindoo.com/docs/adr/0029-implicit-session-context) for the TTL behavior and per-key keying rationale.
+> See the [implicit session context docs](https://odoo-semantic.viindoo.com/docs/adr/0029-implicit-session-context) for the TTL behavior and per-session keying rationale.
 
 ---
 
