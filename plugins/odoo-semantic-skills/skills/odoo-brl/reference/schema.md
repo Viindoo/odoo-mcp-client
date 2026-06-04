@@ -105,8 +105,10 @@ the outer loop at `last_completed_chunk + 1`. Re-running a chunk is idempotent
 
 `phase` values (lifecycle): `ingest | classify | dag | deliver | done`
 
-`session_pinned_at`: Used for 24h TTL detection. If `now - session_pinned_at > 23h`
-OR any MCP call returns "no active version", re-run bootstrap and update this field.
+`session_pinned_at`: Used for 24h idle-TTL detection. The pin is keyed per live MCP
+session and also resets on a server restart, so if `now - session_pinned_at > 23h`
+OR any MCP call returns "no active version" (TTL lapse or server restart), re-run
+bootstrap and update this field.
 
 `per_req`: Sparse dict - only in-flight or error items appear. Completed items are omitted
 to keep the file small. Values: `"done" | "pending" | "error"`.

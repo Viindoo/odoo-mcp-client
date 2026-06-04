@@ -6,6 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Session-pin scope wording (#253, follow-up to server #251/#252)** — corrected the
+  `set_active_version` / `set_active_profile` sticky-context description from "per API key"
+  to **per live MCP session** (single api-key/`_nosession` fallback for stdio/header-less,
+  24h idle TTL, resets on server restart). Fixed at the SSOT
+  (`generator/server-surface.json` tool description + `generator/gen_surface.py` legend) and
+  regenerated via `make gen` (propagates to `mcp-tool-routing.md`, 12 SKILL.md, 3 snippets),
+  plus the manual prose outside the generator (`docs/setup.md`, `docs/personas/dev.md`,
+  `odoo-deploy-checklist`/`odoo-frontend-coder` SKILL.md, snippet intros, and the
+  `odoo-brl` state-file `schema.md` re-bootstrap note). Prose-only — no tool-surface change
+  (tool count stays 24), no client code change.
+
 ## [2.5.0] - 2026-06-03
 
 ### Added

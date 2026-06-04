@@ -14,7 +14,7 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 
 ## Session bootstrap (run once per chat session)
 - At session start, call list_available_versions() to discover indexed versions
-- Pin the version with set_active_version("17.0") — TTL 24h per API key
+- Pin the version with set_active_version("17.0") — per live MCP session, 24h idle TTL; resets on server restart
 - Subsequent tool calls pass odoo_version='auto' to reuse the pinned value (it can no longer be omitted)
 - Pin tenant with set_active_profile("<name>") if multi-tenant MCP
 
@@ -133,7 +133,7 @@ When working with Odoo Python or XML files, use the odoo-semantic MCP tools (v0.
 Session bootstrap (once per chat):
 - list_available_versions() / list_available_profiles()
 - set_active_version("17.0") / set_active_profile("<name>")
-Subsequent calls pass odoo_version='auto' to reuse the pinned version (sticky 24h TTL per API key).
+Subsequent calls pass odoo_version='auto' to reuse the pinned version (per live MCP session, 24h idle TTL; resets on server restart).
 
 Superset tools (use these for all model/module/entity queries):
 - Model questions (structure / fields / methods / views) → model_inspect(model=<name>, method="summary"|"fields"|"methods"|"views", odoo_version='auto')
@@ -253,7 +253,7 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
 - "does module exist" → `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - "where to override" → `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
 - "what does module do" → `describe_module` — Module manifest + defined/extended model counts + view/JS inventory in one call.
-- "set version" → `set_active_version ☆` — Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- "set version" → `set_active_version ☆` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 - "set profile" → `set_active_profile ☆` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - "what versions are indexed" → `list_available_versions ☆` — Enumerate which Odoo versions the server has indexed.
 - "what profiles exist" → `list_available_profiles ☆` — Enumerate which tenant profiles exist in the server index.

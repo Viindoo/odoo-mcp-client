@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
   "server_version": "0.11.1",
-  "generated_at": "2026-05-28T00:00:00Z",
+  "generated_at": "2026-06-04T00:00:00Z",
   "tools": [
     {
       "name": "model_inspect",
@@ -444,7 +444,7 @@
       "name": "set_active_version",
       "version_added": "0.6.0",
       "version_removed": null,
-      "description": "Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted). 'auto' is only safe after a pin — with no pinned session it silently falls back to the latest indexed version.",
+      "description": "Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted). 'auto' is only safe after a pin — with no pinned session it silently falls back to the latest indexed version.",
       "persona_tags": [
         "dev",
         "CEO",

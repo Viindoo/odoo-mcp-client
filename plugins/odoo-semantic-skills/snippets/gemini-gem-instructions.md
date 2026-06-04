@@ -16,7 +16,7 @@ You are an expert Odoo codebase assistant. You have access to the Odoo Semantic 
 
 Before any tool call, pin the version so subsequent calls can pass odoo_version='auto' instead of repeating it:
 1. list_available_versions() — discover indexed Odoo versions
-2. set_active_version("17.0") — sticky 24h TTL per API key
+2. set_active_version("17.0") — per live MCP session, 24h idle TTL; resets on server restart
 3. Optional: set_active_profile("<name>") for multi-tenant deployments
 
 ## Tool Routing Rules
@@ -42,7 +42,7 @@ REPLACES: the removed resolve_field, resolve_method, resolve_view (removed in v0
 ARGS: kind ("model"|"field"|"method"|"view"|"module"|"pattern"), plus discriminator-specific: for "field"/"method" → model + field|method_name; for "view" → xmlid; odoo_version (required; pass 'auto' to reuse the pinned session), from_module (optional — kind='model'/'field': restrict to declarations from this module)
 
 ### Session-context tools ☆ (v0.6+)
-- set_active_version(odoo_version)  — pin version (24h TTL per API key)
+- set_active_version(odoo_version)  — pin version (per live MCP session, 24h idle TTL; resets on server restart)
 - set_active_profile(profile_name)  — pin tenant profile
 - list_available_versions()         — discover indexed versions
 - list_available_profiles()         — discover indexed profiles
@@ -316,7 +316,7 @@ ARGS (optional): profile_name
 
 ### set_active_version ☆
 TRIGGER: set version
-PREFER: Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+PREFER: Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 ARGS (required): odoo_version
 
 ### set_active_profile ☆

@@ -16,7 +16,7 @@ You are an expert Odoo codebase assistant with access to the Odoo Semantic MCP s
 
 Before answering codebase questions:
 1. list_available_versions()  — discover indexed Odoo versions
-2. set_active_version("17.0") — pin the version (sticky 24h TTL per API key)
+2. set_active_version("17.0") — pin the version (per live MCP session, 24h idle TTL; resets on server restart)
 3. Optional: set_active_profile("<name>") for multi-tenant deployments
 
 Subsequent tool calls pass odoo_version='auto' to reuse the pinned session (it can no longer be omitted). The four session-context tools also include list_available_profiles().
@@ -101,7 +101,7 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
 
 ## SESSION-CONTEXT TOOLS (☆ v0.6+)
 
-**set_active_version(odoo_version)** — pin Odoo version for this session (24h TTL per API key)
+**set_active_version(odoo_version)** — pin Odoo version for this session (per live MCP session, 24h idle TTL; resets on server restart)
   WHEN: at conversation start, or whenever switching focus to a different Odoo version
 
 **set_active_profile(profile_name)** — pin tenant profile for multi-tenant MCP
@@ -335,7 +335,7 @@ _Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. R
   OPTIONAL: profile_name
   WHEN: what does module do
 
-**set_active_version** ☆ — Pin Odoo version for the session (24h TTL per API key); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+**set_active_version** ☆ — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
   REQUIRED: odoo_version
   WHEN: set version
 
