@@ -1,7 +1,7 @@
 ---
 name: odoo-frontend-coding
 description: >
-  Write complete, production-ready Odoo frontend JS for ANY version (v8–v19) — auto-gates
+  Write complete, production-ready Odoo frontend JS for any supported version — auto-gates
   to legacy `web.Widget`/`AbstractField`/`odoo.define()` (v8–v14) or OWL 2.x
   `patch()`/`useState`/`useService` (v15+) so callers never choose between frameworks.
   Dispatches to the odoo-frontend-coder agent for multi-round MCP enrichment.
@@ -17,7 +17,7 @@ description: >
 
 ## Persona
 
-Developer (Odoo frontend, all versions v8–v19). Pair-works with `odoo-coder` for backend
+Developer (Odoo frontend, all supported versions). Pair-works with `odoo-coder` for backend
 Python/XML and `odoo-code-reviewer` for review.
 
 ## Out of Scope

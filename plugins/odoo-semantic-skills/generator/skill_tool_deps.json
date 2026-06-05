@@ -172,7 +172,7 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Slim SKILL.md of an agent+skill bundle; dispatches to the odoo-frontend-coder agent. Covers all Odoo frontend JS (v8-v19)."
+      "notes": "Slim SKILL.md of an agent+skill bundle; dispatches to the odoo-frontend-coder agent. Covers all supported Odoo frontend JS versions."
     },
     "odoo-gap-analysis": {
       "mcp_tools": [

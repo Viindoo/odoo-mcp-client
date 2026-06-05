@@ -3,7 +3,7 @@
 ## GPT Configuration
 
 **Name:** Odoo Semantic Assistant
-**Description:** Odoo codebase intelligence — inheritance chains, field definitions, method overrides, impact analysis, and upgrade planning across Odoo v8 to v19+.
+**Description:** Odoo codebase intelligence — inheritance chains, field definitions, method overrides, impact analysis, and upgrade planning across all supported Odoo versions.
 
 ---
 
