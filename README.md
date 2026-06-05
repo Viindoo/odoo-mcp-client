@@ -276,7 +276,7 @@ Odoo vs SAP. At the last meeting they promised technical feedback within the wee
 Write a follow-up email."
 ```
 
-Skill `odoo-deal-followup` fires. Output: risk score (red - warm lead, >14 days no reply), next-best-action ("re-engage with concrete value proof"), and a 4-paragraph follow-up email ready to paste. To save it: `/odoo-customer-followup-draft` chains the skill and writes to `.odoo-ai/followups/customer-a-2026-MM-DD.md`.
+Skill `odoo-deal-followup` fires. Output: risk score (red - warm lead, >14 days no reply), next-best-action ("re-engage with concrete value proof"), and a 4-paragraph follow-up email. To save it: `/odoo-customer-followup-draft` chains the skill and writes to `.odoo-ai/followups/customer-a-2026-MM-DD.md`.
 
 ### Use case 2 - Pre-Sales: RFP with 15 requirements
 
@@ -307,7 +307,7 @@ You: "Summarize competitive landscape - Competitor A vs your Odoo distribution -
 for next week's board meeting."
 ```
 
-Skill `odoo-competitive-brief` fires. Paste your collected signals; the skill structures them into a market snapshot, capability matrix, GTM moves, threat assessment, and recommended product response - ready for a board deck. Combine with `odoo-risk-overview` (founder-level engineering risk dashboard) and `odoo-customization-inventory` (all custom modules with business purpose, M&A due-diligence ready).
+Skill `odoo-competitive-brief` fires. It pulls competitor signals from context, the vault, or a web search (you can also supply them inline); the skill structures them into a market snapshot, capability matrix, GTM moves, threat assessment, and recommended product response - ready for a board deck. Combine with `odoo-risk-overview` (founder-level engineering risk dashboard) and `odoo-customization-inventory` (all custom modules with business purpose, M&A due-diligence ready).
 
 ### Use case 5 - Engineer + Coder: upgrade v15 to v17
 
@@ -317,7 +317,7 @@ Customer D is running Odoo 15 with 12 custom modules and wants to move to v17 in
 You: "/odoo-upgrade-plan-full - Customer D, v15 to v17, 12 custom modules, deadline Q3"
 ```
 
-Chains `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis. Output: executive risk overview, code-level deprecation findings, API/feature diff, action ordering, S/M/L/XL effort estimate, and rollback plan. Saves to `.odoo-ai/upgrade-plans/customer-d-v15-v17-2026-MM-DD.md`. When you need actual code written, invoke the `odoo-coder` agent bundle (depth-1 safe, restricted-tool autonomy, OSM access, optional cost-free local model).
+Chains `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis. Output: executive risk overview, code-level deprecation findings, API/feature diff, action ordering, S/M/L/XL effort estimate, and rollback plan. Saves to `.odoo-ai/upgrade-plans/customer-d-v15-v17-2026-MM-DD.md`. When you need actual code written, invoke the `odoo-coder` agent bundle (depth-1 safe, restricted-tool autonomy, OSM access).
 
 ### Use case 6 - Marketer: launch a new feature campaign
 
@@ -356,7 +356,7 @@ Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression
 
 **I only need one skill - do I have to know all 31?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `intake` acts as a brainstorm partner when you are not sure which skill to use.
 
-**What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by prompting you to paste data manually. The plugin does not break when OSM is offline.
+**What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by reading your local codebase and `.odoo-ai/context.md` directly (Read/Grep/WebFetch, three-tier grounding) instead of asking you to paste data; if a browser is genuinely unreachable a visual skill returns BLOCKED rather than requesting screenshots. The plugin does not break when OSM is offline.
 
 **What about confidentiality?** Plugin code is public (MIT). Skills contain no customer-specific data or pricing. A pre-commit hook and CI scan block several categories of sensitive content. Examples use abstract labels (Customer A through Customer F).
 

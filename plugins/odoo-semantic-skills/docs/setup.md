@@ -89,7 +89,7 @@ After install, 26 skills activate automatically:
 | `odoo-risk-overview` | Strategist / CEO | One-page upgrade-risk dashboard: deprecated-API counts, change blast radius, dependency health |
 | `odoo-customization-inventory` | Strategist / CEO | Executive inventory of every custom/distribution module, classified with business purpose and upgrade-risk flags |
 | `odoo-competitive-brief` | Strategist | Board-ready competitive brief on a named competitor: capability matrix, threat assessment, response strategy |
-| `odoo-override-finder` | Engineer | Find the safe method to override, with the existing override chain and a ready-to-paste `super()` template |
+| `odoo-override-finder` | Engineer | Find the safe method to override, with the existing override chain and a ready-to-apply `super()` template |
 | `odoo-deprecation-audit` | Engineer | Scan a codebase for deprecated Odoo APIs before an upgrade, grouped by file with replacements and urgency |
 | `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist across 8 domains (backup, migration, smoke tests, rollback, ...) |
 | `odoo-version-diff` | Engineer + Marketer | Comprehensive API + feature diff between two Odoo versions (developer track + marketer track) |
@@ -496,7 +496,7 @@ Starting in v0.5.0 the MCP server supports **sticky session context** so you sto
 1. list_available_versions()    # see which Odoo versions the server has data for
 2. set_active_version("17.0")   # pin the version for this session (24h TTL)
 3. list_available_profiles()    # see which tenant profiles exist (optional)
-4. set_active_profile("viindoo-internal")   # pin tenant profile (optional)
+4. set_active_profile("<your profile from step 3>")   # pin tenant profile (optional; do not hardcode - read from .odoo-ai/context.md)
 5. <any tool call with odoo_version omitted>   # falls back to the pinned value
 ```
 
