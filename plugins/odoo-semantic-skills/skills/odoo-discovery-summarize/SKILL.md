@@ -8,7 +8,8 @@ description: >
   "extract customer profile", "discovery call recap", "meeting notes to customer profile",
   "we had a discovery call — analyze", "tóm tắt notes cuộc họp tìm hiểu khách hàng",
   "vừa họp khách xong giúp tóm tắt thành hồ sơ". Trigger even on a business name +
-  "we had a meeting". DO NOT trigger for internal team retrospectives, sprint planning, or
+  "we had a meeting". Also fires when given a file path to the notes/transcript.
+  DO NOT trigger for internal team retrospectives, sprint planning, or
   developer standups with no customer prospect. When user wants to WRITE a follow-up email
   route to `odoo-deal-followup`; for a full effort matrix (Standard/Custom/days) route to
   `odoo-gap-analysis`; to handle an objection route to `odoo-objection-handler`
@@ -55,10 +56,15 @@ This skill produces a full Discovery Profile without OSM. Follow rounds in seque
 
 ### Round 0 — Session context bootstrap
 
-Check for `.odoo-ai/context.md` in the working directory. If it exists, read it and
-note the default `odoo_version` and `profile_name` values; these will be used if
-`check_module_exists` is called in Round 3.5. If the file does not exist, default to
-`odoo_version=17.0` and skip the profile pin.
+Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` before asking the caller
+for any project fact:
+
+1. **Read `.odoo-ai/context.md`** if present. Extract `odoo_version` and `profile_name`
+   as authoritative defaults; these are used automatically when `check_module_exists` is
+   called in Rounds 3 and 3.5.
+2. If the file is absent, derive version from manifest files on disk; if still unresolved,
+   default to `odoo_version=17.0` and proceed.
+3. Ask the caller only for context genuinely missing after steps 1-2.
 
 ### Round 1 — Parse the raw input
 
@@ -99,9 +105,11 @@ For each pain point identified, assign one of four Odoo path labels:
 Assign a Confidence level (High / Med / Low) reflecting certainty in the path label.
 Confidence is Low when the pain is ambiguous or cross-module complexity is unknown.
 
-If the user asked for OSM verification (Round 3.5): call `check_module_exists` for
-any pain where you labeled Standard or Config but are not certain. Update the table
-row with `(OSM-verified)` or `(OSM: not found — revise to Custom)`.
+**Round 3.5 - Proactive OSM verification (no user prompt needed):** For every pain row
+where Confidence is Low OR where the label is uncertain (e.g., a domain-specific module
+whose existence you cannot confirm from training memory alone), call `check_module_exists`
+automatically when OSM is reachable. Do not wait for the user to ask. Update the table
+row with `(OSM-verified)` or `(OSM: not found - revise to Custom)`.
 
 Compute the overall fit score:
 - **5/5** — All pains map to Standard or Config; no Cannot.
@@ -264,17 +272,10 @@ tuning. USD 40k budget is tight if data migration from 5 legacy POS instances is
 
 ### `.odoo-ai/context.md` integration
 
-If this file exists in the working directory, it may contain a `default_version` key
-and a `tenant_profile`. Use these as defaults when calling optional OSM tools. Example
-file format:
-
-```yaml
-odoo_version: "17.0"
-profile_name: "viindoo-internal"
-```
-
-If the file is absent, do not error — simply proceed standalone and default to v17.0
-if OSM tools are eventually requested.
+Handled by Round 0 (see `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`). The
+file is read automatically at session start; `odoo_version` and `profile_name` are used
+as authoritative defaults for all OSM calls. If the file is absent the skill derives
+version from disk and defaults to v17.0 - no error, no prompt to the user.
 
 ### Cross-skill handoff
 

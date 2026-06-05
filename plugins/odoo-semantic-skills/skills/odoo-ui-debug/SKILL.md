@@ -78,8 +78,12 @@ parse lines of the form `- **key**: value`. Extract:
 - `instance_login` — login identifier and agreed credential source.
 - `screenshot_baseline_dir` — where any evidence captures are written.
 
-If the file is absent or a key is missing, ask the user for it in a single message before
-navigating. Do not guess.
+If the file is absent or a key is missing, fall back to the plugin's own portable conventions
+before asking: read `.odoo-ai/instances.toml` (written by `/odoo-semantic-skills:setup`) for the
+instance URL, and resolve the Odoo version from the request or the OSM index
+(`list_available_versions`). Only ask the user in a single message if none of these supply the
+needed values (credentials in particular are never stored and must come from the agreed source).
+Do not guess.
 
 ### Round 1 — Reproduce + collect runtime evidence (browser)
 
@@ -121,9 +125,12 @@ file + method/selector to change, then hand off to `odoo-frontend-coder` for the
   (`grep -rn "<selector>" --include=*.scss --include=*.css`), the registry key, or the template
   name (`grep -rn "<t-name>" --include=*.xml`). Prefix with
   `⚠ OSM unreachable — cause localized from disk grep, verify against the live module`.
-- **Browser MCP or instance unreachable:** ask the user to paste the exact console error text,
-  the failing network entry, and a screenshot of the broken screen; reason from those only and
-  prefix the output with `⚠ Instance unreachable — diagnosis from user-supplied console/screenshot only`.
+- **Browser MCP or instance unreachable:** if the orchestrator already supplied console log text,
+  network entries, or a screenshot path in context, use those directly for the diagnosis. If no
+  pre-captured evidence is available, return `BLOCKED(Browser MCP/instance unavailable - cannot
+  capture runtime evidence)` to the orchestrator. Do NOT ask the user to paste console output or
+  screenshots. Prefix the output (if evidence was pre-supplied) with
+  `⚠ Instance unreachable - diagnosis from pre-captured evidence only`.
 
 ## Output format
 

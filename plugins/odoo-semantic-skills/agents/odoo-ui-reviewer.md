@@ -57,11 +57,14 @@ Work in steps. Fire independent MCP/browser calls within a step in the same mess
 
 ### Step 0 — Load context
 
-Read `.odoo-ai/context.md` in the project root if present. It uses Markdown bullets, NOT YAML —
+Read `.odoo-ai/context.md` in the project root if present. It uses Markdown bullets, NOT YAML -
 parse lines of the form `- **key**: value`. Extract `odoo_version`, `instance_base_url`,
-`instance_login`, and `screenshot_baseline_dir`. If the file is absent or a key is missing, report
-back to the main agent asking for the missing value rather than guessing. Pin the version for OSM
-calls when known; default to 17.0 and note the assumption if ambiguous.
+`instance_login`, and `screenshot_baseline_dir`. Auto-resolve anything still missing before
+escalating, using the plugin's own portable conventions: `odoo_version` via
+`list_available_versions` (or default 17.0 with a noted assumption); `instance_base_url` from
+`.odoo-ai/instances.toml` (written by `/odoo-semantic-skills:setup`); `screenshot_baseline_dir`
+defaults to `.odoo-ai/visual/baselines/`. Only report back to the main agent for a value that
+none of these resolve - in practice just `instance_login` when no credential source exists.
 
 ### Step 1 — Ground the screen in code (parallel, OSM)
 
@@ -72,9 +75,14 @@ calls when known; default to 17.0 and note the assumption if ambiguous.
 
 ### Step 2 — Capture and exercise the live screen (browser)
 
-Navigate to the screen (logging in first), `take_screenshot` (desktop), `take_snapshot` for the
-DOM/a11y tree, then `list_console_messages` to capture runtime errors. Use `evaluate_script` to
-probe live state when needed.
+Authenticate first, reusing a saved session to avoid re-login: if
+`${screenshot_baseline_dir}/storageState-admin.json` exists, load that session state; otherwise
+fill the login form at `<instance_base_url>/web/login` with `instance_login` and the password
+from the agreed credential source recorded with `instance_login` (never stored in the repo and
+never hard-coded), then save the resulting session state there for reuse (per
+`docs/odoo-ui-knowledge.md`). Then navigate to the screen,
+`take_screenshot` (desktop), `take_snapshot` for the DOM/a11y tree, then `list_console_messages`
+to capture runtime errors. Use `evaluate_script` to probe live state when needed.
 
 ### Step 3 — Accessibility + performance
 
@@ -109,8 +117,10 @@ that owns the rule; `suggest_pattern` / `find_override_point` when a structural 
 location. Compile the six-lens verdict.
 
 If OSM is unreachable, skip Steps 1 and 5 and grep the repo on disk for the view/stylesheet, noting
-the fallback. If the browser/instance is unreachable, ask the main agent to supply screenshots and
-review from those only, prefixed with a `⚠` warning.
+the fallback. If the browser/instance is unreachable: review from screenshots only if the
+orchestrator already supplied them in context (prefix `⚠ Instance unreachable - review limited to
+pre-captured screenshots`); otherwise return `BLOCKED(Browser MCP/instance unavailable - cannot
+capture the live screen)`. Do NOT ask for screenshots to be pasted.
 
 ---
 

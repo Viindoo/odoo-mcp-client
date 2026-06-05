@@ -86,7 +86,20 @@ batch them in one round to cut total latency from 4 sequential calls to 2 total 
 
 ## Standalone-first fallback
 
-When OSM is unreachable, the skill asks the user to provide official Odoo release notes or changelog. The skill still produces marketing highlights based on changelog text parsing + training knowledge, with business-language narrative — with caveat "not yet verified against the code index; check details when OSM is back online".
+When OSM is unreachable, follow the three-tier grounding order from
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+
+1. **Tier 2 - self-serve first:**
+   - `WebFetch` the official release notes page:
+     `https://www.odoo.com/odoo-<version>/release-notes`
+   - If that fails, `WebFetch` the GitHub CHANGELOG or tag release page, e.g.
+     `https://github.com/odoo/odoo/blob/<version>/CHANGELOG.rst` or
+     `https://github.com/odoo/odoo/releases/tag/<version>`.
+   - Label any artifact built this way `grounded: local-source (not OSM-indexed)`.
+2. **Tier 3 - only if both fetches fail:** generate highlights from training knowledge
+   and prepend `OSM unavailable - ungrounded`; add caveat "not yet verified against the
+   code index; check details when OSM is back online". Never ask the caller to paste or
+   supply release notes - those are Tier-2 fetches.
 
 ## Output format
 

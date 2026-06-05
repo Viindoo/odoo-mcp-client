@@ -484,7 +484,7 @@
       ],
       "optional_params": [],
       "return_type": "object",
-      "example_call": "set_active_profile(profile_name='viindoo-internal')",
+      "example_call": "set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')",
       "deprecated_by": null,
       "routing_keywords": [
         "set profile",

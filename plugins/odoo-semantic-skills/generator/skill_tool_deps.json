@@ -16,7 +16,6 @@
         "list_available_versions",
         "list_available_profiles"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.10.0",
       "deprecated_tools_used": [],
       "notes": "BRL engine: chunked 4-way classify (double-profile check_module_exists) + deterministic cost (cost-config.json) + RTM deliverables. Phase D DAG (module_inspect dependencies) deferred. min_server 0.10.0 for set_active_profile + list_available_profiles."
@@ -28,7 +27,6 @@
         "module_inspect",
         "set_active_version"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
@@ -38,7 +36,6 @@
         "check_module_exists",
         "find_examples"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": "Standalone-first. OSM tools optional for feature claim grounding only."
@@ -51,7 +48,6 @@
         "model_inspect",
         "set_active_version"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
@@ -61,7 +57,6 @@
         "check_module_exists",
         "find_examples"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": "Standalone-first. OSM tools optional for feature verification only."
@@ -71,7 +66,6 @@
         "check_module_exists",
         "find_examples"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": "Standalone-first. OSM tools optional for grounding feature claims in content."
@@ -85,7 +79,6 @@
         "set_active_profile",
         "set_active_version"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
@@ -94,7 +87,6 @@
       "mcp_tools": [
         "check_module_exists"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": "Standalone-first. check_module_exists optional — only when user requests feature fact-check."
@@ -106,7 +98,6 @@
         "model_inspect",
         "module_inspect"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": "Standalone-first. OSM optional — only to plan the demo click path; video capture is browser-MCP side."
@@ -118,7 +109,6 @@
         "module_inspect",
         "set_active_version"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.8.0",
       "deprecated_tools_used": [],
       "notes": ""
@@ -132,7 +122,6 @@
         "module_inspect",
         "set_active_version"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
@@ -142,7 +131,6 @@
         "check_module_exists",
         "find_examples"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": "Standalone-first. OSM tools optional — only when user requests pain-point verification."
@@ -156,7 +144,6 @@
         "set_active_version",
         "suggest_pattern"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
@@ -169,7 +156,6 @@
         "model_inspect",
         "set_active_version"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
@@ -183,10 +169,6 @@
         "module_inspect",
         "set_active_version",
         "suggest_pattern"
-      ],
-      "ollama_tools": [
-        "explain_code",
-        "generate_code"
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
@@ -202,7 +184,6 @@
         "set_active_version",
         "suggest_pattern"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
@@ -215,7 +196,6 @@
         "set_active_version",
         "suggest_pattern"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
@@ -228,7 +208,6 @@
         "set_active_profile",
         "set_active_version"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
@@ -241,7 +220,6 @@
         "set_active_version",
         "suggest_pattern"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
@@ -256,21 +234,18 @@
         "set_active_profile",
         "set_active_version"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
     },
     "intake": {
       "mcp_tools": [],
-      "ollama_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
       "notes": "Pure text routing and brainstorm — no MCP tool calls. Tool names mentioned in routing table discriminators are references to OTHER skills' tools, not invocations by intake itself."
     },
     "wave": {
       "mcp_tools": [],
-      "ollama_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
       "notes": "Depth-0 git-wave orchestration skill — no MCP tools; spawns WI subagents over worktrees + cherry-pick + /code-review + squash. Outputs to .odoo-ai/wave/ (gitignored)."
@@ -284,7 +259,6 @@
         "module_inspect",
         "lookup_core_api"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
       "notes": "Runtime UI debugging. Browser MCP (chrome-devtools) drives the live instance; OSM localizes the cause. Known gap: no JS/OWL override-point tool — location inferred via module_inspect(js/owl) + find_examples."
@@ -297,7 +271,6 @@
         "module_inspect",
         "check_module_exists"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
       "notes": "Rendered-UI review (aesthetics/functional/stability/a11y/performance). Browser MCP (chrome-devtools) captures the live screen; OSM grounds findings in code. Companion agent: agents/odoo-ui-reviewer.md."
@@ -310,7 +283,6 @@
         "model_inspect",
         "set_active_version"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": ""
@@ -323,21 +295,18 @@
         "module_inspect",
         "model_inspect"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
       "notes": "Screenshot baseline + diff between two states/builds. OSM scopes the comparison via blast radius; browser MCP captures and diffs."
     },
     "odoo-support-triage": {
       "mcp_tools": [],
-      "ollama_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
       "notes": "Composition skill — no MCP tools called directly. NL-dispatches to odoo-ui-debug (bug path) and odoo-feature-check (feature-request path) via description-match. All outputs to .odoo-ai/support/ (gitignored, confidentiality-safe)."
     },
     "odoo-qa-suite": {
       "mcp_tools": [],
-      "ollama_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
       "notes": "Composition skill — no MCP tools called directly. NL-dispatches to odoo-deploy-checklist (QA checklist) and odoo-ui-debug (bug triage) via description-match. All outputs to .odoo-ai/qa/."
@@ -358,11 +327,6 @@
         "validate_domain",
         "validate_relation"
       ],
-      "ollama_tools": [
-        "complete_code",
-        "generate_code",
-        "review_code"
-      ],
       "min_server_version": "0.8.0",
       "notes": "Agent bundle — companion to odoo-coder slim SKILL.md. Tool list from agents/odoo-coder.md frontmatter."
     },
@@ -379,9 +343,6 @@
         "validate_domain",
         "validate_relation"
       ],
-      "ollama_tools": [
-        "review_code"
-      ],
       "min_server_version": "0.8.0",
       "notes": "Agent bundle — companion to odoo-code-reviewer slim SKILL.md. Tool list from agents/odoo-code-reviewer.md frontmatter."
     },
@@ -396,7 +357,6 @@
         "lint_check",
         "check_module_exists"
       ],
-      "ollama_tools": [],
       "min_server_version": "0.7.0",
       "notes": "Agent bundle — companion to odoo-ui-reviewer slim SKILL.md. Tool list from agents/odoo-ui-reviewer.md frontmatter."
     }

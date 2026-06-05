@@ -243,7 +243,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 | **Personas** | dev, CEO, consultant, marketer, sales |
 | **Required params** | `profile_name` |
 | **Optional params** | _(none)_ |
-| **Example call** | `set_active_profile(profile_name='viindoo-internal')` |
+| **Example call** | `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` |
 | **Routing keywords** | set profile, use profile, switch to profile, pin profile, set active profile, set_active_profile |
 
 ### list_available_versions ☆ (added v0.6.0+)

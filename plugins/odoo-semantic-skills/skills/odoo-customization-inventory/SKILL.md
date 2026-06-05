@@ -29,7 +29,7 @@ CEO / CTO / Project Manager
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
-- `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 
 **Primary tools:**
@@ -99,11 +99,17 @@ Flag modules with many deprecated API calls or overrides of unstable methods as 
 
 ## Standalone-first fallback
 
-When OSM unreachable, skill asks user to provide module list and any available `__manifest__.py`
-snippets (or `__openerp__.py` for legacy modules). Skill still creates inventory table based
-on manifest + text analysis, classifying each module and inferring business purpose from name
-+ manifest description, with caveat "detailed code & inheritance not yet scanned — verify
-when OSM is back online".
+When OSM unreachable, follow the three-tier grounding protocol defined in
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. Specifically:
+
+- **Tier 2 (disk):** Run `find . -maxdepth 3 -name "__manifest__.py"` (also
+  `__openerp__.py` for legacy modules), then `Read` each manifest to extract `name`,
+  `summary`, `depends`, and `version`. Build the inventory from those files directly.
+  Only ask the user if the working directory is not an Odoo repo and no manifests are
+  found anywhere within 3 levels.
+- **Tier 3 (training):** If no readable manifests exist, classify modules from
+  training knowledge with caveat `OSM unavailable - ungrounded` and
+  "detailed code & inheritance not yet scanned - verify when OSM is back online".
 
 ## Output format
 

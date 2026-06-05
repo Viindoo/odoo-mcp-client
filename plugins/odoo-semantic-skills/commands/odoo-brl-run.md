@@ -46,13 +46,19 @@ For a **short ad-hoc gap matrix** (no cost, no scale): use `/odoo-gap-analysis` 
 
 1. Extract customer label from `$ARGUMENTS`. If absent, use "Customer-A" as default or
    ask the user in a single brief message.
-2. Fire the `odoo-brl` skill via NL dispatch:
+2. **Resolve the BRL content yourself.** If `$ARGUMENTS` contains a file path (ends in
+   `.csv`/`.md`/`.txt`/`.xlsx`, or passes a file-exists check), `Read` it and embed the actual
+   content into the dispatch. If the BRL is already present in the invocation context, use that.
+   Only ask for a path or paste when no source is available.
+3. Fire the `odoo-brl` skill via NL dispatch (substitute the real BRL content, never leave a
+   placeholder):
 
 > "Process this business requirement list for [CUSTOMER_LABEL]: classify each requirement
 > as Available-in-Odoo-CE, Available-in-Odoo-EE, Available-in-Viindoo, or Custom using
 > double-profile MCP checks; compute deterministic cost from cost-config.json; produce
 > a full RTM (rtm.csv + results.jsonl) and executive report (report.md) in
-> .odoo-ai/brl/[CUSTOMER_LABEL]-[DATE]-[HEX]/. Input: [paste BRL here or describe source]."
+> .odoo-ai/brl/[CUSTOMER_LABEL]-[DATE]-[HEX]/. Input: [embed the BRL content read above; if a
+> file_path was given, use the Read output]."
 
 The skill handles all phases (INGEST, GATE 0, Phase A-B-C-E, GATE E) with checkpoint/resume.
 
@@ -75,8 +81,9 @@ If OSM is unreachable, the skill degrades gracefully: LLM-based classification
 ```
 /odoo-brl-run Customer-A
 ```
-Starts BRL pipeline for Customer-A. User pastes requirement list or provides file path.
-GATE 0 presents plan. After approval: classify -> cost -> evidence -> DAG -> GATE E -> deliverables.
+Starts BRL pipeline for Customer-A. The command reads the BRL from a file path in `$ARGUMENTS`
+or from the invocation context (paste is the last resort). GATE 0 presents plan. After
+approval: classify -> cost -> evidence -> DAG -> GATE E -> deliverables.
 
 ```
 /odoo-brl-run
@@ -88,4 +95,5 @@ Defaults to Customer-A label. Same flow.
 - Does NOT send emails or upload files
 - Does NOT commit anything to the repo (all artifacts in `.odoo-ai/brl/`)
 - Does NOT guarantee OSM availability - degrades gracefully when unreachable
-- Does NOT replace human review of cost estimates before sending to clients
+- Does NOT externalize cost estimates without passing GATE E (the approval gate is the
+  safeguard before any deliverable is shared, whether the caller is a human or an orchestrator)

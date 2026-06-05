@@ -82,8 +82,18 @@ Do NOT ask multiple questions. Make reasonable defaults if user is partially spe
 
 ### Round 1 — Competitor snapshot
 
-Gather the following from user's stated knowledge, pasted materials, or context.
-Mark any field as `Unknown` if not provided — never invent.
+**Pre-Round (agent self-serve before marking anything Unknown):**
+
+Before marking any field Unknown, attempt to fill it from available sources:
+1. `Read` the vault dossier at `Resources/Competitors/<name>.md` if it exists.
+2. `WebSearch` `"<competitor> features pricing"` (or `"<competitor> Vietnam ERP"` for
+   local players) to surface public product/pricing pages, LinkedIn About, or press
+   releases.
+3. `WebFetch` the competitor's pricing or features page when a URL is discoverable.
+
+Pre-fill every field from the above tiers. Only then mark fields as `Unknown` when all
+three tiers return no signal - never invent. Quote the source inline for any field
+populated from an external fetch.
 
 Required fields:
 - **Name** — formal company name
@@ -94,9 +104,6 @@ Required fields:
 - **Target segment** — SME / Mid-market / Enterprise; verticals if known
 - **Headcount band** — S (<50) / M (50-200) / L (200-1000) / XL (>1000)
 - **Funding / ownership** — bootstrapped / PE-backed / listed / subsidiary
-
-If the user provides raw paste (press release, LinkedIn post, product page), extract
-these fields from the paste. Quote the source inline.
 
 ---
 
@@ -346,9 +353,9 @@ If the project has an `.odoo-ai/context.md` file, the skill will read it for:
 - Your platform's current product roadmap signals (to inform capability matrix and response recommendations)
 - Known active competitors already tracked by the team
 
-The skill does NOT auto-read external competitor profiles. If you maintain competitor dossiers
-in documentation or knowledge base, paste the relevant section into the chat —
-the skill will incorporate it into the appropriate round.
+The skill reads vault competitor dossiers directly at `Resources/Competitors/<name>.md`
+rather than asking the caller to paste them. If the dossier is present on disk, its
+content is loaded as part of Round 1 Pre-Round automatically.
 
 ### Confidentiality notice
 

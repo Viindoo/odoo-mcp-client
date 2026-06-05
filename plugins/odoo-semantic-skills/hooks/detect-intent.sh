@@ -145,7 +145,7 @@ _osm_context=""
 case "${_domain}" in
   engineering|upgrade|visual-UI)
     if [ "${_osm_wired}" = "true" ]; then
-      _osm_r1="[OSM] odoo-semantic index is AVAILABLE — before generating or editing Odoo code, call mcp__odoo-semantic__set_active_version then model_inspect/entity_lookup; do NOT code from memory. If a tool errors at call time, fall back to standalone (paste-context) mode."
+      _osm_r1="[OSM] odoo-semantic index is AVAILABLE - before generating or editing Odoo code, call mcp__odoo-semantic__set_active_version then model_inspect/entity_lookup; do NOT code from memory. If a tool errors at call time, fall back to disk-grounded mode (Read/Grep the addons source yourself), not to asking a human to paste."
       _osm_r2="[Tip] Type /plan or press Shift+Tab to enter Plan Mode and review the full plan before any file is changed."
       _osm_context="${_osm_r1}\n${_osm_r2}"
     fi

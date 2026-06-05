@@ -529,7 +529,7 @@ Verify: ./run_tests.sh sale_order
 # Three disjoint fixes (independent, candidate for wave)
 WI-A → odoo-coder (sonnet, S)        bug fix in account_move
 WI-B → odoo-coder (sonnet, S)        unit test for WI-A
-WI-C → (inline edit) (haiku, S)      docs update
+WI-C → (inline edit) (sonnet, S)     docs update (sonnet: docs update is a write phase)
 DAG: independent (no edges) → hand to `wave` for parallel delivery
 ```
 
@@ -701,7 +701,7 @@ and must be preserved in new workflows.
 
 | Tier | When to use |
 |------|-------------|
-| `haiku` | Read-only lookup, classification, simple Q&A with no writes |
+| `haiku` | Read-only lookup, classification, simple Q&A with no writes. NEVER for write phases or for multi-tool OSM synthesis (capability tables, feature verdicts) - use `sonnet` |
 | `sonnet` | Write tasks, edits, single-file refactor, review — **floor for write phases** |
 | `opus` | Cross-file reasoning, orchestration parent, DAG cluster reasoning — max 3 concurrent |
 

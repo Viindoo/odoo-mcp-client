@@ -18,12 +18,11 @@ Optional: supply customer label on the command line (e.g., `Customer A`). If omi
 ## Hard rules
 
 - **Read context first**: Check `.odoo-ai/context.md` for CRM metadata and pipeline rules before drafting. This ensures the drafted email aligns with your deal context.
-- **Gather deal inputs**: Ask the user for required information:
+- **Use what the caller already gave, then ask only for gaps**: the deal details are usually already in the request (an orchestrator passing structured data, or the sales user stating it) or recorded in `.odoo-ai/context.md`. Do not make a human retype anything already present. If this environment happens to expose a live CRM/ERP or email integration you may optionally enrich from it, but never assume one exists - this command must work for an agent that has only the request text and local files. Ask the user **only** for fields still unresolved:
   - Customer label or short name (e.g., "ABC Manufacturing")
-  - Last touch date (when you last communicated with the customer)
-  - Current pipeline stage (e.g., "Proposal", "Negotiation", "Stalled")
+  - Last touch date - only if not already provided
+  - Current pipeline stage - only if not already provided
   - Prior commitments or blockers (e.g., "waiting on PO", "evaluating competing offer")
-  - Optional: paste a snippet or subject of the prior email thread (for tone continuity)
 - **Gate before saving**: Display the drafted email to the user. Explicitly ask: "Email draft OK? (yes / iterate / cancel)". Do not write to disk unless the user confirms "yes".
 - **No auto-send**: This command **only drafts**. It does not send email, update CRM systems, or trigger workflows.
 
@@ -31,9 +30,9 @@ Optional: supply customer label on the command line (e.g., `Customer A`). If omi
 
 ### Phase 0: Parse inputs and gather deal context
 1. Parse `$ARGUMENTS` for an optional customer label.
-2. If not provided, ask: "Customer name or label?"
-3. Ask for: last touch date, pipeline stage, prior commitments/blockers, optional prior email thread (for tone).
-4. Read `.odoo-ai/context.md` to load CRM metadata, pipeline rules, and any standing objection handlers.
+2. Read `.odoo-ai/context.md` to load CRM metadata, pipeline rules, and any standing objection handlers.
+3. Pull the deal details already present in the invocation context (caller-provided data, prior conversation). Pre-fill everything available. Optionally enrich from a live CRM/email integration only if this environment exposes one - never assume it.
+4. If the customer label is still unknown, ask: "Customer name or label?" Ask for any remaining unresolved field (last touch, stage, blockers) in a single batched message - never for data already supplied.
 
 ### Phase 1: Trigger odoo-deal-followup skill
 Invoke the `odoo-deal-followup` skill via natural-language prompt. Supply:
@@ -92,12 +91,12 @@ On user "yes":
 
 ## Standalone fallback
 
-If `odoo-deal-followup` skill is unavailable, prompt the user to manually paste the deal context (customer label, last touch date, prior commitments) and any prior email thread. Command produces a basic follow-up draft from those inputs without risk-score heuristics. User must manually compute urgency and choose CTA.
+If `odoo-deal-followup` skill is unavailable, do not hand the work back to the user: synthesize the follow-up yourself from the deal data already in context, inferring an urgency level from days-since-last-touch versus stage and choosing a CTA accordingly. Mark the draft `risk: agent-inferred (skill offline)`. Only ask the user for a field no source provided.
 
 ## What this command does NOT do
 
-- **Does NOT send email**: only drafts to disk. You copy-paste or forward from the draft file to your email client.
-- **Does NOT update CRM**: no ERP, Salesforce, or HubSpot sync. Manual step required.
+- **Does NOT auto-send email**: it drafts to `.odoo-ai/followups/<slug>.md` and emits the path for the caller to use. Sending or queuing the email is left to the orchestrator/environment (whatever email integration it has), and always requires explicit confirmation.
+- **Does NOT change CRM/opportunity fields** (amount, stage) and does not assume any live CRM integration. Logging the follow-up back to a CRM, if desired, is the orchestrator's call using whatever integration the environment provides.
 - **Does NOT handle objections directly**: if the customer raises a technical or pricing objection, use the `odoo-objection-handler` skill separately for a deeper response.
 - **Does NOT escalate**: no manager notification or workflow trigger.
 

@@ -58,13 +58,25 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 ## Workflow
 
-### Round 0 - Confirm campaign inputs
+### Round 0 - Context bootstrap + confirm campaign inputs
 
-Before building the plan, confirm all six inputs. If more than one is missing, ask ONE
-compound question. If the user's request contains enough context, infer reasonable defaults
-and proceed — offer to adjust afterward.
+Before asking the user for anything, read what onboarding already captured
+(see `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`):
 
-**Required inputs:**
+1. **Read `.odoo-ai/context.md`** if present. Extract and apply as authoritative overrides:
+   - `odoo_version` - used as the default for all feature-claim verification and version
+     references in the plan.
+   - Audience personas / messaging pillars defined there override this skill's generic
+     defaults.
+   - Channel restrictions (e.g., "no paid ads", "LinkedIn only") recorded there are applied
+     without asking.
+2. If the file is absent, proceed with this skill's generic defaults.
+
+After the bootstrap, confirm only what is still missing. If more than one input is unclear,
+ask ONE compound question. If the user's request contains enough context, infer reasonable
+defaults and proceed - offer to adjust afterward.
+
+**Required inputs (resolved by bootstrap or user):**
 1. **Target vertical or geo**: which industry (manufacturing, trading, services, F&B, retail)
    or geography (Hanoi, HCMC, Mekong Delta, export market) is this campaign for?
 2. **Campaign objective**: lead generation, brand awareness, product launch / release
@@ -77,8 +89,8 @@ and proceed — offer to adjust afterward.
    - **L (Large)**: full paid mix; LinkedIn Ads + Google Search + YouTube + landing page + email
 5. **Available channels**: which channels can the team actually publish to? (LinkedIn company
    page, personal LinkedIn, blog/website, YouTube, email list, Facebook/Zalo page, paid ads)
-6. **Odoo version / edition** (default: read from `.odoo-ai/context.md` if present; fallback
-   to "Odoo 17 CE" if file absent)
+6. **Odoo version / edition** (resolved from `.odoo-ai/context.md` in bootstrap step above;
+   fallback to "Odoo 17 CE" if file absent and user does not specify)
 
 ### Round 1 - Frame the campaign angle
 
@@ -344,10 +356,11 @@ When OSM is unreachable or the skill is used without MCP configuration:
 
 ## Notes
 
-- **Project context file**: if the working repository contains `.odoo-ai/context.md`, read it
-  at session start for Odoo version default, target audience personas, approved messaging
-  pillars, and any channel restrictions. Settings in that file take precedence over this
-  skill's generic defaults.
+- **Project context file**: `.odoo-ai/context.md` is read automatically in Round 0
+  (see `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) - not at the end as an
+  optional note. `odoo_version`, audience personas, approved messaging pillars, and channel
+  restrictions found there are applied as authoritative overrides before any clarification
+  question is asked.
 - **Brand assets**: for color palette, logo usage, and typography guidelines, refer to your
   project's brand guidelines document if one is checked into the working repository (e.g.,
   `branding/STYLE.md` or equivalent). This skill produces a planning document, not visual

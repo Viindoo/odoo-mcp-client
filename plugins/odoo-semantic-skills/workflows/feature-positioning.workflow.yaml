@@ -30,7 +30,7 @@ phases:
       exists Y/N, supported editions (CE / EE / distribution), key modules that provide
       the feature, and key fields or API landmarks. If the feature does not exist in any
       edition, stop and inform the user.
-    model_tier: haiku
+    model_tier: sonnet
     gate: "approve / refine: [feedback] / cancel"
 
   - id: addon-diff
@@ -41,7 +41,7 @@ phases:
       EE | Dist., using Y/check for available and N/dash for not available. Highlight any
       edition-specific enhancements or distribution-exclusive capabilities. If the feature
       exists in only one edition, note that and proceed without a full table.
-    model_tier: haiku
+    model_tier: sonnet
     gate: "approve / refine: [feedback] / cancel"
 
   - id: competitive-brief

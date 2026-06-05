@@ -57,10 +57,6 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches in one call.
 - `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
-
-**Ollama-delegate tools** (local model, cost-free):
-- `mcp__ollama-delegate__explain_code`
-- `mcp__ollama-delegate__generate_code`
 <!-- END GENERATED TOOLS -->
 
 ## Phase 0 — Scope preview (1-turn gate)
@@ -78,7 +74,7 @@ Proceed? (yes / refine: [feedback] / cancel)
 
 - **Proposed** — one sentence: what JS/OWL/XML artifact will be created or changed, and in which module (located via `module_inspect` / Read / Grep — you find the right file yourself).
 - **Files** — the files you will write/edit, plus the `__manifest__.py` assets entry.
-- **OSM** — set to `backed` when the OSM MCP server is reachable and its tools (`find_examples`, `module_inspect`, etc.) will be used in subsequent rounds; after confirmation you **write/apply** the code to those files. Set to `standalone` when OSM is unreachable and the skill will fall back to pasted code only (no file writes). OSM tools improve accuracy for all frontend work and are **required for any styling/theme work** to ground design tokens (see Design-system fidelity below); when OSM is unreachable, say so and lower confidence rather than inventing token names.
+- **OSM** - set to `backed` when the OSM MCP server is reachable and its tools (`find_examples`, `module_inspect`, etc.) will be used in subsequent rounds; after confirmation you **write/apply** the code to those files. Set to `standalone` when OSM is unreachable; the skill uses disk-grounded mode (Read/Grep local source - see Standalone-first fallback) and still writes files. OSM tools improve accuracy for all frontend work and are **required for any styling/theme work** to ground design tokens (see Design-system fidelity below); when OSM is unreachable, say so and lower confidence rather than inventing token names.
 - Wait for the user to reply `yes` before proceeding to Round 0 below. On `yes`, write the files to their correct locations. If they reply `refine: …`, update the scope and re-emit the block. If they reply `cancel`, stop.
 
 ## Design-system fidelity (mandatory whenever you touch SCSS / theme / component styling)
@@ -148,14 +144,12 @@ Reveals the exact class path and override chain. If `module_inspect` in Round 0 
 surfaced the override path, skip this call and use that data directly.
 Skip entirely for greenfield widget creation.
 
-#### Round 3 — Generate boilerplate
+#### Round 3 — Write the boilerplate
 
-```
-mcp__ollama-delegate__generate_code(
-    task="<concise JS task description> for Odoo v<N> using <pattern: odoo.define / AbstractField / Widget.include>",
-    context="<paste examples + API diff from rounds 1-2>"
-)
-```
+Write the legacy JS yourself for Odoo v<N> using the right pattern for the version
+(`odoo.define` / `AbstractField` / `Widget.include`), grounded in the examples and API diff
+gathered in Rounds 1-2. Use the `find_examples` snippets as the structural template so import
+paths and lifecycle hooks match the target version.
 
 #### Round 4 — Assemble complete output
 
@@ -224,19 +218,14 @@ Run all of the following simultaneously — they are independent:
 If authoritative hook/registry API details are still missing after step 3, also call
 `lookup_core_api` in this round.
 
-#### Round 3 — Generate component boilerplate
+#### Round 3 — Write the component
 
-```
-mcp__ollama-delegate__generate_code(
-    task="OWL <1.x|2.x> component: <precise description, hooks needed, data sources>",
-    context="<most relevant example snippets + registry category + verified import paths>"
-)
-```
+Write the OWL `<1.x|2.x>` component yourself - the `setup()` + lifecycle hooks + template, any
+`patch()` block with method overrides, and the `registry.category('…').add(…)` registration -
+grounded in the example snippets, registry category, and verified import paths from Rounds 1-2.
+Use the `find_examples` snippets as the structural template.
 
-Prefer `generate_code` for: new Component class with `setup()` + lifecycle hooks + template,
-`patch()` block with method overrides, `registry.category('…').add(…)` registration.
-
-Write logic directly (without delegating) when:
+Reason carefully (step by step before writing) when:
 - Logic crosses multiple OWL components via `useChildSubEnv` / `useBus`
 - Custom service with state surviving component unmount
 - Patch must call `super` at a position-sensitive point relative to side effects
@@ -283,12 +272,21 @@ bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <changed-files>
 
 ## Standalone-first fallback
 
-When OSM (the `odoo-semantic-mcp` server) is unreachable or returns errors:
+When OSM is unreachable, follow the three-tier grounding in
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-1. Ask the user to paste the relevant existing code (widget class, component, or manifest excerpt).
-2. Ask the user to confirm the **exact Odoo version** (e.g., "12.0", "17.0").
-3. Proceed with Rounds 3–4 using only the pasted code as context — skip MCP discovery calls.
-4. Prefix output with: `⚠ OSM unreachable — generated from pasted code only. Verify import paths against your actual codebase.`
+- **Tier 2 - Version:** Read `.odoo-ai/context.md` for `odoo_version`. If absent, derive from
+  any manifest's `version` field (`find . -maxdepth 4 -name __manifest__.py | head -1` then
+  Read; first two dotted components = Odoo version).
+- **Tier 2 - Existing source:** Use `Grep`/`Read` to locate the existing widget class,
+  component, or module JS entry point yourself - `grep -rn "odoo.define\|@odoo-module\|patch("
+  --include=*.js <module>/static/src/`; `Read` the relevant file. Use `find <module>/static -name "*.xml"` for QWeb templates.
+- **Write behavior:** After grounding from disk, still write the output files to their correct
+  locations; emit copy-pasteable blocks only when the repo itself is inaccessible.
+- **Label:** Use `grounded: local-source (not OSM-indexed)` when built from disk.
+  Use `OSM unavailable - ungrounded` only when neither OSM nor local source is available.
+- Escalate to the caller (`NEEDS_CONTEXT`) only for secrets/credentials or genuine business
+  decisions - never ask a human to paste code or confirm a version that is readable from disk.
 
 ## Output format
 
@@ -375,8 +373,9 @@ registry.category("<category>").add("<key>", <ComponentName>);
 When OSM is reachable, write these files to their correct locations (creating new files,
 editing existing ones — append the assets entries to `__manifest__.py` rather than
 overwriting) and report a patch-preview summary of what you wrote. In the Standalone-first
-fallback, emit the same blocks as copy-pasteable code for the user to place manually. If
-imports differ by version, show both with a comment.
+fallback, follow disk-grounded mode: locate the correct files via Read/Grep and still write
+them; emit copy-pasteable blocks only when the repo itself is inaccessible (label accordingly
+per the fallback section). If imports differ by version, show both with a comment.
 
 ## Examples
 
@@ -389,7 +388,7 @@ Prompt: "Create a color picker field widget for selection field in Odoo 12"
 - Round 1 (parallel): `api_version_diff("8.0", "12.0")` → confirms `AbstractField` stable since v10.
   `find_examples("color picker widget AbstractField Odoo 12", odoo_version='auto')` → real examples from index.
 - Round 2: greenfield widget — skip `find_override_point`.
-- Round 3: `generate_code(task="AbstractField subclass ColorPickerWidget for selection field, Odoo 12", context=<findings>)`.
+- Round 3: write an `AbstractField` subclass `ColorPickerWidget` for the selection field (Odoo 12) directly, grounded in the Round 1-2 findings.
 - Round 4: Output — full JS subclassing `AbstractField` + jQuery color picker init in `start()` +
   QWeb2 XML template + manifest entry under `web.assets_backend`.
 
@@ -401,7 +400,7 @@ Prompt: "override list view to add a total row at the bottom in Odoo 11"
   `module_inspect(name=<module>, method='js', odoo_version='auto')` → existing patch chain (check conflicts).
 - Round 1: `find_examples("ListController renderView total row Odoo 11", odoo_version='auto')`.
 - Round 2: `find_override_point("ListController", "renderView", odoo_version='auto')` → exact class path + chain.
-- Round 3: `generate_code(task="ListController.include patch to append total row, Odoo 11", context=<findings>)`.
+- Round 3: write the `ListController.include` patch that appends a total row (Odoo 11) directly, grounded in the findings.
 - Round 4: `odoo.define` with `Widget.include({renderView: …})` + QWeb2 partial for row + manifest.
 
 **Example 3 — v17 OWL: dashboard client action**
@@ -412,7 +411,7 @@ Prompt: "Create an OWL component to display a sales order summary dashboard in O
 - Round 1: v17 → OWL 2.x, `patch(Class, {…})`, lifecycle hooks from `@odoo/owl`.
 - Round 2 (parallel): `module_inspect(method='owl', odoo_version='auto')` + `module_inspect(method='qweb', odoo_version='auto')` +
   `find_examples("dashboard OWL component Odoo 17", odoo_version='auto')`. No override point — new component.
-- Round 3: `generate_code(task="OWL 2.x dashboard component fetching sale.order stats via useService('orm') with useState + onWillStart", context=<examples>)`.
+- Round 3: write the OWL 2.x dashboard component directly - fetching `sale.order` stats via `useService('orm')` with `useState` + `onWillStart` - grounded in the example snippets.
 - Round 4: Output — JS with `/** @odoo-module **/`, `SaleOrderDashboard` class with `setup()`,
   template XML with KPI cards, action registration under `registry.category('actions')`, manifest entry.
 
@@ -423,7 +422,7 @@ Prompt: "patch the sale order form to add a custom button using OWL in Odoo 16"
 - Round 0: `odoo_version: 16.0`. Version gate → OWL 2.x.
 - Round 2 (parallel): `find_examples("patch FormController OWL Odoo 16", odoo_version='auto')` +
   `find_override_point("SaleOrderForm", "actionConfirm", odoo_version='auto')`.
-- Round 3: `generate_code(task="OWL 2.x patch FormController adding confirmWithComment button", context=<findings>)`.
+- Round 3: write the OWL 2.x `patch(FormController, …)` adding a `confirmWithComment` button directly, grounded in the findings.
 - Round 4: JS `patch(FormController, { confirmWithComment() {…} })` + XPath template override +
   manifest. OWL version note: "In v15 use `patch(FormController.prototype, 'sale_custom.patch', {…})`
   — prototype and name arguments were removed in v16."
@@ -433,8 +432,9 @@ Prompt: "patch the sale order form to add a custom button using OWL in Odoo 16"
 - **`.odoo-ai/context.md` integration (Phase B forward-wiring):** If the project has been
   initialized with `odoo-onboard`, `.odoo-ai/context.md` contains `odoo_version`, `profile`,
   and `custom_modules`. Round 0 reads this file first so the skill auto-selects the correct
-  framework without asking the user for the version each time. If the file is absent, the skill
-  asks the user to state the Odoo version.
+  framework without asking for the version. If the file is absent, derive the version from
+  discovered manifests before asking - see context-bootstrap steps in
+  `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`.
 - **Why indexed examples beat training memory:** Internal hook names and registration APIs
   shift between minor releases. `find_examples` and `find_override_point` reflect the actual
   indexed code for the user's repo — always prefer these over training knowledge when there is

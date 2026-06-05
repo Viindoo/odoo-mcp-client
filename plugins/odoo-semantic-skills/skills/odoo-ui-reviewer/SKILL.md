@@ -71,9 +71,12 @@ are handed to `odoo-frontend-coder`.
 - **OSM (the `odoo-semantic-mcp` server) unreachable:** the agent skips the code-grounding steps and instead greps
   the repo on disk for the relevant view and stylesheet, prefixing the output with
   `⚠ OSM unreachable — style/view origin inferred from disk, verify against the live module`.
-- **Browser MCP or instance unreachable:** the agent asks the user to paste the screen URL and
-  attach screenshots, reviews aesthetics/a11y from the supplied images only, and prefixes the
-  output with `⚠ Instance unreachable — review limited to user-supplied screenshots`.
+- **Browser MCP or instance unreachable:** if the orchestrator has provided pre-captured
+  screenshot paths in context, use those directly for aesthetics/a11y review. If no pre-captured
+  screenshots are available, return `BLOCKED(Browser MCP unavailable - cannot capture screenshots
+  for review)` to the orchestrator. Do NOT ask the caller to paste a URL or attach screenshots.
+  Prefix the output (if pre-captured evidence was used) with
+  `⚠ Instance unreachable - review limited to pre-captured screenshots`.
 
 ## Agent-managed tools
 

@@ -1,9 +1,9 @@
 ---
 name: odoo-gap-analysis
 description: >
-  Produce a structured gap analysis comparing client requirements against Odoo standard
+  Produce a gap analysis comparing client requirements against Odoo standard
   functionality, ending in a concrete effort matrix (Standard / Configuration / Extension /
-  Custom + S/M/L/XL day estimates) ready to paste into a proposal. Use this skill ANY time
+  Custom + S/M/L/XL day estimates), ready for a proposal or downstream skills. Use this skill ANY time
   someone is about to quote, scope, or estimate an Odoo project — even if they don't say
   "gap". Fire when the conversation contains a list of customer requirements + any hint of
   "what does Odoo do natively?" / "what needs to be built?" / "how many days?" / "what
@@ -30,7 +30,7 @@ Consultant / Project Manager
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
-- `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 
 **Primary tools:**
@@ -71,8 +71,16 @@ trust the MCP result. Use training knowledge only for effort estimation and busi
 Use parallel MCP calls to minimize latency — a gap analysis covering 10+ requirements can
 complete in 3 rounds instead of 30+ sequential calls.
 
-**Round 0 — Pin the version (once):** `set_active_version(odoo_version=…)` so every
-subsequent call inherits it.
+**Round 0 - Context bootstrap + pin:** Before asking the caller for any project fact,
+follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`: read `.odoo-ai/context.md`
+if present and extract `odoo_version` and `viindoo_profile` (never hard-code
+`viindoo-internal`). Use those values for `set_active_version(odoo_version=…)` and
+`set_active_profile(profile_name=…)`. If `.odoo-ai/context.md` is absent, derive version
+from manifests on disk per the context-bootstrap snippet before asking.
+
+The requirement list is already present in the invocation context - proceed with
+classification directly; do not ask the user to re-provide requirements that were stated
+in the original request.
 
 **Round 1 — Parallel:** Call `check_module_exists` for ALL requirements simultaneously.
 Each call is independent; there is no reason to wait for one before firing the next.
@@ -95,7 +103,12 @@ explain overruns.
 
 ## Standalone-first fallback
 
-When OSM is unreachable, ask the user to provide the requirement list and any context they have (workshop notes, RFP). The skill will still create a gap analysis report based on Odoo training knowledge — classify each requirement as Standard/Config/Extension/Custom based on core patterns — with effort estimates using heuristics. Include a caveat: "Classification not yet verified against code examples; double-check effort estimates once OSM is online."
+When OSM is unreachable, follow the three-tier grounding protocol defined in
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. The requirement list is
+already in the invocation context - proceed immediately without asking the user to
+re-provide it. Classify each requirement as Standard/Config/Extension/Custom based on
+Odoo training knowledge (Tier 3) and include a caveat: "Classification not yet verified
+against code examples; double-check effort estimates once OSM is online."
 
 ## Output format
 

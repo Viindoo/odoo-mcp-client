@@ -214,12 +214,28 @@ Pick ONE based on detected context:
 
 ## Standalone-first fallback
 
-When OSM (the `odoo-semantic-mcp` server) is unreachable: fall back to asking the user to manually paste or state the Odoo version and list of custom module names. The skill still creates `.odoo-ai/context.md` with flag `osm_verified: false` so downstream skills know the context is user-asserted (not index-verified).
+When OSM (the `odoo-semantic-mcp` server) is unreachable: still auto-discover modules
+via the disk probes in Steps 1 and 4 (`find . -maxdepth 3 -name "__manifest__.py"`; read
+each manifest). For Odoo version, attempt to read the `version` field from any discovered
+manifest (first two dotted components) or check `pyproject.toml` / `setup.cfg` for an
+Odoo version pin before asking the user. Only ask the user for the version if it cannot
+be inferred from any on-disk source. The skill still creates `.odoo-ai/context.md` with
+flag `osm_verified: false` so downstream skills know the context is user-asserted (not
+index-verified).
 
 ## Integration notes
 
-- **Phase A (current)**: Onboard writes `.odoo-ai/context.md`; existing 15 skills do NOT yet read it. The file is forward-compatible — its presence does not break anything.
-- **Phase B**: All `odoo-*` skills will be updated to add Round -1: read `.odoo-ai/context.md` if present, use values to skip user-prompts for version/profile/prefix. Onboard's context becomes the single source for project-scoped state.
+- **Phase A/B (current)**: Onboard writes `.odoo-ai/context.md`. Many `odoo-*` skills
+  now include a Round 0 context bootstrap (via
+  `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) that reads this file to
+  pre-fill `odoo_version`, `viindoo_profile`, and module list - skipping those questions
+  entirely. Skills updated to Round 0: `odoo-gap-analysis`, `odoo-support-triage`,
+  `odoo-qa-suite`, `odoo-risk-overview`, `odoo-customization-inventory`, and others
+  following the same snippet pattern. The file is forward-compatible - its presence does
+  not break skills that do not yet read it.
+- **Phase B (remaining)**: Any `odoo-*` skills not yet updated will be migrated to add
+  Round 0 via the context-bootstrap snippet. Onboard's context becomes the single source
+  for project-scoped state.
 - **Cross-runtime** (Phase D): Codex and Gemini will read the same `.odoo-ai/context.md` format. The schema is intentionally markdown (not JSON) for portability.
 - **Phase E (Visual)**: `.odoo-ai/context.md` is the single source of truth for instance URL and visual config. `/odoo-semantic-skills:setup` writes the `## Instance / Visual` section (instance_base_url, instance_login, visual_mcp, screenshot_baseline_dir); the visual skills (`odoo-ui-reviewer`, `odoo-ui-debug`, `odoo-visual-regression`, `odoo-demo-recorder`) read it at Round 0. Onboard preserves that section across refresh.
 

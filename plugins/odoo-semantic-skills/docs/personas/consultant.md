@@ -68,7 +68,7 @@ Quickly surface breaking changes before telling the client how smooth the upgrad
 
 ## Sample Consultant Questions
 
-Copy these prompts into your AI tool:
+Example invocations (an AI agent can run these directly as NL dispatch; a human reader can copy them into their AI tool):
 
 1. **Feature availability check:**
    > "Using odoo-semantic, does Odoo 17.0 have a native field service management module? Is it Community or Enterprise?"

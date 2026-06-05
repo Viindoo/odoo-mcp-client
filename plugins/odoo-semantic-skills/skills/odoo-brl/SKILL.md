@@ -35,7 +35,7 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
-- `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -600,7 +600,7 @@ On `approve`, write ALL deliverables atomically:
    VND amounts, or internal pricing into any file that could be committed to the repo.
    `.odoo-ai/brl/` is gitignored - all job artifacts stay there.
 4. **No cost fabrication:** All cost figures come from `cost-config.json` lookup.
-   No LLM-generated cost numbers. No Ollama for cost. If the config file is missing,
+   No LLM-generated cost numbers. If the config file is missing,
    stop and report: "cost-config.json not found - cannot compute deterministic cost."
 5. **OEEL-1 no-retry:** When check_module_exists returns a license notice, classify as
    Available-in-Viindoo and stop. Do NOT retry, do NOT call model_inspect on OEEL-1 modules.

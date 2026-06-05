@@ -48,17 +48,21 @@ that the runner cannot resolve to a standalone leaf skill.
 
 ## Phase 0 — Scope confirmation
 
+Before asking the caller for any project fact, follow
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`: read `.odoo-ai/context.md` if
+present and extract `odoo_version` and `modules`. Use those as defaults and skip asking
+for fields already resolved from context.
+
 Ask for all missing inputs in a single message (do not multi-turn):
 
 1. **Feature / module name** — e.g. `sale`, `custom_loyalty_program`, or a description
-   of the change being tested.
-2. **Odoo version** — e.g. `17.0`.
-3. **Open bugs to triage** (optional) — paste a list of bug titles/descriptions, or
-   `none` to skip the triage phase.
+   of the change being tested. (Skip if the module list is already clear from context.)
+2. **Odoo version** - e.g. `17.0`. (Skip if pre-filled from context.md.)
+3. **Open bugs to triage** (optional) - accepted as:
+   - A structured list of bug titles/descriptions already present in the request, OR
+   - A file path to a bug list file (Read it); never ask for a paste of content
+     that can be fetched from disk. Pass `none` to skip the triage phase.
 4. **Scope** — `unit` / `integration` / `both` (default: `both`).
-
-If `.odoo-ai/context.md` is present, pre-fill `odoo_version` and `modules` from it and
-skip those questions.
 
 Present a **soft-plan-gate** before running any phase:
 
