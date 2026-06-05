@@ -433,7 +433,7 @@ Execute  (writes-files specialist dispatched via Agent tool)
 | Depth | depth-1 (one hop from main context; these agents are leaves) |
 | Nesting | Recon agents MUST NOT spawn further sub-agents |
 | File writes | PROHIBITED — Read/Grep/Glob/Bash (read-only) only |
-| OSM | Read-only calls allowed; if unreachable, proceed on user-provided context |
+| OSM | Read-only calls allowed; if unreachable, fall back to disk (Read/Grep the local repo, WebFetch upstream source) per `disk-fallback-protocol.md` |
 | Count | ≤1–2 agents per Recon; not a fan-out pipeline |
 
 The nesting guard is described in full at

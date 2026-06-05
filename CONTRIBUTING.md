@@ -59,7 +59,7 @@ sensitive numeric values (pricing/OKR figures). Run `make validate && make test`
 | `plugins/odoo-semantic-skills/scripts/lib/` | Shared bash/python setup utilities (`config_merge.py`, `discover_odoo.sh`) reused by setup steps |
 | `plugins/odoo-semantic-skills/scripts/setup-steps/` | Numbered, idempotent setup steps (`describe \| check \| apply`) driven by `/odoo-semantic-skills:setup` |
 | `plugins/odoo-semantic-skills/generator/` | SSOT generator (`gen_surface.py`) + server-surface inputs |
-| `plugins/odoo-semantic-skills/snippets/` | MCP config for non-Claude clients |
+| `plugins/odoo-semantic-skills/snippets/` | MCP config for non-Claude clients, plus agent-facing SSOT protocol snippets (disk-fallback-protocol, context-bootstrap, osm-first-contract, nesting-guard) referenced by skill/agent bodies |
 | `plugins/odoo-semantic-skills/docs/` | Persona guides, client setup, tool routing reference |
 | `plugins/odoo-semantic-mcp/.claude-plugin/plugin.json` | MCP plugin manifest (userConfig for URL + API key) |
 | `plugins/odoo-semantic-mcp/.mcp.json` | MCP server template (resolved from `userConfig`) |

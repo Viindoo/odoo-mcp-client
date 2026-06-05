@@ -6,6 +6,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Agent-first grounding SSOT (PR #42)** — two new snippets the skills/agents reference by
+  path: `snippets/disk-fallback-protocol.md` (three-tier grounding: OSM index → disk self-serve
+  via Read/Grep/Bash/WebFetch → training-memory flagged `ungrounded`) and
+  `snippets/context-bootstrap.md` (a mandatory Round 0 that reads `.odoo-ai/context.md` before
+  asking the caller for version/profile/module list).
+
+### Changed
+
+- **Standalone-first fallback: paste-only → disk-grounded (PR #42)** — when OSM is unreachable
+  a skill now reads the source itself (`find`/`grep`/`Read`, `WebFetch` upstream) instead of
+  asking a human to paste code/fields/manifests; copy-pasteable output is the last resort
+  (repo genuinely inaccessible). **This reverses the [2.5.0] decision to keep the fallback
+  paste-only.** Visual skills return `BLOCKED(...)` when a browser/instance is unreachable
+  rather than soliciting screenshots. `hooks/detect-intent.sh` recommends disk-grounded
+  fallback accordingly.
+- **Portability (PR #42)** — sales/visual flows no longer depend on the non-official live Odoo
+  ERP MCP (`mcp__odoo__*`) or the claude.ai Gmail MCP; deal/CRM/email data comes from the
+  invocation context and `.odoo-ai/context.md`, instance URL from `.odoo-ai/instances.toml`.
+  Any live ERP/email integration is an optional bonus, never assumed.
+- **Code skills self-author (PR #42)** — `odoo-coder` / `odoo-code-reviewer` /
+  `odoo-frontend-coder` write and review code natively (boilerplate from `find_examples`
+  templates, complex logic reasoned step by step, inline self-review) instead of delegating.
+- **Model-tier (PR #42)** — `feature-positioning.workflow.yaml` feature-check / addon-diff
+  `haiku` → `sonnet` (OSM synthesis, not simple lookup); `haiku` definition tightened in
+  `_schema.md` / `workflow-harness.md` (never for write/synthesis phases). The
+  `set_active_profile` example reads `viindoo_profile` from `.odoo-ai/context.md` instead of
+  hard-coding `viindoo-internal`.
+
+### Removed
+
+- **ollama-delegate (PR #42)** — removed all `mcp__ollama-delegate__*` delegation from the
+  plugin and the `ollama_tools` field from every `generator/skill_tool_deps.json` entry (plus
+  the `SKILL_OLLAMA_TOOLS` load and the "Ollama-delegate tools" render block in
+  `generator/gen_surface.py`). The running agent generates/reviews code itself.
+
 ### Fixed
 
 - **Session-pin scope wording (#253, follow-up to server #251/#252)** — corrected the
