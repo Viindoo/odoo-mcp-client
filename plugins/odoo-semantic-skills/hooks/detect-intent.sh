@@ -132,6 +132,17 @@ case "${_p_lower}" in
     _has_action=true ;;
 esac
 
+# Lookup/introspection intent — question is about indexed STRUCTURE (which
+# modules/repos/models a profile or version contains), NOT code-gen. The
+# indexed answer lives in odoo-semantic (profile_inspect / describe_module /
+# model_inspect), never in the vault. EN + VI phrasings.
+_is_lookup=false
+case "${_p_lower}" in
+  *module*|*repo*|*profile*|*inventory*|*composition*|*compose*|\
+  *'gồm'*|*'có gì'*|*'module nào'*|*'repo nào'*|*'những gì'*|*'có bao nhiêu'*)
+    _is_lookup=true ;;
+esac
+
 # Consider vague when: short (<= 12 words) OR no action verb detected
 _is_vague=false
 if [ "${_word_count}" -le 12 ] 2>/dev/null || [ "${_has_action}" = "false" ]; then
@@ -151,6 +162,17 @@ case "${_domain}" in
     fi
     ;;
 esac
+
+# --- OSM lookup hint (composition/introspection) ---
+# Fires on Odoo/Viindoo anchor + lookup intent, INDEPENDENT of _domain — so a
+# "general"-domain Viindoo question (e.g. "viindoo 17 gồm những gì") still gets
+# routed to the index instead of the vault. Names the exact lookup tools, which
+# may be ToolSearch-deferred (only their name in context) — this hint is the
+# in-context pointer that survives deferral.
+if [ "${_osm_wired}" = "true" ] && [ "${_odoo_anchor}" = "true" ] && [ "${_is_lookup}" = "true" ]; then
+  _osm_lk="[OSM-lookup] This is a STRUCTURE-lookup over indexed data (module/repo/profile/version composition) - use mcp__odoo-semantic__profile_inspect (composition of one profile, e.g. standard_viindoo_17 / viindoo_internal_17: repos + module count + ancestor chain), describe_module (what one module does), or model_inspect (fields/methods of one model). Do NOT search the vault for data already indexed in odoo-semantic."
+  _osm_context="${_osm_context:+${_osm_context}\n}${_osm_lk}"
+fi
 
 # --- Stack-aware routing hints (named specialists, so a JS/OWL or full-stack task never
 # silently skips the frontend specialists). Appended to whatever OSM context exists. ---
