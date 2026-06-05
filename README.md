@@ -25,7 +25,7 @@ flowchart LR
         skills -."depends on".-> mcp
     end
 
-    server["OSM MCP Server (AGPL-3.0)<br/>24 tools / 7 resources<br/>indexed Odoo v8+"]
+    server["OSM MCP Server (AGPL-3.0)<br/>25 tools / 7 resources<br/>indexed Odoo v8+"]
 
     out1["answer in chat"]
     out2["file in .odoo-ai/"]
@@ -487,7 +487,7 @@ Per-persona quick-start guides live in [`docs/personas/`](plugins/odoo-semantic-
 
 ### MCP resources
 
-The server exposes **7 resource URI templates** and **24 tools**. Full URI descriptions, parameter reference, and usage examples are in [`docs/setup.md`](plugins/odoo-semantic-skills/docs/setup.md#mcp-resources-odoo-uri-scheme-v05).
+The server exposes **7 resource URI templates** and **25 tools**. Full URI descriptions, parameter reference, and usage examples are in [`docs/setup.md`](plugins/odoo-semantic-skills/docs/setup.md#mcp-resources-odoo-uri-scheme-v05).
 
 Supported Odoo versions: **v8.0 onward** - every major the OSM server has indexed (query `list_available_versions` for the live set).
 

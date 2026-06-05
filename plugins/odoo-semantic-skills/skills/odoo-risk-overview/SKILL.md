@@ -27,7 +27,7 @@ CEO / CTO / Project Sponsor
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
@@ -37,8 +37,9 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_deprecated_usage` — Scan the indexed codebase for usages of deprecated API patterns.
 - `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `profile_inspect` — Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -73,7 +74,9 @@ Use training knowledge for interpreting business impact and recommending remedia
 
 Use parallel MCP calls — steps 1, 2, and 3 are fully independent. Fire them simultaneously.
 
-**Round 0 — Pin version + profile:** `set_active_version(...)` + `set_active_profile(...)`.
+**Round 0 — Pin version + profile + enumerate scope:** `set_active_version(...)` + `set_active_profile(...)`,
+then `profile_inspect(method='modules', name=<profile>, odoo_version='auto')` to auto-enumerate the in-scope
+modules from the index instead of relying on the user to list which modules are in scope.
 
 **Round 1 — Parallel:** Call `find_deprecated_usage` + `impact_analysis` (on highest-usage
 custom fields known from context) + `check_module_exists` (for all custom module dependencies)

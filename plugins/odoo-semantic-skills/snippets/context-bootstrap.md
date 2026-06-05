@@ -11,7 +11,7 @@ truth for this project. Do this first, silently, every run:
 
 1. `Read .odoo-ai/context.md` if present. Extract and use as defaults:
    - `odoo_version` -> feeds `set_active_version` and every version-sensitive decision.
-   - `viindoo_profile` -> feeds `set_active_profile` (never hard-code `viindoo-internal`).
+   - `viindoo_profile` -> feeds `set_active_profile` (never hard-code `viindoo_internal_17`).
    - `modules` / addons path -> the module list; do not ask for it.
    - `instance_base_url` / `instance_login` -> for any live-instance or browser step.
 2. If `.odoo-ai/context.md` is absent, derive what you can from disk before asking:

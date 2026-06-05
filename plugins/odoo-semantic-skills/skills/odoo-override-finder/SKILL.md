@@ -26,7 +26,7 @@ Developer
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
@@ -34,8 +34,11 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 **Primary tools:**
 - `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
 - `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 - `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -95,9 +98,13 @@ independent of each other.
 
 ### Round 3 — Parallel
 
-Call `entity_lookup(kind='method', model=…, method_name=…)` + `suggest_pattern` simultaneously.
-Both can be formulated after Round 2 and are independent of each other. `entity_lookup`
-reveals the full override chain; `suggest_pattern` recommends the correct Odoo pattern.
+Call `entity_lookup(kind='method', model=…, method_name=…)` + `suggest_pattern` +
+`lookup_core_api(name=<method_name>, odoo_version='auto')` + `find_examples(query=<override intent>, odoo_version='auto')`
+simultaneously (all independent once Round 2 is in hand):
+- `entity_lookup` reveals the full override chain
+- `suggest_pattern` recommends the correct Odoo pattern
+- `lookup_core_api` verifies the target method's API status (stable / deprecated / removed) + replacement, so any deprecation warning is grounded in the index rather than training memory
+- `find_examples` returns real indexed override implementations to base the code template on, instead of writing it from memory
 Different scenarios call for different patterns:
    - Business logic change → `_inherit` + `super()` override
    - New computed value → `@api.depends` compute field
@@ -109,10 +116,14 @@ Present a concrete code snippet template pre-filled with the correct class name,
 `super()` call, and proper decorator. Include compatibility note for which Odoo versions this
 pattern is stable in.
 
+> Resource shortcut: once the model + method are known, `odoo://{version}/method/{model}/{method}` returns the
+override chain directly — cheaper than re-issuing `entity_lookup` when you only need the chain.
+
 **Warn explicitly** when:
 - The override chain already has 3+ overrides (high conflict risk)
 - The target method is marked as internal/private (`_` prefix but not double-underscore)
-- The method has changed signature between versions in the user's range
+- The method has changed signature between versions in the user's range — verify with
+  `api_version_diff(symbol=<method_or_scope>, from_version=<lo>, to_version=<hi>)` rather than asserting it from memory
 
 ## Standalone-first fallback
 

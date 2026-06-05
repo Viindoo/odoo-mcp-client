@@ -9,7 +9,7 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 ## Add to `.cursorrules`
 
 ```
-# Odoo Semantic MCP — Developer Rules (v0.11.1 tool surface)
+# Odoo Semantic MCP — Developer Rules (v0.13.1 tool surface)
 # Auto-triggers for Odoo codebase intelligence via MCP
 
 ## Session bootstrap (run once per chat session)
@@ -128,7 +128,7 @@ When a Python file with `class .*(models\.Model)` is opened:
 For workspace-agnostic use, paste this shorter version into **Cursor → Settings → Rules for AI**:
 
 ```
-When working with Odoo Python or XML files, use the odoo-semantic MCP tools (v0.11.1 tool surface):
+When working with Odoo Python or XML files, use the odoo-semantic MCP tools (v0.13.1 tool surface):
 
 Session bootstrap (once per chat):
 - list_available_versions() / list_available_profiles()
@@ -236,12 +236,13 @@ In `~/.cursor/mcp.json` (or project `.cursor/mcp.json`):
 ## Generated Tool Surface
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. Generated from `generator/server-surface.json`. Run `make gen` to update._
+_Tool surface: server v0.13.1. Generated from `generator/server-surface.json`. Run `make gen` to update._
 
 ## Key mappings (generated)
-- "inspect model" → `model_inspect ★` — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- "inspect model" → `model_inspect ★` — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 - "inspect module" → `module_inspect ★` — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 - "lookup field" → `entity_lookup ★` — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- "which repos make up profile" → `profile_inspect` — Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
 - "show me examples" → `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 - "what breaks if I change" → `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
 - "is API deprecated" → `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.

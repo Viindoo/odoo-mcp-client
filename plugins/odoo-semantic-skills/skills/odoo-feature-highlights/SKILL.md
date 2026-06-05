@@ -27,7 +27,7 @@ Marketer / Product Manager
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
@@ -36,7 +36,8 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -73,8 +74,10 @@ historical context, but never assert a feature "was added in v17" without MCP co
 **Round 2 — Parallel:** After Round 1 results arrive, call `find_examples` (for top impactful
 models: `sale.order`, `account.move`, `mrp.production`, `hr.leave`) +
 `model_inspect(model=…, method='fields')` (for headline feature key models) + `check_module_exists`
-(for all modules being highlighted) all simultaneously. None of these depend on each other —
-batch them in one round to cut total latency from 4 sequential calls to 2 total rounds.
+(for all modules being highlighted) + `module_inspect(name=<module>, method='summary', odoo_version='auto')`
+(for those same modules) all simultaneously. None of these depend on each other — batch them in one round.
+The `module_inspect` summary gives concrete architecture numbers (N models defined/extended, N views) so the
+copy can say "adds 3 new models and 12 views" instead of just "module exists".
 
 **Writing rules:**
 - Lead with business outcomes, not technical mechanisms

@@ -54,11 +54,13 @@ Wait for user pick. Validate it's in the available list.
 
 Call `mcp__odoo-semantic__list_available_profiles` (no args). Show with default heuristic:
 - Pure Odoo project (no `viin_*` module prefix in Step 4) → default profile = `odoo_<version>` or null
-- Custom distribution project (≥1 `viin_*` module) → default profile = `viindoo_<version>`
+- Custom distribution project (≥1 `viin_*` module) → default profile = `viindoo_internal_<version>`
 
 > "Which profile? Detected `<inferred>` based on modules. (yes / pick another)"
 
 Wait for user pick.
+
+Once the profile is chosen, call `mcp__odoo-semantic__profile_inspect(method='summary', name=<chosen_profile>, odoo_version=<chosen_version>)` to capture its real composition — inheritance chain, repos, and the indexed module count — and record it into `.odoo-ai/context.md` (e.g. a `viindoo_profile_modules: <count>` line). Downstream skills then inherit the real inventory instead of re-deriving it, and this doubles as validation that the picked profile name actually resolves (a hyphenated or unversioned name returns nothing).
 
 ### Step 4 — Discover custom modules
 

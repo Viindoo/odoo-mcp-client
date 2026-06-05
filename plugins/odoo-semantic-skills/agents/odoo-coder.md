@@ -21,6 +21,8 @@ tools:
   - mcp__odoo-semantic__resolve_orm_chain
   - mcp__odoo-semantic__validate_relation
   - mcp__odoo-semantic__lookup_core_api
+  - mcp__odoo-semantic__find_override_point
+  - mcp__odoo-semantic__module_inspect
 ---
 
 # odoo-coder agent
@@ -99,6 +101,12 @@ Call all of the following simultaneously:
    Odoo already implements this. **Reuse before you write**: prefer adapting an indexed
    example over hand-writing from memory (its description says "PREFER over LLM-generated
    examples"). This is the anti-reinvention step — Odoo usually already has the pattern.
+4. When the request **overrides an existing method** (extending `create`/`write`/`action_*` or a model
+   method), also call `find_override_point(model='<target_model>', method='<method>', odoo_version='auto')`
+   — it returns the existing override chain and the correct `super()` position/signature, so the generated
+   override is `super()`-safe instead of guessing where in the MRO to insert. To extend a whole module (not
+   just one model), `module_inspect(name='<module>', method='summary', odoo_version='auto')` gives the module's
+   models/views/JS picture so the new code lands in the right place.
 
 If you do not yet know the target model name, ask the user before proceeding to Round 1.
 The model name is required — do not guess.

@@ -1,7 +1,7 @@
 # MCP Tool × Persona × Adapter Routing Matrix
 
-> **Generated:** 2026-06-04T00:00:00Z  
-> **Server version:** 0.11.1  
+> **Generated:** 2026-06-05T00:00:00Z  
+> **Server version:** 0.13.1  
 > **Source:** `generator/server-surface.json` — edit that file and run `make gen` to update.
 > **v0.6 change:** 10 legacy tools (`resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches`) were removed. Use the superset tools (`model_inspect`, `module_inspect`, `entity_lookup`) instead.
 
@@ -24,6 +24,7 @@ When adding a new MCP tool or persona, update **`generator/server-surface.json`*
 | **model_inspect** ★ | ● | ● | ● |  |  |
 | **module_inspect** ★ | ● | ● | ● | ● | ● |
 | **entity_lookup** ★ |  | ● |  |  |  |
+| profile_inspect | ● | ● | ● |  |  |
 | find_examples |  | ● | ● | ● | ● |
 | impact_analysis | ● | ● |  |  |  |
 | lookup_core_api |  | ● | ● |  |  |
@@ -74,7 +75,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call. Supersedes removed resolve_model, list_fields, list_methods, list_views (v0.6). |
+| **Description** | Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call. method ∈ {summary, fields, methods, views, extenders}. method='extenders' paginates the full 'Extended by' module list (start_index cursor). Field/method/view enumerations are page-capped server-side (50/20/10) and the summary '…and N more' shares the extenders' NOT-is_definition predicate (count parity). Supersedes removed resolve_model, list_fields, list_methods, list_views (v0.6). |
 | **Personas** | dev, CEO, consultant |
 | **Required params** | `model`, `method`, `odoo_version` |
 | **Optional params** | `profile_name`, `field`, `method_name`, `start_index`, `limit`, `from_module`, `kind`, `view_type` |
@@ -103,11 +104,22 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 | **Example call** | `entity_lookup(kind='field', model='sale.order', field='amount_total', odoo_version='17.0')` |
 | **Routing keywords** | lookup field, lookup method, lookup view, drill down on entity, find method on model, find field on model, override chain, entity_lookup |
 
+### profile_inspect (added v0.13.1+)
+
+| Attribute | Value |
+|-----------|-------|
+| **Description** | Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call. method ∈ {summary, repos, modules}. summary = ancestor/inheritance chain + direct children + deduped repos (own/inherited, indexed status) + inheritance-inclusive module count (requires name=). repos = distinct repos across the full ancestor chain, deduped on (url, branch). modules = paginated module list scoped to the profile (server-enforced cap 50, start_index cursor), optional repo= URL-substring filter. name omitted on repos/modules spans all caller-visible profiles. Drill into a specific model via model_inspect, a specific module via module_inspect. RBAC: ADR-0034 tenant choke denies non-visible profiles. |
+| **Personas** | dev, CEO, consultant |
+| **Required params** | `method`, `odoo_version` |
+| **Optional params** | `name`, `repo`, `start_index`, `limit` |
+| **Example call** | `profile_inspect(method='summary', name='viindoo_internal_17', odoo_version='17.0')` |
+| **Routing keywords** | which repos make up profile, list modules in profile, show profile hierarchy, profile composition, modules in profile, repos in profile, what is in this profile, profile inventory, profile_inspect |
+
 ### find_examples (added v0.1.0+)
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Semantic code search returning real indexed code snippets from the Odoo codebase. |
+| **Description** | Semantic code search returning real indexed code snippets from the Odoo codebase. When the embedder is unavailable the server degrades to an entity-name lexical (ILIKE) fallback labeled match='lexical' instead of failing; treat lexical hits as approximate. |
 | **Personas** | dev, consultant, marketer, sales |
 | **Required params** | `query`, `odoo_version` |
 | **Optional params** | `limit`, `context_module`, `profile_name` |
@@ -386,6 +398,7 @@ Plugin skills can claim overlapping trigger keywords. Standard resolution policy
 | **model_inspect** ★ | ✓ | ✓ | ✓ |
 | **module_inspect** ★ | ✓ | ✓ | ✓ |
 | **entity_lookup** ★ | ✓ | ✓ | ✓ |
+| **profile_inspect** | ✓ | ✓ | ✓ |
 | **find_examples** | ✓ | ✓ | ✓ |
 | **impact_analysis** | ✓ | ✓ | ✓ |
 | **lookup_core_api** | ✓ | ✓ | ✓ |
@@ -408,4 +421,4 @@ Plugin skills can claim overlapping trigger keywords. Standard resolution policy
 | **validate_depends** ⊕ | ✓ | ✓ | ✓ |
 | **validate_relation** ⊕ | ✓ | ✓ | ✓ |
 
-> **v0.11.1 tool surface (24 tools + 7 resources):** All tools are reached via HTTP MCP protocol to the Odoo Semantic MCP server. No logic is duplicated — only routing heuristics.
+> **v0.13.1 tool surface (25 tools + 7 resources):** All tools are reached via HTTP MCP protocol to the Odoo Semantic MCP server. No logic is duplicated — only routing heuristics.

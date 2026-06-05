@@ -7,9 +7,9 @@ Items are directional, not commitments, and reflect publicly announced milestone
 
 ## Now
 
-- **Tool-surface parity with server v0.11.1 (24 tools)** — skills and snippets
-  reference the full surface: 24 tools incl. the superset trio (`model_inspect`,
-  `module_inspect`, `entity_lookup`) plus the 7 `odoo://` MCP Resources
+- **Tool-surface parity with server v0.13.1 (25 tools)** — skills and snippets
+  reference the full surface: 25 tools incl. the superset trio (`model_inspect`,
+  `module_inspect`, `entity_lookup`) + `profile_inspect` plus the 7 `odoo://` MCP Resources
   (ADR-0028 / ADR-0029 / ADR-0030).
 - **Marketplace publishing pipeline** — automatic SHA pinning into
   `Viindoo/claude-plugins` on each release.

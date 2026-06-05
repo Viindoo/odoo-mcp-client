@@ -31,14 +31,18 @@ likely to touch, so the comparison set is targeted rather than exhaustive.
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 
 **Primary tools:**
 - `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
 - `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
 - `find_style_override` ✦ — Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain.
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `resolve_stylesheet` ✦ — Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain.
 <!-- END GENERATED TOOLS -->
 
 Use the OSM tools to scope the comparison: `impact_analysis(entity_type=…, entity_name=…)` gives
@@ -77,18 +81,28 @@ instance URL, and resolve the Odoo version from the request or the OSM index
 "before/after which change?") in a single message if none of these supply the needed values.
 Do not guess.
 
+Once the concrete `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
+so the Round 1 OSM scoping calls (`module_inspect`, `impact_analysis`, `find_style_override`) that pass
+`odoo_version='auto'` reuse the pin instead of resolving to the latest indexed version — which would scope the
+comparison set against the wrong version's views/stylesheets.
+
 ### Round 1 — Scope the comparison set (parallel, OSM)
 
 Predict which screens are likely to drift so the baseline set is targeted:
 
 - Upgrade: `api_version_diff(symbol=<scope>, from_version=<old>, to_version=<new>)`.
 - Code change: `impact_analysis(entity_type=<field|method|model>, entity_name=<dotted>, odoo_version='auto')`.
-- Styling change: `find_style_override(selector_or_variable=<selector>, odoo_version='auto')`.
+- Styling change: `find_style_override(selector_or_variable=<selector>, odoo_version='auto')` to find which
+  modules override the selector, plus `resolve_stylesheet(module=<changed_module>, odoo_version='auto')` for the
+  full `@import` chain — a stylesheet change ripples to every screen that transitively imports it, so the
+  override origin alone under-scopes the comparison set.
 - Theme/token change: when a diff shows a screen gone "flat" (empty surfaces, washed-out text,
   badges without fill), treat it as a design-token regression — check token reality per
   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (empty or
   self-referential CSS custom properties), not just a pixel diff.
 - Map results to screens: `module_inspect(name=<module>, method='views', odoo_version='auto')` and `model_inspect(model=<model>, method='summary', odoo_version='auto')`.
+
+> Resource shortcut: when a view xmlid is already known, read `odoo://{version}/view/{xmlid}` directly — it returns the view arch + inherit chain without a `module_inspect` round-trip.
 
 ### Round 2 — Capture baseline (browser)
 

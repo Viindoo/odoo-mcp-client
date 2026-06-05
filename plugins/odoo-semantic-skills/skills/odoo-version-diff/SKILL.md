@@ -27,7 +27,7 @@ Developer + Marketer
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
@@ -36,7 +36,8 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
 - `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
 - `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -77,7 +78,9 @@ list for all subsequent calls.
 Changed signature symbol) + ALL `entity_lookup(kind='method', …)` calls (for every
 changed-signature method that is commonly overridden) simultaneously. These are independent
 of each other — firing them as a single batch cuts the total round trips dramatically for
-large version gaps.
+large version gaps. For the **Added** symbols `api_version_diff` reports, also batch
+`find_examples(query=<new API>, odoo_version=<to_version>)` so the "Added APIs" section shows real
+indexed usage of each new symbol rather than a bare description generated from memory.
 
 **Round 2b — Structural diff (when the user names a specific model):** Call
 `model_inspect(model=<name>, method='fields', odoo_version=<from_version>)` and

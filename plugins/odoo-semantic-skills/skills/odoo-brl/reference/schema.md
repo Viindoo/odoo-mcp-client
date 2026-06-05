@@ -54,7 +54,7 @@ Written once at Phase 0 before Gate 0. Never mutated after gate approval.
   "odoo_version": "17.0",
   "profiles": {
     "odoo": "odoo_17",
-    "viindoo": "viindoo-internal"
+    "viindoo": "viindoo_internal_17"
   },
   "total_reqs": 1000,
   "chunk_size": 50,

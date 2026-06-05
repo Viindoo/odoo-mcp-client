@@ -137,7 +137,7 @@ Written once at job creation (Phase 0 — ingest). Never mutated after Gate 0 ap
   "created_at": "2026-05-31T10:00:00Z",
   "customer_label": "Customer-A",
   "odoo_version": "17.0",
-  "profiles": {"odoo": "odoo_17", "viindoo": "viindoo-internal"},
+  "profiles": {"odoo": "odoo_17", "viindoo": "viindoo_internal_17"},
   "total_reqs": 1000,
   "chunk_size": 50,
   "cost_config_ref": "cost-config.json@v1",

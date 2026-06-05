@@ -1,13 +1,13 @@
 {
   "schema_version": "1",
-  "server_version": "0.11.1",
-  "generated_at": "2026-06-04T00:00:00Z",
+  "server_version": "0.13.1",
+  "generated_at": "2026-06-05T00:00:00Z",
   "tools": [
     {
       "name": "model_inspect",
       "version_added": "0.5.0",
       "version_removed": null,
-      "description": "Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call. Supersedes removed resolve_model, list_fields, list_methods, list_views (v0.6).",
+      "description": "Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call. method ∈ {summary, fields, methods, views, extenders}. method='extenders' paginates the full 'Extended by' module list (start_index cursor). Field/method/view enumerations are page-capped server-side (50/20/10) and the summary '…and N more' shares the extenders' NOT-is_definition predicate (count parity). Supersedes removed resolve_model, list_fields, list_methods, list_views (v0.6).",
       "persona_tags": [
         "dev",
         "CEO",
@@ -121,10 +121,45 @@
       ]
     },
     {
+      "name": "profile_inspect",
+      "version_added": "0.13.1",
+      "version_removed": null,
+      "description": "Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call. method ∈ {summary, repos, modules}. summary = ancestor/inheritance chain + direct children + deduped repos (own/inherited, indexed status) + inheritance-inclusive module count (requires name=). repos = distinct repos across the full ancestor chain, deduped on (url, branch). modules = paginated module list scoped to the profile (server-enforced cap 50, start_index cursor), optional repo= URL-substring filter. name omitted on repos/modules spans all caller-visible profiles. Drill into a specific model via model_inspect, a specific module via module_inspect. RBAC: ADR-0034 tenant choke denies non-visible profiles.",
+      "persona_tags": [
+        "dev",
+        "CEO",
+        "consultant"
+      ],
+      "required_params": [
+        "method",
+        "odoo_version"
+      ],
+      "optional_params": [
+        "name",
+        "repo",
+        "start_index",
+        "limit"
+      ],
+      "return_type": "object",
+      "example_call": "profile_inspect(method='summary', name='viindoo_internal_17', odoo_version='17.0')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "which repos make up profile",
+        "list modules in profile",
+        "show profile hierarchy",
+        "profile composition",
+        "modules in profile",
+        "repos in profile",
+        "what is in this profile",
+        "profile inventory",
+        "profile_inspect"
+      ]
+    },
+    {
       "name": "find_examples",
       "version_added": "0.1.0",
       "version_removed": null,
-      "description": "Semantic code search returning real indexed code snippets from the Odoo codebase.",
+      "description": "Semantic code search returning real indexed code snippets from the Odoo codebase. When the embedder is unavailable the server degrades to an entity-name lexical (ILIKE) fallback labeled match='lexical' instead of failing; treat lexical hits as approximate.",
       "persona_tags": [
         "dev",
         "consultant",
