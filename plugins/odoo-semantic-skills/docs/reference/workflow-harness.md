@@ -783,11 +783,16 @@ updating this section.
 Every WI subagent brief MUST contain the following line verbatim:
 
 ```
-You are a leaf worker (depth-2). You MAY NL-dispatch a non-spawning specialist skill
-(e.g. odoo-coder, odoo-code-reviewer) if it helps. Do NOT invoke the Skill tool
-directly. Do NOT spawn a sub-agent. Do NOT call self-spawning skills (/code-review,
-skill-creator, wave). Do NOT git branch/cherry-pick/merge/push; stay in your assigned
-worktree. Only Read/Grep/Glob/Edit/Write/Bash.
+You are a leaf worker (depth-2). You ARE the specialist — write/review the code yourself,
+grounding every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is
+always allowed); follow the odoo-coder / odoo-code-reviewer / odoo-frontend-coder conventions
+but do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-coder,
+odoo-code-reviewer, odoo-ui-reviewer, odoo-frontend-coding, wave, intake, odoo-brl,
+workflow-runner, /code-review, skill-creator) — they dispatch a fresh agent and are
+main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill (e.g.
+odoo-feature-check, odoo-override-finder) for a read-only lookup. Do NOT invoke the Skill tool
+to trigger a spawner. Do NOT spawn a sub-agent. Do NOT git branch/cherry-pick/merge/push; stay
+in your assigned worktree. Only Read/Grep/Glob/Edit/Write/Bash.
 ```
 
 This line is the boundary that prevents depth-3 violations. Omitting it is a

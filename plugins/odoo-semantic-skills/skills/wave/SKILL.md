@@ -44,7 +44,10 @@ principal branch.
 2. **Depth-0 / self-spawn legality** — This skill (wave) runs at depth 0 (main context)
    only. It spawns WI subagents at depth 1 (integration/coordination layer), which are
    themselves leaf workers at depth-2 ceiling. Leaf workers MUST NOT spawn further
-   subagents or call self-spawning skills (`/code-review`, `skill-creator`, `wave`).
+   subagents or invoke any depth0-only skill (the spawner bundles `odoo-coder`,
+   `odoo-code-reviewer`, `odoo-ui-reviewer`, `odoo-frontend-coding`, plus `/code-review`,
+   `skill-creator`, `wave`, `intake`, `odoo-brl`, `workflow-runner` — see the
+   Skill-Delegation Matrix below and `docs/reference/ORCHESTRATION-MAP.md`).
    Depth ceiling: wave (depth 0) → WI subagent (depth 1) → leaf worker (depth-2 max);
    no further spawning allowed. Maximum concurrent WI subagents: 3.
 
@@ -192,10 +195,15 @@ Hard rules:
     resolve_stylesheet) BEFORE writing, reuse indexed patterns before hand-writing, and if
     OSM is unreachable say so ("OSM unavailable — ungrounded"). Never code Odoo from memory.
   - Nesting guard (full text: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md): you are a
-    leaf worker (depth-2). You MAY NL-dispatch a non-spawning specialist skill (e.g.
-    odoo-coder, odoo-code-reviewer, odoo-frontend-coding) if it helps. Do NOT invoke the
-    Skill tool directly. Do NOT spawn a sub-agent. Do NOT call self-spawning / depth0-only
-    skills (/code-review, skill-creator, wave). Do NOT git branch/cherry-pick/merge/push;
+    leaf worker (depth-2). You ARE the specialist — write/review the code yourself, grounding
+    every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is always
+    allowed); follow the odoo-coder / odoo-code-reviewer / odoo-frontend-coder conventions but
+    do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-coder,
+    odoo-code-reviewer, odoo-ui-reviewer, odoo-frontend-coding, wave, intake, odoo-brl,
+    workflow-runner, /code-review, skill-creator) — they dispatch a fresh agent and are
+    main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill (e.g.
+    odoo-feature-check, odoo-override-finder) for a read-only lookup. Do NOT invoke the Skill
+    tool to trigger a spawner. Do NOT spawn a sub-agent. Do NOT git branch/cherry-pick/merge/push;
     stay in your assigned worktree. Only Read/Grep/Glob/Edit/Write/Bash.
   - Only edit files listed in your "Files in scope". Do not touch files owned by other WIs.
   - Commit your work to branch wave/wi-<slug>-<id> using the repo commit convention.
@@ -222,16 +230,19 @@ If a subagent exceeds 15 minutes without output, check its status; do not assume
 
 ## Skill-Delegation Matrix
 
-| Task | Leaf subagent MAY use (NL-dispatch) | Leaf subagent MUST NOT |
+| Task | Leaf worker does this | Leaf worker MUST NOT |
 |---|---|---|
-| Backend Python/XML code | odoo-coder (non-spawning) | Spawn subagent |
-| Code review of own output | odoo-code-reviewer (non-spawning) | Call /code-review |
-| Frontend JS/OWL | odoo-frontend-coding (non-spawning) | Call wave recursively |
-| Any skill that auto-spawns | N/A - not allowed | Call skill-creator, /code-review, wave |
+| Backend Python/XML | Write it directly, grounded via OSM tools (`model_inspect` / `find_examples` / `validate_*`), following `odoo-coder` conventions | Invoke the `odoo-coder` bundle (depth0-only) |
+| Frontend JS/OWL/SCSS | Write it directly, grounded via OSM tools (`find_examples` / `resolve_stylesheet`), following `odoo-frontend-coder` conventions | Invoke the `odoo-frontend-coding` bundle (depth0-only) |
+| Review of own output | Self-review inline against the `odoo-code-reviewer` conventions | Invoke `odoo-code-reviewer` or `/code-review` |
+| Read-only lookup | NL-dispatch a `leaf` skill (`odoo-feature-check`, `odoo-override-finder`) | Spawn a sub-agent; call any depth0-only skill |
 
-**Nesting rule**: Leaf subagents (depth 2) are allowed to NL-dispatch specialist skills
-that do NOT themselves spawn subagents. Skills that auto-spawn (/code-review, skill-creator,
-wave) are depth-0-only and must NEVER be called from a leaf subagent.
+**Nesting rule**: depth0-only skills (`odoo-coder`, `odoo-code-reviewer`, `odoo-ui-reviewer`,
+`odoo-frontend-coding`, `wave`, `intake`, `odoo-brl`, `workflow-runner`, `/code-review`,
+`skill-creator`) each dispatch a fresh agent (depth0→1) and may ONLY be invoked from the main
+agent — NEVER from a leaf worker. A leaf worker IS the specialist: it writes/reviews directly
+with its own tools (OSM MCP calls are never spawns), and only ever NL-dispatches genuinely
+non-spawning (`leaf`) skills for read-only lookups.
 
 ## Phase 3 - Cherry-pick + Conflict Resolution
 
@@ -247,11 +258,14 @@ For each WI (in topology order):
    - The two WI briefs whose files overlap (for context)
    - Instruction: resolve conflict, verify, commit.
    - Nesting guard (verbatim, mandatory — SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md):
-     "You are a leaf worker (depth-2). You MAY NL-dispatch a non-spawning specialist skill
-     (e.g. odoo-coder, odoo-code-reviewer) if it helps. Do NOT invoke the Skill tool
-     directly. Do NOT spawn a sub-agent. Do NOT call self-spawning skills (/code-review,
-     skill-creator, wave). Do NOT git branch/cherry-pick/merge/push; stay in your assigned
-     worktree. Only Read/Grep/Glob/Edit/Write/Bash."
+     "You are a leaf worker (depth-2). You ARE the specialist — resolve and verify directly,
+     grounding any Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn). Do NOT
+     invoke any depth0-only skill (odoo-coder, odoo-code-reviewer, odoo-ui-reviewer,
+     odoo-frontend-coding, wave, intake, odoo-brl, workflow-runner, /code-review, skill-creator)
+     — they are main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill for a
+     read-only lookup. Do NOT invoke the Skill tool to trigger a spawner. Do NOT spawn a
+     sub-agent. Do NOT git branch/cherry-pick/merge/push; stay in your assigned worktree. Only
+     Read/Grep/Glob/Edit/Write/Bash."
    - Also hand the resolver the OSM-First Grounding Contract
      (${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md) when the conflict touches Odoo code.
 

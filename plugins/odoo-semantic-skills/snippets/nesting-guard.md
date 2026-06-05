@@ -9,11 +9,20 @@ You are a **leaf worker (depth-2)** — the bottom of the allowed spawn tree
 (main = depth-0 → orchestrator subagent = depth-1 → you = depth-2). Spawning anything
 deeper risks a nested-context crash. Therefore:
 
-- You **MAY** NL-dispatch a **non-spawning** specialist skill (e.g. `odoo-coder`,
-  `odoo-code-reviewer`, `odoo-frontend-coding`) if it helps — but **do NOT** invoke the
-  Skill tool directly, and **do NOT** spawn a sub-agent.
-- **Do NOT** call self-spawning / depth0-only skills (`wave`, `intake`, `odoo-brl`,
-  `workflow-runner`, `/code-review`, `skill-creator`). See
-  `docs/reference/ORCHESTRATION-MAP.md` for the authoritative spawn-class of each skill.
+- **You ARE the specialist — do the work directly.** Write or review the Python, XML, JS,
+  OWL, or SCSS yourself, grounding every Odoo claim with the OSM MCP tools
+  (`set_active_version`, `model_inspect`, `find_examples`, `validate_*`, `resolve_stylesheet`,
+  …). An MCP tool call is never a subagent spawn, so it is always allowed at your depth.
+  Follow the same conventions the `odoo-coder` / `odoo-code-reviewer` / `odoo-frontend-coder`
+  agents use — but **do NOT invoke those bundles** (next bullet).
+- **Do NOT invoke any depth0-only skill** — `odoo-coder`, `odoo-code-reviewer`,
+  `odoo-ui-reviewer`, `odoo-frontend-coding`, `wave`, `intake`, `odoo-brl`, `workflow-runner`,
+  `/code-review`, `skill-creator`. Each dispatches a fresh agent (depth0→1) and may ONLY be
+  invoked from the main agent. See `docs/reference/ORCHESTRATION-MAP.md` for the authoritative
+  spawn-class of every skill.
+- You **MAY** NL-dispatch a genuinely **non-spawning** (`leaf`, any-depth) skill — e.g.
+  `odoo-feature-check`, `odoo-override-finder`, `odoo-deprecation-audit` — for a read-only
+  lookup if it helps. Do NOT invoke the Skill tool to trigger a spawner, and do NOT spawn a
+  sub-agent yourself.
 - Stay inside your assigned scope: only `Read/Grep/Glob/Edit/Write/Bash`. Do NOT
   `git branch/checkout/cherry-pick/merge/push`; remain in your assigned worktree.
