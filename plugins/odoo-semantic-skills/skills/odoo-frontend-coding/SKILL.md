@@ -10,10 +10,9 @@ description: >
   client action", "register field widget via registry.category", "QWeb template override".
   Also fires on Vietnamese requests: "viết widget OWL", "sửa giao diện form", "thêm field
   widget", "override JS", "viết / sửa SCSS theme đúng design-system Odoo".
-  Infer framework from version or API keywords even without "legacy"/"OWL". After code
-  generation, suggest verifying via odoo-ui-debug (runtime render errors), odoo-ui-reviewer
-  (layout), or odoo-visual-regression (before/after diff) — do not auto-invoke (depth rule).
-  Backend Python/XML → odoo-coder. Code review → odoo-code-reviewer
+  Infer framework from version or API keywords even without "legacy"/"OWL". After generation,
+  suggest odoo-ui-debug / odoo-ui-reviewer / odoo-visual-regression to verify (depth rule: do
+  not auto-invoke). Backend Python/XML → odoo-coder. Code review → odoo-code-reviewer
 ---
 
 ## Persona
