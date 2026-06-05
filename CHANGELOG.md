@@ -6,6 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.7.1] - 2026-06-05
+
+### Fixed
+
+- **`detect-intent.sh` routed structure-lookup questions to the vault instead of the OSM index** —
+  the UserPromptSubmit hook only surfaced the index hint for code-gen intents (domain
+  `engineering|upgrade|visual-UI`) and worded it as "before generating or editing Odoo code", so a
+  composition/lookup question ("which modules / repos does profile X contain") got no pointer to the
+  index and the agent fell back to the vault — even though `profile_inspect` answers it directly.
+  Added an `_is_lookup` intent probe (EN `module/repo/profile/version/inventory/composition` + VI
+  `gồm / có gì / module nào / repo nào / những gì / có bao nhiêu`) that emits an `[OSM-lookup]` hint
+  naming `profile_inspect` / `describe_module` / `model_inspect`, fired on Odoo/Viindoo anchor +
+  lookup intent **independent of `_domain`** (so a general-domain Viindoo question still routes to
+  the index). The hint is an in-context pointer that survives ToolSearch deferral of those tools.
+
 ## [2.7.0] - 2026-06-05
 
 ### Added
