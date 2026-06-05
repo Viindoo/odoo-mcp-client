@@ -108,7 +108,7 @@ elements — a pane, a muted-text node, a badge) and flag:
 - divergence from the project mockup.
 Resolve the real token names/origins for the version with `resolve_stylesheet` /
 `find_style_override` — never assume `--bs-*` (or any token) exists across versions. Emit each
-finding as a token+file remediation pointer, not an inline patch (fixes go to `odoo-frontend-coder`).
+finding as a token+file remediation pointer, not an inline patch (fixes go to `odoo-frontend-coding`).
 
 ### Step 5 — Source pointers + compile
 

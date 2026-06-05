@@ -45,7 +45,7 @@ Odoo version diff has two audiences with different needs:
 - **Developers**: need file paths, method signatures, migration instructions for breaking changes
 - **Marketers**: need business-language feature highlights for sales/marketing content
 
-**Major breaking points in Odoo history (v8 → v19+):**
+**Major breaking points in Odoo history (v8 onward):**
 
 | Version jump | Key breaking changes |
 |-------------|---------------------|

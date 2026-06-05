@@ -9,7 +9,7 @@ description: >
   isn't applying", "JS error after upgrade", "tại sao view Odoo trống", "widget không hiện",
   "lỗi console Odoo". Routing: RATE a working screen (aesthetics/a11y/perf) → odoo-ui-reviewer;
   compare two builds for drift → odoo-visual-regression; demo video → odoo-demo-recorder; write
-  the fix → odoo-frontend-coder; static code audit → odoo-code-reviewer
+  the fix → odoo-frontend-coding; static code audit → odoo-code-reviewer
 ---
 
 ## Persona
@@ -25,7 +25,7 @@ cause is proven.
 - **Rating a working screen** (aesthetics, a11y, performance verdict) → use `odoo-ui-reviewer`
 - **Comparing two states/builds for visual drift** → use `odoo-visual-regression`
 - **Recording a demo/marketing video** → use `odoo-demo-recorder`
-- **Writing the fix once the cause is known** → use `odoo-frontend-coder`
+- **Writing the fix once the cause is known** → use `odoo-frontend-coding`
 - **Static source-level code audit** → use `odoo-code-reviewer`
 
 ## MCP tools
@@ -117,7 +117,7 @@ Based on the symptom class, fire the relevant calls in parallel:
 
 Name the single root cause, cite the runtime evidence (console line / network entry / snapshot
 node) AND the code evidence (stylesheet origin / override chain / example). Point at the exact
-file + method/selector to change, then hand off to `odoo-frontend-coder` for the edit.
+file + method/selector to change, then hand off to `odoo-frontend-coding` for the edit.
 
 ## Standalone-first fallback
 
@@ -144,7 +144,7 @@ file + method/selector to change, then hand off to `odoo-frontend-coder` for the
 <single proven cause — runtime evidence + code evidence>
 
 ### Fix location
-- File: <path> · Override point: <method/selector> · Hand off to odoo-frontend-coder
+- File: <path> · Override point: <method/selector> · Hand off to odoo-frontend-coding
 
 ### Confidence
 <HIGH if OSM-confirmed override point; MEDIUM if JS/OWL location inferred via the known gap>
@@ -174,4 +174,4 @@ Prompt: "My brand color SCSS override isn't taking effect on the website."
 - Empty render vs render-then-throw are distinct root causes — always check the snapshot before
   blaming JS.
 - Selector/era reference (backend `/odoo` vs `/web`, OWL vs legacy) lives in `docs/odoo-ui-knowledge.md`.
-- This skill diagnoses only; it never edits source. Hand the named fix location to `odoo-frontend-coder`.
+- This skill diagnoses only; it never edits source. Hand the named fix location to `odoo-frontend-coding`.

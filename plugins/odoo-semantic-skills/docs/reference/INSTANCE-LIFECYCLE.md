@@ -1,7 +1,7 @@
 # Odoo Instance Lifecycle — install vs upgrade vs reinstall (method, not hardcoded facts)
 
 > **Read this as a decision *framework*, not a version fact-sheet.** Odoo CLI flags,
-> subcommands and module semantics differ across versions (8.0 → 19.0). The version-specific
+> subcommands and module semantics differ across supported Odoo versions. The version-specific
 > details below are **illustrative snapshots** — before you act on any of them for a given
 > target version, **confirm against OSM**: `set_active_version(<target>)` then
 > `cli_help(command, flag, odoo_version='auto')` for CLI facts, and `api_version_diff` / `find_deprecated_usage`

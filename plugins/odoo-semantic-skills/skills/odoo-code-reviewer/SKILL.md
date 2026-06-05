@@ -45,7 +45,7 @@ Key failure modes the agent is aware of:
 3. **`@api.depends` errors** — stale or wrong dotted paths; `id` in depends list; constraint on relational field (silently skipped).
 4. **Deprecated API** — `@api.multi`, `@api.one` removed in v13/v14; raise at call time, not import.
 5. **OWL reactivity** — direct `this.state.items.push()` bypasses OWL reactivity; `position="replace"` in XML views breaks other override chains. These render-level defects should be confirmed visually on a live instance with `odoo-ui-debug` once the static review flags them.
-6. **Design-system fidelity (SCSS/OWL styling)** — hardcoded `hex`/`rgba` for themeable colors, or surface tokens chained into Bootstrap `--bs-*` custom properties the target version does not emit at runtime (often via a self-referential shim — a CSS var whose value references itself, a cycle that resolves to empty and flattens the theme). Flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`; confirm at runtime with `odoo-ui-debug`/`odoo-ui-reviewer`, and route the fix to `odoo-frontend-coder` (this reviewer does not write frontend source).
+6. **Design-system fidelity (SCSS/OWL styling)** — hardcoded `hex`/`rgba` for themeable colors, or surface tokens chained into Bootstrap `--bs-*` custom properties the target version does not emit at runtime (often via a self-referential shim — a CSS var whose value references itself, a cycle that resolves to empty and flattens the theme). Flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`; confirm at runtime with `odoo-ui-debug`/`odoo-ui-reviewer`, and route the fix to `odoo-frontend-coding` (this reviewer does not write frontend source).
 
 ## Agent invocation
 

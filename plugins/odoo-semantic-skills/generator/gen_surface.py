@@ -53,7 +53,7 @@ SKIP_SKILL_DIRS = {
     "odoo-deal-followup",
     "odoo-deploy-checklist",
     "odoo-discovery-summarize",
-    "odoo-frontend-coder",
+    "odoo-frontend-coding",
     "odoo-onboard",
     "intake",
     "odoo-ui-reviewer",
@@ -344,15 +344,15 @@ def gen_routing_md(surface: dict) -> str:
         "Standalone edition comparison → `odoo-addon-diff`."
     )
     lines.append("")
-    lines.append("### 4.4 `odoo-frontend-coder`: legacy JS widgets vs OWL (version-aware)")
+    lines.append("### 4.4 `odoo-frontend-coding`: legacy JS widgets vs OWL (version-aware)")
     lines.append("")
     lines.append(
-        "- **No skill conflict:** A single skill — `odoo-frontend-coder` — owns all Odoo "
+        "- **No skill conflict:** A single skill — `odoo-frontend-coding` — owns all Odoo "
         "front-end work and handles both paradigms internally (merged from the former "
         "`odoo-js-coder` + `odoo-owl-coder`)."
     )
     lines.append(
-        "- **Resolution (internal):** `odoo-frontend-coder` selects the paradigm by version. "
+        "- **Resolution (internal):** `odoo-frontend-coding` selects the paradigm by version. "
         "Legacy JS widget system on older Odoo; OWL components on newer Odoo. Odoo v14 is the "
         "grey zone (pre-OWL but post-legacy peak) — prefer the legacy widget system there since "
         "it is still dominant."
@@ -360,7 +360,7 @@ def gen_routing_md(surface: dict) -> str:
     lines.append(
         "- **Heuristic (paradigm signals):** `odoo.define()`, `web.Widget`, `field_registry` "
         "→ legacy JS widget path. `useService`, `t-component`, `patch()`, `useState` "
-        "→ OWL path. Both resolve to `odoo-frontend-coder`."
+        "→ OWL path. Both resolve to `odoo-frontend-coding`."
     )
     lines.append("")
     lines.append("---")

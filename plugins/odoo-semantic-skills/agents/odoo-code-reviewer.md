@@ -107,7 +107,7 @@ The recurring classes to flag:
   not emit at runtime. Backfill non-self-referentially against a token the version actually
   emits. Flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`;
   confirm at runtime with `odoo-ui-debug`/`odoo-ui-reviewer`; route the fix to
-  `odoo-frontend-coder` (this reviewer reads, it does not write frontend source).
+  `odoo-frontend-coding` (this reviewer reads, it does not write frontend source).
 - **Sass function inside `calc()`** — `calc(map-get(...))` / `calc(min(...))` without `#{}`
   interpolation is dropped by LibSass (the property silently vanishes). Require
   `calc(#{map-get(...)} * 2)`.

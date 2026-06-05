@@ -12,7 +12,7 @@ description: >
   diện Odoo", "kiểm tra UI đã render".
   Routing: investigate WHY a screen is broken not rate a working one → odoo-ui-debug; compare
   two states for drift → odoo-visual-regression; record a video → odoo-demo-recorder; change
-  frontend source → odoo-frontend-coder; source-level review → odoo-code-reviewer
+  frontend source → odoo-frontend-coding; source-level review → odoo-code-reviewer
 ---
 
 ## Persona
@@ -29,7 +29,7 @@ unverified impression.
 - **Investigating WHY a screen is broken / errors / blank render** → use `odoo-ui-debug`
 - **Comparing two states or builds for visual drift / regression** → use `odoo-visual-regression`
 - **Recording a demo or marketing walkthrough video** → use `odoo-demo-recorder`
-- **Writing or changing Odoo frontend JS/OWL source** → use `odoo-frontend-coder`
+- **Writing or changing Odoo frontend JS/OWL source** → use `odoo-frontend-coding`
 - **Source-level code review (Python/JS/XML)** → use `odoo-code-reviewer`
 
 ## When to invoke
@@ -64,7 +64,7 @@ When the user confirms intent (or main detects a running instance + a "how does 
 main invokes the `odoo-ui-reviewer` agent via Agent tool. The agent runs its review steps with
 restricted tools (the odoo-semantic-mcp server + chrome-devtools browser tools, read-only). The agent does
 NOT spawn further subagents and does NOT invoke any Skill tool. It never edits Odoo source — fixes
-are handed to `odoo-frontend-coder`.
+are handed to `odoo-frontend-coding`.
 
 ## Standalone-first fallback
 

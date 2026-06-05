@@ -160,7 +160,7 @@
       "deprecated_tools_used": [],
       "notes": ""
     },
-    "odoo-frontend-coder": {
+    "odoo-frontend-coding": {
       "mcp_tools": [
         "api_version_diff",
         "find_examples",
@@ -172,7 +172,7 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Merged from odoo-js-coder + odoo-owl-coder. Covers all Odoo frontend JS (v8-v19)."
+      "notes": "Slim SKILL.md of an agent+skill bundle; dispatches to the odoo-frontend-coder agent. Covers all supported Odoo frontend JS versions."
     },
     "odoo-gap-analysis": {
       "mcp_tools": [
@@ -359,6 +359,22 @@
       ],
       "min_server_version": "0.7.0",
       "notes": "Agent bundle — companion to odoo-ui-reviewer slim SKILL.md. Tool list from agents/odoo-ui-reviewer.md frontmatter."
+    },
+    "odoo-frontend-coder": {
+      "mcp_tools": [
+        "set_active_version",
+        "find_examples",
+        "find_override_point",
+        "lookup_core_api",
+        "module_inspect",
+        "suggest_pattern",
+        "api_version_diff",
+        "lint_check",
+        "resolve_stylesheet",
+        "find_style_override"
+      ],
+      "min_server_version": "0.7.0",
+      "notes": "Agent bundle — companion to odoo-frontend-coding slim SKILL.md. Tool list from agents/odoo-frontend-coder.md frontmatter."
     }
   },
   "orchestration": {
@@ -380,7 +396,7 @@
     "odoo-discovery-summarize": { "spawn_class": "leaf", "depth_policy": "any-depth", "spawns": [], "stack": "none", "instance_touching": false },
     "odoo-feature-check": { "spawn_class": "leaf", "depth_policy": "any-depth", "spawns": [], "stack": "none", "instance_touching": false },
     "odoo-feature-highlights": { "spawn_class": "leaf", "depth_policy": "any-depth", "spawns": [], "stack": "none", "instance_touching": false },
-    "odoo-frontend-coder": { "spawn_class": "leaf", "depth_policy": "any-depth", "spawns": [], "stack": "frontend", "instance_touching": false },
+    "odoo-frontend-coding": { "spawn_class": "spawner-agent", "depth_policy": "depth0-only", "spawns": ["odoo-frontend-coder"], "stack": "frontend", "instance_touching": false },
     "odoo-gap-analysis": { "spawn_class": "leaf", "depth_policy": "any-depth", "spawns": [], "stack": "none", "instance_touching": false },
     "odoo-objection-handler": { "spawn_class": "leaf", "depth_policy": "any-depth", "spawns": [], "stack": "none", "instance_touching": false },
     "odoo-onboard": { "spawn_class": "leaf", "depth_policy": "any-depth", "spawns": [], "stack": "none", "instance_touching": false },

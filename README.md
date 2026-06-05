@@ -17,7 +17,7 @@ flowchart LR
     subgraph client["odoo-mcp-client (MIT)"]
         intake["intake<br/>universal front door"]
         wfrunner["workflow-runner<br/>declarative YAML executor"]
-        skills["odoo-semantic-skills<br/>31 skills / 3 agents / 9 commands"]
+        skills["odoo-semantic-skills<br/>31 skills / 4 agents / 9 commands"]
         mcp["odoo-semantic-mcp<br/>MCP connection + /connect"]
         intake --> wfrunner
         intake --> skills
@@ -25,7 +25,7 @@ flowchart LR
         skills -."depends on".-> mcp
     end
 
-    server["OSM MCP Server (AGPL-3.0)<br/>24 tools / 7 resources<br/>indexed Odoo v8-v19"]
+    server["OSM MCP Server (AGPL-3.0)<br/>24 tools / 7 resources<br/>indexed Odoo v8+"]
 
     out1["answer in chat"]
     out2["file in .odoo-ai/"]
@@ -61,7 +61,7 @@ workflows (driven by `workflows/*.workflow.yaml` + `workflow-runner`) cover QA,
 support triage, sales, video production, and more - adding a new workflow requires
 only one YAML file, no orchestration code.
 
-> **Counts at a glance (v2.3.0):** `odoo-semantic-skills` ships **31 skills + 3 agents +
+> **Counts at a glance:** `odoo-semantic-skills` ships **31 skills + 4 agents +
 > 9 commands**, grouped into **9 persona buckets** for navigation, plus **10 declarative
 > workflows** driven by `workflows/*.workflow.yaml`. A further slash command,
 > `/odoo-semantic-mcp:connect`, belongs to the companion `odoo-semantic-mcp` plugin
@@ -81,7 +81,7 @@ flowchart LR
     eng --> deploy["odoo-deploy-checklist"]
 
     coder["Coder"] --> coderpy["odoo-coder (Python/XML)"]
-    coder --> coderfe["odoo-frontend-coder (JS/OWL)"]
+    coder --> coderfe["odoo-frontend-coding (JS/OWL)"]
 
     rev["Code-Reviewer"] --> reviewer["odoo-code-reviewer"]
 
@@ -225,7 +225,7 @@ flowchart TD
 
 The visual UI testing stack is a sibling cluster, not a linear chain: one `setup` step
 provisions the browser environment, then four skills run independently and converge on
-`odoo-frontend-coder` as the fix writer.
+`odoo-frontend-coding` as the fix writer.
 
 ```mermaid
 flowchart TD
@@ -241,7 +241,7 @@ flowchart TD
     SK --> VR["odoo-visual-regression<br/>before/after diff"]
     SK --> DR["odoo-demo-recorder<br/>MP4 / GIF output"]
 
-    UID --> FC["odoo-frontend-coder<br/>fix writer"]
+    UID --> FC["odoo-frontend-coding<br/>fix writer"]
     UIR --> FC
     VR --> FC
 
@@ -339,7 +339,7 @@ You: "Run visual regression on the invoicing list and form views after installin
 module account_followup on Customer E's staging instance."
 ```
 
-Run `/odoo-semantic-skills:setup` once to provision the browser automation stack. Then skill `odoo-visual-regression` fires: it captures before/after screenshots of targeted views, diffs them, and flags regressions with severity labels. Where a defect is confirmed, `odoo-ui-reviewer` follows up with a 5-lens audit (aesthetics / function / stability / accessibility / performance) and surfaces the exact CSS or XML path to fix. Fixes are handed to `odoo-frontend-coder`, which writes the override and shows a patch preview before applying.
+Run `/odoo-semantic-skills:setup` once to provision the browser automation stack. Then skill `odoo-visual-regression` fires: it captures before/after screenshots of targeted views, diffs them, and flags regressions with severity labels. Where a defect is confirmed, `odoo-ui-reviewer` follows up with a 5-lens audit (aesthetics / function / stability / accessibility / performance) and surfaces the exact CSS or XML path to fix. Fixes are handed to `odoo-frontend-coding`, which writes the override and shows a patch preview before applying.
 
 ### Use case 8 - Support: triage an inbound customer ticket
 
@@ -452,7 +452,7 @@ Per-persona quick-start guides live in [`docs/personas/`](plugins/odoo-semantic-
 | `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist covering config, migration, and rollback |
 | `odoo-version-diff` | Engineer + Marketer | Categorized diff of API and feature changes between versions |
 | `odoo-coder` | Coder | Python/XML backend coder with Odoo conventions baked in (slim, paired with agent bundle) |
-| `odoo-frontend-coder` | Coder | JS/OWL coder merging legacy web client (v8-14) and OWL component framework (v15+) |
+| `odoo-frontend-coding` | Coder | JS/OWL coder merging legacy web client (v8-14) and OWL component framework (v15+) (slim, paired with agent bundle) |
 | `odoo-code-reviewer` | Code-Reviewer | Review Odoo patches for ORM/inheritance/security pitfalls (slim, paired with agent bundle) |
 | `odoo-feature-check` | Pre-Sales Consultant | Check if a feature exists in standard CE or EE |
 | `odoo-gap-analysis` | Pre-Sales Consultant | Gap matrix of client requirements vs. standard Odoo |
@@ -476,19 +476,20 @@ Per-persona quick-start guides live in [`docs/personas/`](plugins/odoo-semantic-
 | `workflow-runner` | Internal (harness) | Generic declarative workflow executor - reads `*.workflow.yaml` and runs gated phase sequences; invoked by intake via NL-dispatch, not directly by users |
 | `wave` | Internal (orchestration) | Depth-0 git-wave orchestration - integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge; self-spawning, principal-branch-locked |
 
-### Agents (3)
+### Agents (4)
 
 | Agent | Model | Role |
 |-------|-------|------|
 | `odoo-coder` | Sonnet | Agent bundle for code writing - invoked by main agent and commands; depth-1 safe with restricted-tool autonomy |
 | `odoo-code-reviewer` | Sonnet | Agent bundle for code review - runs full PR-scope analysis with OSM grounding |
 | `odoo-ui-reviewer` | Sonnet | Agent bundle for visual UI review - drives a live browser through a five-lens audit with screenshot, console, and Lighthouse evidence plus OSM source pointers |
+| `odoo-frontend-coder` | Sonnet | Agent bundle for frontend code writing - JS/OWL/QWeb/SCSS across legacy and OWL eras with OSM grounding and design-system fidelity (companion to the `odoo-frontend-coding` skill) |
 
 ### MCP resources
 
 The server exposes **7 resource URI templates** and **24 tools**. Full URI descriptions, parameter reference, and usage examples are in [`docs/setup.md`](plugins/odoo-semantic-skills/docs/setup.md#mcp-resources-odoo-uri-scheme-v05).
 
-Supported Odoo versions: **v8.0 through v19.0 (12 versions)**.
+Supported Odoo versions: **v8.0 onward** - every major the OSM server has indexed (query `list_available_versions` for the live set).
 
 ### Connect command
 
