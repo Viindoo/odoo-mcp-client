@@ -6,11 +6,11 @@ issue #37). They are acceptance-test fixtures, not production code.
 Run from the plugin root:
 
 ```bash
-bash scripts/verify-frontend.sh skills/odoo-frontend-coder/examples/good/greeting_widget.js \
-                                 skills/odoo-frontend-coder/examples/good/greeting_widget.xml
-bash scripts/verify-frontend.sh skills/odoo-frontend-coder/examples/broken/broken_widget.xml \
-                                 skills/odoo-frontend-coder/examples/broken/broken_styles.scss
-bash scripts/verify-frontend.sh skills/odoo-frontend-coder/examples/broken/class1_handlers.xml
+bash scripts/verify-frontend.sh skills/odoo-frontend-coding/examples/good/greeting_widget.js \
+                                 skills/odoo-frontend-coding/examples/good/greeting_widget.xml
+bash scripts/verify-frontend.sh skills/odoo-frontend-coding/examples/broken/broken_widget.xml \
+                                 skills/odoo-frontend-coding/examples/broken/broken_styles.scss
+bash scripts/verify-frontend.sh skills/odoo-frontend-coding/examples/broken/class1_handlers.xml
 ```
 
 ## `good/` - passes the gate

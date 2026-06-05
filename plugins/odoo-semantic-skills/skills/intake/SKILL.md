@@ -51,7 +51,7 @@ what they want or what outcome they need. This skill's job is to:
      behavioral, not a `disallowed-tools` block.
    - (2) **NEVER invoke a writes-files execute-skill (a `writes-files` specialist) — nor the
      Skill tool running such a specialist — BEFORE Plan Mode is approved.** That includes
-     `odoo-coder`, `odoo-frontend-coder`, `wave`, `odoo-brl`, `workflow-runner`, or any skill
+     `odoo-coder`, `odoo-frontend-coding`, `wave`, `odoo-brl`, `workflow-runner`, or any skill
      whose output mode is `writes-files`. Yield to it via a NL-dispatch description; the actual
      dispatch happens on a LATER turn, AFTER Plan-Mode approval (see § Plan Mode).
    - (3) **Phase R (Recon) MAY dispatch a READ-ONLY agent via the Agent tool** — `Explore`, or
@@ -178,7 +178,7 @@ discovery — from `spawn_class`+`stack` in the registry).
 
 **When it applies**: after the user approves the Proposed Plan AND the chosen next step is
 an execute-skill that will **write or modify files** — specifically any of: `odoo-coder`,
-`odoo-frontend-coder`, `wave`, `odoo-brl`, `workflow-runner`, or any skill whose output
+`odoo-frontend-coding`, `wave`, `odoo-brl`, `workflow-runner`, or any skill whose output
 column is NOT "chat only".
 
 **Why intake can do this**: intake runs at depth-0 (main context). `EnterPlanMode` /
@@ -234,7 +234,7 @@ legend (S/M/L/XL).
 
 *Examples (short):*
 - Full-stack feature → `WI-A: odoo-coder (sonnet, M)` adds the backend field/method;
-  `WI-B: odoo-frontend-coder (sonnet, M)` renders the OWL widget. DAG: **linear**, edge
+  `WI-B: odoo-frontend-coding (sonnet, M)` renders the OWL widget. DAG: **linear**, edge
   `WI-B --data-flow--> depends-on WI-A` (the field must exist before the widget binds to it).
 - Three disjoint fixes (bug + test + docs) → `WI-A odoo-coder`, `WI-B odoo-coder`,
   `WI-C` docs edit; DAG: **independent** (no edges) → hand to `wave` for parallel delivery.
@@ -346,9 +346,9 @@ The **Discriminator** column resolves close ties.
 | 9 | "CE vs EE", "edition comparison", "what does Enterprise add" | `odoo-addon-diff` | Three-way edition comparison (vs `odoo-feature-check` which is single-feature) |
 | 10 | "prove Odoo can", "evidence for demo", "RFP evidence", "before the demo", "competitor said Odoo can't" | `odoo-capability-proof` | Evidence PACKAGE (modules + code + demo steps) (vs `odoo-objection-handler` which produces a verbatim response paragraph) |
 | 11 | "respond to objection", "counter 'Odoo can't'", "write a response", "rep is on the call", "customer says Odoo can't do X" | `odoo-objection-handler` | Verbatim ACA response paragraph (vs `odoo-capability-proof` which is technical evidence) |
-| 12 | "write code", "create field", "implement feature", "write computed field", "add onchange", "add SQL constraint" | `odoo-coder` | Backend Python/XML code generation (vs `odoo-frontend-coder` for frontend, vs `odoo-override-finder` for finding hook location) |
+| 12 | "write code", "create field", "implement feature", "write computed field", "add onchange", "add SQL constraint" | `odoo-coder` | Backend Python/XML code generation (vs `odoo-frontend-coding` for frontend, vs `odoo-override-finder` for finding hook location) |
 | 13 | "review code", "check my PR", "audit this", "smell test before merge" | `odoo-code-reviewer` | Reviewing EXISTING code (vs `odoo-coder` which writes NEW code, vs `odoo-deprecation-audit` which is module-level audit) |
-| 14 | "JS", "widget", "OWL", "frontend", "any Odoo version", "odoo.define()", "useService", "patch component" | `odoo-frontend-coder` | Frontend code (legacy v8-14 or OWL v15+); skill auto-detects framework via Odoo version in `.odoo-ai/context.md` or user statement |
+| 14 | "JS", "widget", "OWL", "frontend", "any Odoo version", "odoo.define()", "useService", "patch component" | `odoo-frontend-coding` | Frontend code (legacy v8-14 or OWL v15+); skill auto-detects framework via Odoo version in `.odoo-ai/context.md` or user statement |
 | 15 | "follow up with customer", "deal stalled", "draft follow-up email", "customer hasn't replied" | `odoo-deal-followup` | Sales AE follow-up email writer (vs `odoo-objection-handler` for objection response, vs `odoo-discovery-summarize` for raw meeting notes) |
 | 16 | "summarize the customer meeting", "synthesize discovery notes", "extract customer profile" | `odoo-discovery-summarize` | Pre-proposal structured profile (vs `odoo-gap-analysis` for effort matrix, vs `odoo-deal-followup` for post-meeting follow-up email) |
 | 17 | "write a blog post on Odoo", "draft a LinkedIn post", "YouTube script for Odoo", "email sequence about", "landing page copy" | `odoo-content-draft` | Single-piece content draft (vs `odoo-campaign-plan` which orchestrates multi-piece campaign, vs `odoo-feature-highlights` which is slide-format) |
@@ -362,8 +362,8 @@ The **Discriminator** column resolves close ties.
 | 25 | "synthesize discovery notes" + explicit slash kickoff | `/odoo-discovery-quick` (command) | Quick slash for `odoo-discovery-summarize` skill (bypass intake for explicit kickoff) |
 | 26 | "position feature X for [slide/blog/email/proposal]" | `/odoo-feature-positioning` (command) | Multi-step chain (vs `odoo-feature-check` for existence-only) |
 | 27 | "full upgrade plan from v<N> to v<M>" | `/odoo-upgrade-plan-full` (command) | Replaces legacy `odoo-upgrade-planner` agent; chains 4 skills + effort estimate |
-| 28 | "kiểm tra giao diện / form hiển thị sai / UI review / responsive / layout vỡ" | `odoo-ui-reviewer` | Rates a RENDERED screen in the browser (vs `odoo-frontend-coder` which WRITES the JS, vs `odoo-code-reviewer` which reads source STATICALLY without a browser) |
-| 29 | "console error / OWL render lỗi / trang trắng / widget không hiện / JS runtime error" | `odoo-ui-debug` | Finds ROOT CAUSE of a broken screen at runtime (vs `odoo-ui-reviewer` which rates a working screen, vs `odoo-frontend-coder` which writes the fix after the cause is known) |
+| 28 | "kiểm tra giao diện / form hiển thị sai / UI review / responsive / layout vỡ" | `odoo-ui-reviewer` | Rates a RENDERED screen in the browser (vs `odoo-frontend-coding` which WRITES the JS, vs `odoo-code-reviewer` which reads source STATICALLY without a browser) |
+| 29 | "console error / OWL render lỗi / trang trắng / widget không hiện / JS runtime error" | `odoo-ui-debug` | Finds ROOT CAUSE of a broken screen at runtime (vs `odoo-ui-reviewer` which rates a working screen, vs `odoo-frontend-coding` which writes the fix after the cause is known) |
 | 30 | "visual regression / so ảnh trước-sau / UI có đổi sau khi sửa / baseline screenshot" | `odoo-visual-regression` | Diffs TWO states/builds for drift (vs `odoo-ui-reviewer` which judges ONE screen once) |
 | 31 | "quay video tính năng / demo video / screencast / video marketing" | `odoo-demo-recorder` | Produces a REAL video/GIF of a live instance (vs `odoo-capability-proof` which produces TEXT/code evidence, vs `odoo-content-draft` which writes the SCRIPT only) |
 | 32 | "setup môi trường / wire MCP / cấu hình instance URL cho visual / lần đầu setup visual" | `/odoo-semantic-skills:setup` (command) | One-time environment bootstrap for the visual stack — wires browser MCP + writes instance URL/visual config to `.odoo-ai/context.md` (vs `odoo-onboard` which bootstraps project CODE context, vs `/odoo-semantic-mcp:connect` which only sets the OSM server URL/key) |
@@ -381,7 +381,7 @@ The **Discriminator** column resolves close ties.
 Some requests span backend **and** frontend: e.g. "add a `priority` field to sale order **and
 show it as a star widget on the form**", "thêm field rồi hiển thị bằng widget tùy biến", "new
 dashboard: a computed KPI on the model **plus** an OWL component to render it". `odoo-coder`
-owns the Python/XML; `odoo-frontend-coder` owns the JS/OWL/SCSS/QWeb. **Plan both** (backend
+owns the Python/XML; `odoo-frontend-coding` owns the JS/OWL/SCSS/QWeb. **Plan both** (backend
 first so the field/method exists, then frontend to render it) instead of silently picking one —
 a full-stack change is incomplete if the UI half is dropped. If the styling must match the Odoo
 theme, the frontend step follows the design-system fidelity contract. For ≥4 such work items or
@@ -500,16 +500,16 @@ recorded video of the flow?"
 
 **Prompt**: "my OWL widget isn't showing up in the Odoo 17 form"
 
-- `odoo-frontend-coder`: handles "field widget customization Odoo 17", "patch
+- `odoo-frontend-coding`: handles "field widget customization Odoo 17", "patch
   component" -> WRITES new/changed frontend JS source.
 - `odoo-ui-debug`: handles "widget không hiện", "OWL component not rendering" ->
   investigates the live runtime to find the ROOT CAUSE of the missing render.
 
 **Discriminator**: a symptom + "why / not showing / isn't working" signals the user needs the
 cause first, not new code. -> **Pick `odoo-ui-debug`**. Once the cause is known and the user
-asks for the fix to be written, -> route to `odoo-frontend-coder`. If the user is starting
+asks for the fix to be written, -> route to `odoo-frontend-coding`. If the user is starting
 from scratch ("create a color picker widget"), there is no runtime to debug ->
-`odoo-frontend-coder`.
+`odoo-frontend-coding`.
 
 ### Collision 9 — Wave (git orchestration) vs BRL (requirement classification) vs Odoo-Coder (single change)
 

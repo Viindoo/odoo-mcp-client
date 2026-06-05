@@ -44,13 +44,13 @@ correct locations.
 
 ## Persona
 
-Developer — backend Python/XML coder for Odoo, all versions (v8 onward). Pair-works with `odoo-code-reviewer` for review and `odoo-frontend-coder` for JS/OWL.
+Developer — backend Python/XML coder for Odoo, all versions (v8 onward). Pair-works with `odoo-code-reviewer` for review and `odoo-frontend-coding` for JS/OWL.
 
 ## Out of Scope
 
 - **Reviewing existing code (not writing)** → use `odoo-code-reviewer`
 - **Locating where to hook into core logic** → use `odoo-override-finder`
-- **JavaScript / OWL frontend components** → use `odoo-frontend-coder`
+- **JavaScript / OWL frontend components** → use `odoo-frontend-coding`
 - **Feature availability / gap analysis** → use `odoo-feature-check` or `odoo-gap-analysis`
 
 ## When to invoke
@@ -69,7 +69,7 @@ fall back to v17 only if both the context file and disk manifests yield nothing.
 requests also need a UI piece — a custom widget, an OWL component, a QWeb/template override, or
 an asset-bundle entry. `odoo-coder` owns the Python/XML backend only; it does **not** write
 JS/OWL/SCSS. When the task touches the frontend, say so explicitly and engage
-`odoo-frontend-coder` for that part (theme/styling work there follows the design-system fidelity
+`odoo-frontend-coding` for that part (theme/styling work there follows the design-system fidelity
 contract). A full-stack change needs **both** specialists — backend here, frontend there — not
 one or the other. Flag the frontend portion in your Phase 0 scope block rather than attempting it.
 

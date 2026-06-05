@@ -325,7 +325,7 @@ review → receives user approval via `ExitPlanMode` → then dispatches the
 file-touching specialist. This is a first-class enforcement option, not a workaround.
 
 There is **no platform write-block** behind the gate. `intake` does not declare
-`disallowed-tools: Write Edit`, and the coders (`odoo-coder`, `odoo-frontend-coder`)
+`disallowed-tools: Write Edit`, and the coders (`odoo-coder`, `odoo-frontend-coding`)
 DO write/apply code — that is their job. The gate is enforced by two behavioral
 mechanisms, with Plan Mode as the strongest layer when depth-0 context is available:
 
@@ -521,7 +521,7 @@ gap-analysis legend: **S = <1 day · M = 1–3 days · L = 3–10 days · XL = >
 ```
 # Full-stack feature (2 WIs, linear)
 WI-A → odoo-coder (sonnet, M)        adds backend field + ORM method
-WI-B → odoo-frontend-coder (sonnet, M) renders OWL widget
+WI-B → odoo-frontend-coding (sonnet, M) renders OWL widget
 DAG: linear  WI-A --data-flow--> WI-B
   (field must exist before widget binds)
 Verify: ./run_tests.sh sale_order

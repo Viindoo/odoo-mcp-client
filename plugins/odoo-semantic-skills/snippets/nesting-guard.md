@@ -10,7 +10,7 @@ You are a **leaf worker (depth-2)** — the bottom of the allowed spawn tree
 deeper risks a nested-context crash. Therefore:
 
 - You **MAY** NL-dispatch a **non-spawning** specialist skill (e.g. `odoo-coder`,
-  `odoo-code-reviewer`, `odoo-frontend-coder`) if it helps — but **do NOT** invoke the
+  `odoo-code-reviewer`, `odoo-frontend-coding`) if it helps — but **do NOT** invoke the
   Skill tool directly, and **do NOT** spawn a sub-agent.
 - **Do NOT** call self-spawning / depth0-only skills (`wave`, `intake`, `odoo-brl`,
   `workflow-runner`, `/code-review`, `skill-creator`). See

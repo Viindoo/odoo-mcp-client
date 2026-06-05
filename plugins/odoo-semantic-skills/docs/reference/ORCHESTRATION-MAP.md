@@ -23,7 +23,7 @@
 | `odoo-discovery-summarize` | leaf | any-depth | none | — | — |
 | `odoo-feature-check` | leaf | any-depth | none | — | — |
 | `odoo-feature-highlights` | leaf | any-depth | none | — | — |
-| `odoo-frontend-coder` | leaf | any-depth | frontend | — | — |
+| `odoo-frontend-coding` | spawner-agent | depth0-only | frontend | — | odoo-frontend-coder |
 | `odoo-gap-analysis` | leaf | any-depth | none | — | — |
 | `odoo-objection-handler` | leaf | any-depth | none | — | — |
 | `odoo-onboard` | leaf | any-depth | none | — | — |

@@ -193,7 +193,7 @@ Hard rules:
     OSM is unreachable say so ("OSM unavailable — ungrounded"). Never code Odoo from memory.
   - Nesting guard (full text: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md): you are a
     leaf worker (depth-2). You MAY NL-dispatch a non-spawning specialist skill (e.g.
-    odoo-coder, odoo-code-reviewer, odoo-frontend-coder) if it helps. Do NOT invoke the
+    odoo-coder, odoo-code-reviewer, odoo-frontend-coding) if it helps. Do NOT invoke the
     Skill tool directly. Do NOT spawn a sub-agent. Do NOT call self-spawning / depth0-only
     skills (/code-review, skill-creator, wave). Do NOT git branch/cherry-pick/merge/push;
     stay in your assigned worktree. Only Read/Grep/Glob/Edit/Write/Bash.
@@ -226,7 +226,7 @@ If a subagent exceeds 15 minutes without output, check its status; do not assume
 |---|---|---|
 | Backend Python/XML code | odoo-coder (non-spawning) | Spawn subagent |
 | Code review of own output | odoo-code-reviewer (non-spawning) | Call /code-review |
-| Frontend JS/OWL | odoo-frontend-coder (non-spawning) | Call wave recursively |
+| Frontend JS/OWL | odoo-frontend-coding (non-spawning) | Call wave recursively |
 | Any skill that auto-spawns | N/A - not allowed | Call skill-creator, /code-review, wave |
 
 **Nesting rule**: Leaf subagents (depth 2) are allowed to NL-dispatch specialist skills
@@ -368,7 +368,7 @@ When the wave process is unnecessary (1 WI, trivial change, or user preference):
 3. Offer: "Run directly (simpler) OR proceed as a wave (more isolation)?"
 
 If the user chooses direct: dispatch the appropriate specialist skill (odoo-coder,
-odoo-frontend-coder, etc.) via NL-dispatch and stop.
+odoo-frontend-coding, etc.) via NL-dispatch and stop.
 
 ## Examples
 

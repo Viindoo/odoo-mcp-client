@@ -9,7 +9,7 @@ description: >
   "screenshot baseline for Odoo", "pixel diff two Odoo builds", "so sánh giao diện trước và
   sau", "ảnh chụp baseline Odoo". Routing: one-time aesthetic verdict on a single working
   screen → odoo-ui-reviewer; broken screen needing root cause → odoo-ui-debug; demo/marketing
-  video → odoo-demo-recorder; fix the defect in source → odoo-frontend-coder; static code audit
+  video → odoo-demo-recorder; fix the defect in source → odoo-frontend-coding; static code audit
   → odoo-code-reviewer
 ---
 
@@ -25,7 +25,7 @@ likely to touch, so the comparison set is targeted rather than exhaustive.
 - **One-time aesthetic / a11y / performance verdict on a single screen** → use `odoo-ui-reviewer`
 - **Diagnosing the root cause of a broken screen** → use `odoo-ui-debug`
 - **Recording a demo/marketing video** → use `odoo-demo-recorder`
-- **Writing the fix for a detected defect** → use `odoo-frontend-coder`
+- **Writing the fix for a detected defect** → use `odoo-frontend-coding`
 - **Static source-level code audit** → use `odoo-code-reviewer`
 
 ## MCP tools
@@ -172,4 +172,4 @@ Prompt: "I changed our brand SCSS variable — what screens drifted?"
 - Determinism matters: same login, same data, same breakpoint, same scroll position for both
   captures, or the diff is noise. See `docs/odoo-ui-knowledge.md` for breakpoints and session reuse.
 - Baselines are written under `screenshot_baseline_dir` from `.odoo-ai/context.md`.
-- This skill detects drift only; hand fixes for any defect to `odoo-frontend-coder`.
+- This skill detects drift only; hand fixes for any defect to `odoo-frontend-coding`.
