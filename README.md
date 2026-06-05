@@ -61,7 +61,7 @@ workflows (driven by `workflows/*.workflow.yaml` + `workflow-runner`) cover QA,
 support triage, sales, video production, and more - adding a new workflow requires
 only one YAML file, no orchestration code.
 
-> **Counts at a glance (v2.3.0):** `odoo-semantic-skills` ships **31 skills + 4 agents +
+> **Counts at a glance:** `odoo-semantic-skills` ships **31 skills + 4 agents +
 > 9 commands**, grouped into **9 persona buckets** for navigation, plus **10 declarative
 > workflows** driven by `workflows/*.workflow.yaml`. A further slash command,
 > `/odoo-semantic-mcp:connect`, belongs to the companion `odoo-semantic-mcp` plugin

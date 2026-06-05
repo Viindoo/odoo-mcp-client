@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-06-05
+
 ### Added
 
 - **Agent-first grounding SSOT (PR #42)** — two new snippets the skills/agents reference by
@@ -13,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   via Read/Grep/Bash/WebFetch → training-memory flagged `ungrounded`) and
   `snippets/context-bootstrap.md` (a mandatory Round 0 that reads `.odoo-ai/context.md` before
   asking the caller for version/profile/module list).
+- **`odoo-frontend-coder` agent (PR #43)** — frontend coding is now an agent+skill bundle
+  (mirrors `odoo-coder` / `odoo-code-reviewer`): a slim routing skill plus an isolated executor
+  agent with a restricted tool allowlist (incl. `resolve_stylesheet` / `find_style_override`),
+  so version-gating + multi-round MCP runs out of the main agent's context.
 
 ### Changed
 
@@ -35,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `_schema.md` / `workflow-harness.md` (never for write/synthesis phases). The
   `set_active_profile` example reads `viindoo_profile` from `.odoo-ai/context.md` instead of
   hard-coding `viindoo-internal`.
+- **Frontend bundle + version portability (PR #43)** — the `odoo-frontend-coder` skill is
+  renamed `odoo-frontend-coding` (the agent keeps the `odoo-frontend-coder` name); the
+  wave / nesting-guard guidance is corrected so a depth-2 leaf worker never invokes a
+  depth0-only bundle (it writes/reviews directly via OSM tools); hard-pinned `v8–v19` version
+  ranges that only meant "all supported" are replaced with open phrasing ("any/all supported
+  version", "v8+") while real era boundaries are kept; the README no longer tracks the plugin
+  version.
 
 ### Removed
 
