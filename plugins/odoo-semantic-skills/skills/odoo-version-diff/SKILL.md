@@ -95,7 +95,22 @@ explaining the magnitude: Python 2→3 rewrite, decorator removal, frontend fram
 
 ## Standalone-first fallback
 
-When OSM is unreachable, the skill asks the user to provide official release notes or changelog from both versions. The skill still produces a version diff based on changelog text parsing + training knowledge of era-level changes (Python 2→3, `@api.multi` removal, OWL adoption timeline) — with caveat "not yet verified against the API index; double-check signature details when OSM is back online".
+When OSM is unreachable, follow the three-tier grounding order from
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+
+1. **Tier 2 - self-serve first:**
+   - `WebFetch` the GitHub release/tag page or CHANGELOG for each version, e.g.
+     `https://github.com/odoo/odoo/releases/tag/<version>` or
+     `https://github.com/odoo/odoo/blob/<version>/CHANGELOG.rst`.
+   - `WebFetch` official release notes at
+     `https://www.odoo.com/odoo-<version>/release-notes` for business-language content.
+   - Use local `Read`/`Grep` on a local source tree when present.
+   - Label artifacts `grounded: local-source (not OSM-indexed)`.
+2. **Tier 3 - only if both version fetches fail:** produce the diff from training
+   knowledge of era-level changes (Python 2→3, `@api.multi` removal, OWL adoption
+   timeline) and prepend `OSM unavailable - ungrounded`; add caveat "not yet verified
+   against the API index; double-check signature details when OSM is back online". Never
+   ask the caller to paste or supply release notes - those are Tier-2 fetches.
 
 ## Output format
 

@@ -105,7 +105,22 @@ listing modules that require full Python 2 → 3 syntax migration, not just API 
 
 ## Standalone-first fallback
 
-When OSM is unreachable, ask the user to provide the module list to audit plus source code (or grep output of suspected deprecated patterns). The skill will still create an audit report using static text analysis — searching for patterns like `@api.multi`, `_columns`, `osv.osv`, `web.Widget` via regex — and suggest replacements from Odoo knowledge, with a caveat: "Classification not yet verified against the codebase index; confirm findings once OSM is online."
+When OSM is unreachable, follow the three-tier grounding in
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+
+- **Tier 2 - Module discovery:** Run `find . -maxdepth 4 -name "__manifest__.py"` to discover
+  all modules; no need to ask the caller for the module list.
+- **Tier 2 - Deprecated pattern scan:** Run
+  `grep -rn "@api.multi\|@api.one\|_columns\|osv\.osv\|orm\.TransientModel\|web\.Widget\|fields\.function\|ir\.values" --include="*.py" <module_dirs>`
+  and `grep -rn "odoo\.define\|AbstractField\|FieldWidget" --include="*.js" <module_dirs>`
+  to surface deprecated patterns directly from source. Combine JS and Python hits.
+- **Tier 2 - Version resolution:** Read `.odoo-ai/context.md` for `odoo_version` (target
+  and source). If absent, derive source version from manifest `version` fields.
+- **Caveat:** Label output `grounded: local-source (not OSM-indexed)`. Classification is
+  based on static pattern matching - confirm exact removal vs. deprecation status once OSM is
+  online.
+- Escalate to the caller (`NEEDS_CONTEXT`) only if the target upgrade version is genuinely
+  unresolvable from context - never ask for source code or module lists.
 
 ## Output format
 

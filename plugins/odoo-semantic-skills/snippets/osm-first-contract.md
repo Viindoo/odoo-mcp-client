@@ -49,9 +49,23 @@ If the index genuinely has nothing relevant, say so explicitly — then write.
   real CLI with `cli_help` — do not assume one version's flags apply to another (see
   `INSTANCE-LIFECYCLE.md`, `ODOO-TESTING.md`).
 
-## 4. Standalone fallback is never silent
+## 4. Standalone fallback: read the source, don't ask the human
 
-If OSM is unreachable, do **not** quietly generate from memory. State
-`OSM unavailable — ungrounded` in your output, lower your confidence, and make that
-caveat survive into the final artifact your orchestrator returns. Grounded-by-default;
-ungrounded-but-flagged only as a last resort.
+If OSM is unreachable, you are **not** reduced to generating from memory, and you do **not**
+ask a human to paste data you can fetch yourself. Reading the real source is a legitimate
+grounding path. Follow the three-tier order in
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+
+1. **Tier 2 - disk first.** `Read`/`Grep`/`Bash` the local addons, or `WebFetch` the official
+   Odoo source for the target version (and, only if this environment happens to expose a live
+   ERP MCP, enrich from it as a bonus - never assume one exists). Output built this way is
+   **grounded against real source** (label `grounded: local-source (not OSM-indexed)`), one
+   notch below OSM - it is NOT `ungrounded`.
+2. **Tier 3 - training-memory only as a last resort**, when no index, no readable repo, no live
+   instance, and no network are available. Then do not generate silently: state
+   `OSM unavailable - ungrounded` in your output, lower confidence, and make that caveat survive
+   into the final artifact your orchestrator returns.
+
+Grounded-by-default (Tier 1 or Tier 2); ungrounded-but-flagged (Tier 3) only as a true last
+resort. Escalate to a human (`NEEDS_CONTEXT`) solely for secrets or business decisions no
+source encodes - never to re-supply code, fields, manifests, changelogs, or CRM data.

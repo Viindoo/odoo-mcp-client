@@ -79,7 +79,23 @@ For EE-only and distribution-specific features, add a brief business value note 
 
 ## Standalone-first fallback
 
-When OSM is unreachable, the skill asks the user to paste manifest + relevant changelog/release notes from each edition. The skill still produces a comparison table based on changelog text parsing — with note "field-level details not yet verified; check again when OSM is back online".
+When OSM is unreachable, follow the three-tier grounding order from
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+
+1. **Tier 2 - self-serve first:**
+   - `WebFetch` the raw manifests for each edition/version directly, e.g.
+     `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`
+     (CE) and `https://raw.githubusercontent.com/odoo/enterprise/<version>/<module>/__manifest__.py`
+     (EE). Use `mcp__odoo-semantic__scan_addons_source` or local `Read`/`Grep` if a local
+     source tree is present.
+   - `WebFetch` the official release notes page for the version (e.g.
+     `https://www.odoo.com/odoo-<version>/release-notes`) or the GitHub CHANGELOG to resolve
+     edition-boundary changes.
+   - Label any artifact built this way `grounded: local-source (not OSM-indexed)`.
+2. **Tier 3 - only if both fetches fail:** generate the comparison from training knowledge
+   and prepend `OSM unavailable - ungrounded`; add note "field-level details not yet verified;
+   check again when OSM is back online". Never ask the caller to paste manifests or release
+   notes - those are Tier-2 fetches.
 
 ## Output format
 

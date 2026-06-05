@@ -142,7 +142,7 @@ find_deprecated_usage(odoo_version='auto')
 
 ## Sample Developer Questions
 
-Copy these prompts into your AI tool:
+Example invocations (an AI agent can run these directly as NL dispatch; a human reader can copy them into their AI tool):
 
 1. **Model exploration (superset):**
    > "Using odoo-semantic, inspect account.move with method=summary in Odoo 17.0. Show the inheritance chain and group fields by module."

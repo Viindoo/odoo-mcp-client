@@ -15,8 +15,10 @@ Use this command when you already know you want to run discovery synthesis and w
 1. **Phase 0: Parse input**
    - Check if `$ARGUMENTS` contains a customer label (e.g., `/odoo-discovery-quick Customer-A`).
    - If a label is provided, store it. Otherwise, ask the user for one.
-   - Ask the user to provide raw notes (either pasted inline or as a file path).
-   - If the user provides a file path, read it with the `Read` tool.
+   - Resolve the raw notes yourself before asking: if they are already in the invocation
+     context (e.g. passed by an orchestrator or earlier in the conversation), use them; if
+     `$ARGUMENTS` or the context names a file path, `Read` it directly. Only ask the user to
+     supply notes when none are available from context or a readable path.
 
 2. **Phase 1: Trigger skill**
    - Construct a natural-language prompt that includes:
@@ -82,7 +84,7 @@ Agent: ✓ Profile saved to .odoo-ai/discovery/Customer-A-Corp-2026-05-28.md
 
 ## Standalone fallback
 
-If `odoo-discovery-summarize` skill is unavailable (OSM offline, network error), prompt the user to manually fill in the customer profile fields shown in the skill's output schema (industry, pain points, success criteria, decision process). Continue per `yes/iterate/cancel` gate. Output marked with `<TBD: verify via skill when OSM back>` placeholders for fields that would normally be cross-checked.
+If `odoo-discovery-summarize` skill is unavailable (OSM offline, network error), synthesize the customer profile yourself from the raw notes - filling the schema (industry, pain points, success criteria, decision process) is straightforward inference, not work to hand back to the user. Mark each synthesized field `[source: LLM-unverified]` (rather than blank `<TBD>`); the profile is still useful and can be cross-checked when OSM returns. Continue per the `yes/iterate/cancel` gate. Ask the user only for facts the notes genuinely do not contain.
 
 ## What this command does NOT do
 

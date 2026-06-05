@@ -1,8 +1,8 @@
 ---
 name: odoo-override-finder
 description: >
-  Find the correct override point and pattern to extend Odoo behavior safely — exact method
-  name, module/file location, ready-to-paste `super()` template, existing override chain, and
+  Find the correct override point and pattern to extend Odoo behavior safely - exact method
+  name, module/file location, ready-to-apply `super()` template, existing override chain, and
   version-specific compatibility notes. Use this skill ANY time someone wants to inject
   custom behavior into an existing Odoo flow, even describing only the BEHAVIOR without naming
   a method. Fire on "I want to do X when Y happens in Odoo" — even informal descriptions.
@@ -116,7 +116,24 @@ pattern is stable in.
 
 ## Standalone-first fallback
 
-When OSM is unreachable, ask the user to describe the behavior they want to inject and provide the model name if known. The skill will still recommend an override point and code template based on core Odoo patterns — e.g. `write()` override for create/update hooks, `action_*()` override for workflow changes, `@api.depends` + compute field for derived fields — with a caveat: "Override chain and conflict checks not yet verified; confirm compatibility once OSM is online."
+When OSM is unreachable, follow the three-tier grounding in
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+
+- **Tier 2 - Model name:** If the model name is already in the request or `.odoo-ai/context.md`,
+  proceed directly. If it is truly absent, ask the caller once for the model name (it is a
+  business decision, not a code artifact - no Tier-2 source encodes "which model the user meant").
+- **Tier 2 - Codebase scan:** Once the model name is known, run
+  `grep -rn "class .*<ModelClass>\|_inherit.*=.*'<model.name>'" --include="*.py" .` to find
+  all override sites, then `Read` the relevant Python files to extract existing method
+  signatures and decorator usage. This replaces the `find_override_point` / `entity_lookup`
+  MCP calls.
+- **Tier 2 - Version:** Read `.odoo-ai/context.md` for `odoo_version`; derive from manifest
+  if absent.
+- The skill will still recommend an override point and apply a code template grounded on
+  the actual source - e.g. `write()` override for create/update hooks, `action_*()` for
+  workflow changes, `@api.depends` + compute field for derived fields.
+- **Label:** `grounded: local-source (not OSM-indexed)`. Note that override chain conflict
+  count is approximate (static grep only); confirm once OSM is online.
 
 ## Output format
 

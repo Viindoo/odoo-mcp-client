@@ -31,7 +31,7 @@ These answers come from live codebase analysis — not guesswork.
 
 ## Questions You Can Ask Your AI Assistant
 
-Copy any of these prompts directly:
+Example invocations (an AI agent can run these directly as NL dispatch; a human reader can copy them):
 
 1. **Upgrade risk scan:**
    > "Using odoo-semantic, run find_deprecated_usage for Odoo 17.0 on our codebase. Summarize the HIGH-risk items in plain language."

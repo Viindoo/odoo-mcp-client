@@ -60,11 +60,20 @@ to the output noting that feature/module claims were not verified against the li
 
 ## Phase 0 - Collect ticket input
 
-Gather from the user (ask for anything missing):
+Before asking the caller for any project fact, follow
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`: read `.odoo-ai/context.md` if
+present and extract `odoo_version`. Use that as the default for the version field below
+so the caller is not asked for something already on disk.
+
+Gather from the user (ask only for anything still missing after the context read):
 
 **Required:**
-- Ticket description or pasted customer message (any language)
-- Odoo version (e.g., 17.0 CE, 16.0 EE) - or "unknown"
+- Ticket description or customer message (any language) - accepted as:
+  - Structured list or text already present in the invocation request, OR
+  - A file path to a ticket file (Read it); never ask the user to re-paste content
+    that can be fetched from disk.
+- Odoo version (e.g., 17.0 CE, 16.0 EE) - default from context.md if present, otherwise
+  ask; "unknown" is acceptable.
 
 **Optional:**
 - Module or menu path where the issue occurs
@@ -72,8 +81,8 @@ Gather from the user (ask for anything missing):
 - Severity from customer ("blocker", "urgent", "normal", "low")
 - Prior steps taken by the customer or support team
 
-If the user pastes only a raw message with no additional context, extract the required fields
-from the message first, then confirm before proceeding to Phase 1.
+If the request contains only a raw message with no additional context, extract the
+required fields from the message first, then confirm before proceeding to Phase 1.
 
 ## Phase 1 - Classify the ticket
 
@@ -150,7 +159,8 @@ the team has confirmed it.
 ## Phase 4 - Output assembly
 
 Combine Phases 1-3 into a structured artifact. Write to `.odoo-ai/support/<ticket-slug>.md`.
-Print the artifact to the terminal for copy-paste. Use abstract labels (Customer A, Ticket-001)
+The artifact is saved to `.odoo-ai/support/<ticket-slug>.md`; emit the file path in the
+final output for the caller to reference. Use abstract labels (Customer A, Ticket-001)
 - never log real company or contact names in the saved file.
 
 ### Output format
@@ -185,6 +195,7 @@ screenshot" or "Suggest: run odoo-feature-check to confirm edition availability"
 
 ## Artifact
 Saved to: .odoo-ai/support/<ticket-slug>.md
+Emit this path in the final output so the caller can reference or forward the file.
 Note: .odoo-ai/ is gitignored — no customer data committed to the repo.
 ```
 

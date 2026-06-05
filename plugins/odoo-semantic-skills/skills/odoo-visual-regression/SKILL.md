@@ -70,8 +70,12 @@ parse lines of the form `- **key**: value`. Extract:
 - `instance_login` — login identifier and agreed credential source.
 - `screenshot_baseline_dir` — directory where baseline screenshots are stored and re-read.
 
-If the file is absent or a key is missing, ask the user for it (plus the two states to compare:
-e.g. "before/after which change?") in a single message. Do not guess.
+If the file is absent or a key is missing, fall back to the plugin's own portable conventions
+before asking: read `.odoo-ai/instances.toml` (written by `/odoo-semantic-skills:setup`) for the
+instance URL, and resolve the Odoo version from the request or the OSM index
+(`list_available_versions`). Only ask the user (plus the two states to compare: e.g.
+"before/after which change?") in a single message if none of these supply the needed values.
+Do not guess.
 
 ### Round 1 — Scope the comparison set (parallel, OSM)
 
@@ -115,9 +119,12 @@ impact analysis as a higher-priority surprise.
   repo for changed views/stylesheets to build the set
   (`grep -rln "<selector>" --include=*.scss`). Prefix with
   `⚠ OSM unreachable — comparison set chosen without blast-radius analysis, may miss affected screens`.
-- **Browser MCP or instance unreachable:** ask the user to paste before/after screenshot pairs
-  (or URLs to both states); diff the supplied images only and prefix with
-  `⚠ Instance unreachable — diff limited to user-supplied screenshots`.
+- **Browser MCP or instance unreachable:** if the orchestrator has provided pre-captured
+  before/after screenshot paths in context, use those pairs directly for the diff. If no
+  pre-captured pairs are available, return `BLOCKED(Browser MCP unavailable - cannot capture
+  screenshots for regression diff)` to the orchestrator. Do NOT ask the user to paste screenshots
+  or URLs. Prefix the output (if pre-captured pairs were used) with
+  `⚠ Instance unreachable - diff limited to pre-captured screenshots`.
 
 ## Output format
 

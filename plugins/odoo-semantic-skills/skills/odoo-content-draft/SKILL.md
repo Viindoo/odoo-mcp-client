@@ -100,9 +100,19 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 ## Workflow
 
-### Round 0 - Clarify (1 question max)
+### Round 0 - Context bootstrap + clarify (1 question max)
 
-Before drafting, confirm if any of these are missing or ambiguous:
+Before asking the user anything, read what onboarding already captured
+(see `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`):
+
+1. **Read `.odoo-ai/context.md`** if present. Extract and apply as authoritative overrides:
+   - `odoo_version` - used for any feature-claim grounding.
+   - Audience personas / messaging pillars / channel restrictions defined there take
+     precedence over this skill's generic defaults.
+   - Tone or language preferences recorded there are applied automatically.
+2. If the file is absent, proceed with this skill's defaults.
+
+After the bootstrap, confirm only what is still missing or ambiguous:
 - **Channel**: which of the 6 supported channels?
 - **Topic / product angle**: which Odoo/Viindoo feature or business problem?
 - **Audience**: who will read/watch this? (e.g., CEO, ke toan truong, IT manager)
@@ -110,7 +120,7 @@ Before drafting, confirm if any of these are missing or ambiguous:
 - **Tone variant**: educational, inspirational, or problem-agitation?
 
 If more than one is unclear, ask ONE compound question. If the user's intent is clear enough
-to produce a reasonable first draft, skip clarification and draft — offer to adjust afterward.
+to produce a reasonable first draft, skip clarification and draft - offer to adjust afterward.
 
 ### Round 1 - Optional MCP grounding
 
@@ -263,10 +273,11 @@ before publishing._
   must describe visual elements (e.g., landing page design brief handed to a designer). When a
   video script is the deliverable, `odoo-demo-recorder` can realize the script/timestamps as a
   real Odoo screencast (this skill still only writes the text).
-- **Project context file**: if the working repository contains `.odoo-ai/context.md`, read it
-  at session start for project-specific product positioning, target audience personas, or
-  approved messaging pillars. Content in that file takes precedence over this skill's generic
-  defaults.
+- **Project context file**: `.odoo-ai/context.md` is read automatically in Round 0
+  (see `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) - not at the end as an
+  optional note. Audience personas, approved messaging pillars, channel restrictions, and
+  tone preferences found there override this skill's generic defaults before any clarification
+  question is asked.
 - **Depth rule**: this skill operates at depth 1 (called from main agent). It does NOT invoke
   other skills or spawn subagents. Output is text — the marketer publishes it, the main agent
   does not chain it into another tool.

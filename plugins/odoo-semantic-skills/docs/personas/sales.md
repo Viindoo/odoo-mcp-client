@@ -59,7 +59,7 @@ See how many modules extend their core models. If the prospect is on an older ve
 
 ## Sample Sales Questions
 
-Copy these prompts into your AI tool:
+Example invocations (an AI agent can run these directly as NL dispatch; a human reader can copy them into their AI tool):
 
 1. **Quick capability check:**
    > "Using odoo-semantic, does Odoo 17.0 Community have an eSignature module? Or is it Enterprise-only? The prospect is on a CE budget."

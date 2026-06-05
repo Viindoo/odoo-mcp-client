@@ -85,7 +85,25 @@ editing. Keep it professional but conversational.
 
 ## Standalone-first fallback
 
-When OSM is unreachable, the skill asks the user to provide detailed objection text + customer context (industry, Odoo version). The skill still generates an ACA response based on training knowledge of Odoo capabilities, common patterns, and familiar implementation patterns — with caveat "not yet verified against the codebase; fact-check evidence when OSM is back online".
+The objection text is already in the invocation - do not ask the caller to re-provide it.
+Resolve customer context without asking:
+
+1. `Read .odoo-ai/context.md` (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`)
+   for `odoo_version`, `viindoo_profile`, and industry hints.
+2. If a customer name is known, `Read` the vault dossier at
+   `Resources/Competitors/<name>.md` or `Sales/Customers/<name>.md` if present.
+
+When OSM is unreachable, follow the three-tier grounding order from
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+
+1. **Tier 2 - self-serve first:** `WebFetch` relevant Odoo source or docs to ground
+   capability claims; use local `Read`/`Grep` when a source tree is available.
+   Label artifacts `grounded: local-source (not OSM-indexed)`.
+2. **Tier 3 - only if all Tier-2 fetches fail:** generate the ACA response from
+   training knowledge and prepend `OSM unavailable - ungrounded`; add caveat "not yet
+   verified against the codebase; fact-check evidence when OSM is back online". Ask the
+   caller (`NEEDS_CONTEXT`) only for inputs that no tier above can resolve (e.g.,
+   undisclosed customer context that is not on disk).
 
 ## Output format
 

@@ -45,20 +45,33 @@ because the deal involves Odoo.
   edition (CE/EE/your custom distribution). Call only when user asks to fact-check a feature
   claim present in the deal thread or email. Do NOT call speculatively.
 
-**Ollama delegation:** None. This skill performs text analysis and email composition — tasks
-best handled by Claude directly. Do not delegate to ollama-delegate tools.
+This skill performs text analysis and email composition directly - no code generation or
+external model delegation is involved.
 <!-- END MANUAL TOOLS — odoo-deal-followup -->
 
 ## Standalone-first fallback
 
 Skill **always operates without OSM**. All logic below runs on user-provided text.
 
-### Round 0 - Parse deal context
+### Round 0 - Bootstrap context, then ask only for gaps
 
-Collect input from the user. Ask if anything is missing.
+Before asking the user for anything, resolve as much as possible from sources you can rely on
+in any environment (see `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`):
 
-**Required inputs:**
-- Customer label (may be abstract: "Customer A", "Company B") — real name not required if
+1. **Use the invocation context first.** The deal details (label, stage, last touch, prior
+   commitment, any email thread) are usually already in the request the caller sent - an
+   orchestrator passing structured deal data, or the sales user stating it. Do not re-ask for
+   anything the invocation already contains.
+2. **Read `.odoo-ai/context.md`** if present - extract `odoo_version` and any project-level CRM
+   defaults the team recorded there.
+3. **Optional enrichment (only if the environment provides it).** If this session happens to
+   expose a live CRM/ERP or email integration, you may enrich the deal data from it - but treat
+   that as a bonus, never a required step, and never assume any specific MCP server exists. This
+   skill must work for an agent that has only the request text plus local files.
+4. Ask the user **only** for fields still unresolved after steps 1-3 - batch into one message.
+
+**Required inputs (resolved from the invocation context, `.odoo-ai/context.md`, or the user):**
+- Customer label (may be abstract: "Customer A", "Company B") - real name not required if
   the user prefers to keep it private
 - Last contact date (or "approximately X days/weeks ago")
 - Current pipeline stage (e.g., Qualified, Proposal sent, Negotiation, Demo done,
@@ -67,9 +80,10 @@ Collect input from the user. Ask if anything is missing.
   call", "waiting for them to review the demo")
 
 **Optional inputs:**
-- Email / note thread pasted in (any language)
+- Email / note thread (whatever the caller included in the request; if an email/CRM
+  integration is available in this environment it may supply it, but do not assume one)
 - Expected close date
-- Deal size category: Small (<$2K), Medium ($2K-$20K), Large (>$20K) — exact figures not
+- Deal size category: Small (<$2K), Medium ($2K-$20K), Large (>$20K) - exact figures not
   required
 
 If the user pastes an email thread without additional context, extract the required fields
@@ -257,9 +271,10 @@ the customer">
 ## Notes
 
 - **Odoo version context:** If the user or customer mentions "Odoo X.0 can do Y" in an email,
-  the skill will flag that claim under "Optional: feature claims to verify". If the project
-  has an `.odoo-ai/context.md` file, the main agent can read it to get the deployed Odoo
-  version before fact-checking. (Phase B wiring - forward reference.)
+  the skill will flag that claim under "Optional: feature claims to verify". The deployed Odoo
+  version is resolved in Round 0 from `.odoo-ai/context.md` (see
+  `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) and used automatically when
+  fact-checking feature claims.
 - **Email language:** Default matches the thread language or the user's explicit request. If
   thread is in Vietnamese, draft Vietnamese. If thread is in English, draft English. If no
   thread is provided, default to English.

@@ -106,14 +106,16 @@ path, duration, and the step list so the take is re-runnable.
 
 ## Standalone-first fallback
 
-- **OSM unreachable:** skip Round 1's verification; ask the user to confirm the menu path and the
-  records to use, or grep the repo for the menu/view ids
-  (`grep -rn "<menu_id>" --include=*.xml`). Prefix with
-  `⚠ OSM unreachable — click path planned from user input / disk grep, verify menus on the live instance`.
+- **OSM unreachable:** skip Round 1's verification; grep the repo for the menu/view ids first
+  (`grep -rn "<menu_id>" --include=*.xml`) to reconstruct the click path from source; only ask
+  the caller to confirm the menu path and records if the grep result is insufficient. Prefix with
+  `⚠ OSM unreachable - click path planned from disk grep, verify menus on the live instance`.
 - **Browser MCP / video recorder unreachable:** if video capture is unavailable, fall back to a
-  screenshot frame sequence assembled into a GIF; if the instance itself is unreachable, ask the
-  user to provide the URL/credentials or a screen-capture of the flow, and prefix with
-  `⚠ Recorder unreachable — produced frame sequence / GIF only`.
+  screenshot frame sequence assembled into a GIF. If the instance itself is unreachable, re-check
+  `.odoo-ai/context.md` for `instance_base_url` and `instance_login` before anything else; if
+  the instance is still unreachable after trying the URL from context, return
+  `BLOCKED(instance unreachable - tried <url>)` to the orchestrator. Do NOT ask the user for
+  a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.
 
 ## Output format
 

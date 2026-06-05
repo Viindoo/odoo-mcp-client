@@ -88,7 +88,23 @@ Always cite the exact module name so clients can verify independently.
 
 ## Standalone-first fallback
 
-When OSM is unreachable (server down or network), ask the user to paste the module manifest content and 1-2 model file snippets from the module in question. The skill will still produce a verdict (available / unavailable, edition CE/EE) based on text analysis of the paste, with a caveat that verification via the semantic index is pending once the server is back online.
+When OSM is unreachable, follow the three-tier grounding in
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+
+- **Tier 2 - WebFetch upstream manifest:** Fetch the raw manifest from the official Odoo
+  source for the target version, e.g.
+  `WebFetch("https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py")`
+  and one or two key model files from the same path. For EE-only modules also try
+  `https://raw.githubusercontent.com/odoo/enterprise/<version>/<module>/__manifest__.py`.
+- **Tier 2 - Local addons:** If a local Odoo source tree is present, use
+  `find . -maxdepth 4 -name "__manifest__.py"` then `Read` the matching manifest and
+  model files directly - no need to ask.
+- **Tier 3 (last resort):** If both WebFetch and local source fail, derive the verdict from
+  training knowledge and label it `OSM unavailable - ungrounded`. Confidence is lower;
+  the verdict may be outdated for the specific version.
+- Escalate to the caller (`NEEDS_CONTEXT`) only if the target Odoo version and feature name
+  are both unresolvable - never ask for manifest content or model snippets that WebFetch can
+  supply.
 
 ## Output format
 

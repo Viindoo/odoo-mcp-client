@@ -391,21 +391,20 @@ def gen_routing_md(surface: dict) -> str:
 # 2. Generate skill ## MCP tools section content
 # ---------------------------------------------------------------------------
 
-# SKILL_TO_TOOLS and SKILL_OLLAMA_TOOLS are populated at runtime from
+# SKILL_TO_TOOLS is populated at runtime from
 # generator/skill_tool_deps.json (SSOT written by A2).  The dicts below are
 # assigned inside _load_skill_tool_deps() and referenced by gen_skill_tools_block().
 
 SKILL_TO_TOOLS: dict[str, list[str]] = {}
-SKILL_OLLAMA_TOOLS: dict[str, list[str]] = {}
 # Orchestration SSOT (spawn_class / depth_policy / spawns / stack / instance_touching)
 # per skill dir, loaded from skill_tool_deps.json -> "orchestration".
 ORCHESTRATION: dict[str, dict] = {}
 
 
 def _load_skill_tool_deps() -> None:
-    """Populate SKILL_TO_TOOLS, SKILL_OLLAMA_TOOLS and ORCHESTRATION from skill_tool_deps.json.
+    """Populate SKILL_TO_TOOLS and ORCHESTRATION from skill_tool_deps.json.
 
-    The JSON is the SSOT for which MCP/Ollama tools each skill uses, and (in the
+    The JSON is the SSOT for which MCP tools each skill uses, and (in the
     "orchestration" block) for each skill's spawn class, depth policy and stack.
     Session bootstrap tools (set_active_version, set_active_profile) are included
     in each skill's mcp_tools list and separated at render time in
@@ -416,7 +415,6 @@ def _load_skill_tool_deps() -> None:
 
     for skill_name, entry in data["skills"].items():
         SKILL_TO_TOOLS[skill_name] = list(entry["mcp_tools"])
-        SKILL_OLLAMA_TOOLS[skill_name] = list(entry["ollama_tools"])
 
     for skill_name, entry in data.get("orchestration", {}).items():
         if skill_name.startswith("_"):
@@ -479,7 +477,6 @@ def gen_orchestration_digest(orch: dict[str, dict]) -> str:
 def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
     """Generate the ## MCP tools section body for one skill."""
     tool_names = SKILL_TO_TOOLS.get(skill_name, [])
-    ollama_tools = SKILL_OLLAMA_TOOLS.get(skill_name, [])
     tools_by_name = {t["name"]: t for t in surface["tools"]}
 
     server_ver = surface["server_version"]
@@ -512,12 +509,6 @@ def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
                 label = tool_group_label(t)
                 label_str = f" {label}" if label else ""
                 lines.append(f"- `{tn}`{label_str} — {_first_sentence(t['description'])}")
-        lines.append("")
-
-    if ollama_tools:
-        lines.append("**Ollama-delegate tools** (local model, cost-free):")
-        for ot in ollama_tools:
-            lines.append(f"- `mcp__ollama-delegate__{ot}`")
         lines.append("")
 
     return "\n".join(lines).rstrip()
@@ -772,7 +763,7 @@ def inject_markers_into_snippet(path: Path, new_block: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def main():
-    # Load skill→tools mapping from JSON SSOT (populates SKILL_TO_TOOLS / SKILL_OLLAMA_TOOLS)
+    # Load skill→tools mapping from JSON SSOT (populates SKILL_TO_TOOLS)
     _load_skill_tool_deps()
 
     surface = load_surface()

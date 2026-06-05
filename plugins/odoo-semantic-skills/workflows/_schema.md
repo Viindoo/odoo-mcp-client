@@ -87,7 +87,7 @@ Exactly one of `skill`, `inline: true`, or `agent` must be present per phase ite
 haiku | sonnet | opus | inherit
 ```
 
-- `haiku` — read-only lookup, classification, simple Q&A with no writes.
+- `haiku` - read-only lookup, classification, simple Q&A with no writes. NEVER for write phases or for multi-tool OSM synthesis (e.g. capability tables, feature-existence verdicts); those need `sonnet`.
 - `sonnet` — write tasks, edits, single-file refactor, review. **Minimum for write phases.**
 - `opus` — cross-file reasoning, orchestration, DAG cluster reasoning. Max 3 concurrent.
 - `inherit` — defer to the calling context's model; use for inline phases.

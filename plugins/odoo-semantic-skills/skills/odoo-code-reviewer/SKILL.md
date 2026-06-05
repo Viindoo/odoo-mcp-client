@@ -28,10 +28,12 @@ Developer / Tech Lead reviewing Odoo code with semantic MCP enrichment.
 
 ## When to invoke
 
-Main agent invokes the `odoo-code-reviewer` **agent** (via Agent tool) when the user shares
-existing Odoo code for review. The agent runs a multi-step parallel analysis — first-pass
-via Ollama, then MCP-verified existence and pattern checks — and returns a severity-graded
-findings table plus a corrected version. Because review requires multiple sequential+parallel
+Main agent invokes the `odoo-code-reviewer` **agent** (via Agent tool) when Odoo code needs
+review. The code may arrive as a pasted block, a `file_path` the agent reads itself, or the
+output of a prior tool/step - the agent obtains the code accordingly, it does not require a
+human to paste it. The agent runs a multi-step parallel analysis - an immediate self-review first-pass, then
+MCP-verified existence and pattern checks - and returns a severity-graded findings table plus
+a corrected version. Because review requires multiple sequential+parallel
 MCP round-trips, it runs as an autonomous agent rather than inline in main.
 
 ## Brief context — Odoo review pitfalls
@@ -47,16 +49,16 @@ Key failure modes the agent is aware of:
 
 ## Agent invocation
 
-When user confirms intent (or main detects a code paste with review intent), main invokes
-the `odoo-code-reviewer` agent via Agent tool. The agent runs review rounds with restricted
+When review intent is present (a pasted block, a file path, or code from a prior step), main
+invokes the `odoo-code-reviewer` agent via Agent tool. The agent runs review rounds with restricted
 tools. The agent does NOT spawn further subagents and does NOT invoke any Skill tool.
 
 ## Standalone-first fallback
 
-When OSM (the odoo-semantic-mcp server) is unreachable, the agent falls back to static analysis only
-using `mcp__ollama-delegate__review_code` plus manual pattern matching from the context
-window. MCP-enriched findings (existence verification, `validate_depends`, etc.) are skipped
-and the output notes "MCP unavailable — static analysis only".
+When OSM (the odoo-semantic-mcp server) is unreachable, the agent falls back to its own static
+analysis - reading the code and pattern-matching against internalized Odoo conventions. MCP-enriched
+findings (existence verification, `validate_depends`, etc.) are skipped and the output notes
+"MCP unavailable — static analysis only".
 
 ## Agent-managed tools
 

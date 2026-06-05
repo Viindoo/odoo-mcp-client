@@ -80,7 +80,22 @@ the actual indexed codebase.
 
 ## Standalone-first fallback
 
-When OSM is unreachable, the skill asks the user to provide the requirement in natural language + any customer-supplied documents (proposal, RFP excerpt). The skill still produces an evidence package based on core Odoo knowledge (module + model architecture from training), but without real code snippets — with caveat "not yet verified against the codebase index; double-check code details when OSM is back online".
+The requirement is already in the invocation - do not ask the caller to re-provide it.
+If the caller mentioned a document path (proposal, RFP excerpt), `Read` it directly.
+
+When OSM is unreachable, follow the three-tier grounding order from
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+
+1. **Tier 2 - self-serve first:**
+   - `WebFetch` the relevant GitHub source for the target version, e.g.
+     `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/<file>.py`,
+     to pull real field lists and method signatures as code evidence.
+   - Use local `Read`/`Grep` on a local source tree when present.
+   - Label any artifact built this way `grounded: local-source (not OSM-indexed)`.
+2. **Tier 3 - only if all Tier-2 fetches fail:** produce the evidence package from
+   training knowledge and prepend `OSM unavailable - ungrounded` with caveat "not yet
+   verified against the codebase index; double-check code details when OSM is back
+   online". Do not ask the caller for any input that can be fetched from public sources.
 
 ## Output format
 

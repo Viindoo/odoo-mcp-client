@@ -30,7 +30,7 @@ CEO / CTO / Project Sponsor
 _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
-- `set_active_profile(profile_name='viindoo-internal')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 
 **Primary tools:**
@@ -95,10 +95,17 @@ the data. Always close with a one-sentence recommended action tied to the highes
 
 ## Standalone-first fallback
 
-When OSM unreachable, skill asks user to provide module list and any available code snippets or manifests.
-Skill still creates risk overview based on module classification (Standard/Custom/Distribution-maintained),
-heuristic estimate of deprecated risk (based on module age and naming patterns), with caveat
-"deprecated API + blast radius not yet scanned — verify with detailed audit when OSM is online".
+When OSM unreachable, follow the three-tier grounding protocol defined in
+`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. Specifically:
+
+- **Tier 2 (disk):** Run `find . -maxdepth 3 -name "__manifest__.py"` to discover
+  modules, `Read` each manifest for classification clues, and `grep` for deprecated
+  patterns (`@api.multi`, `_columns`, `osv.osv`, `web.Widget`) directly in source.
+  Build the risk overview from those findings without asking the user to supply them.
+- **Tier 3 (training):** If no readable source is available, produce a heuristic
+  estimate of deprecated risk (based on module age and naming patterns) and label the
+  artifact `OSM unavailable - ungrounded` with caveat "deprecated API + blast radius not
+  yet scanned - verify with detailed audit when OSM is online".
 
 ## Output format
 

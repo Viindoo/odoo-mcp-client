@@ -60,7 +60,7 @@ Semantic code search returns real implementation examples. Great for writing acc
 
 ## Sample Marketer Questions
 
-Copy these prompts into your AI tool:
+Example invocations (an AI agent can run these directly as NL dispatch; a human reader can copy them into their AI tool):
 
 1. **Version highlights for a blog post:**
    > "Using odoo-semantic, api_version_diff for account.move between Odoo 16.0 and 17.0. Summarize the key changes in non-technical language for a blog audience."
