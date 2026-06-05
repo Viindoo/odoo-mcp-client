@@ -20,6 +20,7 @@ tools:
   - mcp__odoo-semantic__lint_check
   - mcp__odoo-semantic__resolve_stylesheet
   - mcp__odoo-semantic__find_style_override
+  - mcp__odoo-semantic__entity_lookup
 ---
 
 # odoo-frontend-coder agent
@@ -111,7 +112,10 @@ especially for lifecycle hooks and import paths.
 4. If patching or extending an existing widget/component (not greenfield), call
    `module_inspect(name=<module>, method='js', odoo_version='auto')` to see the existing patch
    chain and avoid duplicates. If the chain already has 3+ entries, warn the user before
-   proceeding.
+   proceeding. When the component wires to a backend method (RPC/ORM call) or patches a
+   server-rendered view, `entity_lookup(kind='method'|'view', …, odoo_version='auto')` confirms that
+   backend method/view actually exists before you bind the frontend to it — a typo'd model method
+   surfaces as a runtime RPC error, not a compile error.
 
 ---
 
@@ -395,7 +399,7 @@ Prompt: "Create a color picker field widget for selection field in Odoo 12"
 
 - Round 0: read `.odoo-ai/context.md` → `odoo_version: 12.0`. Version gate → Legacy.
   `set_active_version("12.0")`.
-- Round 1 (parallel): `api_version_diff("8.0", "12.0")` → confirms `AbstractField` stable since v10.
+- Round 1 (parallel): `api_version_diff(symbol='web', from_version='8.0', to_version='12.0')` → confirms `AbstractField` stable since v10.
   `find_examples("color picker widget AbstractField Odoo 12", odoo_version='auto')`.
 - Round 2: greenfield widget — skip `find_override_point`.
 - Round 3: write an `AbstractField` subclass `ColorPickerWidget` for the selection field directly.

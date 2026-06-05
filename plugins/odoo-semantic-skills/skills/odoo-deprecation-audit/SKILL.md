@@ -26,10 +26,11 @@ Developer / Tech Lead
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
 - `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
@@ -70,7 +71,10 @@ knowledge for business context and effort estimation.
 
 Use parallel MCP calls to minimize round trips — the full audit can complete in 3 rounds.
 
-**Round 0 — Pin the source version:** `set_active_version(odoo_version=<source_version>)`.
+**Round 0 — Pin the source version + customer profile:** `set_active_version(odoo_version=<source_version>)`,
+then `set_active_profile(profile_name=<viindoo_profile from .odoo-ai/context.md>)`. `find_deprecated_usage`
+honours the session profile, so pinning scopes the scan to the customer's own modules instead of the default
+Odoo CE scope — otherwise the report is polluted with standard-Odoo deprecations irrelevant to this codebase.
 
 **Round 1 — Parallel:** Call `find_deprecated_usage` + `api_version_diff` simultaneously.
 These are completely independent: one scans the codebase, the other fetches the version spec.

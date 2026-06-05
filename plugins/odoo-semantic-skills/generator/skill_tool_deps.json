@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-05-28T00:00:00Z",
-  "server_version_required": "0.11.1",
+  "generated_at": "2026-06-05T00:00:00Z",
+  "server_version_required": "0.13.1",
   "skills": {
     "odoo-brl": {
       "mcp_tools": [
@@ -14,31 +14,38 @@
         "set_active_version",
         "set_active_profile",
         "list_available_versions",
-        "list_available_profiles"
+        "list_available_profiles",
+        "profile_inspect",
+        "impact_analysis"
       ],
-      "min_server_version": "0.10.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "BRL engine: chunked 4-way classify (double-profile check_module_exists) + deterministic cost (cost-config.json) + RTM deliverables. Phase D DAG (module_inspect dependencies) deferred. min_server 0.10.0 for set_active_profile + list_available_profiles."
+      "notes": "BRL engine: chunked 4-way classify (double-profile check_module_exists) + deterministic cost (cost-config.json) + RTM deliverables. Phase 0 bootstrap uses profile_inspect(summary) for profile composition; Phase C uses impact_analysis to ground Extension-M/L tier in real blast radius. min_server 0.13.1 for profile_inspect."
     },
     "odoo-addon-diff": {
       "mcp_tools": [
         "check_module_exists",
         "model_inspect",
         "module_inspect",
-        "set_active_version"
+        "set_active_version",
+        "set_active_profile",
+        "list_available_profiles",
+        "entity_lookup",
+        "profile_inspect"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "CE/EE/distribution diff is profile-scoped: pin profile (set_active_profile) + profile_inspect(repos) to know each profile's real repo coverage; entity_lookup attributes a field's source module (CE vs EE). min_server 0.13.1 for profile_inspect."
     },
     "odoo-campaign-plan": {
       "mcp_tools": [
         "check_module_exists",
-        "find_examples"
+        "find_examples",
+        "profile_inspect"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Standalone-first. OSM tools optional for feature claim grounding only."
+      "notes": "Standalone-first. OSM tools optional for feature claim grounding only; profile_inspect verifies a 'competitive displacement' angle against the real platform inventory."
     },
     "odoo-capability-proof": {
       "mcp_tools": [
@@ -46,20 +53,22 @@
         "entity_lookup",
         "find_examples",
         "model_inspect",
+        "module_inspect",
         "set_active_version"
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "module_inspect(summary) adds architecture scope (N models/views) to the proof package beyond field-level evidence."
     },
     "odoo-competitive-brief": {
       "mcp_tools": [
         "check_module_exists",
-        "find_examples"
+        "find_examples",
+        "profile_inspect"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Standalone-first. OSM tools optional for feature verification only."
+      "notes": "Standalone-first. profile_inspect turns the capability matrix's 'your platform' column from training-data assertion into indexed fact. min_server 0.13.1 for profile_inspect."
     },
     "odoo-content-draft": {
       "mcp_tools": [
@@ -77,11 +86,14 @@
         "model_inspect",
         "module_inspect",
         "set_active_profile",
-        "set_active_version"
+        "set_active_version",
+        "list_available_profiles",
+        "find_deprecated_usage",
+        "profile_inspect"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "profile_inspect(modules) enumerates the profile's modules in one call (Round 0); module_inspect(dependencies) + find_deprecated_usage ground upgrade-risk in real dependency graph + deprecated-API scan. min_server 0.13.1 for profile_inspect."
     },
     "odoo-deal-followup": {
       "mcp_tools": [
@@ -96,22 +108,24 @@
         "check_module_exists",
         "find_examples",
         "model_inspect",
-        "module_inspect"
+        "module_inspect",
+        "set_active_version"
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Standalone-first. OSM optional — only to plan the demo click path; video capture is browser-MCP side."
+      "notes": "Standalone-first. OSM optional — only to plan the demo click path; video capture is browser-MCP side. set_active_version pins the target version so view/URL paths are not resolved against latest-indexed."
     },
     "odoo-deploy-checklist": {
       "mcp_tools": [
         "check_module_exists",
         "find_deprecated_usage",
         "module_inspect",
-        "set_active_version"
+        "set_active_version",
+        "cli_help"
       ],
       "min_server_version": "0.8.0",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "Domain 5 grounds CLI flags for the target version via cli_help (was instructed in SKILL.md but undeclared)."
     },
     "odoo-deprecation-audit": {
       "mcp_tools": [
@@ -120,20 +134,22 @@
         "find_deprecated_usage",
         "lookup_core_api",
         "module_inspect",
-        "set_active_version"
+        "set_active_version",
+        "set_active_profile"
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "set_active_profile scopes find_deprecated_usage(profile_name) to the customer's modules instead of default Odoo CE scope."
     },
     "odoo-discovery-summarize": {
       "mcp_tools": [
         "check_module_exists",
-        "find_examples"
+        "find_examples",
+        "profile_inspect"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Standalone-first. OSM tools optional — only when user requests pain-point verification."
+      "notes": "Standalone-first. profile_inspect(modules) verifies profile-owned modules in one call (Round 3.5), upgrading Confidence-Low rows. min_server 0.13.1 for profile_inspect."
     },
     "odoo-feature-check": {
       "mcp_tools": [
@@ -154,11 +170,12 @@
         "check_module_exists",
         "find_examples",
         "model_inspect",
+        "module_inspect",
         "set_active_version"
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "module_inspect(summary) gives concrete architecture numbers (N models/views) for marketing copy."
     },
     "odoo-frontend-coding": {
       "mcp_tools": [
@@ -168,11 +185,13 @@
         "lookup_core_api",
         "module_inspect",
         "set_active_version",
-        "suggest_pattern"
+        "suggest_pattern",
+        "resolve_stylesheet",
+        "find_style_override"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Slim SKILL.md of an agent+skill bundle; dispatches to the odoo-frontend-coder agent. Covers all supported Odoo frontend JS versions."
+      "notes": "Slim SKILL.md of an agent+skill bundle; dispatches to the odoo-frontend-coder agent. Covers all supported Odoo frontend JS versions. resolve_stylesheet + find_style_override (0.7.0) declared to match the agent (required for any styling/theme work)."
     },
     "odoo-gap-analysis": {
       "mcp_tools": [
@@ -180,25 +199,27 @@
         "find_examples",
         "lookup_core_api",
         "model_inspect",
+        "module_inspect",
         "set_active_profile",
         "set_active_version",
         "suggest_pattern"
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "module_inspect distinguishes Configuration vs Extension via view/JS inventory, not just the field list."
     },
     "odoo-objection-handler": {
       "mcp_tools": [
         "check_module_exists",
         "find_examples",
         "model_inspect",
+        "module_inspect",
         "set_active_version",
         "suggest_pattern"
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "module_inspect(summary) strengthens the ACA Counter table with module scope numbers."
     },
     "odoo-onboard": {
       "mcp_tools": [
@@ -206,11 +227,12 @@
         "list_available_profiles",
         "list_available_versions",
         "set_active_profile",
-        "set_active_version"
+        "set_active_version",
+        "profile_inspect"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "After profile selection, profile_inspect(modules) records the real module inventory into .odoo-ai/context.md so downstream skills need not re-derive it. min_server 0.13.1 for profile_inspect."
     },
     "odoo-override-finder": {
       "mcp_tools": [
@@ -218,11 +240,14 @@
         "find_override_point",
         "model_inspect",
         "set_active_version",
-        "suggest_pattern"
+        "suggest_pattern",
+        "lookup_core_api",
+        "find_examples",
+        "api_version_diff"
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "lookup_core_api + api_version_diff verify a method's API stability / signature change from the index; find_examples grounds the override template in real indexed code instead of training memory."
     },
     "odoo-risk-overview": {
       "mcp_tools": [
@@ -232,11 +257,12 @@
         "model_inspect",
         "module_inspect",
         "set_active_profile",
-        "set_active_version"
+        "set_active_version",
+        "profile_inspect"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "profile_inspect(modules) auto-enumerates the in-scope modules in Round 0. min_server 0.13.1 for profile_inspect."
     },
     "intake": {
       "mcp_tools": [],
@@ -257,11 +283,13 @@
         "find_override_point",
         "find_examples",
         "module_inspect",
-        "lookup_core_api"
+        "lookup_core_api",
+        "suggest_pattern",
+        "set_active_version"
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Runtime UI debugging. Browser MCP (chrome-devtools) drives the live instance; OSM localizes the cause. Known gap: no JS/OWL override-point tool — location inferred via module_inspect(js/owl) + find_examples."
+      "notes": "Runtime UI debugging. Browser MCP (chrome-devtools) drives the live instance; OSM localizes the cause. suggest_pattern (used in body, was undeclared) infers JS/OWL override location; set_active_version pins the target so odoo_version='auto' calls are not resolved against latest-indexed."
     },
     "odoo-ui-reviewer": {
       "mcp_tools": [
@@ -269,11 +297,16 @@
         "find_style_override",
         "model_inspect",
         "module_inspect",
-        "check_module_exists"
+        "check_module_exists",
+        "find_override_point",
+        "suggest_pattern",
+        "lint_check",
+        "set_active_version",
+        "api_version_diff"
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Rendered-UI review (aesthetics/functional/stability/a11y/performance). Browser MCP (chrome-devtools) captures the live screen; OSM grounds findings in code. Companion agent: agents/odoo-ui-reviewer.md."
+      "notes": "Rendered-UI review (aesthetics/functional/stability/a11y/performance). Browser MCP (chrome-devtools) captures the live screen; OSM grounds findings in code. Tool list synced to companion agent agents/odoo-ui-reviewer.md."
     },
     "odoo-version-diff": {
       "mcp_tools": [
@@ -281,11 +314,12 @@
         "entity_lookup",
         "lookup_core_api",
         "model_inspect",
-        "set_active_version"
+        "set_active_version",
+        "find_examples"
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "find_examples grounds Added-API descriptions in real indexed usage."
     },
     "odoo-visual-regression": {
       "mcp_tools": [
@@ -293,11 +327,13 @@
         "api_version_diff",
         "find_style_override",
         "module_inspect",
-        "model_inspect"
+        "model_inspect",
+        "resolve_stylesheet",
+        "set_active_version"
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Screenshot baseline + diff between two states/builds. OSM scopes the comparison via blast radius; browser MCP captures and diffs."
+      "notes": "Screenshot baseline + diff between two states/builds. OSM scopes the comparison via blast radius; browser MCP captures and diffs. resolve_stylesheet adds the @import-chain blast radius; set_active_version pins the target version."
     },
     "odoo-support-triage": {
       "mcp_tools": [],
@@ -306,10 +342,13 @@
       "notes": "Composition skill — no MCP tools called directly. NL-dispatches to odoo-ui-debug (bug path) and odoo-feature-check (feature-request path) via description-match. All outputs to .odoo-ai/support/ (gitignored, confidentiality-safe)."
     },
     "odoo-qa-suite": {
-      "mcp_tools": [],
-      "min_server_version": "0.1.0",
+      "mcp_tools": [
+        "set_active_version",
+        "cli_help"
+      ],
+      "min_server_version": "0.8.0",
       "deprecated_tools_used": [],
-      "notes": "Composition skill — no MCP tools called directly. NL-dispatches to odoo-deploy-checklist (QA checklist) and odoo-ui-debug (bug triage) via description-match. All outputs to .odoo-ai/qa/."
+      "notes": "Phase 1 grounds test mechanics (test class, tag syntax, --test-enable/--test-tags) via OSM set_active_version + cli_help for the target version; Phase 2 NL-dispatches to odoo-deploy-checklist. Outputs to .odoo-ai/qa/."
     }
   },
   "agents": {
@@ -318,9 +357,11 @@
         "set_active_version",
         "entity_lookup",
         "find_examples",
+        "find_override_point",
         "lint_check",
         "lookup_core_api",
         "model_inspect",
+        "module_inspect",
         "resolve_orm_chain",
         "suggest_pattern",
         "validate_depends",
@@ -328,7 +369,7 @@
         "validate_relation"
       ],
       "min_server_version": "0.8.0",
-      "notes": "Agent bundle — companion to odoo-coder slim SKILL.md. Tool list from agents/odoo-coder.md frontmatter."
+      "notes": "Agent bundle — companion to odoo-coder slim SKILL.md. Tool list from agents/odoo-coder.md frontmatter. find_override_point grounds super() position for method overrides; module_inspect gives whole-module picture."
     },
     "odoo-code-reviewer": {
       "mcp_tools": [
@@ -341,10 +382,14 @@
         "suggest_pattern",
         "validate_depends",
         "validate_domain",
-        "validate_relation"
+        "validate_relation",
+        "find_examples",
+        "api_version_diff",
+        "find_style_override",
+        "resolve_stylesheet"
       ],
       "min_server_version": "0.8.0",
-      "notes": "Agent bundle — companion to odoo-code-reviewer slim SKILL.md. Tool list from agents/odoo-code-reviewer.md frontmatter."
+      "notes": "Agent bundle — companion to odoo-code-reviewer slim SKILL.md. Tool list from agents/odoo-code-reviewer.md frontmatter. find_examples gives evidence code for the Suggested-Pattern section; api_version_diff for cross-version review; find_style_override + resolve_stylesheet for the SCSS review path."
     },
     "odoo-ui-reviewer": {
       "mcp_tools": [
@@ -355,10 +400,12 @@
         "find_override_point",
         "suggest_pattern",
         "lint_check",
-        "check_module_exists"
+        "check_module_exists",
+        "set_active_version",
+        "api_version_diff"
       ],
       "min_server_version": "0.7.0",
-      "notes": "Agent bundle — companion to odoo-ui-reviewer slim SKILL.md. Tool list from agents/odoo-ui-reviewer.md frontmatter."
+      "notes": "Agent bundle — companion to odoo-ui-reviewer slim SKILL.md. Tool list from agents/odoo-ui-reviewer.md frontmatter. set_active_version pins the version (was discovered via list_available_versions but never pinned); api_version_diff explains version-specific token changes in the design-system lens."
     },
     "odoo-frontend-coder": {
       "mcp_tools": [
@@ -371,10 +418,11 @@
         "api_version_diff",
         "lint_check",
         "resolve_stylesheet",
-        "find_style_override"
+        "find_style_override",
+        "entity_lookup"
       ],
       "min_server_version": "0.7.0",
-      "notes": "Agent bundle — companion to odoo-frontend-coding slim SKILL.md. Tool list from agents/odoo-frontend-coder.md frontmatter."
+      "notes": "Agent bundle — companion to odoo-frontend-coding slim SKILL.md. Tool list from agents/odoo-frontend-coder.md frontmatter. entity_lookup verifies an OWL component method exists before patch()."
     }
   },
   "orchestration": {

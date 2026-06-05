@@ -53,6 +53,7 @@ TOOLS_REQUIRE_VERSION = {
     "model_inspect",
     "module_inspect",
     "entity_lookup",
+    "profile_inspect",
     "resolve_stylesheet",
     "find_style_override",
     "resolve_orm_chain",
@@ -80,7 +81,7 @@ def surface_tools() -> dict[str, dict]:
 
 
 def test_required_version_tools_have_odoo_version_in_required(surface_tools):
-    """19 tools must list odoo_version in required_params (not optional)."""
+    """20 tools must list odoo_version in required_params (not optional)."""
     failures = []
     for name in sorted(TOOLS_REQUIRE_VERSION):
         tool = surface_tools.get(name)

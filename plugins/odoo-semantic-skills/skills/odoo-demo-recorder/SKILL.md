@@ -31,12 +31,15 @@ recording (which menus, which records, what to type) so the take is smooth and r
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 <!-- END GENERATED TOOLS -->
 
@@ -76,6 +79,10 @@ parse lines of the form `- **key**: value`. Extract:
 
 If the file is absent or a key is missing, ask the user for it (plus the workflow to record and the
 desired format MP4/GIF and length) in a single message. Do not guess.
+
+Once the concrete `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
+before the Round 1 OSM calls, so their `odoo_version='auto'` reuses the pin — otherwise the click path is
+planned against the latest indexed version's view names and URL scheme (`/odoo` vs `/web`), which differ by version.
 
 ### Round 1 — Plan the click path (parallel, OSM)
 

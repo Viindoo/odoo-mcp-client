@@ -26,7 +26,7 @@ CEO / CTO / Project Manager
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
@@ -35,8 +35,11 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `list_available_profiles` ☆ — Enumerate which tenant profiles exist in the server index.
+- `find_deprecated_usage` — Scan the indexed codebase for usages of deprecated API patterns.
+- `profile_inspect` — Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -64,8 +67,12 @@ returns a match but training knowledge says it's a custom module (or vice versa)
 
 Use parallel MCP calls — for a list of N modules, sequential calls are N× slower than needed.
 
-**Round 0 — Pin version/profile:** `set_active_version(...)` + `set_active_profile(...)` so
-every subsequent call targets the same customer baseline.
+**Round 0 — Pin version/profile + enumerate:** `list_available_profiles()` first to get the valid
+profile name (the server registers versioned names like `viindoo_internal_17` / `odoo_17` — never
+assume a hyphenated or unversioned one), then `set_active_version(...)` + `set_active_profile(profile_name=<profile>)`
+so every subsequent call targets the same customer baseline. Then
+`profile_inspect(method='modules', name=<profile>, odoo_version='auto')` to enumerate the profile's own
+modules in one call — this is the inventory backbone, so you don't depend on the user pasting a module list.
 
 **Round 1 — Parallel:** Call `check_module_exists` for ALL modules simultaneously. Each call is
 independent. Result: classify each module as Standard (exclude), Distribution-maintained, or Custom.
@@ -84,6 +91,9 @@ Fire all `module_inspect(method='summary', odoo_version='auto')` calls in parall
 The tree output is ~10–15 lines per module and is safe to include verbatim in the inventory
 report.
 
+> Resource shortcut: when a module name is already known, `odoo://{version}/module/{name}` returns the same
+summary as a `module_inspect` summary call without a tool round-trip.
+
 Example — understanding `custom_loyalty` on Odoo 17:
 ```
 module_inspect(name="custom_loyalty", method="summary", odoo_version='auto')
@@ -96,6 +106,10 @@ Write "Business purpose" in plain language. Infer from field names and module na
 adding `vat_number`, `tax_id_file` to `res.partner` is clearly "Vietnamese tax compliance".
 
 Flag modules with many deprecated API calls or overrides of unstable methods as "upgrade risk".
+Ground this with `find_deprecated_usage(odoo_version='auto', profile_name=<profile>)` (scoped to the
+customer profile) instead of inferring from names — the scan returns the real deprecated-API hits per
+module; pair it with `module_inspect(name=<module>, method='dependencies', odoo_version='auto')` to get
+the real dependency chain that determines a module's upgrade blast radius.
 
 ## Standalone-first fallback
 

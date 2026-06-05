@@ -39,7 +39,7 @@ to a 3-5 person dev shop. Output is operational and actionable, not executive-le
 ## MCP tools
 
 <!-- BEGIN MANUAL TOOLS — odoo-deploy-checklist -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (optional — call once if version not already pinned):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version context for the session (per live MCP session, 24h idle TTL; resets on server restart). Pass `odoo_version='auto'` on subsequent calls to reuse it (it can no longer be omitted).
@@ -48,8 +48,9 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `check_module_exists` — Verify that each module in the deploy scope actually exists in the target Odoo version. Use in Round 2 to auto-fill module existence items.
 - `module_inspect` — Get module manifest summary, model list, view count, and OWL component presence for deploy notes. Use to confirm module health and spot unexpected dependencies.
 - `find_deprecated_usage` — Sanity scan for deprecated API usage in deploy scope. Supplements `odoo-deprecation-audit` when a full pre-flight audit was not run separately.
+- `cli_help` — Ground the deploy/test CLI flags (`--test-enable`, `--test-tags`, `-u`, `-i`, `--stop-after-init`) for the TARGET version in Domain 5, instead of assuming one version's flags apply to another.
 
-**All three calls are independent — fire in parallel to minimize round trips.**
+**The module-scan calls are independent — fire in parallel to minimize round trips.**
 <!-- END MANUAL TOOLS — odoo-deploy-checklist -->
 
 ---

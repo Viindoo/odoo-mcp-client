@@ -1,22 +1,23 @@
 # Odoo Semantic — Developer Guide
 
-<!-- This persona intentionally enumerates the full tool arsenal (server v0.11.1) instead of the "Most Useful Tools" template variant — devs need the full surface area, including the 3 superset tools, 4 session-context tools, 2 stylesheet tools, and 4 ORM-validation tools. -->
+<!-- This persona intentionally enumerates the full tool arsenal (server v0.13.1) instead of the "Most Useful Tools" template variant — devs need the full surface area, including the 3 superset tools, 4 session-context tools, 2 stylesheet tools, and 4 ORM-validation tools. -->
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic-skills@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
-The full **tool arsenal (server v0.11.1)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS/LESS stylesheet analysis, and now static ORM validation — this guide covers the daily patterns. Server v0.11.1 ships three discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`), four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call (v0.6+), two **stylesheet tools** for theme/branding work (v0.7+), and four **ORM-validation tools** that catch hallucinated field-paths, operators, dependencies, and relation targets before you ship a domain / `@api.depends` / relational field (v0.8+).
+The full **tool arsenal (server v0.13.1)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS/LESS stylesheet analysis, and now static ORM validation — this guide covers the daily patterns. Server v0.13.1 ships four discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`, `profile_inspect`), four **session-context** tools that let you pin an Odoo version once and drop the `odoo_version=` arg from every subsequent call (v0.6+), two **stylesheet tools** for theme/branding work (v0.7+), four **ORM-validation tools** that catch hallucinated field-paths, operators, dependencies, and relation targets before you ship a domain / `@api.depends` / relational field (v0.8+), plus a profile-level introspection superset (`profile_inspect`) for profile composition / repos / module inventory (v0.13+).
 
 ---
 
-## All Tools Available to Developers (server v0.11.1)
+## All Tools Available to Developers (server v0.13.1)
 
 ### Supersets (v0.5+ — preferred over legacy siblings)
 
 | Tool | Use case |
 |------|----------|
-| `model_inspect(model, method='summary'\|'fields'\|'methods'\|'views'\|'field'\|'method', ...)` | One call returns the model's summary, field list, method list, view inventory, or a single entity drill-down. **Replaces** `resolve_model` + `list_fields` + `list_methods` + `list_views`. |
+| `model_inspect(model, method='summary'\|'fields'\|'methods'\|'views'\|'extenders'\|'field'\|'method', ...)` | One call returns the model's summary, field list, method list, view inventory, paginated extender list, or a single entity drill-down. **Replaces** `resolve_model` + `list_fields` + `list_methods` + `list_views`. |
 | `module_inspect(module, method='summary'\|'views'\|'owl'\|'qweb'\|'js'\|'dependencies', ...)` | Module-level inventory across manifest, models, views, OWL, QWeb, JS patches, dependencies. **Replaces** `describe_module` + `list_views` (module-scoped) + `list_owl_components` + `list_qweb_templates` + `list_js_patches`. |
 | `entity_lookup(kind='field'\|'method'\|'view', ...)` | One entity drill-down by ID. **Replaces** `resolve_field` + `resolve_method` + `resolve_view`. |
+| `profile_inspect(profile, method='summary'\|'repos'\|'modules', ...)` | Profile-level introspection: inheritance chain + repos + module inventory (method=summary\|repos\|modules). |
 
 ### Session context (v0.6+ — per live MCP session, 24h idle TTL; resets on server restart)
 

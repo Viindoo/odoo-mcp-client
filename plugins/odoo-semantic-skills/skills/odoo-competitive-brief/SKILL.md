@@ -43,9 +43,13 @@ prioritizes what the user already knows — it does NOT invent competitive facts
 ## MCP tools
 
 <!-- BEGIN MANUAL TOOLS — odoo-competitive-brief -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Optional — call only when grounding "your platform has X" or "Odoo can't do Y" claims:**
+- `profile_inspect` — Profile-level introspection (`method='summary'|'repos'|'modules'`): inheritance
+  chain + repos + indexed module count/list for your platform profile. Use it to fill the "your
+  platform" column of the Round 2 capability matrix with indexed fact instead of training-data
+  assertion (the board-facing reason this matters).
 - `check_module_exists` — Verify that a module or feature exists in your platform
   (CE/EE/custom distribution), used to substantiate or refute capability claims a
   competitor makes in their messaging. Call when the user says "competitor claims Odoo
@@ -127,11 +131,14 @@ Build a comparison table on 5-10 dimensions. Select the most relevant from:
 Mark each cell: **+** (competitor advantage) / **-** (your platform advantage) /
 **=** (parity) / **?** (Unknown — data not provided).
 
-Your platform baseline is known to the skill. Competitor column is filled from user-provided
-data only. Do NOT infer competitor capabilities not stated by the user.
+Your platform baseline must be grounded in the index, not asserted from training data. When OSM is
+reachable, fill the "your platform" column from `profile_inspect(method='summary', name=<your_profile>,
+odoo_version='auto')` (real inheritance chain + repos + module count) and `profile_inspect(method='modules', …)`
+for the module-coverage row — this turns the platform side of the matrix into verifiable fact. The competitor
+column is filled from user-provided data only; do NOT infer competitor capabilities not stated by the user.
 
-If OSM is reachable and the user questions a specific platform capability, call
-`check_module_exists` to verify before marking + / - / =.
+If the user questions a specific platform capability, also call `check_module_exists` to verify before
+marking + / - / =.
 
 ---
 

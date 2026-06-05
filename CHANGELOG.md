@@ -6,6 +6,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-06-05
+
+### Added
+
+- **OSM server 0.13.1 surface sync (24 → 25 tools)** — mirror the new `profile_inspect` tool
+  (`method=summary|repos|modules`: profile inheritance chain + repos + module inventory/count,
+  ADR-0028) into `generator/server-surface.json` and wire it into the skills that answer
+  "what's in this profile" questions: `odoo-onboard` (records module inventory into
+  `.odoo-ai/context.md`), `odoo-customization-inventory`, `odoo-addon-diff`, `odoo-brl`,
+  `odoo-risk-overview`, `odoo-competitive-brief`, `odoo-discovery-summarize`, `odoo-campaign-plan`.
+- **Live version-gate (closes #40 Finding 2)** — `check_deps.py` now enforces the previously-dead
+  `server_version_required` / per-skill `min_server_version` fields: each floor must cover the
+  newest tool the skill/agent uses and stay ≤ the mirrored server version (semver compare).
+- **OSM-maximization pass across skills + agents** — wired, at each phase, the OSM tool/resource
+  that removes a concrete guessing step: `impact_analysis` (BRL Extension-M/L blast radius);
+  `set_active_version` pins (ui-debug / visual-regression / demo-recorder / ui-reviewer — stop
+  `odoo_version='auto'` resolving to latest-indexed); `module_inspect` scope numbers
+  (feature-highlights / capability-proof / objection-handler / gap-analysis); `find_deprecated_usage`
+  + `module_inspect(dependencies)` (customization-inventory upgrade-risk); `lookup_core_api` /
+  `find_examples` / `api_version_diff` (override-finder); `set_active_profile` scoping
+  (deprecation-audit); `cli_help` (deploy-checklist / qa-suite); `find_examples` (version-diff);
+  agent tools `find_override_point` / `module_inspect` (coder), `entity_lookup` (frontend-coder),
+  `find_examples` / `api_version_diff` / `find_style_override` / `resolve_stylesheet` (code-reviewer),
+  `set_active_version` / `api_version_diff` (ui-reviewer). Added `odoo://` resource shortcuts where
+  the entity id is already known.
+
+### Fixed
+
+- **#41 — skill examples pinned non-existent profile names** — replaced `viindoo-internal` (hyphen)
+  and bare `odoo` with versioned names (`viindoo_internal_17`, `odoo_17`) across odoo-brl,
+  odoo-gap-analysis, odoo-onboard, odoo-customization-inventory, odoo-addon-diff, evals, schema,
+  workflow-harness, context-bootstrap; preserved the "read from `.odoo-ai/context.md` /
+  `list_available_profiles`, never hard-code" guidance.
+- **Tool descriptions resynced to 0.13.x behaviour** — `find_examples` documents the lexical
+  fallback when the embedder is down (#264); `model_inspect` documents the `extenders` method +
+  the real page caps (#262).
+
+### Changed
+
+- **Provenance stamp 0.11.1 → 0.13.1 (closes #40)** — `server_version` in the surface SSOT plus
+  every hand-maintained "24 tools / v0.11.1" label (README, ROADMAP, setup.md, dev.md, snippet
+  intros, MANUAL skill footers); generated surfaces regenerated via `make gen`.
+
 ## [2.6.0] - 2026-06-05
 
 ### Added

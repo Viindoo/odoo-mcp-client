@@ -532,9 +532,9 @@ Clients that implement the MCP `resources/list` and `resources/read` flows surfa
 
 ---
 
-## Superset Tools — server v0.11.1 Reference
+## Superset Tools — server v0.13.1 Reference
 
-The server exposes **24 tools** at v0.11.1. The v0.7 surface added 2 stylesheet tools
+The server exposes **25 tools** at v0.13.1. The v0.7 surface added 2 stylesheet tools
 (`resolve_stylesheet`, `find_style_override`) on top of the v0.6 base; v0.8 added 4
 ORM-validation tools; v0.10.0 added `module_inspect(method='dependencies', odoo_version='auto')`. The 10
 flat `resolve_*` / `list_*` tools that existed in v0.4-v0.5 were deprecated in v0.5 and

@@ -28,15 +28,19 @@ Marketer / Sales Engineer
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `list_available_profiles` ☆ — Enumerate which tenant profiles exist in the server index.
+- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `profile_inspect` — Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -58,7 +62,11 @@ edition boundaries is frequently outdated.
 
 Use parallel MCP calls — a CE/EE comparison typically covers 10+ modules across 5+ domains.
 
-**Round 0 — Pin the version:** `set_active_version(odoo_version=…)`.
+**Round 0 — Pin version + profile, scope each distribution:** `set_active_version(odoo_version=…)`, then
+`list_available_profiles()` to get the valid profile names (versioned, e.g. `odoo_17` / `viindoo_internal_17`).
+For each side of the comparison, `profile_inspect(method='repos', name=<profile>, odoo_version='auto')` to see
+that profile's real repo coverage (CE vs EE vs distribution) before comparing — so the CE/EE scope is ground
+truth, not an assumption about which module lives in which edition.
 
 **Round 1 — Parallel:** Call `check_module_exists` for ALL modules and features in the
 comparison request simultaneously. Each call is independent; no need to wait for any result
@@ -67,7 +75,9 @@ before firing the next.
 **Round 2 — Parallel:** For every module that exists in both CE and EE but with different
 depth, call `model_inspect(model=…, method='fields')` on all relevant models simultaneously to
 extract field-level differences (e.g. EE adds `forecast_date`, `analytic_account_id`). These
-calls are independent of each other.
+calls are independent of each other. For a field whose edition origin is in doubt,
+`entity_lookup(kind='field', model=…, field=…, odoo_version='auto')` returns its source module — attribute
+a field to CE vs EE from the index instead of training memory.
 
 Never claim a feature is EE-only without tool verification — incorrect claims damage credibility.
 

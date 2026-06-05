@@ -16,6 +16,8 @@ tools:
   - mcp__odoo-semantic__suggest_pattern
   - mcp__odoo-semantic__lint_check
   - mcp__odoo-semantic__check_module_exists
+  - mcp__odoo-semantic__set_active_version
+  - mcp__odoo-semantic__api_version_diff
   - mcp__plugin_chrome-devtools-mcp_chrome-devtools__navigate_page
   - mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_screenshot
   - mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_snapshot
@@ -66,6 +68,10 @@ escalating, using the plugin's own portable conventions: `odoo_version` via
 defaults to `.odoo-ai/visual/baselines/`. Only report back to the main agent for a value that
 none of these resolve - in practice just `instance_login` when no credential source exists.
 
+Once `odoo_version` is resolved, pin it with `set_active_version(odoo_version=<concrete>)` so the Step 1 / Step 5
+OSM calls that pass `odoo_version='auto'` reuse the pin instead of resolving to the latest indexed version — a
+v16 screen reviewed against v18 stylesheets/registries produces false findings.
+
 ### Step 1 — Ground the screen in code (parallel, OSM)
 
 - `module_inspect(name=<module>, method='views', odoo_version='auto')` and/or `method='owl'` — which view/component renders the screen.
@@ -107,8 +113,11 @@ elements — a pane, a muted-text node, a badge) and flag:
 - **hardcoded** hex/rgba palette where a runtime design token should be reused;
 - divergence from the project mockup.
 Resolve the real token names/origins for the version with `resolve_stylesheet` /
-`find_style_override` — never assume `--bs-*` (or any token) exists across versions. Emit each
-finding as a token+file remediation pointer, not an inline patch (fixes go to `odoo-frontend-coding`).
+`find_style_override` — never assume `--bs-*` (or any token) exists across versions. When the screen is
+part of an upgrade (vN→vN+1), `api_version_diff(symbol='web', from_version=<old>, to_version=<new>)` surfaces
+the web-layer token/API changes that explain why a token went empty — ground the finding in the version delta
+instead of guessing. Emit each finding as a token+file remediation pointer, not an inline patch (fixes go to
+`odoo-frontend-coding`).
 
 ### Step 5 — Source pointers + compile
 

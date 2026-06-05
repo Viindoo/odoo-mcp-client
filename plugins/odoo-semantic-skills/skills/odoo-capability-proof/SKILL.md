@@ -28,7 +28,7 @@ Sales Engineer / Pre-sales Consultant
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
@@ -37,7 +37,8 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -69,9 +70,12 @@ Use parallel MCP calls to build the evidence package quickly.
 need the module name from `check_module_exists`. Both can fire at the same time.
 
 **Round 2 — Parallel (if module found):** Call `model_inspect(model=…, method='fields')` +
-`entity_lookup(kind='method', model=…, method_name=…)` simultaneously. `model_inspect` shows
-exact fields; `entity_lookup` shows the override chain for method-level requirements. If the
-model name is already known from training knowledge, include these in Round 1.
+`entity_lookup(kind='method', model=…, method_name=…)` +
+`module_inspect(name=<module>, method='summary', odoo_version='auto')` simultaneously. `model_inspect` shows
+exact fields; `entity_lookup` shows the override chain for method-level requirements; `module_inspect` adds
+module-architecture scope (N models defined/extended, N views) — a proof package that says "this module ships
+6 models and 12 views around the capability" is far more compelling to a skeptical client than a single field.
+If the model name is already known from training knowledge, include these in Round 1.
 
 Never fabricate capabilities. If the feature doesn't exist, say so and propose the most credible
 workaround. When MCP results conflict with training knowledge (e.g. a module that training data

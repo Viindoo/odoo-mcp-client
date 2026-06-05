@@ -31,7 +31,10 @@ cause is proven.
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
 
 **Primary tools:**
 - `resolve_stylesheet` ✦ — Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain.
@@ -40,6 +43,7 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 - `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 <!-- END GENERATED TOOLS -->
 
 Use the OSM tools to turn a runtime symptom into a code location: `resolve_stylesheet` /
@@ -84,6 +88,11 @@ instance URL, and resolve the Odoo version from the request or the OSM index
 (`list_available_versions`). Only ask the user in a single message if none of these supply the
 needed values (credentials in particular are never stored and must come from the agreed source).
 Do not guess.
+
+Once the concrete `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
+before any other OSM call. Every subsequent OSM call then passes `odoo_version='auto'` to reuse the pin —
+without this pin, `'auto'` resolves to the latest indexed version, so a v15 project would be localized against
+v17+ selectors/registries and the root-cause location would be wrong.
 
 ### Round 1 — Reproduce + collect runtime evidence (browser)
 

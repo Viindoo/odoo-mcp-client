@@ -27,7 +27,7 @@ Sales Engineer / Account Executive
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
@@ -35,7 +35,8 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 - `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 <!-- END GENERATED TOOLS -->
 
@@ -71,10 +72,11 @@ was uncertain, use the MCP result to counter the objection with confidence.
 **Round 0 — Pin the version:** `set_active_version(odoo_version=…)`.
 
 **Round 1 — Parallel:** Call `check_module_exists` + `find_examples` +
-`model_inspect(model=…, method='fields')` simultaneously. All three are independent —
-`find_examples` uses the objection text as its semantic query and doesn't need the module
-check result; `model_inspect` uses the known model name from training knowledge or the
-objection text.
+`model_inspect(model=…, method='fields')` + `module_inspect(name=<module>, method='summary', odoo_version='auto')`
+simultaneously. All are independent — `find_examples` uses the objection text as its semantic query and doesn't
+need the module check result; `model_inspect` uses the known model name; `module_inspect` adds module-scope
+numbers (N models/views) that make the ACA "Counter" table concrete ("Odoo ships this across 4 models and 9
+views") rather than a bare field name.
 
 **Round 2 (conditional):** Call `suggest_pattern` only if Round 1 confirms the feature requires
 customization. If the feature exists natively (`check_module_exists` returns CE or EE hit),

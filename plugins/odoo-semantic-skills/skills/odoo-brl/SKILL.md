@@ -31,7 +31,7 @@ traceability from requirement to evidence to budget line.
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
@@ -40,12 +40,14 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 - `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 - `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
 - `list_available_versions` ☆ — Enumerate which Odoo versions the server has indexed.
 - `list_available_profiles` ☆ — Enumerate which tenant profiles exist in the server index.
+- `profile_inspect` — Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
+- `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -57,7 +59,7 @@ The BRL engine is the core consulting deliverable for Odoo project scoping. Erro
 **4-way classification target:**
 - `Available-in-Odoo-CE` — module exists in odoo profile, edition=CE, zero custom dev needed
 - `Available-in-Odoo-EE` — module exists in odoo profile, edition=EE (license cost applies)
-- `Available-in-Viindoo` — NOT in odoo profile, IS in viindoo-internal (or OEEL-1 license notice)
+- `Available-in-Viindoo` — NOT in odoo profile, IS in `viindoo_internal_<version>` (or OEEL-1 license notice)
 - `Custom` — not in either profile; effort_tier sub-tiers: Extension-M/L (inherit point exists) or Custom-XL (new build)
 
 **OEEL-1 license notice (load-bearing):** When `check_module_exists` returns a license notice
@@ -87,11 +89,11 @@ Never write real company names, VND figures, or internal pricing into any commit
    `<job-id>` format: `<CUSTOMER_LABEL>-<YYYYMMDD>-<4hex>` (e.g. `Customer-A-20260531-9f3a`).
    Use abstract label for CUSTOMER_LABEL. Never use real company name.
 
-3. **MCP bootstrap** (4 calls, once per session):
+3. **MCP bootstrap** (once per session):
    - `list_available_versions` -> present options to user
-   - `list_available_profiles` -> confirm odoo + viindoo-internal profiles available
    - `set_active_version(odoo_version=<chosen>)` -> pin for session
-   - `set_active_profile(profile_name='odoo')` -> base profile (overridden per check_module_exists call)
+   - `set_active_profile(profile_name='odoo_<version>')` -> base profile (e.g. `odoo_17`; overridden per check_module_exists call). Resolve the concrete name from `list_available_profiles` / `.odoo-ai/context.md` — never hard-code a hyphenated or unversioned name (the server registers `odoo_8..odoo_19`, `viindoo_internal_17/18`, etc.; a bogus name pins to nothing and every scoped call returns empty).
+   - `profile_inspect(method='summary', name='viindoo_internal_<version>', odoo_version='auto')` -> confirm the Viindoo profile's composition (inheritance chain + repos + indexed module count) before GATE 0, so you scope on real coverage instead of assuming the profile exists.
 
 4. **Load context:** Check `.odoo-ai/context.md`. If found, use its version/profile settings as defaults.
    If absent, suggest `/odoo-onboard` but allow continuing with manually supplied context.
@@ -102,7 +104,7 @@ Never write real company names, VND figures, or internal pricing into any commit
    ## BRL Analysis Plan
    Customer label : <CUSTOMER_LABEL>
    Odoo version   : <version>
-   Profiles       : odoo (CE/EE) + viindoo-internal
+   Profiles       : odoo_<version> (CE/EE) + viindoo_internal_<version>
    Requirements   : <N> items
    Chunks         : <M> chunks x <chunk_size> items/chunk
    Est. MCP calls : ~<estimate> (with cache de-duplication)
@@ -149,8 +151,8 @@ requirements share modules.
 
 **A2 - Double-profile MCP (parallel within item, <=3 concurrent total across chunk):**
 For each candidate NOT in cache, call in parallel:
-- `check_module_exists(name=<candidate>, odoo_version='auto')` with active profile = odoo
-- `check_module_exists(name=<candidate>, profile_name='viindoo-internal', odoo_version='auto')`
+- `check_module_exists(name=<candidate>, odoo_version='auto')` with active profile = `odoo_<version>`
+- `check_module_exists(name=<candidate>, profile_name='viindoo_internal_<version>', odoo_version='auto')`
 - `find_examples(query=<req_text>, odoo_version='auto')` ONLY if A0 produced 0 candidates OR all candidates missed
 
 After each call, write result to `cache.json`.
@@ -235,10 +237,12 @@ Call in parallel (<=3 concurrent):
 - `model_inspect(model=<candidate_model>, method='fields', odoo_version='auto')` - confirm extension point exists
 - `suggest_pattern(intent=<req_text>, odoo_version='auto')` - find pattern; guides effort-tier refinement
 - `lookup_core_api(name=<method_name>, odoo_version='auto')` - if Extension needs method-level confirmation
+- `impact_analysis(entity_type='model', entity_name=<candidate_model>, odoo_version='auto')` - blast radius of the extension point; ground the Extension-M vs Extension-L decision in the real count of dependent modules/downstream fields instead of estimating it
 
 From results:
 - If model exists with relevant field/method -> `extension_point_confirmed = true`; keep Extension tier
 - If model exists but field/method missing -> may upgrade to Extension-L
+- If the impact_analysis blast radius is large (many dependent modules / downstream fields) -> upgrade to Extension-L; if isolated -> keep Extension-M
 - If no model match at all -> confirm Custom-XL
 - Set `evidence_module`, `evidence_field`, `evidence_snippet_ref`
 

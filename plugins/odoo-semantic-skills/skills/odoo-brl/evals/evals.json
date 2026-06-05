@@ -71,7 +71,7 @@
       "req_text": "Vietnam e-invoice (TT78 hoa don dien tu) integration with a national e-invoice provider",
       "expected_classification": "Available-in-Viindoo",
       "expected_edition": "Viindoo",
-      "rationale": "Vietnam e-invoice connector not in odoo profile (CE/EE). check_module_exists(profile=viindoo-internal) returns exists=true. Classified Available-in-Viindoo.",
+      "rationale": "Vietnam e-invoice connector not in odoo profile (CE/EE). check_module_exists(profile=viindoo_internal_17) returns exists=true. Classified Available-in-Viindoo.",
       "tags": ["classification-golden", "Viindoo"]
     },
     {

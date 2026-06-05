@@ -27,7 +27,7 @@ Consultant / Project Manager
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (call once at session start):
 - `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
@@ -37,7 +37,8 @@ _Tool surface: server v0.11.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, or a summary in one call.
+- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 - `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 <!-- END GENERATED TOOLS -->
 
@@ -74,7 +75,7 @@ complete in 3 rounds instead of 30+ sequential calls.
 **Round 0 - Context bootstrap + pin:** Before asking the caller for any project fact,
 follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`: read `.odoo-ai/context.md`
 if present and extract `odoo_version` and `viindoo_profile` (never hard-code
-`viindoo-internal`). Use those values for `set_active_version(odoo_version=…)` and
+`viindoo_internal_17`). Use those values for `set_active_version(odoo_version=…)` and
 `set_active_profile(profile_name=…)`. If `.odoo-ai/context.md` is absent, derive version
 from manifests on disk per the context-bootstrap snippet before asking.
 
@@ -87,7 +88,11 @@ Each call is independent; there is no reason to wait for one before firing the n
 
 **Round 2 — Parallel:** For all requirements where coverage is partial (module exists but
 incomplete), call `model_inspect(model=…, method='fields')` on each relevant model
-simultaneously. One call returns fields + methods + views + inheritance chain.
+simultaneously. One call returns fields + methods + views + inheritance chain. Pair it with
+`module_inspect(name=<module>, method='summary', odoo_version='auto')` for the same modules: the
+module-level view/OWL/JS inventory is what separates **Configuration** (the module already ships the
+needed view/flow) from **Extension** (the view/field is absent and must be added) — a distinction the
+field list alone cannot make.
 
 **Round 3 — Parallel:** For all Extension/Custom gap items, call `find_examples` +
 `lookup_core_api` + `suggest_pattern` simultaneously — one batch for all remaining gaps at
