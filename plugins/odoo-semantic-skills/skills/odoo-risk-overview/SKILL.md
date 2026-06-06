@@ -22,7 +22,7 @@ CEO / CTO / Project Sponsor
 
 - Per-line deprecated API technical audit → use `odoo-deprecation-audit`
 - Module-by-module business inventory → use `odoo-customization-inventory`
-- Tactical override/extension guidance → use `odoo-override-finder`
+- Tactical override/extension guidance → use `odoo-override-finding`
 
 ## MCP tools
 

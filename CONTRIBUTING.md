@@ -57,7 +57,7 @@ sensitive numeric values (pricing/OKR figures). Run `make validate && make test`
 | `plugins/odoo-semantic-skills/.mcp.json` | Bundled browser MCP servers (`chrome-devtools`, `playwright`, `pagecast`) loaded with the plugin for the visual stack |
 | `plugins/odoo-semantic-skills/hooks/` | Plugin lifecycle hooks (`hooks.json` + scripts) — e.g. the SessionStart visual-stack readiness probe |
 | `plugins/odoo-semantic-skills/scripts/lib/` | Shared bash/python setup utilities (`config_merge.py`, `discover_odoo.sh`) reused by setup steps |
-| `plugins/odoo-semantic-skills/scripts/setup-steps/` | Numbered, idempotent setup steps (`describe \| check \| apply`) driven by `/odoo-semantic-skills:setup` |
+| `plugins/odoo-semantic-skills/scripts/setup-steps/` | Numbered, idempotent setup steps (`describe \| check \| apply`) driven by `/odoo-semantic-skills:odoo-setup` |
 | `plugins/odoo-semantic-skills/generator/` | SSOT generator (`gen_surface.py`) + server-surface inputs |
 | `plugins/odoo-semantic-skills/snippets/` | MCP config for non-Claude clients, plus agent-facing SSOT protocol snippets (disk-fallback-protocol, context-bootstrap, osm-first-contract, nesting-guard) referenced by skill/agent bodies |
 | `plugins/odoo-semantic-skills/docs/` | Persona guides, client setup, tool routing reference |
@@ -74,7 +74,7 @@ matches what you actually mean:
 | You mean… | Write exactly | Where it appears |
 |-----------|---------------|------------------|
 | The plugin that ships the MCP server connection + connect command | `odoo-semantic-mcp` | Plugin name, `/odoo-semantic-mcp:connect`, dependency declarations |
-| The plugin that ships the skills / agents / commands | `odoo-semantic-skills` | Plugin name, `/odoo-semantic-skills:setup`, etc. |
+| The plugin that ships the skills / agents / commands | `odoo-semantic-skills` | Plugin name, `/odoo-semantic-skills:odoo-setup`, etc. |
 | The product / brand / hosted service | `Odoo Semantic` (prose) or `OSM` (abbrev) | README prose, "the Odoo Semantic service"; URL `odoo-semantic.viindoo.com` |
 | The **MCP server id** (runtime identifier) | `odoo-semantic` in backticks, config/code only | `.mcp.json`, editor snippets — naming the registered server id. NEVER as a plugin name |
 | The **tool-call prefix** | `mcp__odoo-semantic__*` | Tool names in skills/agents/docs/tests — always the full `mcp__…__` form |
@@ -126,6 +126,30 @@ clause. `make test` enforces all of this via `tests/test_skill_format.py` (front
 shape), `tests/test_skill_description_budget.py` (the 1024-char cap), and
 `tests/test_intake_quote_sync.py` (every skill/workflow the `intake` router points at must
 exist).
+
+### Naming convention: skill vs agent vs command (morphology)
+
+Names encode **role**, so an AI router (and a human) can tell the three layers apart even
+when a name appears bare — without its `odoo-semantic-skills:` namespace — in a cross-reference
+or in the model's own reasoning. The rule:
+
+- **Skill** = a **capability noun** — either a noun phrase (`-review`, `-analysis`, `-diff`,
+  `-audit`, `-proof`, `-overview`) or a gerund (`-coding`, `-recording`, `-handling`). It names
+  *what competence is offered*. **Never** an agent suffix (`-er/-or/-ist/-finder/-handler`) and
+  **never** a bare imperative verb (`summarize`, `onboard`).
+- **Agent** = an **agent-of-action noun** with an actor suffix (`-er/-or/-ist`): `odoo-coder`,
+  `odoo-code-reviewer`. It names *the executor that does the work*.
+- **Command** = an **imperative verb-object** phrase: `odoo-run-brl`, `odoo-plan-upgrade`,
+  `odoo-draft-followup`. Lead with the verb; keep an object so it never collides with the
+  verb-space a skill uses to trigger. The frontmatter `name` **must equal the filename** (that
+  is the invoked name; `name` is only a display label).
+- **Prefix `odoo-`** on every Odoo-specific skill/agent/command. The only unprefixed names are
+  the three domain-agnostic mechanisms: `intake`, `wave`, `workflow-chaining`.
+
+A skill that dispatches an agent pairs a capability with an actor: skill `odoo-code-review`
+dispatches agent `odoo-code-reviewer`; skill `odoo-backend-coding` dispatches agent
+`odoo-coder`. The names must differ (capability vs actor) — identical skill==agent names are a
+violation, because a bare reference can no longer say which layer it means.
 
 ## Pull requests
 

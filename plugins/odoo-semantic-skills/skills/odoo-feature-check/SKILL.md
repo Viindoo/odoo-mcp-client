@@ -21,7 +21,7 @@ Consultant / Developer
 
 - Multi-requirement effort matrix → use `odoo-gap-analysis`
 - CE vs EE three-way comparison → use `odoo-addon-diff`
-- Customer-facing objection response → use `odoo-objection-handler`
+- Customer-facing objection response → use `odoo-objection-handling`
 
 ## MCP tools
 

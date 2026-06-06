@@ -1,6 +1,6 @@
 # sales-closing-cycle.workflow.yaml
 # Declarative SSOT for the sales closing cycle workflow.
-# Runner: skills/workflow-runner — auto-discovered at runtime.
+# Runner: skills/workflow-chaining — auto-discovered at runtime.
 # Pattern: Pipeline — assess deal health, draft re-engagement, plan concrete next steps.
 name: sales-closing-cycle
 domain: sales

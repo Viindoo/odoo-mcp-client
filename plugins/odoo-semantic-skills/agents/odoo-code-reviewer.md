@@ -114,7 +114,7 @@ The recurring classes to flag:
   badge. Classic when styling chains into Bootstrap `--bs-*` tokens the target version does
   not emit at runtime. Backfill non-self-referentially against a token the version actually
   emits. Flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`;
-  confirm at runtime with `odoo-ui-debug`/`odoo-ui-reviewer`; route the fix to
+  confirm at runtime with `odoo-ui-debugging`/`odoo-ui-review`; route the fix to
   `odoo-frontend-coding` (this reviewer reads, it does not write frontend source).
 - **Sass function inside `calc()`** — `calc(map-get(...))` / `calc(min(...))` without `#{}`
   interpolation is dropped by LibSass (the property silently vanishes). Require
@@ -259,8 +259,8 @@ and explain why it is preferred over the submitted implementation.>
 <Optional - include only when a finding touches an OWL component, an XML view, or SCSS.
 Emit a structured signal for the orchestrating (depth-0) agent rather than advice to a human;
 this agent is read-only and depth-1, so it does not spawn the reviewer itself:
-`SUGGESTED_NEXT: odoo-ui-debug (reason=reactivity/render-failure finding)` or
-`SUGGESTED_NEXT: odoo-ui-reviewer (reason=layout/styling finding)`. The orchestrator decides
+`SUGGESTED_NEXT: odoo-ui-debugging (reason=reactivity/render-failure finding)` or
+`SUGGESTED_NEXT: odoo-ui-review (reason=layout/styling finding)`. The orchestrator decides
 whether to run it.>
 ```
 

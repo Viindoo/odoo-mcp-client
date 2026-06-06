@@ -10,8 +10,8 @@ description: >
   signals ("it's been 3 weeks", "deadline this month"), ambiguous-status signals ("not sure
   what the customer is thinking"). Also fires on Vietnamese: "deal đang đứng im", "khách
   chưa trả lời", "soạn email follow-up", "cần hâm nóng lại deal". DO NOT trigger for: (1) Discovery/demo session summary
-  -> use odoo-discovery-summarize. (2) Responding to technical objections -> use
-  odoo-objection-handler. (3) Verifying or proving Odoo features -> use
+  -> use odoo-discovery-summary. (2) Responding to technical objections -> use
+  odoo-objection-handling. (3) Verifying or proving Odoo features -> use
   odoo-capability-proof or odoo-feature-check. (4) Gap analysis or scope estimation -> use
   odoo-gap-analysis
 ---
@@ -24,8 +24,8 @@ cold due to missed follow-ups or unclear next steps.
 
 ## Out of Scope
 
-- Discovery session summary / demo notes -> use `odoo-discovery-summarize`
-- Responding to technical objections ("Odoo can't do X") -> use `odoo-objection-handler`
+- Discovery session summary / demo notes -> use `odoo-discovery-summary`
+- Responding to technical objections ("Odoo can't do X") -> use `odoo-objection-handling`
 - Proving a feature with code evidence -> use `odoo-capability-proof`
 - Simple feature lookup -> use `odoo-feature-check`
 - Gap analysis / implementation effort estimate -> use `odoo-gap-analysis`
@@ -190,7 +190,7 @@ Example: "customer asked about multi-warehouse -> can be verified with odoo-feat
 If none found -> write "None detected.">
 
 ## Suggest next skill
-<If applicable: "Suggest: run odoo-objection-handler if the customer is pushing back on a
+<If applicable: "Suggest: run odoo-objection-handling if the customer is pushing back on a
 specific feature" or "Suggest: run odoo-capability-proof if you need an evidence package for
 the customer">
 ```

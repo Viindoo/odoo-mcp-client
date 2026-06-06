@@ -30,9 +30,9 @@ to a 3-5 person dev shop. Output is operational and actionable, not executive-le
 |---|---|
 | Deprecated API code audit (pre-upgrade code scan) | `odoo-deprecation-audit` |
 | API + feature diff between two Odoo versions | `odoo-version-diff` |
-| Full upgrade orchestration plan (multi-tool) | `/odoo-upgrade-plan-full` (Phase C command) |
+| Full upgrade orchestration plan (multi-tool) | `/odoo-plan-upgrade` (Phase C command) |
 | Executive risk dashboard for stakeholders | `odoo-risk-overview` |
-| Backend coding fixes found during checklist | `odoo-coder` bundle |
+| Backend coding fixes found during checklist | `odoo-backend-coding` bundle |
 
 ---
 
@@ -287,7 +287,7 @@ Emit the full checklist in the output format below.
 ## Suggested next skills
 - `odoo-deprecation-audit` — if Domain 1 pre-flight items are unchecked
 - `odoo-version-diff` — if API diff for target version was not reviewed
-- `/odoo-upgrade-plan-full` — if no full upgrade plan exists (Phase C command)
+- `/odoo-plan-upgrade` — if no full upgrade plan exists (Phase C command)
 ```
 
 ---
@@ -335,7 +335,7 @@ The checklist remains fully usable — 7 of 8 domains require no OSM access.
 
 ### `.odoo-ai/context.md` integration
 
-If the project has a `.odoo-ai/context.md` file (populated by `odoo-onboard`), read it in
+If the project has a `.odoo-ai/context.md` file (populated by `odoo-onboarding`), read it in
 Round 0 to pre-fill:
 - `odoo_version` — skip the version question in Round 1
 - `modules` — offer the module list as default (user can override)
@@ -347,7 +347,7 @@ Without `.odoo-ai/context.md`, all three Round 1 questions are mandatory.
 
 - **Pre-flight code audit** (before generating this checklist): run `odoo-deprecation-audit` first.
   Its output directly fills Domain 1 items.
-- **Full upgrade orchestration**: `/odoo-upgrade-plan-full` (Phase C command) chains
+- **Full upgrade orchestration**: `/odoo-plan-upgrade` (Phase C command) chains
   `odoo-deprecation-audit` → `odoo-version-diff` → `odoo-deploy-checklist` into a single
   end-to-end upgrade plan. Use the command when the user needs a complete plan, not just
   a deploy gate.

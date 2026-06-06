@@ -1,7 +1,7 @@
 # Odoo code-quality gate — local reproduction (multi-version aware)
 
 > **What this is.** A local, pre-push **parity** gate for the Odoo CI code-quality checks, so the
-> `odoo-coder` / `odoo-code-reviewer` / `odoo-qa-suite` / `odoo-deploy-checklist` / `wave` personas
+> `odoo-backend-coding` / `odoo-code-review` / `odoo-qa-suite` / `odoo-deploy-checklist` / `wave` personas
 > catch lint failures **before** push — not in CI. Not a CI replacement; a fast inner-loop mirror.
 >
 > Consumed by: `agents/odoo-coder.md`, `agents/odoo-code-reviewer.md`,
@@ -106,7 +106,7 @@ Brand-token fidelity is a separate optional layer and is **not** vendored: the p
 mechanism, the consumer declares the brand. Set `brand_tokens_source` in `.odoo-ai/context.md` to a
 JSON map (`{"--primary": "#1E88E5", …}`). Two halves share `scripts/lib/color_delta.py` (stdlib
 CIEDE2000): the **static** half (`verify-frontend.sh` Tier 4) WARNs on hardcoded SCSS hex within ΔE
-of a brand token; the **runtime** half (`odoo-ui-reviewer` Step 4b) ΔE-diffs `getComputedStyle(:root)`
+of a brand token; the **runtime** half (`odoo-ui-review` Step 4b) ΔE-diffs `getComputedStyle(:root)`
 against the declared map. WARN-tier (ΔE rounding makes false-blocks easy). Full rationale:
 `skills/_shared/odoo-frontend-fidelity.md` Section G. Mirrors this gate's "derive from the consumer
 environment, vendor nothing" principle.

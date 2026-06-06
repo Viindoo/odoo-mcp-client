@@ -1,7 +1,7 @@
 # Workflow Schema — `workflows/*.workflow.yaml`
 
 > **SSOT for the `*.workflow.yaml` composition contract.**
-> The `workflow-runner` skill reads files conforming to this schema at runtime.
+> The `workflow-chaining` skill reads files conforming to this schema at runtime.
 > `docs/reference/workflow-harness.md` §5 references this file for the full field listing.
 > Validators: `generator/check_workflows.py` (CI). Tests: `tests/test_workflow_format.py`.
 
@@ -104,7 +104,7 @@ Must start with `.odoo-ai/`. Examples:
 .odoo-ai/upgrade
 ```
 
-`.odoo-ai/` is gitignored by the `odoo-onboard` skill. All runtime artifacts are written
+`.odoo-ai/` is gitignored by the `odoo-onboarding` skill. All runtime artifacts are written
 here and are never committed to the repo.
 
 ---
@@ -127,7 +127,7 @@ inputs:
 
 phases:
   - id: summarize
-    skill: odoo-discovery-summarize
+    skill: odoo-discovery-summary
     nl_trigger: >
       Summarize the following raw discovery notes into a structured customer profile
       (industry, headcount, current system, pain points, fit assessment, open questions).
@@ -185,6 +185,6 @@ fallback: standalone
 
 ## 10. Registration
 
-No explicit registration in `plugin.json` is needed. The `workflow-runner` skill
+No explicit registration in `plugin.json` is needed. The `workflow-chaining` skill
 auto-discovers `*.workflow.yaml` files from the `workflows/` directory at runtime.
 Adding a workflow = dropping a `.workflow.yaml` file; no orchestration code is written.

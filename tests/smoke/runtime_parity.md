@@ -19,10 +19,10 @@ dependency:
 | # | Skill | Phase introduced | Persona | MCP dependency |
 |---|-------|-----------------|---------|---------------|
 | 1 | `intake` | A | All — universal front door / brainstorm + route | None (pure text routing) |
-| 2 | `odoo-onboard` | A | All — context bootstrap | Read-only: `list_available_versions`, `list_available_profiles`, `set_active_version`, `set_active_profile` |
+| 2 | `odoo-onboarding` | A | All — context bootstrap | Read-only: `list_available_versions`, `list_available_profiles`, `set_active_version`, `set_active_profile` |
 | 3 | `odoo-feature-check` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `suggest_pattern` |
 | 4 | `odoo-gap-analysis` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `lookup_core_api`, `suggest_pattern` |
-| 5 | `odoo-objection-handler` | A | Sales AE | `check_module_exists`, `find_examples`, `model_inspect`, `suggest_pattern` |
+| 5 | `odoo-objection-handling` | A | Sales AE | `check_module_exists`, `find_examples`, `model_inspect`, `suggest_pattern` |
 | 6 | `odoo-deal-followup` | B | Sales AE | None (deal context is user-provided) |
 | 7 | `odoo-feature-highlights` | B | Marketer | `api_version_diff`, `find_examples` |
 | 8 | `odoo-content-draft` | B | Marketer | Optional: `find_examples` (standalone-first capable) |
@@ -71,7 +71,7 @@ Before beginning this checklist, confirm all of the following:
    - API key is valid (test with one quick `cli_help` call).
 
 3. **`.odoo-ai/context.md` populated** in the test working directory (run
-   `odoo-onboard` first, or manually create with target version and profile).
+   `odoo-onboarding` first, or manually create with target version and profile).
    This is required for skills that read Round -1 context.
 
 4. **Test working directory** contains at least one `__manifest__.py` at depth
@@ -141,7 +141,7 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-### Skill 2: `odoo-onboard`
+### Skill 2: `odoo-onboarding`
 
 > Phase A — project context bootstrap. Read-only MCP: `list_available_versions`,
 > `list_available_profiles`, `set_active_version`, `set_active_profile`.
@@ -214,7 +214,7 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-### Skill 5: `odoo-objection-handler`
+### Skill 5: `odoo-objection-handling`
 
 > Phase A — Sales AE. MCP: `check_module_exists`, `find_examples`,
 > `model_inspect`, `suggest_pattern`.
@@ -362,8 +362,8 @@ not closed.
 
 ### Gap 1 — Commands (Claude Code only)
 
-Files under `commands/*.md` define slash-command chains (`/odoo-bid-respond`,
-`/odoo-customer-followup-draft`, `/odoo-discovery-quick`, etc.). The
+Files under `commands/*.md` define slash-command chains (`/odoo-respond-bid`,
+`/odoo-draft-followup`, `/odoo-summarize-discovery`, etc.). The
 `commands:` key in `.claude-plugin/plugin.json` is a CC-specific harness
 concept.
 
@@ -411,7 +411,7 @@ developer machines; CI is authoritative.
 
 ### Gap 5 — `.odoo-ai/context.md` write step (onboard skill)
 
-`odoo-onboard` writes `.odoo-ai/context.md` to the local filesystem. All
+`odoo-onboarding` writes `.odoo-ai/context.md` to the local filesystem. All
 three runtimes can execute this write via their respective file-write tool.
 However, the exact tool name differs (CC: `Write`; Codex: file-write API;
 Gemini: file-write API). If a runtime does not expose a file-write tool, the
@@ -484,7 +484,7 @@ All three conditions must hold:
 3. **No P0 failure** in any runtime: a P0 failure means a skill produces output
    that is factually incorrect AND would be surfaced to a customer without
    further review (e.g., wrong verdict in `odoo-feature-check`, fabricated
-   module name in `odoo-objection-handler`).
+   module name in `odoo-objection-handling`).
 
 Outcome: Phase D AC-D1 is closed PASS. Attach dated copy to the tracker issue.
 

@@ -25,7 +25,7 @@ traceability from requirement to evidence to budget line.
 
 - Single feature availability check -> use `odoo-feature-check`
 - Short ad-hoc gap matrix (no cost/DAG/scale) -> use `odoo-gap-analysis`
-- Code generation or module scaffolding -> use `odoo-coder`
+- Code generation or module scaffolding -> use `odoo-backend-coding`
 - Source-level API diff between versions -> use `odoo-version-diff`
 
 ## MCP tools
@@ -105,7 +105,7 @@ Never write real company names, VND figures, or internal pricing into any commit
    - `profile_inspect(method='summary', name='viindoo_internal_<version>', odoo_version='auto')` -> confirm the Viindoo profile's composition (inheritance chain + repos + indexed module count) before GATE 0, so you scope on real coverage instead of assuming the profile exists.
 
 4. **Load context:** Check `.odoo-ai/context.md`. If found, use its version/profile settings as defaults.
-   If absent, suggest `/odoo-onboard` but allow continuing with manually supplied context.
+   If absent, suggest `/odoo-onboarding` but allow continuing with manually supplied context.
 
 5. **GATE 0:** Present plan to user before any classification work:
 
@@ -618,7 +618,7 @@ On `approve`, write ALL deliverables atomically:
 5. **OEEL-1 no-retry:** When check_module_exists returns a license notice, classify as
    Available-in-Viindoo and stop. Do NOT retry, do NOT call model_inspect on OEEL-1 modules.
 6. **Context check:** Load `.odoo-ai/context.md` if present; use its version/profile.
-   Absent -> suggest `/odoo-onboard`, allow manual continuation.
+   Absent -> suggest `/odoo-onboarding`, allow manual continuation.
 7. **Principal-branch-lock:** Read-only on the project repo. Only write to `.odoo-ai/`.
 8. **Sequential outer:** Never fan-out chunks to parallel subagents. Inner <=3 MCP parallel
    per chunk is the only concurrency. Rationale: MCP-I/O-bound not CPU-bound; subagent

@@ -9,7 +9,7 @@
 ## 1. Directory layout
 
 All BRL artifacts live under `.odoo-ai/brl/<job-id>/`. The `.odoo-ai/` directory is gitignored
-by the `odoo-onboard` skill so no artifact is ever committed to the project repo.
+by the `odoo-onboarding` skill so no artifact is ever committed to the project repo.
 
 `<job-id>` format: `<CUSTOMER_LABEL>-<YYYYMMDD>-<4hex>`
 Example: `Customer-A-20260531-9f3a`

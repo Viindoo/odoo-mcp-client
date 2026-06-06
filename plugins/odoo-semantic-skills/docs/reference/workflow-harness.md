@@ -45,7 +45,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
                                     ▼
 ┌────────────────────────────────────────────────────────────────┐
 │  WORKFLOW LAYER  (depth 0 → 1)                                  │
-│  Declarative *.workflow.yaml + workflow-runner skill            │
+│  Declarative *.workflow.yaml + workflow-chaining skill            │
 │  · maps one of 6 team-patterns to a gated phase sequence        │
 │  · phase gates: approve / refine / cancel between phases        │
 │  · writes .odoo-ai/<output_dir>/ artifacts                      │
@@ -55,7 +55,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
                                     ▼
 ┌────────────────────────────────────────────────────────────────┐
 │  EXECUTION LAYER  (depth 1, max depth 2 for fork workers)       │
-│  Specialist skills (odoo-coder, odoo-code-reviewer, …)          │
+│  Specialist skills (odoo-backend-coding, odoo-code-review, …)          │
 │  MCP tool calls (odoo-semantic-mcp server)                      │
 │  context: fork subagents — carry hard-rules line, no spawn      │
 └────────────────────────────────────────────────────────────────┘
@@ -75,18 +75,18 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 
 ## 2. `.odoo-ai/` artifact convention
 
-`.odoo-ai/` is gitignored by the onboarding skill (`/odoo-onboard`). All runtime
+`.odoo-ai/` is gitignored by the onboarding skill (`/odoo-onboarding`). All runtime
 artifacts are written here; nothing under `.odoo-ai/` is committed to the repo.
 
 ### File-ownership table
 
 | Component | Sub-path | Written by |
 |-----------|----------|------------|
-| Context snapshot | `.odoo-ai/context.md` | `odoo-onboard` skill |
+| Context snapshot | `.odoo-ai/context.md` | `odoo-onboarding` skill |
 | Brainstorm state | `.odoo-ai/brainstorm/state.json` | `intake` skill |
 | Brainstorm design doc | `.odoo-ai/brainstorm/<slug>-<date>.md` | `intake` (approval turn) |
 | BRL job artifacts | `.odoo-ai/brl/<job-id>/` | `odoo-brl` skill |
-| Workflow phase state | `<output_dir>/<slug>-state.json` (output_dir is the full `.odoo-ai/...` path) | `workflow-runner` |
+| Workflow phase state | `<output_dir>/<slug>-state.json` (output_dir is the full `.odoo-ai/...` path) | `workflow-chaining` |
 | QA artifacts | `.odoo-ai/qa/` | `qa-suite` workflow |
 | Wave plan artifact | `.odoo-ai/wave/<slug>/` | `wave` skill (depth-0) |
 
@@ -312,8 +312,8 @@ Run this before any execute-skill dispatch. Intake reads the chosen Approach's
 - `output_mode = chat-only` → **SKIP Plan Mode**. Intake ends its turn; the specialist
   fires via the Agent tool on the next turn (NL-dispatch). Chat-only skills include:
   `odoo-feature-check`, `odoo-version-diff`, `odoo-risk-overview`,
-  `odoo-deprecation-audit`, `odoo-gap-analysis`, `odoo-discovery-summarize`,
-  `odoo-capability-proof`, `odoo-objection-handler`, `odoo-content-draft`,
+  `odoo-deprecation-audit`, `odoo-gap-analysis`, `odoo-discovery-summary`,
+  `odoo-capability-proof`, `odoo-objection-handling`, `odoo-content-draft`,
   `odoo-competitive-brief`, and any skill whose output column is "chat only".
 
 #### Intake-initiated Plan Mode pattern
@@ -325,7 +325,7 @@ review → receives user approval via `ExitPlanMode` → then dispatches the
 file-touching specialist. This is a first-class enforcement option, not a workaround.
 
 There is **no platform write-block** behind the gate. `intake` does not declare
-`disallowed-tools: Write Edit`, and the coders (`odoo-coder`, `odoo-frontend-coding`)
+`disallowed-tools: Write Edit`, and the coders (`odoo-backend-coding`, `odoo-frontend-coding`)
 DO write/apply code — that is their job. The gate is enforced by two behavioral
 mechanisms, with Plan Mode as the strongest layer when depth-0 context is available:
 
@@ -420,7 +420,7 @@ Execute  (writes-files specialist dispatched via Agent tool)
 #### What Phase R does
 
 - **Dispatches ≤1–2 READ-ONLY agents** via the Agent tool: `Explore`, or a specialist
-  in read-only mode (e.g. `odoo-feature-check`, `odoo-override-finder`). These agents
+  in read-only mode (e.g. `odoo-feature-check`, `odoo-override-finding`). These agents
   map the code or modules relevant to the stated intent.
 - **Calls read-only OSM tools** as needed: `model_inspect`, `check_module_exists`,
   `find_override_point`, `impact_analysis`.
@@ -447,8 +447,8 @@ Without Phase R, intake writes a Proposed Plan based only on user descriptions �
 cannot confirm which modules exist, what the current hook points are, or what the
 blast radius of a change would be. Phase R answers these questions cheaply (read-only,
 depth-1) so the Proposed Plan's `Findings (Recon)` field is concrete rather than
-speculative. This is the same principle as `odoo-override-finder` confirming a hook
-before `odoo-coder` writes the override.
+speculative. This is the same principle as `odoo-override-finding` confirming a hook
+before `odoo-backend-coding` writes the override.
 
 ---
 
@@ -520,15 +520,15 @@ gap-analysis legend: **S = <1 day · M = 1–3 days · L = 3–10 days · XL = >
 
 ```
 # Full-stack feature (2 WIs, linear)
-WI-A → odoo-coder (sonnet, M)        adds backend field + ORM method
+WI-A → odoo-backend-coding (sonnet, M)        adds backend field + ORM method
 WI-B → odoo-frontend-coding (sonnet, M) renders OWL widget
 DAG: linear  WI-A --data-flow--> WI-B
   (field must exist before widget binds)
 Verify: ./run_tests.sh sale_order
 
 # Three disjoint fixes (independent, candidate for wave)
-WI-A → odoo-coder (sonnet, S)        bug fix in account_move
-WI-B → odoo-coder (sonnet, S)        unit test for WI-A
+WI-A → odoo-backend-coding (sonnet, S)        bug fix in account_move
+WI-B → odoo-backend-coding (sonnet, S)        unit test for WI-A
 WI-C → (inline edit) (sonnet, S)     docs update (sonnet: docs update is a write phase)
 DAG: independent (no edges) → hand to `wave` for parallel delivery
 ```
@@ -572,16 +572,16 @@ frontmatter (maintained by skill authors), output_mode in the generator registry
 Hard-coded command files each contain bespoke phase logic in prose. Adding new
 workflows (QA, support, video) the same way produces N bespoke files that violate
 SSOT (one schema in each). The declarative approach: one schema + one generic runner
-skill (`workflow-runner`). Adding a workflow = dropping a `.workflow.yaml` file;
+skill (`workflow-chaining`). Adding a workflow = dropping a `.workflow.yaml` file;
 no orchestration code is written.
 
 ### 5.2 `workflows/*.workflow.yaml` schema
 
 ```yaml
-# Example: workflows/qa-test-suite.workflow.yaml
-name: qa-test-suite
+# Example: workflows/example-pipeline.workflow.yaml
+name: example-pipeline
 domain: qa                       # one of 9 persona buckets
-team_pattern: pipeline           # see §5.3 for all 6 patterns
+team_pattern: Pipeline           # see §5.3 for all 6 patterns
 description: |
   Generate and review an Odoo test suite from a feature spec.
   Trigger: "write tests for", "generate test suite", "QA for this feature".
@@ -590,13 +590,13 @@ inputs: [feature_spec]           # named args collected at Phase 0
 
 phases:
   - id: scaffold
-    skill: odoo-coder
+    skill: odoo-backend-coding
     nl_trigger: "write Odoo unit tests for the feature described"
     model_tier: sonnet
     gate: "yes / edit / cancel"
 
   - id: review
-    skill: odoo-code-reviewer
+    skill: odoo-code-review
     nl_trigger: "review the generated test suite for correctness and Odoo conventions"
     model_tier: sonnet
     gate: "yes / iterate / cancel"
@@ -648,7 +648,7 @@ and are capped at 3 concurrent workers to avoid OOM (see failure log
 
 ### 5.5 Registration and validation
 
-The runner skill (`workflow-runner`, `user-invocable: false`) auto-discovers
+The runner skill (`workflow-chaining`, `user-invocable: false`) auto-discovers
 `*.workflow.yaml` from the `workflows/` directory. No `plugin.json` edit is needed
 for the skill list.
 
@@ -671,12 +671,12 @@ main context (depth 0)
 
 A **leaf skill** executes work directly using MCP tool calls and Read/Write/Bash
 operations. It does NOT invoke the Skill tool, does NOT use the Agent tool, and does
-NOT spawn `context: fork` workers. Examples: `odoo-coder`, `odoo-code-reviewer`,
+NOT spawn `context: fork` workers. Examples: `odoo-backend-coding`, `odoo-code-review`,
 all 26 specialist skills.
 
 A **spawn skill** orchestrates leaf skills by NL-dispatch or forks workers via
 `context: fork`. Examples: `odoo-brl` (forks DAG cluster workers), `intake`
-(NL-dispatches to specialists), `workflow-runner` (phases mapped to leaf skills).
+(NL-dispatches to specialists), `workflow-chaining` (phases mapped to leaf skills).
 
 ### Mandatory hard-rules line
 
@@ -748,12 +748,12 @@ principal branch (untouched throughout)
         cleanup: worktrees + branches + wave dir removed
 ```
 
-### 7.2 Why wave is NOT a workflow-runner team-pattern
+### 7.2 Why wave is NOT a workflow-chaining team-pattern
 
 This is the **authoritative decision record** for why git-wave is a depth-0 skill,
 not a `team_pattern` inside the declarative workflow system.
 
-| Axis | workflow-runner (depth-1) | wave skill (depth-0) |
+| Axis | workflow-chaining (depth-1) | wave skill (depth-0) |
 |------|--------------------------|----------------------|
 | Depth | Runs at depth 1; fork workers are depth-2 ceiling | Runs at depth 0; WI subagents are depth-2 ceiling |
 | Git authority | None — runner does NL-dispatch only; no git ops | Full git authority: worktree add, cherry-pick, PR creation, squash, force-with-lease |
@@ -763,7 +763,7 @@ not a `team_pattern` inside the declarative workflow system.
 | Crash risk | Injecting git orchestration into depth-1 runner would push fork workers to depth-3 — exceeds platform ceiling | Depth ceiling respected: 0 (wave) → 2 (WI subagent) |
 
 **Decision**: git-wave is a depth-0 actor that sits alongside `intake` at the top
-layer, not below `workflow-runner`. This is final and must not be revisited without
+layer, not below `workflow-chaining`. This is final and must not be revisited without
 updating this section.
 
 ### 7.3 Phase sequence (summary)
@@ -785,12 +785,12 @@ Every WI subagent brief MUST contain the following line verbatim:
 ```
 You are a leaf worker (depth-2). You ARE the specialist — write/review the code yourself,
 grounding every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is
-always allowed); follow the odoo-coder / odoo-code-reviewer / odoo-frontend-coder conventions
-but do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-coder,
-odoo-code-reviewer, odoo-ui-reviewer, odoo-frontend-coding, wave, intake, odoo-brl,
-workflow-runner, /code-review, skill-creator) — they dispatch a fresh agent and are
+always allowed); follow the odoo-backend-coding / odoo-code-review / odoo-frontend-coder conventions
+but do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-backend-coding,
+odoo-code-review, odoo-ui-review, odoo-frontend-coding, wave, intake, odoo-brl,
+workflow-chaining, /code-review, skill-creator) — they dispatch a fresh agent and are
 main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill (e.g.
-odoo-feature-check, odoo-override-finder) for a read-only lookup. Do NOT invoke the Skill tool
+odoo-feature-check, odoo-override-finding) for a read-only lookup. Do NOT invoke the Skill tool
 to trigger a spawner. Do NOT spawn a sub-agent. Do NOT git branch/cherry-pick/merge/push; stay
 in your assigned worktree. Only Read/Grep/Glob/Edit/Write/Bash.
 ```
@@ -811,5 +811,5 @@ Maximum 3 concurrent WI subagents (OOM ceiling).
 ### 7.6 Artifact location
 
 Wave plan and state files land under `.odoo-ai/wave/<slug>/` (gitignored by
-`odoo-onboard`). The `<slug>` is a short kebab-case descriptor chosen at Phase 0.
+`odoo-onboarding`). The `<slug>` is a short kebab-case descriptor chosen at Phase 0.
 The directory is cleaned up after a successful human-confirm merge.

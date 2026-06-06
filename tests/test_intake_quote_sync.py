@@ -23,9 +23,9 @@ def _valid_targets():
     workflows = {p.name[: -len(".workflow.yaml")] for p in (PLUGIN / "workflows").glob("*.workflow.yaml")}
     commands = {p.stem for p in (PLUGIN / "commands").glob("*.md")}
     # Commands are invoked via their slash name, which intake writes with an
-    # `odoo-` prefix (e.g. command file `discovery-quick.md` -> `/odoo-discovery-quick`).
+    # `odoo-` prefix (e.g. command file `odoo-run-brl.md` -> `/odoo-run-brl`).
     command_slugs = commands | {f"odoo-{c}" for c in commands}
-    extra = {"intake", "wave", "workflow-runner"}
+    extra = {"intake", "wave", "workflow-chaining"}
     return skills | workflows | command_slugs | extra
 
 
@@ -50,7 +50,7 @@ def test_intake_targets_exist():
         # only care about things that plausibly name a skill/workflow target
         if tok in KNOWN_NON_TARGETS:
             continue
-        if tok.startswith("odoo-") or tok in {"intake", "wave", "workflow-runner",
+        if tok.startswith("odoo-") or tok in {"intake", "wave", "workflow-chaining",
                                               "support-triage", "video-produce",
                                               "content-production", "discovery-quick",
                                               "bid-respond", "feature-positioning",

@@ -1,12 +1,12 @@
 # video-produce.workflow.yaml
-# Declarative SSOT for the /odoo-video-produce command.
-# Runner: skills/workflow-runner — auto-discovered at runtime.
+# Declarative SSOT for the /odoo-produce-video command.
+# Runner: skills/workflow-chaining — auto-discovered at runtime.
 name: video-produce
 domain: marketing
 team_pattern: Pipeline
 description: |
   Produce a multi-scene Odoo demo video: author a storyboard (scene list with click
-  paths and timing), record each scene via the odoo-demo-recorder primitive, then
+  paths and timing), record each scene via the odoo-demo-recording primitive, then
   assemble all clips into a single MP4 or GIF deliverable. Trigger: "multi-scene
   Odoo demo video", "storyboard and record", "assemble scenes into one video",
   "record storyboard", "multi-take product demo", "quay nhiều scene ghép thành
@@ -38,13 +38,13 @@ phases:
     # Hard rules enforced inline:
     #   - No writes before gate approval
     #   - Abstract labels only (no real customer names in saved files)
-    #   - Each scene maps to one odoo-demo-recorder invocation
+    #   - Each scene maps to one odoo-demo-recording invocation
 
   # ------------------------------------------------------------------
-  # Phase 1 — Record scenes (odoo-demo-recorder, one invocation per scene)
+  # Phase 1 — Record scenes (odoo-demo-recording, one invocation per scene)
   # ------------------------------------------------------------------
   - id: record-scenes
-    skill: odoo-demo-recorder
+    skill: odoo-demo-recording
     nl_trigger: >
       Record all scenes from the storyboard produced in the storyboard phase.
       For each scene in order: plan the click path using the storyboard description,

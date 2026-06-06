@@ -1,6 +1,6 @@
 # discovery-pipeline.workflow.yaml
 # Reference workflow proving the composition contract runs end-to-end.
-# Uses two existing leaf skills (odoo-discovery-summarize -> odoo-gap-analysis)
+# Uses two existing leaf skills (odoo-discovery-summary -> odoo-gap-analysis)
 # in a simple Pipeline pattern, followed by an inline synthesis phase.
 name: discovery-pipeline
 domain: presales
@@ -18,7 +18,7 @@ inputs:
 
 phases:
   - id: summarize
-    skill: odoo-discovery-summarize
+    skill: odoo-discovery-summary
     nl_trigger: >
       Summarize the following raw discovery notes into a structured customer profile
       covering industry vertical, headcount band, current system, pain points with

@@ -9,8 +9,8 @@ description: >
   Fire this skill when asked to: "do this as a wave", "parallelize these changes",
   "multi-WI PR with review and squash", "land N changes safely without touching main",
   or any multi-file change that needs parallel workers + safe git integration.
-  Do NOT use for a single-file change (use odoo-coder), requirement scoping (use odoo-brl),
-  or in-context skill chaining (use workflow-runner).
+  Do NOT use for a single-file change (use odoo-backend-coding), requirement scoping (use odoo-brl),
+  or in-context skill chaining (use workflow-chaining).
   Never auto-merge - HUMAN-CONFIRM is the terminal gate
 model: opus
 ---
@@ -25,9 +25,9 @@ principal branch.
 
 ## Out of Scope
 
-- Single-file or single-WI change -> use `odoo-coder` directly
+- Single-file or single-WI change -> use `odoo-backend-coding` directly
 - Requirement scoping, BRL classification -> use `odoo-brl`
-- In-context NL skill chaining without git branches -> use `workflow-runner`
+- In-context NL skill chaining without git branches -> use `workflow-chaining`
 - Auto-merge -> NEVER. Human-confirm is the terminal gate, non-negotiable
 
 ## Hard rules
@@ -44,9 +44,9 @@ principal branch.
 2. **Depth-0 / self-spawn legality** — This skill (wave) runs at depth 0 (main context)
    only. It spawns WI subagents at depth 1 (integration/coordination layer), which are
    themselves leaf workers at depth-2 ceiling. Leaf workers MUST NOT spawn further
-   subagents or invoke any depth0-only skill (the spawner bundles `odoo-coder`,
-   `odoo-code-reviewer`, `odoo-ui-reviewer`, `odoo-frontend-coding`, plus `/code-review`,
-   `skill-creator`, `wave`, `intake`, `odoo-brl`, `workflow-runner` — see the
+   subagents or invoke any depth0-only skill (the spawner bundles `odoo-backend-coding`,
+   `odoo-code-review`, `odoo-ui-review`, `odoo-frontend-coding`, plus `/code-review`,
+   `skill-creator`, `wave`, `intake`, `odoo-brl`, `workflow-chaining` — see the
    Skill-Delegation Matrix below and `docs/reference/ORCHESTRATION-MAP.md`).
    Depth ceiling: wave (depth 0) → WI subagent (depth 1) → leaf worker (depth-2 max);
    no further spawning allowed. Maximum concurrent WI subagents: 3.
@@ -197,12 +197,12 @@ Hard rules:
   - Nesting guard (full text: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md): you are a
     leaf worker (depth-2). You ARE the specialist — write/review the code yourself, grounding
     every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is always
-    allowed); follow the odoo-coder / odoo-code-reviewer / odoo-frontend-coder conventions but
-    do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-coder,
-    odoo-code-reviewer, odoo-ui-reviewer, odoo-frontend-coding, wave, intake, odoo-brl,
-    workflow-runner, /code-review, skill-creator) — they dispatch a fresh agent and are
+    allowed); follow the odoo-backend-coding / odoo-code-review / odoo-frontend-coder conventions but
+    do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-backend-coding,
+    odoo-code-review, odoo-ui-review, odoo-frontend-coding, wave, intake, odoo-brl,
+    workflow-chaining, /code-review, skill-creator) — they dispatch a fresh agent and are
     main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill (e.g.
-    odoo-feature-check, odoo-override-finder) for a read-only lookup. Do NOT invoke the Skill
+    odoo-feature-check, odoo-override-finding) for a read-only lookup. Do NOT invoke the Skill
     tool to trigger a spawner. Do NOT spawn a sub-agent. Do NOT git branch/cherry-pick/merge/push;
     stay in your assigned worktree. Only Read/Grep/Glob/Edit/Write/Bash.
   - Only edit files listed in your "Files in scope". Do not touch files owned by other WIs.
@@ -232,13 +232,13 @@ If a subagent exceeds 15 minutes without output, check its status; do not assume
 
 | Task | Leaf worker does this | Leaf worker MUST NOT |
 |---|---|---|
-| Backend Python/XML | Write it directly, grounded via OSM tools (`model_inspect` / `find_examples` / `validate_*`), following `odoo-coder` conventions | Invoke the `odoo-coder` bundle (depth0-only) |
+| Backend Python/XML | Write it directly, grounded via OSM tools (`model_inspect` / `find_examples` / `validate_*`), following `odoo-backend-coding` conventions | Invoke the `odoo-backend-coding` bundle (depth0-only) |
 | Frontend JS/OWL/SCSS | Write it directly, grounded via OSM tools (`find_examples` / `resolve_stylesheet`), following `odoo-frontend-coder` conventions | Invoke the `odoo-frontend-coding` bundle (depth0-only) |
-| Review of own output | Self-review inline against the `odoo-code-reviewer` conventions | Invoke `odoo-code-reviewer` or `/code-review` |
-| Read-only lookup | NL-dispatch a `leaf` skill (`odoo-feature-check`, `odoo-override-finder`) | Spawn a sub-agent; call any depth0-only skill |
+| Review of own output | Self-review inline against the `odoo-code-review` conventions | Invoke `odoo-code-review` or `/code-review` |
+| Read-only lookup | NL-dispatch a `leaf` skill (`odoo-feature-check`, `odoo-override-finding`) | Spawn a sub-agent; call any depth0-only skill |
 
-**Nesting rule**: depth0-only skills (`odoo-coder`, `odoo-code-reviewer`, `odoo-ui-reviewer`,
-`odoo-frontend-coding`, `wave`, `intake`, `odoo-brl`, `workflow-runner`, `/code-review`,
+**Nesting rule**: depth0-only skills (`odoo-backend-coding`, `odoo-code-review`, `odoo-ui-review`,
+`odoo-frontend-coding`, `wave`, `intake`, `odoo-brl`, `workflow-chaining`, `/code-review`,
 `skill-creator`) each dispatch a fresh agent (depth0→1) and may ONLY be invoked from the main
 agent — NEVER from a leaf worker. A leaf worker IS the specialist: it writes/reviews directly
 with its own tools (OSM MCP calls are never spawns), and only ever NL-dispatches genuinely
@@ -260,8 +260,8 @@ For each WI (in topology order):
    - Nesting guard (verbatim, mandatory — SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md):
      "You are a leaf worker (depth-2). You ARE the specialist — resolve and verify directly,
      grounding any Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn). Do NOT
-     invoke any depth0-only skill (odoo-coder, odoo-code-reviewer, odoo-ui-reviewer,
-     odoo-frontend-coding, wave, intake, odoo-brl, workflow-runner, /code-review, skill-creator)
+     invoke any depth0-only skill (odoo-backend-coding, odoo-code-review, odoo-ui-review,
+     odoo-frontend-coding, wave, intake, odoo-brl, workflow-chaining, /code-review, skill-creator)
      — they are main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill for a
      read-only lookup. Do NOT invoke the Skill tool to trigger a spawner. Do NOT spawn a
      sub-agent. Do NOT git branch/cherry-pick/merge/push; stay in your assigned worktree. Only
@@ -381,7 +381,7 @@ When the wave process is unnecessary (1 WI, trivial change, or user preference):
 2. State why the wave overhead is not warranted.
 3. Offer: "Run directly (simpler) OR proceed as a wave (more isolation)?"
 
-If the user chooses direct: dispatch the appropriate specialist skill (odoo-coder,
+If the user chooses direct: dispatch the appropriate specialist skill (odoo-backend-coding,
 odoo-frontend-coding, etc.) via NL-dispatch and stop.
 
 ## Examples
@@ -395,7 +395,7 @@ Cherry-pick all 3. Opus review + /code-review. 1 PR. Squash + tree-identity. Wai
 **Example 2 - 1-WI edge case:**
 Prompt: "Do this as a wave: fix the typo in account.move description."
 Action: Phase 0 sees 1 WI. Standalone-first fallback: "This is a single-file fix -
-wave overhead is not needed. Run odoo-coder directly? Or confirm you want a wave."
+wave overhead is not needed. Run odoo-backend-coding directly? Or confirm you want a wave."
 
 **Example 3 - Ownership conflict detected:**
 Prompt: "Parallelize WI-A (edits models.py + tests.py) and WI-B (edits models.py + views.py)."

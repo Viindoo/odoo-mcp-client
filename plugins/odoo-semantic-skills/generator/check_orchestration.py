@@ -6,7 +6,7 @@ Validates that orchestration metadata (generator/skill_tool_deps.json -> "orches
 is complete and that skills thread the shared contracts they are required to:
 
   1. Coverage     — every skills/<dir> has an orchestration entry, and vice versa.
-  2. OSM-first    — skills that spawn/fan-out workers writing Odoo (wave, workflow-runner,
+  2. OSM-first    — skills that spawn/fan-out workers writing Odoo (wave, workflow-chaining,
                     odoo-brl) reference snippets/osm-first-contract.md.
   3. Design-sys   — skills with stack in {frontend, fullstack} reference
                     skills/_shared/odoo-frontend-fidelity.md.
@@ -39,7 +39,7 @@ DESIGN_DOC_PATH = "skills/_shared/odoo-frontend-fidelity.md"
 INSTANCE_REFS = ("cli_help", "INSTANCE-LIFECYCLE", "ODOO-TESTING")
 
 # Skills that fan-out / spawn workers which may write Odoo code → must carry OSM-first.
-OSM_REQUIRED = {"wave", "workflow-runner", "odoo-brl"}
+OSM_REQUIRED = {"wave", "workflow-chaining", "odoo-brl"}
 
 # Allowed enum values for the orchestration SSOT. A typo (e.g. "spawner_agent") must be a
 # loud finding, not a silent drop from the generated digest — otherwise the planner is told

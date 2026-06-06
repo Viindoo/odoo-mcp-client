@@ -10,7 +10,7 @@ description: >
   Also fires on Vietnamese: "viết bài blog", "soạn bài LinkedIn", "kịch bản YouTube",
   "chuỗi email", "nội dung landing page", "caption mạng xã hội".
   DO NOT trigger for: proposal/gap-analysis text (-> odoo-gap-analysis),
-  objection-handling rebuttals (-> odoo-objection-handler),
+  objection-handling rebuttals (-> odoo-objection-handling),
   feature-highlight decks (-> odoo-feature-highlights),
   competitive positioning briefs (-> odoo-competitive-brief),
   multi-channel campaign orchestration (-> odoo-campaign-plan).
@@ -29,7 +29,7 @@ educate, build trust, drive demo/trial requests.
 - Competitive positioning vs. major competitors (SAP, Microsoft, regional vendors) → `odoo-competitive-brief`
 - Feature highlight decks for sales slides → `odoo-feature-highlights`
 - Gap analysis / proposal text for a prospect → `odoo-gap-analysis`
-- Handling objections during a sales conversation → `odoo-objection-handler`
+- Handling objections during a sales conversation → `odoo-objection-handling`
 
 ## MCP tools
 
@@ -170,7 +170,7 @@ Present the draft in the channel-native format:
   `[CTA button: ...]` placeholder at end.
 - **YouTube script**: structured with timestamp markers in bold (`**0:00-0:15 Hook**`) and
   `[NOTE: show screen of X]` cues for the editor. The script + timestamps can be handed to
-  `odoo-demo-recorder` to capture a real Odoo screencast for the `[NOTE: show screen]` cues
+  `odoo-demo-recording` to capture a real Odoo screencast for the `[NOTE: show screen]` cues
   instead of sourcing footage separately (forward suggestion only — this skill stays text).
 - **Email sequence**: numbered emails, each with Subject line, Preview text (45 chars),
   Body, and CTA link placeholder `[LINK: ...]`.
@@ -271,7 +271,7 @@ before publishing._
   `branding/STYLE.md` or equivalent). This skill produces text, not visual assets, so brand
   colors and fonts are rarely needed here — but reference the brand guidelines when the copy
   must describe visual elements (e.g., landing page design brief handed to a designer). When a
-  video script is the deliverable, `odoo-demo-recorder` can realize the script/timestamps as a
+  video script is the deliverable, `odoo-demo-recording` can realize the script/timestamps as a
   real Odoo screencast (this skill still only writes the text).
 - **Project context file**: `.odoo-ai/context.md` is read automatically in Round 0
   (see `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) - not at the end as an

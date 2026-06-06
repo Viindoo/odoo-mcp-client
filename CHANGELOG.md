@@ -6,6 +6,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-06-06
+
+### Changed (BREAKING) — naming normalization across skills, agents, and commands
+
+Names now encode **role** so an AI router (and a human) can tell the three layers apart even
+when a name appears bare, without its `odoo-semantic-skills:` namespace: **skill** = a
+capability noun (`-review`, `-analysis`, `-coding`), **agent** = an actor noun (`-er/-or`),
+**command** = an imperative verb-object (`odoo-run-brl`). This removes three skill↔agent
+name collisions and the agent-suffixed skills that were masquerading as executors. The full
+convention is documented in `CONTRIBUTING.md` → "Naming convention: skill vs agent vs command".
+
+**Migration (clean break, no aliases).** There is **no backward-compatibility shim** — invoking
+an old name after updating to 3.0.0 fails with "not found"; use the new name (table below). To
+defer migration, pin the plugin to `2.x`. The four **agent** names are unchanged. Skill
+descriptions/trigger phrases are unchanged, so natural-language routing behaves identically —
+only explicit slash commands and bare name references changed.
+
+**Skills renamed (10):**
+
+| Old | New |
+|-----|-----|
+| `odoo-coder` | `odoo-backend-coding` |
+| `odoo-code-reviewer` | `odoo-code-review` |
+| `odoo-ui-reviewer` | `odoo-ui-review` |
+| `odoo-demo-recorder` | `odoo-demo-recording` |
+| `odoo-objection-handler` | `odoo-objection-handling` |
+| `odoo-override-finder` | `odoo-override-finding` |
+| `odoo-discovery-summarize` | `odoo-discovery-summary` |
+| `odoo-onboard` | `odoo-onboarding` |
+| `odoo-ui-debug` | `odoo-ui-debugging` |
+| `workflow-runner` | `workflow-chaining` |
+
+**Commands renamed (9)** — `name:` now equals the filename (the invoked name); old `name:`
+fields that never matched their file are corrected:
+
+| Old command | New command |
+|-------------|-------------|
+| `/odoo-bid-respond` | `/odoo-respond-bid` |
+| `/odoo-customer-followup-draft` | `/odoo-draft-followup` |
+| `/odoo-discovery-quick` | `/odoo-summarize-discovery` |
+| `/odoo-feature-positioning` | `/odoo-position-feature` |
+| `/odoo-upgrade-plan-full` | `/odoo-plan-upgrade` |
+| `/odoo-brl-run` | `/odoo-run-brl` |
+| `/wave-run` | `/odoo-run-wave` |
+| `/odoo-video-produce` | `/odoo-produce-video` |
+| `/setup` | `/odoo-setup` |
+
+The 4 agents (`odoo-coder`, `odoo-code-reviewer`, `odoo-ui-reviewer`, `odoo-frontend-coder`)
+keep their names. SSOT `generator/skill_tool_deps.json`, the orchestration map, workflow files,
+manifests, and docs were updated in lockstep; `make gen` output is regenerated.
+
 ## [2.8.0] - 2026-06-06
 
 ### Added

@@ -1,12 +1,12 @@
 <!-- SSOT snippet. The single home for the "Round 0 - read project context before asking
      anything" step. Referenced (not copy-pasted) by every skill that used to ask the user for
      odoo_version / profile / module list / instance URL. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md. Written by the odoo-onboard skill. -->
+     ${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md. Written by the odoo-onboarding skill. -->
 
 # Round 0 - Context Bootstrap (read before you ask)
 
 Before asking the caller for any project fact, **read what onboarding already captured.** A
-human running `odoo-onboard` persists `.odoo-ai/context.md`; treat it as authoritative ground
+human running `odoo-onboarding` persists `.odoo-ai/context.md`; treat it as authoritative ground
 truth for this project. Do this first, silently, every run:
 
 1. `Read .odoo-ai/context.md` if present. Extract and use as defaults:

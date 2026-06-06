@@ -189,10 +189,10 @@ This code touches the DOM / QWeb render, so after presenting the output, emit a 
 signal for the orchestrating (depth-0) agent — do NOT invoke any skill yourself (depth rule):
 
 ```
-SUGGESTED_NEXT: odoo-ui-reviewer (reason=widget renders, target=<instance_base_url>/<path>)
+SUGGESTED_NEXT: odoo-ui-review (reason=widget renders, target=<instance_base_url>/<path>)
 ```
 
-The orchestrator decides whether to run `odoo-ui-reviewer` (layout), `odoo-ui-debug` (does not
+The orchestrator decides whether to run `odoo-ui-review` (layout), `odoo-ui-debugging` (does not
 appear / console error), or `odoo-visual-regression` (before/after diff). Do not phrase this as
 advice to a human reader.
 
@@ -266,7 +266,7 @@ Reason carefully (step by step before writing) when:
 
 ### Round 5 — Suggest visual verification (forward-wiring)
 
-Same as the legacy workflow Round 5: emit a `SUGGESTED_NEXT: odoo-ui-reviewer (…)` signal for
+Same as the legacy workflow Round 5: emit a `SUGGESTED_NEXT: odoo-ui-review (…)` signal for
 the depth-0 orchestrator. Do NOT invoke any skill yourself.
 
 ---
