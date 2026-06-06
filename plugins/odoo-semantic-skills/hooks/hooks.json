@@ -1,5 +1,5 @@
 {
-  "description": "odoo-semantic-skills hooks — SessionStart readiness probe + UserPromptSubmit intent detector.",
+  "description": "odoo-semantic-skills hooks — SessionStart readiness probe + UserPromptSubmit intent detector + SubagentStop grounding enforcement.",
   "hooks": {
     "SessionStart": [
       {
@@ -18,6 +18,17 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/detect-intent.sh\"",
+            "timeout": 8
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/enforce-grounding.sh\"",
             "timeout": 8
           }
         ]

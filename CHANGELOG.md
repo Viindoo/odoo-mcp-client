@@ -6,6 +6,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-06-06
+
+### Added
+
+- **Local reproduction of the Odoo code-quality CI gate (issue #46) — multi-version aware, baked
+  into the verify/test flow.** New `scripts/verify-backend.sh` is the backend sibling of
+  `verify-frontend.sh`: it runs `pylint --load-plugins=pylint_odoo` on changed Python from an
+  **isolated tools venv** (`$ODOO_AI_DIR/tools/pylint-<series>/`, never the instance venv), with
+  pylint/astroid/pylint-odoo pinned per Odoo series in the extended
+  `scripts/lib/odoo-python-matrix.json` (`lint` block; 16/17 → the verified-faithful
+  pylint-odoo 8.0.22 · pylint 2.15.10 · astroid 2.13.5 combo, 18 → 9.x (pylint 3), 19 → 10.x
+  (pylint 4, which pylint-odoo 10 hard-requires) — each pylint era-matched to its pylint-odoo major
+  to avoid checker-plugin crashes). Always loads `pylint_odoo` so the
+  `consider-merging-classes-inherited` pragma never reads as the `W0012` vanilla false signal, and
+  **derives the enabled-code set from the deployment's own quality module** (`test_pylint`/`test_lint`)
+  when present — no deployment-internal config is vendored. Graceful degradation (soft-warn, exit 0)
+  when the toolchain/series/files are absent, with an opt-in `--provision` to build the pinned venv.
+  Shipped fallback `scripts/odoo-pylintrc` (OCA defaults).
+- **`/test_lint` mandate in the test-run SSOT.** `docs/reference/ODOO-TESTING.md` now documents the
+  two-part gate (core `test_lint` + `pylint-odoo`) once; `odoo-qa-suite`, `odoo-deploy-checklist`,
+  `wave`, `INSTANCE-LIFECYCLE.md` and `osm-first-contract.md` inherit it via their existing pointers.
+  `odoo-coder` (Round 4) and `odoo-code-reviewer` now run `verify-backend.sh`; `odoo-deploy-checklist`
+  gains a Domain-6 pre-push parity item. New reference: `docs/reference/odoo-code-quality.md`.
+- **Enforcement substrate — `SubagentStop` grounding hook (`hooks/enforce-grounding.sh`).** Turns the
+  previously advisory OSM-first contract into a checkable invariant: it reads the worker's own
+  transcript (assistant-authored content only) and **blocks once** (loop-safe via `stop_hook_active`)
+  when an artifact claims `grounded: osm` but made zero `mcp__odoo-semantic__*` calls, asking the
+  agent to actually verify or relabel honestly. Self-gates to Odoo-shaped subagents. Two softer
+  gaps raise a **non-blocking note** (never a block — a block there only manufactures unverifiable
+  `grounded: local-source` labels and false-blocks legit pure-Python/standalone work): backend
+  code written with OSM reachable but the ORM validators skipped; and the **silent-skipper** —
+  backend `.py` written with zero OSM calls and no grounding label at all (previously slipped
+  through unnoticed). The `odoo-coder` Round-4 "skipped with reason noted" free bypass was
+  tightened to require the standalone `grounded: local-source` label. Hook behavior is locked by
+  `tests/test_enforce_grounding.py` (block / both notes / self-gate / honest-label / loop-guard).
+- **Brand-agnostic brand-fidelity mechanism (no brand vendored).** Optional, consumer-driven via a
+  new `brand_tokens_source` key in `.odoo-ai/context.md` (a JSON `token -> color` map). New
+  `scripts/lib/color_delta.py` (stdlib CIEDE2000); `verify-frontend.sh` Tier 4 WARNs on hardcoded
+  SCSS hex within ΔE of a declared brand token, and `odoo-ui-reviewer` Step 4b ΔE-diffs
+  `getComputedStyle(:root)` against the map at runtime. Documented as Section G of
+  `skills/_shared/odoo-frontend-fidelity.md`; mirrors the gate's "derive from the consumer
+  environment, vendor nothing" principle so the public plugin stays brand-neutral.
+
 ## [2.7.1] - 2026-06-05
 
 ### Fixed

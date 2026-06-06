@@ -176,6 +176,8 @@ If user provides notes, append to `## Notes` section. Then output the suggest-ne
 - **instance_login**: admin  (password NEVER stored here — agreed credential source only)
 - **visual_mcp**: chrome-devtools  (the browser MCP wired for the visual skills)
 - **screenshot_baseline_dir**: .odoo-ai/visual/baseline
+- **brand_tokens_source**: .odoo-ai/brand-tokens.json  (optional — consumer-declared JSON map `token -> color`, e.g. `{"--primary": "#1E88E5"}`; enables the brand-fidelity checks in verify-frontend.sh Tier 4 + ui-reviewer Step 4b. Omit for pure-Odoo projects. No brand is vendored in the plugin.)
+- **mockup_dir**: .odoo-ai/mockups  (optional — reference mockups/design specs for the mockup-first fidelity check)
 
 ## last_updated
 2026-05-28T11:30:00Z

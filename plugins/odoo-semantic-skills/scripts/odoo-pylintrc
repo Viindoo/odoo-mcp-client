@@ -1,0 +1,45 @@
+# odoo-pylintrc — shipped fallback config for verify-backend.sh.
+#
+# This is the LAST-RESORT config used only when the consumer's deployment does
+# NOT provide its own pylint-odoo config (no ODOO_PYLINTRC env, no pylintrc in
+# the repo, no `test_pylint`/`test_lint` quality module on the addons path). When
+# such a module exists, verify-backend.sh derives the authoritative ENABLED_CODES
+# from it (single source of truth) and this file is not used.
+#
+# WHY load-plugins=pylint_odoo is non-negotiable (the "vanilla trap"):
+#   A source pragma `# pylint: disable=consider-merging-classes-inherited` (R8180)
+#   is VALID and required only because pylint_odoo registers that message. Run
+#   bare pylint WITHOUT the plugin and the same pragma reads as
+#   `unknown-option-value (W0012)` — which `--disable=all` does NOT suppress — so
+#   it looks like a failure to "fix" by deleting the pragma, which then re-breaks
+#   real CI. verify-backend.sh therefore ALWAYS loads pylint_odoo and never runs
+#   bare core pylint. See docs/reference/odoo-code-quality.md.
+#
+# Core style (line length, imports, naming) is ruff's job (verify-frontend.sh
+# Tier 1), so this config disables everything and enables only a stable,
+# version-portable subset of pylint-odoo checks present across pylint-odoo 8-10.
+
+[MAIN]
+load-plugins=pylint_odoo
+
+[MESSAGES CONTROL]
+disable=all
+enable=consider-merging-classes-inherited,
+       sql-injection,
+       print-used,
+       translation-required,
+       translation-format-interpolation,
+       translation-not-lazy,
+       translation-positional-used,
+       no-write-in-compute,
+       dangerous-default-value,
+       eval-used,
+       manifest-required-key,
+       manifest-version-format,
+       resource-not-exist,
+       attribute-string-redundant,
+       method-required-super
+
+[REPORTS]
+reports=no
+score=no

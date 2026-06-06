@@ -28,6 +28,41 @@ odoo-bin -d <DB> -i <module> --test-enable --test-tags /<module> --stop-after-in
 > Older versions may lack `--test-tags` entirely (then use `--test-enable` alone). **Always
 > confirm with `cli_help` for the target version** rather than assuming the syntax exists.
 
+## Quality gate / lint tests — always include (the part that slips to CI)
+
+The Odoo CI code-quality gate is **two parts**, and a normal `--test-tags /<module>` run includes
+**neither** — which is why lint failures pass locally then fail CI. When you run the suite, also
+run the gate:
+
+1. **Core `test_lint`** — Odoo core's lint test module (manifest checks, eslint, pofile,
+   `__init__` consistency, …). **Append it to `--test-tags`** so it runs with the suite:
+   ```
+   odoo-bin -d <DB> -u <module> --test-enable --test-tags '/<module>,/test_lint' --stop-after-init --log-level=test
+   ```
+   Confirm the exact module/tag name for the target version via `cli_help` / the addons path
+   (it may differ by series); never assume it exists unchecked.
+2. **`pylint-odoo`** — the OCA pylint plugin half (`consider-merging-classes-inherited`,
+   `sql-injection`, `print-used`, …). This is **not** a test-suite module; reproduce it with the
+   fast, no-DB inner-loop gate **before** the test run:
+   ```
+   scripts/verify-backend.sh <changed .py>          # loads pylint_odoo; pins per series
+   ```
+   `verify-backend.sh` resolves the per-series pylint/astroid/pylint-odoo pins from
+   `scripts/lib/odoo-python-matrix.json`, always loads `pylint_odoo` (avoiding the W0012
+   "vanilla" false signal), and derives the enabled-code set from the deployment's own quality
+   module (e.g. a `test_pylint`/`test_lint` addon) when present. See
+   `docs/reference/odoo-code-quality.md` for the full two-part gate, the per-version matrix, and
+   the vanilla-vs-`pylint_odoo` trap.
+
+**Deployment quality module.** Some deployments wrap pylint-odoo in their own test module
+(commonly `test_pylint`). When such a module is on the addons path, **also include its tag** in
+`--test-tags` (e.g. `/test_pylint`) — it is the authoritative enabled-code set.
+
+> Note: OSM's `lint_check` is a fast fuzzy screen (semantic, V0) — useful for deprecated-API
+> hints, but it is **not** a substitute for this gate (it does not reproduce pylint-odoo and can
+> miss findings such as SQL injection). Run `verify-backend.sh` + `/test_lint`, not `lint_check`
+> alone, for pre-push CI parity.
+
 ## Test classes (Python)
 
 - `TransactionCase` / `SingleTransactionCase` — ORM-level, rolled back per test/class.

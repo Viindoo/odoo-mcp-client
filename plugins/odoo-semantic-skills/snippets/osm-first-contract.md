@@ -41,7 +41,11 @@ If the index genuinely has nothing relevant, say so explicitly — then write.
 
 - **Backend:** any generated `@api.depends`, `domain=`, `related=` chain, or relational
   assumption MUST pass `validate_depends` / `validate_domain` / `resolve_orm_chain` /
-  `validate_relation`. Any BROKEN/MISMATCH is a blocker, not a warning. Run `lint_check`.
+  `validate_relation`. Any BROKEN/MISMATCH is a blocker, not a warning. Then run the static
+  code-quality gate `${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <changed .py>` (reproduces
+  the CI `pylint-odoo` checks) and include `/test_lint` in the test run (see `ODOO-TESTING.md`).
+  Note: OSM `lint_check` is a fuzzy V0 screen (it can miss e.g. SQL injection) — it is a hint,
+  **not** the gate; do not treat a clean `lint_check` as a passing quality gate.
 - **Frontend:** verify against the running instance — read `getComputedStyle` to confirm
   tokens resolve (not empty/cyclic) and the UI matches the mockup; recompile assets and
   re-read, never trust that an edit "took" (see `skills/_shared/odoo-frontend-fidelity.md`).
@@ -69,3 +73,17 @@ grounding path. Follow the three-tier order in
 Grounded-by-default (Tier 1 or Tier 2); ungrounded-but-flagged (Tier 3) only as a true last
 resort. Escalate to a human (`NEEDS_CONTEXT`) solely for secrets or business decisions no
 source encodes - never to re-supply code, fields, manifests, changelogs, or CRM data.
+
+## 5. This contract is enforced (not just advisory)
+
+For **spawned workers** (wave WI workers, workflow-runner fan-out, code/UI agents), a
+`SubagentStop` hook (`hooks/enforce-grounding.sh`) reads the worker's own transcript and makes
+§1/§4 a checkable invariant: if your artifact claims `grounded: osm` but you made **zero**
+`mcp__odoo-semantic__*` calls, the stop is **blocked** and you are asked to either actually
+verify or relabel honestly (`grounded: local-source` / `OSM unavailable - ungrounded`). The
+label must be *earned* from real calls, not asserted. Two softer gaps raise a **non-blocking
+note** (not a block): backend code written with OSM reachable but the ORM validators skipped;
+and backend `.py` written with zero OSM calls and no grounding label at all (the silent case) —
+the note asks you to ground it, or to state plainly it is pure-Python/standalone so the gate is
+satisfied. Only the provable lie (`grounded: osm` with zero calls) is blocked. Honest grounding
+is cheaper than a blocked stop — make the calls.

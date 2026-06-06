@@ -77,5 +77,11 @@ All four skills read `.odoo-ai/context.md` (Markdown bullets `- **key**: value`,
 - `instance_login` — login identifier + agreed credential source.
 - `screenshot_baseline_dir` — where baselines/evidence screenshots are written; videos default to
   `.odoo-ai/visual/videos/`.
+- `brand_tokens_source` — (optional) path to a consumer-declared JSON map `token -> expected color`
+  (e.g. `{"--primary": "#1E88E5"}`). When present, `odoo-ui-reviewer` Step 4b ΔE-diffs the resolved
+  `getComputedStyle(:root)` brand tokens against it (runtime brand fidelity, `odoo-frontend-fidelity.md`
+  Section G). Brand-agnostic — no brand is vendored in the plugin; omit for pure-Odoo projects.
+- `mockup_dir` — (optional) directory of reference mockups/design specs for the mockup-first check.
 
-If any key is missing, the skill asks the user rather than guessing.
+If a *required* key (the first four) is missing, the skill asks the user rather than guessing; the
+optional brand/mockup keys simply disable their checks when absent.
