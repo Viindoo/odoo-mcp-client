@@ -83,6 +83,45 @@ def _first_sentence(desc: str) -> str:
     return sentence
 
 
+def gen_disambiguation_block(surface: dict, *, heading: str = "") -> str:
+    """Render the static-vs-live disambiguation guidance shared by every artifact.
+
+    Carried as a dedicated block (NOT appended to any tool `description`) on
+    purpose: every generator emits only the FIRST sentence of `description`
+    (see `_first_sentence`), so a trailing disambiguation sentence would be
+    silently dropped at the mirror layer. This block mirrors the server-level
+    FastMCP `instructions=` so clients that read generated docs/snippets get the
+    same guidance as clients that read the live server. Returns "" when the
+    surface has no `disambiguation` field (older surfaces stay valid).
+    """
+    dis = surface.get("disambiguation")
+    if not dis:
+        return ""
+    lines = []
+    if heading:
+        lines.append(heading)
+        lines.append("")
+    lines.append(f"> **Pick the right tool first.** {dis['identity']}")
+    not_for = dis.get("not_for", [])
+    if not_for:
+        lines.append(">")
+        lines.append("> Do NOT use Odoo Semantic for:")
+        for item in not_for:
+            lines.append(f"> - {item}")
+    if dis.get("discriminator"):
+        lines.append(">")
+        lines.append(f"> {dis['discriminator']}")
+    tools = ", ".join(f"`{t}`" for t in dis.get("overlap_tools", []))
+    if tools:
+        note = dis.get("overlap_note", "")
+        lines.append(">")
+        lines.append(
+            f"> Look-live-but-static tools (return indexed source, never runtime "
+            f"data): {tools}. {note}".rstrip()
+        )
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------
 # Load surface
 # ---------------------------------------------------------------------------
@@ -184,6 +223,16 @@ def gen_routing_md(surface: dict) -> str:
         "Use the superset tools (`model_inspect`, `module_inspect`, `entity_lookup`) instead."
     )
     lines.append("")
+
+    # 0. Which server to use (read first) — keep AI agents from routing an
+    #    Odoo-code question to the wrong tool (live instance / local checkout /
+    #    docs search / a future Odoo-code tool).
+    dis_block = gen_disambiguation_block(surface, heading="## 0. Which server to use (read first)")
+    if dis_block:
+        lines.append(dis_block)
+        lines.append("")
+        lines.append("---")
+        lines.append("")
 
     # Purpose
     lines.append("## Purpose")
@@ -489,6 +538,11 @@ def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
     )
     lines.append("")
 
+    dis_block = gen_disambiguation_block(surface)
+    if dis_block:
+        lines.append(dis_block)
+        lines.append("")
+
     # Session bootstrap
     session_tools = [n for n in tool_names if n in ("set_active_version", "set_active_profile")]
     work_tools = [n for n in tool_names if n not in ("set_active_version", "set_active_profile")]
@@ -528,6 +582,10 @@ def gen_cursor_tools_block(surface: dict) -> str:
         "Generated from `generator/server-surface.json`. Run `make gen` to update._"
     )
     lines.append("")
+    dis_block = gen_disambiguation_block(surface)
+    if dis_block:
+        lines.append(dis_block)
+        lines.append("")
     lines.append("## Key mappings (generated)")
     for tool in tools:
         name = tool["name"]
@@ -550,6 +608,10 @@ def gen_openai_tools_block(surface: dict) -> str:
         "Generated from `generator/server-surface.json`. Run `make gen` to update._"
     )
     lines.append("")
+    dis_block = gen_disambiguation_block(surface)
+    if dis_block:
+        lines.append(dis_block)
+        lines.append("")
     lines.append("**TOOLS (generated — v{ver}):**".format(ver=server_ver))
     lines.append("")
     for tool in tools:
@@ -586,6 +648,10 @@ def gen_gemini_tools_block(surface: dict) -> str:
         "Generated from `generator/server-surface.json`. Run `make gen` to update._"
     )
     lines.append("")
+    dis_block = gen_disambiguation_block(surface)
+    if dis_block:
+        lines.append(dis_block)
+        lines.append("")
     lines.append(f"Use these tools based on what the user is asking (v{server_ver} surface):")
     lines.append("")
     for tool in tools:
