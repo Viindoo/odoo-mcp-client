@@ -86,6 +86,35 @@ config server-id field, **not** part of a URL, and **not** the brand words "Odoo
 `tests/test_naming_consistency.py` enforces this on the skill / command / trigger-phrase
 surface; historical entries in `CHANGELOG.md` are intentionally exempt.
 
+### Agent-facing prose: version-agnostic & capability-described
+
+The `disambiguation` block in `generator/server-surface.json` (and anything else AI clients
+read to route - routing matrix, snippets, SKILL.md `## MCP tools` sections) must be:
+
+- **Version-agnostic** - never hardcode a version range (`v8-v19`) or count. A new Odoo
+  release would silently make it wrong and no test catches stale prose. Use
+  "every indexed Odoo version", "cross-version", "legacy through latest". Need a concrete
+  list for a user? Read it at runtime via `list_available_versions`, don't bake it in.
+- **Capability-described, not product-named** - refer to other tools by capability
+  ("a live Odoo MCP server exposing `read_record`/`search_records`/`execute_method`"),
+  not a specific third-party product name, so it survives ecosystem churn.
+- **No machine/deployment data** - never embed a specific instance's host/db/path/user/key
+  (this repo is public).
+
+The block must also carry the **OSM-first precedence**, and must NOT get it backwards:
+Odoo Semantic is the **PRIMARY**, context-efficient source for Odoo source/structure - the
+Odoo codebase is huge and reading it directly burns context. Reading code (Read/Grep) is the
+**FALLBACK**, only when OSM is reachable-but-incomplete or unavailable - never the first move
+when OSM can answer. Do NOT tell agents to prefer their own file tools over OSM for a local
+checkout (an earlier draft did; it inverts the intended flow).
+
+Why: AI agents otherwise silently mis-route - calling a live-instance Odoo MCP (wrong: OSM is
+STATIC), or skipping OSM to read the codebase (wrong: that is the fallback). The prose must
+assert a unique signature (indexed, cross-version, inheritance-resolved, checkout-free), the
+OSM-first precedence, and the live-data boundary. This mirrors the server-side `INSTRUCTIONS`
+SSOT in [Viindoo/odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-server)
+(`src/mcp/server.py`); keep the two in sync. Guard: `tests/test_disambiguation.py`.
+
 ### Skill format
 
 Each `plugins/odoo-semantic-skills/skills/<name>/SKILL.md` must start with YAML frontmatter containing at least a
