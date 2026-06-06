@@ -39,15 +39,16 @@ pylint/astroid/pylint-odoo versions pinned per Odoo series.
 
 ## Per-version matrix (`scripts/lib/odoo-python-matrix.json` → `lint`)
 
-`pylint-odoo` major tracks the Odoo series; **pylint/astroid must be era-matched** — `pylint 4.x`
-crashes the Odoo-era checker plugins, so series ≤ 19.0 pin `pylint <4`.
+`pylint-odoo` major tracks the Odoo series; **pylint/astroid must be era-matched** to that major
+(16/17 → pylint 2.15, 18 → pylint 3.x, 19 → pylint 4.x, which `pylint-odoo 10` hard-requires) —
+using an off-era `pylint` crashes the Odoo-era checker plugins.
 
 | Odoo series | pylint-odoo | pylint | astroid | lint Python | note |
 |---|---|---|---|---|---|
 | 8.0 – 15.0 | `>=8,<9` | `>=2.15,<2.16` | `>=2.13,<2.14` | 3.10 | best-effort (pre-modern) |
 | 16.0 / 17.0 | `==8.0.22` | `==2.15.10` | `==2.13.5` | 3.10 | **verified-faithful** |
 | 18.0 | `>=9,<10` | `>=3,<4` | `>=3,<4` | 3.12 | |
-| 19.0 | `>=10,<11` | `>=3.2,<4` | `>=3.2,<4` | 3.12 | |
+| 19.0 | `>=10,<11` | `>=4,<5` | `>=4,<5` | 3.12 | `pylint-odoo 10` requires `pylint 4` |
 
 `lint_python` is the venv interpreter the **linter** needs (e.g. pylint 2.15 requires ≤ 3.11) — it
 is independent of the instance's `recommended` Python. When **v20** ships, default to extending the
@@ -103,7 +104,7 @@ matrix is needed for them.
 
 Brand-token fidelity is a separate optional layer and is **not** vendored: the plugin ships a
 mechanism, the consumer declares the brand. Set `brand_tokens_source` in `.odoo-ai/context.md` to a
-JSON map (`{"--primary": "#00BBCE", …}`). Two halves share `scripts/lib/color_delta.py` (stdlib
+JSON map (`{"--primary": "#1E88E5", …}`). Two halves share `scripts/lib/color_delta.py` (stdlib
 CIEDE2000): the **static** half (`verify-frontend.sh` Tier 4) WARNs on hardcoded SCSS hex within ΔE
 of a brand token; the **runtime** half (`odoo-ui-reviewer` Step 4b) ΔE-diffs `getComputedStyle(:root)`
 against the declared map. WARN-tier (ΔE rounding makes false-blocks easy). Full rationale:

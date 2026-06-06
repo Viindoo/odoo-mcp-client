@@ -16,8 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   **isolated tools venv** (`$ODOO_AI_DIR/tools/pylint-<series>/`, never the instance venv), with
   pylint/astroid/pylint-odoo pinned per Odoo series in the extended
   `scripts/lib/odoo-python-matrix.json` (`lint` block; 16/17 → the verified-faithful
-  pylint-odoo 8.0.22 · pylint 2.15.10 · astroid 2.13.5 combo, 18 → 9.x, 19 → 10.x, all `pylint <4`
-  to avoid the era-checker crash). Always loads `pylint_odoo` so the
+  pylint-odoo 8.0.22 · pylint 2.15.10 · astroid 2.13.5 combo, 18 → 9.x (pylint 3), 19 → 10.x
+  (pylint 4, which pylint-odoo 10 hard-requires) — each pylint era-matched to its pylint-odoo major
+  to avoid checker-plugin crashes). Always loads `pylint_odoo` so the
   `consider-merging-classes-inherited` pragma never reads as the `W0012` vanilla false signal, and
   **derives the enabled-code set from the deployment's own quality module** (`test_pylint`/`test_lint`)
   when present — no deployment-internal config is vendored. Graceful degradation (soft-warn, exit 0)

@@ -120,7 +120,7 @@ value using `scripts/lib/color_delta.py` (CIEDE2000) — this is the *runtime* h
 brand-fidelity check (`odoo-frontend-fidelity.md` Section G); the static half lives in
 `verify-frontend.sh` Tier 4. Flag any token whose rendered value diverges beyond the threshold
 as a **brand-fidelity WARN** (e.g. "primary CTA resolves to `#1a73e8`, expected brand
-`#00BBCE` (ΔE 38)"). No `brand_tokens_source` → skip silently (no brand is vendored in this
+`#1E88E5` (ΔE 38)"). No `brand_tokens_source` → skip silently (no brand is vendored in this
 plugin; pure-Odoo screens are unaffected). Keep it WARN-tier — never block on ΔE rounding.
 
 Resolve the real token names/origins for the version with `resolve_stylesheet` /

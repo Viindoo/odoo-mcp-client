@@ -214,7 +214,7 @@ not vendored here.**
 
 **Declaration (consumer side).** A project opts in by setting `brand_tokens_source` in
 `.odoo-ai/context.md` to a committed JSON map of token -> expected color, e.g.
-`{ "--primary": "#00BBCE", "--o-brand-secondary": "#7F4282" }`. No map declared -> brand checks
+`{ "--primary": "#1E88E5", "--o-brand-secondary": "#8E24AA" }`. No map declared -> brand checks
 silently skip (pure-Odoo projects are unaffected). The map is the brand SSOT; never hardcode
 brand values into a skill, agent, or rule file.
 

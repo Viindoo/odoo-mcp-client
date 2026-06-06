@@ -449,7 +449,7 @@ fi
 # TIER 4 — BRAND FIDELITY (optional, brand-agnostic, static)
 # ===========================================================================
 # Runs ONLY when the consumer declares `brand_tokens_source` in .odoo-ai/context.md
-# (a JSON map of token -> color, e.g. {"--primary": "#00BBCE", ...}). The plugin
+# (a JSON map of token -> color, e.g. {"--primary": "#1E88E5", ...}). The plugin
 # ships NO brand of its own — the map is discovered from the consumer environment,
 # mirroring how verify-backend.sh derives ENABLED_CODES from the deployment's
 # quality module. No browser here: this is the STATIC half (hardcoded-hex vs brand
