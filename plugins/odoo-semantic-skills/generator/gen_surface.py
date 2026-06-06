@@ -102,15 +102,15 @@ def gen_disambiguation_block(surface: dict, *, heading: str = "") -> str:
         lines.append(heading)
         lines.append("")
     lines.append(f"> **Pick the right tool first.** {dis['identity']}")
+    if dis.get("precedence"):
+        lines.append(">")
+        lines.append(f"> {dis['precedence']}")
     not_for = dis.get("not_for", [])
     if not_for:
         lines.append(">")
         lines.append("> Do NOT use Odoo Semantic for:")
         for item in not_for:
             lines.append(f"> - {item}")
-    if dis.get("discriminator"):
-        lines.append(">")
-        lines.append(f"> {dis['discriminator']}")
     tools = ", ".join(f"`{t}`" for t in dis.get("overlap_tools", []))
     if tools:
         note = dis.get("overlap_note", "")

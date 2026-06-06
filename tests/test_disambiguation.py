@@ -62,25 +62,27 @@ def test_surface_declares_disambiguation_ssot():
     dis = _surface().get("disambiguation")
     assert dis, "server-surface.json must declare a 'disambiguation' block"
     assert dis.get("identity"), "disambiguation.identity required"
-    assert dis.get("discriminator"), "disambiguation.discriminator required"
+    assert dis.get("precedence"), "disambiguation.precedence required (OSM-first contract)"
     assert isinstance(dis.get("not_for"), list) and dis["not_for"], (
         "disambiguation.not_for must be a non-empty list of boundaries"
     )
     assert set(dis.get("overlap_tools", [])) == EXPECTED_OVERLAP_TOOLS, (
-        "overlap_tools must match the server-side per-tool SKIP set"
+        "overlap_tools must match the look-live tool set"
     )
 
 
-def test_rendered_block_carries_signature_and_boundaries():
+def test_rendered_block_carries_signature_precedence_and_live_boundary():
     block = gen_disambiguation_block(_surface())
-    # Unique positive signature (not just "static vs live").
+    # Unique positive signature (so a generic/future Odoo-code tool can't claim it).
     assert "INDEXED" in block
     assert "cross-version" in block
     assert "STATIC" in block
-    # Universal boundaries, future-proof against any Odoo-code tool:
-    assert "live Odoo MCP server" in block          # vs a live instance
-    assert "read_record" in block                    # single token, never wraps
-    assert "your own" in block and "file" in block   # vs the agent's local checkout
+    # OSM-first precedence: OSM is PRIMARY, reading code is the FALLBACK.
+    assert "PRIMARY" in block
+    assert "FALLBACK" in block
+    # Live-instance boundary (the one true "wrong server" case).
+    assert "live Odoo MCP server" in block
+    assert "read_record" in block  # single token, never wraps
 
 
 def test_generated_artifacts_in_sync_with_block():
