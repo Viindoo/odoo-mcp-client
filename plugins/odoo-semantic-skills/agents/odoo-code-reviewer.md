@@ -123,6 +123,14 @@ The recurring classes to flag:
 When a finding touches JS/OWL/SCSS, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <files>`
 and cite its output (BLOCK/WARN per pitfall class) as evidence.
 
+When a finding touches backend Python (`.py`), run
+`${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <files>` and cite its output as evidence — this
+reproduces the `pylint-odoo` half of the CI code-quality gate (sql-injection,
+consider-merging-classes-inherited, translation rules, …) that OSM `lint_check` (a fuzzy V0
+screen) does **not** catch. A `verify-backend.sh` BLOCK is a CRITICAL/HIGH finding (it will fail
+CI). If it soft-degrades (toolchain absent), say so rather than reporting a clean Python pass.
+See `docs/reference/odoo-code-quality.md`.
+
 ---
 
 ## Review workflow

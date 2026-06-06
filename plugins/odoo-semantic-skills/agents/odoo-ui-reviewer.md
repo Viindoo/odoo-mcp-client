@@ -112,6 +112,17 @@ elements — a pane, a muted-text node, a badge) and flag:
   `--bs-*` runtime custom properties are absent across v16+ (confirmed through v19; verify new majors via OSM); reference `--primary` / `--o-color-*`;
 - **hardcoded** hex/rgba palette where a runtime design token should be reused;
 - divergence from the project mockup.
+
+**Brand fidelity (optional, only when declared).** If `.odoo-ai/context.md` declares
+`brand_tokens_source` (a JSON map `token -> expected color`), additionally ΔE-diff the resolved
+`getComputedStyle(:root)` value of each declared brand token against the consumer's expected
+value using `scripts/lib/color_delta.py` (CIEDE2000) — this is the *runtime* half of the
+brand-fidelity check (`odoo-frontend-fidelity.md` Section G); the static half lives in
+`verify-frontend.sh` Tier 4. Flag any token whose rendered value diverges beyond the threshold
+as a **brand-fidelity WARN** (e.g. "primary CTA resolves to `#1a73e8`, expected brand
+`#00BBCE` (ΔE 38)"). No `brand_tokens_source` → skip silently (no brand is vendored in this
+plugin; pure-Odoo screens are unaffected). Keep it WARN-tier — never block on ΔE rounding.
+
 Resolve the real token names/origins for the version with `resolve_stylesheet` /
 `find_style_override` — never assume `--bs-*` (or any token) exists across versions. When the screen is
 part of an upgrade (vN→vN+1), `api_version_diff(symbol='web', from_version=<old>, to_version=<new>)` surfaces

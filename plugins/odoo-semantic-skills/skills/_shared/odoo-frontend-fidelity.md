@@ -202,6 +202,35 @@ A design-system-aware skill should (a) **never generate** this (rule A2/A3 + tok
 - **`odoo-ui-debug` / `odoo-visual-regression`:** cross-reference this SSOT when a root cause
   or a diff is theme/token related.
 
+### G. Brand-token fidelity (optional, brand-agnostic, consumer-driven)
+
+Sections A-F enforce fidelity to **Odoo's own design system** (the `--primary` / `--o-color-*`
+runtime tokens). Brand fidelity - "does this match *our* brand?" - is a **separate, optional**
+layer, and it is deliberately **not** baked into this plugin: the plugin serves many brands, so
+it ships a **mechanism, never a brand**. The consumer declares their brand; the skills discover
+and assert against it. This mirrors how `verify-backend.sh` derives lint ENABLED_CODES from the
+deployment's own quality module - **single source of truth lives in the consumer environment,
+not vendored here.**
+
+**Declaration (consumer side).** A project opts in by setting `brand_tokens_source` in
+`.odoo-ai/context.md` to a committed JSON map of token -> expected color, e.g.
+`{ "--primary": "#00BBCE", "--o-brand-secondary": "#7F4282" }`. No map declared -> brand checks
+silently skip (pure-Odoo projects are unaffected). The map is the brand SSOT; never hardcode
+brand values into a skill, agent, or rule file.
+
+**Two enforcement halves, one helper.** Both consume `brand_tokens_source` and share
+`scripts/lib/color_delta.py` (stdlib CIEDE2000 - so `rgb()` / shorthand / hex variants compare
+perceptually, not by string):
+- **Static (no browser) - `verify-frontend.sh` Tier 4:** scans changed SCSS for hardcoded hex
+  that sits within ΔE `BRAND_NEAR_DELTA` of a declared brand token and WARNs "reference the
+  token var, don't inline the brand color" (the A2/A3 rule, brand-aware). WARN-only.
+- **Runtime (live screen) - `odoo-ui-reviewer` Step 4b:** reads `getComputedStyle(:root)` and
+  ΔE-diffs the *resolved* brand tokens against the declared map - the only place the real
+  rendered value is knowable (OSM indexes SCSS but cannot resolve the cascade winner). WARN.
+
+Keep brand checks WARN-tier: ΔE thresholds and `rgb()`-vs-hex rounding make false-blocks easy.
+A `mockup_dir` key (also consumer-declared) feeds the existing mockup-first check (Section D).
+
 ---
 
 ## OWL pitfall catalogue (corrected, version-tagged)

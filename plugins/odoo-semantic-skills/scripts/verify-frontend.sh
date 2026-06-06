@@ -446,6 +446,76 @@ else
 fi
 
 # ===========================================================================
+# TIER 4 — BRAND FIDELITY (optional, brand-agnostic, static)
+# ===========================================================================
+# Runs ONLY when the consumer declares `brand_tokens_source` in .odoo-ai/context.md
+# (a JSON map of token -> color, e.g. {"--primary": "#00BBCE", ...}). The plugin
+# ships NO brand of its own — the map is discovered from the consumer environment,
+# mirroring how verify-backend.sh derives ENABLED_CODES from the deployment's
+# quality module. No browser here: this is the STATIC half (hardcoded-hex vs brand
+# palette). The RUNTIME half (getComputedStyle :root ΔE-diff) is the ui-reviewer's
+# Step 4b. Both share scripts/lib/color_delta.py. WARN-only (never blocks).
+echo
+echo "--- Tier 4: Brand fidelity (optional) ---"
+_BRAND_SRC=""
+if [[ -f ".odoo-ai/context.md" ]]; then
+    _BRAND_SRC="$(grep -iE '^[-*][[:space:]]*\**brand_tokens_source' .odoo-ai/context.md 2>/dev/null \
+        | head -1 | sed -E 's/.*brand_tokens_source\**[[:space:]]*:?[[:space:]]*//' | tr -d '`' | xargs 2>/dev/null || true)"
+fi
+COLOR_DELTA="${CLAUDE_PLUGIN_ROOT}/scripts/lib/color_delta.py"
+_BRAND_NEAR="${BRAND_NEAR_DELTA:-3.0}"   # hardcoded hex this close to a brand token => should use the var
+if [[ -z "$_BRAND_SRC" ]]; then
+    _skip "no brand_tokens_source in .odoo-ai/context.md — brand fidelity skipped (not a blocking condition)"
+elif [[ ! -f "$_BRAND_SRC" ]]; then
+    _warn "brand_tokens_source declared but file not found: $_BRAND_SRC"
+elif ! _have python3 || [[ ! -f "$COLOR_DELTA" ]]; then
+    _skip "python3 / color_delta.py unavailable — brand fidelity skipped"
+elif [[ ${#SCSS_FILES[@]} -eq 0 ]]; then
+    _skip "no .scss/.css files changed — brand fidelity skipped"
+else
+    _info "brand map: $_BRAND_SRC (near-token ΔE threshold $_BRAND_NEAR)"
+    _BRAND_WARN_BEFORE=$WARN_COUNT
+    # Iterate changed SCSS lines with a hardcoded hex; ΔE-compare to each brand color.
+    for sf in "${SCSS_FILES[@]:-}"; do
+        [[ -f "$sf" ]] || continue
+        while IFS= read -r hit; do
+            [[ -z "$hit" ]] && continue
+            lineno="${hit%%:*}"
+            hex="$(printf '%s' "$hit" | grep -oiE '#[0-9a-f]{6}|#[0-9a-f]{3}' | head -1)"
+            [[ -z "$hex" ]] && continue
+            # Find the nearest brand token to this hardcoded hex.
+            near="$(python3 - "$COLOR_DELTA" "$_BRAND_SRC" "$hex" "$_BRAND_NEAR" <<'PY' 2>/dev/null || true
+import json, sys, importlib.util
+spec = importlib.util.spec_from_file_location("cd", sys.argv[1])
+cd = importlib.util.module_from_spec(spec); spec.loader.exec_module(cd)
+src, hexv, thr = sys.argv[2], sys.argv[3], float(sys.argv[4])
+try:
+    tokens = json.load(open(src))
+except Exception:
+    sys.exit(0)
+best = None
+for name, val in tokens.items():
+    if cd.parse_color(str(val)) is None:
+        continue
+    de = cd.delta_e(str(val), hexv)
+    if de is None:
+        continue
+    if best is None or de < best[1]:
+        best = (name, de)
+if best and best[1] <= thr:
+    print(f"{best[0]}|{best[1]:.2f}")
+PY
+)"
+            if [[ -n "$near" ]]; then
+                tok="${near%%|*}"; de="${near#*|}"
+                _warn "$sf:$lineno — hardcoded hex $hex ≈ brand token $tok (ΔE $de); reference the token var instead of inlining the brand color"
+            fi
+        done < <(grep -niE '#[0-9a-f]{6}|#[0-9a-f]{3}' "$sf" 2>/dev/null || true)
+    done
+    [[ $WARN_COUNT -eq $_BRAND_WARN_BEFORE ]] && _ok "Tier 4 brand: no near-token hardcoded brand colors"
+fi
+
+# ===========================================================================
 # Summary
 # ===========================================================================
 echo

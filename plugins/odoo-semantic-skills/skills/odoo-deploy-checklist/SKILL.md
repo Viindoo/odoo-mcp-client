@@ -113,6 +113,10 @@ _Goal: confirm the deploy itself will be deterministic and repeatable._
 _Goal: confirm the system is functional immediately after deploy._
 
 - [ ] Smoke test suite passes on staging after migration
+- [ ] Code-quality CI gate reproduced locally (pre-push parity): `/test_lint` included in the
+      `--test-tags` run AND `scripts/verify-backend.sh` (pylint-odoo) clean on changed Python —
+      per `docs/reference/ODOO-TESTING.md`. Catches lint failures that otherwise only surface in
+      CI; include the deployment's `/test_pylint` (or equivalent) tag when that module is present.
 - [ ] Critical user flows verified manually: login, create sale order, confirm invoice
 - [ ] Custom module smoke tests pass (at least happy path per module)
 - [ ] External integrations (payment, shipping, API connectors) spot-checked

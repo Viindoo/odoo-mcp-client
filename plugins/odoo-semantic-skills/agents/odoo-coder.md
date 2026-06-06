@@ -172,6 +172,24 @@ presenting — these calls are cheap and catch exact failure modes the reviewer 
 Any `BROKEN` / `ERROR` / `MISMATCH` result is a blocker — fix the path/operator/comodel
 before presenting. Do not ship broken code.
 
+### Static gate (pylint-odoo) — the backend parity check
+
+The ORM gate above validates *semantics*; it does **not** catch the `pylint-odoo` findings the
+CI code-quality gate enforces (`sql-injection`, `consider-merging-classes-inherited`,
+`print-used`, translation rules, …). After writing, run the backend static gate on the files you
+created/modified — the backend sibling of the frontend coder's `verify-frontend.sh`:
+
+```
+${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <changed .py files>
+```
+
+It loads `pylint_odoo` (avoiding the W0012 vanilla-trap false signal), pins the toolchain per
+Odoo series, and derives the enabled-code set from the deployment's own quality module when
+present. **A BLOCK (exit 1) is a real CI failure — fix it before presenting.** If the toolchain
+is absent the script soft-degrades (warn, exit 0) and prints the one-line `--provision` command;
+note that degradation in your output rather than treating it as a pass. See
+`docs/reference/ODOO-TESTING.md` and `docs/reference/odoo-code-quality.md`.
+
 ---
 
 ## Era detection
@@ -252,7 +270,11 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 - [ ] Field strings use _('…') for translatability
 - [ ] SQL constraint message is user-readable and translated
 - [ ] Multi-company scope applied where business logic requires it
-- [ ] ORM validation gate passed (or skipped with reason noted)
+- [ ] ORM validation gate ran and passed — a skip is allowed ONLY in standalone mode (OSM
+      unreachable) and MUST carry the `grounded: local-source (not OSM-indexed)` label per
+      `osm-first-contract.md`; "skipped" without that label is not acceptable (a SubagentStop
+      enforcement hook checks that OSM validators actually ran when OSM was reachable)
+- [ ] Backend static gate (`verify-backend.sh`) ran — BLOCK fixed, or soft-degrade noted
 ```
 
 If the change includes view XML that affects form/list rendering, emit a structured signal for
