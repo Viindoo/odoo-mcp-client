@@ -1,7 +1,7 @@
 {
   "skill_name": "wave",
   "schema_version": "1",
-  "notes": "Evals cover: (1) dispatch boundaries - wave vs odoo-coder vs odoo-brl vs workflow-runner; (2) scaling rule - 1-WI minimal / 2-3 WI plan-gate / >=4 WI full-plan-artifact; (3) behavioral contracts - plan gate before branch creation, principal-branch-lock, human-confirm-merge, squash-tree-identity abort; (4) conflict resolver path; (5) subagent nesting rule. Each case has a precise expected_behavior so it can fail for the right reason (ETHOS#11).",
+  "notes": "Evals cover: (1) dispatch boundaries - wave vs odoo-backend-coding vs odoo-brl vs workflow-chaining; (2) scaling rule - 1-WI minimal / 2-3 WI plan-gate / >=4 WI full-plan-artifact; (3) behavioral contracts - plan gate before branch creation, principal-branch-lock, human-confirm-merge, squash-tree-identity abort; (4) conflict resolver path; (5) subagent nesting rule. Each case has a precise expected_behavior so it can fail for the right reason (ETHOS#11).",
   "evals": [
     {
       "id": 1,
@@ -16,8 +16,8 @@
       "id": 2,
       "category": "dispatch-boundary",
       "prompt": "Fix the typo in the account.move description field.",
-      "expected_routed_to": "odoo-coder",
-      "expected_behavior": "Single-file change. Wave does NOT fire. Routes to odoo-coder via NL dispatch or direct match. If wave is invoked, it must immediately present the standalone-first fallback and offer to run the task directly.",
+      "expected_routed_to": "odoo-backend-coding",
+      "expected_behavior": "Single-file change. Wave does NOT fire. Routes to odoo-backend-coding via NL dispatch or direct match. If wave is invoked, it must immediately present the standalone-first fallback and offer to run the task directly.",
       "must_not": "Launch wave infrastructure (integration branch, worktrees, cherry-pick) for a single-file fix.",
       "tags": ["dispatch", "should-not-fire", "single-file-boundary"]
     },
@@ -34,17 +34,17 @@
       "id": 4,
       "category": "dispatch-boundary",
       "prompt": "Chain odoo-feature-check then odoo-gap-analysis for this customer's requirements - no code changes needed.",
-      "expected_routed_to": "workflow-runner",
-      "expected_behavior": "In-context NL skill chaining with no git branches required. Wave does NOT fire. Routes to workflow-runner (or inline skill chain).",
+      "expected_routed_to": "workflow-chaining",
+      "expected_behavior": "In-context NL skill chaining with no git branches required. Wave does NOT fire. Routes to workflow-chaining (or inline skill chain).",
       "must_not": "Create git branches or worktrees for a pure in-context skill chain that produces no code commits.",
-      "tags": ["dispatch", "should-not-fire", "workflow-runner-boundary"]
+      "tags": ["dispatch", "should-not-fire", "workflow-chaining-boundary"]
     },
     {
       "id": 5,
       "category": "scaling-rule",
       "prompt": "Do this as a wave: refactor the _compute_amount_total method in sale.order.",
       "expected_routed_to": "wave",
-      "expected_behavior": "1-WI wave. Skill fires but immediately presents the standalone-first fallback: 'This is a single-WI change - wave overhead may not be needed. Run odoo-coder directly? Or confirm you want a wave.' Waits for user choice before proceeding.",
+      "expected_behavior": "1-WI wave. Skill fires but immediately presents the standalone-first fallback: 'This is a single-WI change - wave overhead may not be needed. Run odoo-backend-coding directly? Or confirm you want a wave.' Waits for user choice before proceeding.",
       "must_not": "Launch full wave infrastructure for a 1-WI change without first presenting the standalone-first fallback.",
       "tags": ["scaling", "1-wi-minimal", "standalone-fallback"]
     },

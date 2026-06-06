@@ -1,6 +1,6 @@
 # content-production.workflow.yaml
 # Declarative SSOT for the content production workflow.
-# Runner: skills/workflow-runner — auto-discovered at runtime.
+# Runner: skills/workflow-chaining — auto-discovered at runtime.
 # Pattern: Producer-Reviewer — draft produced by odoo-content-draft (producer), then
 # reviewed in an inline read-only pass against explicit content-quality criteria before
 # the publish schedule is finalized. The reviewer is intentionally inline (runner-driven):

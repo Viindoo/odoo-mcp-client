@@ -11,21 +11,21 @@ description: >
   Also fires on Vietnamese requests: "viết widget OWL", "sửa giao diện form", "thêm field
   widget", "override JS", "viết / sửa SCSS theme đúng design-system Odoo".
   Infer framework from version or API keywords even without "legacy"/"OWL". After generation,
-  suggest odoo-ui-debug / odoo-ui-reviewer / odoo-visual-regression to verify (depth rule: do
-  not auto-invoke). Backend Python/XML → odoo-coder. Code review → odoo-code-reviewer
+  suggest odoo-ui-debugging / odoo-ui-review / odoo-visual-regression to verify (depth rule: do
+  not auto-invoke). Backend Python/XML → odoo-backend-coding. Code review → odoo-code-review
 ---
 
 ## Persona
 
-Developer (Odoo frontend, all supported versions). Pair-works with `odoo-coder` for backend
-Python/XML and `odoo-code-reviewer` for review.
+Developer (Odoo frontend, all supported versions). Pair-works with `odoo-backend-coding` for backend
+Python/XML and `odoo-code-review` for review.
 
 ## Out of Scope
 
-- **Backend Python / XML** (models, views, wizards, security, ORM) → use `odoo-coder`
-- **Code review / audit of existing frontend code** → use `odoo-code-reviewer`
+- **Backend Python / XML** (models, views, wizards, security, ORM) → use `odoo-backend-coding`
+- **Code review / audit of existing frontend code** → use `odoo-code-review`
 - **Deprecation analysis or upgrade planning** → use `odoo-deprecation-audit` or `odoo-version-diff`
-- **Verifying the rendered UI / debugging a runtime render error / image regression** → use `odoo-ui-reviewer` / `odoo-ui-debug` / `odoo-visual-regression`
+- **Verifying the rendered UI / debugging a runtime render error / image regression** → use `odoo-ui-review` / `odoo-ui-debugging` / `odoo-visual-regression`
 
 ## Phase 0 — Scope preview (1-turn gate)
 
@@ -64,7 +64,7 @@ as an autonomous agent rather than inline in main.
 
 **Full-stack handoff (do not silently skip the backend).** Many frontend requests pair with a
 Python/XML backend piece (a new field the widget displays, a model the dashboard reads). This
-skill owns the JS/OWL/SCSS/QWeb only; for the Python/XML side engage `odoo-coder`. Flag the
+skill owns the JS/OWL/SCSS/QWeb only; for the Python/XML side engage `odoo-backend-coding`. Flag the
 backend portion in the Phase 0 scope block rather than attempting it.
 
 ## Brief context — frontend pitfalls the agent guards against

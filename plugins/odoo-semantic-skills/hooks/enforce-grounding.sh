@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # enforce-grounding.sh — SubagentStop enforcement substrate for odoo-semantic-skills.
 #
-# WHY: the OSM-first contract, the odoo-coder ORM gate, and grounding labels are all
+# WHY: the OSM-first contract, the odoo-backend-coding ORM gate, and grounding labels are all
 # ADVISORY prose today — an agent can emit `grounded: osm` without having made a single
 # OSM call, and nothing notices. This hook turns the EXISTING contracts into a checkable
 # invariant by reading the subagent's own transcript: if the artifact CLAIMS OSM grounding

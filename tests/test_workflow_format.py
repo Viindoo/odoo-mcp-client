@@ -125,7 +125,7 @@ def test_empty_domain_is_invalid():
         "team_pattern": "Pipeline",
         "description": "A test workflow",
         "output_dir": ".odoo-ai/test/",
-        "phases": [{"id": "p1", "skill": "odoo-coder", "model_tier": "sonnet"}],
+        "phases": [{"id": "p1", "skill": "odoo-backend-coding", "model_tier": "sonnet"}],
     }
 
     # Import the validator directly
@@ -327,7 +327,7 @@ def test_skill_phase_requires_nl_trigger():
     """A phase with 'skill' but no nl_trigger must be rejected by the validator.
 
     Business rule (schema §5): nl_trigger is required for every skill/agent phase
-    so the workflow-runner can dispatch the correct specialist via NL description-
+    so the workflow-chaining skill can dispatch the correct specialist via NL description-
     match.  Inline phases are exempt (they are handled by the runner itself).
     Regression guard for the validator gap closed in check_workflows.py.
     """
@@ -341,7 +341,7 @@ def test_skill_phase_requires_nl_trigger():
     spec.loader.exec_module(cw)
 
     # Phase with skill but nl_trigger absent — must fail
-    phase_missing = {"id": "p1", "skill": "odoo-coder", "model_tier": "sonnet"}
+    phase_missing = {"id": "p1", "skill": "odoo-backend-coding", "model_tier": "sonnet"}
     errors = cw._validate_phase(phase_missing, 0, "test-workflow")
     nl_errors = [e for e in errors if "nl_trigger" in e]
     assert nl_errors, (
@@ -352,7 +352,7 @@ def test_skill_phase_requires_nl_trigger():
     # Phase with skill and a valid nl_trigger — must NOT produce nl_trigger error
     phase_ok = {
         "id": "p2",
-        "skill": "odoo-coder",
+        "skill": "odoo-backend-coding",
         "nl_trigger": "Write a computed field for the model.",
         "model_tier": "sonnet",
     }

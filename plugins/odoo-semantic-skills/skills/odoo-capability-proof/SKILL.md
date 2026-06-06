@@ -22,8 +22,8 @@ Sales Engineer / Pre-sales Consultant
 
 - Single feature availability (no proof needed) → use `odoo-feature-check`
 - Multi-requirement scope + effort quote → use `odoo-gap-analysis`
-- Customer-facing objection response paragraph → use `odoo-objection-handler`
-- A REAL recorded video/screencast of the flow (not text/code evidence) → use `odoo-demo-recorder`
+- Customer-facing objection response paragraph → use `odoo-objection-handling`
+- A REAL recorded video/screencast of the flow (not text/code evidence) → use `odoo-demo-recording`
 
 ## MCP tools
 
@@ -159,5 +159,5 @@ chain, and demo steps.
 
 - This skill produces TEXT/code evidence and written demo steps — not a video. To turn the
   written demo steps above into a REAL screencast running on a live instance, hand them to
-  `odoo-demo-recorder` (which drives the instance through the same steps and saves an MP4/GIF).
+  `odoo-demo-recording` (which drives the instance through the same steps and saves an MP4/GIF).
   Mention this as an optional next step; do not invoke it from here (depth rule).

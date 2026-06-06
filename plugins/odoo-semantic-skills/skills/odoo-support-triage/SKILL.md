@@ -4,7 +4,7 @@ description: >
   Parse an Odoo support ticket and produce a structured triage: (1) classify it as
   config / bug / feature-request / training, (2) generate a root-cause hint from runtime
   symptoms or feature-gap evidence, (3) draft a resolution note or escalation memo ready
-  to send to the customer. NL-dispatches to odoo-ui-debug for runtime bug symptoms, to
+  to send to the customer. NL-dispatches to odoo-ui-debugging for runtime bug symptoms, to
   odoo-feature-check for feature-gap questions, and borrows odoo-deal-followup tone for
   customer-facing replies. Outputs land in .odoo-ai/support/ (gitignored), never in
   tracked files. Trigger on: "support ticket", "customer issue", "bug report",
@@ -14,7 +14,7 @@ description: >
   khách hàng", "escalate vấn đề".
   Do NOT trigger for: pre-release test authoring
   (use odoo-qa-suite); a live render/UI bug with no customer-facing triage output
-  (use odoo-ui-debug)
+  (use odoo-ui-debugging)
 ---
 
 ## Persona
@@ -30,9 +30,9 @@ the end customer (who needs a respectful, actionable reply). You produce both in
 
 ## Out of Scope
 
-- Deep code debugging across multiple modules -> hand off to `odoo-ui-debug` via NL-dispatch
+- Deep code debugging across multiple modules -> hand off to `odoo-ui-debugging` via NL-dispatch
 - Verifying whether a feature exists in Odoo -> hand off to `odoo-feature-check` via NL-dispatch
-- Responding to sales objections ("can Odoo even do X?") -> use `odoo-objection-handler`
+- Responding to sales objections ("can Odoo even do X?") -> use `odoo-objection-handling`
 - Gap analysis for a new project or scope estimation -> use `odoo-gap-analysis`
 - Full upgrade risk assessment -> use `odoo-risk-overview`
 - Writing marketing content or product announcements -> use `odoo-content-draft`
@@ -45,7 +45,7 @@ the ticket text provided by the user. OSM/MCP tools are NOT called automatically
 If the classification resolves to `feature-request` and the user wants grounding evidence,
 this skill emits an NL-dispatch trigger to `odoo-feature-check`. If the classification is
 `bug` with runtime symptoms (console errors, screen broken), it emits an NL-dispatch trigger
-to `odoo-ui-debug`. For tone/email draft, the template mirrors `odoo-deal-followup` B2B style.
+to `odoo-ui-debugging`. For tone/email draft, the template mirrors `odoo-deal-followup` B2B style.
 
 If OSM is unreachable, all phases still complete using training knowledge. A caveat is appended
 to the output noting that feature/module claims were not verified against the live OSM index.
@@ -53,7 +53,7 @@ to the output noting that feature/module claims were not verified against the li
 ## Execution SSOT
 
 > The `workflows/support-triage.workflow.yaml` is the **execution SSOT** for the
-> support-triage workflow. When the `workflow-runner` fires this skill it follows the
+> support-triage workflow. When the `workflow-chaining` fires this skill it follows the
 > phase sequencing declared in that YAML. The phase descriptions below document the
 > **inline behavior** of this skill as invoked by the runner — they do not duplicate
 > the orchestration logic. (Same pattern as `odoo-qa-suite/SKILL.md`.)
@@ -116,7 +116,7 @@ Sales > Configuration > Settings > Pricelists; the customer may have the option 
 **bug:** State the suspected module + likely trigger. If runtime symptoms are present
 (console error, broken UI, wrong computed value), emit an NL-dispatch trigger:
 
-> "To investigate runtime symptoms, I will now ask odoo-ui-debug for root-cause analysis.
+> "To investigate runtime symptoms, I will now ask odoo-ui-debugging for root-cause analysis.
 > [NL-dispatch]: Debug the following Odoo runtime issue: [ticket description]. Identify the
 > root cause, affected module, and a fix recommendation."
 
@@ -178,7 +178,7 @@ Severity: <blocker|high|normal|low|unknown>
 - Rationale: <one-line>
 
 ## Root-cause hint
-<One paragraph. NL-dispatch triggers shown inline if odoo-ui-debug or odoo-feature-check
+<One paragraph. NL-dispatch triggers shown inline if odoo-ui-debugging or odoo-feature-check
 were invoked. Uncertainty flagged explicitly.>
 
 ## Resolution draft
@@ -189,7 +189,7 @@ were invoked. Uncertainty flagged explicitly.>
 <Structured memo for engineering / product team>
 
 ## Suggest next skill
-<If applicable: "Suggest: run odoo-ui-debug if the customer sends a console error
+<If applicable: "Suggest: run odoo-ui-debugging if the customer sends a console error
 screenshot" or "Suggest: run odoo-feature-check to confirm edition availability" or
 "Suggest: run odoo-risk-overview if this is part of a larger upgrade">
 
@@ -209,6 +209,6 @@ use abstract placeholders (Customer A, Module X, Error Y).
 ## Depth and dispatch rules
 
 This skill does NOT invoke the Skill tool. It does NOT spawn subagents. NL-dispatch
-triggers (to `odoo-ui-debug` or `odoo-feature-check`) are natural-language prompts emitted
+triggers (to `odoo-ui-debugging` or `odoo-feature-check`) are natural-language prompts emitted
 inline — the main context fires the specialist via description-match. References to other
 skills outside NL-dispatch are text suggestions only ("Suggest: run X") — the user decides.

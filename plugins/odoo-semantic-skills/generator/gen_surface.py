@@ -46,21 +46,21 @@ END_MARKER = "<!-- END GENERATED TOOLS -->"
 # files that are part of an agent+skill bundle (tools live in the agent, not the skill).
 SKIP_SKILL_DIRS = {
     "odoo-campaign-plan",
-    "odoo-code-reviewer",
-    "odoo-coder",
+    "odoo-code-review",
+    "odoo-backend-coding",
     "odoo-competitive-brief",
     "odoo-content-draft",
     "odoo-deal-followup",
     "odoo-deploy-checklist",
-    "odoo-discovery-summarize",
+    "odoo-discovery-summary",
     "odoo-frontend-coding",
-    "odoo-onboard",
+    "odoo-onboarding",
     "intake",
-    "odoo-ui-reviewer",
+    "odoo-ui-review",
     # Shared reference docs (e.g. odoo-frontend-fidelity.md), not a skill — no SKILL.md, no tool deps.
     "_shared",
     # Pure orchestration runner — no direct MCP invocations; dispatches via NL only.
-    "workflow-runner",
+    "workflow-chaining",
 }
 
 

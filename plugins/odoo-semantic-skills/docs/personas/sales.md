@@ -85,7 +85,7 @@ If you use **Claude Code** with the Odoo Semantic plugin:
 | Skill | What it does |
 |-------|-------------|
 | `/odoo-capability-proof` | Given a business requirement, returns CE/EE availability + real code examples from indexed repos |
-| `/odoo-objection-handler` | Given an objection ("Odoo can't do X"), checks the codebase and returns a factual response |
+| `/odoo-objection-handling` | Given an objection ("Odoo can't do X"), checks the codebase and returns a factual response |
 
 ---
 

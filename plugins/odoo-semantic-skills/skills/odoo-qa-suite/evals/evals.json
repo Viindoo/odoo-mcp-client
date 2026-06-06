@@ -18,7 +18,7 @@
       "prompt": "Full QA suite for the sale module before our go-live next week",
       "expected_routed_to": "odoo-qa-suite",
       "expected_behavior": "Skill fires. Recognises 'full QA suite' + 'before go-live' as the exact composition trigger. Presents three-phase plan.",
-      "must_not": "Route to odoo-deploy-checklist alone or odoo-code-reviewer.",
+      "must_not": "Route to odoo-deploy-checklist alone or odoo-code-review.",
       "tags": ["dispatch", "should-fire-direct"]
     },
     {
@@ -27,15 +27,15 @@
       "prompt": "QA pipeline for this invoice module change — include test cases, checklist, and bug triage",
       "expected_routed_to": "odoo-qa-suite",
       "expected_behavior": "Explicit mention of all three components confirms composition intent. Skill fires; does NOT delegate to individual leaf skills without the orchestration wrapper.",
-      "must_not": "Dispatch to odoo-deploy-checklist or odoo-ui-debug directly without the qa-suite composition gate.",
+      "must_not": "Dispatch to odoo-deploy-checklist or odoo-ui-debugging directly without the qa-suite composition gate.",
       "tags": ["dispatch", "should-fire-direct"]
     },
     {
       "id": 4,
       "category": "dispatch-boundary",
       "prompt": "Review this Odoo patch for me",
-      "expected_routed_to": "odoo-code-reviewer",
-      "expected_behavior": "Pure code review intent. odoo-qa-suite does NOT fire. Routes to odoo-code-reviewer.",
+      "expected_routed_to": "odoo-code-review",
+      "expected_behavior": "Pure code review intent. odoo-qa-suite does NOT fire. Routes to odoo-code-review.",
       "must_not": "Launch the QA pipeline for a patch review request.",
       "tags": ["dispatch", "should-not-fire", "boundary"]
     },
@@ -80,7 +80,7 @@
       "category": "bug-triage-contract",
       "prompt": "Triage this bug: Invoice confirmation crashes with ValueError in account.move._post() — happens every time on Odoo 17 prod",
       "expected_routed_to": "odoo-qa-suite",
-      "expected_behavior": "Phase 3 assigns severity=Critical (core financial flow crash, no workaround). Output includes: severity=Critical with rationale, step-by-step repro, suspected module=account, suspected layer=Business logic, suggested next step=odoo-ui-debug for runtime investigation.",
+      "expected_behavior": "Phase 3 assigns severity=Critical (core financial flow crash, no workaround). Output includes: severity=Critical with rationale, step-by-step repro, suspected module=account, suspected layer=Business logic, suggested next step=odoo-ui-debugging for runtime investigation.",
       "must_not": "Assign severity lower than Critical for a crash in a core financial flow. Omit reproduction steps or suspected module.",
       "tags": ["bug-triage", "severity-critical", "structured-output"]
     },
@@ -98,7 +98,7 @@
       "category": "standalone-fallback",
       "prompt": "Full QA suite for purchase module — OSM server is offline",
       "expected_routed_to": "odoo-qa-suite",
-      "expected_behavior": "Skill fires in standalone mode. Phase 1 (test-case gen) completes normally (no MCP needed). Phase 2 dispatches odoo-deploy-checklist in standalone mode — Domain 1 OSM-dependent rows are marked as 'Manual check'. Phase 3 (bug-triage) runs inline without odoo-ui-debug dispatch. Summary includes the standalone-mode notice at the top.",
+      "expected_behavior": "Skill fires in standalone mode. Phase 1 (test-case gen) completes normally (no MCP needed). Phase 2 dispatches odoo-deploy-checklist in standalone mode — Domain 1 OSM-dependent rows are marked as 'Manual check'. Phase 3 (bug-triage) runs inline without odoo-ui-debugging dispatch. Summary includes the standalone-mode notice at the top.",
       "must_not": "Block Phase 1 or Phase 3 due to OSM being offline. Fail entirely when OSM is unreachable.",
       "tags": ["standalone-fallback", "degraded-mode", "resilience"]
     },

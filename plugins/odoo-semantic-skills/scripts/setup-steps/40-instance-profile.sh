@@ -4,7 +4,7 @@
 # Runs discover_odoo.sh to find Odoo core + addon repos on the machine, prints
 # the discovered TSV for the user to confirm the addons-path ordering, and
 # persists the result to `.odoo-ai/instances.toml` at the project root. Also
-# ensures `.odoo-ai/` is gitignored (same no-op grep pattern as odoo-onboard).
+# ensures `.odoo-ai/` is gitignored (same no-op grep pattern as odoo-onboarding).
 #
 # Subcommands:
 #   describe   One-line description.
@@ -66,7 +66,7 @@ cmd_check() {
 }
 
 # ---------------------------------------------------------------------------
-# gitignore - idempotent append of `.odoo-ai/` (mirrors odoo-onboard step 8)
+# gitignore - idempotent append of `.odoo-ai/` (mirrors odoo-onboarding step 8)
 # ---------------------------------------------------------------------------
 _ensure_gitignore() {
     if [[ -f "$GITIGNORE" ]]; then

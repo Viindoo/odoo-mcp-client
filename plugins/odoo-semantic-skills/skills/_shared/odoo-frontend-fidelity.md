@@ -1,7 +1,7 @@
 # Odoo Frontend Fidelity - era-aware OWL/JS/SCSS ground truth (SSOT)
 
 > Shared, version-structured grounding doc for the frontend skills (`odoo-frontend-coding`,
-> `odoo-code-reviewer`, `odoo-ui-reviewer`, and referenced by `odoo-ui-debug` /
+> `odoo-code-review`, `odoo-ui-review`, and referenced by `odoo-ui-debugging` /
 > `odoo-visual-regression`). It exists so frontend output is **correct and lint-compliant by
 > construction** across every supported Odoo era, and so review-time diagnosis cites real
 > ground truth rather than memory.
@@ -196,10 +196,10 @@ A design-system-aware skill should (a) **never generate** this (rule A2/A3 + tok
   reuse (OSM + Section B); run the output self-check gate - no hardcoded hex/rgba, no self-ref
   custom property, referenced tokens exist at runtime for the target version, output matches
   the mockup.
-- **`odoo-ui-reviewer` (detection + remediation):** add a design-system/theme lens that runs
+- **`odoo-ui-review` (detection + remediation):** add a design-system/theme lens that runs
   the token-reality check (Section C) and flags empty/transparent surfaces, self-ref cycles,
   hardcoded palette, and mockup divergence - emitting token+file remediation pointers.
-- **`odoo-ui-debug` / `odoo-visual-regression`:** cross-reference this SSOT when a root cause
+- **`odoo-ui-debugging` / `odoo-visual-regression`:** cross-reference this SSOT when a root cause
   or a diff is theme/token related.
 
 ### G. Brand-token fidelity (optional, brand-agnostic, consumer-driven)
@@ -224,7 +224,7 @@ perceptually, not by string):
 - **Static (no browser) - `verify-frontend.sh` Tier 4:** scans changed SCSS for hardcoded hex
   that sits within ΔE `BRAND_NEAR_DELTA` of a declared brand token and WARNs "reference the
   token var, don't inline the brand color" (the A2/A3 rule, brand-aware). WARN-only.
-- **Runtime (live screen) - `odoo-ui-reviewer` Step 4b:** reads `getComputedStyle(:root)` and
+- **Runtime (live screen) - `odoo-ui-review` Step 4b:** reads `getComputedStyle(:root)` and
   ΔE-diffs the *resolved* brand tokens against the declared map - the only place the real
   rendered value is knowable (OSM indexes SCSS but cannot resolve the cascade winner). WARN.
 

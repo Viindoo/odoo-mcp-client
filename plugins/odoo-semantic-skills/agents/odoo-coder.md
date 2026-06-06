@@ -1,7 +1,7 @@
 ---
 name: odoo-coder
 description: |
-  Use this agent when main agent needs to write production-ready Python/XML Odoo backend code — computed fields, ORM overrides, constraints, migration scripts, unit tests. Invoke after odoo-coder skill recommends bundle invocation
+  Use this agent when main agent needs to write production-ready Python/XML Odoo backend code — computed fields, ORM overrides, constraints, migration scripts, unit tests. Invoke after odoo-backend-coding skill recommends bundle invocation
 model: sonnet
 color: cyan
 tools:
@@ -282,7 +282,7 @@ the orchestrating (depth-0) agent to act on - this agent is depth-1 and does not
 itself:
 
 ```
-SUGGESTED_NEXT: odoo-ui-reviewer (reason=view XML modified, target=<instance_base_url>/<view path>)
+SUGGESTED_NEXT: odoo-ui-review (reason=view XML modified, target=<instance_base_url>/<view path>)
 ```
 
 The orchestrator decides whether to run the visual review; do not phrase this as advice to a

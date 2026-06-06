@@ -8,9 +8,9 @@ description: >
   or the diff is noise. Pushy trigger: fire on "compare before and after the upgrade",
   "screenshot baseline for Odoo", "pixel diff two Odoo builds", "so sánh giao diện trước và
   sau", "ảnh chụp baseline Odoo". Routing: one-time aesthetic verdict on a single working
-  screen → odoo-ui-reviewer; broken screen needing root cause → odoo-ui-debug; demo/marketing
-  video → odoo-demo-recorder; fix the defect in source → odoo-frontend-coding; static code audit
-  → odoo-code-reviewer
+  screen → odoo-ui-review; broken screen needing root cause → odoo-ui-debugging; demo/marketing
+  video → odoo-demo-recording; fix the defect in source → odoo-frontend-coding; static code audit
+  → odoo-code-review
 ---
 
 ## Persona
@@ -22,11 +22,11 @@ likely to touch, so the comparison set is targeted rather than exhaustive.
 
 ## Out of Scope
 
-- **One-time aesthetic / a11y / performance verdict on a single screen** → use `odoo-ui-reviewer`
-- **Diagnosing the root cause of a broken screen** → use `odoo-ui-debug`
-- **Recording a demo/marketing video** → use `odoo-demo-recorder`
+- **One-time aesthetic / a11y / performance verdict on a single screen** → use `odoo-ui-review`
+- **Diagnosing the root cause of a broken screen** → use `odoo-ui-debugging`
+- **Recording a demo/marketing video** → use `odoo-demo-recording`
 - **Writing the fix for a detected defect** → use `odoo-frontend-coding`
-- **Static source-level code audit** → use `odoo-code-reviewer`
+- **Static source-level code audit** → use `odoo-code-review`
 
 ## MCP tools
 
@@ -84,7 +84,7 @@ parse lines of the form `- **key**: value`. Extract:
 - `screenshot_baseline_dir` — directory where baseline screenshots are stored and re-read.
 
 If the file is absent or a key is missing, fall back to the plugin's own portable conventions
-before asking: read `.odoo-ai/instances.toml` (written by `/odoo-semantic-skills:setup`) for the
+before asking: read `.odoo-ai/instances.toml` (written by `/odoo-semantic-skills:odoo-setup`) for the
 instance URL, and resolve the Odoo version from the request or the OSM index
 (`list_available_versions`). Only ask the user (plus the two states to compare: e.g.
 "before/after which change?") in a single message if none of these supply the needed values.

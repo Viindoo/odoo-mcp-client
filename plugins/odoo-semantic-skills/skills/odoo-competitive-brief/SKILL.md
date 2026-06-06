@@ -10,7 +10,7 @@ description: >
   Also fires on Vietnamese: "phân tích đối thủ X", "brief cạnh tranh cho ban lãnh đạo",
   "đánh giá mối đe doạ cạnh tranh".
   DO NOT trigger for: (a) sales talking-point objections ("they say Odoo can't do X") →
-  odoo-objection-handler; (b) feature comparison drill-down between Odoo versions →
+  odoo-objection-handling; (b) feature comparison drill-down between Odoo versions →
   odoo-version-diff; (c) detailed add-on diff → odoo-addon-diff; (d) marketing copy or
   campaign messaging about competitive positioning → odoo-content-draft or
   odoo-campaign-plan; (e) simple feature availability check → odoo-feature-check
@@ -31,7 +31,7 @@ prioritizes what the user already knows — it does NOT invent competitive facts
 
 | User intent | Route to |
 |---|---|
-| Sales objection handling ("they say Odoo can't do X") | `odoo-objection-handler` |
+| Sales objection handling ("they say Odoo can't do X") | `odoo-objection-handling` |
 | Feature comparison drill-down between Odoo versions | `odoo-version-diff` |
 | Detailed module/add-on diff | `odoo-addon-diff` |
 | Marketing copy or campaign messaging | `odoo-content-draft` / `odoo-campaign-plan` |

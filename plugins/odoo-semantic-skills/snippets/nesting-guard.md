@@ -1,6 +1,6 @@
 <!-- SSOT snippet. The single source for the subagent nesting/depth guard. Previously
      copy-pasted verbatim into wave WI briefs, the wave conflict-resolver line, and the
-     workflow-runner fan-out worker prefix — consolidate here and reference via
+     workflow-chaining fan-out worker prefix — consolidate here and reference via
      ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md so the rule has one home. -->
 
 # Subagent Nesting Guard (depth ceiling)
@@ -13,15 +13,15 @@ deeper risks a nested-context crash. Therefore:
   OWL, or SCSS yourself, grounding every Odoo claim with the OSM MCP tools
   (`set_active_version`, `model_inspect`, `find_examples`, `validate_*`, `resolve_stylesheet`,
   …). An MCP tool call is never a subagent spawn, so it is always allowed at your depth.
-  Follow the same conventions the `odoo-coder` / `odoo-code-reviewer` / `odoo-frontend-coder`
+  Follow the same conventions the `odoo-backend-coding` / `odoo-code-review` / `odoo-frontend-coder`
   agents use — but **do NOT invoke those bundles** (next bullet).
-- **Do NOT invoke any depth0-only skill** — `odoo-coder`, `odoo-code-reviewer`,
-  `odoo-ui-reviewer`, `odoo-frontend-coding`, `wave`, `intake`, `odoo-brl`, `workflow-runner`,
+- **Do NOT invoke any depth0-only skill** — `odoo-backend-coding`, `odoo-code-review`,
+  `odoo-ui-review`, `odoo-frontend-coding`, `wave`, `intake`, `odoo-brl`, `workflow-chaining`,
   `/code-review`, `skill-creator`. Each dispatches a fresh agent (depth0→1) and may ONLY be
   invoked from the main agent. See `docs/reference/ORCHESTRATION-MAP.md` for the authoritative
   spawn-class of every skill.
 - You **MAY** NL-dispatch a genuinely **non-spawning** (`leaf`, any-depth) skill — e.g.
-  `odoo-feature-check`, `odoo-override-finder`, `odoo-deprecation-audit` — for a read-only
+  `odoo-feature-check`, `odoo-override-finding`, `odoo-deprecation-audit` — for a read-only
   lookup if it helps. Do NOT invoke the Skill tool to trigger a spawner, and do NOT spawn a
   sub-agent yourself.
 - Stay inside your assigned scope: only `Read/Grep/Glob/Edit/Write/Bash`. Do NOT

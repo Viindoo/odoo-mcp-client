@@ -1,6 +1,6 @@
 # support-triage.workflow.yaml
 # Declarative SSOT for the odoo-support-triage composition workflow.
-# Runner: skills/workflow-runner — auto-discovered at runtime.
+# Runner: skills/workflow-chaining — auto-discovered at runtime.
 # Pattern note: Pipeline with two mutually-exclusive conditional phases
 # (root-cause-bug / root-cause-feature) gated by `when:` predicates. The runner
 # evaluates `when:` in Pipeline and skips the non-matching branch, so exactly one
@@ -11,7 +11,7 @@ domain: support
 team_pattern: Pipeline
 description: |
   Triage an Odoo support ticket end-to-end: classify (config / bug / feature-request /
-  training), generate a root-cause hint (dispatching to odoo-ui-debug for runtime bugs or
+  training), generate a root-cause hint (dispatching to odoo-ui-debugging for runtime bugs or
   odoo-feature-check for feature gaps), then draft a customer-facing resolution or an
   internal escalation note in B2B tone. Trigger: "triage this ticket", "support ticket",
   "customer reports Odoo issue", "classify this bug", "draft resolution for support case",
@@ -46,10 +46,10 @@ phases:
     # Output: classification block written to .odoo-ai/support/<slug>-classify.md.
 
   # ------------------------------------------------------------------
-  # Phase 2a — Root-cause via odoo-ui-debug (bug path)
+  # Phase 2a — Root-cause via odoo-ui-debugging (bug path)
   # ------------------------------------------------------------------
   - id: root-cause-bug
-    skill: odoo-ui-debug
+    skill: odoo-ui-debugging
     nl_trigger: >
       Debug the Odoo runtime issue described in the support ticket collected in the
       collect-ticket phase. Identify the root cause, the affected module, and provide

@@ -63,7 +63,7 @@ ${_browser_mcp_wired} || missing+=("chrome-devtools MCP (not wired in Codex/Gemi
 if [ "${#missing[@]}" -gt 0 ]; then
   _list=$(IFS=", "; echo "${missing[*]}")
   echo "i  Odoo visual stack incomplete: ${_list}." >&2
-  echo "   Run /odoo-semantic-skills:setup to complete the installation." >&2
+  echo "   Run /odoo-semantic-skills:odoo-setup to complete the installation." >&2
 fi
 
 # SessionStart context injection: always surface the orchestration digest so the

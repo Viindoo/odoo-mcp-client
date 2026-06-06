@@ -1,6 +1,6 @@
 # ui-debug-session.workflow.yaml
 # Declarative SSOT for the long-running UI debug session workflow.
-# Runner: skills/workflow-runner — auto-discovered at runtime.
+# Runner: skills/workflow-chaining — auto-discovered at runtime.
 # Pattern: Pipeline with resume: true — each phase writes state so a multi-hour
 # debug session can be interrupted and continued without losing context.
 name: ui-debug-session
@@ -8,7 +8,7 @@ domain: engineering
 team_pattern: Pipeline
 description: |
   Run a structured, resumable UI debugging session for a misbehaving Odoo screen:
-  reproduce the symptom inline, inspect root cause via odoo-ui-debug, hypothesize
+  reproduce the symptom inline, inspect root cause via odoo-ui-debugging, hypothesize
   the fix inline, generate a concrete fix guidance inline, then verify the outcome
   inline. Designed for long sessions that may be interrupted and resumed.
   Trigger: "debug Odoo UI session", "full debug session for this screen",
@@ -48,10 +48,10 @@ phases:
     # Writes .odoo-ai/debug/<slug>-reproduce.md
 
   # ------------------------------------------------------------------
-  # Phase 2 — Inspect root cause via odoo-ui-debug
+  # Phase 2 — Inspect root cause via odoo-ui-debugging
   # ------------------------------------------------------------------
   - id: inspect
-    skill: odoo-ui-debug
+    skill: odoo-ui-debugging
     nl_trigger: >
       Investigate the Odoo UI issue collected in the symptom card and confirmed as
       reproducible in the reproduce phase. Identify the ROOT CAUSE of the misbehavior —

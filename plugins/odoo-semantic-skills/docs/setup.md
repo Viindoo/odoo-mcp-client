@@ -23,8 +23,8 @@ These three steps are easy to confuse. Only the first is required:
 | Step | Command / skill | Scope | When |
 |------|-----------------|-------|------|
 | 1. Connect the MCP server | `/odoo-semantic-mcp:connect` | Once per machine | **Required** — registers server URL + API key so `mcp__odoo-semantic__*` tools load |
-| 2. Wire the visual stack | `/odoo-semantic-skills:setup` | Once per machine | **Optional** — browser MCP + Playwright + local Odoo instance, only for the `Visual` skills |
-| 3. Onboard a project | `odoo-onboard` skill | Once per repo | **Optional** — writes `.odoo-ai/context.md` (repo version/modules/conventions); runs even without the server |
+| 2. Wire the visual stack | `/odoo-semantic-skills:odoo-setup` | Once per machine | **Optional** — browser MCP + Playwright + local Odoo instance, only for the `Visual` skills |
+| 3. Onboard a project | `odoo-onboarding` skill | Once per repo | **Optional** — writes `.odoo-ai/context.md` (repo version/modules/conventions); runs even without the server |
 
 Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual-stack--browser-mcp-setup). Step 3 runs automatically the first time you invoke an `odoo-*` skill in a new repo.
 
@@ -89,33 +89,33 @@ After install, 26 skills activate automatically:
 | `odoo-risk-overview` | Strategist / CEO | One-page upgrade-risk dashboard: deprecated-API counts, change blast radius, dependency health |
 | `odoo-customization-inventory` | Strategist / CEO | Executive inventory of every custom/distribution module, classified with business purpose and upgrade-risk flags |
 | `odoo-competitive-brief` | Strategist | Board-ready competitive brief on a named competitor: capability matrix, threat assessment, response strategy |
-| `odoo-override-finder` | Engineer | Find the safe method to override, with the existing override chain and a ready-to-apply `super()` template |
+| `odoo-override-finding` | Engineer | Find the safe method to override, with the existing override chain and a ready-to-apply `super()` template |
 | `odoo-deprecation-audit` | Engineer | Scan a codebase for deprecated Odoo APIs before an upgrade, grouped by file with replacements and urgency |
 | `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist across 8 domains (backup, migration, smoke tests, rollback, ...) |
 | `odoo-version-diff` | Engineer + Marketer | Comprehensive API + feature diff between two Odoo versions (developer track + marketer track) |
-| `odoo-coder` | Coder | Write production-ready Python/XML backend code, from a single computed field to a full module |
+| `odoo-backend-coding` | Coder | Write production-ready Python/XML backend code, from a single computed field to a full module |
 | `odoo-frontend-coding` | Coder | Write Odoo frontend JS for any version - legacy `web.Widget` (v8-v14) or OWL 2.x components (v15+) |
-| `odoo-code-reviewer` | Code-Reviewer | Review Odoo Python/JS/XML/OWL code for bugs, conventions, security, and performance with graded findings |
+| `odoo-code-review` | Code-Reviewer | Review Odoo Python/JS/XML/OWL code for bugs, conventions, security, and performance with graded findings |
 | `odoo-feature-check` | Pre-Sales Consultant | Answer "does standard Odoo already do this?" with module name, edition, and a client-ready verdict |
 | `odoo-gap-analysis` | Pre-Sales Consultant | Compare client requirements vs Odoo standard, ending in an effort matrix with day estimates |
 | `odoo-capability-proof` | Pre-Sales Consultant | Evidence-backed proof package that Odoo can meet a requirement, citing real modules and code |
 | `odoo-addon-diff` | Pre-Sales Consultant | Side-by-side CE vs EE vs custom-distribution comparison for a business domain, with upgrade recommendation |
-| `odoo-objection-handler` | Sales AE | Evidence-based responses to capability objections using the Acknowledge / Counter / Affirm framework |
+| `odoo-objection-handling` | Sales AE | Evidence-based responses to capability objections using the Acknowledge / Counter / Affirm framework |
 | `odoo-deal-followup` | Sales AE | Score deal health, recommend a next-best action, and draft a follow-up email |
-| `odoo-discovery-summarize` | Sales AE | Turn raw discovery-call notes into a structured customer profile with a fit score |
+| `odoo-discovery-summary` | Sales AE | Turn raw discovery-call notes into a structured customer profile with a fit score |
 | `odoo-feature-highlights` | Marketer | Generate business-language feature highlights for a version, ready for decks, blogs, or release notes |
 | `odoo-content-draft` | Marketer | Draft channel-specific marketing content (LinkedIn, blog, YouTube script, email, landing copy) |
 | `odoo-campaign-plan` | Marketer | Plan a multi-week, multi-channel marketing campaign with timeline, channel mix, KPIs, and owner map |
-| `odoo-onboard` | Onboarding / Concierge | Bootstrap per-project Odoo context (version, custom modules, profile) so other skills skip setup |
+| `odoo-onboarding` | Onboarding / Concierge | Bootstrap per-project Odoo context (version, custom modules, profile) so other skills skip setup |
 | `intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths when clear, always gates with a Proposed Plan before execution |
-| `odoo-ui-reviewer` | Coder / Visual | Five-lens review of a rendered Odoo screen in a live browser - aesthetics, function, runtime stability, accessibility, performance - with screenshot/console/Lighthouse evidence |
-| `odoo-ui-debug` | Coder / Visual | Root-cause a broken/misbehaving Odoo UI at runtime (console errors, failed requests, blank OWL renders, wrong CSS) and pinpoint the override point |
+| `odoo-ui-review` | Coder / Visual | Five-lens review of a rendered Odoo screen in a live browser - aesthetics, function, runtime stability, accessibility, performance - with screenshot/console/Lighthouse evidence |
+| `odoo-ui-debugging` | Coder / Visual | Root-cause a broken/misbehaving Odoo UI at runtime (console errors, failed requests, blank OWL renders, wrong CSS) and pinpoint the override point |
 | `odoo-visual-regression` | Coder / Visual | Capture a screenshot baseline of one Odoo state and diff it against another (before/after upgrade, module install, theme change) with blast-radius assessment |
-| `odoo-demo-recorder` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
+| `odoo-demo-recording` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
 
-> **Visual skills need browser setup.** The four `Coder / Visual` skills above (`odoo-ui-reviewer`, `odoo-ui-debug`, `odoo-visual-regression`, `odoo-demo-recorder`) drive a live browser
+> **Visual skills need browser setup.** The four `Coder / Visual` skills above (`odoo-ui-review`, `odoo-ui-debugging`, `odoo-visual-regression`, `odoo-demo-recording`) drive a live browser
 > and depend on the bundled browser MCP servers + browser binaries. Run
-> **`/odoo-semantic-skills:setup`** once to provision them — see
+> **`/odoo-semantic-skills:odoo-setup`** once to provision them — see
 > [Visual stack / browser MCP setup](#visual-stack--browser-mcp-setup) below.
 
 ---
@@ -177,8 +177,8 @@ Manual snippet (for users who ran `claude mcp add` directly, without the plugin)
 ## Visual stack / browser MCP setup
 <a id="visual-stack--browser-mcp-setup"></a>
 
-The four `Visual` skills (`odoo-ui-reviewer`, `odoo-ui-debug`, `odoo-visual-regression`,
-`odoo-demo-recorder`) and the `odoo-ui-reviewer` agent drive a **rendered Odoo screen in a
+The four `Visual` skills (`odoo-ui-review`, `odoo-ui-debugging`, `odoo-visual-regression`,
+`odoo-demo-recording`) and the `odoo-ui-reviewer` agent drive a **rendered Odoo screen in a
 live browser**. They depend on three browser MCP servers — `chrome-devtools`, `playwright`,
 and `pagecast` (local stdio `npx` servers) — plus browser binaries and `ffmpeg`.
 
@@ -194,15 +194,15 @@ bundle. For most users, install the plugin and the servers are wired automatical
 | **Codex CLI** | `.codex-plugin/plugin.json` | `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-semantic-skills@<marketplace>` (marketplace.json is to be published as a separate distribution step; the manifest ships now) | Same dedup-by-name behaviour as Claude. |
 
 > **Fallback for Codex / Gemini non-native installs:** run
-> `/odoo-semantic-skills:setup runtime` — it writes the correct config for each
+> `/odoo-semantic-skills:odoo-setup runtime` — it writes the correct config for each
 > runtime idempotently without touching the rest of the setup steps.
 
-### One command: `/odoo-semantic-skills:setup`
+### One command: `/odoo-semantic-skills:odoo-setup`
 
 Inside Claude Code, run it once:
 
 ```
-/odoo-semantic-skills:setup
+/odoo-semantic-skills:odoo-setup
 ```
 
 It is **idempotent and extensible** — re-running only applies what is missing, and it drives
@@ -217,14 +217,14 @@ drop-in. What it does:
 4. **Instance profile** — discovers local Odoo repos and writes `.odoo-ai/instances.toml`.
 5. **Instance spin-up** (optional) — launches a declared Odoo instance and waits for HTTP 200.
 
-> **Note for Claude Code users:** `/setup` no longer writes the browser servers into
-> `~/.claude.json` — Claude is served by the bundled `.mcp.json`. Re-running `/setup`
+> **Note for Claude Code users:** `/odoo-setup` no longer writes the browser servers into
+> `~/.claude.json` — Claude is served by the bundled `.mcp.json`. Re-running `/odoo-setup`
 > will therefore not recreate any "skipped duplicate" entries there; that is expected.
 
 A **SessionStart** hint (read-only, never installs or blocks) nudges you to run
-`/odoo-semantic-skills:setup` whenever a dependency is missing.
+`/odoo-semantic-skills:odoo-setup` whenever a dependency is missing.
 
-### Cross-runtime MCP wiring (what `/setup runtime` writes)
+### Cross-runtime MCP wiring (what `/odoo-setup runtime` writes)
 
 Each runtime stores browser MCP config in a **different file with a different schema**.
 When the per-runtime native bundle is not used, the setup command writes the correct
@@ -232,7 +232,7 @@ shape for each, merging idempotently into existing config:
 
 | Runtime | Config file | Schema | Note |
 |---------|-------------|--------|------|
-| Claude Code | — (none) | — | Not written by `/setup`. Served by the plugin's bundled `.mcp.json`; adding a duplicate to `~/.claude.json` is what causes the "skipped" notes. |
+| Claude Code | — (none) | — | Not written by `/odoo-setup`. Served by the plugin's bundled `.mcp.json`; adding a duplicate to `~/.claude.json` is what causes the "skipped" notes. |
 | Codex CLI | `~/.codex/config.toml` | TOML — `[mcp_servers.<name>]` with `command` / `args` | Written only when `~/.codex/config.toml` already exists (Codex is installed). |
 | Gemini CLI | `~/.gemini/settings.json` (key `mcpServers`) | JSON — per-server entry plus `"trust": true` to skip prompts | Written only when `~/.gemini/settings.json` already exists. |
 
