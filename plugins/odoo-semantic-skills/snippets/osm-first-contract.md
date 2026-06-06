@@ -81,6 +81,9 @@ For **spawned workers** (wave WI workers, workflow-runner fan-out, code/UI agent
 §1/§4 a checkable invariant: if your artifact claims `grounded: osm` but you made **zero**
 `mcp__odoo-semantic__*` calls, the stop is **blocked** and you are asked to either actually
 verify or relabel honestly (`grounded: local-source` / `OSM unavailable - ungrounded`). The
-label must be *earned* from real calls, not asserted. (Backend code written while OSM was
-reachable without running the ORM validators raises a non-blocking note.) Honest grounding is
-cheaper than a blocked stop — make the calls.
+label must be *earned* from real calls, not asserted. Two softer gaps raise a **non-blocking
+note** (not a block): backend code written with OSM reachable but the ORM validators skipped;
+and backend `.py` written with zero OSM calls and no grounding label at all (the silent case) —
+the note asks you to ground it, or to state plainly it is pure-Python/standalone so the gate is
+satisfied. Only the provable lie (`grounded: osm` with zero calls) is blocked. Honest grounding
+is cheaper than a blocked stop — make the calls.

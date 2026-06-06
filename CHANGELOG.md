@@ -33,10 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   previously advisory OSM-first contract into a checkable invariant: it reads the worker's own
   transcript (assistant-authored content only) and **blocks once** (loop-safe via `stop_hook_active`)
   when an artifact claims `grounded: osm` but made zero `mcp__odoo-semantic__*` calls, asking the
-  agent to actually verify or relabel honestly. Self-gates to Odoo-shaped subagents; non-blocking
-  note when backend code is written with OSM reachable but the ORM validators never ran. The
-  `odoo-coder` Round-4 "skipped with reason noted" free bypass was tightened to require the
-  standalone `grounded: local-source` label.
+  agent to actually verify or relabel honestly. Self-gates to Odoo-shaped subagents. Two softer
+  gaps raise a **non-blocking note** (never a block — a block there only manufactures unverifiable
+  `grounded: local-source` labels and false-blocks legit pure-Python/standalone work): backend
+  code written with OSM reachable but the ORM validators skipped; and the **silent-skipper** —
+  backend `.py` written with zero OSM calls and no grounding label at all (previously slipped
+  through unnoticed). The `odoo-coder` Round-4 "skipped with reason noted" free bypass was
+  tightened to require the standalone `grounded: local-source` label. Hook behavior is locked by
+  `tests/test_enforce_grounding.py` (block / both notes / self-gate / honest-label / loop-guard).
 - **Brand-agnostic brand-fidelity mechanism (no brand vendored).** Optional, consumer-driven via a
   new `brand_tokens_source` key in `.odoo-ai/context.md` (a JSON `token -> color` map). New
   `scripts/lib/color_delta.py` (stdlib CIEDE2000); `verify-frontend.sh` Tier 4 WARNs on hardcoded
