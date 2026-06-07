@@ -183,3 +183,9 @@ Prompt: "compare API changes between Odoo 12 and 16, we need to migrate"
 Output: Cross-era diff (v12→v13: `@api.multi` removal + OWL introduced; v13→v14: OWL becomes
 primary + `web.Widget` deprecated; v14→v16: OWL 2.0 + `web.Widget` removed). Era migration
 section prominent. Complexity: Very High. Sprint plan with phased migration approach.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

@@ -168,6 +168,11 @@ Dispatch up to 3 concurrent WI subagents using the **Agent tool** — one Agent 
 WI. Make all Agent tool calls in a **single turn (same message, parallel)** so they run
 concurrently. Pass the WI brief as the `prompt` parameter of each Agent call.
 
+**More than 3 WIs (batching protocol):** dispatch in **waves of ≤3** — fire the first 3, wait
+for them to complete + cherry-pick, then fire the next ≤3, until all WIs are done. The
+3-concurrent cap is per wave, not a total limit; never run more than 3 at once (OOM ceiling).
+Order batches by the dependency DAG (a WI does not start until its `depends_on` are merged).
+
 **MANDATORY**: You MUST make real Agent tool calls. Do NOT describe dispatch in prose
 instead of calling the tool — the user must see actual Agent tool invocations. If you
 narrate dispatch without calling the Agent tool, that is a hard violation of this phase.
@@ -414,3 +419,9 @@ proceeding." Report the differing files.
 WI-A and WI-B unexpectedly both touch `__init__.py` (missed in Phase 0 audit):
 Cherry-pick of WI-B fails with conflict. Dispatch Sonnet resolver subagent with the conflict
 diff + both WI briefs. Resolver commits the fix. Re-run verify. Continue.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

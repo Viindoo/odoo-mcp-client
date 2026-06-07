@@ -17,7 +17,7 @@ deeper risks a nested-context crash. Therefore:
   agents use — but **do NOT invoke those bundles** (next bullet).
 - **Do NOT invoke any depth0-only skill** — `odoo-backend-coding`, `odoo-code-review`,
   `odoo-ui-review`, `odoo-frontend-coding`, `wave`, `intake`, `odoo-brl`, `workflow-chaining`,
-  `/code-review`, `skill-creator`. Each dispatches a fresh agent (depth0→1) and may ONLY be
+  `run-driver`, `/code-review`, `skill-creator`. Each dispatches a fresh agent (depth0→1) and may ONLY be
   invoked from the main agent. See `docs/reference/ORCHESTRATION-MAP.md` for the authoritative
   spawn-class of every skill.
 - You **MAY** NL-dispatch a genuinely **non-spawning** (`leaf`, any-depth) skill — e.g.

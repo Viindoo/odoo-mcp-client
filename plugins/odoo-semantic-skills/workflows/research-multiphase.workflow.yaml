@@ -1,0 +1,50 @@
+name: research-multiphase
+domain: consultant
+team_pattern: Fan-out
+description: |
+  Multi-phase, multi-model research over an Odoo question — the reference dogfood proving the
+  harness can run "broad cheap survey → deep mid-tier analysis → single high-tier synthesis"
+  with a different model_tier per phase. Phase count is flexible (this 3-phase shape is just the
+  canonical example; fewer or more phases are fine for a given job).
+  Trigger: "multi-phase research", "survey then deep-dive then synthesize", "research <topic>
+  across angles", "broad scan then focused analysis", "nghiên cứu nhiều pha", "khảo sát rộng
+  rồi đào sâu rồi tổng hợp"
+output_dir: .odoo-ai/research
+inputs:
+  - research_question
+  - candidate_angles
+
+phases:
+  # Phase 1 — broad survey: many cheap haiku workers, one per candidate angle, locate the scope.
+  - id: survey
+    skill: odoo-feature-check
+    fanout: true
+    chunk_by: candidate_angle
+    nl_trigger: >
+      For this single research angle, do a quick breadth check: does Odoo cover it, in which
+      edition, and is it promising enough to analyse deeply? Return a one-line verdict
+      (Promising / Partial / Not-relevant) with a pointer to the module/model, so the next phase
+      knows which angles are worth a deep dive.
+    model_tier: haiku
+    gate: "approve / refine: [feedback] / cancel"
+
+  # Phase 2 — deep dive: fewer sonnet workers on the angles the survey marked promising.
+  - id: deep-dive
+    skill: odoo-gap-analysis
+    fanout: true
+    chunk_by: promising_angle
+    nl_trigger: >
+      For this promising angle from the survey, produce a full effort/fit analysis
+      (Standard/Config/Extension/Custom with sizing) and the evidence behind it, ready to fold
+      into a synthesis.
+    model_tier: sonnet
+    gate: "approve / iterate / cancel"
+
+  # Phase 3 — synthesis: one high-tier pass unifying all deep-dive outputs into one brief.
+  - id: synthesize
+    inline: true
+    model_tier: opus
+    gate: "save / discard / cancel"
+
+resume: true
+fallback: standalone

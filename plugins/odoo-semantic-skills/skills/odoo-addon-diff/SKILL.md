@@ -148,3 +148,9 @@ Output: Side-by-side table for Manufacturing, Inventory, MRP features; EE-only h
 **Example 2 — accounting focus:**
 Prompt: "compare CE and EE for an accounting-focused customer"
 Output: Table covering Accounting, Invoicing, Tax; note specialized localization modules which may exist in custom distributions but not Odoo EE base.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

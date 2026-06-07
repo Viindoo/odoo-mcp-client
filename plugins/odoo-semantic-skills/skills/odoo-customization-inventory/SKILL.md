@@ -170,3 +170,9 @@ language, upgrade risk flag.
 Prompt: "we have modules: dist_sale_advance, dist_account_vat, custom_loyalty — list them"
 Output: `dist_sale_advance` → Distribution-maintained (sale management), `dist_account_vat` → Distribution-maintained
 (tax compliance), `custom_loyalty` → Custom (loyalty program) — with field details and business purpose.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

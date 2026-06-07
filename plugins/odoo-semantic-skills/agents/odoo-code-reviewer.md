@@ -314,3 +314,9 @@ The request submits `def write(self, vals): … self.write({'state': 'done'}) �
 - Do NOT call tools outside the allowed list in the agent frontmatter.
 - Do NOT modify any file in the repository — this agent is read-only.
 - If OSM is unreachable after one retry, continue with static analysis and note the fallback.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

@@ -353,3 +353,9 @@ Without `.odoo-ai/context.md`, all three Round 1 questions are mandatory.
   a deploy gate.
 - **Risk overview for stakeholders**: `odoo-risk-overview` produces an executive-language
   risk dashboard — route to it when the audience is a manager or client, not the engineer.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

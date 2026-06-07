@@ -349,6 +349,80 @@
       "min_server_version": "0.8.0",
       "deprecated_tools_used": [],
       "notes": "Phase 1 grounds test mechanics (test class, tag syntax, --test-enable/--test-tags) via OSM set_active_version + cli_help for the target version; Phase 2 NL-dispatches to odoo-deploy-checklist. Outputs to .odoo-ai/qa/."
+    },
+    "run-driver": {
+      "mcp_tools": [],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Depth-0 drive-to-done loop: walks the RUN-DAG in .odoo-ai/run-<id>.json, dispatches each node, reads its Continuation Contract, advances to DONE/BLOCKED/NEEDS_CONTEXT. Pure orchestration - no MCP tools of its own."
+    },
+    "odoo-test-writer": {
+      "mcp_tools": [
+        "set_active_version",
+        "model_inspect",
+        "find_examples",
+        "lookup_core_api"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Writes executable Odoo test files (TransactionCase/Form or Hoot/QUnit per version); tests protect business behavior, not current code."
+    },
+    "odoo-security-audit": {
+      "mcp_tools": [
+        "model_inspect",
+        "find_examples",
+        "lookup_core_api",
+        "lint_check",
+        "entity_lookup"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Audits Odoo code for security issues (SQLi/XSS/access-control/CSRF/deserialization/secrets); graded findings report, no fix."
+    },
+    "odoo-data-migration": {
+      "mcp_tools": [
+        "model_inspect",
+        "api_version_diff",
+        "lookup_core_api",
+        "validate_relation",
+        "entity_lookup"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Writes Odoo pre/post-migration scripts + verification plan; does NOT execute against an instance (that is a separate human-gated deploy step)."
+    },
+    "odoo-perf-audit": {
+      "mcp_tools": [
+        "model_inspect",
+        "resolve_orm_chain",
+        "find_examples",
+        "validate_depends"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Audits Odoo code for performance anti-patterns (N+1, missing prefetch, unindexed domains, compute thrash); findings + remediation."
+    },
+    "odoo-pricing-proposal": {
+      "mcp_tools": [],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Builds a customer-facing pricing proposal (license tier + implementation cost bands + SLA + terms); rate numbers are AE-filled placeholders, not hardcoded."
+    },
+    "odoo-rfp-response": {
+      "mcp_tools": [
+        "check_module_exists",
+        "model_inspect",
+        "find_examples"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Rates Odoo compliance per RFP requirement into a Yes/Partial/Roadmap/No matrix with evidence + executive fit summary."
+    },
+    "odoo-customer-health": {
+      "mcp_tools": [],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Assesses an existing Odoo customer's health (score + churn risk + upsell + next-touch) for customer-success/retention."
     }
   },
   "agents": {
@@ -426,7 +500,7 @@
     }
   },
   "orchestration": {
-    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no Agent-tool spawn) | spawner-agent (dispatch a named agent at depth0->1) | spawner-wave (depth0->1->2 worktree fan-out). depth_policy: any-depth | depth0-only (must only be invoked from the main agent, never from a subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version).",
+    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no Agent-tool spawn) | spawner-agent (dispatch a named agent at depth0->1) | spawner-wave (depth0->1->2 worktree fan-out). depth_policy: any-depth | depth0-only (must only be invoked from the main agent, never from a subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes .odoo-ai/ internal, auto-pass under --auto) | L2 (irreversible/outward: instance_touching or spawner-wave - ALWAYS human gate; dial cannot lower). Per-node override lives in run-<id>.json, not here.",
     "intake": {
       "spawn_class": "spawner-agent",
       "depth_policy": "depth0-only",
@@ -434,14 +508,18 @@
         "(Phase R: ≤2 read-only recon agents — Explore or specialist in read-only mode; no writes, no further spawn)"
       ],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-addon-diff": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-brl": {
       "spawn_class": "spawner-agent",
@@ -450,21 +528,27 @@
         "(conditional DAG workers when >10 large clusters)"
       ],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
     },
     "odoo-campaign-plan": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-capability-proof": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-backend-coding": {
       "spawn_class": "spawner-agent",
@@ -473,7 +557,9 @@
         "odoo-coder"
       ],
       "stack": "backend",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
     },
     "odoo-code-review": {
       "spawn_class": "spawner-agent",
@@ -482,77 +568,99 @@
         "odoo-code-reviewer"
       ],
       "stack": "fullstack",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-competitive-brief": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-content-draft": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-customization-inventory": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-deal-followup": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-demo-recording": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
     },
     "odoo-deploy-checklist": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": true
+      "instance_touching": true,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L2"
     },
     "odoo-deprecation-audit": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "backend",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-discovery-summary": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-feature-check": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-feature-highlights": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-frontend-coding": {
       "spawn_class": "spawner-agent",
@@ -561,63 +669,81 @@
         "odoo-frontend-coder"
       ],
       "stack": "frontend",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
     },
     "odoo-gap-analysis": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-objection-handling": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-onboarding": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
     },
     "odoo-override-finding": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "backend",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-qa-suite": {
       "spawn_class": "orchestrator-nl",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": true
+      "instance_touching": true,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L2"
     },
     "odoo-risk-overview": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-support-triage": {
       "spawn_class": "orchestrator-nl",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
     },
     "odoo-ui-debugging": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "frontend",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-ui-review": {
       "spawn_class": "spawner-agent",
@@ -626,21 +752,27 @@
         "odoo-ui-reviewer"
       ],
       "stack": "frontend",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-version-diff": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "backend",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-visual-regression": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],
       "stack": "frontend",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
     },
     "wave": {
       "spawn_class": "spawner-wave",
@@ -649,14 +781,90 @@
         "(per-WI leaf workers over worktrees)"
       ],
       "stack": "none",
-      "instance_touching": true
+      "instance_touching": true,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L2"
     },
     "workflow-chaining": {
       "spawn_class": "orchestrator-nl",
       "depth_policy": "depth0-only",
       "spawns": [],
       "stack": "none",
-      "instance_touching": false
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
+    },
+    "run-driver": {
+      "spawn_class": "orchestrator-nl",
+      "depth_policy": "depth0-only",
+      "spawns": [],
+      "stack": "none",
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
+    },
+    "odoo-test-writer": {
+      "spawn_class": "leaf",
+      "depth_policy": "any-depth",
+      "spawns": [],
+      "stack": "backend",
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
+    },
+    "odoo-security-audit": {
+      "spawn_class": "leaf",
+      "depth_policy": "any-depth",
+      "spawns": [],
+      "stack": "backend",
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
+    },
+    "odoo-data-migration": {
+      "spawn_class": "leaf",
+      "depth_policy": "any-depth",
+      "spawns": [],
+      "stack": "backend",
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
+    },
+    "odoo-perf-audit": {
+      "spawn_class": "leaf",
+      "depth_policy": "any-depth",
+      "spawns": [],
+      "stack": "backend",
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
+    },
+    "odoo-pricing-proposal": {
+      "spawn_class": "leaf",
+      "depth_policy": "any-depth",
+      "spawns": [],
+      "stack": "none",
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
+    },
+    "odoo-rfp-response": {
+      "spawn_class": "leaf",
+      "depth_policy": "any-depth",
+      "spawns": [],
+      "stack": "none",
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
+    },
+    "odoo-customer-health": {
+      "spawn_class": "leaf",
+      "depth_policy": "any-depth",
+      "spawns": [],
+      "stack": "none",
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     }
   }
 }

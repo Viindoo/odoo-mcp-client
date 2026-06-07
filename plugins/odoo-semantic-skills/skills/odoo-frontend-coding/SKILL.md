@@ -118,3 +118,9 @@ This skill is part of an agent+skill bundle. See `agents/odoo-frontend-coder.md`
 restricted tool list (including the styling tools `resolve_stylesheet` / `find_style_override`)
 and the complete execution detail (version gate, rounds, design-system fidelity gate, output
 format, examples).
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

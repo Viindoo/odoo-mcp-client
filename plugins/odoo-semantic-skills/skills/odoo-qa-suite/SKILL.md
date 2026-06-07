@@ -199,3 +199,9 @@ Add a notice at the top of the summary:
 `> Note: QA suite ran in standalone mode. OSM-dependent checks marked ⚠ Manual check.`
 
 The test-case generation and bug-triage phases are fully usable without OSM.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

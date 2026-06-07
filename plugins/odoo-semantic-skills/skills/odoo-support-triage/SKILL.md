@@ -212,3 +212,9 @@ This skill does NOT invoke the Skill tool. It does NOT spawn subagents. NL-dispa
 triggers (to `odoo-ui-debugging` or `odoo-feature-check`) are natural-language prompts emitted
 inline — the main context fires the specialist via description-match. References to other
 skills outside NL-dispatch are text suggestions only ("Suggest: run X") — the user decides.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

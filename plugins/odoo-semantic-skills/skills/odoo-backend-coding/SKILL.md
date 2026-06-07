@@ -139,3 +139,10 @@ When OSM is unreachable, follow the three-tier grounding in
 ## Agent-managed tools
 
 This skill is part of an agent+skill bundle. See `agents/odoo-coder.md` for the full restricted tool list and execution detail.
+
+## Continuation Contract
+
+When the bundle finishes, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next — e.g.
+`next: odoo-code-review` after writing source, or `odoo-ui-review` when a view changed).
+Additive output for the depth-0 run-driver - it does not change anything produced above.

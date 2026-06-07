@@ -82,3 +82,9 @@ are handed to `odoo-frontend-coding`.
 
 This skill is part of an agent+skill bundle. See `agents/odoo-ui-reviewer.md` for the full
 restricted tool list (OSM + chrome-devtools) and the step-by-step execution detail.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

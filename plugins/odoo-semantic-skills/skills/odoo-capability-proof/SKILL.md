@@ -161,3 +161,9 @@ chain, and demo steps.
   written demo steps above into a REAL screencast running on a live instance, hand them to
   `odoo-demo-recording` (which drives the instance through the same steps and saves an MP4/GIF).
   Mention this as an optional next step; do not invoke it from here (depth rule).
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

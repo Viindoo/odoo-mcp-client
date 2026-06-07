@@ -374,3 +374,9 @@ unless you have independently verified all claims before sharing externally.
 When sharing the brief output outside the organization (e.g., with investors or partners),
 remove or redact signals sourced from customer conversations, partner disclosures, or
 non-public channels.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

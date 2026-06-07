@@ -158,3 +158,9 @@ Prompt: "Does Odoo have a fixed asset management module?"
 Output: `account_asset` exists in EE, not CE.
 `model_inspect(model='account.asset', method='fields', odoo_version='auto')` shows key fields. Recommendation
 provided.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

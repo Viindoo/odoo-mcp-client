@@ -23,6 +23,13 @@
 5. [Composition contract](#5-composition-contract)
 6. [Skill delegation depth rule](#6-skill-delegation-depth-rule)
 7. [Git-wave orchestration (depth-0)](#7-git-wave-orchestration-depth-0)
+8. [Drive-to-done orchestration (Continuation Contract + run-driver)](#8-drive-to-done-orchestration-continuation-contract--run-driver)
+   - [8.1 North Star diagram](#81-north-star-diagram)
+   - [8.2 Continuation Contract](#82-continuation-contract)
+   - [8.3 run-<id>.json blackboard](#83-run-idjson-blackboard)
+   - [8.4 Gate-tier policy](#84-gate-tier-policy)
+   - [8.5 Command / Skill / Agent — the three axes](#85-command--skill--agent--the-three-axes)
+   - [8.6 Main Agent Operating Contract](#86-main-agent-operating-contract)
 
 ---
 
@@ -315,6 +322,11 @@ Run this before any execute-skill dispatch. Intake reads the chosen Approach's
   `odoo-deprecation-audit`, `odoo-gap-analysis`, `odoo-discovery-summary`,
   `odoo-capability-proof`, `odoo-objection-handling`, `odoo-content-draft`,
   `odoo-competitive-brief`, and any skill whose output column is "chat only".
+  > **SSOT note:** the authoritative `output_mode` now lives per-skill in
+  > `generator/skill_tool_deps.json` → `orchestration.<skill>.output_mode` (see §8.4).
+  > The inline list above is a convenience snapshot; once intake reads the registry field
+  > directly (P3), this list is removed in favour of the field. Until then both agree —
+  > the field is a superset that preserves every skill listed here.
 
 #### Intake-initiated Plan Mode pattern
 
@@ -471,6 +483,18 @@ requirement shape in `odoo-brl/reference/schema.md` (~lines 116–197). Each WI 
 **disjoint**. No two WIs may claim the same file. For multi-WI deliveries also note:
 worktree name, branch name, and verify command (from the Repo Capability Card).
 
+**Shared-file case (e.g. a form-view XML that a backend WI adds a `<field>` to and a frontend
+WI adds a `widget=` attribute to):** do NOT split one file across two WIs — that breaks the
+invariant. Resolve one of two ways: (a) collapse the XML edit into the backend WI (it adds both
+the field and the `widget=`), leaving the frontend WI to own only the JS/OWL/SCSS files; or
+(b) keep it one WI if the change is small. Disjointness is per-file, never per-node-within-a-file.
+
+**Workflow-as-node:** a WI whose approach is a workflow-command is **one WI**, with
+`files-in-scope` = the workflow's `output_dir/`. Do NOT expand the workflow's internal phases
+into separate WIs (they are SSOT in the `.workflow.yaml` and share the output_dir, which would
+break disjointness), and do NOT redraw the workflow's internal phase-sequence in Block 2 — the
+workflow is a single node that may carry edges to OTHER WIs.
+
 #### Block 2 — Dependency graph
 
 For deliveries with a small number of WIs, pick **one of the four topologies** from
@@ -545,7 +569,7 @@ Do NOT copy fields between sources — duplication creates drift.
 |-----------|------|--------------|
 | skill/agent/command **exists** + its description | Runtime context (harness-injected by the platform) | Already available — do NOT read files for this |
 | `model_tier` (Haiku / Sonnet / Opus / inherit) | `model:` field in the candidate's `SKILL.md` or `agents/*.md` frontmatter | Read the frontmatter of the **chosen candidate only** at plan time |
-| `output_mode` (`chat-only` ↔ `writes-files`) | `spawn_class` + `stack` in the generator / `skill_tool_deps.json` registry | Look up the existing registry entry |
+| `output_mode` (`chat-only` ↔ `writes-files`) | the explicit `output_mode` field in `skill_tool_deps.json` → `orchestration.<skill>` | Read that field directly. Its value was set per-skill from the skill's declared Output semantics — NOT crudely derived from `stack` (a backend/frontend-stack skill can be read-only/chat-only) |
 | `effort` (S / M / L / XL) | NOT registered — it is a skill × task property | Reason per the `odoo-gap-analysis` legend: S <1d · M 1–3d · L 3–10d · XL >10d |
 
 **Key invariants:**
@@ -554,8 +578,9 @@ Do NOT copy fields between sources — duplication creates drift.
   as a constant. Read it fresh at plan time from the candidate's own SKILL.md.
 - `effort` is per-task, not per-skill. Two invocations of the same skill can have
   different effort tiers depending on scope.
-- `output_mode` is the only attribute whose SSOT is the registry (`skill_tool_deps.json`
-  via `spawn_class`/`stack`). This is what drives the Plan Mode decision tree (§4.1).
+- `output_mode` is the only attribute whose SSOT is the registry — the explicit
+  `orchestration.<skill>.output_mode` field in `skill_tool_deps.json` (NOT a `spawn_class`/`stack`
+  derivation; see §8.4). This is what drives the Plan Mode decision tree (§4.1).
 
 **Why hybrid?** Each attribute lives where it is cheapest to keep accurate:
 description in runtime context (maintained by the platform), model in the skill's own
@@ -813,3 +838,201 @@ Maximum 3 concurrent WI subagents (OOM ceiling).
 Wave plan and state files land under `.odoo-ai/wave/<slug>/` (gitignored by
 `odoo-onboarding`). The `<slug>` is a short kebab-case descriptor chosen at Phase 0.
 The directory is cleaned up after a successful human-confirm merge.
+
+---
+
+## 8. Drive-to-done orchestration (Continuation Contract + run-driver)
+
+The harness turns a one-shot `/intake "<NL>"` into a self-advancing run: intake plans a DAG,
+`run-driver` (a depth-0 skill) walks it, each step emits a machine-readable **Continuation
+Contract**, and the driver advances until DONE/BLOCKED/NEEDS_CONTEXT. This section is the SSOT
+for that mechanism. **It is additive** — every existing skill/agent/workflow keeps its current
+semantics; the only required change is appending a Continuation Contract block to each step's
+output (back-compat: a legacy `SUGGESTED_NEXT:` line is read as a low-confidence contract).
+
+**Load-bearing principle — NEVER hard-block the main agent.** No hook may `deny` a main-agent
+tool call or `block` a main-agent turn-end. The main agent is the top decision-maker alongside
+the human; coercing it is dangerous (it can trap the agent / deadlock the session). Main stays
+an orchestrator through *structure + instruction + soft nudges*, never force. (`block` is only
+ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-grounding.sh`.)
+
+### 8.1 North Star diagram
+
+```
+                       HUMAN
+                         │  /intake "<NL>"  [--auto(default) | --step | --plan]
+                         ▼
+┌──────────────── DEPTH 0 (MAIN = orchestrator + decision-maker ONLY) ─────────────────┐
+│  intake-planner: Tier1 regex → Tier2 resume → Tier3 keyword(40) → Tier4 LLM           │
+│     ├─ non-Odoo intent ─► route vault / other plugin / flag out-of-plugin (multi-plugin)│
+│     └─ Odoo intent ─► Phase R recon (≤2 read-only) ─► Phase P emit RUN-DAG             │
+│  present DAG ONCE ─► [Plan Mode gate if any writes-files node] ─► write run-<id>.json  │
+│        │                                                                               │
+│        ▼  run-driver (NEW skill, orchestrator-nl, depth0-only) — DRIVER LOOP           │
+│   while RUN.status == NEEDS_NEXT and within budget:                                    │
+│     node = pick_ready(DAG ∪ dynamic_nodes)         # topo-order; tie → confidence desc │
+│     tier = resolve_gate(node)                      # --step raises floor, --auto lowers L1│
+│       L2 → ALWAYS human gate ; L1 → auto-pass(--auto)/gate(--step) ; L0 → auto-pass    │
+│     dispatch(node):  (3a) leaf skill INLINE (depth 0)                                  │
+│                      (3b) spawner skill → Agent tool → NAMED AGENT (depth 1)           │
+│                      (3c) workflow-chaining (depth 1) → fanout context:fork (depth 2)  │
+│     read Continuation Contract ; update run-<id>.json ; materialize next[] → dynamic   │
+│   stop ⇒ DONE | BLOCKED | NEEDS_CONTEXT  → report + evidence (Completion #8)           │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+  HOOKS (self-gate to pass when no active run; NONE hard-blocks MAIN):
+   • PreToolUse  remind-delegate  → main Write/Edit/Bash during active run ⇒ additionalContext
+                 nudge "consider delegating" (permissionDecision=allow, never deny)
+   • SubagentStop parse-continuation → subagent Contract NEEDS_NEXT ⇒ systemMessage nudge advance
+                 (block applies ONLY to subagents as a quality gate, never to main)
+   • Stop        drive-continuation → main ends turn while RUN==NEEDS_NEXT ⇒ systemMessage
+                 advisory (continue=true, never block) — main keeps the right to stop
+  blackboard .odoo-ai/run-<id>.json = SINGLE SOURCE (only run-driver writes); state on disk ⇒
+  main context does not grow with run length.
+```
+
+**Node lifecycle:**
+
+```
+PENDING ─(all depends_on DONE)─► READY ─(driver picks + gate passes)─► RUNNING
+   │                                                                     │
+   │                                       Contract.status ──────────────┼─► DONE (produced[] = evidence)
+   │                                                                     ├─► FAILED ─(retry<3)─► READY; (≥3)─► BLOCKED
+   └─(when: predicate false)─► SKIPPED                                   └─► BLOCKED | NEEDS_CONTEXT ⇒ stop, ask human
+```
+
+### 8.2 Continuation Contract
+
+Every skill/agent appends this fenced block at the **end** of its output (after its normal
+artifact). It is the machine-readable handoff the driver reads to advance.
+
+````
+```continuation
+status: DONE | NEEDS_NEXT | BLOCKED | NEEDS_CONTEXT
+produced: [<real artifact path>, ...]      # evidence for Completion-status #8
+next:                                       # [] unless status == NEEDS_NEXT
+  - skill: <skill-or-workflow-name>
+    reason: <why this is the next step>
+    inputs: {<key>: <value>}
+    confidence: 0.0..1.0                     # driver arbitration; <0.5 ⇒ not auto-materialized
+    risk_level: L0 | L1 | L2
+blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
+```
+````
+
+- **Parsing** reuses the transcript jq pipeline already in `hooks/enforce-grounding.sh`.
+- **Back-compat:** a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line maps to
+  `next: [{skill, reason, confidence: 0.5, risk_level: L0}]` with `status: NEEDS_NEXT`. This
+  lets the rollout be gradual — an un-migrated skill still drives at low confidence.
+- **Depth safety:** a subagent only *emits* a contract; it never dispatches. Advancing is the
+  depth-0 driver's job. fanout/WI workers (depth 2) emit contracts that bubble up to their
+  depth-1 orchestrator, never self-fire.
+
+### 8.3 run-`<id>`.json blackboard
+
+Single source of truth for one run, under `.odoo-ai/` (gitignored). **Only `run-driver`
+writes it** (hooks never write — avoids a write race). Resume mirrors the BRL checkpoint
+contract (§3.3): re-entry reads the file, skips `DONE` nodes, resumes at the first `READY`
+node in topo-order.
+
+**When Phase P engages (SSOT in `intake` § Phase P — restated here to avoid drift):** engage
+(write this file + run the driver) if ANY of — (1) `node_count >= 2`; (2) a single
+`output_mode == writes-files` node; (3) a single workflow node whose YAML declares
+`on_complete`. Otherwise (single chat-only node, not a workflow-with-on_complete) dispatch
+directly with no run file. The autonomy dial is NOT a trigger — it is only recorded here once
+engaged. A workflow-command is ONE node (its phases are SSOT in the `.workflow.yaml`, never
+expanded into WIs — see §4.6).
+
+**Invariant — `on_complete` workflows are driver-required.** A workflow that declares
+`on_complete` only *emits* `next[]`; only a `run-driver` dispatches it. Therefore such a
+workflow MUST be entered through a driver: intake Phase P engages one automatically (trigger 3
+above). A slash command whose workflow declares `on_complete` must likewise engage the driver
+(write a 1-node `run-<id>.json` + invoke `run-driver`) instead of dispatching `workflow-chaining`
+directly — otherwise the chain degrades to a human suggestion (workflow-chaining states this
+when it detects no driver above it). `generator/check_workflows.py` WARNs if a command
+references a driver-required workflow directly.
+
+```json
+{
+  "run_id": "feature-x-20260607-a3f1",
+  "schema_version": "run/1.0",
+  "intent": "<verbatim user NL>",
+  "autonomy": "auto | step | plan",
+  "status": "NEEDS_NEXT | DONE | BLOCKED | NEEDS_CONTEXT",
+  "cursor": "<next READY node id the driver will pick>",
+  "budget": {"max_nodes": 12, "nodes_run": 3, "max_gate_l1_autopass": 20},
+  "nodes": [
+    {"id": "WI-A", "approach": "odoo-backend-coding", "approach_kind": "skill|agent|workflow|inline",
+     "inputs": {}, "depends_on": [], "gate_tier": "L1",
+     "status": "PENDING|READY|RUNNING|DONE|FAILED|SKIPPED|BLOCKED",
+     "produced": [], "contract": { /* last emitted continuation block */ }}
+  ],
+  "dynamic_nodes": [],          // nodes added at runtime from a Contract's next[]
+  "gate_log": [{"node": "WI-A", "tier": "L1", "decision": "auto-pass"}],
+  "completion": {"status": null, "evidence": [], "summary": null}
+}
+```
+
+### 8.4 Gate-tier policy
+
+`output_mode` and `default_gate_tier` are SSOT per-skill in
+`generator/skill_tool_deps.json → orchestration.<skill>` (validated by `check_orchestration.py`,
+which also enforces the derivation below). They replace the hardcoded chat-only lists (§4.1).
+
+- **`output_mode`** — the authoritative runtime source is the explicit
+  `orchestration.<skill>.output_mode` field in the registry (read that field; §4.7 row agrees).
+  That field's **value was set per-skill from the skill's declared Output semantics — NOT
+  derived from `stack`** (a backend/frontend-stack skill can be read-only: `odoo-version-diff`,
+  `odoo-deprecation-audit`, `odoo-code-review`, `odoo-ui-review` are all `chat-only`).
+  - `writes-files` → persists a file artifact (`.odoo-ai/…` or source) → **Plan Mode required**.
+  - `chat-only` → emits to chat only → skip Plan Mode.
+- **`default_gate_tier`** is derived deterministically from `(spawn_class, instance_touching,
+  output_mode)`:
+  - **L2** if `instance_touching` OR `spawn_class == spawner-wave` — irreversible / outward
+    (touches an instance, git push/merge, sends to a third party). **ALWAYS human gate; the
+    autonomy dial can never lower L2.**
+  - **L1** else if `output_mode == writes-files` — writes internal files. Auto-pass under
+    `--auto` within budget; gated under `--step`.
+  - **L0** else — read-only / chat. Auto-pass.
+- **Per-node override** lives in `run-<id>.json` (a node may raise its tier, e.g. a coder told
+  to write outside `.odoo-ai/`), never in the registry.
+
+### 8.5 Command / Skill / Agent — the three axes
+
+These are three **different axes** with a one-way reference chain `Command → Skill → Agent`
+(a DAG, no cycle — consistent with the depth rule that an agent never calls back into a skill).
+There is no chicken-and-egg: the recipe (skill) is authored at design-time; the agent is
+instantiated at run-time by the recipe.
+
+| Concept | Axis | Nature | When |
+|---|---|---|---|
+| **Command** | Trigger | human-typed entry point; maps to a skill/workflow; holds no logic | runtime (human) |
+| **Skill** | Expertise | knowledge + recipe/SOP (WHAT + method + how-it-must-run) | design-time |
+| **Agent** | Executor | own context window + specific expertise + tools + model | run-time (per recipe) |
+
+**Multi-phase, multi-model expertise** (e.g. research: broad haiku survey → deep sonnet dives
+→ opus synthesis) is an *orchestrating skill + a workflow YAML*. The infra already supports it
+(§5.4, `workflows/_schema.md`): `fanout: true` + `chunk_by` + per-phase `model_tier` +
+`context: fork` (≤3 concurrent). The phase count is flexible — fewer or more than three.
+
+**named-agent vs fanout-worker (decision rule):**
+- Rich expertise + fixed tool-set + reused in many places → **named agent** (`agents/*.md`,
+  model in frontmatter). E.g. `odoo-coder`.
+- Homogeneous workers inside one fan-out phase → **anonymous fanout worker**, model controlled
+  by the phase's `model_tier` (no named agent per model needed).
+
+### 8.6 Main Agent Operating Contract
+
+When a run is active (`.odoo-ai/run-<id>.json` exists with `status != DONE`), the main agent
+keeps its context clean by acting as orchestrator + decision-maker only — three layers, in
+priority order:
+
+1. **Structure (primary):** the Contract + `run-<id>.json` are *summary* interfaces between
+   steps; all heavy work (reading many files, coding, surveying) lives in subagent contexts.
+   Main holds pointers + summaries → context does not grow with session length.
+2. **Instruction:** during an active run, main should use only {AskUserQuestion, dispatch
+   Agent/Skill, Read(run.json/Contract/plan/pointer), gate decisions}; Write/Edit/wide-Grep/
+   build-Bash should be delegated.
+3. **Soft nudge (advisory only):** the `remind-delegate` PreToolUse hook nudges (never denies);
+   the `drive-continuation` Stop hook nudges (never blocks). **No hook hard-blocks main.** The
+   accepted trade-off: occasionally the main agent needs a human "continue" rather than ever
+   being trapped by a hook.

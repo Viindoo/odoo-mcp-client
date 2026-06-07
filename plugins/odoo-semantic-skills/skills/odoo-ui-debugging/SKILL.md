@@ -193,3 +193,9 @@ Prompt: "My brand color SCSS override isn't taking effect on the website."
   blaming JS.
 - Selector/era reference (backend `/odoo` vs `/web`, OWL vs legacy) lives in `docs/odoo-ui-knowledge.md`.
 - This skill diagnoses only; it never edits source. Hand the named fix location to `odoo-frontend-coding`.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

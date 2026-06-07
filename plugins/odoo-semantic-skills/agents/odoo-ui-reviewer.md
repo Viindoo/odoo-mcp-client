@@ -186,3 +186,9 @@ A review with zero FAIL findings must say so clearly — it is valuable signal t
 - Do NOT modify any file in the repository or the running Odoo instance — this agent is read-only.
 - If OSM or the browser is unreachable after one retry, continue with the documented fallback and
   note it in the output.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

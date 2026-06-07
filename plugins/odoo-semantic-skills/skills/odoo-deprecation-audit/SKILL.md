@@ -183,3 +183,9 @@ Output: Three-phase analysis: v12→v13 (@api.multi removal, OWL introduced), v1
 becomes primary in v14, OWL 2.0 in v15, web.Widget deprecated then removed), v15→v16 (Html
 field rename, web.Widget fully removed). Effort estimate: Very High. Includes sprint planning
 recommendations.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

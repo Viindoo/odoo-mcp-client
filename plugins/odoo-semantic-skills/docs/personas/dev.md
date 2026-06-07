@@ -177,6 +177,10 @@ If you use **Claude Code** with the Odoo Semantic plugin:
 | `/odoo-override-finding` | Given a model + method, returns safe override point + existing overrides + suggest_pattern |
 | `/odoo-deprecation-audit` | Full deprecated API scan with replacement suggestions |
 | `/odoo-version-diff` | Side-by-side API diff between two Odoo versions for a given symbol |
+| `odoo-test-writer` | Write executable `test_*.py` (or JS Hoot/QUnit) that assert business behavior, not current code |
+| `odoo-security-audit` | Audit code for SQLi / XSS / access-control / CSRF / unsafe deserialization, graded findings |
+| `odoo-perf-audit` | Audit for N+1, missing prefetch, unindexed domains, compute thrash, with concrete fixes |
+| `odoo-data-migration` | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
 | `/odoo-semantic-skills:odoo-run-wave` | Depth-0 git-wave orchestration: integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + 1 PR + squash + tree-identity gate + human-confirm merge. Use when landing N parallel WI changes safely without touching the principal branch. |
 
 ---

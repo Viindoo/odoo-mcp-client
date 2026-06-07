@@ -328,7 +328,8 @@ The exact prompt is in `reference/dag-prompt.md` (cluster-scoped, input = that c
 req-list, output = `{edges:[{from,to,type,reason}]}` JSON).
 
 - Default: reason **inline** in the main context, one cluster at a time (sequential).
-- Optimization: when there are **>10 large clusters** (each near the 120 cap), launch **one
+- Optimization: when there are **>10 large clusters** — where "large" = a cluster holding
+  **≥ 60 requirements (≥ 50% of the 120 cap)** — launch **one
   Opus subagent per cluster** with `context: fork` (or the Agent tool) — depth-2 is allowed
   here (main -> skill -> DAG subagent). The subagent prompt MUST contain the hard-rules line:
   `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.`
@@ -658,3 +659,9 @@ Action: Degrade to unverified-llm classification. Mark all items risk_flag=osm-u
 **Example 4 - Dependency sequencing + cycle:**
 Prompt: "We have the classified BRL - now give us the implementation order and flag any circular dependencies."
 Action: Run Phase D. Technical bootstrap (module_inspect dependencies), cluster-cut into ~12 clusters (each <=120 items), intra-cluster Opus reasoning, rule-based inter-cluster edges, Kahn topo-sort. If a cycle is found (e.g. REQ-0042 <-> REQ-0061), report it explicitly in GATE E with three resolution options (split / manual / shared-prereq) and still emit a partial order + dag.mermaid for the acyclic remainder. Critical path and per-phase grouping shown in report.md.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.
