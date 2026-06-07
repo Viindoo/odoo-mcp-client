@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `odoo-semantic-skills` manifest `description` (and the Codex `longDescription` + generated
+  Gemini extension) said "28 skill personas" - a stale count. Corrected to "39 skills" to match
+  the actual skill set and the README canon (39 skills + 4 agents + 9 commands).
+
 ## [3.1.0] - 2026-06-07
 
 ### Added
