@@ -15,7 +15,9 @@
 | `odoo-code-review` | spawner-agent | depth0-only | fullstack | — | odoo-code-reviewer |
 | `odoo-competitive-brief` | leaf | any-depth | none | — | — |
 | `odoo-content-draft` | leaf | any-depth | none | — | — |
+| `odoo-customer-health` | leaf | any-depth | none | — | — |
 | `odoo-customization-inventory` | leaf | any-depth | none | — | — |
+| `odoo-data-migration` | leaf | any-depth | backend | — | — |
 | `odoo-deal-followup` | leaf | any-depth | none | — | — |
 | `odoo-demo-recording` | leaf | any-depth | none | — | — |
 | `odoo-deploy-checklist` | leaf | any-depth | none | yes | — |
@@ -28,13 +30,19 @@
 | `odoo-objection-handling` | leaf | any-depth | none | — | — |
 | `odoo-onboarding` | leaf | any-depth | none | — | — |
 | `odoo-override-finding` | leaf | any-depth | backend | — | — |
+| `odoo-perf-audit` | leaf | any-depth | backend | — | — |
+| `odoo-pricing-proposal` | leaf | any-depth | none | — | — |
 | `odoo-qa-suite` | orchestrator-nl | any-depth | none | yes | — |
+| `odoo-rfp-response` | leaf | any-depth | none | — | — |
 | `odoo-risk-overview` | leaf | any-depth | none | — | — |
+| `odoo-security-audit` | leaf | any-depth | backend | — | — |
 | `odoo-support-triage` | orchestrator-nl | any-depth | none | — | — |
+| `odoo-test-writer` | leaf | any-depth | backend | — | — |
 | `odoo-ui-debugging` | leaf | any-depth | frontend | — | — |
 | `odoo-ui-review` | spawner-agent | depth0-only | frontend | — | odoo-ui-reviewer |
 | `odoo-version-diff` | leaf | any-depth | backend | — | — |
 | `odoo-visual-regression` | leaf | any-depth | frontend | — | — |
+| `run-driver` | orchestrator-nl | depth0-only | none | — | — |
 | `wave` | spawner-wave | depth0-only | none | yes | (per-WI leaf workers over worktrees) |
 | `workflow-chaining` | orchestrator-nl | depth0-only | none | — | — |
 

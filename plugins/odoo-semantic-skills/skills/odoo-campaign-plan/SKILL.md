@@ -381,3 +381,9 @@ When OSM is unreachable or the skill is used without MCP configuration:
 - **Localization note**: output language follows the user's request language. Product names,
   module names, and channel names remain in English regardless of output language
   (e.g., "MRP module", "LinkedIn Ads", "Google Search Console").
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

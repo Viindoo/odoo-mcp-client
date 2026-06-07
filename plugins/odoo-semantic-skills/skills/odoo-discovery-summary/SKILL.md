@@ -290,3 +290,9 @@ turn the Fit Assessment table into a full effort matrix (day estimates, dev cost
 Standard vs. Custom classification with granularity). The two skills form a natural
 pre-sales pipeline: `odoo-discovery-summary` (qualify) → `odoo-gap-analysis` (scope)
 → `odoo-deal-followup` (follow up) → `odoo-respond-bid` (proposal, Phase C).
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

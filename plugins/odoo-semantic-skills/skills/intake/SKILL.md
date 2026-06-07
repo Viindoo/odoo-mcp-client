@@ -71,6 +71,12 @@ what they want or what outcome they need. This skill's job is to:
    - Read `.odoo-ai/context.md` if it exists (version, edition, module list, instance URL).
    - Check `.odoo-ai/brainstorm/state.json` — if an in-progress brainstorm session exists,
      resume it (Tier 2).
+   - **Check for an active run** — glob `.odoo-ai/run-*.json` for any with `status:
+     NEEDS_NEXT`. If one exists, do NOT silently open a second RUN-DAG (that orphans the first
+     and the Stop nudge goes silent when >1 run is active). Instead, surface it and ask: resume
+     it (hand to `run-driver`), or start fresh (and what to do with the old run)? Only proceed to
+     open a new run once the user chooses. This implements the resume contract `run-driver`
+     § Resume assumes.
 
    **3b. Detect the working directory (4 branches).** Locate Odoo manifests with the same
    probe `odoo-onboarding` uses (its SKILL.md Step 1, ~lines 38–43):
@@ -85,9 +91,17 @@ what they want or what outcome they need. This skill's job is to:
      ~lines 125–162; do **not** copy it here, point to it).
    - **(ii) Project root (manifests under nested dirs / mono-repo)** → infer the common parent
      as project root; confirm version/edition once, then continue.
-   - **(iii) Non-Odoo dir (0 manifests)** → intake is future-proof: either handle the request
-     if it is a general ERP / planning task, or decline politely ("This doesn't seem to be an
-     Odoo/ERP workspace — want me to proceed anyway, or is this the wrong tool?").
+   - **(iii) Non-Odoo dir (0 manifests)** → discriminate by intent (0 manifests alone never
+     blocks an Odoo question):
+     - **(iii-a) general Odoo Q&A**, no local code needed (e.g. "Odoo 17 vs 16 for devs",
+       "does Odoo have feature X", capability/marketing about Odoo) → **proceed standalone**;
+       record `Project: non-Odoo workspace (general Odoo Q&A)` + `OSM: standalone`.
+     - **(iii-b) touches local code/instance** ("edit my module", "write a field", "debug this
+       UI") but 0 manifests found → the addon is likely outside maxdepth-3: **ask for the addon
+       path / instance URL and re-probe** there; if still 0, proceed standalone with a caveat
+       ("no manifest found — working from the context you provide").
+     - **(iii-c) purely non-Odoo** (HR/finance/legal/PR/general writing) → § Multi-plugin routing
+       (do not invent an Odoo skill).
    - **(iv) `.odoo-ai/context.md` already present and usable** → use it as-is; **skip** re-asking
      version/edition/module.
 
@@ -155,8 +169,8 @@ any registry:
 | Need | Source | How to fetch |
 |---|---|---|
 | skill / agent / command exists + its description | runtime context (harness-injected) | already available — do NOT read files for this |
-| `model_tier` (Haiku/Sonnet/Opus/inherit) | the `model:` frontmatter of the candidate's `SKILL.md` / `agents/*.md` (SSOT) | read the frontmatter of the CHOSEN candidate only |
-| `output_mode` (`chat-only` ⇄ `writes-files`) | `spawn_class` + `stack` in the generator / `skill_tool_deps.json` registry | look up the existing registry entry |
+| `model_tier` (Haiku/Sonnet/Opus/inherit) | the `model:` frontmatter of the candidate's `SKILL.md` / `agents/*.md` (SSOT) | read the frontmatter of the CHOSEN candidate only; **if the field is absent (most `SKILL.md` omit it), treat it as `inherit`** |
+| `output_mode` (`chat-only` ⇄ `writes-files`) | the explicit `orchestration.<skill>.output_mode` field in `skill_tool_deps.json` (NOT a `spawn_class`/`stack` derivation) | read that field directly |
 | `effort` (S / M / L / XL) | NOT registered — it is a skill×task property | reason per the `odoo-gap-analysis` legend: **S = <1d · M = 1–3d · L = 3–10d · XL = >10d** |
 
 **SSOT note**: `model_tier` lives in frontmatter and `effort` is per-task — NEVER copy either
@@ -169,7 +183,7 @@ writes**. If OSM is unreachable, say so and proceed on user-provided context (st
 ## Plan Mode — harness-level pre-execute gate
 
 **Decision tree (run first)**: intake reads the chosen Approach's `output_mode` (Phase R
-discovery — from `spawn_class`+`stack` in the registry).
+discovery — the explicit `orchestration.<skill>.output_mode` field in `skill_tool_deps.json`).
 - `output_mode = writes-files` → **Plan Mode is REQUIRED** before dispatch (proceed through the
   full procedure + content schema below).
 - `output_mode = chat-only` → **SKIP Plan Mode** (unchanged behaviour); intake ends its turn and
@@ -232,6 +246,14 @@ Add per-WI **acceptance criteria** + a **verify command** (Repo Capability Card)
 from the candidate's `SKILL.md`/`agents/*.md` frontmatter; `effort` follows the gap-analysis
 legend (S/M/L/XL).
 
+**Workflow-as-node in the schema (G-B):** when a WI's approach is a workflow-command, it is
+**one WI** — `files-in-scope` = the workflow's `output_dir/` (one box). Do NOT expand the
+workflow's internal phases into separate WIs (that would duplicate the phase logic that is SSOT
+in the `.workflow.yaml` and break the disjoint-files invariant), and do NOT draw the workflow's
+internal phase-sequence in Block 2 (that DAG is the workflow's own; here the workflow is a
+single node that may have edges to OTHER WIs). Block 3 line: `WI → /<command> via
+workflow-chaining (model per-phase in YAML, effort = total) → verify: artifact in output_dir`.
+
 *Examples (short):*
 - Full-stack feature → `WI-A: odoo-backend-coding (sonnet, M)` adds the backend field/method;
   `WI-B: odoo-frontend-coding (sonnet, M)` renders the OWL widget. DAG: **linear**, edge
@@ -247,6 +269,74 @@ WI parameters (scope / files / assignment / effort), or `cancel`. Re-enter Plan 
 the revised plan is re-approved at the text gate. Never dispatch a writes-files specialist off a
 rejected plan.
 
+## Phase P — RUN-DAG persistence + drive-to-done (optional, additive)
+
+This phase turns an approved plan into a self-advancing run. It is **purely additive**: a
+single-step plan still dispatches exactly as before — Phase P only matters for multi-step work
+or when the user wants hands-off execution. Full schema + loop: `docs/reference/workflow-harness.md` §8.
+
+**Autonomy dial** — parse from the user prompt (default `--auto`):
+- `--auto` (default): drive to done; auto-pass L0/L1 nodes; stop only at L2 gates + BLOCKED.
+- `--step`: gate every node ≥ L1 (this is today's behaviour — safest).
+- `--plan`: emit the RUN-DAG and STOP; do not run the driver.
+
+**When to engage Phase P** (decidable rule — the autonomy dial is NOT a trigger; it is only
+recorded in `run.json` once engaged). After the plan is approved, ENGAGE Phase P if ANY holds:
+1. `node_count >= 2` (multi-step — needs DAG sequencing / `next[]` materialization), OR
+2. a single node whose `output_mode == writes-files` (needs gate-tier tracking + a driver to
+   catch any runtime `next[]`), OR
+3. a single node that is a workflow (`approach_kind == workflow`) whose YAML declares
+   `on_complete` (needs the depth-0 driver present to dispatch the cross-workflow chain — see
+   "workflow-as-node" below).
+
+SKIP Phase P (dispatch directly, as today — no run file, no driver) ONLY when the plan is a
+single node AND `output_mode == chat-only` AND it is not a workflow-with-`on_complete`. A
+single chat-only node fires the specialist on the next turn; `--auto` on it is a harmless no-op
+(nothing to drive). Note: a directly-dispatched single node does NOT materialize its
+Continuation Contract `next[]` — if a step emits a `next[]` worth chaining, re-run `/intake` to
+open a RUN-DAG.
+
+**Procedure** (when Phase P is engaged):
+1. Serialize the approved Plan Mode 3-block content (workitems + dependency DAG + assignment —
+   already produced per § Plan Mode Content Schema) into `.odoo-ai/run-<id>.json` per the
+   blackboard schema (harness §8.3): one `nodes[]` entry per workitem, with `depends_on` from
+   the dependency graph and `approach`/`approach_kind` from the assignment. The `<id>` is
+   `<short-intent-slug>-<YYYYMMDD>-<4 random chars>` (e.g. `add-priority-20260607-a3f1`) so
+   concurrent runs never collide.
+2. Tag each node's `gate_tier` from the registry `default_gate_tier`
+   (`generator/skill_tool_deps.json`), raising it if the node writes outside `.odoo-ai/`.
+3. Set `autonomy`, `budget` (`max_nodes` ≈ 2× node count), `status: NEEDS_NEXT`.
+4. If `--plan`: stop here (the DAG file is the deliverable). Otherwise NL-dispatch `run-driver`,
+   which walks the DAG to DONE/BLOCKED/NEEDS_CONTEXT.
+
+**Depth safety:** intake (depth-0) writing the file and handing off to `run-driver` (also
+depth-0) keeps everything at the main level; the driver does the depth-0→1→2 dispatch. intake
+never spawns the specialists itself here — it persists the plan and yields to the driver.
+
+**Workflow-as-node (G-B):** a workflow-command (e.g. `/odoo-respond-bid`) is ONE node at the
+DAG level — its internal phases are SSOT inside the `.workflow.yaml` (gated by
+`workflow-chaining`), never expanded into separate WIs. Routing:
+- single workflow node, NO `on_complete` declared → hand the YAML name straight to
+  `workflow-chaining` (it self-gates each phase); no run file needed.
+- single workflow node WITH `on_complete` declared → engage Phase P anyway (trigger 3 above):
+  the 1-node RUN-DAG is cheap (driver picks the one node, dispatches `workflow-chaining`, then
+  reads the emitted `next[]`), and it is the only way the cross-workflow chain auto-advances
+  instead of degrading to a human suggestion.
+- a workflow node sitting in a `>=2`-node DAG → just one node in that DAG; `run-driver`
+  dispatches it via `approach_kind: workflow` and advances on its Continuation Contract.
+
+## Multi-plugin routing — stay Odoo-centric
+
+When Phase 0 detection finds the intent is **outside the Odoo domain** (general company work —
+HR/recruiting, finance/budget, legal/compliance, internal ops, PR, broad market research with
+no Odoo hook), do NOT force-fit it onto an Odoo skill. Instead:
+- Route to the appropriate other surface (e.g. the vault research/capture skills for
+  CEO/strategy/memory; another installed plugin), OR
+- If nothing fits, say so plainly and flag it as out-of-plugin — let the main agent decide.
+
+This plugin owns the **Odoo** domain; `/intake` is the front door that *also* recognises when a
+request belongs elsewhere. Do not invent an Odoo skill to cover a non-Odoo need.
+
 ## 4-tier routing
 
 Run tiers in order; first hit wins; cost rises per tier.
@@ -255,7 +345,7 @@ Run tiers in order; first hit wins; cost rises per tier.
 |---|---|---|---|
 | **1 — regex/intent** | Explicit verb+noun pattern: "write computed field", "diff v16 v17", "review this PR", "/..." | 0 | Exact specialist → **pro fast-path** (see § Pro fast-path) |
 | **2 — session state** | `.odoo-ai/brainstorm/state.json` exists and contains in-progress brainstorm | 0 | Resume that brainstorm thread |
-| **3 — keyword table** | 39-row routing table (see § Routing Table) covering all 9 persona domains | 0 | Map to single skill or workflow → soft-plan-gate |
+| **3 — keyword table** | 40-row routing table (see § Routing Table) covering all 9 persona domains | 0 | Map to single skill or workflow → soft-plan-gate |
 | **4 — LLM classify** | Only on Tier 1-3 miss: classify the ambiguous prompt (~500 tok) | ~500 tok | Single clear target → gate; vague/multi-domain → **enter brainstorm** |
 
 Brainstorm fires ONLY when Tier 1-3 all miss AND Tier-4 returns either (a) no confident
@@ -278,13 +368,19 @@ guarantee that brainstorm-first never blocks an expert.
 
 Only runs in the **vague branch** (Tier-4 miss or explicit "I'm not sure").
 
-1. **Explore context** — read `.odoo-ai/context.md`, list existing `.odoo-ai/` artifacts,
-   infer domain and persona from environment.
+1. **Explore context (STATIC only)** — read `.odoo-ai/context.md`, list existing `.odoo-ai/`
+   artifacts, infer domain and persona from environment. STATIC = filesystem/file reads only
+   (no Agent-tool dispatch, no OSM calls); the dynamic recon that dispatches agents + calls OSM
+   is Phase R (see the "Where Phase R fits" note below), not this step.
 2. **Clarifying options** — present 2-3 **pre-structured options** (not open-ended
    questions), e.g. "Is this (a) sales/proposal, (b) engineering upgrade, (c) strategy?".
    Build for the audience (ETHOS #9).
+   **Multi-turn boundary:** if the prompt already makes intent/purpose/outcomes clear, continue
+   in the same turn; if not, emit the options and **END THE TURN** to wait for the user — the
+   next turn resumes here via Tier-2 (`.odoo-ai/brainstorm/state.json`). Do not run Phase R
+   until the intent gate is closed (Hard rule 3d).
 3. **Propose 2-3 approaches** — each with: one-line outcome + key trade-off + a
-   recommendation. Make concrete.
+   recommendation. Make concrete. (Informed by Phase R findings — see note below.)
 4. **Present Proposed Plan** (soft-plan-gate — see § Soft plan gate). This IS the gate;
    do not write anything before approval.
 5. **Write design doc** — intake MAY write this during the plan turn (no need to wait):
@@ -292,6 +388,13 @@ Only runs in the **vague branch** (Tier-4 miss or explicit "I'm not sure").
    not the planning artifact.
 6. **Transition** — emit the NL-dispatch prompt for the chosen skill/workflow; update
    `.odoo-ai/brainstorm/state.json`.
+
+**Where Phase R fits (applies to ALL paths, not just brainstorm):** Phase R (the read-only
+*dynamic* recon that dispatches ≤1-2 agents — see § Phase R) is a flow-stage that runs AFTER
+the intent gate closes and BEFORE the Proposed Plan, on both fast-path and brainstorm. It is
+deliberately NOT a numbered brainstorm step (numbering it here would skip it on fast-path). In
+the brainstorm flow it sits between step 2 (intent closed) and step 4 (Proposed Plan), so its
+findings inform the step-3 approaches and fill the `Findings (Recon)` field.
 
 ## Soft plan gate
 
@@ -557,9 +660,12 @@ Intake behaviour when ambiguous between command and skill:
   MCP / agent calls are limited to **read-only** context: Phase 0 context reads and Phase R
   read-only Recon (read-only OSM + read-only survey agents that do not write or spawn). No
   writes-files specialist runs before Plan Mode is approved.
-- **NEVER recommend more than one skill.** If 2 skills are close, use the Discriminator column
-  to pick the winner; if you truly cannot decide, escalate to the user with both names + the
-  1-line difference.
+- **NEVER recommend more than one skill _per work-item_.** If 2 skills are close *for the same
+  work-item*, use the Discriminator column to pick the winner; if you truly cannot decide,
+  escalate to the user with both names + the 1-line difference. **Carve-out:** this is one skill
+  PER WI, not one skill per plan — a full-stack request legitimately spans multiple WIs (one
+  backend + one frontend), see § Full-stack tasks. The unified rule: one skill per WI; multiple
+  WIs per plan. Do not drop the frontend (or backend) half to satisfy "one skill".
 - **NEVER trigger on already-routed work.** If the user is mid-workflow (e.g., they just
   confirmed `odoo-backend-coding` 2 turns ago and are now describing the code they want), let
   `odoo-backend-coding` continue — do not re-route.
@@ -634,8 +740,9 @@ Mirror the user's language (English or the language they wrote in).
   it dispatches ≤1–2 read-only agents (depth-1, no writes, no spawn) to survey current state
   before the plan is written.
 - **Inventory discovery is hybrid, SSOT-respecting**: skill/agent/command existence + description
-  come from runtime context; `output_mode` from the `spawn_class`/`stack` registry; **`model_tier`
-  is read from each candidate's own frontmatter (`model:`) — NEVER copied into a registry**; and
+  come from runtime context; `output_mode` from the explicit `orchestration.<skill>.output_mode`
+  field in `skill_tool_deps.json` (NOT a `spawn_class`/`stack` derivation — §4.7/§8.4); **`model_tier`
+  is read from each candidate's own frontmatter (`model:`, absent ⇒ `inherit`) — NEVER copied into a registry**; and
   `effort` (S/M/L/XL) is a per-task property reasoned via the gap-analysis legend, also not
   registered.
 - **Plan Mode Content Schema**: a `writes-files` Approach now requires 3 blocks in the Plan-Mode
@@ -655,3 +762,9 @@ Mirror the user's language (English or the language they wrote in).
 - The `intake` name is intentionally non-Odoo-prefixed: this front door is future-proof for
   non-Odoo domains (general ERP, strategic planning, etc.) without renaming.
 - See the harness reference doc (`docs/reference/workflow-harness.md`) for full design rationale.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

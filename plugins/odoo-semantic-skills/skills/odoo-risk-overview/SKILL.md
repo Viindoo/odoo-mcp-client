@@ -163,3 +163,9 @@ Prompt: "risk overview before we upgrade our system from version 14 to 17"
 Output: Risk analysis for distribution-maintained vs custom modules, identify modules needing
 deep migration work (v13 `@api.multi` removal + v14 OWL-becomes-primary + v15 OWL 2.0),
 estimate timeline and recommended action in business language.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

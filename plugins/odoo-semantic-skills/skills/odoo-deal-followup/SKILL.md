@@ -283,3 +283,9 @@ the customer">
 - **Depth rule:** This skill does NOT spawn subagents, does NOT invoke the Skill tool. All
   references to other skills are text suggestions only ("Suggest: run X") - the user decides
   whether to run them.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

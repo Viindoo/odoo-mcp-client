@@ -202,3 +202,9 @@ overrides (e.g. `sale_stock`, `sale_payment`), warning if chain is long.
 Prompt: "I want to add custom tax calculation logic when saving an invoice in Odoo 17"
 Output: Override `_compute_tax_id` or `write` on `account.move`, code template with usage
 context, note about tax constraints if custom tax modules are installed.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

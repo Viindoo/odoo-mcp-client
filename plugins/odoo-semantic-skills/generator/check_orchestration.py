@@ -47,6 +47,22 @@ OSM_REQUIRED = {"wave", "workflow-chaining", "odoo-brl"}
 VALID_SPAWN_CLASS = {"leaf", "orchestrator-nl", "spawner-agent", "spawner-wave"}
 VALID_DEPTH_POLICY = {"any-depth", "depth0-only"}
 VALID_STACK = {"backend", "frontend", "fullstack", "none"}
+# output_mode drives the Plan-Mode decision; default_gate_tier drives the run-driver gate
+# policy. Both are SSOT here (replacing the hardcoded chat-only lists). output_mode is read
+# per-skill from the SKILL.md Output field (a backend-stack skill can be read-only/chat-only,
+# so it is NOT derived from stack). default_gate_tier IS derived once output_mode is known.
+VALID_OUTPUT_MODE = {"chat-only", "writes-files"}
+VALID_GATE_TIER = {"L0", "L1", "L2"}
+
+
+def _derive_gate_tier(spawn_class: str, instance_touching: bool, output_mode: str) -> str:
+    """L2 = irreversible/outward (instance or worktree-wave) → ALWAYS human gate.
+    L1 = writes internal files. L0 = read-only/chat. Dial can never lower L2."""
+    if instance_touching or spawn_class == "spawner-wave":
+        return "L2"
+    if output_mode == "writes-files":
+        return "L1"
+    return "L0"
 
 # High-precision ACTIVE dispatch signals in a SKILL.md body. Deliberately narrow: a generic
 # "spawn subagents" phrase is NOT included because it appears in negated capability statements
@@ -135,6 +151,23 @@ def main(argv: list[str]) -> int:
             findings.append(f"[enum] '{name}' has invalid depth_policy '{depth_policy}' (not in {sorted(VALID_DEPTH_POLICY)})")
         if stack not in VALID_STACK:
             findings.append(f"[enum] '{name}' has invalid stack '{stack}' (not in {sorted(VALID_STACK)})")
+
+        # 1d. output_mode + default_gate_tier — presence, enum, and gate-tier consistency.
+        #     output_mode is authoritative per-skill (read from the Output field); gate_tier
+        #     must equal the derivation so the SSOT cannot drift silently.
+        output_mode = e.get("output_mode")
+        gate_tier = e.get("default_gate_tier")
+        if output_mode not in VALID_OUTPUT_MODE:
+            findings.append(f"[enum] '{name}' has missing/invalid output_mode '{output_mode}' (not in {sorted(VALID_OUTPUT_MODE)})")
+        if gate_tier not in VALID_GATE_TIER:
+            findings.append(f"[enum] '{name}' has missing/invalid default_gate_tier '{gate_tier}' (not in {sorted(VALID_GATE_TIER)})")
+        if output_mode in VALID_OUTPUT_MODE:
+            expected_tier = _derive_gate_tier(spawn_class, bool(e.get("instance_touching")), output_mode)
+            if gate_tier != expected_tier:
+                findings.append(
+                    f"[gate-tier] '{name}' default_gate_tier={gate_tier} but derivation says {expected_tier} "
+                    f"(spawn_class={spawn_class}, instance_touching={bool(e.get('instance_touching'))}, output_mode={output_mode})"
+                )
 
         # 2. OSM-first contract
         if name in OSM_REQUIRED and OSM_SNIPPET not in body:

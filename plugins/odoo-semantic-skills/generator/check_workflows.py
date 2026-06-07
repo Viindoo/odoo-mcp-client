@@ -34,6 +34,7 @@ except ImportError:
 ROOT = pathlib.Path(__file__).resolve().parent.parent  # plugins/odoo-semantic-skills
 WORKFLOWS_DIR = ROOT / "workflows"
 SKILLS_DIR = ROOT / "skills"
+COMMANDS_DIR = ROOT / "commands"
 
 # ---------------------------------------------------------------------------
 # Allowed enum values
@@ -62,6 +63,10 @@ ALLOWED_PATTERNS = {
 
 ALLOWED_MODEL_TIERS = {"haiku", "sonnet", "opus", "inherit"}
 
+# Gate tiers for cross-workflow on_complete transitions (mirror the run-driver / registry
+# default_gate_tier vocabulary). L2 = irreversible/outward → always human.
+ALLOWED_GATE_TIERS = {"L0", "L1", "L2"}
+
 REQUIRED_TOP_LEVEL = ["name", "domain", "team_pattern", "description", "output_dir", "phases"]
 
 # ---------------------------------------------------------------------------
@@ -71,6 +76,59 @@ REQUIRED_TOP_LEVEL = ["name", "domain", "team_pattern", "description", "output_d
 
 def _skill_exists(skill_name: str) -> bool:
     return (SKILLS_DIR / skill_name).is_dir()
+
+
+def _workflow_names() -> set[str]:
+    """All declared workflow names (from each *.workflow.yaml `name:` field, plus file stem)."""
+    names: set[str] = set()
+    if not WORKFLOWS_DIR.is_dir():
+        return names
+    for wf in WORKFLOWS_DIR.glob("*.workflow.yaml"):
+        names.add(wf.name[: -len(".workflow.yaml")])
+        try:
+            d = yaml.safe_load(wf.read_text(encoding="utf-8")) or {}
+            if isinstance(d, dict) and d.get("name"):
+                names.add(str(d["name"]))
+        except Exception:
+            pass
+    return names
+
+
+def _validate_on_complete(data: dict, self_name: str, fname: str) -> list[str]:
+    """Validate the optional top-level `on_complete` cross-workflow transition list.
+
+    Each entry must: have a string `when` + `reason`; a `next` that resolves to an existing
+    skill OR workflow (and never self-loops back to this same workflow); and a `gate_tier` in
+    the allowed set. on_complete only EMITs a next[] for run-driver — it never self-dispatches."""
+    errors: list[str] = []
+    oc = data.get("on_complete")
+    if oc is None:
+        return errors
+    if not isinstance(oc, list):
+        errors.append(f"File '{fname}': 'on_complete' must be a list")
+        return errors
+    wf_names = _workflow_names()
+    for i, entry in enumerate(oc):
+        p = f"File '{fname}': on_complete[{i}]"
+        if not isinstance(entry, dict):
+            errors.append(f"{p} must be a mapping")
+            continue
+        if not isinstance(entry.get("when"), str) or not entry.get("when"):
+            errors.append(f"{p}: 'when' is required and must be a non-empty string")
+        if not isinstance(entry.get("reason"), str) or not entry.get("reason"):
+            errors.append(f"{p}: 'reason' is required and must be a non-empty string")
+        nxt = entry.get("next")
+        if not isinstance(nxt, str) or not nxt:
+            errors.append(f"{p}: 'next' is required and must be a non-empty string")
+        else:
+            if nxt == self_name:
+                errors.append(f"{p}: 'next' must not point back to this same workflow (self-loop)")
+            elif not (_skill_exists(nxt) or nxt in wf_names):
+                errors.append(f"{p}: 'next' = '{nxt}' is neither an existing skill nor a known workflow")
+        tier = entry.get("gate_tier")
+        if tier is not None and tier not in ALLOWED_GATE_TIERS:
+            errors.append(f"{p}: gate_tier '{tier}' not in {sorted(ALLOWED_GATE_TIERS)}")
+    return errors
 
 
 def _validate_phase(phase: dict, phase_idx: int, workflow_name: str) -> list[str]:
@@ -206,7 +264,51 @@ def _validate_workflow(path: pathlib.Path) -> list[str]:
     elif phases is not None:
         errors.append(f"File '{path.name}': 'phases' must be a list")
 
+    # optional cross-workflow transition block
+    errors.extend(_validate_on_complete(data, name or stem, path.name))
+
     return errors
+
+
+# ---------------------------------------------------------------------------
+# Driver-required warning (Flag 2): a workflow declaring on_complete is "driver-required" —
+# its emitted next[] is only auto-dispatched when run under a run-driver (intake Phase P).
+# A slash command that dispatches such a workflow DIRECTLY (bypassing intake) makes on_complete
+# degrade to a human suggestion. Surface that as a WARNING (non-fatal) so a future command does
+# not silently break the cross-workflow chain.
+# ---------------------------------------------------------------------------
+
+
+def _driver_required_warnings() -> list[str]:
+    warnings: list[str] = []
+    if not (WORKFLOWS_DIR.is_dir() and COMMANDS_DIR.is_dir()):
+        return warnings
+    # workflows that declare on_complete → set of {file stem, declared name}
+    driver_required: dict[str, set[str]] = {}
+    for wf in WORKFLOWS_DIR.glob("*.workflow.yaml"):
+        try:
+            d = yaml.safe_load(wf.read_text(encoding="utf-8")) or {}
+        except Exception:
+            continue
+        if isinstance(d, dict) and d.get("on_complete"):
+            stem = wf.name[: -len(".workflow.yaml")]
+            names = {stem}
+            if d.get("name"):
+                names.add(str(d["name"]))
+            driver_required[stem] = names
+    if not driver_required:
+        return warnings
+    for cmd in COMMANDS_DIR.glob("*.md"):
+        text = cmd.read_text(encoding="utf-8")
+        for stem, names in driver_required.items():
+            if any(n in text for n in names):
+                warnings.append(
+                    f"command '{cmd.name}' references driver-required workflow '{stem}' "
+                    f"(it declares on_complete). Ensure the command engages the run-driver "
+                    f"(intake Phase P / a 1-node run), not a direct workflow-chaining dispatch — "
+                    f"otherwise on_complete degrades to a human suggestion."
+                )
+    return warnings
 
 
 # ---------------------------------------------------------------------------
@@ -236,7 +338,12 @@ def main() -> int:
         )
         return 1
 
-    print(f"OK: {len(workflow_files)} workflow(s) valid.")
+    warnings = _driver_required_warnings()
+    for w in warnings:
+        print(f"WARN: {w}", file=sys.stderr)
+
+    print(f"OK: {len(workflow_files)} workflow(s) valid"
+          + (f" ({len(warnings)} warning(s))." if warnings else "."))
     return 0
 
 

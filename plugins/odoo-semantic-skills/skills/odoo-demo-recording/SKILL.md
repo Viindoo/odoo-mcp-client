@@ -174,3 +174,9 @@ Prompt: "Make a GIF of the customer portal invoice download."
 - Videos/GIFs are written under `.odoo-ai/visual/videos/`.
 - Use a consistent viewport and login for repeatable takes — see `docs/odoo-ui-knowledge.md`.
 - This skill records flows only; it never edits Odoo source. Hand any needed fix to `odoo-frontend-coding`.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

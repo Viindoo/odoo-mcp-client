@@ -442,3 +442,9 @@ Prompt: "patch the sale order form to add a custom button using OWL in Odoo 16"
 - Round 4: JS `patch(FormController, { confirmWithComment() {…} })` + XPath template override +
   manifest. OWL version note: "In v15 use `patch(FormController.prototype, 'sale_custom.patch', {…})`
   — prototype and name arguments were removed in v16."
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

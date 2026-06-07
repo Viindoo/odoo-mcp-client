@@ -43,7 +43,9 @@ phases:
       bug, classify severity (Critical/High/Medium/Low), provide reproduction steps,
       identify the suspected Odoo module, and recommend the next action. Write triage
       output to .odoo-ai/qa/. If no bugs were provided, output "No bugs to triage"
-      and skip.
+      and skip. Finally, surface a state key the on_complete predicate reads: emit a line
+      `code_bugs_found: true` if any triaged item is a code-level defect, else
+      `code_bugs_found: false`.
     model_tier: sonnet
     gate: "approve / skip / cancel"
 
@@ -54,3 +56,12 @@ phases:
 
 resume: true
 fallback: standalone
+
+# Cross-workflow transition (G2): when triage finds code-level bugs, emit a chain to the
+# backend fix bundle. The runner only EMITs this to run-driver's next[]; it never self-dispatches.
+on_complete:
+  - when: "code_bugs_found == true"
+    next: odoo-backend-coding
+    reason: "QA bug-triage found code-level defects; hand them to the backend coding bundle to fix"
+    inputs: {failing_ref: "${output_dir}/bug-triage.md"}
+    gate_tier: L1

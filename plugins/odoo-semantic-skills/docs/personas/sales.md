@@ -86,6 +86,9 @@ If you use **Claude Code** with the Odoo Semantic plugin:
 |-------|-------------|
 | `/odoo-capability-proof` | Given a business requirement, returns CE/EE availability + real code examples from indexed repos |
 | `/odoo-objection-handling` | Given an objection ("Odoo can't do X"), checks the codebase and returns a factual response |
+| `odoo-rfp-response` | Rate an RFP requirement-by-requirement into a compliance matrix (Yes / Partial / Roadmap / No + evidence) + fit summary |
+| `odoo-pricing-proposal` | Draft a customer-facing pricing proposal - tier + implementation bands + SLA + terms (you fill the rate numbers) |
+| `odoo-customer-health` | Score an existing customer's health - churn-risk signals + upsell opportunities + recommended next-touch |
 
 ---
 

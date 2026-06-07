@@ -6,6 +6,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-06-07
+
+### Added
+
+- **Plan-once, Drive-to-done orchestration.** `/intake` plans a multi-step job once, then
+  `run-driver` (a depth-0 loop) drives it to `DONE` / `BLOCKED` / `NEEDS_CONTEXT` via a
+  machine-readable Continuation Contract and an `.odoo-ai/run-<id>.json` blackboard. Adds an
+  autonomy dial (`--auto` default / `--step` / `--plan`) and gate tiers L0/L1/L2 (L2 always
+  stops for a human; the dial can never lower it), plus cross-workflow `on_complete`
+  transitions. Three advisory hooks (`remind-delegate`, `drive-continuation`,
+  `parse-continuation`) nudge but never hard-block the main agent.
+- **7 new domain skills:** `odoo-test-writer`, `odoo-security-audit`, `odoo-data-migration`,
+  `odoo-perf-audit`, `odoo-pricing-proposal`, `odoo-rfp-response`, `odoo-customer-health`.
+- **`research-multiphase` workflow** - flexible-phase, multi-model-tier research dogfood.
+
+### Changed
+
+- **Per-plugin READMEs.** Split the shared root README into self-contained
+  `odoo-semantic-skills` and `odoo-semantic-mcp` READMEs; the root README is now a monorepo
+  landing page that links to both. Reworked the overview/commands mermaid diagrams for
+  readability (vertical layout, fewer crossing edges).
+
 ## [3.0.0] - 2026-06-06
 
 ### Changed (BREAKING) — naming normalization across skills, agents, and commands

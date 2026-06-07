@@ -173,3 +173,9 @@ machine integration via IoT"
 Output: MRP → Standard CE; Batch production planning → Standard CE (lot/serial tracking); CNC
 IoT integration → Custom XL (EE IoT module exists but custom adapter required). Total effort:
 High.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

@@ -159,3 +159,9 @@ Prompt: "customer says Odoo doesn't have accounting standards compliance for the
 Output: Counter: specialized localization modules or custom extensions exist;
 `model_inspect(model='account.move', method='fields', odoo_version='auto')` shows compliance-specific fields; verbatim
 response with region-appropriate solution.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

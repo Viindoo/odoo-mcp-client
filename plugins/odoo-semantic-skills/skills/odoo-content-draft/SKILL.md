@@ -284,3 +284,9 @@ before publishing._
 - **Localization note**: when writing Vietnamese copy, use full diacritics in the final
   deliverable. During internal workflow notes and placeholder text within this SKILL.md file,
   ASCII-only is acceptable for readability.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

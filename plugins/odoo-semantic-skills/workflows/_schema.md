@@ -32,6 +32,7 @@ plugins/odoo-semantic-skills/workflows/<name>.workflow.yaml
 | `phases` | Phase[] | YES | Ordered list of phases; at least 1 required |
 | `resume` | bool | NO | Default `false`; if `true`, writes `<slug>-state.json` after each phase |
 | `fallback` | string | NO | Degradation policy; `standalone` = each phase runs without OSM |
+| `on_complete` | Transition[] | NO | Cross-workflow chain after the final phase (see §11). Runner EMITs matches to its Continuation Contract `next[]`; it never self-dispatches a spawner |
 
 ---
 
@@ -187,4 +188,32 @@ fallback: standalone
 
 No explicit registration in `plugin.json` is needed. The `workflow-chaining` skill
 auto-discovers `*.workflow.yaml` files from the `workflows/` directory at runtime.
+
+---
+
+## 11. `on_complete[]` — cross-workflow transition (optional)
+
+After the final phase, the runner evaluates `on_complete` entries and **emits** matches into
+its Continuation Contract `next[]` for the depth-0 `run-driver` to dispatch (the runner never
+self-dispatches a spawner — depth-2 ceiling). Each entry:
+
+| Field | Type | Required | Purpose |
+|-------|------|----------|---------|
+| `when` | string | YES | Predicate the runner evaluates against accumulated phase outputs — exactly the same mechanism as `phases[].when` (e.g. `classification == 'bug'`). A phase that an `on_complete` reads MUST surface the referenced key in its output (e.g. the qa-suite bug-triage phase emits `code_bugs_found: true`). Simple comparisons only: `==`, `!=` (and `>`/`<` on a numeric key). No formal typed state store — the runner reads the prior phase output and judges, as it already does for `phases[].when` |
+| `next` | string | YES | Target skill **or** workflow name; must exist; must not be this same workflow (no self-loop) |
+| `reason` | string | YES | Why the chain fires (shown to the human / recorded in the contract) |
+| `inputs` | mapping | NO | Args threaded into the next step |
+| `gate_tier` | enum | NO | `L0` / `L1` / `L2` — the driver gates accordingly (L2 always human) |
+
+```yaml
+on_complete:
+  - when: "code_bugs_found == true"        # bug-triage phase must emit this key in its output
+    next: odoo-backend-coding
+    reason: "qa-suite found code-level bugs; hand to the backend fix bundle"
+    inputs: {failing_ref: "${output_dir}/bug-triage.md"}
+    gate_tier: L1
+```
+
+Validated by `generator/check_workflows.py` (`_validate_on_complete`). Fully optional and
+back-compatible: a workflow without `on_complete` behaves exactly as before.
 Adding a workflow = dropping a `.workflow.yaml` file; no orchestration code is written.

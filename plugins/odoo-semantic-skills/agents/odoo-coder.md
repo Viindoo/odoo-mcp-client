@@ -272,8 +272,11 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 - [ ] Multi-company scope applied where business logic requires it
 - [ ] ORM validation gate ran and passed — a skip is allowed ONLY in standalone mode (OSM
       unreachable) and MUST carry the `grounded: local-source (not OSM-indexed)` label per
-      `osm-first-contract.md`; "skipped" without that label is not acceptable (a SubagentStop
-      enforcement hook checks that OSM validators actually ran when OSM was reachable)
+      `osm-first-contract.md`. NOTE on enforcement (be honest, do not rely on a block): the
+      SubagentStop `enforce-grounding` hook only HARD-BLOCKS the provable lie — claiming
+      `grounded: osm` with zero OSM calls. Skipping the ORM validators while OSM was reachable
+      is surfaced as a NON-BLOCKING note, not a block. So this checklist item is on YOU to honor;
+      do not skip the validators assuming the hook will stop you — it will not.
 - [ ] Backend static gate (`verify-backend.sh`) ran — BLOCK fixed, or soft-degrade noted
 ```
 
@@ -330,3 +333,9 @@ Prompt: "override `create` on `sale.order` to auto-assign a sequence ref from `i
   step, then write: call `super().create(vals)` first, then update the returned record).
 - Round 4: self-review confirms `super()` present and `vals` not mutated after super call.
 - Output: full override method + `__manifest__.py` note if `ir.sequence` is already a dependency.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

@@ -196,3 +196,9 @@ Prompt: "I changed our brand SCSS variable — what screens drifted?"
   captures, or the diff is noise. See `docs/odoo-ui-knowledge.md` for breakpoints and session reuse.
 - Baselines are written under `screenshot_baseline_dir` from `.odoo-ai/context.md`.
 - This skill detects drift only; hand fixes for any defect to `odoo-frontend-coding`.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.

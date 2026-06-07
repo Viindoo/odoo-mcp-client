@@ -1,6 +1,6 @@
 {
   "name": "odoo-semantic-skills",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Odoo AI workforce toolkit — 28 skill personas + 4 specialist agents + 9 workflow commands across engineering, sales, marketing, strategy, onboarding, visual UI testing, and git-wave orchestration. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed). Includes browser-automation agents for Odoo UI review and automated setup.",
   "mcpServers": {
     "chrome-devtools": {

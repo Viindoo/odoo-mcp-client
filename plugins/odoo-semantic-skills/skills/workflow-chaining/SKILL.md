@@ -42,6 +42,9 @@ workflow plan at the soft-plan-gate.
    path declared in the YAML), read it and skip already-completed phases.
 6. **SSOT for schema.** The full field reference lives in `workflows/_schema.md`. This
    skill body describes behavior, not schema.
+7. **on_complete EMITs, never dispatches.** A matched `on_complete` transition is added to the
+   Continuation Contract `next[]` for the depth-0 run-driver to dispatch — this skill never
+   fires a spawner itself (see "on_complete — cross-workflow transition" below).
 
 ## Phase 0 — Load and validate
 
@@ -165,6 +168,32 @@ After each phase completes successfully:
 2. On next run with the same workflow + slug, read the state file, skip done phases,
    and resume from `last_completed_phase + 1`.
 
+## on_complete — cross-workflow transition (EMIT only)
+
+After the **final** phase completes, if the YAML declares a top-level `on_complete:` list,
+evaluate each entry's `when:` predicate using the SAME mechanism as `phases[].when`: read the
+accumulated phase outputs and judge the predicate (e.g. `classification == 'bug'`,
+`code_bugs_found == true`). The phase an `on_complete` reads MUST have surfaced that key in its
+output (there is no separate typed state store). For every entry that matches, **add it to your
+Continuation Contract `next[]`** (mapping `next → skill`, carrying `reason`, `inputs`, and
+`gate_tier → risk_level`). Example: a `qa-suite` run that found bugs emits
+`next: odoo-backend-coding` so the depth-0 run-driver can chain a fix.
+
+**HARD RULE — EMIT, never self-dispatch.** `on_complete` only *emits* `next[]`. workflow-chaining
+runs at depth 1 and MUST NOT invoke a depth0-only spawner (`odoo-backend-coding`, `wave`, …)
+itself — that would nest a fresh agent below depth-1 and risk a context crash. The depth-0
+`run-driver` reads the emitted `next[]` and dispatches it. If no `on_complete` is declared, or
+none matches, finish normally (this is fully back-compatible — existing workflows are unaffected).
+
+**Standalone (no driver above) — degrade honestly.** If this workflow is running WITHOUT an
+active `.odoo-ai/run-<id>.json` driver above it (e.g. invoked directly via its slash command,
+not through intake Phase P), there is no run-driver to read the emitted `next[]`. In that case,
+besides emitting the contract, state plainly to the user: "on_complete suggests `<next>` —
+auto-chaining needs the run-driver; run `/intake` to drive it, or trigger `<next>` manually."
+So the chain degrades to a visible human suggestion, never a silent drop. (To AUTO-chain a
+workflow that declares `on_complete`, enter via intake Phase P — intake engages the driver for
+such workflows; see `intake` § Phase P "Workflow-as-node".)
+
 ## Gate handling
 
 Each phase gate presents the options declared in the YAML `gate` field (e.g.
@@ -189,3 +218,9 @@ If the OSM server (odoo-semantic-mcp) is unreachable:
 - Continue the workflow; each specialist skill declares its own standalone fallback.
 - If a phase's `fallback` field is `standalone`, apply this automatically without asking.
 - Write a caveat section in the final artifact noting which phases ran without OSM grounding.
+
+## Continuation Contract
+
+When you finish, append a Continuation Contract block per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
+output for the depth-0 run-driver - it does not change anything produced above.
