@@ -129,7 +129,7 @@ Resolve the real token names/origins for the version with `resolve_stylesheet` /
 part of an upgrade (vN→vN+1), `api_version_diff(symbol='web', from_version=<old>, to_version=<new>)` surfaces
 the web-layer token/API changes that explain why a token went empty — ground the finding in the version delta
 instead of guessing. Emit each finding as a token+file remediation pointer, not an inline patch (fixes go to
-`odoo-frontend-coding`).
+`odoo-coding`).
 
 ### Step 5 — Source pointers + compile
 

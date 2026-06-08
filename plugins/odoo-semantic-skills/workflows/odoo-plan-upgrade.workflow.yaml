@@ -94,6 +94,20 @@ phases:
     # (create dir if needed). On "terminal": display only, no file. On "cancel": discard.
     # Standalone (OSM unreachable): mark degraded phases with TBD placeholders and
     # prefix the plan header "PARTIAL PLAN - verify TBD sections before use".
+    # 4. DESIGN HANDOFF FLAG - surface a boolean key `needs_design` in the plan output:
+    #    true if any per-module migration/refactor item has more than one viable approach
+    #    (e.g. a model split/merge during upgrade, a non-trivial pre/post migration with
+    #    ID-match vs value-match mapping, or an OWL rewrite that restructures a component) -
+    #    those items must be DESIGNED before code is written. false if every action item is a
+    #    mechanical one-approach fix (deprecated-symbol swap, signature bump). The on_complete
+    #    below reads this key.
+
+on_complete:
+  - when: "needs_design == true"
+    next: odoo-solution-design
+    reason: "the upgrade plan contains migration/refactor items with more than one viable approach; design the solution (data model / migration strategy / override strategy) before the coder writes it"
+    inputs: {plan: "${output_dir}"}
+    gate_tier: L1
 
 resume: true
 fallback: standalone

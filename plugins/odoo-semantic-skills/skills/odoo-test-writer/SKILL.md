@@ -24,7 +24,7 @@ asserts a business contract, not a snapshot of current implementation.
 ## Out of Scope
 
 - **Reviewing existing tests** - use `odoo-code-review`
-- **Writing the production code under test** - use `odoo-backend-coding` or `odoo-frontend-coding`
+- **Writing the production code under test** - use `odoo-coding`
 - **Debugging a test that fails at runtime on a live instance** - use `odoo-debug`
 - **Upgrade-safety audit** - use `odoo-deprecation-audit`
 - **Performance / load tests** - out of scope for this skill
@@ -37,7 +37,7 @@ Use this skill when the user wants:
 - A test that guards a named business rule (invariant, access control, workflow transition)
 - JS Hoot or QUnit tests for an OWL component or frontend widget
 - A test file they can drop into an addon's `tests/` folder and run with `odoo-bin -i <module> --test-enable`
-- Evidence that new code added by `odoo-backend-coding` or `odoo-frontend-coding` meets its contract
+- Evidence that new code added by `odoo-coding` meets its contract
 
 ## Method
 

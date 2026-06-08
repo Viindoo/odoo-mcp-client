@@ -25,6 +25,14 @@ risk-overview -> deprecation-audit -> version-diff -> synthesis
 
 Output is written to `.odoo-ai/upgrade-plans/` on explicit user confirmation at the final gate.
 
+**Design handoff (`on_complete`).** The workflow declares an `on_complete` that, when the plan
+contains migration/refactor items with more than one viable approach (`needs_design == true`),
+chains to `odoo-solution-design` so those items are designed before any code is written. For that
+chain to fire automatically, this command must run under the depth-0 run-driver — enter via
+`/intake` Phase P (or a 1-node run) rather than a bare `workflow-chaining` dispatch. Without a
+driver above it, `workflow-chaining` degrades the handoff to a visible human suggestion (it tells
+you to run `/intake` or trigger `odoo-solution-design` manually) rather than auto-chaining.
+
 ## When to use
 
 - A client asks for a **full upgrade plan** covering risk, deprecation, and API diff in one deliverable.

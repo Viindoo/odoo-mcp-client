@@ -46,7 +46,7 @@
     {
       "id": 7,
       "prompt": "Write a computed field for sale.order",
-      "expected_output": "Skill does NOT fire — specific intent matches odoo-backend-coding. If context is missing, odoo-backend-coding may suggest onboard but onboard itself does not auto-fire on this prompt.",
+      "expected_output": "Skill does NOT fire — specific intent matches odoo-coding. If context is missing, odoo-coding may suggest onboard but onboard itself does not auto-fire on this prompt.",
       "category": "should-not-fire-specific-intent",
       "files": []
     },

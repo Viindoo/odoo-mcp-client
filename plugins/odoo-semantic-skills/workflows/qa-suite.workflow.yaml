@@ -61,7 +61,7 @@ fallback: standalone
 # backend fix bundle. The runner only EMITs this to run-driver's next[]; it never self-dispatches.
 on_complete:
   - when: "code_bugs_found == true"
-    next: odoo-backend-coding
+    next: odoo-coding
     reason: "QA bug-triage found code-level defects; hand them to the backend coding bundle to fix"
     inputs: {failing_ref: "${output_dir}/bug-triage.md"}
     gate_tier: L1

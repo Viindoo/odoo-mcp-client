@@ -32,7 +32,7 @@ to a 3-5 person dev shop. Output is operational and actionable, not executive-le
 | API + feature diff between two Odoo versions | `odoo-version-diff` |
 | Full upgrade orchestration plan (multi-tool) | `/odoo-plan-upgrade` (Phase C command) |
 | Executive risk dashboard for stakeholders | `odoo-risk-overview` |
-| Backend coding fixes found during checklist | `odoo-backend-coding` bundle |
+| Backend coding fixes found during checklist | `odoo-coding` bundle |
 
 ---
 

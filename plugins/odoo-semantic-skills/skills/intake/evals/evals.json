@@ -84,8 +84,8 @@
     {
       "id": 11,
       "prompt": "Write a computed field calculating total_amount for sale.order",
-      "expected_output": "Intake does NOT fire — direct match to odoo-backend-coding (row 12: write code)",
-      "expected_routed_to": "<NO-ROUTE - direct to odoo-backend-coding>",
+      "expected_output": "Intake does NOT fire — direct match to odoo-coding (row 12: write code)",
+      "expected_routed_to": "<NO-ROUTE - direct to odoo-coding>",
       "category": "should-not-fire",
       "files": []
     },
@@ -212,8 +212,8 @@
     {
       "id": 27,
       "prompt": "write computed field _compute_amount_total on sale.order",
-      "expected_output": "Intake does NOT fire — intent is clear, single-step, explicit 'write computed field' = odoo-backend-coding Tier-1 exact match. Direct fire.",
-      "expected_routed_to": "<NO-ROUTE - direct to odoo-backend-coding>",
+      "expected_output": "Intake does NOT fire — intent is clear, single-step, explicit 'write computed field' = odoo-coding Tier-1 exact match. Direct fire.",
+      "expected_routed_to": "<NO-ROUTE - direct to odoo-coding>",
       "category": "clear-fast-path",
       "files": []
     },
@@ -316,23 +316,23 @@
     {
       "id": 40,
       "prompt": "I need to add a custom approval step to the sale order workflow — can you survey what already exists in our codebase before planning?",
-      "expected_output": "Phase 0 gate closes immediately (intent = add approval step, purpose = extend sale order workflow, expected outcome = code implementing the approval gate). Phase R (Recon) then dispatches ≤1–2 READ-ONLY agents (e.g. Explore or odoo-override-finding in read-only mode) or OSM tools (find_override_point, model_inspect) to map existing override points and current workflow code. Phase R agents MUST NOT write any file and MUST NOT spawn further sub-agents. After Recon, intake writes the Proposed Plan enriched with Recon findings (hook location, relevant method names). Plan Mode is required because the Approach is odoo-backend-coding (writes-files). Fails correctly if Phase R writes a file or spawns a sub-agent.",
-      "expected_routed_to": "odoo-backend-coding (after Phase R Recon)",
+      "expected_output": "Phase 0 gate closes immediately (intent = add approval step, purpose = extend sale order workflow, expected outcome = code implementing the approval gate). Phase R (Recon) then dispatches ≤1–2 READ-ONLY agents (e.g. Explore or odoo-override-finding in read-only mode) or OSM tools (find_override_point, model_inspect) to map existing override points and current workflow code. Phase R agents MUST NOT write any file and MUST NOT spawn further sub-agents. After Recon, intake writes the Proposed Plan enriched with Recon findings (hook location, relevant method names). Plan Mode is required because the Approach is odoo-coding (writes-files). Fails correctly if Phase R writes a file or spawns a sub-agent.",
+      "expected_routed_to": "odoo-coding (after Phase R Recon)",
       "category": "phase-r-recon-dispatch",
       "files": []
     },
     {
       "id": 41,
       "prompt": "Add a `priority` field to sale.order (backend) and render it as a star widget on the form (frontend) — multi-file change, I want the full plan",
-      "expected_output": "Intake fires (full-stack request spanning backend + frontend). After Phase 0 gate + Phase R Recon, the Proposed Plan includes Plan Mode: required. Inside Plan Mode the implementation plan MUST contain all three blocks: (1) Workitem list — WI-A (odoo-backend-coding: adds Python field + XML attribute; files: models/sale_order.py, views/sale_order_form.xml) and WI-B (odoo-frontend-coding: adds OWL star widget; files: static/src/components/priority_widget.js, static/src/components/priority_widget.xml) — file sets are DISJOINT; (2) Dependency graph — linear topology, edge WI-B --data-flow--> WI-A (widget binds to field that must exist first), with topological_order [WI-A, WI-B] and critical_path [WI-A, WI-B]; (3) Assignment — WI-A: odoo-backend-coding (sonnet, M); WI-B: odoo-frontend-coding (sonnet, M) — each with acceptance criteria and verify command. Fails correctly if any of the three Plan Mode blocks is absent or if file sets overlap.",
-      "expected_routed_to": "plan-mode-workitem-dag-assignment",
+      "expected_output": "Intake fires (full-stack request spanning backend + frontend) and routes the coding work to a SINGLE `odoo-coding` work-item — NOT split into separate backend/frontend WIs (odoo-coding sequences the two stacks itself). After Phase 0 gate + Phase R Recon, the Proposed Plan includes Plan Mode: required because odoo-coding is writes-files. The plan names odoo-coding as the coding step and notes that odoo-coding's own Phase 0 will scope the module(s), tag each module's stack-need, and run the backend agent (odoo-coder) before the frontend agent (odoo-frontend-coder) so the field exists before the widget binds. Fails correctly if intake splits this into two competing coding skills/WIs, drops the frontend half, or omits Plan Mode.",
+      "expected_routed_to": "odoo-coding (single full-stack work-item)",
       "category": "plan-mode-full-schema",
       "files": []
     },
     {
       "id": 42,
       "prompt": "[User has approved the Proposed Plan for a sale.order field change; Plan Mode UI is shown; user types: 'Actually the field should be on purchase.order, not sale.order — please revise']",
-      "expected_output": "Plan Mode rejection flow: user refines inside Plan Mode UI (step 5 of the procedure). Intake MUST loop back to the soft-plan-gate (NOT to execution). It updates the Proposed Plan with purchase.order as the target, adjusts Workitem list (files: models/purchase_order.py, views/purchase_order_form.xml) and Assignment accordingly, then re-emits the Proposed Plan gate for re-approval. MUST NOT dispatch a writes-files specialist off a rejected plan. Re-enters Plan Mode only after the revised plan is re-approved at the text gate. Fails correctly if it dispatches odoo-backend-coding before the revised Proposed Plan is re-approved.",
+      "expected_output": "Plan Mode rejection flow: user refines inside Plan Mode UI (step 5 of the procedure). Intake MUST loop back to the soft-plan-gate (NOT to execution). It updates the Proposed Plan with purchase.order as the target, adjusts Workitem list (files: models/purchase_order.py, views/purchase_order_form.xml) and Assignment accordingly, then re-emits the Proposed Plan gate for re-approval. MUST NOT dispatch a writes-files specialist off a rejected plan. Re-enters Plan Mode only after the revised plan is re-approved at the text gate. Fails correctly if it dispatches odoo-coding before the revised Proposed Plan is re-approved.",
       "expected_routed_to": "soft-plan-gate-loop (rejection → re-plan → re-approve)",
       "category": "plan-mode-rejection-flow",
       "files": []

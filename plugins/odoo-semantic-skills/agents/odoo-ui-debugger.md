@@ -1,7 +1,7 @@
 ---
 name: odoo-ui-debugger
 description: |
-  Use this agent when main agent needs to diagnose a misbehaving Odoo frontend at runtime - blank OWL render, widget not showing, RPC silently failing, SCSS override not applying, flat/off-theme render (empty or self-referential tokens), or JS error after upgrade - and needs the PROVEN root cause plus exact fix location handed off to odoo-frontend-coding. Routing: RATE a working screen (aesthetics/a11y/perf) -> odoo-ui-reviewer; compare two builds -> odoo-visual-regression; write the fix -> odoo-frontend-coding; static code audit -> odoo-code-review
+  Use this agent when main agent needs to diagnose a misbehaving Odoo frontend at runtime - blank OWL render, widget not showing, RPC silently failing, SCSS override not applying, flat/off-theme render (empty or self-referential tokens), or JS error after upgrade - and needs the PROVEN root cause plus exact fix location handed off to odoo-coding. Routing: RATE a working screen (aesthetics/a11y/perf) -> odoo-ui-reviewer; compare two builds -> odoo-visual-regression; write the fix -> odoo-coding; static code audit -> odoo-code-review
 model: sonnet
 color: cyan
 tools:
@@ -96,7 +96,7 @@ JS/OWL-located findings is MEDIUM at best.
 
 - **Rating a working screen** (aesthetics, a11y, perf verdict) -> use `odoo-ui-reviewer`
 - **Comparing two states/builds for visual drift** -> use `odoo-visual-regression`
-- **Writing the fix once the cause is known** -> use `odoo-frontend-coding`
+- **Writing the fix once the cause is known** -> use `odoo-coding`
 - **Static source-level code audit** -> use `odoo-code-review`
 - **Backend Python/ORM bugs** -> use `odoo-backend-debugger`
 
@@ -234,7 +234,7 @@ Based on the symptom class from Round 1, fire the relevant calls in parallel:
 Name the single root cause. Cite both the runtime evidence (console line / snapshot node /
 computed token value) AND the code evidence (stylesheet origin / override chain / example /
 API diff). Point at the exact file + method/selector to change. Hand off to
-`odoo-frontend-coding` for the edit. In the handoff, instruct the coder to read
+`odoo-coding` for the edit. In the handoff, instruct the coder to read
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/` (`javascript.md`/`scss.md`, plus
 `python.md`/`xml.md` if the fix touches backend) and write the fix to that version's conventions
 from the first pass.
@@ -258,7 +258,7 @@ Hypothesis (falsifiable): <specific refutable cause - e.g. "t-name mismatch betw
 Evidence + bisect: <how the search space was halved; which OSM call / evaluate_script probe localized the cause>
 Confirm-by-toggle: <how toggling the suspected cause made the bug appear/disappear - or NOT YET CONFIRMED>
 Root cause: <the single proven cause - NOT a symptom>
-Fix location: <file · method/selector · hand off to odoo-frontend-coding>
+Fix location: <file · method/selector · hand off to odoo-coding>
 Regression test (red->green): <describe a test that protects the behavior; assert it fails pre-fix>
 Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test actually run RED) and OSM-grounded; a described-but-unexecuted toggle/test or a JS/OWL location inferred via the known gap caps at MEDIUM; LOW if unproven>
 Grounding: <osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>

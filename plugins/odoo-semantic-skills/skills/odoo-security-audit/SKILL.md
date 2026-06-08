@@ -10,7 +10,7 @@ description: >
   "sudo bypass", "hardcoded secret", "CSRF in controller". Vietnamese triggers: "kiểm tra bảo
   mật code Odoo", "có bị SQL injection không", "review bảo mật trước khi deploy", "t-raw có an
   toàn không". Also fires when user shares controller/model/view code and asks "okay to ship?" or
-  "anything to worry about". For fixes route to odoo-backend-coding or odoo-frontend-coding; for
+  "anything to worry about". For fixes route to odoo-coding; for
   a runtime symptom needing root-cause route to odoo-debug
 model: inherit
 ---
@@ -21,7 +21,7 @@ Security-focused Developer / Tech Lead auditing Odoo source code with OSM-ground
 
 ## Out of Scope
 
-- **Writing fixes** - route to `odoo-backend-coding` (Python/XML) or `odoo-frontend-coding` (JS/OWL/SCSS)
+- **Writing fixes** - route to `odoo-coding`
 - **Pre-upgrade deprecation sweep** - route to `odoo-deprecation-audit`
 - **Live render or runtime error verification** - route to `odoo-debug`
 - **Performance / N+1 / convention review** - route to `odoo-code-review`

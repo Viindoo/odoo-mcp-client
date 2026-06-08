@@ -112,7 +112,7 @@ lets L0+L1 auto-pass within budget. **L2 never lowers.** See harness §8.4.
 **Source-writing nodes (writes-files targeting the source tree, not `.odoo-ai/`) - the human
 gate MUST be at the driver, before dispatch.** A spawner node is dispatched by invoking its
 **agent** via the Agent tool (see The loop). That bypasses the *skill's* Phase-0 preview-confirm
-gate (the gate lives in e.g. `odoo-backend-coding`'s procedure, NOT in the `odoo-coder` agent),
+gate (the gate lives in e.g. `odoo-coding`'s procedure, NOT in the `odoo-coder` agent),
 and a spawned subagent runs to completion and **cannot pause for human input**. So the skill's
 internal gate does NOT protect a driver-dispatched source write - the confirmation has to happen
 at depth-0 here, before the spawn. Rule:
@@ -120,7 +120,7 @@ at depth-0 here, before the spawn. Rule:
   listed and approved): the Plan-Mode approval IS the human gate for that source write →
   auto-pass under `--auto` is fine.
 - **Dynamic node** (materialized at runtime from a Continuation Contract `next[]` / `on_complete`
-  - never in the approved plan, e.g. `qa-suite`→`odoo-backend-coding`): the human has approved
+  - never in the approved plan, e.g. `qa-suite`→`odoo-coding`): the human has approved
   nothing. The driver MUST emit a preview (`Proposed / Files / OSM / Proceed? (yes / refine /
   cancel)`) and **END ITS TURN** for the human BEFORE dispatching the agent. Treat it as **L2**:
   `--auto` cannot auto-pass it.

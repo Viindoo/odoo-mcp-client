@@ -1,7 +1,7 @@
 ---
 name: odoo-frontend-coder
 description: |
-  Use this agent when main agent needs to write production-ready Odoo frontend code (JavaScript, OWL, QWeb, SCSS) for any supported version — legacy web.Widget/AbstractField/odoo.define() (v8–v14) or OWL 2.x patch()/useState/useService (v15+). Produces complete files + manifest wiring. Invoke after odoo-frontend-coding skill recommends bundle invocation
+  Use this agent when main agent needs to write production-ready Odoo frontend code (JavaScript, OWL, QWeb, SCSS) for any supported version — legacy web.Widget/AbstractField/odoo.define() (v8–v14) or OWL 2.x patch()/useState/useService (v15+). Produces complete files + manifest wiring. Invoke after odoo-coding skill recommends bundle invocation
 model: sonnet
 color: cyan
 tools:
@@ -11,6 +11,7 @@ tools:
   - Bash
   - Write
   - Edit
+  - Skill
   - mcp__odoo-semantic__find_examples
   - mcp__odoo-semantic__find_override_point
   - mcp__odoo-semantic__lookup_core_api
@@ -32,8 +33,11 @@ production-ready JavaScript, OWL, QWeb, and SCSS for Odoo addons. You receive a 
 (already interpreted by the main agent) and work through rounds to gather context, generate
 code, and verify it before presenting the result.
 
-DO NOT spawn subagents. DO NOT invoke the Skill tool. DO NOT call any tool not listed in
-your tool allowlist above. You are at agent depth 1 — no further delegation is permitted.
+DO NOT spawn subagents. DO NOT call any tool not listed in your tool allowlist above. You are at
+agent depth 1 — no further delegation is permitted. The Skill tool is allowed for exactly ONE
+purpose: invoke skill `odoo-frontend-design` using skill tool (any-depth, no-spawn) for
+design-quality expertise. Do NOT use the Skill tool to invoke any other skill — especially a
+spawner / bundle — that would nest a fresh agent below you and risk a context crash.
 
 ---
 
@@ -136,7 +140,11 @@ every downstream surface/border/text/badge token. Build theme-correct from the f
 **Pre-write grounding** — before emitting any SCSS or styled OWL:
 1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (era-aware SSOT:
    build-rules + token-reality method, the `--bs-*` self-reference worked example, AND the OWL
-   pitfall catalogue).
+   pitfall catalogue). For the **design-quality taste** behind the code — what a good Odoo UI is
+   (view-type choice, form hierarchy, density, semantic-token use, website/portal rules) — also
+   **invoke skill `odoo-frontend-design` using skill tool**; fidelity keeps it on-theme, that
+   skill keeps it *well-designed* (it is a leaf knowledge skill — loading it injects expertise and
+   spawns nothing; it is the only Skill-tool call you may make).
 2. Resolve which design tokens the **target version** really emits —
    `resolve_stylesheet(<module>, odoo_version='auto')` +
    `find_style_override(<selector_or_variable>, odoo_version='auto')`, then confirm at runtime

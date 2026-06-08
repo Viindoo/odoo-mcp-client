@@ -208,7 +208,7 @@ self-dispatches a spawner — depth-2 ceiling). Each entry:
 ```yaml
 on_complete:
   - when: "code_bugs_found == true"        # bug-triage phase must emit this key in its output
-    next: odoo-backend-coding
+    next: odoo-coding
     reason: "qa-suite found code-level bugs; hand to the backend fix bundle"
     inputs: {failing_ref: "${output_dir}/bug-triage.md"}
     gate_tier: L1

@@ -140,7 +140,7 @@ Severity rationale: <one sentence — business impact>
 
 **Suspected module:** <odoo module name or "unknown">
 **Suspected layer:** UI | Business logic | Data / ORM | Integration | Infrastructure
-**Suggested next step:** <odoo-debug for runtime inspection | odoo-backend-coding for fix | escalate>
+**Suggested next step:** <odoo-debug for runtime inspection | odoo-coding for fix | escalate>
 ```
 
 Severity rules (non-negotiable — never soften):
@@ -179,7 +179,7 @@ Write `.odoo-ai/qa/<slug>-qa-summary.md`:
 ## Suggested next skills
 - `odoo-debug` — for any Critical/High bugs requiring live runtime investigation
 - `odoo-deploy-checklist` — run standalone for the full 8-domain gate if not done
-- `odoo-backend-coding` — for implementing fixes uncovered during triage
+- `odoo-coding` — for implementing fixes uncovered during triage
 ```
 
 ---

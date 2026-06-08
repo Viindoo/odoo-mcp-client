@@ -6,6 +6,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-06-08
+
+### Added
+
+- **Solution-design phase** (`odoo-semantic-skills`): new skill `odoo-solution-design` + agent
+  `odoo-solution-architect` (opus, full read-only OSM surface) that turn a classified
+  requirement / upgrade / migration / refactor goal into a gate-able Technical Design Document
+  under `.odoo-ai/designs/` before any code is written, with a **human design-approval gate** that
+  runs before Plan Mode (`design → approve → Plan Mode → code → review`). Wired into intake
+  routing + the design-first rule, the `odoo-brl` / `odoo-data-migration` handoffs, and the
+  `odoo-implement-feature` + `odoo-plan-upgrade` workflows.
+- **`odoo-frontend-design`** skill: leaf, knowledge-only (no agent spawn) design-quality
+  expertise that `odoo-solution-design` and `odoo-coding` load via the Skill tool, and the bar
+  `odoo-ui-review` rates against.
+- **`odoo-coding`** skill: the single full-stack coding front door (see Changed/Removed). Scopes
+  the target module set, computes dependency order via OSM, and dispatches the backend then
+  frontend coder agents in waves (≤3 concurrent) via the Agent tool, building to an approved
+  design doc when present.
+
+### Changed
+
+- **`odoo-code-review` scaled to multi-module**: one module → single sonnet reviewer; many →
+  per-module fan-out (≤3 concurrent) + an opus integration pass over the full dependency closure
+  (forward via `module_inspect`, reverse via `impact_analysis`). Output persisted under
+  `.odoo-ai/reviews/`.
+- **`intake` slimmed via progressive disclosure** (793 → 551 lines): collision zones, Plan Mode
+  schema, Phase P RUN-DAG, and maintainer notes moved to `skills/intake/references/`, loaded on
+  demand; routing table + gating hot path kept inline.
+- **Skill-tool invocation phrasing locked** to `` invoke skill `<name>` using skill tool ``.
+
+### Removed
+
+- **`odoo-backend-coding`** and **`odoo-frontend-coding`** skills — subsumed by the unified
+  `odoo-coding` front door (the `odoo-coder` / `odoo-frontend-coder` agents are retained as its
+  companions). Net skill count 39 → 40; agents 6 → 7.
+
 ## [3.3.0] - 2026-06-08
 
 ### Added

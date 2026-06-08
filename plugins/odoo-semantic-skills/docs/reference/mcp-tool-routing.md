@@ -396,11 +396,11 @@ Plugin skills can claim overlapping trigger keywords. Standard resolution policy
 - **Resolution:** `odoo-feature-check` → Consultant (requirement scoping, gap analysis). `odoo-addon-diff` → Marketer/Sales (edition comparison table for proposals).
 - **Heuristic:** Embedded in scoping/gap context → `odoo-feature-check`. Standalone edition comparison → `odoo-addon-diff`.
 
-### 4.4 `odoo-frontend-coding`: legacy JS widgets vs OWL (version-aware)
+### 4.4 `odoo-coding`: legacy JS widgets vs OWL (version-aware)
 
-- **No skill conflict:** A single skill — `odoo-frontend-coding` — owns all Odoo front-end work and handles both paradigms internally (merged from the former `odoo-js-coder` + `odoo-owl-coder`).
-- **Resolution (internal):** `odoo-frontend-coding` selects the paradigm by version. Legacy JS widget system on older Odoo; OWL components on newer Odoo. Odoo v14 is the grey zone (pre-OWL but post-legacy peak) — prefer the legacy widget system there since it is still dominant.
-- **Heuristic (paradigm signals):** `odoo.define()`, `web.Widget`, `field_registry` → legacy JS widget path. `useService`, `t-component`, `patch()`, `useState` → OWL path. Both resolve to `odoo-frontend-coding`.
+- **No skill conflict:** A single skill — `odoo-coding` — owns all Odoo coding (backend Python/XML and front-end JS/OWL) and, for the front end, handles both paradigms internally via the `odoo-frontend-coder` agent.
+- **Resolution (internal):** the `odoo-frontend-coder` agent selects the paradigm by version. Legacy JS widget system on older Odoo; OWL components on newer Odoo. Odoo v14 is the grey zone (pre-OWL but post-legacy peak) — prefer the legacy widget system there since it is still dominant.
+- **Heuristic (paradigm signals):** `odoo.define()`, `web.Widget`, `field_registry` → legacy JS widget path. `useService`, `t-component`, `patch()`, `useState` → OWL path. Both resolve to `odoo-coding` (frontend leg).
 
 ---
 
