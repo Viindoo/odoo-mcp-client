@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-06-08
+
+### Added
+
+- **`odoo-debug` front-door skill** + two specialist agents (`odoo-backend-debugger`,
+  `odoo-ui-debugger`). Routes a debugging request to the right specialist instead of forcing
+  the caller to pick. This release also bumps the version so marketplace clients holding a
+  cached `3.1.0` re-pull and actually receive the new skill/agents (they were invisible while
+  the version string stayed put).
+
 ### Fixed
 
 - `odoo-semantic-skills` manifest `description` (and the Codex `longDescription` + generated
