@@ -4,7 +4,7 @@ description: >
   Orchestrate a full QA cycle for an Odoo feature or module in one pass: generate
   structured test cases from a feature description, produce a pre-deploy QA checklist,
   and triage open bugs with severity, repro steps, and suspected module. Delegates
-  phases via NL-dispatch (odoo-deploy-checklist for checklist; odoo-ui-debugging for
+  phases via NL-dispatch (odoo-deploy-checklist for checklist; odoo-debug for
   runtime triage), handles test-gen and bug-triage inline. Trigger on: "write test
   cases for this feature", "QA checklist before release", "triage this bug", "QA
   pipeline for this change", "full QA suite", "test plan for this release",
@@ -12,7 +12,7 @@ description: >
   QA trước release", "triage bug / phân loại lỗi", "kế hoạch test cho bản phát hành". Do NOT
   trigger for: pure code review (route to
   odoo-code-review); a UI rendering defect needing live browser inspection with no
-  triage output (route to odoo-ui-debugging directly); pre-deploy mechanical safety gate
+  triage output (route to odoo-debug directly); pre-deploy mechanical safety gate
   alone (route to odoo-deploy-checklist directly)
 ---
 
@@ -37,12 +37,12 @@ that the runner cannot resolve to a standalone leaf skill.
 | Topic | Route instead |
 |---|---|
 | Pure code review / patch review | `odoo-code-review` |
-| Live UI rendering / layout defect investigation (no triage output needed) | `odoo-ui-debugging` (direct) |
+| Live UI rendering / layout defect investigation (no triage output needed) | `odoo-debug` (direct) |
 | Pre-deploy gate only (no test-case gen, no bug triage) | `odoo-deploy-checklist` (direct) |
 | Full upgrade orchestration plan | `/odoo-plan-upgrade` |
 | Deprecated API audit | `odoo-deprecation-audit` |
 | Executive risk dashboard | `odoo-risk-overview` |
-| Continuous performance profiling or memory leak analysis | `odoo-ui-debugging` + browser tools |
+| Continuous performance profiling or memory leak analysis | `odoo-debug` + browser tools |
 
 ---
 
@@ -117,7 +117,7 @@ Gate before dispatching: "approve / skip / cancel".
 
 ---
 
-## Phase 3 — Bug triage (inline, or NL-dispatch to odoo-ui-debugging for runtime issues)
+## Phase 3 — Bug triage (inline, or NL-dispatch to odoo-debug for runtime issues)
 
 If no open bugs were provided in Phase 0, skip this phase and note "No bugs to triage"
 in the summary.
@@ -140,7 +140,7 @@ Severity rationale: <one sentence — business impact>
 
 **Suspected module:** <odoo module name or "unknown">
 **Suspected layer:** UI | Business logic | Data / ORM | Integration | Infrastructure
-**Suggested next step:** <odoo-ui-debugging for runtime inspection | odoo-backend-coding for fix | escalate>
+**Suggested next step:** <odoo-debug for runtime inspection | odoo-backend-coding for fix | escalate>
 ```
 
 Severity rules (non-negotiable — never soften):
@@ -149,7 +149,7 @@ Severity rules (non-negotiable — never soften):
 - **Medium**: non-critical flow broken or degraded; workaround exists.
 - **Low**: cosmetic, minor UX, or edge-case inconvenience.
 
-If a bug requires live browser inspection to classify, NL-dispatch to `odoo-ui-debugging`:
+If a bug requires live browser inspection to classify, NL-dispatch to `odoo-debug`:
 "Investigate the following runtime issue in Odoo <version> and return a root-cause
 analysis with reproduction steps: <bug description>." Incorporate the returned
 root-cause into the triage entry.
@@ -177,7 +177,7 @@ Write `.odoo-ai/qa/<slug>-qa-summary.md`:
 - Blockers (Critical + High): <list or "none">
 
 ## Suggested next skills
-- `odoo-ui-debugging` — for any Critical/High bugs requiring live runtime investigation
+- `odoo-debug` — for any Critical/High bugs requiring live runtime investigation
 - `odoo-deploy-checklist` — run standalone for the full 8-domain gate if not done
 - `odoo-backend-coding` — for implementing fixes uncovered during triage
 ```
@@ -191,9 +191,9 @@ When OSM is unreachable or no API key is configured:
 1. **Phase 1 (test-case gen)**: fully inline — no MCP tools needed. Runs normally.
 2. **Phase 2 (deploy checklist)**: dispatch `odoo-deploy-checklist` in standalone mode.
    The leaf skill marks OSM-dependent Domain 1 rows as `⚠ Manual check` automatically.
-3. **Phase 3 (bug triage)**: inline triage runs normally; skip the `odoo-ui-debugging`
+3. **Phase 3 (bug triage)**: inline triage runs normally; skip the `odoo-debug`
    NL-dispatch for runtime inspection and note:
-   `(OSM offline — runtime inspection via odoo-ui-debugging requires reconnection)`
+   `(OSM offline — runtime inspection via odoo-debug requires reconnection)`
 
 Add a notice at the top of the summary:
 `> Note: QA suite ran in standalone mode. OSM-dependent checks marked ⚠ Manual check.`

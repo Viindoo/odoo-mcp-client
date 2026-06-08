@@ -109,11 +109,11 @@ After install, 26 skills activate automatically:
 | `odoo-onboarding` | Onboarding / Concierge | Bootstrap per-project Odoo context (version, custom modules, profile) so other skills skip setup |
 | `intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths when clear, always gates with a Proposed Plan before execution |
 | `odoo-ui-review` | Coder / Visual | Five-lens review of a rendered Odoo screen in a live browser - aesthetics, function, runtime stability, accessibility, performance - with screenshot/console/Lighthouse evidence |
-| `odoo-ui-debugging` | Coder / Visual | Root-cause a broken/misbehaving Odoo UI at runtime (console errors, failed requests, blank OWL renders, wrong CSS) and pinpoint the override point |
+| `odoo-debug` | Coder | Front-door orchestrator for all Odoo debugging — scientific method; dispatches specialist debug agents (backend/UI) |
 | `odoo-visual-regression` | Coder / Visual | Capture a screenshot baseline of one Odoo state and diff it against another (before/after upgrade, module install, theme change) with blast-radius assessment |
 | `odoo-demo-recording` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
 
-> **Visual skills need browser setup.** The four `Coder / Visual` skills above (`odoo-ui-review`, `odoo-ui-debugging`, `odoo-visual-regression`, `odoo-demo-recording`) drive a live browser
+> **Visual skills need browser setup.** The three `Coder / Visual` skills above (`odoo-ui-review`, `odoo-visual-regression`, `odoo-demo-recording`) drive a live browser
 > and depend on the bundled browser MCP servers + browser binaries. Run
 > **`/odoo-semantic-skills:odoo-setup`** once to provision them — see
 > [Visual stack / browser MCP setup](#visual-stack--browser-mcp-setup) below.
@@ -177,7 +177,7 @@ Manual snippet (for users who ran `claude mcp add` directly, without the plugin)
 ## Visual stack / browser MCP setup
 <a id="visual-stack--browser-mcp-setup"></a>
 
-The four `Visual` skills (`odoo-ui-review`, `odoo-ui-debugging`, `odoo-visual-regression`,
+The three `Visual` skills (`odoo-ui-review`, `odoo-visual-regression`,
 `odoo-demo-recording`) and the `odoo-ui-reviewer` agent drive a **rendered Odoo screen in a
 live browser**. They depend on three browser MCP servers — `chrome-devtools`, `playwright`,
 and `pagecast` (local stdio `npx` servers) — plus browser binaries and `ffmpeg`.

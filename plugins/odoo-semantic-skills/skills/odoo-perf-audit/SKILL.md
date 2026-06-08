@@ -23,7 +23,7 @@ Performance-focused Tech Lead / DBA auditing Odoo code with semantic MCP enrichm
 - **Applying or writing fixes** - this skill produces a findings report only; route to
   `odoo-backend-coding` or `odoo-frontend-coding` to implement remediation
 - **UI / browser-side slowness** (slow page render, LCP, JS bundle size) - route to
-  `chrome-devtools-mcp:debug-optimize-lcp` or `odoo-ui-debugging`
+  `chrome-devtools-mcp:debug-optimize-lcp` or `odoo-debug`
 - **Deprecated API removal** (upgrade blockers) - route to `odoo-deprecation-audit`
 - **General code correctness / security review** - route to `odoo-code-review`
 - **Live profiling against a running instance** - requires a live Odoo MCP; this skill
@@ -35,6 +35,12 @@ Use this skill when the user shares Odoo Python, XML, or QWeb source and wants t
 whether it has performance problems, or when a list view / scheduled action / report is
 known to be slow and the user wants a root-cause analysis on the source code. The input
 may be a pasted block, a file path, a module name, or the output of a prior tool step.
+
+**Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a specific runtime
+performance symptom here (a slow screen/query with a reproduction recipe + version), focus on
+root-causing THAT symptom following the scientific method
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`) instead of a full module sweep, and emit
+the same findings report. A direct invocation with no specific symptom stays a proactive audit.
 
 Do NOT use this skill for live query explain-plans or real-time profiling - those require
 a live Odoo instance and a different toolset.

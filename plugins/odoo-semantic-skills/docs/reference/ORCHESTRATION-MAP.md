@@ -19,6 +19,7 @@
 | `odoo-customization-inventory` | leaf | any-depth | none | — | — |
 | `odoo-data-migration` | leaf | any-depth | backend | — | — |
 | `odoo-deal-followup` | leaf | any-depth | none | — | — |
+| `odoo-debug` | spawner-agent | depth0-only | fullstack | — | odoo-backend-debugger, odoo-ui-debugger |
 | `odoo-demo-recording` | leaf | any-depth | none | — | — |
 | `odoo-deploy-checklist` | leaf | any-depth | none | yes | — |
 | `odoo-deprecation-audit` | leaf | any-depth | backend | — | — |
@@ -38,7 +39,6 @@
 | `odoo-security-audit` | leaf | any-depth | backend | — | — |
 | `odoo-support-triage` | orchestrator-nl | any-depth | none | — | — |
 | `odoo-test-writer` | leaf | any-depth | backend | — | — |
-| `odoo-ui-debugging` | leaf | any-depth | frontend | — | — |
 | `odoo-ui-review` | spawner-agent | depth0-only | frontend | — | odoo-ui-reviewer |
 | `odoo-version-diff` | leaf | any-depth | backend | — | — |
 | `odoo-visual-regression` | leaf | any-depth | frontend | — | — |

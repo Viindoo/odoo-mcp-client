@@ -11,7 +11,7 @@ description: >
   mật code Odoo", "có bị SQL injection không", "review bảo mật trước khi deploy", "t-raw có an
   toàn không". Also fires when user shares controller/model/view code and asks "okay to ship?" or
   "anything to worry about". For fixes route to odoo-backend-coding or odoo-frontend-coding; for
-  live render errors route to odoo-ui-debugging
+  a runtime symptom needing root-cause route to odoo-debug
 model: inherit
 ---
 
@@ -23,7 +23,7 @@ Security-focused Developer / Tech Lead auditing Odoo source code with OSM-ground
 
 - **Writing fixes** - route to `odoo-backend-coding` (Python/XML) or `odoo-frontend-coding` (JS/OWL/SCSS)
 - **Pre-upgrade deprecation sweep** - route to `odoo-deprecation-audit`
-- **Live render or runtime error verification** - route to `odoo-ui-debugging`
+- **Live render or runtime error verification** - route to `odoo-debug`
 - **Performance / N+1 / convention review** - route to `odoo-code-review`
 - **Override safety** - route to `odoo-override-finding`
 
@@ -33,6 +33,12 @@ Invoke this skill whenever:
 - Code is shared (pasted, file path referenced, or available from a prior step) and security, safety, or deployment readiness is the concern
 - A PR touches controllers, model methods with `sudo()`, QWeb templates with `t-raw`, or CSV access files
 - A module is being deployed or reviewed for the first time and no prior security audit exists
+
+**Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a runtime security
+symptom here (an observed leak, an unexpected `AccessError`, an apparent injection - with a
+reproduction + version), root-cause THAT symptom following the scientific method
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`) and emit the same graded report. A direct
+invocation with no specific symptom stays a proactive vulnerability audit.
 
 ## MCP tools
 

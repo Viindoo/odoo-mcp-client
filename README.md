@@ -18,7 +18,7 @@ flowchart TB
         direction TB
         intake["intake<br/>universal front door"]
         wfrunner["workflow-chaining<br/>declarative YAML executor"]
-        skills["odoo-semantic-skills<br/>39 skills / 4 agents / 9 commands"]
+        skills["odoo-semantic-skills<br/>39 skills / 6 agents / 9 commands"]
         mcp["odoo-semantic-mcp<br/>MCP connection + /connect"]
         intake --> wfrunner --> skills
         intake --> skills
@@ -44,7 +44,7 @@ detailed README - start there for usage, install, and reference:
 
 | Plugin | What it is | README |
 |--------|-----------|--------|
-| **[`odoo-semantic-skills`](plugins/odoo-semantic-skills/)** | The full Odoo AI workforce toolkit: **39 skills + 4 agents + 9 commands** across 9 personas, plus **11 declarative workflows** and the drive-to-done orchestration harness. Depends on `odoo-semantic-mcp` (auto-installed). | [README](plugins/odoo-semantic-skills/README.md) |
+| **[`odoo-semantic-skills`](plugins/odoo-semantic-skills/)** | The full Odoo AI workforce toolkit: **39 skills + 6 agents + 9 commands** across 9 personas, plus **11 declarative workflows** and the drive-to-done orchestration harness. Depends on `odoo-semantic-mcp` (auto-installed). | [README](plugins/odoo-semantic-skills/README.md) |
 | **[`odoo-semantic-mcp`](plugins/odoo-semantic-mcp/)** | The thin MCP connection layer: registers the `odoo-semantic` server (**25 tools / 7 resources**) and ships the `/odoo-semantic-mcp:connect` command. Install this alone for raw MCP tools only. | [README](plugins/odoo-semantic-mcp/README.md) |
 
 Most users install **`odoo-semantic-skills`**, which pulls in `odoo-semantic-mcp` automatically as

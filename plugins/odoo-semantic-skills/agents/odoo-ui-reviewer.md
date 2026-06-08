@@ -62,8 +62,9 @@ Work in steps. Fire independent MCP/browser calls within a step in the same mess
 Read `.odoo-ai/context.md` in the project root if present. It uses Markdown bullets, NOT YAML -
 parse lines of the form `- **key**: value`. Extract `odoo_version`, `instance_base_url`,
 `instance_login`, and `screenshot_baseline_dir`. Auto-resolve anything still missing before
-escalating, using the plugin's own portable conventions: `odoo_version` via
-`list_available_versions` (or default 17.0 with a noted assumption); `instance_base_url` from
+escalating, using the plugin's own portable conventions: `odoo_version` from the request or
+`.odoo-ai/context.md`, else default 17.0 with a noted assumption (this agent has no
+version-listing tool, so do not attempt one); `instance_base_url` from
 `.odoo-ai/instances.toml` (written by `/odoo-semantic-skills:odoo-setup`); `screenshot_baseline_dir`
 defaults to `.odoo-ai/visual/baselines/`. Only report back to the main agent for a value that
 none of these resolve - in practice just `instance_login` when no credential source exists.

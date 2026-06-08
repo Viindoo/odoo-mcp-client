@@ -10,7 +10,7 @@ description: >
   "review this Odoo screen", "is this page accessible", "run a Lighthouse audit on Odoo", "make
   sure this looks right before the demo", "is it off-theme / sai theme Odoo", "đánh giá giao
   diện Odoo", "kiểm tra UI đã render".
-  Routing: investigate WHY a screen is broken not rate a working one → odoo-ui-debugging; compare
+  Routing: investigate WHY a screen is broken not rate a working one → odoo-debug; compare
   two states for drift → odoo-visual-regression; record a video → odoo-demo-recording; change
   frontend source → odoo-frontend-coding; source-level review → odoo-code-review
 ---
@@ -26,7 +26,7 @@ unverified impression.
 
 ## Out of Scope
 
-- **Investigating WHY a screen is broken / errors / blank render** → use `odoo-ui-debugging`
+- **Investigating WHY a screen is broken / errors / blank render** → use `odoo-debug`
 - **Comparing two states or builds for visual drift / regression** → use `odoo-visual-regression`
 - **Recording a demo or marketing walkthrough video** → use `odoo-demo-recording`
 - **Writing or changing Odoo frontend JS/OWL source** → use `odoo-frontend-coding`

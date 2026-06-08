@@ -1,4 +1,4 @@
 [odoo-semantic-skills] Orchestration registry (so you never forbid a legitimate spawn):
-- Skills that SPAWN subagents (let them; invoke only from the main agent): intake, odoo-backend-coding, odoo-brl, odoo-code-review, odoo-frontend-coding, odoo-ui-review, wave
-- depth0-only (never invoke these from inside a subagent): intake, odoo-backend-coding, odoo-brl, odoo-code-review, odoo-frontend-coding, odoo-ui-review, run-driver, wave, workflow-chaining
+- Skills that SPAWN subagents (let them; invoke only from the main agent): intake, odoo-backend-coding, odoo-brl, odoo-code-review, odoo-debug, odoo-frontend-coding, odoo-ui-review, wave
+- depth0-only (never invoke these from inside a subagent): intake, odoo-backend-coding, odoo-brl, odoo-code-review, odoo-debug, odoo-frontend-coding, odoo-ui-review, run-driver, wave, workflow-chaining
 - Full map: docs/reference/ORCHESTRATION-MAP.md

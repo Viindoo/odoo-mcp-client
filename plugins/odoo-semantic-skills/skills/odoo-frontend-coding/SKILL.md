@@ -11,7 +11,7 @@ description: >
   Also fires on Vietnamese requests: "viết widget OWL", "sửa giao diện form", "thêm field
   widget", "override JS", "viết / sửa SCSS theme đúng design-system Odoo".
   Infer framework from version or API keywords even without "legacy"/"OWL". After generation,
-  suggest odoo-ui-debugging / odoo-ui-review / odoo-visual-regression to verify (depth rule: do
+  suggest odoo-debug / odoo-ui-review / odoo-visual-regression to verify (depth rule: do
   not auto-invoke). Backend Python/XML → odoo-backend-coding. Code review → odoo-code-review
 ---
 
@@ -25,7 +25,7 @@ Python/XML and `odoo-code-review` for review.
 - **Backend Python / XML** (models, views, wizards, security, ORM) → use `odoo-backend-coding`
 - **Code review / audit of existing frontend code** → use `odoo-code-review`
 - **Deprecation analysis or upgrade planning** → use `odoo-deprecation-audit` or `odoo-version-diff`
-- **Verifying the rendered UI / debugging a runtime render error / image regression** → use `odoo-ui-review` / `odoo-ui-debugging` / `odoo-visual-regression`
+- **Verifying the rendered UI / debugging a runtime render error / image regression** → use `odoo-ui-review` / `odoo-debug` / `odoo-visual-regression`
 
 ## Phase 0 — Scope preview (1-turn gate)
 

@@ -8,7 +8,7 @@ domain: engineering
 team_pattern: Pipeline
 description: |
   Run a structured, resumable UI debugging session for a misbehaving Odoo screen:
-  reproduce the symptom inline, inspect root cause via odoo-ui-debugging, hypothesize
+  reproduce the symptom inline, inspect root cause via inline UI diagnosis (debug-method), hypothesize
   the fix inline, generate a concrete fix guidance inline, then verify the outcome
   inline. Designed for long sessions that may be interrupted and resumed.
   Trigger: "debug Odoo UI session", "full debug session for this screen",
@@ -48,11 +48,14 @@ phases:
     # Writes .odoo-ai/debug/<slug>-reproduce.md
 
   # ------------------------------------------------------------------
-  # Phase 2 — Inspect root cause via odoo-ui-debugging
+  # Phase 2 — Inspect root cause via inline UI diagnosis (debug-method)
   # ------------------------------------------------------------------
   - id: inspect
-    skill: odoo-ui-debugging
+    inline: true
     nl_trigger: >
+      Follow the scientific method in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md
+      and the UI rows of ${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-failure-modes.md; fill the
+      Output Contract.
       Investigate the Odoo UI issue collected in the symptom card and confirmed as
       reproducible in the reproduce phase. Identify the ROOT CAUSE of the misbehavior —
       console errors, failed network requests, blank OWL renders, broken widget state,
@@ -60,6 +63,7 @@ phases:
       cause with the affected module, view, component, or CSS rule identified, (b) the
       override point or file path where the fix should land, and (c) any secondary
       contributing factors. Do not write the fix yet — focus on diagnosis.
+      This is an inline reasoning phase with NO live browser - diagnose strictly from the evidence captured in the collect/symptom phase; if live runtime capture is required and absent, return cannot-reproduce and recommend the odoo-debug browser agent rather than fabricating browser observations.
     model_tier: sonnet
     gate: "approve / re-investigate: [feedback] / cancel"
 

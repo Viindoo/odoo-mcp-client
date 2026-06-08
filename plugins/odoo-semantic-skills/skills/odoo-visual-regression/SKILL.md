@@ -8,7 +8,7 @@ description: >
   or the diff is noise. Pushy trigger: fire on "compare before and after the upgrade",
   "screenshot baseline for Odoo", "pixel diff two Odoo builds", "so sánh giao diện trước và
   sau", "ảnh chụp baseline Odoo". Routing: one-time aesthetic verdict on a single working
-  screen → odoo-ui-review; broken screen needing root cause → odoo-ui-debugging; demo/marketing
+  screen → odoo-ui-review; broken screen needing root cause → odoo-debug; demo/marketing
   video → odoo-demo-recording; fix the defect in source → odoo-frontend-coding; static code audit
   → odoo-code-review
 ---
@@ -23,7 +23,7 @@ likely to touch, so the comparison set is targeted rather than exhaustive.
 ## Out of Scope
 
 - **One-time aesthetic / a11y / performance verdict on a single screen** → use `odoo-ui-review`
-- **Diagnosing the root cause of a broken screen** → use `odoo-ui-debugging`
+- **Diagnosing the root cause of a broken screen** → use `odoo-debug`
 - **Recording a demo/marketing video** → use `odoo-demo-recording`
 - **Writing the fix for a detected defect** → use `odoo-frontend-coding`
 - **Static source-level code audit** → use `odoo-code-review`
