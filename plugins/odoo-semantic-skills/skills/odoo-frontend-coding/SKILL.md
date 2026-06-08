@@ -78,6 +78,10 @@ backend portion in the Phase 0 scope block rather than attempting it.
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` and the runtime computed style.
 4. **Indexed examples over memory** — internal hook names and import paths shift between minor
    releases; the agent trusts `find_examples`/`find_override_point` over training knowledge.
+5. **Coding-guideline conventions** — after the version is resolved, the agent reads
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/` (`javascript.md`/`scss.md`,
+   plus `python.md`/`xml.md` for backend/view work) and writes to that version's conventions on the
+   first pass — see `agents/odoo-frontend-coder.md`.
 
 ## Agent invocation — prompt template
 

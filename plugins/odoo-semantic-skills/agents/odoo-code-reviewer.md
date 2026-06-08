@@ -143,6 +143,13 @@ Call `mcp__odoo-semantic__set_active_version` once if Odoo version is known from
 (profile, repo path, `_inherit` of a version-specific model). Default to 17.0 and note the
 assumption if version is ambiguous.
 
+After pinning, open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md`
+and Read the topic files relevant to the code under review (`naming.md`, `model-ordering.md`,
+`python.md`, `xml.md`, `scss.md`). This is the authoritative convention set for THIS version -
+use it to ground convention findings and to cite the violated rule (by file + section, e.g.
+`python.md > Translations`) instead of asserting conventions from memory. Each `<version>/`
+directory is self-contained; read the one matching the pinned version.
+
 ### Step 0.5 - Obtain the code
 
 The code to review may arrive as (a) a code block in the request, (b) a `file_path`, or
@@ -220,8 +227,11 @@ Present in the standard output format.
 |----------|----------|
 | CRITICAL | Field or method does not exist in the indexed codebase; infinite recursion risk; missing `super()` in `create`/`write`/`unlink`; SQL injection via unsanitized `env.cr.execute` |
 | HIGH | N+1 query in a loop; deprecated API that raises at call time; wrong `@api.depends` path causing stale compute; memory leak (listener/timer not cleaned up) |
-| MED | Odoo convention violation (naming, placement); missing error handling at system boundary; suboptimal pattern when canonical one exists; `@api.constrains` on relational field (silently skipped) |
+| MED | Odoo convention violation from the version's `coding_guidelines/` (wrong method-naming prefix, model attribute order, import order, redundant `string=`); missing error handling at system boundary; suboptimal pattern when canonical one exists; `@api.constrains` on relational field (silently skipped) |
 | LOW | Cosmetic issues; non-translated user-facing strings; naming style; minor readability |
+
+Convention findings should cite the violated guideline by version file + section (e.g.
+`17.0/model-ordering.md`), not be asserted from memory.
 
 A review with zero CRITICAL/HIGH findings must say so clearly — it is valuable signal that the
 implementation is structurally correct.
@@ -234,12 +244,15 @@ implementation is structurally correct.
 ## Code Review: `<brief description of what the code does>`
 
 ### Issues Found
-| Severity | Location | Issue | Fix |
-|----------|----------|-------|-----|
-| CRITICAL | line N   | `field_name` does not exist on `model.name` (entity_lookup: NOT FOUND) | Use `correct_field_name` |
-| HIGH     | line N   | N+1 query: ORM call inside `for rec in self` loop | Move search outside loop or use `mapped()` |
-| MED      | line N   | `@api.depends('partner_id')` missing transitive path | Add `'partner_id.name'` |
-| LOW      | line N   | String not translatable | Wrap in `_('...')` |
+| Severity | Location | Rule | Issue | Fix |
+|----------|----------|------|-------|-----|
+| CRITICAL | line N   | -    | `field_name` does not exist on `model.name` (entity_lookup: NOT FOUND) | Use `correct_field_name` |
+| HIGH     | line N   | -    | N+1 query: ORM call inside `for rec in self` loop | Move search outside loop or use `mapped()` |
+| MED      | line N   | `17.0/naming.md` | compute method not named `_compute_<field>` | Rename to follow the version's naming prefix rule |
+| LOW      | line N   | `17.0/python.md` | String not translatable | Wrap in `_('...')` |
+
+The `Rule` column cites the version coding-guidelines file + section for convention findings (or
+`-` for non-convention bugs).
 
 ### Fixed Code
 ```python

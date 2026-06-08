@@ -9,9 +9,13 @@
 # block once with corrective feedback. Softer gaps are surfaced as NON-blocking notes:
 # (a) backend .py written while OSM was reachable but the ORM validators never ran; and
 # (b) the silent-skipper — backend .py written with ZERO OSM calls and no grounding label
-# at all. (b) is not a provable lie (so never blocked, per the agent-consumer debate: a block
-# there only manufactures fake `grounded: local-source` labels the hook cannot verify), but it
-# must not slip through unnoticed either — hence a note that teaches the honest paths.
+# at all. Neither is a provable lie (so never blocked, per the agent-consumer debate: a block
+# there only manufactures fake labels the hook cannot verify), but they must not slip through
+# unnoticed — hence notes that teach the honest paths. When such a note fires AND the subagent
+# never read a coding_guidelines/<version>/ file, a read-before-write reminder rides along
+# ($GUIDELINES_NOTE). The reminder is NOT its own invariant: nagging an honest, fully-grounded
+# subagent would break the "honest work passes clean" contract. The primary enforcement for
+# guidelines is the agent-prompt read-before-write gate, not read-count.
 #
 # CONTRACT (Claude Code SubagentStop): stdin JSON has transcript_path + stop_hook_active.
 #   - Loop-safe: when stop_hook_active=true we already forced one continue — never re-block.
@@ -57,9 +61,17 @@ OSM_CALLS=$(_cnt $'^CALL\tmcp__odoo-semantic__')
 VALIDATOR_CALLS=$(_cnt $'^CALL\tmcp__odoo-semantic__(validate_depends|validate_domain|validate_relation|resolve_orm_chain)')
 # Backend .py writes: a Write/Edit/MultiEdit tool_use whose path ends in .py.
 PY_WRITES=$(_cnt $'^CALL\t(Write|Edit|MultiEdit)\t.*\\.py$')
+# Read-before-write signal: did the subagent open a coding_guidelines/<version>/ file?
+GUIDELINES_READ=$(_cnt $'^CALL\t(Read|Grep)\t.*coding_guidelines')
 # Grounding-label vocabulary (osm-first-contract.md §4), from assistant text only.
 CLAIMS_OSM=$(_cnt $'^TEXT\t.*grounded:[[:space:]]*osm')
 CLAIMS_LOCAL=$(_cnt $'^TEXT\t.*(grounded:[[:space:]]*local-source|OSM unavailable|standalone)')
+
+# Read-before-write reminder clause, appended to PY-write notes when no guidelines file was read.
+GUIDELINES_NOTE=""
+if [[ "$PY_WRITES" -gt 0 && "$GUIDELINES_READ" -eq 0 ]]; then
+    GUIDELINES_NOTE=" Read-before-write note: no skills/_shared/coding_guidelines/<version>/ file was read in this subagent. Per the read-before-write rule, the version's coding guidelines (naming prefixes, model attribute order, import order, _() form) must be read BEFORE writing so the code is correct on the first pass."
+fi
 
 # Self-gate: only Odoo-shaped subagents are our concern.
 if [[ "$OSM_CALLS" -eq 0 && "$PY_WRITES" -eq 0 && "$CLAIMS_OSM" -eq 0 && "$CLAIMS_LOCAL" -eq 0 ]]; then
@@ -75,7 +87,7 @@ fi
 
 # --- Invariant 2 (NON-BLOCKING note): backend code written, OSM reachable, validators skipped
 if [[ "$PY_WRITES" -gt 0 && "$OSM_CALLS" -gt 0 && "$VALIDATOR_CALLS" -eq 0 && "$CLAIMS_LOCAL" -eq 0 ]]; then
-    jq -cn --arg m "Quality-gate note: backend Python was written and OSM was reachable, but no ORM validators (validate_depends/validate_domain/resolve_orm_chain/validate_relation) ran in this subagent. Per agents/odoo-coder.md Round 4, run the ORM gate + scripts/verify-backend.sh before presenting, or label standalone-mode explicitly." \
+    jq -cn --arg m "Quality-gate note: backend Python was written and OSM was reachable, but no ORM validators (validate_depends/validate_domain/resolve_orm_chain/validate_relation) ran in this subagent. Per agents/odoo-coder.md Round 4, run the ORM gate + scripts/verify-backend.sh before presenting, or label standalone-mode explicitly.${GUIDELINES_NOTE}" \
         '{continue:true, systemMessage:$m}'
     exit 0
 fi
@@ -89,9 +101,15 @@ fi
 # work and pressure the agent into emitting an unverifiable `grounded: local-source`. So: nudge,
 # don't gate — the hard quality gate is verify-backend.sh/CI (behavior), not OSM-call-count.
 if [[ "$PY_WRITES" -gt 0 && "$OSM_CALLS" -eq 0 && "$CLAIMS_OSM" -eq 0 && "$CLAIMS_LOCAL" -eq 0 ]]; then
-    jq -cn --arg m "Grounding note: this subagent wrote backend Python (.py) but made ZERO mcp__odoo-semantic__* calls and emitted no grounding label. If the file touches ORM (models/fields/@api.depends/domain=/related=), ground it before presenting — set_active_version + model_inspect/entity_lookup to verify, then the Round-4 ORM validators + scripts/verify-backend.sh — or, if OSM is unreachable, ground against disk and label \`grounded: local-source (not OSM-indexed)\`. If the file is pure-Python with no ORM (util/migration/test/__init__/__manifest__/data), say so, so the grounding gate is satisfied. Don't leave Odoo backend code silently ungrounded." \
+    jq -cn --arg m "Grounding note: this subagent wrote backend Python (.py) but made ZERO mcp__odoo-semantic__* calls and emitted no grounding label. If the file touches ORM (models/fields/@api.depends/domain=/related=), ground it before presenting — set_active_version + model_inspect/entity_lookup to verify, then the Round-4 ORM validators + scripts/verify-backend.sh — or, if OSM is unreachable, ground against disk and label \`grounded: local-source (not OSM-indexed)\`. If the file is pure-Python with no ORM (util/migration/test/__init__/__manifest__/data), say so, so the grounding gate is satisfied. Don't leave Odoo backend code silently ungrounded.${GUIDELINES_NOTE}" \
         '{continue:true, systemMessage:$m}'
     exit 0
 fi
+
+# NOTE: the read-before-write reminder is appended to Invariants 2/3 (via $GUIDELINES_NOTE), not
+# emitted as its own invariant. A standalone note would nag honest, fully-grounded subagents that
+# simply did not read a guidelines file — which contradicts the "honest work passes clean"
+# contract. The primary read-before-write enforcement is the agent-prompt gate; the hook only adds
+# the reminder when it is ALREADY nudging for a grounding gap.
 
 _pass

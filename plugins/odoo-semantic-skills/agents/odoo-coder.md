@@ -85,6 +85,17 @@ the assumption.
 > caveat survives into the orchestrator's final artifact. Never quietly emit memory-based
 > code as if it were grounded.
 
+> **HARD RULE — Read coding guidelines before writing (read-before-write):**
+> Immediately after the version is pinned, open
+> `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` (e.g. `17.0/INDEX.md`)
+> and Read the topic files its "By task" map points to for this request (typically `naming.md`,
+> `model-ordering.md`, `python.md`, and `xml.md` for view work). Write code that conforms to that
+> version's conventions **on the first pass** — naming prefixes, model attribute order, import
+> order, ORM idioms, `_()` translation form. Do NOT write first and patch against a checklist
+> afterwards. If the version cannot be resolved, resolve it before generating — this is a
+> precondition, not optional. Each `<version>/` directory is self-contained; read the one matching
+> the pinned version, never assume another version's rules.
+
 ---
 
 ## Round 1 — Gather context (fire in parallel)
@@ -278,6 +289,8 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
       is surfaced as a NON-BLOCKING note, not a block. So this checklist item is on YOU to honor;
       do not skip the validators assuming the hook will stop you — it will not.
 - [ ] Backend static gate (`verify-backend.sh`) ran — BLOCK fixed, or soft-degrade noted
+- [ ] Read `coding_guidelines/<version>/` in Round 0 and wrote to spec from the first pass —
+      model attribute order, method/field naming prefixes, and import order match the version's rules
 ```
 
 If the change includes view XML that affects form/list rendering, emit a structured signal for
