@@ -38,6 +38,12 @@ DESIGN_DOC = "odoo-frontend-fidelity"
 DESIGN_DOC_PATH = "skills/_shared/odoo-frontend-fidelity.md"
 INSTANCE_REFS = ("cli_help", "INSTANCE-LIFECYCLE", "ODOO-TESTING")
 
+# Per-version coding-guidelines SSOT: a root index plus a self-contained directory per series.
+# Engineering agents read these before writing (read-before-write); a missing index breaks the
+# version-aware lookup, so verify the root + each version index exists on disk.
+CODING_GUIDELINES_ROOT = "skills/_shared/coding_guidelines"
+CODING_GUIDELINES_VERSIONS = ("14.0", "15.0", "16.0", "17.0", "18.0", "19.0")
+
 # Skills that fan-out / spawn workers which may write Odoo code → must carry OSM-first.
 OSM_REQUIRED = {"wave", "workflow-chaining", "odoo-brl"}
 
@@ -130,9 +136,11 @@ def main(argv: list[str]) -> int:
     # 1c. The shared contract files the per-skill checks reference by substring must actually
     #     exist — otherwise a rename leaves every skill "passing" (stale substring) with a dead
     #     link. Verify the SSOT targets on disk once.
+    coding_guidelines_refs = [f"{CODING_GUIDELINES_ROOT}/INDEX.md"]
+    coding_guidelines_refs += [f"{CODING_GUIDELINES_ROOT}/{v}/INDEX.md" for v in CODING_GUIDELINES_VERSIONS]
     for rel in (f"snippets/{OSM_SNIPPET}.md", f"snippets/nesting-guard.md",
                 DESIGN_DOC_PATH, "docs/reference/INSTANCE-LIFECYCLE.md",
-                "docs/reference/ODOO-TESTING.md"):
+                "docs/reference/ODOO-TESTING.md", *coding_guidelines_refs):
         if not (PLUGIN_ROOT / rel).is_file():
             findings.append(f"[ref-target] shared contract file '{rel}' is referenced but missing on disk")
 

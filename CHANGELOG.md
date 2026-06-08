@@ -6,6 +6,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-06-08
+
+### Added
+
+- **Per-version Odoo coding-guidelines SSOT** under
+  `skills/_shared/coding_guidelines/<version>/` (14.0 through 19.0). Each version directory is
+  self-contained (no cross-version deltas) and split into topic files
+  (`module-structure`, `python`, `naming`, `model-ordering`, `xml`, `javascript`, `scss`) with a
+  per-version `INDEX.md` and a root index. Content is extracted faithfully from the official
+  `coding_guidelines.rst` of each branch.
+- **Read-before-write wiring** in the engineering agents (`odoo-coder`, `odoo-code-reviewer`,
+  `odoo-frontend-coder`, `odoo-backend-debugger`, `odoo-ui-debugger`) plus the three engineering
+  SKILL.md briefs: after the Odoo version is resolved, the agent MUST read the matching
+  `coding_guidelines/<version>/` files BEFORE writing code (correct on the first pass, not a
+  post-hoc checklist). The reviewer cites the violated guideline by version file + section.
+
+### Changed
+
+- `hooks/enforce-grounding.sh` adds a non-blocking note when a subagent writes backend Python
+  without reading a `coding_guidelines/<version>/` file (read-before-write reminder). Consistent
+  with the plugin's "notes, not blocks, for non-provable gaps" philosophy.
+- `generator/check_orchestration.py` now verifies the coding-guidelines root + per-version index
+  files exist on disk (ref-target integrity).
+
 ## [3.2.0] - 2026-06-08
 
 ### Added

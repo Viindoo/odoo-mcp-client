@@ -170,7 +170,9 @@ can articulate this.
 ### Step 7 - Name the fix location (do not write the fix)
 
 Once the root cause is proven: name the file, method/selector, and which coding skill to
-hand off to. Recommend `odoo-backend-coding` (Python/XML). If the symptom touches a
+hand off to. Recommend `odoo-backend-coding` (Python/XML). In the handoff, instruct the coder to
+read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/` (version-aware) and write
+the fix to that version's conventions from the first pass. If the symptom touches a
 broader pattern, suggest a reactive audit (`odoo-perf-audit`, `odoo-security-audit`,
 `odoo-deprecation-audit`) as a next step via the Continuation Contract - do not spawn it.
 

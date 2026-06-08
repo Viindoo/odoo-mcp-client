@@ -46,6 +46,7 @@ Key failure modes the agent is aware of:
 4. **Deprecated API** — `@api.multi`, `@api.one` removed in v13/v14; raise at call time, not import.
 5. **OWL reactivity** — direct `this.state.items.push()` bypasses OWL reactivity; `position="replace"` in XML views breaks other override chains. These render-level defects should be confirmed visually on a live instance with `odoo-debug` once the static review flags them.
 6. **Design-system fidelity (SCSS/OWL styling)** — hardcoded `hex`/`rgba` for themeable colors, or surface tokens chained into Bootstrap `--bs-*` custom properties the target version does not emit at runtime (often via a self-referential shim — a CSS var whose value references itself, a cycle that resolves to empty and flattens the theme). Flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`; confirm at runtime with `odoo-debug`/`odoo-ui-review`, and route the fix to `odoo-frontend-coding` (this reviewer does not write frontend source).
+7. **Coding-guideline conventions** — after pinning the version, the reviewer grounds convention findings against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/` (naming prefixes, model attribute order, import order, `_()` form) and cites the violated file + section — see `agents/odoo-code-reviewer.md`.
 
 ## Agent invocation
 

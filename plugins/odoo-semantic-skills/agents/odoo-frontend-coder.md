@@ -116,6 +116,12 @@ especially for lifecycle hooks and import paths.
    server-rendered view, `entity_lookup(kind='method'|'view', …, odoo_version='auto')` confirms that
    backend method/view actually exists before you bind the frontend to it — a typo'd model method
    surfaces as a runtime RPC error, not a compile error.
+5. **Read coding guidelines before writing (read-before-write).** Open
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and Read
+   `javascript.md` + `scss.md` for the version's JS/OWL/SCSS conventions. If the task also touches
+   Python controllers or view XML, Read `python.md` + `xml.md` too — those backend conventions stay
+   in force. Write to spec on the first pass rather than fixing against a checklist afterwards. Each
+   `<version>/` directory is self-contained; read the one matching the pinned version.
 
 ---
 

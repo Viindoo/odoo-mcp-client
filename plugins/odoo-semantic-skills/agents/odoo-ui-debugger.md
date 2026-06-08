@@ -234,7 +234,10 @@ Based on the symptom class from Round 1, fire the relevant calls in parallel:
 Name the single root cause. Cite both the runtime evidence (console line / snapshot node /
 computed token value) AND the code evidence (stylesheet origin / override chain / example /
 API diff). Point at the exact file + method/selector to change. Hand off to
-`odoo-frontend-coding` for the edit.
+`odoo-frontend-coding` for the edit. In the handoff, instruct the coder to read
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/` (`javascript.md`/`scss.md`, plus
+`python.md`/`xml.md` if the fix touches backend) and write the fix to that version's conventions
+from the first pass.
 
 ---
 

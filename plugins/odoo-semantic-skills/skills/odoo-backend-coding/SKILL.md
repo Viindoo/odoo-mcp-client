@@ -91,6 +91,9 @@ Standard conventions (v17 primary):
 - Locate the correct module/file yourself (Read/Grep), write the code to those files, and
   report which files you wrote/edited and what you added to `__manifest__.py`.
 - Field strings must use `_('…')` for translatability.
+- Read-before-write: after the version is resolved, the agent reads
+  `skills/_shared/coding_guidelines/<version>/` (naming, model-ordering, python, xml) and writes to
+  that version's conventions on the first pass — see `agents/odoo-coder.md`.
 
 ## Agent invocation — prompt template (P1)
 
