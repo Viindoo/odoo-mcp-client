@@ -64,8 +64,8 @@ produces it, (c) why this fix blocks that cause rather than masking the symptom.
 ## Handoff, not self-fix
 
 These debug agents DIAGNOSE; they do not edit source. Once the root cause is proven and the fix
-location named, hand off to `odoo-backend-coding` (Python/XML) or `odoo-frontend-coding` (JS/OWL/
-SCSS) for the edit, and to the relevant audit skill when a broader scan is warranted.
+location named, hand off to `odoo-coding` (it writes both the Python/XML and the JS/OWL/SCSS
+fix) for the edit, and to the relevant audit skill when a broader scan is warranted.
 
 ---
 

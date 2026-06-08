@@ -174,6 +174,7 @@ If you use **Claude Code** with the Odoo Semantic plugin:
 
 | Skill | What it does |
 |-------|-------------|
+| `odoo-solution-design` | Design the technical solution (approach / data model / override strategy / module structure / sequencing / test outline / risks) into a gate-able design doc BEFORE coding — the analysis-and-design step for non-trivial work; chains to `odoo-coding` |
 | `/odoo-override-finding` | Given a model + method, returns safe override point + existing overrides + suggest_pattern |
 | `/odoo-deprecation-audit` | Full deprecated API scan with replacement suggestions |
 | `/odoo-version-diff` | Side-by-side API diff between two Odoo versions for a given symbol |

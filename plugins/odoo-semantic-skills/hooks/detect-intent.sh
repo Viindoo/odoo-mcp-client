@@ -178,13 +178,13 @@ fi
 # silently skips the frontend specialists). Appended to whatever OSM context exists. ---
 case "${_domain}" in
   visual-UI)
-    _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work → odoo-frontend-coding (write); odoo-debug (runtime render/console errors); odoo-ui-review (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity → see skills/_shared/odoo-frontend-fidelity.md (build theme-correct, never hardcode hex / self-reference a CSS var)."
+    _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work → odoo-coding (write, its frontend leg); odoo-debug (runtime render/console errors); odoo-ui-review (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity → see skills/_shared/odoo-frontend-fidelity.md (build theme-correct, never hardcode hex / self-reference a CSS var)."
     _osm_context="${_osm_context:+${_osm_context}\n}${_fe_hint}"
     ;;
   engineering)
     # Only when OSM context already fired (i.e. OSM wired) — avoids noising every prompt.
     if [ -n "${_osm_context}" ]; then
-      _fe_hint="[Stack check] If the change touches JS/OWL/QWeb or an asset bundle, also engage odoo-frontend-coding — backend (odoo-backend-coding) does not cover frontend. Full-stack tasks need both."
+      _fe_hint="[Stack check] If the change touches JS/OWL/QWeb or an asset bundle, odoo-coding covers it (its frontend leg) alongside the backend in the same pass — full-stack is one skill, no separate frontend step needed."
       _osm_context="${_osm_context}\n${_fe_hint}"
     fi
     ;;

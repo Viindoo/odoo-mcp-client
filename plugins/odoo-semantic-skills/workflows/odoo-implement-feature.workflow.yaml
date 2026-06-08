@@ -1,0 +1,49 @@
+# odoo-implement-feature.workflow.yaml
+# Declarative SSOT for the end-to-end "requirement -> shipped code" engineering pipeline.
+# The DESIGN -> CODE -> REVIEW tail is driven by the depth-0 run-driver via Continuation
+# Contracts (those are depth0-only spawner skills and CANNOT be workflow-chaining phases at
+# depth 1 — see ORCHESTRATION-MAP.md). This workflow therefore does the leaf SCOPING phase
+# here, then EMITs the first spawner (odoo-solution-design for non-trivial work, else straight
+# to odoo-coding) via on_complete for run-driver to chain — exactly the qa-suite shape.
+name: odoo-implement-feature
+domain: engineering
+team_pattern: Pipeline
+description: |
+  Take an Odoo feature/requirement from scope to shipped code with a designed-and-approved
+  step in the middle: classify + effort-scope the requirement, then hand off to the
+  design -> code -> review chain (driven by the run-driver). Non-trivial work is designed via
+  odoo-solution-design before any code is written; trivial work goes straight to coding.
+  Trigger: "implement this feature end-to-end", "from requirement to working code",
+  "design then build then review", "scope to design to code to review", "build this feature
+  properly with a design step"
+output_dir: .odoo-ai/implement
+inputs:
+  - requirement
+
+phases:
+  - id: scope
+    skill: odoo-gap-analysis
+    nl_trigger: >
+      Classify the requirement into Standard / Config / Extension / Custom with an effort
+      estimate (S/M/L/XL) per item, grounded via OSM. Then surface a single boolean key
+      `has_nontrivial` in your output: true if ANY item is Extension-L or Custom-XL (or a new
+      module, a core create/write/unlink override, a schema migration, a cross-model computed
+      chain, a full-stack feature, or a refactor); false if every item is a one-approach
+      Standard/Config/Extension-M change.
+    model_tier: sonnet
+    gate: "approve / refine: [feedback] / cancel"
+
+on_complete:
+  - when: "has_nontrivial == true"
+    next: odoo-solution-design
+    reason: "non-trivial items need a designed-and-approved solution (approach / data model / override strategy / module structure) before any code is written; design then chains to coding and review via the run-driver"
+    inputs: {scope: "${output_dir}/implement-scope.md"}
+    gate_tier: L1
+  - when: "has_nontrivial == false"
+    next: odoo-coding
+    reason: "all items are one-approach trivial changes; skip the design step and code directly, then review"
+    inputs: {scope: "${output_dir}/implement-scope.md"}
+    gate_tier: L1
+
+resume: true
+fallback: standalone

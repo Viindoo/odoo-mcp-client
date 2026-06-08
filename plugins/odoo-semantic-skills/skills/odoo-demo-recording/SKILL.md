@@ -10,7 +10,7 @@ description: >
   for the website", "quay video demo Odoo", "tạo video hướng dẫn quy trình". Routing: stitch
   many scenes / multi-scene walkthrough into one video → odoo-produce-video; RATE how a screen
   looks → odoo-ui-review; broken screen → odoo-debug; compare two builds →
-  odoo-visual-regression; write frontend code → odoo-frontend-coding; code audit →
+  odoo-visual-regression; write frontend code → odoo-coding; code audit →
   odoo-code-review
 ---
 
@@ -25,7 +25,7 @@ recording (which menus, which records, what to type) so the take is smooth and r
 - **Rating how a screen looks** (aesthetic/a11y/performance verdict) → use `odoo-ui-review`
 - **Diagnosing a broken screen** → use `odoo-debug`
 - **Comparing two builds for visual drift** → use `odoo-visual-regression`
-- **Writing Odoo frontend code** → use `odoo-frontend-coding`
+- **Writing Odoo frontend code** → use `odoo-coding`
 - **Static source-level code audit** → use `odoo-code-review`
 
 ## MCP tools
@@ -173,7 +173,7 @@ Prompt: "Make a GIF of the customer portal invoice download."
 
 - Videos/GIFs are written under `.odoo-ai/visual/videos/`.
 - Use a consistent viewport and login for repeatable takes — see `docs/odoo-ui-knowledge.md`.
-- This skill records flows only; it never edits Odoo source. Hand any needed fix to `odoo-frontend-coding`.
+- This skill records flows only; it never edits Odoo source. Hand any needed fix to `odoo-coding`.
 
 ## Continuation Contract
 

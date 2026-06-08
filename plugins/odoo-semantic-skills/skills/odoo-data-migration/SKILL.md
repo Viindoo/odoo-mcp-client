@@ -31,7 +31,7 @@ verifiable row counts, and a rollback note in every output.
 | What changed between two Odoo versions | `odoo-version-diff` |
 | Deploy readiness gate | `odoo-deploy-checklist` |
 | Full upgrade orchestration plan | `/odoo-plan-upgrade` |
-| Backend model/field creation (no migration needed) | `odoo-backend-coding` |
+| Backend model/field creation (no migration needed) | `odoo-coding` |
 | Executive risk overview | `odoo-risk-overview` |
 
 **IMPORTANT - execution boundary.** This skill WRITES the migration script. It does NOT
@@ -89,6 +89,15 @@ in a single message before proceeding.
 Call `set_active_version` and `set_active_profile` (parallel if both available).
 
 ### Round 1 - Confirm migration type and inspect models (parallel)
+
+> **Design-gate (non-trivial migrations).** A model split/merge, a backfill/transform with more
+> than one viable mapping (ID-match vs value-match), or a migration where the pre/post split is
+> itself a real decision is a DESIGN choice, not a one-approach script. When the migration is
+> non-trivial like this and no approved design doc exists (`.odoo-ai/designs/<slug>-*.md`, or a
+> `design_doc` input), recommend `odoo-solution-design` first to decide the strategy (pre vs post,
+> openupgradelib vs raw SQL, mapping, ordering), then write the script to that approved design — a
+> recommendation (`SUGGESTED_NEXT: odoo-solution-design`), not a hard block. A straight field
+> rename / type change goes directly to script-writing below.
 
 Confirm with the user (or derive from context):
 

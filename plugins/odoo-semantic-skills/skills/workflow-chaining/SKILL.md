@@ -177,10 +177,10 @@ accumulated phase outputs and judge the predicate (e.g. `classification == 'bug'
 output (there is no separate typed state store). For every entry that matches, **add it to your
 Continuation Contract `next[]`** (mapping `next → skill`, carrying `reason`, `inputs`, and
 `gate_tier → risk_level`). Example: a `qa-suite` run that found bugs emits
-`next: odoo-backend-coding` so the depth-0 run-driver can chain a fix.
+`next: odoo-coding` so the depth-0 run-driver can chain a fix.
 
 **HARD RULE — EMIT, never self-dispatch.** `on_complete` only *emits* `next[]`. workflow-chaining
-runs at depth 1 and MUST NOT invoke a depth0-only spawner (`odoo-backend-coding`, `wave`, …)
+runs at depth 1 and MUST NOT invoke a depth0-only spawner (`odoo-coding`, `wave`, …)
 itself — that would nest a fresh agent below depth-1 and risk a context crash. The depth-0
 `run-driver` reads the emitted `next[]` and dispatches it. If no `on_complete` is declared, or
 none matches, finish normally (this is fully back-compatible — existing workflows are unaffected).

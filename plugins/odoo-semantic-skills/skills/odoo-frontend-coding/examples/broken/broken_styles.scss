@@ -1,7 +1,0 @@
-// Deliberately-broken SCSS. verify-frontend.sh must WARN on classes 4 and 5.
-.o_broken {
-    // BUG class 4: Sass function inside calc() without #{} interpolation -> dropped by LibSass
-    width: calc(map-get($spacers, 2) * 2);
-    // BUG class 5: --bs-* var Odoo does not emit at runtime ($variable-prefix is '')
-    color: var(--bs-primary);
-}

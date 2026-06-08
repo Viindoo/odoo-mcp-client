@@ -170,7 +170,7 @@ can articulate this.
 ### Step 7 - Name the fix location (do not write the fix)
 
 Once the root cause is proven: name the file, method/selector, and which coding skill to
-hand off to. Recommend `odoo-backend-coding` (Python/XML). In the handoff, instruct the coder to
+hand off to. Recommend `odoo-coding` (Python/XML). In the handoff, instruct the coder to
 read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/` (version-aware) and write
 the fix to that version's conventions from the first pass. If the symptom touches a
 broader pattern, suggest a reactive audit (`odoo-perf-audit`, `odoo-security-audit`,
@@ -248,7 +248,7 @@ Symptom: `amount_total` on `sale.order` stays 0.0 after adding order lines.
 - Step 6: Toggle - temporarily adding the missing path to `@api.depends` and triggering a
   recompute would restore the value; removing it reproduces the stale state.
 - Output contract filled. Fix location: `addons/<module>/models/sale_order.py` · `_amount_all` ·
-  hand off to `odoo-backend-coding`.
+  hand off to `odoo-coding`.
 
 ### Example 2 - AccessError distinction
 

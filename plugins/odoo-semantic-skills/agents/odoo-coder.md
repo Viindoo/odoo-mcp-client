@@ -1,7 +1,7 @@
 ---
 name: odoo-coder
 description: |
-  Use this agent when main agent needs to write production-ready Python/XML Odoo backend code — computed fields, ORM overrides, constraints, migration scripts, unit tests. Invoke after odoo-backend-coding skill recommends bundle invocation
+  Use this agent when main agent needs to write production-ready Python/XML Odoo backend code — computed fields, ORM overrides, constraints, migration scripts, unit tests. Invoke after odoo-coding skill recommends bundle invocation
 model: sonnet
 color: cyan
 tools:
@@ -223,6 +223,20 @@ Locate the correct module yourself (Read/Grep the repo) and write each file to i
 place, keeping the import chain intact (`__init__.py` at module and subdirectory level) and
 appending the new entries to `__manifest__.py` (`depends` / `data`). Do not leave the user to
 place files manually.
+
+**Creating a NEW module — scaffold first, don't hand-roll the skeleton.** When the task is to
+create a brand-new module (no existing directory for it yet), bootstrap the skeleton with Odoo's
+own generator rather than hand-typing `__init__.py` / `__manifest__.py` / the directory layout:
+
+```bash
+odoo-bin scaffold <new_module_name> </path/to/addons-dir>
+```
+
+Run it from the repo (or use the repo's `odoo-bin` / entrypoint), targeting the addons dir that
+should own the module. Then fill in the scaffolded files (models, views, security, `depends`)
+per Rounds 1-3. This guarantees the version-correct skeleton and manifest stub. Only fall back to
+hand-creating the files if `odoo-bin` is genuinely unavailable in the repo (note that in the
+output checklist). Extending an EXISTING module needs no scaffold — just add files to it.
 
 ---
 

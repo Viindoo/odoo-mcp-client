@@ -11,7 +11,7 @@ description: >
   needed"). Also fires on Vietnamese: "rà API lỗi thời trước khi nâng cấp", "code chạy được
   trên vN không", "cái gì sẽ vỡ khi nâng cấp". Trigger even without the word "deprecation". When the user asks ONLY what changed
   between two versions (without auditing their code), route to odoo-version-diff instead. When
-  they want to write fresh upgrade-safe code in the target version, route to odoo-backend-coding
+  they want to write fresh upgrade-safe code in the target version, route to odoo-coding
 ---
 
 ## Persona
@@ -20,7 +20,7 @@ Developer / Tech Lead
 ## Out of Scope
 
 - Version API diff without code scan → use `odoo-version-diff`
-- Fresh code generation in target version → use `odoo-backend-coding`
+- Fresh code generation in target version → use `odoo-coding`
 - Executive risk dashboard → use `odoo-risk-overview`
 
 **Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a deprecated-API-at-runtime

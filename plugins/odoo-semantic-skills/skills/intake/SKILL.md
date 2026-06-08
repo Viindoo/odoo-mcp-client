@@ -51,7 +51,7 @@ what they want or what outcome they need. This skill's job is to:
      behavioral, not a `disallowed-tools` block.
    - (2) **NEVER invoke a writes-files execute-skill (a `writes-files` specialist) — nor the
      Skill tool running such a specialist — BEFORE Plan Mode is approved.** That includes
-     `odoo-backend-coding`, `odoo-frontend-coding`, `wave`, `odoo-brl`, `workflow-chaining`, or any skill
+     `odoo-coding`, `wave`, `odoo-brl`, `workflow-chaining`, or any skill
      whose output mode is `writes-files`. Yield to it via a NL-dispatch description; the actual
      dispatch happens on a LATER turn, AFTER Plan-Mode approval (see § Plan Mode).
    - (3) **Phase R (Recon) MAY dispatch a READ-ONLY agent via the Agent tool** — `Explore`, or
@@ -191,8 +191,8 @@ discovery — the explicit `orchestration.<skill>.output_mode` field in `skill_t
   "Does NOT apply" below.
 
 **When it applies**: after the user approves the Proposed Plan AND the chosen next step is
-an execute-skill that will **write or modify files** — specifically any of: `odoo-backend-coding`,
-`odoo-frontend-coding`, `wave`, `odoo-brl`, `workflow-chaining`, or any skill whose output
+an execute-skill that will **write or modify files** — specifically any of: `odoo-coding`,
+`wave`, `odoo-brl`, `workflow-chaining`, or any skill whose output
 column is NOT "chat only".
 
 **Why intake can do this**: intake runs at depth-0 (main context). `EnterPlanMode` /
@@ -223,107 +223,38 @@ this capability.
 
 ### Plan Mode Content Schema
 
-The implementation plan written inside Plan Mode (step 3 above) MUST contain three blocks.
-None is optional for a `writes-files` Approach.
+The implementation plan written inside Plan Mode (step 3 above) MUST contain three blocks, none
+optional for a `writes-files` Approach: **Block 1 — Workitem list** (each WI: `id`, one-line
+description, disjoint `files-in-scope`); **Block 2 — Dependency graph** (DAG with typed edges +
+topological order, or one of the four wave topologies for a few WIs); **Block 3 — Assignment**
+(`WI → skill|command|agent` + model-from-frontmatter + effort + per-WI acceptance criteria +
+verify command). A workflow-command is ONE WI (its `output_dir/`), never expanded into its
+internal phases. **When writing a writes-files plan, read
+`${CLAUDE_PLUGIN_ROOT}/skills/intake/references/plan-mode-schema.md`** for the full block schemas
+(which shapes to borrow + line refs), worked examples, and the rejection flow.
 
-**Block 1 — Workitem list.** Borrow the WI-Brief shape from `skills/wave/SKILL.md`
-(~lines 174–219) and/or the requirement shape in `odoo-brl/reference/schema.md` (~lines
-116–197). Each WI carries: `id`, a one-line description, and `files-in-scope` (the file sets
-across WIs MUST be **disjoint**). For a multi-WI delivery also note worktree + branch + verify
-command per WI (Repo Capability Card).
-
-**Block 2 — Dependency graph.** Borrow the DAG schema from `odoo-brl/reference/schema.md`
-(~lines 316–385): `nodes` + `edges` where each edge has a `type` of
-`technical | business-logic | data-flow` and a `reason`; a `topological_order` (Kahn's
-algorithm), a `critical_path`, and `cycles` (empty `[]` for a valid DAG — a cycle is reported,
-never silently dropped). For only a few WIs, instead pick one of the four topologies in
-`wave/reference/wave-templates.md` (~lines 29–92): **independent | linear | mixed | diamond**.
-A mermaid diagram is encouraged.
-
-**Block 3 — Assignment.** One line per WI:
-`WI → skill | command | agent  (model from frontmatter, effort by legend) → which skill that agent uses`.
-Add per-WI **acceptance criteria** + a **verify command** (Repo Capability Card). `model` is read
-from the candidate's `SKILL.md`/`agents/*.md` frontmatter; `effort` follows the gap-analysis
-legend (S/M/L/XL).
-
-**Workflow-as-node in the schema (G-B):** when a WI's approach is a workflow-command, it is
-**one WI** — `files-in-scope` = the workflow's `output_dir/` (one box). Do NOT expand the
-workflow's internal phases into separate WIs (that would duplicate the phase logic that is SSOT
-in the `.workflow.yaml` and break the disjoint-files invariant), and do NOT draw the workflow's
-internal phase-sequence in Block 2 (that DAG is the workflow's own; here the workflow is a
-single node that may have edges to OTHER WIs). Block 3 line: `WI → /<command> via
-workflow-chaining (model per-phase in YAML, effort = total) → verify: artifact in output_dir`.
-
-*Examples (short):*
-- Full-stack feature → `WI-A: odoo-backend-coding (sonnet, M)` adds the backend field/method;
-  `WI-B: odoo-frontend-coding (sonnet, M)` renders the OWL widget. DAG: **linear**, edge
-  `WI-B --data-flow--> depends-on WI-A` (the field must exist before the widget binds to it).
-- Three disjoint fixes (bug + test + docs) → `WI-A odoo-backend-coding`, `WI-B odoo-backend-coding`,
-  `WI-C` docs edit; DAG: **independent** (no edges) → hand to `wave` for parallel delivery.
-
-### Rejection flow
-
-If the user refines or rejects in the Plan Mode UI (step 5), loop back to the
-**soft-plan-gate**, not to execution: re-run the relevant part — pick a different skill, adjust
-WI parameters (scope / files / assignment / effort), or `cancel`. Re-enter Plan Mode only once
-the revised plan is re-approved at the text gate. Never dispatch a writes-files specialist off a
-rejected plan.
+**Rejection flow (summary):** if the user refines/rejects in the Plan Mode UI, loop back to the
+soft-plan-gate (not execution); re-enter Plan Mode only after the revised plan is re-approved at
+the text gate; never dispatch a writes-files specialist off a rejected plan. Full detail in the
+reference above.
 
 ## Phase P — RUN-DAG persistence + drive-to-done (optional, additive)
 
 This phase turns an approved plan into a self-advancing run. It is **purely additive**: a
-single-step plan still dispatches exactly as before — Phase P only matters for multi-step work
-or when the user wants hands-off execution. Full schema + loop: `docs/reference/workflow-harness.md` §8.
+single-step plan still dispatches exactly as before — Phase P only matters for multi-step work or
+hands-off execution.
 
-**Autonomy dial** — parse from the user prompt (default `--auto`):
-- `--auto` (default): drive to done; auto-pass L0/L1 nodes; stop only at L2 gates + BLOCKED.
-- `--step`: gate every node ≥ L1 (this is today's behaviour — safest).
-- `--plan`: emit the RUN-DAG and STOP; do not run the driver.
+**Engage Phase P** (after the plan is approved) if ANY holds: (1) `node_count >= 2`; (2) a single
+`output_mode == writes-files` node; or (3) a single workflow node whose YAML declares
+`on_complete`. Otherwise SKIP it and dispatch directly (single chat-only, non-`on_complete` node).
+When engaged, serialize the approved 3-block plan into `.odoo-ai/run-<id>.json`, tag gate-tiers,
+and NL-dispatch `run-driver` (which keeps everything depth-0). Parse the autonomy dial from the
+prompt (`--auto` default / `--step` / `--plan`).
 
-**When to engage Phase P** (decidable rule — the autonomy dial is NOT a trigger; it is only
-recorded in `run.json` once engaged). After the plan is approved, ENGAGE Phase P if ANY holds:
-1. `node_count >= 2` (multi-step — needs DAG sequencing / `next[]` materialization), OR
-2. a single node whose `output_mode == writes-files` (needs gate-tier tracking + a driver to
-   catch any runtime `next[]`), OR
-3. a single node that is a workflow (`approach_kind == workflow`) whose YAML declares
-   `on_complete` (needs the depth-0 driver present to dispatch the cross-workflow chain — see
-   "workflow-as-node" below).
-
-SKIP Phase P (dispatch directly, as today — no run file, no driver) ONLY when the plan is a
-single node AND `output_mode == chat-only` AND it is not a workflow-with-`on_complete`. A
-single chat-only node fires the specialist on the next turn; `--auto` on it is a harmless no-op
-(nothing to drive). Note: a directly-dispatched single node does NOT materialize its
-Continuation Contract `next[]` — if a step emits a `next[]` worth chaining, re-run `/intake` to
-open a RUN-DAG.
-
-**Procedure** (when Phase P is engaged):
-1. Serialize the approved Plan Mode 3-block content (workitems + dependency DAG + assignment —
-   already produced per § Plan Mode Content Schema) into `.odoo-ai/run-<id>.json` per the
-   blackboard schema (harness §8.3): one `nodes[]` entry per workitem, with `depends_on` from
-   the dependency graph and `approach`/`approach_kind` from the assignment. The `<id>` is
-   `<short-intent-slug>-<YYYYMMDD>-<4 random chars>` (e.g. `add-priority-20260607-a3f1`) so
-   concurrent runs never collide.
-2. Tag each node's `gate_tier` from the registry `default_gate_tier`
-   (`generator/skill_tool_deps.json`), raising it if the node writes outside `.odoo-ai/`.
-3. Set `autonomy`, `budget` (`max_nodes` ≈ 2× node count), `status: NEEDS_NEXT`.
-4. If `--plan`: stop here (the DAG file is the deliverable). Otherwise NL-dispatch `run-driver`,
-   which walks the DAG to DONE/BLOCKED/NEEDS_CONTEXT.
-
-**Depth safety:** intake (depth-0) writing the file and handing off to `run-driver` (also
-depth-0) keeps everything at the main level; the driver does the depth-0→1→2 dispatch. intake
-never spawns the specialists itself here — it persists the plan and yields to the driver.
-
-**Workflow-as-node (G-B):** a workflow-command (e.g. `/odoo-respond-bid`) is ONE node at the
-DAG level — its internal phases are SSOT inside the `.workflow.yaml` (gated by
-`workflow-chaining`), never expanded into separate WIs. Routing:
-- single workflow node, NO `on_complete` declared → hand the YAML name straight to
-  `workflow-chaining` (it self-gates each phase); no run file needed.
-- single workflow node WITH `on_complete` declared → engage Phase P anyway (trigger 3 above):
-  the 1-node RUN-DAG is cheap (driver picks the one node, dispatches `workflow-chaining`, then
-  reads the emitted `next[]`), and it is the only way the cross-workflow chain auto-advances
-  instead of degrading to a human suggestion.
-- a workflow node sitting in a `>=2`-node DAG → just one node in that DAG; `run-driver`
-  dispatches it via `approach_kind: workflow` and advances on its Continuation Contract.
+**When engaging Phase P, read
+`${CLAUDE_PLUGIN_ROOT}/skills/intake/references/phase-p-run-dag.md`** for the full engage/skip
+rule, the `run-<id>.json` serialization procedure, the autonomy-dial semantics, depth safety, and
+the workflow-as-node routing. Full schema + loop: `docs/reference/workflow-harness.md` §8.
 
 ## Multi-plugin routing — stay Odoo-centric
 
@@ -440,7 +371,7 @@ The **Discriminator** column resolves close ties.
 |---|---|---|---|
 | 1 | "risk", "safe to upgrade", "blast radius", executive 1-page summary | `odoo-risk-overview` | Executive audience + risk score output (vs `odoo-deprecation-audit` which is code-level audit) |
 | 2 | "inventory", "list all customizations", "what have we built" | `odoo-customization-inventory` | Module-list deliverable for CEO/PM (vs `odoo-risk-overview` which scores risk) |
-| 3 | "where to hook", "override method", "best place to extend", "which method should I override" | `odoo-override-finding` | Hook location question for ONE method (vs `odoo-backend-coding` which writes the override) |
+| 3 | "where to hook", "override method", "best place to extend", "which method should I override" | `odoo-override-finding` | Hook location question for ONE method (vs `odoo-coding` which writes the override) |
 | 4 | "deprecated", "what will break", "audit before upgrade", "old API", "leftover OpenERP code" | `odoo-deprecation-audit` | Code-level audit (vs `odoo-version-diff` which is pure API diff, vs `odoo-risk-overview` which is executive) |
 | 5 | "what changed between", "diff v16 v17", "API changes", "new features in Odoo X" (dev framing) | `odoo-version-diff` | Version-to-version comparison (vs `odoo-feature-highlights` which is marketing framing for the same data) |
 | 6 | "does Odoo have X", "is X available", "is module Y in CE" | `odoo-feature-check` | SINGLE feature lookup (vs `odoo-gap-analysis` which handles a LIST of requirements) |
@@ -449,9 +380,9 @@ The **Discriminator** column resolves close ties.
 | 9 | "CE vs EE", "edition comparison", "what does Enterprise add" | `odoo-addon-diff` | Three-way edition comparison (vs `odoo-feature-check` which is single-feature) |
 | 10 | "prove Odoo can", "evidence for demo", "RFP evidence", "before the demo", "competitor said Odoo can't" | `odoo-capability-proof` | Evidence PACKAGE (modules + code + demo steps) (vs `odoo-objection-handling` which produces a verbatim response paragraph) |
 | 11 | "respond to objection", "counter 'Odoo can't'", "write a response", "rep is on the call", "customer says Odoo can't do X" | `odoo-objection-handling` | Verbatim ACA response paragraph (vs `odoo-capability-proof` which is technical evidence) |
-| 12 | "write code", "create field", "implement feature", "write computed field", "add onchange", "add SQL constraint" | `odoo-backend-coding` | Backend Python/XML code generation (vs `odoo-frontend-coding` for frontend, vs `odoo-override-finding` for finding hook location) |
-| 13 | "review code", "check my PR", "audit this", "smell test before merge" | `odoo-code-review` | Reviewing EXISTING code (vs `odoo-backend-coding` which writes NEW code, vs `odoo-deprecation-audit` which is module-level audit) |
-| 14 | "JS", "widget", "OWL", "frontend", "any Odoo version", "odoo.define()", "useService", "patch component" | `odoo-frontend-coding` | Frontend code (legacy v8-14 or OWL v15+); skill auto-detects framework via Odoo version in `.odoo-ai/context.md` or user statement |
+| 12 | "write code", "create field", "implement feature", "write computed field", "add onchange", "add SQL constraint" | `odoo-coding` | The single coding front door — backend Python/XML AND frontend (see row 14). It works out per-module whether the change is backend-only / frontend-only / full-stack and dispatches the right agents (vs `odoo-override-finding` for finding a hook location, vs `odoo-code-review` which reviews existing code) |
+| 13 | "review code", "check my PR", "audit this", "smell test before merge" | `odoo-code-review` | Reviewing EXISTING code (vs `odoo-coding` which writes NEW code, vs `odoo-deprecation-audit` which is module-level audit) |
+| 14 | "JS", "widget", "OWL", "frontend", "any Odoo version", "odoo.define()", "useService", "patch component" | `odoo-coding` | Same unified coding skill (frontend leg) — legacy v8-14 or OWL v15+; auto-detects framework + which stacks a change needs via the Odoo version in `.odoo-ai/context.md` or the user statement |
 | 15 | "follow up with customer", "deal stalled", "draft follow-up email", "customer hasn't replied" | `odoo-deal-followup` | Sales AE follow-up email writer (vs `odoo-objection-handling` for objection response, vs `odoo-discovery-summary` for raw meeting notes) |
 | 16 | "summarize the customer meeting", "synthesize discovery notes", "extract customer profile" | `odoo-discovery-summary` | Pre-proposal structured profile (vs `odoo-gap-analysis` for effort matrix, vs `odoo-deal-followup` for post-meeting follow-up email) |
 | 17 | "write a blog post on Odoo", "draft a LinkedIn post", "YouTube script for Odoo", "email sequence about", "landing page copy" | `odoo-content-draft` | Single-piece content draft (vs `odoo-campaign-plan` which orchestrates multi-piece campaign, vs `odoo-feature-highlights` which is slide-format) |
@@ -465,7 +396,7 @@ The **Discriminator** column resolves close ties.
 | 25 | "synthesize discovery notes" + explicit slash kickoff | `/odoo-summarize-discovery` (command) | Quick slash for `odoo-discovery-summary` skill (bypass intake for explicit kickoff) |
 | 26 | "position feature X for [slide/blog/email/proposal]" | `/odoo-position-feature` (command) | Multi-step chain (vs `odoo-feature-check` for existence-only) |
 | 27 | "full upgrade plan from v<N> to v<M>" | `/odoo-plan-upgrade` (command) | Replaces legacy `odoo-upgrade-planner` agent; chains 4 skills + effort estimate |
-| 28 | "kiểm tra giao diện / form hiển thị sai / UI review / responsive / layout vỡ" | `odoo-ui-review` | Rates a RENDERED screen in the browser (vs `odoo-frontend-coding` which WRITES the JS, vs `odoo-code-review` which reads source STATICALLY without a browser) |
+| 28 | "kiểm tra giao diện / form hiển thị sai / UI review / responsive / layout vỡ" | `odoo-ui-review` | Rates a RENDERED screen in the browser (vs `odoo-coding` which WRITES the JS, vs `odoo-code-review` which reads source STATICALLY without a browser) |
 | 29 | "console error / OWL render lỗi / trang trắng / widget không hiện / JS runtime error" | `odoo-debug` | Front-door for ALL debugging: reproduces, root-causes, dispatches specialist debug agents (vs `odoo-ui-review` which rates a working screen) |
 | 30 | "visual regression / so ảnh trước-sau / UI có đổi sau khi sửa / baseline screenshot" | `odoo-visual-regression` | Diffs TWO states/builds for drift (vs `odoo-ui-review` which judges ONE screen once) |
 | 31 | "quay video tính năng / demo video / screencast / video marketing" | `odoo-demo-recording` | Produces a REAL video/GIF of a live instance (vs `odoo-capability-proof` which produces TEXT/code evidence, vs `odoo-content-draft` which writes the SCRIPT only) |
@@ -477,165 +408,56 @@ The **Discriminator** column resolves close ties.
 | 37 | "deal close cycle", "full sales closing cycle", "multi-step deal closing", "sales follow-up sequence end-to-end", "close this deal from discovery to signature" | `sales-closing-cycle` (workflow) | End-to-end deal-closing pipeline (vs `odoo-deal-followup` which is a single email draft, vs `/odoo-respond-bid` which produces an RFP response document) |
 | 38 | "long debug session", "investigate phiên dài", "multi-turn UI debug", "ui-debug-session", "sustained troubleshooting session for Odoo UI" | `ui-debug-session` (workflow) | Sustained multi-turn UI debug session with state tracking (vs `odoo-debug` which is a single-turn root-cause investigation) |
 | 39 | "content brief to publish", "full content production", "content from brief to done", "multi-step content workflow", "brief → draft → review → publish" | `content-production` (workflow) | End-to-end content pipeline: brief → draft → review → publish (vs `odoo-content-draft` which is single-piece draft only, vs `odoo-campaign-plan` which plans the campaign, not produces the pieces) |
-| 40 | "do this as a wave", "parallelize these changes", "multi-WI PR with review and squash", "land N related changes safely without touching main", "git-wave orchestration", "split this work into parallel worktrees" | `wave` | Depth-0 git-wave orchestration: integration branch + parallel WI worktrees + cherry-pick + end-of-wave review + 1 PR + squash + human-confirm merge (vs `odoo-backend-coding` which handles a SINGLE change with no git orchestration; vs `odoo-brl` which classifies/costs requirements but writes NO code) |
+| 40 | "do this as a wave", "parallelize these changes", "multi-WI PR with review and squash", "land N related changes safely without touching main", "git-wave orchestration", "split this work into parallel worktrees" | `wave` | Depth-0 git-wave orchestration: integration branch + parallel WI worktrees + cherry-pick + end-of-wave review + 1 PR + squash + human-confirm merge (vs `odoo-coding` which handles a SINGLE change with no git orchestration; vs `odoo-brl` which classifies/costs requirements but writes NO code) |
+| 41 | "design the solution", "thiết kế giải pháp / phân tích thiết kế", "how should I architect / structure this", "which approach", "design the data model", "plan the refactor", "design before we code", "technical design", "architecture decision" | `odoo-solution-design` | Designs HOW to build a non-trivial change (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding (vs `odoo-coding` which WRITES code, vs `odoo-override-finding` which answers ONE method's hook location, vs `odoo-brl`/`odoo-gap-analysis` which classify WHAT to build + cost). Discriminator: the user wants a designed/approved approach, not yet the code |
+| 42 | "implement this feature end-to-end", "from requirement to working code", "design then build then review", "scope → design → code → review" | `odoo-implement-feature` (workflow) | End-to-end feature pipeline: gap/brl → solution-design → odoo-coding → code-review (vs `odoo-solution-design` which produces ONLY the design, vs `odoo-coding` which writes ONE change with no design/review phases) |
+| 43 | "make this Odoo UI look good", "design the form/kanban/list", "this screen looks cluttered/off", "thiết kế giao diện Odoo đẹp đúng chuẩn", "đúng design-system Odoo", "design a clean portal page" | `odoo-frontend-design` | Knowledge-only DESIGN-QUALITY expertise for Odoo UI/UX (view-type choice, form hierarchy, semantic tokens, website/portal) - loaded by solution-design/odoo-coding and the bar ui-review rates against (vs `odoo-coding` which WRITES the JS/OWL/SCSS, vs `odoo-ui-review` which RATES a rendered screen in a browser) |
 
-## Full-stack tasks — route to BOTH, not either/or
+## Full-stack tasks — `odoo-coding` handles both stacks in one skill
 
 Some requests span backend **and** frontend: e.g. "add a `priority` field to sale order **and
 show it as a star widget on the form**", "thêm field rồi hiển thị bằng widget tùy biến", "new
-dashboard: a computed KPI on the model **plus** an OWL component to render it". `odoo-backend-coding`
-owns the Python/XML; `odoo-frontend-coding` owns the JS/OWL/SCSS/QWeb. **Plan both** (backend
-first so the field/method exists, then frontend to render it) instead of silently picking one —
-a full-stack change is incomplete if the UI half is dropped. If the styling must match the Odoo
-theme, the frontend step follows the design-system fidelity contract. For ≥4 such work items or
-a git-orchestrated delivery, escalate to `wave`.
+dashboard: a computed KPI on the model **plus** an OWL component to render it". You do **not**
+pre-split these — route to `odoo-coding`, the single coding front door. It scopes the change,
+works out per-module whether the work is backend-only / frontend-only / full-stack, and sequences
+the two stacks itself (backend first so the field/method exists, then frontend to render it). If
+the styling must match the Odoo theme, the frontend leg follows the design-system fidelity
+contract. For ≥4 independent work items or a git-orchestrated delivery, escalate to `wave`.
 
-## Collision Test Cases — Worked Examples
+## Design-first rule — route non-trivial coding through `odoo-solution-design`
 
-These are the known collision zones where two skill descriptions overlap. Use these as
-the canonical resolution logic.
+A coding request (`odoo-coding`) is NOT automatically the first step. When the change is
+**non-trivial** (the set `odoo-solution-design` defines — Extension-L/Custom-XL, new
+module/model, a core ORM-hook override or ≥3-override-chain method, a multi-strategy migration, a
+cross-model/multi-company computed chain, a full-stack feature, or any refactor), plan
+`odoo-solution-design` BEFORE the coder, so the chain is `odoo-solution-design → odoo-coding →
+odoo-code-review` (exactly the `odoo-implement-feature` workflow — prefer it for the full chain,
+driven by Phase P). **Order matters:** design is a planning step (writes only `.odoo-ai/designs/`)
+and is **human-approved FIRST**; only then does Plan Mode wrap the code step and the coder build
+to the approved doc — design → approve → Plan Mode (code) → execute → review. **Trivial** work
+(a single field, boilerplate, a one-approach localized fix) skips design and routes straight to
+`odoo-coding`. The `odoo-coding` Phase 0 gate is a safety net (re-checks "non-trivial and lacking
+a design doc?"), not the design step.
 
-### Collision 1 — Objection vs Capability Proof
+## Collision zones — when the Routing Table tie is close
 
-**Prompt**: "write a response to the customer saying Odoo doesn't support multi-level approval"
+The Routing Table's **Discriminator** column resolves most ties inline. A handful of pairs
+collide hard enough to warrant a worked example with prompts and counter-cases. **When the
+candidate is one of the pairs below and the inline discriminator is not decisive, read
+`${CLAUDE_PLUGIN_ROOT}/skills/intake/references/collision-zones.md`** for the canonical
+resolution logic — do not guess.
 
-- `odoo-objection-handling`: handles "respond to objection", "customer says Odoo
-  can't" -> produces a verbatim ACA-framework response paragraph.
-- `odoo-capability-proof`: handles "Odoo doesn't support X" -> produces a
-  technical evidence package (modules + code snippets + demo steps).
-
-**Discriminator**: the verb "write a response" signals the user wants a customer-facing
-paragraph they can paste. -> **Pick `odoo-objection-handling`.**
-
-If the user had said "prepare technical evidence for the multi-level approval demo" -> that
-would be `odoo-capability-proof`.
-
-### Collision 2 — Version Diff vs Feature Highlights
-
-**Prompt**: "summarize the key highlights in Odoo 18 for an internal slide next week"
-
-- `odoo-version-diff`: handles "new features in Odoo X" -> produces dev-track
-  diff + marketer-track summary.
-- `odoo-feature-highlights`: handles "feature highlights", "slide", "for the
-  newsletter" -> produces business-language highlights with optional dev appendix.
-
-**Discriminator**: "internal slide" + "summarize" signal marketing/non-developer output.
--> **Pick `odoo-feature-highlights`.**
-
-If the user had said "which APIs changed from v17 to v18, dev team needs to know" -> that
-would be `odoo-version-diff`.
-
-### Collision 3 — Deprecation Audit vs Version Diff
-
-**Prompt**: "customer is asking what's different between v16 and v17"
-
-- `odoo-deprecation-audit`: handles "what will break", "audit before upgrade" ->
-  scans the user's codebase for deprecated API usage.
-- `odoo-version-diff`: handles "what changed between two versions", "version-to-version diff"
-  -> pure API/feature diff without scanning user code.
-
-**Discriminator**: "customer is asking" + no mention of "our code" or "audit" signals the user
-wants a clean diff to relay, not a code scan. -> **Pick `odoo-version-diff`.**
-
-If the user had said "audit the customer's codebase before upgrading to v17" -> that would be
-`odoo-deprecation-audit`.
-
-### Collision 4 — Deal Follow-up vs Objection Handler
-
-**Prompt**: "customer hasn't replied in a while, need to write a follow-up"
-
-- `odoo-deal-followup`: handles "customer hasn't replied", "draft follow-up email"
-  -> sales AE re-engagement email (cold/warm/engagement).
-- `odoo-objection-handling`: handles "write a response", "respond to objection" ->
-  counter-response to a stated objection.
-
-**Discriminator**: "hasn't replied" (silence) + "follow-up" signal the user wants a
-re-engagement email, not a counter to an objection. -> **Pick `odoo-deal-followup`.**
-
-If the user had said "customer says Odoo doesn't support X, I need to write a response" ->
-that would be `odoo-objection-handling`.
-
-### Collision 5 — Skill vs Command (same domain)
-
-**Prompt**: "synthesize these discovery notes for the Acme deal"
-
-- `odoo-discovery-summary` (SKILL, row 16): handles "synthesize discovery
-  notes", "extract customer profile" -> produces structured profile.
-- `/odoo-summarize-discovery` (COMMAND, row 25): same purpose but is the slash-command wrapper.
-
-**Discriminator**: no slash prefix in user prompt + intent is single-step (just synthesize,
-not save) -> **Pick SKILL `odoo-discovery-summary`**.
-
-If the user had typed "/odoo-summarize-discovery" -> command invokes directly (intake not
-consulted). If user said "synthesize discovery + save to .odoo-ai/" -> recommend the COMMAND
-for the save step.
-
-### Collision 6 — Capability Proof (text evidence) vs Demo Recorder (real video)
-
-**Prompt**: "I need a demo of multi-currency invoicing for the prospect this Friday"
-
-- `odoo-capability-proof`: handles "demo material", "for the demo, give me proof"
-  -> produces a TEXT evidence package (module names + code snippets + written demo steps).
-- `odoo-demo-recording`: handles "record a demo", "make a video walkthrough"
-  -> drives the live instance and produces a REAL MP4/GIF screencast.
-
-**Discriminator**: "demo" alone is ambiguous. If the deliverable is written proof / RFP
-evidence the rep can paste, -> **Pick `odoo-capability-proof`**. If the user wants an actual
-recorded video/clip of the flow running on a live instance ("record", "video", "screencast",
-"GIF"), -> **Pick `odoo-demo-recording`**. When unclear, ask: "written evidence package, or a
-recorded video of the flow?"
-
-### Collision 8 — BRL Scale (odoo-brl) vs Ad-hoc Gap Analysis (odoo-gap-analysis) vs Single Feature (odoo-feature-check)
-
-**Discriminator**:
-- **1 feature** → `odoo-feature-check`
-- **Short ad-hoc list (< ~20 items), no cost/DAG/RTM requirement** → `odoo-gap-analysis`
-- **Hundreds to thousands of items, OR explicit cost estimate, OR dependency graph / RTM output requested** → `odoo-brl`
-
-**Prompt examples**:
-- "Does Odoo support multi-currency invoicing?" → `odoo-feature-check` (single feature)
-- "Customer needs A, B, C — which does Odoo have, estimate effort" → `odoo-gap-analysis` (short list, ad-hoc)
-- "We have 1200 requirements from the RFP — classify, cost, and produce a dependency graph" → `odoo-brl` (scale + cost + DAG)
-- "50 requirements but we also need the RTM and cost table" → `odoo-brl` (explicit RTM + cost signals override small count)
-- "Classify these requirements" (no count stated) → ask: "How many requirements? If tens or more with cost/traceability needs, odoo-brl; short ad-hoc list → gap-analysis."
-
-### Collision 7 — Frontend Coder (write JS) vs UI Debug (debug runtime)
-
-**Prompt**: "my OWL widget isn't showing up in the Odoo 17 form"
-
-- `odoo-frontend-coding`: handles "field widget customization Odoo 17", "patch
-  component" -> WRITES new/changed frontend JS source.
-- `odoo-debug`: handles "widget không hiện", "OWL component not rendering" ->
-  investigates the live runtime to find the ROOT CAUSE of the missing render.
-
-**Discriminator**: a symptom + "why / not showing / isn't working" signals the user needs the
-cause first, not new code. -> **Pick `odoo-debug`**. Once the cause is known and the user
-asks for the fix to be written, -> route to `odoo-frontend-coding`. If the user is starting
-from scratch ("create a color picker widget"), there is no runtime to debug ->
-`odoo-frontend-coding`.
-
-### Collision 9 — Wave (git orchestration) vs BRL (requirement classification) vs Odoo-Coder (single change)
-
-**Prompt**: "I have 5 changes to make across 3 files — parallelize them and land as a single reviewed PR"
-
-- `wave`: handles "parallelize these changes", "multi-WI PR with review + squash" ->
-  git-wave depth-0 orchestrator: creates an integration branch, dispatches parallel WI subagents,
-  cherry-picks, runs end-of-wave review, creates 1 PR, squashes, and waits for human-confirm merge.
-- `odoo-brl`: handles "classify changes", "requirements" -> classifies and costs a
-  list of BUSINESS REQUIREMENTS — produces an RTM/cost/DAG but writes NO code and does NOT touch git.
-- `odoo-backend-coding`: handles "implement feature", "write code" -> writes code for a SINGLE
-  change in the current working directory; no git orchestration, no worktrees.
-
-**Discriminator**:
-- "parallelize" + "N changes" + "PR" + "squash" signal the user wants git-wave orchestration ->
-  **Pick `wave`.**
-- "classify/cost requirements" or "RTM/DAG" with no code-generation intent -> **Pick `odoo-brl`.**
-- Single change, single feature, no git coordination needed -> **Pick `odoo-backend-coding`.**
-
-If the user said "write a computed field for sale.order" -> `odoo-backend-coding` (single, no orchestration).
-If the user said "classify 200 requirements from the RFP" -> `odoo-brl` (no code, no git).
-If the user said "we have a bug fix, a test addition, and a docs update — land them as one reviewed PR"
--> `wave` (multiple disjoint changes, git coordination, end-of-wave review required).
+| # | Collision pair | Quick discriminator |
+|---|---|---|
+| 1 | `odoo-objection-handling` vs `odoo-capability-proof` | "write a response" (paste-able paragraph) → objection; "technical evidence / proof package" → capability-proof |
+| 2 | `odoo-version-diff` vs `odoo-feature-highlights` | "slide / newsletter / summarize for business" → highlights; "which APIs changed, dev needs" → version-diff |
+| 3 | `odoo-deprecation-audit` vs `odoo-version-diff` | "audit OUR code / what will break" → deprecation-audit; "clean diff between versions" → version-diff |
+| 4 | `odoo-deal-followup` vs `odoo-objection-handling` | "hasn't replied / re-engage" → deal-followup; "counter a stated objection" → objection |
+| 5 | skill vs `/command` (same domain) | no slash + single-step → SKILL; explicit slash or "save to file" → COMMAND |
+| 6 | `odoo-capability-proof` vs `odoo-demo-recording` | written/paste-able proof → capability-proof; real recorded video/GIF → demo-recording |
+| 7 | `odoo-coding` vs `odoo-debug` | symptom + "why / not showing" → debug (cause first); "write / create from scratch" → coding |
+| 8 | `odoo-feature-check` vs `odoo-gap-analysis` vs `odoo-brl` | 1 feature → feature-check; short list → gap-analysis; hundreds OR cost/DAG/RTM → brl |
+| 9 | `wave` vs `odoo-brl` vs `odoo-coding` | parallelize+PR+squash → wave; classify/cost reqs → brl; single change → coding |
 
 ## Command-vs-skill discriminator
 
@@ -662,13 +484,13 @@ Intake behaviour when ambiguous between command and skill:
   writes-files specialist runs before Plan Mode is approved.
 - **NEVER recommend more than one skill _per work-item_.** If 2 skills are close *for the same
   work-item*, use the Discriminator column to pick the winner; if you truly cannot decide,
-  escalate to the user with both names + the 1-line difference. **Carve-out:** this is one skill
-  PER WI, not one skill per plan — a full-stack request legitimately spans multiple WIs (one
-  backend + one frontend), see § Full-stack tasks. The unified rule: one skill per WI; multiple
-  WIs per plan. Do not drop the frontend (or backend) half to satisfy "one skill".
+  escalate to the user with both names + the 1-line difference. **Note:** a full-stack change is a
+  single `odoo-coding` work-item — that skill sequences the backend and frontend agents itself, so
+  you do not split it into separate backend/frontend WIs (see § Full-stack tasks). Genuinely
+  disjoint changes are still separate WIs handed to `wave`.
 - **NEVER trigger on already-routed work.** If the user is mid-workflow (e.g., they just
-  confirmed `odoo-backend-coding` 2 turns ago and are now describing the code they want), let
-  `odoo-backend-coding` continue — do not re-route.
+  confirmed `odoo-coding` 2 turns ago and are now describing the code they want), let
+  `odoo-coding` continue — do not re-route.
 - **Decline politely for non-Odoo/ERP intents.** Say "This doesn't seem to be an Odoo/ERP
   task — could you clarify?" and stop.
 
@@ -694,26 +516,9 @@ Plan: run `<skill-name>` to <one-line outcome>.
 Proceed? (yes / brainstorm instead / cancel)
 ```
 
-**Brainstorm Proposed Plan** (Tier 4 vague branch — full gate block):
-```
-## Proposed Plan
-Project:        <repo / project root, or "non-Odoo workspace">
-Odoo version/edition: <e.g. 17.0 / EE | CE | custom | "n/a">
-Intent / Purpose / Expected outcomes: <what / why / what done looks like — from the Phase 0 gate>
-Domain:         <one of 9 persona buckets>
-Approach:       <skill name | workflow name | command>
-Chain:          <skill> → <skill> ...   (or "single turn")
-Findings (Recon): <1-3 bullets from Phase R: what already exists / hook points / impact>
-Workitems (preview): <WI-A …, WI-B … — disjoint files; "single WI" for atomic asks>
-Assignment (skill/agent + model + effort): <WI → skill|agent (model from frontmatter, effort S/M/L/XL)>
-Output:         .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
-Est. effort:    <S / M / L / XL / "single turn">
-OSM:            backed | standalone   (backed if OSM (`mcp__odoo-semantic__*`) tools are available; standalone if not)
-Plan Mode:      required | not   (required when Approach output_mode = writes-files)
-Next turn:      invoke `<skill/workflow>` via the **Agent tool** (you will see the tool call)
-
-Gate: approve / refine: [your feedback] / cancel
-```
+**Brainstorm Proposed Plan** (Tier 4 vague branch — full gate block): use the canonical
+`## Proposed Plan` block defined under § Soft plan gate (SSOT — do not restate the fields here;
+they must not drift between the two sites).
 
 **Collision / ambiguous — ask user**:
 ```
@@ -734,34 +539,10 @@ Mirror the user's language (English or the language they wrote in).
 
 ## Notes for future maintainers
 
-- **5-phase flow**: Phase 0 (Context, Detect & Clarify — closes the intent/purpose/outcomes
-  gate + 4 detect branches) → **Phase R (Recon, read-only — NEW)** → Proposed Plan
-  (context-rich) → Plan Mode (workitem + DAG + assignment) → Execute. Phase R is the new stage:
-  it dispatches ≤1–2 read-only agents (depth-1, no writes, no spawn) to survey current state
-  before the plan is written.
-- **Inventory discovery is hybrid, SSOT-respecting**: skill/agent/command existence + description
-  come from runtime context; `output_mode` from the explicit `orchestration.<skill>.output_mode`
-  field in `skill_tool_deps.json` (NOT a `spawn_class`/`stack` derivation — §4.7/§8.4); **`model_tier`
-  is read from each candidate's own frontmatter (`model:`, absent ⇒ `inherit`) — NEVER copied into a registry**; and
-  `effort` (S/M/L/XL) is a per-task property reasoned via the gap-analysis legend, also not
-  registered.
-- **Plan Mode Content Schema**: a `writes-files` Approach now requires 3 blocks in the Plan-Mode
-  plan — Workitem list (disjoint files), Dependency graph (DAG edge-types + topology, or one of
-  the 4 wave topologies for few WIs), and Assignment (WI → skill/agent + model + effort + verify).
-  A chat-only Approach still skips Plan Mode (decision tree at the top of § Plan Mode).
-- See `docs/reference/workflow-harness.md` for the full design rationale of the harness and the
-  schemas borrowed here (wave WI brief, BRL DAG, wave topologies, gap-analysis effort legend).
-- Routing table currently lists 40 entries (rows 1-13 = Phase A/B core; rows 14-21 = Phase B
-  sales+marketing+engineering; rows 22-27 = Phase D commands; rows 28-32 = Phase E visual;
-  rows 33-39 = Phase E+ BRL flagship + workflow domains; row 40 = wave git-orchestration).
-  Update both the table AND the collision-test cases when adding entries.
-- Trigger description optimization is scheduled for Phase D via `/skill-creator` Mode 5
-  (`run_loop.py`) with a 20-query trigger eval set.
-- Eval set (31 cases in `evals/evals.json`) is descriptive — not graded. Use
-  `/skill-creator` Mode 5 + `run_loop.py` in Phase D AC-D6 for graded trigger accuracy score.
-- The `intake` name is intentionally non-Odoo-prefixed: this front door is future-proof for
-  non-Odoo domains (general ERP, strategic planning, etc.) without renaming.
-- See the harness reference doc (`docs/reference/workflow-harness.md`) for full design rationale.
+Design rationale, the 5-phase flow, inventory-discovery SSOT rules, the routing-table layout, and
+the trigger-eval plan live in `${CLAUDE_PLUGIN_ROOT}/skills/intake/references/maintainers.md` —
+read it when changing intake's structure, the routing table, or the harness wiring. Keep the
+routing table and `references/collision-zones.md` in sync when adding entries.
 
 ## Continuation Contract
 

@@ -8,11 +8,11 @@
 |-------|-------------|--------------|-------|----------|--------|
 | `intake` | spawner-agent | depth0-only | none | — | (Phase R: ≤2 read-only recon agents — Explore or specialist in read-only mode; no writes, no further spawn) |
 | `odoo-addon-diff` | leaf | any-depth | none | — | — |
-| `odoo-backend-coding` | spawner-agent | depth0-only | backend | — | odoo-coder |
 | `odoo-brl` | spawner-agent | depth0-only | none | — | (conditional DAG workers when >10 large clusters) |
 | `odoo-campaign-plan` | leaf | any-depth | none | — | — |
 | `odoo-capability-proof` | leaf | any-depth | none | — | — |
 | `odoo-code-review` | spawner-agent | depth0-only | fullstack | — | odoo-code-reviewer |
+| `odoo-coding` | spawner-agent | depth0-only | fullstack | — | odoo-coder, odoo-frontend-coder |
 | `odoo-competitive-brief` | leaf | any-depth | none | — | — |
 | `odoo-content-draft` | leaf | any-depth | none | — | — |
 | `odoo-customer-health` | leaf | any-depth | none | — | — |
@@ -26,7 +26,7 @@
 | `odoo-discovery-summary` | leaf | any-depth | none | — | — |
 | `odoo-feature-check` | leaf | any-depth | none | — | — |
 | `odoo-feature-highlights` | leaf | any-depth | none | — | — |
-| `odoo-frontend-coding` | spawner-agent | depth0-only | frontend | — | odoo-frontend-coder |
+| `odoo-frontend-design` | leaf | any-depth | frontend | — | — |
 | `odoo-gap-analysis` | leaf | any-depth | none | — | — |
 | `odoo-objection-handling` | leaf | any-depth | none | — | — |
 | `odoo-onboarding` | leaf | any-depth | none | — | — |
@@ -37,6 +37,7 @@
 | `odoo-rfp-response` | leaf | any-depth | none | — | — |
 | `odoo-risk-overview` | leaf | any-depth | none | — | — |
 | `odoo-security-audit` | leaf | any-depth | backend | — | — |
+| `odoo-solution-design` | spawner-agent | depth0-only | fullstack | — | odoo-solution-architect |
 | `odoo-support-triage` | orchestrator-nl | any-depth | none | — | — |
 | `odoo-test-writer` | leaf | any-depth | backend | — | — |
 | `odoo-ui-review` | spawner-agent | depth0-only | frontend | — | odoo-ui-reviewer |

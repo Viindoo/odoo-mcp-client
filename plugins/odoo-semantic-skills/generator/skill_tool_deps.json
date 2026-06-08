@@ -177,21 +177,19 @@
       "deprecated_tools_used": [],
       "notes": "module_inspect(summary) gives concrete architecture numbers (N models/views) for marketing copy."
     },
-    "odoo-frontend-coding": {
+    "odoo-frontend-design": {
       "mcp_tools": [
-        "api_version_diff",
-        "find_examples",
-        "find_override_point",
-        "lookup_core_api",
-        "module_inspect",
         "set_active_version",
-        "suggest_pattern",
         "resolve_stylesheet",
-        "find_style_override"
+        "find_style_override",
+        "find_examples",
+        "module_inspect",
+        "suggest_pattern",
+        "api_version_diff"
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Slim SKILL.md of an agent+skill bundle; dispatches to the odoo-frontend-coder agent. Covers all supported Odoo frontend JS versions. resolve_stylesheet + find_style_override (0.7.0) declared to match the agent (required for any styling/theme work)."
+      "notes": "Knowledge-only design-quality skill (leaf, no agent spawn): the senior-frontend-designer expertise that odoo-solution-design (architect) and odoo-coding (coder) LOAD for the UI/UX of a change, and the quality bar odoo-ui-review rates against. resolve_stylesheet + find_style_override ground design decisions in the target version's real theme tokens; it points to skills/_shared/odoo-frontend-fidelity.md as the SSOT for the verification mechanics rather than restating them. min_server 0.7.0 for the stylesheet tools."
     },
     "odoo-gap-analysis": {
       "mcp_tools": [
@@ -248,6 +246,29 @@
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": "lookup_core_api + api_version_diff verify a method's API stability / signature change from the index; find_examples grounds the override template in real indexed code instead of training memory."
+    },
+    "odoo-solution-design": {
+      "mcp_tools": [
+        "set_active_version",
+        "model_inspect",
+        "entity_lookup",
+        "find_override_point",
+        "impact_analysis",
+        "suggest_pattern",
+        "find_examples",
+        "resolve_orm_chain",
+        "validate_depends",
+        "validate_domain",
+        "validate_relation",
+        "lookup_core_api",
+        "module_inspect",
+        "check_module_exists",
+        "api_version_diff",
+        "profile_inspect"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Slim SKILL.md for the design bundle — companion to the odoo-solution-architect agent. Designs the technical solution (approach / data model / override strategy / module structure) before any code is written. impact_analysis grounds blast-radius in Risks; find_override_point grounds super() position; validate_* verify the proposed ORM chains so the coder inherits a verified design. min_server 0.13.1 for impact_analysis + profile_inspect."
     },
     "odoo-risk-overview": {
       "mcp_tools": [
@@ -440,7 +461,38 @@
         "validate_relation"
       ],
       "min_server_version": "0.8.0",
-      "notes": "Agent bundle — companion to odoo-backend-coding slim SKILL.md. Tool list from agents/odoo-coder.md frontmatter. find_override_point grounds super() position for method overrides; module_inspect gives whole-module picture."
+      "notes": "Agent bundle — companion to odoo-coding slim SKILL.md (the unified coding front door). Tool list from agents/odoo-coder.md frontmatter. find_override_point grounds super() position for method overrides; module_inspect gives whole-module picture."
+    },
+    "odoo-solution-architect": {
+      "mcp_tools": [
+        "set_active_version",
+        "set_active_profile",
+        "list_available_versions",
+        "list_available_profiles",
+        "model_inspect",
+        "module_inspect",
+        "entity_lookup",
+        "profile_inspect",
+        "describe_module",
+        "check_module_exists",
+        "find_examples",
+        "find_override_point",
+        "find_deprecated_usage",
+        "impact_analysis",
+        "suggest_pattern",
+        "lookup_core_api",
+        "api_version_diff",
+        "resolve_orm_chain",
+        "validate_depends",
+        "validate_domain",
+        "validate_relation",
+        "resolve_stylesheet",
+        "find_style_override",
+        "lint_check",
+        "cli_help"
+      ],
+      "min_server_version": "0.13.1",
+      "notes": "Agent bundle — companion to odoo-solution-design slim SKILL.md. Runs on OPUS (cross-file architecture reasoning). Tool list = the FULL odoo-semantic surface (25 tools) so one read-only design pass can cover backend, frontend, upgrade/migration, and profile/module-inventory facets. Read-only design role: produces a Technical Design Document under .odoo-ai/designs/, never production code (Write is allowed only for the design-doc artifact). impact_analysis grounds blast-radius; find_override_point grounds super() position; resolve_stylesheet/find_style_override ground the frontend design tokens; find_deprecated_usage/api_version_diff ground upgrade designs; validate_* verify proposed ORM chains before the coder inherits the design."
     },
     "odoo-code-reviewer": {
       "mcp_tools": [
@@ -449,6 +501,8 @@
         "lint_check",
         "lookup_core_api",
         "model_inspect",
+        "module_inspect",
+        "impact_analysis",
         "resolve_orm_chain",
         "suggest_pattern",
         "validate_depends",
@@ -460,7 +514,7 @@
         "resolve_stylesheet"
       ],
       "min_server_version": "0.8.0",
-      "notes": "Agent bundle — companion to odoo-code-review slim SKILL.md. Tool list from agents/odoo-code-reviewer.md frontmatter. find_examples gives evidence code for the Suggested-Pattern section; api_version_diff for cross-version review; find_style_override + resolve_stylesheet for the SCSS review path."
+      "notes": "Agent bundle — companion to odoo-code-review slim SKILL.md. Tool list from agents/odoo-code-reviewer.md frontmatter. Runs in two modes: per-module (sonnet, deep line-level review) and synthesis (opus, cross-module integration over the dependency closure). module_inspect(dependencies) walks the forward closure and impact_analysis the reverse (dependents) for the synthesis pass; find_examples gives evidence code for the Suggested-Pattern section; api_version_diff for cross-version review; find_style_override + resolve_stylesheet for the SCSS review path. Writes its report only under .odoo-ai/reviews/ (Write tool), never repo source."
     },
     "odoo-ui-reviewer": {
       "mcp_tools": [
@@ -493,7 +547,7 @@
         "entity_lookup"
       ],
       "min_server_version": "0.7.0",
-      "notes": "Agent bundle — companion to odoo-frontend-coding slim SKILL.md. Tool list from agents/odoo-frontend-coder.md frontmatter. entity_lookup verifies an OWL component method exists before patch()."
+      "notes": "Agent bundle — companion to odoo-coding slim SKILL.md (the unified coding front door). Tool list from agents/odoo-frontend-coder.md frontmatter. entity_lookup verifies an OWL component method exists before patch()."
     },
     "odoo-backend-debugger": {
       "mcp_tools": [
@@ -581,13 +635,14 @@
       "output_mode": "chat-only",
       "default_gate_tier": "L0"
     },
-    "odoo-backend-coding": {
+    "odoo-coding": {
       "spawn_class": "spawner-agent",
       "depth_policy": "depth0-only",
       "spawns": [
-        "odoo-coder"
+        "odoo-coder",
+        "odoo-frontend-coder"
       ],
-      "stack": "backend",
+      "stack": "fullstack",
       "instance_touching": false,
       "output_mode": "writes-files",
       "default_gate_tier": "L1"
@@ -600,8 +655,8 @@
       ],
       "stack": "fullstack",
       "instance_touching": false,
-      "output_mode": "chat-only",
-      "default_gate_tier": "L0"
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
     },
     "odoo-competitive-brief": {
       "spawn_class": "leaf",
@@ -693,16 +748,14 @@
       "output_mode": "chat-only",
       "default_gate_tier": "L0"
     },
-    "odoo-frontend-coding": {
-      "spawn_class": "spawner-agent",
-      "depth_policy": "depth0-only",
-      "spawns": [
-        "odoo-frontend-coder"
-      ],
+    "odoo-frontend-design": {
+      "spawn_class": "leaf",
+      "depth_policy": "any-depth",
+      "spawns": [],
       "stack": "frontend",
       "instance_touching": false,
-      "output_mode": "writes-files",
-      "default_gate_tier": "L1"
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
     },
     "odoo-gap-analysis": {
       "spawn_class": "leaf",
@@ -739,6 +792,15 @@
       "instance_touching": false,
       "output_mode": "chat-only",
       "default_gate_tier": "L0"
+    },
+    "odoo-solution-design": {
+      "spawn_class": "spawner-agent",
+      "depth_policy": "depth0-only",
+      "spawns": ["odoo-solution-architect"],
+      "stack": "fullstack",
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
     },
     "odoo-qa-suite": {
       "spawn_class": "orchestrator-nl",

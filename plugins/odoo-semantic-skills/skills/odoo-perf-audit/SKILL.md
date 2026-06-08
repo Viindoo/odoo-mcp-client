@@ -10,7 +10,7 @@ description: >
   is slow", "should I add index=True", "t-foreach performance", "batch this query". Vietnamese
   triggers: "code này bị N+1 không", "audit hiệu năng Odoo", "tối ưu truy vấn", "field này có
   nên index không", "vòng lặp ORM", "computed field chậm". Does not apply fixes - route to
-  odoo-backend-coding or odoo-frontend-coding after audit
+  odoo-coding after audit
 model: inherit
 ---
 
@@ -21,7 +21,7 @@ Performance-focused Tech Lead / DBA auditing Odoo code with semantic MCP enrichm
 ## Out of Scope
 
 - **Applying or writing fixes** - this skill produces a findings report only; route to
-  `odoo-backend-coding` or `odoo-frontend-coding` to implement remediation
+  `odoo-coding` to implement remediation
 - **UI / browser-side slowness** (slow page render, LCP, JS bundle size) - route to
   `chrome-devtools-mcp:debug-optimize-lcp` or `odoo-debug`
 - **Deprecated API removal** (upgrade blockers) - route to `odoo-deprecation-audit`

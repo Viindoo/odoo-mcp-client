@@ -3,8 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **39 skills + 6 agents + 9 commands**, grouped into **9 persona
-> buckets**, plus **11 declarative workflows** - covering engineering, coding, code review, visual
+> The Odoo AI workforce toolkit: **40 skills + 7 agents + 9 commands**, grouped into **9 persona
+> buckets**, plus **12 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, pre-sales, sales, marketing, strategy, and onboarding. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
 > dependency), so all knowledge is grounded through the OSM MCP server. This repo is a thin
@@ -30,8 +30,8 @@ You control how hands-off this is with one optional flag (`--auto` is the defaul
 plan, and the main agent is never forced or trapped - the stops are real human checkpoints, the
 nudges are advisory.
 
-> **Counts at a glance:** this plugin ships **39 skills + 6 agents + 9 commands**, grouped into
-> **9 persona buckets** for navigation, plus **11 declarative workflows** driven by
+> **Counts at a glance:** this plugin ships **40 skills + 7 agents + 9 commands**, grouped into
+> **9 persona buckets** for navigation, plus **12 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
 
@@ -48,8 +48,7 @@ flowchart LR
     eng --> deprecation["odoo-deprecation-audit"]
     eng --> deploy["odoo-deploy-checklist"]
 
-    coder["Coder"] --> coderpy["odoo-backend-coding (Python/XML)"]
-    coder --> coderfe["odoo-frontend-coding (JS/OWL)"]
+    coder["Coder"] --> coding["odoo-coding<br/>(backend Python/XML + frontend JS/OWL)"]
     coder --> dbg["odoo-debug<br/>(debug front-door)"]
 
     rev["Code-Reviewer"] --> reviewer["odoo-code-review"]
@@ -179,16 +178,17 @@ watch every edit, `--plan` when you only want the map. You never type a skill na
 
 ## Workflows
 
-The plugin ships 11 declarative workflows in `workflows/*.workflow.yaml`. Each workflow is
+The plugin ships 12 declarative workflows in `workflows/*.workflow.yaml`. Each workflow is
 executed by the generic `workflow-chaining` skill, which reads the YAML and runs the declared
 phase sequence with approval gates between phases. Adding a new workflow is a single YAML
 file drop - no orchestration code required. A workflow may also declare an `on_complete`
-transition (e.g. `qa-suite` -> `odoo-backend-coding` when bugs are found); `run-driver` picks
+transition (e.g. `qa-suite` -> `odoo-coding` when bugs are found); `run-driver` picks
 that up and chains the next step across workflows automatically.
 
 | Workflow | Trigger | Output dir |
 |----------|---------|------------|
 | `odoo-respond-bid` | Full bid / RFP response chain | `.odoo-ai/bids/` |
+| `odoo-implement-feature` | Requirement to shipped code with a design step (scope -> design -> code -> review) | `.odoo-ai/implement/` |
 | `odoo-plan-upgrade` | Comprehensive upgrade plan | `.odoo-ai/upgrade-plans/` |
 | `odoo-position-feature` | Positioning copy for marketing and sales | `.odoo-ai/positioning/` |
 | `discovery-pipeline` | Synthesize and structure discovery notes | `.odoo-ai/discovery/` |
@@ -238,7 +238,7 @@ flowchart TB
 
 The visual UI testing stack is a sibling cluster, not a linear chain: one `setup` step
 provisions the browser environment, then four skills run independently and converge on
-`odoo-frontend-coding` as the fix writer.
+`odoo-coding` as the fix writer.
 
 ```mermaid
 flowchart TD
@@ -254,7 +254,7 @@ flowchart TD
     SK --> VR["odoo-visual-regression<br/>before/after diff"]
     SK --> DR["odoo-demo-recording<br/>MP4 / GIF output"]
 
-    UID --> FC["odoo-frontend-coding<br/>fix writer"]
+    UID --> FC["odoo-coding<br/>fix writer"]
     UIR --> FC
     VR --> FC
 
@@ -352,7 +352,7 @@ You: "Run visual regression on the invoicing list and form views after installin
 module account_followup on Customer E's staging instance."
 ```
 
-Run `/odoo-semantic-skills:odoo-setup` once to provision the browser automation stack. Then skill `odoo-visual-regression` fires: it captures before/after screenshots of targeted views, diffs them, and flags regressions with severity labels. Where a defect is confirmed, `odoo-ui-review` follows up with a 5-lens audit (aesthetics / function / stability / accessibility / performance) and surfaces the exact CSS or XML path to fix. Fixes are handed to `odoo-frontend-coding`, which writes the override and shows a patch preview before applying.
+Run `/odoo-semantic-skills:odoo-setup` once to provision the browser automation stack. Then skill `odoo-visual-regression` fires: it captures before/after screenshots of targeted views, diffs them, and flags regressions with severity labels. Where a defect is confirmed, `odoo-ui-review` follows up with a 5-lens audit (aesthetics / function / stability / accessibility / performance) and surfaces the exact CSS or XML path to fix. Fixes are handed to `odoo-coding`, which writes the override and shows a patch preview before applying.
 
 ### Use case 8 - Support: triage an inbound customer ticket
 
@@ -367,7 +367,7 @@ Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression
 
 ### Frequently asked questions
 
-**I only need one skill - do I have to know all 39?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `intake` acts as a brainstorm partner when you are not sure which skill to use.
+**I only need one skill - do I have to know all 40?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `intake` acts as a brainstorm partner when you are not sure which skill to use.
 
 **What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by reading your local codebase and `.odoo-ai/context.md` directly (Read/Grep/WebFetch, three-tier grounding) instead of asking you to paste data; if a browser is genuinely unreachable a visual skill returns BLOCKED rather than requesting screenshots. The plugin does not break when OSM is offline.
 
@@ -416,7 +416,7 @@ Full details and manual snippets: [`docs/setup.md` - Visual stack / browser MCP 
 
 ## Reference
 
-### Skills (39)
+### Skills (40)
 
 Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 
@@ -433,8 +433,9 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-security-audit` | Engineer | Audit code for SQLi / XSS / access-control / CSRF / unsafe deserialization, graded findings |
 | `odoo-data-migration` | Engineer | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
 | `odoo-perf-audit` | Engineer | Audit for N+1 queries, missing prefetch, unindexed domains, compute thrash, with fixes |
-| `odoo-backend-coding` | Coder | Python/XML backend coder with Odoo conventions baked in (slim, paired with agent bundle) |
-| `odoo-frontend-coding` | Coder | JS/OWL coder merging legacy web client (v8-14) and OWL component framework (v15+) (slim, paired with agent bundle) |
+| `odoo-solution-design` | Architect / Coder | Design the technical solution (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding - the analysis-and-design step between requirement scoping and code (slim, paired with agent bundle) |
+| `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, works out module dependency order, and sequences the `odoo-coder` + `odoo-frontend-coder` agents (slim, paired with agent bundle) |
+| `odoo-frontend-design` | Architect / Coder / Visual | Knowledge-only design-quality expertise for Odoo UI/UX (view-type choice, form hierarchy, density, semantic tokens, website/portal theming); loaded by `odoo-solution-design` and `odoo-coding`, and the bar `odoo-ui-review` rates against (no agent spawn) |
 | `odoo-code-review` | Code-Reviewer | Review Odoo patches for ORM/inheritance/security pitfalls (slim, paired with agent bundle) |
 | `odoo-feature-check` | Pre-Sales Consultant | Check if a feature exists in standard CE or EE |
 | `odoo-gap-analysis` | Pre-Sales Consultant | Gap matrix of client requirements vs. standard Odoo |
@@ -462,14 +463,15 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `run-driver` | Internal (harness) | Depth-0 drive-to-done loop - walks the `run-<id>.json` plan, dispatches each work-item, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent |
 | `wave` | Internal (orchestration) | Depth-0 git-wave orchestration - integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge; self-spawning, principal-branch-locked |
 
-### Agents (6)
+### Agents (7)
 
 | Agent | Model | Role |
 |-------|-------|------|
 | `odoo-coder` | Sonnet | Agent bundle for code writing - invoked by main agent and commands; depth-1 safe with restricted-tool autonomy |
+| `odoo-solution-architect` | Opus | Agent bundle for solution design (companion to `odoo-solution-design`) - produces a grounded Technical Design Document (approach / data model / override strategy / module structure / risks) before code; full odoo-semantic tool surface, read-only, writes only the design doc |
 | `odoo-code-reviewer` | Sonnet | Agent bundle for code review - runs full PR-scope analysis with OSM grounding |
 | `odoo-ui-reviewer` | Sonnet | Agent bundle for visual UI review - drives a live browser through a five-lens audit with screenshot, console, and Lighthouse evidence plus OSM source pointers |
-| `odoo-frontend-coder` | Sonnet | Agent bundle for frontend code writing - JS/OWL/QWeb/SCSS across legacy and OWL eras with OSM grounding and design-system fidelity (companion to the `odoo-frontend-coding` skill) |
+| `odoo-frontend-coder` | Sonnet | Agent bundle for frontend code writing - JS/OWL/QWeb/SCSS across legacy and OWL eras with OSM grounding and design-system fidelity (companion to the `odoo-coding` skill) |
 | `odoo-backend-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes Python/ORM/server runtime failures via the scientific method, OSM-only (no browser) |
 | `odoo-ui-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes OWL/JS/QWeb/SCSS runtime failures from live browser evidence + OSM grounding (serial-exclusive browser use) |
 

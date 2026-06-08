@@ -25,7 +25,7 @@ traceability from requirement to evidence to budget line.
 
 - Single feature availability check -> use `odoo-feature-check`
 - Short ad-hoc gap matrix (no cost/DAG/scale) -> use `odoo-gap-analysis`
-- Code generation or module scaffolding -> use `odoo-backend-coding`
+- Code generation or module scaffolding -> use `odoo-coding`
 - Source-level API diff between versions -> use `odoo-version-diff`
 
 ## MCP tools
@@ -665,3 +665,11 @@ Action: Run Phase D. Technical bootstrap (module_inspect dependencies), cluster-
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
 output for the depth-0 run-driver - it does not change anything produced above.
+
+**Hand off non-trivial items to design before coding.** If the classified set contains any
+Extension-L or Custom-XL item (items the 1-2 sentence `solution` field cannot fully specify), set
+`status: NEEDS_NEXT` and emit `next: odoo-solution-design` so those items get a designed-and-
+approved solution before any code is written — pass the RTM/report path and the L/XL `req_id` list
+as inputs (`{rtm: <path>, items: [REQ-…]}`, `risk_level: L1`). Standard/Config/Extension-M items
+are specified enough to go straight to `odoo-coding`. If the set is all small items, BRL
+is terminal (`status: DONE`, `next: []`) as before.

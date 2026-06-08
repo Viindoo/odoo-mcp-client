@@ -1,7 +1,7 @@
 {
   "name": "odoo-semantic-skills",
-  "version": "3.3.0",
-  "description": "Odoo AI workforce toolkit — 39 skills + 6 specialist agents + 9 workflow commands across engineering, sales, marketing, strategy, onboarding, visual UI testing, and git-wave orchestration. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed). Includes browser-automation agents for Odoo UI review and automated setup.",
+  "version": "3.4.0",
+  "description": "Odoo AI workforce toolkit — 40 skills + 7 specialist agents + 9 workflow commands across engineering, sales, marketing, strategy, onboarding, visual UI testing, and git-wave orchestration. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed). Includes browser-automation agents for Odoo UI review and automated setup.",
   "keywords": ["odoo", "erp", "ai-workforce", "odoo-semantic", "semantic-search", "workflow", "sales", "marketing", "strategy", "onboarding", "code-generation", "code-review", "upgrade", "visual-testing", "browser-automation", "ui-review", "setup"],
   "author": {
     "name": "Viindoo",
@@ -12,6 +12,7 @@
   "skills": "./skills/",
   "agents": [
     "./agents/odoo-coder.md",
+    "./agents/odoo-solution-architect.md",
     "./agents/odoo-code-reviewer.md",
     "./agents/odoo-ui-reviewer.md",
     "./agents/odoo-frontend-coder.md",

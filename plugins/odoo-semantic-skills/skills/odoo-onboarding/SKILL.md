@@ -5,7 +5,7 @@ description: |
 
   Trigger AGGRESSIVELY on "new Odoo project" / "first time" signals, or when no `.odoo-ai/context.md` exists yet: "set up Odoo for this project", "initialize Odoo context". Also fires on Vietnamese: "khởi tạo dự án Odoo mới", "thiết lập context Odoo". Implicit: dir has `__manifest__.py` but no `.odoo-ai/context.md` → first `odoo-*` skill recommends onboard; intake also escalates here when context is missing.
 
-  DO NOT trigger when: (1) `.odoo-ai/context.md` exists and `last_updated` < 30 days — offer "refresh?" instead; (2) no `__manifest__.py` within 3 levels; (3) the user is mid-workflow inside another skill (e.g. odoo-backend-coding writing code) — don't interrupt; (4) the user types another skill's trigger — let that skill fire
+  DO NOT trigger when: (1) `.odoo-ai/context.md` exists and `last_updated` < 30 days — offer "refresh?" instead; (2) no `__manifest__.py` within 3 levels; (3) the user is mid-workflow inside another skill (e.g. odoo-coding writing code) — don't interrupt; (4) the user types another skill's trigger — let that skill fire
 ---
 
 # Odoo Onboard — Project Context Bootstrap

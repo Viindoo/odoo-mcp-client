@@ -21,7 +21,7 @@ Developer
 
 - Code review of existing override → use `odoo-code-review`
 - API diff between versions → use `odoo-version-diff`
-- Full code generation for override → use `odoo-backend-coding`
+- Full code generation for override → use `odoo-coding`
 
 ## MCP tools
 

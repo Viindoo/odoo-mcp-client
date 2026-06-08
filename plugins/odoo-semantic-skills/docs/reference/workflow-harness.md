@@ -62,7 +62,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
                                     ▼
 ┌────────────────────────────────────────────────────────────────┐
 │  EXECUTION LAYER  (depth 1, max depth 2 for fork workers)       │
-│  Specialist skills (odoo-backend-coding, odoo-code-review, …)          │
+│  Specialist skills (odoo-coding, odoo-code-review, …)          │
 │  MCP tool calls (odoo-semantic-mcp server)                      │
 │  context: fork subagents — carry hard-rules line, no spawn      │
 └────────────────────────────────────────────────────────────────┘
@@ -337,7 +337,7 @@ review → receives user approval via `ExitPlanMode` → then dispatches the
 file-touching specialist. This is a first-class enforcement option, not a workaround.
 
 There is **no platform write-block** behind the gate. `intake` does not declare
-`disallowed-tools: Write Edit`, and the coders (`odoo-backend-coding`, `odoo-frontend-coding`)
+`disallowed-tools: Write Edit`, and the coders (`odoo-coding`)
 DO write/apply code — that is their job. The gate is enforced by two behavioral
 mechanisms, with Plan Mode as the strongest layer when depth-0 context is available:
 
@@ -460,7 +460,7 @@ cannot confirm which modules exist, what the current hook points are, or what th
 blast radius of a change would be. Phase R answers these questions cheaply (read-only,
 depth-1) so the Proposed Plan's `Findings (Recon)` field is concrete rather than
 speculative. This is the same principle as `odoo-override-finding` confirming a hook
-before `odoo-backend-coding` writes the override.
+before `odoo-coding` writes the override.
 
 ---
 
@@ -543,16 +543,14 @@ gap-analysis legend: **S = <1 day · M = 1–3 days · L = 3–10 days · XL = >
 #### Short examples
 
 ```
-# Full-stack feature (2 WIs, linear)
-WI-A → odoo-backend-coding (sonnet, M)        adds backend field + ORM method
-WI-B → odoo-frontend-coding (sonnet, M) renders OWL widget
-DAG: linear  WI-A --data-flow--> WI-B
-  (field must exist before widget binds)
+# Full-stack feature (1 WI — odoo-coding sequences both stacks internally)
+WI-A → odoo-coding (sonnet, M)        adds backend field + ORM method, THEN renders OWL widget
+  (odoo-coding runs the backend agent first so the field exists before the widget binds)
 Verify: ./run_tests.sh sale_order
 
 # Three disjoint fixes (independent, candidate for wave)
-WI-A → odoo-backend-coding (sonnet, S)        bug fix in account_move
-WI-B → odoo-backend-coding (sonnet, S)        unit test for WI-A
+WI-A → odoo-coding (sonnet, S)        bug fix in account_move
+WI-B → odoo-coding (sonnet, S)        unit test for WI-A
 WI-C → (inline edit) (sonnet, S)     docs update (sonnet: docs update is a write phase)
 DAG: independent (no edges) → hand to `wave` for parallel delivery
 ```
@@ -615,7 +613,7 @@ inputs: [feature_spec]           # named args collected at Phase 0
 
 phases:
   - id: scaffold
-    skill: odoo-backend-coding
+    skill: odoo-coding
     nl_trigger: "write Odoo unit tests for the feature described"
     model_tier: sonnet
     gate: "yes / edit / cancel"
@@ -696,7 +694,7 @@ main context (depth 0)
 
 A **leaf skill** executes work directly using MCP tool calls and Read/Write/Bash
 operations. It does NOT invoke the Skill tool, does NOT use the Agent tool, and does
-NOT spawn `context: fork` workers. Examples: `odoo-backend-coding`, `odoo-code-review`,
+NOT spawn `context: fork` workers. Examples: `odoo-coding`, `odoo-code-review`,
 all 26 specialist skills.
 
 A **spawn skill** orchestrates leaf skills by NL-dispatch or forks workers via
@@ -810,9 +808,9 @@ Every WI subagent brief MUST contain the following line verbatim:
 ```
 You are a leaf worker (depth-2). You ARE the specialist — write/review the code yourself,
 grounding every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is
-always allowed); follow the odoo-backend-coding / odoo-code-review / odoo-frontend-coder conventions
-but do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-backend-coding,
-odoo-code-review, odoo-ui-review, odoo-frontend-coding, wave, intake, odoo-brl,
+always allowed); follow the odoo-coding / odoo-code-review conventions
+but do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-coding,
+odoo-code-review, odoo-ui-review, wave, intake, odoo-brl,
 workflow-chaining, /code-review, skill-creator) — they dispatch a fresh agent and are
 main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill (e.g.
 odoo-feature-check, odoo-override-finding) for a read-only lookup. Do NOT invoke the Skill tool
@@ -961,7 +959,7 @@ references a driver-required workflow directly.
   "cursor": "<next READY node id the driver will pick>",
   "budget": {"max_nodes": 12, "nodes_run": 3, "max_gate_l1_autopass": 20},
   "nodes": [
-    {"id": "WI-A", "approach": "odoo-backend-coding", "approach_kind": "skill|agent|workflow|inline",
+    {"id": "WI-A", "approach": "odoo-coding", "approach_kind": "skill|agent|workflow|inline",
      "inputs": {}, "depends_on": [], "gate_tier": "L1",
      "status": "PENDING|READY|RUNNING|DONE|FAILED|SKIPPED|BLOCKED",
      "produced": [], "contract": { /* last emitted continuation block */ }}

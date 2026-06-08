@@ -9,7 +9,7 @@ description: >
   ParseError), "why is X broken/blank/wrong", "not updating", "wrong value", a failed module
   install/upgrade, a broken screen/widget/console error, or acute "slow right now in production".
   Vietnamese: "tại sao ... lỗi", "không cập nhật", "view trống", "widget không hiện", "lỗi console".
-  Routing: write the fix via odoo-backend-coding / odoo-frontend-coding; proactive scans (incl.
+  Routing: write the fix via odoo-coding; proactive scans (incl.
   "audit my code for N+1") go to odoo-perf-audit / odoo-security-audit / odoo-deprecation-audit;
   static review of a diff or PR goes to odoo-code-review
 ---
@@ -30,7 +30,7 @@ mandatory Output Contract) and the Odoo-specific symptom catalog in
 
 ## Out of Scope
 
-- **Writing the fix once the cause is proven** → `odoo-backend-coding` (Python/XML) or `odoo-frontend-coding` (JS/OWL/SCSS)
+- **Writing the fix once the cause is proven** → `odoo-coding`
 - **Proactive scan with no specific symptom** (audit a module for latent issues) → `odoo-perf-audit`, `odoo-security-audit`, `odoo-deprecation-audit`
 - **Static review of a diff / PR / pasted block** → `odoo-code-review`
 - **Rating a working screen** (aesthetics/a11y/perf verdict) → `odoo-ui-review`
@@ -161,7 +161,7 @@ causes survive - a self-graded diagnosis is weak.
 
 You (the orchestrator, opus) compile the final **Output Contract** block from
 `debug-method.md`, naming the single proven root cause, the exact fix location, and the
-red→green regression test. Then hand off: `odoo-backend-coding` / `odoo-frontend-coding` for the
+red→green regression test. Then hand off: `odoo-coding` for the
 edit, or the relevant audit for a wider sweep. Emit `SUGGESTED_NEXT: <skill> (reason=..., target=...)`.
 
 ## Model selection (explicit per phase - do not use the default)
@@ -205,7 +205,7 @@ Prompt: "Tại sao computed field `amount_total` trên sale.order không cập n
 - Phase 2 (sonnet): `odoo-backend-debugger` → `@api.depends` omits `order_line.price_subtotal`;
   confirm-by-toggle: add the depends locally, total updates.
 - Phase 3 (sonnet): refute pass holds.
-- Phase 4: root cause + fix location + regression test → hand off `odoo-backend-coding`.
+- Phase 4: root cause + fix location + regression test → hand off `odoo-coding`.
 
 **Example 2 - UI, browser (serial)**
 
@@ -214,7 +214,7 @@ Prompt: "My custom OWL field widget doesn't show up in the Odoo 17 form."
 - Phase 1 (haiku): reproduce; console shows `Missing template`.
 - Phase 2 (sonnet): `odoo-ui-debugger` ALONE (browser exclusive) → `t-name` mismatch JS↔QWeb;
   snapshot shows node absent. Confidence MEDIUM (JS location inferred - known OSM gap).
-- Phase 3 + 4: verify, synthesize, hand off `odoo-frontend-coding`.
+- Phase 3 + 4: verify, synthesize, hand off `odoo-coding`.
 
 ## Continuation Contract
 

@@ -1,6 +1,6 @@
 # Odoo Frontend Fidelity - era-aware OWL/JS/SCSS ground truth (SSOT)
 
-> Shared, version-structured grounding doc for the frontend skills (`odoo-frontend-coding`,
+> Shared, version-structured grounding doc for the frontend skills (`odoo-coding`,
 > `odoo-code-review`, `odoo-ui-review`, and referenced by `odoo-ui-debugger` /
 > `odoo-visual-regression`). It exists so frontend output is **correct and lint-compliant by
 > construction** across every supported Odoo era, and so review-time diagnosis cites real
@@ -95,7 +95,7 @@ v8); UI is `Widget.extend({...})` / `AbstractField.extend({...})` with `web.Widg
 1.4.11 appears as a library at v14 but is not the default rendering path).
 
 > Do not over-document legacy here. For v8-v14 frontend work, use the
-> **`odoo-frontend-coding` legacy gate**, which auto-selects the `web.Widget` /
+> **`odoo-coding` legacy gate**, which auto-selects the `web.Widget` /
 > `AbstractField` / `odoo.define()` path.
 
 ---
@@ -192,7 +192,7 @@ A design-system-aware skill should (a) **never generate** this (rule A2/A3 + tok
 
 ### F. How the skills use this
 
-- **`odoo-frontend-coding` (prevention):** before emitting SCSS/OWL, resolve which tokens to
+- **`odoo-coding` (prevention):** before emitting SCSS/OWL, resolve which tokens to
   reuse (OSM + Section B); run the output self-check gate - no hardcoded hex/rgba, no self-ref
   custom property, referenced tokens exist at runtime for the target version, output matches
   the mockup.

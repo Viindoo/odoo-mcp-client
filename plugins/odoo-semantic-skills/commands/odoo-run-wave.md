@@ -23,7 +23,7 @@ multi-subagent orchestration:
   disjoint ownership map, human-confirm gate at every critical step
 - **Single-WI minimal** - skip the plan file, go straight to integration branch + 1 worktree
 
-For a **single-file change** with no parallelism: use `odoo-backend-coding` or `odoo-code-review` instead.
+For a **single-file change** with no parallelism: use `odoo-coding` or `odoo-code-review` instead.
 For a **requirement scoping / BRL** task: use `odoo-brl` instead.
 For **in-context skill chaining** (no git): use `workflow-chaining` instead.
 
