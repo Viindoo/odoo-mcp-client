@@ -4,8 +4,8 @@ user-invocable: false
 description: >
   Depth-0 drive-to-done loop. Walks the RUN-DAG in `.odoo-ai/run-<id>.json` that intake's
   Phase P produced: picks the next ready node, resolves its gate tier (L0/L1/L2), dispatches
-  it (NL-dispatch a leaf skill | Agent-tool a spawner's agent | hand a workflow to
-  workflow-chaining), reads the step's Continuation Contract, updates the blackboard, and
+  it (Skill-tool a leaf skill | Skill-tool a spawner skill (it fans out its own agent) | hand a
+  workflow to workflow-chaining), reads the step's Continuation Contract, updates the blackboard, and
   advances until the run reaches DONE / BLOCKED / NEEDS_CONTEXT. Invoked by intake after a
   RUN-DAG is approved, or to RESUME an existing active run. Never called directly by the user;
   never invoked from inside a subagent. Full schema + diagram: docs/reference/workflow-harness.md §8
@@ -77,8 +77,9 @@ while RUN.status == "NEEDS_NEXT":
 
     node.status = "RUNNING"; write(RUN)
     dispatch(node):                                          # pick by approach_kind
-        - skill (leaf)      → NL-dispatch inline (depth 0)
-        - skill (spawner)   → invoke its agent via Agent tool (depth 0→1)
+        - skill (leaf)      → Skill tool inline (depth 0); NL-dispatch is the fallback
+        - skill (spawner)   → invoke the SKILL via Skill tool (depth 0); the skill fans out its
+                              own agent (e.g. odoo-code-reviewer) via the Agent tool at depth 1
         - workflow          → hand the YAML name to workflow-chaining (depth 1)
         - inline            → do the small synth step yourself
     # turn typically ends here for any subagent/agent dispatch; SubagentStop hook nudges resume
@@ -110,19 +111,21 @@ Per node: `node.gate_tier` (run.json override) → else registry `default_gate_t
 lets L0+L1 auto-pass within budget. **L2 never lowers.** See harness §8.4.
 
 **Source-writing nodes (writes-files targeting the source tree, not `.odoo-ai/`) - the human
-gate MUST be at the driver, before dispatch.** A spawner node is dispatched by invoking its
-**agent** via the Agent tool (see The loop). That bypasses the *skill's* Phase-0 preview-confirm
-gate (the gate lives in e.g. `odoo-coding`'s procedure, NOT in the `odoo-coder` agent),
-and a spawned subagent runs to completion and **cannot pause for human input**. So the skill's
-internal gate does NOT protect a driver-dispatched source write - the confirmation has to happen
-at depth-0 here, before the spawn. Rule:
+gate MUST be at the driver, before dispatch.** A spawner node is dispatched by invoking the
+**skill** via the Skill tool (see The loop); the skill then fans out its own worker agent (e.g.
+`odoo-coder`) via the Agent tool at depth 1, and that spawned subagent runs to completion and
+**cannot pause for human input**. The skill's internal Phase-0 preview-confirm gate is only a
+safety-net re-confirm — it does NOT reliably protect a driver-dispatched source write. So the
+binding confirmation has to happen at depth-0 here, before dispatch. (Spawner skills that write
+only `.odoo-ai/` artifacts — `odoo-code-review`, `odoo-ui-review` — are not source writes and need
+no extra driver gate beyond their registry tier.) Rule:
 - **Static node** (it was in the Plan-Mode-approved DAG that opened this run - its files were
   listed and approved): the Plan-Mode approval IS the human gate for that source write →
   auto-pass under `--auto` is fine.
 - **Dynamic node** (materialized at runtime from a Continuation Contract `next[]` / `on_complete`
   - never in the approved plan, e.g. `qa-suite`→`odoo-coding`): the human has approved
   nothing. The driver MUST emit a preview (`Proposed / Files / OSM / Proceed? (yes / refine /
-  cancel)`) and **END ITS TURN** for the human BEFORE dispatching the agent. Treat it as **L2**:
+  cancel)`) and **END ITS TURN** for the human BEFORE dispatching the node. Treat it as **L2**:
   `--auto` cannot auto-pass it.
 
 **Defense-in-depth at dispatch (M3):** before gating any node, re-derive its floor from the

@@ -48,7 +48,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 │  · Plan Mode (EnterPlanMode/ExitPlanMode) for writes-files      │
 │  · gate is BEHAVIORAL (Iron Law) + Plan Mode — not a write-block │
 └───────────────────────────────────┬────────────────────────────┘
-                                    │ NL-dispatch (never Skill tool)
+                                    │ Skill tool (depth-0 canonical; NL-dispatch fallback)
                                     ▼
 ┌────────────────────────────────────────────────────────────────┐
 │  WORKFLOW LAYER  (depth 0 → 1)                                  │
@@ -317,7 +317,7 @@ Run this before any execute-skill dispatch. Intake reads the chosen Approach's
 - `output_mode = writes-files` → **Plan Mode is REQUIRED**. Proceed through the full
   EnterPlanMode → content schema → ExitPlanMode procedure (see §4.6).
 - `output_mode = chat-only` → **SKIP Plan Mode**. Intake ends its turn; the specialist
-  fires via the Agent tool on the next turn (NL-dispatch). Chat-only skills include:
+  fires via the **Skill tool** on the next turn. Chat-only skills include:
   `odoo-feature-check`, `odoo-version-diff`, `odoo-risk-overview`,
   `odoo-deprecation-audit`, `odoo-gap-analysis`, `odoo-discovery-summary`,
   `odoo-capability-proof`, `odoo-objection-handling`, `odoo-content-draft`,
@@ -380,8 +380,8 @@ Gate: approve / refine: [feedback] / cancel
 | Refine loop | Gate loops inside brainstorm; no writes until `approve` | Iteration |
 
 On `approve` (text gate) + Plan Mode approved (harness level): the specialist fires
-via the Agent tool (writes-files path). For chat-only Approaches, Plan Mode is skipped
-and the specialist fires immediately on the next turn.  
+via the **Skill tool** (writes-files path). For chat-only Approaches, Plan Mode is skipped
+and the specialist fires immediately on the next turn (also via the Skill tool).  
 On `refine: [feedback]`: the brainstorm loop continues within the current turn.  
 On `cancel`: the skill stops and reports.
 
@@ -426,7 +426,7 @@ Proposed Plan  (context-rich, informed by Recon findings)
     ↓
 Plan Mode  (EnterPlanMode → Content Schema → ExitPlanMode)
     ↓
-Execute  (writes-files specialist dispatched via Agent tool)
+Execute  (writes-files specialist dispatched via the Skill tool; the skill fans out its own agent)
 ```
 
 #### What Phase R does
@@ -692,14 +692,22 @@ main context (depth 0)
 
 ### Leaf vs spawn
 
-A **leaf skill** executes work directly using MCP tool calls and Read/Write/Bash
-operations. It does NOT invoke the Skill tool, does NOT use the Agent tool, and does
-NOT spawn `context: fork` workers. Examples: `odoo-coding`, `odoo-code-review`,
-all 26 specialist skills.
+A **leaf skill** (`spawn_class: leaf`) executes work directly using MCP tool calls and
+Read/Write/Bash operations. It does NOT use the Agent tool and does NOT spawn workers.
+Examples: `odoo-feature-check`, `odoo-gap-analysis`, `odoo-version-diff`, and the other
+leaf specialists.
 
-A **spawn skill** orchestrates leaf skills by NL-dispatch or forks workers via
-`context: fork`. Examples: `odoo-brl` (forks DAG cluster workers), `intake`
-(NL-dispatches to specialists), `workflow-chaining` (phases mapped to leaf skills).
+A **spawner-agent skill** (`spawn_class: spawner-agent`) is `depth0-only`: it runs in
+the depth-0 main context and dispatches a named agent via the **Agent tool** (depth 0→1).
+Because it is depth-0-only, it is itself launched via the **Skill tool** (by the main agent
+or by a depth-0 orchestrator like `run-driver`), never by Agent-tool'ing its name and never
+by reading-and-imitating its SKILL.md. Examples: `odoo-code-review` (→ `odoo-code-reviewer`),
+`odoo-coding` (→ `odoo-coder` / `odoo-frontend-coder`), `odoo-debug`, `odoo-solution-design`,
+`odoo-ui-review`.
+
+A **spawn/orchestrator skill** orchestrates other skills or forks workers via `context: fork`.
+Examples: `odoo-brl` (forks DAG cluster workers), `wave` (worktree fan-out), `intake` /
+`run-driver` / `workflow-chaining` (depth-0 orchestrators that dispatch specialists).
 
 ### Mandatory hard-rules line
 
@@ -715,10 +723,17 @@ a skill creates depth 3, which exceeds the platform ceiling.
 
 ### Dispatch method
 
-All cross-skill dispatch uses **NL description-match** (natural-language prompt that
-matches the target skill's `description`). The Skill tool is never used inside a
-running skill or workflow. This is the pattern used by all 5 existing command files
-and must be preserved in new workflows.
+The **depth-0 main agent** and **depth-0 orchestrators** (`intake`, `run-driver`) dispatch a
+target skill via the **Skill tool** — this is the canonical, deterministic mechanism, and it is
+what lets a `depth0-only` spawner skill (`odoo-code-review`, `odoo-coding`, …) actually RUN its
+own orchestration in the main context. **NL description-match** (a natural-language prompt that
+matches the target skill's `description`) is the soft fallback.
+
+The "never the Skill tool" rule binds **depth≥1 fork-workers / subagents only**: a depth≥1 worker
+that invokes the Skill tool on a spawner skill creates depth-3, exceeding the platform ceiling —
+hence the mandatory hard-rules line above. (A subagent invoking the Skill tool on a *spawner*
+skill is the case to avoid; this is surfaced at runtime rather than hard-enforced.) The 5 existing
+command files use NL description-match within their workflow bodies and that is still fine.
 
 ### Model-tier assignment
 
@@ -872,7 +887,7 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
 │     tier = resolve_gate(node)                      # --step raises floor, --auto lowers L1│
 │       L2 → ALWAYS human gate ; L1 → auto-pass(--auto)/gate(--step) ; L0 → auto-pass    │
 │     dispatch(node):  (3a) leaf skill INLINE (depth 0)                                  │
-│                      (3b) spawner skill → Agent tool → NAMED AGENT (depth 1)           │
+│                      (3b) spawner skill → Skill tool → skill spawns AGENT (depth 1)    │
 │                      (3c) workflow-chaining (depth 1) → fanout context:fork (depth 2)  │
 │     read Continuation Contract ; update run-<id>.json ; materialize next[] → dynamic   │
 │   stop ⇒ DONE | BLOCKED | NEEDS_CONTEXT  → report + evidence (Completion #8)           │
