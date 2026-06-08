@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **39 skills + 4 agents + 9 commands**, grouped into **9 persona
+> The Odoo AI workforce toolkit: **39 skills + 6 agents + 9 commands**, grouped into **9 persona
 > buckets**, plus **11 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, pre-sales, sales, marketing, strategy, and onboarding. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
@@ -30,7 +30,7 @@ You control how hands-off this is with one optional flag (`--auto` is the defaul
 plan, and the main agent is never forced or trapped - the stops are real human checkpoints, the
 nudges are advisory.
 
-> **Counts at a glance:** this plugin ships **39 skills + 4 agents + 9 commands**, grouped into
+> **Counts at a glance:** this plugin ships **39 skills + 6 agents + 9 commands**, grouped into
 > **9 persona buckets** for navigation, plus **11 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
@@ -50,11 +50,11 @@ flowchart LR
 
     coder["Coder"] --> coderpy["odoo-backend-coding (Python/XML)"]
     coder --> coderfe["odoo-frontend-coding (JS/OWL)"]
+    coder --> dbg["odoo-debug<br/>(debug front-door)"]
 
     rev["Code-Reviewer"] --> reviewer["odoo-code-review"]
 
     qa["Visual / UI QA"] --> uirev["odoo-ui-review"]
-    qa --> uidbg["odoo-ui-debugging"]
     qa --> visreg["odoo-visual-regression"]
     qa --> demo["odoo-demo-recording"]
     qa --> qasuite["odoo-qa-suite"]
@@ -249,7 +249,7 @@ flowchart TD
     MCPW --> SK["Visual skills available"]
     CTX --> SK
 
-    SK --> UID["odoo-ui-debugging<br/>root-cause diagnosis"]
+    SK --> UID["odoo-debug<br/>(UI leg uses browser)"]
     SK --> UIR["odoo-ui-review<br/>5-lens review + agent"]
     SK --> VR["odoo-visual-regression<br/>before/after diff"]
     SK --> DR["odoo-demo-recording<br/>MP4 / GIF output"]
@@ -363,7 +363,7 @@ You: "Customer F reports: invoice approval button disappeared after installing
 account_invoice_approval v14. Users are blocked."
 ```
 
-Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression), generates a root-cause hint using OSM to inspect the `account` module's approval flow and the installed module's view overrides, and drafts a resolution note ready to send to the customer. If a live browser is available, it NL-dispatches to `odoo-ui-debugging` to capture the console error and pinpoint the broken view. Output saved to `.odoo-ai/support/customer-f-2026-MM-DD.md`.
+Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression), generates a root-cause hint using OSM to inspect the `account` module's approval flow and the installed module's view overrides, and drafts a resolution note ready to send to the customer. If a live browser is available, it NL-dispatches to `odoo-debug` to capture the console error and pinpoint the broken view. Output saved to `.odoo-ai/support/customer-f-2026-MM-DD.md`.
 
 ### Frequently asked questions
 
@@ -393,7 +393,7 @@ You will need an **API key** (format `osm_...`) from the [install page](https://
 
 ### Browser MCP servers / cross-CLI install
 
-The four Visual skills (`odoo-ui-review`, `odoo-ui-debugging`, `odoo-visual-regression`,
+The three Visual skills (`odoo-ui-review`, `odoo-visual-regression`,
 `odoo-demo-recording`) need three browser MCP servers: `chrome-devtools`, `playwright`,
 and `pagecast`. Each runtime bundles them natively:
 
@@ -454,7 +454,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-onboarding` | Onboarding / Concierge | Bootstrap project context into `.odoo-ai/context.md` for new engagements |
 | `intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths a single clear step, and for multi-step work plans once then hands a `run-<id>.json` to `run-driver` to drive to done; always gates with a Proposed Plan before execution |
 | `odoo-ui-review` | Coder / Visual | Five-lens review of a rendered Odoo screen in a live browser (aesthetics, function, stability, accessibility, performance); slim, paired with agent bundle |
-| `odoo-ui-debugging` | Coder / Visual | Root-cause a broken Odoo UI at runtime (console errors, failed requests, blank OWL renders, wrong CSS) and pinpoint the override point |
+| `odoo-debug` | Coder | Front-door orchestrator for all Odoo debugging — scientific method; dispatches specialist debug agents (backend/UI) |
 | `odoo-visual-regression` | Coder / Visual | Screenshot baseline + diff between two Odoo states (before/after upgrade, module install, theme change) with blast-radius assessment |
 | `odoo-demo-recording` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
 | `odoo-qa-suite` | Coder / Visual | Full QA pipeline - generate structured test cases, produce a pre-deploy checklist, and triage bugs with severity classification and reproduction steps |
@@ -462,7 +462,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `run-driver` | Internal (harness) | Depth-0 drive-to-done loop - walks the `run-<id>.json` plan, dispatches each work-item, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent |
 | `wave` | Internal (orchestration) | Depth-0 git-wave orchestration - integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge; self-spawning, principal-branch-locked |
 
-### Agents (4)
+### Agents (6)
 
 | Agent | Model | Role |
 |-------|-------|------|
@@ -470,6 +470,8 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-code-reviewer` | Sonnet | Agent bundle for code review - runs full PR-scope analysis with OSM grounding |
 | `odoo-ui-reviewer` | Sonnet | Agent bundle for visual UI review - drives a live browser through a five-lens audit with screenshot, console, and Lighthouse evidence plus OSM source pointers |
 | `odoo-frontend-coder` | Sonnet | Agent bundle for frontend code writing - JS/OWL/QWeb/SCSS across legacy and OWL eras with OSM grounding and design-system fidelity (companion to the `odoo-frontend-coding` skill) |
+| `odoo-backend-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes Python/ORM/server runtime failures via the scientific method, OSM-only (no browser) |
+| `odoo-ui-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes OWL/JS/QWeb/SCSS runtime failures from live browser evidence + OSM grounding (serial-exclusive browser use) |
 
 ## Requirements
 

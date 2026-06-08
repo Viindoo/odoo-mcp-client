@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Customer says the Pricelist option has disappeared from the Sales menu after upgrading to Odoo 17",
-      "expected_output": "Skill classifies as 'config' (high confidence) — pricelist feature is controlled by a setting in Sales > Configuration > Settings. Root-cause hint: check 'Pricelists' toggle in Sales settings. Resolution draft: customer-facing reply with step-by-step re-enable path. No NL-dispatch to odoo-ui-debugging or odoo-feature-check.",
+      "expected_output": "Skill classifies as 'config' (high confidence) — pricelist feature is controlled by a setting in Sales > Configuration > Settings. Root-cause hint: check 'Pricelists' toggle in Sales settings. Resolution draft: customer-facing reply with step-by-step re-enable path. No NL-dispatch to odoo-debug or odoo-feature-check.",
       "expected_routed_to": "inline-config",
       "category": "classify-config",
       "files": []
@@ -12,8 +12,8 @@
     {
       "id": 2,
       "prompt": "User gets a Python traceback: 'AttributeError: account.move has no attribute _compute_payment_state' when confirming an invoice",
-      "expected_output": "Skill classifies as 'bug' (high confidence). Root-cause phase emits NL-dispatch trigger to odoo-ui-debugging: asks for runtime root cause of the AttributeError on account.move. Internal escalation note produced. Customer-facing reply acknowledges the error and promises investigation.",
-      "expected_routed_to": "odoo-ui-debugging",
+      "expected_output": "Skill classifies as 'bug' (high confidence). Root-cause phase emits NL-dispatch trigger to odoo-debug: asks for runtime root cause of the AttributeError on account.move. Internal escalation note produced. Customer-facing reply acknowledges the error and promises investigation.",
+      "expected_routed_to": "odoo-debug",
       "category": "dispatch-bug-to-ui-debug",
       "files": []
     },
@@ -28,7 +28,7 @@
     {
       "id": 4,
       "prompt": "User writes: 'I don't know how to create a Purchase Order from a reordering rule. The system seems to do nothing when I click.'",
-      "expected_output": "Skill classifies as 'training' (high confidence) — this is a known workflow in Inventory > Operations > Replenishment. Resolution draft: customer-facing reply with menu path and numbered steps. No NL-dispatch to odoo-ui-debugging (no error) or odoo-feature-check (feature exists).",
+      "expected_output": "Skill classifies as 'training' (high confidence) — this is a known workflow in Inventory > Operations > Replenishment. Resolution draft: customer-facing reply with menu path and numbered steps. No NL-dispatch to odoo-debug (no error) or odoo-feature-check (feature exists).",
       "expected_routed_to": "inline-training",
       "category": "classify-training",
       "files": []
@@ -36,8 +36,8 @@
     {
       "id": 5,
       "prompt": "Customer reports: 'Odoo shows HTTP 500 error on the manufacturing order list view — the page won't load at all.'",
-      "expected_output": "Skill classifies as 'bug' (high confidence). NL-dispatch trigger to odoo-ui-debugging emitted: debug HTTP 500 on manufacturing order list view — identify affected module and reproduction path. Escalation note produced for engineering team with severity 'high'.",
-      "expected_routed_to": "odoo-ui-debugging",
+      "expected_output": "Skill classifies as 'bug' (high confidence). NL-dispatch trigger to odoo-debug emitted: debug HTTP 500 on manufacturing order list view — identify affected module and reproduction path. Escalation note produced for engineering team with severity 'high'.",
+      "expected_routed_to": "odoo-debug",
       "category": "dispatch-bug-to-ui-debug",
       "files": []
     },
@@ -60,8 +60,8 @@
     {
       "id": 8,
       "prompt": "Customer says 'Odoo sent duplicate invoices to all our customers last night — 200 extra emails went out.'",
-      "expected_output": "Skill classifies as 'bug' (high confidence, severity: blocker). NL-dispatch trigger to odoo-ui-debugging: investigate duplicate invoice send event — identify trigger (scheduled action, user action, race condition). Escalation note produced with blocker severity. Customer-facing reply: acknowledge, apologize, confirm investigation underway.",
-      "expected_routed_to": "odoo-ui-debugging",
+      "expected_output": "Skill classifies as 'bug' (high confidence, severity: blocker). NL-dispatch trigger to odoo-debug: investigate duplicate invoice send event — identify trigger (scheduled action, user action, race condition). Escalation note produced with blocker severity. Customer-facing reply: acknowledge, apologize, confirm investigation underway.",
+      "expected_routed_to": "odoo-debug",
       "category": "dispatch-bug-to-ui-debug",
       "files": []
     },
@@ -98,5 +98,5 @@
       "files": []
     }
   ],
-  "notes": "12 eval cases. Categories: classify-config (3), dispatch-bug-to-ui-debug (3), dispatch-feature-request-to-feature-check (3), classify-training (1), classify-training-mislabeled (1), input-validation (1). Each case tests one behavioral rule (ETHOS#11): correct classification OR correct NL-dispatch target OR correct collect-loop behavior. Cases 2/5/8 verify bug->odoo-ui-debugging dispatch. Cases 3/6/9 verify feature-request->odoo-feature-check dispatch. Case 12 verifies the collect-loop guard (no triage without input). Each case has a wrong answer that would fail it (e.g., case 2 fails if skill classifies as training or skips NL-dispatch)."
+  "notes": "12 eval cases. Categories: classify-config (3), dispatch-bug-to-ui-debug (3), dispatch-feature-request-to-feature-check (3), classify-training (1), classify-training-mislabeled (1), input-validation (1). Each case tests one behavioral rule (ETHOS#11): correct classification OR correct NL-dispatch target OR correct collect-loop behavior. Cases 2/5/8 verify bug->odoo-debug dispatch. Cases 3/6/9 verify feature-request->odoo-feature-check dispatch. Case 12 verifies the collect-loop guard (no triage without input). Each case has a wrong answer that would fail it (e.g., case 2 fails if skill classifies as training or skips NL-dispatch)."
 }

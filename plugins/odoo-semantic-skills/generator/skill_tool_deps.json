@@ -276,21 +276,6 @@
       "deprecated_tools_used": [],
       "notes": "Depth-0 git-wave orchestration skill — no MCP tools; spawns WI subagents over worktrees + cherry-pick + /code-review + squash. Outputs to .odoo-ai/wave/ (gitignored)."
     },
-    "odoo-ui-debugging": {
-      "mcp_tools": [
-        "resolve_stylesheet",
-        "find_style_override",
-        "find_override_point",
-        "find_examples",
-        "module_inspect",
-        "lookup_core_api",
-        "suggest_pattern",
-        "set_active_version"
-      ],
-      "min_server_version": "0.7.0",
-      "deprecated_tools_used": [],
-      "notes": "Runtime UI debugging. Browser MCP (chrome-devtools) drives the live instance; OSM localizes the cause. suggest_pattern (used in body, was undeclared) infers JS/OWL override location; set_active_version pins the target so odoo_version='auto' calls are not resolved against latest-indexed."
-    },
     "odoo-ui-review": {
       "mcp_tools": [
         "resolve_stylesheet",
@@ -339,7 +324,7 @@
       "mcp_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
-      "notes": "Composition skill — no MCP tools called directly. NL-dispatches to odoo-ui-debugging (bug path) and odoo-feature-check (feature-request path) via description-match. All outputs to .odoo-ai/support/ (gitignored, confidentiality-safe)."
+      "notes": "Composition skill — no MCP tools called directly. NL-dispatches to odoo-debug (bug path) and odoo-feature-check (feature-request path) via description-match. All outputs to .odoo-ai/support/ (gitignored, confidentiality-safe)."
     },
     "odoo-qa-suite": {
       "mcp_tools": [
@@ -423,6 +408,18 @@
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
       "notes": "Assesses an existing Odoo customer's health (score + churn risk + upsell + next-touch) for customer-success/retention."
+    },
+    "odoo-debug": {
+      "mcp_tools": [
+        "set_active_version",
+        "check_module_exists",
+        "entity_lookup",
+        "model_inspect",
+        "module_inspect"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Front-door debug orchestrator. Stays light on tools - pins version + quick layer classification, then dispatches specialist debug agents (odoo-backend-debugger OSM-only; odoo-ui-debugger browser, serial-exclusive). Heavy OSM localization happens inside the agents. Writes run notes to .odoo-ai/debug/ (gitignored)."
     }
   },
   "agents": {
@@ -497,6 +494,40 @@
       ],
       "min_server_version": "0.7.0",
       "notes": "Agent bundle — companion to odoo-frontend-coding slim SKILL.md. Tool list from agents/odoo-frontend-coder.md frontmatter. entity_lookup verifies an OWL component method exists before patch()."
+    },
+    "odoo-backend-debugger": {
+      "mcp_tools": [
+        "set_active_version",
+        "model_inspect",
+        "entity_lookup",
+        "resolve_orm_chain",
+        "find_override_point",
+        "lookup_core_api",
+        "validate_depends",
+        "validate_domain",
+        "validate_relation",
+        "module_inspect",
+        "find_examples",
+        "suggest_pattern",
+        "api_version_diff"
+      ],
+      "min_server_version": "0.13.1",
+      "notes": "Agent bundle - backend runtime debugger dispatched by odoo-debug. OSM-only (no browser). Tool list from agents/odoo-backend-debugger.md frontmatter (Read/Grep/Bash omitted - not MCP)."
+    },
+    "odoo-ui-debugger": {
+      "mcp_tools": [
+        "set_active_version",
+        "resolve_stylesheet",
+        "find_style_override",
+        "find_override_point",
+        "module_inspect",
+        "lookup_core_api",
+        "find_examples",
+        "suggest_pattern",
+        "api_version_diff"
+      ],
+      "min_server_version": "0.13.1",
+      "notes": "Agent bundle - frontend runtime debugger dispatched by odoo-debug (absorbs the former UI-debugging skill). Drives chrome-devtools browser MCP (serial-exclusive, not tracked here); OSM tools localize the cause. Tool list from agents/odoo-ui-debugger.md frontmatter."
     }
   },
   "orchestration": {
@@ -736,15 +767,6 @@
       "output_mode": "writes-files",
       "default_gate_tier": "L1"
     },
-    "odoo-ui-debugging": {
-      "spawn_class": "leaf",
-      "depth_policy": "any-depth",
-      "spawns": [],
-      "stack": "frontend",
-      "instance_touching": false,
-      "output_mode": "chat-only",
-      "default_gate_tier": "L0"
-    },
     "odoo-ui-review": {
       "spawn_class": "spawner-agent",
       "depth_policy": "depth0-only",
@@ -865,6 +887,18 @@
       "instance_touching": false,
       "output_mode": "chat-only",
       "default_gate_tier": "L0"
+    },
+    "odoo-debug": {
+      "spawn_class": "spawner-agent",
+      "depth_policy": "depth0-only",
+      "spawns": [
+        "odoo-backend-debugger",
+        "odoo-ui-debugger"
+      ],
+      "stack": "fullstack",
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
     }
   }
 }

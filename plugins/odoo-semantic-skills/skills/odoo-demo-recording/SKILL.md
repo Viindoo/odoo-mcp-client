@@ -9,7 +9,7 @@ description: >
   of this Odoo workflow", "capture a GIF of creating an invoice in Odoo", "capture a short MP4
   for the website", "quay video demo Odoo", "tạo video hướng dẫn quy trình". Routing: stitch
   many scenes / multi-scene walkthrough into one video → odoo-produce-video; RATE how a screen
-  looks → odoo-ui-review; broken screen → odoo-ui-debugging; compare two builds →
+  looks → odoo-ui-review; broken screen → odoo-debug; compare two builds →
   odoo-visual-regression; write frontend code → odoo-frontend-coding; code audit →
   odoo-code-review
 ---
@@ -23,7 +23,7 @@ recording (which menus, which records, what to type) so the take is smooth and r
 ## Out of Scope
 
 - **Rating how a screen looks** (aesthetic/a11y/performance verdict) → use `odoo-ui-review`
-- **Diagnosing a broken screen** → use `odoo-ui-debugging`
+- **Diagnosing a broken screen** → use `odoo-debug`
 - **Comparing two builds for visual drift** → use `odoo-visual-regression`
 - **Writing Odoo frontend code** → use `odoo-frontend-coding`
 - **Static source-level code audit** → use `odoo-code-review`

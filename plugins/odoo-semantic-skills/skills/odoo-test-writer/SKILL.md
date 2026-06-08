@@ -11,7 +11,7 @@ description: >
   without the word "test". Vietnamese triggers: "viết test cho model", "test unit cho computed
   field", "bao phủ ràng buộc bằng test", "test hành vi nghiệp vụ Odoo", "tại sao test fail",
   "viết test JS Hoot". Scope: new test files only; reviewing existing tests use
-  odoo-code-review; runtime test errors use odoo-ui-debugging
+  odoo-code-review; runtime test errors use odoo-debug
 model: inherit
 ---
 
@@ -25,7 +25,7 @@ asserts a business contract, not a snapshot of current implementation.
 
 - **Reviewing existing tests** - use `odoo-code-review`
 - **Writing the production code under test** - use `odoo-backend-coding` or `odoo-frontend-coding`
-- **Debugging a test that fails at runtime on a live instance** - use `odoo-ui-debugging`
+- **Debugging a test that fails at runtime on a live instance** - use `odoo-debug`
 - **Upgrade-safety audit** - use `odoo-deprecation-audit`
 - **Performance / load tests** - out of scope for this skill
 

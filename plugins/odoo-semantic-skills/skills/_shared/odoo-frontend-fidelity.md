@@ -1,7 +1,7 @@
 # Odoo Frontend Fidelity - era-aware OWL/JS/SCSS ground truth (SSOT)
 
 > Shared, version-structured grounding doc for the frontend skills (`odoo-frontend-coding`,
-> `odoo-code-review`, `odoo-ui-review`, and referenced by `odoo-ui-debugging` /
+> `odoo-code-review`, `odoo-ui-review`, and referenced by `odoo-ui-debugger` /
 > `odoo-visual-regression`). It exists so frontend output is **correct and lint-compliant by
 > construction** across every supported Odoo era, and so review-time diagnosis cites real
 > ground truth rather than memory.
@@ -199,7 +199,7 @@ A design-system-aware skill should (a) **never generate** this (rule A2/A3 + tok
 - **`odoo-ui-review` (detection + remediation):** add a design-system/theme lens that runs
   the token-reality check (Section C) and flags empty/transparent surfaces, self-ref cycles,
   hardcoded palette, and mockup divergence - emitting token+file remediation pointers.
-- **`odoo-ui-debugging` / `odoo-visual-regression`:** cross-reference this SSOT when a root cause
+- **`odoo-ui-debugger` / `odoo-visual-regression`:** cross-reference this SSOT when a root cause
   or a diff is theme/token related.
 
 ### G. Brand-token fidelity (optional, brand-agnostic, consumer-driven)

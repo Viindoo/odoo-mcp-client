@@ -262,3 +262,50 @@ def test_example_tool_calls_pass_required_odoo_version():
         "and the server rejects the call; pass odoo_version='auto' to reuse the pinned "
         "session, or supply all required params positionally):\n" + "\n".join(offenders)
     )
+
+
+# --- Agents must not instruct an OSM tool they were not granted --------------------
+# A subagent runs with ONLY the tools in its `tools:` frontmatter allowlist. If its
+# body tells the executor to use an OSM tool that is NOT in that allowlist (e.g. the
+# old odoo-ui-reviewer / odoo-ui-debugger Step 0 -> `list_available_versions`), the
+# executor emits a call it cannot make: the tool is unavailable, the step fails, and
+# the agent silently degrades to a default. CI never caught this because the SSOT
+# checks *param names* and *odoo_version*, not *grant scope*. This guard closes that
+# gap. OSM tool names are specific snake_case identifiers, so matching an inline-code
+# `tool` reference or a `tool(` call does not collide with ordinary prose.
+
+AGENT_FILES = sorted((PLUGIN / "agents").glob("*.md"))
+_OSM_FM_PREFIX = "mcp__odoo-semantic__"
+
+
+def _frontmatter_body(text: str) -> tuple[str, str]:
+    """Return (frontmatter, body) split on the leading --- ... --- fence."""
+    parts = text.split("---", 2)
+    return (parts[1], parts[2]) if len(parts) >= 3 else ("", text)
+
+
+def test_agents_do_not_instruct_ungranted_osm_tools():
+    """An agent body must not reference an OSM tool absent from its tools: allowlist.
+
+    The agent can only call what it was granted; naming a tool it lacks makes the
+    executor emit a failing call. Flags any OSM tool referenced as an inline-code
+    identifier (`tool`) or a call (`tool(`) in the body that is not in the allowlist.
+    """
+    offenders: list[str] = []
+    for f in AGENT_FILES:
+        fm, body = _frontmatter_body(f.read_text(encoding="utf-8"))
+        granted = {t for t in _ALL_TOOLS if (_OSM_FM_PREFIX + t) in fm}
+        for tool in _ALL_TOOLS:
+            if tool in granted:
+                continue
+            if re.search(r"`" + re.escape(tool) + r"`", body) or \
+               re.search(r"\b" + re.escape(tool) + r"\b\s*\(", body):
+                offenders.append(
+                    f"{f.relative_to(REPO_ROOT)}: body references OSM tool "
+                    f"'{tool}' not in its tools: allowlist"
+                )
+    assert not offenders, (
+        "Agent bodies instruct OSM tools they were not granted (the executor would emit "
+        "a failing call). Add the tool to the agent's tools: allowlist, or stop "
+        "referencing it in the body:\n" + "\n".join(offenders)
+    )

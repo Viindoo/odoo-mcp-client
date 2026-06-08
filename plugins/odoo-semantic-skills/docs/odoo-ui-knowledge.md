@@ -1,8 +1,8 @@
 # Odoo UI Knowledge (SSOT for visual skills)
 
 Portable, version-aware reference shared by the visual skills (`odoo-ui-review`,
-`odoo-ui-debugging`, `odoo-visual-regression`, `odoo-demo-recording`) and the `odoo-ui-reviewer`
-agent. Contains no instance-specific or confidential values — concrete URLs, logins, and
+`odoo-visual-regression`, `odoo-demo-recording`) and the `odoo-ui-reviewer` / `odoo-ui-debugger`
+agents. Contains no instance-specific or confidential values — concrete URLs, logins, and
 baseline directories live in each project's `.odoo-ai/context.md`.
 
 ## URLs and entry points

@@ -11,7 +11,7 @@ domain: support
 team_pattern: Pipeline
 description: |
   Triage an Odoo support ticket end-to-end: classify (config / bug / feature-request /
-  training), generate a root-cause hint (dispatching to odoo-ui-debugging for runtime bugs or
+  training), generate a root-cause hint (inline UI diagnosis (debug-method) for runtime bugs or
   odoo-feature-check for feature gaps), then draft a customer-facing resolution or an
   internal escalation note in B2B tone. Trigger: "triage this ticket", "support ticket",
   "customer reports Odoo issue", "classify this bug", "draft resolution for support case",
@@ -46,16 +46,20 @@ phases:
     # Output: classification block written to .odoo-ai/support/<slug>-classify.md.
 
   # ------------------------------------------------------------------
-  # Phase 2a — Root-cause via odoo-ui-debugging (bug path)
+  # Phase 2a — Root-cause via inline UI diagnosis (debug-method) (bug path)
   # ------------------------------------------------------------------
   - id: root-cause-bug
-    skill: odoo-ui-debugging
+    inline: true
     nl_trigger: >
+      Follow the scientific method in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md
+      and the UI rows of ${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-failure-modes.md; fill the
+      Output Contract.
       Debug the Odoo runtime issue described in the support ticket collected in the
       collect-ticket phase. Identify the root cause, the affected module, and provide
       a concrete fix recommendation or reproduction steps. The ticket classification is
       "bug". Focus on runtime symptoms: console errors, broken UI state, wrong computed
       values, access-rights violations, or data anomalies.
+      This is an inline reasoning phase with NO live browser - diagnose strictly from the evidence captured in the collect/symptom phase; if live runtime capture is required and absent, return cannot-reproduce and recommend the odoo-debug browser agent rather than fabricating browser observations.
     model_tier: sonnet
     when: "classification == 'bug'"
 

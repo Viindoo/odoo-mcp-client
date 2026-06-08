@@ -192,7 +192,7 @@ signal for the orchestrating (depth-0) agent — do NOT invoke any skill yoursel
 SUGGESTED_NEXT: odoo-ui-review (reason=widget renders, target=<instance_base_url>/<path>)
 ```
 
-The orchestrator decides whether to run `odoo-ui-review` (layout), `odoo-ui-debugging` (does not
+The orchestrator decides whether to run `odoo-ui-review` (layout), `odoo-debug` (does not
 appear / console error), or `odoo-visual-regression` (before/after diff). Do not phrase this as
 advice to a human reader.
 

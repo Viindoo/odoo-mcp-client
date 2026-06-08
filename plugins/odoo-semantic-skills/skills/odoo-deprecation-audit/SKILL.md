@@ -23,6 +23,12 @@ Developer / Tech Lead
 - Fresh code generation in target version → use `odoo-backend-coding`
 - Executive risk dashboard → use `odoo-risk-overview`
 
+**Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a deprecated-API-at-runtime
+symptom here (a removed/changed symbol breaking after an upgrade, with a reproduction + the two
+versions), root-cause THAT symptom following the scientific method
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`) and point at the replacement. A direct
+invocation stays a full pre-upgrade deprecation sweep.
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->

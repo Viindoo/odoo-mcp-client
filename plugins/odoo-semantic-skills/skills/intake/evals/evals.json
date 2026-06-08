@@ -132,8 +132,8 @@
     {
       "id": 17,
       "prompt": "OWL component không hiện, trang trắng và có console error — tìm nguyên nhân giúp tôi",
-      "expected_output": "Intake recommends odoo-ui-debugging (row 29: find ROOT CAUSE of a broken screen at runtime, vs odoo-ui-review which rates a working screen)",
-      "expected_routed_to": "odoo-ui-debugging",
+      "expected_output": "Intake recommends odoo-debug (row 29: find ROOT CAUSE of a broken screen at runtime, vs odoo-ui-review which rates a working screen)",
+      "expected_routed_to": "odoo-debug",
       "category": "should-fire-direct",
       "files": []
     },
@@ -268,7 +268,7 @@
     {
       "id": 34,
       "prompt": "We have a support ticket: customer says the invoice form is broken after upgrade — triage it and draft a response",
-      "expected_output": "Intake fires Tier-3 row 35. Signals: 'support ticket', 'triage', 'draft response'. Routes to support-triage workflow via fast-path gate. MUST NOT route to odoo-ui-debugging (dev session) or odoo-deal-followup (sales email).",
+      "expected_output": "Intake fires Tier-3 row 35. Signals: 'support ticket', 'triage', 'draft response'. Routes to support-triage workflow via fast-path gate. MUST NOT route to odoo-debug (dev session) or odoo-deal-followup (sales email).",
       "expected_routed_to": "support-triage",
       "category": "should-fire-direct",
       "files": []
@@ -276,7 +276,7 @@
     {
       "id": 35,
       "prompt": "Help me debug this OWL widget — console error, page is white, need a sustained session to trace the root cause across multiple steps",
-      "expected_output": "Intake fires Tier-3 row 38. 'Sustained troubleshooting session' + 'multi-step' signals distinguish from odoo-ui-debugging (single-turn). Routes to ui-debug-session workflow. Fails correctly if routed to odoo-ui-debugging.",
+      "expected_output": "Intake fires Tier-3 row 38. 'Sustained troubleshooting session' + 'multi-step' signals distinguish from odoo-debug (single-turn). Routes to ui-debug-session workflow. Fails correctly if routed to odoo-debug.",
       "expected_routed_to": "ui-debug-session",
       "category": "should-fire-direct",
       "files": []
