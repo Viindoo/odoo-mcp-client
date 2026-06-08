@@ -340,7 +340,7 @@
     {
       "id": 43,
       "prompt": "Does Odoo 17 CE support multi-currency invoicing out of the box?",
-      "expected_output": "Regression: Intake Tier-3 row 6 matches odoo-feature-check (single feature lookup, chat-only output_mode). Plan Mode decision tree: output_mode = chat-only → SKIP Plan Mode (unchanged behavior). Intake ends its turn with a fast-path gate ('Plan: run odoo-feature-check to verify multi-currency invoicing availability in Odoo 17 CE. Proceed?'). On approval, the specialist fires via the Agent tool on the next turn — NO EnterPlanMode call. Fails correctly if Plan Mode is entered for a chat-only skill.",
+      "expected_output": "Regression: Intake Tier-3 row 6 matches odoo-feature-check (single feature lookup, chat-only output_mode). Plan Mode decision tree: output_mode = chat-only → SKIP Plan Mode (unchanged behavior). Intake ends its turn with a fast-path gate ('Plan: run odoo-feature-check to verify multi-currency invoicing availability in Odoo 17 CE. Proceed?'). On approval, the specialist fires via the Skill tool on the next turn — NO EnterPlanMode call. Fails correctly if Plan Mode is entered for a chat-only skill.",
       "expected_routed_to": "odoo-feature-check (chat-only, Plan Mode skipped)",
       "category": "plan-mode-regression-chat-only",
       "files": []

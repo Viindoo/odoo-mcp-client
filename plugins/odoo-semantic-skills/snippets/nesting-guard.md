@@ -22,7 +22,10 @@ deeper risks a nested-context crash. Therefore:
   spawn-class of every skill.
 - You **MAY** NL-dispatch a genuinely **non-spawning** (`leaf`, any-depth) skill — e.g.
   `odoo-feature-check`, `odoo-override-finding`, `odoo-deprecation-audit` — for a read-only
-  lookup if it helps. Do NOT invoke the Skill tool to trigger a spawner, and do NOT spawn a
-  sub-agent yourself.
+  lookup if it helps. Do NOT invoke the Skill tool to trigger a **spawner**, and do NOT spawn a
+  sub-agent yourself. (This Skill-tool-on-a-spawner prohibition binds you because you are at
+  depth≥1; the **depth-0 main agent** and depth-0 orchestrators DO use the Skill tool to launch
+  spawner skills — that is their canonical dispatch, see `docs/reference/workflow-harness.md`
+  § Dispatch method.)
 - Stay inside your assigned scope: only `Read/Grep/Glob/Edit/Write/Bash`. Do NOT
   `git branch/checkout/cherry-pick/merge/push`; remain in your assigned worktree.

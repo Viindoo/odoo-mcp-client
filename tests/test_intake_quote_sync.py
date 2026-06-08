@@ -25,8 +25,12 @@ def _valid_targets():
     # Commands are invoked via their slash name, which intake writes with an
     # `odoo-` prefix (e.g. command file `odoo-run-brl.md` -> `/odoo-run-brl`).
     command_slugs = commands | {f"odoo-{c}" for c in commands}
+    # Agents are not routing targets, but intake names them when explaining how a
+    # spawner skill fans out (e.g. `odoo-code-review` runs `odoo-code-reviewer`).
+    # Validate them as real referents too so a typo'd agent name still fails.
+    agents = {p.stem for p in (PLUGIN / "agents").glob("*.md")}
     extra = {"intake", "wave", "workflow-chaining"}
-    return skills | workflows | command_slugs | extra
+    return skills | workflows | command_slugs | agents | extra
 
 
 # A backticked token is treated as a routing target only if it looks like a

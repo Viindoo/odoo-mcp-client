@@ -49,11 +49,12 @@ what they want or what outcome they need. This skill's job is to:
      `state.json`) on the plan turn**, but MUST NOT write the routed deliverable's files
      (production code, generated proposals) before Plan-Mode approval. The constraint is
      behavioral, not a `disallowed-tools` block.
-   - (2) **NEVER invoke a writes-files execute-skill (a `writes-files` specialist) — nor the
-     Skill tool running such a specialist — BEFORE Plan Mode is approved.** That includes
-     `odoo-coding`, `wave`, `odoo-brl`, `workflow-chaining`, or any skill
-     whose output mode is `writes-files`. Yield to it via a NL-dispatch description; the actual
-     dispatch happens on a LATER turn, AFTER Plan-Mode approval (see § Plan Mode).
+   - (2) **NEVER run a writes-files execute-skill (a `writes-files` specialist) BEFORE Plan Mode
+     is approved.** That includes `odoo-coding`, `wave`, `odoo-brl`, `workflow-chaining`, or any
+     skill whose output mode is `writes-files`. Before approval, only describe it in the Proposed
+     Plan; the actual dispatch happens on a LATER turn, AFTER Plan-Mode approval — and that
+     dispatch is the **main agent invoking the specialist via the Skill tool** (a skill is not an
+     agentType; see § Dispatch mechanism), NOT the Agent tool (see § Plan Mode).
    - (3) **Phase R (Recon) MAY dispatch a READ-ONLY agent via the Agent tool** — `Explore`, or
      a specialist in read-only mode (e.g. `odoo-feature-check`, `odoo-override-finding`) — to
      survey current state. That agent **MUST NOT write any file and MUST NOT spawn a further
@@ -61,7 +62,8 @@ what they want or what outcome they need. This skill's job is to:
      Read-only OSM calls (`model_inspect`, `check_module_exists`, `find_override_point`,
      `impact_analysis`) are likewise allowed in Phase R.
    - (4) **Dispatch of a writes-files specialist happens ONLY after Plan Mode is approved**, and
-     it is the **main agent — not intake during the plan turn —** that calls the Agent tool.
+     it is the **main agent — not intake during the plan turn —** that invokes the specialist via
+     the **Skill tool** (see § Dispatch mechanism).
    This skill is depth-0 — intake lives in the main context only.
 3. **Phase 0 — Context, Detect & Clarify (mandatory).** Runs at the start of every
    invocation. It does three things — read context, detect what kind of place we are in, and
@@ -187,8 +189,8 @@ discovery — the explicit `orchestration.<skill>.output_mode` field in `skill_t
 - `output_mode = writes-files` → **Plan Mode is REQUIRED** before dispatch (proceed through the
   full procedure + content schema below).
 - `output_mode = chat-only` → **SKIP Plan Mode** (unchanged behaviour); intake ends its turn and
-  the specialist fires via the Agent tool on the next turn. The chat-only set is listed under
-  "Does NOT apply" below.
+  the specialist fires via the **Skill tool** on the next turn (see § Dispatch mechanism). The
+  chat-only set is listed under "Does NOT apply" below.
 
 **When it applies**: after the user approves the Proposed Plan AND the chosen next step is
 an execute-skill that will **write or modify files** — specifically any of: `odoo-coding`,
@@ -212,8 +214,10 @@ this capability.
    criteria) inside Plan Mode.
 4. Main agent calls **`ExitPlanMode`** tool → Plan Mode UI is shown to the user.
 5. User reviews and approves the plan in the Plan Mode UI.
-6. ONLY after Plan Mode approval: main agent invokes the execute-skill or workflow via the
-   **Agent tool**.
+6. ONLY after Plan Mode approval: main agent invokes the execute-skill via the **Skill tool**
+   (a skill is not an agentType — Agent-tool'ing a skill name fails and forces the read-and-imitate
+   anti-pattern; see § Dispatch mechanism). A workflow/command is handed off via its command /
+   NL-dispatch as today.
 
 **Red flags for Plan Mode**:
 - "The user already said approve, I can skip EnterPlanMode" → NO. Text-gate approval and
@@ -237,6 +241,35 @@ internal phases. **When writing a writes-files plan, read
 soft-plan-gate (not execution); re-enter Plan Mode only after the revised plan is re-approved at
 the text gate; never dispatch a writes-files specialist off a rejected plan. Full detail in the
 reference above.
+
+## Dispatch mechanism — Skill tool, not Agent tool
+
+When intake hands off to a routed specialist, the **mechanism depends on what the target IS** —
+get this wrong and the main agent cannot launch the target, so it falls back to *reading the
+target's SKILL.md and imitating it* (the read-and-imitate anti-pattern, which silently drops the
+skill's own orchestration — e.g. `odoo-code-review`'s module-count topology + fan-out + synthesis).
+
+| Target | What it is | How the depth-0 main agent dispatches it |
+|---|---|---|
+| a **skill** (`leaf` or `spawner-agent`/`spawner-wave`) — e.g. `odoo-code-review`, `odoo-coding`, `odoo-feature-check`, `wave` | a **skill**, NOT an agentType | **Skill tool** (deterministic). For a `spawner-agent` skill this runs the skill in the depth-0 main context so the skill itself fans out its agent(s) at depth-1. |
+| a **workflow** — e.g. `qa-suite`, `video-produce` | a `*.workflow.yaml` | its **command** / NL-dispatch (as today) |
+| a **command** — e.g. `/odoo-respond-bid` | a slash command | the user's slash kickoff / its command |
+
+**Why Skill tool, not Agent tool, for a skill:** the Agent tool launches an **agentType**. There
+is no agentType named `odoo-code-review` / `odoo-coding` / etc. — those are **skills**. A
+`spawner-agent` skill is `depth0-only` and MUST run in the depth-0 main context so its own
+orchestration (topology decision, agent fan-out, synthesis) executes; the Skill tool loads it
+there, and the skill then spawns its *own* agent (`odoo-code-reviewer`, `odoo-coder`, …) via the
+Agent tool at depth-1. Agent-tool'ing the bare agent instead would bypass the skill's orchestration;
+Agent-tool'ing the skill *name* simply fails.
+
+**The depth-0 main agent IS allowed to call the Skill tool.** The plugin's "never the Skill tool"
+rule binds **depth≥1 subagents / fork-workers** only (a subagent calling the Skill tool on a
+spawner skill would nest past the depth-2 ceiling). It never bound the main agent at depth-0.
+
+**The only Agent-tool use inside intake** is Phase R read-only Recon (`Explore` or a read-only
+specialist — those genuinely ARE agentTypes). Dispatching a routed *specialist skill* is always
+the Skill tool.
 
 ## Phase P — RUN-DAG persistence + drive-to-done (optional, additive)
 
@@ -346,7 +379,7 @@ Output:         .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
 Est. effort:    <S / M / L / XL / "single turn">
 OSM:            backed | standalone   (backed if OSM (`mcp__odoo-semantic__*`) tools are available; standalone if not)
 Plan Mode:      required | not   (required when Approach output_mode = writes-files)
-Next turn:      invoke `<skill/workflow>` via the **Agent tool** (you will see the tool call)
+Next turn:      invoke the routed **skill** via the **Skill tool** (workflow/command: via its command) — you will see the tool call
 
 Gate: approve / refine: [your feedback] / cancel
 ```
@@ -359,7 +392,7 @@ Enforcement stack:
    execute-skill that writes files (see § Plan Mode). This is the stronger layer.
 4. On `approve` → if the next step writes files, main agent MUST call EnterPlanMode before
    invoking the specialist. If the next step is chat-only/read-only, intake ends its turn
-   and the specialist fires via the Agent tool on the next turn.
+   and the specialist fires via the **Skill tool** on the next turn (see § Dispatch mechanism).
 5. On `refine: [feedback]` → loop back within brainstorm. On `cancel` → stop + brief report.
 
 ## Routing Table
