@@ -25,6 +25,49 @@ bug where `userConfig` values are never prompted at install time
    If `claude mcp add` reports the name already exists, run
    `claude mcp remove odoo-semantic --scope user` first, then retry.
    If exit code is non-zero for any other reason, report stderr to the user and stop.
+
+   Then **harden the entry against a hung server**: Claude Code's default
+   per-tool-call timeout (`MCP_TOOL_TIMEOUT`) is ~28 hours, so if OSM accepts the
+   connection but stalls mid-request the agent would block effectively forever
+   instead of falling back to reading source. `claude mcp add` has **no** timeout
+   flag, so set a 90s (90000 ms) per-server `timeout` directly in `~/.claude.json`
+   (the file `claude mcp add --scope user` just wrote to). Run this exact block with
+   the `Bash` tool - it backs up, refuses to corrupt invalid JSON, only touches the
+   `odoo-semantic` entry, and is idempotent. **Copy the fenced block verbatim
+   without re-indenting** - the heredoc body must start at column 0.
+
+   ```bash
+   CLAUDE_JSON="$HOME/.claude.json"
+   python3 - "$CLAUDE_JSON" <<'PY'
+   import json, os, sys, time, shutil
+   p = sys.argv[1]
+   if not os.path.exists(p):
+       print(f"⚠ {p} not found - skipping timeout hardening (entry may be in another scope).")
+       sys.exit(0)
+   try:
+       with open(p) as f:
+           data = json.load(f)
+   except json.JSONDecodeError as e:
+       print(f"✗ {p} is not valid JSON ({e}). Refusing to overwrite.", file=sys.stderr)
+       sys.exit(2)
+   srv = (data.get("mcpServers") or {}).get("odoo-semantic")
+   if not isinstance(srv, dict):
+       print("⚠ mcpServers.odoo-semantic not found in ~/.claude.json - skipping (re-run step 3 first).")
+       sys.exit(0)
+   if srv.get("timeout") == 90000:
+       print("✓ odoo-semantic timeout already 90000 ms - no change.")
+       sys.exit(0)
+   shutil.copy2(p, f"{p}.bak.{int(time.time())}")
+   srv["timeout"] = 90000
+   with open(p, "w") as f:
+       json.dump(data, f, indent=2)
+       f.write("\n")
+   print("✓ Set odoo-semantic per-tool-call timeout to 90000 ms in ~/.claude.json.")
+   PY
+   ```
+   On exit code 2 (invalid JSON): surface the stderr line verbatim and stop; do
+   **not** retry or delete the file. A `⚠` (exit 0) is non-fatal - registration may
+   have used a different scope; continue. On `✓`: continue to step 4.
 4. Verify the server is reachable and the key is accepted via HTTP probe.
    **Do not try to call the MCP tool `model_inspect` here** — Claude Code v2.x
    does not hot-reload MCP servers, so `odoo-semantic` is invisible to the AI
@@ -117,7 +160,11 @@ PY
 
 - Use the `Bash` tool for step 3. Do **not** use `Edit` or `Write` on
   `~/.claude.json` — that file holds unrelated user state (projects, startup
-  counters, other MCP servers) and direct edits risk corruption.
+  counters, other MCP servers) and direct edits risk corruption. The step-3
+  timeout-hardening Python snippet is the **only** approved way to touch
+  `~/.claude.json`: like step 5 it backs up, refuses to corrupt invalid JSON
+  (exit 2), sets a single key on the `odoo-semantic` entry, and is idempotent.
+  Do **not** substitute `jq` (not guaranteed installed).
 - Use the `Bash` tool for step 4. Do **not** attempt to call MCP tool
   `model_inspect` in the same session — it is not yet loaded.
 - Use the `Bash` tool for step 5. Do **not** use `Edit` or `Write` on
@@ -128,8 +175,8 @@ PY
   the user's machine).
 - `~/.claude/settings.json` (permissions/hooks) and `~/.claude.json` (MCP
   server registry) are different files. Step 3 writes to the latter via
-  `claude mcp add`; step 5 writes to the former via the Python snippet. Do not
-  cross the streams.
+  `claude mcp add` and then patches its `timeout` via the Python snippet; step 5
+  writes to the former via its own Python snippet. Do not cross the streams.
 - The API key is sensitive. Mask it (`osm_****`) in any output to the user.
 - If the user already has an `odoo-semantic` MCP server registered in a higher
   scope, the plugin's `.mcp.json` template version is suppressed by Claude Code

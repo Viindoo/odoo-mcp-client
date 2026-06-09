@@ -5,7 +5,8 @@
       "url": "https://odoo-semantic.viindoo.com/mcp",
       "headers": {
         "X-API-Key": "<YOUR_API_KEY>"
-      }
+      },
+      "timeout": 90000
     }
   }
 }

@@ -134,6 +134,11 @@ claude mcp add --scope user --transport http odoo-semantic <MCP_URL> \
     --header "X-API-Key: <API_KEY>"
 ```
 
+`claude mcp add` has **no `--timeout` flag**, so after adding, also set a
+per-tool-call timeout to stop a hung server from blocking the agent (see the
+timeout note below) - edit the `~/.claude.json` entry to add `"timeout": 90000`,
+or just run `/odoo-semantic-mcp:connect`, which does this for you.
+
 Option 2 — JSON fallback (file `~/.claude.json`, **not** `~/.claude/settings.json`):
 ```json
 {
@@ -141,11 +146,20 @@ Option 2 — JSON fallback (file `~/.claude.json`, **not** `~/.claude/settings.j
     "odoo-semantic": {
       "type": "http",
       "url": "<MCP_URL>",
-      "headers": { "X-API-Key": "<API_KEY>" }
+      "headers": { "X-API-Key": "<API_KEY>" },
+      "timeout": 90000
     }
   }
 }
 ```
+
+> **Why `timeout`?** Claude Code's default per-tool-call timeout
+> (`MCP_TOOL_TIMEOUT`) is ~28 hours. If OSM accepts the connection but stalls
+> mid-request, a tool call would block the agent effectively forever instead of
+> falling back to reading source. `"timeout": 90000` (90 s, in milliseconds) caps
+> that wait. The field is honored per-server in `~/.claude.json` / `.mcp.json`
+> (min 1000 ms; HTTP has a 60 s first-byte floor). Drop it to `60000` if you want
+> the fastest fallback, or raise it for very large `impact_analysis` calls.
 
 Verify: run `/mcp` in a live session, or `claude mcp list` from the shell. You should see `odoo-semantic … Connected`.
 
@@ -256,6 +270,11 @@ Restart Codex. Verify: `codex mcp list`.
 
 **Pitfall:** the key must be `http_headers` (snake_case, plural). Writing `headers = ...` causes Codex to silently ignore it and send no auth header, resulting in a 401 from the MCP server.
 
+**Timeout (recommended):** so a hung server cannot block the agent, set Codex's
+per-server tool-call timeout (Codex uses seconds, not ms - add `tool_timeout_sec = 90`
+to the `[mcp_servers.odoo-semantic]` block; confirm the exact key against the Codex
+docs linked above, as Codex's config schema differs from Claude Code's).
+
 ### Auto-trust: skip permission prompts
 <a id="codex-cli-auto-trust"></a>
 
@@ -287,7 +306,7 @@ Edit `~/.gemini/settings.json` (user-global) or `.gemini/settings.json` (project
     "odoo-semantic": {
       "httpUrl": "<MCP_URL>",
       "headers": { "X-API-Key": "<API_KEY>" },
-      "timeout": 10000
+      "timeout": 90000
     }
   }
 }
@@ -329,7 +348,8 @@ Command Palette (`Ctrl/Cmd+Shift+P`) → **`MCP: Open User Configuration`** — 
     "odoo-semantic": {
       "type": "http",
       "url": "<MCP_URL>",
-      "headers": { "X-API-Key": "<API_KEY>" }
+      "headers": { "X-API-Key": "<API_KEY>" },
+      "timeout": 90000
     }
   }
 }
@@ -371,7 +391,8 @@ IDE → **Manage MCP Servers → View raw config** — or edit `~/.gemini/antigr
   "mcpServers": {
     "odoo-semantic": {
       "serverUrl": "<MCP_URL>",
-      "headers": { "X-API-Key": "<API_KEY>" }
+      "headers": { "X-API-Key": "<API_KEY>" },
+      "timeout": 90000
     }
   }
 }
@@ -402,7 +423,8 @@ Edit `~/.windsurf/mcp_config.json` (global) or `.windsurf/mcp_config.json` (proj
   "mcpServers": {
     "odoo-semantic": {
       "serverUrl": "https://odoo-semantic.viindoo.com/mcp",
-      "headers": { "X-API-Key": "<YOUR_API_KEY>" }
+      "headers": { "X-API-Key": "<YOUR_API_KEY>" },
+      "timeout": 90000
     }
   }
 }
@@ -426,7 +448,8 @@ Edit `~/.config/zed/settings.json` and add (or merge) the `context_servers` bloc
   "context_servers": {
     "odoo-semantic": {
       "url": "https://odoo-semantic.viindoo.com/mcp",
-      "headers": { "X-API-Key": "<YOUR_API_KEY>" }
+      "headers": { "X-API-Key": "<YOUR_API_KEY>" },
+      "timeout": 90000
     }
   }
 }
@@ -471,7 +494,8 @@ Create (or edit) `.junie/mcp/mcp.json` in your project root:
   "mcpServers": {
     "odoo-semantic": {
       "url": "https://odoo-semantic.viindoo.com/mcp",
-      "headers": { "X-API-Key": "<YOUR_API_KEY>" }
+      "headers": { "X-API-Key": "<YOUR_API_KEY>" },
+      "timeout": 90000
     }
   }
 }
