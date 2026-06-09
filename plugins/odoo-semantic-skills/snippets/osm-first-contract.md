@@ -57,7 +57,12 @@ If the index genuinely has nothing relevant, say so explicitly — then write.
 
 If OSM is unreachable, you are **not** reduced to generating from memory, and you do **not**
 ask a human to paste data you can fetch yourself. Reading the real source is a legitimate
-grounding path. Follow the three-tier order in
+grounding path. **"Unreachable" includes a tool call that times out, hangs, or returns a
+transport error - not only a clean connection-refused.** A timed-out OSM call counts as a
+Tier-1 failure: drop to Tier 2 (read the source) immediately; never sit and re-wait on a
+stalled server, and never treat a hang as a reason to ask the human. After repeated OSM
+timeouts in a session, trip the circuit-breaker (see `disk-fallback-protocol.md`) and stop
+calling OSM for the rest of the session. Follow the three-tier order in
 `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
 1. **Tier 2 - disk first.** `Read`/`Grep`/`Bash` the local addons, or `WebFetch` the official
