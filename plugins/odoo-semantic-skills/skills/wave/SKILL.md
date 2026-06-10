@@ -170,7 +170,8 @@ concurrently. Pass the WI brief as the `prompt` parameter of each Agent call.
 
 **More than 3 WIs (batching protocol):** dispatch in **waves of ≤3** — fire the first 3, wait
 for them to complete + cherry-pick, then fire the next ≤3, until all WIs are done. The
-3-concurrent cap is per wave, not a total limit; never run more than 3 at once (OOM ceiling).
+3-concurrent cap is per wave, not a total limit; never run more than 3 at once (Mode A - see
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).
 Order batches by the dependency DAG (a WI does not start until its `depends_on` are merged).
 
 **MANDATORY**: You MUST make real Agent tool calls. Do NOT describe dispatch in prose

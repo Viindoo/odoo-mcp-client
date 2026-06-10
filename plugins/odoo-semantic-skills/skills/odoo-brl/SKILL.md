@@ -43,7 +43,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 - `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
@@ -102,7 +102,7 @@ Never write real company names, VND figures, or internal pricing into any commit
    - `list_available_versions` -> present options to user
    - `set_active_version(odoo_version=<chosen>)` -> pin for session
    - `set_active_profile(profile_name='odoo_<version>')` -> base profile (e.g. `odoo_17`; overridden per check_module_exists call). Resolve the concrete name from `list_available_profiles` / `.odoo-ai/context.md` — never hard-code a hyphenated or unversioned name (the server registers `odoo_8..odoo_19`, `viindoo_internal_17/18`, etc.; a bogus name pins to nothing and every scoped call returns empty).
-   - `profile_inspect(method='summary', name='viindoo_internal_<version>', odoo_version='auto')` -> confirm the Viindoo profile's composition (inheritance chain + repos + indexed module count) before GATE 0, so you scope on real coverage instead of assuming the profile exists.
+   - `profile_inspect(method='summary', name='viindoo_internal_<version>', odoo_version='<version>')` -> confirm the Viindoo profile's composition (inheritance chain + repos + indexed module count) before GATE 0, so you scope on real coverage instead of assuming the profile exists.
 
 4. **Load context:** Check `.odoo-ai/context.md`. If found, use its version/profile settings as defaults.
    If absent, suggest `/odoo-onboarding` but allow continuing with manually supplied context.
@@ -160,9 +160,9 @@ requirements share modules.
 
 **A2 - Double-profile MCP (parallel within item, <=3 concurrent total across chunk):**
 For each candidate NOT in cache, call in parallel:
-- `check_module_exists(name=<candidate>, odoo_version='auto')` with active profile = `odoo_<version>`
-- `check_module_exists(name=<candidate>, profile_name='viindoo_internal_<version>', odoo_version='auto')`
-- `find_examples(query=<req_text>, odoo_version='auto')` ONLY if A0 produced 0 candidates OR all candidates missed
+- `check_module_exists(name=<candidate>, odoo_version='<version>')` with active profile = `odoo_<version>`
+- `check_module_exists(name=<candidate>, profile_name='viindoo_internal_<version>', odoo_version='<version>')`
+- `find_examples(query=<req_text>, odoo_version='<version>')` ONLY if A0 produced 0 candidates OR all candidates missed
 
 After each call, write result to `cache.json`.
 
@@ -243,10 +243,10 @@ For Standard and Config items: SKIP (module + edition already = proof).
 For Extension and Custom items only:
 
 Call in parallel (<=3 concurrent):
-- `model_inspect(model=<candidate_model>, method='fields', odoo_version='auto')` - confirm extension point exists
-- `suggest_pattern(intent=<req_text>, odoo_version='auto')` - find pattern; guides effort-tier refinement
-- `lookup_core_api(name=<method_name>, odoo_version='auto')` - if Extension needs method-level confirmation
-- `impact_analysis(entity_type='model', entity_name=<candidate_model>, odoo_version='auto')` - blast radius of the extension point; ground the Extension-M vs Extension-L decision in the real count of dependent modules/downstream fields instead of estimating it
+- `model_inspect(model=<candidate_model>, method='fields', odoo_version='<version>')` - confirm extension point exists
+- `suggest_pattern(intent=<req_text>, odoo_version='<version>')` - find pattern; guides effort-tier refinement
+- `lookup_core_api(name=<method_name>, odoo_version='<version>')` - if Extension needs method-level confirmation
+- `impact_analysis(entity_type='model', entity_name=<candidate_model>, odoo_version='<version>')` - blast radius of the extension point; ground the Extension-M vs Extension-L decision in the real count of dependent modules/downstream fields instead of estimating it
 
 From results:
 - If model exists with relevant field/method -> `extension_point_confirmed = true`; keep Extension tier
@@ -298,7 +298,7 @@ Opus only reasons inside a cluster. The full reasoning prompt lives in `referenc
 Collect the set of UNIQUE module names across `results.jsonl` (dedup; null/Custom-only items
 contribute no module). For each unique module call, with inner concurrency <=3:
 ```
-module_inspect(name=<module>, method='dependencies', odoo_version='auto')   # -> {"depends": ["base","mail",...]}
+module_inspect(name=<module>, method='dependencies', odoo_version='<version>')   # -> {"depends": ["base","mail",...]}
 ```
 Build a technical module-adjacency map `{module -> [depends_on_modules]}`. Cache results in
 `cache.json` under key `deps:<module>:<version>` so a resumed Phase D does not re-call.
@@ -428,7 +428,7 @@ critical_path_days = max EFT
 **Do NOT use `impact_analysis`** for Phase D. That tool is REVERSE direction (who depends on
 me / blast radius) and is wrong for forward implementation planning.
 
-**Standalone (OSM down):** if D1 `module_inspect(dependencies, odoo_version='auto')` is unreachable, skip technical
+**Standalone (OSM down):** if D1 `module_inspect(dependencies, odoo_version='<version>')` is unreachable, skip technical
 edges (D1/D4), still run D2/D3 (LLM business/data-flow) + D5/D6, and flag in `dag.json.meta`:
 `"technical_edges": "skipped-osm-unreachable"`.
 
@@ -623,7 +623,8 @@ On `approve`, write ALL deliverables atomically:
 7. **Principal-branch-lock:** Read-only on the project repo. Only write to `.odoo-ai/`.
 8. **Sequential outer:** Never fan-out chunks to parallel subagents. Inner <=3 MCP parallel
    per chunk is the only concurrency. Rationale: MCP-I/O-bound not CPU-bound; subagent
-   fan-out risks OOM and rate-limit spikes (see failure: unbounded-opus-fanout-oom).
+   fan-out risks OOM and rate-limit spikes (Mode A - see
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).
 
 ## Standalone-first fallback
 
@@ -632,7 +633,7 @@ When OSM is unreachable (bootstrap fails or `check_module_exists` returns repeat
 1. **Phase A degrade:** Classify using LLM training knowledge only. Mark each item:
    `classification_source = "unverified-llm"`, `risk_flag = "osm-unreachable"`.
 2. **Phase C skip:** `evidence_module = null`, `evidence_field = null`.
-3. **Phase D degrade:** `module_inspect(dependencies, odoo_version='auto')` is unreachable -> skip technical edges
+3. **Phase D degrade:** `module_inspect(dependencies, odoo_version='<version>')` is unreachable -> skip technical edges
    (D1/D4); still run D2/D3 (LLM business/data-flow) + D5/D6. Set
    `dag.json.meta.technical_edges = "skipped-osm-unreachable"`.
 4. **Phase B/E:** Run normally (cost lookup and roll-up do not need MCP).

@@ -51,7 +51,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -62,9 +62,12 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 The orchestrator stays light on tools - it pins the version and does a quick classification, then
 delegates the heavy OSM work to the specialist agents (whose tool allowlists are richer). Pin the
-version once with `set_active_version(odoo_version=<concrete>)` so the agents' `odoo_version='auto'`
-calls reuse the pin; use `entity_lookup` / `model_inspect` / `check_module_exists` only for the
-Phase 1 layer classification when needed. All deep localization happens inside the dispatched agents.
+version once with `set_active_version(odoo_version=<concrete>)` as the reachability probe, and
+pass that CONCRETE version to every dispatched agent in its brief - the agents pass it on every
+OSM call themselves (the pin is per-API-key and racy under concurrency, see
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Use `entity_lookup` /
+`model_inspect` / `check_module_exists` only for the Phase 1 layer classification when needed.
+All deep localization happens inside the dispatched agents.
 
 ## Browser concurrency - HARD design rule
 
@@ -77,7 +80,8 @@ race each other's `navigate`/`click`/`fill` and corrupt the evidence. Therefore:
   flat/off-theme symptoms it applies the token-reality check from
   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.
 - OSM-only / read-static agents (`odoo-backend-debugger`, and the audit skills in reactive mode)
-  touch no browser, so they are safe to run in parallel (cap ≤3, the standing OOM ceiling).
+  touch no browser, so they are safe to run in parallel (cap <=3 - Mode A of
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).
 - If a future case truly needs parallel visual checks, that requires separate browser server
   instances (distinct ports/user-data-dir) - out of scope here; until then, serialize.
 
@@ -122,7 +126,7 @@ Route each suspected layer to its specialist, choosing the model **explicitly** 
 | pre-upgrade / deprecated-API-at-runtime | `odoo-deprecation-audit` | NL-dispatch |
 | need a broad static sweep of code | `odoo-code-review` | NL-dispatch |
 
-Parallelism: the OSM-only legs (backend debugger + reactive audits) run in parallel (≤3, the standing OOM cap). The browser leg (odoo-ui-debugger) runs as its OWN exclusive step and MAY overlap the OSM legs - just never run two browser-driving agents at once.
+Parallelism: the OSM-only legs (backend debugger + reactive audits) run in parallel (<=3 - Mode A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). The browser leg (odoo-ui-debugger) runs as its OWN exclusive step and MAY overlap the OSM legs - just never run two browser-driving agents at once.
 
 **Agent dispatch - prompt template (use verbatim, fill the brackets):**
 
@@ -138,6 +142,9 @@ ODOO VERSION: [concrete version]
 
 Step 0 (if mcp__odoo-semantic__* available): set_active_version('<version>'). If OSM is
 unreachable, use your Standalone-first fallback (disk Read/Grep) and label grounding accordingly.
+If OSM answers but the module under investigation is not in the index (customer-local addon),
+Read/Grep that module's source directly and ground hybrid (osm + local-source) - an index miss
+is not proof of absence.
 Fill EVERY field of the Output Contract in skills/_shared/debug-method.md. Do not spawn subagents
 or invoke skills.
 ```

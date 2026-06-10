@@ -43,7 +43,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -52,8 +52,8 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 <!-- END GENERATED TOOLS -->
 
-OSM use is light here — only to plan the click path: `module_inspect(name=<module>, method='views', odoo_version='auto')`
-tells you which views/menus exist for the feature, `model_inspect(model=<model>, method='summary', odoo_version='auto')`
+OSM use is light here — only to plan the click path: `module_inspect(name=<module>, method='views', odoo_version='<version>')`
+tells you which views/menus exist for the feature, `model_inspect(model=<model>, method='summary', odoo_version='<version>')`
 confirms the records/fields the demo will touch, `check_module_exists` confirms the demo module is
 installed, and `find_examples` can surface the canonical flow for the feature being demoed.
 
@@ -90,17 +90,18 @@ If the file is absent or a key is missing, ask the user for it (plus the workflo
 desired format MP4/GIF and length) in a single message. Do not guess.
 
 Once the concrete `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
-before the Round 1 OSM calls, so their `odoo_version='auto'` reuses the pin — otherwise the click path is
-planned against the latest indexed version's view names and URL scheme (`/odoo` vs `/web`), which differ by version.
+(reachability probe) and pass that concrete version on every Round 1 OSM call - the pin is per-API-key and
+racy under concurrency - otherwise the click path is planned against the wrong version's view names and URL
+scheme (`/odoo` vs `/web`), which differ by version.
 
 ### Round 1 — Plan the click path (parallel, OSM)
 
 For the feature to demo, fire in parallel:
 
-- `check_module_exists(name=<module>, odoo_version='auto')` — confirm the demo module is installed.
-- `module_inspect(name=<module>, method='views', odoo_version='auto')` — enumerate the menus/views the path will visit.
-- `model_inspect(model=<model>, method='summary', odoo_version='auto')` — confirm the fields/records the demo touches.
-- `find_examples(query='<feature> typical flow Odoo', odoo_version='auto')` — sanity-check the canonical happy path.
+- `check_module_exists(name=<module>, odoo_version='<version>')` — confirm the demo module is installed.
+- `module_inspect(name=<module>, method='views', odoo_version='<version>')` — enumerate the menus/views the path will visit.
+- `model_inspect(model=<model>, method='summary', odoo_version='<version>')` — confirm the fields/records the demo touches.
+- `find_examples(query='<feature> typical flow Odoo', odoo_version='<version>')` — sanity-check the canonical happy path.
 
 Produce an ordered step list (menu → record → field input → action) before recording.
 
@@ -156,7 +157,7 @@ path, duration, and the step list so the take is re-runnable.
 Prompt: "Record a 30-second demo of creating and confirming a sales order in Odoo 17."
 
 - Round 0: context → `odoo_version: 17.0`, base URL, login; format MP4, ~30s.
-- Round 1 (parallel): `check_module_exists(name='sale_management', odoo_version='auto')` + `module_inspect(name='sale', method='views', odoo_version='auto')` + `model_inspect(model='sale.order', method='summary', odoo_version='auto')` + `find_examples(query='create confirm sale order flow', odoo_version='auto')` → step list.
+- Round 1 (parallel): `check_module_exists(name='sale_management', odoo_version='<version>')` + `module_inspect(name='sale', method='views', odoo_version='<version>')` + `model_inspect(model='sale.order', method='summary', odoo_version='<version>')` + `find_examples(query='create confirm sale order flow', odoo_version='<version>')` → step list.
 - Round 2: log in, navigate to Sales, set clean state.
 - Round 3: record click path: New → pick customer → add line → Confirm.
 - Round 4: save `.odoo-ai/visual/videos/sale-order-<timestamp>.mp4`, report path + duration.
@@ -165,7 +166,7 @@ Prompt: "Record a 30-second demo of creating and confirming a sales order in Odo
 
 Prompt: "Make a GIF of the customer portal invoice download."
 
-- Round 1: `module_inspect` for portal views; `find_examples(query='portal invoice download flow', odoo_version='auto')`.
+- Round 1: `module_inspect` for portal views; `find_examples(query='portal invoice download flow', odoo_version='<version>')`.
 - Round 3: recorder unavailable → capture `take_screenshot` frames at each step.
 - Round 4: assemble frames into a GIF; prefix output with the recorder-unreachable warning.
 

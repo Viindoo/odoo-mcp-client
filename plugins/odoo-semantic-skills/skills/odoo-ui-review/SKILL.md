@@ -71,6 +71,10 @@ are handed to `odoo-coding`.
 - **OSM (the `odoo-semantic-mcp` server) unreachable:** the agent skips the code-grounding steps and instead greps
   the repo on disk for the relevant view and stylesheet, prefixing the output with
   `⚠ OSM unreachable — style/view origin inferred from disk, verify against the live module`.
+- **OSM reachable but the view/stylesheet/module under review is not in the index
+  (customer-local addon):** Tier-1 MISS, not proof of absence - the agent keeps OSM for what
+  it covers and greps the repo on disk for just the missed entity, labelling
+  `grounded: osm + local-source (hybrid)` (see `snippets/disk-fallback-protocol.md`).
 - **Browser MCP or instance unreachable:** if the orchestrator has provided pre-captured
   screenshot paths in context, use those directly for aesthetics/a11y review. If no pre-captured
   screenshots are available, return `BLOCKED(Browser MCP unavailable - cannot capture screenshots

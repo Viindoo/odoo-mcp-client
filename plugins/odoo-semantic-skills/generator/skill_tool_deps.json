@@ -640,7 +640,8 @@
       "depth_policy": "depth0-only",
       "spawns": [
         "odoo-coder",
-        "odoo-frontend-coder"
+        "odoo-frontend-coder",
+        "(dispatch: Workflow pipeline rolling-window, explicit model per work-item per tier table haiku/sonnet/opus/fable; Agent-tool weighted-batch fallback - see skills/_shared/concurrency-guard.md Mode B)"
       ],
       "stack": "fullstack",
       "instance_touching": false,

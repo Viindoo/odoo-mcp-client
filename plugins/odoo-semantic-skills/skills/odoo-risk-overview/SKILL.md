@@ -40,7 +40,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 **Session bootstrap** (call once at session start):
 - `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -84,7 +84,7 @@ Use training knowledge for interpreting business impact and recommending remedia
 Use parallel MCP calls — steps 1, 2, and 3 are fully independent. Fire them simultaneously.
 
 **Round 0 — Pin version + profile + enumerate scope:** `set_active_version(...)` + `set_active_profile(...)`,
-then `profile_inspect(method='modules', name=<profile>, odoo_version='auto')` to auto-enumerate the in-scope
+then `profile_inspect(method='modules', name=<profile>, odoo_version='<version>')` to auto-enumerate the in-scope
 modules from the index instead of relying on the user to list which modules are in scope.
 
 **Round 1 — Parallel:** Call `find_deprecated_usage` + `impact_analysis` (on highest-usage
@@ -93,7 +93,7 @@ all at once. None of these depend on each other's results.
 
 **Round 2 — Parallel:** Call `model_inspect(model=…, method='fields')` on the most heavily
 customized models identified from Round 1 results. Simultaneously call
-`module_inspect(name=<name>, method='summary', odoo_version='auto')` for each custom module in scope — this
+`module_inspect(name=<name>, method='summary', odoo_version='<version>')` for each custom module in scope — this
 surfaces JS patch counts, view counts, and models defined/extended, which the executive
 table needs. Both calls are independent; fire them together. If hotspot models are already
 known from context, include `model_inspect` calls in Round 1 as well to reduce to a single

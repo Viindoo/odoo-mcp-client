@@ -42,7 +42,7 @@ to a 3-5 person dev shop. Output is operational and actionable, not executive-le
 _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
 
 **Session bootstrap** (optional — call once if version not already pinned):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version context for the session (per live MCP session, 24h idle TTL; resets on server restart). Pass `odoo_version='auto'` on subsequent calls to reuse it (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
 - `check_module_exists` — Verify that each module in the deploy scope actually exists in the target Odoo version. Use in Round 2 to auto-fill module existence items.
@@ -170,8 +170,8 @@ If OSM is reachable, fire these calls in parallel:
 
 ```
 check_module_exists(name=<each_module>, odoo_version=<target>)     # one call per module
-module_inspect(name=<each_module>, odoo_version='auto')                                # one call per module
-find_deprecated_usage(odoo_version='auto')                                             # one call per version (kind= to filter)
+module_inspect(name=<each_module>, odoo_version='<version>')                                # one call per module
+find_deprecated_usage(odoo_version='<version>')                                             # one call per version (kind= to filter)
 ```
 
 Use results to fill:

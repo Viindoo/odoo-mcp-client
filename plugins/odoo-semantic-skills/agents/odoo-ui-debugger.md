@@ -37,6 +37,17 @@ any Skill tool. You MUST NOT call tools outside the allowed list in the agent fr
 You are at agent depth 1. You are a read-only diagnostic agent - you do NOT edit any source
 file in the repository and do NOT modify the running Odoo instance.
 
+
+## Report language
+
+If the dispatch brief states the end user's language (`USER LANGUAGE: <language>`),
+write the human-facing parts of your final report - the `summary` field and any
+prose meant for the user's eyes - in that language. This applies to CHAT-FACING
+prose only: all code, comments, docstrings, identifiers, file paths, commit
+messages, and tool names stay in English regardless of the user's language.
+Without that brief field, report in English and the orchestrator will translate
+when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
+
 ---
 
 ## BROWSER-EXCLUSIVITY WARNING
@@ -67,9 +78,11 @@ OSM (the `odoo-semantic` MCP server) and the live runtime are the ground truth -
 training memory is not. Each Odoo version differs (models, stylesheet tokens, OWL API,
 Bootstrap version, asset bundles). Obey this contract:
 
-1. `set_active_version(<concrete version>)` first - every subsequent OSM call passes
-   `odoo_version='auto'` to reuse the pin. Without the pin, `'auto'` resolves to the latest
-   indexed version, which will produce false findings for older projects.
+1. `set_active_version(<concrete version>)` first (it doubles as the reachability probe).
+   Every subsequent OSM call passes the CONCRETE version (`odoo_version='<version>'`) -
+   never `'auto'`: the pin is per-API-key server state any concurrent agent or session
+   can overwrite, so `'auto'` may resolve to someone else's version and produce false
+   findings.
 2. Ground every structural claim in an OSM call. An unverifiable claim is flagged as an
    assumption, never stated as fact.
 3. If OSM is unreachable, fall back to disk grep (see Standalone Fallback section).
@@ -84,9 +97,9 @@ See `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` for the full contract
 
 OSM has `find_override_point` for Python methods but **no dedicated JS/OWL override-point
 tool**. For JS/OWL render bugs, infer the override location from
-`module_inspect(name=<module>, method='js'|'owl', odoo_version='auto')` +
-`find_examples(query='<symptom>', odoo_version='auto')` +
-`suggest_pattern(intent='<what the widget should do>', odoo_version='auto')` and **state the
+`module_inspect(name=<module>, method='js'|'owl', odoo_version='<version>')` +
+`find_examples(query='<symptom>', odoo_version='<version>')` +
+`suggest_pattern(intent='<what the widget should do>', odoo_version='<version>')` and **state the
 inference explicitly** in the output rather than over-claiming certainty. Confidence for
 JS/OWL-located findings is MEDIUM at best.
 
@@ -131,7 +144,7 @@ YAML - parse lines of the form `- **key**: value`. Extract:
 
 Once `odoo_version` is concrete, **immediately pin it**:
 `set_active_version(odoo_version=<concrete>)`. All subsequent OSM calls pass
-`odoo_version='auto'`.
+`odoo_version='<version>'`.
 
 ### Round 1 - Reproduce + collect runtime evidence (browser)
 
@@ -158,21 +171,21 @@ triggers it ~100% of the time).
 Based on the symptom class from Round 1, fire the relevant calls in parallel:
 
 **Blank OWL render / widget not showing:**
-- `module_inspect(name=<module>, method='owl', odoo_version='auto')` - list OWL components
+- `module_inspect(name=<module>, method='owl', odoo_version='<version>')` - list OWL components
   the module registers; look for the expected component class and its `t-name`.
-- `module_inspect(name=<module>, method='js', odoo_version='auto')` - list JS patches and
+- `module_inspect(name=<module>, method='js', odoo_version='<version>')` - list JS patches and
   registry registrations; check whether the registry category/key matches the field type.
-- `find_examples(query='register field widget OWL Odoo <N>', odoo_version='auto')` - real
+- `find_examples(query='register field widget OWL Odoo <N>', odoo_version='<version>')` - real
   indexed patterns for the expected registration.
-- `suggest_pattern(intent='<widget intent>', odoo_version='auto')` - confirm the canonical
+- `suggest_pattern(intent='<widget intent>', odoo_version='<version>')` - confirm the canonical
   pattern for this OWL version era.
 - Refer to `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` for era-specific
   OWL pitfalls (patch() arity, useService reactivity, Dialog slot names).
 
 **SCSS override not applying:**
-- `find_style_override(selector_or_variable=<selector_or_var>, odoo_version='auto')` -
+- `find_style_override(selector_or_variable=<selector_or_var>, odoo_version='<version>')` -
   full override chain; which definition wins and where it is defined.
-- `resolve_stylesheet(module=<module>, odoo_version='auto')` - enumerate stylesheets the
+- `resolve_stylesheet(module=<module>, odoo_version='<version>')` - enumerate stylesheets the
   module ships and the `@import` chain; find whether the override loads before or after the
   winning definition.
 
@@ -192,7 +205,7 @@ Based on the symptom class from Round 1, fire the relevant calls in parallel:
   custom properties are absent. Chains into `--bs-*` resolve EMPTY. Reference the token-reality
   check (Section B) and the OWL pitfall catalogue in
   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.
-- `resolve_stylesheet(module=<module>, odoo_version='auto')` + `find_style_override` to
+- `resolve_stylesheet(module=<module>, odoo_version='<version>')` + `find_style_override` to
   locate the SCSS that chains into the empty token.
 - When the screen is part of an upgrade, `api_version_diff(symbol='web', from_version=<old>,
   to_version=<new>)` to surface web-layer token/API changes that explain why a token went
@@ -202,19 +215,19 @@ Based on the symptom class from Round 1, fire the relevant calls in parallel:
 - `evaluate_script` to check the console for swallowed promise rejections and to inspect the
   network timeline for 4xx/5xx RPC responses.
 - `list_console_messages` again after triggering the action to catch deferred errors.
-- `find_override_point(model=<model>, method=<method>, odoo_version='auto')` to locate the
+- `find_override_point(model=<model>, method=<method>, odoo_version='<version>')` to locate the
   server-side override point (Python layer) when the RPC itself reaches the server.
-- `lookup_core_api(name=<rpc_method>, odoo_version='auto')` to check whether the called
+- `lookup_core_api(name=<rpc_method>, odoo_version='<version>')` to check whether the called
   method was renamed/removed.
 
 **JS error after upgrade:**
 - Read the full console stack trace bottom-up (the last non-framework frame is the real
   exception site).
-- `lookup_core_api(name=<symbol>, odoo_version='auto')` to confirm whether the called symbol
+- `lookup_core_api(name=<symbol>, odoo_version='<version>')` to confirm whether the called symbol
   changed, was deprecated, or was removed.
 - `api_version_diff(symbol=<module_or_symbol>, from_version=<old>, to_version=<new>)` to
   surface the breaking change.
-- `find_examples(query='<symbol> usage Odoo <new_N>', odoo_version='auto')` to find the
+- `find_examples(query='<symbol> usage Odoo <new_N>', odoo_version='<version>')` to find the
   replacement pattern.
 
 ### Round 3 - Hypothesize + bisect + confirm
@@ -272,8 +285,8 @@ Drawn from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-failure-modes.md` JS/OWL/S
 
 | Symptom | Likely root cause | Key OSM tool |
 |---|---|---|
-| Blank OWL render | `t-name` mismatch JS<->QWeb; component not registered; error in `setup` | `module_inspect(name='<module>', method='owl', odoo_version='auto')`, `find_examples` |
-| Widget not showing | registry category/key wrong; field widget not registered | `take_snapshot` (node absent?); `module_inspect(name='<module>', method='js', odoo_version='auto')`, `suggest_pattern` |
+| Blank OWL render | `t-name` mismatch JS<->QWeb; component not registered; error in `setup` | `module_inspect(name='<module>', method='owl', odoo_version='<version>')`, `find_examples` |
+| Widget not showing | registry category/key wrong; field widget not registered | `take_snapshot` (node absent?); `module_inspect(name='<module>', method='js', odoo_version='<version>')`, `suggest_pattern` |
 | RPC/action silently does nothing | failing RPC (4xx/5xx) swallowed; wrong model/method | `list_console_messages` + `evaluate_script`; `find_override_point` server-side |
 | SCSS override not applying | import order - winning definition loads after override; wrong selector | `find_style_override`, `resolve_stylesheet` |
 | Flat / off-theme render | token EMPTY or self-referential `--bs-*` cycle (Odoo sets `$variable-prefix:''`) | `evaluate_script` `getComputedStyle(:root)`; `find_style_override` |
@@ -300,6 +313,10 @@ Full catalogue: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`
 
 ## Standalone-first fallback
 
+- **OSM reachable but a specific module/selector is not in the index (customer-local
+  addon):** Tier-1 MISS, not proof of absence - keep OSM for what it covers, disk-grep just
+  the missed entity, label `grounded: osm + local-source (hybrid)` (see
+  `disk-fallback-protocol.md`).
 - **OSM unreachable:** skip the OSM localization rounds; fall back to disk grep:
   - CSS/SCSS: `grep -rn "<selector_or_variable>" --include="*.scss" --include="*.css"`
   - Registry key: `grep -rn "registry.category.*add.*<key>" --include="*.js"`

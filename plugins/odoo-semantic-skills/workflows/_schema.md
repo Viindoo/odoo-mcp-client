@@ -59,7 +59,7 @@ row so this workflow appears in the right routing group without separate registr
 | `Hierarchical` | Top phase decomposes into a generated `phases[]` list bounded to one decomposition level. | 0 -> 1 -> 2 (max) |
 
 Fan-out ceiling: `context: fork` workers carry the mandatory hard-rules line and are capped at
-3 concurrent to avoid OOM (see failure log `unbounded-opus-fanout-oom`).
+3 concurrent (Mode A - see `skills/_shared/concurrency-guard.md`, the SSOT for the OOM fan-out rule).
 
 ---
 

@@ -3,7 +3,7 @@
 > **A method reference, not a version fact-sheet.** Test flags, tag syntax and JS frameworks
 > changed across Odoo versions. Treat the era boundaries below as *illustrative* and
 > **confirm for the target version via OSM** before relying on them: `set_active_version`
-> then `cli_help("server", "--test-tags", odoo_version='auto')` (and friends). The running instance is the final
+> then `cli_help("server", "--test-tags", odoo_version='<version>')` (and friends). The running instance is the final
 > arbiter — a test command that the version doesn't support will error.
 >
 > Consumed by: `odoo-qa-suite`, `odoo-deploy-checklist`, `wave` (when running tests), the
@@ -82,8 +82,8 @@ run the gate:
 ## Verify-via-OSM checklist before writing a test command
 
 1. `set_active_version(<target>)`.
-2. `cli_help("server", "--test-tags", odoo_version='auto')` and `cli_help("server", "--test-enable", odoo_version='auto')` — confirm the
+2. `cli_help("server", "--test-tags", odoo_version='<version>')` and `cli_help("server", "--test-enable", odoo_version='<version>')` — confirm the
    flags exist and their exact semantics for this version.
-3. `find_examples(query="<feature> test", odoo_version='auto')` — reuse the real test pattern from the indexed code.
+3. `find_examples(query="<feature> test", odoo_version='<version>')` — reuse the real test pattern from the indexed code.
 4. Pick the JS test framework by inspecting the version's web assets, not from memory.
 5. State the chosen invocation + why before running.

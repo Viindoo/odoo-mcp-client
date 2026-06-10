@@ -40,7 +40,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -80,7 +80,7 @@ need the module name from `check_module_exists`. Both can fire at the same time.
 
 **Round 2 — Parallel (if module found):** Call `model_inspect(model=…, method='fields')` +
 `entity_lookup(kind='method', model=…, method_name=…)` +
-`module_inspect(name=<module>, method='summary', odoo_version='auto')` simultaneously. `model_inspect` shows
+`module_inspect(name=<module>, method='summary', odoo_version='<version>')` simultaneously. `model_inspect` shows
 exact fields; `entity_lookup` shows the override chain for method-level requirements; `module_inspect` adds
 module-architecture scope (N models defined/extended, N views) — a proof package that says "this module ships
 6 models and 12 views around the capability" is far more compelling to a skeptical client than a single field.
@@ -146,13 +146,13 @@ When OSM is unreachable, follow the three-tier grounding order from
 **Example 1:**
 Prompt: "prove Odoo can handle multi-currency invoicing for our prospect"
 Output: Verdict "Supported natively", evidence table citing `account.move` fields (`currency_id`,
-`amount_currency`, `currency_rate`) from `model_inspect(model='account.move', method='fields', odoo_version='auto')`, a
+`amount_currency`, `currency_rate`) from `model_inspect(model='account.move', method='fields', odoo_version='<version>')`, a
 real code example, and demo steps.
 
 **Example 2:**
 Prompt: "prove Odoo 17 supports multi-level approval for purchase orders"
 Output: Verdict with `purchase_stock` + `purchase` module evidence,
-`entity_lookup(kind='method', model='purchase.order', method_name='button_approve', odoo_version='auto')` override
+`entity_lookup(kind='method', model='purchase.order', method_name='button_approve', odoo_version='<version>')` override
 chain, and demo steps.
 
 ## Notes / Integration

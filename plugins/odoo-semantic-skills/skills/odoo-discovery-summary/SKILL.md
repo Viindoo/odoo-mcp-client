@@ -47,7 +47,7 @@ or requests "double-check with Odoo" / "kiem tra Odoo co chua"._
   snippets or UI evidence. Only call if user explicitly requests it.
 - `profile_inspect` — When several Confidence-Low fit rows turn on "does the Viindoo profile
   cover this vertical" (e.g. is there a `viin_mrp_*` family?), call
-  `profile_inspect(method='modules', name=<profile>, odoo_version='auto')` once to list the
+  `profile_inspect(method='modules', name=<profile>, odoo_version='<version>')` once to list the
   profile-owned modules — this resolves several fit rows in a single call instead of one
   `check_module_exists` per module.
 

@@ -56,6 +56,17 @@ design-quality expertise on the UI/UX portion of a design. Do NOT invoke any oth
 Skill tool — especially a spawner / bundle (`odoo-coding`,
 `odoo-code-review`, `wave`, …) — that would nest a fresh agent below you and risk a context crash.
 
+
+## Report language
+
+If the dispatch brief states the end user's language (`USER LANGUAGE: <language>`),
+write the human-facing parts of your final report - the `summary` field and any
+prose meant for the user's eyes - in that language. This applies to CHAT-FACING
+prose only: all code, comments, docstrings, identifiers, file paths, commit
+messages, and tool names stay in English regardless of the user's language.
+Without that brief field, report in English and the orchestrator will translate
+when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
+
 ---
 
 ## Standalone-first fallback
@@ -77,14 +88,24 @@ so reading the source yourself is a legitimate grounding path, not a reason to s
    `OSM unavailable — ungrounded`, with lowered confidence. Escalate (`NEEDS_CONTEXT`) solely for
    business decisions no source encodes — never to ask a human to paste code, fields, or manifests.
 
+
+**Tier-1 MISS - OSM reachable but the entity is not in the index.** OSM does not index
+every customer-local addon. When OSM answers but returns not-found/empty for a SPECIFIC
+module/model/field the request says exists (typically a customer-local custom module),
+that is a MISS, not proof of absence: keep OSM for everything it covers and `Read`/`Grep`
+the local addons for just the missed entities (see `disk-fallback-protocol.md`, Tier-1
+MISS). Label the output `grounded: osm + local-source (hybrid)`. Never conclude "does not
+exist" from an index miss alone when a local repo is readable.
+
 ---
 
 ## Round 0 — Pin the version (once per session)
 
 Call `set_active_version(odoo_version='17.0')` at the start of the session (or the version the
-user / `.odoo-ai/context.md` states). Every subsequent tool call passes `odoo_version='auto'` to
-reuse the pin. If the version cannot be resolved, resolve it before designing — the right
-inheritance axis, override pattern, and field idioms are version-specific.
+user / `.odoo-ai/context.md` states). Every subsequent tool call passes the CONCRETE version
+(`odoo_version='<version>'`) - never `'auto'`: the pin is per-API-key server state any concurrent
+agent or session can overwrite. If the version cannot be resolved, resolve it before designing —
+the right inheritance axis, override pattern, and field idioms are version-specific.
 
 > **HARD RULE — OSM-First Grounding Contract** (full text:
 > `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`): every claim that a model / field /
@@ -101,17 +122,17 @@ inheritance axis, override pattern, and field idioms are version-specific.
 
 For each target model in the request, call simultaneously:
 
-1. `model_inspect(model='<model>', method='summary', odoo_version='auto')` — full inheritance
+1. `model_inspect(model='<model>', method='summary', odoo_version='<version>')` — full inheritance
    chain, the authoritative source module, fields, and extenders. This is the backbone of the
    data-model and approach sections.
-2. `suggest_pattern(intent='<what the change needs>', odoo_version='auto')` — the canonical Odoo
+2. `suggest_pattern(intent='<what the change needs>', odoo_version='<version>')` — the canonical Odoo
    design pattern (computed field, delegation inheritance, wizard, mixin, migration shape) with
    gotchas and anti-patterns. This anchors the Approach section in a known-good shape.
-3. `find_examples(query='<the change in plain terms>', odoo_version='auto')` — real indexed code
+3. `find_examples(query='<the change in plain terms>', odoo_version='<version>')` — real indexed code
    for how Odoo (or the indexed addons) already solves this. **Reuse before you design from
    scratch.**
 4. For a NEW module / capability decision, `check_module_exists(...)` and
-   `module_inspect(name='<candidate base module>', method='summary', odoo_version='auto')` — decide
+   `module_inspect(name='<candidate base module>', method='summary', odoo_version='<version>')` — decide
    "extend existing vs new module" from real module composition, not a guess.
 
 If a target model name is not yet known, ask the caller once before proceeding — do not guess it.
@@ -125,7 +146,7 @@ If a target model name is not yet known, ask the caller once before proceeding �
   behavior) vs a brand-new `models.Model`. Justify with the `model_inspect` summary + the
   `suggest_pattern` recommendation. Record the rejected alternatives and why (ADR-style).
 - **Override points.** For every method the change must hook, call
-  `find_override_point(model='<model>', method='<method>', odoo_version='auto')` — it returns the
+  `find_override_point(model='<model>', method='<method>', odoo_version='<version>')` — it returns the
   existing override chain and the correct `super()` position. A chain with ≥3 entries is a
   conflict-risk flag; record it in Risks.
 - **Blast radius.** Call `impact_analysis(...)` for fields/methods the design will change or make
@@ -133,7 +154,7 @@ If a target model name is not yet known, ask the caller once before proceeding �
   for them rather than discovering them at runtime. This is the design-time equivalent of "what
   will my change break".
 - **API status.** For any core symbol the design leans on, `lookup_core_api(name='<symbol>',
-  odoo_version='auto')` to confirm stable vs deprecated vs removed for the target version; for an
+  odoo_version='<version>')` to confirm stable vs deprecated vs removed for the target version; for an
   upgrade/migration design, `api_version_diff(symbol=<symbol_or_scope>, from_version=<lo>,
   to_version=<hi>)` to ground the migration path.
 
@@ -167,13 +188,13 @@ The design proposes ORM structure; validate the non-obvious parts against the in
 inherits a *verified* design, not a plausible one:
 
 - Each proposed computed field → `validate_depends(model='<model>', method='<_compute_*>',
-  odoo_version='auto')` when the method exists, or `resolve_orm_chain(model='<model>',
-  dotted_path='<each depends path>', odoo_version='auto')` for not-yet-written paths.
+  odoo_version='<version>')` when the method exists, or `resolve_orm_chain(model='<model>',
+  dotted_path='<each depends path>', odoo_version='<version>')` for not-yet-written paths.
 - Each proposed `related=` chain → `resolve_orm_chain(...)`.
 - Each proposed relational field → `validate_relation(model='<model>', field='<field>',
-  target_model='<expected comodel>', odoo_version='auto')`.
+  target_model='<expected comodel>', odoo_version='<version>')`.
 - Any proposed `domain=` / `ir.rule` → `validate_domain(model='<model>', domain='<literal>',
-  odoo_version='auto')`.
+  odoo_version='<version>')`.
 
 A `BROKEN` / `MISMATCH` result means the design is wrong — fix the design (path / comodel /
 operator) before writing the doc. Designing a chain that cannot resolve only pushes the failure
@@ -193,32 +214,45 @@ order — it is the contract `odoo-coding` consumes (both its backend and fronte
 - Odoo version: <version>   ·   Grounding: osm | local-source | ungrounded
 - Source requirement / tier: <REQ-id + Extension-L/Custom-XL, or the upgrade/refactor goal>
 - Target module(s): <module>   ·   Stack: backend | frontend | full-stack
+- Dispatch: <opus | fable | opus (fable declined/unavailable)>
 
-## 1. Approach
+## 1. Intent & Business Value
+Intent: <one line - the problem this solves and why now>.
+Purpose: <what the solution enables that is not possible/safe today>.
+Expected outcomes: <observable results a human can verify after shipping>.
+Business value: <the value in the user's terms - revenue, cost, risk, speed, compliance>.
+User impact: <who is affected and how their day-to-day changes>.
+
+Per module (cover BOTH new modules and existing modules being refactored / modified / optimized):
+| Module | New/Modified | Intent | Expected outcome | Business value |
+This section exists for the HUMAN approver - write it in plain language, no jargon a
+non-developer reviewer would stumble on; everything below it is the contract for the coders.
+
+## 2. Approach
 Chosen: <inherit axis · new module vs extend>. Rationale: <grounded reason>.
 Alternatives rejected: <option> — <why not>.
 
-## 2. Data model
+## 3. Data model
 | Field | Type | Stored/Computed | depends / related | index | required/default | Notes |
 Relations: <M2O/O2M/M2M + comodel + ondelete>.
 Constraints: <_sql_constraints vs @api.constrains — and why>.
 
-## 3. Override strategy
+## 4. Override strategy
 | Model | Method | super() position | Existing chain (count) | Conflict risk |
 Hook order + side-effect notes.
 
-## 4. Module structure
+## 5. Module structure
 depends: [...]   ·   data load order: [...]   ·   security: ir.model.access + record rules
 multi-company scoping: <where>   ·   demo data: <if any>.
 New module vs extend: <decision>.
 
-## 5. Sequencing
+## 6. Sequencing
 Build order + inter-item dependencies (so coding can be split / waved safely).
 
-## 6. Test strategy outline
+## 7. Test strategy outline
 Business behaviors to cover (behavior-first, not code-snapshot) — feeds odoo-test-writer / odoo-qa-suite.
 
-## 7. Risks
+## 8. Risks
 Performance (N+1, stored-compute blast radius from impact_analysis) · upgrade-safety ·
 multi-company isolation · override conflicts.
 

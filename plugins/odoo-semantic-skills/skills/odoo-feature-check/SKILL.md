@@ -38,7 +38,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -79,12 +79,12 @@ be formulated from the requirement even if Round 1 shows partial coverage — th
 independent of each other.
 
 **Round 3 — Deep dive (when `check_module_exists` confirms presence):** Call
-`module_inspect(name=<name>, method='summary', odoo_version='auto')` to surface the module's full
+`module_inspect(name=<name>, method='summary', odoo_version='<version>')` to surface the module's full
 architecture: manifest summary, which models it defines vs extends, view count, and JS patch
 count. This gives the consultant a confident, evidence-backed answer about what the module
 actually covers — beyond the bare "exists / does not exist" signal. If the module is confirmed
-to exist, also consider drilling into specifics with `module_inspect(method='fields', odoo_version='auto')` or
-`module_inspect(method='views', odoo_version='auto')` in a subsequent call if the client asks about exact field
+to exist, also consider drilling into specifics with `module_inspect(method='fields', odoo_version='<version>')` or
+`module_inspect(method='views', odoo_version='<version>')` in a subsequent call if the client asks about exact field
 or view coverage.
 
 **Verdict levels:**
@@ -156,7 +156,7 @@ Output: Feature table showing `sale_subscription` exists in EE only (not CE), ke
 **Example 2:**
 Prompt: "Does Odoo have a fixed asset management module?"
 Output: `account_asset` exists in EE, not CE.
-`model_inspect(model='account.asset', method='fields', odoo_version='auto')` shows key fields. Recommendation
+`model_inspect(model='account.asset', method='fields', odoo_version='<version>')` shows key fields. Recommendation
 provided.
 
 ## Continuation Contract

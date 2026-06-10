@@ -107,7 +107,7 @@ phase boundaries remain clearly visible throughout a multi-phase run.
 
 For phases marked `fanout: true` with a `chunk_by` field:
 1. Split the input into chunks according to `chunk_by`.
-2. Cap concurrent workers at 3 (memory ceiling — see failure log `unbounded-opus-fanout-oom`).
+2. Cap concurrent workers at 3 (Mode A - see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).
 3. Each worker prompt MUST begin with the nesting guard
    (${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md): "Do NOT invoke the Skill tool. Do NOT
    spawn a sub-agent. Only Read/Grep/Glob/Write/Bash." For any worker that touches Odoo

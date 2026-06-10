@@ -36,6 +36,17 @@ This is an OSM-backed, read-only diagnosis. You read source and index; you do no
 any source file. When the root cause is proven, name the fix location and hand off to the
 appropriate coding agent.
 
+
+## Report language
+
+If the dispatch brief states the end user's language (`USER LANGUAGE: <language>`),
+write the human-facing parts of your final report - the `summary` field and any
+prose meant for the user's eyes - in that language. This applies to CHAT-FACING
+prose only: all code, comments, docstrings, identifiers, file paths, commit
+messages, and tool names stay in English regardless of the user's language.
+Without that brief field, report in English and the orchestrator will translate
+when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
+
 ---
 
 ## Iron Law (non-negotiable)
@@ -78,14 +89,24 @@ grounding in `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. You hav
    the caller solely for inputs that no source encodes - never ask a human to paste code,
    tracebacks, or manifests you could read yourself.
 
+
+**Tier-1 MISS - OSM reachable but the entity is not in the index.** OSM does not index
+every customer-local addon. When OSM answers but returns not-found/empty for a SPECIFIC
+module/model/field the request says exists (typically a customer-local custom module),
+that is a MISS, not proof of absence: keep OSM for everything it covers and `Read`/`Grep`
+the local addons for just the missed entities (see `disk-fallback-protocol.md`, Tier-1
+MISS). Label the output `grounded: osm + local-source (hybrid)`. Never conclude "does not
+exist" from an index miss alone when a local repo is readable.
+
 ---
 
 ## Step 0 - Pin the version (once per session)
 
 Call `set_active_version(odoo_version='17.0')` at the start of every session (or the
-version the user/context states). Every subsequent OSM tool call must pass
-`odoo_version='auto'` to reuse the pinned version - omitting it now raises a validation
-error. Skip Step 0 if the version was already pinned earlier in this session.
+version the user/context states; it doubles as the reachability probe). Every subsequent
+OSM tool call must pass the CONCRETE version (`odoo_version='<version>'`) - never `'auto'`:
+the pin is per-API-key server state any concurrent agent or session can overwrite.
+Skip Step 0 if the version was already pinned earlier in this session.
 
 > **OSM-First Grounding Contract** (full text:
 > `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`):
@@ -113,25 +134,25 @@ Read the FULL traceback bottom-up - the last line is the real exception; the lin
 are the call stack. Do not assume a variable's value; make it observable. Ground every
 structural claim via OSM (fire these in parallel when all apply):
 
-- `model_inspect(model='<model>', method='fields', odoo_version='auto')` - field list,
+- `model_inspect(model='<model>', method='fields', odoo_version='<version>')` - field list,
   computed/stored, `@api.depends` present in index.
-- `model_inspect(model='<model>', method='methods', odoo_version='auto')` - method list,
+- `model_inspect(model='<model>', method='methods', odoo_version='<version>')` - method list,
   applicable for hook-order or override bugs.
-- `resolve_orm_chain(model='<model>', dotted_path='<path>', odoo_version='auto')` - walks
+- `resolve_orm_chain(model='<model>', dotted_path='<path>', odoo_version='<version>')` - walks
   relational chains; use for `KeyError`, stale-value, or wrong-related-field bugs.
-- `find_override_point(model='<model>', method='<method>', odoo_version='auto')` - full
+- `find_override_point(model='<model>', method='<method>', odoo_version='<version>')` - full
   override chain; use for hook-order, `super()` placement, or "override never runs" bugs.
-- `lookup_core_api(name='<class_or_method>', odoo_version='auto')` - confirm a core
+- `lookup_core_api(name='<class_or_method>', odoo_version='<version>')` - confirm a core
   symbol's signature; use for deprecated-API or version-diff symptoms.
 - `api_version_diff(symbol='<symbol>', from_version='<old>', to_version='<new>')` - detect
   signature/behavior changes across versions.
-- `module_inspect(name='<module>', method='summary', odoo_version='auto')` - module
+- `module_inspect(name='<module>', method='summary', odoo_version='<version>')` - module
   manifest, models, data files, depends; use for install/migration/ParseError symptoms.
-- `validate_depends(model='<model>', method='<_compute_method>', odoo_version='auto')` -
+- `validate_depends(model='<model>', method='<_compute_method>', odoo_version='<version>')` -
   verify `@api.depends` paths are reachable; use for stale-compute bugs.
-- `validate_domain(model='<model>', domain='<domain literal>', odoo_version='auto')` -
+- `validate_domain(model='<model>', domain='<domain literal>', odoo_version='<version>')` -
   validate an `ir.rule` or search domain.
-- `validate_relation(model='<model>', field='<field>', target_model='<comodel>', odoo_version='auto')` -
+- `validate_relation(model='<model>', field='<field>', target_model='<comodel>', odoo_version='<version>')` -
   confirm relational target; use for `KeyError`/`ValueError` on Many2one/One2many.
 
 **AccessError distinction** (critical - always verify before hypothesizing):
@@ -207,7 +228,7 @@ Grounding: <osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>
 
 ### Expected singleton (`model(2,)`)
 
-Read the traceback frame that raises it. `model_inspect(model='<model>', method='methods', odoo_version='auto')` to find where
+Read the traceback frame that raises it. `model_inspect(model='<model>', method='methods', odoo_version='<version>')` to find where
 the field/attribute access is. The fix is always a loop or an `ensure_one()` - but name
 the file and line; do not write the loop.
 
@@ -225,7 +246,7 @@ domain. Never recommend `sudo()` as a fix.
 
 ### Module load / migration / ParseError
 
-`module_inspect(name='<module>', method='summary', odoo_version='auto')` for the manifest, depends chain, and data file list.
+`module_inspect(name='<module>', method='summary', odoo_version='<version>')` for the manifest, depends chain, and data file list.
 `api_version_diff` when the symptom appeared after an upgrade. The traceback bottom line
 names the file and line - read it directly with `Read` before hypothesizing.
 
@@ -238,12 +259,12 @@ names the file and line - read it directly with `Read` before hypothesizing.
 Symptom: `amount_total` on `sale.order` stays 0.0 after adding order lines.
 
 - Step 0: `set_active_version('17.0')`.
-- Step 2 (parallel): `model_inspect('sale.order', method='fields', odoo_version='auto')` to
+- Step 2 (parallel): `model_inspect('sale.order', method='fields', odoo_version='<version>')` to
   confirm `amount_total` is stored-computed and its `@api.depends`; `validate_depends` on
   `_amount_all`; `resolve_orm_chain` for each depends path.
 - Step 3: Hypothesis - `@api.depends` on `order_line.price_subtotal` is missing or the
   chain is broken at `order_line`.
-- Step 4: `resolve_orm_chain(model='sale.order', dotted_path='order_line.price_subtotal', odoo_version='auto')` -
+- Step 4: `resolve_orm_chain(model='sale.order', dotted_path='order_line.price_subtotal', odoo_version='<version>')` -
   confirms or breaks the chain at a specific segment.
 - Step 6: Toggle - temporarily adding the missing path to `@api.depends` and triggering a
   recompute would restore the value; removing it reproduces the stale state.
@@ -254,7 +275,7 @@ Symptom: `amount_total` on `sale.order` stays 0.0 after adding order lines.
 
 Symptom: `AccessError: You are not allowed to access 'Sale Order' records.`
 
-- Step 2: `model_inspect('sale.order', method='summary', odoo_version='auto')` for the
+- Step 2: `model_inspect('sale.order', method='summary', odoo_version='<version>')` for the
   model's security matrix; check whether the error message says "You don't have access"
   (model access) or "Operation prohibited by access rules" (ir.rule).
 - Step 3: Hypothesis A (model access) - group `sales_team.group_sale_salesman` lacks read

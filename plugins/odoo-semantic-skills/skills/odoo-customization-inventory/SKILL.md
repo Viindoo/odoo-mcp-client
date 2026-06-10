@@ -39,7 +39,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 **Session bootstrap** (call once at session start):
 - `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -80,7 +80,7 @@ Use parallel MCP calls — for a list of N modules, sequential calls are N× slo
 profile name (the server registers versioned names like `viindoo_internal_17` / `odoo_17` — never
 assume a hyphenated or unversioned one), then `set_active_version(...)` + `set_active_profile(profile_name=<profile>)`
 so every subsequent call targets the same customer baseline. Then
-`profile_inspect(method='modules', name=<profile>, odoo_version='auto')` to enumerate the profile's own
+`profile_inspect(method='modules', name=<profile>, odoo_version='<version>')` to enumerate the profile's own
 modules in one call — this is the inventory backbone, so you don't depend on the user pasting a module list.
 
 **Round 1 — Parallel:** Call `check_module_exists` for ALL modules simultaneously. Each call is
@@ -93,10 +93,10 @@ of each other.
 
 **Round 2.5 — Per-module architecture drill-down (parallel):** For each distribution-maintained or Custom
 module that the executive wants to understand more deeply, call
-`module_inspect(name=<name>, method='summary', odoo_version='auto')`. This returns a concise tree showing the
+`module_inspect(name=<name>, method='summary', odoo_version='<version>')`. This returns a concise tree showing the
 module's manifest metadata, which models it defines vs extends, and counts of views and JS
 patches — giving the executive a one-glance architecture picture without reading source code.
-Fire all `module_inspect(method='summary', odoo_version='auto')` calls in parallel (one per module of interest).
+Fire all `module_inspect(method='summary', odoo_version='<version>')` calls in parallel (one per module of interest).
 The tree output is ~10–15 lines per module and is safe to include verbatim in the inventory
 report.
 
@@ -105,7 +105,7 @@ summary as a `module_inspect` summary call without a tool round-trip.
 
 Example — understanding `custom_loyalty` on Odoo 17:
 ```
-module_inspect(name="custom_loyalty", method="summary", odoo_version='auto')
+module_inspect(name="custom_loyalty", method="summary", odoo_version='<version>')
 ```
 
 **Round 3 — Parallel:** Call `impact_analysis` for modules flagged as high-usage or high-risk
@@ -115,9 +115,9 @@ Write "Business purpose" in plain language. Infer from field names and module na
 adding `vat_number`, `tax_id_file` to `res.partner` is clearly "Vietnamese tax compliance".
 
 Flag modules with many deprecated API calls or overrides of unstable methods as "upgrade risk".
-Ground this with `find_deprecated_usage(odoo_version='auto', profile_name=<profile>)` (scoped to the
+Ground this with `find_deprecated_usage(odoo_version='<version>', profile_name=<profile>)` (scoped to the
 customer profile) instead of inferring from names — the scan returns the real deprecated-API hits per
-module; pair it with `module_inspect(name=<module>, method='dependencies', odoo_version='auto')` to get
+module; pair it with `module_inspect(name=<module>, method='dependencies', odoo_version='<version>')` to get
 the real dependency chain that determines a module's upgrade blast radius.
 
 ## Standalone-first fallback

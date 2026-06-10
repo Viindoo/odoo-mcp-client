@@ -74,23 +74,23 @@ Resolve target version from `.odoo-ai/context.md`; if absent, derive from manife
 ### Round 1 - Parallel triage (all independent, fire together)
 
 1. `lint_check` on the Python/JS source as a quick first pass - note results are hints, not gates.
-2. `find_examples(query='safe_eval usage', odoo_version='auto')` - retrieve indexed safe_eval examples to compare against audited code.
-3. `find_examples(query='http.route auth public', odoo_version='auto')` - retrieve controller auth patterns.
-4. `find_examples(query='t-raw QWeb XSS Markup', odoo_version='auto')` - retrieve safe QWeb output patterns.
+2. `find_examples(query='safe_eval usage', odoo_version='<version>')` - retrieve indexed safe_eval examples to compare against audited code.
+3. `find_examples(query='http.route auth public', odoo_version='<version>')` - retrieve controller auth patterns.
+4. `find_examples(query='t-raw QWeb XSS Markup', odoo_version='<version>')` - retrieve safe QWeb output patterns.
 
 ### Round 2 - Pattern scan + model/method inspection (parallel)
 
 Fire all independent scans simultaneously:
 - `model_inspect` on each model in scope (`method='methods'`) to enumerate methods and flag sudo() usage counts.
 - `entity_lookup(kind='method', ...)` for each method identified as suspicious in Round 1 (sudo() call, cr.execute, t-raw).
-- `lookup_core_api(name='safe_eval', odoo_version='auto')` to verify the exact safe API signature.
-- `lookup_core_api(name='Markup', odoo_version='auto')` to confirm correct Markup/escape usage.
-- `lookup_core_api(name='http.route', odoo_version='auto')` for the auth parameter's accepted values.
+- `lookup_core_api(name='safe_eval', odoo_version='<version>')` to verify the exact safe API signature.
+- `lookup_core_api(name='Markup', odoo_version='<version>')` to confirm correct Markup/escape usage.
+- `lookup_core_api(name='http.route', odoo_version='<version>')` for the auth parameter's accepted values.
 
 ### Round 3 - Access control verification (parallel)
 
-- `find_examples(query='ir.model.access model access csv', odoo_version='auto')` - verify expected CSV structure.
-- `find_examples(query='ir.rule record rule domain', odoo_version='auto')` - baseline record rule patterns.
+- `find_examples(query='ir.model.access model access csv', odoo_version='<version>')` - verify expected CSV structure.
+- `find_examples(query='ir.rule record rule domain', odoo_version='<version>')` - baseline record rule patterns.
 - Cross-reference with local file scan (see Standalone-first fallback Tier 2) if OSM results are inconclusive.
 
 **Disk scan supplement** (always run alongside OSM rounds, not instead of):
@@ -210,7 +210,7 @@ from odoo.tools.safe_eval import safe_eval
 safe_eval(user_expression, {})  # user_expression must NOT come from HTTP request body unvalidated
 ```
 
-**OSM ground truth:** call `lookup_core_api(name='safe_eval', odoo_version='auto')` to confirm the exact allowed locals/globals API for the target version before flagging a finding.
+**OSM ground truth:** call `lookup_core_api(name='safe_eval', odoo_version='<version>')` to confirm the exact allowed locals/globals API for the target version before flagging a finding.
 
 ### Hardcoded secrets
 

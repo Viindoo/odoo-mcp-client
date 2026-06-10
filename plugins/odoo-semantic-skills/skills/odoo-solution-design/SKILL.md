@@ -106,7 +106,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
 - `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
@@ -130,11 +130,16 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 The design doc is a **contract for the coders**, not prose: the architect grounds every
 model/field/method/edition claim via OSM and reuses indexed patterns before proposing any
-hand-written structure. Its fixed seven sections — Approach (inheritance axis + new-vs-extend,
-ADR-style with rejected alternatives), Data model, Override strategy, Module structure,
-Sequencing, Test strategy outline (behavior-first, feeds `odoo-test-writer` / `odoo-qa-suite`),
-and Risks — are specified in `agents/odoo-solution-architect.md` (Round 4 is the SSOT for the doc
-template); this skill does not restate them, so the contract stays in one place.
+hand-written structure. Its fixed eight sections — Intent & Business Value (solution-level intent /
+purpose / expected outcomes / business value / user impact, plus a per-module table covering
+BOTH new modules and existing modules being refactored, modified, or optimized), Approach
+(inheritance axis + new-vs-extend, ADR-style with rejected alternatives), Data model, Override
+strategy, Module structure, Sequencing, Test strategy outline (behavior-first, feeds
+`odoo-test-writer` / `odoo-qa-suite`), and Risks — are specified in
+`agents/odoo-solution-architect.md` (Round 4 is the SSOT for the doc template); this skill does
+not restate them, so the contract stays in one place. The Intent & Business Value section exists
+for the HUMAN approver: a design whose purpose and value cannot be stated per module is not ready
+to gate.
 
 Key failure modes the design prevents (each surfaces only at review/runtime if skipped): wrong
 inheritance axis, override at the wrong level / wrong `super()` position, stored-vs-computed
@@ -157,7 +162,22 @@ When the user confirms intent (Phase 0 gate passed), the main agent invokes the
 `odoo-solution-architect` agent via the Agent tool. Use the following template **verbatim** as
 the agent prompt, filling in the bracketed placeholders:
 
+**Model per dispatch.** The agent frontmatter pins `model: opus` only as a floor.
+Pass the Agent-tool `model` parameter explicitly on every dispatch - the
+`DISPATCH MODEL` line at the top of the template records the tier you chose;
+set that same value as the Agent-tool `model` parameter on THIS dispatch:
+- **opus** - default for every design.
+- **fable** - ONLY when the requirement is graded Custom-XL (from odoo-brl /
+  odoo-gap-analysis) or the design spans >=3 modules full-stack with a new
+  inheritance axis. fable costs ~2x opus, so it ALWAYS needs explicit human
+  confirmation: add a line to the proposal gate stating the tier, the cost, and
+  WHY this design needs it, and wait for the user's yes. If the user declines,
+  or the fable dispatch fails (insufficient usage credit, model unavailable,
+  Agent-tool error), fall back to **opus** automatically and note the downgrade
+  in the TDD header (`dispatch: opus (fable declined/unavailable)`).
+
 ```
+DISPATCH MODEL: <opus|fable>
 You are the odoo-solution-architect agent. Produce an Odoo Technical Design Document (NOT
 production code) for the following change:
 
@@ -166,7 +186,11 @@ classification/effort tier if it came from odoo-brl/odoo-gap-analysis]
 
 Step 0 (ONLY if mcp__odoo-semantic__* tools are available): call
 set_active_version('<version>'), then proceed through your design rounds. If OSM is
-unavailable, use the Standalone-first fallback (disk-grounded: Read/Grep the repo). Do NOT
+unavailable, use the Standalone-first fallback (disk-grounded: Read/Grep the repo). If OSM
+is reachable but a SPECIFIC module/model in this request is not in the index (a
+customer-local custom module), that is a Tier-1 MISS, not proof of absence: keep OSM for
+everything it covers and Read/Grep the local addons for just the missed entities, grounding
+the design hybrid (grounded: osm + local-source (hybrid)). Do NOT
 design from memory when OSM is reachable.
 
 Follow your system-prompt rounds. Write the design doc to .odoo-ai/designs/<slug>-<date>.md.
@@ -182,7 +206,10 @@ does NOT spawn further subagents or invoke skills, and it does NOT write product
 When OSM is unreachable, follow the three-tier grounding in
 `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`: the architect `Read`/`Grep`s the
 module source itself (field lists, existing method signatures, manifest `depends`) and designs
-against that, labelling the doc `grounded: local-source (not OSM-indexed)`. Only when the repo
+against that, labelling the doc `grounded: local-source (not OSM-indexed)`. When OSM is
+reachable but a specific module/model is not in the index (a customer-local addon), the
+architect applies the Tier-1 MISS rule from the same protocol: OSM for what it covers, local
+source for the missed entities, doc labelled `grounded: osm + local-source (hybrid)`. Only when the repo
 itself is inaccessible does it fall back to memory, labelled `OSM unavailable — ungrounded`,
 with lowered confidence. Escalate to the caller (`NEEDS_CONTEXT`) only for business decisions no
 source encodes — never to ask a human to paste code, field lists, or manifests.
@@ -200,9 +227,17 @@ belongs to the user, not something a downstream agent should rubber-stamp. Surfa
 (chosen approach + one-line rationale, the data-model/override headlines, top risk) with a pointer
 to the full doc, then gate:
 
+Write the gate message in the USER'S LANGUAGE (translate the labels and prose; keep
+file paths, module names, and model identifiers verbatim):
+
 ```
 Design ready: .odoo-ai/designs/<slug>-<YYYY-MM-DD>.md
+Intent: <one line - what this solves and why>   ·   Business value: <one line>
 Approach: <one line>   ·   Top risk: <one line>
+Modules:
+  | module | new/modified | intent | expected outcome | business value |
+  | <m1>   | new          | <...>  | <observable>     | <...> |
+  | <m2>   | modified     | <...>  | <observable>     | <...> |
 Approve design? (approve / refine: [feedback] / cancel)
 ```
 

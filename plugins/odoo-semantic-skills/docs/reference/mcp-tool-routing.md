@@ -62,7 +62,7 @@ When adding a new MCP tool or persona, update **`generator/server-surface.json`*
 
 **Legend:** ● = primary persona for this tool.  
 ★ = superset tool (supersedes removed v0.6 tools).  
-☆ = session-context tool (per live MCP session, 24h idle TTL; resets on server restart).  
+☆ = session-context tool (pin is per-API-key server state, 24h idle TTL - racy under concurrency, pass concrete versions).  
 ✦ = stylesheet tools (CSS/SCSS/LESS indexing, v0.7+).  
 ⊕ = ORM-validation tools (static domain / @api.depends / relation / dotted-path checks, v0.8+).
 
@@ -253,7 +253,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted). 'auto' is only safe after a pin — with no pinned session it silently falls back to the latest indexed version. |
+| **Description** | Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL). The pin is server-side state scoped to the API KEY - any concurrent agent or session sharing the key can overwrite it, so odoo_version='auto' may resolve to someone else's pin. Pass the concrete version on every subsequent call (multi-version flows like migrations and cross-version comparisons included); omitting odoo_version raises a validation error. |
 | **Personas** | dev, CEO, consultant, marketer, sales |
 | **Required params** | `odoo_version` |
 | **Optional params** | _(none)_ |

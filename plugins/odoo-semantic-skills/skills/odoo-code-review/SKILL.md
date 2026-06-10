@@ -67,9 +67,9 @@ is what the Opus pass is for.
 ### Phase A — Per-module fan-out (parallel, sonnet, ≤3 concurrent)
 
 Dispatch one `odoo-code-reviewer` agent **per changed/added module**, each scoped to ONLY that
-module's changes. Run them in parallel but cap at **3 concurrent** (the standing OOM ceiling —
-failure log `unbounded-opus-fanout-oom`); for >3 modules, batch in **waves of ≤3** (fire 3, wait,
-fire the next 3) like `wave` / `workflow-chaining` / `odoo-debug`. Each agent writes its own
+module's changes. Run them in parallel but cap at **3 concurrent** (Mode A - see
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`); for >3 modules, batch in
+**waves of <=3** (fire 3, wait, fire the next 3) like `wave` / `workflow-chaining` / `odoo-debug`. Each agent writes its own
 per-module report to `.odoo-ai/reviews/<slug>-<date>/<module>.md` and returns a short summary +
 the path (so main does not carry every full report in context).
 
@@ -81,7 +81,7 @@ computes from OSM (not from memory):
 
 - **The changed + newly-added modules** (the Phase 0 set).
 - **Forward closure — what they depend on (direct AND indirect):** walk
-  `module_inspect(name=<m>, method='dependencies', odoo_version='auto')` transitively from each
+  `module_inspect(name=<m>, method='dependencies', odoo_version='<version>')` transitively from each
   changed module until it stops adding modules.
 - **Reverse closure — what depends on them (direct AND indirect):** `impact_analysis(...)` on the
   changed modules/models returns dependent modules / blast radius; walk it transitively too.
@@ -132,7 +132,7 @@ agent knows which job it is doing and where to write its artifact:
 - **Synthesis (dispatch with model `opus`):**
   ```
   MODE=synthesis. Changed/added modules: [<m1>, <m2>, …]. Compute the dependency closure —
-  forward via module_inspect(method='dependencies', odoo_version='auto') transitively, reverse via impact_analysis —
+  forward via module_inspect(method='dependencies', odoo_version='<version>') transitively, reverse via impact_analysis —
   and review CROSS-MODULE integration risk only (override conflicts, MRO, inter-module contracts,
   depends/load-order, ripple to dependents). Read the per-module reports already in
   .odoo-ai/reviews/<slug>-<date>/. Write _synthesis.md there. Return a summary + path.
@@ -152,6 +152,10 @@ computed via OSM either - derive it from disk instead: read each changed module'
 `depends` (forward closure) and `grep -rl "_inherit\|depends.*<module>"` across the addons path for
 an approximate reverse closure, and label the synthesis "closure approximate from disk (OSM
 unavailable)". The fan-out / synthesis topology itself still applies; only the grounding degrades.
+When OSM is reachable but a specific module/model in the diff is not in the index (a
+customer-local addon), that is a Tier-1 MISS, not proof of absence - the reviewers keep OSM for
+what it covers and Read/Grep the local addon for just the missed entities (grounded: osm +
+local-source (hybrid), per `snippets/disk-fallback-protocol.md`).
 
 ## Agent-managed tools
 
