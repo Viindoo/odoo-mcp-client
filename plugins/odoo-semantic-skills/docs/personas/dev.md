@@ -19,7 +19,7 @@ The full **tool arsenal (server v0.13.1)**, optimized for development workflows.
 | `entity_lookup(kind='field'\|'method'\|'view', ...)` | One entity drill-down by ID. **Replaces** `resolve_field` + `resolve_method` + `resolve_view`. |
 | `profile_inspect(profile, method='summary'\|'repos'\|'modules', ...)` | Profile-level introspection: inheritance chain + repos + module inventory (method=summary\|repos\|modules). |
 
-### Session context (v0.6+ — per live MCP session, 24h idle TTL; resets on server restart)
+### Session context (per-API-key pin, 24h idle TTL - racy under concurrency)
 
 | Tool | Use case |
 |------|----------|
@@ -62,7 +62,7 @@ Static checks against the indexed graph. Run them **before** emitting a domain, 
 | `validate_depends(model, method, odoo_version="auto")` | Validate an indexed compute method's `@api.depends('a.b', ...)` paths; flags depends on `id` (forbidden) and suggests the closest field for typos — directly catches the "stale compute" failure mode. |
 | `validate_relation(model, field, target_model, odoo_version="auto")` | Assert a field is a many2one/one2many/many2many whose comodel is `target_model` (or a subtype via inheritance). Use before writing a `related=` that hops through a relation. |
 
-> Prefer these over `entity_lookup(kind='field', odoo_version='auto')` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) — they reason about the whole construct, not one field.
+> Prefer these over `entity_lookup(kind='field', odoo_version='<version>')` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) — they reason about the whole construct, not one field.
 
 ### Removed in v0.6
 
@@ -86,19 +86,19 @@ Before any exploration session, set the version so you can drop `odoo_version=` 
 set_active_version("17.0")
 ```
 
-TTL is 24h idle, keyed per live MCP session, and the pin resets on server restart. Run `list_available_versions()` first if you are not sure which versions are indexed.
+TTL is 24h idle and the pin is per-API-key server state - any concurrent agent or session sharing the key can overwrite it, so pass the concrete version on every call under concurrency. Run `list_available_versions()` first if you are not sure which versions are indexed.
 
 ### 1. Understand before touching
 
 Before adding logic to a model:
 
 ```
-model_inspect(model="sale.order", method="summary", odoo_version='auto')
+model_inspect(model="sale.order", method="summary", odoo_version='<version>')
 ```
 
 Get the full inheritance chain, field count, method list, view inventory, and which modules have already extended this model — all in one call. Know what you are stepping into before writing a single line.
 
-> Need one specific entity? Drill down with `entity_lookup(kind="field", model="sale.order", field="amount_total", odoo_version='auto')` (or `kind="method"` / `kind="view"`).
+> Need one specific entity? Drill down with `entity_lookup(kind="field", model="sale.order", field="amount_total", odoo_version='<version>')` (or `kind="method"` / `kind="view"`).
 
 ### 2. Find the right extension point
 
@@ -115,7 +115,7 @@ Returns `super_safety` score and which modules are already overriding this metho
 Before implementing a new pattern (computed cross-model field, wizard, report):
 
 ```
-suggest_pattern("computed field that aggregates from child records with currency conversion", odoo_version='auto')
+suggest_pattern("computed field that aggregates from child records with currency conversion", odoo_version='<version>')
 ```
 
 Returns curated pattern entries with code snippets, gotchas, and anti-pattern warnings from the indexed codebase.
@@ -135,8 +135,8 @@ If the result shows `status: deprecated` or `removed_in: 17.0` — find the repl
 After writing the module:
 
 ```
-lint_check(code=<module source>, odoo_version='auto')
-find_deprecated_usage(odoo_version='auto')
+lint_check(code=<module source>, odoo_version='<version>')
+find_deprecated_usage(odoo_version='<version>')
 ```
 
 ---

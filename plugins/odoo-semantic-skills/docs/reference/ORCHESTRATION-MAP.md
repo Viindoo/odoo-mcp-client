@@ -12,7 +12,7 @@
 | `odoo-campaign-plan` | leaf | any-depth | none | — | — |
 | `odoo-capability-proof` | leaf | any-depth | none | — | — |
 | `odoo-code-review` | spawner-agent | depth0-only | fullstack | — | odoo-code-reviewer |
-| `odoo-coding` | spawner-agent | depth0-only | fullstack | — | odoo-coder, odoo-frontend-coder |
+| `odoo-coding` | spawner-agent | depth0-only | fullstack | — | odoo-coder, odoo-frontend-coder, (dispatch: Workflow pipeline rolling-window, explicit model per work-item per tier table haiku/sonnet/opus/fable; Agent-tool weighted-batch fallback - see skills/_shared/concurrency-guard.md Mode B) |
 | `odoo-competitive-brief` | leaf | any-depth | none | — | — |
 | `odoo-content-draft` | leaf | any-depth | none | — | — |
 | `odoo-customer-health` | leaf | any-depth | none | — | — |

@@ -44,7 +44,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 **Optional — use only when verifying a specific feature claim in the campaign angle:**
 - `profile_inspect` — When the campaign angle is "competitive displacement" or "platform breadth"
   (a claim about what the platform actually covers), call `profile_inspect(method='modules', name=<profile>,
-  odoo_version='auto')` to ground the breadth claim in the real module inventory rather than asserting it.
+  odoo_version='<version>')` to ground the breadth claim in the real module inventory rather than asserting it.
 - `check_module_exists` — Confirm that a named Odoo/Viindoo module is present in the
   target version before including a feature claim in the campaign (e.g., "Vietnam VAT
   compliance via l10n_vn", "MRP multi-level BOM"). Call when user names a specific module

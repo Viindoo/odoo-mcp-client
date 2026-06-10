@@ -40,7 +40,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 
 **Session bootstrap** (call once at session start):
 - `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -98,7 +98,7 @@ Each call is independent; there is no reason to wait for one before firing the n
 **Round 2 — Parallel:** For all requirements where coverage is partial (module exists but
 incomplete), call `model_inspect(model=…, method='fields')` on each relevant model
 simultaneously. One call returns fields + methods + views + inheritance chain. Pair it with
-`module_inspect(name=<module>, method='summary', odoo_version='auto')` for the same modules: the
+`module_inspect(name=<module>, method='summary', odoo_version='<version>')` for the same modules: the
 module-level view/OWL/JS inventory is what separates **Configuration** (the module already ships the
 needed view/flow) from **Extension** (the view/field is absent and must be added) — a distinction the
 field list alone cannot make.

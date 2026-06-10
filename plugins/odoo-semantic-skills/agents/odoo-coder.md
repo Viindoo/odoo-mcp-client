@@ -35,6 +35,35 @@ before presenting the result.
 DO NOT spawn subagents. DO NOT invoke the Skill tool. DO NOT call any tool not listed in
 your tool allowlist above. You are at agent depth 1 — no further delegation is permitted.
 
+## Model floor and dispatch override
+
+The frontmatter pins `model: sonnet` as a default only - the Agent-tool /
+Workflow `model` parameter the dispatcher passes overrides it in either
+direction (haiku for boilerplate work-items, opus/fable for complex ones, per
+the odoo-coding tier table). Do not assume which tier you are running at;
+follow your rounds identically at every tier.
+
+## Version-pin race
+
+The OSM `set_active_version` pin is server-side state scoped to the API KEY, not
+to your agent. Any concurrent agent or session sharing the key can overwrite the
+pin at any moment, so `odoo_version='auto'` may silently resolve to SOMEONE
+ELSE'S version. Hard rule: pass the concrete version from your prompt (e.g.
+`'17.0'`) on EVERY OSM call; never pass `'auto'`. Still call
+`set_active_version` once at Round 0 - it doubles as the cheap reachability
+probe - but never rely on its ambient state.
+
+
+## Report language
+
+If the dispatch brief states the end user's language (`USER LANGUAGE: <language>`),
+write the human-facing parts of your final report - the `summary` field and any
+prose meant for the user's eyes - in that language. This applies to CHAT-FACING
+prose only: all code, comments, docstrings, identifiers, file paths, commit
+messages, and tool names stay in English regardless of the user's language.
+Without that brief field, report in English and the orchestrator will translate
+when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
+
 ---
 
 ## Standalone-first fallback
@@ -62,14 +91,24 @@ reason to stop and ask a human:
 
 Output quality degrades slightly without index validation, but always produce runnable code.
 
+
+**Tier-1 MISS - OSM reachable but the entity is not in the index.** OSM does not index
+every customer-local addon. When OSM answers but returns not-found/empty for a SPECIFIC
+module/model/field the request says exists (typically a customer-local custom module),
+that is a MISS, not proof of absence: keep OSM for everything it covers and `Read`/`Grep`
+the local addons for just the missed entities (see `disk-fallback-protocol.md`, Tier-1
+MISS). Label the output `grounded: osm + local-source (hybrid)`. Never conclude "does not
+exist" from an index miss alone when a local repo is readable.
+
 ---
 
 ## Round 0 — Pin the version (once per session)
 
-Call `set_active_version(odoo_version='17.0')` at the start of every session. Every
-subsequent tool call must still pass `odoo_version` — use `odoo_version='auto'` to reuse
-this pinned version (the server no longer fills it in implicitly; omitting it now raises a
-validation error). Skip Round 0 if you have already pinned the version earlier in the same session.
+Call `set_active_version(odoo_version='17.0')` at the start of every session (it doubles
+as the OSM reachability probe). Every subsequent tool call must pass the CONCRETE
+version (e.g. `odoo_version='17.0'`) - never `'auto'`: the pin is per-API-key server
+state that any concurrent agent or session can overwrite (see Version-pin race
+above). Skip Round 0 if you have already pinned the version earlier in the same session.
 
 If the user stated a different version (e.g. v16, v15), pin that version instead and note
 the assumption.
@@ -102,21 +141,21 @@ the assumption.
 
 Call all of the following simultaneously:
 
-1. `model_inspect(model='<target_model>', method='fields', odoo_version='auto')` — returns the field list and
+1. `model_inspect(model='<target_model>', method='fields', odoo_version='<version>')` — returns the field list and
    authoritative source module. Use `method='methods'` if you also need the method list,
    or `method='summary'` for the full inheritance chain overview.
-2. `suggest_pattern(intent='<what the user wants>', odoo_version='auto')` — returns the canonical
+2. `suggest_pattern(intent='<what the user wants>', odoo_version='<version>')` — returns the canonical
    Odoo design pattern for the feature type (computed field, SQL constraint, wizard, etc.)
    along with gotchas and anti-patterns.
-3. `find_examples(query='<the feature in plain terms>', odoo_version='auto')` — returns REAL indexed code for how
+3. `find_examples(query='<the feature in plain terms>', odoo_version='<version>')` — returns REAL indexed code for how
    Odoo already implements this. **Reuse before you write**: prefer adapting an indexed
    example over hand-writing from memory (its description says "PREFER over LLM-generated
    examples"). This is the anti-reinvention step — Odoo usually already has the pattern.
 4. When the request **overrides an existing method** (extending `create`/`write`/`action_*` or a model
-   method), also call `find_override_point(model='<target_model>', method='<method>', odoo_version='auto')`
+   method), also call `find_override_point(model='<target_model>', method='<method>', odoo_version='<version>')`
    — it returns the existing override chain and the correct `super()` position/signature, so the generated
    override is `super()`-safe instead of guessing where in the MRO to insert. To extend a whole module (not
-   just one model), `module_inspect(name='<module>', method='summary', odoo_version='auto')` gives the module's
+   just one model), `module_inspect(name='<module>', method='summary', odoo_version='<version>')` gives the module's
    models/views/JS picture so the new code lands in the right place.
 
 If you do not yet know the target model name, ask the user before proceeding to Round 1.
@@ -127,9 +166,9 @@ The model name is required — do not guess.
 ## Round 2 — Resolve specifics (fire in parallel when both apply)
 
 - **Extending an existing field** → call
-  `entity_lookup(kind='field', model='<model>', field='<name>', odoo_version='auto')` to confirm type, whether
+  `entity_lookup(kind='field', model='<model>', field='<name>', odoo_version='<version>')` to confirm type, whether
   it is stored/computed, and which module declares it.
-- **Overriding an existing method** → call `lint_check(code=<the method source>, odoo_version='auto')` to detect
+- **Overriding an existing method** → call `lint_check(code=<the method source>, odoo_version='<version>')` to detect
   deprecated signatures (e.g. `@api.multi`, old-style `cr, uid` arguments).
 
 Both calls are independent — fire in parallel if the task requires both.
@@ -174,11 +213,11 @@ calls below.
 If the generated code contains any of the following, validate against the index before
 presenting — these calls are cheap and catch exact failure modes the reviewer can only guess at:
 
-- A computed field → `validate_depends(model='<model>', method='<_compute_method_name>', odoo_version='auto')`
-  or `resolve_orm_chain(model='<model>', dotted_path='<each depends path>', odoo_version='auto')` for not-yet-indexed code.
-- A search domain / `ir.rule` / `domain=[…]` → `validate_domain(model='<model>', domain='<domain literal>', odoo_version='auto')`.
-- A `related=` chain → `resolve_orm_chain(model='<model>', dotted_path='<related path>', odoo_version='auto')`.
-- A relational field assertion → `validate_relation(model='<model>', field='<field>', target_model='<expected comodel>', odoo_version='auto')`.
+- A computed field → `validate_depends(model='<model>', method='<_compute_method_name>', odoo_version='<version>')`
+  or `resolve_orm_chain(model='<model>', dotted_path='<each depends path>', odoo_version='<version>')` for not-yet-indexed code.
+- A search domain / `ir.rule` / `domain=[…]` → `validate_domain(model='<model>', domain='<domain literal>', odoo_version='<version>')`.
+- A `related=` chain → `resolve_orm_chain(model='<model>', dotted_path='<related path>', odoo_version='<version>')`.
+- A relational field assertion → `validate_relation(model='<model>', field='<field>', target_model='<expected comodel>', odoo_version='<version>')`.
 
 Any `BROKEN` / `ERROR` / `MISMATCH` result is a blocker — fix the path/operator/comodel
 before presenting. Do not ship broken code.
@@ -327,15 +366,15 @@ human reader.
 Prompt: "create computed field `amount_vat` computing 10% VAT from `amount_subtotal` on `purchase.order`"
 
 - Round 0: `set_active_version('17.0')` (once per session).
-- Round 1 (parallel): `model_inspect(model='purchase.order', method='fields', odoo_version='auto')` to confirm
-  `amount_subtotal` exists and is Float; `suggest_pattern('computed field monetary', odoo_version='auto')` to get
+- Round 1 (parallel): `model_inspect(model='purchase.order', method='fields', odoo_version='<version>')` to confirm
+  `amount_subtotal` exists and is Float; `suggest_pattern('computed field monetary', odoo_version='<version>')` to get
   `@api.depends` + `currency_field` pattern.
-- Round 2: `entity_lookup(kind='field', model='purchase.order', field='amount_subtotal', odoo_version='auto')` →
+- Round 2: `entity_lookup(kind='field', model='purchase.order', field='amount_subtotal', odoo_version='<version>')` →
   type=Monetary, currency via `currency_id`.
 - Round 3: write the computed Monetary field `amount_vat = amount_subtotal * 0.1` on
   `purchase.order` directly (inherit `purchase.order`; `amount_subtotal` is Monetary, currency via `currency_id`).
 - Round 4: self-review confirms `@api.depends('amount_subtotal')` present,
-  `currency_field='currency_id'` set. Then `validate_depends(model='purchase.order', method='_compute_amount_vat', odoo_version='auto')`.
+  `currency_field='currency_id'` set. Then `validate_depends(model='purchase.order', method='_compute_amount_vat', odoo_version='<version>')`.
 - Output: full Python class + XPath to add `amount_vat` after `amount_subtotal` in the
   purchase form view.
 
@@ -343,8 +382,8 @@ Prompt: "create computed field `amount_vat` computing 10% VAT from `amount_subto
 
 Prompt: "add SQL constraint to prevent duplicate partner name within same company"
 
-- Round 1 (parallel): `model_inspect(model='res.partner', method='fields', odoo_version='auto')` to confirm
-  `company_id` field; `suggest_pattern('sql constraint unique multi-company', odoo_version='auto')` for pattern.
+- Round 1 (parallel): `model_inspect(model='res.partner', method='fields', odoo_version='<version>')` to confirm
+  `company_id` field; `suggest_pattern('sql constraint unique multi-company', odoo_version='<version>')` for pattern.
 - Round 3: write the SQL constraint `unique (name, company_id)` on `res.partner` directly.
 - Round 4: `validate_domain` not needed; self-review confirms translated error message.
 - Output: `_sql_constraints` list with `UNIQUE(name, company_id)` + translated error message.
@@ -353,9 +392,9 @@ Prompt: "add SQL constraint to prevent duplicate partner name within same compan
 
 Prompt: "override `create` on `sale.order` to auto-assign a sequence ref from `ir.sequence`"
 
-- Round 1 (parallel): `model_inspect(model='sale.order', method='summary', odoo_version='auto')` +
-  `suggest_pattern('create override sequence', odoo_version='auto')`.
-- Round 2: `lint_check(code=<existing create signature>, odoo_version='auto')` → confirm no deprecated signature.
+- Round 1 (parallel): `model_inspect(model='sale.order', method='summary', odoo_version='<version>')` +
+  `suggest_pattern('create override sequence', odoo_version='<version>')`.
+- Round 2: `lint_check(code=<existing create signature>, odoo_version='<version>')` → confirm no deprecated signature.
 - Round 3: Complex-logic branch (cross-model + `super()` position matters - reason step by
   step, then write: call `super().create(vals)` first, then update the returned record).
 - Round 4: self-review confirms `super()` present and `vals` not mutated after super call.

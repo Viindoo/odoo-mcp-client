@@ -39,7 +39,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
 - `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -81,7 +81,7 @@ was uncertain, use the MCP result to counter the objection with confidence.
 **Round 0 — Pin the version:** `set_active_version(odoo_version=…)`.
 
 **Round 1 — Parallel:** Call `check_module_exists` + `find_examples` +
-`model_inspect(model=…, method='fields')` + `module_inspect(name=<module>, method='summary', odoo_version='auto')`
+`model_inspect(model=…, method='fields')` + `module_inspect(name=<module>, method='summary', odoo_version='<version>')`
 simultaneously. All are independent — `find_examples` uses the objection text as its semantic query and doesn't
 need the module check result; `model_inspect` uses the known model name; `module_inspect` adds module-scope
 numbers (N models/views) that make the ACA "Counter" table concrete ("Odoo ships this across 4 models and 9
@@ -157,7 +157,7 @@ extension); code example of multi-level approval; talking points; verbatim respo
 **Example 2:**
 Prompt: "customer says Odoo doesn't have accounting standards compliance for their region"
 Output: Counter: specialized localization modules or custom extensions exist;
-`model_inspect(model='account.move', method='fields', odoo_version='auto')` shows compliance-specific fields; verbatim
+`model_inspect(model='account.move', method='fields', odoo_version='<version>')` shows compliance-specific fields; verbatim
 response with region-appropriate solution.
 
 ## Continuation Contract

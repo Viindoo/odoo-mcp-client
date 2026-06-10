@@ -38,7 +38,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
 - `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
@@ -72,7 +72,7 @@ Getting the override location wrong causes subtle, hard-to-debug issues:
 - **XML/QWeb:** Override via `xpath` in XML with `position="replace|before|after|attributes"` on
   `<template>` or `<record>` with `inherit_id`.
 
-**Data priority:** `find_override_point` and `entity_lookup(kind='method', odoo_version='auto')` results reflect
+**Data priority:** `find_override_point` and `entity_lookup(kind='method', odoo_version='<version>')` results reflect
 the actual indexed codebase. If MCP says a method's override chain has 4 entries but training
 knowledge only knows 2, trust MCP — it has the current state of all indexed repos.
 
@@ -92,7 +92,7 @@ overrides in the stack. Pick the best candidate method from this list before pro
 
 Example:
 ```
-model_inspect(model="account.move", method="methods", odoo_version='auto')
+model_inspect(model="account.move", method="methods", odoo_version='<version>')
 ```
 
 Output rows look like `action_post : 6 overrides` — a count ≥ 3 is a conflict-risk signal.
@@ -108,7 +108,7 @@ independent of each other.
 ### Round 3 — Parallel
 
 Call `entity_lookup(kind='method', model=…, method_name=…)` + `suggest_pattern` +
-`lookup_core_api(name=<method_name>, odoo_version='auto')` + `find_examples(query=<override intent>, odoo_version='auto')`
+`lookup_core_api(name=<method_name>, odoo_version='<version>')` + `find_examples(query=<override intent>, odoo_version='<version>')`
 simultaneously (all independent once Round 2 is in hand):
 - `entity_lookup` reveals the full override chain
 - `suggest_pattern` recommends the correct Odoo pattern

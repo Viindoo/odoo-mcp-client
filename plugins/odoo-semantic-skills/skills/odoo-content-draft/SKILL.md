@@ -125,8 +125,8 @@ to produce a reasonable first draft, skip clarification and draft - offer to adj
 ### Round 1 - Optional MCP grounding
 
 If the topic names a specific Odoo module or feature AND OSM is reachable:
-1. Call `check_module_exists(name=<name>, odoo_version='auto')` — confirm CE/EE/Viindoo availability.
-2. Call `find_examples(query=<feature context>, limit=2, odoo_version='auto')` — retrieve 1-2 real snippets for
+1. Call `check_module_exists(name=<name>, odoo_version='<version>')` — confirm CE/EE/Viindoo availability.
+2. Call `find_examples(query=<feature context>, limit=2, odoo_version='<version>')` — retrieve 1-2 real snippets for
    technical credibility (use as background; do not paste raw code into marketing copy).
 
 Skip this round if:

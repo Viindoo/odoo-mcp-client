@@ -44,7 +44,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 - `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
@@ -102,7 +102,7 @@ deprecated/removed symbols in one batch. Every call is independent — fire them
 methods simultaneously. These calls are independent of each other and of Round 2 lookups.
 
 **Round 3b — JS patch audit (when migrating from v8–v13):** Call
-`module_inspect(name=<scope>, method='js', odoo_version='auto')` to enumerate all legacy `web.Widget`-based
+`module_inspect(name=<scope>, method='js', odoo_version='<version>')` to enumerate all legacy `web.Widget`-based
 patches in scope. Era1 (v8–v13) patches require manual OWL rewrites because the Widget API
 was removed in v16. Flag each patch as BREAKING if the target version is v14+ and the patch
 still references `AbstractField`, `FieldWidget`, or `web.Widget`. This call is independent of

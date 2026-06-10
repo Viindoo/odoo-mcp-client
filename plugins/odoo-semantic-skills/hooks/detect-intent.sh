@@ -220,6 +220,19 @@ if [ "${_is_vague}" = "true" ]; then
   fi
 fi
 
+# --- Language-mirroring reminder (SSOT: snippets/language-mirroring.md) ---
+# Non-ASCII letters in the prompt => the user is not writing plain English.
+# Remind the main agent to mirror that language in ALL chat-facing output
+# (gates, proposals, questions, summaries, relays of subagent results).
+if printf '%s' "${_prompt}" | LC_ALL=C grep -q '[^ -~]'; then
+  _lang_line="[Language] The user's prompt is not plain English. Mirror the USER'S language in every chat output - gates, proposals, plans, clarifying questions, summaries, and relays of subagent results. Keep code, identifiers, file paths, tool/skill names, URLs, and the literal reply keywords (approve / refine / cancel / yes) verbatim; explain unavoidable technical terms in plain words in the user's language on first use. SSOT: plugin snippets/language-mirroring.md"
+  if [ -n "${_context}" ]; then
+    _context="${_context}\n${_lang_line}"
+  else
+    _context="${_lang_line}"
+  fi
+fi
+
 if command -v jq >/dev/null 2>&1; then
   # jq emits a properly escaped JSON string (handles the \n + any quoting).
   jq -cn --arg ctx "$(printf '%b' "${_context}")" \

@@ -15,11 +15,16 @@ code you write or any claim you make about what Odoo does.
 
 Any statement that an Odoo model / field / method / module / edition / CLI flag / design
 token *exists*, *has a given signature*, or *behaves a certain way* MUST be backed by an
-OSM call — never asserted from memory:
+OSM call OR a direct source read — never asserted from memory:
 
 - `set_active_version` first (pin the target version), then
 - `model_inspect`, `entity_lookup`, `check_module_exists`, `lookup_core_api`,
   `module_inspect` — as appropriate to the claim.
+- When OSM is reachable but the SPECIFIC entity is not in the index (a customer-local
+  custom module/model), `Read`/`Grep` the local source for that entity instead - a
+  Tier-1 MISS per `disk-fallback-protocol.md` - and keep OSM for everything it does
+  cover (`grounded: osm + local-source (hybrid)`). An index miss is not proof of
+  absence when a local repo is available to check.
 
 An unverifiable claim is flagged as an assumption, not stated as fact.
 

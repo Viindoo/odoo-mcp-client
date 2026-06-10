@@ -40,7 +40,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 - `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
@@ -73,7 +73,7 @@ Use parallel MCP calls — a CE/EE comparison typically covers 10+ modules acros
 
 **Round 0 — Pin version + profile, scope each distribution:** `set_active_version(odoo_version=…)`, then
 `list_available_profiles()` to get the valid profile names (versioned, e.g. `odoo_17` / `viindoo_internal_17`).
-For each side of the comparison, `profile_inspect(method='repos', name=<profile>, odoo_version='auto')` to see
+For each side of the comparison, `profile_inspect(method='repos', name=<profile>, odoo_version='<version>')` to see
 that profile's real repo coverage (CE vs EE vs distribution) before comparing — so the CE/EE scope is ground
 truth, not an assumption about which module lives in which edition.
 
@@ -85,7 +85,7 @@ before firing the next.
 depth, call `model_inspect(model=…, method='fields')` on all relevant models simultaneously to
 extract field-level differences (e.g. EE adds `forecast_date`, `analytic_account_id`). These
 calls are independent of each other. For a field whose edition origin is in doubt,
-`entity_lookup(kind='field', model=…, field=…, odoo_version='auto')` returns its source module — attribute
+`entity_lookup(kind='field', model=…, field=…, odoo_version='<version>')` returns its source module — attribute
 a field to CE vs EE from the index instead of training memory.
 
 Never claim a feature is EE-only without tool verification — incorrect claims damage credibility.

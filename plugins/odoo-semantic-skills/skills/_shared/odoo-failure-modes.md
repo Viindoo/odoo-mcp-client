@@ -43,15 +43,15 @@ Tools: `model_inspect`, `resolve_orm_chain`, `find_override_point`, `lookup_core
 
 | Symptom | Likely root cause | Localize with |
 |---|---|---|
-| Blank OWL render | `t-name` mismatch JS<->QWeb; component not registered; error in `setup` | console `Missing template`/error; `module_inspect(name='<module>', method='owl', odoo_version='auto')`, `find_examples` |
-| Widget not showing | registry category/key wrong; field widget not registered | `take_snapshot` (node absent?); `module_inspect(name='<module>', method='js', odoo_version='auto')`, `suggest_pattern` |
+| Blank OWL render | `t-name` mismatch JS<->QWeb; component not registered; error in `setup` | console `Missing template`/error; `module_inspect(name='<module>', method='owl', odoo_version='<version>')`, `find_examples` |
+| Widget not showing | registry category/key wrong; field widget not registered | `take_snapshot` (node absent?); `module_inspect(name='<module>', method='js', odoo_version='<version>')`, `suggest_pattern` |
 | RPC/action silently does nothing | failing RPC (4xx/5xx) swallowed; wrong model/method | browser network list; `find_override_point` server-side |
 | SCSS override not applying | import order - winning definition loads after the override; wrong selector | `find_style_override`, `resolve_stylesheet` |
 | Flat / off-theme render | token resolves EMPTY or self-referential `--bs-*` cycle (Odoo sets `$variable-prefix:''`) | `getComputedStyle(:root)`; see `odoo-frontend-fidelity.md` token-reality check |
 | JS error after upgrade | core API symbol changed/removed | console stack; `lookup_core_api`, `api_version_diff` |
 
 > Known gap: OSM has `find_override_point` for Python but no dedicated JS/OWL override-point tool.
-> Infer JS/OWL location from `module_inspect(name='<module>', method='js', odoo_version='auto')` (also try `method='owl'`) + `find_examples` +
+> Infer JS/OWL location from `module_inspect(name='<module>', method='js', odoo_version='<version>')` (also try `method='owl'`) + `find_examples` +
 > `suggest_pattern`, and state the inference explicitly rather than over-claiming certainty.
 
 ## Layer: Security / Access

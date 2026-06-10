@@ -176,6 +176,47 @@ watch every edit, `--plan` when you only want the map. You never type a skill na
 > [`docs/reference/ORCHESTRATION-MAP.md`](docs/reference/ORCHESTRATION-MAP.md),
 > generated from `generator/skill_tool_deps.json`. Read those before changing routing or gates.
 
+### Coding dispatch and model tiers
+
+When a coding job spans several modules, `odoo-coding` does not fire a fixed wave of agents and
+wait. At its Phase 0 gate it assigns each module a **deterministic model tier** - `haiku` (trivial
+boilerplate), `sonnet` (default), `opus` (core override / cross-model / migration), or `fable`
+(rare Custom-XL, ~2x opus price, design-doc-first) - recorded in the gate table and `plan.md`. It
+then dispatches **one rolling-window Workflow-tool pipeline**: per module it runs the backend leg
+then the frontend leg, and a module starts the moment ITS dependencies finish rather than at a
+wave boundary. Concurrency is bounded by a single model-weighted budget (the OOM envelope), whose
+SSOT is [`skills/_shared/concurrency-guard.md`](skills/_shared/concurrency-guard.md): WEIGHT
+`haiku=1 / sonnet=2 / opus=4 / fable=8`, at most **8 weight-units in flight** (so opus throttles to
+2 concurrent and fable runs exclusive). If the Workflow tool is unavailable, it falls back to
+Agent-tool weighted batches with the same plan and the same per-module models.
+
+The agent frontmatter `model:` is only a default - the dispatch `model` parameter overrides it per
+work-item in either direction (same convention as `odoo-debug` and `odoo-solution-design`).
+
+```mermaid
+flowchart TD
+    GATE["Phase 0 gate<br/>scope + module graph + per-module tier"]
+    GATE --> WF{"Workflow tool<br/>available?"}
+    WF -->|yes| PIPE["Rolling-window pipeline<br/>(canonical)"]
+    WF -->|"no / denied"| BATCH["Agent-tool weighted batches<br/>(fallback, same plan)"]
+
+    subgraph BUDGET["Model-weighted budget (SSOT: concurrency-guard.md)"]
+        W["BUDGET = 8 weight-units<br/>haiku 1 - sonnet 2 - opus 4 - fable 8"]
+    end
+
+    PIPE --> BUDGET
+    BATCH --> BUDGET
+
+    subgraph PERMOD["Per module - backend then frontend"]
+        direction LR
+        BE["odoo-coder<br/>(backend leg)"] --> FE["odoo-frontend-coder<br/>(frontend leg)"]
+    end
+
+    BUDGET --> PERMOD
+    PERMOD --> DEP["Dependent module starts<br/>when ITS deps finish<br/>(no wave barrier)"]
+    DEP --> PLAN["plan.md records<br/>tier + dispatch path + status"]
+```
+
 ## Workflows
 
 The plugin ships 12 declarative workflows in `workflows/*.workflow.yaml`. Each workflow is
@@ -375,6 +416,8 @@ Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression
 
 **Multi-runtime?** Skills and commands are written for Claude Code. Codex/Gemini parity is smoke-tested in `tests/smoke/runtime_parity.md` - 10 representative skills verified across all three runtimes.
 
+**Why did a coding task run on a bigger (or smaller) model?** `odoo-coding` assigns each module a model tier deterministically at its Phase 0 gate (haiku/sonnet/opus/fable, sonnet default) from the design-doc effort tier or file/LOC/override heuristics, and you approve it before any agent fires. The tier is recorded in `plan.md`; a fable (top-tier, ~2x opus) row only appears for Custom-XL work and is itself the cost gate you sign off.
+
 **How do I add a new workflow?** Drop a `*.workflow.yaml` file in `workflows/` following the schema in `workflows/_schema.md`. The `workflow-chaining` auto-discovers it. No `plugin.json` edit needed.
 
 ## Quick install (Claude Code - 3 steps, all required)
@@ -434,7 +477,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-data-migration` | Engineer | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
 | `odoo-perf-audit` | Engineer | Audit for N+1 queries, missing prefetch, unindexed domains, compute thrash, with fixes |
 | `odoo-solution-design` | Architect / Coder | Design the technical solution (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding - the analysis-and-design step between requirement scoping and code (slim, paired with agent bundle) |
-| `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, works out module dependency order, and sequences the `odoo-coder` + `odoo-frontend-coder` agents (slim, paired with agent bundle) |
+| `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, assigns a deterministic model tier per module (haiku/sonnet/opus/fable, sonnet default), and dispatches the `odoo-coder` + `odoo-frontend-coder` agents as ONE rolling-window Workflow-tool pipeline (per-module backend->frontend, model-weighted concurrency budget) with an Agent-tool weighted-batch fallback (slim, paired with agent bundle) |
 | `odoo-frontend-design` | Architect / Coder / Visual | Knowledge-only design-quality expertise for Odoo UI/UX (view-type choice, form hierarchy, density, semantic tokens, website/portal theming); loaded by `odoo-solution-design` and `odoo-coding`, and the bar `odoo-ui-review` rates against (no agent spawn) |
 | `odoo-code-review` | Code-Reviewer | Review Odoo patches for ORM/inheritance/security pitfalls (slim, paired with agent bundle) |
 | `odoo-feature-check` | Pre-Sales Consultant | Check if a feature exists in standard CE or EE |
@@ -465,13 +508,13 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 
 ### Agents (7)
 
-| Agent | Model | Role |
-|-------|-------|------|
-| `odoo-coder` | Sonnet | Agent bundle for code writing - invoked by main agent and commands; depth-1 safe with restricted-tool autonomy |
-| `odoo-solution-architect` | Opus | Agent bundle for solution design (companion to `odoo-solution-design`) - produces a grounded Technical Design Document (approach / data model / override strategy / module structure / risks) before code; full odoo-semantic tool surface, read-only, writes only the design doc |
+| Agent | Model (default) | Role |
+|-------|-----------------|------|
+| `odoo-coder` | Sonnet *(default; per-work-item tier overrides - haiku/sonnet/opus/fable)* | Agent bundle for backend code writing - invoked by main agent and commands; depth-1 safe with restricted-tool autonomy. The dispatcher (`odoo-coding`) passes an explicit `model` per module from its tier table; frontmatter is only the default. |
+| `odoo-solution-architect` | Opus *(default; fable for Custom-XL designs)* | Agent bundle for solution design (companion to `odoo-solution-design`) - produces a grounded Technical Design Document (approach / data model / override strategy / module structure / risks) before code; full odoo-semantic tool surface, read-only, writes only the design doc |
 | `odoo-code-reviewer` | Sonnet | Agent bundle for code review - runs full PR-scope analysis with OSM grounding |
 | `odoo-ui-reviewer` | Sonnet | Agent bundle for visual UI review - drives a live browser through a five-lens audit with screenshot, console, and Lighthouse evidence plus OSM source pointers |
-| `odoo-frontend-coder` | Sonnet | Agent bundle for frontend code writing - JS/OWL/QWeb/SCSS across legacy and OWL eras with OSM grounding and design-system fidelity (companion to the `odoo-coding` skill) |
+| `odoo-frontend-coder` | Sonnet *(default; per-work-item tier overrides - haiku/sonnet/opus/fable)* | Agent bundle for frontend code writing - JS/OWL/QWeb/SCSS across legacy and OWL eras with OSM grounding and design-system fidelity (companion to the `odoo-coding` skill). Dispatched at the module's tier (or a lower `frontendModel` when the design splits effort). |
 | `odoo-backend-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes Python/ORM/server runtime failures via the scientific method, OSM-only (no browser) |
 | `odoo-ui-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes OWL/JS/QWeb/SCSS runtime failures from live browser evidence + OSM grounding (serial-exclusive browser use) |
 

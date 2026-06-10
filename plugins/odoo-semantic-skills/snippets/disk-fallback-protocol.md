@@ -34,9 +34,20 @@ Tripping the breaker keeps you at `grounded: local-source` - it does **not** dro
 The `odoo-semantic` index. `set_active_version` → `model_inspect` / `entity_lookup` /
 `check_module_exists` / `find_examples` / `lookup_core_api`, etc. Use whenever reachable.
 
+**Tier-1 MISS (reachable but the entity is not in the index).** OSM indexes Odoo core and
+the configured repos/profiles - it does NOT index every customer-local addon. When OSM is
+reachable but returns not-found/empty for a SPECIFIC module, model, or field that the
+request says exists (typically a customer-local custom module), that is a MISS, not proof
+of absence: keep using Tier 1 for everything it does cover, and drop to Tier 2 ONLY for the
+missed entities - `Read`/`Grep` the local addons to get their fields, methods, manifest
+`depends`, and views. Label the artifact `grounded: osm + local-source (hybrid)`. Never
+conclude "module does not exist" from an index miss alone when a local repo is available to
+check.
+
 ## Tier 2 - Disk- / live-grounded (use BEFORE ever asking a human)
 
-When Tier 1 is unreachable, self-serve from real sources you already have access to:
+When Tier 1 is unreachable - or for the specific entities a Tier-1 MISS could not cover -
+self-serve from real sources you already have access to:
 
 - **Local Odoo source** - discover modules with `Bash`: `find . -maxdepth 4 -name __manifest__.py`;
   `Read` each manifest for `version` / `depends` / `summary`; `Grep` model classes

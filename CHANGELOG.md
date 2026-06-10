@@ -6,6 +6,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-06-10
+
+### Added
+
+- **Rolling-window codegen dispatch + per-work-item model tiers** (`odoo-semantic-skills`,
+  closes #59): `odoo-coding` replaces the fixed "fire 3, wait, fire 3" Agent-tool batching
+  with a canonical **Workflow-tool pipeline** (per-module backend->frontend stages, dependency
+  promises instead of wave barriers, plain-JS weighted semaphore) plus an Agent-tool
+  weighted-batch fallback when the Workflow tool is unavailable. Phase 0 gains a deterministic
+  4-tier model table (haiku / sonnet / opus / **fable**, sonnet default) sourced from the
+  design-doc effort tier or file/LOC/override heuristics; the gate table and `plan.md` now
+  record an explicit `model` per work-item, and every dispatch passes `model` explicitly
+  (agent frontmatter is a floor only, mirroring `odoo-debug`).
+- **Concurrency-guard SSOT** (`skills/_shared/concurrency-guard.md`): the OOM fan-out rule
+  now lives in one place - Mode A (legacy cap-3 batching) and Mode B (model-weighted budget:
+  haiku=1, sonnet=2, opus=4, fable=8; budget 8). The five fan-out skills (`odoo-coding`,
+  `odoo-debug`, `odoo-code-review`, `wave`, `workflow-chaining`) reference it instead of
+  restating the numbers. Guarded by `tests/test_concurrency_guard_ssot.py`.
+- **Claude Fable 5 integration** (`claude-fable-5`, tier above opus, 2x opus price):
+  row 1 of the `odoo-coding` tier table (Custom-XL / >=3-module full-stack work, never a
+  default, design-doc-first), and `odoo-solution-design` now passes an explicit
+  `model: opus|fable` per dispatch (fable only for Custom-XL designs).
+- **Coder agents** (`odoo-coder`, `odoo-frontend-coder`): documented the model
+  floor/override convention and the shared-version invariant for concurrent runs;
+  frontend-coder gains a Read-the-SKILL fallback for `odoo-frontend-design` when the Skill
+  tool is unavailable under the Workflow harness.
+
 ## [3.4.1] - 2026-06-09
 
 ## [3.4.0] - 2026-06-08

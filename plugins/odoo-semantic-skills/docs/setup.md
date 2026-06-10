@@ -511,7 +511,7 @@ Commit or `.gitignore` the file as appropriate for your team (the key is sensiti
 
 ## Session Context Setup (v0.5+) — `set_active_version` / `set_active_profile`
 
-Starting in v0.5.0 the MCP server supports **sticky session context** so you stop repeating `odoo_version="17.0"` on every call. Run `set_active_version` once and the value is remembered per live MCP session (24h idle TTL; resets on server restart). Similarly `set_active_profile` pins the tenant profile.
+The MCP server supports **sticky session context**: run `set_active_version` once and the value is remembered (24h idle TTL). CAUTION: the pin is per-API-key server state - concurrent agents or parallel sessions sharing the key overwrite each other, so under any concurrency pass the concrete `odoo_version` on every call instead of relying on the pin. Similarly `set_active_profile` pins the tenant profile.
 
 **Recommended startup flow** for any AI client (Claude Code, Codex, Gemini, VS Code, Antigravity):
 
@@ -523,9 +523,9 @@ Starting in v0.5.0 the MCP server supports **sticky session context** so you sto
 5. <any tool call with odoo_version omitted>   # falls back to the pinned value
 ```
 
-After step 2, calling `model_inspect(model="sale.order", method="summary", odoo_version='auto')` (no `odoo_version=` arg) returns results for `17.0`. Override at any time by passing `odoo_version=` explicitly on a single call (one-off; does **not** clear the sticky value).
+After step 2, pass the concrete pinned version on every call, e.g. `model_inspect(model="sale.order", method="summary", odoo_version='17.0')`. The server also accepts `odoo_version='auto'` to resolve against the sticky pin, but the pin is keyed per API key - any concurrent agent or parallel session sharing the key can overwrite it - so this plugin's skills and agents always pass the concrete version instead.
 
-> See the [implicit session context docs](https://odoo-semantic.viindoo.com/docs/adr/0029-implicit-session-context) for the TTL behavior and per-session keying rationale.
+> See the [implicit session context docs](https://odoo-semantic.viindoo.com/docs/adr/0029-implicit-session-context) for the TTL behavior and pin-keying details.
 
 ---
 
@@ -559,7 +559,7 @@ Clients that implement the MCP `resources/list` and `resources/read` flows surfa
 
 The server exposes **25 tools** at v0.13.1. The v0.7 surface added 2 stylesheet tools
 (`resolve_stylesheet`, `find_style_override`) on top of the v0.6 base; v0.8 added 4
-ORM-validation tools; v0.10.0 added `module_inspect(method='dependencies', odoo_version='auto')`. The 10
+ORM-validation tools; v0.10.0 added `module_inspect(method='dependencies', odoo_version='<version>')`. The 10
 flat `resolve_*` / `list_*` tools that existed in v0.4-v0.5 were deprecated in v0.5 and
 **removed in v0.6** — they no longer exist on the server. If you encounter prompts or
 snippets that reference the old names, replace them with the supersets below.

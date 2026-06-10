@@ -35,6 +35,23 @@ what they want or what outcome they need. This skill's job is to:
 4. **Never do the routed work itself** — it MAY produce plan/design artifacts during its
    turn, but the routed *execution* (production code, proposals) happens after approval.
 
+## Language — mirror the user in every chat output
+
+The user prompts in THEIR language; every chat-facing output of this
+skill - brainstorm framings, option menus, plan proposals, RUN-DAG summaries, gates,
+clarifying questions - is written in that language, mirroring their prompts. The templates
+in this file are instructions to you, not text to paste: keep their STRUCTURE (lines,
+tables, reply keywords `approve` / `refine:` / `cancel` / `yes` verbatim) but translate
+every label and sentence. Keep code, identifiers, module/model names, file paths, skill
+names, and URLs verbatim; explain unavoidable technical terms in plain words in the user's
+language on first use. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`.
+
+Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, proposals,
+design docs, marketing copy, code, docstrings - follow the artifact-voice contract instead:
+present-tense current-state writing, no process narration, no dates-as-provenance, no
+tracker references. Chat may narrate freely; artifacts may not. Full contract:
+`${CLAUDE_PLUGIN_ROOT}/snippets/artifact-voice.md`.
+
 ## Hard rules
 
 1. **Intake MAY write planning/design artifacts (brainstorm notes, design docs, `state.json`)

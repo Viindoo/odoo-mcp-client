@@ -109,9 +109,9 @@ Confirm with the user (or derive from context):
 Simultaneously call (parallel):
 
 ```
-model_inspect(model=<source_model>, odoo_version='auto')
-model_inspect(model=<target_model>, odoo_version='auto')   # if model changes
-entity_lookup(kind='field', model=<source_model>, name=<source_field>, odoo_version='auto')
+model_inspect(model=<source_model>, odoo_version='<version>')
+model_inspect(model=<target_model>, odoo_version='<version>')   # if model changes
+entity_lookup(kind='field', model=<source_model>, name=<source_field>, odoo_version='<version>')
 api_version_diff(symbol=<model_or_field>, from_version=<source_v>, to_version=<target_v>)
 ```
 
@@ -320,9 +320,9 @@ When OSM is unreachable, follow the three-tier grounding in
 **User:** "Rename `x_legacy_ref` to `external_ref` on `sale.order` in our v17 module."
 
 **Skill action:**
-- Round 1: `model_inspect(model='sale.order', method='fields', odoo_version='auto')` to confirm `x_legacy_ref` is a stored
+- Round 1: `model_inspect(model='sale.order', method='fields', odoo_version='<version>')` to confirm `x_legacy_ref` is a stored
   field with column `x_legacy_ref`.
-- Round 2: `lookup_core_api(name='openupgradelib.rename_field', odoo_version='auto')` to confirm helper signature.
+- Round 2: `lookup_core_api(name='openupgradelib.rename_field', odoo_version='<version>')` to confirm helper signature.
 - Round 3: Write `pre-migrate.py` using `openupgrade.rename_field` with idempotent guard.
 - Round 4: Emit verification checklist with the before/after SQL spot-checks.
 
@@ -331,7 +331,7 @@ When OSM is unreachable, follow the three-tier grounding in
 **User:** "We added a stored `amount_total_signed` field to `account.move` - backfill it for historical records."
 
 **Skill action:**
-- Round 1: `model_inspect(model='account.move', method='fields', odoo_version='auto')` to confirm `amount_total`, `move_type`,
+- Round 1: `model_inspect(model='account.move', method='fields', odoo_version='<version>')` to confirm `amount_total`, `move_type`,
   and `currency_id` exist as stored columns (needed for the backfill formula).
 - Round 2: `entity_lookup` on `amount_total_signed` to confirm the compute logic.
 - Round 3: Write `post-migrate.py` with a parameterized UPDATE, row-count logging, and
@@ -343,7 +343,7 @@ When OSM is unreachable, follow the three-tier grounding in
 **User:** "We changed `stage` from a Selection to a Many2one on `project.task` - write the migration."
 
 **Skill action:**
-- Round 1: `model_inspect(model='project.task', method='fields', odoo_version='auto')` to confirm the old `stage` column
+- Round 1: `model_inspect(model='project.task', method='fields', odoo_version='<version>')` to confirm the old `stage` column
   type. `api_version_diff` to check if `stage_id` already exists in the target version.
 - Round 2: `validate_relation` to confirm the target Many2one model exists.
 - Round 3: Write both `pre-migrate.py` (add `stage_id` column before ORM load) and

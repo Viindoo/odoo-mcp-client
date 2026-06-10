@@ -39,7 +39,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted).
+- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
 - `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
@@ -83,7 +83,7 @@ historical context, but never assert a feature "was added in v17" without MCP co
 **Round 2 — Parallel:** After Round 1 results arrive, call `find_examples` (for top impactful
 models: `sale.order`, `account.move`, `mrp.production`, `hr.leave`) +
 `model_inspect(model=…, method='fields')` (for headline feature key models) + `check_module_exists`
-(for all modules being highlighted) + `module_inspect(name=<module>, method='summary', odoo_version='auto')`
+(for all modules being highlighted) + `module_inspect(name=<module>, method='summary', odoo_version='<version>')`
 (for those same modules) all simultaneously. None of these depend on each other — batch them in one round.
 The `module_inspect` summary gives concrete architecture numbers (N models defined/extended, N views) so the
 copy can say "adds 3 new models and 12 views" instead of just "module exists".

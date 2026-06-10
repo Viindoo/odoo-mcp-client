@@ -133,7 +133,7 @@ Mark each cell: **+** (competitor advantage) / **-** (your platform advantage) /
 
 Your platform baseline must be grounded in the index, not asserted from training data. When OSM is
 reachable, fill the "your platform" column from `profile_inspect(method='summary', name=<your_profile>,
-odoo_version='auto')` (real inheritance chain + repos + module count) and `profile_inspect(method='modules', …)`
+odoo_version='<version>')` (real inheritance chain + repos + module count) and `profile_inspect(method='modules', …)`
 for the module-coverage row — this turns the platform side of the matrix into verifiable fact. The competitor
 column is filled from user-provided data only; do NOT infer competitor capabilities not stated by the user.
 

@@ -51,7 +51,7 @@ Build accurate CE/EE comparison tables. The tool returns the `is_ee` flag and EE
 ### Technical deep-dives
 
 ```
-find_examples("multi-currency invoice reconciliation workflow", odoo_version='auto')
+find_examples("multi-currency invoice reconciliation workflow", odoo_version='<version>')
 ```
 
 Semantic code search returns real implementation examples. Great for writing accurate technical content about how Odoo handles complex scenarios.

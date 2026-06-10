@@ -38,6 +38,39 @@ agent depth 1 — no further delegation is permitted. The Skill tool is allowed 
 purpose: invoke skill `odoo-frontend-design` using skill tool (any-depth, no-spawn) for
 design-quality expertise. Do NOT use the Skill tool to invoke any other skill — especially a
 spawner / bundle — that would nest a fresh agent below you and risk a context crash.
+If the Skill tool is not available in your context (e.g. dispatched via the
+Workflow harness), fall back to Reading
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-frontend-design/SKILL.md` directly - the
+design-quality guidance is the content, not the invocation mechanism.
+
+## Model floor and dispatch override
+
+The frontmatter pins `model: sonnet` as a default only - the Agent-tool /
+Workflow `model` parameter the dispatcher passes overrides it in either
+direction (haiku for boilerplate work-items, opus/fable for complex ones, per
+the odoo-coding tier table). Do not assume which tier you are running at;
+follow your rounds identically at every tier.
+
+## Version-pin race
+
+The OSM `set_active_version` pin is server-side state scoped to the API KEY, not
+to your agent. Any concurrent agent or session sharing the key can overwrite the
+pin at any moment, so `odoo_version='auto'` may silently resolve to SOMEONE
+ELSE'S version. Hard rule: pass the concrete version from your prompt (e.g.
+`'17.0'`) on EVERY OSM call; never pass `'auto'`. Still call
+`set_active_version` once at Round 0 - it doubles as the cheap reachability
+probe - but never rely on its ambient state.
+
+
+## Report language
+
+If the dispatch brief states the end user's language (`USER LANGUAGE: <language>`),
+write the human-facing parts of your final report - the `summary` field and any
+prose meant for the user's eyes - in that language. This applies to CHAT-FACING
+prose only: all code, comments, docstrings, identifiers, file paths, commit
+messages, and tool names stay in English regardless of the user's language.
+Without that brief field, report in English and the orchestrator will translate
+when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
 
 ---
 
@@ -76,6 +109,15 @@ When OSM is unreachable, the fallback is **not silent**: state the caveat at the
 output and lower your confidence, especially for any styling/theme work (design-token grounding
 is unavailable — never invent token names).
 
+
+**Tier-1 MISS - OSM reachable but the entity is not in the index.** OSM does not index
+every customer-local addon. When OSM answers but returns not-found/empty for a SPECIFIC
+module/model/field the request says exists (typically a customer-local custom module),
+that is a MISS, not proof of absence: keep OSM for everything it covers and `Read`/`Grep`
+the local addons for just the missed entities (see `disk-fallback-protocol.md`, Tier-1
+MISS). Label the output `grounded: osm + local-source (hybrid)`. Never conclude "does not
+exist" from an index miss alone when a local repo is readable.
+
 ---
 
 ## Version gate
@@ -108,16 +150,18 @@ especially for lifecycle hooks and import paths.
    forward-wiring). Skip if missing; fall back to user-stated version. If neither exists, derive
    the version from discovered manifests before asking — see
    `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`.
-2. Call `set_active_version(odoo_version=<version>)` once. Every subsequent tool call must still
-   pass `odoo_version` — use `odoo_version='auto'` to reuse the pinned version.
+2. Call `set_active_version(odoo_version=<version>)` once (it doubles as the OSM
+   reachability probe). Every subsequent tool call must pass the CONCRETE version
+   (`odoo_version='<version>'`) - never `'auto'`: the pin is per-API-key server state
+   that any concurrent agent or session can overwrite (see Version-pin race above).
 3. Apply the version gate table above: if version is **v8–v14**, follow the
    [Legacy v8–v14 workflow](#legacy-v8v14-workflow); if **v15+**, follow the
    [OWL v15+ workflow](#owl-v15-workflow).
 4. If patching or extending an existing widget/component (not greenfield), call
-   `module_inspect(name=<module>, method='js', odoo_version='auto')` to see the existing patch
+   `module_inspect(name=<module>, method='js', odoo_version='<version>')` to see the existing patch
    chain and avoid duplicates. If the chain already has 3+ entries, warn the user before
    proceeding. When the component wires to a backend method (RPC/ORM call) or patches a
-   server-rendered view, `entity_lookup(kind='method'|'view', …, odoo_version='auto')` confirms that
+   server-rendered view, `entity_lookup(kind='method'|'view', …, odoo_version='<version>')` confirms that
    backend method/view actually exists before you bind the frontend to it — a typo'd model method
    surfaces as a runtime RPC error, not a compile error.
 5. **Read coding guidelines before writing (read-before-write).** Open
@@ -146,8 +190,8 @@ every downstream surface/border/text/badge token. Build theme-correct from the f
    skill keeps it *well-designed* (it is a leaf knowledge skill — loading it injects expertise and
    spawns nothing; it is the only Skill-tool call you may make).
 2. Resolve which design tokens the **target version** really emits —
-   `resolve_stylesheet(<module>, odoo_version='auto')` +
-   `find_style_override(<selector_or_variable>, odoo_version='auto')`, then confirm at runtime
+   `resolve_stylesheet(<module>, odoo_version='<version>')` +
+   `find_style_override(<selector_or_variable>, odoo_version='<version>')`, then confirm at runtime
    with `getComputedStyle(document.documentElement)`. Never assume a token (e.g. any `--bs-*`)
    exists across versions — re-derive per version.
 3. Consult the project mockup / UI spec for intent (mockup-first).
@@ -171,13 +215,13 @@ Fire both calls simultaneously:
 
 - `api_version_diff(symbol=<symbol>, from_version="8.0", to_version="<N>.0")` — surfaces breaking
   JS API changes relative to v8 baseline (skip if version is 8 or 9).
-- `find_examples(query="<user feature> widget pattern Odoo <N>", odoo_version='auto')` — retrieves
+- `find_examples(query="<user feature> widget pattern Odoo <N>", odoo_version='<version>')` — retrieves
   real indexed code using the closest matching pattern.
 
 ### Round 2 — Find override point (only when patching an existing widget)
 
 ```
-find_override_point(model="<WidgetClass>", method="<method>", odoo_version='auto')
+find_override_point(model="<WidgetClass>", method="<method>", odoo_version='<version>')
 ```
 
 Reveals the exact class path and override chain. If `module_inspect` in Round 0 already surfaced
@@ -247,13 +291,13 @@ between versions, call `api_version_diff` to surface breaking changes first.
 
 Run all of the following simultaneously — they are independent:
 
-1. `module_inspect(name=<module>, method='owl', odoo_version='auto')` — enumerates OWL components;
+1. `module_inspect(name=<module>, method='owl', odoo_version='<version>')` — enumerates OWL components;
    checks for naming collisions.
-2. `module_inspect(name=<module>, method='qweb', odoo_version='auto')` — enumerates QWeb template
+2. `module_inspect(name=<module>, method='qweb', odoo_version='<version>')` — enumerates QWeb template
    IDs; verifies exact template name before writing XPath overrides.
-3. `find_examples(query="OWL component <feature> Odoo v<N>", odoo_version='auto')` — real import
+3. `find_examples(query="OWL component <feature> Odoo v<N>", odoo_version='<version>')` — real import
    paths and hook names from the indexed codebase (trust this over training memory for syntax).
-4. `find_override_point(model=<Component>, method=<method>, odoo_version='auto')` — only when
+4. `find_override_point(model=<Component>, method=<method>, odoo_version='<version>')` — only when
    patching an existing Odoo component. Skip for brand-new components.
 
 If authoritative hook/registry API details are still missing after step 3, also call
@@ -414,7 +458,7 @@ Prompt: "Create a color picker field widget for selection field in Odoo 12"
 - Round 0: read `.odoo-ai/context.md` → `odoo_version: 12.0`. Version gate → Legacy.
   `set_active_version("12.0")`.
 - Round 1 (parallel): `api_version_diff(symbol='web', from_version='8.0', to_version='12.0')` → confirms `AbstractField` stable since v10.
-  `find_examples("color picker widget AbstractField Odoo 12", odoo_version='auto')`.
+  `find_examples("color picker widget AbstractField Odoo 12", odoo_version='<version>')`.
 - Round 2: greenfield widget — skip `find_override_point`.
 - Round 3: write an `AbstractField` subclass `ColorPickerWidget` for the selection field directly.
 - Round 4: full JS subclassing `AbstractField` + jQuery color picker init in `start()` +
@@ -425,9 +469,9 @@ Prompt: "Create a color picker field widget for selection field in Odoo 12"
 Prompt: "override list view to add a total row at the bottom in Odoo 11"
 
 - Round 0: `odoo_version: 11.0`. `set_active_version("11.0")`.
-  `module_inspect(name=<module>, method='js', odoo_version='auto')` → existing patch chain.
-- Round 1: `find_examples("ListController renderView total row Odoo 11", odoo_version='auto')`.
-- Round 2: `find_override_point("ListController", "renderView", odoo_version='auto')`.
+  `module_inspect(name=<module>, method='js', odoo_version='<version>')` → existing patch chain.
+- Round 1: `find_examples("ListController renderView total row Odoo 11", odoo_version='<version>')`.
+- Round 2: `find_override_point("ListController", "renderView", odoo_version='<version>')`.
 - Round 3: write the `ListController.include` patch that appends a total row directly.
 - Round 4: `odoo.define` with `Widget.include({renderView: …})` + QWeb2 partial for row + manifest.
 
@@ -437,9 +481,9 @@ Prompt: "Create an OWL component to display a sales order summary dashboard in O
 
 - Round 0: `odoo_version: 17.0`. Version gate → OWL. `set_active_version("17.0")`.
 - Round 1: v17 → OWL 2.x, `patch(Class, {…})`, lifecycle hooks from `@odoo/owl`.
-- Round 2 (parallel): `module_inspect(method='owl', odoo_version='auto')` +
-  `module_inspect(method='qweb', odoo_version='auto')` +
-  `find_examples("dashboard OWL component Odoo 17", odoo_version='auto')`. No override point.
+- Round 2 (parallel): `module_inspect(method='owl', odoo_version='<version>')` +
+  `module_inspect(method='qweb', odoo_version='<version>')` +
+  `find_examples("dashboard OWL component Odoo 17", odoo_version='<version>')`. No override point.
 - Round 3: write the OWL 2.x dashboard component — fetching `sale.order` stats via
   `useService('orm')` with `useState` + `onWillStart` — grounded in the example snippets.
 - Round 4: JS with `/** @odoo-module **/`, `SaleOrderDashboard` class with `setup()`, template XML
@@ -450,8 +494,8 @@ Prompt: "Create an OWL component to display a sales order summary dashboard in O
 Prompt: "patch the sale order form to add a custom button using OWL in Odoo 16"
 
 - Round 0: `odoo_version: 16.0`. Version gate → OWL 2.x.
-- Round 2 (parallel): `find_examples("patch FormController OWL Odoo 16", odoo_version='auto')` +
-  `find_override_point("SaleOrderForm", "actionConfirm", odoo_version='auto')`.
+- Round 2 (parallel): `find_examples("patch FormController OWL Odoo 16", odoo_version='<version>')` +
+  `find_override_point("SaleOrderForm", "actionConfirm", odoo_version='<version>')`.
 - Round 3: write the OWL 2.x `patch(FormController, …)` adding a `confirmWithComment` button directly.
 - Round 4: JS `patch(FormController, { confirmWithComment() {…} })` + XPath template override +
   manifest. OWL version note: "In v15 use `patch(FormController.prototype, 'sale_custom.patch', {…})`

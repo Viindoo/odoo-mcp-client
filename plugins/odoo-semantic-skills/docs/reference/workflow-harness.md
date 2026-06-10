@@ -284,7 +284,7 @@ figures are hard-coded in the skill body.
 ```
 
 Edge `type` values: `technical | business-logic | data-flow`.  
-Technical edges come from `module_inspect(method='dependencies', odoo_version='auto')` (deterministic).  
+Technical edges come from `module_inspect(method='dependencies', odoo_version='<version>')` (deterministic).  
 Business-logic and data-flow edges come from Opus cluster reasoning.
 
 ---
@@ -537,8 +537,13 @@ Also include per-WI:
 - **verify command** — runnable command from the Repo Capability Card
 
 `model` is read from the candidate's `SKILL.md` or `agents/*.md` frontmatter
-(`model:` field) — never guessed or hard-coded in the plan. `effort` follows the
-gap-analysis legend: **S = <1 day · M = 1–3 days · L = 3–10 days · XL = >10 days**.
+(`model:` field) — never guessed or hard-coded in the plan. Exception: skills
+with an explicit per-dispatch tier table (`odoo-coding`, `odoo-debug`,
+`odoo-solution-design`) DO record the chosen dispatch `model`
+(haiku/sonnet/opus/fable) in their gate table and plan.md - there the
+frontmatter is only the default the dispatch parameter overrides. `effort`
+follows the gap-analysis legend: **S = <1 day · M = 1–3 days · L = 3–10 days ·
+XL = >10 days**.
 
 #### Short examples
 
@@ -574,6 +579,9 @@ Do NOT copy fields between sources — duplication creates drift.
 
 - `model_tier` lives in frontmatter and MUST NOT be copied into any registry or plan
   as a constant. Read it fresh at plan time from the candidate's own SKILL.md.
+  (Per-dispatch tier-table skills - `odoo-coding`, `odoo-debug`,
+  `odoo-solution-design` - are the exception above: their plans record the
+  dispatch tier per work-item.)
 - `effort` is per-task, not per-skill. Two invocations of the same skill can have
   different effort tiers depending on scope.
 - `output_mode` is the only attribute whose SSOT is the registry — the explicit
@@ -648,7 +656,7 @@ fallback: standalone             # each phase documents OSM-down degradation inl
 | `phases[].inline` | bool | Runner handles this phase itself (no separate skill) |
 | `phases[].agent` | string | Agent-tool bundle (e.g. `odoo-code-reviewer`) for read-only passes |
 | `phases[].nl_trigger` | string | NL prompt passed to NL-dispatch to fire the skill |
-| `phases[].model_tier` | enum | `haiku / sonnet / opus` — Sonnet is the floor for write phases |
+| `phases[].model_tier` | enum | `haiku / sonnet / opus` — Sonnet is the floor for write phases. (Agent-tool dispatches outside YAML workflows additionally know the `fable` tier - see `skills/_shared/concurrency-guard.md` Mode B.) |
 | `phases[].gate` | string | Gate options shown to user between phases |
 | `resume` | bool | Write `<slug>-state.json` after each phase for resume support |
 | `fallback` | string | Degradation policy when the odoo-semantic-mcp server is unreachable |
@@ -666,8 +674,8 @@ fallback: standalone             # each phase documents OSM-down degradation inl
 
 **Fan-out ceiling**: `context: fork` workers carry the hard-rules line
 (`Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write.`)
-and are capped at 3 concurrent workers to avoid OOM (see failure log
-`unbounded-opus-fanout-oom`).
+and are capped at 3 concurrent workers (Mode A - see
+`skills/_shared/concurrency-guard.md`, the SSOT for the OOM fan-out rule).
 
 ### 5.5 Registration and validation
 

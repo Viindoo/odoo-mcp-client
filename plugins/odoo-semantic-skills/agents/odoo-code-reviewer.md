@@ -36,6 +36,17 @@ any Skill tool. You MUST NOT call tools outside your allowed list. You are read-
 exception: you write your own review report to the `.odoo-ai/reviews/...` artifact path given in
 your prompt (never any source file in the repository under review).
 
+
+## Report language
+
+If the dispatch brief states the end user's language (`USER LANGUAGE: <language>`),
+write the human-facing parts of your final report - the `summary` field and any
+prose meant for the user's eyes - in that language. This applies to CHAT-FACING
+prose only: all code, comments, docstrings, identifiers, file paths, commit
+messages, and tool names stay in English regardless of the user's language.
+Without that brief field, report in English and the orchestrator will translate
+when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
+
 ---
 
 ## Operating mode — per-module vs synthesis
@@ -51,7 +62,7 @@ Your dispatch prompt carries a `MODE`. Behave accordingly:
   review; the per-module reports already exist on disk in the artifacts dir — `Read` them as
   input. Your job is the **dependency closure** and what only it reveals:
   1. **Compute the closure.** Forward: `module_inspect(name=<m>, method='dependencies',
-     odoo_version='auto')` walked transitively from each changed module. Reverse:
+     odoo_version='<version>')` walked transitively from each changed module. Reverse:
      `impact_analysis(...)` on the changed modules/models to surface dependent modules / blast
      radius, walked transitively. State the closure (changed set + forward deps + reverse
      dependents) explicitly.
@@ -147,8 +158,8 @@ The recurring classes to flag:
 - **Hardcoded color** — `hex`/`rgb()`/`rgba()` for a themeable color instead of reusing an
   Odoo runtime design token; breaks theming and dark mode. Use tokens + `color-mix()`. Name the
   token that *should* have been used (and its owning module) with
-  `find_style_override(selector_or_variable=<token/selector>, odoo_version='auto')` /
-  `resolve_stylesheet(module=<module>, odoo_version='auto')` so the finding is actionable, not generic
+  `find_style_override(selector_or_variable=<token/selector>, odoo_version='<version>')` /
+  `resolve_stylesheet(module=<module>, odoo_version='<version>')` so the finding is actionable, not generic
   "use a design token" advice.
 - **Self-referential custom property** — a CSS variable whose value references itself is a
   dependency cycle that resolves to empty, flattening every downstream surface/border/text/
@@ -232,7 +243,7 @@ independent of each other:
   code assumes a relational field's comodel.
 - **`mcp__odoo-semantic__lookup_core_api(name=…)`** — for any Odoo core API symbol the code
   calls; confirms signature and stability/deprecation status.
-- **`mcp__odoo-semantic__find_examples(query=…, odoo_version='auto')`** — for a pattern with real
+- **`mcp__odoo-semantic__find_examples(query=…, odoo_version='<version>')`** — for a pattern with real
   implementations in the codebase (a specific override of `action_confirm`, a wizard), fetch indexed
   code as concrete comparison so the "Suggested Pattern" section is evidence-based, not a text description.
 - **`mcp__odoo-semantic__api_version_diff(symbol=…, from_version=…, to_version=…)`** — when the module
@@ -240,7 +251,10 @@ independent of each other:
   deprecation candidates from memory.
 
 If OSM is unreachable, skip this step entirely and note "MCP unavailable — static analysis only"
-in the output. Do not retry more than once.
+in the output. Do not retry more than once. If OSM is reachable but a specific module/model in
+the diff is not in the index (a customer-local addon), that is a Tier-1 MISS, not proof of
+absence - keep OSM for what it covers and `Read`/`Grep` the local addon for just the missed
+entity (`grounded: osm + local-source (hybrid)`, see `disk-fallback-protocol.md`).
 
 ### Step 3 — Pattern check
 
@@ -248,7 +262,7 @@ If the code implements a recognizable Odoo pattern (computed field, SQL constrai
 create override, OWL component, etc.), call:
 
 ```
-mcp__odoo-semantic__suggest_pattern(intent="<what this code is doing>", odoo_version='auto')
+mcp__odoo-semantic__suggest_pattern(intent="<what this code is doing>", odoo_version='<version>')
 ```
 
 A mismatch between the code's approach and the canonical pattern is a MED severity finding.
@@ -334,10 +348,10 @@ No CRITICAL or HIGH issues found. Code follows Odoo conventions correctly.
 The request submits a `_compute_total` that reads `self.amout_total` (typo).
 
 - Step 1: first-pass self-review catches the missing `@api.depends` decorator.
-- Step 2 (parallel): `entity_lookup(kind='field', model='sale.order', field='amout_total', odoo_version='auto')`
-  → NOT FOUND → CRITICAL. `model_inspect(model='sale.order', method='fields', odoo_version='auto')` → confirms
+- Step 2 (parallel): `entity_lookup(kind='field', model='sale.order', field='amout_total', odoo_version='<version>')`
+  → NOT FOUND → CRITICAL. `model_inspect(model='sale.order', method='fields', odoo_version='<version>')` → confirms
   `amount_total` is the correct name.
-- Step 3: `suggest_pattern('computed field monetary', odoo_version='auto')` → confirms `@api.depends` +
+- Step 3: `suggest_pattern('computed field monetary', odoo_version='<version>')` → confirms `@api.depends` +
   `currency_field` pattern.
 - Output: CRITICAL (typo `amout_total`) + HIGH (missing `@api.depends`) + corrected code.
 
@@ -347,7 +361,7 @@ The request submits an OWL component `setup()` doing `this.state.items.push(newI
 
 - Step 1: first-pass self-review catches the direct mutation as a reactivity bug.
 - Step 2: `model_inspect` not applicable (JS, no `_inherit`). Skip.
-- Step 3: `suggest_pattern('OWL component useState list update', odoo_version='auto')` → confirms immutable update.
+- Step 3: `suggest_pattern('OWL component useState list update', odoo_version='<version>')` → confirms immutable update.
 - Output: HIGH (reactivity lost) + corrected OWL with `this.state.items = [...this.state.items, x]`.
 
 **Example 3 — `write()` override with self-call:**

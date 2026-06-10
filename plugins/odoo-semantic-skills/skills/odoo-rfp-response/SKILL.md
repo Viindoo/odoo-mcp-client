@@ -111,7 +111,7 @@ keyword before firing.
 
 **Round 2 - Parallel (after Round 1):** For requirements where Round 1 returned a partial match
 or where the module scope is unclear, call `model_inspect(model=…, method='fields')` +
-`module_inspect(name=<module>, method='summary', odoo_version='auto')` in parallel. One
+`module_inspect(name=<module>, method='summary', odoo_version='<version>')` in parallel. One
 `module_inspect` per ambiguous module; one `model_inspect` per ambiguous model. These two tools
 together reveal whether the standard view/flow already covers the requirement (no gap) or
 whether a field/view is absent (gap confirmed).

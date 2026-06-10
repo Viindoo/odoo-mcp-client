@@ -495,7 +495,7 @@
       "name": "set_active_version",
       "version_added": "0.6.0",
       "version_removed": null,
-      "description": "Pin Odoo version for the session (per live MCP session, 24h idle TTL; resets on server restart); pass a CONCRETE version here (sentinels like 'auto' are rejected), then subsequent OTHER tool calls pass odoo_version='auto' to reuse the pin instead of repeating the version (it can no longer be omitted). 'auto' is only safe after a pin — with no pinned session it silently falls back to the latest indexed version.",
+      "description": "Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL). The pin is server-side state scoped to the API KEY - any concurrent agent or session sharing the key can overwrite it, so odoo_version='auto' may resolve to someone else's pin. Pass the concrete version on every subsequent call (multi-version flows like migrations and cross-version comparisons included); omitting odoo_version raises a validation error.",
       "persona_tags": [
         "dev",
         "CEO",

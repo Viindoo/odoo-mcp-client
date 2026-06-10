@@ -275,7 +275,7 @@ def gen_routing_md(surface: dict) -> str:
     lines.append(
         "**Legend:** ● = primary persona for this tool.  \n"
         "★ = superset tool (supersedes removed v0.6 tools).  \n"
-        "☆ = session-context tool (per live MCP session, 24h idle TTL; resets on server restart).  \n"
+        "☆ = session-context tool (pin is per-API-key server state, 24h idle TTL - racy under concurrency, pass concrete versions).  \n"
         "✦ = stylesheet tools (CSS/SCSS/LESS indexing, v0.7+).  \n"
         "⊕ = ORM-validation tools (static domain / @api.depends / relation / dotted-path checks, v0.8+)."
     )
