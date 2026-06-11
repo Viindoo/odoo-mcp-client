@@ -49,7 +49,11 @@ principal branch.
    `skill-creator`, `wave`, `intake`, `odoo-brl`, `workflow-chaining` — see the
    Skill-Delegation Matrix below and `docs/reference/ORCHESTRATION-MAP.md`).
    Depth ceiling: wave (depth 0) → WI subagent (depth 1) → leaf worker (depth-2 max);
-   no further spawning allowed. Maximum concurrent WI subagents: 3.
+   no further spawning allowed. Concurrency: model-weighted budget (BUDGET=8) per
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B) - up to 8 haiku,
+   4 sonnet, 2 opus, or exactly 1 fable WI subagent in flight at once; never exceed the
+   budget (OOM guard). The cherry-pick step is NOT part of this budget - it is a depth-0
+   critical section serialized to one at a time (Phase 2/3), never pushed down to a leaf.
 
 3. **/code-review inline-only** — The `/code-review` skill auto-spawns and is therefore
    only legal at depth 0 (this skill's context). Invoke it here in Phase 4, never inside
@@ -133,7 +137,7 @@ Present the plan to the user before any branch or worktree is created:
 ## Wave Plan - <slug>
 Base branch : <principal>
 Integration : wave/integration-<slug>
-WIs         : <N>  (capped at 3 concurrent)
+WIs         : <N>  (model-weighted budget BUDGET=8)
 Topology    : <independent | linear | mixed | diamond>
 Verify cmd  : <command from Repo Capability Card>
 Ownership map:
@@ -155,28 +159,133 @@ After plan approval:
 1. Create the integration branch from the principal:
    `git worktree add -b wave/integration-<slug> <path>/integration <principal>`
 
-2. For each WI, create a worktree from the integration branch:
-   `git worktree add -b wave/wi-<slug>-<id> <path>/wi-<id> wave/integration-<slug>`
+2. Create a worktree from the integration branch for each WI, using the same command
+   shape: `git worktree add -b wave/wi-<slug>-<id> <path>/wi-<id> wave/integration-<slug>`.
+   - **Root WIs** (no `depends_on`) can be created up front here - integration already
+     holds the base they fork from.
+   - **Dependent WIs** are created **lazily** in Phase 2, only after their deps have been
+     cherry-picked onto integration, so each dependent worktree forks from an up-to-date
+     integration that already contains its deps' commits. Creating a dependent worktree
+     here (before its deps land) would fork it from a stale integration and the worker
+     would never see the code it builds on. Phase 2 owns this lazy creation.
 
-3. Record all worktree paths in the plan artifact (or inline for 1-3 WIs).
+3. Record all worktree paths (including the lazily-created dependents, as they are made)
+   in the plan artifact (or inline for 1-3 WIs).
 
-4. Confirm all worktrees are clean with `git status --short` before dispatching.
+4. Confirm each worktree is clean with `git status --short` before dispatching into it.
 
-## Phase 2 - Dispatch WI Subagents
+## Phase 2 - Dispatch WI Subagents (Mode B rolling-window)
 
-Dispatch up to 3 concurrent WI subagents using the **Agent tool** — one Agent tool call per
-WI. Make all Agent tool calls in a **single turn (same message, parallel)** so they run
-concurrently. Pass the WI brief as the `prompt` parameter of each Agent call.
+Dispatch WI subagents with the **Agent tool** - one Agent tool call per WI, each passing the
+WI brief as its `prompt`. Scheduling is **Mode B model-weighted rolling-window**, NOT a
+fixed-size batch barrier: there is no "dispatch a fixed group, wait for the whole group,
+dispatch the next group". The moment a WI returns and its weight is freed, the next eligible WI
+(whose deps are cherry-picked) is dispatched into the freed budget. SSOT for the weights and
+budget is
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B) - do NOT restate the
+numbers here; read them from there (`BUDGET=8`; haiku=1, sonnet=2, opus=4, fable=8).
 
-**More than 3 WIs (batching protocol):** dispatch in **waves of ≤3** — fire the first 3, wait
-for them to complete + cherry-pick, then fire the next ≤3, until all WIs are done. The
-3-concurrent cap is per wave, not a total limit; never run more than 3 at once (Mode A - see
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).
-Order batches by the dependency DAG (a WI does not start until its `depends_on` are merged).
+**What is fundamentally different from `odoo-coding`'s rolling-window (read carefully):**
 
-**MANDATORY**: You MUST make real Agent tool calls. Do NOT describe dispatch in prose
-instead of calling the tool — the user must see actual Agent tool invocations. If you
-narrate dispatch without calling the Agent tool, that is a hard violation of this phase.
+- A leaf WI worker runs in its OWN isolated worktree. It writes + **commits + returns its
+  SHA(s)** in the structured result. It does **NOT** cherry-pick. Cherry-pick is forbidden to
+  leaves (Hard Rule 1 principal/integration ownership + Hard Rule 2 depth-0; enforced by
+  `tests/test_wave_hardrules.py`).
+- **Cherry-pick is a depth-0 CRITICAL SECTION, serialized to one in-flight at a time**, run in
+  this (main) context in topology/DAG order. One cherry-pick at a time = no race on the shared
+  integration branch. Verify runs immediately after each cherry-pick (Phase 3 contract). This
+  serialization is independent of - and on top of - the weighted budget that bounds the
+  parallel *workers*.
+- The dependent-gating promise is `cherry_picked[dep]`, **NOT** `completed[dep]`. A dependent
+  WI starts only after every dep it lists is **cherry-picked onto integration** (not merely
+  committed in the dep's own worktree), because the dependent's worktree forks from integration
+  and must contain the dep's code at fork time. This is the deliberate difference from
+  `odoo-coding`, where `completed[dep]` (the dep's own commit) is enough.
+- The dependent worktree is therefore created **lazily**, immediately before its worker is
+  dispatched (after its `cherry_picked[dep]` gate passes), so it forks from an up-to-date
+  integration (Phase 1, step 2).
+
+**MANDATORY**: You MUST make real Agent tool calls for each worker dispatch. Do NOT describe
+dispatch in prose instead of calling the tool - the user must see actual Agent tool
+invocations. If you narrate dispatch without calling the Agent tool, that is a hard violation
+of this phase.
+
+**Mode B dispatch loop (orchestrator pseudocode, depth-0):**
+
+```js
+// Phase 2 - Mode B rolling-window dispatch + serialized depth-0 cherry-pick.
+const WEIGHT = { haiku: 1, sonnet: 2, opus: 4, fable: 8 };
+const BUDGET = 8; // SSOT: skills/_shared/concurrency-guard.md (Mode B) - do not restate
+
+// validate tiers up front: a typo'd/missing tier must fail the whole run at t=0,
+// before any worker or worktree exists, not silently book the wrong weight
+for (const wi of wis) {
+  if (!WEIGHT[wi.model]) throw new Error(`WI ${wi.id}: unknown model tier '${wi.model}'`);
+}
+
+// weighted semaphore (plain JS - no per-model runtime knob). release() admits
+// strictly FIFO so a heavy (fable/opus) waiter is never starved by lighter waiters.
+let used = 0; const waiters = [];
+const acquire = (w) => new Promise((res) => {
+  const attempt = () => (used + w <= BUDGET ? ((used += w), res(), true) : false);
+  if (!attempt()) waiters.push(attempt);
+});
+const release = (w) => { used -= w; while (waiters.length && waiters[0]()) waiters.shift(); };
+
+// CRITICAL SECTION for cherry-pick: one in-flight at a time, depth-0 only.
+// The promise chain serializes every cherry-pick onto integration -> no branch race.
+let cpChain = Promise.resolve();
+const cherryPickSerial = (fn) => (cpChain = cpChain.then(fn, fn));
+
+// per-WI CHERRY-PICKED promise (NOT merely committed). Dependents fork from
+// integration, so a dependent must wait until its deps are ON integration.
+const cpResolvers = {}; const cherry_picked = {};
+for (const wi of wis) cherry_picked[wi.id] = new Promise((r) => { cpResolvers[wi.id] = r; });
+
+const runWI = async (wi) => {
+  // gate on deps being CHERRY-PICKED (not merely committed in their own worktree).
+  // any dep that resolved false (blocked upstream) blocks this WI too.
+  const depsOk = (await Promise.all(
+    (wi.depends_on || []).map((d) => cherry_picked[d] ?? Promise.resolve(true))
+  )).every(Boolean);
+  if (!depsOk) { cpResolvers[wi.id](false); return { id: wi.id, upstreamBlocked: true }; }
+
+  // lazy worktree: create the dependent's worktree NOW, after the gate, so it forks
+  // from an up-to-date integration that already holds the dep commits (root WIs were
+  // created in Phase 1). git worktree add -b wave/wi-<slug>-<id> <path> wave/integration-<slug>
+  ensureWorktree(wi);
+
+  const w = WEIGHT[wi.model];
+  await acquire(w);                       // wait for weight budget (rolling window)
+  let workerResult;
+  try {
+    // leaf worker: write + commit in its OWN worktree, return SHA(s). NO cherry-pick.
+    workerResult = await agent(wiBrief(wi), {
+      label: wi.id, phase: 'implement', model: wi.model, schema: WI_RESULT_SCHEMA,
+    });
+  } finally { release(w); }               // free weight as soon as the worker returns
+
+  if (!ok(workerResult)) { cpResolvers[wi.id](false); return { id: wi.id, result: workerResult }; }
+
+  // cherry-pick: serialized at depth-0, topology order enforced by the dep gate above.
+  await cherryPickSerial(async () => {
+    for (const sha of workerResult.committed_shas) {
+      cherryPick(sha);                    // git cherry-pick <sha> in the INTEGRATION worktree
+      runVerify();                        // Repo Capability Card verify after each pick (Phase 3)
+      // on conflict -> dispatch the Phase 3 Sonnet resolver subagent (unchanged) and re-verify
+    }
+  });
+  cpResolvers[wi.id](true);               // unblock dependents ONLY after cherry-picked + verified
+  return { id: wi.id, result: workerResult };
+};
+
+await Promise.all(wis.map(runWI));        // rolling window; deps enforced per-WI, no batch barrier
+```
+
+If the Workflow tool is unavailable, run the same schedule with plain Agent-tool calls: fire
+every WI whose deps are already cherry-picked, up to the weighted budget; as each worker
+returns, serialize its cherry-pick at depth-0, then admit the next eligible WI. Never gate the
+window on a fixed-size group; never let a leaf cherry-pick.
 
 Each subagent receives a **Phase-4 WI brief** as its `prompt`:
 
@@ -221,7 +330,8 @@ Hard rules:
 
 ## WI-<ID> Result
 Status:  DONE | FAILED
-SHA:     <commit sha or "no-commit (orchestrator commits)">
+SHA:     <commit sha(s) on wave/wi-<slug>-<id> - REQUIRED on DONE; the orchestrator
+         cherry-picks these onto integration. A DONE with no SHA is a failed contract.>
 Verify:  PASS | FAIL — <command + result>
 Changes: <1-3 bullets: file + what changed>
 
@@ -231,8 +341,12 @@ Acceptance criteria:
   <specific testable criteria for this WI>
 ```
 
-Wait for all dispatched subagents to complete before proceeding to Phase 3.
-If a subagent exceeds 15 minutes without output, check its status; do not assume success.
+In Mode B there is no whole-batch barrier: each worker's cherry-pick is serialized inline at
+depth-0 as that worker returns (per the loop above), and a dependent WI is dispatched as soon
+as its deps are cherry-picked. Phase 3 below documents the cherry-pick + conflict-resolution
+contract that this loop applies per WI; the final full-integration verify (end of Phase 3) runs
+once the rolling window has drained (`await Promise.all(...)` resolved). If a subagent exceeds
+15 minutes without output, check its status; do not assume success.
 
 ## Skill-Delegation Matrix
 
@@ -251,6 +365,12 @@ with its own tools (OSM MCP calls are never spawns), and only ever NL-dispatches
 non-spawning (`leaf`) skills for read-only lookups.
 
 ## Phase 3 - Cherry-pick + Conflict Resolution
+
+> This is the cherry-pick contract that Phase 2's Mode B loop applies per WI inside its
+> serialized depth-0 critical section (`cherryPickSerial`) - one cherry-pick in flight at a
+> time, in topology order. It is documented here as a standalone contract; the steps below are
+> exactly what runs at depth-0 each time a worker returns its SHA. Cherry-pick is NEVER pushed
+> down to a leaf worker (Hard Rules 1 + 2).
 
 For each WI (in topology order):
 
@@ -282,9 +402,23 @@ integration branch state.
 
 ## Phase 4 - End-of-Wave Review
 
-**4.1 - Opus inline review** (in this skill's context, not a subagent):
+**4.1 - End-of-wave review** (in this skill's context by default, not a subagent):
 
-Review the full diff on the integration branch (`git diff <principal>...HEAD`) for:
+Size the review tier first. Measure the integration diff and WI count:
+`git diff <principal>...HEAD --shortstat` (changed lines) and the WI count N from the plan.
+
+- **Large wave** (changed lines > ~1500 OR N >= 8 WIs): escalate to a **fable** review
+  subagent, dispatched from THIS depth-0 context (legal, like `/code-review` in 4.2 - never
+  pushed down to a leaf; the review subagent only READS the diff and reports, it does not
+  cherry-pick or commit). fable costs ~2x opus, so it ALWAYS needs explicit human confirmation:
+  state the tier, the cost, and a one-line why on its own line (e.g. `Fable review: <X> lines /
+  <N> WIs exceeds the opus-inline threshold (~2x opus cost). Confirm fable?`) and wait for the
+  user's yes. If the user declines, or the fable dispatch fails (insufficient usage credit,
+  model unavailable, Agent-tool error), fall back to **opus inline review** automatically and
+  note the downgrade (`review: opus (fable declined/unavailable)`).
+- **Otherwise** (the common case): **opus inline review** in this context (current behavior).
+
+Either way, review the full diff on the integration branch (`git diff <principal>...HEAD`) for:
 - Plan adherence: does the code match what was specified in each WI brief?
 - Correctness: obvious logic errors, missing cases, unhandled errors
 - Simplicity: over-engineering, speculative abstraction, unused code
@@ -395,8 +529,10 @@ odoo-code-review, etc.) via NL-dispatch and stop.
 **Example 1 - Standard 3-WI wave:**
 Prompt: "Parallelize these 3 changes: add computed field to sale.order, add OWL widget, update unit tests. Land them safely without touching main."
 Action: Phase 0 discovers disjoint files, selects independent topology. Gate shows ownership
-map. On approve: integration branch + 3 worktrees. Dispatch 3 concurrent Sonnet subagents.
-Cherry-pick all 3. Opus review + /code-review. 1 PR. Squash + tree-identity. Wait for human-confirm.
+map. On approve: integration branch + 3 worktrees. Dispatch the 3 Sonnet WI subagents under the
+Mode B rolling window (3 x sonnet = weight 6, within BUDGET=8, so all three run at once).
+Serialize each cherry-pick at depth-0 as its worker returns. Opus review + /code-review. 1 PR.
+Squash + tree-identity. Wait for human-confirm.
 
 **Example 2 - 1-WI edge case:**
 Prompt: "Do this as a wave: fix the typo in account.move description."

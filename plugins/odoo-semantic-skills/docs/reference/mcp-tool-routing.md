@@ -319,7 +319,7 @@ Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:
 
 | Attribute | Value |
 |-----------|-------|
-| **Description** | Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks. Preferred over entity_lookup for multi-hop paths. |
+| **Description** | Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks. Preferred over entity_lookup for multi-hop paths. Resolves inherited fields depth-first - a field on a nearer ancestor (e.g. a mixin) shadows a same-name field on a farther ancestor. |
 | **Personas** | dev |
 | **Required params** | `model`, `dotted_path`, `odoo_version` |
 | **Optional params** | `profile_name` |

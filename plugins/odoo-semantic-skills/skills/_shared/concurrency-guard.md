@@ -8,7 +8,7 @@ file instead of restating the numbers.
 
 Cap at **3 concurrent** Agent-tool calls (or fork workers / parallel MCP legs);
 for more work, batch in waves of <=3 (fire <=3, wait, fire the next <=3). Used
-by: odoo-debug, odoo-code-review, wave, workflow-chaining, odoo-brl (inner MCP
+by: odoo-debug, odoo-code-review, workflow-chaining, odoo-brl (inner MCP
 parallelism), and the YAML workflow fan-out ceiling (workflows/_schema.md,
 docs/reference/workflow-harness.md).
 
@@ -24,7 +24,7 @@ docs/reference/workflow-harness.md).
 At most **8 weight-units** in flight at once => up to 8 haiku, 4 sonnet, 2 opus,
 or exactly 1 fable (always exclusive). Mixing is allowed up to the budget. Worst
 case (2 opus) sits within the historical envelope (old cap: 3 sonnet ~ weight 6).
-Used by: odoo-coding (Workflow pipeline AND its Agent-tool fallback batches).
+Used by: odoo-coding (Workflow pipeline AND its Agent-tool fallback batches), wave.
 
 If an OOM recurs under Mode B, lower BUDGET to 6 here (one place) - do not patch
 individual skills.

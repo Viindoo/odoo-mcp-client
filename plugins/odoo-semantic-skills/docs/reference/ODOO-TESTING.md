@@ -58,10 +58,11 @@ run the gate:
 (commonly `test_pylint`). When such a module is on the addons path, **also include its tag** in
 `--test-tags` (e.g. `/test_pylint`) — it is the authoritative enabled-code set.
 
-> Note: OSM's `lint_check` is a fast fuzzy screen (semantic, V0) — useful for deprecated-API
-> hints, but it is **not** a substitute for this gate (it does not reproduce pylint-odoo and can
-> miss findings such as SQL injection). Run `verify-backend.sh` + `/test_lint`, not `lint_check`
-> alone, for pre-push CI parity.
+> Note: OSM's `lint_check` is a fast V0.5 hybrid matcher (deterministic `[pattern]` on
+> security-rule classes like sql-injection, `[fuzzy]` heuristic elsewhere) - useful for
+> deprecated-API hints and as an early security signal, but it is **not** a substitute for this
+> gate (it does not reproduce the full pylint-odoo enabled-code set). Run `verify-backend.sh` +
+> `/test_lint`, not `lint_check` alone, for pre-push CI parity.
 
 ## Test classes (Python)
 

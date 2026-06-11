@@ -51,8 +51,11 @@ If the index genuinely has nothing relevant, say so explicitly — then write.
   `validate_relation`. Any BROKEN/MISMATCH is a blocker, not a warning. Then run the static
   code-quality gate `${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <changed .py>` (reproduces
   the CI `pylint-odoo` checks) and include `/test_lint` in the test run (see `ODOO-TESTING.md`).
-  Note: OSM `lint_check` is a fuzzy V0 screen (it can miss e.g. SQL injection) — it is a hint,
-  **not** the gate; do not treat a clean `lint_check` as a passing quality gate.
+  Note: OSM `lint_check` is a V0.5 hybrid matcher: security-rule-class patterns (e.g.
+  sql-injection) fire deterministically and come back labeled `[pattern]` (trust these);
+  other findings are `[fuzzy]` heuristic hints. Either way it is a hint, **not** the gate -
+  a clean `lint_check` is NOT a passing quality gate; the gate is `verify-backend.sh` +
+  `/test_lint`. Treat a `[pattern]` security hit as a real finding to act on, not noise.
 - **Frontend:** verify against the running instance — read `getComputedStyle` to confirm
   tokens resolve (not empty/cyclic) and the UI matches the mockup; recompile assets and
   re-read, never trust that an edit "took" (see `skills/_shared/odoo-frontend-fidelity.md`).
