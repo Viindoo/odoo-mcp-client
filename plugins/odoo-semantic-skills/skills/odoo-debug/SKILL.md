@@ -178,8 +178,11 @@ edit, or the relevant audit for a wider sweep. Emit `SUGGESTED_NEXT: <skill> (re
 | 1 Triage | **haiku** (→ sonnet if traceback long/cross-file) | structured classification, cheap |
 | 2 Localize - contained 1 layer | **sonnet** | root-cause within one module |
 | 2 Localize - cross-file / multi-hypothesis | **opus** | deep reasoning, large context |
+| 2 Localize - opus pass returns no falsifiable root cause | **fable** (escalation, human-confirm) | deepest multi-hypothesis, rarest case - fire ONLY after one full opus pass |
 | 3 Verify | **sonnet** (→ opus if cause subtle) | objective refutation |
 | 4 Synthesize (this orchestrator) | **opus** | compile + decide hand-off |
+
+**Fable escalation (Phase 2 only).** Fire fable ONLY after one full opus localize pass returns no falsifiable root cause - it is never a default. fable costs ~2x opus, so it ALWAYS needs explicit human confirmation: state the tier, the cost, and a one-line why on its own line (e.g. `Fable escalation: opus pass returned no falsifiable root cause (~2x opus cost). Confirm fable?`) and wait for the user's yes. If the user declines, or the fable dispatch fails (insufficient usage credit, model unavailable, Agent-tool error), fall back to **opus** automatically and note the downgrade in the Phase 4 Output Contract (`dispatch: opus (fable declined/unavailable)`).
 
 Pass the chosen model explicitly on each Agent tool call. The complexity score from Phase 1 picks
 the Phase 2 tier; do not silently fall back to the inherited default.
