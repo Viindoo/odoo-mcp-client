@@ -89,7 +89,7 @@ Example invocations (an AI agent can run these directly as NL dispatch; a human 
 
 ## Plugin Skills (Claude Code)
 
-If you use **Claude Code** with the Odoo Semantic plugin:
+If you use **Claude Code** with the Odoo AI Agent Team plugin:
 
 | Skill | What it does |
 |-------|-------------|

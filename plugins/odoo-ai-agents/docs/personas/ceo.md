@@ -52,7 +52,7 @@ Example invocations (an AI agent can run these directly as NL dispatch; a human 
 
 ## Plugin Skills (Claude Code)
 
-If you use **Claude Code** with the Odoo Semantic plugin installed, these slash commands are available:
+If you use **Claude Code** with the Odoo AI Agent Team plugin installed, these slash commands are available:
 
 | Skill | What it does |
 |-------|-------------|
