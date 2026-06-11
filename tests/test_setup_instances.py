@@ -22,10 +22,10 @@ from shutil import which
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-LIB = ROOT / "plugins" / "odoo-semantic-skills" / "scripts" / "lib"
+LIB = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib"
 CONFIG_MERGE = LIB / "config_merge.py"
 INSTANCES_IO = LIB / "instances_io.py"
-STEP40 = ROOT / "plugins" / "odoo-semantic-skills" / "scripts" / "setup-steps" / "40-instance-profile.sh"
+STEP40 = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "setup-steps" / "40-instance-profile.sh"
 DISCOVER = LIB / "discover_odoo.sh"
 
 

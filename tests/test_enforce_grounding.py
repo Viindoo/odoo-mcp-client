@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-HOOK = ROOT / "plugins" / "odoo-semantic-skills" / "hooks" / "enforce-grounding.sh"
+HOOK = ROOT / "plugins" / "odoo-ai-agents" / "hooks" / "enforce-grounding.sh"
 
 pytestmark = pytest.mark.skipif(
     shutil.which("jq") is None or shutil.which("bash") is None,

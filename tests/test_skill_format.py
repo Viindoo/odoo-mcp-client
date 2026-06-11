@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-SKILLS_PLUGIN = ROOT / "plugins" / "odoo-semantic-skills"
+SKILLS_PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 SKILL_FILES = sorted((SKILLS_PLUGIN / "skills").glob("*/SKILL.md"))
 AGENT_FILES = sorted((SKILLS_PLUGIN / "agents").glob("*.md"))
 

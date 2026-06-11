@@ -3,7 +3,7 @@
 # End-to-end install smoke test.
 #
 # Installs Claude Code, registers the Viindoo marketplace, installs the
-# odoo-semantic-skills plugin from it, and asserts the install succeeded. Designed for
+# odoo-ai-agents plugin from it, and asserts the install succeeded. Designed for
 # the GitHub Actions matrix (Ubuntu / macOS) — it touches the network and
 # installs a global npm package, so it is NOT part of the default `make test`.
 #
@@ -18,16 +18,16 @@ echo ">> registering marketplace"
 claude plugin marketplace add Viindoo/claude-plugins --scope user
 
 echo ">> installing plugin"
-claude plugin install odoo-semantic-skills@viindoo-plugins --scope user
+claude plugin install odoo-ai-agents@viindoo-plugins --scope user
 
 echo ">> asserting plugin is listed"
-if ! claude plugin list | grep -q 'odoo-semantic-skills'; then
-  echo "FAIL: odoo-semantic-skills not found in 'claude plugin list'"
+if ! claude plugin list | grep -q 'odoo-ai-agents'; then
+  echo "FAIL: odoo-ai-agents not found in 'claude plugin list'"
   exit 1
 fi
 
 echo ">> checking skill count (soft)"
-info="$(claude plugin info odoo-semantic-skills 2>/dev/null || true)"
+info="$(claude plugin info odoo-ai-agents 2>/dev/null || true)"
 # Meaningful floor: the plugin ships >=20 skills, so a bare "0 skills" or a
 # single-digit count signals a broken install and must trip the WARN. We match
 # >=20 (two-or-more digits, first group >= 20) while keeping this SOFT - it

@@ -13,11 +13,11 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGINS_DIR = ROOT / "plugins"
-SKILLS_PLUGIN = PLUGINS_DIR / "odoo-semantic-skills"
+SKILLS_PLUGIN = PLUGINS_DIR / "odoo-ai-agents"
 MCP_PLUGIN = PLUGINS_DIR / "odoo-semantic-mcp"
 
 # After the v2 split, commands live in two plugins:
-#   - 5 workflow commands under odoo-semantic-skills/commands/
+#   - 5 workflow commands under odoo-ai-agents/commands/
 #   - the connect command under odoo-semantic-mcp/commands/
 COMMAND_FILES = sorted(
     list((SKILLS_PLUGIN / "commands").glob("*.md"))

@@ -22,7 +22,7 @@ import pytest
 # After the v2 split, the generator lives under the skills plugin, so its parent
 # (the skills-plugin root) is what must be on sys.path for `import generator`.
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SKILLS_PLUGIN = REPO_ROOT / "plugins" / "odoo-semantic-skills"
+SKILLS_PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 if str(SKILLS_PLUGIN) not in sys.path:
     sys.path.insert(0, str(SKILLS_PLUGIN))
 

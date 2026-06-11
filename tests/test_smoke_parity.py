@@ -22,7 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PARITY_FILE = REPO_ROOT / "tests" / "smoke" / "runtime_parity.md"
 # After the v2 split, the generator SSOT moved under the skills plugin.
 DEPS_FILE = (
-    REPO_ROOT / "plugins" / "odoo-semantic-skills" / "generator" / "skill_tool_deps.json"
+    REPO_ROOT / "plugins" / "odoo-ai-agents" / "generator" / "skill_tool_deps.json"
 )
 
 SESSION_BOOTSTRAP_TOOLS = {

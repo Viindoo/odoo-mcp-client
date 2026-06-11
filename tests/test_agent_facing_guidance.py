@@ -22,7 +22,7 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-PLUGIN = REPO_ROOT / "plugins" / "odoo-semantic-skills"
+PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 
 
 def _md_files(*subdirs: str) -> list[Path]:

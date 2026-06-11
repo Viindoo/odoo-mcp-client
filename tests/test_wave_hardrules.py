@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-WAVE_SKILL = ROOT / "plugins" / "odoo-semantic-skills" / "skills" / "wave" / "SKILL.md"
+WAVE_SKILL = ROOT / "plugins" / "odoo-ai-agents" / "skills" / "wave" / "SKILL.md"
 
 
 def _body(text: str) -> str:
