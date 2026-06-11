@@ -457,7 +457,7 @@ Full details and manual snippets: [`docs/setup.md` - Visual stack / browser MCP 
 
 ## Renaming - migrating from `odoo-semantic-skills`
 
-This plugin was renamed `odoo-semantic-skills` → `odoo-ai-agents` (Odoo AI Agent Team).
+This plugin was renamed `odoo-semantic-skills` -> `odoo-ai-agents` (Odoo AI Agent Team).
 If you have the old plugin installed, switch over:
 
     /plugin uninstall odoo-semantic-skills@viindoo-plugins
