@@ -157,6 +157,16 @@ Call all of the following simultaneously:
    override is `super()`-safe instead of guessing where in the MRO to insert. To extend a whole module (not
    just one model), `module_inspect(name='<module>', method='summary', odoo_version='<version>')` gives the module's
    models/views/JS picture so the new code lands in the right place.
+5. **Presence before runtime read.** When generated code will *read* a field or method that may
+   be module-conditional, resolve PRESENCE statically before writing — never emit
+   `hasattr`/`getattr`-default/`try...except AttributeError` as a presence guard. Use
+   `model_inspect` (step 1 above) to identify the declaring module; then walk the transitive
+   `depends` closure via `module_inspect(name='<my_module>', method='dependencies',
+   odoo_version='<version>')` to choose the correct branch: declaring module is reachable →
+   direct field access; field is optional by design → `'field' in record._fields` plus a
+   documented soft-dependency note; declaring module is not reachable → fix `depends` in the
+   manifest. Full rule and worked examples:
+   `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
 
 If you do not yet know the target model name, ask the user before proceeding to Round 1.
 The model name is required — do not guess.
@@ -344,6 +354,8 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 - [ ] Backend static gate (`verify-backend.sh`) ran — BLOCK fixed, or soft-degrade noted
 - [ ] Read `coding_guidelines/<version>/` in Round 0 and wrote to spec from the first pass —
       model attribute order, method/field naming prefixes, and import order match the version's rules
+- [ ] No hasattr/getattr-default/try-except-AttributeError ORM presence guard — presence resolved
+      via dep closure (direct access) OR `'field' in record._fields` + documented soft-dep OR `depends` amended
 ```
 
 If the change includes view XML that affects form/list rendering, emit a structured signal for
