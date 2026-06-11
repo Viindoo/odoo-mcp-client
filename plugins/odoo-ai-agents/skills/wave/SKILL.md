@@ -46,7 +46,7 @@ principal branch.
    themselves leaf workers at depth-2 ceiling. Leaf workers MUST NOT spawn further
    subagents or invoke any depth0-only skill (the spawner bundles `odoo-coding`,
    `odoo-code-review`, `odoo-ui-review`, plus `/code-review`,
-   `skill-creator`, `wave`, `intake`, `odoo-brl`, `workflow-chaining` — see the
+   `skill-creator`, `wave`, `odoo-intake`, `odoo-brl`, `workflow-chaining` — see the
    Skill-Delegation Matrix below and `docs/reference/ORCHESTRATION-MAP.md`).
    Depth ceiling: wave (depth 0) → WI subagent (depth 1) → leaf worker (depth-2 max);
    no further spawning allowed. Concurrency: model-weighted budget (BUDGET=8) per
@@ -314,7 +314,7 @@ Hard rules:
     every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is always
     allowed); follow the odoo-coding / odoo-code-review conventions but
     do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-coding,
-    odoo-code-review, odoo-ui-review, wave, intake, odoo-brl,
+    odoo-code-review, odoo-ui-review, wave, odoo-intake, odoo-brl,
     workflow-chaining, /code-review, skill-creator) — they dispatch a fresh agent and are
     main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill (e.g.
     odoo-feature-check, odoo-override-finding) for a read-only lookup. Do NOT invoke the Skill
@@ -358,7 +358,7 @@ once the rolling window has drained (`await Promise.all(...)` resolved). If a su
 | Read-only lookup | NL-dispatch a `leaf` skill (`odoo-feature-check`, `odoo-override-finding`) | Spawn a sub-agent; call any depth0-only skill |
 
 **Nesting rule**: depth0-only skills (`odoo-coding`, `odoo-code-review`, `odoo-ui-review`,
-`wave`, `intake`, `odoo-brl`, `workflow-chaining`, `/code-review`,
+`wave`, `odoo-intake`, `odoo-brl`, `workflow-chaining`, `/code-review`,
 `skill-creator`) each dispatch a fresh agent (depth0→1) and may ONLY be invoked from the main
 agent — NEVER from a leaf worker. A leaf worker IS the specialist: it writes/reviews directly
 with its own tools (OSM MCP calls are never spawns), and only ever NL-dispatches genuinely
@@ -387,7 +387,7 @@ For each WI (in topology order):
      "You are a leaf worker (depth-2). You ARE the specialist — resolve and verify directly,
      grounding any Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn). Do NOT
      invoke any depth0-only skill (odoo-coding, odoo-code-review, odoo-ui-review,
-     wave, intake, odoo-brl, workflow-chaining, /code-review, skill-creator)
+     wave, odoo-intake, odoo-brl, workflow-chaining, /code-review, skill-creator)
      — they are main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill for a
      read-only lookup. Do NOT invoke the Skill tool to trigger a spawner. Do NOT spawn a
      sub-agent. Do NOT git branch/cherry-pick/merge/push; stay in your assigned worktree. Only

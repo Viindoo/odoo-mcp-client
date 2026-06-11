@@ -18,7 +18,7 @@ Nine virtual specialists that self-activate from plain-language intent - no slas
 commands to memorize. Describe what you need; the right persona fires automatically.
 You do not need to know skill names.
 
-`intake` is the universal front door. Say what you want in plain language and it plans the
+`odoo-intake` is the universal front door. Say what you want in plain language and it plans the
 whole job once, then drives it to done:
 - **Vague intent** -> it brainstorms with you (clarifying options, no open-ended "what do you want?").
 - **Clear single-step intent** -> it fast-paths straight to the matching specialist.
@@ -42,7 +42,7 @@ nudges are advisory.
 ```mermaid
 flowchart LR
     subgraph concierge["Onboarding / Concierge (serves every persona)"]
-        intake_skill["intake<br/>(universal front door)"]
+        odoo_intake_skill["odoo-intake<br/>(universal front door)"]
         onboard["odoo-onboarding"]
     end
 
@@ -92,7 +92,7 @@ flowchart LR
 - **Sales AE** - Get ACA-structured responses to objections, risk-scored follow-up emails for stalled deals, a synthesized prospect profile from discovery notes, or triage an inbound support ticket into a customer-ready resolution draft.
 - **Marketer** - Create content around Odoo features - blog posts, slide decks, social copy, multi-channel campaign plans - in marketing-ready language.
 - **Strategist / CEO** - Get an executive risk overview of customizations, a structured customization inventory, or a competitor capability snapshot ready for a board or sales response.
-- **Onboarding / Concierge** - Cross-cutting for every persona: `odoo-onboarding` bootstraps project context on a new engagement; `intake` takes ambiguous intent, brainstorms when vague, fast-paths when clear, routes to the right workflow or specialist, and always proposes a plan before any execution skill fires.
+- **Onboarding / Concierge** - Cross-cutting for every persona: `odoo-onboarding` bootstraps project context on a new engagement; `odoo-intake` takes ambiguous intent, brainstorms when vague, fast-paths when clear, routes to the right workflow or specialist, and always proposes a plan before any execution skill fires.
 
 ### How it works
 
@@ -101,12 +101,12 @@ only** - it routes, decides at gates, and delegates the heavy work to specialist
 context stays clean across a long session. The depth ceiling is strict: `main (0) -> a
 skill/workflow (1) -> a fan-out/worktree worker (2)`, never deeper.
 
-`intake` is the front door for any plain-language intent. It (1) closes an intent gate (what /
+`odoo-intake` is the front door for any plain-language intent. It (1) closes an intent gate (what /
 why / what-done), (2) runs a quick read-only **recon** to make the plan context-aware, then (3)
 emits a **Proposed Plan** and waits for your approval. From there:
 
 - **Single clear step** -> the one specialist fires; chat-only answers skip Plan Mode entirely.
-- **Multi-step** -> `intake` writes the approved plan to a run file (`.odoo-ai/run-<id>.json`) and
+- **Multi-step** -> `odoo-intake` writes the approved plan to a run file (`.odoo-ai/run-<id>.json`) and
   hands it to **`run-driver`**, which walks the work-items to `DONE` / `BLOCKED` / `NEEDS_CONTEXT`:
   pick the next ready node -> check its gate tier -> dispatch it (a leaf skill inline, a coding/
   review/UI **agent bundle**, or a declarative **workflow** via `workflow-chaining`) -> read the
@@ -120,7 +120,7 @@ through the OSM MCP server; output is a direct answer or a file under `.odoo-ai/
 
 ```mermaid
 flowchart TD
-    A([Plain-language intent]) --> D{"intake - front door (depth 0)"}
+    A([Plain-language intent]) --> D{"odoo-intake - front door (depth 0)"}
     D -->|"Vague"| E["Brainstorm: clarifying options"]
     E -->|approve| D
     D -->|"Non-Odoo intent"| X["Route elsewhere / flag<br/>(stay Odoo-centric)"]
@@ -148,7 +148,7 @@ flowchart TD
 
 Two dials decide how much the run does on its own and where it stops for you.
 
-**1. Autonomy dial** (optional flag on your `/intake` request; default `--auto`):
+**1. Autonomy dial** (optional flag on your `/odoo-intake` request; default `--auto`):
 
 | Flag | Behavior | Use when |
 |------|----------|----------|
@@ -165,7 +165,7 @@ a human stop. **L2 always stops for a human; the dial can never lower it.**
 | **L1** | Writes internal files under `.odoo-ai/` (reversible, gitignored) | Auto-passes |
 | **L2** | Irreversible / outward: git push or merge, sending to a customer, touching a live instance - **and any source-code write that was not in the approved plan** | **Always stops for you** |
 
-**Best practice.** Start with a plain-language `/intake "<what you want>"`. Approve the plan once.
+**Best practice.** Start with a plain-language `/odoo-intake "<what you want>"`. Approve the plan once.
 Let `--auto` carry the routine steps; you will be stopped exactly at the moments that matter
 (anything leaving your machine or touching a customer/instance). Use `--step` when you want to
 watch every edit, `--plan` when you only want the map. You never type a skill name.
@@ -410,7 +410,7 @@ Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression
 
 ### Frequently asked questions
 
-**I only need one skill - do I have to know all 40?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `intake` acts as a brainstorm partner when you are not sure which skill to use.
+**I only need one skill - do I have to know all 40?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `odoo-intake` acts as a brainstorm partner when you are not sure which skill to use.
 
 **What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by reading your local codebase and `.odoo-ai/context.md` directly (Read/Grep/WebFetch, three-tier grounding) instead of asking you to paste data; if a browser is genuinely unreachable a visual skill returns BLOCKED rather than requesting screenshots. The plugin does not break when OSM is offline.
 
@@ -510,13 +510,13 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-content-draft` | Marketer | Draft blog posts, slide decks, or social content around Odoo features |
 | `odoo-campaign-plan` | Marketer | Multi-channel campaign plan from a positioning brief |
 | `odoo-onboarding` | Onboarding / Concierge | Bootstrap project context into `.odoo-ai/context.md` for new engagements |
-| `intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths a single clear step, and for multi-step work plans once then hands a `run-<id>.json` to `run-driver` to drive to done; always gates with a Proposed Plan before execution |
+| `odoo-intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths a single clear step, and for multi-step work plans once then hands a `run-<id>.json` to `run-driver` to drive to done; always gates with a Proposed Plan before execution |
 | `odoo-ui-review` | Coder / Visual | Five-lens review of a rendered Odoo screen in a live browser (aesthetics, function, stability, accessibility, performance); slim, paired with agent bundle |
 | `odoo-debug` | Coder | Front-door orchestrator for all Odoo debugging — scientific method; dispatches specialist debug agents (backend/UI) |
 | `odoo-visual-regression` | Coder / Visual | Screenshot baseline + diff between two Odoo states (before/after upgrade, module install, theme change) with blast-radius assessment |
 | `odoo-demo-recording` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
 | `odoo-qa-suite` | Coder / Visual | Full QA pipeline - generate structured test cases, produce a pre-deploy checklist, and triage bugs with severity classification and reproduction steps |
-| `workflow-chaining` | Internal (harness) | Generic declarative workflow executor - reads `*.workflow.yaml` and runs gated phase sequences; invoked by intake via NL-dispatch, not directly by users |
+| `workflow-chaining` | Internal (harness) | Generic declarative workflow executor - reads `*.workflow.yaml` and runs gated phase sequences; invoked by odoo-intake via NL-dispatch, not directly by users |
 | `run-driver` | Internal (harness) | Depth-0 drive-to-done loop - walks the `run-<id>.json` plan, dispatches each work-item, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent |
 | `wave` | Internal (orchestration) | Depth-0 git-wave orchestration - integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge; self-spawning, principal-branch-locked |
 

@@ -210,7 +210,7 @@ fi
 
 if [ "${_is_vague}" = "true" ]; then
   _hint="Business/Odoo intent detected (domain: ${_domain})."
-  _line2="If the goal is still broad or you want to explore options first, the intake front door can brainstorm approaches and route to the right specialist."
+  _line2="If the goal is still broad or you want to explore options first, the odoo-intake front door can brainstorm approaches and route to the right specialist."
   _line3="If the intent is already specific and single-step, the matching specialist will fire directly - no extra step needed."
   _nl_hint="${_hint}\n${_line2}\n${_line3}"
   if [ -n "${_context}" ]; then

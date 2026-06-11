@@ -124,7 +124,7 @@ skill listing, which silently degrades triggering. Trim duplicate trigger phrase
 illustrative examples before cutting any `route to …` / `DO NOT trigger → …` disambiguation
 clause. `make test` enforces all of this via `tests/test_skill_format.py` (frontmatter
 shape), `tests/test_skill_description_budget.py` (the 1024-char cap), and
-`tests/test_intake_quote_sync.py` (every skill/workflow the `intake` router points at must
+`tests/test_odoo_intake_quote_sync.py` (every skill/workflow the `odoo-intake` router points at must
 exist).
 
 ### Naming convention: skill vs agent vs command (morphology)
@@ -143,8 +143,11 @@ or in the model's own reasoning. The rule:
   `odoo-draft-followup`. Lead with the verb; keep an object so it never collides with the
   verb-space a skill uses to trigger. The frontmatter `name` **must equal the filename** (that
   is the invoked name; `name` is only a display label).
-- **Prefix `odoo-`** on every Odoo-specific skill/agent/command. The only unprefixed names are
-  the three domain-agnostic mechanisms: `intake`, `wave`, `workflow-chaining`.
+- **Prefix `odoo-`** on every Odoo-specific skill/agent/command. `odoo-intake` follows this
+  convention like every other skill; the bare `intake` namespace is reserved for a future
+  domain-agnostic front door (one that may invoke `odoo-intake` when it detects Odoo intent).
+  The two remaining unprefixed names are the domain-agnostic mechanisms: `wave`,
+  `workflow-chaining`.
 
 A skill that dispatches an agent pairs a capability with an actor: skill `odoo-code-review`
 dispatches agent `odoo-code-reviewer`; skill `odoo-backend-coding` dispatches agent

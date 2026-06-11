@@ -20,8 +20,8 @@ Items are directional, not commitments, and reflect publicly announced milestone
   for depth-0 multi-subagent git-wave: integration branch + WI worktrees + cherry-pick +
   end-of-wave Opus review + `/code-review` inline + 1 PR + squash + tree-identity gate +
   human-confirm merge. Self-spawning, principal-branch-locked, auto-merge never allowed.
-- **Workflow harness + `intake` front door** (v2.2.0) — three-layer architecture (Entry/Intake,
-  Workflow, Execution). `intake` replaces `odoo-router` as the universal front door: brainstorms
+- **Workflow harness + `odoo-intake` front door** (v2.2.0) — three-layer architecture (Entry/Intake,
+  Workflow, Execution). `odoo-intake` replaces `odoo-router` as the universal front door: brainstorms
   when vague, fast-paths when clear, always gates with a Proposed Plan before dispatching. The
   generic `workflow-chaining` executes `*.workflow.yaml` declarative workflows - adding a new
   workflow is one YAML file, no orchestration code. 10 workflows shipped at launch.

@@ -16,19 +16,19 @@ flowchart TB
 
     subgraph client["odoo-mcp-client (MIT)"]
         direction TB
-        intake["intake<br/>universal front door"]
+        odoo_intake["odoo-intake<br/>universal front door"]
         wfrunner["workflow-chaining<br/>declarative YAML executor"]
         skills["odoo-ai-agents<br/>40 skills / 7 agents / 9 commands"]
         mcp["odoo-semantic-mcp<br/>MCP connection + /connect"]
-        intake --> wfrunner --> skills
-        intake --> skills
+        odoo_intake --> wfrunner --> skills
+        odoo_intake --> skills
         skills -. "depends on" .-> mcp
     end
 
     server["OSM MCP Server (AGPL-3.0)<br/>25 tools / 7 resources · indexed Odoo v8+"]
     out["Answer in chat<br/>or file in .odoo-ai/"]
 
-    You --> intake
+    You --> odoo_intake
     You -. "or a skill fires directly" .-> skills
     skills --> server
     mcp --> server

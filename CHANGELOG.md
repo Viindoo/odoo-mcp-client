@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `/plugin install odoo-ai-agents@viindoo-plugins`. The `odoo-semantic` MCP server and the
   `odoo-semantic-mcp` sibling plugin are **unchanged** - `mcp__odoo-semantic__*` tool references
   continue to work without modification.
+- **Skill renamed `intake` -> `odoo-intake`**: the Odoo-specific front door now carries the
+  standard `odoo-` prefix, consistent with every other Odoo skill. The bare `intake` namespace is
+  reserved for a future domain-agnostic front door that may invoke `odoo-intake` when it detects
+  Odoo intent. Update any `/intake` references to `/odoo-intake`.
 
 ## [3.6.0] - 2026-06-11
 

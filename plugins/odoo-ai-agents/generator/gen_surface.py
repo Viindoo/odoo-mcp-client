@@ -54,7 +54,7 @@ SKIP_SKILL_DIRS = {
     "odoo-deploy-checklist",
     "odoo-discovery-summary",
     "odoo-onboarding",
-    "intake",
+    "odoo-intake",
     "odoo-ui-review",
     # Shared reference docs (e.g. odoo-frontend-fidelity.md), not a skill — no SKILL.md, no tool deps.
     "_shared",

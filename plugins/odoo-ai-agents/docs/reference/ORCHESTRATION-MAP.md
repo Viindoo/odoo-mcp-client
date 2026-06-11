@@ -6,7 +6,6 @@
 
 | Skill | spawn_class | depth_policy | stack | instance | spawns |
 |-------|-------------|--------------|-------|----------|--------|
-| `intake` | spawner-agent | depth0-only | none | — | (Phase R: ≤2 read-only recon agents — Explore or specialist in read-only mode; no writes, no further spawn) |
 | `odoo-addon-diff` | leaf | any-depth | none | — | — |
 | `odoo-brl` | spawner-agent | depth0-only | none | — | (conditional DAG workers when >10 large clusters) |
 | `odoo-campaign-plan` | leaf | any-depth | none | — | — |
@@ -28,6 +27,7 @@
 | `odoo-feature-highlights` | leaf | any-depth | none | — | — |
 | `odoo-frontend-design` | leaf | any-depth | frontend | — | — |
 | `odoo-gap-analysis` | leaf | any-depth | none | — | — |
+| `odoo-intake` | spawner-agent | depth0-only | none | — | (Phase R: ≤2 read-only recon agents — Explore or specialist in read-only mode; no writes, no further spawn) |
 | `odoo-objection-handling` | leaf | any-depth | none | — | — |
 | `odoo-onboarding` | leaf | any-depth | none | — | — |
 | `odoo-override-finding` | leaf | any-depth | backend | — | — |

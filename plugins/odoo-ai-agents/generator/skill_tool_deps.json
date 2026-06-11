@@ -285,7 +285,7 @@
       "deprecated_tools_used": [],
       "notes": "profile_inspect(modules) auto-enumerates the in-scope modules in Round 0. min_server 0.13.1 for profile_inspect."
     },
-    "intake": {
+    "odoo-intake": {
       "mcp_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
@@ -586,7 +586,7 @@
   },
   "orchestration": {
     "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no Agent-tool spawn) | spawner-agent (dispatch a named agent at depth0->1) | spawner-wave (depth0->1->2 worktree fan-out). depth_policy: any-depth | depth0-only (must only be invoked from the main agent, never from a subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes .odoo-ai/ internal, auto-pass under --auto) | L2 (irreversible/outward: instance_touching or spawner-wave - ALWAYS human gate; dial cannot lower). Per-node override lives in run-<id>.json, not here.",
-    "intake": {
+    "odoo-intake": {
       "spawn_class": "spawner-agent",
       "depth_policy": "depth0-only",
       "spawns": [
