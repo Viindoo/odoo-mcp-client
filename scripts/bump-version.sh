@@ -3,7 +3,7 @@
 #
 # Keeps the two version sources in lockstep (enforced by
 # tests/test_version_consistency.py): the repo-level VERSION file and the
-# odoo-semantic-skills plugin's plugin.json.version. The odoo-semantic-mcp
+# odoo-ai-agents plugin's plugin.json.version. The odoo-semantic-mcp
 # plugin versions independently and is left untouched.
 #
 # It also "cuts" the changelog: the current `## [Unreleased]` heading is dated
@@ -24,8 +24,8 @@ set -euo pipefail
 level="${1:?usage: bump-version.sh <major|minor|patch|X.Y.Z>}"
 root="$(git rev-parse --show-toplevel)"
 version_file="$root/VERSION"
-plugin_json="$root/plugins/odoo-semantic-skills/.claude-plugin/plugin.json"
-codex_plugin_json="$root/plugins/odoo-semantic-skills/.codex-plugin/plugin.json"
+plugin_json="$root/plugins/odoo-ai-agents/.claude-plugin/plugin.json"
+codex_plugin_json="$root/plugins/odoo-ai-agents/.codex-plugin/plugin.json"
 changelog="$root/CHANGELOG.md"
 
 cur="$(tr -d '[:space:]' < "$version_file")"
@@ -50,7 +50,7 @@ date_str="$(date +%F)"
 # 1) VERSION file
 printf '%s\n' "$new" > "$version_file"
 
-# 2) odoo-semantic-skills plugin.json — both the Claude (.claude-plugin) and Codex
+# 2) odoo-ai-agents plugin.json — both the Claude (.claude-plugin) and Codex
 #    (.codex-plugin) manifests, which carry their own top-level "version" and must stay
 #    in lockstep with VERSION (gemini-extension.json is regenerated in step 3).
 python3 - "$new" "$plugin_json" "$codex_plugin_json" <<'PY'
@@ -64,7 +64,7 @@ for path in paths:
 PY
 
 # 3) regenerate version-derived artifacts (gemini-extension.json embeds the version)
-python3 "$root/plugins/odoo-semantic-skills/generator/gen_mcp_manifests.py" >/dev/null
+python3 "$root/plugins/odoo-ai-agents/generator/gen_mcp_manifests.py" >/dev/null
 
 # 4) CHANGELOG: cut [Unreleased] -> [new] - date, leave a fresh empty [Unreleased]
 python3 - "$changelog" "$new" "$date_str" <<'PY'
@@ -78,5 +78,5 @@ open(path, "w", encoding="utf-8").write(s.replace(needle, replacement, 1))
 PY
 
 echo "bumped $cur -> $new"
-echo "  VERSION, odoo-semantic-skills/plugin.json, generated manifests, CHANGELOG cut to [$new] - $date_str"
+echo "  VERSION, odoo-ai-agents/plugin.json, generated manifests, CHANGELOG cut to [$new] - $date_str"
 echo "Next: review 'git diff', then commit. odoo-semantic-mcp version is independent (untouched)."

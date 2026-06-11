@@ -13,7 +13,7 @@ body:
     id: plugin-version
     attributes:
       label: Plugin version
-      description: Run `claude plugin list` and paste the version shown next to `odoo-semantic-skills` (or `odoo-semantic-mcp`).
+      description: Run `claude plugin list` and paste the version shown next to `odoo-ai-agents` (or `odoo-semantic-mcp`).
       placeholder: "e.g. 0.5.0"
     validations:
       required: true
@@ -56,7 +56,7 @@ body:
       label: Steps to reproduce
       description: Numbered steps to reproduce the bug reliably.
       placeholder: |
-        1. Install plugin via `claude plugin install odoo-semantic-skills@viindoo-plugins`
+        1. Install plugin via `claude plugin install odoo-ai-agents@viindoo-plugins`
         2. Run `/odoo-semantic-mcp:connect`
         3. Enter a valid API key
         4. Observe ...

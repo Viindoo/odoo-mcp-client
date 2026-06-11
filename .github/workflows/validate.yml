@@ -30,7 +30,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - run: python3 plugins/odoo-semantic-skills/generator/check_deps.py
+      - run: python3 plugins/odoo-ai-agents/generator/check_deps.py
 
   gen-check:
     name: Generated artifacts in sync with SSOT
@@ -45,8 +45,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - run: python3 plugins/odoo-semantic-skills/generator/gen_surface.py
-      - run: python3 plugins/odoo-semantic-skills/generator/gen_mcp_manifests.py
+      - run: python3 plugins/odoo-ai-agents/generator/gen_surface.py
+      - run: python3 plugins/odoo-ai-agents/generator/gen_mcp_manifests.py
       - run: |
           # Catch BOTH modified tracked files and brand-new untracked artifacts (a generator
           # that emits a new file would slip past `git diff --exit-code`).
@@ -70,7 +70,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - run: python3 plugins/odoo-semantic-skills/generator/check_orchestration.py
+      - run: python3 plugins/odoo-ai-agents/generator/check_orchestration.py
 
   e2e-install:
     name: e2e install (${{ matrix.os }})
