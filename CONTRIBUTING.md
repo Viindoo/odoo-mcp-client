@@ -1,7 +1,7 @@
 # Contributing to Odoo MCP Client
 
 Thanks for your interest! This repo is the **MIT client layer**, published as **two
-plugins** under `plugins/`: `odoo-semantic-skills` (skills, agents, workflow commands,
+plugins** under `plugins/`: `odoo-ai-agents` (skills, agents, workflow commands,
 the SSOT generator, and IDE snippets) and `odoo-semantic-mcp` (the MCP server connection
 plus the `/odoo-semantic-mcp:connect` setup command). The semantic backend lives in the
 separate AGPL server; open server/indexer/graph issues via
@@ -19,7 +19,7 @@ cd odoo-mcp-client
 make setup
 
 # Load a plugin from this checkout (no marketplace round-trip):
-claude --plugin-dir ./plugins/odoo-semantic-skills   # or ./plugins/odoo-semantic-mcp
+claude --plugin-dir ./plugins/odoo-ai-agents   # or ./plugins/odoo-semantic-mcp
 
 # Validate manifest + skill frontmatter + run the test suite:
 make validate
@@ -50,17 +50,17 @@ sensitive numeric values (pricing/OKR figures). Run `make validate && make test`
 
 | Path | Contents |
 |------|----------|
-| `plugins/odoo-semantic-skills/.claude-plugin/plugin.json` | Skills plugin manifest (skills/agents/commands; declares `odoo-semantic-mcp` as a dependency) |
-| `plugins/odoo-semantic-skills/skills/<name>/SKILL.md` | One skill per directory, YAML frontmatter + body |
-| `plugins/odoo-semantic-skills/agents/*.md` | Orchestration agents |
-| `plugins/odoo-semantic-skills/commands/*.md` | Workflow slash commands |
-| `plugins/odoo-semantic-skills/.mcp.json` | Bundled browser MCP servers (`chrome-devtools`, `playwright`, `pagecast`) loaded with the plugin for the visual stack |
-| `plugins/odoo-semantic-skills/hooks/` | Plugin lifecycle hooks (`hooks.json` + scripts) — e.g. the SessionStart visual-stack readiness probe |
-| `plugins/odoo-semantic-skills/scripts/lib/` | Shared bash/python setup utilities (`config_merge.py`, `discover_odoo.sh`) reused by setup steps |
-| `plugins/odoo-semantic-skills/scripts/setup-steps/` | Numbered, idempotent setup steps (`describe \| check \| apply`) driven by `/odoo-semantic-skills:odoo-setup` |
-| `plugins/odoo-semantic-skills/generator/` | SSOT generator (`gen_surface.py`) + server-surface inputs |
-| `plugins/odoo-semantic-skills/snippets/` | MCP config for non-Claude clients, plus agent-facing SSOT protocol snippets (disk-fallback-protocol, context-bootstrap, osm-first-contract, nesting-guard) referenced by skill/agent bodies |
-| `plugins/odoo-semantic-skills/docs/` | Persona guides, client setup, tool routing reference |
+| `plugins/odoo-ai-agents/.claude-plugin/plugin.json` | Skills plugin manifest (skills/agents/commands; declares `odoo-semantic-mcp` as a dependency) |
+| `plugins/odoo-ai-agents/skills/<name>/SKILL.md` | One skill per directory, YAML frontmatter + body |
+| `plugins/odoo-ai-agents/agents/*.md` | Orchestration agents |
+| `plugins/odoo-ai-agents/commands/*.md` | Workflow slash commands |
+| `plugins/odoo-ai-agents/.mcp.json` | Bundled browser MCP servers (`chrome-devtools`, `playwright`, `pagecast`) loaded with the plugin for the visual stack |
+| `plugins/odoo-ai-agents/hooks/` | Plugin lifecycle hooks (`hooks.json` + scripts) — e.g. the SessionStart visual-stack readiness probe |
+| `plugins/odoo-ai-agents/scripts/lib/` | Shared bash/python setup utilities (`config_merge.py`, `discover_odoo.sh`) reused by setup steps |
+| `plugins/odoo-ai-agents/scripts/setup-steps/` | Numbered, idempotent setup steps (`describe \| check \| apply`) driven by `/odoo-ai-agents:odoo-setup` |
+| `plugins/odoo-ai-agents/generator/` | SSOT generator (`gen_surface.py`) + server-surface inputs |
+| `plugins/odoo-ai-agents/snippets/` | MCP config for non-Claude clients, plus agent-facing SSOT protocol snippets (disk-fallback-protocol, context-bootstrap, osm-first-contract, nesting-guard) referenced by skill/agent bodies |
+| `plugins/odoo-ai-agents/docs/` | Persona guides, client setup, tool routing reference |
 | `plugins/odoo-semantic-mcp/.claude-plugin/plugin.json` | MCP plugin manifest (userConfig for URL + API key) |
 | `plugins/odoo-semantic-mcp/.mcp.json` | MCP server template (resolved from `userConfig`) |
 | `plugins/odoo-semantic-mcp/commands/connect.md` | The `/odoo-semantic-mcp:connect` slash command |
@@ -74,7 +74,7 @@ matches what you actually mean:
 | You mean… | Write exactly | Where it appears |
 |-----------|---------------|------------------|
 | The plugin that ships the MCP server connection + connect command | `odoo-semantic-mcp` | Plugin name, `/odoo-semantic-mcp:connect`, dependency declarations |
-| The plugin that ships the skills / agents / commands | `odoo-semantic-skills` | Plugin name, `/odoo-semantic-skills:odoo-setup`, etc. |
+| The plugin that ships the skills / agents / commands | `odoo-ai-agents` | Plugin name, `/odoo-ai-agents:odoo-setup`, etc. |
 | The product / brand / hosted service | `Odoo Semantic` (prose) or `OSM` (abbrev) | README prose, "the Odoo Semantic service"; URL `odoo-semantic.viindoo.com` |
 | The **MCP server id** (runtime identifier) | `odoo-semantic` in backticks, config/code only | `.mcp.json`, editor snippets — naming the registered server id. NEVER as a plugin name |
 | The **tool-call prefix** | `mcp__odoo-semantic__*` | Tool names in skills/agents/docs/tests — always the full `mcp__…__` form |
@@ -117,7 +117,7 @@ SSOT in [Viindoo/odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-
 
 ### Skill format
 
-Each `plugins/odoo-semantic-skills/skills/<name>/SKILL.md` must start with YAML frontmatter containing at least a
+Each `plugins/odoo-ai-agents/skills/<name>/SKILL.md` must start with YAML frontmatter containing at least a
 `name` and a `description`. The description is what drives routing — keep it specific and
 trigger-rich, but **under 1024 characters**: Claude truncates longer descriptions out of the
 skill listing, which silently degrades triggering. Trim duplicate trigger phrases and
@@ -130,7 +130,7 @@ exist).
 ### Naming convention: skill vs agent vs command (morphology)
 
 Names encode **role**, so an AI router (and a human) can tell the three layers apart even
-when a name appears bare — without its `odoo-semantic-skills:` namespace — in a cross-reference
+when a name appears bare — without its `odoo-ai-agents:` namespace — in a cross-reference
 or in the model's own reasoning. The rule:
 
 - **Skill** = a **capability noun** — either a noun phrase (`-review`, `-analysis`, `-diff`,
@@ -176,7 +176,7 @@ sign-off will be asked to amend.
 The plugin is published through the `Viindoo/claude-plugins` marketplace. A push to
 `master` that touches plugin content triggers `.github/workflows/pin-sha.yml`, which
 opens an auto-merge PR on the marketplace repo pinning both split plugins' `source.sha`
-(`odoo-semantic-skills` and `odoo-semantic-mcp`) to the new commit.
+(`odoo-ai-agents` and `odoo-semantic-mcp`) to the new commit.
 
 ### Required secret: `CLAUDE_PLUGINS_PAT`
 
@@ -197,7 +197,7 @@ repo, but rotate immediately if exposure is suspected.
 ### Versioning
 
 `VERSION` is the single source of truth for the client version. The repo ships **two
-plugins** with independent version numbers: the `odoo-semantic-skills` plugin's
+plugins** with independent version numbers: the `odoo-ai-agents` plugin's
 `plugin.json.version` is kept in lockstep with `VERSION`, while the
 `odoo-semantic-mcp` plugin versions independently. Tagging `v*`
 should bump `VERSION` together with the skills plugin's `plugin.json.version`; bump the
@@ -206,7 +206,7 @@ for both plugins on every qualifying push; each marketplace entry's `source.vers
 tracks its respective `plugin.json.version`.
 
 **Bumping.** Run `make bump-patch` / `make bump-minor` / `make bump-major` (or
-`scripts/bump-version.sh <level>`). It updates `VERSION`, the `odoo-semantic-skills`
+`scripts/bump-version.sh <level>`). It updates `VERSION`, the `odoo-ai-agents`
 `plugin.json.version`, and cuts the `## [Unreleased]` CHANGELOG block to `## [x.y.z] - DATE`
 in one step — so the version and changelog never drift apart. Pick the level by impact:
 **patch** = fixes / internal refactors / docs, **minor** = backward-compatible features,

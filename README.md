@@ -18,7 +18,7 @@ flowchart TB
         direction TB
         intake["intake<br/>universal front door"]
         wfrunner["workflow-chaining<br/>declarative YAML executor"]
-        skills["odoo-semantic-skills<br/>40 skills / 7 agents / 9 commands"]
+        skills["odoo-ai-agents<br/>40 skills / 7 agents / 9 commands"]
         mcp["odoo-semantic-mcp<br/>MCP connection + /connect"]
         intake --> wfrunner --> skills
         intake --> skills
@@ -44,10 +44,10 @@ detailed README - start there for usage, install, and reference:
 
 | Plugin | What it is | README |
 |--------|-----------|--------|
-| **[`odoo-semantic-skills`](plugins/odoo-semantic-skills/)** | The full Odoo AI workforce toolkit: **40 skills + 7 agents + 9 commands** across 9 personas, plus **12 declarative workflows** and the drive-to-done orchestration harness. Depends on `odoo-semantic-mcp` (auto-installed). | [README](plugins/odoo-semantic-skills/README.md) |
+| **[`odoo-ai-agents`](plugins/odoo-ai-agents/)** | The full Odoo AI workforce toolkit: **40 skills + 7 agents + 9 commands** across 9 personas, plus **12 declarative workflows** and the drive-to-done orchestration harness. Depends on `odoo-semantic-mcp` (auto-installed). | [README](plugins/odoo-ai-agents/README.md) |
 | **[`odoo-semantic-mcp`](plugins/odoo-semantic-mcp/)** | The thin MCP connection layer: registers the `odoo-semantic` server (**25 tools / 7 resources**) and ships the `/odoo-semantic-mcp:connect` command. Install this alone for raw MCP tools only. | [README](plugins/odoo-semantic-mcp/README.md) |
 
-Most users install **`odoo-semantic-skills`**, which pulls in `odoo-semantic-mcp` automatically as
+Most users install **`odoo-ai-agents`**, which pulls in `odoo-semantic-mcp` automatically as
 a declared dependency - the skills, agents, commands, and the MCP connection all arrive in one step.
 
 ## Quick install (Claude Code)
@@ -56,7 +56,7 @@ a declared dependency - the skills, agents, commands, and the MCP connection all
 
 ```
 /plugin marketplace add Viindoo/claude-plugins   # one-time, if not already registered
-/plugin install odoo-semantic-skills@viindoo-plugins   # auto-pulls odoo-semantic-mcp
+/plugin install odoo-ai-agents@viindoo-plugins   # auto-pulls odoo-semantic-mcp
 /odoo-semantic-mcp:connect
 ```
 
@@ -72,25 +72,6 @@ Either way, **restart Claude Code** afterward so the MCP tools load. You will ne
 **MCP server URL** (default `https://odoo-semantic.viindoo.com/mcp`). Per-plugin install notes,
 browser MCP setup, and other-AI-tool configs are in each plugin's README.
 
-## Migration / upgrading from v1.x
-
-The single `odoo-semantic` plugin has been **split and renamed** into `odoo-semantic-skills`
-and `odoo-semantic-mcp`. If you previously installed the old `odoo-semantic` plugin, uninstall
-it and reinstall the new plugins:
-
-```
-/plugin uninstall odoo-semantic@viindoo-plugins
-/plugin install odoo-semantic-skills@viindoo-plugins   # auto-pulls odoo-semantic-mcp
-/odoo-semantic-mcp:connect
-```
-
-Then **restart Claude Code**.
-
-> **Note:** your API key + MCP URL must be re-entered after installing the new MCP plugin -
-> `/odoo-semantic-mcp:connect` will prompt for them again. The MCP server name (`odoo-semantic`,
-> tools `mcp__odoo-semantic__*`) is unchanged, so anything that references the tool namespace
-> keeps working.
-
 ## Requirements
 
 - **Odoo Semantic MCP server URL** - `https://odoo-semantic.viindoo.com/mcp` (or your self-hosted instance)
@@ -105,7 +86,7 @@ Test changes from a checkout without going through the marketplace. Each plugin 
 under `plugins/` - point `--plugin-dir` at the one you are working on:
 
 ```bash
-claude --plugin-dir ./plugins/odoo-semantic-skills   # skills + agents + commands
+claude --plugin-dir ./plugins/odoo-ai-agents   # skills + agents + commands
 claude --plugin-dir ./plugins/odoo-semantic-mcp      # MCP connection + connect command
 ```
 

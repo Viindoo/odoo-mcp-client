@@ -7,7 +7,7 @@ that commit to the Claude marketplace (`Viindoo/claude-plugins`). This prevents 
 known-bad build from propagating to end-users who run `claude plugin update`.
 
 **End-user action:** if you installed a version listed below, run
-`claude plugin update odoo-semantic-skills@viindoo-plugins` (which pulls the
+`claude plugin update odoo-ai-agents@viindoo-plugins` (which pulls the
 `odoo-semantic-mcp` plugin via its dependency) once the block is lifted, or
 roll back manually by following the [rollback runbook](CONTRIBUTING.md#rollback-runbook).
 

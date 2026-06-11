@@ -1,4 +1,6 @@
-# odoo-semantic-skills
+# Odoo AI Agent Team
+
+> Plugin slug: `odoo-ai-agents`
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
@@ -283,7 +285,7 @@ provisions the browser environment, then four skills run independently and conve
 
 ```mermaid
 flowchart TD
-    SETUP["/odoo-semantic-skills:odoo-setup"]
+    SETUP["/odoo-ai-agents:odoo-setup"]
     SETUP --> MCPW["Wires 3 browser MCP servers<br/>chrome-devtools + playwright + pagecast"]
     SETUP --> CTX[".odoo-ai/context.md<br/>.odoo-ai/instances.toml"]
 
@@ -315,8 +317,8 @@ flowchart TD
 | `/odoo-plan-upgrade` | Comprehensive upgrade plan (replaces legacy `odoo-upgrade-planner` agent), saves to `.odoo-ai/upgrade-plans/` | `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis |
 | `/odoo-run-brl` | Bulk requirement-list classification at scale (chunked, resumable), saves to `.odoo-ai/brl/<job-id>/` | `odoo-brl` (sequential-outer-parallel-inner) |
 | `/odoo-produce-video` | Multi-scene Odoo demo video (storyboard -> record -> assemble), saves to `.odoo-ai/video/` | `odoo-demo-recording` (per scene) |
-| `/odoo-semantic-skills:odoo-setup` | One-shot idempotent setup for the visual workflow - wires 3 browser MCP servers across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance | - |
-| `/odoo-semantic-skills:odoo-run-wave` | Depth-0 git-wave orchestration: integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge (auto-merge never allowed) | `wave` |
+| `/odoo-ai-agents:odoo-setup` | One-shot idempotent setup for the visual workflow - wires 3 browser MCP servers across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance | - |
+| `/odoo-ai-agents:odoo-run-wave` | Depth-0 git-wave orchestration: integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge (auto-merge never allowed) | `wave` |
 
 ## Use cases - day in the life
 
@@ -393,7 +395,7 @@ You: "Run visual regression on the invoicing list and form views after installin
 module account_followup on Customer E's staging instance."
 ```
 
-Run `/odoo-semantic-skills:odoo-setup` once to provision the browser automation stack. Then skill `odoo-visual-regression` fires: it captures before/after screenshots of targeted views, diffs them, and flags regressions with severity labels. Where a defect is confirmed, `odoo-ui-review` follows up with a 5-lens audit (aesthetics / function / stability / accessibility / performance) and surfaces the exact CSS or XML path to fix. Fixes are handed to `odoo-coding`, which writes the override and shows a patch preview before applying.
+Run `/odoo-ai-agents:odoo-setup` once to provision the browser automation stack. Then skill `odoo-visual-regression` fires: it captures before/after screenshots of targeted views, diffs them, and flags regressions with severity labels. Where a defect is confirmed, `odoo-ui-review` follows up with a 5-lens audit (aesthetics / function / stability / accessibility / performance) and surfaces the exact CSS or XML path to fix. Fixes are handed to `odoo-coding`, which writes the override and shows a patch preview before applying.
 
 ### Use case 8 - Support: triage an inbound customer ticket
 
@@ -426,11 +428,11 @@ Inside Claude Code, run:
 
 ```
 /plugin marketplace add Viindoo/claude-plugins   # one-time, if not already registered
-/plugin install odoo-semantic-skills@viindoo-plugins   # auto-pulls odoo-semantic-mcp
+/plugin install odoo-ai-agents@viindoo-plugins   # auto-pulls odoo-semantic-mcp
 /odoo-semantic-mcp:connect
 ```
 
-Installing `odoo-semantic-skills` **automatically pulls in `odoo-semantic-mcp`** via the plugin dependency, so you get the skills, agents, commands, and the MCP connection in one step. Then **restart Claude Code**.
+Installing `odoo-ai-agents` **automatically pulls in `odoo-semantic-mcp`** via the plugin dependency, so you get the skills, agents, commands, and the MCP connection in one step. Then **restart Claude Code**.
 
 You will need an **API key** (format `osm_...`) from the [install page](https://odoo-semantic.viindoo.com/install/), and the **MCP server URL** (default `https://odoo-semantic.viindoo.com/mcp`). For MCP-only setup and the `connect` command details, see the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin.
 
@@ -443,19 +445,31 @@ and `pagecast`. Each runtime bundles them natively:
 | Runtime | How it ships | What to run |
 |---------|-------------|-------------|
 | **Claude Code** | Bundled `.mcp.json` (auto-loaded on plugin install). Claude deduplicates by command - a same-command server already in your config wins silently. No manual step. | Nothing extra after `claude plugin install`. |
-| **Gemini CLI** | `gemini-extension.json` in the plugin directory. **Gemini requires a repo root**, so install via local path: `gemini extensions install <your-clone>/plugins/odoo-semantic-skills` (or `...link ...` for live dev). Dedup is by server name. The `trust` field is not allowed in the extension manifest. | `gemini extensions install <your-clone>/plugins/odoo-semantic-skills` |
-| **Codex CLI** | `.codex-plugin/plugin.json`. Installed from a marketplace snapshot: `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-semantic-skills@<marketplace>` (marketplace.json to be published separately). | `codex plugin add odoo-semantic-skills@<marketplace>` |
+| **Gemini CLI** | `gemini-extension.json` in the plugin directory. **Gemini requires a repo root**, so install via local path: `gemini extensions install <your-clone>/plugins/odoo-ai-agents` (or `...link ...` for live dev). Dedup is by server name. The `trust` field is not allowed in the extension manifest. | `gemini extensions install <your-clone>/plugins/odoo-ai-agents` |
+| **Codex CLI** | `.codex-plugin/plugin.json`. Installed from a marketplace snapshot: `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-ai-agents@<marketplace>` (marketplace.json to be published separately). | `codex plugin add odoo-ai-agents@<marketplace>` |
 
-**Fallback (Codex/Gemini without native install):** run `/odoo-semantic-skills:odoo-setup runtime`
+**Fallback (Codex/Gemini without native install):** run `/odoo-ai-agents:odoo-setup runtime`
 inside Claude Code - it writes the correct browser server config for Codex and Gemini
 idempotently. It does **not** write to `~/.claude.json` for Claude Code (served by the
 bundled `.mcp.json`).
 
 Full details and manual snippets: [`docs/setup.md` - Visual stack / browser MCP setup](docs/setup.md#visual-stack--browser-mcp-setup).
 
-> **Upgrading from the old single `odoo-semantic` plugin (v1.x)?** It was split into
-> `odoo-semantic-skills` + `odoo-semantic-mcp`. See [Migration in the repo
-> README](../../README.md#migration--upgrading-from-v1x).
+## Renaming - migrating from `odoo-semantic-skills`
+
+This plugin was renamed `odoo-semantic-skills` → `odoo-ai-agents` (Odoo AI Agent Team).
+If you have the old plugin installed, switch over:
+
+    /plugin uninstall odoo-semantic-skills@viindoo-plugins
+    /plugin marketplace update viindoo-plugins
+    /plugin install odoo-ai-agents@viindoo-plugins     # auto-pulls odoo-semantic-mcp
+    /odoo-semantic-mcp:connect
+
+Then restart Claude Code. Your OSM API key + MCP URL are unchanged; the MCP server
+(`odoo-semantic`) and sibling plugin (`odoo-semantic-mcp`) are NOT renamed, so anything using
+`mcp__odoo-semantic__*` keeps working. After reinstalling, re-run
+`/odoo-ai-agents:odoo-setup permissions` to re-allow the bundled browser MCP tools under the
+new `mcp__plugin_odoo-ai-agents_*` prefix.
 
 ## Reference
 
@@ -531,7 +545,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 Test changes from a checkout without going through the marketplace:
 
 ```bash
-claude --plugin-dir ./plugins/odoo-semantic-skills   # skills + agents + commands
+claude --plugin-dir ./plugins/odoo-ai-agents   # skills + agents + commands
 ```
 
 See [`CONTRIBUTING.md`](../../CONTRIBUTING.md) for the full plugin-dev workflow, the release /

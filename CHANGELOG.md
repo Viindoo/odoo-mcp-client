@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Plugin renamed `odoo-semantic-skills` -> `odoo-ai-agents`** (display name "Odoo AI Agent Team"):
+  end users should uninstall the old plugin and install the new one -
+  `/plugin uninstall odoo-semantic-skills@viindoo-plugins` then
+  `/plugin install odoo-ai-agents@viindoo-plugins`. The `odoo-semantic` MCP server and the
+  `odoo-semantic-mcp` sibling plugin are **unchanged** - `mcp__odoo-semantic__*` tool references
+  continue to work without modification.
+
 ## [3.6.0] - 2026-06-11
 
 ### Changed
