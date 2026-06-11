@@ -51,3 +51,19 @@ A subset of these rules that can be checked mechanically (deprecated decorators,
 `.py`/`.xml` files. The gate catches only the mechanical subset; the semantic rules (attribute
 ordering, naming intent, structure) are the responsibility of the agent reading these files
 up front.
+
+## Viindoo additions beyond upstream RST
+
+The per-version `<version>/python.md` files are verbatim extractions of the official Odoo RST
+source - they are not edited to carry Viindoo-specific rules. Rules that go beyond upstream RST
+live here (in this root index) or in the shared snippets directory, and are kept in a single
+SSOT to avoid 6-way duplication.
+
+**Field / method presence resolution (don't probe - resolve):** Do NOT probe whether an Odoo
+field or method exists on a recordset at runtime (`hasattr(record, 'field')`,
+`getattr(record, 'field', default)`, `try: record.field except AttributeError`). The ORM schema
+is statically knowable from the module dependency graph; a runtime probe masks one of three real
+defects (lookup-gap, wrong ORM path, or missing `depends`) instead of surfacing it. Resolve
+presence via OSM before writing or accepting the access.
+Full rule, 3-way classification, worked examples, and JS/OWL analogue:
+`${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`
