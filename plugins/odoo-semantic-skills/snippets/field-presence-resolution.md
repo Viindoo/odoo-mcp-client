@@ -1,11 +1,3 @@
-<!-- SSOT snippet. The canonical rule on resolving Odoo field/method PRESENCE via OSM
-     dependency closure instead of probing it at runtime. Referenced (not copy-pasted) by
-     osm-first-contract.md §1, coding_guidelines/INDEX.md, odoo-failure-modes.md, and the
-     reviewer/coder/frontend-coder agents. Edit here only; consumers point at
-     ${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md. Version-agnostic: the
-     anti-pattern is wrong on EVERY Odoo version; concrete field facts below are confirmed
-     per target version via OSM. -->
-
 # Field / Method Presence Resolution (don't probe - resolve)
 
 Probing whether an Odoo **field or method exists on a recordset at runtime** -
