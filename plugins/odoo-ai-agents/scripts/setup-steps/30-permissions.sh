@@ -99,7 +99,7 @@ cmd_apply() {
     fi
     case "$reply" in
         n|N|no|No|NO|skip)
-            echo "Skipped permission auto-allow. You can re-run: /odoo-semantic-skills:odoo-setup permissions"
+            echo "Skipped permission auto-allow. You can re-run: /odoo-ai-agents:odoo-setup permissions"
             return 0
             ;;
     esac

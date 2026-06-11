@@ -3,12 +3,12 @@
 gen_mcp_manifests.py — SSOT generator for Codex CLI and Gemini CLI MCP manifests.
 
 Reads:
-  - plugins/odoo-semantic-skills/.mcp.json          (browser MCP server SSOT)
-  - plugins/odoo-semantic-skills/.claude-plugin/plugin.json  (name/version/description)
+  - plugins/odoo-ai-agents/.mcp.json          (browser MCP server SSOT)
+  - plugins/odoo-ai-agents/.claude-plugin/plugin.json  (name/version/description)
 
 Emits:
-  - plugins/odoo-semantic-skills/gemini-extension.json
-  - plugins/odoo-semantic-skills/.codex-plugin/mcp.json
+  - plugins/odoo-ai-agents/gemini-extension.json
+  - plugins/odoo-ai-agents/.codex-plugin/mcp.json
 
 Usage:
   python3 generator/gen_mcp_manifests.py          # write mode (idempotent)
@@ -146,8 +146,8 @@ def check_mode() -> int:
     if drifted:
         print(
             "ERROR: gen_mcp_manifests.py check failed — the following generated files are "
-            "out of sync with plugins/odoo-semantic-skills/.mcp.json.\n"
-            "Run: python3 plugins/odoo-semantic-skills/generator/gen_mcp_manifests.py",
+            "out of sync with plugins/odoo-ai-agents/.mcp.json.\n"
+            "Run: python3 plugins/odoo-ai-agents/generator/gen_mcp_manifests.py",
             file=sys.stderr,
         )
         for line in drifted:

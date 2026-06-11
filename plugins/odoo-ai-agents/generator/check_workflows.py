@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CI workflow validator: assert every workflows/*.workflow.yaml conforms to the schema.
 
-Schema SSOT: plugins/odoo-semantic-skills/workflows/_schema.md
+Schema SSOT: plugins/odoo-ai-agents/workflows/_schema.md
 Rules enforced:
   1. All required top-level fields present (name, domain, team_pattern, description,
      output_dir, phases).
@@ -31,7 +31,7 @@ except ImportError:
 # Paths
 # ---------------------------------------------------------------------------
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent  # plugins/odoo-semantic-skills
+ROOT = pathlib.Path(__file__).resolve().parent.parent  # plugins/odoo-ai-agents
 WORKFLOWS_DIR = ROOT / "workflows"
 SKILLS_DIR = ROOT / "skills"
 COMMANDS_DIR = ROOT / "commands"

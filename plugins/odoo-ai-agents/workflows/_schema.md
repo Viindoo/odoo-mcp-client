@@ -10,7 +10,7 @@
 ## 1. File naming
 
 ```
-plugins/odoo-semantic-skills/workflows/<name>.workflow.yaml
+plugins/odoo-ai-agents/workflows/<name>.workflow.yaml
 ```
 
 - `<name>` must be a valid slug: lowercase, hyphens, no spaces or dots.
@@ -177,7 +177,7 @@ fallback: standalone
 3. `team_pattern` is one of the 6 allowed values.
 4. `output_dir` starts with `.odoo-ai/`.
 5. Each phase has exactly one of `skill`, `inline: true`, or `agent`.
-6. For phases with `skill`: the skill name exists as a directory under `plugins/odoo-semantic-skills/skills/`.
+6. For phases with `skill`: the skill name exists as a directory under `plugins/odoo-ai-agents/skills/`.
 7. `model_tier` is one of `haiku`, `sonnet`, `opus`, `inherit`.
 8. `name` matches the file stem (filename without `.workflow.yaml`).
 9. `description` does not end with a period, exclamation mark, or question mark.

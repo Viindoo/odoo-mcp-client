@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-setup-deps.sh — SessionStart readiness probe for odoo-semantic-skills visual stack.
+# check-setup-deps.sh — SessionStart readiness probe for odoo-ai-agents visual stack.
 # READ-ONLY: never writes, never installs, never blocks the session.
 # Prints a one-block hint (≤4 lines) when deps are missing; stays silent when all is well.
 # Always exits 0.
@@ -63,7 +63,7 @@ ${_browser_mcp_wired} || missing+=("chrome-devtools MCP (not wired in Codex/Gemi
 if [ "${#missing[@]}" -gt 0 ]; then
   _list=$(IFS=", "; echo "${missing[*]}")
   echo "i  Odoo visual stack incomplete: ${_list}." >&2
-  echo "   Run /odoo-semantic-skills:odoo-setup to complete the installation." >&2
+  echo "   Run /odoo-ai-agents:odoo-setup to complete the installation." >&2
 fi
 
 # SessionStart context injection: always surface the orchestration digest so the

@@ -513,7 +513,7 @@ def gen_orchestration_digest(orch: dict[str, dict]) -> str:
     )
     depth0 = sorted(n for n, e in orch.items() if e.get("depth_policy") == "depth0-only")
     lines = [
-        "[odoo-semantic-skills] Orchestration registry (so you never forbid a legitimate spawn):",
+        "[odoo-ai-agents] Orchestration registry (so you never forbid a legitimate spawn):",
         "- Skills that SPAWN subagents (let them; invoke only from the main agent): "
         + (", ".join(spawners) or "none"),
         "- depth0-only (never invoke these from inside a subagent): " + (", ".join(depth0) or "none"),

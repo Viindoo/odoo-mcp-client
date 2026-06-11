@@ -72,7 +72,7 @@ cmd_apply() {
     echo "x Odoo Semantic MCP server is not connected." >&2
     echo "   1. Run /odoo-semantic-mcp:connect (about one minute)." >&2
     echo "   2. Restart Claude Code, then open a NEW session." >&2
-    echo "   3. Re-run /odoo-semantic-skills:odoo-setup." >&2
+    echo "   3. Re-run /odoo-ai-agents:odoo-setup." >&2
     echo "   Setup needs the indexing backend connected before it can proceed." >&2
     return 1
 }
