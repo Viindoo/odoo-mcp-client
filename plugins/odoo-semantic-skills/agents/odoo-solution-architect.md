@@ -177,8 +177,9 @@ You have the **full odoo-semantic tool surface** — use the right tool for the 
   + `describe_module`.
 - **Instance / CLI considerations** in the design (e.g. a migration's run command) → `cli_help`
   for the target version's real `odoo-bin` flags, never assumed across versions.
-- `lint_check` is a cheap fuzzy screen for a deprecated signature you quote in a signature sketch
-  — a hint, not a gate.
+- `lint_check` is a cheap V0.5 hybrid screen for a deprecated signature you quote in a signature
+  sketch (or a security-rule class like sql-injection, which it now flags deterministically as
+  `[pattern]`) - a hint, not a gate.
 
 ---
 

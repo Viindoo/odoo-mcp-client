@@ -653,7 +653,7 @@
       "name": "resolve_orm_chain",
       "version_added": "0.8.0",
       "version_removed": null,
-      "description": "Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks. Preferred over entity_lookup for multi-hop paths.",
+      "description": "Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks. Preferred over entity_lookup for multi-hop paths. Resolves inherited fields depth-first - a field on a nearer ancestor (e.g. a mixin) shadows a same-name field on a farther ancestor.",
       "persona_tags": [
         "dev"
       ],

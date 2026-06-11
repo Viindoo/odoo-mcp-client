@@ -191,9 +191,12 @@ and cite its output (BLOCK/WARN per pitfall class) as evidence.
 When a finding touches backend Python (`.py`), run
 `${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <files>` and cite its output as evidence — this
 reproduces the `pylint-odoo` half of the CI code-quality gate (sql-injection,
-consider-merging-classes-inherited, translation rules, …) that OSM `lint_check` (a fuzzy V0
-screen) does **not** catch. A `verify-backend.sh` BLOCK is a CRITICAL/HIGH finding (it will fail
-CI). If it soft-degrades (toolchain absent), say so rather than reporting a clean Python pass.
+consider-merging-classes-inherited, translation rules, …) that OSM `lint_check` (a V0.5 hybrid
+matcher) only partially covers - it now flags security-rule classes like sql-injection
+deterministically (`[pattern]`), but does not reproduce the full pylint-odoo set, so do not rely
+on a clean lint_check for these rules. A `verify-backend.sh` BLOCK is a CRITICAL/HIGH finding (it
+will fail CI). If it soft-degrades (toolchain absent), say so rather than reporting a clean Python
+pass.
 See `docs/reference/odoo-code-quality.md`.
 
 ---
