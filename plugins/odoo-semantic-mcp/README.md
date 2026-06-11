@@ -6,7 +6,7 @@
 > The **connection layer** that wires the [Odoo Semantic MCP server](https://odoo-semantic.viindoo.com/)
 > into your AI agent. Install this alone if you only want the raw MCP tools - no persona skills,
 > agents, or commands. For the full Odoo workforce toolkit, install the companion
-> [`odoo-semantic-skills`](../odoo-semantic-skills/) plugin instead (it pulls this one in automatically).
+> [`odoo-ai-agents`](../odoo-ai-agents/) plugin instead (it pulls this one in automatically).
 
 ## What this plugin provides
 
@@ -31,7 +31,7 @@ You will need an **API key** (format `osm_...`) from the
 [install page](https://odoo-semantic.viindoo.com/install/), and the **MCP server URL**
 (default `https://odoo-semantic.viindoo.com/mcp`).
 
-> **Want the persona skills too?** Install [`odoo-semantic-skills`](../odoo-semantic-skills/)
+> **Want the persona skills too?** Install [`odoo-ai-agents`](../odoo-ai-agents/)
 > instead - it declares `odoo-semantic-mcp` as a dependency, so the skills, agents, commands,
 > and this MCP connection all arrive in one step.
 
@@ -46,14 +46,14 @@ You will need an **API key** (format `osm_...`) from the
 5. Pre-approves all `mcp__odoo-semantic__*` tools in `~/.claude/settings.json` (idempotent).
 
 Full parameter details and the manual snippet for `permissions.allow` are in
-[`docs/setup.md#claude-code-auto-trust`](../odoo-semantic-skills/docs/setup.md#claude-code-auto-trust).
+[`docs/setup.md#claude-code-auto-trust`](../odoo-ai-agents/docs/setup.md#claude-code-auto-trust).
 
 ## MCP tools and resources
 
 The server exposes **25 tools** and **7 resource URI templates** (`odoo://{version}/{kind}/{id}`,
 where `kind` is one of `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`).
 Full URI descriptions, parameter reference, and usage examples are in
-[`docs/setup.md`](../odoo-semantic-skills/docs/setup.md#mcp-resources-odoo-uri-scheme-v05).
+[`docs/setup.md`](../odoo-ai-agents/docs/setup.md#mcp-resources-odoo-uri-scheme-v05).
 
 Supported Odoo versions: **v8.0 onward** - every major the OSM server has indexed (query
 `list_available_versions` for the live set).
@@ -92,8 +92,8 @@ The connect command verifies the server via `curl` and tells you when to restart
 This plugin packages the connection for Claude Code. For other clients (Cursor, ChatGPT,
 Gemini, Continue.dev, VS Code, Zed, Windsurf, JetBrains), paste the matching MCP config -
 copy-ready snippets and per-client walkthroughs live in the companion plugin under
-[`odoo-semantic-skills/snippets/`](../odoo-semantic-skills/snippets/) and
-[`docs/setup.md`](../odoo-semantic-skills/docs/setup.md).
+[`odoo-ai-agents/snippets/`](../odoo-ai-agents/snippets/) and
+[`docs/setup.md`](../odoo-ai-agents/docs/setup.md).
 
 ## Requirements
 
