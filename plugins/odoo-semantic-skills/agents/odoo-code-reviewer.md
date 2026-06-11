@@ -112,7 +112,7 @@ returned NOT FOUND for field `amout_total` on `sale.order`"). You do not guess â
   Import succeeds; call raises at runtime.
 - **Direct SQL without sanitization** â€” `env.cr.execute(query % user_input)` is SQL injection.
   Always use parameterized form: `env.cr.execute(query, (param,))`.
-- **Runtime field/method presence probe** â€” `hasattr(rec, 'f')` / `getattr(rec, 'f', default)` /
+- **Runtime field/method presence probe** - `hasattr(rec, 'f')` / `getattr(rec, 'f', default)` /
   `try: rec.f except AttributeError` to detect ORM presence is a smell, never defensive coding. It
   masks one of three defects: (1) lookup-gap - existence never OSM-verified; (2) wrong ORM path -
   the field lives on a related model (confirm with `entity_lookup` / `resolve_orm_chain`); (3)
@@ -121,7 +121,7 @@ returned NOT FOUND for field `amout_total` on `sale.order`"). You do not guess â
   access, or `'f' in rec._fields` with a documented soft-dep, or amended `depends`. Flagging the
   probe is mandatory; you may NOT defer it as "intentional" - it is always one of the three real
   defects. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
-- **Duck-typed fake record satisfying a presence probe** â€” a test building `class FakeSaleOrder`
+- **Duck-typed fake record satisfying a presence probe** - a test building `class FakeSaleOrder`
   with hand-set attributes to exercise a `hasattr` branch tests the code's shape, not Odoo behavior;
   it can never go red on a real defect. Flag both the probe (production) and the fake (test). Exercise
   the real recordset instead. (ETHOS: test the behavior, not the code.)

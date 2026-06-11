@@ -158,7 +158,7 @@ Call all of the following simultaneously:
    just one model), `module_inspect(name='<module>', method='summary', odoo_version='<version>')` gives the module's
    models/views/JS picture so the new code lands in the right place.
 5. **Presence before runtime read.** When generated code will *read* a field or method that may
-   be module-conditional, resolve PRESENCE statically before writing — never emit
+   be module-conditional, resolve PRESENCE statically before writing - never emit
    `hasattr`/`getattr`-default/`try...except AttributeError` as a presence guard. Use
    `model_inspect` (step 1 above) to identify the declaring module; then walk the transitive
    `depends` closure via `module_inspect(name='<my_module>', method='dependencies',
@@ -354,7 +354,7 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 - [ ] Backend static gate (`verify-backend.sh`) ran — BLOCK fixed, or soft-degrade noted
 - [ ] Read `coding_guidelines/<version>/` in Round 0 and wrote to spec from the first pass —
       model attribute order, method/field naming prefixes, and import order match the version's rules
-- [ ] No hasattr/getattr-default/try-except-AttributeError ORM presence guard — presence resolved
+- [ ] No hasattr/getattr-default/try-except-AttributeError ORM presence guard - presence resolved
       via dep closure (direct access) OR `'field' in record._fields` + documented soft-dep OR `depends` amended
 ```
 
