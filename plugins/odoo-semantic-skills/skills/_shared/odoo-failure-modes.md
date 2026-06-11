@@ -23,7 +23,7 @@
 | `KeyError` / missing field at runtime | field defined in a module not installed / wrong module load order | `module_inspect` (models + depends); `entity_lookup` |
 | ORM call inside a loop (slow/limit) | N+1 - per-record query instead of batch read/write | `resolve_orm_chain`; see Performance layer |
 | Override never runs | wrong `_inherit`/`_name`, or super-chain bypassed | `find_override_point` (override chain + anti-patterns) |
-| Runtime presence probe (`hasattr(rec,'f')` / `getattr(rec,'f',default)` / `try…except AttributeError`) used instead of direct access | masks one of: (1) lookup-gap - existence never OSM-verified; (2) wrong ORM path - field lives on a related model; (3) missing-depends - field's module not in `depends` closure | `model_inspect` (field + declaring module) + `entity_lookup` (confirm real model/hop) + `module_inspect(method='dependencies')` (walk dep closure); see `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md` |
+| Runtime presence probe (`hasattr(rec,'f')` / `getattr(rec,'f',default)` / `try…except AttributeError`) used instead of direct access | masks one of: (1) lookup-gap - existence never OSM-verified; (2) wrong ORM path - field lives on a related model; (3) missing-depends - field's module not in `depends` closure | `model_inspect` (field + declaring module) + `entity_lookup` (confirm real model/hop) + `module_inspect(method='dependencies', odoo_version='auto')` (walk dep closure); see `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md` |
 
 Tools: `model_inspect`, `resolve_orm_chain`, `find_override_point`, `lookup_core_api`,
 `validate_depends`, `validate_domain`, `validate_relation`, `find_examples`.

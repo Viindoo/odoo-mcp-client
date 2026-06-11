@@ -117,7 +117,7 @@ returned NOT FOUND for field `amout_total` on `sale.order`"). You do not guess â
   masks one of three defects: (1) lookup-gap - existence never OSM-verified; (2) wrong ORM path -
   the field lives on a related model (confirm with `entity_lookup` / `resolve_orm_chain`); (3)
   dependency-arch gap - the field's module is not in `depends` (walk
-  `module_inspect(method='dependencies')`). Run the OSM walk, classify, then require the fix: direct
+  `module_inspect(method='dependencies', odoo_version='auto')`). Run the OSM walk, classify, then require the fix: direct
   access, or `'f' in rec._fields` with a documented soft-dep, or amended `depends`. Flagging the
   probe is mandatory; you may NOT defer it as "intentional" - it is always one of the three real
   defects. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
