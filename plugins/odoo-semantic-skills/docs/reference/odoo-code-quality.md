@@ -18,8 +18,10 @@
    **`scripts/verify-backend.sh`** (the backend sibling of `verify-frontend.sh`).
 
 A plain `odoo-bin --test-enable --test-tags '/<module>'` run includes **neither**, and OSM
-`lint_check` is a fuzzy V0 screen that does not reproduce pylint-odoo (it can miss SQL injection).
-That gap is exactly why lint failures slipped to CI.
+`lint_check` (a V0.5 hybrid matcher) does not reproduce the full pylint-odoo enabled-code set:
+it now fires deterministically on security-rule-class patterns like sql-injection (labeled
+`[pattern]`) but still does not cover the whole pylint-odoo ruleset. That gap is exactly why
+lint failures slipped to CI.
 
 ## `verify-backend.sh` — the inner-loop static gate
 
@@ -66,8 +68,10 @@ bare core pylint.
 Verified behaviour (Odoo 17.0, pylint-odoo 8.0.22):
 - pragma **present** + plugin loaded → suppressed cleanly, **no W0012** (PASS).
 - pragma **absent** in module context → R8180 **flagged** (BLOCK).
-- a `cr.execute("… '%s'" % x)` → `E8103 sql-injection` **flagged** (BLOCK); OSM `lint_check`
-  returns `0 violations` for the same input.
+- a `cr.execute("... '%s'" % x)` -> `E8103 sql-injection` **flagged** (BLOCK) by
+  `verify-backend.sh`; OSM `lint_check` now also flags this pattern as `[pattern]
+  sql-injection` (deterministic), but lint_check covers only the security-rule class - it is
+  a hint, not the full pylint-odoo gate.
 
 ## Enabled-code set — single source of truth from the deployment
 
@@ -116,5 +120,7 @@ environment, vendor nothing" principle.
 - Local **pre-push parity**, not a CI replacement.
 - No deployment-internal config vendored in this public plugin (enabled codes + brand tokens are
   read from the consumer environment).
-- OSM `lint_check` upgrade (real per-version linter / server-fed pin matrix) is **server-side**
-  follow-up work, tracked separately — out of scope for this client repo.
+- OSM `lint_check` got a server-side hybrid-matcher upgrade (V0.5: deterministic `[pattern]`
+  on security-rule classes). The remaining upgrade (a real per-version linter / server-fed
+  pin matrix reproducing the full pylint-odoo set) is still **server-side** follow-up work,
+  tracked separately - out of scope for this client repo.
