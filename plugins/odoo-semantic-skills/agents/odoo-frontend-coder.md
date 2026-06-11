@@ -164,6 +164,13 @@ especially for lifecycle hooks and import paths.
    server-rendered view, `entity_lookup(kind='method'|'view', …, odoo_version='<version>')` confirms that
    backend method/view actually exists before you bind the frontend to it — a typo'd model method
    surfaces as a runtime RPC error, not a compile error.
+   The bound field must be guaranteed by the **manifest `depends` closure of the module owning this
+   JS asset** - confirm it exists and is reachable (`entity_lookup` for the field; `module_inspect`
+   for the owning module's deps). Do NOT paper over a possibly-missing field with a runtime existence
+   probe (`record.data.field !== undefined`, optional-chaining-as-guard `record.data?.field`, or
+   `record.data.field ?? default`); if the field is genuinely optional, gate it on a documented
+   soft-dependency, not a bare probe. Full rule (the JS analogue section):
+   `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
 5. **Read coding guidelines before writing (read-before-write).** Open
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and Read
    `javascript.md` + `scss.md` for the version's JS/OWL/SCSS conventions. If the task also touches

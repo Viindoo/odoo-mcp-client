@@ -112,6 +112,19 @@ returned NOT FOUND for field `amout_total` on `sale.order`"). You do not guess �
   Import succeeds; call raises at runtime.
 - **Direct SQL without sanitization** — `env.cr.execute(query % user_input)` is SQL injection.
   Always use parameterized form: `env.cr.execute(query, (param,))`.
+- **Runtime field/method presence probe** - `hasattr(rec, 'f')` / `getattr(rec, 'f', default)` /
+  `try: rec.f except AttributeError` to detect ORM presence is a smell, never defensive coding. It
+  masks one of three defects: (1) lookup-gap - existence never OSM-verified; (2) wrong ORM path -
+  the field lives on a related model (confirm with `entity_lookup` / `resolve_orm_chain`); (3)
+  dependency-arch gap - the field's module is not in `depends` (walk
+  `module_inspect(method='dependencies', odoo_version='auto')`). Run the OSM walk, classify, then require the fix: direct
+  access, or `'f' in rec._fields` with a documented soft-dep, or amended `depends`. Flagging the
+  probe is mandatory; you may NOT defer it as "intentional" - it is always one of the three real
+  defects. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
+- **Duck-typed fake record satisfying a presence probe** - a test building `class FakeSaleOrder`
+  with hand-set attributes to exercise a `hasattr` branch tests the code's shape, not Odoo behavior;
+  it can never go red on a real defect. Flag both the probe (production) and the fake (test). Exercise
+  the real recordset instead. (ETHOS: test the behavior, not the code.)
 
 ### JavaScript (legacy v8–v14)
 
@@ -280,13 +293,15 @@ Present in the standard output format.
 
 | Severity | Criteria |
 |----------|----------|
-| CRITICAL | Field or method does not exist in the indexed codebase; infinite recursion risk; missing `super()` in `create`/`write`/`unlink`; SQL injection via unsanitized `env.cr.execute` |
-| HIGH | N+1 query in a loop; deprecated API that raises at call time; wrong `@api.depends` path causing stale compute; memory leak (listener/timer not cleaned up) |
+| CRITICAL | Field or method does not exist in the indexed codebase; infinite recursion risk; missing `super()` in `create`/`write`/`unlink`; SQL injection via unsanitized `env.cr.execute`; a runtime presence probe masking a non-existent field or wrong ORM path |
+| HIGH | N+1 query in a loop; deprecated API that raises at call time; wrong `@api.depends` path causing stale compute; memory leak (listener/timer not cleaned up); a presence probe masking a missing `depends` |
 | MED | Odoo convention violation from the version's `coding_guidelines/` (wrong method-naming prefix, model attribute order, import order, redundant `string=`); missing error handling at system boundary; suboptimal pattern when canonical one exists; `@api.constrains` on relational field (silently skipped) |
 | LOW | Cosmetic issues; non-translated user-facing strings; naming style; minor readability |
 
 Convention findings should cite the violated guideline by version file + section (e.g.
 `17.0/model-ordering.md`), not be asserted from memory.
+
+*Presence-probe severity keys off what the OSM walk reveals (probe -> resolve -> classify -> severity), not off the syntactic pattern; a `getattr` on a field that genuinely exists and is reachable is LOW noise.*
 
 A review with zero CRITICAL/HIGH findings must say so clearly — it is valuable signal that the
 implementation is structurally correct.

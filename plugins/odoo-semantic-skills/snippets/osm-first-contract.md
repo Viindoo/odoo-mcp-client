@@ -28,6 +28,8 @@ OSM call OR a direct source read — never asserted from memory:
 
 An unverifiable claim is flagged as an assumption, not stated as fact.
 
+Having verified existence (above), do not re-probe field/method PRESENCE at runtime with `hasattr`/`getattr`-default/`try...except AttributeError` - resolve it via dep closure; full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
+
 ## 2. Reuse before you write
 
 Before generating any non-trivial Odoo artifact, find what already exists and prefer it:
