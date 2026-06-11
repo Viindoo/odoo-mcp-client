@@ -6,6 +6,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-06-11
+
+### Changed
+
+- **wave Phase 2 rolling-window (Mode B) + fable escalation** (`odoo-semantic-skills`, #61):
+  `wave` Phase 2 migrates from cap-3 Agent-tool batching to the Mode B model-weighted budget
+  (BUDGET=8, per `skills/_shared/concurrency-guard.md`); cherry-pick stays a serialized depth-0
+  critical section and a dependent WI starts only after its dependency is cherry-picked
+  (`cherry_picked[dep]` gate, dependent worktrees created lazily). `odoo-debug` Phase 2 and the
+  wave end-of-wave review gain a **fable** escalation tier (human-confirm + automatic opus
+  fallback) - fable fires only after an inconclusive opus pass, or for a large wave review
+  (changed lines > ~1500 or N >= 8 WIs).
+  - Deferred: the YAML `model_tier: fable` enum is intentionally NOT added (no consumer needs it;
+    CI rejects it loudly). When the first consumer appears, change three places in one commit:
+    `generator/check_workflows.py`, `tests/test_workflow_format.py`, `workflows/_schema.md`.
+
+### Fixed
+
+- **Docs/skills synced to server fixes** (`odoo-semantic-skills`, #62): `lint_check` guidance now
+  describes the V0.5 hybrid matcher (deterministic `[pattern]` on security-rule classes like
+  sql-injection, heuristic `[fuzzy]` elsewhere) instead of the old "fuzzy V0 / can miss SQL
+  injection" framing - while keeping "hint, not the gate" (`verify-backend.sh` + `/test_lint`
+  remain authoritative). ORM-tool timeout prose is softened to reflect the server-side query
+  bound (the client `"timeout": 90000` is now a defensive backstop, not the sole protection).
+  `resolve_orm_chain` documents depth-first inherited-field resolution.
+
 ## [3.5.0] - 2026-06-10
 
 ### Added
