@@ -157,7 +157,8 @@ Option 2 — JSON fallback (file `~/.claude.json`, **not** `~/.claude/settings.j
 > (`MCP_TOOL_TIMEOUT`) is ~28 hours. The server now bounds each query (~30 s) and
 > rejects fast under load, so a request will not hang indefinitely on its own; the
 > client `"timeout": 90000` (90 s, in milliseconds) is a defensive backstop on top of
-> that, capping the wait if a transport-level stall ever slips past the server bound. The field is honored per-server in `~/.claude.json` / `.mcp.json`
+> that, capping the wait if a transport-level stall ever slips past the server
+> bound. The field is honored per-server in `~/.claude.json` / `.mcp.json`
 > (min 1000 ms; HTTP has a 60 s first-byte floor). Drop it to `60000` if you want
 > the fastest fallback, or raise it for very large `impact_analysis` calls.
 
