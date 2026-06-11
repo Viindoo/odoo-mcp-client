@@ -1,7 +1,7 @@
 """Validate that every workflows/*.workflow.yaml conforms to the composition contract.
 
-Schema SSOT: plugins/odoo-semantic-skills/workflows/_schema.md
-Validator CLI: plugins/odoo-semantic-skills/generator/check_workflows.py
+Schema SSOT: plugins/odoo-ai-agents/workflows/_schema.md
+Validator CLI: plugins/odoo-ai-agents/generator/check_workflows.py
 
 Tests are behavior-first (ETHOS #11): each test expresses one rule from the
 business contract and must fail for the right reason. Tests do NOT protect
@@ -14,7 +14,7 @@ import pathlib
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SKILLS_PLUGIN = ROOT / "plugins" / "odoo-semantic-skills"
+SKILLS_PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 WORKFLOWS_DIR = SKILLS_PLUGIN / "workflows"
 SKILLS_DIR = SKILLS_PLUGIN / "skills"
 
@@ -129,7 +129,7 @@ def test_empty_domain_is_invalid():
     }
 
     # Import the validator directly
-    gen_dir = pathlib.Path(__file__).resolve().parent.parent / "plugins" / "odoo-semantic-skills" / "generator"
+    gen_dir = pathlib.Path(__file__).resolve().parent.parent / "plugins" / "odoo-ai-agents" / "generator"
     sys.path.insert(0, str(gen_dir))
     import importlib.util
     spec = importlib.util.spec_from_file_location("check_workflows", gen_dir / "check_workflows.py")
@@ -334,7 +334,7 @@ def test_skill_phase_requires_nl_trigger():
     import sys
     import pathlib as _pathlib
 
-    gen_dir = _pathlib.Path(__file__).resolve().parent.parent / "plugins" / "odoo-semantic-skills" / "generator"
+    gen_dir = _pathlib.Path(__file__).resolve().parent.parent / "plugins" / "odoo-ai-agents" / "generator"
     import importlib.util
     spec = importlib.util.spec_from_file_location("check_workflows", gen_dir / "check_workflows.py")
     cw = importlib.util.module_from_spec(spec)

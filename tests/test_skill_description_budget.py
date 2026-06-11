@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-SKILL_FILES = sorted((ROOT / "plugins" / "odoo-semantic-skills" / "skills").glob("*/SKILL.md"))
+SKILL_FILES = sorted((ROOT / "plugins" / "odoo-ai-agents" / "skills").glob("*/SKILL.md"))
 
 # Hard limit at which Claude truncates a skill/command description (confirmed in
 # skill-creator's improve_description.py). Stay at or under it for every skill.

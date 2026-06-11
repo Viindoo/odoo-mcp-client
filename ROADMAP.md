@@ -16,7 +16,7 @@ Items are directional, not commitments, and reflect publicly announced milestone
 
 ## Recently shipped
 
-- **Git-wave orchestration** (v2.3.0) — `wave` skill + `/odoo-semantic-skills:odoo-run-wave` command
+- **Git-wave orchestration** (v2.3.0) — `wave` skill + `/odoo-ai-agents:odoo-run-wave` command
   for depth-0 multi-subagent git-wave: integration branch + WI worktrees + cherry-pick +
   end-of-wave Opus review + `/code-review` inline + 1 PR + squash + tree-identity gate +
   human-confirm merge. Self-spawning, principal-branch-locked, auto-merge never allowed.
@@ -35,7 +35,7 @@ Items are directional, not commitments, and reflect publicly announced milestone
   *rendered* Odoo screen in a live browser: skills `odoo-ui-review`, `odoo-ui-debugging`,
   `odoo-visual-regression`, `odoo-demo-recording`, the `odoo-ui-reviewer` agent, and three
   bundled browser MCP servers (`chrome-devtools`, `playwright`, `pagecast`).
-- **Unified `/odoo-semantic-skills:odoo-setup`** (v2.1.0) — one-shot, idempotent, extensible
+- **Unified `/odoo-ai-agents:odoo-setup`** (v2.1.0) — one-shot, idempotent, extensible
   setup that wires the browser MCP servers across Claude / Codex / Gemini, installs browser
   deps, auto-allows tool permissions, and discovers + optionally spins up a local Odoo
   instance; plus a SessionStart readiness hint.

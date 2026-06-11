@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PLUGIN = ROOT / "plugins" / "odoo-semantic-skills"
+PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 INTAKE = PLUGIN / "skills" / "intake" / "SKILL.md"
 
 

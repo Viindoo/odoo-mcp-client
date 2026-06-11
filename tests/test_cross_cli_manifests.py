@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-PLUGIN_ROOT = ROOT / "plugins" / "odoo-semantic-skills"
+PLUGIN_ROOT = ROOT / "plugins" / "odoo-ai-agents"
 
 SSOT_MCP = PLUGIN_ROOT / ".mcp.json"
 GEMINI_OUT = PLUGIN_ROOT / "gemini-extension.json"

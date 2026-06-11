@@ -41,16 +41,16 @@ setup: $(VENV_STAMP)
 # Structural validation: official CLI check (if available) + our schema/format tests.
 validate: $(VENV_STAMP)
 	@command -v claude >/dev/null 2>&1 && { \
-		claude plugin validate plugins/odoo-semantic-skills && \
+		claude plugin validate plugins/odoo-ai-agents && \
 		claude plugin validate plugins/odoo-semantic-mcp; \
 	} || \
 		echo "(claude CLI not found — skipping 'claude plugin validate'; running pytest checks)"
 	$(PYTHON) -m pytest tests/test_plugin_schema.py tests/test_skill_format.py -q
-	$(PYTHON) plugins/odoo-semantic-skills/generator/check_workflows.py
+	$(PYTHON) plugins/odoo-ai-agents/generator/check_workflows.py
 
 # Workflow schema validator: assert all *.workflow.yaml files conform to the contract.
 workflows-check: $(VENV_STAMP)
-	$(PYTHON) plugins/odoo-semantic-skills/generator/check_workflows.py
+	$(PYTHON) plugins/odoo-ai-agents/generator/check_workflows.py
 
 test: $(VENV_STAMP)
 	$(PYTHON) -m pytest tests/ -q
@@ -58,8 +58,8 @@ test: $(VENV_STAMP)
 # SSOT generator: read generator/server-surface.json → emit routing matrix + skill sections + snippets.
 # Also regenerates Codex CLI + Gemini CLI MCP manifests from .mcp.json SSOT.
 gen: $(VENV_STAMP)
-	$(PYTHON) plugins/odoo-semantic-skills/generator/gen_surface.py
-	$(PYTHON) plugins/odoo-semantic-skills/generator/gen_mcp_manifests.py
+	$(PYTHON) plugins/odoo-ai-agents/generator/gen_surface.py
+	$(PYTHON) plugins/odoo-ai-agents/generator/gen_mcp_manifests.py
 
 # CI idempotency check: gen must produce zero diff on a clean tree.
 gen-check: gen
@@ -72,15 +72,15 @@ gen-check: gen
 
 # Dependency check: assert all skill ↔ tool refs are valid (live, not removed).
 deps-check: $(VENV_STAMP)
-	$(PYTHON) plugins/odoo-semantic-skills/generator/check_deps.py
+	$(PYTHON) plugins/odoo-ai-agents/generator/check_deps.py
 
 # Orchestration/contract lint: spawn-class coverage, OSM-first + design-system + instance
 # references, spawn-truth, no-hardcode/no-leak. WARN-FIRST by default (exits 0); set
 # ORCH_STRICT=1 to enforce (exits 1 on any finding) once all skills comply.
 orchestration-check: $(VENV_STAMP)
-	$(PYTHON) plugins/odoo-semantic-skills/generator/check_orchestration.py $(if $(ORCH_STRICT),--strict,)
+	$(PYTHON) plugins/odoo-ai-agents/generator/check_orchestration.py $(if $(ORCH_STRICT),--strict,)
 
-# Version bump + release cut. Keeps VERSION and the odoo-semantic-skills
+# Version bump + release cut. Keeps VERSION and the odoo-ai-agents
 # plugin.json in lockstep (enforced by tests/test_version_consistency.py) and
 # stamps the CHANGELOG. Pick the level by impact: patch = fix/refactor/docs,
 # minor = backward-compatible feature, major = breaking change.

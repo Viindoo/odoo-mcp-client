@@ -150,9 +150,9 @@ PY
    - `✓ Setup complete. Restart Claude Code to activate the MCP tools.`
    - `After restart, verify with: "Use odoo-semantic, model_inspect sale.order on Odoo 17.0"`
    - If step 5 ran successfully, also: `Auto-allow is on — no more per-tool permission prompts for odoo-semantic.`
-   - The Odoo `odoo-*` skills live in a separate plugin, `odoo-semantic-skills`.
+   - The Odoo `odoo-*` skills live in a separate plugin, `odoo-ai-agents`.
      If the user has NOT installed it yet, suggest:
-     `For the odoo-* skills, install odoo-semantic-skills@viindoo-plugins — it pulls in this MCP plugin as a dependency.`
+     `For the odoo-* skills, install odoo-ai-agents@viindoo-plugins — it pulls in this MCP plugin as a dependency.`
      If they already have it installed, the `odoo-*` skills are ready to invoke
      after the restart above.
 

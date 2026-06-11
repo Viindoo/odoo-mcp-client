@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SK = REPO_ROOT / "plugins" / "odoo-semantic-skills"
+SK = REPO_ROOT / "plugins" / "odoo-ai-agents"
 
 SCANNED = sorted(
     set(SK.glob("skills/**/SKILL.md"))
@@ -27,7 +27,6 @@ SCANNED = sorted(
 _LEGIT = re.compile(
     r"mcp__odoo-semantic__\w*"
     r"|odoo-semantic-mcp"
-    r"|odoo-semantic-skills"
     r"|odoo-semantic\.viindoo\.com"
 )
 _BARE = re.compile(r"odoo-semantic")
@@ -43,6 +42,6 @@ def test_no_bare_odoo_semantic_in_trigger_or_fallback_prose(doc):
             offenders.append(f"{doc.relative_to(REPO_ROOT)}:{n}: {line.strip()}")
     assert not offenders, (
         "Bare `odoo-semantic` in a trigger phrase or fallback sentence. Use "
-        "`odoo-semantic-mcp` / `odoo-semantic-skills`, the brand `Odoo Semantic`, "
+        "`odoo-semantic-mcp` / `odoo-ai-agents`, the brand `Odoo Semantic`, "
         "or rephrase (e.g. 'the odoo-semantic-mcp server'):\n" + "\n".join(offenders)
     )

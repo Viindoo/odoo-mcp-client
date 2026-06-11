@@ -1,6 +1,6 @@
 """Guard: the client version stays internally consistent and in lockstep.
 
-`VERSION` (repo-level single source of truth) and the `odoo-semantic-skills`
+`VERSION` (repo-level single source of truth) and the `odoo-ai-agents`
 plugin's `plugin.json.version` MUST be equal — bumping one without the other is
 exactly how 2.4.0/2.4.1 shipped with no matching CHANGELOG section. CI fails here
 if they drift. Use `scripts/bump-version.sh <major|minor|patch>` to bump both
@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VERSION_FILE = ROOT / "VERSION"
-SKILLS_MANIFEST = ROOT / "plugins" / "odoo-semantic-skills" / ".claude-plugin" / "plugin.json"
+SKILLS_MANIFEST = ROOT / "plugins" / "odoo-ai-agents" / ".claude-plugin" / "plugin.json"
 CHANGELOG = ROOT / "CHANGELOG.md"
 
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
@@ -37,7 +37,7 @@ def test_version_is_semver():
 def test_version_and_plugin_in_lockstep():
     v, pv = _version(), _plugin_version()
     assert v == pv, (
-        f"VERSION ({v}) and odoo-semantic-skills/plugin.json version ({pv}) have drifted. "
+        f"VERSION ({v}) and odoo-ai-agents/plugin.json version ({pv}) have drifted. "
         f"Bump both together with scripts/bump-version.sh."
     )
 

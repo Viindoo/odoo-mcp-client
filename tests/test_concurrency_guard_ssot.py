@@ -17,7 +17,7 @@ import pathlib
 import re
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SKILLS_DIR = ROOT / "plugins" / "odoo-semantic-skills" / "skills"
+SKILLS_DIR = ROOT / "plugins" / "odoo-ai-agents" / "skills"
 GUARD = SKILLS_DIR / "_shared" / "concurrency-guard.md"
 
 FANOUT_SKILLS = [

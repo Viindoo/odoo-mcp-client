@@ -1,6 +1,6 @@
 """Structural validation for the bundled browser MCP servers.
 
-The odoo-semantic-skills plugin ships a `.mcp.json` declaring three
+The odoo-ai-agents plugin ships a `.mcp.json` declaring three
 stdio/npx browser servers (chrome-devtools, playwright, pagecast) that give
 the visual-UI skills their "eyes". These servers MUST stay local stdio-npx so
 the same declaration is portable across Claude Code, Codex CLI, and Gemini CLI
@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-SKILLS_PLUGIN = ROOT / "plugins" / "odoo-semantic-skills"
+SKILLS_PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 BROWSER_MCP = SKILLS_PLUGIN / ".mcp.json"
 SKILLS_MANIFEST = SKILLS_PLUGIN / ".claude-plugin" / "plugin.json"
 

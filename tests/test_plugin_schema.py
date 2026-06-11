@@ -1,7 +1,7 @@
 """Structural validation for the two split plugin manifests.
 
 After the v2 split, the single `odoo-semantic` plugin became two:
-  - plugins/odoo-semantic-skills/  (skills + agents + workflow commands)
+  - plugins/odoo-ai-agents/  (skills + agents + workflow commands)
   - plugins/odoo-semantic-mcp/     (MCP server connection + connect command)
 
 Each manifest is validated against its own plugin root, and relative paths
@@ -17,7 +17,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 PLUGINS_DIR = ROOT / "plugins"
-SKILLS_PLUGIN = PLUGINS_DIR / "odoo-semantic-skills"
+SKILLS_PLUGIN = PLUGINS_DIR / "odoo-ai-agents"
 MCP_PLUGIN = PLUGINS_DIR / "odoo-semantic-mcp"
 
 SKILLS_MANIFEST = SKILLS_PLUGIN / ".claude-plugin" / "plugin.json"
@@ -25,7 +25,7 @@ MCP_MANIFEST = MCP_PLUGIN / ".claude-plugin" / "plugin.json"
 
 # (plugin_root, manifest_path) pairs for the manifests that share common fields.
 ALL_MANIFESTS = [
-    pytest.param(SKILLS_PLUGIN, SKILLS_MANIFEST, id="odoo-semantic-skills"),
+    pytest.param(SKILLS_PLUGIN, SKILLS_MANIFEST, id="odoo-ai-agents"),
     pytest.param(MCP_PLUGIN, MCP_MANIFEST, id="odoo-semantic-mcp"),
 ]
 
@@ -80,18 +80,18 @@ def test_command_files_exist(plugin_root, manifest_path):
 
 
 # ---------------------------------------------------------------------------
-# Skills plugin (odoo-semantic-skills)
+# Skills plugin (odoo-ai-agents)
 # ---------------------------------------------------------------------------
 
 
 def test_skills_manifest_name(skills_manifest):
-    assert skills_manifest["name"] == "odoo-semantic-skills"
+    assert skills_manifest["name"] == "odoo-ai-agents"
 
 
 def test_skills_dir_present(skills_manifest):
     assert skills_manifest["skills"] == "./skills/"
     skills_dir = SKILLS_PLUGIN / "skills"
-    assert skills_dir.is_dir(), "plugins/odoo-semantic-skills/skills/ directory missing"
+    assert skills_dir.is_dir(), "plugins/odoo-ai-agents/skills/ directory missing"
     assert any(skills_dir.glob("*/SKILL.md")), "no SKILL.md files found"
 
 
@@ -113,7 +113,7 @@ def test_skills_depends_on_mcp(skills_manifest):
     installing skills auto-pulls the server connection."""
     deps = skills_manifest.get("dependencies", [])
     assert "odoo-semantic-mcp" in deps, (
-        f"odoo-semantic-skills must depend on 'odoo-semantic-mcp'; "
+        f"odoo-ai-agents must depend on 'odoo-semantic-mcp'; "
         f"found dependencies={deps}"
     )
 

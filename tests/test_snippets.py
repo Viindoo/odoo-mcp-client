@@ -1,4 +1,4 @@
-"""Validate that every MCP snippet in plugins/odoo-semantic-skills/snippets/ is
+"""Validate that every MCP snippet in plugins/odoo-ai-agents/snippets/ is
 well-formed and follows the project conventions:
 
 - Parses as valid JSON (no comments allowed in JSON).
@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-SNIPPETS = ROOT / "plugins" / "odoo-semantic-skills" / "snippets"
+SNIPPETS = ROOT / "plugins" / "odoo-ai-agents" / "snippets"
 
 JSON_FILES = sorted(SNIPPETS.glob("*.json"))
 

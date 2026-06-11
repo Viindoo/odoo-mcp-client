@@ -11,7 +11,7 @@ on:
     # SKILL.md files, so it would suppress re-pinning on skill content changes.
     # After the v2 split, all functional content lives under plugins/<name>/.
     paths:
-      - 'plugins/odoo-semantic-skills/**'
+      - 'plugins/odoo-ai-agents/**'
       - 'plugins/odoo-semantic-mcp/**'
 
 # Cancel in-flight pin run when a newer qualifying commit lands.
@@ -65,7 +65,7 @@ jobs:
           ALL_PINNED=$(python3 -c "
           import json, os
           head = os.environ['HEAD_SHA']
-          names = {'odoo-semantic-skills', 'odoo-semantic-mcp'}
+          names = {'odoo-ai-agents', 'odoo-semantic-mcp'}
           m = json.load(open('claude-plugins/.claude-plugin/marketplace.json'))
           seen = {p['name']: p['source'].get('sha', '') for p in m['plugins'] if p['name'] in names}
           ok = names.issubset(seen) and all(seen[n] == head for n in names)
@@ -78,11 +78,11 @@ jobs:
         env:
           HEAD_SHA: ${{ steps.info.outputs.sha }}
         run: |
-          # Pin BOTH split plugins (odoo-semantic-skills + odoo-semantic-mcp) to the same HEAD SHA.
+          # Pin BOTH split plugins (odoo-ai-agents + odoo-semantic-mcp) to the same HEAD SHA.
           python3 -c "
           import json, os
           head = os.environ['HEAD_SHA']
-          names = {'odoo-semantic-skills', 'odoo-semantic-mcp'}
+          names = {'odoo-ai-agents', 'odoo-semantic-mcp'}
           path = 'claude-plugins/.claude-plugin/marketplace.json'
           with open(path) as f: m = json.load(f)
           for p in m['plugins']:
@@ -109,7 +109,7 @@ jobs:
           PR_URL=$(gh pr create \
             --repo Viindoo/claude-plugins \
             --title "pin odoo-semantic plugins to ${SHA7}" \
-            --body "Auto-pin: plugin content changed in [${SHA7}](https://github.com/Viindoo/odoo-mcp-client/commit/${SHA}). Pins both odoo-semantic-skills and odoo-semantic-mcp." \
+            --body "Auto-pin: plugin content changed in [${SHA7}](https://github.com/Viindoo/odoo-mcp-client/commit/${SHA}). Pins both odoo-ai-agents and odoo-semantic-mcp." \
             --label "auto-pin")
           gh pr merge --auto --squash "$PR_URL"
 

@@ -1,0 +1,350 @@
+{
+  "skill_name": "intake",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a customer asking about slow Odoo performance, not sure where to start",
+      "expected_output": "Intake asks clarifying question (performance is not directly in routing table; should escalate or route to odoo-deprecation-audit / odoo-customization-inventory based on user's follow-up)",
+      "expected_routed_to": "clarifying-question OR odoo-customization-inventory",
+      "category": "should-fire-vague",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I want to check if Acme's Odoo system has any issues",
+      "expected_output": "Intake outputs collision-resolution template offering odoo-risk-overview vs odoo-customization-inventory (Example 3 case)",
+      "expected_routed_to": "ambiguous-resolution OR odoo-risk-overview",
+      "category": "should-fire-collision",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Customer says Odoo is missing feature X — help me respond",
+      "expected_output": "Intake recommends odoo-objection-handling with Collision 1 reasoning",
+      "expected_routed_to": "odoo-objection-handling",
+      "category": "should-fire-collision",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "I don't know what's new in Odoo 18 — write slides for a meeting",
+      "expected_output": "Intake recommends odoo-feature-highlights with Collision 2 reasoning (slide = marketing output)",
+      "expected_routed_to": "odoo-feature-highlights",
+      "category": "should-fire-collision",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Someone asked me if Odoo can handle multi-level approvals",
+      "expected_output": "Intake recommends odoo-feature-check (single-feature availability) or odoo-capability-proof if proof-package signal; row 6 vs row 10",
+      "expected_routed_to": "odoo-feature-check",
+      "category": "should-fire-vague",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Please review this patch for me",
+      "expected_output": "Intake recommends odoo-code-review (row 13: review EXISTING code)",
+      "expected_routed_to": "odoo-code-review",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Customer requested 20 features — which does Odoo have, which need building?",
+      "expected_output": "Intake recommends odoo-gap-analysis (row 7: multi-requirement effort matrix)",
+      "expected_routed_to": "odoo-gap-analysis",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "I have a long Odoo code snippet, not sure how to review it",
+      "expected_output": "Intake recommends odoo-code-review (row 13: review existing code)",
+      "expected_routed_to": "odoo-code-review",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "This customer's loyalty module, break it down for me",
+      "expected_output": "Intake recommends odoo-customization-inventory OR asks clarifying question (could be feature-check if 'loyalty' module is known); ambiguity expected",
+      "expected_routed_to": "odoo-customization-inventory OR clarifying-question",
+      "category": "should-fire-vague",
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "Help me audit the system before upgrading",
+      "expected_output": "Intake recommends odoo-deprecation-audit (row 4: audit before upgrade) OR odoo-risk-overview if exec framing",
+      "expected_routed_to": "odoo-deprecation-audit",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "Write a computed field calculating total_amount for sale.order",
+      "expected_output": "Intake does NOT fire — direct match to odoo-coding (row 12: write code)",
+      "expected_routed_to": "<NO-ROUTE - direct to odoo-coding>",
+      "category": "should-not-fire",
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "Customer asks about API differences between v16 and v17",
+      "expected_output": "Intake does NOT fire — direct match to odoo-version-diff (row 5: explicit API diff)",
+      "expected_routed_to": "<NO-ROUTE - direct to odoo-version-diff>",
+      "category": "should-not-fire",
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "Review this Python code (paste below)",
+      "expected_output": "Intake does NOT fire — direct match to odoo-code-review",
+      "expected_routed_to": "<NO-ROUTE - direct to odoo-code-review>",
+      "category": "should-not-fire",
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "what's the weather in Hanoi",
+      "expected_output": "Intake declines politely (non-Odoo intent)",
+      "expected_routed_to": "<DECLINE - non-Odoo>",
+      "category": "should-not-fire-non-odoo",
+      "files": []
+    },
+    {
+      "id": 15,
+      "prompt": "/odoo-semantic-mcp:connect",
+      "expected_output": "Intake does NOT fire — explicit slash command",
+      "expected_routed_to": "<NO-ROUTE - slash command>",
+      "category": "should-not-fire-slash",
+      "files": []
+    },
+    {
+      "id": 16,
+      "prompt": "Review the sale order form in my Odoo 17 browser before the demo — does it look right and is it accessible?",
+      "expected_output": "Intake recommends odoo-ui-review (row 28: rate a RENDERED screen in the browser, vs odoo-code-review which reads source statically)",
+      "expected_routed_to": "odoo-ui-review",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 17,
+      "prompt": "OWL component không hiện, trang trắng và có console error — tìm nguyên nhân giúp tôi",
+      "expected_output": "Intake recommends odoo-debug (row 29: find ROOT CAUSE of a broken screen at runtime, vs odoo-ui-review which rates a working screen)",
+      "expected_routed_to": "odoo-debug",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 18,
+      "prompt": "Compare the before/after screenshots of the kanban view to see if my CSS change caused any visual drift",
+      "expected_output": "Intake recommends odoo-visual-regression (row 30: diff TWO states/builds for drift, vs odoo-ui-review which judges ONE screen once)",
+      "expected_routed_to": "odoo-visual-regression",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 19,
+      "prompt": "Record a short demo video of the inventory app walkthrough on my live instance",
+      "expected_output": "Intake recommends odoo-demo-recording (row 31: produce a REAL video/GIF of a live instance, vs odoo-content-draft which writes the script only)",
+      "expected_routed_to": "odoo-demo-recording",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 20,
+      "prompt": "First time setting up the visual stack — wire the browser MCP and configure my instance URL",
+      "expected_output": "Intake recommends /odoo-ai-agents:setup command (row 32: one-time environment bootstrap for the visual stack, vs odoo-onboarding which bootstraps project CODE context)",
+      "expected_routed_to": "/odoo-ai-agents:setup",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 21,
+      "prompt": "I'm not sure what I need but I have a big Odoo project starting next month",
+      "expected_output": "Intake fires (open-ended, no concrete verb). Enters brainstorm: reads .odoo-ai/context.md, presents 3 clarifying options (engineering setup, sales/pre-sales, strategic planning). Proposes Proposed Plan with domain + approach + gate. Does NOT write any files this turn.",
+      "expected_routed_to": "brainstorm",
+      "category": "vague-brainstorm",
+      "files": []
+    },
+    {
+      "id": 22,
+      "prompt": "help me think through the upgrade from v16 to v17",
+      "expected_output": "Intake fires (vague multi-step). Tier 3 may match row 27 (upgrade plan). Presents fast-path gate: 'Plan: run /odoo-plan-upgrade. Proceed?' OR enters brainstorm if upgrade scope is unclear. Does NOT write files.",
+      "expected_routed_to": "/odoo-plan-upgrade OR brainstorm",
+      "category": "vague-brainstorm",
+      "files": []
+    },
+    {
+      "id": 23,
+      "prompt": "I need to win this deal with Acme — help me figure out what to do",
+      "expected_output": "Intake fires (business-outcome-first, no concrete verb). Enters brainstorm: clarifying options (pre-sales gap analysis, objection handling, full bid response). Proposes plan with skill chain. Iron Law: no execution before user approves.",
+      "expected_routed_to": "brainstorm",
+      "category": "vague-brainstorm",
+      "files": []
+    },
+    {
+      "id": 24,
+      "prompt": "where do I begin with this Odoo project",
+      "expected_output": "Intake fires (explicit 'where do I begin' trigger phrase from description). Enters brainstorm or suggests odoo-onboarding if .odoo-ai/context.md is absent. Presents Proposed Plan gate.",
+      "expected_routed_to": "brainstorm OR odoo-onboarding",
+      "category": "vague-brainstorm",
+      "files": []
+    },
+    {
+      "id": 25,
+      "prompt": "I have 1200 requirements to classify and scope for a prospect",
+      "expected_output": "Intake fires (large BRL job, row 33). Tier 3 matches 'BRL' + large-scale signal. Fast-path gate: 'Plan: run odoo-brl to classify and cost 1200 requirements. Proceed?' Does NOT enter brainstorm — scale + classify signal is a direct Tier-3 hit to odoo-brl.",
+      "expected_routed_to": "odoo-brl",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 26,
+      "prompt": "diff v16 v17",
+      "expected_output": "Intake does NOT fire — intent is clear, single-step, matches exactly one specialist (odoo-version-diff row 5). Fast-path fires directly without intake brainstorm.",
+      "expected_routed_to": "<NO-ROUTE - direct to odoo-version-diff>",
+      "category": "clear-fast-path",
+      "files": []
+    },
+    {
+      "id": 27,
+      "prompt": "write computed field _compute_amount_total on sale.order",
+      "expected_output": "Intake does NOT fire — intent is clear, single-step, explicit 'write computed field' = odoo-coding Tier-1 exact match. Direct fire.",
+      "expected_routed_to": "<NO-ROUTE - direct to odoo-coding>",
+      "category": "clear-fast-path",
+      "files": []
+    },
+    {
+      "id": 28,
+      "prompt": "review this PR #42",
+      "expected_output": "Intake does NOT fire — 'review this PR' is Tier-1 exact match to odoo-code-review. Direct fire.",
+      "expected_routed_to": "<NO-ROUTE - direct to odoo-code-review>",
+      "category": "clear-fast-path",
+      "files": []
+    },
+    {
+      "id": 29,
+      "prompt": "/odoo-respond-bid",
+      "expected_output": "Intake does NOT fire — explicit slash command. Harness invokes the command directly.",
+      "expected_routed_to": "<NO-ROUTE - slash command>",
+      "category": "should-not-fire-slash",
+      "files": []
+    },
+    {
+      "id": 30,
+      "prompt": "/odoo-plan-upgrade",
+      "expected_output": "Intake does NOT fire — explicit slash command. Harness invokes the command directly.",
+      "expected_routed_to": "<NO-ROUTE - slash command>",
+      "category": "should-not-fire-slash",
+      "files": []
+    },
+    {
+      "id": 31,
+      "prompt": "I need to win this deal but I already told the customer we'd do a gap analysis — now what",
+      "expected_output": "Intake fires (in-flight multi-step, next action unclear). Brainstorm: resume prior thread (check state.json), or offer options: continue with odoo-gap-analysis, or layer in odoo-objection-handling / odoo-discovery-summary. Full Proposed Plan gate.",
+      "expected_routed_to": "brainstorm",
+      "category": "vague-brainstorm",
+      "files": []
+    },
+    {
+      "id": 32,
+      "prompt": "I need to classify 1200 requirements for this RFP and get a cost estimate with a dependency graph",
+      "expected_output": "Intake fires Tier-3 row 33. All three BRL signals present: scale (1200), cost estimate, dependency graph. Fast-path gate: 'Plan: run odoo-brl. Proceed?' MUST NOT route to odoo-gap-analysis (no cost/DAG there) or brainstorm. Fails correctly if routed to gap-analysis or brainstorm.",
+      "expected_routed_to": "odoo-brl",
+      "category": "brl-handoff",
+      "files": []
+    },
+    {
+      "id": 33,
+      "prompt": "Can you generate a full QA test suite for the sale order module including edge cases and a pre-deploy checklist?",
+      "expected_output": "Intake fires Tier-3 row 34. Signals: 'full QA suite', 'test cases', 'pre-deploy checklist'. Routes to qa-suite workflow via fast-path gate. MUST NOT route to odoo-code-review (static review) or odoo-deploy-checklist alone.",
+      "expected_routed_to": "qa-suite",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 34,
+      "prompt": "We have a support ticket: customer says the invoice form is broken after upgrade — triage it and draft a response",
+      "expected_output": "Intake fires Tier-3 row 35. Signals: 'support ticket', 'triage', 'draft response'. Routes to support-triage workflow via fast-path gate. MUST NOT route to odoo-debug (dev session) or odoo-deal-followup (sales email).",
+      "expected_routed_to": "support-triage",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 35,
+      "prompt": "Help me debug this OWL widget — console error, page is white, need a sustained session to trace the root cause across multiple steps",
+      "expected_output": "Intake fires Tier-3 row 38. 'Sustained troubleshooting session' + 'multi-step' signals distinguish from odoo-debug (single-turn). Routes to ui-debug-session workflow. Fails correctly if routed to odoo-debug.",
+      "expected_routed_to": "ui-debug-session",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 36,
+      "prompt": "I need to take a feature brief all the way to a published blog post — draft, internal review, then publish",
+      "expected_output": "Intake fires Tier-3 row 39. Signals: 'brief to publish', 'draft then review then publish'. Routes to content-production workflow. MUST NOT route to odoo-content-draft (single piece only) or odoo-campaign-plan (plans the campaign, not produces).",
+      "expected_routed_to": "content-production",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 37,
+      "prompt": "Manage the full sales closing cycle for the Acme deal — follow-ups, objection handling, and final close",
+      "expected_output": "Intake fires Tier-3 row 37. Signals: 'full sales closing cycle', 'multi-step'. Routes to sales-closing-cycle workflow. MUST NOT route to odoo-deal-followup (single email) or /odoo-respond-bid (RFP document).",
+      "expected_routed_to": "sales-closing-cycle",
+      "category": "should-fire-direct",
+      "files": []
+    },
+    {
+      "id": 38,
+      "prompt": "Customer needs only 3 features: multi-currency, batch invoicing, approval. Which does Odoo have and what's the effort?",
+      "expected_output": "Intake Tier-3 Collision 8 resolution: short ad-hoc list (3 items), no cost/DAG signal. Routes to odoo-gap-analysis. MUST NOT route to odoo-brl (no scale or cost/RTM/DAG requirement). Fails correctly if routed to odoo-brl.",
+      "expected_routed_to": "odoo-gap-analysis",
+      "category": "should-fire-collision",
+      "files": []
+    },
+    {
+      "id": 39,
+      "prompt": "I want to do something with Odoo for our sales team",
+      "expected_output": "Phase 0 GATE fires: intent is vague (no concrete verb, no domain, purpose unclear). Intake MUST NOT proceed to Phase R (Recon) or produce a Proposed Plan until all three GATE items are resolved: WHAT the user wants (intent), WHY (purpose), and WHAT done looks like (expected outcomes). Intake presents pre-structured options — e.g. '(a) automate follow-up emails, (b) configure a sales pipeline, (c) assess what Odoo can do for your team' — and waits for the user to select before continuing. Fails correctly if it skips the gate and jumps to Recon or a Proposed Plan.",
+      "expected_routed_to": "phase-0-gate-clarify",
+      "category": "phase0-gate-mandatory",
+      "files": []
+    },
+    {
+      "id": 40,
+      "prompt": "I need to add a custom approval step to the sale order workflow — can you survey what already exists in our codebase before planning?",
+      "expected_output": "Phase 0 gate closes immediately (intent = add approval step, purpose = extend sale order workflow, expected outcome = code implementing the approval gate). Phase R (Recon) then dispatches ≤1–2 READ-ONLY agents (e.g. Explore or odoo-override-finding in read-only mode) or OSM tools (find_override_point, model_inspect) to map existing override points and current workflow code. Phase R agents MUST NOT write any file and MUST NOT spawn further sub-agents. After Recon, intake writes the Proposed Plan enriched with Recon findings (hook location, relevant method names). Plan Mode is required because the Approach is odoo-coding (writes-files). Fails correctly if Phase R writes a file or spawns a sub-agent.",
+      "expected_routed_to": "odoo-coding (after Phase R Recon)",
+      "category": "phase-r-recon-dispatch",
+      "files": []
+    },
+    {
+      "id": 41,
+      "prompt": "Add a `priority` field to sale.order (backend) and render it as a star widget on the form (frontend) — multi-file change, I want the full plan",
+      "expected_output": "Intake fires (full-stack request spanning backend + frontend) and routes the coding work to a SINGLE `odoo-coding` work-item — NOT split into separate backend/frontend WIs (odoo-coding sequences the two stacks itself). After Phase 0 gate + Phase R Recon, the Proposed Plan includes Plan Mode: required because odoo-coding is writes-files. The plan names odoo-coding as the coding step and notes that odoo-coding's own Phase 0 will scope the module(s), tag each module's stack-need, and run the backend agent (odoo-coder) before the frontend agent (odoo-frontend-coder) so the field exists before the widget binds. Fails correctly if intake splits this into two competing coding skills/WIs, drops the frontend half, or omits Plan Mode.",
+      "expected_routed_to": "odoo-coding (single full-stack work-item)",
+      "category": "plan-mode-full-schema",
+      "files": []
+    },
+    {
+      "id": 42,
+      "prompt": "[User has approved the Proposed Plan for a sale.order field change; Plan Mode UI is shown; user types: 'Actually the field should be on purchase.order, not sale.order — please revise']",
+      "expected_output": "Plan Mode rejection flow: user refines inside Plan Mode UI (step 5 of the procedure). Intake MUST loop back to the soft-plan-gate (NOT to execution). It updates the Proposed Plan with purchase.order as the target, adjusts Workitem list (files: models/purchase_order.py, views/purchase_order_form.xml) and Assignment accordingly, then re-emits the Proposed Plan gate for re-approval. MUST NOT dispatch a writes-files specialist off a rejected plan. Re-enters Plan Mode only after the revised plan is re-approved at the text gate. Fails correctly if it dispatches odoo-coding before the revised Proposed Plan is re-approved.",
+      "expected_routed_to": "soft-plan-gate-loop (rejection → re-plan → re-approve)",
+      "category": "plan-mode-rejection-flow",
+      "files": []
+    },
+    {
+      "id": 43,
+      "prompt": "Does Odoo 17 CE support multi-currency invoicing out of the box?",
+      "expected_output": "Regression: Intake Tier-3 row 6 matches odoo-feature-check (single feature lookup, chat-only output_mode). Plan Mode decision tree: output_mode = chat-only → SKIP Plan Mode (unchanged behavior). Intake ends its turn with a fast-path gate ('Plan: run odoo-feature-check to verify multi-currency invoicing availability in Odoo 17 CE. Proceed?'). On approval, the specialist fires via the Skill tool on the next turn — NO EnterPlanMode call. Fails correctly if Plan Mode is entered for a chat-only skill.",
+      "expected_routed_to": "odoo-feature-check (chat-only, Plan Mode skipped)",
+      "category": "plan-mode-regression-chat-only",
+      "files": []
+    }
+  ],
+  "notes": "43 eval cases total: IDs 1-20 ported from the prior router skill (updated skill_name to 'intake'); IDs 21-31 are new cases covering vague->brainstorm (21-24, 31), clear->fast-path (26-28), slash->no-fire (29-30), BRL-handoff (25 updated); IDs 32-38 cover new routing rows 33-39: brl-handoff (32), qa-suite (33), support-triage (34), ui-debug-session (35), content-production (36), sales-closing-cycle (37), BRL-vs-gap-analysis collision (38). IDs 39-43 cover the 5-phase planner behavior added by WI-A: phase-0-gate-mandatory (39), phase-r-recon-dispatch (40), plan-mode-full-schema with workitem+DAG+assignment (41), plan-mode-rejection-flow (42), plan-mode-regression-chat-only-skip (43). Full Mode 5 trigger optimization scheduled for Phase D per AC-D6 of the v1.0.0 refinement plan. Phase A acceptance is verified via inline walkthrough by main agent (see report)."
+}
