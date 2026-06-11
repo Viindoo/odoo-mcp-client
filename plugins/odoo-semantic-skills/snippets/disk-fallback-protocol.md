@@ -18,10 +18,11 @@ use them only as a bonus when present.
 
 "Unreachable" is **not** only a clean connection-refused. A tool call that **times out, hangs,
 or returns a transport error** is a Tier-1 failure too - drop straight to Tier 2 and do not
-re-wait on the stalled call. (A well-configured client caps the wait: the `odoo-semantic` entry
-should carry `"timeout": 90000` (90 s) - see `docs/setup.md`. Default Claude Code
-`MCP_TOOL_TIMEOUT` is ~28 h, i.e. effectively no cap, so a missing timeout is what turns a
-server hang into an indefinite block.)
+re-wait on the stalled call. (The server now bounds each query (~30 s) and rejects fast under
+load, so it will not hang on its own; a well-configured client still carries `"timeout": 90000`
+(90 s) on the `odoo-semantic` entry as a backstop - see `docs/setup.md` - because the default
+Claude Code `MCP_TOOL_TIMEOUT` is ~28 h, so the client cap is what catches a transport-level
+stall that slips past the server bound.)
 
 **Circuit-breaker:** after **2 consecutive OSM timeouts in a session**, treat OSM as down for
 the **rest of the session** - skip all further OSM calls and go straight to Tier 2. This avoids

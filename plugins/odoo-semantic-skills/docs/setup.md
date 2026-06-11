@@ -154,10 +154,10 @@ Option 2 — JSON fallback (file `~/.claude.json`, **not** `~/.claude/settings.j
 ```
 
 > **Why `timeout`?** Claude Code's default per-tool-call timeout
-> (`MCP_TOOL_TIMEOUT`) is ~28 hours. If OSM accepts the connection but stalls
-> mid-request, a tool call would block the agent effectively forever instead of
-> falling back to reading source. `"timeout": 90000` (90 s, in milliseconds) caps
-> that wait. The field is honored per-server in `~/.claude.json` / `.mcp.json`
+> (`MCP_TOOL_TIMEOUT`) is ~28 hours. The server now bounds each query (~30 s) and
+> rejects fast under load, so a request will not hang indefinitely on its own; the
+> client `"timeout": 90000` (90 s, in milliseconds) is a defensive backstop on top of
+> that, capping the wait if a transport-level stall ever slips past the server bound. The field is honored per-server in `~/.claude.json` / `.mcp.json`
 > (min 1000 ms; HTTP has a 60 s first-byte floor). Drop it to `60000` if you want
 > the fastest fallback, or raise it for very large `impact_analysis` calls.
 
@@ -270,8 +270,9 @@ Restart Codex. Verify: `codex mcp list`.
 
 **Pitfall:** the key must be `http_headers` (snake_case, plural). Writing `headers = ...` causes Codex to silently ignore it and send no auth header, resulting in a 401 from the MCP server.
 
-**Timeout (recommended):** so a hung server cannot block the agent, set Codex's
-per-server tool-call timeout (Codex uses seconds, not ms - add `tool_timeout_sec = 90`
+**Timeout (recommended):** the server already bounds each query and rejects fast under
+load; as a defensive backstop against a transport-level stall, set Codex's per-server
+tool-call timeout (Codex uses seconds, not ms - add `tool_timeout_sec = 90`
 to the `[mcp_servers.odoo-semantic]` block; confirm the exact key against the Codex
 docs linked above, as Codex's config schema differs from Claude Code's).
 
