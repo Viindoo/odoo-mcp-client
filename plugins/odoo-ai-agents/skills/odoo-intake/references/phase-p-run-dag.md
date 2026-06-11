@@ -23,7 +23,7 @@ SKIP Phase P (dispatch directly, as today — no run file, no driver) ONLY when 
 single node AND `output_mode == chat-only` AND it is not a workflow-with-`on_complete`. A
 single chat-only node fires the specialist on the next turn; `--auto` on it is a harmless no-op
 (nothing to drive). Note: a directly-dispatched single node does NOT materialize its
-Continuation Contract `next[]` — if a step emits a `next[]` worth chaining, re-run `/intake` to
+Continuation Contract `next[]` — if a step emits a `next[]` worth chaining, re-run `/odoo-intake` to
 open a RUN-DAG.
 
 **Procedure** (when Phase P is engaged):

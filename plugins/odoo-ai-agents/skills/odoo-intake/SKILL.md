@@ -1,5 +1,5 @@
 ---
-name: intake
+name: odoo-intake
 description: |
   Universal front door for ALL work across 9 personas (CEO/strategist, consultant,
   sales AE, pre-sales, marketer, developer, QA, customer-success) — brainstorms WHEN intent
@@ -19,7 +19,7 @@ description: |
 model: inherit
 ---
 
-# Intake — Universal Front Door (Brainstorm + Route + Soft-Plan-Gate)
+# Odoo Intake — Universal Front Door (Brainstorm + Route + Soft-Plan-Gate)
 
 ## Persona
 
@@ -251,7 +251,7 @@ topological order, or one of the four wave topologies for a few WIs); **Block 3 
 (`WI → skill|command|agent` + model-from-frontmatter + effort + per-WI acceptance criteria +
 verify command). A workflow-command is ONE WI (its `output_dir/`), never expanded into its
 internal phases. **When writing a writes-files plan, read
-`${CLAUDE_PLUGIN_ROOT}/skills/intake/references/plan-mode-schema.md`** for the full block schemas
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md`** for the full block schemas
 (which shapes to borrow + line refs), worked examples, and the rejection flow.
 
 **Rejection flow (summary):** if the user refines/rejects in the Plan Mode UI, loop back to the
@@ -302,7 +302,7 @@ and NL-dispatch `run-driver` (which keeps everything depth-0). Parse the autonom
 prompt (`--auto` default / `--step` / `--plan`).
 
 **When engaging Phase P, read
-`${CLAUDE_PLUGIN_ROOT}/skills/intake/references/phase-p-run-dag.md`** for the full engage/skip
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md`** for the full engage/skip
 rule, the `run-<id>.json` serialization procedure, the autonomy-dial semantics, depth safety, and
 the workflow-as-node routing. Full schema + loop: `docs/reference/workflow-harness.md` §8.
 
@@ -315,7 +315,7 @@ no Odoo hook), do NOT force-fit it onto an Odoo skill. Instead:
   CEO/strategy/memory; another installed plugin), OR
 - If nothing fits, say so plainly and flag it as out-of-plugin — let the main agent decide.
 
-This plugin owns the **Odoo** domain; `/intake` is the front door that *also* recognises when a
+This plugin owns the **Odoo** domain; `/odoo-intake` is the front door that *also* recognises when a
 request belongs elsewhere. Do not invent an Odoo skill to cover a non-Odoo need.
 
 ## 4-tier routing
@@ -494,7 +494,7 @@ a design doc?"), not the design step.
 The Routing Table's **Discriminator** column resolves most ties inline. A handful of pairs
 collide hard enough to warrant a worked example with prompts and counter-cases. **When the
 candidate is one of the pairs below and the inline discriminator is not decisive, read
-`${CLAUDE_PLUGIN_ROOT}/skills/intake/references/collision-zones.md`** for the canonical
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/collision-zones.md`** for the canonical
 resolution logic — do not guess.
 
 | # | Collision pair | Quick discriminator |
@@ -590,7 +590,7 @@ Mirror the user's language (English or the language they wrote in).
 ## Notes for future maintainers
 
 Design rationale, the 5-phase flow, inventory-discovery SSOT rules, the routing-table layout, and
-the trigger-eval plan live in `${CLAUDE_PLUGIN_ROOT}/skills/intake/references/maintainers.md` —
+the trigger-eval plan live in `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/maintainers.md` —
 read it when changing intake's structure, the routing table, or the harness wiring. Keep the
 routing table and `references/collision-zones.md` in sync when adding entries.
 

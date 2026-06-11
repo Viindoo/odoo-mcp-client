@@ -22,7 +22,7 @@ the YAML, announces each phase, gates on user approval, dispatches the right spe
 NL, and writes checkpoints. It does not make domain decisions — those are encoded in the
 `.workflow.yaml` file and in the specialist skills it dispatches to.
 
-Target invoker: the `intake` skill or `odoo-concierge`, after a user approves a multi-step
+Target invoker: the `odoo-intake` skill or `odoo-concierge`, after a user approves a multi-step
 workflow plan at the soft-plan-gate.
 
 ## Hard rules
@@ -189,10 +189,10 @@ none matches, finish normally (this is fully back-compatible — existing workfl
 active `.odoo-ai/run-<id>.json` driver above it (e.g. invoked directly via its slash command,
 not through intake Phase P), there is no run-driver to read the emitted `next[]`. In that case,
 besides emitting the contract, state plainly to the user: "on_complete suggests `<next>` —
-auto-chaining needs the run-driver; run `/intake` to drive it, or trigger `<next>` manually."
+auto-chaining needs the run-driver; run `/odoo-intake` to drive it, or trigger `<next>` manually."
 So the chain degrades to a visible human suggestion, never a silent drop. (To AUTO-chain a
 workflow that declares `on_complete`, enter via intake Phase P — intake engages the driver for
-such workflows; see `intake` § Phase P "Workflow-as-node".)
+such workflows; see `odoo-intake` § Phase P "Workflow-as-node".)
 
 ## Gate handling
 
@@ -207,7 +207,7 @@ Each phase gate presents the options declared in the YAML `gate` field (e.g.
 - Domain-specific logic (that lives in the specialist skill or the `.workflow.yaml`).
 - BRL chunk orchestration (handled by `odoo-brl` which has its own gating).
 - Creating or editing `.workflow.yaml` files (those are data files, not runtime artifacts).
-- Being invoked directly by the user (use the `intake` skill or `odoo-concierge`).
+- Being invoked directly by the user (use the `odoo-intake` skill or `odoo-concierge`).
 
 ## Standalone-first fallback
 

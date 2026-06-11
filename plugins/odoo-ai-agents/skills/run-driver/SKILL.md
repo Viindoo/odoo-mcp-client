@@ -18,7 +18,7 @@ model: inherit
 
 The conductor of a multi-step run. It owns no domain expertise and writes no business
 artifact itself - it only reads the blackboard, decides the next step, dispatches it, and
-records the result. It is the one piece that lets a one-shot `/intake` advance step-to-step
+records the result. It is the one piece that lets a one-shot `/odoo-intake` advance step-to-step
 **while the main agent cooperates** - it is prompt-discipline plus advisory hook nudges across
 spawned subagents, NOT a hard scheduler that resumes by force (that would violate
 never-trap-the-main-agent). SSOT for the mechanism it implements is `docs/reference/workflow-harness.md`
@@ -35,7 +35,7 @@ never-trap-the-main-agent). SSOT for the mechanism it implements is `docs/refere
 ## Hard rules
 
 1. **Depth-0 only.** MUST NOT run from inside another skill or subagent. If you detect
-   depth > 0, decline and tell the caller (mirror `intake` §Depth-0).
+   depth > 0, decline and tell the caller (mirror `odoo-intake` §Depth-0).
 2. **Never hard-block the main agent.** This loop is prompt-discipline, not coercion. The
    human + main agent may stop at any time. The Stop/PreToolUse hooks only *nudge* (advisory);
    they never deny a tool call or block a turn-end. (Quality-gate `block` is only ever for a
@@ -145,7 +145,7 @@ tampered/auto-passed node cannot skip a mandatory human gate.
 
 ## Resume
 
-Re-entry (a later `/intake` or explicit resume) reads `run-<id>.json`, skips `DONE` nodes,
+Re-entry (a later `/odoo-intake` or explicit resume) reads `run-<id>.json`, skips `DONE` nodes,
 and continues at the first `READY` node in topo-order - same contract as the BRL checkpoint
 (harness §3.3 / §8.3).
 

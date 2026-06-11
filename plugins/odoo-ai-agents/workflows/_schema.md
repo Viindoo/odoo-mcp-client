@@ -24,7 +24,7 @@ plugins/odoo-ai-agents/workflows/<name>.workflow.yaml
 | Field | Type | Required | Purpose |
 |-------|------|----------|---------|
 | `name` | string | YES | Slug identifier; must match the filename stem |
-| `domain` | enum (9) | YES | Persona bucket — drives `intake` tier-3 routing row |
+| `domain` | enum (9) | YES | Persona bucket — drives `odoo-intake` tier-3 routing row |
 | `team_pattern` | enum (6) | YES | Execution shape — tells the runner how to orchestrate phases |
 | `description` | string (block) | YES | NL text matched by tier-3 keyword routing and NL-dispatch; no trailing period |
 | `output_dir` | string | YES | Must start with `.odoo-ai/` — all artifacts land here |
@@ -42,7 +42,7 @@ plugins/odoo-ai-agents/workflows/<name>.workflow.yaml
 engineering | sales | presales | marketing | strategy | qa | support | content | consultant
 ```
 
-Matches the 9 README persona buckets. Drives the `intake` / `odoo-concierge` tier-3 routing
+Matches the 9 README persona buckets. Drives the `odoo-intake` / `odoo-concierge` tier-3 routing
 row so this workflow appears in the right routing group without separate registration.
 
 ---

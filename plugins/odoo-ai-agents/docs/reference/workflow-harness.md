@@ -41,7 +41,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 ```
 ┌────────────────────────────────────────────────────────────────┐
 │  ENTRY / INTAKE LAYER  (depth 0)                                │
-│  intake skill — domain-agnostic front door                      │
+│  odoo-intake skill - Odoo front door                             │
 │  · Phase 0: 4-tier routing + intent gate (mandatory)           │
 │  · Phase R: read-only Recon (≤1–2 agents, depth-1, no writes)  │
 │  · Proposed Plan + soft-plan-gate                               │
@@ -90,8 +90,8 @@ artifacts are written here; nothing under `.odoo-ai/` is committed to the repo.
 | Component | Sub-path | Written by |
 |-----------|----------|------------|
 | Context snapshot | `.odoo-ai/context.md` | `odoo-onboarding` skill |
-| Brainstorm state | `.odoo-ai/brainstorm/state.json` | `intake` skill |
-| Brainstorm design doc | `.odoo-ai/brainstorm/<slug>-<date>.md` | `intake` (approval turn) |
+| Brainstorm state | `.odoo-ai/brainstorm/state.json` | `odoo-intake` skill |
+| Brainstorm design doc | `.odoo-ai/brainstorm/<slug>-<date>.md` | `odoo-intake` (approval turn) |
 | BRL job artifacts | `.odoo-ai/brl/<job-id>/` | `odoo-brl` skill |
 | Workflow phase state | `<output_dir>/<slug>-state.json` (output_dir is the full `.odoo-ai/...` path) | `workflow-chaining` |
 | QA artifacts | `.odoo-ai/qa/` | `qa-suite` workflow |
@@ -302,7 +302,7 @@ flow:
 
 - **Main agent (depth-0) CAN call `EnterPlanMode` / `ExitPlanMode`** — these are
   platform tools available to the main context. A skill running at depth-0 (e.g.,
-  `intake`) may instruct the main agent to invoke `EnterPlanMode` before any
+  `odoo-intake`) may instruct the main agent to invoke `EnterPlanMode` before any
   file-touching execution, producing genuine UI-approved Plan Mode — a stronger
   enforcement than a text gate.
 - **Subagents cannot call `EnterPlanMode`** — the tool is only reachable from the
@@ -330,13 +330,13 @@ Run this before any execute-skill dispatch. Intake reads the chosen Approach's
 
 #### Intake-initiated Plan Mode pattern
 
-When a depth-0 skill (`intake`) reaches the execute phase after the user approves a
+When a depth-0 skill (`odoo-intake`) reaches the execute phase after the user approves a
 Proposed Plan and the Approach `output_mode = writes-files`, the main agent calls
 `EnterPlanMode` → writes the implementation plan (see §4.6 Content Schema) for UI
 review → receives user approval via `ExitPlanMode` → then dispatches the
 file-touching specialist. This is a first-class enforcement option, not a workaround.
 
-There is **no platform write-block** behind the gate. `intake` does not declare
+There is **no platform write-block** behind the gate. `odoo-intake` does not declare
 `disallowed-tools: Write Edit`, and the coders (`odoo-coding`)
 DO write/apply code — that is their job. The gate is enforced by two behavioral
 mechanisms, with Plan Mode as the strongest layer when depth-0 context is available:
@@ -376,7 +376,7 @@ Gate: approve / refine: [feedback] / cancel
 | Coder discipline | Preview patch, then write in-turn | Coders apply code; no platform write-block |
 | Recon boundary | Phase R agents: read-only, depth-1, no spawn, no writes | Allows current-state survey without breaching gate |
 | Plan Mode | `EnterPlanMode` / `ExitPlanMode` | Harness-level enforcement before writes-files execution |
-| Approval | `intake` ends turn; next user prompt enables writes | Write unlock |
+| Approval | `odoo-intake` ends turn; next user prompt enables writes | Write unlock |
 | Refine loop | Gate loops inside brainstorm; no writes until `approve` | Iteration |
 
 On `approve` (text gate) + Plan Mode approved (harness level): the specialist fires
@@ -646,7 +646,7 @@ fallback: standalone             # each phase documents OSM-down degradation inl
 | Field | Type | Purpose |
 |-------|------|---------|
 | `name` | string | Command name and state-file slug |
-| `domain` | enum (9) | Persona bucket — drives `intake` tier-3 routing row |
+| `domain` | enum (9) | Persona bucket — drives `odoo-intake` tier-3 routing row |
 | `team_pattern` | enum (6) | Execution shape — tells the runner how to orchestrate phases |
 | `description` | string | NL text for tier-3 / NL-dispatch matching (no separate registration needed) |
 | `output_dir` | string | `.odoo-ai/<subdir>/` path for all artifacts |
@@ -693,7 +693,7 @@ Wired into `make validate`.
 
 ```
 main context (depth 0)
-  └── workflow skill / intake  (depth 1)
+  └── workflow skill / odoo-intake  (depth 1)
         └── context: fork worker        (depth 2, ceiling)
               └── NO further spawn. Hard-rules line mandatory.
 ```
@@ -714,7 +714,7 @@ by reading-and-imitating its SKILL.md. Examples: `odoo-code-review` (→ `odoo-c
 `odoo-ui-review`.
 
 A **spawn/orchestrator skill** orchestrates other skills or forks workers via `context: fork`.
-Examples: `odoo-brl` (forks DAG cluster workers), `wave` (worktree fan-out), `intake` /
+Examples: `odoo-brl` (forks DAG cluster workers), `wave` (worktree fan-out), `odoo-intake` /
 `run-driver` / `workflow-chaining` (depth-0 orchestrators that dispatch specialists).
 
 ### Mandatory hard-rules line
@@ -731,7 +731,7 @@ a skill creates depth 3, which exceeds the platform ceiling.
 
 ### Dispatch method
 
-The **depth-0 main agent** and **depth-0 orchestrators** (`intake`, `run-driver`) dispatch a
+The **depth-0 main agent** and **depth-0 orchestrators** (`odoo-intake`, `run-driver`) dispatch a
 target skill via the **Skill tool** — this is the canonical, deterministic mechanism, and it is
 what lets a `depth0-only` spawner skill (`odoo-code-review`, `odoo-coding`, …) actually RUN its
 own orchestration in the main context. **NL description-match** (a natural-language prompt that
@@ -808,7 +808,7 @@ not a `team_pattern` inside the declarative workflow system.
 | Coupling | Coupled to workflow schema; adding GitWave would require new `team_pattern: GitWave` + new runner branch + new yaml keys | Self-contained; no schema changes to existing runner or yaml format |
 | Crash risk | Injecting git orchestration into depth-1 runner would push fork workers to depth-3 — exceeds platform ceiling | Depth ceiling respected: 0 (wave) → 2 (WI subagent) |
 
-**Decision**: git-wave is a depth-0 actor that sits alongside `intake` at the top
+**Decision**: git-wave is a depth-0 actor that sits alongside `odoo-intake` at the top
 layer, not below `workflow-chaining`. This is final and must not be revisited without
 updating this section.
 
@@ -833,7 +833,7 @@ You are a leaf worker (depth-2). You ARE the specialist — write/review the cod
 grounding every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is
 always allowed); follow the odoo-coding / odoo-code-review conventions
 but do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-coding,
-odoo-code-review, odoo-ui-review, wave, intake, odoo-brl,
+odoo-code-review, odoo-ui-review, wave, odoo-intake, odoo-brl,
 workflow-chaining, /code-review, skill-creator) — they dispatch a fresh agent and are
 main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill (e.g.
 odoo-feature-check, odoo-override-finding) for a read-only lookup. Do NOT invoke the Skill tool
@@ -864,7 +864,7 @@ The directory is cleaned up after a successful human-confirm merge.
 
 ## 8. Drive-to-done orchestration (Continuation Contract + run-driver)
 
-The harness turns a one-shot `/intake "<NL>"` into a self-advancing run: intake plans a DAG,
+The harness turns a one-shot `/odoo-intake "<NL>"` into a self-advancing run: intake plans a DAG,
 `run-driver` (a depth-0 skill) walks it, each step emits a machine-readable **Continuation
 Contract**, and the driver advances until DONE/BLOCKED/NEEDS_CONTEXT. This section is the SSOT
 for that mechanism. **It is additive** — every existing skill/agent/workflow keeps its current
@@ -881,10 +881,10 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
 
 ```
                        HUMAN
-                         │  /intake "<NL>"  [--auto(default) | --step | --plan]
+                         │  /odoo-intake "<NL>"  [--auto(default) | --step | --plan]
                          ▼
 ┌──────────────── DEPTH 0 (MAIN = orchestrator + decision-maker ONLY) ─────────────────┐
-│  intake-planner: Tier1 regex → Tier2 resume → Tier3 keyword(40) → Tier4 LLM           │
+│  odoo-intake-planner: Tier1 regex → Tier2 resume → Tier3 keyword(40) → Tier4 LLM      │
 │     ├─ non-Odoo intent ─► route vault / other plugin / flag out-of-plugin (multi-plugin)│
 │     └─ Odoo intent ─► Phase R recon (≤2 read-only) ─► Phase P emit RUN-DAG             │
 │  present DAG ONCE ─► [Plan Mode gate if any writes-files node] ─► write run-<id>.json  │
@@ -955,7 +955,7 @@ writes it** (hooks never write — avoids a write race). Resume mirrors the BRL 
 contract (§3.3): re-entry reads the file, skips `DONE` nodes, resumes at the first `READY`
 node in topo-order.
 
-**When Phase P engages (SSOT in `intake` § Phase P — restated here to avoid drift):** engage
+**When Phase P engages (SSOT in `odoo-intake` § Phase P — restated here to avoid drift):** engage
 (write this file + run the driver) if ANY of — (1) `node_count >= 2`; (2) a single
 `output_mode == writes-files` node; (3) a single workflow node whose YAML declares
 `on_complete`. Otherwise (single chat-only node, not a workflow-with-on_complete) dispatch

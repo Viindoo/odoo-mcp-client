@@ -18,7 +18,7 @@ dependency:
 
 | # | Skill | Phase introduced | Persona | MCP dependency |
 |---|-------|-----------------|---------|---------------|
-| 1 | `intake` | A | All — universal front door / brainstorm + route | None (pure text routing) |
+| 1 | `odoo-intake` | A | All — universal front door / brainstorm + route | None (pure text routing) |
 | 2 | `odoo-onboarding` | A | All — context bootstrap | Read-only: `list_available_versions`, `list_available_profiles`, `set_active_version`, `set_active_profile` |
 | 3 | `odoo-feature-check` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `suggest_pattern` |
 | 4 | `odoo-gap-analysis` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `lookup_core_api`, `suggest_pattern` |
@@ -119,7 +119,7 @@ Before beginning this checklist, confirm all of the following:
 
 ---
 
-### Skill 1: `intake`
+### Skill 1: `odoo-intake`
 
 > Phase A — universal front door / brainstorm + 4-tier route + soft-plan-gate. No MCP calls.
 

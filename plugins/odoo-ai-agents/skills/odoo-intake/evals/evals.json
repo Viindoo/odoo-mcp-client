@@ -1,5 +1,5 @@
 {
-  "skill_name": "intake",
+  "skill_name": "odoo-intake",
   "evals": [
     {
       "id": 1,
@@ -346,5 +346,5 @@
       "files": []
     }
   ],
-  "notes": "43 eval cases total: IDs 1-20 ported from the prior router skill (updated skill_name to 'intake'); IDs 21-31 are new cases covering vague->brainstorm (21-24, 31), clear->fast-path (26-28), slash->no-fire (29-30), BRL-handoff (25 updated); IDs 32-38 cover new routing rows 33-39: brl-handoff (32), qa-suite (33), support-triage (34), ui-debug-session (35), content-production (36), sales-closing-cycle (37), BRL-vs-gap-analysis collision (38). IDs 39-43 cover the 5-phase planner behavior added by WI-A: phase-0-gate-mandatory (39), phase-r-recon-dispatch (40), plan-mode-full-schema with workitem+DAG+assignment (41), plan-mode-rejection-flow (42), plan-mode-regression-chat-only-skip (43). Full Mode 5 trigger optimization scheduled for Phase D per AC-D6 of the v1.0.0 refinement plan. Phase A acceptance is verified via inline walkthrough by main agent (see report)."
+  "notes": "43 eval cases total: IDs 1-20 ported from the prior router skill (updated skill_name to 'odoo-intake'); IDs 21-31 are new cases covering vague->brainstorm (21-24, 31), clear->fast-path (26-28), slash->no-fire (29-30), BRL-handoff (25 updated); IDs 32-38 cover new routing rows 33-39: brl-handoff (32), qa-suite (33), support-triage (34), ui-debug-session (35), content-production (36), sales-closing-cycle (37), BRL-vs-gap-analysis collision (38). IDs 39-43 cover the 5-phase planner behavior added by WI-A: phase-0-gate-mandatory (39), phase-r-recon-dispatch (40), plan-mode-full-schema with workitem+DAG+assignment (41), plan-mode-rejection-flow (42), plan-mode-regression-chat-only-skip (43). Full Mode 5 trigger optimization scheduled for Phase D per AC-D6 of the v1.0.0 refinement plan. Phase A acceptance is verified via inline walkthrough by main agent (see report)."
 }

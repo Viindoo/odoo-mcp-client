@@ -30,5 +30,4 @@ when changing intake's structure, the routing table, or the harness wiring.
   20-query trigger eval set.
 - Eval set (`evals/evals.json`) is descriptive — not graded. Use `/skill-creator` Mode 5 +
   `run_loop.py` for a graded trigger accuracy score.
-- The `intake` name is intentionally non-Odoo-prefixed: this front door is future-proof for
-  non-Odoo domains (general ERP, strategic planning, etc.) without renaming.
+- This skill carries the standard `odoo-` prefix as `odoo-intake`, consistent with all other skills in this plugin. The unprefixed `intake` namespace is intentionally reserved for a future domain-agnostic front door (general ERP, strategic planning, etc.) that may route to `odoo-intake` when it detects Odoo intent - keeping the Odoo-specific and domain-agnostic responsibilities cleanly separated.
