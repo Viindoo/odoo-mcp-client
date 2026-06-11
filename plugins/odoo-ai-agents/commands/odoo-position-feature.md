@@ -10,7 +10,7 @@ description: |
 Thin dispatcher — execution is fully encoded in the declarative workflow SSOT:
 
 ```
-plugins/odoo-semantic-skills/workflows/odoo-position-feature.workflow.yaml
+plugins/odoo-ai-agents/workflows/odoo-position-feature.workflow.yaml
 ```
 
 ## How this command works
@@ -43,7 +43,7 @@ feature slug — the runner reads `.odoo-ai/positioning/<slug>-state.json` autom
 
 ## See also
 
-- `plugins/odoo-semantic-skills/workflows/odoo-position-feature.workflow.yaml` — SSOT for phases, gates, model tiers
+- `plugins/odoo-ai-agents/workflows/odoo-position-feature.workflow.yaml` — SSOT for phases, gates, model tiers
 - `/odoo-content-draft` — full marketing pieces (blog, whitepaper, case study)
 - `/odoo-respond-bid` — RFP positioning with pricing and timelines
 - `/odoo-objection-handling` — reactive objection responses

@@ -2,7 +2,7 @@
 name: odoo-setup
 description: One-shot, idempotent setup for the Odoo visual workflow — wire the 3 browser MCP servers across Claude/Codex/Gemini, install browser dependencies, auto-allow tool permissions, and declare + spin up local Odoo instances
 ---
-# /odoo-semantic-skills:odoo-setup
+# /odoo-ai-agents:odoo-setup
 
 Unified, idempotent, extensible setup command for the Odoo visual / browser
 workflow. It drives a registry of numbered step scripts under
@@ -59,7 +59,7 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
        session. **Stop setup and make no changes.** Tell the user: run
        `/odoo-semantic-mcp:connect`, then restart Claude Code and open a NEW
        session (MCP servers do not hot-reload), then re-run
-       `/odoo-semantic-skills:odoo-setup`.
+       `/odoo-ai-agents:odoo-setup`.
      - Tool returns a 401 / auth error → the API key is likely invalid. Stop and
        suggest re-running `/odoo-semantic-mcp:connect` to re-enter the key.
      - Tool returns some other error (server down, self-hosted instance offline)
@@ -132,11 +132,11 @@ step required in the normal flow:
 | Runtime | How servers are bundled | Dedup rule |
 |---------|------------------------|------------|
 | **Claude Code** | Plugin's bundled `.mcp.json` (loaded automatically on install) | Claude deduplicates by command/endpoint: an already-configured server with the same command simply wins; the bundled copy is skipped — this is normal, not an error. No manual step. |
-| **Gemini CLI** | Bundled `gemini-extension.json` (installed via `gemini extensions install <your-clone>/plugins/odoo-semantic-skills` or `gemini extensions link ...` for live dev). **Note:** Gemini cannot install an extension from a subdirectory of a git repo — the manifest must be at a repo root, so you must install via **local path** after cloning, not directly from a GitHub URL. | Dedup is by server *name*: if the user already has a same-named server in `~/.gemini/settings.json`, that entry wins (no error). The `trust` field is not allowed in the extension manifest. |
-| **Codex CLI** | Bundled `.codex-plugin/plugin.json` (installed from a marketplace snapshot). Install flow: `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-semantic-skills@<marketplace>`. A Codex marketplace.json publishing this plugin is a separate distribution step (to be published); the manifest ships with the plugin now. | Same dedup-by-name behaviour as Claude. |
+| **Gemini CLI** | Bundled `gemini-extension.json` (installed via `gemini extensions install <your-clone>/plugins/odoo-ai-agents` or `gemini extensions link ...` for live dev). **Note:** Gemini cannot install an extension from a subdirectory of a git repo — the manifest must be at a repo root, so you must install via **local path** after cloning, not directly from a GitHub URL. | Dedup is by server *name*: if the user already has a same-named server in `~/.gemini/settings.json`, that entry wins (no error). The `trust` field is not allowed in the extension manifest. |
+| **Codex CLI** | Bundled `.codex-plugin/plugin.json` (installed from a marketplace snapshot). Install flow: `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-ai-agents@<marketplace>`. A Codex marketplace.json publishing this plugin is a separate distribution step (to be published); the manifest ships with the plugin now. | Same dedup-by-name behaviour as Claude. |
 
 > **Fallback:** If you need to wire the browser servers into Codex or Gemini without
-> going through the plugin marketplace, run `/odoo-semantic-skills:odoo-setup runtime` —
+> going through the plugin marketplace, run `/odoo-ai-agents:odoo-setup runtime` —
 > it writes the correct config for each runtime idempotently. See the
 > [Standalone / fallback](#standalone--fallback) section for manual equivalents.
 >
@@ -212,7 +212,7 @@ step required in the normal flow:
 - If a step script reports the shared lib is missing
   (`scripts/lib/config_merge.py`, `discover_odoo.sh`, or `instances_io.py`), the
   plugin is only partially installed. Tell the user to reinstall
-  `odoo-semantic-skills@viindoo-plugins` fully, then point them at the manual
+  `odoo-ai-agents@viindoo-plugins` fully, then point them at the manual
   equivalents:
   - Browser MCP (must match the plugin's `.mcp.json` command + args exactly):
     `claude mcp add --scope user chrome-devtools -- npx -y chrome-devtools-mcp@latest`

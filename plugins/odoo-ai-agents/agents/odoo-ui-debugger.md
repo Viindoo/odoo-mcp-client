@@ -138,7 +138,7 @@ YAML - parse lines of the form `- **key**: value`. Extract:
    note the assumption (this agent's toolset has no version-listing tool, so do not attempt
    one).
 2. `instance_base_url`: from `.odoo-ai/instances.toml` (written by
-   `/odoo-semantic-skills:odoo-setup`), then the request.
+   `/odoo-ai-agents:odoo-setup`), then the request.
 3. `instance_login` / credentials: never stored in repo; must come from the agreed credential
    source. Only surface a single clarifying request if genuinely unretrievable.
 

@@ -84,7 +84,7 @@ parse lines of the form `- **key**: value`. Extract:
 - `screenshot_baseline_dir` — directory where baseline screenshots are stored and re-read.
 
 If the file is absent or a key is missing, fall back to the plugin's own portable conventions
-before asking: read `.odoo-ai/instances.toml` (written by `/odoo-semantic-skills:odoo-setup`) for the
+before asking: read `.odoo-ai/instances.toml` (written by `/odoo-ai-agents:odoo-setup`) for the
 instance URL, and resolve the Odoo version from the request or the OSM index
 (`list_available_versions`). Only ask the user (plus the two states to compare: e.g.
 "before/after which change?") in a single message if none of these supply the needed values.

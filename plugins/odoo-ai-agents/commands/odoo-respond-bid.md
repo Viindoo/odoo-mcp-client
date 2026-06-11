@@ -11,7 +11,7 @@ This command is a thin dispatcher. All phase logic, gates, skill invocations, ou
 paths, and fallback rules are defined in the declarative workflow SSOT:
 
 ```
-plugins/odoo-semantic-skills/workflows/odoo-respond-bid.workflow.yaml
+plugins/odoo-ai-agents/workflows/odoo-respond-bid.workflow.yaml
 ```
 
 ## How to run

@@ -156,8 +156,8 @@
     {
       "id": 20,
       "prompt": "First time setting up the visual stack — wire the browser MCP and configure my instance URL",
-      "expected_output": "Intake recommends /odoo-semantic-skills:setup command (row 32: one-time environment bootstrap for the visual stack, vs odoo-onboarding which bootstraps project CODE context)",
-      "expected_routed_to": "/odoo-semantic-skills:setup",
+      "expected_output": "Intake recommends /odoo-ai-agents:setup command (row 32: one-time environment bootstrap for the visual stack, vs odoo-onboarding which bootstraps project CODE context)",
+      "expected_routed_to": "/odoo-ai-agents:setup",
       "category": "should-fire-direct",
       "files": []
     },

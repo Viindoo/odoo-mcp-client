@@ -23,7 +23,7 @@ These three steps are easy to confuse. Only the first is required:
 | Step | Command / skill | Scope | When |
 |------|-----------------|-------|------|
 | 1. Connect the MCP server | `/odoo-semantic-mcp:connect` | Once per machine | **Required** — registers server URL + API key so `mcp__odoo-semantic__*` tools load |
-| 2. Wire the visual stack | `/odoo-semantic-skills:odoo-setup` | Once per machine | **Optional** — browser MCP + Playwright + local Odoo instance, only for the `Visual` skills |
+| 2. Wire the visual stack | `/odoo-ai-agents:odoo-setup` | Once per machine | **Optional** — browser MCP + Playwright + local Odoo instance, only for the `Visual` skills |
 | 3. Onboard a project | `odoo-onboarding` skill | Once per repo | **Optional** — writes `.odoo-ai/context.md` (repo version/modules/conventions); runs even without the server |
 
 Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual-stack--browser-mcp-setup). Step 3 runs automatically the first time you invoke an `odoo-*` skill in a new repo.
@@ -46,15 +46,15 @@ Or inside Claude Code:
 #### 2. Install the plugin
 
 ```bash
-claude plugin install odoo-semantic-skills@viindoo-plugins --scope user   # auto-pulls odoo-semantic-mcp
+claude plugin install odoo-ai-agents@viindoo-plugins --scope user   # auto-pulls odoo-semantic-mcp
 ```
 
 Or:
 ```
-/plugin install odoo-semantic-skills@viindoo-plugins
+/plugin install odoo-ai-agents@viindoo-plugins
 ```
 
-Installing `odoo-semantic-skills` automatically pulls in the `odoo-semantic-mcp` plugin
+Installing `odoo-ai-agents` automatically pulls in the `odoo-semantic-mcp` plugin
 (declared as a dependency), which provides the MCP server connection and the
 `/odoo-semantic-mcp:connect` setup command. If you only need the MCP tools, install
 `odoo-semantic-mcp@viindoo-plugins` on its own.
@@ -114,7 +114,7 @@ After install, 26 skills activate automatically:
 
 > **Visual skills need browser setup.** The three `Coder / Visual` skills above (`odoo-ui-review`, `odoo-visual-regression`, `odoo-demo-recording`) drive a live browser
 > and depend on the bundled browser MCP servers + browser binaries. Run
-> **`/odoo-semantic-skills:odoo-setup`** once to provision them — see
+> **`/odoo-ai-agents:odoo-setup`** once to provision them — see
 > [Visual stack / browser MCP setup](#visual-stack--browser-mcp-setup) below.
 
 ---
@@ -203,20 +203,20 @@ bundle. For most users, install the plugin and the servers are wired automatical
 
 | Runtime | Bundle file | Install command | Dedup behaviour |
 |---------|-------------|-----------------|-----------------|
-| **Claude Code** | `.mcp.json` (auto-loaded on plugin install) | `claude plugin install odoo-semantic-skills@viindoo-plugins` | Claude deduplicates by command/endpoint: a same-command server already in your config simply wins; the bundled copy is skipped — normal, not an error. No extra step. |
-| **Gemini CLI** | `gemini-extension.json` (in the plugin directory) | `gemini extensions install <your-clone>/plugins/odoo-semantic-skills` (or `...link ...` for live dev) | Dedup is by server **name**: a same-named server already in `~/.gemini/settings.json` wins (no error). **Important:** Gemini cannot install an extension from a subdirectory of a git repo — use the local path after cloning, not a raw GitHub URL. The `trust` field is not permitted in the extension manifest. |
-| **Codex CLI** | `.codex-plugin/plugin.json` | `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-semantic-skills@<marketplace>` (marketplace.json is to be published as a separate distribution step; the manifest ships now) | Same dedup-by-name behaviour as Claude. |
+| **Claude Code** | `.mcp.json` (auto-loaded on plugin install) | `claude plugin install odoo-ai-agents@viindoo-plugins` | Claude deduplicates by command/endpoint: a same-command server already in your config simply wins; the bundled copy is skipped — normal, not an error. No extra step. |
+| **Gemini CLI** | `gemini-extension.json` (in the plugin directory) | `gemini extensions install <your-clone>/plugins/odoo-ai-agents` (or `...link ...` for live dev) | Dedup is by server **name**: a same-named server already in `~/.gemini/settings.json` wins (no error). **Important:** Gemini cannot install an extension from a subdirectory of a git repo — use the local path after cloning, not a raw GitHub URL. The `trust` field is not permitted in the extension manifest. |
+| **Codex CLI** | `.codex-plugin/plugin.json` | `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-ai-agents@<marketplace>` (marketplace.json is to be published as a separate distribution step; the manifest ships now) | Same dedup-by-name behaviour as Claude. |
 
 > **Fallback for Codex / Gemini non-native installs:** run
-> `/odoo-semantic-skills:odoo-setup runtime` — it writes the correct config for each
+> `/odoo-ai-agents:odoo-setup runtime` — it writes the correct config for each
 > runtime idempotently without touching the rest of the setup steps.
 
-### One command: `/odoo-semantic-skills:odoo-setup`
+### One command: `/odoo-ai-agents:odoo-setup`
 
 Inside Claude Code, run it once:
 
 ```
-/odoo-semantic-skills:odoo-setup
+/odoo-ai-agents:odoo-setup
 ```
 
 It is **idempotent and extensible** — re-running only applies what is missing, and it drives
@@ -236,7 +236,7 @@ drop-in. What it does:
 > will therefore not recreate any "skipped duplicate" entries there; that is expected.
 
 A **SessionStart** hint (read-only, never installs or blocks) nudges you to run
-`/odoo-semantic-skills:odoo-setup` whenever a dependency is missing.
+`/odoo-ai-agents:odoo-setup` whenever a dependency is missing.
 
 ### Cross-runtime MCP wiring (what `/odoo-setup runtime` writes)
 

@@ -1,6 +1,6 @@
 # Odoo Semantic — Manager / Decision-Maker Guide
 
-> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-semantic-skills@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
+> **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-ai-agents@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
 You do not need to understand Odoo's code to get value from this tool. Ask plain-language questions about risk, upgrade cost, and customization scope — and get structured answers your team can act on.
 

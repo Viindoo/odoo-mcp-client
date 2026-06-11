@@ -7,7 +7,7 @@ description: |
 
 Thin dispatcher for the declarative odoo-plan-upgrade workflow.
 
-**SSOT**: `plugins/odoo-semantic-skills/workflows/odoo-plan-upgrade.workflow.yaml`
+**SSOT**: `plugins/odoo-ai-agents/workflows/odoo-plan-upgrade.workflow.yaml`
 
 All phase definitions, gates, model tiers, skills, output directory (`.odoo-ai/upgrade-plans/`),
 fallback policy, and resume logic live in the workflow YAML. Do not duplicate them here.

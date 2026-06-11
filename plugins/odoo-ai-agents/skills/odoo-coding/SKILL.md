@@ -253,7 +253,7 @@ const frontendPrompt = (m) => [
 
 // agentType resolves from the same registry as the Agent tool; if a short name
 // ever fails to resolve, retry once with the plugin-qualified form
-// 'odoo-semantic-skills:odoo-coder' / 'odoo-semantic-skills:odoo-frontend-coder'.
+// 'odoo-ai-agents:odoo-coder' / 'odoo-ai-agents:odoo-frontend-coder'.
 const dispatchOnce = async (m, leg, model) => {
   const w = WEIGHT[model];
   await acquire(w);
@@ -385,7 +385,7 @@ Use when the Workflow tool is not present in the tool list, errors out, or the
 user denies it. The coders still run as autonomous agents - launch them with the
 Agent tool (`agentType: odoo-coder` backend / `agentType: odoo-frontend-coder`
 frontend; if a short name fails to resolve, retry with the plugin-qualified form
-`odoo-semantic-skills:odoo-coder` / `odoo-semantic-skills:odoo-frontend-coder`).
+`odoo-ai-agents:odoo-coder` / `odoo-ai-agents:odoo-frontend-coder`).
 Same plan, same explicit models; only the scheduling degrades:
 
 1. Order modules so every module appears after its in-set dependencies
