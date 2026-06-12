@@ -100,6 +100,10 @@ stop. No worktree is created, no branch is cut, until the user sends a positive 
 
 ## Phase 0 - Capability Discovery + Plan Gate
 
+First READ any existing worklog for this run (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first)
+per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` so the plan builds on decisions an
+upstream phase already recorded.
+
 **0.1 - Repo Capability Card** (always run first):
 
 Discover the repo's topology and verification commands. Record:
@@ -116,20 +120,35 @@ List every file that will be changed by the N WIs. Build an ownership map: `{WI 
 Assert the sets are disjoint. If any file appears in two WI scopes, STOP and ask the user to
 resolve the overlap before proceeding.
 
-**0.3 - Topology selection**:
+**0.3 - Odoo module DAG (respect module boundaries)**:
 
-Choose a topology from the four standard patterns (see `reference/wave-templates.md`):
-- **Independent** - all WIs modify disjoint files; cherry-pick in any order
+Disjoint *files* are not enough - Odoo work is partitioned by **module**, and a WI that touches a
+module depending on another WI's module must land after it. Compute the module DAG per the SSOT
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` (the same graph `odoo-coding` uses):
+- Map each WI to the module(s) its files belong to (`{WI -> [modules]}`).
+- **Auto-infer `depends_on`:** if a module owned by WI-B `depends` (directly or transitively) on a
+  module owned by WI-A, then WI-B `depends_on` WI-A - add that edge even if the user did not
+  declare it, so cherry-pick order follows the manifest graph rather than guesswork.
+- **Warn on boundary-crossing WIs:** if one WI owns files spanning multiple modules at different DAG
+  depths, flag it and propose splitting it along module lines (a WI should be one module or a
+  tightly-coupled cluster, not an arbitrary file slice). This is a soft gate - surface it in the
+  plan and let the user decide.
+
+**0.4 - Topology selection**:
+
+Choose a topology from the four standard patterns (see `reference/wave-templates.md`), using the
+module DAG from 0.3 as the source of the dependency edges:
+- **Independent** - all WIs modify disjoint files AND disjoint module sub-graphs; cherry-pick in any order
 - **Linear** - WI-B depends on WI-A output; cherry-pick A then B
 - **Mixed** - some independent, some sequential; pick independent first
 - **Diamond** - WI-B and WI-C both depend on WI-A; pick A first, then B+C parallel
 
-**0.4 - Plan artifact** (for >=4 WIs):
+**0.5 - Plan artifact** (for >=4 WIs):
 
 Write `.odoo-ai/wave/<slug>/plan.md` using the full template from
 `reference/wave-templates.md`. For 1-3 WIs, the plan lives inline in the conversation.
 
-**0.5 - Plan gate**:
+**0.6 - Plan gate**:
 
 Present the plan to the user before any branch or worktree is created:
 
@@ -144,6 +163,10 @@ Ownership map:
   WI-A: <file list>
   WI-B: <file list>
   ...
+Module DAG (from 0.3):
+  WI-A: [<modules>]            depends_on: []
+  WI-B: [<modules>]            depends_on: [WI-A]   (module <m_b> depends on <m_a>)
+  Warnings: <WI crossing >1 module boundary, with split suggestion - or "none">
 Confidential: <public | restricted>
 Scaling mode: <minimal | plan-gate | full-plan-artifact>
 
@@ -294,6 +317,10 @@ Each subagent receives a **Phase-4 WI brief** as its `prompt`:
 Worktree path  : <absolute path>
 Branch         : wave/wi-<slug>-<id>
 Files in scope : <disjoint list>
+Modules in scope        : <Odoo modules these files belong to>
+Module depends-on (in-wave): <WIs whose modules this WI's modules depend on - already cherry-picked>
+Upstream deps (out-of-scope): <modules this WI depends on that are NOT being changed - do not edit, just respect their contracts>
+Downstream impact       : <modules that depend on this WI's modules - your change must not break them>
 Task           : <precise description of what to implement>
 
 Repo Capability Card:
@@ -326,6 +353,9 @@ Hard rules:
     `odoo-bin` (install/upgrade/test), resolve the target version's real CLI via OSM
     `cli_help` first and follow ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md
     and ODOO-TESTING.md — never assume one version's flags apply to another.
+  - Append your significant decisions (approach chosen/rejected, any cross-module impact you hit and
+    how you handled it) to .odoo-ai/worklog/<slug>/<id>-wi.md per
+    ${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md (one file per worker - no shared-file race).
   - Return your result using EXACTLY this template (no prose substitution):
 
 ## WI-<ID> Result
@@ -372,7 +402,9 @@ non-spawning (`leaf`) skills for read-only lookups.
 > exactly what runs at depth-0 each time a worker returns its SHA. Cherry-pick is NEVER pushed
 > down to a leaf worker (Hard Rules 1 + 2).
 
-For each WI (in topology order):
+For each WI (in topology order = the **module-DAG topological order** from Phase 0.3, with the
+auto-inferred `depends_on` edges - a WI whose modules depend on another WI's modules is always
+cherry-picked after it):
 
 1. Cherry-pick the WI commit(s) onto the integration branch:
    `git cherry-pick <sha>` (from within the integration worktree)

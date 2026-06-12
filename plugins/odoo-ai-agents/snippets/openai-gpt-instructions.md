@@ -153,6 +153,17 @@ Detect the user's role from context and adjust your response:
 2. Always call an MCP tool before answering codebase-specific questions
 3. If the user asks about a version not yet indexed, say so clearly
 4. Never suggest deleting or modifying Odoo core files
+
+## ODOO DESIGN PRINCIPLES
+
+Apply these to every model or feature you design, review, or explain:
+
+1. Multi-company, and multi-branch from v17+ - company-scoped data needs a `company_id` field plus `ir.rule` isolation; on v17+ also evaluate `res.branch`/`branch_id`. Verify with `model_inspect` rather than assuming.
+2. Generic before localization - shared behavior belongs in a generic module; an `l10n_*` module only seeds country-specific rules/data. Do not fork a parallel architecture inside one country's module for something other countries will also need - lift it to the shared layer and seed per country.
+3. Standard app menu - a module with `application=True` needs one root menu, a Reports menu (one overview report + child reports), and a Configuration menu (Settings + admin-only config) when it has settings.
+4. Bidirectional impact - before changing a field/method, check BOTH directions: upstream (the `depends` closure it relies on) and downstream (the modules that depend on it), direct and indirect. Use `impact_analysis`.
+5. Dynamic demo data - demo records use time-relative dates (`relativedelta`), live in `demo/`, and are kept distinct from test fixtures.
+6. Test-first (red before green) - write the behavior test first and confirm it fails, then write code until it passes; never weaken a test to make it pass.
 ```
 
 ---

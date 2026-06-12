@@ -993,6 +993,25 @@ references a driver-required workflow directly.
 }
 ```
 
+**Worklog vs. blackboard (two different things, no overlap).** The blackboard above is the
+driver-only *state machine* (only `run-driver` writes it; machine state). Alongside it lives the
+**worklog** - an append-only *decision journal* every participant (architect, test-author, coder,
+reviewer, debugger, wave WI worker) reads before it starts and writes when it finishes, SSOT
+`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`. It answers "*why* did the prior phase do
+this" so a later phase builds on intent instead of re-deriving it. It is **one file per writer**
+under `.odoo-ai/worklog/<run-or-slug>/<NNN>-<agent>.md` (per-writer files make parallel appends
+race-free, unlike the single blackboard which only the driver touches). When a run is active the
+driver records the worklog dir so all nodes resolve the same path; standalone, a skill derives it
+from its own slug. The blackboard holds machine state; the worklog holds decision rationale -
+neither duplicates the other.
+
+**The `code -> review+test -> code` loop.** `odoo-coding` (which now orchestrates red-test authorship before the
+code for non-trivial modules, SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`) emits
+`next: odoo-code-review`; that skill reviews AND checks test coverage, emitting `next: odoo-coding`
+on a CRITICAL/HIGH fix or `next: odoo-test-writer` on an uncovered behavior. The driver advances
+this loop via the Continuation Contract (a subagent never re-dispatches itself) and bounds it to 3
+iterations before escalating - same depth-safety as every other chain here.
+
 ### 8.4 Gate-tier policy
 
 `output_mode` and `default_gate_tier` are SSOT per-skill in

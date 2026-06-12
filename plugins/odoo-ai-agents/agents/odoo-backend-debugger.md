@@ -18,6 +18,7 @@ tools:
   - mcp__odoo-semantic__validate_domain
   - mcp__odoo-semantic__validate_relation
   - mcp__odoo-semantic__module_inspect
+  - mcp__odoo-semantic__impact_analysis
   - mcp__odoo-semantic__find_examples
   - mcp__odoo-semantic__suggest_pattern
   - mcp__odoo-semantic__api_version_diff
@@ -120,6 +121,12 @@ Skip Step 0 if the version was already pinned earlier in this session.
 
 ## Diagnostic loop (apply in order, do not skip steps)
 
+Before you start, READ the cross-agent decision log for this run
+(`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first) so you inherit what upstream phases decided -
+the chosen approach, flagged impacts, deliberate deviations - instead of re-deriving them (Iron Law
+#6: understand intent before acting). You APPEND your diagnosis at the end (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
+
 Reference the full scientific method in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`.
 The condensed execution order for backend diagnosis:
 
@@ -168,6 +175,24 @@ the compute never re-runs." A hypothesis you cannot prove wrong is useless.
 
 Consult `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-failure-modes.md` to pick the most
 likely root cause for the observed symptom pattern and layer.
+
+### Step 3.5 - Bidirectional impact (where the bug comes from, where the fix lands)
+
+A backend bug is rarely confined to the file that raises - it ripples in BOTH directions (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`), direct and indirect. Walk both:
+**upstream** - the symptom may originate in a module this one depends ON (a changed core/base
+field, an `@api.depends` contract, an MRO/override order); walk the `depends` closure with
+`module_inspect(method='dependencies', ...)` to find where the assumption first breaks.
+**downstream** - the fix you are about to name may break a module that depends ON this one (a stored
+compute it relies on, a method it `super()`s, a record it references); run
+`impact_analysis(...)` on the model/field/method the fix will touch and evaluate the dependents,
+direct and indirect, BEFORE handing off.
+
+When the symptom involves record visibility, security (`AccessError`/`ir.rule`), or a wrong
+computed value, also check it against the platform principles (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`) - a record that "vanishes" or a
+compute that is wrong for one company is often a missing multi-company/branch scope or a
+generic-vs-localization split, not a code logic bug.
 
 ### Step 4 - Bisect
 
@@ -221,6 +246,11 @@ Regression test (red->green): <test that protects the behavior; assert it fails 
 Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test actually run RED) and OSM-grounded; a described-but-unexecuted toggle/test or an inferred location caps at MEDIUM; LOW if unproven>
 Grounding: <osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>
 ```
+
+After filling the Output Contract, APPEND the proven root cause, the named fix location, and the
+bidirectional impact you assessed (upstream origin + downstream blast radius of the fix) to the run
+worklog, so the coder that lands the fix inherits them (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 ---
 

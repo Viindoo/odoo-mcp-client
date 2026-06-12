@@ -6,6 +6,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-06-12
+
+### Added
+
+- **Execute-agent hardening across the design -> code -> review -> debug chain** (#68): six SSOT
+  contracts that the relevant agents now load by reference (edit once, not per agent) -
+  `snippets/worklog-contract.md` (append-only cross-agent decision log under
+  `.odoo-ai/worklog/<run>/`), `snippets/odoo-platform-design-principles.md` (multi-company + branch
+  v17+, generic-before-localization, standard app-menu shape), `snippets/bidirectional-impact.md`
+  (upstream + downstream impact, direct + indirect), `snippets/demo-data-dynamic.md` (time-relative
+  `relativedelta` demo data), `snippets/test-first-contract.md` (red-before-green), and
+  `skills/_shared/odoo-module-graph.md` (the shared Odoo module DAG). The five coder / reviewer /
+  debugger agents that lacked it gain the `mcp__odoo-semantic__impact_analysis` tool.
+- **Test-first loop in `odoo-coding`**: a separate test-author writes a failing test before the
+  code for non-trivial modules (the coder self-tests for trivial ones), feeding a bounded
+  `code -> review+test -> code` loop; `odoo-code-review` gates test coverage and loops fixes back to
+  `odoo-coding` / `odoo-test-writer`.
+- **Module-aware `wave`**: Phase 0 computes the Odoo module DAG, auto-infers work-item `depends_on`
+  from module dependencies, and warns on work-items that cross module boundaries.
+
+### Changed
+
+- `odoo-solution-architect` now surveys bidirectional impact, designs dynamic demo data, and checks
+  the three platform design principles. The README gains a "Grounding contracts" table, and the
+  ChatGPT / Gemini / Cursor instruction ports gain a self-contained Odoo Design Principles block.
+
+### Fixed
+
+- **`odoo-solution-architect` could ship designs that violated coding conventions and named
+  non-existent fields / methods**, which every downstream coder then built on. It now reads the
+  target version's `coding_guidelines/` like the coders do, and a HARD RULE separates EXISTING
+  entities (must be OSM- or disk-verified, never named from memory) from PROPOSED additions (may be
+  new, but follow naming conventions and are marked in the data-model / override tables).
+
 ## [3.7.0] - 2026-06-11
 
 ### Changed

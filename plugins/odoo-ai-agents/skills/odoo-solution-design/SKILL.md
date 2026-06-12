@@ -39,7 +39,9 @@ does NOT write production code (this is a read-only design step):
 ```
 Design scope: <one-line of the change to be designed>
 Will decide:  approach (inherit axis / new vs extend) · data model · override strategy ·
-              module structure · sequencing · test outline · risks
+              module structure · sequencing · test outline · risks · platform-principles
+              (multi-company/branch, localization strategy, app-menu) · bidirectional
+              (upstream+downstream) impact · dynamic demo-data plan
 Artifact:     .odoo-ai/designs/<slug>-<YYYY-MM-DD>.md (design doc, no production code)
 OSM:          backed | standalone
 Proceed? (yes / refine: [feedback] / cancel)
@@ -71,10 +73,18 @@ and benefits from a designed-and-approved-before-coding step. Fire it for ANY of
   chain already has ≥3 entries (conflict risk).
 - **A schema / data migration** that has more than one viable strategy (pre vs post,
   openupgradelib vs raw SQL, ID-match vs value-match mapping).
-- **A cross-model computed chain**, multi-company / multi-currency logic, or a full-stack
-  feature spanning backend + frontend.
+- **A cross-model computed chain**, multi-company / multi-currency / multi-branch (v17+) logic,
+  or a full-stack feature spanning backend + frontend.
+- **A localization touch** that needs a generic-before-localization decision (does this belong in
+  a shared module with per-country seed data, or is it truly country-specific?), or a new
+  `application=True` module that needs the standard app-menu shape (root + Reports +
+  Configuration) - both are architectural choices, not coding details.
 - **A refactor** (extract a mixin, split/merge modules, change an inheritance axis) — refactor
   is design-heavy by nature; design it before touching code.
+
+The architect surveys **bidirectional impact** (upstream depends-closure + downstream dependents,
+direct and indirect) and designs **dynamic demo data** for any new end-user behavior - see
+`agents/odoo-solution-architect.md` for the template; this skill only gates the entry.
 
 **Skip the design step for trivial work** (Keep It Simple — do not impose design ceremony on a
 one-liner): a single Standard/Config field, boilerplate (one computed field, a view shell, a

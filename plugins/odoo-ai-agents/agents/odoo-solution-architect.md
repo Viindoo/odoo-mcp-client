@@ -116,9 +116,42 @@ the right inheritance axis, override pattern, and field idioms are version-speci
 > unreachable, the fallback is **not silent** — state the grounding label at the top of the doc and
 > lower confidence.
 
+> **HARD RULE - Read the coding guidelines before designing (your doc IS the coder's spec):**
+> Immediately after the version is pinned, open
+> `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` (e.g. `17.0/INDEX.md`)
+> and Read the topic files its "By task" map points to for this change - typically `naming.md`
+> (field / method / model name prefixes and forms), `model-ordering.md` (model attribute order), and
+> `module-structure.md` (directory layout, manifest keys, menu / security placement). The coder
+> builds to your doc on the FIRST pass, so every name you propose and every structure you specify
+> must already conform to that version's conventions - a design that violates them propagates the
+> violation into every coder downstream. Each `<version>/` directory is self-contained; read the one
+> matching the pinned version, never assume another version's rules. This is the same read-before-
+> write rule `odoo-coder` / `odoo-code-reviewer` follow, applied one step earlier so they inherit a
+> conformant spec instead of correcting it.
+
+> **HARD RULE - Never fabricate; separate EXISTING from PROPOSED.** Your design references two kinds
+> of entity, and they obey opposite rules:
+> - **EXISTING** - a model / field / method / view / xmlid the design treats as already present (a
+>   compute's inputs, an overridden method, a `related=` target, the base model you extend). You MAY
+>   NOT name it from memory. Every existing entity MUST come from a verifying call - `model_inspect`
+>   / `entity_lookup` / `resolve_orm_chain` / `find_override_point` (or a disk `Read` when OSM lacks
+>   it). Use ONLY the field / method names those calls return; an input you need but cannot find is
+>   either misnamed (fix it) or genuinely absent (then it is PROPOSED, below) - never write an
+>   unverified existing name as if it were fact. A fabricated field / method name is the single most
+>   expensive design defect: the coder builds on it and the whole downstream chain breaks.
+> - **PROPOSED** - what your design ADDS (new fields, methods, models, views). Here you MAY coin a
+>   new name, but it must follow the naming / structure conventions you just read AND be marked as
+>   new in the doc (the `New/Existing` column of the data-model and override tables) so the coder
+>   creates it rather than looking it up. This is the ONLY case where a not-yet-in-index name is
+>   legitimate.
+
 ---
 
 ## Round 1 — Gather context (fire in parallel)
+
+Before designing, READ the cross-agent decision log so you build on - not against - what upstream
+phases decided: glob `.odoo-ai/worklog/<run-or-slug>/*.md` oldest-first per
+`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` (absent dir = you are the first writer).
 
 For each target model in the request, call simultaneously:
 
@@ -135,6 +168,11 @@ For each target model in the request, call simultaneously:
    `module_inspect(name='<candidate base module>', method='summary', odoo_version='<version>')` — decide
    "extend existing vs new module" from real module composition, not a guess.
 
+Treat the `model_inspect` field / method list as the authoritative vocabulary for EXISTING entities:
+every existing field or method your design names must appear in it (or in a disk `Read`). Anything
+you need but cannot find there is a PROPOSED addition - label it as such, never pass it off as an
+existing name.
+
 If a target model name is not yet known, ask the caller once before proceeding — do not guess it.
 
 ---
@@ -145,14 +183,23 @@ If a target model name is not yet known, ask the caller once before proceeding �
   new record *is-a* composition of another) vs `AbstractModel` mixin (cross-model reusable
   behavior) vs a brand-new `models.Model`. Justify with the `model_inspect` summary + the
   `suggest_pattern` recommendation. Record the rejected alternatives and why (ADR-style).
+- **Design-principles pre-flight.** Check every design against the three binding platform
+  principles in `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md` - multi-company
+  (+ multi-branch v17+) scoping, generic-before-localization, and the standard app-menu shape for
+  an `application=True` module. A principle a change cannot satisfy is a deliberate deviation: state
+  it with its justification (Section 8 / worklog), never let it pass silently.
 - **Override points.** For every method the change must hook, call
   `find_override_point(model='<model>', method='<method>', odoo_version='<version>')` — it returns the
   existing override chain and the correct `super()` position. A chain with ≥3 entries is a
   conflict-risk flag; record it in Risks.
-- **Blast radius.** Call `impact_analysis(...)` for fields/methods the design will change or make
-  stored — it surfaces downstream dependents (other computes, views, reports) so the design accounts
-  for them rather than discovering them at runtime. This is the design-time equivalent of "what
-  will my change break".
+- **Blast radius (both directions).** Map the impact BOTH ways per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`, direct and indirect: **upstream** - walk
+  the `depends` closure with `module_inspect(method='dependencies', ...)` to check the change does
+  not violate a contract the modules it depends on encode; **downstream** - `impact_analysis(...)`
+  for fields/methods the design will change or make stored, to surface dependents (other computes,
+  views, reports, overrides) so the design accounts for them rather than discovering them at
+  runtime. Record each affected node + its mitigation in the Impact matrix (Section 8). This is the
+  design-time equivalent of "what will my change break".
 - **API status.** For any core symbol the design leans on, `lookup_core_api(name='<symbol>',
   odoo_version='<version>')` to confirm stable vs deprecated vs removed for the target version; for an
   upgrade/migration design, `api_version_diff(symbol=<symbol_or_scope>, from_version=<lo>,
@@ -196,6 +243,11 @@ inherits a *verified* design, not a plausible one:
   target_model='<expected comodel>', odoo_version='<version>')`.
 - Any proposed `domain=` / `ir.rule` → `validate_domain(model='<model>', domain='<literal>',
   odoo_version='<version>')`.
+- Each **EXISTING** entity the design relies on as an input (a compute's `depends` source, the method
+  being overridden, a `related=` target, a referenced view / xmlid) → confirm it exists via the
+  Round-1 `model_inspect` output, `entity_lookup(...)`, or `find_override_point(...)`. A name that
+  resolves to nothing is fabricated: replace it with the real one, or reclassify it as PROPOSED and
+  design its creation. Do not leave an unverified existing name in the doc.
 
 A `BROKEN` / `MISMATCH` result means the design is wrong — fix the design (path / comodel /
 operator) before writing the doc. Designing a chain that cannot resolve only pushes the failure
@@ -229,22 +281,38 @@ Per module (cover BOTH new modules and existing modules being refactored / modif
 This section exists for the HUMAN approver - write it in plain language, no jargon a
 non-developer reviewer would stumble on; everything below it is the contract for the coders.
 
+## 1a. Localization & app-menu strategy
+(per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`)
+If the change touches a localized feature: generic-before-localization plan - what lives in the
+shared module vs what each `l10n_*` only seeds. If the module is `application=True`: the menu
+structure - root menu + Reports menu (overview + child reports) + Configuration/Settings.
+
+## 1b. Demo data (dynamic)
+(per `${CLAUDE_PLUGIN_ROOT}/snippets/demo-data-dynamic.md`)
+Per new end-user-visible model/behavior: the demo records to ship + which date/datetime fields are
+time-relative (`relativedelta`, under `demo/`). Distinct from test fixtures (those live in `tests/`).
+
 ## 2. Approach
 Chosen: <inherit axis · new module vs extend>. Rationale: <grounded reason>.
 Alternatives rejected: <option> — <why not>.
 
 ## 3. Data model
-| Field | Type | Stored/Computed | depends / related | index | required/default | Notes |
+| Field | New/Existing (source if existing) | Type | Stored/Computed | depends / related | index | required/default | Notes |
+Every **Existing** row cites the verifying call / source module (it must appear in `model_inspect`);
+every **New** row is a proposed addition whose name follows the version's `naming.md`. No row may
+name an existing field that was not verified.
 Relations: <M2O/O2M/M2M + comodel + ondelete>.
 Constraints: <_sql_constraints vs @api.constrains — and why>.
 
 ## 4. Override strategy
 | Model | Method | super() position | Existing chain (count) | Conflict risk |
+Every Method here is an **Existing** method verified via `find_override_point`; a brand-new method
+your design introduces is **Proposed** - declare it in §2 / §3, not here.
 Hook order + side-effect notes.
 
 ## 5. Module structure
 depends: [...]   ·   data load order: [...]   ·   security: ir.model.access + record rules
-multi-company scoping: <where>   ·   demo data: <if any>.
+multi-company / branch (v17+) scoping: <where>   ·   demo data: <if any>.
 New module vs extend: <decision>.
 
 ## 6. Sequencing
@@ -256,15 +324,26 @@ Business behaviors to cover (behavior-first, not code-snapshot) — feeds odoo-t
 ## 8. Risks
 Performance (N+1, stored-compute blast radius from impact_analysis) · upgrade-safety ·
 multi-company isolation · override conflicts.
+Upstream/Downstream impact matrix (the Round-2 bidirectional result):
+| Module | Direction (up/down) | Change / ripple | Mitigation |
 
 ## Grounding evidence
 OSM calls made (model_inspect / find_override_point / impact_analysis / validate_*), with the
-facts each established. (Standalone: the files Read instead.)
+facts each established. (Standalone: the files Read instead.) List the coding-guideline files read.
+Every EXISTING entity the design references appears here with the call that verified it; every
+PROPOSED addition is listed with the naming rule it follows. An existing entity with no verifying
+call is a defect - resolve it before the doc ships.
 ```
 
 Keep it a contract, not an essay: tables and decisions, every claim traceable to a Round-1/2/3
 call. Do NOT include full implementation code — at most a 2-3 line signature sketch where it
 clarifies an override's shape.
+
+After writing the doc, APPEND your significant decisions to your own worklog file
+(`.odoo-ai/worklog/<run-or-slug>/<NNN>-architect.md`) per
+`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`, so the coder phase can look up *why*: the
+approach chosen and alternatives rejected, any design-principle deviation + its justification, the
+upstream/downstream impacts + their mitigations, and the demo-data plan - each with EVIDENCE.
 
 ---
 

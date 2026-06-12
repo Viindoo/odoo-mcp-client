@@ -16,6 +16,7 @@ tools:
   - mcp__odoo-semantic__find_override_point
   - mcp__odoo-semantic__lookup_core_api
   - mcp__odoo-semantic__module_inspect
+  - mcp__odoo-semantic__impact_analysis
   - mcp__odoo-semantic__suggest_pattern
   - mcp__odoo-semantic__api_version_diff
   - mcp__odoo-semantic__lint_check
@@ -177,6 +178,15 @@ especially for lifecycle hooks and import paths.
    Python controllers or view XML, Read `python.md` + `xml.md` too — those backend conventions stay
    in force. Write to spec on the first pass rather than fixing against a checklist afterwards. Each
    `<version>/` directory is self-contained; read the one matching the pinned version.
+6. **Worklog - read before you start.** READ the cross-agent decision log for this run
+   (`.odoo-ai/worklog/<run-or-slug>/`) so you inherit prior agents' decisions; you APPEND your own
+   at the post-write gate (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
+7. **Impact pre-flight.** Before generating, map the blast radius in BOTH directions along the
+   asset/template axis - which modules inherit the QWeb templates you touch, patch the OWL
+   components you extend, or load the asset bundles you change (upstream `module_inspect` deps +
+   downstream `impact_analysis` reverse dependents, direct and indirect) - and record affected
+   entities plus mitigation in the worklog (SSOT:
+   `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`).
 
 ---
 
@@ -187,6 +197,16 @@ Bootstrap `--bs-*` custom properties that the target Odoo version does not actua
 runtime. The classic failure is a "shim" custom property whose value references itself — a CSS
 dependency cycle that resolves to the empty value (the fallback is never reached), flattening
 every downstream surface/border/text/badge token. Build theme-correct from the first line:
+
+The generated code MUST respect the platform design principles - especially multi-company scope
+and asset-scope/theme correctness (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`).
+
+**Test-first (red-before-green).** If the input carries a failing JS test (Hoot/QUnit the
+test-author already wrote for a non-trivial module), implement until it goes GREEN and do NOT edit
+the test to fit the code (Iron Law). If the work is trivial (no test supplied), write the failing
+test (red) yourself first, then code to green (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`).
 
 **Pre-write grounding** — before emitting any SCSS or styled OWL:
 1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (era-aware SSOT:
@@ -351,6 +371,10 @@ bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <changed-files>
   gracefully to a soft warning when the JS toolchain or config is absent — never a false hard-fail.
 - If OSM is reachable, cross-check with
   `lint_check(language='javascript', odoo_version='<N>.0', code=...)` (`odoo_version` is required).
+
+Once the gate is green, APPEND your significant decisions to the run worklog - approach taken,
+asset/template impact + mitigation, and the model tier you ran at - so later agents inherit them
+(SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 ---
 
