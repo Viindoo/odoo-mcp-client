@@ -147,10 +147,10 @@ def test_agent_skill_invocation_guard(agent):
 # ---------------------------------------------------------------------------
 
 
-def test_at_least_26_skills():
-    # Floor at the real count (26 today) so a dropped skill trips CI, while
+def test_at_least_41_skills():
+    # Floor at the real count (41 today) so a dropped skill trips CI, while
     # adding skills never breaks it.
-    assert len(SKILL_FILES) >= 26, f"expected >=26 skills, found {len(SKILL_FILES)}"
+    assert len(SKILL_FILES) >= 41, f"expected >=41 skills, found {len(SKILL_FILES)}"
 
 
 @pytest.mark.parametrize("skill", SKILL_FILES, ids=lambda p: p.parent.name)

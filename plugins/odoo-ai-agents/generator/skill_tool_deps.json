@@ -597,6 +597,17 @@
       "output_mode": "chat-only",
       "default_gate_tier": "L0"
     },
+    "odoo-deep-survey": {
+      "spawn_class": "spawner-agent",
+      "depth_policy": "depth0-only",
+      "spawns": [
+        "(anonymous read-only fan-out workers via Agent tool, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under .odoo-ai/survey/, no further spawn — see skills/_shared/concurrency-guard.md Mode B)"
+      ],
+      "stack": "none",
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
+    },
     "odoo-addon-diff": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",

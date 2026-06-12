@@ -41,7 +41,17 @@ sequencing), not the codegen.
 ## Phase 0 — Scope + module graph (1-turn gate, mandatory)
 
 This is the single confirmation checkpoint. It applies even when the request arrived directly
-(e.g. intake bypass). First READ any existing worklog for this run
+(e.g. intake bypass) — **unless your brief carries the AUTONOMOUS FIX sentinel (see the exception
+immediately below), in which case you skip this gate entirely.**
+
+**Autonomous-fix exception — SKIP this gate entirely** when your brief contains
+**"AUTONOMOUS FIX (review-driven)"** or **"AUTONOMOUS FIX (debug-driven)"**: the human already
+opted into the autonomous review/debug fix loop, so do NOT stop for a confirmation. Read the worklog
++ the review report / proven root cause passed in, fix directly to those findings, and the moment
+you finish writing **IMMEDIATELY invoke `odoo-code-review` via the Skill tool yourself** to verify
+(§ The code -> review+test -> code loop). Bound to 3 iterations, then STOP and escalate.
+
+Otherwise (normal invocation), First READ any existing worklog for this run
 (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first) per
 `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` so you build on the decisions an upstream
 phase (e.g. `odoo-solution-design`) already recorded instead of re-deriving them. Then do six
@@ -217,11 +227,11 @@ const runSlug = args.runSlug || 'coding';
 const worklogLine = `WORKLOG: read then append your significant decisions (approach, impact + mitigation, demo-data, tier) to .odoo-ai/worklog/${runSlug}/ per snippets/worklog-contract.md.`;
 // test-first line for the coder prompt: implement-to-green against the separately
 // authored failing test, or (trivial) write your own red test first - never weaken
-// a test to make it pass (Iron Law). snippets/test-first-contract.md.
+// a test to make it pass. snippets/test-first-contract.md.
 const testLine = (m, testFiles) =>
   m.test === 'test-author' && testFiles && testFiles.length
-    ? `FAILING TEST (written by a separate test-author, currently RED): ${testFiles.join(', ')} - implement until these pass; do NOT edit the tests to make them pass (Iron Law). See snippets/test-first-contract.md.`
-    : `TEST-FIRST: write the failing test for the business rule FIRST and confirm it goes RED, then implement to green; never weaken the test to pass. See snippets/test-first-contract.md.`;
+    ? `FAILING TEST (written by a separate test-author, currently RED): ${testFiles.join(', ')} - implement until these pass; do NOT edit the tests to make them pass. See snippets/test-first-contract.md.`
+    : `TEST-FIRST: write the failing test for the business rule FIRST and confirm it goes RED, then implement to green; never weaken the test to pass. The test MUST drive the real workflow (action_confirm/action_validate/button_validate, Form() for onchange, with_user() not sudo()) - never seed the terminal state with create({state:...}). See snippets/test-first-contract.md and snippets/test-behavior-contract.md.`;
 
 // --- validate args up front: a typo'd/missing tier must fail the whole run at
 // t=0 (before any agent or resolver exists), not silently book the wrong weight
@@ -261,6 +271,7 @@ const backendPrompt = (m, testFiles) => [
   `ODOO VERSION: ${odooVersion}`,
   `DESIGN_DOC: ${designDoc} - if present, build to it; do not re-derive.`,
   testLine(m, testFiles),
+  `GUIDELINES: before writing, read skills/_shared/coding_guidelines/${odooVersion}/INDEX.md and the by-task files for this change (python/naming/model-ordering for models, xml for views) - conform on the first pass. snippets/read-before-write-contract.md.`,
   worklogLine,
   `Step 0 (only if mcp__odoo-semantic__* is available): set_active_version('${odooVersion}'), then follow Rounds 1-4 from your system prompt.`,
   'If OSM is down, use the disk-grounded fallback and still write files. If OSM answers but a specific module/model is not in the index (customer-local addon), Read/Grep the local addon for just that entity and ground hybrid (osm + local-source) - an index miss is not proof of absence. Do not spawn subagents or invoke skills.',
@@ -274,6 +285,7 @@ const frontendPrompt = (m, testFiles) => [
   `ODOO VERSION: ${odooVersion}`,
   `DESIGN_DOC: ${designDoc} - if present, build to it; do not re-derive.`,
   testLine(m, testFiles),
+  `GUIDELINES: before writing, read skills/_shared/coding_guidelines/${odooVersion}/INDEX.md and the by-task files (javascript + scss; python/xml if you also touch controllers/views) - conform on the first pass. snippets/read-before-write-contract.md.`,
   worklogLine,
   `Step 0 (only if mcp__odoo-semantic__* is available): read .odoo-ai/context.md, then set_active_version('${odooVersion}');`,
   'ground styling tokens against skills/_shared/odoo-frontend-fidelity.md (no hardcoded hex for themeable colors, no self-referential --bs-* shim).',
@@ -295,7 +307,7 @@ const testAuthorPrompt = (m, leg) => [
   `REQUEST: ${leg === 'frontend' ? (m.frontendRequest || m.request) : m.request}`,
   `MODULE SCOPE: ${m.name} @ ${m.path} - write only test files (tests/ or static/tests/).`,
   `ODOO VERSION: ${odooVersion}`,
-  'Follow snippets/test-first-contract.md: assert observable behavior, not internals; ONE intent per test; confirm each test goes RED before the code exists (state the RED confirmation).',
+  'Follow snippets/test-first-contract.md (red-before-green) AND snippets/test-behavior-contract.md (drive the real workflow: action_confirm/action_validate/button_validate, Form() for onchange, with_user() not sudo(); never seed the terminal state with create({state:...})): assert observable behavior, not internals; ONE intent per test; confirm each test goes RED before the code exists (state the RED confirmation).',
   worklogLine,
   'Return the test file paths in files_written and a one-line RED confirmation in summary. Do not spawn subagents or invoke skills.',
 ].join('\n');
@@ -518,14 +530,21 @@ restricted allowlists and execution detail.
 ## The code -> review+test -> code loop (bounded)
 
 Coding is not one-shot. After this skill writes code (each non-trivial module already implemented
-to a separately-authored failing test), emit `next: odoo-code-review`; that skill reviews AND
-checks the tests cover the behavior, and emits `next: odoo-coding` when it finds a CRITICAL/HIGH
-issue or a red/missing test. That round-trip - **code -> review+test -> code** - is the loop,
-advanced by the depth-0 driver via the Continuation Contract (a subagent never re-dispatches
-itself). Bound it to **3 iterations** per
-`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`; if it is still not green-and-clean after
-3, STOP and escalate (ETHOS #8) rather than loop forever. Each iteration's outcome goes in the
-worklog so the next pass sees what the prior one decided.
+to a separately-authored failing test), the **code -> review+test -> code** round-trip runs:
+`odoo-code-review` reviews AND checks the tests cover the behavior, and loops back to `odoo-coding`
+on a CRITICAL/HIGH issue or a red/missing test.
+
+**Drive it yourself when there is no run-driver (mandatory).** You run at depth-0 in the main
+context, so the Skill tool is available. After writing, **IMMEDIATELY invoke `odoo-code-review` via
+the Skill tool yourself** - a passive `next: odoo-code-review` is not advanced when no run-driver is
+active (the common case: a direct invocation, an intake fast-path, or an autonomous review/debug
+fix), so the verification would silently never happen. The ONLY exception: you were dispatched by an
+active run-driver (a `run-<id>` is named) - then emit `next: odoo-code-review` and let it advance, do
+not double-dispatch. Emit the Continuation Contract block as the record either way.
+
+Bound the loop to **3 iterations** per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`; if it
+is still not green-and-clean after 3, STOP and escalate - bad work is worse than no work - rather than loop forever. Each
+iteration's outcome goes in the worklog so the next pass sees what the prior one decided.
 
 ## Continuation Contract
 

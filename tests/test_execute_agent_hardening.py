@@ -28,6 +28,8 @@ NEW_SNIPPETS = [
     SNIPPETS / "demo-data-dynamic.md",
     SNIPPETS / "test-first-contract.md",
     SHARED / "odoo-module-graph.md",
+    SNIPPETS / "read-before-write-contract.md",
+    SNIPPETS / "test-behavior-contract.md",
 ]
 
 # The seven agents that touch architecture / code / review / debug.
@@ -164,3 +166,101 @@ def test_new_authored_files_use_ascii_hyphen_only():
             if chr(cp) in text:
                 offenders.append(f"{f.name}: contains {label}")
     assert not offenders, "typographic dashes found:\n" + "\n".join(offenders)
+
+
+# ---------------------------------------------------------------------------
+# B2 — coding-guidelines as mandatory context (read-before-write)
+# ---------------------------------------------------------------------------
+
+GUIDELINE_STRING = "coding_guidelines/<version>/INDEX.md"
+
+
+@pytest.mark.parametrize(
+    "agent", ["odoo-coder", "odoo-frontend-coder", "odoo-code-reviewer"]
+)
+def test_coders_and_reviewer_read_coding_guidelines(agent):
+    """Each code-writing/reviewing agent names the version-pinned guideline index, so a
+    dispatched agent is told - at execution time - to read it before writing."""
+    body = _read(AGENTS / f"{agent}.md")
+    assert GUIDELINE_STRING in body, (
+        f"{agent}: must reference {GUIDELINE_STRING} (read-before-write)"
+    )
+
+
+def test_read_before_write_snippet_wired_into_code_agents():
+    """The read-before-write SSOT is referenced by the agents that write/review code."""
+    snip = "read-before-write-contract.md"
+    for agent in (
+        "odoo-coder",
+        "odoo-frontend-coder",
+        "odoo-code-reviewer",
+        "odoo-solution-architect",
+    ):
+        assert snip in _read(AGENTS / f"{agent}.md"), (
+            f"{agent}: missing reference to {snip}"
+        )
+
+
+def test_coding_dispatch_brief_injects_guidelines():
+    """The odoo-coding dispatch brief must tell a dispatched coder to read the coding
+    guidelines - otherwise an autonomous coder never gets told at execution time."""
+    body = _read(SKILLS / "odoo-coding" / "SKILL.md")
+    assert "coding_guidelines" in body, (
+        "odoo-coding dispatch brief must name the coding_guidelines path"
+    )
+
+
+# ---------------------------------------------------------------------------
+# B3 — test-behavior contract (anti-shortcut)
+# ---------------------------------------------------------------------------
+
+TEST_BEHAVIOR_SNIPPET = "test-behavior-contract.md"
+
+# Every file wired to the anti-shortcut contract (agents + skills).
+TEST_BEHAVIOR_WIRED = [
+    AGENTS / "odoo-coder.md",
+    AGENTS / "odoo-frontend-coder.md",
+    AGENTS / "odoo-code-reviewer.md",
+    AGENTS / "odoo-solution-architect.md",
+    AGENTS / "odoo-backend-debugger.md",
+    SKILLS / "odoo-test-writer" / "SKILL.md",
+    SKILLS / "odoo-qa-suite" / "SKILL.md",
+    SKILLS / "odoo-coding" / "SKILL.md",
+]
+
+
+@pytest.mark.parametrize("f", TEST_BEHAVIOR_WIRED, ids=lambda p: f"{p.parent.name}/{p.name}")
+def test_behavior_contract_is_wired(f):
+    """Every author/reviewer of a test references the anti-shortcut arrange contract."""
+    assert TEST_BEHAVIOR_SNIPPET in _read(f), (
+        f"{f.name}: missing reference to {TEST_BEHAVIOR_SNIPPET}"
+    )
+
+
+def test_behavior_contract_names_forbidden_and_required_tokens():
+    """The snippet must concretely name the forbidden shortcut and the required real-workflow
+    tokens - a vague 'test the behavior' note would not actually steer an agent."""
+    body = _read(SNIPPETS / TEST_BEHAVIOR_SNIPPET)
+    assert "create({'state'" in body, "snippet must name the forbidden shortcut pattern"
+    assert "Form(" in body, "snippet must require Form() for onchange arrange"
+    for tok in ("action_confirm", "action_validate", "button_validate"):
+        assert tok in body, f"snippet must name the real workflow method {tok}"
+    assert "with_user(" in body and "sudo(" in body, (
+        "snippet must state the with_user-not-sudo access rule"
+    )
+
+
+def test_code_reviewer_rejects_shortcut_tests():
+    """The reviewer must treat a shortcut test as a HIGH finding, not wave it through."""
+    body = _read(AGENTS / "odoo-code-reviewer.md")
+    assert TEST_BEHAVIOR_SNIPPET in body
+    assert "change-detector" in body or "shortcut" in body, (
+        "code-reviewer must call out shortcut/change-detector tests"
+    )
+
+
+def test_qa_suite_steps_name_action_methods():
+    """The QA suite Steps column must drive real workflow actions, not seed states."""
+    body = _read(SKILLS / "odoo-qa-suite" / "SKILL.md")
+    assert TEST_BEHAVIOR_SNIPPET in body
+    assert "action_" in body, "qa-suite must name action_* methods in its Steps guidance"

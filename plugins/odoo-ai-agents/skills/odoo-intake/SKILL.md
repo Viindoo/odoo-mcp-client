@@ -54,34 +54,25 @@ tracker references. Chat may narrate freely; artifacts may not. Full contract:
 
 ## Hard rules
 
-1. **Intake MAY write planning/design artifacts (brainstorm notes, design docs, `state.json`)
-   during the plan turn — Write/Edit are available.** What it MUST NOT do before the Proposed
-   Plan is approved is produce the *routed deliverable itself* (production code, generated
-   proposals) or dispatch a writes-files specialist. The gate is behavioral (this rule + Plan
-   Mode), not a blanket file-write block — producing a design doc on the plan turn is encouraged.
-2. **No routed-deliverable production, and no writes-files specialist dispatch, before Plan
-   Mode is approved — but read-only Recon and planning-artifact writes ARE allowed.** Four
-   sub-rules, none optional:
-   - (1) **Intake MAY write planning/design artifacts (design docs, brainstorm notes,
-     `state.json`) on the plan turn**, but MUST NOT write the routed deliverable's files
-     (production code, generated proposals) before Plan-Mode approval. The constraint is
-     behavioral, not a `disallowed-tools` block.
-   - (2) **NEVER run a writes-files execute-skill (a `writes-files` specialist) BEFORE Plan Mode
-     is approved.** That includes `odoo-coding`, `wave`, `odoo-brl`, `workflow-chaining`, or any
-     skill whose output mode is `writes-files`. Before approval, only describe it in the Proposed
-     Plan; the actual dispatch happens on a LATER turn, AFTER Plan-Mode approval — and that
-     dispatch is the **main agent invoking the specialist via the Skill tool** (a skill is not an
-     agentType; see § Dispatch mechanism), NOT the Agent tool (see § Plan Mode).
-   - (3) **Phase R (Recon) MAY dispatch a READ-ONLY agent via the Agent tool** — `Explore`, or
-     a specialist in read-only mode (e.g. `odoo-feature-check`, `odoo-override-finding`) — to
-     survey current state. That agent **MUST NOT write any file and MUST NOT spawn a further
-     sub-agent** (nesting guard — see § Phase R and `${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`).
+1. **Gate before execution — the core contract.** Intake MAY write planning/design artifacts
+   (brainstorm notes, design docs, `state.json`) during the plan turn — Write/Edit are available,
+   so this is a *behavioral* gate (this rule + Plan Mode), not a `disallowed-tools` block. What it
+   MUST NOT do before the Proposed Plan is approved: produce the *routed deliverable itself*
+   (production code, generated proposals) or dispatch a `writes-files` specialist.
+2. **No `writes-files` specialist dispatch before Plan Mode is approved — read-only Recon and
+   planning-artifact writes ARE allowed.** Three points, none optional:
+   - (a) **Never run a `writes-files` execute-skill before Plan Mode is approved** — `odoo-coding`,
+     `wave`, `odoo-brl`, `workflow-chaining`, or any skill whose `output_mode` is `writes-files`.
+     Before approval, only describe it in the Proposed Plan.
+   - (b) **Phase R (Recon) MAY dispatch a READ-ONLY agent via the Agent tool** (`Explore`, or a
+     specialist in read-only mode — e.g. `odoo-feature-check`, `odoo-override-finding`) to survey
+     current state. That agent MUST NOT write any file and MUST NOT spawn a further sub-agent
+     (nesting guard — see § Phase R and `${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`).
      Read-only OSM calls (`model_inspect`, `check_module_exists`, `find_override_point`,
-     `impact_analysis`) are likewise allowed in Phase R.
-   - (4) **Dispatch of a writes-files specialist happens ONLY after Plan Mode is approved**, and
-     it is the **main agent — not intake during the plan turn —** that invokes the specialist via
-     the **Skill tool** (see § Dispatch mechanism).
-   This skill is depth-0 — intake lives in the main context only.
+     `impact_analysis`) are likewise allowed.
+   - (c) **A `writes-files` specialist is dispatched ONLY after Plan Mode approval**, by the
+     **main agent** (not intake during the plan turn) via the **Skill tool** — a skill is not an
+     agentType, so the Agent tool is wrong here (see § Dispatch mechanism, § Plan Mode).
 3. **Phase 0 — Context, Detect & Clarify (mandatory).** Runs at the start of every
    invocation. It does three things — read context, detect what kind of place we are in, and
    close the **intent gate** — before anything else proceeds.
@@ -98,7 +89,7 @@ tracker references. Chat may narrate freely; artifacts may not. Full contract:
      § Resume assumes.
 
    **3b. Detect the working directory (4 branches).** Locate Odoo manifests with the same
-   probe `odoo-onboarding` uses (its SKILL.md Step 1, ~lines 38–43):
+   probe `odoo-onboarding` uses (its Step 1 — manifest probe):
    ```bash
    find . -maxdepth 3 -name "__manifest__.py" 2>/dev/null | head -20
    ```
@@ -106,8 +97,8 @@ tracker references. Chat may narrate freely; artifacts may not. Full contract:
    - **(i) Odoo addon dir (≥1 manifest, no usable context file)** → dig deeper: ask for
      Odoo **version / edition (CE|EE|custom) / target module(s) / instance URL**. Note that
      `odoo-onboarding` can bootstrap a full `.odoo-ai/context.md` (its schema — environment,
-     modules, conventions, session pins — is documented in `odoo-onboarding` SKILL.md
-     ~lines 125–162; do **not** copy it here, point to it).
+     modules, conventions, session pins — is documented in `odoo-onboarding` § Context file
+     schema; do **not** copy it here, point to it).
    - **(ii) Project root (manifests under nested dirs / mono-repo)** → infer the common parent
      as project root; confirm version/edition once, then continue.
    - **(iii) Non-Odoo dir (0 manifests)** → discriminate by intent (0 manifests alone never
@@ -124,15 +115,31 @@ tracker references. Chat may narrate freely; artifacts may not. Full contract:
    - **(iv) `.odoo-ai/context.md` already present and usable** → use it as-is; **skip** re-asking
      version/edition/module.
 
-   **3c. OSM probe.** Call `mcp__odoo-semantic__list_available_versions`. If it returns AND
-   `.odoo-ai/context.md` carries an `odoo_version` → mark the path `backed` (specialist calls
-   `set_active_version` automatically). If OSM tools are absent/unreachable → mark `standalone`
-   (no OSM enforcement; specialist relies on user-provided context). Record `OSM: backed |
-   standalone` in the Proposed Plan.
+   **3c. OSM probe + version resolution.** Call `mcp__odoo-semantic__list_available_versions`,
+   then branch on what it returns and what context we already have:
+   - **OSM reachable AND `.odoo-ai/context.md` carries an `odoo_version`** → mark `backed`
+     (specialists call `set_active_version` automatically). Do NOT re-ask the version.
+   - **OSM reachable BUT version still unknown** (no context file, or it lacks `odoo_version`) →
+     the version is needed before a version-specific plan can be trusted (this closes the version
+     gap flagged in 3b — resolve it here, do not also ask free-form). **Default: escalate to
+     `odoo-onboarding`** — it lists versions/profiles, lets the user pick, validates, and persists
+     `.odoo-ai/context.md` so every later skill benefits (its Steps 2-4 are the SSOT for this menu —
+     do **not** rebuild it here). **Inline fallback** — use it ONLY when the user declines onboarding
+     and needs a single Odoo answer this turn: call `list_available_versions` → present the version
+     menu → call `list_available_profiles` (no args) and filter the returned list to the chosen
+     version client-side, then pick the profile with the **same selection logic as `odoo-onboarding`
+     Step 3** (do **not** invent a competing default) → `profile_inspect(method='summary', …)` to
+     confirm the chosen profile resolves. Record the version + profile in the Proposed Plan ONLY,
+     stating "used for this turn; run `odoo-onboarding` to persist it". Mark `backed`.
+   - **OSM absent/unreachable** (the `list_available_versions` probe above returns nothing or
+     errors) → mark `standalone` (no OSM enforcement; specialists rely on user-provided context). If
+     the intent needs a version, **ask the user for the Odoo version + the path(s) to the relevant
+     repo(s)** and proceed on that.
+   Record `OSM: backed | standalone` in the Proposed Plan.
 
    **3d. GATE — Intent / Purpose / Expected outcomes (MANDATORY).** Before Phase R may run,
    all three MUST be clear: **what** the user wants, **why**, and **what done looks like**.
-   If any is missing, resolve it with **pre-structured options** (ETHOS #2 / #9 — e.g. "Is the
+   If any is missing, resolve it with **pre-structured options** (e.g. "Is the
    goal (a) ship a code change, (b) scope a proposal, (c) produce marketing copy?"), never an
    open-ended "what do you want?". **If intent / purpose / expected outcomes are not all clear,
    you MUST NOT proceed to Phase R (Recon).**
@@ -144,18 +151,14 @@ tracker references. Chat may narrate freely; artifacts may not. Full contract:
 5. **Depth-0 only.** This skill MUST NOT be called from inside another skill or subagent.
    If you detect you are running at depth > 0, decline and inform the caller.
 
-## Iron Law — anti-rationalize gate
+## Anti-rationalize gate
 
 > **No execution skill fires until the user has approved a Proposed Plan.**
 
-The gate has two enforcement layers — both are required; neither is optional:
-
-1. **Text gate (Proposed Plan block)** — brainstorm / route / soft-plan-gate. Always
-   present; user types `approve / refine / cancel`.
-2. **Plan Mode (harness-level guarantee)** — applies on top of the text gate whenever the
-   approved next step is an execute-skill that **touches files** (see "Plan Mode" section
-   below). Plan Mode is the stronger, machine-level enforcement; the text gate alone is
-   insufficient when file writes are about to occur.
+Two enforcement layers, both required: the **text gate** (the Proposed Plan block; user types
+`approve / refine / cancel`) and, on top of it whenever the approved step **writes files**,
+**Plan Mode** (the harness-level guarantee — see § Plan Mode). The text gate alone is
+insufficient when file writes are about to occur.
 
 **Red Flags — phrases that trigger STOP + re-gate:**
 - "This is simple, I'll just start coding" → STOP. Still propose + gate.
@@ -163,7 +166,7 @@ The gate has two enforcement layers — both are required; neither is optional:
   a rationalization to skip the gate.
 - "I'll plan, then build the deliverable in the same turn" → STILL GATED. Writing a design/plan
   artifact is fine; producing the routed deliverable (production code, proposal) or dispatching a
-  writes-files specialist before approval is not. (Memory: `started-editing-during-plan-request`.)
+  writes-files specialist before approval is not.
 - "The gate is unnecessary friction here" → wrong. The gate IS the contract.
 - "The text gate was enough, I can skip Plan Mode" → WRONG. Plan Mode is mandatory when
   an execute-skill will write files. The text gate and Plan Mode are independent layers.
@@ -190,7 +193,7 @@ any registry:
 | skill / agent / command exists + its description | runtime context (harness-injected) | already available — do NOT read files for this |
 | `model_tier` (Haiku/Sonnet/Opus/inherit) | the `model:` frontmatter of the candidate's `SKILL.md` / `agents/*.md` (SSOT) | read the frontmatter of the CHOSEN candidate only; **if the field is absent (most `SKILL.md` omit it), treat it as `inherit`** |
 | `output_mode` (`chat-only` ⇄ `writes-files`) | the explicit `orchestration.<skill>.output_mode` field in `skill_tool_deps.json` (NOT a `spawn_class`/`stack` derivation) | read that field directly |
-| `effort` (S / M / L / XL) | NOT registered — it is a skill×task property | reason per the `odoo-gap-analysis` legend: **S = <1d · M = 1–3d · L = 3–10d · XL = >10d** |
+| `effort` (S / M / L / XL) | NOT registered — it is a skill×task property | reason per the `odoo-gap-analysis` effort legend (SSOT — do not restate the day-ranges here) |
 
 **SSOT note**: `model_tier` lives in frontmatter and `effort` is per-task — NEVER copy either
 into a registry. Read `model:` from the candidate's own frontmatter at plan time.
@@ -204,7 +207,16 @@ writes**. If OSM is unreachable, say so and proceed on user-provided context (st
 **Decision tree (run first)**: intake reads the chosen Approach's `output_mode` (Phase R
 discovery — the explicit `orchestration.<skill>.output_mode` field in `skill_tool_deps.json`).
 - `output_mode = writes-files` → **Plan Mode is REQUIRED** before dispatch (proceed through the
-  full procedure + content schema below).
+  full procedure + content schema below). **Exceptions that SKIP Plan Mode** (they write only
+  `.odoo-ai/` analysis, not the routed deliverable, and a lighter gate already covers them):
+  - `odoo-deep-survey` (dispatched via the `deep-survey` gate keyword) — the opt-in keyword is the
+    human gate (see § Deep survey).
+  - `odoo-code-review` and `odoo-debug` — a **review / PR-review** intent (routing row 13) or a
+    **debug / debugging** intent (routing row 29) fast-paths straight to the skill once the Phase 0
+    intent gate is closed: emit the one-line § Pro fast-path gate, and on `yes` invoke the skill via
+    the Skill tool — NO Proposed-Plan blocks, NO Plan Mode. These two then drive their own
+    autonomous fix loop (review/debug → `odoo-coding` → `odoo-code-review`), so intake just hands
+    off and stops.
 - `output_mode = chat-only` → **SKIP Plan Mode** (unchanged behaviour); intake ends its turn and
   the specialist fires via the **Skill tool** on the next turn (see § Dispatch mechanism). The
   chat-only set is listed under "Does NOT apply" below.
@@ -223,6 +235,8 @@ this capability.
 `odoo-version-diff`, `odoo-risk-overview`, `odoo-deprecation-audit`, `odoo-gap-analysis`,
 `odoo-discovery-summary`, `odoo-capability-proof`, `odoo-objection-handling`,
 `odoo-content-draft`, `odoo-competitive-brief`, any skill whose Output field is "chat only".
+Also does NOT apply to the named `writes-files` exceptions above — `odoo-deep-survey`,
+`odoo-code-review`, `odoo-debug` — which skip Plan Mode by design.
 
 **Procedure** (execute-skill that touches files):
 1. User sends `approve` on the Proposed Plan.
@@ -241,6 +255,9 @@ this capability.
   Plan Mode approval are two separate steps.
 - "I'll enter Plan Mode after I've already started editing" → BANNED. EnterPlanMode must
   come before any file touch.
+- "`odoo-deep-survey` writes files, so it needs Plan Mode" → NO. It is the one `writes-files`
+  exception (analysis-only under `.odoo-ai/survey/`, gated by the `deep-survey` opt-in keyword —
+  see § Deep survey). Do not wrap it in Plan Mode.
 
 ### Plan Mode Content Schema
 
@@ -261,10 +278,7 @@ reference above.
 
 ## Dispatch mechanism — Skill tool, not Agent tool
 
-When intake hands off to a routed specialist, the **mechanism depends on what the target IS** —
-get this wrong and the main agent cannot launch the target, so it falls back to *reading the
-target's SKILL.md and imitating it* (the read-and-imitate anti-pattern, which silently drops the
-skill's own orchestration — e.g. `odoo-code-review`'s module-count topology + fan-out + synthesis).
+When intake hands off to a routed specialist, the **mechanism depends on what the target IS**:
 
 | Target | What it is | How the depth-0 main agent dispatches it |
 |---|---|---|
@@ -272,21 +286,13 @@ skill's own orchestration — e.g. `odoo-code-review`'s module-count topology + 
 | a **workflow** — e.g. `qa-suite`, `video-produce` | a `*.workflow.yaml` | its **command** / NL-dispatch (as today) |
 | a **command** — e.g. `/odoo-respond-bid` | a slash command | the user's slash kickoff / its command |
 
-**Why Skill tool, not Agent tool, for a skill:** the Agent tool launches an **agentType**. There
-is no agentType named `odoo-code-review` / `odoo-coding` / etc. — those are **skills**. A
-`spawner-agent` skill is `depth0-only` and MUST run in the depth-0 main context so its own
-orchestration (topology decision, agent fan-out, synthesis) executes; the Skill tool loads it
-there, and the skill then spawns its *own* agent (`odoo-code-reviewer`, `odoo-coder`, …) via the
-Agent tool at depth-1. Agent-tool'ing the bare agent instead would bypass the skill's orchestration;
-Agent-tool'ing the skill *name* simply fails.
-
-**The depth-0 main agent IS allowed to call the Skill tool.** The plugin's "never the Skill tool"
-rule binds **depth≥1 subagents / fork-workers** only (a subagent calling the Skill tool on a
-spawner skill would nest past the depth-2 ceiling). It never bound the main agent at depth-0.
-
-**The only Agent-tool use inside intake** is Phase R read-only Recon (`Explore` or a read-only
-specialist — those genuinely ARE agentTypes). Dispatching a routed *specialist skill* is always
-the Skill tool.
+**Why the Skill tool:** a skill is not an agentType, so Agent-tool'ing a skill name simply fails
+(and forces the read-and-imitate anti-pattern, which silently drops the skill's own orchestration).
+A `spawner-agent` skill is `depth0-only` — the Skill tool loads it in the depth-0 main context so it
+can fan out its own agents at depth-1. **The depth-0 main agent IS allowed to call the Skill tool**;
+the plugin's "never the Skill tool" rule binds **depth≥1 subagents / fork-workers** only. The
+**only** Agent-tool use inside intake is Phase R read-only Recon (`Explore` or a read-only specialist
+— those genuinely ARE agentTypes). Full rationale: `references/maintainers.md`.
 
 ## Phase P — RUN-DAG persistence + drive-to-done (optional, additive)
 
@@ -299,7 +305,7 @@ hands-off execution.
 `on_complete`. Otherwise SKIP it and dispatch directly (single chat-only, non-`on_complete` node).
 When engaged, serialize the approved 3-block plan into `.odoo-ai/run-<id>.json`, tag gate-tiers,
 and NL-dispatch `run-driver` (which keeps everything depth-0). Parse the autonomy dial from the
-prompt (`--auto` default / `--step` / `--plan`).
+prompt (`--auto` / `--step` / `--plan`); if no dial flag is present, default to `--auto`.
 
 **When engaging Phase P, read
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md`** for the full engage/skip
@@ -329,9 +335,10 @@ Run tiers in order; first hit wins; cost rises per tier.
 | **3 — keyword table** | 40-row routing table (see § Routing Table) covering all 9 persona domains | 0 | Map to single skill or workflow → soft-plan-gate |
 | **4 — LLM classify** | Only on Tier 1-3 miss: classify the ambiguous prompt (~500 tok) | ~500 tok | Single clear target → gate; vague/multi-domain → **enter brainstorm** |
 
-Brainstorm fires ONLY when Tier 1-3 all miss AND Tier-4 returns either (a) no confident
-single target, or (b) a large/multi-domain job ("hundreds of requirements", "win this deal
-end-to-end", "plan + build + ship an upgrade").
+Brainstorm fires ONLY when Tier 1-3 all miss AND Tier-4 returns either (a) **no confident single
+target** (classify yields ≥2 candidate skills with no decisive discriminator), or (b) a **large /
+multi-domain job** (≥10 requirement items, OR a scale signal like "hundreds of requirements" /
+"win this deal end-to-end" / "plan + build + ship an upgrade").
 
 ## Pro fast-path
 
@@ -355,7 +362,7 @@ Only runs in the **vague branch** (Tier-4 miss or explicit "I'm not sure").
    is Phase R (see the "Where Phase R fits" note below), not this step.
 2. **Clarifying options** — present 2-3 **pre-structured options** (not open-ended
    questions), e.g. "Is this (a) sales/proposal, (b) engineering upgrade, (c) strategy?".
-   Build for the audience (ETHOS #9).
+   Build for the audience (tailor the options to who is asking).
    **Multi-turn boundary:** if the prompt already makes intent/purpose/outcomes clear, continue
    in the same turn; if not, emit the options and **END THE TURN** to wait for the user — the
    next turn resumes here via Tier-2 (`.odoo-ai/brainstorm/state.json`). Do not run Phase R
@@ -390,6 +397,7 @@ Domain:         <one of 9 persona buckets>
 Approach:       <skill name | workflow name | command>
 Chain:          <skill> → <skill> ...   (for multi-step; "single turn" for atomic asks)
 Findings (Recon): <1-3 bullets from Phase R: what already exists / hook points / impact>
+Survey:         none | <.odoo-ai/survey/<slug>-<date>/synthesis.md>   (deep-survey synthesis path, if a deep survey was run)
 Workitems (preview): <WI-A …, WI-B … — disjoint files; "single WI" for atomic asks>
 Assignment (skill/agent + model + effort): <WI → skill|agent (model from frontmatter, effort S/M/L/XL)>
 Output:         .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
@@ -398,19 +406,50 @@ OSM:            backed | standalone   (backed if OSM (`mcp__odoo-semantic__*`) t
 Plan Mode:      required | not   (required when Approach output_mode = writes-files)
 Next turn:      invoke the routed **skill** via the **Skill tool** (workflow/command: via its command) — you will see the tool call
 
-Gate: approve / refine: [your feedback] / cancel
+Gate: approve / refine: [your feedback] / deep-survey / cancel
 ```
+
+When the job is **large** — the § 4-tier "large / multi-domain" threshold (≥10 requirement items
+or a scale signal), OR a code job that spans **≥3 modules / a cross-cutting model change** — add
+one offer line under the plan: "This plan is built on a light Phase R recon. Want me to run a
+**deep survey** (`deep-survey` — many subagents, real tokens) and re-propose a sharper plan?". Omit
+the offer for small/atomic asks — the recon already covers them.
 
 Enforcement stack:
 1. Behavioral rule (Hard rule 1) → intake may write planning/design artifacts, but NOT the
    routed deliverable, before approval. (No `disallowed-tools` block — Write/Edit are available.)
-2. Iron Law + Red Flags above → behavioral enforcement (text gate layer).
+2. Anti-rationalize gate + Red Flags above → behavioral enforcement (text gate layer).
 3. Plan Mode (EnterPlanMode / ExitPlanMode) → harness-level guarantee before any
    execute-skill that writes files (see § Plan Mode). This is the stronger layer.
 4. On `approve` → if the next step writes files, main agent MUST call EnterPlanMode before
    invoking the specialist. If the next step is chat-only/read-only, intake ends its turn
    and the specialist fires via the **Skill tool** on the next turn (see § Dispatch mechanism).
 5. On `refine: [feedback]` → loop back within brainstorm. On `cancel` → stop + brief report.
+6. On `deep-survey` → run the opt-in deep survey, then re-propose (see § Deep survey).
+
+### Deep survey (opt-in) — deepen the plan before committing
+
+The Proposed Plan above is built on the **light** Phase R recon. `deep-survey` is the **heavy**
+alternative: a multi-phase fan-out (broad haiku → narrow sonnet → optional opus) that maps how
+well the codebase actually meets the intent and where the work lands. It is opt-in precisely
+because it is expensive — never run it unasked.
+
+On `deep-survey`:
+1. Invoke **`odoo-deep-survey` via the Skill tool** (it is a `depth0-only` `spawner-agent` skill —
+   intake at depth-0 loads it in the main context so it can fan out its own workers at depth-1).
+   Pass it the closed intent/purpose/outcomes, the resolved Odoo version + profile, the feature
+   slug (reuse the brainstorm-artifact slug so the survey dir matches), and the first Proposed Plan
+   (so it reports a delta).
+2. **No Plan Mode here.** `deep-survey` writes only analysis artifacts under `.odoo-ai/survey/`
+   (never the routed deliverable), and the `deep-survey` keyword the user just typed IS the human
+   gate. It is the one `writes-files` skill intake dispatches without Plan Mode — for the same
+   reason intake itself may write planning artifacts (Hard rule 1).
+3. When it returns a `synthesis.md` path, **re-propose** the Proposed Plan: fill the `Survey:`
+   field with that path and update `Approach` / `Chain` / `Findings` / `Workitems` / `Est. effort`
+   from the synthesis. Re-gate with `approve / refine / cancel` — **drop `deep-survey`** from the
+   re-proposed gate so the survey runs at most once.
+4. Downstream execute-skills read `synthesis.md` (carried in `Survey:` and, for a RUN-DAG, in the
+   `run-<id>.json` node inputs) plus the worklog, inheriting the survey instead of re-deriving it.
 
 ## Routing Table
 
@@ -465,14 +504,12 @@ The **Discriminator** column resolves close ties.
 
 ## Full-stack tasks — `odoo-coding` handles both stacks in one skill
 
-Some requests span backend **and** frontend: e.g. "add a `priority` field to sale order **and
-show it as a star widget on the form**", "thêm field rồi hiển thị bằng widget tùy biến", "new
-dashboard: a computed KPI on the model **plus** an OWL component to render it". You do **not**
-pre-split these — route to `odoo-coding`, the single coding front door. It scopes the change,
-works out per-module whether the work is backend-only / frontend-only / full-stack, and sequences
-the two stacks itself (backend first so the field/method exists, then frontend to render it). If
-the styling must match the Odoo theme, the frontend leg follows the design-system fidelity
-contract. For ≥4 independent work items or a git-orchestrated delivery, escalate to `wave`.
+A request spanning backend **and** frontend (e.g. "add a `priority` field **and** show it as a star
+widget", "thêm field rồi hiển thị bằng widget tùy biến") is a **single `odoo-coding` work-item** —
+do **not** pre-split it. `odoo-coding` (routing rows 12/14) scopes per-module, sequences backend-first
+(so the field/method exists) then frontend (to render it), and the frontend leg follows the
+design-system fidelity contract when styling must match the theme. For ≥4 disjoint work-items or a
+git-orchestrated delivery, escalate to `wave`.
 
 ## Design-first rule — route non-trivial coding through `odoo-solution-design`
 

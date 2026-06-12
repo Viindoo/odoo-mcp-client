@@ -36,5 +36,5 @@ RELAYS of subagent results - mirrors the USER'S language:
    of a design doc and any gate SHOWN in chat follow the user's language,
    because their audience is the human approver.
 
-ETHOS #9 (Build for the Audience) is the why: the audience of chat output is
+Building for the audience is the why: the audience of chat output is
 the human in front of the screen, in their language - not the skill author.

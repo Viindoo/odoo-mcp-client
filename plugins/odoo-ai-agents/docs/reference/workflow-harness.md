@@ -46,7 +46,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 │  · Phase R: read-only Recon (≤1–2 agents, depth-1, no writes)  │
 │  · Proposed Plan + soft-plan-gate                               │
 │  · Plan Mode (EnterPlanMode/ExitPlanMode) for writes-files      │
-│  · gate is BEHAVIORAL (Iron Law) + Plan Mode — not a write-block │
+│  · gate is BEHAVIORAL (in-skill) + Plan Mode — not a write-block │
 └───────────────────────────────────┬────────────────────────────┘
                                     │ Skill tool (depth-0 canonical; NL-dispatch fallback)
                                     ▼
@@ -341,7 +341,7 @@ There is **no platform write-block** behind the gate. `odoo-intake` does not dec
 DO write/apply code — that is their job. The gate is enforced by two behavioral
 mechanisms, with Plan Mode as the strongest layer when depth-0 context is available:
 
-1. **Iron Law** in the skill body — behavioral: "no execution fires until the user
+1. **Anti-rationalize gate** in the skill body — behavioral: "no execution fires until the user
    has approved a Proposed Plan". Paired with a Red Flags table listing rationalizations
    the agent must refuse (e.g., "This is simple, I'll just start coding" → STOP).
 2. **Coder preview-then-write** — before mutating a file a coder previews the proposed
@@ -349,7 +349,7 @@ mechanisms, with Plan Mode as the strongest layer when depth-0 context is availa
    This is a discipline, not a tool restriction.
 
 For skills that **cannot** rely on depth-0 context (e.g., skills invoked from inside
-a subagent), the behavioral Iron Law gate (mechanism 1) is the fallback when
+a subagent), the behavioral anti-rationalize gate (mechanism 1) is the fallback when
 `EnterPlanMode` is not available; it is not the only option.
 
 ### 4.2 Gate template
@@ -372,7 +372,7 @@ Gate: approve / refine: [feedback] / cancel
 
 | Layer | Mechanism | Scope |
 |-------|-----------|-------|
-| Behavioral | Iron Law + Red Flags in skill body | Blocks writes-files dispatch until plan approved |
+| Behavioral | Anti-rationalize gate + Red Flags in skill body | Blocks writes-files dispatch until plan approved |
 | Coder discipline | Preview patch, then write in-turn | Coders apply code; no platform write-block |
 | Recon boundary | Phase R agents: read-only, depth-1, no spawn, no writes | Allows current-state survey without breaching gate |
 | Plan Mode | `EnterPlanMode` / `ExitPlanMode` | Harness-level enforcement before writes-files execution |

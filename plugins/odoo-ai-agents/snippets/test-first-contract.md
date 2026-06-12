@@ -6,7 +6,7 @@
 # Test-First Contract (red before green, behavior not snapshot)
 
 The test comes BEFORE the code and protects the **business behavior**, not the current
-implementation (ETHOS #11). A test written after the code, to match whatever the code happens to
+implementation. A test written after the code, to match whatever the code happens to
 do, is a change-detector: it passes always, catches no bug, and turns every honest refactor into a
 false alarm. This contract makes the test a falsifiable specification of intent.
 
@@ -22,7 +22,7 @@ false alarm. This contract makes the test a falsifiable specification of intent.
    removed). A test that can only ever be green is worthless. State the RED confirmation as evidence
    (the failing assertion / the absent behavior).
 3. **Write the minimum code to go GREEN** - implement until the test passes, nothing speculative.
-4. **Never edit the test to fit the code.** If a test fails after coding, apply the Iron Law (#6):
+4. **Never edit the test to fit the code.** If a test fails after coding, apply the root-cause rule:
    understand intent first. Fix the code if the code is wrong; change the test only if the test's
    *intent* was wrong - and say so explicitly. Banned: relaxing/deleting assertions, changing
    expected values to match actual output, `@skip`/comment-out to get a green pipeline.
@@ -39,5 +39,5 @@ false alarm. This contract makes the test a falsifiable specification of intent.
 
 `code -> review + test -> code`: after code goes green, review runs and the tests run. If review
 finds CRITICAL/HIGH issues OR a test is red, loop back to code. Bound the loop to **3 iterations**;
-if still not green-and-clean, STOP and escalate (ETHOS #8) - bad work is worse than no work. Record
+if still not green-and-clean, STOP and escalate - bad work is worse than no work. Record
 each iteration's outcome in the worklog (`worklog-contract.md`).

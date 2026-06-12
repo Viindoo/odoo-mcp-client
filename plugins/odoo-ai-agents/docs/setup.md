@@ -80,7 +80,7 @@ Expected: tree output with module names, `Defined in:`, field counts.
 
 #### Available persona skills
 
-After install, 26 skills activate automatically:
+After install, 41 skills activate automatically:
 
 > Persona labels are the navigation buckets defined in the [README skill table](../../../README.md#skills-26) - the single source of truth for the skill-to-persona mapping. The five role guides in [`personas/`](personas/) (Manager/CEO, Developer, Consultant, Marketer, Sales) group these buckets.
 

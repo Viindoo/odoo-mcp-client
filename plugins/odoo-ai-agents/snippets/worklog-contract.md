@@ -61,7 +61,7 @@ label is fine when no clock is available.
 ## When you READ (before you start)
 
 Glob `.odoo-ai/worklog/<run-or-slug>/*.md` and read them oldest-first. They tell you what upstream
-phases decided so you build on - not against - those decisions (Iron Law #6: understand intent
+phases decided so you build on - not against - those decisions (understand intent
 before acting). If the dir is absent, you are the first writer - create it.
 
 ## Relation to the blackboard

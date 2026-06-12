@@ -123,7 +123,7 @@ Key failure modes the agent is aware of:
 7. **Coding-guideline conventions** — after pinning the version, the reviewer grounds convention findings against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/` (naming prefixes, model attribute order, import order, `_()` form) and cites the violated file + section — see `agents/odoo-code-reviewer.md`.
 8. **Runtime presence probing** - `hasattr`/`getattr`-default/`try-except AttributeError` to detect a field/method is a smell masking a lookup-gap, wrong ORM path, or missing `depends`; the reviewer resolves it via OSM, classifies (3-way), and may not defer it - see `agents/odoo-code-reviewer.md` and `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
 9. **Platform design principles** - every change is checked against `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`: company/branch-scoped data missing `company_id` (or `res.branch` on v17+) isolation, a country-specific feature built where a generic+seed split belongs, or an `application=True` module lacking the standard root/Reports/Configuration menu shape. A silent deviation is a finding; a justified one is recorded in the worklog.
-10. **Behavior left unprotected by a test** - a CRITICAL/HIGH change to business behavior with no test that would go red if the behavior regressed is itself a HIGH finding (ETHOS #11: tests protect behavior, not the snapshot). Per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`, route it to `odoo-test-writer` rather than waving it through.
+10. **Behavior left unprotected by a test** - a CRITICAL/HIGH change to business behavior with no test that would go red if the behavior regressed is itself a HIGH finding (tests protect behavior, not the snapshot). Per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`, route it to `odoo-test-writer` rather than waving it through.
 
 ## Agent invocation — prompt template
 
@@ -174,6 +174,27 @@ local-source (hybrid), per `snippets/disk-fallback-protocol.md`).
 
 This skill is part of an agent+skill bundle. See `agents/odoo-code-reviewer.md` for the full restricted tool list and execution detail.
 
+## Autonomous fix loop — drive it yourself (mandatory)
+
+You run at **depth-0 in the main context** (the Skill tool loads you here), so the **Skill tool is
+available to you and you MUST use it to drive the fix loop** - do not write a report and stop. A
+passive `next: odoo-coding` is NOT enough: when no run-driver is active (a direct invocation, or an
+intake fast-path - the common case), nothing advances that `next` and the loop dies. So:
+
+1. **On a CRITICAL or HIGH finding that needs a code change, IMMEDIATELY invoke `odoo-coding` via
+   the Skill tool yourself.** Pass it the review report path, the exact findings to fix, and the
+   literal line **"AUTONOMOUS FIX (review-driven): skip your Phase 0 human gate, fix to these
+   findings, then invoke odoo-code-review to verify"**. This is autonomous - do NOT pause for a
+   human (running the review IS the opt-in).
+2. `odoo-coding` fixes, then invokes you again to verify. That round-trip - **review → code →
+   review** - repeats until the review is clean (no CRITICAL/HIGH and the behavior is covered).
+3. **Bound it to 3 iterations.** If still not clean after 3, STOP and escalate to the human with
+   what remains - bad work is worse than no work, never loop forever. Record each iteration in the worklog.
+
+The ONLY case where you emit a Continuation Contract `next` and let a driver advance instead of
+invoking directly: your brief shows you were dispatched **by an active run-driver** (a `run-<id>`
+is named) - then do not double-dispatch.
+
 ## Continuation Contract
 
 Before finishing, APPEND your significant findings/decisions to the run worklog
@@ -184,14 +205,19 @@ When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set
 `produced` to the artifact paths actually written — `.odoo-ai/reviews/<slug>-<date>/index.md`
 plus the per-module reports and `_synthesis.md` — so a later coding / fix / deploy step
-references the review instead of re-running it. This skill is the **review+test** arm of the
-`code -> review+test -> code` loop (SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`):
-- CRITICAL/HIGH findings that need a code fix → emit `next: odoo-coding` carrying the relevant
-  report path (the driver bounds the loop to 3 iterations, then escalates).
-- A behavior change with no protecting test (pitfall #10) → emit `next: odoo-test-writer` carrying
-  the module + behavior, so the gap is closed before merge.
-- Clean review, behavior covered → no `next` (the loop terminates).
-These are NOT mutually exclusive: a review that finds a CRITICAL bug in a behavior that also lacks a
-test emits BOTH `next: odoo-coding` and `next: odoo-test-writer` (write the protecting test, then fix
-to it).
+references the review instead of re-running it. Decide the `next` arm by what the review found
+(test-discipline SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`).
+**The `next:` entries below are the audit record AND the run-driver path — they are NOT a substitute
+for the direct Skill-tool invoke in § Autonomous fix loop.** When NO run-driver is active (the common
+direct / intake-fast-path case) you have ALREADY invoked the target yourself per § Autonomous fix
+loop; emitting `next:` advances nothing on its own, so **never stop at it**.
+- CRITICAL/HIGH findings that need a code fix → you invoked `odoo-coding` directly (§ Autonomous fix
+  loop); under an active run-driver instead, emit `next: odoo-coding` carrying the report path (the
+  driver bounds the loop to 3 iterations, then escalates).
+- A behavior change with no protecting test (pitfall #10) → drive it through `odoo-coding` (which is
+  test-first) the same way; under a run-driver, emit `next: odoo-test-writer` carrying the module +
+  behavior so the gap is closed before merge.
+- Clean review, behavior covered → no fix needed, no `next` (the loop terminates).
+A review that finds a CRITICAL bug in a behavior that also lacks a test drives BOTH the protecting
+test and the fix (under a run-driver: `next: odoo-coding` and `next: odoo-test-writer`).
 Additive output for the depth-0 run-driver - it does not change anything produced above.

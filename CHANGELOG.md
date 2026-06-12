@@ -6,6 +6,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.9.0] - (unreleased)
+
+### Added
+
+- **New opt-in `odoo-deep-survey` skill**: a read-only, multi-phase survey (broad haiku sweep ->
+  narrow sonnet dives -> optional opus pass) that `odoo-intake` offers on large / open-ended jobs.
+  When the user approves `deep-survey`, it writes a synthesis under `.odoo-ai/survey/` that
+  re-informs a sharper Proposed Plan before any code is written (read-only; spawner-agent,
+  depth0-only). Skill count 40 -> 41.
+- **Two new grounding-contract SSOT snippets** loaded by reference (edit once, not per agent):
+  `snippets/read-before-write-contract.md` (read the target version's coding guidelines BEFORE
+  writing code and conform on the first pass, not patched against a checklist afterward) and
+  `snippets/test-behavior-contract.md` (tests drive the REAL workflow via
+  `action_confirm`/`button_validate`/`Form()`/`with_user()` and assert observable outcomes, never
+  seeding the terminal state with `create({'state': ...})`).
+
+### Changed
+
+- **`odoo-intake` resolves the Odoo version up front**: it escalates to `odoo-onboarding` to pick
+  version/profile when the version is unknown and OSM is reachable (inline-menu fallback), or asks
+  for the version + repo path when OSM is down - making the recon and plan context-aware.
+- **`odoo-intake` fast-paths review / PR-review and debug intents**: these route straight to
+  `odoo-code-review` / `odoo-debug` with no Proposed-Plan block and no Plan Mode.
+- **Autonomous fix loop**: on a CRITICAL/HIGH finding, `odoo-code-review` / `odoo-debug` now drive
+  the fix on their own through `odoo-coding` and re-review to verify (review -> code -> review),
+  bounded to 3 rounds then escalates.
+- **Agent identity priming**: each agent is primed with its own identity at the start of its run.
+- **Plugin-wide removal of private-vault citations**: the ETHOS and Iron-Law references that named
+  a private vault are renamed to in-plugin concept names - Anti-rationalize gate, Root-cause-first
+  rule, and Pre-wave gate - so the public plugin is self-contained.
+
 ## [3.8.0] - 2026-06-12
 
 ### Added
