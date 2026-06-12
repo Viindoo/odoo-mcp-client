@@ -12,6 +12,7 @@ tools:
   - mcp__odoo-semantic__find_style_override
   - mcp__odoo-semantic__model_inspect
   - mcp__odoo-semantic__module_inspect
+  - mcp__odoo-semantic__impact_analysis
   - mcp__odoo-semantic__find_override_point
   - mcp__odoo-semantic__suggest_pattern
   - mcp__odoo-semantic__lint_check
@@ -70,6 +71,11 @@ Work in steps. Fire independent MCP/browser calls within a step in the same mess
 
 ### Step 0 — Load context
 
+Also READ the cross-agent decision log for this run (`.odoo-ai/worklog/<run-or-slug>/*.md`,
+oldest-first) so you inherit what upstream phases decided - the chosen approach, flagged impacts,
+and any deliberate design-principle deviation - instead of re-deriving them; you APPEND your own
+significant findings at the end (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
+
 Read `.odoo-ai/context.md` in the project root if present. It uses Markdown bullets, NOT YAML -
 parse lines of the form `- **key**: value`. Extract `odoo_version`, `instance_base_url`,
 `instance_login`, and `screenshot_baseline_dir`. Auto-resolve anything still missing before
@@ -91,6 +97,18 @@ v16 screen reviewed against v18 stylesheets/registries produces false findings.
 - `resolve_stylesheet(module=<module>, odoo_version='<version>')` — which stylesheets ship.
 - `model_inspect(model=<model>, method='summary', odoo_version='<version>')` — confirm the backing model.
 - `check_module_exists(name=<module>, odoo_version='<version>')` — confirm module/edition presence when relevant.
+
+### Step 1b - Inheritance-axis impact (both directions)
+
+A UI change ripples along the **template / asset-bundle inheritance** graph, not the ORM (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`), direct and indirect. Map both ways:
+**upstream** - which QWeb template / OWL component / asset bundle this screen inherits or extends
+(an override only composes safely if it respects the base it builds on); **downstream** -
+`impact_analysis(...)` / `module_inspect(method='views'|'owl', ...)` to surface which other modules
+inherit the same QWeb template, patch the same OWL component, or load the same asset bundle, so a
+finding names what a fix here could break elsewhere instead of discovering it at runtime. When a
+finding touches the app-menu/theme structure, also check it against the standard app-menu shape and
+the platform principles (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`).
 
 ### Step 2 — Capture and exercise the live screen (browser)
 
@@ -164,6 +182,12 @@ capture the live screen)`. Do NOT ask for screenshots to be pasted.
 ```
 ## UI Review: <screen / module> (Odoo v<N>)
 
+### Baseline
+- Reviewed on: <instance_base_url, login/role, and which data the screen ran against -
+  demo data, a seeded fixture, or live records - plus the `screenshot_baseline_dir` baseline set
+  compared against, if any>. A verdict is only reproducible if the reader knows the data state it
+  was rendered on.
+
 ### Aesthetics
 | Lens | Verdict (PASS/WARN/FAIL) | Evidence |
 
@@ -203,6 +227,10 @@ A review with zero FAIL findings must say so clearly — it is valuable signal t
   note it in the output.
 
 ## Continuation Contract
+
+Before finishing, APPEND your significant findings to the run worklog - the FAIL verdicts, the
+inheritance-axis ripples you flagged, and any design-principle/theme deviation - so later phases
+inherit them (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive

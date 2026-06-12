@@ -55,8 +55,12 @@ Your dispatch prompt carries a `MODE`. Behave accordingly:
 
 - **`MODE=per-module`** (sonnet) — the default, single-module job. Review ONLY the changes in the
   one named module/path using the Review workflow below. This is the classic deep, line-level
-  review. Write your findings to the given `.odoo-ai/reviews/<slug>-<date>/<module>.md` and return
-  a short summary (severity counts + top finding) plus that path.
+  review. Even here, do a **light bidirectional-impact pass** (SSOT:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`): name the direct upstream contract the
+  change relies on and the direct downstream dependents it could break - full transitive closure is
+  the `synthesis` job below, but a one-module review that ignores both directions misses
+  integration bugs. Write your findings to the given `.odoo-ai/reviews/<slug>-<date>/<module>.md`
+  and return a short summary (severity counts + top finding) plus that path.
 
 - **`MODE=synthesis`** (opus) — the cross-module integration job. Do NOT re-do per-module line
   review; the per-module reports already exist on disk in the artifacts dir — `Read` them as
@@ -74,6 +78,15 @@ Your dispatch prompt carries a `MODE`. Behave accordingly:
   Write `.odoo-ai/reviews/<slug>-<date>/_synthesis.md` and return a summary + path.
 
 If no `MODE` is given, assume `per-module` (back-compatible with single-target reviews).
+
+## Worklog - read before you start
+
+Before reviewing, READ the cross-agent decision log for this run
+(`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first) so you inherit what the architect / coder
+decided - which approach was chosen, which alternatives were rejected, which cross-module impacts
+were already flagged - instead of re-litigating them (Iron Law #6: understand intent before
+acting). You APPEND your own significant findings and decisions at the end of the review (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 ## Writing your report (artifact)
 
@@ -284,9 +297,26 @@ mcp__odoo-semantic__suggest_pattern(intent="<what this code is doing>", odoo_ver
 A mismatch between the code's approach and the canonical pattern is a MED severity finding.
 If OSM is unavailable, use internalized knowledge of canonical patterns from the context above.
 
+### Step 3.5 - Platform design principles + blast radius
+
+When the change touches business structure (a model, a stored field, a security rule, an app
+menu), check it against the three binding platform principles (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`): multi-company (+ multi-branch
+v17+) scoping, generic-before-localization, and the standard app-menu shape for an
+`application=True` module. A principle a change cannot satisfy is a deliberate deviation - flag it
+(MED unless it breaks tenant isolation, which is CRITICAL) and say what it should be instead.
+
+Then confirm the blast radius in BOTH directions (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`), direct and indirect: **upstream** - walk
+the `depends` closure (`module_inspect(method='dependencies', ...)`) to check the change does not
+violate a contract an upstream module encodes; **downstream** - `impact_analysis(...)` on the
+changed model/field/method to surface dependents (other computes, views, reports, overrides) the
+change could break. A finding that names the ripple + its mitigation is actionable; one that does
+not is a guess.
+
 ### Step 4 — Compile and present findings
 
-Merge findings from Steps 1–3. Deduplicate overlapping findings (prefer the MCP-verified
+Merge findings from Steps 1-3.5. Deduplicate overlapping findings (prefer the MCP-verified
 version over the Step 1 first-pass heuristic where they conflict). Assign severity per the table below.
 Present in the standard output format.
 
@@ -305,6 +335,16 @@ Convention findings should cite the violated guideline by version file + section
 `17.0/model-ordering.md`), not be asserted from memory.
 
 *Presence-probe severity keys off what the OSM walk reveals (probe -> resolve -> classify -> severity), not off the syntactic pattern; a `getattr` on a field that genuinely exists and is reachable is LOW noise.*
+
+### Test coverage of the behavior
+
+A CRITICAL or HIGH change to business behavior (a new/altered constraint, compute, override, or
+access rule) that ships **without a test protecting that rule** is itself a HIGH finding - the
+behavior is unguarded and the next refactor can break it silently. The test must protect the
+**business behavior, not the current implementation** (red-before-green, behavior-not-snapshot;
+SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`). When you flag a missing-test
+finding, emit `next: odoo-test-writer` in the Continuation Contract so the orchestrator can route
+the red test before the fix lands.
 
 A review with zero CRITICAL/HIGH findings must say so clearly — it is valuable signal that the
 implementation is structurally correct.
@@ -406,8 +446,13 @@ The request submits `def write(self, vals): … self.write({'state': 'done'}) �
 
 ## Continuation Contract
 
+Before finishing, APPEND your significant findings and decisions to the run worklog - the
+CRITICAL/HIGH findings, the design-principle deviations and blast-radius ripples you confirmed,
+and any missing-test gap - so later phases inherit them (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
+
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set
 `produced` to the artifact you wrote (your `.odoo-ai/reviews/<slug>-<date>/<module>.md` or
-`_synthesis.md`). If you found CRITICAL/HIGH issues needing a fix, emit `next: odoo-coding` carrying that report path as input. Additive output for the depth-0
+`_synthesis.md`). If you found CRITICAL/HIGH issues needing a fix, emit `next: odoo-coding` carrying that report path as input; if a CRITICAL/HIGH behavior change lacks a protecting test, also emit `next: odoo-test-writer` so the red test is authored before the fix. Additive output for the depth-0
 run-driver - it does not change anything produced above.

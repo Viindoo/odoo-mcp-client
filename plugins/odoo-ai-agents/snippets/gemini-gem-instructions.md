@@ -177,6 +177,17 @@ DETECT: mentions "demo", "objection", "prospect", "can we show", "customer asks"
 STYLE: confident capability proof; cite real module names from index; check_module_exists for availability
 TOOLS: check_module_exists, find_examples, model_inspect
 
+## Odoo Design Principles
+
+When you design, review, or explain any model or feature, apply these platform invariants - they hold for every runtime, not just this Gem:
+
+1. Multi-company, and multi-branch from v17+ - company-scoped data needs a `company_id` field plus `ir.rule` isolation; on v17+ also evaluate `res.branch`/`branch_id`. Confirm with `model_inspect` rather than assuming.
+2. Generic before localization - shared behavior belongs in a generic module; an `l10n_*` module only seeds country-specific rules/data. If two or more countries would share the behavior, lift it to the shared layer and seed per country instead of building a parallel architecture inside one localization.
+3. Standard app menu - a module with `application=True` needs one root menu, a Reports menu (one overview report + child reports), and a Configuration menu (Settings + admin-only config) when it has settings.
+4. Bidirectional impact - before changing a field/method, evaluate BOTH directions: upstream (the `depends` closure it relies on) and downstream (modules that depend on it), direct and indirect. Use `impact_analysis`.
+5. Dynamic demo data - demo records use time-relative dates (`relativedelta`), live in `demo/`, and stay distinct from test fixtures.
+6. Test-first (red before green) - write the behavior test first and confirm it fails, then write code until it passes; never weaken a test to make it pass.
+
 ## Response Format
 
 Always format tool results as structured output:

@@ -41,7 +41,11 @@ sequencing), not the codegen.
 ## Phase 0 — Scope + module graph (1-turn gate, mandatory)
 
 This is the single confirmation checkpoint. It applies even when the request arrived directly
-(e.g. intake bypass). Do five things, then stop for the user's reply.
+(e.g. intake bypass). First READ any existing worklog for this run
+(`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first) per
+`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` so you build on the decisions an upstream
+phase (e.g. `odoo-solution-design`) already recorded instead of re-deriving them. Then do six
+things, then stop for the user's reply.
 
 **1. Design-gate first (safety net).** Judge whether the change is **non-trivial** — the set
 `odoo-solution-design` defines: Extension-L/Custom-XL, a new module/model or restructuring, a
@@ -61,14 +65,16 @@ doc / the request (coding *creates* the change, so there is no git diff to read 
 design doc when it already splits the work; otherwise infer: touching `models/` `views/`
 `security/` `*.csv` ⇒ backend; touching `static/src` JS/SCSS/QWeb ⇒ frontend; both ⇒ fullstack.
 
-**4. Compute the dependency order (OSM is ground truth).** For each target module call
-`module_inspect(name=<m>, method='dependencies', odoo_version='[resolved version]')` (concrete version - the pin is per-API-key and racy, see `skills/_shared/concurrency-guard.md` "OSM version-pin race"), build the sub-graph
-restricted to the target set, and topologically order it. Modules that do not depend on each
-other within the set run in the **same wave** (parallel); a module that depends on another in the
-set runs in a **later wave** (after its dependency). When OSM is unreachable or returns too
-little, dispatch a read-only **haiku** agent **via the Agent tool** to read each
-`__manifest__.py` `depends` and scan for `static/src`, and label the result
-"graph from disk (OSM unavailable)".
+**4. Compute the dependency order (OSM is ground truth).** Follow
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` - the SSOT for the module DAG, shared
+with `wave` so both order work the same way. In short: call
+`module_inspect(name=<m>, method='dependencies', odoo_version='[resolved version]')` per target
+module (concrete version - the pin is per-API-key and racy, see
+`skills/_shared/concurrency-guard.md` "OSM version-pin race"), build the sub-graph restricted to the
+target set, and topologically order it - independent modules share a **wave** (parallel), a
+dependent module runs in a **later wave**. The disk fallback (haiku reader of each
+`__manifest__.py` `depends` + `static/src` scan, labelled "graph from disk (OSM unavailable)")
+lives in that SSOT.
 
 **5. Assign a model tier per module (deterministic - no judgment call mid-flow).**
 Every dispatch in this skill passes an explicit `model`. Resolve the tier for each
@@ -100,6 +106,17 @@ Constraints on the table:
 - Record the chosen tier in the gate table and later in plan.md - the tier is part
   of the approved plan, not a runtime improvisation.
 
+**6. Decide test-first authorship per module (red before green).** The test protects the business
+behavior and is written BEFORE the code (`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`).
+Choose per module, hybrid by complexity:
+- **non-trivial** module (anything the design gate flags non-trivial - core override, cross-model
+  chain, multi-company logic, new model, full-stack) → `test: test-author`: a SEPARATE author
+  writes the failing test first, so the test author is not the code author (independence keeps the
+  test honest). Execution runs that test-author before the coder, per stack.
+- **trivial** module (single field, boilerplate, one-approach fix) → `test: self`: the coder writes
+  its own red test first, then the code - a separate author is not worth the round-trip at that
+  size.
+
 Then emit the gate and wait. Write the gate message in the USER'S language (translate
 labels and prose; keep module names, paths, and the reply keywords verbatim - SSOT:
 `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`), and when the user is not
@@ -109,10 +126,10 @@ return their summaries pre-mirrored:
 ```
 Proposed: <one-line summary of the change>.
 Plan:
-  | module | stack     | wave | model  | files (intended) |
-  | <m1>   | backend   | 1    | haiku  | <m1>/models/*.py, __manifest__.py |
-  | <m2>   | fullstack | 1    | opus   | <m2>/models/*.py, <m2>/static/src/*.js, __manifest__.py |
-  | <m3>   | frontend  | 2    | sonnet | <m3>/static/src/*.js (depends on <m1>) |
+  | module | stack     | wave | model  | test        | files (intended) |
+  | <m1>   | backend   | 1    | haiku  | self        | <m1>/models/*.py, __manifest__.py |
+  | <m2>   | fullstack | 1    | opus   | test-author | <m2>/models/*.py, <m2>/static/src/*.js, __manifest__.py |
+  | <m3>   | frontend  | 2    | sonnet | test-author | <m3>/static/src/*.js (depends on <m1>) |
 Design: <path to approved design doc | none (trivial)>
 OSM: backed | standalone
 Dispatch: Workflow rolling-window (fallback: Agent-tool weighted batches)
@@ -156,6 +173,7 @@ the one-line Proposed summary:
 {
   "odooVersion": "<resolved version - ONE version for the whole run>",
   "designDoc": "<path | none>",
+  "runSlug": "<the <slug> used for .odoo-ai artifacts - scopes the shared worklog dir>",
   "userLanguage": "<the user's chat language - omit when the user works in English>",
   "modules": [
     {
@@ -163,6 +181,7 @@ the one-line Proposed summary:
       "model": "haiku|sonnet|opus|fable", "frontendModel": "<optional, <= model>",
       "depends": ["<other module names within the set - the dependency edges from Phase 0 step 4, shown as (depends on ...) in the plan>"],
       "newModule": false,
+      "test": "test-author|self",
       "request": "<the change for this module, with target model + constraints>",
       "frontendRequest": "<the UI/UX for this module - omit for backend-only>"
     }
@@ -194,6 +213,15 @@ const RESULT_SCHEMA = {
 };
 
 const { modules, odooVersion, designDoc, userLanguage } = args;
+const runSlug = args.runSlug || 'coding';
+const worklogLine = `WORKLOG: read then append your significant decisions (approach, impact + mitigation, demo-data, tier) to .odoo-ai/worklog/${runSlug}/ per snippets/worklog-contract.md.`;
+// test-first line for the coder prompt: implement-to-green against the separately
+// authored failing test, or (trivial) write your own red test first - never weaken
+// a test to make it pass (Iron Law). snippets/test-first-contract.md.
+const testLine = (m, testFiles) =>
+  m.test === 'test-author' && testFiles && testFiles.length
+    ? `FAILING TEST (written by a separate test-author, currently RED): ${testFiles.join(', ')} - implement until these pass; do NOT edit the tests to make them pass (Iron Law). See snippets/test-first-contract.md.`
+    : `TEST-FIRST: write the failing test for the business rule FIRST and confirm it goes RED, then implement to green; never weaken the test to pass. See snippets/test-first-contract.md.`;
 
 // --- validate args up front: a typo'd/missing tier must fail the whole run at
 // t=0 (before any agent or resolver exists), not silently book the wrong weight
@@ -225,24 +253,28 @@ for (const m of modules) completed[m.name] = new Promise((r) => { resolvers[m.na
 
 const OK_STATUSES = ['DONE', 'DONE_WITH_CONCERNS'];
 
-const backendPrompt = (m) => [
+const backendPrompt = (m, testFiles) => [
   'You are the odoo-coder agent. Produce production-ready Python/XML Odoo code for:',
   `REQUEST: ${m.request}`,
   `MODULE SCOPE: ${m.name} @ ${m.path} - write ONLY within this module (+ its __manifest__.py).`,
   `NEW MODULE: ${m.newModule ? 'yes - scaffold the skeleton first with odoo-bin scaffold, then fill it in (do NOT hand-roll the skeleton)' : 'no'}.`,
   `ODOO VERSION: ${odooVersion}`,
   `DESIGN_DOC: ${designDoc} - if present, build to it; do not re-derive.`,
+  testLine(m, testFiles),
+  worklogLine,
   `Step 0 (only if mcp__odoo-semantic__* is available): set_active_version('${odooVersion}'), then follow Rounds 1-4 from your system prompt.`,
   'If OSM is down, use the disk-grounded fallback and still write files. If OSM answers but a specific module/model is not in the index (customer-local addon), Read/Grep the local addon for just that entity and ground hybrid (osm + local-source) - an index miss is not proof of absence. Do not spawn subagents or invoke skills.',
   ...(userLanguage ? [`USER LANGUAGE: ${userLanguage} - write the summary field of your structured result in this language; keep identifiers verbatim.`] : []),
 ].join('\n');
 
-const frontendPrompt = (m) => [
+const frontendPrompt = (m, testFiles) => [
   'You are the odoo-frontend-coder agent. Produce production-ready Odoo frontend code (JS / OWL / QWeb / SCSS) for:',
   `REQUEST: ${m.frontendRequest || m.request}`,
   `MODULE SCOPE: ${m.name} @ ${m.path} - write ONLY within this module (+ its __manifest__.py assets).`,
   `ODOO VERSION: ${odooVersion}`,
   `DESIGN_DOC: ${designDoc} - if present, build to it; do not re-derive.`,
+  testLine(m, testFiles),
+  worklogLine,
   `Step 0 (only if mcp__odoo-semantic__* is available): read .odoo-ai/context.md, then set_active_version('${odooVersion}');`,
   'ground styling tokens against skills/_shared/odoo-frontend-fidelity.md (no hardcoded hex for themeable colors, no self-referential --bs-* shim).',
   'If OSM is down, use the disk-grounded fallback and still write files. If OSM answers but a specific module/model is not in the index (customer-local addon), Read/Grep the local addon for just that entity and ground hybrid (osm + local-source) - an index miss is not proof of absence.',
@@ -251,15 +283,55 @@ const frontendPrompt = (m) => [
   ...(userLanguage ? [`USER LANGUAGE: ${userLanguage} - write the summary field of your structured result in this language; keep identifiers verbatim.`] : []),
 ].join('\n');
 
+// Test-first (red before green): for a module marked test:'test-author' a SEPARATE
+// author writes the FAILING test before the coder, so the test author is not the
+// code author - independence keeps the test honest (snippets/test-first-contract.md).
+// It runs per stack (backend test before backend coder; frontend test before
+// frontend coder), shares the same weighted budget, and returns the test paths to
+// hand the coder. Trivial modules (test:'self') skip this; their coder self-tests.
+const testAuthorPrompt = (m, leg) => [
+  `You are the ${leg === 'frontend' ? 'odoo-frontend-coder' : 'odoo-coder'} agent in TEST-AUTHOR mode.`,
+  'Write ONLY the failing test(s) that protect the business behavior below - do NOT write the implementation.',
+  `REQUEST: ${leg === 'frontend' ? (m.frontendRequest || m.request) : m.request}`,
+  `MODULE SCOPE: ${m.name} @ ${m.path} - write only test files (tests/ or static/tests/).`,
+  `ODOO VERSION: ${odooVersion}`,
+  'Follow snippets/test-first-contract.md: assert observable behavior, not internals; ONE intent per test; confirm each test goes RED before the code exists (state the RED confirmation).',
+  worklogLine,
+  'Return the test file paths in files_written and a one-line RED confirmation in summary. Do not spawn subagents or invoke skills.',
+].join('\n');
+
+const authorRedTest = async (m, leg) => {
+  if (m.test !== 'test-author') return null;
+  const model = leg === 'frontend' ? (m.frontendModel || m.model) : m.model;
+  const w = WEIGHT[model];
+  await acquire(w);
+  try {
+    log(`[${m.name}:${leg}] test-author @ ${model}`);
+    const r = await agent(testAuthorPrompt(m, leg), {
+      label: `${m.name}:${leg}-test`,
+      phase: 'codegen',
+      agentType: leg === 'frontend' ? 'odoo-frontend-coder' : 'odoo-coder',
+      model,
+      schema: RESULT_SCHEMA,
+    });
+    return r && Array.isArray(r.files_written) && r.files_written.length ? r.files_written : null;
+  } catch (e) {
+    log(`[${m.name}:${leg}] test-author failed (${String(e)}) - coder will self-test`);
+    return null;
+  } finally {
+    release(w);
+  }
+};
+
 // agentType resolves from the same registry as the Agent tool; if a short name
 // ever fails to resolve, retry once with the plugin-qualified form
 // 'odoo-ai-agents:odoo-coder' / 'odoo-ai-agents:odoo-frontend-coder'.
-const dispatchOnce = async (m, leg, model) => {
+const dispatchOnce = async (m, leg, model, testFiles) => {
   const w = WEIGHT[model];
   await acquire(w);
   try {
     log(`[${m.name}:${leg}] dispatch @ ${model} (weight ${w}, in-flight ${used}/${BUDGET})`);
-    return await agent(leg === 'frontend' ? frontendPrompt(m) : backendPrompt(m), {
+    return await agent(leg === 'frontend' ? frontendPrompt(m, testFiles) : backendPrompt(m, testFiles), {
       label: `${m.name}:${leg}`,
       phase: 'codegen',
       agentType: leg === 'frontend' ? 'odoo-frontend-coder' : 'odoo-coder',
@@ -274,18 +346,18 @@ const dispatchOnce = async (m, leg, model) => {
 // fable runtime fallback: if a fable dispatch dies (insufficient usage credit,
 // model unavailable, harness error -> throw or null), retry ONCE at opus and
 // mark the downgrade so plan.md records it.
-const runLeg = async (m, leg) => {
+const runLeg = async (m, leg, testFiles) => {
   const model = leg === 'frontend' ? (m.frontendModel || m.model) : m.model;
   let result = null;
   let err = null;
   try {
-    result = await dispatchOnce(m, leg, model);
+    result = await dispatchOnce(m, leg, model, testFiles);
   } catch (e) {
     err = e;
   }
   if (model === 'fable' && (result === null || result === undefined)) {
     log(`[${m.name}:${leg}] fable unavailable (${err ? String(err) : 'null result'}) - retrying once @ opus`);
-    result = await dispatchOnce(m, leg, 'opus');
+    result = await dispatchOnce(m, leg, 'opus', testFiles);
     if (result) result.downgraded = 'opus (fable unavailable)';
     return result;
   }
@@ -305,7 +377,8 @@ const backendStage = async (m) => {
   if (!depsOk) return { leg: 'backend', upstreamBlocked: true };
   if (m.stack === 'frontend') return { leg: 'backend', skipped: true };
   try {
-    return { leg: 'backend', result: await runLeg(m, 'backend') };
+    const testFiles = await authorRedTest(m, 'backend'); // red before green
+    return { leg: 'backend', testFiles, result: await runLeg(m, 'backend', testFiles) };
   } catch (e) {
     return { leg: 'backend', error: String(e) };
   }
@@ -331,7 +404,8 @@ const frontendStage = async (prev, m) => {
     }
     if (m.stack !== 'backend') {
       try {
-        out.frontend = await runLeg(m, 'frontend');
+        const testFiles = await authorRedTest(m, 'frontend'); // red before green
+        out.frontend = await runLeg(m, 'frontend', testFiles);
       } catch (e) {
         out.status = 'BLOCKED';
         out.reason = `frontend error: ${String(e)}`;
@@ -441,11 +515,23 @@ This skill is part of an agent+skill bundle. The codegen tool lists live on the 
 see `agents/odoo-coder.md` (backend) and `agents/odoo-frontend-coder.md` (frontend) for the full
 restricted allowlists and execution detail.
 
+## The code -> review+test -> code loop (bounded)
+
+Coding is not one-shot. After this skill writes code (each non-trivial module already implemented
+to a separately-authored failing test), emit `next: odoo-code-review`; that skill reviews AND
+checks the tests cover the behavior, and emits `next: odoo-coding` when it finds a CRITICAL/HIGH
+issue or a red/missing test. That round-trip - **code -> review+test -> code** - is the loop,
+advanced by the depth-0 driver via the Continuation Contract (a subagent never re-dispatches
+itself). Bound it to **3 iterations** per
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`; if it is still not green-and-clean after
+3, STOP and escalate (ETHOS #8) rather than loop forever. Each iteration's outcome goes in the
+worklog so the next pass sees what the prior one decided.
+
 ## Continuation Contract
 
 When the bundle finishes, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set
-`produced` to the source files written plus `.odoo-ai/coding/<slug>-<date>/plan.md`, and emit
-`next: odoo-code-review` so the just-written code is reviewed (that skill now scales to the same
-multi-module set). Additive output for the depth-0 run-driver — it does not change anything
-produced above.
+`produced` to the source + test files written, plus `.odoo-ai/coding/<slug>-<date>/plan.md` and the
+`.odoo-ai/worklog/<slug>/` entries, and emit `next: odoo-code-review` so the just-written code is
+reviewed (that skill now scales to the same multi-module set). Additive output for the depth-0
+run-driver - it does not change anything produced above.

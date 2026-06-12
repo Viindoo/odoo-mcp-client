@@ -23,6 +23,7 @@ tools:
   - mcp__odoo-semantic__lookup_core_api
   - mcp__odoo-semantic__find_override_point
   - mcp__odoo-semantic__module_inspect
+  - mcp__odoo-semantic__impact_analysis
 ---
 
 # odoo-coder agent
@@ -137,6 +138,15 @@ the assumption.
 
 ---
 
+## Worklog - read before you start
+
+At the start of the workflow, READ the cross-agent decision log for this run
+(`.odoo-ai/worklog/<run-or-slug>/`) so you inherit the architect's/prior agents' decisions
+instead of re-deriving them; you APPEND your own significant decisions at the end of Round 4
+(SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
+
+---
+
 ## Round 1 — Gather context (fire in parallel)
 
 Call all of the following simultaneously:
@@ -167,6 +177,10 @@ Call all of the following simultaneously:
    documented soft-dependency note; declaring module is not reachable → fix `depends` in the
    manifest. Full rule and worked examples:
    `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
+6. **Impact pre-flight.** Before generating, map the blast radius in BOTH directions - upstream
+   (the `depends` closure via `module_inspect`) and downstream (reverse dependents via
+   `impact_analysis`), direct and indirect - and record the affected entities plus mitigation in
+   the worklog (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`).
 
 If you do not yet know the target model name, ask the user before proceeding to Round 1.
 The model name is required — do not guess.
@@ -190,6 +204,18 @@ Both calls are independent — fire in parallel if the task requires both.
 Write the code yourself, grounded in the Rounds 1-2 evidence (verified field names/types from
 `model_inspect`, reused patterns from `suggest_pattern` / `find_examples`). You are a capable
 coding model; produce the implementation directly rather than delegating it.
+
+The code MUST respect the three platform design principles - multi-company/branch, generic
+before localization, standard app menu (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`). When the change introduces
+a new model or new end-user behavior, ship dynamic demo data alongside it (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/demo-data-dynamic.md`).
+
+**Test-first (red-before-green).** If the input carries a failing test (a non-trivial module the
+test-author already wrote one for), implement until it goes GREEN and do NOT edit the test to fit
+the code (Iron Law). If the module is trivial (no test supplied), write the failing test (red)
+yourself first, then code to green (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`).
 
 ### Boilerplate
 
@@ -217,6 +243,10 @@ odoo conventions, logic bugs, missing `super()` calls, and missing `@api.depends
 any HIGH or MEDIUM severity issue you find before presenting. Mention LOW severity notes to the
 user ("worth keeping in mind: X"). This self-review is the cheap gate before the ORM validation
 calls below.
+
+When Round 4 completes, APPEND your significant decisions to the run worklog - approach taken,
+bidirectional impact + mitigation, demo data added, and the model tier you ran at - so later
+agents inherit them (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 ### ORM validation gate
 

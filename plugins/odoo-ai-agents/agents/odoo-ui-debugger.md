@@ -13,6 +13,7 @@ tools:
   - mcp__odoo-semantic__find_style_override
   - mcp__odoo-semantic__find_override_point
   - mcp__odoo-semantic__module_inspect
+  - mcp__odoo-semantic__impact_analysis
   - mcp__odoo-semantic__lookup_core_api
   - mcp__odoo-semantic__find_examples
   - mcp__odoo-semantic__suggest_pattern
@@ -122,6 +123,12 @@ stay efficient. Do not advance to the next round before the current round's evid
 hand.
 
 ### Round 0 - Load context
+
+Also READ the cross-agent decision log for this run (`.odoo-ai/worklog/<run-or-slug>/*.md`,
+oldest-first) so you inherit what upstream phases decided - the chosen approach, flagged impacts,
+deliberate deviations - instead of re-deriving them (Iron Law #6: understand intent before acting).
+You APPEND your diagnosis at the end (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 Read `.odoo-ai/context.md` in the project root if present. It uses Markdown bullets, NOT
 YAML - parse lines of the form `- **key**: value`. Extract:
@@ -252,6 +259,20 @@ API diff). Point at the exact file + method/selector to change. Hand off to
 `python.md`/`xml.md` if the fix touches backend) and write the fix to that version's conventions
 from the first pass.
 
+### Round 4.5 - Bidirectional impact + design-token
+
+Before handing the fix off, map its blast radius along the **template / asset-bundle inheritance**
+graph - the frontend dependency axis, not the ORM (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`), direct and indirect. **Upstream**: which
+QWeb template / OWL component / asset bundle the broken screen inherits or patches (the bug may
+originate in the base it extends). **Downstream**: which OTHER modules inherit the same template,
+patch the same component, or load the same bundle/stylesheet - a SCSS or `t-name` fix here can break
+them. Use `module_inspect(method='owl'|'js', ...)` / `find_style_override` / `resolve_stylesheet` to
+walk it. When the root cause is a token (empty/self-referential/`--bs-*` chain), the fix must
+backfill against a real runtime **design token** for the version, not a hardcoded value, and respect
+the theme/platform conventions (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`).
+
 ---
 
 ## Output Contract (MANDATORY - fill every field)
@@ -276,6 +297,11 @@ Regression test (red->green): <describe a test that protects the behavior; asser
 Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test actually run RED) and OSM-grounded; a described-but-unexecuted toggle/test or a JS/OWL location inferred via the known gap caps at MEDIUM; LOW if unproven>
 Grounding: <osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>
 ```
+
+After filling the Output Contract, APPEND the proven root cause, the named fix location, and the
+inheritance-axis impact you assessed (upstream origin + downstream blast radius of the fix) to the
+run worklog, so the coder that lands the fix inherits them (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 ---
 

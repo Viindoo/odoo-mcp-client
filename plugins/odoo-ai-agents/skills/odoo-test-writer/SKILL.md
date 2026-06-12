@@ -31,13 +31,24 @@ asserts a business contract, not a snapshot of current implementation.
 
 ## When to use
 
+This skill plays two roles, both governed by the red-before-green contract
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`):
+
+- **Test-first (before the code).** Inside the `odoo-coding` loop, a non-trivial module's failing
+  test is authored HERE first - by an author separate from the coder, so the test specifies the
+  intended behavior independently and the coder then implements to green. This is the primary,
+  highest-value mode: the test exists and is RED before a line of production code is written.
+- **Coverage (after the code).** Add or backfill behavior-protecting tests for code that already
+  exists - the `odoo-code-review` test-coverage gate routes here when a CRITICAL/HIGH change ships
+  with no protecting test.
+
 Use this skill when the user wants:
 
 - Test coverage for a model, computed field, constraint, onchange, or wizard
 - A test that guards a named business rule (invariant, access control, workflow transition)
 - JS Hoot or QUnit tests for an OWL component or frontend widget
 - A test file they can drop into an addon's `tests/` folder and run with `odoo-bin -i <module> --test-enable`
-- Evidence that new code added by `odoo-coding` meets its contract
+- The failing test that a coder will implement to green, or evidence that new code meets its contract
 
 ## Method
 
@@ -94,9 +105,13 @@ was called, not that `write()` was invoked N times.
 **One business rule per test.** Each `def test_*` covers exactly one invariant. If testing
 three distinct rules, write three methods.
 
-**Each test must be able to fail.** Before declaring the test complete, confirm (by reasoning
-or by intentionally breaking the assertion) that the test would go red if the business rule
-were removed from the production code. A test that can only ever be green is worthless.
+**Each test must be able to fail - confirm RED (binding).** This is the red-before-green core of
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`: before declaring the test complete,
+confirm it goes red when the business rule is absent. In **test-first mode** the production code
+does not exist yet, so the test is genuinely red now - state that. In **coverage mode** confirm by
+reasoning (or by intentionally removing the rule) that it would go red. A test that can only ever
+be green is worthless. Never weaken a test later to make it pass (Iron Law #6); fix the code
+instead.
 
 **Minimal arrange, no speculative data.** `setUp` creates only the records required by the
 test. Do not add fields, related models, or data fixtures for "possible future tests".
@@ -155,5 +170,8 @@ When OSM is unreachable, follow the three-tier grounding in
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the depth-0 run-driver - it does not change anything produced above.
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set
+`produced` to the test file paths you wrote, and state the **RED confirmation** (in test-first
+mode: "RED - production code not yet written"; in coverage mode: "RED-on-rule-removal verified").
+A coder consuming these tests implements to green and must not edit them. Additive output for the
+depth-0 run-driver - it does not change anything produced above.

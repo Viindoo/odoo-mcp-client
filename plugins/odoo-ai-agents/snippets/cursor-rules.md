@@ -76,6 +76,15 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 - Impact of field change → call impact_analysis(entity_type="field", entity_name="model.field_name", odoo_version='<version>')
 - Impact of method change → call impact_analysis(entity_type="method", entity_name="model.method_name", odoo_version='<version>')
 
+### Odoo platform design principles (every model / feature)
+These are platform invariants, not suggestions - apply them whenever you design or change Odoo code:
+- Multi-company, and multi-branch from v17+ → company-scoped data needs `company_id` + `ir.rule` isolation; on v17+ also evaluate `res.branch`/`branch_id`. Verify with model_inspect, do not assume.
+- Generic before localization → put shared behavior in a generic module; an `l10n_*` module only seeds country-specific rules/data. Do not fork a parallel architecture inside one country's module for something other countries also need.
+- Standard app menu → an `application=True` module needs one root menu, a Reports menu (one overview + child reports), and a Configuration menu (Settings + admin config) when it has settings.
+- Bidirectional impact → before changing a field/method check BOTH directions, direct + indirect: upstream (its `depends` closure) and downstream (modules that depend on it). Use impact_analysis.
+- Dynamic demo data → demo records use time-relative dates (`relativedelta`), live in `demo/`, distinct from test fixtures.
+- Test-first (red before green) → write the behavior test first and confirm it fails, then code until it passes; never weaken a test to make it pass.
+
 ## MCP Resources (read-only, bookmark-stable)
 - odoo://{version}/model/{name}             # = model_inspect(method='summary', odoo_version='<version>') equivalent
 - odoo://{version}/field/{model}/{field}    # = entity_lookup(kind='field', odoo_version='<version>')
