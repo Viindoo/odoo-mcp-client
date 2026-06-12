@@ -91,7 +91,7 @@ jobs:
           with open(path, 'w') as f: json.dump(m, f, indent=2); f.write('\n')
           "
 
-      - name: Create PR with auto-merge
+      - name: Create PR and auto-merge (retry on transient 5xx)
         if: steps.killswitch.outputs.blocked == 'false' && steps.check.outputs.skip == 'false'
         working-directory: claude-plugins
         env:
@@ -111,7 +111,22 @@ jobs:
             --title "pin odoo-semantic plugins to ${SHA7}" \
             --body "Auto-pin: plugin content changed in [${SHA7}](https://github.com/Viindoo/odoo-mcp-client/commit/${SHA}). Pins both odoo-ai-agents and odoo-semantic-mcp." \
             --label "auto-pin")
-          gh pr merge --auto --squash "$PR_URL"
+          # `gh pr merge --auto` enables auto-merge, which merges the pin PR within
+          # seconds (claude-plugins master has no required checks, so a clean PR merges
+          # immediately). This works reliably; the one failure mode seen is a transient
+          # 5xx from the GitHub API (a 502 once dropped this call and, with no retry, the
+          # whole run failed and left the PR open). Retry to ride that out - on success
+          # `--auto` returns as soon as auto-merge is enabled and the merge follows async.
+          for attempt in 1 2 3 4 5; do
+            if gh pr merge --auto --squash "$PR_URL"; then
+              echo "auto-merge enabled for $PR_URL"
+              exit 0
+            fi
+            echo "merge attempt ${attempt}/5 failed (transient 5xx?); retrying in 15s"
+            sleep 15
+          done
+          echo "::error::failed to enable auto-merge for ${PR_URL} after 5 attempts"
+          exit 1
 
       - name: Notify on failure
         if: failure()
