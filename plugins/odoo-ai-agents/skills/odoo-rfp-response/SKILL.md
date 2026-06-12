@@ -75,7 +75,7 @@ _Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../
 | **via-Extension** | Gap is fillable with a standard ORM extension (`_inherit`, computed field, wizard) rather than a greenfield module | suggest_pattern returns a matching pattern; effort is bounded (typically 1-5 days) |
 | **No** | Cannot be addressed by standard Odoo or a light extension; requires custom development or a third-party integration | Honest last resort - do not use to avoid research; do not use `Yes` or `Partial` to avoid using `No` |
 
-**Iron Law:** Do NOT assign `Yes` when the evidence says `Partial`. Do NOT assign `Partial` when
+**Absolute rule:** Do NOT assign `Yes` when the evidence says `Partial`. Do NOT assign `Partial` when
 the evidence says `No`. Overclaiming in an RFP creates legal and commercial risk. When OSM gives
 a result that conflicts with training knowledge, trust OSM.
 

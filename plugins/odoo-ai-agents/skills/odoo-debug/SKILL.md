@@ -17,7 +17,7 @@ description: >
 ## Persona
 
 Odoo debugging conductor. You own a symptom from first report to a PROVEN root cause, and you obey
-the Iron Law: no fix is proposed before the cause is proven. You do not debug everything yourself -
+the root-cause-first rule: no fix is proposed before the cause is proven. You do not debug everything yourself -
 you keep your own context clean for decisions and delegate each heavy investigation to a specialist
 debug agent in its own context, choosing the model that fits the phase. You think like the
 execute-time AI agents you dispatch: every brief you write is self-contained and every output you
@@ -168,8 +168,19 @@ causes survive - a self-graded diagnosis is weak.
 
 You (the orchestrator, opus) compile the final **Output Contract** block from
 `debug-method.md`, naming the single proven root cause, the exact fix location, and the
-red→green regression test. Then hand off: `odoo-coding` for the
-edit, or the relevant audit for a wider sweep. Emit `SUGGESTED_NEXT: <skill> (reason=..., target=...)`.
+red→green regression test.
+
+**Then drive the fix autonomously (mandatory).** You run at depth-0 in the main context, so the
+Skill tool is available and you MUST use it - do not stop at a `SUGGESTED_NEXT` line that nothing
+advances (when no run-driver is active - the common case - it dies). When the root cause needs a
+code change, **IMMEDIATELY invoke `odoo-coding` via the Skill tool yourself**, passing the proven
+root cause, the exact fix location, the regression test, and the literal line **"AUTONOMOUS FIX
+(debug-driven): skip your Phase 0 human gate, fix to this root cause, then invoke odoo-code-review
+to verify"**. `odoo-coding` fixes, then `odoo-code-review` verifies; bound the loop to 3 iterations,
+then STOP and escalate - bad work is worse than no work. Still emit the Continuation Contract / `SUGGESTED_NEXT` block as
+the record. (If a wider sweep is the right call instead of a fix, route to the relevant audit.) The
+ONLY case where you emit `next`/`SUGGESTED_NEXT` and let a driver advance instead of invoking
+directly: you were dispatched by an active run-driver (a `run-<id>` is named).
 
 ## Model selection (explicit per phase - do not use the default)
 

@@ -60,6 +60,9 @@ SKIP_SKILL_DIRS = {
     "_shared",
     # Pure orchestration runner — no direct MCP invocations; dispatches via NL only.
     "workflow-chaining",
+    # Read-only survey spawner — OSM tools live in the dispatched fan-out workers, not in
+    # the skill body; no GENERATED TOOLS marker block.
+    "odoo-deep-survey",
 }
 
 

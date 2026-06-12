@@ -14,7 +14,7 @@
 
 ---
 
-## The Iron Law (non-negotiable)
+## Root-cause-first rule (non-negotiable)
 
 **DO NOT PROPOSE A FIX BEFORE THE ROOT CAUSE IS PROVEN.** Fixing a symptom you do not understand
 creates whack-a-mole: each wrong fix makes the next bug harder to find. If intent is unclear,

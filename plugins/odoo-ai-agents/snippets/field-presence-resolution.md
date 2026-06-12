@@ -70,9 +70,8 @@ margin = order.margin if 'margin' in order._fields else 0.0
 A test that builds a duck-typed fake record (e.g. `class FakeSaleOrder` with hand-set attributes)
 to satisfy a `hasattr`/`getattr` branch tests the **code's shape, not Odoo behavior** - it locks in
 the probe instead of the business rule it should protect. Flag both the production probe and the
-test fake. Exercise the real recordset on the real model instead (ETHOS: test the behavior, not the
-code). The test passes only because the fake was built to match the probe - it can never go red on a
-real defect.
+test fake. Exercise the real recordset on the real model instead. The test passes only because the
+fake was built to match the probe - it can never go red on a real defect.
 
 ## JavaScript / OWL analogue (frontend)
 

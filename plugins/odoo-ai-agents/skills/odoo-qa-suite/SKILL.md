@@ -24,11 +24,8 @@ a release. Output is operational and actionable; not executive-level. Three jobs
 pass: (1) generate test cases, (2) gate on a pre-deploy checklist, (3) triage bugs with
 severity and root-cause hints.
 
-This skill is a **composition orchestrator** — it does not call MCP tools directly.
-It delegates phases via NL-dispatch to leaf skills, or handles work inline when no
-leaf skill covers it. The workflow-chaining reads `workflows/qa-suite.workflow.yaml` and
-fires this skill for the qa-suite domain; this skill body describes the inline phases
-that the runner cannot resolve to a standalone leaf skill.
+This skill is a **composition orchestrator**: do not call MCP tools directly. Delegate phases
+via NL-dispatch to leaf skills; handle work inline only when no leaf skill covers it.
 
 ---
 
@@ -85,12 +82,18 @@ case, produce one row in the output table:
 | # | Test name (business rule) | Type | Precondition | Steps | Expected result | Pass/Fail |
 |---|---|---|---|---|---|---|
 
-Rules (ETHOS#11):
+Rules:
 - Each test name must state a **business rule**, not an implementation detail.
   Good: "Sale order total updates when line quantity changes"
   Bad: "test_compute_amount_total"
 - Every test must have one scenario that would make it **fail** — if no wrong answer
   exists, the test is useless and must not be included.
+- **The Steps column must drive the real workflow, not seed a state.** Name the actual
+  `action_*` / `button_*` method that reaches each state (e.g. "call `action_confirm`"), build via
+  `Form()` where an onchange is involved, and run access checks as the real user
+  (`with_user(...)`), never `sudo()` on the action under test - never write a step that injects the
+  terminal `state` with `create({'state': ...})` (SSOT:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`).
 - Cover at minimum: happy path, edge case (empty/zero/boundary), error path (invalid
   input), permission check (user without access gets rejected).
 - Separate unit tests (no DB, no UI) from integration tests (multi-model or multi-user).

@@ -83,7 +83,7 @@ principal branch.
    each cherry-pick, run the repo verify command from the Repo Capability Card to confirm
    the integrated state is green. A subagent may report "done" while tests fail.
 
-## Iron Law - pre-wave gate
+## Pre-wave gate
 
 > **No branch is created until the user approves the wave plan.**
 

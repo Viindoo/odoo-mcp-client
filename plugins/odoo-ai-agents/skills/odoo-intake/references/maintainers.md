@@ -21,11 +21,30 @@ when changing intake's structure, the routing table, or the harness wiring.
   `references/plan-mode-schema.md`.
 - See `docs/reference/workflow-harness.md` for the full design rationale of the harness and the
   schemas borrowed here (wave WI brief, BRL DAG, wave topologies, gap-analysis effort legend).
+- **Dispatch mechanism rationale** (why the Skill tool, not the Agent tool — § Dispatch mechanism
+  keeps only the rule + table): a skill is not an agentType, so Agent-tool'ing a skill *name* fails
+  outright; Agent-tool'ing the bare underlying agent instead would launch it but **bypass the
+  skill's own orchestration** (topology decision, agent fan-out, synthesis — e.g.
+  `odoo-code-review`'s module-count topology + fan-out + synthesis), forcing the read-and-imitate
+  anti-pattern. A `spawner-agent` skill is `depth0-only` and must run in the depth-0 main context so
+  the Skill tool can load it there and let it spawn its own agents (`odoo-code-reviewer`,
+  `odoo-coder`, …) at depth-1. The depth-0 main agent IS allowed to call the Skill tool; the
+  plugin's "never the Skill tool" rule binds depth≥1 subagents/fork-workers only (a subagent calling
+  the Skill tool on a spawner skill would nest past the depth-2 ceiling).
 - Routing table currently lists 43 entries (rows 1-13 = Phase A/B core; rows 14-21 = Phase B
   sales+marketing+engineering; rows 22-27 = Phase D commands; rows 28-32 = Phase E visual;
   rows 33-40 = Phase E+ BRL flagship + workflow domains + wave; rows 41-43 = solution-design,
   implement-feature, frontend-design). Update both the table AND `references/collision-zones.md`
   when adding entries.
+- **Deep survey gate (opt-in)**: after the Proposed Plan, the gate offers `deep-survey` on
+  *large* jobs. It is the heavy alternative to the light Phase R recon — `odoo-deep-survey` (a
+  `depth0-only spawner-agent`, invoked via the Skill tool) fans out broad-haiku → narrow-sonnet →
+  optional-opus workers and returns a `synthesis.md` that intake folds into the `Survey:` field and
+  a re-proposed plan. It is the ONE `writes-files` skill intake dispatches WITHOUT Plan Mode: it
+  writes only `.odoo-ai/survey/` analysis (not the routed deliverable) and the `deep-survey` keyword
+  is itself the human gate (same rationale as Hard rule 1 letting intake write planning artifacts).
+  It is deliberately NOT a routing-table row — it is never intent-routed, only opt-in. The
+  re-proposed gate drops `deep-survey` so the survey runs at most once.
 - Trigger description optimization is via `/skill-creator` Mode 5 (`run_loop.py`) with a
   20-query trigger eval set.
 - Eval set (`evals/evals.json`) is descriptive — not graded. Use `/skill-creator` Mode 5 +
