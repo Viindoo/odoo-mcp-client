@@ -11,9 +11,8 @@
 # namespaces its tools as  mcp__plugin_<plugin>_<server>__<tool>  (see the
 # chrome-devtools tool names exposed by this very repo). A bare-server prefix
 # like `mcp__chrome-devtools` only matches when the server is registered
-# stand-alone (e.g. via `claude mcp add`). To be safe across BOTH forms we
-# allow the broad bare prefixes (which connect.md proved is the supported
-# pattern) - a prefix entry matches any tool whose name starts with it.
+# stand-alone (e.g. via `claude mcp add`). We list BOTH forms per server, and
+# the per-server list is DERIVED from .mcp.json (see PREFIXES below).
 #
 # Subcommands:
 #   describe   One-line description.
@@ -37,21 +36,38 @@ LIB="$SCRIPT_DIR/../lib/config_merge.py"
 
 CLAUDE_SETTINGS="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
 
-# Broad bare-server prefixes. A permission prefix matches any tool whose name
-# starts with it, so `mcp__chrome-devtools` covers the stand-alone form. We
-# also list the plugin-namespaced own forms. Each plugin-namespaced prefix
-# matches BOTH the headless default server AND its `-headed` variant, because
-# `mcp__plugin_odoo-ai-agents_chrome-devtools` is a prefix of
-# `mcp__plugin_odoo-ai-agents_chrome-devtools-headed__*` too - no need to list
-# the headed variants separately.
-PREFIXES=(
+# Permission prefixes - one per browser MCP server, in BOTH the plugin-namespaced
+# form (`mcp__plugin_<plugin>_<server>`) and the bare stand-alone form
+# (`mcp__<server>`). CRITICAL semantics: Claude Code matches an allow rule
+# `mcp__<server>` at the `mcp__<server>__` BOUNDARY - NOT as a raw string prefix
+# (see https://code.claude.com/docs/en/permissions). So
+# `mcp__plugin_odoo-ai-agents_chrome-devtools` does NOT cover the DISTINCT
+# `chrome-devtools-headed` server: each server, every `-headed` variant included,
+# needs its own entry. To keep this from drifting out of sync with the servers we
+# actually ship, the list is DERIVED from .mcp.json (the SSOT) via the lib below;
+# the static array here is only the fallback when the lib yields nothing. It MUST
+# stay in sync with the 6 servers in .mcp.json (both forms each, incl. `-headed`)
+# so the degraded fallback never silently re-drops the `-headed` coverage.
+_STATIC_PREFIXES=(
     "mcp__chrome-devtools"
+    "mcp__chrome-devtools-headed"
     "mcp__playwright"
+    "mcp__playwright-headed"
     "mcp__pagecast"
+    "mcp__pagecast-headed"
     "mcp__plugin_odoo-ai-agents_chrome-devtools"
+    "mcp__plugin_odoo-ai-agents_chrome-devtools-headed"
     "mcp__plugin_odoo-ai-agents_playwright"
+    "mcp__plugin_odoo-ai-agents_playwright-headed"
     "mcp__plugin_odoo-ai-agents_pagecast"
+    "mcp__plugin_odoo-ai-agents_pagecast-headed"
 )
+
+PREFIXES=()
+mapfile -t PREFIXES < <(python3 "$SCRIPT_DIR/../lib/browser_prefixes.py" prefixes 2>/dev/null) || true
+if [[ "${#PREFIXES[@]}" -eq 0 ]]; then
+    PREFIXES=("${_STATIC_PREFIXES[@]}")
+fi
 
 # ---------------------------------------------------------------------------
 # describe

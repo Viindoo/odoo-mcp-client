@@ -43,7 +43,7 @@ _out="$(bash "${_perms}" apply </dev/null 2>&1)"
 _rc=$?
 
 if [ "${_rc}" -eq 0 ]; then
-  _msg="odoo-ai-agents: browser MCP tool permissions ensured in Claude settings (one-time)."
+  _msg="odoo-ai-agents: NEW browser MCP tool permissions were just added to Claude settings - because permissions are finalized BEFORE SessionStart hooks run, RESTART Claude Code once (or start a new session) for them to take effect this session; meanwhile the PermissionRequest hook auto-approves these browser tools."
 else
   _msg="odoo-ai-agents: could not auto-allow browser MCP permissions (rc=${_rc}). Run /odoo-ai-agents:odoo-setup permissions. Detail: ${_out}"
 fi

@@ -208,13 +208,38 @@ mcp plugin's version only when its own contents change. `pin-sha.yml` updates `s
 for both plugins on every qualifying push; each marketplace entry's `source.version`
 tracks its respective `plugin.json.version`.
 
-**Bumping.** Run `make bump-patch` / `make bump-minor` / `make bump-major` (or
-`scripts/bump-version.sh <level>`). It updates `VERSION`, the `odoo-ai-agents`
+**Bumping.** Prefer `make bump`, which **auto-classifies** the level from the commits
+since `VERSION` last changed and then bumps. It updates `VERSION`, the `odoo-ai-agents`
 `plugin.json.version`, and cuts the `## [Unreleased]` CHANGELOG block to `## [x.y.z] - DATE`
-in one step — so the version and changelog never drift apart. Pick the level by impact:
-**patch** = fixes / internal refactors / docs, **minor** = backward-compatible features,
-**major** = breaking changes. `tests/test_version_consistency.py` fails CI if `VERSION` and
-the skills `plugin.json.version` ever diverge, or if `VERSION` is not valid `MAJOR.MINOR.PATCH`.
+in one step — so the version and changelog never drift apart. Run `make bump-dry` to preview
+the suggested level + resulting version without writing anything.
+
+**How the level is decided (this is the operational policy — apply it, don't default to minor):**
+
+- **patch** (3rd number) — bug fixes / internal refactors / docs / chore / test. **This is the
+  default** for any change that is not a new feature or a break. Do not skip it: a fix-only
+  release is a patch, not a minor.
+- **minor** (2nd number) — a backward-compatible feature, **including a new command, skill, or
+  agent**, or any `feat:` commit.
+- **major** (1st number) — a breaking change (a `type!:` commit or a `BREAKING CHANGE:` note).
+
+`make bump` reads this from git deterministically: it anchors on the commit that last touched
+`VERSION` (the `v*` tags lag `VERSION` and are **not** used as the anchor) and inspects the
+commit subjects/bodies and newly added files in that range. A `feat:` commit or a new file under
+`skills/`, `agents/`, or `commands/` → **minor**; a `type!:`/`BREAKING CHANGE:` → **major**;
+otherwise → **patch**.
+
+**In an AI session, honor a natural-language version request.** If the human names a specific
+version or level ("bump to 3.11.0", "this is a patch", "minor please"), the agent runs the
+explicit form — `scripts/bump-version.sh 3.11.0` or `scripts/bump-version.sh patch` — which
+takes precedence over auto-classification. Otherwise the agent runs `make bump` (i.e.
+`scripts/bump-version.sh auto`) and **confirms the suggested level** (e.g. via `make bump-dry`)
+before applying.
+
+The manual targets remain for when you want to force a level: `make bump-patch` / `make bump-minor`
+/ `make bump-major` (or `scripts/bump-version.sh <level>`). `tests/test_version_consistency.py`
+fails CI if `VERSION` and the skills `plugin.json.version` ever diverge, or if `VERSION` is not
+valid `MAJOR.MINOR.PATCH`.
 
 ### Rollback runbook
 

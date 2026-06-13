@@ -1,4 +1,4 @@
-.PHONY: validate test gen gen-check deps-check workflows-check orchestration-check help setup bump-patch bump-minor bump-major
+.PHONY: validate test gen gen-check deps-check workflows-check orchestration-check help setup bump bump-dry bump-patch bump-minor bump-major
 
 VENV ?= .venv
 PYTHON ?= $(VENV)/bin/python
@@ -13,6 +13,8 @@ help:
 	@echo "make workflows-check - validate all workflows/*.workflow.yaml against the schema"
 	@echo "make orchestration-check - lint the capability/contract layer (warn-first; ORCH_STRICT=1 to enforce)"
 	@echo "make setup           - create .venv (Python >= 3.12) and install requirements.txt"
+	@echo "make bump            - auto-classify the level from commits since last VERSION bump, then bump"
+	@echo "make bump-dry        - preview the auto-classified level + resulting version (writes nothing)"
 	@echo "make bump-patch      - bump VERSION + plugin.json + cut CHANGELOG (x.y.Z -> x.y.Z+1)"
 	@echo "make bump-minor      - bump minor (x.Y.z -> x.Y+1.0) for backward-compatible features"
 	@echo "make bump-major      - bump major (X.y.z -> X+1.0.0) for breaking changes"
@@ -83,7 +85,14 @@ orchestration-check: $(VENV_STAMP)
 # Version bump + release cut. Keeps VERSION and the odoo-ai-agents
 # plugin.json in lockstep (enforced by tests/test_version_consistency.py) and
 # stamps the CHANGELOG. Pick the level by impact: patch = fix/refactor/docs,
-# minor = backward-compatible feature, major = breaking change.
+# minor = backward-compatible feature (incl. a new command/skill/agent),
+# major = breaking change. `bump` applies this policy automatically; `bump-dry`
+# previews it without writing. In an AI session, if a human names a specific
+# version/level in natural language, run `scripts/bump-version.sh <that>` instead.
+bump:
+	./scripts/bump-version.sh auto
+bump-dry:
+	./scripts/bump-version.sh auto --dry-run
 bump-patch:
 	./scripts/bump-version.sh patch
 bump-minor:

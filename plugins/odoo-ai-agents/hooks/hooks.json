@@ -43,6 +43,18 @@
         ]
       }
     ],
+    "PermissionRequest": [
+      {
+        "matcher": "mcp__plugin_odoo-ai-agents_.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/auto-approve-browser.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
