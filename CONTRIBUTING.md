@@ -60,7 +60,7 @@ sensitive numeric values (pricing/OKR figures). Run `make validate && make test`
 | `plugins/odoo-ai-agents/scripts/setup-steps/` | Numbered, idempotent setup steps (`describe \| check \| apply`) driven by `/odoo-ai-agents:odoo-setup` |
 | `plugins/odoo-ai-agents/generator/` | SSOT generator (`gen_surface.py`) + server-surface inputs |
 | `plugins/odoo-ai-agents/snippets/` | MCP config for non-Claude clients, plus agent-facing SSOT protocol snippets (disk-fallback-protocol, context-bootstrap, osm-first-contract, nesting-guard) referenced by skill/agent bodies |
-| `plugins/odoo-ai-agents/docs/` | Persona guides, client setup, tool routing reference |
+| `plugins/odoo-ai-agents/docs/` | Persona guides, client setup, orchestration map + reference docs |
 | `plugins/odoo-semantic-mcp/.claude-plugin/plugin.json` | MCP plugin manifest (userConfig for URL + API key) |
 | `plugins/odoo-semantic-mcp/.mcp.json` | MCP server template (resolved from `userConfig`) |
 | `plugins/odoo-semantic-mcp/commands/connect.md` | The `/odoo-semantic-mcp:connect` slash command |
@@ -89,7 +89,7 @@ surface; historical entries in `CHANGELOG.md` are intentionally exempt.
 ### Agent-facing prose: version-agnostic & capability-described
 
 The `disambiguation` block in `generator/server-surface.json` (and anything else AI clients
-read to route - routing matrix, snippets, SKILL.md `## MCP tools` sections) must be:
+read to route - snippets, SKILL.md `## MCP tools` sections) must be:
 
 - **Version-agnostic** - never hardcode a version range (`v8-v19`) or count. A new Odoo
   release would silently make it wrong and no test catches stale prose. Use

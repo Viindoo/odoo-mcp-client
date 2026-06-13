@@ -34,7 +34,7 @@ and pre-sales consultants who need to qualify fit before investing demo time.
 ## MCP tools
 
 <!-- BEGIN MANUAL TOOLS — odoo-discovery-summary -->
-_Tool surface: server v0.13.1. OSM is OPTIONAL — this skill is standalone-first. Only
+_OSM is OPTIONAL — this skill is standalone-first. Only
 call OSM tools when the user explicitly wants to verify Odoo can address a stated pain,
 or requests "double-check with Odoo" / "kiem tra Odoo co chua"._
 

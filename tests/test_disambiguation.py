@@ -51,7 +51,6 @@ SNIPPET_ARTIFACTS = [
     "snippets/openai-gpt-instructions.md",
     "snippets/gemini-gem-instructions.md",
 ]
-ROUTING_MD = "docs/reference/mcp-tool-routing.md"
 
 
 def _surface() -> dict:
@@ -97,8 +96,4 @@ def test_generated_artifacts_in_sync_with_block():
         text = (SKILLS_PLUGIN / rel).read_text(encoding="utf-8")
         if block not in text:
             stale.append(rel)
-    # routing md uses the heading variant; assert its section + a signature marker.
-    routing = (SKILLS_PLUGIN / ROUTING_MD).read_text(encoding="utf-8")
-    if "## 0. Which server to use (read first)" not in routing or "read_record" not in routing:
-        stale.append(ROUTING_MD)
     assert not stale, "run `make gen` - these artifacts are stale: " + ", ".join(stale)

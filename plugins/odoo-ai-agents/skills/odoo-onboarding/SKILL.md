@@ -326,14 +326,6 @@ Wait for user.
 - Does NOT remember context across machines (file is local to project repo; commit `.gitignore` so other machines don't see context).
 - Does NOT replace `/odoo-semantic-mcp:connect` (which sets up the MCP server connection itself — a different scope).
 
-## Notes for future maintainers
-
-- The schema (markdown bullets, not YAML) is intentional for portability across Claude Code / Codex / Gemini.
-- Phase B will add Round -1 to all existing skills; until then, context file is harmless if other skills don't read it.
-- The 30-day refresh threshold is a guess — adjust based on user feedback. Common refresh triggers: Odoo version upgrade, new custom module added, new team member joins (different conventions).
-- Trigger description optimization is scheduled for Phase D via `/skill-creator` Mode 5 with a 20-query trigger eval set (combined with `odoo-intake`).
-- See the harness reference doc (`docs/reference/workflow-harness.md`) for full design rationale.
-
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per
