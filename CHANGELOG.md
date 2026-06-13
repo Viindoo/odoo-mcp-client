@@ -36,6 +36,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Plugin-wide removal of private-vault citations**: the ETHOS and Iron-Law references that named
   a private vault are renamed to in-plugin concept names - Anti-rationalize gate, Root-cause-first
   rule, and Pre-wave gate - so the public plugin is self-contained.
+- **Skill-conflict resolution consolidated**: the `odoo-coding` legacy-JS-vs-OWL paradigm rule
+  (previously §4.4 of the routing matrix) now lives in the generated
+  `docs/reference/ORCHESTRATION-MAP.md`, which also points to
+  `skills/odoo-intake/references/collision-zones.md` for the full collision policy. Each skill's
+  `## MCP tools` footnote drops the dead routing-matrix link and keeps only the server-version stamp.
+
+### Removed
+
+- **`docs/reference/mcp-tool-routing.md` deleted** (was 437 lines, generator-managed): the
+  static-vs-live guidance it carried is already injected by the MCP server and duplicated in every
+  skill's `## MCP tools` block + the IDE snippets, and its tool/persona/param tables duplicated the
+  live `tools/list` schema and per-agent tool whitelists. `gen_surface.py` no longer emits it.
 
 ## [3.8.0] - 2026-06-12
 

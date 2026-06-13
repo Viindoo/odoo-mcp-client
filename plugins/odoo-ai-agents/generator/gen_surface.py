@@ -3,11 +3,10 @@
 gen_surface.py — SSOT generator for the Odoo Semantic MCP tool surface.
 
 Reads generator/server-surface.json and emits:
-  1. docs/reference/mcp-tool-routing.md      (full replace)
-  2. skills/*/SKILL.md                        (only content between markers)
-  3. snippets/cursor-rules.md                 (only content between markers)
-  4. snippets/openai-gpt-instructions.md      (only content between markers)
-  5. snippets/gemini-gem-instructions.md      (only content between markers)
+  1. skills/*/SKILL.md                        (only content between markers)
+  2. snippets/cursor-rules.md                 (only content between markers)
+  3. snippets/openai-gpt-instructions.md      (only content between markers)
+  4. snippets/gemini-gem-instructions.md      (only content between markers)
 
 Marker convention:
   <!-- BEGIN GENERATED TOOLS -->
@@ -172,274 +171,7 @@ def tool_group_label(tool: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 1. Generate docs/reference/mcp-tool-routing.md
-# ---------------------------------------------------------------------------
-
-# Map persona tag codes → matrix column labels used in the routing-md table
-PERSONA_COLUMNS = ["CEO", "dev", "consultant", "marketer", "sales"]
-# Canonical display widths for persona tags in the surface JSON vs matrix column names
-TAG_TO_COL = {
-    "CEO": "CEO",
-    "dev": "dev",
-    "consultant": "consultant",
-    "marketer": "marketer",
-    "sales": "sales",
-}
-
-
-def gen_routing_md(surface: dict) -> str:
-    server_ver = surface["server_version"]
-    # Use the surface's own generated_at timestamp (not wall-clock) to keep output idempotent.
-    now_iso = surface.get("generated_at", "")
-    tools = surface["tools"]
-    resources = surface["resources"]
-
-    # Build persona matrix rows
-    def persona_cell(tags, col):
-        if col in tags:
-            return "●"
-        # secondary: some personas are secondary (○) — we track this via 03-osm-surface.
-        # Encoding rule: persona_tags = primary only. We add ○ for "adjacent" personas
-        # by checking the routing-md appendix hints. For generator simplicity, we use ● for
-        # primary tags and leave others empty. Persona_tags in JSON = primary only.
-        return ""
-
-    lines = []
-
-    # Header
-    lines.append("# MCP Tool × Persona × Adapter Routing Matrix")
-    lines.append("")
-    lines.append(
-        f"> **Generated:** {now_iso}  "
-    )
-    lines.append(
-        f"> **Server version:** {server_ver}  "
-    )
-    lines.append(
-        "> **Source:** `generator/server-surface.json` — edit that file and run `make gen` to update."
-    )
-    lines.append(
-        "> **v0.6 change:** 10 legacy tools (`resolve_model`, `resolve_field`, `resolve_method`, "
-        "`resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, "
-        "`list_qweb_templates`, `list_js_patches`) were removed. "
-        "Use the superset tools (`model_inspect`, `module_inspect`, `entity_lookup`) instead."
-    )
-    lines.append("")
-
-    # 0. Which server to use (read first) — keep AI agents from routing an
-    #    Odoo-code question to the wrong tool (live instance / local checkout /
-    #    docs search / a future Odoo-code tool).
-    dis_block = gen_disambiguation_block(surface, heading="## 0. Which server to use (read first)")
-    if dis_block:
-        lines.append(dis_block)
-        lines.append("")
-        lines.append("---")
-        lines.append("")
-
-    # Purpose
-    lines.append("## Purpose")
-    lines.append("")
-    lines.append("Single-source documentation answering:")
-    lines.append("- Which MCP tool maps to which persona?")
-    lines.append("- Which trigger phrases route a user prompt to which tool?")
-    lines.append("- Where does each adapter (Cursor, Gemini Gem, Custom GPT, Claude plugin) duplicate this routing logic?")
-    lines.append("- How are skill keyword conflicts resolved?")
-    lines.append("")
-    lines.append(
-        "When adding a new MCP tool or persona, update **`generator/server-surface.json`** "
-        "first, then run `make gen` to propagate."
-    )
-    lines.append("")
-    lines.append("---")
-    lines.append("")
-
-    # 1. Tool × Persona Matrix
-    lines.append("## 1. Tool × Persona Matrix")
-    lines.append("")
-    header = "| MCP Tool | CEO | dev | consultant | marketer | sales |"
-    sep = "|----------|:---:|:---:|:----------:|:--------:|:-----:|"
-    lines.append(header)
-    lines.append(sep)
-
-    for tool in tools:
-        name = tool["name"]
-        label = tool_group_label(tool)
-        tags = tool.get("persona_tags", [])
-        display_name = f"**{name}**" if label else name
-        if label:
-            display_name = f"**{name}** {label}"
-        cells = []
-        for col in PERSONA_COLUMNS:
-            cells.append("●" if col in tags else "")
-        row = f"| {display_name} | " + " | ".join(cells) + " |"
-        lines.append(row)
-
-    lines.append("")
-    lines.append(
-        "**Legend:** ● = primary persona for this tool.  \n"
-        "★ = superset tool (supersedes removed v0.6 tools).  \n"
-        "☆ = session-context tool (pin is per-API-key server state, 24h idle TTL - racy under concurrency, pass concrete versions).  \n"
-        "✦ = stylesheet tools (CSS/SCSS/LESS indexing, v0.7+).  \n"
-        "⊕ = ORM-validation tools (static domain / @api.depends / relation / dotted-path checks, v0.8+)."
-    )
-    lines.append("")
-
-    # MCP Resources sub-table
-    lines.append("### MCP Resources")
-    lines.append("")
-    lines.append("Read-only bookmark-stable handles addressable via the `odoo://` URI scheme:")
-    lines.append("")
-    lines.append("| URI template | Returns |")
-    lines.append("|---|---|")
-    for res in resources:
-        lines.append(f"| `{res['uri_template']}` | {res['description']} |")
-    lines.append("")
-    lines.append("---")
-    lines.append("")
-
-    # 2. Tool Trigger Phrases
-    lines.append("## 2. Tool Trigger Phrases")
-    lines.append("")
-
-    for tool in tools:
-        name = tool["name"]
-        label = tool_group_label(tool)
-        label_str = f" {label}" if label else ""
-        ver_badge = version_badge(tool)
-        added_note = f"(added {ver_badge})" if ver_badge else ""
-        lines.append(f"### {name}{label_str} {added_note}".rstrip())
-        lines.append("")
-        lines.append("| Attribute | Value |")
-        lines.append("|-----------|-------|")
-        lines.append(f"| **Description** | {tool['description']} |")
-        lines.append(f"| **Personas** | {persona_tags_display(tool.get('persona_tags', []))} |")
-        lines.append(
-            f"| **Required params** | {params_display(tool.get('required_params', []))} |"
-        )
-        lines.append(
-            f"| **Optional params** | {params_display(tool.get('optional_params', []))} |"
-        )
-        lines.append(f"| **Example call** | `{tool.get('example_call', '')}` |")
-        kw = tool.get("routing_keywords", [])
-        if kw:
-            lines.append(f"| **Routing keywords** | {', '.join(kw)} |")
-        lines.append("")
-
-    lines.append("---")
-    lines.append("")
-
-    # 3. Adapter Sync Map
-    lines.append("## 3. Adapter Sync Map")
-    lines.append("")
-    lines.append("When updating the tool surface, run `make gen` to propagate to all adapters.")
-    lines.append("")
-    lines.append("| Adapter | File path | Format |")
-    lines.append("|---------|-----------|--------|")
-    lines.append("| Cursor IDE rules | `snippets/cursor-rules.md` | Markdown list + code snippets |")
-    lines.append("| Gemini Gem | `snippets/gemini-gem-instructions.md` | Instruction prose + tables |")
-    lines.append("| Custom GPT | `snippets/openai-gpt-instructions.md` | System instruction prose |")
-    lines.append("| Plugin skills | `skills/*/SKILL.md` | Between `<!-- BEGIN GENERATED TOOLS -->` markers |")
-    lines.append("")
-    lines.append("---")
-    lines.append("")
-
-    # 4. Skill Conflict Resolution (preserved, static)
-    lines.append("## 4. Skill Conflict Resolution")
-    lines.append("")
-    lines.append(
-        "Plugin skills can claim overlapping trigger keywords. Standard resolution policy:"
-    )
-    lines.append("")
-    lines.append("### 4.1 `odoo-risk-overview` vs `odoo-deprecation-audit`")
-    lines.append("")
-    lines.append(
-        "- **Overlap:** \"upgrade risk\", \"is our code ready for v17\", \"what breaks in our system\""
-    )
-    lines.append(
-        "- **Resolution:** `odoo-risk-overview` → CEO/Manager persona (executive summary, "
-        "LOW/MEDIUM/HIGH labels). `odoo-deprecation-audit` → Developer persona "
-        "(file:line evidence, code-level fixes)."
-    )
-    lines.append(
-        "- **Heuristic:** User mentions \"team\", \"budget\", \"timeline\", \"business risk\" "
-        "→ `odoo-risk-overview`. User shows code or mentions specific module/file "
-        "→ `odoo-deprecation-audit`."
-    )
-    lines.append("")
-    lines.append("### 4.2 `odoo-version-diff` vs `odoo-feature-highlights`")
-    lines.append("")
-    lines.append(
-        "- **Overlap:** \"what's new in Odoo 17\", \"what's new in v17\", \"feature comparison\""
-    )
-    lines.append(
-        "- **Resolution:** `odoo-version-diff` → Developer persona (API changes, migration guide, "
-        "breaking changes). `odoo-feature-highlights` → Marketer persona "
-        "(sales-deck tone, business value, announcement copy)."
-    )
-    lines.append(
-        "- **Heuristic:** \"migration\", \"breaking\", \"API\", \"deprecation\" → `odoo-version-diff`. "
-        "\"highlight\", \"sales deck\", \"blog post\", \"announcement\" → `odoo-feature-highlights`."
-    )
-    lines.append("")
-    lines.append("### 4.3 `odoo-feature-check` vs `odoo-addon-diff`")
-    lines.append("")
-    lines.append(
-        "- **Overlap:** \"is module X in CE or EE\", \"do we need Enterprise for feature Y\""
-    )
-    lines.append(
-        "- **Resolution:** `odoo-feature-check` → Consultant (requirement scoping, gap analysis). "
-        "`odoo-addon-diff` → Marketer/Sales (edition comparison table for proposals)."
-    )
-    lines.append(
-        "- **Heuristic:** Embedded in scoping/gap context → `odoo-feature-check`. "
-        "Standalone edition comparison → `odoo-addon-diff`."
-    )
-    lines.append("")
-    lines.append("### 4.4 `odoo-coding`: legacy JS widgets vs OWL (version-aware)")
-    lines.append("")
-    lines.append(
-        "- **No skill conflict:** A single skill — `odoo-coding` — owns all Odoo coding "
-        "(backend Python/XML and front-end JS/OWL) and, for the front end, handles both "
-        "paradigms internally via the `odoo-frontend-coder` agent."
-    )
-    lines.append(
-        "- **Resolution (internal):** the `odoo-frontend-coder` agent selects the paradigm by "
-        "version. Legacy JS widget system on older Odoo; OWL components on newer Odoo. Odoo v14 "
-        "is the grey zone (pre-OWL but post-legacy peak) — prefer the legacy widget system there "
-        "since it is still dominant."
-    )
-    lines.append(
-        "- **Heuristic (paradigm signals):** `odoo.define()`, `web.Widget`, `field_registry` "
-        "→ legacy JS widget path. `useService`, `t-component`, `patch()`, `useState` "
-        "→ OWL path. Both resolve to `odoo-coding` (frontend leg)."
-    )
-    lines.append("")
-    lines.append("---")
-    lines.append("")
-
-    # 5. Appendix: Tool × Adapter Quick Reference
-    lines.append("## 5. Appendix: Tool × Adapter Quick Reference")
-    lines.append("")
-    lines.append("| Tool | Cursor | Gemini | OpenAI |")
-    lines.append("|------|:------:|:------:|:------:|")
-    for tool in tools:
-        name = tool["name"]
-        label = tool_group_label(tool)
-        label_str = f" {label}" if label else ""
-        lines.append(f"| **{name}**{label_str} | ✓ | ✓ | ✓ |")
-    lines.append("")
-    lines.append(
-        f"> **v{server_ver} tool surface ({len(tools)} tools + {len(resources)} resources):** "
-        "All tools are reached via HTTP MCP protocol to the Odoo Semantic MCP server. "
-        "No logic is duplicated — only routing heuristics."
-    )
-    lines.append("")
-
-    return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# 2. Generate skill ## MCP tools section content
+# 1. Generate skill ## MCP tools section content
 # ---------------------------------------------------------------------------
 
 # SKILL_TO_TOOLS is populated at runtime from
@@ -504,6 +236,33 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
     lines.append("- **stack** — drives backend↔frontend routing; `fullstack` work must engage both a")
     lines.append("  backend and a frontend specialist.")
     lines.append("")
+    lines.append("## Skill Conflict Resolution")
+    lines.append("")
+    lines.append(
+        "Full skill-collision policy with worked examples lives in "
+        "`skills/odoo-intake/references/collision-zones.md`. The one case below is specific "
+        "to a single skill and kept here:"
+    )
+    lines.append("")
+    lines.append("### `odoo-coding`: legacy JS widgets vs OWL (version-aware)")
+    lines.append("")
+    lines.append(
+        "- **No skill conflict:** A single skill — `odoo-coding` — owns all Odoo coding "
+        "(backend Python/XML and front-end JS/OWL) and, for the front end, handles both "
+        "paradigms internally via the `odoo-frontend-coder` agent."
+    )
+    lines.append(
+        "- **Resolution (internal):** the `odoo-frontend-coder` agent selects the paradigm by "
+        "version. Legacy JS widget system on older Odoo; OWL components on newer Odoo. Odoo v14 "
+        "is the grey zone (pre-OWL but post-legacy peak) — prefer the legacy widget system there "
+        "since it is still dominant."
+    )
+    lines.append(
+        "- **Heuristic (paradigm signals):** `odoo.define()`, `web.Widget`, `field_registry` → "
+        "legacy JS widget path. `useService`, `t-component`, `patch()`, `useState` → OWL path. "
+        "Both resolve to `odoo-coding` (frontend leg)."
+    )
+    lines.append("")
     return "\n".join(lines) + "\n"
 
 
@@ -533,11 +292,7 @@ def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
     server_ver = surface["server_version"]
 
     lines = []
-    lines.append(
-        f"_Tool surface: server v{server_ver}. "
-        "See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) "
-        "for full routing matrix._"
-    )
+    lines.append(f"_Tool surface: server v{server_ver}._")
     lines.append("")
 
     dis_block = gen_disambiguation_block(surface)
@@ -571,7 +326,7 @@ def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 3. Generate snippet tool list blocks
+# 2. Generate snippet tool list blocks
 # ---------------------------------------------------------------------------
 
 def gen_cursor_tools_block(surface: dict) -> str:
@@ -871,16 +626,7 @@ def main():
                 )
                 return 1
 
-    # 1. Generate docs/reference/mcp-tool-routing.md (full replace)
-    routing_md_path = REPO_ROOT / "docs" / "reference" / "mcp-tool-routing.md"
-    routing_md_content = gen_routing_md(surface)
-    routing_md_path.parent.mkdir(parents=True, exist_ok=True)
-    original = routing_md_path.read_text(encoding="utf-8") if routing_md_path.exists() else None
-    if original != routing_md_content:
-        routing_md_path.write_text(routing_md_content, encoding="utf-8")
-        changed_files.append(str(routing_md_path.relative_to(REPO_ROOT)))
-
-    # 1b. Generate orchestration map + SessionStart digest (full replace) from the
+    # 1. Generate orchestration map + SessionStart digest (full replace) from the
     #     skill_tool_deps.json "orchestration" SSOT.
     orch_map_path = REPO_ROOT / "docs" / "reference" / "ORCHESTRATION-MAP.md"
     orch_map_content = gen_orchestration_map(ORCHESTRATION)

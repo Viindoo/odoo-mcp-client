@@ -7,7 +7,7 @@ VENV_STAMP := $(VENV)/.stamp
 help:
 	@echo "make validate        - validate plugin.json + skill frontmatter + workflows (claude plugin validate + pytest)"
 	@echo "make test            - run the plugin test suite"
-	@echo "make gen             - regenerate routing matrix + skill ## MCP tools sections + IDE snippets"
+	@echo "make gen             - regenerate skill ## MCP tools sections + IDE snippets + orchestration map"
 	@echo "make gen-check       - run gen then assert git diff is empty (CI idempotency check)"
 	@echo "make deps-check      - check skill ↔ tool dependencies (no broken/removed tool refs)"
 	@echo "make workflows-check - validate all workflows/*.workflow.yaml against the schema"
@@ -55,7 +55,7 @@ workflows-check: $(VENV_STAMP)
 test: $(VENV_STAMP)
 	$(PYTHON) -m pytest tests/ -q
 
-# SSOT generator: read generator/server-surface.json → emit routing matrix + skill sections + snippets.
+# SSOT generator: read generator/server-surface.json → emit skill sections + snippets + orchestration map.
 # Also regenerates Codex CLI + Gemini CLI MCP manifests from .mcp.json SSOT.
 gen: $(VENV_STAMP)
 	$(PYTHON) plugins/odoo-ai-agents/generator/gen_surface.py

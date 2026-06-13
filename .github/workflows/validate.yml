@@ -35,7 +35,7 @@ jobs:
   gen-check:
     name: Generated artifacts in sync with SSOT
     runs-on: ubuntu-latest
-    # Catch generated artifacts (routing matrix, orchestration map + digest, skill
+    # Catch generated artifacts (orchestration map + digest, skill
     # ## MCP tools sections, IDE snippets, Codex/Gemini MCP manifests) drifting from
     # their SSOT (server-surface.json / skill_tool_deps.json / .mcp.json). Runs the
     # generators then asserts a clean git tree — the proven idempotency mechanism

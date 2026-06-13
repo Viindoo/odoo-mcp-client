@@ -39,7 +39,7 @@ requests, and support regional or vertical expansion.
 ## MCP tools
 
 <!-- BEGIN MANUAL TOOLS — odoo-campaign-plan -->
-_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1._
 
 **Optional — use only when verifying a specific feature claim in the campaign angle:**
 - `profile_inspect` — When the campaign angle is "competitive displacement" or "platform breadth"

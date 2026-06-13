@@ -39,7 +39,7 @@ to a 3-5 person dev shop. Output is operational and actionable, not executive-le
 ## MCP tools
 
 <!-- BEGIN MANUAL TOOLS — odoo-deploy-checklist -->
-_Tool surface: server v0.13.1. See [`docs/reference/mcp-tool-routing.md`](../../docs/reference/mcp-tool-routing.md) for full routing matrix._
+_Tool surface: server v0.13.1._
 
 **Session bootstrap** (optional — call once if version not already pinned):
 - `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
