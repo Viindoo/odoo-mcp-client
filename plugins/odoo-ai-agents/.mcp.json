@@ -1,7 +1,10 @@
 {
   "mcpServers": {
-    "chrome-devtools": { "type": "stdio", "command": "npx", "args": ["-y", "chrome-devtools-mcp@latest"] },
-    "playwright": { "type": "stdio", "command": "npx", "args": ["-y", "@playwright/mcp@latest", "--caps=devtools"] },
-    "pagecast": { "type": "stdio", "command": "npx", "args": ["-y", "@mcpware/pagecast"] }
+    "chrome-devtools": { "type": "stdio", "command": "npx", "args": ["-y", "chrome-devtools-mcp@latest", "--headless", "--isolated"] },
+    "chrome-devtools-headed": { "type": "stdio", "command": "npx", "args": ["-y", "chrome-devtools-mcp@latest", "--isolated"] },
+    "playwright": { "type": "stdio", "command": "npx", "args": ["-y", "@playwright/mcp@latest", "--caps=devtools", "--headless", "--isolated"] },
+    "playwright-headed": { "type": "stdio", "command": "npx", "args": ["-y", "@playwright/mcp@latest", "--caps=devtools", "--isolated"] },
+    "pagecast": { "type": "stdio", "command": "npx", "args": ["-y", "@mcpware/pagecast", "--headless"] },
+    "pagecast-headed": { "type": "stdio", "command": "npx", "args": ["-y", "@mcpware/pagecast"] }
   }
 }

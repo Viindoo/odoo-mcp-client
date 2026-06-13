@@ -37,15 +37,25 @@ CODEX_CONFIG="${CODEX_CONFIG:-$HOME/.codex/config.toml}"
 GEMINI_SETTINGS="${GEMINI_SETTINGS:-$HOME/.gemini/settings.json}"
 
 # Server name -> npx args mapping. These args follow `npx -y` and MUST stay
-# byte-for-byte in sync with the plugin's .mcp.json (the SSOT for the 3 browser
+# byte-for-byte in sync with the plugin's .mcp.json (the SSOT for the 6 browser
 # servers' command + args). Each entry prints one arg per line so packages and
 # flags (e.g. playwright's --caps=devtools) survive whitespace safely.
-SERVERS=(chrome-devtools playwright pagecast)
+#
+# Each browser server ships TWO variants: a headless default (no UI; safe for
+# no-display/CI hosts and concurrent sessions) and a `-headed` variant (visible
+# UI) the AI agent selects only when the human asks to see the browser. Browser
+# mode is fixed at launch, so the toggle is server-selection (NOT an env var /
+# on-disk config). chrome-devtools + playwright also pass --isolated so multiple
+# concurrent sessions get a private profile (pagecast isolates per-session).
+SERVERS=(chrome-devtools chrome-devtools-headed playwright playwright-headed pagecast pagecast-headed)
 _npx_args() {
     case "$1" in
-        chrome-devtools) printf '%s\n' "chrome-devtools-mcp@latest" ;;
-        playwright)      printf '%s\n' "@playwright/mcp@latest" "--caps=devtools" ;;
-        pagecast)        printf '%s\n' "@mcpware/pagecast" ;;
+        chrome-devtools)        printf '%s\n' "chrome-devtools-mcp@latest" "--headless" "--isolated" ;;
+        chrome-devtools-headed) printf '%s\n' "chrome-devtools-mcp@latest" "--isolated" ;;
+        playwright)             printf '%s\n' "@playwright/mcp@latest" "--caps=devtools" "--headless" "--isolated" ;;
+        playwright-headed)      printf '%s\n' "@playwright/mcp@latest" "--caps=devtools" "--isolated" ;;
+        pagecast)               printf '%s\n' "@mcpware/pagecast" "--headless" ;;
+        pagecast-headed)        printf '%s\n' "@mcpware/pagecast" ;;
         *) return 1 ;;
     esac
 }

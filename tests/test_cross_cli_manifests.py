@@ -26,8 +26,13 @@ GEMINI_OUT = PLUGIN_ROOT / "gemini-extension.json"
 CODEX_PLUGIN_JSON = PLUGIN_ROOT / ".codex-plugin" / "plugin.json"
 CODEX_MCP_JSON = PLUGIN_ROOT / ".codex-plugin" / "mcp.json"
 
-# The 3 browser MCP server names bundled in the plugin.
-EXPECTED_SERVERS = {"chrome-devtools", "playwright", "pagecast"}
+# The 6 browser MCP server names bundled in the plugin: three backends, each
+# with a headless default and a `-headed` variant.
+EXPECTED_SERVERS = {
+    "chrome-devtools", "chrome-devtools-headed",
+    "playwright", "playwright-headed",
+    "pagecast", "pagecast-headed",
+}
 
 
 # ---------------------------------------------------------------------------

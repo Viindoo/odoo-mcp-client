@@ -77,6 +77,11 @@ race each other's `navigate`/`click`/`fill` and corrupt the evidence. Therefore:
   browser-driving agent at a time, never concurrently with another browser agent. For
   flat/off-theme symptoms it applies the token-reality check from
   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.
+- **Browser mode (headless default / headed on request).** The visual leg defaults to the headless
+  browser variant (safe on no-display/CI hosts; `--isolated` lets concurrent *sessions* run). Only
+  when the human explicitly asks to *see/watch* the browser do you add a `BROWSER MODE: headed` line
+  to the `odoo-ui-debugger` dispatch brief, so it uses its `*-headed` tool variant. NL/AI decision in
+  the brief - no env var or on-disk flag.
 - OSM-only / read-static agents (`odoo-backend-debugger`, and the audit skills in reactive mode)
   touch no browser, so they are safe to run in parallel (cap <=3 - Mode A of
   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).

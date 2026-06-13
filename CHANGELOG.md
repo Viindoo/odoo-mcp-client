@@ -6,6 +6,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.10.0] - 2026-06-13
+
+### Added
+
+- **Two-variant browser MCP servers (headless default + headed on request).** Each browser backend
+  (chrome-devtools, playwright, pagecast) now ships TWO servers: a headless default (`<name>`, passes
+  `--headless`) and a visible `<name>-headed` variant — 6 servers total. The AI agent selects the
+  `-headed` variant only when the human asks to watch the browser; the choice is which tool it calls
+  (NL/AI-driven), NOT an env var or on-disk flag. chrome-devtools + playwright also pass `--isolated`
+  so concurrent Claude/Codex/Gemini sessions get a private profile (fixes the "browser already
+  running, use --isolated" collision); the headless default makes the visual stack work on
+  no-display/CI hosts out of the box.
+- **`hooks/ensure-browser-permissions.sh` (SessionStart).** Self-applies the browser MCP tool
+  permission prefixes to `~/.claude/settings.json` on every session (idempotent; no-op once present),
+  so the visual-UI agents run without a per-tool approval prompt after any install/update. Opt out
+  with `ODOO_AI_NO_AUTO_PERMS=1`.
+
+### Changed
+
+- **`odoo-ui-reviewer` / `odoo-ui-debugger` are now self-contained**: they grant the plugin's OWN
+  browser prefix (`mcp__plugin_odoo-ai-agents_chrome-devtools__*`) plus its `-headed` variant,
+  dropping the implicit dependency on the standalone `chrome-devtools-mcp` plugin. Both default to the
+  headless variant and switch to `-headed` only when the dispatch brief carries `BROWSER MODE: headed`.
+- **`30-permissions.sh`** allow-lists the plugin-namespaced own prefixes
+  (`mcp__plugin_odoo-ai-agents_{chrome-devtools,playwright,pagecast}`), which match both the headless
+  and `-headed` variants.
+
 ## [3.9.0] - (unreleased)
 
 ### Added

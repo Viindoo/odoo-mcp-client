@@ -1,5 +1,5 @@
 {
-  "description": "odoo-ai-agents hooks — SessionStart readiness probe + UserPromptSubmit intent detector + SubagentStop grounding enforcement & continuation nudge + PreToolUse delegate reminder + Stop continuation nudge (the drive-to-done hooks are ADVISORY: they never hard-block the main agent).",
+  "description": "odoo-ai-agents hooks — SessionStart readiness probe + browser-MCP permission self-apply + UserPromptSubmit intent detector + SubagentStop grounding enforcement & continuation nudge + PreToolUse delegate reminder + Stop continuation nudge (the drive-to-done hooks are ADVISORY: they never hard-block the main agent).",
   "hooks": {
     "PreToolUse": [
       {
@@ -30,6 +30,15 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/check-setup-deps.sh\"",
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/ensure-browser-permissions.sh\"",
+            "timeout": 8
           }
         ]
       }
