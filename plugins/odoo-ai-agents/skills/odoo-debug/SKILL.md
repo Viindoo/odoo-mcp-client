@@ -69,8 +69,10 @@ All deep localization happens inside the dispatched agents.
 
 ## Browser concurrency - HARD design rule
 
-The `chrome-devtools` and `playwright` MCP servers each drive a SINGLE shared Chromium process
-(one DOM, one session, no per-client isolation). Two agents driving the browser at the same time
+The `chrome-devtools` and `playwright` MCP servers each drive a SINGLE Chromium process per server
+(one DOM, one session shared across concurrent calls to that server). The `--isolated` flag gives
+each independent Claude session its own profile - so separate sessions never collide - but two agents
+driving the browser at the same time
 race each other's `navigate`/`click`/`fill` and corrupt the evidence. Therefore:
 
 - The visual leg (`odoo-ui-debugger`) is an **exclusive, serial step** - dispatch at most ONE
@@ -81,7 +83,8 @@ race each other's `navigate`/`click`/`fill` and corrupt the evidence. Therefore:
   browser variant (safe on no-display/CI hosts; `--isolated` lets concurrent *sessions* run). Only
   when the human explicitly asks to *see/watch* the browser do you add a `BROWSER MODE: headed` line
   to the `odoo-ui-debugger` dispatch brief, so it uses its `*-headed` tool variant. NL/AI decision in
-  the brief - no env var or on-disk flag.
+  the brief - no env var or on-disk flag. On a headless/CI host the headed server cannot launch - warn
+  the human instead of dispatching a doomed headed run.
 - OSM-only / read-static agents (`odoo-backend-debugger`, and the audit skills in reactive mode)
   touch no browser, so they are safe to run in parallel (cap <=3 - Mode A of
   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# 10-browser-mcp.sh - Wire the 3 browser MCP servers into Codex and Gemini.
+# 10-browser-mcp.sh - Wire the 6 browser MCP servers into Codex and Gemini.
 #
-# Registers three local stdio MCP servers - chrome-devtools, playwright and
-# pagecast (all launched via `npx`) - into Codex CLI and Gemini CLI when those
-# runtimes are installed.
+# Registers six local stdio MCP servers - chrome-devtools, playwright and
+# pagecast, each with a headless default and a `-headed` variant (all launched
+# via `npx`) - into Codex CLI and Gemini CLI when those runtimes are installed.
 #
 # Claude Code does NOT need to be wired here: this plugin bundles its own
 # .mcp.json which Claude reads automatically. Writing the same servers into
@@ -64,7 +64,7 @@ _npx_args() {
 # describe
 # ---------------------------------------------------------------------------
 cmd_describe() {
-    echo "Wire 3 browser MCP servers (chrome-devtools, playwright, pagecast) into Codex/Gemini (Claude uses bundled .mcp.json)"
+    echo "Wire 6 browser MCP servers (chrome-devtools/playwright/pagecast, each headless + -headed) into Codex/Gemini (Claude uses bundled .mcp.json)"
 }
 
 # ---------------------------------------------------------------------------

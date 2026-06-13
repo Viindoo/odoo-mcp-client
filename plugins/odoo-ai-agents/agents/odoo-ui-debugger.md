@@ -73,7 +73,9 @@ when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
 
 **This agent drives a browser via an MCP server (chrome-devtools).** Only ONE browser-driving
 agent may run at a time, regardless of which browser MCP it uses (chrome-devtools OR playwright) -
-do NOT rely on the two servers being isolated. It MUST NOT run concurrently with ANY other
+do NOT rely on them being isolated within a single run. (The `--isolated` flag gives each independent
+Claude session its own browser profile, so separate sessions never collide - but two browser-driving
+agents in the SAME run still share a server's single Chromium process.) It MUST NOT run concurrently with ANY other
 browser-driving agent (e.g. odoo-ui-reviewer, odoo-visual-regression, odoo-demo-recording, or any
 agent that opens a browser through chrome-devtools or playwright). Concurrent browser work causes
 shared DOM/session races and resource contention that corrupt evidence. The orchestrating main

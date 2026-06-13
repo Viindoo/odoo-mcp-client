@@ -63,8 +63,10 @@ in an upgrade comparison; `find_style_override` predicts which screens a styling
 These chrome-devtools MCP tools capture and compare the two states (not part of the OSM surface).
 Each comes in a **headless default** (`mcp__plugin_odoo-ai-agents_chrome-devtools__*`) and a
 **headed** (`...chrome-devtools-headed__*`) variant — default to headless (safe on no-display/CI
-hosts); use the headed variant only when the human asks to watch the capture. The choice is which
-tool you call (NL/AI decision), not an env var or on-disk flag:
+hosts); use the headed variant only when the human asks to watch the capture. This skill runs INLINE
+(you call the tools yourself, with no dispatch brief), so there is no `BROWSER MODE: headed` token
+here - just call the `-headed` tool directly. The choice is which tool you call (NL/AI decision), not
+an env var or on-disk flag:
 
 - `take_screenshot` — capture each screen for both the baseline and the current state.
 - `resize_page` — capture at consistent breakpoints so the diff is apples-to-apples.

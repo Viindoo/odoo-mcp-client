@@ -71,7 +71,9 @@ variant — the only safe choice on a no-display/CI host and the one that lets c
 Only when the human explicitly asks to *see/watch* the browser (e.g. "show me the browser", "headed",
 "watch it run") does main add a `BROWSER MODE: headed` line to the dispatch brief; the agent then uses
 its `*-headed` tool variant. This is an AI/NL decision passed in the brief — there is no env var or
-on-disk flag to set.
+on-disk flag to set. Before dispatching headed, sanity-check that a display is plausibly available
+(a workstation, `$DISPLAY` set); on a headless/CI host the headed server cannot launch, so warn the
+human rather than dispatching a doomed run.
 
 ## Standalone-first fallback
 
