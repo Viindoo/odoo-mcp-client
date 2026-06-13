@@ -6,6 +6,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.11.0] - 2026-06-13
+
+### Added
+
+- **`hooks/auto-approve-browser.sh` (PermissionRequest hook).** Auto-approves the plugin's own
+  browser MCP tools in-session, closing the window where SessionStart-applied permissions only take
+  effect after a restart (Claude Code finalizes permissions before SessionStart fires). Stays silent
+  (pass-through) for any non-plugin tool; opt out with `ODOO_AI_NO_AUTO_PERMS=1`.
+- **`scripts/bump-version.sh auto` + `make bump` / `make bump-dry`.** Deterministic version-bump
+  classifier that makes the existing policy operational: a `feat:` commit or a newly added
+  command/skill/agent file -> minor; fix/refactor/docs/chore -> patch; `type!:` or `BREAKING CHANGE:`
+  footer -> major. A human may still name an explicit `X.Y.Z` (natural-language override). The commit
+  range anchors on the last `VERSION` change, not the (stale) `v*` tags.
+
+### Fixed
+
+- **Browser MCP `-headed` tools no longer prompt on every call.** The permission allow-list is now
+  DERIVED from `.mcp.json` (the single source of truth) and lists every server - all three `-headed`
+  variants included - fixing a drift where only the 3 base servers were allow-listed. A permission
+  rule `mcp__<server>` matches at the `mcp__<server>__` boundary, so it never covered the distinct
+  `-headed` servers; each needs its own entry.
+
 ## [3.10.0] - 2026-06-13
 
 ### Added

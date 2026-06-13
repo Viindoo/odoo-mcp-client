@@ -72,6 +72,21 @@ jobs:
           python-version: '3.12'
       - run: python3 plugins/odoo-ai-agents/generator/check_orchestration.py
 
+  version-bump-suggestion:
+    name: Suggested version bump (advisory)
+    runs-on: ubuntu-latest
+    # Advisory only — NEVER blocks the PR. Prints the level `make bump` would pick
+    # (patch/minor/major) from the commits since VERSION last changed, so reviewers
+    # see whether the change is a fix (patch) or a feature/new skill (minor).
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history so the classifier can anchor on the commit that last
+          # touched VERSION and read the whole range up to HEAD.
+          fetch-depth: 0
+      - run: ./scripts/bump-version.sh auto --dry-run || true
+
   e2e-install:
     name: e2e install (${{ matrix.os }})
     # Network + global npm install + live marketplace state — keep it off every PR

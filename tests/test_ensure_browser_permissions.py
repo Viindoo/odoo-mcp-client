@@ -17,19 +17,41 @@ which the step script the hook delegates to also needs).
 """
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-HOOK = ROOT / "plugins" / "odoo-ai-agents" / "hooks" / "ensure-browser-permissions.sh"
+PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
+HOOK = PLUGIN / "hooks" / "ensure-browser-permissions.sh"
 
-OWN_PREFIXES = {
-    "mcp__plugin_odoo-ai-agents_chrome-devtools",
-    "mcp__plugin_odoo-ai-agents_playwright",
-    "mcp__plugin_odoo-ai-agents_pagecast",
-}
+_SAFE = re.compile(r"[^A-Za-z0-9_-]")
+
+
+def _normalize(name):
+    return _SAFE.sub("_", name)
+
+
+def _plugin_name():
+    data = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    return _normalize(data["name"])
+
+
+def _servers():
+    data = json.loads((PLUGIN / ".mcp.json").read_text(encoding="utf-8"))
+    return [_normalize(s) for s in data["mcpServers"]]
+
+
+# Anti-drift: the own-prefixes set is DERIVED from .mcp.json (the SSOT for which
+# browser servers ship), not hard-coded - so adding/renaming a server (e.g. a new
+# `-headed` variant) is automatically covered, and a regression that stops adding
+# one is caught here. With the current .mcp.json this is the 6 plugin-namespaced
+# prefixes (chrome-devtools[-headed], playwright[-headed], pagecast[-headed]).
+NAME = _plugin_name()
+SERVERS = _servers()
+OWN_PREFIXES = {f"mcp__plugin_{NAME}_{s}" for s in SERVERS}
 
 
 def _run(settings_path, env_extra=None):
@@ -68,6 +90,21 @@ def test_adds_own_prefixes(settings):
     assert r.returncode == 0, f"hook must exit 0; stderr={r.stderr}"
     missing = OWN_PREFIXES - _allow(settings)
     assert not missing, f"hook did not add own-prefixes {missing}; allow={_allow(settings)}"
+
+
+def test_every_mcp_server_gets_a_prefix(settings):
+    # Anti-drift, per-server: for EVERY browser MCP server declared in .mcp.json
+    # - the `-headed` variants included (a different server name, NOT covered by
+    # the base server's boundary-matched prefix) - the corresponding
+    # `mcp__plugin_<name>_<server>` prefix must land in permissions.allow[].
+    r = _run(settings)
+    assert r.returncode == 0, f"hook must exit 0; stderr={r.stderr}"
+    allow = _allow(settings)
+    for server in SERVERS:
+        prefix = f"mcp__plugin_{NAME}_{server}"
+        assert prefix in allow, (
+            f"server '{server}' from .mcp.json has no allow prefix '{prefix}'; allow={allow}"
+        )
 
 
 def test_idempotent(settings):
