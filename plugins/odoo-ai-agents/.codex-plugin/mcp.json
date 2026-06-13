@@ -3,7 +3,17 @@
     "command": "npx",
     "args": [
       "-y",
-      "chrome-devtools-mcp@latest"
+      "chrome-devtools-mcp@latest",
+      "--headless",
+      "--isolated"
+    ]
+  },
+  "chrome-devtools-headed": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "chrome-devtools-mcp@latest",
+      "--isolated"
     ]
   },
   "playwright": {
@@ -11,10 +21,29 @@
     "args": [
       "-y",
       "@playwright/mcp@latest",
-      "--caps=devtools"
+      "--caps=devtools",
+      "--headless",
+      "--isolated"
+    ]
+  },
+  "playwright-headed": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@playwright/mcp@latest",
+      "--caps=devtools",
+      "--isolated"
     ]
   },
   "pagecast": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "@mcpware/pagecast",
+      "--headless"
+    ]
+  },
+  "pagecast-headed": {
     "command": "npx",
     "args": [
       "-y",

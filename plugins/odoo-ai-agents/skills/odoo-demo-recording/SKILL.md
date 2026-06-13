@@ -57,7 +57,13 @@ installed, and `find_examples` can surface the canonical flow for the feature be
 
 ## Browser tools
 
-These chrome-devtools MCP tools drive and record the live instance (not part of the OSM surface):
+These chrome-devtools MCP tools drive and record the live instance (not part of the OSM surface).
+Each comes in a **headless default** (`mcp__plugin_odoo-ai-agents_chrome-devtools__*`) and a
+**headed** (`...chrome-devtools-headed__*`) variant — default to headless (recording works headless
+and is the only safe choice on a no-display host); use the headed variant only when the human asks to
+watch the run on screen. This skill runs INLINE (you call the tools yourself, with no dispatch
+brief), so there is no `BROWSER MODE: headed` token here - just call the `-headed` tool directly. The
+choice is which tool you call (NL/AI decision), not an env var or on-disk flag:
 
 - `navigate_page` — open each step's URL.
 - `click` / `fill` / `fill_form` / `hover` — perform the scripted click path on camera.

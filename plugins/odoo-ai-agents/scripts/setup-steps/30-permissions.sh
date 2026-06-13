@@ -39,12 +39,18 @@ CLAUDE_SETTINGS="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
 
 # Broad bare-server prefixes. A permission prefix matches any tool whose name
 # starts with it, so `mcp__chrome-devtools` covers the stand-alone form. We
-# also list the plugin-namespaced forms for completeness/explicitness.
+# also list the plugin-namespaced own forms. Each plugin-namespaced prefix
+# matches BOTH the headless default server AND its `-headed` variant, because
+# `mcp__plugin_odoo-ai-agents_chrome-devtools` is a prefix of
+# `mcp__plugin_odoo-ai-agents_chrome-devtools-headed__*` too - no need to list
+# the headed variants separately.
 PREFIXES=(
     "mcp__chrome-devtools"
     "mcp__playwright"
     "mcp__pagecast"
-    "mcp__plugin_chrome-devtools-mcp_chrome-devtools"
+    "mcp__plugin_odoo-ai-agents_chrome-devtools"
+    "mcp__plugin_odoo-ai-agents_playwright"
+    "mcp__plugin_odoo-ai-agents_pagecast"
 )
 
 # ---------------------------------------------------------------------------

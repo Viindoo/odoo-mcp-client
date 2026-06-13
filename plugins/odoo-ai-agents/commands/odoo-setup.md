@@ -214,12 +214,19 @@ step required in the normal flow:
   plugin is only partially installed. Tell the user to reinstall
   `odoo-ai-agents@viindoo-plugins` fully, then point them at the manual
   equivalents:
-  - Browser MCP (must match the plugin's `.mcp.json` command + args exactly):
-    `claude mcp add --scope user chrome-devtools -- npx -y chrome-devtools-mcp@latest`
-    (repeat for `playwright` → `npx -y @playwright/mcp@latest --caps=devtools`,
-    `pagecast` → `npx -y @mcpware/pagecast`).
+  - Browser MCP (must match the plugin's `.mcp.json` command + args exactly).
+    Each server ships a **headless default** and a **`-headed`** variant; the AI
+    picks the headed variant only when the human asks to watch the browser:
+    `claude mcp add --scope user chrome-devtools -- npx -y chrome-devtools-mcp@latest --headless --isolated`
+    (`chrome-devtools-headed` → drop `--headless`; `playwright` →
+    `npx -y @playwright/mcp@latest --caps=devtools --headless --isolated` and
+    `playwright-headed` drops `--headless`; `pagecast` →
+    `npx -y @mcpware/pagecast --headless` and `pagecast-headed` drops `--headless`).
   - Permissions: add `mcp__chrome-devtools`, `mcp__playwright`, `mcp__pagecast`
-    to `permissions.allow[]` in `~/.claude/settings.json`.
+    to `permissions.allow[]` in `~/.claude/settings.json`. (With the plugin
+    installed, the SessionStart hook `ensure-browser-permissions.sh` adds the
+    plugin-namespaced `mcp__plugin_odoo-ai-agents_*` prefixes for you — these
+    bare prefixes are only for the standalone, no-plugin case.)
 - The manual `claude mcp add` line above is only for using these servers
   **without** the plugin installed. If the plugin is installed, do **not** add
   them to `~/.claude.json` — the bundled `.mcp.json` already provides them, and a
