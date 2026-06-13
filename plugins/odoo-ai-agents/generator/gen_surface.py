@@ -289,11 +289,7 @@ def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
     tool_names = SKILL_TO_TOOLS.get(skill_name, [])
     tools_by_name = {t["name"]: t for t in surface["tools"]}
 
-    server_ver = surface["server_version"]
-
     lines = []
-    lines.append(f"_Tool surface: server v{server_ver}._")
-    lines.append("")
 
     dis_block = gen_disambiguation_block(surface)
     if dis_block:

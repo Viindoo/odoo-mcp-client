@@ -39,8 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Skill-conflict resolution consolidated**: the `odoo-coding` legacy-JS-vs-OWL paradigm rule
   (previously §4.4 of the routing matrix) now lives in the generated
   `docs/reference/ORCHESTRATION-MAP.md`, which also points to
-  `skills/odoo-intake/references/collision-zones.md` for the full collision policy. Each skill's
-  `## MCP tools` footnote drops the dead routing-matrix link and keeps only the server-version stamp.
+  `skills/odoo-intake/references/collision-zones.md` for the full collision policy.
 
 ### Removed
 
@@ -48,6 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   static-vs-live guidance it carried is already injected by the MCP server and duplicated in every
   skill's `## MCP tools` block + the IDE snippets, and its tool/persona/param tables duplicated the
   live `tools/list` schema and per-agent tool whitelists. `gen_surface.py` no longer emits it.
+- **Execute-agent noise stripped from skill bodies**: the `_Tool surface: server vX._` version stamp
+  (28 skill `## MCP tools` blocks, both generated and manual) and the `## Notes for future
+  maintainers` roadmap subsection in `odoo-onboarding` carried no signal for an executing agent and
+  were removed. The IDE-adapter snippets keep their stamp (they target non-Claude clients).
 
 ## [3.8.0] - 2026-06-12
 

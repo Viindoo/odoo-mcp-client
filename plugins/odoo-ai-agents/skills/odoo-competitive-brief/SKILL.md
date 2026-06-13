@@ -43,7 +43,6 @@ prioritizes what the user already knows — it does NOT invent competitive facts
 ## MCP tools
 
 <!-- BEGIN MANUAL TOOLS — odoo-competitive-brief -->
-_Tool surface: server v0.13.1._
 
 **Optional — call only when grounding "your platform has X" or "Odoo can't do Y" claims:**
 - `profile_inspect` — Profile-level introspection (`method='summary'|'repos'|'modules'`): inheritance

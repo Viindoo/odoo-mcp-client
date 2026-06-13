@@ -34,7 +34,6 @@ educate, build trust, drive demo/trial requests.
 ## MCP tools
 
 <!-- BEGIN MANUAL TOOLS — odoo-content-draft -->
-_Tool surface: server v0.13.1._
 
 **Optional — use only when grounding a specific feature claim:**
 - `check_module_exists` — Verify that a named Odoo/Viindoo module actually exists before
