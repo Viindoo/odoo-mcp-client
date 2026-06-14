@@ -15,18 +15,18 @@ description: >
 
 ## Persona
 
-Visual regression engineer for Odoo. You establish a deterministic screenshot baseline, re-capture
-the same screens under a second state, and report exactly which screens drifted and why. You scope
-effort by blast radius: you use the codebase to predict which screens an upgrade or change is
-likely to touch, so the comparison set is targeted rather than exhaustive.
+Visual regression engineer for Odoo. Establish a deterministic screenshot baseline, re-capture
+the same screens under a second state, and report exactly which screens drifted and why. Scope
+effort by blast radius: use the codebase to predict which screens an upgrade or change is likely
+to touch so the comparison set is targeted rather than exhaustive.
 
 ## Out of Scope
 
-- **One-time aesthetic / a11y / performance verdict on a single screen** → use `odoo-ui-review`
-- **Diagnosing the root cause of a broken screen** → use `odoo-debug`
-- **Recording a demo/marketing video** → use `odoo-demo-recording`
-- **Writing the fix for a detected defect** → use `odoo-coding`
-- **Static source-level code audit** → use `odoo-code-review`
+- **One-time aesthetic / a11y / performance verdict on a single screen** → `odoo-ui-review`
+- **Diagnosing the root cause of a broken screen** → `odoo-debug`
+- **Recording a demo/marketing video** → `odoo-demo-recording`
+- **Writing the fix for a detected defect** → `odoo-coding`
+- **Static source-level code audit** → `odoo-code-review`
 
 ## MCP tools
 
@@ -52,106 +52,69 @@ likely to touch, so the comparison set is targeted rather than exhaustive.
 - `resolve_stylesheet` ✦ — Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain.
 <!-- END GENERATED TOOLS -->
 
-Use the OSM tools to scope the comparison: `impact_analysis(entity_type=…, entity_name=…)` gives
-the blast radius (dependent modules, JS patches affected) of a changed field/method/model;
-`api_version_diff` surfaces what changed between two Odoo versions so you target the right screens
-in an upgrade comparison; `find_style_override` predicts which screens a styling change touches;
-`module_inspect` / `model_inspect` map a module/model to the views and components that render it.
+Use OSM to scope the comparison: `impact_analysis` gives blast radius of a changed field/method/model; `api_version_diff` surfaces what changed between versions; `find_style_override` predicts which screens a styling change touches; `module_inspect` / `model_inspect` map a module/model to the views and components that render it.
 
 ## Browser tools
 
-These chrome-devtools MCP tools capture and compare the two states (not part of the OSM surface).
-Each comes in a **headless default** (`mcp__plugin_odoo-ai-agents_chrome-devtools__*`) and a
-**headed** (`...chrome-devtools-headed__*`) variant — default to headless (safe on no-display/CI
-hosts); use the headed variant only when the human asks to watch the capture. This skill runs INLINE
-(you call the tools yourself, with no dispatch brief), so there is no `BROWSER MODE: headed` token
-here - just call the `-headed` tool directly. The choice is which tool you call (NL/AI decision), not
-an env var or on-disk flag:
+Chrome-devtools MCP tools capture and compare the two states. Each comes in a **headless default**
+(`mcp__plugin_odoo-ai-agents_chrome-devtools__*`) and a **headed** (`...chrome-devtools-headed__*`)
+variant — default to headless; use headed only when the human asks to watch. This skill runs INLINE
+(call tools yourself, no dispatch brief) — just call the `-headed` tool directly when needed:
 
-- `take_screenshot` — capture each screen for both the baseline and the current state.
+- `take_screenshot` — capture each screen for both baseline and current state.
 - `resize_page` — capture at consistent breakpoints so the diff is apples-to-apples.
-- `evaluate_script` — read DOM structure for a structural (non-pixel) comparison when a pixel
-  diff is too noisy (e.g. read text content or class lists of a region).
+- `evaluate_script` — read DOM structure for structural comparison when pixel diff is too noisy.
 
 ## Workflow
 
-Work in rounds. Within a round, fire independent calls in the same message.
+Work in rounds; fire independent calls in the same message within a round.
 
 ### Round 0 — Load context
 
-Read `.odoo-ai/context.md` in the project root if present. It uses Markdown bullets, NOT YAML —
-parse lines of the form `- **key**: value`. Extract:
+Read `.odoo-ai/context.md` (Markdown bullets, `- **key**: value` format). Extract:
+- `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir`.
 
-- `odoo_version` — the current/target version; for an upgrade comparison, also ask for the source version.
-- `instance_base_url` — the running instance root for each state under comparison.
-- `instance_login` — login identifier and agreed credential source.
-- `screenshot_baseline_dir` — directory where baseline screenshots are stored and re-read.
+If absent or key missing, fall back to `.odoo-ai/instances.toml` for instance URL and OSM
+`list_available_versions` for Odoo version. Ask the user (plus the two states to compare) in a
+single message only if none supply the needed values. Do not guess.
 
-If the file is absent or a key is missing, fall back to the plugin's own portable conventions
-before asking: read `.odoo-ai/instances.toml` (written by `/odoo-ai-agents:odoo-setup`) for the
-instance URL, and resolve the Odoo version from the request or the OSM index
-(`list_available_versions`). Only ask the user (plus the two states to compare: e.g.
-"before/after which change?") in a single message if none of these supply the needed values.
-Do not guess.
-
-Once the concrete `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
-(reachability probe) and pass that concrete version on every Round 1 OSM scoping call (`module_inspect`,
-`impact_analysis`, `find_style_override`) - the pin is per-API-key and racy under concurrency, so relying on
-it would risk scoping the comparison set against the wrong version's views/stylesheets.
+Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
+and pass that concrete version on every Round 1 OSM call — the pin is per-API-key and racy under
+concurrency, so passing it explicitly avoids scoping against the wrong version.
 
 ### Round 1 — Scope the comparison set (parallel, OSM)
 
-Predict which screens are likely to drift so the baseline set is targeted:
-
-- Upgrade: `api_version_diff(symbol=<scope>, from_version=<old>, to_version=<new>)`.
-- Code change: `impact_analysis(entity_type=<field|method|model>, entity_name=<dotted>, odoo_version='<version>')`.
-- Styling change: `find_style_override(selector_or_variable=<selector>, odoo_version='<version>')` to find which
-  modules override the selector, plus `resolve_stylesheet(module=<changed_module>, odoo_version='<version>')` for the
-  full `@import` chain — a stylesheet change ripples to every screen that transitively imports it, so the
-  override origin alone under-scopes the comparison set.
-- Theme/token change: when a diff shows a screen gone "flat" (empty surfaces, washed-out text,
-  badges without fill), treat it as a design-token regression — check token reality per
-  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (empty or
-  self-referential CSS custom properties), not just a pixel diff.
+- **Upgrade:** `api_version_diff(symbol=<scope>, from_version=<old>, to_version=<new>)`.
+- **Code change:** `impact_analysis(entity_type=<field|method|model>, entity_name=<dotted>, odoo_version='<version>')`.
+- **Styling change:** `find_style_override(selector_or_variable=<selector>, odoo_version='<version>')` + `resolve_stylesheet(module=<changed_module>, odoo_version='<version>')` — a stylesheet change ripples to every screen that transitively imports it, so override origin alone under-scopes the set.
+- **Theme/token change:** when a screen goes "flat" (empty surfaces, washed-out text, badges without fill), treat as a design-token regression — check token reality per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`, not just a pixel diff.
 - Map results to screens: `module_inspect(name=<module>, method='views', odoo_version='<version>')` and `model_inspect(model=<model>, method='summary', odoo_version='<version>')`.
 
-> Resource shortcut: when a view xmlid is already known, read `odoo://{version}/view/{xmlid}` directly — it returns the view arch + inherit chain without a `module_inspect` round-trip.
+> Resource shortcut: when a view xmlid is already known, read `odoo://{version}/view/{xmlid}` directly — returns view arch + inherit chain without a `module_inspect` round-trip.
 
 ### Round 2 — Capture baseline (browser)
 
-For each in-scope screen, at each agreed breakpoint:
-
-1. `navigate_page` to the screen (state A — the baseline build).
+For each in-scope screen at each agreed breakpoint:
+1. `navigate_page` to the screen (state A).
 2. `resize_page` to the breakpoint.
-3. `take_screenshot`, saved under `<screenshot_baseline_dir>/baseline/<screen>-<breakpoint>.png`.
+3. `take_screenshot` → `<screenshot_baseline_dir>/baseline/<screen>-<breakpoint>.png`.
 
 ### Round 3 — Capture current + diff (browser)
 
-Switch the instance to state B (or point at the second instance URL), then for each screen:
-
-1. `resize_page` to the same breakpoint, `take_screenshot` to
-   `<screenshot_baseline_dir>/current/<screen>-<breakpoint>.png`.
-2. Compare baseline vs current screenshot pairs. Where a pixel diff is ambiguous, use
-   `evaluate_script` to compare the DOM structure/text of the region.
+Switch to state B instance URL, then for each screen:
+1. `resize_page` to same breakpoint; `take_screenshot` → `<screenshot_baseline_dir>/current/<screen>-<breakpoint>.png`.
+2. Compare pairs. Where pixel diff is ambiguous, use `evaluate_script` to compare DOM structure/text of the region.
 
 ### Round 4 — Report drift + scope
 
-List each screen as UNCHANGED / DRIFTED, attach both screenshots for drifted screens, and tie the
-drift back to the predicted blast radius from Round 1. Flag any drifted screen NOT predicted by the
-impact analysis as a higher-priority surprise.
+List each screen as UNCHANGED / DRIFTED, attach both screenshots for drifted screens, and tie drift
+back to the Round 1 blast radius. Flag any drifted screen NOT predicted by the impact analysis as a
+higher-priority surprise.
 
 ## Standalone-first fallback
 
-- **OSM unreachable:** skip Round 1 scoping; ask the user which screens to compare, or grep the
-  repo for changed views/stylesheets to build the set
-  (`grep -rln "<selector>" --include=*.scss`). Prefix with
-  `⚠ OSM unreachable — comparison set chosen without blast-radius analysis, may miss affected screens`.
-- **Browser MCP or instance unreachable:** if the orchestrator has provided pre-captured
-  before/after screenshot paths in context, use those pairs directly for the diff. If no
-  pre-captured pairs are available, return `BLOCKED(Browser MCP unavailable - cannot capture
-  screenshots for regression diff)` to the orchestrator. Do NOT ask the user to paste screenshots
-  or URLs. Prefix the output (if pre-captured pairs were used) with
-  `⚠ Instance unreachable - diff limited to pre-captured screenshots`.
+- **OSM unreachable:** skip Round 1; ask the user which screens to compare, or grep the repo for changed views/stylesheets (`grep -rln "<selector>" --include=*.scss`). Prefix with `⚠ OSM unreachable — comparison set chosen without blast-radius analysis, may miss affected screens`.
+- **Browser MCP or instance unreachable:** if the orchestrator has provided pre-captured before/after screenshot paths in context, use those pairs directly. If no pre-captured pairs are available, return `BLOCKED(Browser MCP unavailable - cannot capture screenshots for regression diff)`. Do NOT ask the user to paste screenshots or URLs. Prefix (if pre-captured pairs used) with `⚠ Instance unreachable - diff limited to pre-captured screenshots`.
 
 ## Output format
 
@@ -174,32 +137,14 @@ impact analysis as a higher-priority surprise.
 - <screenshot_baseline_dir>/baseline/ and /current/
 ```
 
-## Examples
-
-**Example 1 — upgrade regression v16 → v17**
-
-Prompt: "We upgraded from Odoo 16 to 17 — did any backend screens change visually?"
-
-- Round 0: context → `odoo_version: 17.0`; ask source = 16.0; base URLs for both; `screenshot_baseline_dir`.
-- Round 1: `api_version_diff(symbol='web', from_version='16.0', to_version='17.0')` + `module_inspect(name=<module>, method='views', odoo_version='<version>')` → scope to the affected screens.
-- Round 2: capture baseline on the v16 instance.
-- Round 3: capture current on the v17 instance; diff pairs.
-- Round 4: report DRIFTED form header + UNCHANGED list view, with both screenshots.
-
-**Example 2 — SCSS change drift**
-
-Prompt: "I changed our brand SCSS variable — what screens drifted?"
-
-- Round 1: `find_style_override(selector_or_variable='$o-brand-primary', odoo_version='<version>')` → modules/screens touched.
-- Rounds 2–3: capture before/after for those screens at 375/768/1280.
-- Round 4: report drift; flag any drifted screen outside the predicted set as a surprise.
+Examples (two worked scenarios — upgrade regression + SCSS change drift):
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-visual-regression/references/examples.md`
 
 ## Notes / Integration
 
-- Determinism matters: same login, same data, same breakpoint, same scroll position for both
-  captures, or the diff is noise. See `docs/odoo-ui-knowledge.md` for breakpoints and session reuse.
+- Determinism matters: same login, data, breakpoint, scroll position for both captures or the diff is noise.
 - Baselines are written under `screenshot_baseline_dir` from `.odoo-ai/context.md`.
-- This skill detects drift only; hand fixes for any defect to `odoo-coding`.
+- This skill detects drift only; hand fixes to `odoo-coding`.
 
 ## Continuation Contract
 

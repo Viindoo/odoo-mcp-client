@@ -18,12 +18,7 @@ description: >
 
 ## Persona
 
-Strategist / CEO — one-person or small leadership team needing competitive intelligence
-in synthesized, board-ready form. The output must be usable directly in board decks,
-investor updates, or strategic planning sessions without further reformatting.
-
-The skill respects that the CEO is the primary intelligence source. It structures and
-prioritizes what the user already knows — it does NOT invent competitive facts.
+Strategist / CEO needing competitive intelligence in board-ready form — usable directly in board decks, investor updates, or strategy sessions. The CEO is the primary intelligence source; this skill structures and prioritizes what the user already knows. It does NOT invent competitive facts.
 
 ---
 
@@ -65,38 +60,28 @@ intelligence. MCP is additive verification only — never a blocker.
 
 ## Workflow
 
-### Round 0 — Scope confirmation (ask at most 1 question if scope is vague)
+### Round 0 — Scope confirmation (at most 1 question)
 
-Before proceeding, identify:
-1. **Subject** — a named competitor OR a landscape question (e.g., "ERP for F&B vertical").
-2. **Scope dimensions** — one or more of: Product / Pricing / GTM / Positioning / All.
-3. **Output use** — board deck, investor update, internal strategy session, quick scan.
+Identify: (1) subject (named competitor or landscape question), (2) scope (Product / Pricing / GTM / Positioning / All), (3) output use (board deck / investor update / internal / quick scan).
 
-If the user's prompt already specifies a competitor name and at least one scope dimension,
-skip Round 0 and proceed directly to Round 1.
+If prompt already names a competitor and ≥1 scope dimension, skip to Round 1.
 
-If subject or scope is missing, ask ONE clarifying question:
-> "Which competitor would you like a brief on, and which aspect should we focus on (product / pricing /
-> GTM / positioning, or all)? Level of detail: quick scan or board-deck depth?"
+Otherwise, ask ONE question:
+> "Which competitor, which aspect (product / pricing / GTM / positioning / all), and depth (quick scan or board-deck)?"
 
-Do NOT ask multiple questions. Make reasonable defaults if user is partially specific.
+Make reasonable defaults if user is partially specific.
 
 ---
 
 ### Round 1 — Competitor snapshot
 
-**Pre-Round (agent self-serve before marking anything Unknown):**
+**Pre-Round (self-serve before marking Unknown):**
 
-Before marking any field Unknown, attempt to fill it from available sources:
-1. `Read` the vault dossier at `Resources/Competitors/<name>.md` if it exists.
-2. `WebSearch` `"<competitor> features pricing"` (or `"<competitor> Vietnam ERP"` for
-   local players) to surface public product/pricing pages, LinkedIn About, or press
-   releases.
-3. `WebFetch` the competitor's pricing or features page when a URL is discoverable.
+1. `Read` vault dossier `Resources/Competitors/<name>.md` if it exists.
+2. `WebSearch` `"<competitor> features pricing"` (or `"<competitor> Vietnam ERP"` for local players).
+3. `WebFetch` competitor pricing/features page when URL is discoverable.
 
-Pre-fill every field from the above tiers. Only then mark fields as `Unknown` when all
-three tiers return no signal - never invent. Quote the source inline for any field
-populated from an external fetch.
+Pre-fill every field from these tiers. Only mark `Unknown` when all three return no signal. Quote source inline for any external fetch. Never invent.
 
 Required fields:
 - **Name** — formal company name
@@ -143,49 +128,30 @@ marking + / - / =.
 
 ### Round 3 — GTM moves (observed)
 
-List only signals the user has explicitly provided or pasted. Do NOT invent or infer.
+List only user-provided signals. Do NOT invent or infer. For each: move type, date/quarter, source type.
 
-For each move, capture:
-- What the move is (product launch, pricing change, partnership, hire, campaign)
-- Approximate date or quarter if known
-- Source / evidence type (press release / LinkedIn / customer report / conference)
-
-If no GTM signals are available, output:
-> _No GTM signals provided. Recommend monitoring: [competitor's blog / LinkedIn /
-> industry press] for announcements._
+If none available: _No GTM signals provided. Recommend monitoring: [competitor's blog / LinkedIn / industry press]._
 
 ---
 
 ### Round 4 — Threat assessment
 
-Score each dimension from Round 2 by threat level: **Low / Med / High / Critical**.
+Score each Round 2 dimension: Low / Med / High / Critical.
 
-Threat level criteria:
-- **Low** — competitor weak or absent in this dimension; your platform has clear advantage
-- **Med** — competitive parity or minor competitor edge; worth watching
-- **High** — competitor has material advantage in a dimension that matters to target segment
-- **Critical** — competitor advantage is large AND in a dimension central to your platform's
-  core value proposition
+| Level | Meaning |
+|---|---|
+| Low | Competitor weak/absent; your platform has clear advantage |
+| Med | Parity or minor competitor edge; watch |
+| High | Competitor has material advantage in a segment-relevant dimension |
+| Critical | Large advantage AND central to your platform's core value prop |
 
-Cite specific signals for each High/Critical rating. Do not assign High/Critical without
-a stated signal from Round 1/3.
-
-Aggregate overall threat: Low / Med / High / Critical — explain rationale in 2-3 sentences.
+Cite signals for each High/Critical. Do not assign High/Critical without a Round 1/3 signal. Aggregate overall threat in 2-3 sentences.
 
 ---
 
 ### Round 5 — Recommended response
 
-Produce 3-5 actionable moves, prioritized by urgency and effort.
-
-For each recommendation:
-- State the action (what)
-- Identify likely owner: CEO / Product / Marketing / Sales / Partner
-- Suggest timeline: Immediate (<30 days) / Short-term (30-90 days) / Medium-term (90+ days)
-- Note the dependency or blocker if any
-
-Recommendations must be grounded in threat signals from Round 4 — do not recommend
-generic strategic moves without linking them to a specific threat.
+3-5 actionable moves, prioritized by urgency. For each: action (what) + owner (CEO/Product/Marketing/Sales/Partner) + timeline (Immediate/Short-term/Medium-term) + dependency/blocker if any. Must link to a specific Round 4 threat signal — no generic strategic moves.
 
 ---
 
@@ -287,92 +253,18 @@ _What additional intelligence would sharpen this brief:_
 
 ## Standalone-first fallback
 
-When OSM is unreachable or not configured:
-- Skip `check_module_exists` and `find_examples` calls entirely.
-- Where a platform capability claim cannot be verified, insert placeholder:
-  `<TBD: verify via odoo-feature-check — module_name>`
-- Proceed with the full brief using user-provided data and training knowledge for
-  your platform baseline.
-- Add a footer note to the output:
-  > _OSM not connected. Platform capability claims marked `<TBD>` should be verified
-  > before using in board or investor materials._
-
-The brief remains useful for internal strategy sessions even without OSM verification.
+When OSM is unreachable: skip MCP calls entirely. Insert `<TBD: verify via odoo-feature-check — module_name>` for unverifiable capability claims. Proceed with full brief on user-provided data + training knowledge. Add footer: _OSM not connected. `<TBD>` claims should be verified before board/investor use._
 
 ---
 
 ## Examples
 
-### Example 1 — Vietnam ERP incumbent (local-market player)
-
-**User prompt:** "need competitive brief on Competitor A — they just launched a new SME package,
-focus on accounting and HR, pricing around X per year. I need a deck for board next week."
-
-**Skill action:**
-- Round 0: scope is clear (Product + Pricing, board deck) — skip clarification.
-- Round 1: Extract from user statement — target segment SME, Accounting + HR modules, published pricing.
-  Mark unknown fields (HQ, headcount, parent).
-- Round 2: Build matrix. Competitor strengths likely in pricing (published + competitive),
-  your platform strengths in module breadth, EE features. Mark unknown dimensions as `?` — do not infer.
-- Round 3: GTM move = new SME bundle launch. Source = user statement. Date = user-stated.
-- Round 4: Threat High on Pricing (competitive), Med on feature depth (both have core HR/Accounting),
-  Low on AI/automation (not mentioned). Overall threat: Med.
-- Round 5: Recommend (1) Counter-bundle packaging review — Owner: CEO/Product, Immediate;
-  (2) Publish pricing comparison — Owner: Marketing, Short-term; (3) Accelerate HR compliance
-  feature — Owner: Product, Medium-term.
-
-**Note:** This template applies to any competitor with local market presence, published pricing,
-and focus on SME segment. Do not hardcode specific competitor names.
-
----
-
-### Example 2 — International SaaS player entering Vietnam
-
-**User prompt:** "Competitor B is international SaaS, just opened Vietnam office with a major partner
-in HCM. They're pushing hard into manufacturing. Need quick threat assessment."
-
-**Skill action:**
-- Round 0: scope is Product + GTM + threat assessment, quick scan. Proceed.
-- Round 1: International HQ, Vietnam entry-stage (new office), partner announcement,
-  Manufacturing focus. Headcount and pricing unknown — mark `?`.
-- Round 2: Competitor strengths likely in global integration ecosystem and AI
-  (international SaaS). Your platform strengths in localization and local support.
-  Manufacturing depth: mark `?` for competitor until user provides data.
-- Round 3: GTM moves = office opening + partner announcement. Source = user statement.
-- Round 4: Threat High on Integration ecosystem (international SaaS breadth),
-  Med on Manufacturing vertical (needs data), Low on localization (new entrant),
-  High on Partner ecosystem (named major partner). Overall threat: Med-High.
-- Round 5: Recommend (1) Accelerate Manufacturing case studies — Owner: Marketing,
-  Short-term; (2) Engage Manufacturing sector before competitor — Owner: CEO/Sales,
-  Immediate; (3) Monitor partner's customer wins — Owner: CEO, Ongoing.
-
-**Note:** This template applies to any international SaaS entering a specific vertical
-via local partnerships. Adjust threat ratings based on user-provided signals.
-
----
+See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-competitive-brief/references/examples.md` for 2 worked examples (Vietnam ERP incumbent, international SaaS entering Vietnam).
 
 ## Notes
 
-### `.odoo-ai/context.md` integration
-
-If the project has an `.odoo-ai/context.md` file, the skill will read it for:
-- Your platform's current product roadmap signals (to inform capability matrix and response recommendations)
-- Known active competitors already tracked by the team
-
-The skill reads vault competitor dossiers directly at `Resources/Competitors/<name>.md`
-rather than asking the caller to paste them. If the dossier is present on disk, its
-content is loaded as part of Round 1 Pre-Round automatically.
-
-### Confidentiality notice
-
-Competitive intelligence is sensitive. This skill structures information YOU provide —
-it does not access external competitive databases, does not invent pricing or GTM facts,
-and does not retain information between sessions. Treat the output as internal-only
-unless you have independently verified all claims before sharing externally.
-
-When sharing the brief output outside the organization (e.g., with investors or partners),
-remove or redact signals sourced from customer conversations, partner disclosures, or
-non-public channels.
+- **Context integration**: read `.odoo-ai/context.md` for platform roadmap signals and active competitor list. Load vault dossier `Resources/Competitors/<name>.md` automatically in Round 1 Pre-Round if it exists.
+- **Confidentiality**: this skill structures information YOU provide. No external competitive databases; no invented pricing or GTM facts; no session retention. Treat output as internal-only. Remove/redact signals from customer conversations or partner disclosures before sharing externally.
 
 ## Continuation Contract
 

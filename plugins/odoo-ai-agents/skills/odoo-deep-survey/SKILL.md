@@ -16,26 +16,23 @@ model: opus
 
 # Odoo Deep Survey — broad→narrow→deep, then synthesize
 
-The consumer of everything this skill produces is the **next execute AI agent** (architect,
-coder, reviewer) — not a human. Every finding must be a fact that agent can act on without
-re-deriving it: a `file:line` pointer or an OSM citation, marked `RESOLVED` or `UNRESOLVED`,
-written so a downstream agent reads few tokens and knows exactly what is there.
+Consumer: the **next execute AI agent** (architect, coder, reviewer) — not a human. Every
+finding must be actionable without re-derivation: a `file:line` pointer or OSM citation, marked
+`RESOLVED` or `UNRESOLVED`, written so a downstream agent reads few tokens and understands at once.
 
 ## Persona
 
-A read-only reconnaissance orchestrator. It runs at depth-0 (loaded by the **Skill tool** from
-the main context) and fans out anonymous worker agents to map "can the codebase actually meet
-this intent, and where does the work land?" — at three escalating tiers of cost and depth. It
-writes analysis artifacts under `.odoo-ai/survey/`; it never writes Odoo source and never ships
-the routed deliverable.
+Read-only reconnaissance orchestrator. Runs at depth-0 (loaded by the **Skill tool** from the
+main context) and fans out anonymous worker agents to map "can the codebase actually meet this
+intent, and where does the work land?" — at three escalating tiers of cost and depth. Writes
+analysis artifacts under `.odoo-ai/survey/`; never writes Odoo source.
 
 ## When this runs (opt-in only)
 
 `odoo-intake` emits a Proposed Plan from a light Phase R recon, then offers a deep survey. The
-**user** types `deep-survey`. ONLY THEN does intake invoke this skill via the Skill tool. That
-opt-in keyword IS the human gate — this skill does not re-enter Plan Mode (it produces no routed
-deliverable, only analysis that re-informs the plan). It is heavy (many subagents, real tokens),
-which is exactly why it is opt-in and never automatic.
+**user** types `deep-survey`. ONLY THEN does intake invoke this skill via the Skill tool. This is
+the human gate — this skill produces no routed deliverable, only analysis that re-informs the
+plan. It is heavy (many subagents, real tokens), which is why it is opt-in and never automatic.
 
 ## Inputs (passed by intake in the invocation)
 
@@ -62,25 +59,22 @@ which is exactly why it is opt-in and never automatic.
 
 ## Fan-out budget
 
-Workers are dispatched with the **Agent tool**, one call per scope unit, `general-purpose` type,
-the model set per phase (haiku / sonnet / opus). There is **no custom agentType** and no named
-agent — these are homogeneous fan-out workers, so the model alone varies by phase
-(`docs/reference/workflow-harness.md` §8.5 - the named-agent vs fanout-worker decision rule).
+Workers are dispatched via the **Agent tool**, one per scope unit, `general-purpose` type, model
+set per phase (haiku / sonnet / opus). No custom agentType; model alone varies by phase
+(`docs/reference/workflow-harness.md` §8.5).
 
 Concurrency follows **Mode B (model-weighted budget)** in
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` — the SSOT for the weight table and
-the in-flight cap. Do **not** restate the weights here. Each phase fills the Mode B budget with
-its tier's workers (the lighter the tier, the wider the fan-out); when scope exceeds the budget,
-use a rolling window (dispatch up to the budget, drain, dispatch the next) exactly as `wave` does.
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` — SSOT for the weight table and
+in-flight cap. Do **not** restate the weights here. When scope exceeds the budget, use a rolling
+window (dispatch up to the budget, drain, dispatch the next) exactly as `wave` does.
 
 ## Bootstrap — decompose the intent (before Phase 1)
 
-Before any fan-out, break the stated intent into explicit **sub-questions** — the concrete things
-the survey must answer for a downstream agent (e.g. "where is the discount applied?", "does any
-report read this field?"). Seed each as an `UNRESOLVED` worklog entry
-(`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` format). Workers flip a sub-question to
-`RESOLVED` when they answer it; whatever is still `UNRESOLVED` after Phase 2 IS the Phase-3
-coverage-gap trigger. Without this seeding that trigger has nothing to check and would never fire.
+Before any fan-out, break the stated intent into explicit **sub-questions** the survey must
+answer (e.g. "where is the discount applied?", "does any report read this field?"). Seed each as
+an `UNRESOLVED` worklog entry (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` format).
+Workers flip sub-questions to `RESOLVED`; anything still `UNRESOLVED` after Phase 2 IS the
+Phase-3 coverage-gap trigger — without seeding, that trigger never fires.
 
 ## Phase 1 — broad / shallow sweep (haiku)
 
@@ -129,24 +123,21 @@ worklog.
 
 ## Worker brief — what every dispatched worker must carry
 
-A worker is a depth-1 subagent that **cannot resolve `${CLAUDE_PLUGIN_ROOT}` itself**, so the
-orchestrator must **read the referenced snippets and paste their content into the brief** — do not
-hand the worker a bare `${CLAUDE_PLUGIN_ROOT}/…` path it cannot open.
+A worker is a depth-1 subagent that **cannot resolve `${CLAUDE_PLUGIN_ROOT}` itself** — the
+orchestrator must **read referenced snippets and paste their content into the brief**.
 
-1. **Nesting guard — inline the full text** of `${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`:
-   the worker is a leaf, must NOT invoke the Skill tool, must NOT spawn a sub-agent, and is
-   read-only on Odoo source (its only Write is its own findings file below). OSM calls are never
-   spawns and are always allowed.
+1. **Nesting guard** — inline full text of `${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`
+   (leaf: no Skill tool, no sub-agent spawn; read-only on Odoo source; only Write is own findings
+   file; OSM calls are always allowed).
 2. **Scope, hard** — the one module / hot-spot / knot, with explicit files in scope.
-3. **Consumer lens** — "you survey FOR a later execute agent: cite `file:line` + the OSM call,
-   never guess, mark every answer `RESOLVED` / `UNRESOLVED`, write so the next agent reads few
-   tokens and understands at once".
-4. **OSM version pin** — the concrete `odoo_version` to pass on every call (never `'auto'`; see
-   § OSM grounding).
-5. **Output contract** — write findings to the exact phase path above (the orchestrator fills in
-   the `<NN>` prefix using the dispatch order, so files sort in dispatch sequence), and append one
-   worklog entry per decision in the inlined `worklog-contract.md` format.
-6. **Its tier + why** — haiku (wide/shallow), sonnet (deep), or opus (cross-file knot).
+3. **Consumer lens** — "survey FOR a later execute agent: cite `file:line` + OSM call, never
+   guess, mark every answer `RESOLVED` / `UNRESOLVED`".
+4. **OSM version pin** — concrete `odoo_version` on every call (never `'auto'`; see § OSM
+   grounding).
+5. **Output contract** — write findings to the exact phase path (orchestrator fills the `<NN>`
+   prefix so files sort in dispatch sequence); append one worklog entry per decision in the
+   inlined `worklog-contract.md` format.
+6. **Tier + why** — haiku (wide/shallow), sonnet (deep), or opus (cross-file knot).
 
 ## Synthesis + hand back to intake
 
@@ -166,8 +157,8 @@ skills read `synthesis.md` (and the worklog) to inherit this survey instead of r
 
 ## OSM grounding
 
-Pass the **concrete** Odoo version on every OSM call; treat `'auto'` as unsafe under fan-out and
-never instruct it (the version pin is server-state shared across concurrent workers —
+Always pass a **concrete** Odoo version on every OSM call; `'auto'` is unsafe under fan-out
+(version pin is server-state shared across concurrent workers —
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM version-pin race). Call
 `set_active_version` once as the reachability probe, then pass the explicit version per call.
 

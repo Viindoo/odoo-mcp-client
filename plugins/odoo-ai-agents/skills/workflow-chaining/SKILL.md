@@ -16,35 +16,24 @@ model: inherit
 
 ## Persona
 
-Orchestration engine for the composition layer. This skill has no domain of its own; it
-executes whatever workflow contract it is handed. It acts as a neutral conductor: it reads
-the YAML, announces each phase, gates on user approval, dispatches the right specialist via
-NL, and writes checkpoints. It does not make domain decisions — those are encoded in the
-`.workflow.yaml` file and in the specialist skills it dispatches to.
-
-Target invoker: the `odoo-intake` skill or `odoo-concierge`, after a user approves a multi-step
-workflow plan at the soft-plan-gate.
+Neutral orchestration engine: reads the YAML, announces each phase, gates on user approval,
+dispatches specialists via NL, writes checkpoints. No domain knowledge — that lives in the
+`.workflow.yaml` and the specialist skills. Invoked by `odoo-intake` or `odoo-concierge` after
+a user approves a multi-step workflow plan at the soft-plan-gate.
 
 ## Hard rules
 
-1. **NEVER invoke the Skill tool.** All cross-skill dispatch uses NL description-match
-   (write a natural-language prompt that matches the target skill's `description` field).
-2. **NEVER spawn a sub-agent directly** (no Agent tool, no `context: fork` from within
-   this skill body — fan-out is the only exception and uses ≤3 concurrent workers with the
-   mandatory hard-rules line).
-3. **Depth-2 ceiling.** This skill runs at depth 1 (called from the main context). Fork
-   workers are depth 2 and carry the mandatory line: "Do NOT invoke Skill tool. Do NOT
-   spawn sub-agent. Only Read/Grep/Glob/Write/Bash."
-4. **No execution before gate.** Emit a gate before each phase and wait for `approve /
-   refine: [feedback] / cancel` before dispatching the phase.
-5. **Resume from checkpoint.** If `resume: true` and a state file exists at
-   `<output_dir>/<slug>-state.json` (where `output_dir` is the full `.odoo-ai/...`
-   path declared in the YAML), read it and skip already-completed phases.
-6. **SSOT for schema.** The full field reference lives in `workflows/_schema.md`. This
-   skill body describes behavior, not schema.
-7. **on_complete EMITs, never dispatches.** A matched `on_complete` transition is added to the
-   Continuation Contract `next[]` for the depth-0 run-driver to dispatch — this skill never
-   fires a spawner itself (see "on_complete — cross-workflow transition" below).
+1. **NEVER invoke the Skill tool.** Cross-skill dispatch uses NL description-match only.
+2. **NEVER spawn a sub-agent directly** (no Agent tool, no `context: fork` — fan-out is the
+   only exception, ≤3 concurrent workers with the mandatory nesting-guard line).
+3. **Depth-2 ceiling.** This skill runs at depth 1. Fork workers are depth 2 and carry:
+   "Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash."
+4. **No execution before gate.** Emit a gate before each phase; wait for approval.
+5. **Resume from checkpoint.** If `resume: true` and `<output_dir>/<slug>-state.json` exists
+   (`output_dir` is the full `.odoo-ai/...` path from the YAML), load it and skip done phases.
+6. **SSOT for schema** → `workflows/_schema.md`. This body describes behavior, not schema.
+7. **on_complete EMITs, never dispatches.** Matched transitions go to Continuation Contract
+   `next[]` for the depth-0 run-driver — this skill never fires a spawner itself.
 
 ## Phase 0 — Load and validate
 
@@ -77,15 +66,10 @@ Wait for user response before proceeding to Phase 1.
 
 Run phases in order. Before each phase:
 1. Announce: "## Phase <id> — <description from nl_trigger>"
-2. If the phase declares a `when:` predicate, evaluate it against the current state
-   (e.g. a prior phase's classification). If it is **false, skip this phase entirely**
-   — no gate, no dispatch, no output — and continue to the next phase. This lets a
-   Pipeline carry mutually-exclusive conditional branches (e.g. a `bug` path vs a
-   `feature-request` path where exactly one fires).
-3. If `gate` is set on this phase, emit the gate and wait for approval.
-4. Dispatch via NL: write a prompt that naturally matches the target skill's `description`.
-   For `inline: true` phases, handle the work in-line without dispatching.
-5. After phase completes, write output to `output_dir` and update the state checkpoint.
+2. If `when:` predicate is false, **skip entirely** (no gate, no dispatch, no output).
+3. If `gate` is set, emit gate and wait for approval.
+4. Dispatch via NL; for `inline: true` phases, handle in-line.
+5. Write output to `output_dir` and update the state checkpoint.
 
 ### Phase output contract
 
@@ -106,43 +90,32 @@ phase boundaries remain clearly visible throughout a multi-phase run.
 ### Fan-out / Fan-in (parallel workers, ≤3 concurrent)
 
 For phases marked `fanout: true` with a `chunk_by` field:
-1. Split the input into chunks according to `chunk_by`.
-2. Cap concurrent workers at 3 (Mode A - see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).
+1. Split input into chunks per `chunk_by`.
+2. Cap at 3 concurrent workers (Mode A - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).
 3. Each worker prompt MUST begin with the nesting guard
-   (${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md): "Do NOT invoke the Skill tool. Do NOT
-   spawn a sub-agent. Only Read/Grep/Glob/Write/Bash." For any worker that touches Odoo
-   (classifies modules, writes/reviews code, makes capability claims), also include the
-   OSM-First Grounding Contract (${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md):
-   verify every Odoo model/field/CLI/token claim via OSM before asserting, reuse indexed
-   patterns before hand-writing, and flag "OSM unavailable — ungrounded" if OSM is down —
-   never classify or code Odoo from memory.
-4. Aggregate worker results before proceeding to the next phase.
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`). For Odoo-touching workers also inline
+   the OSM-First Grounding Contract (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`).
+4. Aggregate worker results before proceeding.
 
 ### Expert-Pool (predicate-based specialist selection)
 
-For phases with `when:` predicates:
-1. Evaluate the predicate against the current item.
-2. Select the matching specialist skill and dispatch via NL.
-3. If no predicate matches, fall through to the `fallback` specialist if declared.
+Evaluate `when:` predicate against the current item; dispatch the matching specialist via NL.
+If no predicate matches, fall through to the `fallback` specialist if declared.
 
 ### Producer-Reviewer (produce + review pair)
 
-Execute the `produce` phase first (NL-dispatch to producer skill). Then execute the
-`review` phase with explicit instruction: "review the output for correctness — report
-findings, do not fix". The reviewer reads the produced artifact and emits a review report.
-Gate between produce and review.
+Dispatch producer first (NL). Then dispatch reviewer with: "review the output for correctness —
+report findings, do not fix". Gate between produce and review.
 
 ### Supervisor (inline distribution)
 
-The supervisor phase is `inline: true`. The runner distributes sub-tasks via NL-dispatch
-and collects results. Each sub-task is one NL prompt to a specialist; results are assembled
+Supervisor phase is `inline: true`. Distribute sub-tasks via NL-dispatch; assemble results
 inline before writing to `output_dir`.
 
 ### Hierarchical (one decomposition level, bounded)
 
-The top phase decomposes the work into a sub-`phases[]` list at runtime. The generated
-sub-phases are then executed as a Pipeline. Decomposition is bounded to one level — the
-sub-phases CANNOT themselves decompose further (no recursion past depth 2).
+Top phase decomposes work into a sub-`phases[]` list at runtime, then executes as a Pipeline.
+**Bounded to one level** — sub-phases cannot decompose further (no recursion past depth 2).
 
 ## Inline phase handling
 
@@ -171,53 +144,42 @@ After each phase completes successfully:
 ## on_complete — cross-workflow transition (EMIT only)
 
 After the **final** phase completes, if the YAML declares a top-level `on_complete:` list,
-evaluate each entry's `when:` predicate using the SAME mechanism as `phases[].when`: read the
-accumulated phase outputs and judge the predicate (e.g. `classification == 'bug'`,
-`code_bugs_found == true`). The phase an `on_complete` reads MUST have surfaced that key in its
-output (there is no separate typed state store). For every entry that matches, **add it to your
-Continuation Contract `next[]`** (mapping `next → skill`, carrying `reason`, `inputs`, and
-`gate_tier → risk_level`). Example: a `qa-suite` run that found bugs emits
-`next: odoo-coding` so the depth-0 run-driver can chain a fix.
+evaluate each entry's `when:` predicate (same mechanism as `phases[].when` — read accumulated
+phase outputs; the key MUST have surfaced in that phase's output). For every matching entry,
+**add it to your Continuation Contract `next[]`** (`next → skill`, `reason`, `inputs`,
+`gate_tier → risk_level`). Example: a `qa-suite` run that found bugs emits `next: odoo-coding`.
 
-**HARD RULE — EMIT, never self-dispatch.** `on_complete` only *emits* `next[]`. workflow-chaining
-runs at depth 1 and MUST NOT invoke a depth0-only spawner (`odoo-coding`, `wave`, …)
-itself — that would nest a fresh agent below depth-1 and risk a context crash. The depth-0
-`run-driver` reads the emitted `next[]` and dispatches it. If no `on_complete` is declared, or
-none matches, finish normally (this is fully back-compatible — existing workflows are unaffected).
+**HARD RULE — EMIT, never self-dispatch.** `on_complete` only *emits* `next[]`. This skill runs
+at depth 1 and MUST NOT invoke a depth0-only spawner — the depth-0 run-driver dispatches it.
+If no `on_complete` is declared, or none matches, finish normally (back-compatible).
 
-**Standalone (no driver above) — degrade honestly.** If this workflow is running WITHOUT an
-active `.odoo-ai/run-<id>.json` driver above it (e.g. invoked directly via its slash command,
-not through intake Phase P), there is no run-driver to read the emitted `next[]`. In that case,
-besides emitting the contract, state plainly to the user: "on_complete suggests `<next>` —
-auto-chaining needs the run-driver; run `/odoo-intake` to drive it, or trigger `<next>` manually."
-So the chain degrades to a visible human suggestion, never a silent drop. (To AUTO-chain a
-workflow that declares `on_complete`, enter via intake Phase P — intake engages the driver for
-such workflows; see `odoo-intake` § Phase P "Workflow-as-node".)
+**No driver above — degrade honestly.** If running WITHOUT an active run-driver (e.g. invoked
+directly, not through intake Phase P), emit the contract AND state plainly: "on_complete
+suggests `<next>` — auto-chaining needs the run-driver; run `/odoo-intake` to drive it, or
+trigger `<next>` manually." Never silently drop. (To AUTO-chain, enter via intake Phase P.)
 
 ## Gate handling
 
-Each phase gate presents the options declared in the YAML `gate` field (e.g.
-`"yes / edit / cancel"`). Standard responses:
-- `approve` / `yes` / `ok` → proceed to the phase.
-- `refine: [feedback]` → incorporate feedback and re-propose the phase plan.
-- `cancel` → stop the workflow; report completed phases and artifact locations.
+Present options from the YAML `gate` field. Standard responses:
+- `approve` / `yes` / `ok` → proceed.
+- `refine: [feedback]` → incorporate feedback and re-propose.
+- `cancel` → stop; report completed phases and artifact locations.
 
 ## Out of Scope
 
-- Domain-specific logic (that lives in the specialist skill or the `.workflow.yaml`).
-- BRL chunk orchestration (handled by `odoo-brl` which has its own gating).
-- Creating or editing `.workflow.yaml` files (those are data files, not runtime artifacts).
-- Being invoked directly by the user (use the `odoo-intake` skill or `odoo-concierge`).
+- Domain-specific logic → lives in the specialist skill or `.workflow.yaml`.
+- BRL chunk orchestration → `odoo-brl` has its own gating.
+- Creating or editing `.workflow.yaml` files (data files, not runtime artifacts).
+- Direct user invocation → use `odoo-intake` or `odoo-concierge`.
 
 ## Standalone-first fallback
 
-If the OSM server (odoo-semantic-mcp) is unreachable:
-- For phases whose specialist skill requires OSM tools: emit the phase's `nl_trigger` with
-  an appended note: "OSM is unavailable — proceed in standalone mode using training knowledge
-  and any local files available."
-- Continue the workflow; each specialist skill declares its own standalone fallback.
-- If a phase's `fallback` field is `standalone`, apply this automatically without asking.
-- Write a caveat section in the final artifact noting which phases ran without OSM grounding.
+If the odoo-semantic-mcp server is unreachable:
+- For phases whose specialist requires OSM: append to the `nl_trigger`: "OSM is unavailable —
+  proceed in standalone mode using training knowledge and any local files available."
+- Continue the workflow; each specialist declares its own standalone fallback.
+- If a phase's `fallback` field is `standalone`, apply this automatically.
+- Write a caveat in the final artifact noting which phases ran without OSM grounding.
 
 ## Continuation Contract
 

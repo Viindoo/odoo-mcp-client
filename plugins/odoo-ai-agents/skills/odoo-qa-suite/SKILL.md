@@ -45,21 +45,13 @@ via NL-dispatch to leaf skills; handle work inline only when no leaf skill cover
 
 ## Phase 0 — Scope confirmation
 
-Before asking the caller for any project fact, follow
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`: read `.odoo-ai/context.md` if
-present and extract `odoo_version` and `modules`. Use those as defaults and skip asking
-for fields already resolved from context.
+Read `.odoo-ai/context.md` first (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) to extract `odoo_version` and `modules`. Use those as defaults and skip asking for already-resolved fields.
 
-Ask for all missing inputs in a single message (do not multi-turn):
-
-1. **Feature / module name** — e.g. `sale`, `custom_loyalty_program`, or a description
-   of the change being tested. (Skip if the module list is already clear from context.)
-2. **Odoo version** - e.g. `17.0`. (Skip if pre-filled from context.md.)
-3. **Open bugs to triage** (optional) - accepted as:
-   - A structured list of bug titles/descriptions already present in the request, OR
-   - A file path to a bug list file (Read it); never ask for a paste of content
-     that can be fetched from disk. Pass `none` to skip the triage phase.
-4. **Scope** — `unit` / `integration` / `both` (default: `both`).
+Ask for all missing inputs in a **single message**:
+1. **Feature / module name** (skip if clear from context)
+2. **Odoo version** e.g. `17.0` (skip if pre-filled)
+3. **Open bugs to triage** (optional) — as a list, or a file path to `Read`; pass `none` to skip triage
+4. **Scope** — `unit` / `integration` / `both` (default: `both`)
 
 Present a **soft-plan-gate** before running any phase:
 
@@ -76,45 +68,27 @@ Gate: approve / refine: [feedback] / cancel
 
 ## Phase 1 — Test-case generation (inline)
 
-Generate a structured test suite table for the stated feature or module. For each test
-case, produce one row in the output table:
+Generate a structured test suite table:
 
 | # | Test name (business rule) | Type | Precondition | Steps | Expected result | Pass/Fail |
 |---|---|---|---|---|---|---|
 
 Rules:
-- Each test name must state a **business rule**, not an implementation detail.
-  Good: "Sale order total updates when line quantity changes"
-  Bad: "test_compute_amount_total"
-- Every test must have one scenario that would make it **fail** — if no wrong answer
-  exists, the test is useless and must not be included.
-- **The Steps column must drive the real workflow, not seed a state.** Name the actual
-  `action_*` / `button_*` method that reaches each state (e.g. "call `action_confirm`"), build via
-  `Form()` where an onchange is involved, and run access checks as the real user
-  (`with_user(...)`), never `sudo()` on the action under test - never write a step that injects the
-  terminal `state` with `create({'state': ...})` (SSOT:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`).
-- Cover at minimum: happy path, edge case (empty/zero/boundary), error path (invalid
-  input), permission check (user without access gets rejected).
+- Test name must state a **business rule**, not an implementation detail. Good: "Sale order total updates when line quantity changes". Bad: "test_compute_amount_total".
+- Every test must have one scenario that would make it **fail** — if no wrong answer exists, the test is useless and must not be included.
+- **Steps must drive the real workflow, not seed a state.** Name the actual `action_*` / `button_*` method (e.g. "call `action_confirm`"), build via `Form()` where an onchange is involved, run access checks as the real user (`with_user(...)`), never `sudo()` on the action under test — never write a step that injects terminal `state` with `create({'state': ...})` (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`).
+- Cover at minimum: happy path, edge case (empty/zero/boundary), error path (invalid input), permission check (user without access gets rejected).
 - Separate unit tests (no DB, no UI) from integration tests (multi-model or multi-user).
-- Ground the test mechanics in the TARGET version — test classes, tag syntax and the JS
-  framework (QUnit vs Hoot) differ across Odoo versions. Resolve the real invocation via
-  OSM (`set_active_version` + `cli_help` for `--test-enable`/`--test-tags`) and follow
-  ${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md; never assume one version's test
-  command line applies to another.
+- Ground test mechanics in the TARGET version — test classes, tag syntax, and JS framework (QUnit vs Hoot) differ across Odoo versions. Resolve via OSM (`set_active_version` + `cli_help`) and follow `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`; never assume one version's command line applies to another.
 - Output file: `.odoo-ai/qa/<slug>-test-cases.md`
 
 ---
 
 ## Phase 2 — QA checklist (NL-dispatch to odoo-deploy-checklist)
 
-Dispatch via NL: "Generate a pre-deployment QA checklist for <module> targeting Odoo
-<version> in staging environment, covering all 8 domains: pre-flight, backup, data
-migration, downtime, deploy mechanics, smoke tests, monitoring, and rollback."
+Dispatch via NL: "Generate a pre-deployment QA checklist for <module> targeting Odoo <version> in staging environment, covering all 8 domains: pre-flight, backup, data migration, downtime, deploy mechanics, smoke tests, monitoring, and rollback."
 
-The `odoo-deploy-checklist` leaf skill fills the 8-domain checklist and returns a
-verdict (READY / NEEDS WORK / NOT READY). Write the returned checklist to
-`.odoo-ai/qa/<slug>-deploy-checklist.md`.
+Write the returned checklist to `.odoo-ai/qa/<slug>-deploy-checklist.md`.
 
 Gate before dispatching: "approve / skip / cancel".
 
@@ -122,10 +96,9 @@ Gate before dispatching: "approve / skip / cancel".
 
 ## Phase 3 — Bug triage (inline, or NL-dispatch to odoo-debug for runtime issues)
 
-If no open bugs were provided in Phase 0, skip this phase and note "No bugs to triage"
-in the summary.
+If no open bugs provided in Phase 0, skip and note "No bugs to triage" in the summary.
 
-For each bug, produce a structured triage entry:
+For each bug:
 
 ```
 ### Bug: <title>
@@ -152,10 +125,7 @@ Severity rules (non-negotiable — never soften):
 - **Medium**: non-critical flow broken or degraded; workaround exists.
 - **Low**: cosmetic, minor UX, or edge-case inconvenience.
 
-If a bug requires live browser inspection to classify, NL-dispatch to `odoo-debug`:
-"Investigate the following runtime issue in Odoo <version> and return a root-cause
-analysis with reproduction steps: <bug description>." Incorporate the returned
-root-cause into the triage entry.
+If a bug requires live browser inspection to classify, NL-dispatch to `odoo-debug`: "Investigate the following runtime issue in Odoo <version> and return a root-cause analysis with reproduction steps: <bug description>." Incorporate the returned root-cause into the triage entry.
 
 Output file: `.odoo-ai/qa/<slug>-bug-triage.md`
 
@@ -189,19 +159,12 @@ Write `.odoo-ai/qa/<slug>-qa-summary.md`:
 
 ## Standalone-first fallback
 
-When OSM is unreachable or no API key is configured:
-
+When OSM is unreachable:
 1. **Phase 1 (test-case gen)**: fully inline — no MCP tools needed. Runs normally.
-2. **Phase 2 (deploy checklist)**: dispatch `odoo-deploy-checklist` in standalone mode.
-   The leaf skill marks OSM-dependent Domain 1 rows as `⚠ Manual check` automatically.
-3. **Phase 3 (bug triage)**: inline triage runs normally; skip the `odoo-debug`
-   NL-dispatch for runtime inspection and note:
-   `(OSM offline — runtime inspection via odoo-debug requires reconnection)`
+2. **Phase 2 (deploy checklist)**: dispatch `odoo-deploy-checklist` in standalone mode (leaf skill marks OSM-dependent Domain 1 rows as `⚠ Manual check` automatically).
+3. **Phase 3 (bug triage)**: inline triage runs normally; skip `odoo-debug` NL-dispatch for runtime inspection and note: `(OSM offline — runtime inspection via odoo-debug requires reconnection)`
 
-Add a notice at the top of the summary:
-`> Note: QA suite ran in standalone mode. OSM-dependent checks marked ⚠ Manual check.`
-
-The test-case generation and bug-triage phases are fully usable without OSM.
+Add notice at top of summary: `> Note: QA suite ran in standalone mode. OSM-dependent checks marked ⚠ Manual check.`
 
 ## Continuation Contract
 

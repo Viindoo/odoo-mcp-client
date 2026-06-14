@@ -31,12 +31,10 @@ Pair-works with `odoo-code-review` for review.
 
 ## Why one skill, two agents
 
-In Odoo a single job often spans both stacks — a new field/model plus the widget or view that
-shows it. Forcing the caller to pre-pick "backend" vs "frontend" is the friction this skill
-removes. `odoo-coding` is the only coding entry point; it figures out per-module whether the work
-is backend-only, frontend-only, or full-stack and dispatches just the agents needed. The agents
-themselves stay specialists — this skill owns the orchestration (module set, dependency order,
-sequencing), not the codegen.
+An Odoo job often spans both stacks (a field/model plus its widget/view). This is the only coding
+entry point: it figures out per-module whether work is backend / frontend / fullstack and dispatches
+just the agents needed. The agents stay specialists; this skill owns orchestration (module set,
+dependency order, sequencing), not codegen.
 
 ## Phase 0 — Scope + module graph (1-turn gate, mandatory)
 
@@ -154,20 +152,15 @@ On `yes`, execute; on `refine: …`, update and re-emit; on `cancel`, stop.
 
 ## Execution - dispatch the coders (Workflow rolling-window, canonical path)
 
-The coders run as autonomous agents - never inline the codegen in main, never via
-the Skill tool. The canonical dispatch path is the **Workflow tool**: this skill
-explicitly instructs the main agent to call the Workflow tool after the Phase 0
-gate is approved (that instruction is what satisfies the Workflow tool's opt-in
-condition). When the Workflow tool is unavailable in this runtime - or the user
-denies its permission prompt - use the **Agent-tool fallback** below instead;
-never silently skip execution.
+The coders run as autonomous agents - never inline codegen in main, never via the Skill tool. The
+canonical path is the **Workflow tool**: this skill instructing the main agent to call it after the
+Phase 0 gate is approved is what satisfies the tool's opt-in. When the Workflow tool is unavailable
+or its permission is denied, use the **Agent-tool fallback** below - never silently skip execution.
 
 Concurrency/OOM rule (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`):
-model-weighted budget - WEIGHT haiku=1, sonnet=2, opus=4, fable=8; at most 8
-weight-units of coder agents run at once. That keeps opus throttled to <=2 and
-fable exclusive while letting haiku/sonnet flow freely (the OOM risk this
-budget guards against comes from opus-class fan-out, so heavier tiers get
-bigger weights).
+model-weighted budget - WEIGHT haiku=1, sonnet=2, opus=4, fable=8; at most 8 weight-units run at
+once (keeps opus <=2 and fable exclusive while haiku/sonnet flow freely - the OOM risk comes from
+opus-class fan-out, so heavier tiers weigh more).
 
 ### Canonical path - one Workflow call
 
@@ -453,17 +446,13 @@ resumeFromRunId: <runId>})` - completed agent calls return cached results, and
 blocked modules made no agent call, so exactly they re-run.
 
 Why this satisfies the rolling-window requirement:
-- `pipeline()` has no barrier between items - module A can be in its frontend leg
-  while module B is still in backend; freed weight is re-acquired immediately.
-- Per-module backend->frontend is preserved as the two pipeline stages;
-  single-stack modules skip the unused leg.
-- Cross-module dependency order is enforced by awaiting `completed[dep]`, which is
-  strictly weaker than a wave barrier (a wave-2 module starts the moment ITS
-  dependencies finish, not when the whole wave finishes).
-- Every `agent()` call passes `model` explicitly - the agent frontmatter
-  `model: sonnet` is a default only; the dispatch `model` parameter overrides
-  it in either direction (haiku below, opus/fable above - same convention as
-  `odoo-debug`).
+- `pipeline()` has no barrier between items - module A can run its frontend leg while B is still in
+  backend; freed weight is re-acquired immediately.
+- Per-module backend->frontend is the two pipeline stages; single-stack modules skip the unused leg.
+- Cross-module order is enforced by awaiting `completed[dep]` (weaker than a wave barrier: a
+  dependent starts the moment ITS deps finish, not when a whole wave finishes).
+- Every `agent()` call passes `model` explicitly; the frontmatter `model: sonnet` is only a default
+  the dispatch `model` overrides either way (same convention as `odoo-debug`).
 
 ### Fallback path - Agent tool, weighted batches (no Workflow tool)
 
@@ -529,22 +518,21 @@ restricted allowlists and execution detail.
 
 ## The code -> review+test -> code loop (bounded)
 
-Coding is not one-shot. After this skill writes code (each non-trivial module already implemented
-to a separately-authored failing test), the **code -> review+test -> code** round-trip runs:
-`odoo-code-review` reviews AND checks the tests cover the behavior, and loops back to `odoo-coding`
-on a CRITICAL/HIGH issue or a red/missing test.
+Coding is not one-shot. After this skill writes code (each non-trivial module implemented to a
+separately-authored failing test), the **code -> review+test -> code** round-trip runs:
+`odoo-code-review` reviews AND checks the tests cover the behavior, looping back on a CRITICAL/HIGH
+issue or a red/missing test.
 
-**Drive it yourself when there is no run-driver (mandatory).** You run at depth-0 in the main
-context, so the Skill tool is available. After writing, **IMMEDIATELY invoke `odoo-code-review` via
-the Skill tool yourself** - a passive `next: odoo-code-review` is not advanced when no run-driver is
-active (the common case: a direct invocation, an intake fast-path, or an autonomous review/debug
-fix), so the verification would silently never happen. The ONLY exception: you were dispatched by an
-active run-driver (a `run-<id>` is named) - then emit `next: odoo-code-review` and let it advance, do
-not double-dispatch. Emit the Continuation Contract block as the record either way.
+**Drive it yourself when there is no run-driver (mandatory).** You run at depth-0, so the Skill tool
+is available. After writing, **IMMEDIATELY invoke `odoo-code-review` via the Skill tool yourself** - a
+passive `next: odoo-code-review` is not advanced without an active run-driver (the common case: direct
+invocation, intake fast-path, autonomous fix), so verification would silently never happen. ONLY
+exception: dispatched by an active run-driver (a `run-<id>` is named) - then emit
+`next: odoo-code-review` and let it advance, do not double-dispatch. Emit the Continuation Contract either way.
 
-Bound the loop to **3 iterations** per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`; if it
-is still not green-and-clean after 3, STOP and escalate - bad work is worse than no work - rather than loop forever. Each
-iteration's outcome goes in the worklog so the next pass sees what the prior one decided.
+Bound the loop to **3 iterations** per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`; still
+not green-and-clean after 3 -> STOP and escalate (bad work is worse than no work). Each iteration's
+outcome goes in the worklog.
 
 ## Continuation Contract
 

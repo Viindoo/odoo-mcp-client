@@ -20,10 +20,10 @@ Sales Engineer / Pre-sales Consultant
 
 ## Out of Scope
 
-- Single feature availability (no proof needed) → use `odoo-feature-check`
-- Multi-requirement scope + effort quote → use `odoo-gap-analysis`
-- Customer-facing objection response paragraph → use `odoo-objection-handling`
-- A REAL recorded video/screencast of the flow (not text/code evidence) → use `odoo-demo-recording`
+- Single feature availability (no proof needed) → `odoo-feature-check`
+- Multi-requirement scope + effort quote → `odoo-gap-analysis`
+- Customer-facing objection response paragraph → `odoo-objection-handling`
+- Real recorded video/screencast → `odoo-demo-recording`
 
 ## MCP tools
 
@@ -50,19 +50,13 @@ Sales Engineer / Pre-sales Consultant
 
 ## Context
 
-Clients are skeptical of ERP vendors' marketing claims. The most effective counter is showing real
-code from the indexed codebase — specific module names, model fields, and code snippets that
-demonstrate the capability exists and is used in production.
+Clients are skeptical of ERP vendor marketing claims. The most effective counter is real code from the indexed codebase — specific module names, model fields, and code snippets that demonstrate the capability exists and is used in production.
 
-Support any supported Odoo version. When referencing old versions (v8/v9):
-- Modules were under `addons/` of the OpenERP repository
-- Field declarations used `_columns` dict, not class-level attributes
-- The model API was `osv.osv`, not `models.Model`
-Mention version if the client is on an older release.
+Support any supported Odoo version. For old versions (v8/v9): modules were under `addons/` of the OpenERP repository; field declarations used `_columns` dict; model API was `osv.osv`. Mention version if the client is on an older release.
 
-Capability verdicts:
+**Capability verdicts:**
 - **Supported natively** — standard module, zero customization
-- **Supported with configuration** — standard module, requires setup (e.g. enable feature flag)
+- **Supported with configuration** — standard module, requires setup
 - **Supported with light customization** — standard extension point exists, <3 days dev
 - **Requires custom development** — no standard module; state honestly with effort estimate
 
@@ -72,41 +66,19 @@ Use parallel MCP calls to build the evidence package quickly.
 
 **Round 0 — Pin the version:** `set_active_version(odoo_version=…)`.
 
-**Round 1 — Parallel:** Call `check_module_exists` + `find_examples` simultaneously.
-`find_examples` takes a semantic query derived directly from the requirement text — it does not
-need the module name from `check_module_exists`. Both can fire at the same time.
+**Round 1 — Parallel:** Call `check_module_exists` + `find_examples` simultaneously. `find_examples` takes a semantic query derived directly from the requirement text — it does not need the module name from `check_module_exists`. Both can fire at the same time.
 
-**Round 2 — Parallel (if module found):** Call `model_inspect(model=…, method='fields')` +
-`entity_lookup(kind='method', model=…, method_name=…)` +
-`module_inspect(name=<module>, method='summary', odoo_version='<version>')` simultaneously. `model_inspect` shows
-exact fields; `entity_lookup` shows the override chain for method-level requirements; `module_inspect` adds
-module-architecture scope (N models defined/extended, N views) — a proof package that says "this module ships
-6 models and 12 views around the capability" is far more compelling to a skeptical client than a single field.
-If the model name is already known from training knowledge, include these in Round 1.
+**Round 2 — Parallel (if module found):** Call `model_inspect(model=…, method='fields')` + `entity_lookup(kind='method', model=…, method_name=…)` + `module_inspect(name=<module>, method='summary', odoo_version='<version>')` simultaneously. `model_inspect` shows exact fields; `entity_lookup` shows the override chain for method-level requirements; `module_inspect` adds module-architecture scope (N models/views) — a proof package saying "this module ships 6 models and 12 views" is far more compelling to a skeptical client than a single field name. If model name is already known from training knowledge, include these in Round 1.
 
-Never fabricate capabilities. If the feature doesn't exist, say so and propose the most credible
-workaround. When MCP results conflict with training knowledge (e.g. a module that training data
-says should exist but `check_module_exists` doesn't find), trust the MCP result — it reflects
-the actual indexed codebase.
+**Never fabricate capabilities.** If the feature doesn't exist, say so and propose the most credible workaround. When MCP results conflict with training knowledge, trust the MCP result.
 
 ## Standalone-first fallback
 
-The requirement is already in the invocation - do not ask the caller to re-provide it.
-If the caller mentioned a document path (proposal, RFP excerpt), `Read` it directly.
+The requirement is already in the invocation - do not ask the caller to re-provide it. If the caller mentioned a document path, `Read` it directly.
 
-When OSM is unreachable, follow the three-tier grounding order from
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
-
-1. **Tier 2 - self-serve first:**
-   - `WebFetch` the relevant GitHub source for the target version, e.g.
-     `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/<file>.py`,
-     to pull real field lists and method signatures as code evidence.
-   - Use local `Read`/`Grep` on a local source tree when present.
-   - Label any artifact built this way `grounded: local-source (not OSM-indexed)`.
-2. **Tier 3 - only if all Tier-2 fetches fail:** produce the evidence package from
-   training knowledge and prepend `OSM unavailable - ungrounded` with caveat "not yet
-   verified against the codebase index; double-check code details when OSM is back
-   online". Do not ask the caller for any input that can be fetched from public sources.
+When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+- **Tier 2:** `WebFetch` the relevant GitHub source for the target version (e.g. `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/<file>.py`) to pull real field lists and method signatures. Use local `Read`/`Grep` on a local source tree when present. Label artifacts `grounded: local-source (not OSM-indexed)`.
+- **Tier 3:** Produce the evidence package from training knowledge, prepend `OSM unavailable - ungrounded`, add caveat "not yet verified against the codebase index; double-check code details when OSM is back online".
 
 ## Output format
 
@@ -118,7 +90,7 @@ When OSM is unreachable, follow the three-tier grounding order from
 **Edition:** CE / EE / Custom distribution
 
 ### Summary
-<2–3 sentences confirming capability and how it's implemented>
+<2-3 sentences confirming capability and how it's implemented>
 
 ### Evidence
 | Module | Model | Key fields/methods | Code reference |
@@ -139,26 +111,11 @@ When OSM is unreachable, follow the three-tier grounding order from
 <Only if applicable: what this implementation does NOT cover>
 ```
 
-## Examples
-
-**Example 1:**
-Prompt: "prove Odoo can handle multi-currency invoicing for our prospect"
-Output: Verdict "Supported natively", evidence table citing `account.move` fields (`currency_id`,
-`amount_currency`, `currency_rate`) from `model_inspect(model='account.move', method='fields', odoo_version='<version>')`, a
-real code example, and demo steps.
-
-**Example 2:**
-Prompt: "prove Odoo 17 supports multi-level approval for purchase orders"
-Output: Verdict with `purchase_stock` + `purchase` module evidence,
-`entity_lookup(kind='method', model='purchase.order', method_name='button_approve', odoo_version='<version>')` override
-chain, and demo steps.
+**Worked examples:** `${CLAUDE_PLUGIN_ROOT}/skills/odoo-capability-proof/references/examples.md`
 
 ## Notes / Integration
 
-- This skill produces TEXT/code evidence and written demo steps — not a video. To turn the
-  written demo steps above into a REAL screencast running on a live instance, hand them to
-  `odoo-demo-recording` (which drives the instance through the same steps and saves an MP4/GIF).
-  Mention this as an optional next step; do not invoke it from here (depth rule).
+This skill produces TEXT/code evidence and written demo steps — not a video. To turn the written demo steps into a real screencast on a live instance, hand them to `odoo-demo-recording`. Mention this as an optional next step; do not invoke it from here (depth rule).
 
 ## Continuation Contract
 

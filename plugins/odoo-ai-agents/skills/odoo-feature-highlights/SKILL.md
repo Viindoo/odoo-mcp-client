@@ -49,67 +49,48 @@ Marketer / Product Manager
 
 ## Context
 
-Odoo major releases ship annually. Each version brings API changes (developer-facing) and
-user-facing improvements (business-facing). Marketers need business language; developers need
-technical details. This skill serves both.
+Odoo ships annual major releases — each brings API changes (developer-facing) and user-facing improvements. This skill serves both audiences.
 
-**Key version leaps worth highlighting:**
-- v9: First CE/EE split — major positioning story
-- v10: Odoo rebranding from OpenERP, full Python 3 migration start
-- v11/v12: Community stabilization, major accounting improvements
-- v13: OWL introduced as new JS framework — lays groundwork for future UX improvements, but
-  most views still use legacy widget system in this version
-- v14: OWL becomes primary frontend framework — dramatic UX improvement, relevant for "modern
-  UI" messaging; `web.Widget` deprecated
-- v15: OWL 2.0 (breaking changes in OWL API), spreadsheet integration, sign module matured
-- v16: Full OWL stable, `web.Widget` removed completely, accounting localization improvements,
-  new field types
-- v17: Performance improvements, Python 3.10+, many UX refinements
-- v18+: ORM enhancements, ongoing module restructuring
+**Key version leaps:**
 
-Custom distributions track Odoo versions. When highlighting distribution-specific features,
-distinguish what's from Odoo CE base vs. custom or distribution-specific add-ons.
+| Version | Highlight |
+|---|---|
+| v9 | First CE/EE split |
+| v10 | Odoo rebranding from OpenERP; Python 3 migration start |
+| v11/v12 | Community stabilization; major accounting improvements |
+| v13 | OWL introduced (most views still use legacy widgets) |
+| v14 | OWL becomes primary framework; `web.Widget` deprecated |
+| v15 | OWL 2.0 (breaking OWL API); spreadsheet; sign matured |
+| v16 | Full OWL stable; `web.Widget` removed; new field types |
+| v17 | Performance; Python 3.10+; UX refinements |
+| v18+ | ORM enhancements; module restructuring |
 
-**Data priority:** MCP `api_version_diff` results are ground truth for which APIs and modules
-actually changed between versions. Use training knowledge for business-language narrative and
-historical context, but never assert a feature "was added in v17" without MCP confirmation.
+Custom distributions track Odoo versions — distinguish CE base from distribution-specific add-ons. **Data priority:** `api_version_diff` is ground truth — never assert "added in vX" without MCP confirmation.
 
 ## Instructions
 
-**Round 1:** Call `api_version_diff` first — this drives which features to highlight.
+**Round 1:** `api_version_diff` first — drives which features to highlight.
 
-**Round 2 — Parallel:** After Round 1 results arrive, call `find_examples` (for top impactful
-models: `sale.order`, `account.move`, `mrp.production`, `hr.leave`) +
-`model_inspect(model=…, method='fields')` (for headline feature key models) + `check_module_exists`
-(for all modules being highlighted) + `module_inspect(name=<module>, method='summary', odoo_version='<version>')`
-(for those same modules) all simultaneously. None of these depend on each other — batch them in one round.
-The `module_inspect` summary gives concrete architecture numbers (N models defined/extended, N views) so the
-copy can say "adds 3 new models and 12 views" instead of just "module exists".
+**Round 2 — Parallel (after Round 1):** Batch all of the following simultaneously:
+- `find_examples` for top models (`sale.order`, `account.move`, `mrp.production`, `hr.leave`)
+- `model_inspect(model=…, method='fields')` for headline feature models
+- `check_module_exists` for all modules being highlighted
+- `module_inspect(name=<module>, method='summary', odoo_version='<version>')` for those same modules
+
+`module_inspect` summary gives concrete numbers ("adds 3 models and 12 views") instead of bare "module exists".
 
 **Writing rules:**
 - Lead with business outcomes, not technical mechanisms
-- Use concrete numbers where available: "new `amount_by_group` field enables automatic tax
-  grouping across N tax brackets"
-- Avoid acronyms, file paths, developer jargon in the main highlights section
+- Use concrete numbers where available; avoid acronyms/jargon in main section
 - Keep a separate "Technical notes" section for developers
-- For Vietnamese market: mention localization features (VAS accounting, Vietnamese tax) prominently
+- Vietnamese market: mention VAS accounting and Vietnamese tax features prominently
 
 ## Standalone-first fallback
 
-When OSM is unreachable, follow the three-tier grounding order from
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-1. **Tier 2 - self-serve first:**
-   - `WebFetch` the official release notes page:
-     `https://www.odoo.com/odoo-<version>/release-notes`
-   - If that fails, `WebFetch` the GitHub CHANGELOG or tag release page, e.g.
-     `https://github.com/odoo/odoo/blob/<version>/CHANGELOG.rst` or
-     `https://github.com/odoo/odoo/releases/tag/<version>`.
-   - Label any artifact built this way `grounded: local-source (not OSM-indexed)`.
-2. **Tier 3 - only if both fetches fail:** generate highlights from training knowledge
-   and prepend `OSM unavailable - ungrounded`; add caveat "not yet verified against the
-   code index; check details when OSM is back online". Never ask the caller to paste or
-   supply release notes - those are Tier-2 fetches.
+1. **Tier 2:** `WebFetch` `https://www.odoo.com/odoo-<version>/release-notes`; if that fails, `WebFetch` GitHub CHANGELOG (`https://github.com/odoo/odoo/blob/<version>/CHANGELOG.rst`) or releases page. Label artifact `grounded: local-source (not OSM-indexed)`.
+2. **Tier 3 (both fail):** Generate from training knowledge; prepend `OSM unavailable - ungrounded`; add caveat. Never ask caller to paste release notes.
 
 ## Output format
 
@@ -144,15 +125,9 @@ When OSM is unreachable, follow the three-tier grounding order from
 
 ## Examples
 
-**Example 1:**
-Prompt: "create feature highlights for Odoo 17 for our sales deck"
-Output: 3–5 headline features with business-value descriptions, comparison table vs Odoo 16,
-suggested talking points for a sales deck slide.
+**Example 1:** "feature highlights for Odoo 17 sales deck" → 3-5 headlines with business-value descriptions, comparison table vs Odoo 16, deck talking points.
 
-**Example 2:**
-Prompt: "write feature highlights for your custom distribution version 17 for marketing blog"
-Output: Headline features in business language, emphasis on custom or distribution-specific
-add-ons, comparison table vs prior version, talking points for target audience.
+**Example 2:** "highlights for custom distribution v17 marketing blog" → headlines in business language, emphasis on distribution-specific add-ons, comparison table vs prior version.
 
 ## Continuation Contract
 

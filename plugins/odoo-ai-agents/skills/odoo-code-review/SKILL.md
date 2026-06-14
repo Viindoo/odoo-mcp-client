@@ -28,196 +28,89 @@ Developer / Tech Lead reviewing Odoo code with semantic MCP enrichment.
 
 ## When to invoke
 
-Main agent invokes the `odoo-code-reviewer` **agent** (via Agent tool) when Odoo code needs
-review. The code may arrive as a pasted block, a `file_path`/diff the agent reads itself, or the
-output of a prior tool/step - the agent obtains the code accordingly, it does not require a human
-to paste it. The review **scales with the size of the change**: a one-module change gets one
-reviewer; a many-module change gets a per-module fan-out plus an Opus integration pass. Run
-Phase 0 first to decide which topology applies. Because review needs multiple parallel MCP
-round-trips, each leg runs as an autonomous agent rather than inline in main.
+Main agent invokes the `odoo-code-reviewer` **agent** (via Agent tool) when Odoo code needs review. The code may arrive as a pasted block, a `file_path`/diff, or the output of a prior step. Review **scales with the change size**: one module → one reviewer; many modules → per-module fan-out plus Opus integration pass. Run Phase 0 first. Because review needs parallel MCP round-trips, each leg runs as an autonomous agent.
 
-## Phase 0 — Scope the review (count the modules touched)
+## Phase 0 — Scope the review
 
-First READ any existing worklog for this run (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first)
-per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` - the coding phase records there what it
-decided and why, which tells the review what was intentional vs. accidental.
+Read any existing worklog (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` — the coding phase records what was intentional vs. accidental.
 
-Determine the set of **changed + newly-added** Odoo modules in the target before dispatching any
-reviewer. A "module" is the directory that holds `__manifest__.py`.
+Determine **changed + newly-added** modules (dir containing `__manifest__.py`):
+- **From git:** `git diff --name-only` + `git diff --name-only --diff-filter=A`; map each path to its owning `__manifest__.py` dir and dedupe.
+- **From a pasted block / single `file_path`:** that is one module.
 
-- **From git** (the usual case): `git diff --name-only` for modified files and
-  `git diff --name-only --diff-filter=A` (or untracked) for new files; map each path up to its
-  owning `__manifest__.py` directory and dedupe.
-- **From a pasted block / single `file_path`**: that is one module (or a standalone snippet).
-
-Count the distinct modules. The count picks the topology: **1 → single-pass**; **>1 →
-fan-out + synthesis**. Either way, all output lands in the artifacts dir (below) so later steps
-can reference it.
+Count distinct modules → **1 = single-pass; >1 = fan-out + synthesis**.
 
 ## Single module (the common case)
 
-Exactly one module touched → dispatch ONE `odoo-code-reviewer` agent (sonnet) scoped to that
-module's changes, as today. It writes its report to the artifacts dir. A separate synthesis pass
-is unnecessary for one module — UNLESS Phase 0's reverse closure shows the module has many
-dependents (it is a base/core module others build on); then also run the Opus integration pass
-below, because the blast radius is wide even though only one module changed.
+Dispatch ONE `odoo-code-reviewer` agent (sonnet). It writes its report to `.odoo-ai/reviews/<slug>-<date>/<module>.md`. No synthesis pass needed — UNLESS Phase 0's reverse closure shows many dependents (base/core module); then also run the Opus integration pass below.
 
 ## Multi-module — fan-out, then integration synthesis
 
-More than one module touched → two phases. The reason for the split: a per-module reviewer goes
-deep without cross-module noise, but it structurally **cannot see** how modules interact — that
-is what the Opus pass is for.
+### Phase A — Per-module fan-out (parallel sonnet, ≤3 concurrent)
 
-### Phase A — Per-module fan-out (parallel, sonnet, ≤3 concurrent)
-
-Dispatch one `odoo-code-reviewer` agent **per changed/added module**, each scoped to ONLY that
-module's changes. Run them in parallel but cap at **3 concurrent** (Mode A - see
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`); for >3 modules, batch in
-**waves of <=3** (fire 3, wait, fire the next 3) like `wave` / `workflow-chaining` / `odoo-debug`. Each agent writes its own
-per-module report to `.odoo-ai/reviews/<slug>-<date>/<module>.md` and returns a short summary +
-the path (so main does not carry every full report in context).
+One `odoo-code-reviewer` agent per changed/added module, scoped to ONLY that module. Cap at **3 concurrent** (Mode A - see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`); for >3 modules batch in **waves of <=3** like `wave` / `workflow-chaining` / `odoo-debug`. Each agent writes `<module>.md` to `.odoo-ai/reviews/<slug>-<date>/` and returns a short summary + path.
 
 ### Phase B — Integration synthesis (one agent, OPUS)
 
-After every per-module review completes, dispatch ONE `odoo-code-reviewer` agent at **opus** for
-the cross-module review. Its scope is the full **dependency closure** of the change, which it
-computes from OSM (not from memory):
+After all per-module reviews, dispatch ONE `odoo-code-reviewer` at **opus** for cross-module review. Scope = full **dependency closure** computed from OSM:
+- **Forward closure:** walk `module_inspect(name=<m>, method='dependencies', odoo_version='<version>')` transitively.
+- **Reverse closure:** `impact_analysis(...)` on changed modules, walked transitively.
 
-- **The changed + newly-added modules** (the Phase 0 set).
-- **Forward closure — what they depend on (direct AND indirect):** walk
-  `module_inspect(name=<m>, method='dependencies', odoo_version='<version>')` transitively from each
-  changed module until it stops adding modules.
-- **Reverse closure — what depends on them (direct AND indirect):** `impact_analysis(...)` on the
-  changed modules/models returns dependent modules / blast radius; walk it transitively too.
+The Opus pass reviews only what per-module legs cannot: override-chain conflicts, inheritance/MRO across closure, inter-module field/API contract breaks, manifest `depends` and data load-order, and ripple into dependents. Reads per-module reports on disk; writes `_synthesis.md`.
 
-The Opus pass reviews only what the per-module legs cannot: override-chain conflicts spanning
-modules, inheritance / MRO order across the closure, inter-module field/API contract breaks,
-manifest `depends` and data load-order, and how the change ripples into its dependents. It reads
-the per-module reports (on disk) as input and writes the synthesis to
-`.odoo-ai/reviews/<slug>-<date>/_synthesis.md`.
+## Artifacts
 
-## Artifacts — persist every result for later steps
+All output under `.odoo-ai/reviews/<slug>-<YYYY-MM-DD>/` (gitignored). Slug = branch name, PR title, or changed-module set:
+- `<module>.md` — per-module review (or single-module review)
+- `_synthesis.md` — Opus integration review
+- `index.md` — short map: modules reviewed, dependency closure, per-module severity counts, highest-severity findings linking to detail files
 
-All review output is persisted under `.odoo-ai/reviews/<slug>-<YYYY-MM-DD>/` (`.odoo-ai/` is
-gitignored). `<slug>` is derived from the change (branch name, PR title, or the changed-module
-set). The directory holds:
-
-- `<module>.md` — one per per-module review (or the single-module review).
-- `_synthesis.md` — the Opus integration review (multi-module, or single-module-with-many-dependents).
-- `index.md` — a short map: modules reviewed, the computed dependency closure, per-module
-  severity counts, and the highest-severity findings, each linking to its detail file.
-
-A later coding / fix / deploy step references these instead of re-reviewing — so emit the paths
-in the Continuation Contract `produced[]`.
+Emit paths in the Continuation Contract `produced[]`; later steps reference these instead of re-reviewing.
 
 ## Brief context — Odoo review pitfalls
 
-Key failure modes the agent is aware of:
+Ten failure modes the agent checks for. Full details:
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/review-pitfalls.md`
 
-1. **ORM / N+1** — field reads or `search()` inside `for rec in self` loops; use `mapped()` or prefetch outside loop.
-2. **Inheritance breaks** — missing `super()` in `create`/`write`/`unlink` breaks tracking, compute triggers, and downstream module overrides (always CRITICAL).
-3. **`@api.depends` errors** — stale or wrong dotted paths; `id` in depends list; constraint on relational field (silently skipped).
-4. **Deprecated API** — `@api.multi`, `@api.one` removed in v13/v14; raise at call time, not import.
-5. **OWL reactivity** — direct `this.state.items.push()` bypasses OWL reactivity; `position="replace"` in XML views breaks other override chains. These render-level defects should be confirmed visually on a live instance with `odoo-debug` once the static review flags them.
-6. **Design-system fidelity (SCSS/OWL styling)** — hardcoded `hex`/`rgba` for themeable colors, or surface tokens chained into Bootstrap `--bs-*` custom properties the target version does not emit at runtime (often via a self-referential shim — a CSS var whose value references itself, a cycle that resolves to empty and flattens the theme). Flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`; confirm at runtime with `odoo-debug`/`odoo-ui-review`, and route the fix to `odoo-coding` (this reviewer does not write frontend source).
-7. **Coding-guideline conventions** — after pinning the version, the reviewer grounds convention findings against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/` (naming prefixes, model attribute order, import order, `_()` form) and cites the violated file + section — see `agents/odoo-code-reviewer.md`.
-8. **Runtime presence probing** - `hasattr`/`getattr`-default/`try-except AttributeError` to detect a field/method is a smell masking a lookup-gap, wrong ORM path, or missing `depends`; the reviewer resolves it via OSM, classifies (3-way), and may not defer it - see `agents/odoo-code-reviewer.md` and `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
-9. **Platform design principles** - every change is checked against `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`: company/branch-scoped data missing `company_id` (or `res.branch` on v17+) isolation, a country-specific feature built where a generic+seed split belongs, or an `application=True` module lacking the standard root/Reports/Configuration menu shape. A silent deviation is a finding; a justified one is recorded in the worklog.
-10. **Behavior left unprotected by a test** - a CRITICAL/HIGH change to business behavior with no test that would go red if the behavior regressed is itself a HIGH finding (tests protect behavior, not the snapshot). Per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`, route it to `odoo-test-writer` rather than waving it through.
+Summary: (1) ORM/N+1, (2) missing `super()` in create/write/unlink, (3) `@api.depends` errors, (4) deprecated API, (5) OWL reactivity + `position="replace"`, (6) design-system SCSS/token fidelity (flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`), (7) coding-guideline conventions (grounded against `coding_guidelines/<version>/`), (8) runtime presence probing (`hasattr`/`getattr` smell), (9) platform design principles (company/branch isolation, generic-before-localization, app-menu shape), (10) behavior change with no protecting test → HIGH finding → route to `odoo-test-writer`.
 
-## Agent invocation — prompt template
+## Agent invocation
 
-Dispatch `odoo-code-reviewer` via the Agent tool, passing the **MODE** and scope explicitly so the
-agent knows which job it is doing and where to write its artifact:
+Full prompt templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/agent-prompts.md`
 
-- **Per-module (sonnet):**
-  ```
-  MODE=per-module. Review ONLY the changes in module `<module>` at `<path>`.
-  Also do a LIGHT bidirectional-impact pass (${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md):
-  the direct upstream it depends on + direct downstream that depends on it - deep transitive closure
-  stays the synthesis job, but flag an obvious cross-module break even in single-module review.
-  Check the change against ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md
-  (multi-company/branch, generic-before-localization, app-menu) and flag a behavior change with no
-  protecting test.
-  Artifacts dir: .odoo-ai/reviews/<slug>-<date>/ — write your report to <module>.md there.
-  Return a 5-line summary (counts by severity + top finding) and the artifact path.
-  ```
-- **Synthesis (dispatch with model `opus`):**
-  ```
-  MODE=synthesis. Changed/added modules: [<m1>, <m2>, …]. Compute the dependency closure —
-  forward via module_inspect(method='dependencies', odoo_version='<version>') transitively, reverse via impact_analysis —
-  and review CROSS-MODULE integration risk only (override conflicts, MRO, inter-module contracts,
-  depends/load-order, ripple to dependents). Read the per-module reports already in
-  .odoo-ai/reviews/<slug>-<date>/. Write _synthesis.md there. Return a summary + path.
-  ```
+Key constraints for each dispatched agent:
+- Per-module (sonnet): write `<module>.md`, light bidirectional-impact pass, platform-design check, flag unprotected behavior. Return 5-line summary + path.
+- Synthesis (opus): cross-module closure only; read per-module reports on disk; write `_synthesis.md`. Return summary + path.
+- Each agent: restricted tools, writes only its own artifact, does NOT spawn subagents, does NOT invoke Skill tool.
 
-Each agent runs its review rounds with restricted tools, **writes only its own report artifact**
-under `.odoo-ai/reviews/`, does NOT spawn further subagents, and does NOT invoke any Skill tool.
-After the legs finish, main writes `index.md` summarizing the set.
+After legs finish, main writes `index.md` summarizing the set.
 
 ## Standalone-first fallback
 
-When OSM (the odoo-semantic-mcp server) is unreachable, each reviewer falls back to its own static
-analysis - reading the code and pattern-matching against internalized Odoo conventions. MCP-enriched
-findings (existence verification, `validate_depends`, etc.) are skipped and the output notes
-"MCP unavailable — static analysis only". For the synthesis pass, the dependency closure cannot be
-computed via OSM either - derive it from disk instead: read each changed module's `__manifest__.py`
-`depends` (forward closure) and `grep -rl "_inherit\|depends.*<module>"` across the addons path for
-an approximate reverse closure, and label the synthesis "closure approximate from disk (OSM
-unavailable)". The fan-out / synthesis topology itself still applies; only the grounding degrades.
-When OSM is reachable but a specific module/model in the diff is not in the index (a
-customer-local addon), that is a Tier-1 MISS, not proof of absence - the reviewers keep OSM for
-what it covers and Read/Grep the local addon for just the missed entities (grounded: osm +
-local-source (hybrid), per `snippets/disk-fallback-protocol.md`).
+When OSM (the odoo-semantic-mcp server) is unreachable, each reviewer falls back to static analysis against internalized Odoo conventions. MCP-enriched findings are skipped; output notes "MCP unavailable — static analysis only". For synthesis, derive dependency closure from disk: read each changed module's `__manifest__.py` `depends` (forward) and `grep -rl "_inherit\|depends.*<module>"` across addons path for approximate reverse; label "closure approximate from disk (OSM unavailable)". Fan-out/synthesis topology still applies; only grounding degrades. When OSM is reachable but a customer-local addon is not in the index (Tier-1 MISS), keep OSM for indexed entities and Read/Grep the local addon for the missed ones (grounded: osm + local-source hybrid, per `snippets/disk-fallback-protocol.md`).
 
 ## Agent-managed tools
 
-This skill is part of an agent+skill bundle. See `agents/odoo-code-reviewer.md` for the full restricted tool list and execution detail.
+See `agents/odoo-code-reviewer.md` for the full restricted tool list and execution detail.
 
 ## Autonomous fix loop — drive it yourself (mandatory)
 
-You run at **depth-0 in the main context** (the Skill tool loads you here), so the **Skill tool is
-available to you and you MUST use it to drive the fix loop** - do not write a report and stop. A
-passive `next: odoo-coding` is NOT enough: when no run-driver is active (a direct invocation, or an
-intake fast-path - the common case), nothing advances that `next` and the loop dies. So:
+You run at **depth-0 in the main context** (the Skill tool loads you here), so the **Skill tool is available to you and you MUST use it to drive the fix loop** - do not write a report and stop. A passive `next: odoo-coding` is NOT enough: when no run-driver is active (a direct invocation, or an intake fast-path - the common case), nothing advances that `next` and the loop dies. So:
 
-1. **On a CRITICAL or HIGH finding that needs a code change, IMMEDIATELY invoke `odoo-coding` via
-   the Skill tool yourself.** Pass it the review report path, the exact findings to fix, and the
-   literal line **"AUTONOMOUS FIX (review-driven): skip your Phase 0 human gate, fix to these
-   findings, then invoke odoo-code-review to verify"**. This is autonomous - do NOT pause for a
-   human (running the review IS the opt-in).
-2. `odoo-coding` fixes, then invokes you again to verify. That round-trip - **review → code →
-   review** - repeats until the review is clean (no CRITICAL/HIGH and the behavior is covered).
-3. **Bound it to 3 iterations.** If still not clean after 3, STOP and escalate to the human with
-   what remains - bad work is worse than no work, never loop forever. Record each iteration in the worklog.
+1. **On a CRITICAL or HIGH finding that needs a code change, IMMEDIATELY invoke `odoo-coding` via the Skill tool yourself.** Pass it the review report path, the exact findings to fix, and the literal line **"AUTONOMOUS FIX (review-driven): skip your Phase 0 human gate, fix to these findings, then invoke odoo-code-review to verify"**. This is autonomous - do NOT pause for a human (running the review IS the opt-in).
+2. `odoo-coding` fixes, then invokes you again to verify. That round-trip - **review → code → review** - repeats until the review is clean (no CRITICAL/HIGH and the behavior is covered).
+3. **Bound it to 3 iterations.** If still not clean after 3, STOP and escalate to the human with what remains - bad work is worse than no work, never loop forever. Record each iteration in the worklog.
 
-The ONLY case where you emit a Continuation Contract `next` and let a driver advance instead of
-invoking directly: your brief shows you were dispatched **by an active run-driver** (a `run-<id>`
-is named) - then do not double-dispatch.
+The ONLY case where you emit a Continuation Contract `next` and let a driver advance instead of invoking directly: your brief shows you were dispatched **by an active run-driver** (a `run-<id>` is named) - then do not double-dispatch.
 
 ## Continuation Contract
 
-Before finishing, APPEND your significant findings/decisions to the run worklog
-(`.odoo-ai/worklog/<run-or-slug>/`) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`, so the
-next coding pass sees what this review concluded.
+Before finishing, APPEND your significant findings/decisions to the run worklog (`.odoo-ai/worklog/<run-or-slug>/`) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`.
 
-When you finish, append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set
-`produced` to the artifact paths actually written — `.odoo-ai/reviews/<slug>-<date>/index.md`
-plus the per-module reports and `_synthesis.md` — so a later coding / fix / deploy step
-references the review instead of re-running it. Decide the `next` arm by what the review found
-(test-discipline SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`).
-**The `next:` entries below are the audit record AND the run-driver path — they are NOT a substitute
-for the direct Skill-tool invoke in § Autonomous fix loop.** When NO run-driver is active (the common
-direct / intake-fast-path case) you have ALREADY invoked the target yourself per § Autonomous fix
-loop; emitting `next:` advances nothing on its own, so **never stop at it**.
-- CRITICAL/HIGH findings that need a code fix → you invoked `odoo-coding` directly (§ Autonomous fix
-  loop); under an active run-driver instead, emit `next: odoo-coding` carrying the report path (the
-  driver bounds the loop to 3 iterations, then escalates).
-- A behavior change with no protecting test (pitfall #10) → drive it through `odoo-coding` (which is
-  test-first) the same way; under a run-driver, emit `next: odoo-test-writer` carrying the module +
-  behavior so the gap is closed before merge.
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the artifact paths actually written. Decide the `next` arm by what the review found (test-discipline SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`).
+**The `next:` entries below are the audit record AND the run-driver path — they are NOT a substitute for the direct Skill-tool invoke in § Autonomous fix loop.** When NO run-driver is active (the common direct / intake-fast-path case) you have ALREADY invoked the target yourself per § Autonomous fix loop; emitting `next:` advances nothing on its own, so **never stop at it**.
+- CRITICAL/HIGH findings that need a code fix → you invoked `odoo-coding` directly (§ Autonomous fix loop); under an active run-driver instead, emit `next: odoo-coding` carrying the report path (the driver bounds the loop to 3 iterations, then escalates).
+- A behavior change with no protecting test (pitfall #10) → drive it through `odoo-coding` (which is test-first) the same way; under a run-driver, emit `next: odoo-test-writer` carrying the module + behavior so the gap is closed before merge.
 - Clean review, behavior covered → no fix needed, no `next` (the loop terminates).
-A review that finds a CRITICAL bug in a behavior that also lacks a test drives BOTH the protecting
-test and the fix (under a run-driver: `next: odoo-coding` and `next: odoo-test-writer`).
+A review that finds a CRITICAL bug in a behavior that also lacks a test drives BOTH the protecting test and the fix (under a run-driver: `next: odoo-coding` and `next: odoo-test-writer`).
 Additive output for the depth-0 run-driver - it does not change anything produced above.

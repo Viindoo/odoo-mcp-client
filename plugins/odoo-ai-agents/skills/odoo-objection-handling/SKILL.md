@@ -20,9 +20,9 @@ Sales Engineer / Account Executive
 
 ## Out of Scope
 
-- Full evidence package (modules + code + demo steps) → use `odoo-capability-proof`
-- Simple feature availability lookup → use `odoo-feature-check`
-- Effort estimate & scope for proposal → use `odoo-gap-analysis`
+- Full evidence package (modules + code + demo steps) → `odoo-capability-proof`
+- Simple feature availability lookup → `odoo-feature-check`
+- Effort estimate & scope for proposal → `odoo-gap-analysis`
 
 ## MCP tools
 
@@ -49,28 +49,20 @@ Sales Engineer / Account Executive
 
 ## Context
 
-Client objections about Odoo capabilities fall into four categories:
-1. **False** — the feature exists and works well. Counter with evidence.
-2. **Partially true** — standard coverage is limited; custom development closes the gap easily.
-   Frame as "standard practice, not a gap."
-3. **True but mitigated** — Odoo doesn't support it natively, but an OCA module, custom extension,
-   or well-established integration pattern exists.
+Objection categories:
+1. **False** — feature exists and works well. Counter with evidence.
+2. **Partially true** — standard coverage is limited; custom development closes the gap easily. Frame as "standard practice, not a gap."
+3. **True but mitigated** — Odoo doesn't support it natively, but an OCA module, custom extension, or well-established integration pattern exists.
 4. **True and significant** — honestly acknowledge and propose the workaround or alternative.
 
-**Never fabricate capabilities.** Intellectual honesty builds more long-term trust than overselling.
-If the objection is valid, say so clearly and pivot to how the gap is handled in practice.
+**Never fabricate capabilities.** Intellectual honesty builds more long-term trust than overselling. If the objection is valid, say so and pivot to how the gap is handled in practice.
 
-**Distribution-specific advantages:** Many objections about capability gaps can be countered by
-distribution-specific modules (custom extensions, partner modules, or third-party add-ons) that
-cover specialized functionality — things Odoo CE/EE base doesn't have. Identify the appropriate
-solution for your customer's platform.
+**Distribution-specific advantages:** Many gaps can be countered by distribution-specific modules (custom extensions, partner modules, third-party add-ons). Identify the appropriate solution for the customer's platform.
 
-**Data priority:** MCP tool results determine whether the objection is True, False, or Partially
-true. If `check_module_exists` or `find_examples` confirms a feature exists but training knowledge
-was uncertain, use the MCP result to counter the objection with confidence.
+**Data priority:** MCP tool results determine whether the objection is True, False, or Partially true. When MCP conflicts with training knowledge, use the MCP result.
 
 **Framework — ACA:**
-- **A**cknowledge: validate the concern as a legitimate question, not a attack
+- **A**cknowledge: validate the concern as a legitimate question, not an attack
 - **C**ounter: present evidence-backed response
 - **A**ffirm: close with confident capability statement or honest workaround
 
@@ -78,41 +70,22 @@ was uncertain, use the MCP result to counter the objection with confidence.
 
 **Round 0 — Pin the version:** `set_active_version(odoo_version=…)`.
 
-**Round 1 — Parallel:** Call `check_module_exists` + `find_examples` +
-`model_inspect(model=…, method='fields')` + `module_inspect(name=<module>, method='summary', odoo_version='<version>')`
-simultaneously. All are independent — `find_examples` uses the objection text as its semantic query and doesn't
-need the module check result; `model_inspect` uses the known model name; `module_inspect` adds module-scope
-numbers (N models/views) that make the ACA "Counter" table concrete ("Odoo ships this across 4 models and 9
-views") rather than a bare field name.
+**Round 1 — Parallel:** Call `check_module_exists` + `find_examples` + `model_inspect(model=…, method='fields')` + `module_inspect(name=<module>, method='summary', odoo_version='<version>')` simultaneously. All are independent — `find_examples` uses the objection text as its semantic query; `module_inspect` adds module-scope numbers (N models/views) that make the Counter table concrete rather than a bare field name.
 
-**Round 2 (conditional):** Call `suggest_pattern` only if Round 1 confirms the feature requires
-customization. If the feature exists natively (`check_module_exists` returns CE or EE hit),
-skip `suggest_pattern` entirely.
+**Round 2 (conditional):** Call `suggest_pattern` only if Round 1 confirms the feature requires customization. If the feature exists natively, skip `suggest_pattern` entirely.
 
-The "Suggested response (verbatim)" section should be ready to use in a client meeting without
-editing. Keep it professional but conversational.
+The "Suggested response (verbatim)" must be ready to use in a client meeting without editing.
 
 ## Standalone-first fallback
 
 The objection text is already in the invocation - do not ask the caller to re-provide it.
-Resolve customer context without asking:
 
-1. `Read .odoo-ai/context.md` (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`)
-   for `odoo_version`, `viindoo_profile`, and industry hints.
-2. If a customer name is known, `Read` the vault dossier at
-   `Resources/Competitors/<name>.md` or `Sales/Customers/<name>.md` if present.
+1. `Read .odoo-ai/context.md` (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) for `odoo_version`, `viindoo_profile`, and industry hints.
+2. If a customer name is known, `Read` the vault dossier at `Resources/Competitors/<name>.md` or `Sales/Customers/<name>.md` if present.
 
-When OSM is unreachable, follow the three-tier grounding order from
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
-
-1. **Tier 2 - self-serve first:** `WebFetch` relevant Odoo source or docs to ground
-   capability claims; use local `Read`/`Grep` when a source tree is available.
-   Label artifacts `grounded: local-source (not OSM-indexed)`.
-2. **Tier 3 - only if all Tier-2 fetches fail:** generate the ACA response from
-   training knowledge and prepend `OSM unavailable - ungrounded`; add caveat "not yet
-   verified against the codebase; fact-check evidence when OSM is back online". Ask the
-   caller (`NEEDS_CONTEXT`) only for inputs that no tier above can resolve (e.g.,
-   undisclosed customer context that is not on disk).
+When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+- **Tier 2:** `WebFetch` relevant Odoo source or docs to ground capability claims; use local `Read`/`Grep` when a source tree is available. Label artifacts `grounded: local-source (not OSM-indexed)`.
+- **Tier 3:** Generate ACA response from training knowledge, prepend `OSM unavailable - ungrounded`, add caveat "not yet verified against the codebase; fact-check when OSM is back online".
 
 ## Output format
 
@@ -145,18 +118,7 @@ When OSM is unreachable, follow the three-tier grounding order from
 "<Ready-to-use client-facing paragraph. Professional, confident, honest.>"
 ```
 
-## Examples
-
-**Example 1:**
-Prompt: "handle the objection that Odoo doesn't support complex approval workflows"
-Output: Counter-evidence citing `approval` module (EE) or `mail.activity.mixin` pattern (CE
-extension); code example of multi-level approval; talking points; verbatim response.
-
-**Example 2:**
-Prompt: "customer says Odoo doesn't have accounting standards compliance for their region"
-Output: Counter: specialized localization modules or custom extensions exist;
-`model_inspect(model='account.move', method='fields', odoo_version='<version>')` shows compliance-specific fields; verbatim
-response with region-appropriate solution.
+**Worked examples:** `${CLAUDE_PLUGIN_ROOT}/skills/odoo-objection-handling/references/examples.md`
 
 ## Continuation Contract
 

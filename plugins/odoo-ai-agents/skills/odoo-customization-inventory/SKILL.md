@@ -51,86 +51,38 @@ CEO / CTO / Project Manager
 
 ## Context
 
-Executives need to understand the scope of their Odoo investment before strategic decisions:
-upgrades, migrations, vendor changes, or compliance audits. They need business language, not
-technical jargon.
+Executives need to understand the scope of their Odoo investment before strategic decisions (upgrades, migrations, vendor changes, compliance audits). Output is business language, not technical jargon.
 
-Custom modules in Odoo typically:
-- Inherit and extend standard models (`_inherit`)
-- Add new models with `_name`
-- Override methods (business logic changes)
-- Add computed fields, constraints, or security rules
+Key distinctions: Standard Odoo (exclude from inventory), Distribution-maintained (e.g. `viin_*` prefix), True custom (client IT / system integrator). In v8/v9, `__openerp__.py` was used instead of `__manifest__.py` — note OpenERP-era origin if present.
 
-Distribution-specific: distinguish between distribution-maintained base modules and true custom
-modules written by the client's IT team or a system integrator.
-
-Version caveat: In Odoo v8/v9, `__openerp__.py` was used instead of `__manifest__.py`. If modules
-use the old manifest, note the OpenERP-era origin.
-
-**Data priority:** MCP tool results are ground truth for module classification. If `check_module_exists`
-returns a match but training knowledge says it's a custom module (or vice versa), trust the MCP result.
+**Data priority:** MCP tool results are ground truth for module classification over training knowledge.
 
 ## Instructions
 
-Use parallel MCP calls — for a list of N modules, sequential calls are N× slower than needed.
+Use parallel MCP calls — for N modules, sequential calls are N× slower.
 
-**Round 0 — Pin version/profile + enumerate:** `list_available_profiles()` first to get the valid
-profile name (the server registers versioned names like `viindoo_internal_17` / `odoo_17` — never
-assume a hyphenated or unversioned one), then `set_active_version(...)` + `set_active_profile(profile_name=<profile>)`
-so every subsequent call targets the same customer baseline. Then
-`profile_inspect(method='modules', name=<profile>, odoo_version='<version>')` to enumerate the profile's own
-modules in one call — this is the inventory backbone, so you don't depend on the user pasting a module list.
+**Round 0 — Pin version/profile + enumerate:** `list_available_profiles()` first (the server registers versioned names like `viindoo_internal_17` / `odoo_17` — never assume a hyphenated or unversioned one), then `set_active_version(...)` + `set_active_profile(profile_name=<profile>)` in parallel, then `profile_inspect(method='modules', name=<profile>, odoo_version='<version>')` to enumerate the profile's modules — this is the inventory backbone, so you don't depend on the user pasting a module list.
 
-**Round 1 — Parallel:** Call `check_module_exists` for ALL modules simultaneously. Each call is
-independent. Result: classify each module as Standard (exclude), Distribution-maintained, or Custom.
+**Round 1 — Parallel:** Call `check_module_exists` for ALL modules simultaneously. Classify each as Standard (exclude), Distribution-maintained, or Custom.
 
-**Round 2 — Parallel:** Call `model_inspect(model=…, method='fields')` for ALL distribution-maintained + Custom
-modules simultaneously. For each, extract: the base Odoo model being extended, up to 5 most
-important custom fields, and whether key methods are overridden. These calls are independent
-of each other.
+**Round 2 — Parallel:** Call `model_inspect(model=…, method='fields', odoo_version='<version>')` for ALL distribution-maintained + Custom modules simultaneously. Extract: base Odoo model extended, up to 5 most important custom fields, whether key methods are overridden.
 
-**Round 2.5 — Per-module architecture drill-down (parallel):** For each distribution-maintained or Custom
-module that the executive wants to understand more deeply, call
-`module_inspect(name=<name>, method='summary', odoo_version='<version>')`. This returns a concise tree showing the
-module's manifest metadata, which models it defines vs extends, and counts of views and JS
-patches — giving the executive a one-glance architecture picture without reading source code.
-Fire all `module_inspect(method='summary', odoo_version='<version>')` calls in parallel (one per module of interest).
-The tree output is ~10–15 lines per module and is safe to include verbatim in the inventory
-report.
+**Round 2.5 — Architecture drill-down (parallel):** For each distribution-maintained or Custom module, call `module_inspect(name=<name>, method='summary', odoo_version='<version>')`. Returns manifest metadata, models defined/extended, view and JS patch counts. Fire all calls in parallel; include the tree output verbatim (~10-15 lines per module).
 
-> Resource shortcut: when a module name is already known, `odoo://{version}/module/{name}` returns the same
-summary as a `module_inspect` summary call without a tool round-trip.
+> Resource shortcut: `odoo://{version}/module/{name}` returns the same summary as a `module_inspect` summary call without a tool round-trip.
 
-Example — understanding `custom_loyalty` on Odoo 17:
-```
-module_inspect(name="custom_loyalty", method="summary", odoo_version='<version>')
-```
+**Round 3 — Parallel:** Call `impact_analysis` for high-usage or high-risk modules from Round 2. Fire all calls in one batch.
 
-**Round 3 — Parallel:** Call `impact_analysis` for modules flagged as high-usage or high-risk
-based on Round 2 results. Fire all high-risk `impact_analysis` calls in one batch.
+Write "Business purpose" in plain language inferred from field names and module name (e.g., a module adding `vat_number`, `tax_id_file` to `res.partner` = "Vietnamese tax compliance").
 
-Write "Business purpose" in plain language. Infer from field names and module name — e.g., a module
-adding `vat_number`, `tax_id_file` to `res.partner` is clearly "Vietnamese tax compliance".
-
-Flag modules with many deprecated API calls or overrides of unstable methods as "upgrade risk".
-Ground this with `find_deprecated_usage(odoo_version='<version>', profile_name=<profile>)` (scoped to the
-customer profile) instead of inferring from names — the scan returns the real deprecated-API hits per
-module; pair it with `module_inspect(name=<module>, method='dependencies', odoo_version='<version>')` to get
-the real dependency chain that determines a module's upgrade blast radius.
+Flag upgrade risk grounded in `find_deprecated_usage(odoo_version='<version>', profile_name=<profile>)` (not inferred from names) + `module_inspect(name=<module>, method='dependencies', odoo_version='<version>')` for real dependency chain and blast radius.
 
 ## Standalone-first fallback
 
-When OSM unreachable, follow the three-tier grounding protocol defined in
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. Specifically:
+When OSM unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-- **Tier 2 (disk):** Run `find . -maxdepth 3 -name "__manifest__.py"` (also
-  `__openerp__.py` for legacy modules), then `Read` each manifest to extract `name`,
-  `summary`, `depends`, and `version`. Build the inventory from those files directly.
-  Only ask the user if the working directory is not an Odoo repo and no manifests are
-  found anywhere within 3 levels.
-- **Tier 3 (training):** If no readable manifests exist, classify modules from
-  training knowledge with caveat `OSM unavailable - ungrounded` and
-  "detailed code & inheritance not yet scanned - verify when OSM is back online".
+- **Tier 2 (disk):** `find . -maxdepth 3 -name "__manifest__.py"` (also `__openerp__.py` for legacy), then `Read` each manifest for `name`, `summary`, `depends`, `version`. Build the inventory directly. Only ask the user if the working directory is not an Odoo repo and no manifests are found within 3 levels.
+- **Tier 3 (training):** If no readable manifests exist, classify from training knowledge with caveat `OSM unavailable - ungrounded` and "detailed code & inheritance not yet scanned - verify when OSM is back online".
 
 ## Output format
 
@@ -157,17 +109,7 @@ When OSM unreachable, follow the three-tier grounding protocol defined in
 <1 sentence for the next step>
 ```
 
-## Examples
-
-**Example 1:**
-Prompt: "list all our Odoo customizations and what they do"
-Output: Inventory table, each module classified as custom or Viindoo, business purpose in plain
-language, upgrade risk flag.
-
-**Example 2:**
-Prompt: "we have modules: dist_sale_advance, dist_account_vat, custom_loyalty — list them"
-Output: `dist_sale_advance` → Distribution-maintained (sale management), `dist_account_vat` → Distribution-maintained
-(tax compliance), `custom_loyalty` → Custom (loyalty program) — with field details and business purpose.
+Examples: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-customization-inventory/references/examples.md`
 
 ## Continuation Contract
 

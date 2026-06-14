@@ -19,29 +19,20 @@ Pre-sales Consultant / Bid Manager
 
 ## When to use
 
-- A prospect or public-sector client issues an RFP / RFQ / ITT with a numbered requirement list
-  and expects a formal compliance verdict per line
-- You need to submit a written response matrix (Yes / Partial / No with notes) alongside or
-  before a full proposal
-- Sales engineering needs a quick score card to decide whether to bid at all
-- A project manager needs to flag which requirements need custom dev before committing to a
-  timeline
+- Prospect / public-sector client issues an RFP / RFQ / ITT expecting a formal compliance verdict per line
+- You need a written compliance matrix before submitting a full proposal
+- Sales engineering needs a quick score card to decide whether to bid
+- Project manager needs to flag which requirements need custom dev before committing to a timeline
 
-Difference from siblings:
-- `odoo-gap-analysis` - outputs effort tiers (days) for quoting; this skill outputs compliance
-  verdicts for a formal RFP response document
-- `odoo-capability-proof` - deep code evidence for ONE requirement; this skill covers ALL
-  requirements in the list at once, with lighter per-requirement evidence
-- `odoo-feature-check` - single feature yes/no; this skill handles a numbered list
+Difference from siblings: `odoo-gap-analysis` outputs effort tiers (days) for quoting; this skill outputs compliance verdicts. `odoo-capability-proof` gives deep code evidence for ONE requirement; this skill covers ALL requirements at once. `odoo-feature-check` handles a single feature; this skill handles a numbered list.
 
 ## Out of Scope
 
-- Effort estimation / day-count for a quote → use `odoo-gap-analysis`
-- Deep code-level proof for a single requirement → use `odoo-capability-proof`
-- Single feature availability outside an RFP context → use `odoo-feature-check`
-- Writing the narrative sections of the full proposal (executive summary, company profile,
-  references) → use `odoo-content-draft`
-- Objection handling after the RFP is submitted → use `odoo-objection-handling`
+- Effort estimation / day-count → `odoo-gap-analysis`
+- Deep code-level proof for a single requirement → `odoo-capability-proof`
+- Single feature availability outside RFP context → `odoo-feature-check`
+- Narrative sections of the full proposal → `odoo-content-draft`
+- Objection handling after RFP submission → `odoo-objection-handling`
 
 ## MCP tools
 
@@ -68,59 +59,32 @@ Difference from siblings:
 | Label | Meaning | When to use |
 |-------|---------|-------------|
 | **Yes** | Covered by a standard CE or EE module, zero development needed. State edition. | `check_module_exists` confirms presence; `model_inspect` shows the relevant fields/views |
-| **Partial** | Standard module exists but covers only part of the requirement; a gap remains that configuration alone cannot fill | Module found; coverage verified incomplete after `model_inspect` |
-| **Roadmap** | Not in the target version but confirmed in a later release or official roadmap | Evidence must come from OSM cross-version check or public Odoo roadmap - never from training memory alone |
-| **via-Extension** | Gap is fillable with a standard ORM extension (`_inherit`, computed field, wizard) rather than a greenfield module | suggest_pattern returns a matching pattern; effort is bounded (typically 1-5 days) |
-| **No** | Cannot be addressed by standard Odoo or a light extension; requires custom development or a third-party integration | Honest last resort - do not use to avoid research; do not use `Yes` or `Partial` to avoid using `No` |
+| **Partial** | Standard module exists but covers only part; a gap remains that config alone cannot fill | Module found; coverage verified incomplete after `model_inspect` |
+| **Roadmap** | Not in target version but confirmed in a later release or official roadmap | Evidence from OSM cross-version check or public roadmap - never training memory alone |
+| **via-Extension** | Gap fillable with standard ORM extension (`_inherit`, computed field, wizard) | `suggest_pattern` returns a matching pattern; effort typically 1-5 days |
+| **No** | Cannot be addressed by standard Odoo or light extension; requires custom dev or 3rd-party integration | Honest last resort |
 
-**Absolute rule:** Do NOT assign `Yes` when the evidence says `Partial`. Do NOT assign `Partial` when
-the evidence says `No`. Overclaiming in an RFP creates legal and commercial risk. When OSM gives
-a result that conflicts with training knowledge, trust OSM.
+**Absolute rule:** Do NOT assign `Yes` when evidence says `Partial`. Do NOT assign `Partial` when evidence says `No`. Overclaiming in an RFP creates legal and commercial risk. When OSM conflicts with training knowledge, trust OSM.
 
-### What drives the overall fit %
+**Fit %:** `(Yes * 1.0 + Partial * 0.5 + via-Extension * 0.7 + Roadmap * 0.3 + No * 0.0) / total * 100` — round to nearest integer. Rough indicator only, not a contractual commitment.
 
-fit % = (Yes * 1.0 + Partial * 0.5 + via-Extension * 0.7 + Roadmap * 0.3 + No * 0.0) / total requirements * 100
-
-Round to the nearest integer. This is a rough indicator for the executive summary - not a
-contractual commitment.
-
-### Version discipline
-
-A requirement that is `No` on v14 may be `Yes` on v17. Always note the target version in the
-header. For each `No` or `Partial`, optionally note the earliest version where it becomes `Yes`
-if OSM cross-version data is available.
+**Version discipline:** A `No` on v14 may be `Yes` on v17. Always note the target version. For each `No` or `Partial`, optionally note the earliest version where it becomes `Yes` if OSM cross-version data is available.
 
 ## Method
 
 Follow `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` for all claims.
 
-**Round 0 - Context bootstrap + pin:** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`:
-read `.odoo-ai/context.md` if present and extract `odoo_version` and `viindoo_profile`.
-Call `set_active_version(odoo_version=…)` and `set_active_profile(profile_name=…)` with those
-values (never hard-code `viindoo_internal_17`). If `.odoo-ai/context.md` is absent, derive
-version from manifests on disk per the context-bootstrap snippet before asking.
+**Round 0 - Context bootstrap + pin:** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`: read `.odoo-ai/context.md` if present and extract `odoo_version` and `viindoo_profile`. Call `set_active_version(odoo_version=…)` and `set_active_profile(profile_name=…)` with those values (never hard-code `viindoo_internal_17`). If `.odoo-ai/context.md` is absent, derive version from manifests on disk per the context-bootstrap snippet before asking.
 
-The requirement list is already present in the invocation context - proceed directly; do not
-ask the user to re-provide requirements that were stated in the original request.
+The requirement list is already in the invocation context - proceed directly without asking the user to re-provide it.
 
-**Round 1 - Parallel (fire all at once):** Call `check_module_exists` for EVERY requirement
-simultaneously. Each call is independent. Map each requirement to its most likely module/feature
-keyword before firing.
+**Round 1 - Parallel:** Call `check_module_exists` for EVERY requirement simultaneously. Map each requirement to its most likely module/feature keyword before firing.
 
-**Round 2 - Parallel (after Round 1):** For requirements where Round 1 returned a partial match
-or where the module scope is unclear, call `model_inspect(model=…, method='fields')` +
-`module_inspect(name=<module>, method='summary', odoo_version='<version>')` in parallel. One
-`module_inspect` per ambiguous module; one `model_inspect` per ambiguous model. These two tools
-together reveal whether the standard view/flow already covers the requirement (no gap) or
-whether a field/view is absent (gap confirmed).
+**Round 2 - Parallel (after Round 1):** For requirements with partial match or unclear module scope, call `model_inspect(model=…, method='fields')` + `module_inspect(name=<module>, method='summary', odoo_version='<version>')` in parallel — one per ambiguous module/model. These reveal whether the standard view/flow already covers the requirement (no gap) or whether a field/view is absent (gap confirmed).
 
-**Round 3 - Parallel (for Partial/No items):** For each requirement not fully covered, call
-`find_examples` + `suggest_pattern` simultaneously to discover whether a standard extension
-point exists. A matching `suggest_pattern` result upgrades a tentative `No` to `via-Extension`
-if the extension is bounded and standard ORM patterns apply.
+**Round 3 - Parallel (for Partial/No items):** Call `find_examples` + `suggest_pattern` simultaneously. A matching `suggest_pattern` result upgrades a tentative `No` to `via-Extension` if the extension is bounded and standard ORM patterns apply.
 
-**Decision logic per requirement (applied after each round):**
-
+**Decision logic:**
 ```
 check_module_exists → full match, fields confirmed → Yes (CE) or Yes (EE)
 check_module_exists → module found, model_inspect shows gap → Partial
@@ -129,31 +93,18 @@ check_module_exists → not found, suggest_pattern → no match → No
 cross-version check shows it exists in a later release → Roadmap
 ```
 
-**Parallelism discipline:** A gap analysis covering 20 requirements must not make 20 sequential
-calls. Batch all Round 1 calls together. Batch all Round 2 calls together. Batch all Round 3
-calls together. Target 3 rounds regardless of requirement count.
+**Parallelism discipline:** 20 requirements must not make 20 sequential calls. Batch all Round 1 calls together, all Round 2 together, all Round 3 together. Target 3 rounds regardless of requirement count.
 
-**Honesty discipline:** If OSM returns `not found` for a module that training knowledge says
-exists, report the OSM result and note the discrepancy. Do not silently override OSM with
-training memory.
+**Honesty discipline:** If OSM returns `not found` for a module that training knowledge says exists, report the OSM result and note the discrepancy. Do not silently override OSM with training memory.
 
 ## Standalone-first fallback
 
-When OSM is unreachable, follow the three-tier grounding protocol defined in
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`.
+When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`.
 
-The requirement list is already in the invocation context - proceed immediately without
-asking the user to re-provide it.
+The requirement list is already in the invocation context - proceed immediately without asking the user to re-provide it.
 
-- **Tier 2 - disk / WebFetch:** If a local Odoo source tree is present, use
-  `find . -maxdepth 4 -name "__manifest__.py"` then `Read` the relevant manifest and model
-  files. Alternatively, `WebFetch` raw manifests from the official Odoo source on GitHub
-  (`https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`).
-  Label artifacts built this way `grounded: local-source (not OSM-indexed)`.
-- **Tier 3 - training memory only:** If all Tier-2 fetches fail, classify from training
-  knowledge and prepend each verdict with `(OSM unavailable - unverified)`. Include this
-  caveat in the executive summary: "Compliance verdicts are unverified against the code index;
-  double-check once OSM is back online."
+- **Tier 2 - disk / WebFetch:** If a local Odoo source tree is present, use `find . -maxdepth 4 -name "__manifest__.py"` then `Read` relevant manifests and model files. Alternatively, `WebFetch` raw manifests from `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`. Label artifacts `grounded: local-source (not OSM-indexed)`.
+- **Tier 3 - training memory only:** Classify from training knowledge, prepend each verdict with `(OSM unavailable - unverified)`. Include caveat in executive summary: "Compliance verdicts are unverified against the code index; double-check once OSM is back online."
 
 ## Output format
 
@@ -200,28 +151,7 @@ EE license is required>
 
 **Effort legend (for via-Extension and No rows):** S = <1d - M = 1-3d - L = 3-10d - XL = >10d
 
-## Examples
-
-**Example 1:**
-Prompt: "RFP has 15 requirements for a manufacturing client: MRP, batch production,
-multi-currency invoicing, custom IoT integration for CNC machines, quality control checklists."
-Output: MRP -> Yes (CE, `mrp`); batch production -> Yes (CE, `mrp` lot/serial tracking);
-multi-currency invoicing -> Yes (CE, `account`, `res.currency`); IoT CNC integration -> No
-(custom XL, `iot` EE exists but CNC adapter is bespoke); quality checklists -> Partial
-(`quality` EE covers basic checks; advanced custom checklist builder not standard).
-Overall fit ~70%. Recommended: bid with EE license requirement noted and CNC integration
-scoped as custom work.
-
-**Example 2:**
-Prompt: "Rate these 8 HR requirements for a government tender: employee registry, leave
-management, payroll, org-chart export to PDF, custom grade/rank field, biometric attendance,
-approval workflow for overtime."
-Output: Employee registry -> Yes (CE, `hr`); leave management -> Yes (CE, `hr_holidays`);
-payroll -> Yes (EE, `hr_payroll`); org-chart PDF export -> Partial (`hr` has org chart view,
-no native PDF export - via-Extension with `wkhtmltopdf` route, M); custom grade/rank ->
-via-Extension (`hr.employee` `_inherit`, computed field, S); biometric attendance -> No
-(custom XL, no standard biometric adapter); overtime approval -> via-Extension
-(`mail.activity.mixin` approval pattern, M). Overall fit ~65%.
+**Worked examples:** `${CLAUDE_PLUGIN_ROOT}/skills/odoo-rfp-response/references/examples.md`
 
 ## Continuation Contract
 

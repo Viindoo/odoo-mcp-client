@@ -49,59 +49,32 @@ Developer + Marketer
 
 ## Context
 
-Odoo version diff has two audiences with different needs:
-- **Developers**: need file paths, method signatures, migration instructions for breaking changes
-- **Marketers**: need business-language feature highlights for sales/marketing content
+Two audiences: **Developers** (file paths, method signatures, migration instructions for breaking changes) and **Marketers** (business-language feature highlights for sales/marketing content).
 
-**Major breaking points in Odoo history (v8 onward):**
+Historical breaking points: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-version-diff/references/breaking-points-history.md`
 
-| Version jump | Key breaking changes |
-|-------------|---------------------|
-| v8 → v10 | Python 2→3, `__openerp__.py` → `__manifest__.py`, `osv.osv` → `models.Model`, `_columns` → class attributes, `pool.get()` removed |
-| v12 → v13 | `@api.multi`, `@api.one` removed; OWL introduced as new JS framework (alongside old `web.Widget` — NOT yet primary) |
-| v13 → v14 | OWL becomes primary frontend framework; `web.Widget` deprecated (still present) |
-| v14 → v15 | OWL 2.0 migration; many widget APIs changed; `AbstractModel`, `AbstractRenderer` removed |
-| v15 → v16 | `web.Widget` removed completely; `fields.Text` with `widget='html'` replaced by `fields.Html`; new `HtmlField` widget; `body_html` field type changes; accounting model restructure |
-| v16 → v17 | Python 3.10+ required; performance improvements; several `tools.*` cleanup |
-| v17 → v18+ | ORM enhancements; module restructuring (ongoing) |
-
-> Not exhaustive. Odoo ships a new major roughly yearly; this table captures the historical
-> breaking points only. For any target newer than the last row, resolve the real diff via OSM
-> (`api_version_diff`) and the release notes rather than assuming.
-
-Always specify if the diff spans an **era boundary** (OpenERP → Odoo, or pre-OWL → post-OWL)
-because these require significantly more migration work than within-era upgrades.
-
-**Data priority:** `api_version_diff` results are ground truth for what actually changed between
-the indexed versions. Use training knowledge for era-level historical context (Python 2→3,
-`@api.multi` removal history) but never assert specific API changes without MCP confirmation.
+Use training knowledge for era-level historical context (Python 2→3, `@api.multi` removal, OWL timeline) but never assert specific API changes without MCP confirmation. `api_version_diff` results are ground truth. Always flag when the diff spans an **era boundary** — these require significantly more migration work.
 
 ## Instructions
 
-**Round 1:** Call `api_version_diff` first — this is the prerequisite that supplies the symbol
-list for all subsequent calls.
+**Round 1:** Call `api_version_diff` first — this supplies the symbol list for all subsequent calls.
 
-**Round 2 — Parallel:** After Round 1, batch ALL `lookup_core_api` calls (for every Removed /
-Changed signature symbol) + ALL `entity_lookup(kind='method', …)` calls (for every
-changed-signature method that is commonly overridden) simultaneously. These are independent
-of each other — firing them as a single batch cuts the total round trips dramatically for
-large version gaps. For the **Added** symbols `api_version_diff` reports, also batch
-`find_examples(query=<new API>, odoo_version=<to_version>)` so the "Added APIs" section shows real
-indexed usage of each new symbol rather than a bare description generated from memory.
+**Round 2 — Parallel:** After Round 1, batch ALL calls simultaneously (they are independent — one batch cuts round trips dramatically for large version gaps):
+- `lookup_core_api` for every Removed/Changed signature symbol
+- `entity_lookup(kind='method', …)` for every changed-signature method that is commonly overridden
+- `find_examples(query=<new API>, odoo_version=<to_version>)` for Added symbols (shows real indexed usage rather than bare description)
 
-**Round 2b — Structural diff (when the user names a specific model):** Call
-`model_inspect(model=<name>, method='fields', odoo_version=<from_version>)` and
-`model_inspect(model=<name>, method='fields', odoo_version=<to_version>)` simultaneously,
-then diff the results to surface field additions and removals between the two versions. Do
-the same with `model_inspect(method='views', …)` to identify view-level structural changes.
-These four calls are all independent — fire them as a single batch alongside Round 2.
+**Round 2b — Structural diff (when user names a specific model):** Batch simultaneously:
+- `model_inspect(model=<name>, method='fields', odoo_version=<from_version>)`
+- `model_inspect(model=<name>, method='fields', odoo_version=<to_version>)`
+- `model_inspect(model=<name>, method='views', odoo_version=<from_version>)`
+- `model_inspect(model=<name>, method='views', odoo_version=<to_version>)`
 
-Categorize findings by impact:
-   - **Module developer** changes (APIs used in `_inherit` classes, model definitions)
-   - **End-user functionality** changes (new features visible in the UI)
+Diff the results to surface field and view-level structural changes. Fire these alongside Round 2.
 
-**Cross-era note:** If the jump spans v8/v9→v10+ or v12→v13, add a special "Era migration" section
-explaining the magnitude: Python 2→3 rewrite, decorator removal, frontend framework replacement.
+Categorize findings by impact: **Module developer** changes vs **End-user functionality** changes.
+
+**Cross-era note:** If the jump spans v8/v9→v10+ or v12→v13, add a special "Era migration" section explaining the magnitude.
 
 ## Standalone-first fallback
 
@@ -117,10 +90,9 @@ When OSM is unreachable, follow the three-tier grounding order from
    - Use local `Read`/`Grep` on a local source tree when present.
    - Label artifacts `grounded: local-source (not OSM-indexed)`.
 2. **Tier 3 - only if both version fetches fail:** produce the diff from training
-   knowledge of era-level changes (Python 2→3, `@api.multi` removal, OWL adoption
-   timeline) and prepend `OSM unavailable - ungrounded`; add caveat "not yet verified
-   against the API index; double-check signature details when OSM is back online". Never
-   ask the caller to paste or supply release notes - those are Tier-2 fetches.
+   knowledge of era-level changes and prepend `OSM unavailable - ungrounded`; add caveat
+   "not yet verified against the API index; double-check signature details when OSM is back online".
+   Never ask the caller to paste or supply release notes - those are Tier-2 fetches.
 
 ## Output format
 
@@ -169,18 +141,7 @@ When OSM is unreachable, follow the three-tier grounding order from
 3. Migrate Deprecated (next sprint): <list>
 ```
 
-## Examples
-
-**Example 1:**
-Prompt: "what changed between Odoo 16 and 17 for module developers?"
-Output: Categorized diff with Added/Removed/Deprecated/Changed sections, migration notes for
-each breaking change, feature highlights, developer sprint plan.
-
-**Example 2:**
-Prompt: "compare API changes between Odoo 12 and 16, we need to migrate"
-Output: Cross-era diff (v12→v13: `@api.multi` removal + OWL introduced; v13→v14: OWL becomes
-primary + `web.Widget` deprecated; v14→v16: OWL 2.0 + `web.Widget` removed). Era migration
-section prominent. Complexity: Very High. Sprint plan with phased migration approach.
+Examples: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-version-diff/references/examples.md`
 
 ## Continuation Contract
 
