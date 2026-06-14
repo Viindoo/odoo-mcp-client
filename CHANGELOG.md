@@ -6,6 +6,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.11.2] - 2026-06-14
+
+### Changed
+
+- **Agents now get the FULL odoo-semantic surface, drift-proof.** Every `agents/*.md` drops its
+  enumerated `mcp__odoo-semantic__*` `tools:` allowlist and instead omits `tools:` (inherit the full
+  tool surface dynamically) + a minimal `disallowedTools` denylist. When the OSM server adds/renames a
+  tool, agents pick it up automatically - no `server-surface.json` snapshot edit, no PR, no drift. The
+  enumerated allowlist could never track the live server (the snapshot is hand-maintained), so this
+  replaces it with dynamic inheritance. `disallowedTools` blocks only spawn (`Agent`/`Task`) on every
+  agent, plus `Skill` on the 5 agents that must not invoke skills (kept for `odoo-frontend-coder` /
+  `odoo-solution-architect`, which invoke `odoo-frontend-design`). Write/Edit are NOT blocked - every
+  agent writes artifacts (worklog/report/design-doc/source).
+- **Fixed a latent bug:** `odoo-backend-debugger`, `odoo-ui-debugger`, `odoo-ui-reviewer` instructed
+  "APPEND your worklog" but lacked `Write` in their allowlist (could not actually write). Inheriting the
+  full surface restores `Write`, so the worklog contract now works.
+- **`odoo-code-reviewer`:** replaced the hard-coded 11-tool step-by-step OSM usage list with a general
+  directive ("you have the full surface - pick whatever fits, no fixed tool list"); review logic,
+  severity rules, and snippet wiring unchanged. Stale "tool allowlist above" guard prose in all agents
+  updated (there is no allowlist anymore).
+- `generator/skill_tool_deps.json`: dropped the vestigial `agents:` section (agents inherit, not
+  enumerated). Tests updated to the new agent contract (`disallowedTools` carries the no-spawn guard;
+  OSM is inherited).
+
 ## [3.11.1] - 2026-06-14
 
 ### Changed
