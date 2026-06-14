@@ -48,70 +48,31 @@ Consultant / Developer
 
 ## Context
 
-Standard Odoo coverage exists at three levels:
-1. **CE native** — free, zero customization needed
-2. **Odoo EE only** — requires paid Odoo Enterprise subscription
-3. **Community App Store** — third-party OCA modules (note: not officially supported)
+Coverage levels: (1) **CE native** — free, zero customization; (2) **EE only** — paid subscription; (3) **OCA/App Store** — third-party, not officially supported.
 
-Version matters — a feature in v17 may not exist in v12. Always ask or infer the target version.
+Version matters: v12+ feature may not exist in v8/v9 (OpenERP era — different module names, `_columns` dict, etc.). Always resolve the target version.
 
-For v8/v9 (OpenERP era): module names and features differ significantly. The `sale` module in v8
-has a very different field set than v16. When checking features for legacy versions, note that
-many "new" features in v12+ didn't exist at all in v8/v9.
-
-**Data priority:** When `check_module_exists` result conflicts with training knowledge about
-whether a feature exists, trust the MCP result. MCP reflects the indexed codebase; training
-data about specific Odoo module names and versions is frequently outdated.
+**Data priority:** MCP results over training knowledge — training data about Odoo module names/versions drifts fast.
 
 ## Instructions
 
 **Round 0 — Pin the version (once):** `set_active_version(odoo_version=…)`.
 
-**Round 1 — Parallel:** Call `check_module_exists` + `find_examples` simultaneously.
-`find_examples` takes a semantic query from the requirement text and does not need the
-module check result. Both are independent — fire together.
+**Round 1 — Parallel:** `check_module_exists` + `find_examples` simultaneously (independent).
 
-**Round 2 — Parallel (after Round 1):** Call `model_inspect(model=…, method='fields')` (needs
-module/model name from Round 1) + `suggest_pattern` simultaneously. `suggest_pattern` can
-be formulated from the requirement even if Round 1 shows partial coverage — they are
-independent of each other.
+**Round 2 — Parallel (after Round 1):** `model_inspect(model=…, method='fields')` + `suggest_pattern` simultaneously (independent).
 
-**Round 3 — Deep dive (when `check_module_exists` confirms presence):** Call
-`module_inspect(name=<name>, method='summary', odoo_version='<version>')` to surface the module's full
-architecture: manifest summary, which models it defines vs extends, view count, and JS patch
-count. This gives the consultant a confident, evidence-backed answer about what the module
-actually covers — beyond the bare "exists / does not exist" signal. If the module is confirmed
-to exist, also consider drilling into specifics with `module_inspect(method='fields', odoo_version='<version>')` or
-`module_inspect(method='views', odoo_version='<version>')` in a subsequent call if the client asks about exact field
-or view coverage.
+**Round 3 — Deep dive (module confirmed):** `module_inspect(name=<name>, method='summary', odoo_version='<version>')` — manifest summary, models defined/extended, view count, JS patch count. For exact field/view coverage, follow up with `module_inspect(method='fields', …)` or `module_inspect(method='views', …)`.
 
-**Verdict levels:**
-- `Available in CE` — standard, zero cost
-- `Available in Odoo EE only` — requires Enterprise subscription
-- `Partial — standard covers X, custom needed for Y` — specify the gap precisely
-- `Not available — custom development required` — honest assessment with effort note
-
-Always cite the exact module name so clients can verify independently.
+**Verdict levels:** `Available in CE` (zero cost) / `Available in Odoo EE only` (subscription) / `Partial — standard covers X, custom needed for Y` (specify gap) / `Not available — custom development required` (with effort note). Always cite the exact module name.
 
 ## Standalone-first fallback
 
-When OSM is unreachable, follow the three-tier grounding in
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-- **Tier 2 - WebFetch upstream manifest:** Fetch the raw manifest from the official Odoo
-  source for the target version, e.g.
-  `WebFetch("https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py")`
-  and one or two key model files from the same path. For EE-only modules also try
-  `https://raw.githubusercontent.com/odoo/enterprise/<version>/<module>/__manifest__.py`.
-- **Tier 2 - Local addons:** If a local Odoo source tree is present, use
-  `find . -maxdepth 4 -name "__manifest__.py"` then `Read` the matching manifest and
-  model files directly - no need to ask.
-- **Tier 3 (last resort):** If both WebFetch and local source fail, derive the verdict from
-  training knowledge and label it `OSM unavailable - ungrounded`. Confidence is lower;
-  the verdict may be outdated for the specific version.
-- Escalate to the caller (`NEEDS_CONTEXT`) only if the target Odoo version and feature name
-  are both unresolvable - never ask for manifest content or model snippets that WebFetch can
-  supply.
+- **Tier 2 - WebFetch:** `WebFetch("https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py")` + key model files. EE: try `odoo/enterprise/<version>/...`. Local source tree: `find . -maxdepth 4 -name "__manifest__.py"` then `Read`.
+- **Tier 3 (last resort):** derive from training knowledge; label `OSM unavailable - ungrounded`.
+- `NEEDS_CONTEXT` only if both version AND feature name are unresolvable. Never ask for content WebFetch can supply.
 
 ## Output format
 
@@ -146,16 +107,9 @@ When OSM is unreachable, follow the three-tier grounding in
 
 ## Examples
 
-**Example 1:**
-Prompt: "does Odoo have a subscription billing module built in?"
-Output: Feature table showing `sale_subscription` exists in EE only (not CE), key model
-`sale.order` with `subscription_id` field, verdict "Available in Odoo EE only".
+**Example 1:** "does Odoo have a subscription billing module?" → `sale_subscription` EE-only, verdict "Available in Odoo EE only".
 
-**Example 2:**
-Prompt: "Does Odoo have a fixed asset management module?"
-Output: `account_asset` exists in EE, not CE.
-`model_inspect(model='account.asset', method='fields', odoo_version='<version>')` shows key fields. Recommendation
-provided.
+**Example 2:** "fixed asset management?" → `account_asset` EE-only; `model_inspect(model='account.asset', method='fields', odoo_version='<version>')` shows key fields; recommendation provided.
 
 ## Continuation Contract
 

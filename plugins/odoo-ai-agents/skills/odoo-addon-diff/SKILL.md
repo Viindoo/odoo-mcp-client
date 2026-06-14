@@ -52,67 +52,32 @@ Marketer / Sales Engineer
 
 ## Context
 
-Odoo exists in multiple editions:
-- **Community Edition (CE)** — open-source, free, covers core ERP flows
-- **Odoo Enterprise (EE)** — proprietary add-ons, requires subscription, adds advanced features
-- **Custom/Partner distributions** — commercial or specialized add-ons built on Odoo CE, may overlap with Odoo EE
+| Edition | Model |
+|---|---|
+| CE (Community) | Open-source, free, core ERP flows |
+| EE (Enterprise) | Proprietary add-ons, subscription required |
+| Custom/Partner | Commercial add-ons on CE, may overlap with EE |
 
-Always clarify which edition or distribution the user means when comparing options.
-
-Version range matters: CE/EE distinction has existed since Odoo 9 (earlier it was OpenERP with a different commercial model). For v8 and earlier, note that the commercial edition was called "OpenERP Enterprise" and had a different module structure.
-
-**Data priority:** MCP tool results are ground truth. If `check_module_exists` says a module is
-CE-only but training knowledge says otherwise, trust the MCP result — training data about Odoo
-edition boundaries is frequently outdated.
+CE/EE distinction exists since v9 (v8 was "OpenERP Enterprise", different structure). Version matters. **Data priority:** MCP results are ground truth — training data about edition boundaries is frequently outdated.
 
 ## Instructions
 
-Use parallel MCP calls — a CE/EE comparison typically covers 10+ modules across 5+ domains.
+Use parallel MCP calls — a CE/EE comparison covers 10+ modules across 5+ domains.
 
-**Round 0 — Pin version + profile, scope each distribution:** `set_active_version(odoo_version=…)`, then
-`list_available_profiles()` to get the valid profile names (versioned, e.g. `odoo_17` / `viindoo_internal_17`).
-For each side of the comparison, `profile_inspect(method='repos', name=<profile>, odoo_version='<version>')` to see
-that profile's real repo coverage (CE vs EE vs distribution) before comparing — so the CE/EE scope is ground
-truth, not an assumption about which module lives in which edition.
+**Round 0 — Pin + scope:** `set_active_version(odoo_version=…)` then `list_available_profiles()`. For each side: `profile_inspect(method='repos', name=<profile>, odoo_version='<version>')` to get real repo coverage (CE vs EE vs distribution) as ground truth.
 
-**Round 1 — Parallel:** Call `check_module_exists` for ALL modules and features in the
-comparison request simultaneously. Each call is independent; no need to wait for any result
-before firing the next.
+**Round 1 — Parallel:** `check_module_exists` for ALL modules simultaneously.
 
-**Round 2 — Parallel:** For every module that exists in both CE and EE but with different
-depth, call `model_inspect(model=…, method='fields')` on all relevant models simultaneously to
-extract field-level differences (e.g. EE adds `forecast_date`, `analytic_account_id`). These
-calls are independent of each other. For a field whose edition origin is in doubt,
-`entity_lookup(kind='field', model=…, field=…, odoo_version='<version>')` returns its source module — attribute
-a field to CE vs EE from the index instead of training memory.
+**Round 2 — Parallel:** For modules with differing depth across editions: `model_inspect(model=…, method='fields')` on all relevant models simultaneously. For doubtful field origin: `entity_lookup(kind='field', model=…, field=…, odoo_version='<version>')` → attribute CE vs EE from index, not training memory.
 
-Never claim a feature is EE-only without tool verification — incorrect claims damage credibility.
-
-Write for a non-technical decision-maker. Translate field names to business language in the main table. Keep technical field names only in footnotes or appendices.
-
-Group by business domain: Sales, Accounting, Inventory, Manufacturing, HR, etc.
-
-For EE-only and distribution-specific features, add a brief business value note ("why does this matter for this client type?").
+Never claim EE-only without tool verification. Write for non-technical decision-makers — translate field names to business language; keep technical names in footnotes. Group by domain. For EE-only/distribution features: add one-line business value note.
 
 ## Standalone-first fallback
 
-When OSM is unreachable, follow the three-tier grounding order from
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
+When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-1. **Tier 2 - self-serve first:**
-   - `WebFetch` the raw manifests for each edition/version directly, e.g.
-     `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`
-     (CE) and `https://raw.githubusercontent.com/odoo/enterprise/<version>/<module>/__manifest__.py`
-     (EE). Use `mcp__odoo-semantic__scan_addons_source` or local `Read`/`Grep` if a local
-     source tree is present.
-   - `WebFetch` the official release notes page for the version (e.g.
-     `https://www.odoo.com/odoo-<version>/release-notes`) or the GitHub CHANGELOG to resolve
-     edition-boundary changes.
-   - Label any artifact built this way `grounded: local-source (not OSM-indexed)`.
-2. **Tier 3 - only if both fetches fail:** generate the comparison from training knowledge
-   and prepend `OSM unavailable - ungrounded`; add note "field-level details not yet verified;
-   check again when OSM is back online". Never ask the caller to paste manifests or release
-   notes - those are Tier-2 fetches.
+1. **Tier 2:** `WebFetch` raw manifests (CE: `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`; EE: `.../odoo/enterprise/<version>/...`) and official release notes. Use local `Read`/`Grep` if a source tree is present. Label artifact `grounded: local-source (not OSM-indexed)`.
+2. **Tier 3 (both fail):** Generate from training knowledge; prepend `OSM unavailable - ungrounded`; note "field-level details unverified". Never ask caller to paste manifests.
 
 ## Output format
 

@@ -131,41 +131,10 @@ demos) → Conversion/CTA weeks (offer, urgency, follow-up). Adjust ratio based 
 ### Round 3 - Channel mix matrix
 
 For the confirmed channel list and budget category, allocate effort percentage across channels.
-Effort % = share of total production + distribution time for the campaign period.
-
-Default allocations by budget category:
-
-**Budget S (content-only):**
-| Channel | Effort % | Notes |
-|---|---|---|
-| Blog / SEO | 30% | 2-3 long-form posts; evergreen |
-| LinkedIn organic | 30% | 2x/week posts; company + personal |
-| Email | 30% | 3-4 email sequence to existing list |
-| Other social (FB/Zalo) | 10% | Repurposed from LinkedIn |
-
-**Budget M (light paid):**
-| Channel | Effort % | Notes |
-|---|---|---|
-| LinkedIn organic | 25% | As above |
-| Blog / SEO | 20% | |
-| Email | 20% | |
-| LinkedIn / Google Ads | 20% | Remarketing only; requires landing page |
-| Landing page | 10% | Dedicated campaign page |
-| Other social | 5% | |
-
-**Budget L (full paid):**
-| Channel | Effort % | Notes |
-|---|---|---|
-| LinkedIn Ads | 25% | Sponsored content + lead gen form |
-| Google Search Ads | 20% | Keyword-targeted; needs ad copy |
-| Blog / SEO | 15% | |
-| Email | 15% | |
-| YouTube | 10% | 1-2 short videos (60-90 sec) |
-| Landing page | 10% | A/B tested headline |
-| Other social | 5% | |
-
-Adjust percentages to match the user's actual available channels. Channels not available
-drop to 0%; redistribute proportionally.
+Effort % = share of total production + distribution time for the campaign period. Use the default
+allocations per budget category (S / M / L) in
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-campaign-plan/references/channel-mix.md`, then adjust to the
+user's actual available channels — channels not available drop to 0%, redistribute proportionally.
 
 ### Round 4 - Asset inventory
 
@@ -180,31 +149,11 @@ Group assets by week so the marketer can sequence production before distribution
 
 ### Round 5 - KPI definition
 
-Define 2-3 leading metrics and 2-3 lagging metrics, specific to the campaign objective.
-
-**Lead generation objective:**
-- Leading: weekly new email list subscribers, LinkedIn post engagement rate,
-  landing page unique visitors
-- Lagging: demo requests submitted, qualified leads (MQL), cost per lead (if paid budget)
-
-**Brand awareness objective:**
-- Leading: content reach (impressions), share / save rate, blog session duration
-- Lagging: branded search volume trend (Google Search Console), inbound contact form
-  (unprompted), community mentions
-
-**Release announcement objective:**
-- Leading: announcement post reach, click-through to release notes / changelog,
-  email open rate on launch day
-- Lagging: trial sign-ups attributable to campaign period, upgrade rate (existing customers),
-  press / partner mentions
-
-**Retention / upsell objective:**
-- Leading: email open rate (existing customer segment), webinar / demo registrations,
-  feature adoption (if tracked)
-- Lagging: NPS movement, upsell pipeline created, churn delta vs. baseline period
-
-For each metric, provide a concrete measurement method (Google Analytics event, LinkedIn
-Analytics export, email platform dashboard) so ownership is clear.
+Define 2-3 leading + 2-3 lagging metrics, specific to the campaign objective. Use the
+objective-specific KPI sets (lead-gen / brand awareness / release announcement / retention) in
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-campaign-plan/references/kpi-tables.md`. For each metric, give a
+concrete measurement method (Google Analytics event, LinkedIn Analytics export, email platform
+dashboard) so ownership is clear.
 
 ### Round 6 - Owner map (small-team founder aware)
 
@@ -308,78 +257,25 @@ When OSM is unreachable or the skill is used without MCP configuration:
 
 ## Examples
 
-### Example 1 - Manufacturing SME / Northern Vietnam
-
-**Input:**
-- Vertical: manufacturing (furniture / wood industry)
-- Geo: Northern Vietnam (Hanoi, Binh Duong industrial zones)
-- Objective: lead generation - demo requests
-- Timeline: 6 weeks
-- Budget: M
-- Channels: Blog, LinkedIn company, email list (~500 contacts), light Google Ads remarketing
-
-**Summary of plan output:**
-
-- **Title**: "Campaign Plan: MRP for Furniture Factories in Northern Vietnam - Q3 2026"
-- **Angle**: Vertical pain → product fit ("Managing materials in Excel → MRP automates the
-  production plan")
-- **Timeline**: Weeks 1-2 awareness (blog post "5 signs Excel is not enough"); Weeks 3-4
-  product (MRP demo video, 3-email sequence); Weeks 5-6 conversion (landing page CTA, Google
-  Ads remarketing to people who read the blog)
-- **Channel mix**: Blog 20% / LinkedIn 25% / Email 25% / Google Ads 20% / Landing page 10%
-- **KPI leading**: blog unique visitors/week (target: +30% vs. baseline), email open rate >30%
-- **KPI lagging**: demo requests submitted (target: 15 in 6 weeks), cost per demo <$25
-- **Owner map**: draft all 7 assets → `odoo-content-draft`; ad setup + publish + sales
-  follow-up → Human
-
-### Example 2 - English (Q4 Release Announcement)
-
-**Input:**
-- Angle: Release announcement — new Odoo 18 features for SME
-- Objective: Awareness + trial sign-ups from existing community (Odoo partners + prospects)
-- Timeline: 4 weeks
-- Budget: S (content-only)
-- Channels: Blog, LinkedIn personal + company, email list
-
-**Summary of plan output:**
-
-- **Title**: "Campaign Plan: Odoo 18 SME Features — Q4 Announcement"
-- **Angle**: Release announcement ("What's new in Odoo 18 that your SME will actually use")
-- **Week 1**: Teaser — "What's coming" LinkedIn post + email preview to list
-- **Week 2**: Launch — long-form blog post (1,200 words, top 5 features), LinkedIn article
-  repurpose, email #1 (announcement)
-- **Week 3**: Deep-dive — two LinkedIn posts (one per feature), email #2 (use case story)
-- **Week 4**: CTA push — email #3 (trial offer), LinkedIn final recap post
-- **Assets**: 1 blog post, 4 LinkedIn posts, 3 emails — all drafted via `odoo-content-draft`
-- **KPI leading**: LinkedIn post reach, email open rate (target >35% on launch week email)
-- **KPI lagging**: trial sign-ups attributable to campaign period, blog-to-trial conversion %
-- **Owner map**: all 8 assets AI-doable; scheduling + publish + partner outreach = Human (est.
-  ~3 hr/week)
+Two worked examples (Manufacturing SME / Northern Vietnam lead-gen; English Q4 release
+announcement) are in `${CLAUDE_PLUGIN_ROOT}/skills/odoo-campaign-plan/references/examples.md` —
+read them when you need a concrete plan shape to anchor against.
 
 ## Notes
 
-- **Project context file**: `.odoo-ai/context.md` is read automatically in Round 0
-  (see `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) - not at the end as an
-  optional note. `odoo_version`, audience personas, approved messaging pillars, and channel
-  restrictions found there are applied as authoritative overrides before any clarification
-  question is asked.
-- **Brand assets**: for color palette, logo usage, and typography guidelines, refer to your
-  project's brand guidelines document if one is checked into the working repository (e.g.,
-  `branding/STYLE.md` or equivalent). This skill produces a planning document, not visual
-  assets — but reference the brand guidelines when the plan includes a landing page brief
-  or visual design spec that will be handed to a designer. When the asset inventory lists demo
-  videos or screencasts, `odoo-demo-recording` can capture them from a live instance (forward
-  suggestion only — this skill stays a planning document).
-- **No fabricated data**: NEVER invent customer names, real revenue figures, or hard ROI
-  percentages in the plan. Use abstract templates: "A manufacturing company in the southern
-  region with ~150 employees" or "A trading company in the FMCG sector reported...". If the
-  user provides real data verbally, incorporate it with attribution.
-- **Depth rule**: this skill operates at depth 1 (called from main agent). It does NOT invoke
-  other skills or spawn subagents. The campaign plan is a text deliverable — the marketer
-  executes it, the main agent does not chain it into another automated tool.
-- **Localization note**: output language follows the user's request language. Product names,
-  module names, and channel names remain in English regardless of output language
-  (e.g., "MRP module", "LinkedIn Ads", "Google Search Console").
+- **Project context file**: `.odoo-ai/context.md` is read automatically in Round 0 (see
+  `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`); `odoo_version`, personas, messaging
+  pillars, and channel restrictions there are authoritative overrides applied before any question.
+- **Brand assets**: reference the repo's brand guidelines (e.g. `branding/STYLE.md`) only when the
+  plan includes a landing-page or visual-design brief for a designer — this skill stays a planning
+  document, not visual assets. Demo videos/screencasts in the inventory → `odoo-demo-recording`.
+- **No fabricated data**: NEVER invent customer names, revenue figures, or hard ROI %. Use abstract
+  templates ("A manufacturing company in the southern region with ~150 employees"). Incorporate
+  real data only with attribution when the user provides it.
+- **Depth rule**: operates at depth 1 (called from main agent); does NOT invoke other skills or
+  spawn subagents. The plan is a text deliverable the marketer executes.
+- **Localization**: output language follows the user's request; product/module/channel names stay
+  English regardless (e.g. "MRP module", "LinkedIn Ads").
 
 ## Continuation Contract
 

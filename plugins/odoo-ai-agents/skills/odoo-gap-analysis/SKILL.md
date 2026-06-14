@@ -51,76 +51,40 @@ Consultant / Project Manager
 
 ## Context
 
-Gap analysis is the most important consulting deliverable — it sets client expectations and
-determines project budget. Errors in either direction are costly:
-- Under-estimating gaps → budget overruns, unhappy clients
-- Over-estimating gaps → losing deals, recommending custom dev for standard features
+Gap analysis sets client expectations and determines budget. Errors in either direction are costly (under = overruns; over = lost deals).
 
 **Effort classification:**
-- **Standard** — exists in CE or EE, zero development needed. Mention if EE license required.
-- **Configuration** — standard module exists but requires setup (multi-company, tax config,
-  workflow rules). < 1 day effort.
-- **Extension** — existing model/method can be extended with `_inherit`. Standard ORM extension
-  patterns apply. 1–5 days per requirement.
-- **Custom** — no standard module; requires new model, complex logic, or integration.
-  5+ days per requirement.
+| Type | Definition | Effort |
+|---|---|---|
+| Standard | Exists in CE or EE; zero dev | 0 (note if EE license needed) |
+| Configuration | Module exists; needs setup | <1 day |
+| Extension | `_inherit` extension pattern | 1-5 days/req |
+| Custom | New model, complex logic, or integration | 5+ days/req |
 
-
-**Version matters:** A feature classified "Custom" on v12 may be "Standard" on v16. Always note
-the target version. For v8/v9 migrations, effort is higher — Python 2 syntax, `_columns` dict,
-`osv.osv` all need full rewrites.
-
-**Data priority:** MCP tool results are ground truth for Standard vs Custom classification.
-If `check_module_exists` says a module doesn't exist but training knowledge says it should,
-trust the MCP result. Use training knowledge only for effort estimation and business context.
+Version matters: "Custom" on v12 may be "Standard" on v16. v8/v9 migrations cost more (Python 2, `_columns`, `osv.osv`). **Data priority:** MCP over training knowledge — trust `check_module_exists` results.
 
 ## Instructions
 
-Use parallel MCP calls to minimize latency — a gap analysis covering 10+ requirements can
-complete in 3 rounds instead of 30+ sequential calls.
+Use parallel MCP calls — 10+ requirements can complete in 3 rounds vs 30+ sequential.
 
-**Round 0 - Context bootstrap + pin:** Before asking the caller for any project fact,
-follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`: read `.odoo-ai/context.md`
-if present and extract `odoo_version` and `viindoo_profile` (never hard-code
-`viindoo_internal_17`). Use those values for `set_active_version(odoo_version=…)` and
-`set_active_profile(profile_name=…)`. If `.odoo-ai/context.md` is absent, derive version
-from manifests on disk per the context-bootstrap snippet before asking.
+**Round 0 - Bootstrap + pin:** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`. Read `.odoo-ai/context.md`; extract `odoo_version` and `viindoo_profile` (never hard-code `viindoo_internal_17`). Derive version from manifests on disk if file absent. Requirement list is already in context — do not ask the user to re-provide it.
 
-The requirement list is already present in the invocation context - proceed with
-classification directly; do not ask the user to re-provide requirements that were stated
-in the original request.
+**Round 1 — Parallel:** `check_module_exists` for ALL requirements simultaneously.
 
-**Round 1 — Parallel:** Call `check_module_exists` for ALL requirements simultaneously.
-Each call is independent; there is no reason to wait for one before firing the next.
+**Round 2 — Parallel (partial matches):** `model_inspect(model=…, method='fields')` + `module_inspect(name=<module>, method='summary', odoo_version='<version>')` for all partial-coverage modules simultaneously. The module-level view/OWL/JS inventory is what distinguishes **Configuration** (module ships the needed view/flow) from **Extension** (view/field absent).
 
-**Round 2 — Parallel:** For all requirements where coverage is partial (module exists but
-incomplete), call `model_inspect(model=…, method='fields')` on each relevant model
-simultaneously. One call returns fields + methods + views + inheritance chain. Pair it with
-`module_inspect(name=<module>, method='summary', odoo_version='<version>')` for the same modules: the
-module-level view/OWL/JS inventory is what separates **Configuration** (the module already ships the
-needed view/flow) from **Extension** (the view/field is absent and must be added) — a distinction the
-field list alone cannot make.
+**Round 3 — Parallel (Extension/Custom gaps):** `find_examples` + `lookup_core_api` + `suggest_pattern` in one batch for all remaining gaps.
 
-**Round 3 — Parallel:** For all Extension/Custom gap items, call `find_examples` +
-`lookup_core_api` + `suggest_pattern` simultaneously — one batch for all remaining gaps at
-once.
+Decision logic per requirement:
+- Full match → Standard/Config; no further calls
+- Partial → Round 2
+- No match → Custom; queue for Round 3
 
-Decision logic per requirement (applied after Round 1 results arrive):
-- Full module match → mark Standard or Config; no further calls needed
-- Partial coverage → escalate to Round 2 model_inspect
-- No match → mark Custom; queue for Round 3 suggest_pattern + lookup_core_api
-
-**Be conservative**: if in doubt, upgrade the effort tier. It's easier to reduce scope than
-explain overruns.
+**Be conservative**: upgrade effort tier when in doubt.
 
 ## Standalone-first fallback
 
-When OSM is unreachable, follow the three-tier grounding protocol defined in
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. The requirement list is
-already in the invocation context - proceed immediately without asking the user to
-re-provide it. Classify each requirement as Standard/Config/Extension/Custom based on
-Odoo training knowledge (Tier 3) and include a caveat: "Classification not yet verified
-against code examples; double-check effort estimates once OSM is online."
+When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. Proceed immediately — requirement list is in context. Classify from training knowledge (Tier 3) and note: "Classification not yet verified against code examples; double-check estimates once OSM is online."
 
 ## Output format
 

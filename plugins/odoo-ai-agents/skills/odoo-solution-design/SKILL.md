@@ -17,18 +17,15 @@ description: >
 
 ## Where this sits in the flow (design precedes the code Plan Mode)
 
-This is the **planning/analysis** step, not a code step. Its only output is an internal planning
-artifact (`.odoo-ai/designs/…`, gitignored, L1) — never production source — so it runs and is
-**approved BEFORE** the harness Plan Mode for the code. The correct order is:
+Planning/analysis step only. Output: `.odoo-ai/designs/…` (gitignored, L1) — never production
+source. Correct order:
 
 ```
 design (architect writes the TDD)  →  HUMAN approves the design  →  Plan Mode for the code  →  code → review
 ```
 
-The approved TDD *is* the plan the code Plan Mode then executes. Do not flip this: writing code
-before the design is approved is exactly what this step exists to prevent. (The design step is
-the planning-artifact exception to "writes-files runs only after Plan Mode" — its file is a
-planning doc, the same class intake is allowed to write while planning, not the routed deliverable.)
+The approved TDD is the plan the code Plan Mode executes. Do not flip this order. (The design
+step is the planning-artifact exception to "writes-files runs only after Plan Mode".)
 
 ## Phase 0 — Design intent gate (1-turn gate)
 
@@ -55,42 +52,32 @@ confirmation the architect writes ONLY the design doc under `.odoo-ai/`, never s
 
 ## Persona
 
-Developer — Odoo solution architect. Sits one step before the coders: turns a classified
-requirement (or an upgrade/migration/refactor goal) into a reviewable design the user can
-approve before a single line of production code is generated. Pairs with `odoo-coding`
-(which consumes the design — backend then frontend) and with `odoo-code-review` (which can
-check the implementation back against the design).
+Odoo solution architect. Turns a classified requirement (or upgrade/migration/refactor goal)
+into a reviewable design the user approves before any production code is generated. Pairs with
+`odoo-coding` (consumes the design) and `odoo-code-review` (checks implementation vs design).
 
 ## When to invoke — and the non-trivial threshold
 
-Invoke the `odoo-solution-architect` agent (via Agent tool) when the change is **non-trivial**
-and benefits from a designed-and-approved-before-coding step. Fire it for ANY of:
+Invoke `odoo-solution-architect` (via Agent tool) for **non-trivial** changes. Fire for ANY of:
 
-- **Extension-L / Custom-XL** tier (from `odoo-brl` / `odoo-gap-analysis`) — significant or
-  net-new logic.
-- **A new module**, or a new model, or restructuring an existing module.
-- **Overriding a core ORM hook** (`create` / `write` / `unlink`) or a method whose override
-  chain already has ≥3 entries (conflict risk).
-- **A schema / data migration** that has more than one viable strategy (pre vs post,
-  openupgradelib vs raw SQL, ID-match vs value-match mapping).
-- **A cross-model computed chain**, multi-company / multi-currency / multi-branch (v17+) logic,
-  or a full-stack feature spanning backend + frontend.
-- **A localization touch** that needs a generic-before-localization decision (does this belong in
-  a shared module with per-country seed data, or is it truly country-specific?), or a new
-  `application=True` module that needs the standard app-menu shape (root + Reports +
-  Configuration) - both are architectural choices, not coding details.
-- **A refactor** (extract a mixin, split/merge modules, change an inheritance axis) — refactor
-  is design-heavy by nature; design it before touching code.
+- **Extension-L / Custom-XL** tier (from `odoo-brl` / `odoo-gap-analysis`).
+- **A new module**, new model, or module restructure.
+- **Overriding a core ORM hook** (`create` / `write` / `unlink`) or a method with ≥3 entries
+  in its override chain.
+- **A schema / data migration** with more than one viable strategy.
+- **A cross-model computed chain**, multi-company / multi-currency / multi-branch (v17+), or a
+  full-stack feature spanning backend + frontend.
+- **A localization touch** needing a generic-before-localization decision, or a new
+  `application=True` module needing the standard app-menu shape (root + Reports + Configuration).
+- **A refactor** (mixin extraction, module split/merge, inheritance axis change).
 
-The architect surveys **bidirectional impact** (upstream depends-closure + downstream dependents,
-direct and indirect) and designs **dynamic demo data** for any new end-user behavior - see
-`agents/odoo-solution-architect.md` for the template; this skill only gates the entry.
+The architect surveys **bidirectional impact** and designs **dynamic demo data** for any new
+end-user behavior — see `agents/odoo-solution-architect.md` for the template.
 
-**Skip the design step for trivial work** (Keep It Simple — do not impose design ceremony on a
-one-liner): a single Standard/Config field, boilerplate (one computed field, a view shell, a
-security CSV row), or a localized fix with exactly one obvious approach. For those, route
-straight to `odoo-coding`. If unsure, ask one question: "this
-looks like a one-approach change — design it first, or code it directly?"
+**Skip for trivial work:** a single Standard/Config field, boilerplate (one computed field, a
+view shell, a security CSV row), or a localized fix with exactly one obvious approach → route
+straight to `odoo-coding`. If unsure: "this looks like a one-approach change — design it first,
+or code it directly?"
 
 ## Out of Scope
 
@@ -136,53 +123,27 @@ looks like a one-approach change — design it first, or code it directly?"
 
 ## Brief context
 
-The design doc is a **contract for the coders**, not prose: the architect grounds every
-model/field/method/edition claim via OSM and reuses indexed patterns before proposing any
-hand-written structure. Its fixed eight sections — Intent & Business Value (solution-level intent /
-purpose / expected outcomes / business value / user impact, plus a per-module table covering
-BOTH new modules and existing modules being refactored, modified, or optimized), Approach
-(inheritance axis + new-vs-extend, ADR-style with rejected alternatives), Data model, Override
-strategy, Module structure, Sequencing, Test strategy outline (behavior-first, feeds
-`odoo-test-writer` / `odoo-qa-suite`), and Risks — are specified in
-`agents/odoo-solution-architect.md` (Round 4 is the SSOT for the doc template); this skill does
-not restate them, so the contract stays in one place. The Intent & Business Value section exists
-for the HUMAN approver: a design whose purpose and value cannot be stated per module is not ready
-to gate.
+The design doc is a **contract for the coders**. Eight fixed sections (Intent & Business Value,
+Approach, Data model, Override strategy, Module structure, Sequencing, Test strategy outline, Risks)
+are specified in `agents/odoo-solution-architect.md` (Round 4 is the SSOT for the doc template).
 
-Key failure modes the design prevents (each surfaces only at review/runtime if skipped): wrong
-inheritance axis, override at the wrong level / wrong `super()` position, stored-vs-computed
-mistakes, conflicts with existing overrides, ad-hoc `depends` causing circular module deps.
-
-**Full-stack designs (frontend portion).** When the change spans the frontend (a widget, OWL
-component, QWeb override, or SCSS/theme work), the architect pulls in two knowledge sources: the
-**design-quality** skill — **invoke skill `odoo-frontend-design` using skill tool** (it is a leaf
-knowledge skill; loading injects expertise and spawns nothing) — for what a *good* Odoo UI is
-(view-type choice, form hierarchy, density, semantic tokens, website/portal rules); and the
-**fidelity** contract `skills/_shared/odoo-frontend-fidelity.md` (a `_shared` doc it Reads) so the
-design names real design tokens / style origins for the target version via `resolve_stylesheet` /
-`find_style_override` rather than inventing selectors or colors. The frontend half of the design
-is then consumed by `odoo-coding` (its frontend leg), which loads the same two sources when it
-writes the JS/OWL/SCSS.
+For full-stack design, ground the frontend approach in the **fidelity** contract
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`. Full reference (doc structure,
+frontend-design sources, key failure modes prevented):
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/references/brief-context.md`
 
 ## Agent invocation — prompt template (P1)
 
-When the user confirms intent (Phase 0 gate passed), the main agent invokes the
-`odoo-solution-architect` agent via the Agent tool. Use the following template **verbatim** as
-the agent prompt, filling in the bracketed placeholders:
+When the user confirms intent (Phase 0 gate passed), invoke `odoo-solution-architect` via the
+Agent tool. Use the template below **verbatim**, filling the bracketed placeholders.
 
-**Model per dispatch.** The agent frontmatter pins `model: opus` only as a floor.
-Pass the Agent-tool `model` parameter explicitly on every dispatch - the
-`DISPATCH MODEL` line at the top of the template records the tier you chose;
-set that same value as the Agent-tool `model` parameter on THIS dispatch:
+**Model per dispatch** — set as the Agent-tool `model` parameter (the `DISPATCH MODEL` line
+records the tier chosen; both must match):
 - **opus** - default for every design.
-- **fable** - ONLY when the requirement is graded Custom-XL (from odoo-brl /
-  odoo-gap-analysis) or the design spans >=3 modules full-stack with a new
-  inheritance axis. fable costs ~2x opus, so it ALWAYS needs explicit human
-  confirmation: add a line to the proposal gate stating the tier, the cost, and
-  WHY this design needs it, and wait for the user's yes. If the user declines,
-  or the fable dispatch fails (insufficient usage credit, model unavailable,
-  Agent-tool error), fall back to **opus** automatically and note the downgrade
-  in the TDD header (`dispatch: opus (fable declined/unavailable)`).
+- **fable** - ONLY for Custom-XL tier or a design spanning >=3 modules full-stack with a new
+  inheritance axis. Requires explicit human confirmation (state tier, cost, and why). If
+  declined or unavailable, fall back to **opus** and note in the TDD header
+  (`dispatch: opus (fable declined/unavailable)`).
 
 ```
 DISPATCH MODEL: <opus|fable>
@@ -205,22 +166,19 @@ Follow your system-prompt rounds. Write the design doc to .odoo-ai/designs/<slug
 Do NOT write any production source files. Do NOT spawn subagents or invoke skills.
 ```
 
-The agent runs its rounds (version pin → context gather → approach selection → data-model &
-override design → validation → write the doc) using its restricted read-only tool allowlist. It
-does NOT spawn further subagents or invoke skills, and it does NOT write production code.
+The agent runs its rounds using its restricted read-only tool allowlist. It does NOT spawn
+subagents, invoke skills, or write production code.
 
 ## Standalone-first fallback
 
-When OSM is unreachable, follow the three-tier grounding in
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`: the architect `Read`/`Grep`s the
-module source itself (field lists, existing method signatures, manifest `depends`) and designs
-against that, labelling the doc `grounded: local-source (not OSM-indexed)`. When OSM is
-reachable but a specific module/model is not in the index (a customer-local addon), the
-architect applies the Tier-1 MISS rule from the same protocol: OSM for what it covers, local
-source for the missed entities, doc labelled `grounded: osm + local-source (hybrid)`. Only when the repo
-itself is inaccessible does it fall back to memory, labelled `OSM unavailable — ungrounded`,
-with lowered confidence. Escalate to the caller (`NEEDS_CONTEXT`) only for business decisions no
-source encodes — never to ask a human to paste code, field lists, or manifests.
+When OSM is unreachable: architect `Read`/`Grep`s module source (field lists, method signatures,
+manifest `depends`), labels doc `grounded: local-source (not OSM-indexed)`. When OSM is
+reachable but a specific module is not in the index (customer-local addon): OSM for what it
+covers, local source for missed entities, doc labeled `grounded: osm + local-source (hybrid)`.
+Only when the repo itself is inaccessible: fall back to memory, label `OSM unavailable —
+ungrounded`. Three-tier grounding SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`.
+Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes - never to ask a human
+to paste code or manifests.
 
 ## Agent-managed tools
 
@@ -229,14 +187,10 @@ full restricted (read-only) tool list and execution detail.
 
 ## Design-approval gate (who approves: the human)
 
-When the architect returns the TDD, **the main agent does NOT auto-chain to coding.** Present the
-design for approval and **stop**. The approver is the **human** — a design is a decision that
-belongs to the user, not something a downstream agent should rubber-stamp. Surface a tight summary
-(chosen approach + one-line rationale, the data-model/override headlines, top risk) with a pointer
-to the full doc, then gate:
-
-Write the gate message in the USER'S LANGUAGE (translate the labels and prose; keep
-file paths, module names, and model identifiers verbatim):
+When the architect returns the TDD, **do NOT auto-chain to coding.** Present a tight summary
+(chosen approach + rationale, data-model/override headlines, top risk, pointer to the full doc),
+then gate. Write the gate message in the USER'S LANGUAGE (translate labels and prose; keep file
+paths, module names, and model identifiers verbatim):
 
 ```
 Design ready: .odoo-ai/designs/<slug>-<YYYY-MM-DD>.md

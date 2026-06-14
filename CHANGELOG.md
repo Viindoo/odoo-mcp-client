@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.11.1] - 2026-06-14
+
+### Changed
+
+- **Compressed all 41 SKILL.md bodies + 7 agent system-prompts to cut token-per-invoke.** Structure
+  refactor (no behavior change): reference-only blocks (worked examples, output-format templates,
+  lookup tables, the brl Phase-E deliverable templates, the wave Mode-B dispatch loop) were relocated
+  to per-skill `references/` files behind a one-line `${CLAUDE_PLUGIN_ROOT}/...` pointer (progressive
+  disclosure — loaded on demand, not every invocation), and verbose prose was tightened. Agents are
+  rewrite-only (their body is a preloaded system prompt, so no relocation). Skill bodies -25.0%
+  (645,872 -> 484,526 B), agent bodies -16.6% (160,026 -> 133,507 B); ~188 KB removed from the
+  on-invoke load. Frontmatter/descriptions byte-identical (triggering unchanged); all generated tool
+  blocks untouched; full `pytest tests/` green.
+- **`odoo-intake`: added a "Your role — orchestrator, not implementer" section** at the top of the
+  body — frames the main agent as the team leader that gets work done by invoking the right skill
+  (Skill tool), launching an agent directly only when no skill fits, and owning orchestration +
+  decisions rather than hand-implementing.
+
 ## [3.11.0] - 2026-06-13
 
 ### Added

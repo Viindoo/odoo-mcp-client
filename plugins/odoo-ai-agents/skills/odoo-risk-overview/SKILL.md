@@ -51,71 +51,37 @@ CEO / CTO / Project Sponsor
 
 ## Context
 
-Executives need a high-signal risk picture without reading code. The risk picture has three
-dimensions:
-1. **Upgrade risk** — how many deprecated APIs will break when upgrading to a newer version
-2. **Change blast radius** — how many places in the system are affected when a key field/model
-   is modified
-3. **Dependency health** — whether custom modules depend on third-party or platform-specific
-   features that may disappear
+Three risk dimensions for executives:
+1. **Upgrade risk** — deprecated API count that will break when upgrading.
+2. **Change blast radius** — places affected when a key field/model is modified.
+3. **Dependency health** — custom modules depending on features that may disappear.
 
-**Risk levels:**
-- **Low** — 0–2 deprecated APIs, no high-impact fields, all dependencies stable
-- **Medium** — 3–10 deprecated APIs, or 1–2 high-impact fields, manageable migration
-- **High** — 10+ deprecated APIs, or critical business field with wide blast radius, requires
-  dedicated migration project
+Risk levels: **Low** (0-2 deprecated APIs, no high-impact fields, all deps stable) / **Medium** (3-10 deprecated APIs, or 1-2 high-impact fields) / **High** (10+ deprecated APIs, or critical business field with wide blast radius — requires dedicated migration project).
 
-**Version era multiplier:** Migrating across era boundaries amplifies risk:
-- Within same era (e.g. v16→v17): Low multiplier
-- Cross-era (e.g. v12→v16, crosses v13 `@api.multi` removal + v14 OWL-becomes-primary migration): Medium multiplier
-- OpenERP to modern (v8/v9→v12+): Very High multiplier (Python 2→3, full rewrite required)
+Version era multiplier: within same era (e.g. v16→v17) = Low; cross-era (e.g. v12→v16) = Medium; OpenERP to modern (v8/v9→v12+) = Very High.
 
-Distribution note: Modules with consistent naming patterns (e.g., `viin_*` prefix or similar)
-indicate distribution-maintained code. Risk for distribution-maintained modules is generally
-lower than truly custom modules — flag them separately.
+Distribution note: modules with consistent naming (e.g. `viin_*`) are distribution-maintained — flag separately; their risk is generally lower than truly custom modules.
 
-**Data priority:** MCP tool results are ground truth for deprecated API counts and blast radius.
-Use training knowledge for interpreting business impact and recommending remediation approaches.
+**Data priority:** MCP tool results are ground truth for deprecated API counts and blast radius. Training knowledge is for interpreting business impact and recommending remediation.
 
 ## Instructions
 
-Use parallel MCP calls — steps 1, 2, and 3 are fully independent. Fire them simultaneously.
+Steps 1, 2, and 3 are fully independent — fire them simultaneously.
 
-**Round 0 — Pin version + profile + enumerate scope:** `set_active_version(...)` + `set_active_profile(...)`,
-then `profile_inspect(method='modules', name=<profile>, odoo_version='<version>')` to auto-enumerate the in-scope
-modules from the index instead of relying on the user to list which modules are in scope.
+**Round 0 — Pin version + profile + enumerate scope:** `set_active_version(...)` + `set_active_profile(...)`, then `profile_inspect(method='modules', name=<profile>, odoo_version='<version>')` to auto-enumerate in-scope modules from the index.
 
-**Round 1 — Parallel:** Call `find_deprecated_usage` + `impact_analysis` (on highest-usage
-custom fields known from context) + `check_module_exists` (for all custom module dependencies)
-all at once. None of these depend on each other's results.
+**Round 1 — Parallel:** Call `find_deprecated_usage` + `impact_analysis` (on highest-usage custom fields known from context) + `check_module_exists` (for all custom module dependencies) simultaneously.
 
-**Round 2 — Parallel:** Call `model_inspect(model=…, method='fields')` on the most heavily
-customized models identified from Round 1 results. Simultaneously call
-`module_inspect(name=<name>, method='summary', odoo_version='<version>')` for each custom module in scope — this
-surfaces JS patch counts, view counts, and models defined/extended, which the executive
-table needs. Both calls are independent; fire them together. If hotspot models are already
-known from context, include `model_inspect` calls in Round 1 as well to reduce to a single
-round.
+**Round 2 — Parallel:** Call `model_inspect(model=…, method='fields', odoo_version='<version>')` on heavily customized models from Round 1. Simultaneously call `module_inspect(name=<name>, method='summary', odoo_version='<version>')` for each custom module — surfaces JS patch counts, view counts, and models defined/extended. If hotspot models are already known from context, include `model_inspect` in Round 1 to reduce to a single round.
 
-Focus `impact_analysis` on fields referenced by many other modules (high `used_by` count).
-Count BREAKING vs WARN severity from `find_deprecated_usage` results.
-
-Synthesize findings into a concise executive table. Keep prose minimal — let the table carry
-the data. Always close with a one-sentence recommended action tied to the highest-risk item.
+Focus `impact_analysis` on fields with high `used_by` counts. Count BREAKING vs WARN severity from `find_deprecated_usage`. Synthesize into a concise executive table — minimal prose, let the table carry data. Close with a one-sentence recommended action tied to the highest-risk item.
 
 ## Standalone-first fallback
 
-When OSM unreachable, follow the three-tier grounding protocol defined in
-`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. Specifically:
+When OSM unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-- **Tier 2 (disk):** Run `find . -maxdepth 3 -name "__manifest__.py"` to discover
-  modules, `Read` each manifest for classification clues, and `grep` for deprecated
-  patterns (`@api.multi`, `_columns`, `osv.osv`, `web.Widget`) directly in source.
-  Build the risk overview from those findings without asking the user to supply them.
-- **Tier 3 (training):** If no readable source is available, produce a heuristic
-  estimate of deprecated risk (based on module age and naming patterns) and label the
-  artifact `OSM unavailable - ungrounded` with caveat "deprecated API + blast radius not
-  yet scanned - verify with detailed audit when OSM is online".
+- **Tier 2 (disk):** `find . -maxdepth 3 -name "__manifest__.py"` to discover modules, `Read` each manifest for classification clues, and `grep` for deprecated patterns (`@api.multi`, `_columns`, `osv.osv`, `web.Widget`) directly in source. Build the risk overview without asking the user.
+- **Tier 3 (training):** If no readable source available, produce a heuristic estimate and label `OSM unavailable - ungrounded` with caveat "deprecated API + blast radius not yet scanned - verify with detailed audit when OSM is online".
 
 ## Output format
 
@@ -149,18 +115,7 @@ When OSM unreachable, follow the three-tier grounding protocol defined in
 because it has N breaking changes in core method Y.">
 ```
 
-## Examples
-
-**Example 1:**
-Prompt: "give me a risk overview of our Odoo customization before we upgrade to v17"
-Output: Table of custom modules with deprecated API counts, blast radius for critical fields,
-migration complexity note (e.g. from v16 = Low multiplier), recommended action.
-
-**Example 2:**
-Prompt: "risk overview before we upgrade our system from version 14 to 17"
-Output: Risk analysis for distribution-maintained vs custom modules, identify modules needing
-deep migration work (v13 `@api.multi` removal + v14 OWL-becomes-primary + v15 OWL 2.0),
-estimate timeline and recommended action in business language.
+Examples: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-risk-overview/references/examples.md`
 
 ## Continuation Contract
 

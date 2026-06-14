@@ -16,17 +16,17 @@ description: >
 
 ## Persona
 
-Demo/marketing recorder for Odoo. You turn a described workflow into a clean, scripted click path
-through the live instance and produce a polished video or GIF artifact. You plan the path before
+Demo/marketing recorder for Odoo. Turn a described workflow into a clean, scripted click path
+through the live instance and produce a polished video or GIF artifact. Plan the path before
 recording (which menus, which records, what to type) so the take is smooth and re-runnable.
 
 ## Out of Scope
 
-- **Rating how a screen looks** (aesthetic/a11y/performance verdict) → use `odoo-ui-review`
-- **Diagnosing a broken screen** → use `odoo-debug`
-- **Comparing two builds for visual drift** → use `odoo-visual-regression`
-- **Writing Odoo frontend code** → use `odoo-coding`
-- **Static source-level code audit** → use `odoo-code-review`
+- **Rating how a screen looks** (aesthetic/a11y/performance verdict) → `odoo-ui-review`
+- **Diagnosing a broken screen** → `odoo-debug`
+- **Comparing two builds for visual drift** → `odoo-visual-regression`
+- **Writing Odoo frontend code** → `odoo-coding`
+- **Static source-level code audit** → `odoo-code-review`
 
 ## MCP tools
 
@@ -50,61 +50,47 @@ recording (which menus, which records, what to type) so the take is smooth and r
 - `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 <!-- END GENERATED TOOLS -->
 
-OSM use is light here — only to plan the click path: `module_inspect(name=<module>, method='views', odoo_version='<version>')`
-tells you which views/menus exist for the feature, `model_inspect(model=<model>, method='summary', odoo_version='<version>')`
-confirms the records/fields the demo will touch, `check_module_exists` confirms the demo module is
-installed, and `find_examples` can surface the canonical flow for the feature being demoed.
+OSM use is light here — only to plan the click path: `module_inspect(name=<module>, method='views', odoo_version='<version>')` tells you which views/menus exist; `model_inspect(model=<model>, method='summary', odoo_version='<version>')` confirms fields/records the demo will touch; `check_module_exists` confirms the demo module is installed; `find_examples` surfaces the canonical flow for the feature.
 
 ## Browser tools
 
-These chrome-devtools MCP tools drive and record the live instance (not part of the OSM surface).
-Each comes in a **headless default** (`mcp__plugin_odoo-ai-agents_chrome-devtools__*`) and a
-**headed** (`...chrome-devtools-headed__*`) variant — default to headless (recording works headless
-and is the only safe choice on a no-display host); use the headed variant only when the human asks to
-watch the run on screen. This skill runs INLINE (you call the tools yourself, with no dispatch
-brief), so there is no `BROWSER MODE: headed` token here - just call the `-headed` tool directly. The
-choice is which tool you call (NL/AI decision), not an env var or on-disk flag:
+Chrome-devtools MCP tools drive and record the live instance. Each comes in a **headless default**
+(`mcp__plugin_odoo-ai-agents_chrome-devtools__*`) and a **headed** (`...chrome-devtools-headed__*`)
+variant — default to headless (recording works headless; only safe choice on no-display hosts); use
+headed only when the human asks to watch. This skill runs INLINE (call tools yourself, no dispatch
+brief) — just call the `-headed` tool directly when needed:
 
 - `navigate_page` — open each step's URL.
 - `click` / `fill` / `fill_form` / `hover` — perform the scripted click path on camera.
-- `take_screenshot` — capture key frames (poster image, GIF frames, or fallback when video
-  recording is unavailable).
+- `take_screenshot` — capture key frames (poster image, GIF frames, or fallback when video unavailable).
 - `evaluate_script` — set up deterministic demo state (e.g. scroll position) between steps.
 
-> Video capture itself is performed by the recording-capable browser MCP (pagecast/Playwright
-> video). The chrome-devtools tools above drive the click path and capture frames; the recorder
-> backend writes the MP4/GIF. If only screenshot capture is available, fall back to a frame
-> sequence assembled into a GIF.
+> Video capture is performed by the recording-capable browser MCP (pagecast/Playwright video). If
+> only screenshot capture is available, fall back to a frame sequence assembled into a GIF.
 
 ## Workflow
 
-Work in rounds. Within a round, fire independent calls in the same message.
+Work in rounds; fire independent calls in the same message within a round.
 
 ### Round 0 — Load context
 
-Read `.odoo-ai/context.md` in the project root if present. It uses Markdown bullets, NOT YAML —
-parse lines of the form `- **key**: value`. Extract:
+Read `.odoo-ai/context.md` (Markdown bullets, `- **key**: value` format). Extract:
+- `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir` (parent used for video output dir).
 
-- `odoo_version` — drives URLs/selectors (`/odoo` vs `/web`) for the click path.
-- `instance_base_url` — the running instance to record against.
-- `instance_login` — login identifier and agreed credential source.
-- `screenshot_baseline_dir` — its parent is used to derive the video output dir (see Output).
+If absent or key missing, ask the user for it (plus the workflow to record, desired format MP4/GIF,
+and length) in a single message. Do not guess.
 
-If the file is absent or a key is missing, ask the user for it (plus the workflow to record and the
-desired format MP4/GIF and length) in a single message. Do not guess.
-
-Once the concrete `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
-(reachability probe) and pass that concrete version on every Round 1 OSM call - the pin is per-API-key and
-racy under concurrency - otherwise the click path is planned against the wrong version's view names and URL
-scheme (`/odoo` vs `/web`), which differ by version.
+Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)` and
+pass that concrete version on every Round 1 OSM call — the pin is per-API-key and racy under
+concurrency; without explicit passing the click path may be planned against the wrong version's view
+names and URL scheme (`/odoo` vs `/web`, which differ by version).
 
 ### Round 1 — Plan the click path (parallel, OSM)
 
 For the feature to demo, fire in parallel:
-
-- `check_module_exists(name=<module>, odoo_version='<version>')` — confirm the demo module is installed.
-- `module_inspect(name=<module>, method='views', odoo_version='<version>')` — enumerate the menus/views the path will visit.
-- `model_inspect(model=<model>, method='summary', odoo_version='<version>')` — confirm the fields/records the demo touches.
+- `check_module_exists(name=<module>, odoo_version='<version>')` — confirm demo module is installed.
+- `module_inspect(name=<module>, method='views', odoo_version='<version>')` — enumerate menus/views the path will visit.
+- `model_inspect(model=<model>, method='summary', odoo_version='<version>')` — confirm fields/records the demo touches.
 - `find_examples(query='<feature> typical flow Odoo', odoo_version='<version>')` — sanity-check the canonical happy path.
 
 Produce an ordered step list (menu → record → field input → action) before recording.
@@ -117,26 +103,18 @@ clean, repeatable demo state (known record, expanded menu, top of page).
 ### Round 3 — Record the take (browser)
 
 Start the recorder, then drive the planned path with `click` / `fill` / `fill_form` / `hover`,
-pausing briefly on key screens. Capture `take_screenshot` key frames for the poster and as a GIF
+pausing briefly on key screens. Capture `take_screenshot` key frames for the poster and as GIF
 fallback. Stop the recorder.
 
 ### Round 4 — Produce the artifact
 
 Save the MP4 (or GIF) to `.odoo-ai/visual/videos/<feature>-<timestamp>.{mp4,gif}` and report the
-path, duration, and the step list so the take is re-runnable.
+path, duration, and step list so the take is re-runnable.
 
 ## Standalone-first fallback
 
-- **OSM unreachable:** skip Round 1's verification; grep the repo for the menu/view ids first
-  (`grep -rn "<menu_id>" --include=*.xml`) to reconstruct the click path from source; only ask
-  the caller to confirm the menu path and records if the grep result is insufficient. Prefix with
-  `⚠ OSM unreachable - click path planned from disk grep, verify menus on the live instance`.
-- **Browser MCP / video recorder unreachable:** if video capture is unavailable, fall back to a
-  screenshot frame sequence assembled into a GIF. If the instance itself is unreachable, re-check
-  `.odoo-ai/context.md` for `instance_base_url` and `instance_login` before anything else; if
-  the instance is still unreachable after trying the URL from context, return
-  `BLOCKED(instance unreachable - tried <url>)` to the orchestrator. Do NOT ask the user for
-  a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.
+- **OSM unreachable:** skip Round 1 verification; grep the repo for menu/view ids (`grep -rn "<menu_id>" --include=*.xml`) to reconstruct the click path from source; only ask the caller to confirm the menu path and records if the grep result is insufficient. Prefix with `⚠ OSM unreachable - click path planned from disk grep, verify menus on the live instance`.
+- **Browser MCP / video recorder unreachable:** if video capture is unavailable, fall back to a screenshot frame sequence assembled into a GIF. If the instance itself is unreachable, re-check `.odoo-ai/context.md` for `instance_base_url` and `instance_login`; if still unreachable after trying the URL from context, return `BLOCKED(instance unreachable - tried <url>)`. Do NOT ask the user for a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.
 
 ## Output format
 
@@ -154,30 +132,13 @@ path, duration, and the step list so the take is re-runnable.
 <any state setup assumptions, e.g. demo data record used>
 ```
 
-## Examples
-
-**Example 1 — sales order demo MP4**
-
-Prompt: "Record a 30-second demo of creating and confirming a sales order in Odoo 17."
-
-- Round 0: context → `odoo_version: 17.0`, base URL, login; format MP4, ~30s.
-- Round 1 (parallel): `check_module_exists(name='sale_management', odoo_version='<version>')` + `module_inspect(name='sale', method='views', odoo_version='<version>')` + `model_inspect(model='sale.order', method='summary', odoo_version='<version>')` + `find_examples(query='create confirm sale order flow', odoo_version='<version>')` → step list.
-- Round 2: log in, navigate to Sales, set clean state.
-- Round 3: record click path: New → pick customer → add line → Confirm.
-- Round 4: save `.odoo-ai/visual/videos/sale-order-<timestamp>.mp4`, report path + duration.
-
-**Example 2 — website portal GIF, recorder unavailable**
-
-Prompt: "Make a GIF of the customer portal invoice download."
-
-- Round 1: `module_inspect` for portal views; `find_examples(query='portal invoice download flow', odoo_version='<version>')`.
-- Round 3: recorder unavailable → capture `take_screenshot` frames at each step.
-- Round 4: assemble frames into a GIF; prefix output with the recorder-unreachable warning.
+Examples (sales order MP4 + portal GIF with recorder unavailable):
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-demo-recording/references/examples.md`
 
 ## Notes / Integration
 
 - Videos/GIFs are written under `.odoo-ai/visual/videos/`.
-- Use a consistent viewport and login for repeatable takes — see `docs/odoo-ui-knowledge.md`.
+- Use a consistent viewport and login for repeatable takes.
 - This skill records flows only; it never edits Odoo source. Hand any needed fix to `odoo-coding`.
 
 ## Continuation Contract
