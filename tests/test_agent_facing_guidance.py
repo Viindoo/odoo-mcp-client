@@ -294,7 +294,13 @@ def test_agents_do_not_instruct_ungranted_osm_tools():
     offenders: list[str] = []
     for f in AGENT_FILES:
         fm, body = _frontmatter_body(f.read_text(encoding="utf-8"))
-        granted = {t for t in _ALL_TOOLS if (_OSM_FM_PREFIX + t) in fm}
+        # Agents that omit the `tools:` allowlist inherit the FULL surface, so every OSM
+        # tool is granted (we never disallow OSM). With an explicit allowlist, fall back to
+        # the enumerated grant so a body cannot name a tool the allowlist excludes.
+        if "\ntools:" in ("\n" + fm):
+            granted = {t for t in _ALL_TOOLS if (_OSM_FM_PREFIX + t) in fm}
+        else:
+            granted = set(_ALL_TOOLS)
         for tool in _ALL_TOOLS:
             if tool in granted:
                 continue

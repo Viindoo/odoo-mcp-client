@@ -72,9 +72,15 @@ def test_new_snippet_is_not_orphaned(snip):
 
 @pytest.mark.parametrize("agent", CORE_AGENTS)
 def test_agent_can_run_impact_analysis(agent):
-    """Bidirectional impact needs the tool actually granted in the allowlist."""
+    """Bidirectional impact needs OSM available. Agents inherit the full surface
+    (no `tools:` allowlist), so impact_analysis is available unless explicitly disallowed."""
     fm = _frontmatter(AGENTS / f"{agent}.md")
-    assert IMPACT_TOOL in fm, f"{agent}: {IMPACT_TOOL} missing from frontmatter tools"
+    assert "\ntools:" not in ("\n" + fm), (
+        f"{agent}: must omit the `tools:` allowlist so it inherits the full odoo-semantic surface"
+    )
+    assert IMPACT_TOOL not in fm, (
+        f"{agent}: must not disallow {IMPACT_TOOL} (inherited; required for impact analysis)"
+    )
 
 
 @pytest.mark.parametrize("agent", CORE_AGENTS)

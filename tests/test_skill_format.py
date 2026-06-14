@@ -61,36 +61,36 @@ def _body(text):
     return ""
 
 
-def _tools_list(text):
-    """Return the list items under the top-level ``tools:`` frontmatter key.
+def _fm_list(text, key="tools"):
+    """Return the list items under a top-level ``<key>:`` frontmatter block-sequence.
 
     Handles the YAML block-sequence form::
 
-        tools:
+        <key>:
           - item_a
           - item_b
     """
     lines = text.splitlines()
     assert lines and lines[0].strip() == "---", "file must start with '---' frontmatter"
-    tools = []
-    in_tools = False
+    items = []
+    in_block = False
     i = 1
     while i < len(lines):
         line = lines[i]
         if line.strip() == "---":
             break
-        if not line[0:1].isspace() and line.strip().startswith("tools:"):
-            in_tools = True
+        if not line[0:1].isspace() and line.strip().startswith(key + ":"):
+            in_block = True
             i += 1
             continue
-        if in_tools:
+        if in_block:
             if line and line[0:1].isspace() and line.strip().startswith("- "):
-                tools.append(line.strip()[2:].strip())
+                items.append(line.strip()[2:].strip())
             elif line and not line[0:1].isspace():
-                # Another top-level key — stop collecting tools
-                in_tools = False
+                # Another top-level key — stop collecting
+                in_block = False
         i += 1
-    return tools
+    return items
 
 
 # ---------------------------------------------------------------------------
@@ -118,8 +118,17 @@ def test_agent_frontmatter(agent):
     assert fm.get("name"), f"{agent.stem}: missing 'name'"
     assert fm.get("description"), f"{agent.stem}: missing 'description'"
     assert fm.get("model"), f"{agent.stem}: missing 'model'"
-    tools = _tools_list(text)
-    assert tools, f"{agent.stem}: 'tools' key missing or empty (must have >=1 entry)"
+    # Agents omit the `tools:` allowlist so they inherit the full (drift-proof) tool
+    # surface; least-privilege is a `disallowedTools` denylist that must at minimum block
+    # spawning a sub-subagent (Agent/Task) — the tool-level no-spawn guard.
+    assert not _fm_list(text, "tools"), (
+        f"{agent.stem}: agents must omit the `tools:` allowlist (inherit the full surface); "
+        f"restrict via disallowedTools instead"
+    )
+    disallowed = _fm_list(text, "disallowedTools")
+    assert "Agent" in disallowed, (
+        f"{agent.stem}: disallowedTools must include 'Agent' (tool-level no-spawn guard)"
+    )
 
 
 @pytest.mark.parametrize("agent", AGENT_FILES, ids=lambda p: p.stem)
