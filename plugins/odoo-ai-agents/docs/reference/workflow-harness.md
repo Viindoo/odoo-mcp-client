@@ -77,6 +77,14 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
   `main-context → workflow/skill (depth 1) → fork-worker (depth 2)`.
   Fork workers carry the hard-rules line and never spawn further agents or invoke
   the Skill tool.
+- **No Claude Code Workflow (JS) tool**: this plugin orchestrates entirely through the
+  Skill tool, the Agent tool, and the `run-driver` loop. It deliberately does NOT emit
+  Claude Code Workflow (JS) scripts (the `Workflow` tool with `args` + `agent()`) for
+  codegen or orchestration — the dispatch fan-out (e.g. `odoo-coding`, `wave`) is real
+  Agent-tool calls in model-weighted batches (SSOT
+  `skills/_shared/concurrency-guard.md` Mode B). Do not hand-roll a JS Workflow script to
+  parallelize plugin work: passing the plan through the tool's `args` channel is the
+  args-undefined footgun this design avoids.
 
 ---
 

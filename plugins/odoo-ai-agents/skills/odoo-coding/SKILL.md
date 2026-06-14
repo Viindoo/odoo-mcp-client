@@ -128,7 +128,7 @@ Choose per module, hybrid by complexity:
 Then emit the gate and wait. Write the gate message in the USER'S language (translate
 labels and prose; keep module names, paths, and the reply keywords verbatim - SSOT:
 `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`), and when the user is not
-working in English pass `userLanguage` in the Workflow `args` so the coder agents
+working in English pass `userLanguage` in the coder brief so the coder agents
 return their summaries pre-mirrored:
 
 ```
@@ -140,7 +140,7 @@ Plan:
   | <m3>   | frontend  | 2    | sonnet | test-author | <m3>/static/src/*.js (depends on <m1>) |
 Design: <path to approved design doc | none (trivial)>
 OSM: backed | standalone
-Dispatch: Workflow rolling-window (fallback: Agent-tool weighted batches)
+Dispatch: Agent-tool model-weighted batches
 Proceed? (yes / refine: [feedback] / cancel)
 ```
 
@@ -150,342 +150,90 @@ during execution.
 
 On `yes`, execute; on `refine: …`, update and re-emit; on `cancel`, stop.
 
-## Execution - dispatch the coders (Workflow rolling-window, canonical path)
+## Execution - dispatch the coders (Agent-tool, model-weighted batches)
 
-The coders run as autonomous agents - never inline codegen in main, never via the Skill tool. The
-canonical path is the **Workflow tool**: this skill instructing the main agent to call it after the
-Phase 0 gate is approved is what satisfies the tool's opt-in. When the Workflow tool is unavailable
-or its permission is denied, use the **Agent-tool fallback** below - never silently skip execution.
+The coders run as autonomous agents - never inline codegen in main, never via the Skill tool.
+Dispatch them with the **Agent tool**: `agentType: odoo-coder` (backend) / `agentType:
+odoo-frontend-coder` (frontend); if a short name fails to resolve, retry with the plugin-qualified
+form `odoo-ai-agents:odoo-coder` / `odoo-ai-agents:odoo-frontend-coder`. Do NOT build a Claude Code
+Workflow (JS) script for this - all fan-out is real Agent-tool calls; narrating a dispatch in prose
+instead of calling the tool is not allowed.
 
-Concurrency/OOM rule (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`):
-model-weighted budget - WEIGHT haiku=1, sonnet=2, opus=4, fable=8; at most 8 weight-units run at
-once (keeps opus <=2 and fable exclusive while haiku/sonnet flow freely - the OOM risk comes from
+Concurrency/OOM rule (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`, Mode B):
+model-weighted budget - WEIGHT haiku=1, sonnet=2, opus=4, fable=8; at most 8 weight-units in flight
+at once (keeps opus <=2 and fable exclusive while haiku/sonnet flow freely - the OOM risk comes from
 opus-class fan-out, so heavier tiers weigh more).
 
-### Canonical path - one Workflow call
+### Dispatch loop - model-weighted batches
 
-Call the Workflow tool ONCE with the script below as `script` and the approved
-Phase 0 plan as `args`. Derive `args` from the approved plan: `name`/`stack`/
-`model` (and `frontendModel` when split) come straight from the gate table;
-`path` is the module's directory on disk; `depends` comes from the dependency
-edges computed in Phase 0 step 4 (shown as "(depends on ...)" in the plan);
-`request`/`frontendRequest` come from the per-module change description behind
-the one-line Proposed summary:
+The Phase 0 plan carries, per module: name, path on disk, stack, model (and `frontendModel` when
+split), the in-set dependency edges (the "(depends on ...)" in the gate table), whether it is a new
+module, the test-mode (`test-author | self`), and the per-module request (+ a frontendRequest for
+the UI leg). Resolve ONE Odoo version for the whole run; carry the design-doc path, the runSlug
+(scopes the shared worklog dir) and - when the user is not working in English - the userLanguage.
 
-```json
-{
-  "odooVersion": "<resolved version - ONE version for the whole run>",
-  "designDoc": "<path | none>",
-  "runSlug": "<the <slug> used for .odoo-ai artifacts - scopes the shared worklog dir>",
-  "userLanguage": "<the user's chat language - omit when the user works in English>",
-  "modules": [
-    {
-      "name": "<m1>", "path": "<abs path>", "stack": "backend|frontend|fullstack",
-      "model": "haiku|sonnet|opus|fable", "frontendModel": "<optional, <= model>",
-      "depends": ["<other module names within the set - the dependency edges from Phase 0 step 4, shown as (depends on ...) in the plan>"],
-      "newModule": false,
-      "test": "test-author|self",
-      "request": "<the change for this module, with target model + constraints>",
-      "frontendRequest": "<the UI/UX for this module - omit for backend-only>"
-    }
-  ]
-}
-```
-
-```js
-export const meta = {
-  name: 'odoo-coding-dispatch',
-  description: 'Rolling-window per-module backend->frontend Odoo codegen with model-weighted concurrency',
-  phases: [{ title: 'codegen' }],
-};
-
-const WEIGHT = { haiku: 1, sonnet: 2, opus: 4, fable: 8 };
-const BUDGET = 8; // SSOT: skills/_shared/concurrency-guard.md
-
-const RESULT_SCHEMA = {
-  type: 'object',
-  properties: {
-    status: { type: 'string', enum: ['DONE', 'DONE_WITH_CONCERNS', 'BLOCKED', 'NEEDS_CONTEXT'] },
-    files_written: { type: 'array', items: { type: 'string' } },
-    manifest_changes: { type: 'string' },
-    grounding: { type: 'string' },
-    summary: { type: 'string' },
-    suggested_next: { type: 'string' },
-  },
-  required: ['status', 'files_written', 'summary'],
-};
-
-const { modules, odooVersion, designDoc, userLanguage } = args;
-const runSlug = args.runSlug || 'coding';
-const worklogLine = `WORKLOG: read then append your significant decisions (approach, impact + mitigation, demo-data, tier) to .odoo-ai/worklog/${runSlug}/ per snippets/worklog-contract.md.`;
-// test-first line for the coder prompt: implement-to-green against the separately
-// authored failing test, or (trivial) write your own red test first - never weaken
-// a test to make it pass. snippets/test-first-contract.md.
-const testLine = (m, testFiles) =>
-  m.test === 'test-author' && testFiles && testFiles.length
-    ? `FAILING TEST (written by a separate test-author, currently RED): ${testFiles.join(', ')} - implement until these pass; do NOT edit the tests to make them pass. See snippets/test-first-contract.md.`
-    : `TEST-FIRST: write the failing test for the business rule FIRST and confirm it goes RED, then implement to green; never weaken the test to pass. The test MUST drive the real workflow (action_confirm/action_validate/button_validate, Form() for onchange, with_user() not sudo()) - never seed the terminal state with create({state:...}). See snippets/test-first-contract.md and snippets/test-behavior-contract.md.`;
-
-// --- validate args up front: a typo'd/missing tier must fail the whole run at
-// t=0 (before any agent or resolver exists), not silently book the wrong weight
-for (const m of modules) {
-  if (!WEIGHT[m.model]) throw new Error(`module ${m.name}: unknown model tier '${m.model}'`);
-  if (m.frontendModel && !WEIGHT[m.frontendModel]) throw new Error(`module ${m.name}: unknown frontendModel '${m.frontendModel}'`);
-}
-
-// --- weighted semaphore (plain JS - the runtime has no per-model knob).
-// release() admits strictly FIFO so a heavy (fable) waiter is never starved by
-// lighter waiters arriving behind it.
-let used = 0;
-const waiters = [];
-const acquire = (w) => new Promise((resolve) => {
-  const attempt = () => (used + w <= BUDGET ? ((used += w), resolve(), true) : false);
-  if (!attempt()) waiters.push(attempt);
-});
-const release = (w) => {
-  used -= w;
-  while (waiters.length && waiters[0]()) waiters.shift();
-};
-
-// --- per-module completion promises: dependency rolling-window, no wave barrier.
-// Each resolves with a boolean: true = module fully done (both legs), false =
-// blocked/failed - dependents must NOT build on it.
-const resolvers = {};
-const completed = {};
-for (const m of modules) completed[m.name] = new Promise((r) => { resolvers[m.name] = r; });
-
-const OK_STATUSES = ['DONE', 'DONE_WITH_CONCERNS'];
-
-const backendPrompt = (m, testFiles) => [
-  'You are the odoo-coder agent. Produce production-ready Python/XML Odoo code for:',
-  `REQUEST: ${m.request}`,
-  `MODULE SCOPE: ${m.name} @ ${m.path} - write ONLY within this module (+ its __manifest__.py).`,
-  `NEW MODULE: ${m.newModule ? 'yes - scaffold the skeleton first with odoo-bin scaffold, then fill it in (do NOT hand-roll the skeleton)' : 'no'}.`,
-  `ODOO VERSION: ${odooVersion}`,
-  `DESIGN_DOC: ${designDoc} - if present, build to it; do not re-derive.`,
-  testLine(m, testFiles),
-  `GUIDELINES: before writing, read skills/_shared/coding_guidelines/${odooVersion}/INDEX.md and the by-task files for this change (python/naming/model-ordering for models, xml for views) - conform on the first pass. snippets/read-before-write-contract.md.`,
-  worklogLine,
-  `Step 0 (only if mcp__odoo-semantic__* is available): set_active_version('${odooVersion}'), then follow Rounds 1-4 from your system prompt.`,
-  'If OSM is down, use the disk-grounded fallback and still write files. If OSM answers but a specific module/model is not in the index (customer-local addon), Read/Grep the local addon for just that entity and ground hybrid (osm + local-source) - an index miss is not proof of absence. Do not spawn subagents or invoke skills.',
-  ...(userLanguage ? [`USER LANGUAGE: ${userLanguage} - write the summary field of your structured result in this language; keep identifiers verbatim.`] : []),
-].join('\n');
-
-const frontendPrompt = (m, testFiles) => [
-  'You are the odoo-frontend-coder agent. Produce production-ready Odoo frontend code (JS / OWL / QWeb / SCSS) for:',
-  `REQUEST: ${m.frontendRequest || m.request}`,
-  `MODULE SCOPE: ${m.name} @ ${m.path} - write ONLY within this module (+ its __manifest__.py assets).`,
-  `ODOO VERSION: ${odooVersion}`,
-  `DESIGN_DOC: ${designDoc} - if present, build to it; do not re-derive.`,
-  testLine(m, testFiles),
-  `GUIDELINES: before writing, read skills/_shared/coding_guidelines/${odooVersion}/INDEX.md and the by-task files (javascript + scss; python/xml if you also touch controllers/views) - conform on the first pass. snippets/read-before-write-contract.md.`,
-  worklogLine,
-  `Step 0 (only if mcp__odoo-semantic__* is available): read .odoo-ai/context.md, then set_active_version('${odooVersion}');`,
-  'ground styling tokens against skills/_shared/odoo-frontend-fidelity.md (no hardcoded hex for themeable colors, no self-referential --bs-* shim).',
-  'If OSM is down, use the disk-grounded fallback and still write files. If OSM answers but a specific module/model is not in the index (customer-local addon), Read/Grep the local addon for just that entity and ground hybrid (osm + local-source) - an index miss is not proof of absence.',
-  'If the Skill tool is unavailable in this context, Read skills/odoo-frontend-design/SKILL.md directly instead of invoking it.',
-  'Follow the version gate + rounds from your system prompt. Do not spawn subagents or invoke any other skill.',
-  ...(userLanguage ? [`USER LANGUAGE: ${userLanguage} - write the summary field of your structured result in this language; keep identifiers verbatim.`] : []),
-].join('\n');
-
-// Test-first (red before green): for a module marked test:'test-author' a SEPARATE
-// author writes the FAILING test before the coder, so the test author is not the
-// code author - independence keeps the test honest (snippets/test-first-contract.md).
-// It runs per stack (backend test before backend coder; frontend test before
-// frontend coder), shares the same weighted budget, and returns the test paths to
-// hand the coder. Trivial modules (test:'self') skip this; their coder self-tests.
-const testAuthorPrompt = (m, leg) => [
-  `You are the ${leg === 'frontend' ? 'odoo-frontend-coder' : 'odoo-coder'} agent in TEST-AUTHOR mode.`,
-  'Write ONLY the failing test(s) that protect the business behavior below - do NOT write the implementation.',
-  `REQUEST: ${leg === 'frontend' ? (m.frontendRequest || m.request) : m.request}`,
-  `MODULE SCOPE: ${m.name} @ ${m.path} - write only test files (tests/ or static/tests/).`,
-  `ODOO VERSION: ${odooVersion}`,
-  'Follow snippets/test-first-contract.md (red-before-green) AND snippets/test-behavior-contract.md (drive the real workflow: action_confirm/action_validate/button_validate, Form() for onchange, with_user() not sudo(); never seed the terminal state with create({state:...})): assert observable behavior, not internals; ONE intent per test; confirm each test goes RED before the code exists (state the RED confirmation).',
-  worklogLine,
-  'Return the test file paths in files_written and a one-line RED confirmation in summary. Do not spawn subagents or invoke skills.',
-].join('\n');
-
-const authorRedTest = async (m, leg) => {
-  if (m.test !== 'test-author') return null;
-  const model = leg === 'frontend' ? (m.frontendModel || m.model) : m.model;
-  const w = WEIGHT[model];
-  await acquire(w);
-  try {
-    log(`[${m.name}:${leg}] test-author @ ${model}`);
-    const r = await agent(testAuthorPrompt(m, leg), {
-      label: `${m.name}:${leg}-test`,
-      phase: 'codegen',
-      agentType: leg === 'frontend' ? 'odoo-frontend-coder' : 'odoo-coder',
-      model,
-      schema: RESULT_SCHEMA,
-    });
-    return r && Array.isArray(r.files_written) && r.files_written.length ? r.files_written : null;
-  } catch (e) {
-    log(`[${m.name}:${leg}] test-author failed (${String(e)}) - coder will self-test`);
-    return null;
-  } finally {
-    release(w);
-  }
-};
-
-// agentType resolves from the same registry as the Agent tool; if a short name
-// ever fails to resolve, retry once with the plugin-qualified form
-// 'odoo-ai-agents:odoo-coder' / 'odoo-ai-agents:odoo-frontend-coder'.
-const dispatchOnce = async (m, leg, model, testFiles) => {
-  const w = WEIGHT[model];
-  await acquire(w);
-  try {
-    log(`[${m.name}:${leg}] dispatch @ ${model} (weight ${w}, in-flight ${used}/${BUDGET})`);
-    return await agent(leg === 'frontend' ? frontendPrompt(m, testFiles) : backendPrompt(m, testFiles), {
-      label: `${m.name}:${leg}`,
-      phase: 'codegen',
-      agentType: leg === 'frontend' ? 'odoo-frontend-coder' : 'odoo-coder',
-      model,
-      schema: RESULT_SCHEMA,
-    });
-  } finally {
-    release(w);
-  }
-};
-
-// fable runtime fallback: if a fable dispatch dies (insufficient usage credit,
-// model unavailable, harness error -> throw or null), retry ONCE at opus and
-// mark the downgrade so plan.md records it.
-const runLeg = async (m, leg, testFiles) => {
-  const model = leg === 'frontend' ? (m.frontendModel || m.model) : m.model;
-  let result = null;
-  let err = null;
-  try {
-    result = await dispatchOnce(m, leg, model, testFiles);
-  } catch (e) {
-    err = e;
-  }
-  if (model === 'fable' && (result === null || result === undefined)) {
-    log(`[${m.name}:${leg}] fable unavailable (${err ? String(err) : 'null result'}) - retrying once @ opus`);
-    result = await dispatchOnce(m, leg, 'opus', testFiles);
-    if (result) result.downgraded = 'opus (fable unavailable)';
-    return result;
-  }
-  if (err) throw err;
-  return result;
-};
-
-// Stage 1 - backend leg. Waits for in-set dependencies first (this IS the wave
-// ordering, enforced per-module so an independent module never waits on a wave).
-// If any dependency resolved false (blocked upstream), do NOT dispatch - mark
-// blocked so resumeFromRunId re-runs this module for real (no cached agent call).
-// Errors are caught into a marker instead of thrown, so stage 2 always runs and
-// the module's resolver always fires (a thrown stage would skip stage 2 and hang
-// every dependent forever).
-const backendStage = async (m) => {
-  const depsOk = (await Promise.all((m.depends || []).map((d) => completed[d] ?? Promise.resolve(true)))).every(Boolean);
-  if (!depsOk) return { leg: 'backend', upstreamBlocked: true };
-  if (m.stack === 'frontend') return { leg: 'backend', skipped: true };
-  try {
-    const testFiles = await authorRedTest(m, 'backend'); // red before green
-    return { leg: 'backend', testFiles, result: await runLeg(m, 'backend', testFiles) };
-  } catch (e) {
-    return { leg: 'backend', error: String(e) };
-  }
-};
-
-// Stage 2 - frontend leg, strictly after the module's own backend leg
-// (pipeline guarantees per-item stage order; NO barrier across modules).
-// Gates on the backend outcome: a BLOCKED/failed/null backend must not get a
-// frontend built on top of it. try/finally guarantees the resolver fires.
-const frontendStage = async (prev, m) => {
-  const out = { module: m.name, model: m.model, backend: prev };
-  try {
-    if (prev?.upstreamBlocked) {
-      out.status = 'BLOCKED';
-      out.reason = 'upstream dependency blocked or failed - not dispatched';
-      return out;
-    }
-    const backendOk = prev?.skipped || (prev?.result && OK_STATUSES.includes(prev.result.status));
-    if (!backendOk) {
-      out.status = 'BLOCKED';
-      out.reason = prev?.error ? `backend error: ${prev.error}` : `backend status: ${prev?.result?.status ?? 'null (skipped by user or agent failure)'}`;
-      return out;
-    }
-    if (m.stack !== 'backend') {
-      try {
-        const testFiles = await authorRedTest(m, 'frontend'); // red before green
-        out.frontend = await runLeg(m, 'frontend', testFiles);
-      } catch (e) {
-        out.status = 'BLOCKED';
-        out.reason = `frontend error: ${String(e)}`;
-        return out;
-      }
-      const frontendOk = out.frontend && OK_STATUSES.includes(out.frontend.status);
-      if (!frontendOk) {
-        out.status = 'BLOCKED';
-        out.reason = `frontend status: ${out.frontend?.status ?? 'null'}`;
-        return out;
-      }
-    }
-    out.status = 'DONE';
-    return out;
-  } finally {
-    resolvers[m.name](out.status === 'DONE'); // unblock dependents with the outcome
-  }
-};
-
-const results = await pipeline(modules, backendStage, frontendStage);
-const blocked = results.filter(Boolean).filter((r) => r.status !== 'DONE');
-log(`codegen complete: ${results.length} module(s), ${blocked.length} blocked`);
-return { odooVersion, designDoc, results };
-```
-
-The Workflow tool returns immediately with a task ID (and a `runId` + the path
-of the persisted script in the tool result); the run executes in the background
-and a `<task-notification>` arrives when it completes. Do NOT write plan.md or
-the Continuation Contract before that notification arrives. On a partial
-failure (modules reported `BLOCKED` in the result), fix the input and resume
-with `Workflow({scriptPath: <persisted script path from the tool result>,
-resumeFromRunId: <runId>})` - completed agent calls return cached results, and
-blocked modules made no agent call, so exactly they re-run.
-
-Why this satisfies the rolling-window requirement:
-- `pipeline()` has no barrier between items - module A can run its frontend leg while B is still in
-  backend; freed weight is re-acquired immediately.
-- Per-module backend->frontend is the two pipeline stages; single-stack modules skip the unused leg.
-- Cross-module order is enforced by awaiting `completed[dep]` (weaker than a wave barrier: a
-  dependent starts the moment ITS deps finish, not when a whole wave finishes).
-- Every `agent()` call passes `model` explicitly; the frontmatter `model: sonnet` is only a default
-  the dispatch `model` overrides either way (same convention as `odoo-debug`).
-
-### Fallback path - Agent tool, weighted batches (no Workflow tool)
-
-Use when the Workflow tool is not present in the tool list, errors out, or the
-user denies it. The coders still run as autonomous agents - launch them with the
-Agent tool (`agentType: odoo-coder` backend / `agentType: odoo-frontend-coder`
-frontend; if a short name fails to resolve, retry with the plugin-qualified form
-`odoo-ai-agents:odoo-coder` / `odoo-ai-agents:odoo-frontend-coder`).
-Same plan, same explicit models; only the scheduling degrades:
-
-1. Order modules so every module appears after its in-set dependencies
-   (the wave column already encodes this).
-2. Greedily pack the next batch: take modules in order whose dependencies are all
-   done (done = BOTH legs of the dependency finished successfully) and whose
-   summed WEIGHT stays <= 8. A fable item always forms a batch of ONE.
-3. Fire the whole batch as parallel Agent-tool calls in a SINGLE message; per
-   module fire only the backend leg first, then after it returns fire that
-   module's frontend leg in the next batch round.
-4. Wait for the batch, then pack the next. (This re-introduces a batch barrier -
-   accepted degradation; the canonical path does not have it.)
+1. Order modules so every module appears after its in-set dependencies (the wave column already
+   encodes this).
+2. Greedily pack the next batch: take modules in order whose dependencies are all done (done = BOTH
+   legs of the dependency finished successfully) and whose summed WEIGHT stays <= 8. A fable item
+   always forms a batch of ONE.
+3. Fire the whole batch as parallel Agent-tool calls in a SINGLE message; per module fire only the
+   backend leg first, then after it returns fire that module's frontend leg in the next batch round.
+4. Wait for the batch, then pack the next. This is a batch barrier each round - the accepted
+   trade-off of dropping the JS dispatch engine: an independent module may wait on a heavier sibling
+   in the same batch. There is no cached run to resume; a later step re-dispatches a BLOCKED module
+   as a fresh Agent call.
 5. Each Agent-tool call sets BOTH the `model` parameter AND the first prompt line
-   `DISPATCH MODEL: <haiku|sonnet|opus|fable>` (belt and braces, mirroring
-   `odoo-debug`), using the same prompt templates as the Workflow script above.
-6. If a fable dispatch fails (insufficient usage credit, model unavailable,
-   Agent-tool error), retry that work-item ONCE at `model: opus` and record the
-   downgrade in plan.md (`opus (fable unavailable)`).
-7. Each brief carries the same grounding branches as the Workflow prompts: OSM
-   down -> disk-grounded fallback; OSM reachable but a specific module/model not
-   in the index (customer-local addon) -> Read/Grep just that entity, ground
-   hybrid (osm + local-source) - an index miss is not proof of absence.
+   `DISPATCH MODEL: <haiku|sonnet|opus|fable>` (belt and braces, mirroring `odoo-debug`).
+6. fable -> opus downgrade: if a fable dispatch fails (insufficient usage credit, model unavailable,
+   Agent-tool error), retry that work-item ONCE at `model: opus` and record the downgrade in plan.md
+   (`opus (fable unavailable)`).
+7. Test-first (red before green) for a module marked `test: test-author`: dispatch a SEPARATE
+   test-author FIRST - per stack (the backend test before the backend coder; the frontend test
+   before the frontend coder) - so the test author is not the code author (independence keeps the
+   test honest). Hand the returned RED test paths to that module's coder. A `test: self` module
+   skips this: its coder writes its own red test first, then the code.
 
-Each agent locates files via Read/Grep, writes the code, and reports the files it
-wrote plus `__manifest__.py` changes.
+### Per-module briefs
+
+Each Agent-tool call carries the brief below as its `prompt`. Keep identifiers verbatim.
+
+Backend coder (`agentType: odoo-coder`):
+
+```
+DISPATCH MODEL: <tier>
+You are the odoo-coder agent. Produce production-ready Python/XML Odoo code.
+REQUEST: <the change for this module, with target model + constraints>
+MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest__.py).
+NEW MODULE: <yes - scaffold the skeleton with `odoo-bin scaffold` first, then fill it in (do NOT hand-roll the skeleton) | no>.
+ODOO VERSION: <version>
+DESIGN_DOC: <path | none> - if present, build to it; do not re-derive.
+TEST: <test-author -> "FAILING TEST (written by a separate author, currently RED): <paths> - implement until these pass; do NOT edit the tests to make them pass." | self -> "TEST-FIRST: write the failing test for the business rule FIRST and confirm it goes RED, then implement to green; never weaken the test. The test MUST drive the real workflow (action_confirm/action_validate/button_validate, Form() for onchange, with_user() not sudo()) - never seed the terminal state with create({state:...})."> See snippets/test-first-contract.md and snippets/test-behavior-contract.md.
+GUIDELINES: before writing, read skills/_shared/coding_guidelines/<version>/INDEX.md and the by-task files for this change (python/naming/model-ordering for models, xml for views) - conform on the first pass. snippets/read-before-write-contract.md.
+WORKLOG: read then append your significant decisions (approach, impact + mitigation, demo-data, tier) to .odoo-ai/worklog/<runSlug>/ per snippets/worklog-contract.md.
+Step 0 (only if mcp__odoo-semantic__* is available): set_active_version('<version>'), then follow Rounds 1-4 from your system prompt. If OSM is down, use the disk-grounded fallback and still write files. If OSM answers but a specific module/model is not in the index (customer-local addon), Read/Grep the local addon for just that entity and ground hybrid (osm + local-source) - an index miss is not proof of absence. Do not spawn subagents or invoke skills.
+USER LANGUAGE (omit when the user works in English): <lang> - write the summary in this language; keep identifiers verbatim.
+```
+
+Frontend coder (`agentType: odoo-frontend-coder`): the same brief shape, with `REQUEST` set to the
+module's frontendRequest (fall back to its request), the MODULE SCOPE covering its
+`__manifest__.py` assets, and two extra lines - "ground styling tokens against
+skills/_shared/odoo-frontend-fidelity.md (no hardcoded hex for themeable colors, no self-referential
+--bs-* shim)" and "if the Skill tool is unavailable, Read skills/odoo-frontend-design/SKILL.md
+directly instead of invoking it".
+
+Test-author (`agentType` = `odoo-coder` for a backend leg / `odoo-frontend-coder` for a frontend
+leg, in TEST-AUTHOR mode): "Write ONLY the failing test(s) that protect the business behavior below
+- do NOT write the implementation." Carry REQUEST / MODULE SCOPE (test files only: `tests/` or
+`static/tests/`) / ODOO VERSION as above; follow snippets/test-first-contract.md (red-before-green)
+AND snippets/test-behavior-contract.md (drive the real workflow: action_confirm/action_validate/
+button_validate, Form() for onchange, with_user() not sudo(), never seed the terminal state with
+create({state:...})): assert observable behavior, not internals; ONE intent per test; confirm each
+test goes RED. Append to the worklog. Return the test file paths and a one-line RED confirmation.
+Do not spawn subagents or invoke skills.
+
+Each agent locates files via Read/Grep, writes the code, and reports the files it wrote plus
+`__manifest__.py` changes.
 
 ## Artifacts — persist the coding plan
 
@@ -496,10 +244,10 @@ review / fix / resume step can pick up without recomputing the graph. `<slug>` d
 change (branch, feature name, or the module set).
 
 plan.md MUST record, per work-item: module, stack, wave, the model tier chosen
-(and frontendModel when split), the dispatch path actually used
-(workflow:<runId> | agent-tool-fallback), and the per-module result status. A
-later review / fix / resume step re-dispatches at the SAME recorded tier unless
-the human changes it.
+(and frontendModel when split), the dispatch path (agent-tool), and the per-module
+result status. A later review / fix / resume step re-dispatches the BLOCKED modules
+at the SAME recorded tier (a fresh Agent call - there is no cached run to resume)
+unless the human changes it.
 
 ## Standalone-first fallback
 
