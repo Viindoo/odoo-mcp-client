@@ -211,9 +211,9 @@ Full pseudocode: `reference/wave-templates.md` §Mode B Dispatch Loop.
 **MANDATORY**: Make real Agent tool calls for each worker dispatch. Do NOT narrate dispatch in
 prose instead of calling the tool.
 
-If the Workflow tool is unavailable: fire every WI whose deps are already cherry-picked, up to
-the weighted budget; serialize each cherry-pick at depth-0 as workers return. Never gate on a
-fixed-size batch; never let a leaf cherry-pick.
+Dispatch rule (Agent-tool only - this plugin does not use the Claude Code Workflow JS tool): fire
+every WI whose deps are already cherry-picked, up to the weighted budget; serialize each cherry-pick
+at depth-0 as workers return. Never gate on a fixed-size batch; never let a leaf cherry-pick.
 
 Each subagent receives a **WI brief** as its `prompt`:
 

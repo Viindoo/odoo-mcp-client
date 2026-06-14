@@ -6,6 +6,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.11.3] - 2026-06-14
+
+### Fixed
+
+- **Killed the recurring `undefined is not an object (evaluating 'modules')` crash** that hit the main
+  agent whenever it dispatched `odoo-coding` (and, by imitation, other tasks) through the Claude Code
+  Workflow (JS) tool. Root cause: `odoo-coding/SKILL.md` shipped a JS Workflow script that destructured
+  the `args` global with no guard, no invocation example, and a resume example that omitted `args` -
+  so `args` arrived `undefined` (passed as a JSON string, omitted, or dropped on resume) and the script
+  crashed on the first `args` access. The Workflow tool always needs a JS script and `args` is
+  `undefined` when not provided, so the fragile path was removed rather than patched.
+
+### Changed
+
+- **`odoo-coding` now dispatches the coder agents via the Agent tool exclusively, in model-weighted
+  batches** (SSOT `skills/_shared/concurrency-guard.md` Mode B), instead of a JS Workflow pipeline.
+  `wave` already proved model-weighted dispatch works on the Agent tool alone. Test-author isolation is
+  preserved (two sequential Agent calls - no JS needed). Trade-off accepted: true rolling-window becomes
+  a model-weighted batch barrier per round, and `resumeFromRunId` is gone (resume = re-dispatch the
+  BLOCKED modules as fresh Agent calls).
+- `docs/reference/workflow-harness.md`: added an invariant - this plugin does NOT use the Claude Code
+  Workflow (JS) tool; all fan-out is Agent-tool / Skill-tool / `run-driver`. README, ORCHESTRATION-MAP
+  (regenerated from `generator/skill_tool_deps.json`), `concurrency-guard.md`, and `wave/SKILL.md`
+  updated to match.
+
+### Removed
+
+- The inline JS Workflow script and all "Workflow tool / rolling-window pipeline" dispatch guidance from
+  `odoo-coding/SKILL.md` (~376 net lines). `tests/test_concurrency_guard_ssot.py`:
+  `test_odoo_coding_passes_model_explicitly_on_both_paths` -> `test_odoo_coding_passes_model_explicitly`
+  (a single dispatch path now).
+
 ## [3.11.2] - 2026-06-14
 
 ### Changed

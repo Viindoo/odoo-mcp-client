@@ -511,7 +511,7 @@
       "spawns": [
         "odoo-coder",
         "odoo-frontend-coder",
-        "(dispatch: Workflow pipeline rolling-window, explicit model per work-item per tier table haiku/sonnet/opus/fable; Agent-tool weighted-batch fallback - see skills/_shared/concurrency-guard.md Mode B)"
+        "(dispatch: Agent-tool model-weighted batches, explicit model per work-item per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B)"
       ],
       "stack": "fullstack",
       "instance_touching": false,

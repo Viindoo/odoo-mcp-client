@@ -206,17 +206,17 @@ watch every edit, `--plan` when you only want the map. You never type a skill na
 
 ### Coding dispatch and model tiers
 
-When a coding job spans several modules, `odoo-coding` does not fire a fixed wave of agents and
-wait. At its Phase 0 gate it assigns each module a **deterministic model tier** - `haiku` (trivial
-boilerplate), `sonnet` (default), `opus` (core override / cross-model / migration), or `fable`
-(rare Custom-XL, ~2x opus price, design-doc-first) - recorded in the gate table and `plan.md`. It
-then dispatches **one rolling-window Workflow-tool pipeline**: per module it runs the backend leg
-then the frontend leg, and a module starts the moment ITS dependencies finish rather than at a
-wave boundary. Concurrency is bounded by a single model-weighted budget (the OOM envelope), whose
-SSOT is [`skills/_shared/concurrency-guard.md`](skills/_shared/concurrency-guard.md): WEIGHT
-`haiku=1 / sonnet=2 / opus=4 / fable=8`, at most **8 weight-units in flight** (so opus throttles to
-2 concurrent and fable runs exclusive). If the Workflow tool is unavailable, it falls back to
-Agent-tool weighted batches with the same plan and the same per-module models.
+When a coding job spans several modules, `odoo-coding` assigns each module a **deterministic model
+tier** at its Phase 0 gate - `haiku` (trivial boilerplate), `sonnet` (default), `opus` (core
+override / cross-model / migration), or `fable` (rare Custom-XL, ~2x opus price, design-doc-first) -
+recorded in the gate table and `plan.md`. It then dispatches the `odoo-coder` (backend) and
+`odoo-frontend-coder` (frontend) agents via the **Agent tool** in **model-weighted batches**: per
+module the backend leg runs before the frontend leg, modules are ordered so each runs after its
+in-set dependencies, and each round packs work up to a single model-weighted budget (the OOM
+envelope), whose SSOT is [`skills/_shared/concurrency-guard.md`](skills/_shared/concurrency-guard.md):
+WEIGHT `haiku=1 / sonnet=2 / opus=4 / fable=8`, at most **8 weight-units in flight** (so opus
+throttles to 2 concurrent and fable runs exclusive). The plugin does NOT use the Claude Code
+Workflow tool (JS) for codegen - all fan-out is real Agent-tool calls.
 
 The agent frontmatter `model:` is only a default - the dispatch `model` parameter overrides it per
 work-item in either direction (same convention as `odoo-debug` and `odoo-solution-design`).
@@ -224,15 +224,12 @@ work-item in either direction (same convention as `odoo-debug` and `odoo-solutio
 ```mermaid
 flowchart TD
     GATE["Phase 0 gate<br/>scope + module graph + per-module tier"]
-    GATE --> WF{"Workflow tool<br/>available?"}
-    WF -->|yes| PIPE["Rolling-window pipeline<br/>(canonical)"]
-    WF -->|"no / denied"| BATCH["Agent-tool weighted batches<br/>(fallback, same plan)"]
+    GATE --> BATCH["Agent-tool model-weighted batches<br/>(same plan, explicit per-module model)"]
 
     subgraph BUDGET["Model-weighted budget (SSOT: concurrency-guard.md)"]
         W["BUDGET = 8 weight-units<br/>haiku 1 - sonnet 2 - opus 4 - fable 8"]
     end
 
-    PIPE --> BUDGET
     BATCH --> BUDGET
 
     subgraph PERMOD["Per module - backend then frontend"]
@@ -241,7 +238,7 @@ flowchart TD
     end
 
     BUDGET --> PERMOD
-    PERMOD --> DEP["Dependent module starts<br/>when ITS deps finish<br/>(no wave barrier)"]
+    PERMOD --> DEP["Modules ordered by dependency;<br/>batch barrier each round"]
     DEP --> PLAN["plan.md records<br/>tier + dispatch path + status"]
 ```
 
@@ -533,7 +530,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-data-migration` | Engineer | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
 | `odoo-perf-audit` | Engineer | Audit for N+1 queries, missing prefetch, unindexed domains, compute thrash, with fixes |
 | `odoo-solution-design` | Architect / Coder | Design the technical solution (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding - the analysis-and-design step between requirement scoping and code (slim, paired with agent bundle) |
-| `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, assigns a deterministic model tier per module (haiku/sonnet/opus/fable, sonnet default), and dispatches the `odoo-coder` + `odoo-frontend-coder` agents as ONE rolling-window Workflow-tool pipeline (per-module backend->frontend, model-weighted concurrency budget) with an Agent-tool weighted-batch fallback; orders modules by the shared module DAG, orchestrates red-first test authorship before each non-trivial module's code, and feeds the `code -> review+test -> code` loop (slim, paired with agent bundle) |
+| `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, assigns a deterministic model tier per module (haiku/sonnet/opus/fable, sonnet default), and dispatches the `odoo-coder` + `odoo-frontend-coder` agents via Agent-tool model-weighted batches (per-module backend->frontend, model-weighted concurrency budget); orders modules by the shared module DAG, orchestrates red-first test authorship before each non-trivial module's code, and feeds the `code -> review+test -> code` loop (slim, paired with agent bundle) |
 | `odoo-frontend-design` | Architect / Coder / Visual | Knowledge-only design-quality expertise for Odoo UI/UX (view-type choice, form hierarchy, density, semantic tokens, website/portal theming); loaded by `odoo-solution-design` and `odoo-coding`, and the bar `odoo-ui-review` rates against (no agent spawn) |
 | `odoo-code-review` | Code-Reviewer | Review Odoo patches for ORM/inheritance/security pitfalls plus bidirectional module impact, platform-design-principle violations, and missing behavior tests; on a CRITICAL/HIGH finding it drives the fix autonomously through `odoo-coding` and re-reviews to verify (bounded to 3 iterations, then escalates), and loops uncovered behavior back to `odoo-test-writer` (slim, paired with agent bundle) |
 | `odoo-feature-check` | Pre-Sales Consultant | Check if a feature exists in standard CE or EE |

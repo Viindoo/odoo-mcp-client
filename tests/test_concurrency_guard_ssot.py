@@ -1,17 +1,18 @@
-"""Protect the concurrency-guard SSOT and odoo-coding's rolling-window contract (issue #59).
+"""Protect the concurrency-guard SSOT and odoo-coding's model-weighted dispatch (issue #59).
 
 Business contract under protection (behavior-first, ETHOS #11):
 1. The OOM fan-out rule lives in EXACTLY ONE place
    (skills/_shared/concurrency-guard.md) with two modes: Mode A (legacy cap-3
-   Agent-tool batching) and Mode B (model-weighted budget for rolling-window
-   skills, incl. the weight table haiku/sonnet/opus/fable).
+   Agent-tool batching) and Mode B (model-weighted budget, incl. the weight
+   table haiku/sonnet/opus/fable).
 2. Every fan-out skill references that SSOT instead of restating the numbers.
-3. odoo-coding no longer uses the "fire 3, wait" batch barrier (acceptance
-   criterion #1 of issue #59) and its gate table carries an explicit model
-   column with all four tiers.
+3. odoo-coding dispatches the coders via Agent-tool model-weighted batches (the
+   JS Workflow dispatch engine was removed to kill the args-undefined crash
+   class): it must NOT regress to the legacy fixed "fire 3, wait" barrier, and
+   its gate table carries an explicit model column with all four tiers.
 
 These tests fail when the rule is duplicated again, when a skill drops its
-pointer, or when the batch barrier regresses back into odoo-coding.
+pointer, or when the fixed fire-3 barrier regresses back into odoo-coding.
 """
 import pathlib
 import re
@@ -66,8 +67,10 @@ def test_failure_log_name_not_restated_by_pointerized_skills():
 
 
 def test_odoo_coding_has_no_fire3_batch_barrier():
-    # Acceptance criterion #1 of issue #59: independent work-items fill freed
-    # slots immediately; the fixed "fire 3, wait" barrier must not regress.
+    # The legacy fixed "fire 3, wait" barrier must not regress. odoo-coding now
+    # dispatches via Agent-tool model-weighted batches (Mode B budget <=8); that
+    # weighted batch is the sanctioned model after the JS dispatch engine was
+    # dropped - the only thing forbidden here is the old fixed-3 barrier.
     assert "fire 3, wait" not in _skill_text("odoo-coding"), (
         "odoo-coding regressed to the fixed fire-3-wait batch barrier"
     )
@@ -89,15 +92,12 @@ def test_odoo_coding_gate_table_has_model_column_with_all_tiers():
     )
 
 
-def test_odoo_coding_passes_model_explicitly_on_both_paths():
+def test_odoo_coding_passes_model_explicitly():
     text = _skill_text("odoo-coding")
-    # Workflow path: the agent() options block carries the model option right
-    # before the schema (delete `model,` from the opts and this goes red).
-    assert re.search(r"model,\s*\n\s*schema: RESULT_SCHEMA", text), (
-        "Workflow script must pass model explicitly in the agent() options"
-    )
-    # Fallback path: the dispatch prompt pins the tier in its first line.
+    # Single dispatch path (Agent tool): the brief pins the tier in its first
+    # line AND every Agent-tool call sets the `model` parameter (belt and braces,
+    # mirroring odoo-debug). Drop the DISPATCH MODEL line and this goes red.
     assert "DISPATCH MODEL:" in text, (
-        "Agent-tool fallback must set the DISPATCH MODEL prompt line "
+        "odoo-coding Agent-tool dispatch must set the DISPATCH MODEL prompt line "
         "(mirroring odoo-debug)"
     )
