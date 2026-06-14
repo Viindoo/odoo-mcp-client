@@ -26,19 +26,17 @@ Use these tools based on what the user is asking. **Three superset tools (★) c
 ### model_inspect ★ (superset — covers model/fields/methods/views in one call)
 TRIGGER: "show me [model]", "inheritance chain of [model]", "what fields/methods/views does [model] have", "full structure of [model]", "everything about [model]"
 PREFER: any question about a model's structure — one call returns fields, methods, views, or all three together
-REPLACES: the removed resolve_model, list_fields, list_methods, list_views (removed in v0.6)
 ARGS: model (dotted, e.g. "sale.order"), method ("summary"|"fields"|"methods"|"views"|"field"|"method"), odoo_version (required; pass the concrete pinned version), field (when method='field'), method_name (when method='method'), limit (default 200), from_module (optional — method in summary/fields/field: restrict to declarations from this module), kind (optional — method='fields': filter by field type e.g. 'many2one'), view_type (optional — method='views': filter by view type e.g. 'form'/'list' — 'list' is the v18+ alias for 'tree')
 
 ### module_inspect ★ (superset — covers module architecture + UI artefacts)
 TRIGGER: "what is module [X]", "describe module [X]", "what UI artefacts does [X] ship", "OWL / QWeb / JS patches / views in module [X]", "full module inventory for [X]"
 PREFER: module-level architecture overview + UI-layer artefacts in one round-trip
-FRONTS describe_module (via method='summary'); REPLACES the removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (removed in v0.6)
+FRONTS describe_module (via method='summary')
 ARGS: name (technical name), method ("summary"|"views"|"owl"|"qweb"|"js"|"dependencies"), odoo_version (required), profile_name (optional), limit (default 200), view_type (optional — method='views': filter by view type e.g. 'form'/'list' — 'list' is the v18+ alias for 'tree'), bound_model (optional — method='owl': filter OWL components by bound model), era (optional — method='js': era1|era2|era3), target (optional — method='js': filter by patched target)
 
 ### entity_lookup ★ (superset — drill down on one entity by ID)
 TRIGGER: "lookup field [X] on [model]", "find method [X] on [model]", "lookup view [xmlid]", "what is field/method/view [X]"
 PREFER: drilling down on one specific entity by ID (typically after a model_inspect/module_inspect enumeration)
-REPLACES: the removed resolve_field, resolve_method, resolve_view (removed in v0.6)
 ARGS: kind ("model"|"field"|"method"|"view"|"module"|"pattern"), plus discriminator-specific: for "field"/"method" → model + field|method_name; for "view" → xmlid; odoo_version (required; pass the concrete pinned version), from_module (optional — kind='model'/'field': restrict to declarations from this module)
 
 ### Session-context tools ☆ (v0.6+)

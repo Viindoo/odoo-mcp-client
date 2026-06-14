@@ -26,17 +26,15 @@ Subsequent tool calls pass the concrete pinned version (omitting odoo_version ra
 Always call the appropriate MCP tool based on the user's intent. **Use the three superset tools (★) for all model/module/entity queries.**
 
 **model_inspect** ★ — one call returns the model's fields, methods, views, or summary
-  REPLACES: resolve_model, list_fields, list_methods, list_views (all removed in v0.6)
   WHEN: "show me [model]", "inheritance of [model]", "fields/methods/views on [model]", "full structure of [model]"
   ARGS: model (dotted), method ("summary"|"fields"|"methods"|"views"|"field"|"method"), odoo_version (required; pass the concrete pinned version), field (when method='field'), method_name (when method='method'), limit (default 200), from_module (optional — method in summary/fields/field: restrict to this module), kind (optional — method='fields': filter by field type e.g. 'many2one'), view_type (optional — method='views': filter by view type e.g. 'form'/'list' — 'list' is the v18+ alias for 'tree')
 
 **module_inspect** ★ — module-level inventory across manifest, views, OWL, QWeb, JS patches
-  FRONTS describe_module (via method='summary'); REPLACES the removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (removed in v0.6)
+  FRONTS describe_module (via method='summary')
   WHEN: "what is module [X]", "describe module [X]", "OWL / QWeb / JS patches / views in module [X]"
   ARGS: name (required), method ("summary"|"views"|"owl"|"qweb"|"js"|"dependencies"), odoo_version (required), profile_name (optional), view_type (optional — method='views': filter by view type e.g. 'form'/'list' — 'list' is the v18+ alias for 'tree'), bound_model (optional — method='owl': filter by bound model), era (optional — method='js': era1|era2|era3), target (optional — method='js': filter by patched target)
 
 **entity_lookup** ★ — drill down on one entity by ID
-  REPLACES: resolve_field, resolve_method, resolve_view (all removed in v0.6)
   WHEN: "lookup field [X] on [model]", "find method [X] on [model]", "lookup view [xmlid]"
   ARGS: kind ("model"|"field"|"method"|"view"|"module"|"pattern"), plus model + field|method_name (for field/method) OR xmlid (for view), odoo_version (required; pass the concrete pinned version), from_module (optional — kind='model'/'field': restrict to declarations from this module)
 

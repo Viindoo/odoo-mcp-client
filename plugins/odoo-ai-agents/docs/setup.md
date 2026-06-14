@@ -559,20 +559,18 @@ Clients that implement the MCP `resources/list` and `resources/read` flows surfa
 
 ## Superset Tools — server v0.13.1 Reference
 
-The server exposes **25 tools** at v0.13.1. The v0.7 surface added 2 stylesheet tools
-(`resolve_stylesheet`, `find_style_override`) on top of the v0.6 base; v0.8 added 4
-ORM-validation tools; v0.10.0 added `module_inspect(method='dependencies', odoo_version='<version>')`. The 10
-flat `resolve_*` / `list_*` tools that existed in v0.4-v0.5 were deprecated in v0.5 and
-**removed in v0.6** — they no longer exist on the server. If you encounter prompts or
-snippets that reference the old names, replace them with the supersets below.
-
-> The old `resolve_*` / `list_*` tools are gone. Use these supersets instead:
+The server exposes **25 tools** at v0.13.1: four discriminator-routed supersets
+(`model_inspect`, `module_inspect`, `entity_lookup`, `profile_inspect`), eleven base tools,
+four session-context tools, two stylesheet tools (`resolve_stylesheet`, `find_style_override`),
+and four ORM-validation tools. Use the supersets below for all model / module / entity queries —
+each folds several narrower lookups into one discriminator-routed call:
 
 | Superset tool | Use case | Valid `method` values |
 |---------------|----------|-----------------------|
 | `model_inspect(model, method, ...)` | Model-level inspection: summary, field/method/view inventory | `summary` · `fields` · `methods` · `views` · `field` · `method` |
 | `module_inspect(name, method, ...)` | Module-level inventory: manifest, views, OWL, QWeb, JS patches, dependencies | `summary` · `views` · `owl` · `qweb` · `js` · `dependencies` |
 | `entity_lookup(kind, ...)` | Single entity drill-down by ID | kind: `field` · `method` · `view` |
+| `profile_inspect(profile, method, ...)` | Profile-level introspection: inheritance chain, repos, module inventory | `summary` · `repos` · `modules` |
 
 ### ORM-validation tools (server v0.8.0+)
 
