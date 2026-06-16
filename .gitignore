@@ -13,6 +13,8 @@ node_modules/
 *.swp
 .idea/
 .vscode/
+.project
+.pydevproject
 
 # Local env / secrets
 .env
