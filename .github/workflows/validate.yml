@@ -89,7 +89,7 @@ jobs:
 
   e2e-install:
     name: e2e install (${{ matrix.os }})
-    # Network + global npm install + live marketplace state — keep it off every PR
+    # Network + global npm install + live marketplace state - keep it off every PR
     # to avoid flaky external-dependency failures; run on master + manual dispatch.
     if: github.event_name != 'pull_request'
     strategy:
@@ -103,3 +103,63 @@ jobs:
         with:
           node-version: '22'
       - run: bash tests/test_install_e2e.sh
+
+  browser-deps:
+    name: browser deps install (${{ matrix.os }})
+    # Proves scripts/setup-steps/20-browser-deps.sh installs a WORKING Chromium
+    # (pinned binary + system libraries) across the platforms users actually run -
+    # the supported Ubuntu LTS line AND macOS, not just one contributor's machine.
+    # Network + package install. Runs on every PR (plus master + manual dispatch) so a
+    # regression in the setup step is caught before merge, not after. Linux runners have
+    # passwordless sudo so the apply path can exercise `playwright install-deps`; macOS
+    # needs no system packages (binary-only).
+    # ubuntu-26.04 is in public preview (announced 2026-06-11) and is the OS that
+    # first required the Playwright 1.61 pin; preview images may have longer queues.
+    # macOS is verified on EVERY version GitHub still provides a hosted runner for:
+    # 14 Sonoma / 15 Sequoia / 26 Tahoe on arm64 (Apple Silicon), plus the Intel
+    # x86_64 path via macos-15-intel (the Playwright browser binary differs by CPU
+    # arch, not by OS minor, so one Intel job guards the x64 download). Do NOT add
+    # macos-13: GitHub retired that runner image on 2025-12-08, so a job pinned to
+    # it never gets a runner and queues forever. The script's macOS branch is
+    # binary-only and version-agnostic, so it still works on macOS 13+ for users -
+    # CI simply can't host a 13 runner anymore.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-26.04, macos-14, macos-15, macos-26, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install browser deps (pinned Playwright Chromium + system libs)
+        run: bash plugins/odoo-ai-agents/scripts/setup-steps/20-browser-deps.sh apply
+      - name: Install ffmpeg on Linux (pagecast recording dep)
+        if: runner.os == 'Linux'
+        # The script advises ffmpeg but never installs it (no silent sudo). The
+        # readiness check requires it, and hosted runner images no longer ship
+        # ffmpeg, so install it here - mirroring what a real user does.
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install ffmpeg on macOS (pagecast recording dep)
+        if: runner.os == 'macOS'
+        run: brew list ffmpeg >/dev/null 2>&1 || brew install ffmpeg
+      - name: Readiness check must pass
+        run: bash plugins/odoo-ai-agents/scripts/setup-steps/20-browser-deps.sh check
+      - name: Launch headless Chromium (proves the browser actually runs)
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Linux) cache="$HOME/.cache/ms-playwright" ;;
+            macOS) cache="$HOME/Library/Caches/ms-playwright" ;;
+            *) echo "unsupported runner OS: $RUNNER_OS"; exit 1 ;;
+          esac
+          # Target chrome-headless-shell: `playwright install chromium` always
+          # ships it and its binary name is identical on Linux + macOS (the full
+          # build differs - chrome-linux64/chrome vs a Chrome for Testing .app).
+          # `find -print -quit` avoids both the missing-glob and pipefail/SIGPIPE
+          # traps. Launching it loads every linked lib, so a missing system lib
+          # surfaces here.
+          bin="$(find "$cache" -type f -name 'chrome-headless-shell' -print -quit 2>/dev/null)"
+          test -n "$bin" || { echo "chrome-headless-shell not found after install"; exit 1; }
+          "$bin" --no-sandbox --version
