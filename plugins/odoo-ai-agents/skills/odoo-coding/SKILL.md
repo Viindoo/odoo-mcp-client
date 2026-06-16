@@ -205,7 +205,7 @@ DISPATCH MODEL: <tier>
 You are the odoo-coder agent. Produce production-ready Python/XML Odoo code.
 REQUEST: <the change for this module, with target model + constraints>
 MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest__.py).
-NEW MODULE: <yes - scaffold the skeleton with `odoo-bin scaffold` first, then fill it in (do NOT hand-roll the skeleton) | no>.
+NEW MODULE: <yes - scaffold the skeleton with `odoo-bin scaffold` first, then fill it in (do NOT hand-roll the skeleton) | no>. To run `odoo-bin` (scaffold, or tests via `--test-enable`), resolve the interpreter per `snippets/venv-resolution.md` - never assume system `python3`.
 ODOO VERSION: <version>
 DESIGN_DOC: <path | none> - if present, build to it; do not re-derive.
 TEST: <test-author -> "FAILING TEST (written by a separate author, currently RED): <paths> - implement until these pass; do NOT edit the tests to make them pass." | self -> "TEST-FIRST: write the failing test for the business rule FIRST and confirm it goes RED, then implement to green; never weaken the test. The test MUST drive the real workflow (action_confirm/action_validate/button_validate, Form() for onchange, with_user() not sudo()) - never seed the terminal state with create({state:...})."> See snippets/test-first-contract.md and snippets/test-behavior-contract.md.

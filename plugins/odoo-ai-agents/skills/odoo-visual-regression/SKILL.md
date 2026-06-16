@@ -74,7 +74,7 @@ Work in rounds; fire independent calls in the same message within a round.
 Read `.odoo-ai/context.md` (Markdown bullets, `- **key**: value` format). Extract:
 - `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir`.
 
-If absent or key missing, fall back to `.odoo-ai/instances.toml` for instance URL and OSM
+If absent or key missing, fall back to the machine-global `~/.odoo-ai/instances.toml` (project `./.odoo-ai/instances.toml` is only a transitional fallback; see `snippets/instance-resolution.md`) for instance URL and OSM
 `list_available_versions` for Odoo version. Ask the user (plus the two states to compare) in a
 single message only if none supply the needed values. Do not guess.
 

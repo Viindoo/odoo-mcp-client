@@ -15,7 +15,7 @@ What it sets up:
    (local stdio `npx` servers) into Claude Code, Codex CLI and Gemini CLI.
 2. **Browser deps** — Node >= 20 check, Playwright Chromium install, ffmpeg check.
 3. **Permissions** — auto-allows the browser MCP tools in Claude permissions.
-4. **Instance profile** — discovers local Odoo repos, writes `.odoo-ai/instances.toml`.
+4. **Instance profile** — discovers local Odoo repos, writes the machine-global `~/.odoo-ai/instances.toml` (resolvable from any cwd by any agent on this host).
 5. **Instance spin-up** — launches a declared Odoo instance and waits for HTTP 200.
 
 ## Argument filter
@@ -109,7 +109,7 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
       `apply`; you may still surface a heads-up first.)
    c. On `Y`: run `"$s" apply` and stream its output to the user.
       - For `50-instance-spinup`, pass `--version <X.Y>` if the user gave one
-        (or one was discovered in `.odoo-ai/instances.toml`).
+        (or one was discovered in `~/.odoo-ai/instances.toml`).
       - If `apply` exits `2` → it is a refuse-to-corrupt signal (invalid JSON
         target). Surface the stderr verbatim and STOP that step; do not retry,
         do not delete anything.
@@ -159,10 +159,13 @@ step required in the normal flow:
   in `$CLAUDE_SETTINGS` = `~/.claude/settings.json`. Asks [Y/n] itself.
 - **40-instance-profile** — runs the Odoo repo discovery, prints the discovered
   TSV for you to confirm the addons-path ordering, writes
-  `.odoo-ai/instances.toml` as `[[instance]]` array-of-tables entries keyed by a
-  `series` field (one per Odoo series, each with a distinct `http_port`; NO
-  password stored), and gitignores `.odoo-ai/`. If no Odoo repo is found it
-  writes nothing and tells the user to clone a repo or set `ODOO_GIT_BASE`.
+  the machine-global `~/.odoo-ai/instances.toml` (resolvable from any working
+  directory) as `[[instance]]` array-of-tables entries keyed by a `series` field
+  (one per Odoo series, each with a distinct `http_port`; NO password stored). A
+  project-local `./.odoo-ai/instances.toml` is honored only as a transitional
+  fallback. It also gitignores the project `.odoo-ai/` and writes a defensive
+  `~/.odoo-ai/.gitignore`. If no Odoo repo is found it writes nothing and tells
+  the user to clone a repo or set `ODOO_GIT_BASE`.
 - **45-venv** *(optional, source instances only — offered between 40 and 50)* —
   each Odoo series supports only certain Python versions, so a source instance
   needs an interpreter whose deps match. After `40` declares the profile, offer
@@ -170,7 +173,7 @@ step required in the normal flow:
   1. Show the recommended Python: `"$STEPS_DIR/45-venv.sh" suggest <series>`.
   2. Then let the user choose:
      - **Reuse an existing venv** — set the `python` field on the matching
-       `[[instance]]` in `.odoo-ai/instances.toml`, or export `ODOO_PYTHON`.
+       `[[instance]]` in `~/.odoo-ai/instances.toml`, or export `ODOO_PYTHON`.
        Step 50 prefers the `python` field, then `ODOO_PYTHON`, then `python3`.
      - **Build a new venv** (opt-in; needs system build deps):
        `"$STEPS_DIR/45-venv.sh" create-venv --series <X.Y> --tool uv|pip [--python <VER>]`.

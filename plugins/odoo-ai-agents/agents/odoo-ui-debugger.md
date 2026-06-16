@@ -90,7 +90,7 @@ Read `.odoo-ai/context.md` if present (Markdown bullets, `- **key**: value` form
 
 **Fallback resolution order** (do not ask the user for a value resolvable here):
 1. `odoo_version`: from request or `.odoo-ai/context.md`; default 17.0 if absent (note assumption; this agent has no version-listing tool).
-2. `instance_base_url`: from `.odoo-ai/instances.toml`, then the request.
+2. `instance_base_url`: from `.odoo-ai/context.md`, else the machine-global `~/.odoo-ai/instances.toml` (project `./.odoo-ai/instances.toml` is only a transitional fallback; see `snippets/instance-resolution.md`), then the request.
 3. `instance_login`/credentials: never stored in repo; surface a single clarifying request only if genuinely unretrievable.
 
 Once `odoo_version` is concrete, pin it: `set_active_version(odoo_version=<concrete>)`. All subsequent OSM calls pass `odoo_version='<version>'`.

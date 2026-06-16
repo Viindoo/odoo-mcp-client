@@ -77,8 +77,10 @@ Work in rounds; fire independent calls in the same message within a round.
 Read `.odoo-ai/context.md` (Markdown bullets, `- **key**: value` format). Extract:
 - `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir` (parent used for video output dir).
 
-If absent or key missing, ask the user for it (plus the workflow to record, desired format MP4/GIF,
-and length) in a single message. Do not guess.
+If absent or key missing, fall back to the machine-global `~/.odoo-ai/instances.toml` (project
+`./.odoo-ai/instances.toml` is only a transitional fallback; see `snippets/instance-resolution.md`)
+for the instance URL. Ask the user only for what none of these resolve (plus the workflow to record,
+desired format MP4/GIF, and length) in a single message. Do not guess.
 
 Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)` and
 pass that concrete version on every Round 1 OSM call — the pin is per-API-key and racy under
