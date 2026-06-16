@@ -84,7 +84,7 @@ Write `tests/test_<feature>.py` (or `static/tests/test_<feature>.js` for JS). Ap
 - `@api.depends` paths used in `Form` interactions pass `validate_depends`
 - Field names in `env['<model>'].create({...})` match `model_inspect` output
 
-Run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <test file>` for the pylint-odoo gate.
+Run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <test file>` for the pylint-odoo gate. When these tests are later executed via `odoo-bin -i <module> --test-enable`, resolve the interpreter (the matching instance's `python` field) per `snippets/venv-resolution.md`, not system `python3`.
 
 ## Output format
 

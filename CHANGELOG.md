@@ -24,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `worklog/`, ...) stays project-scoped. The resolver is bash 3.2-safe (macOS) and covered by new
   tests in `tests/test_setup_instances.py`. Agent/skill/doc guidance updated; see the new
   `plugins/odoo-ai-agents/snippets/instance-resolution.md`.
+- **Agents that RUN Odoo now have an interpreter-discovery pointer** - new
+  `plugins/odoo-ai-agents/snippets/venv-resolution.md` documents how to resolve the venv `python`
+  to run `odoo-bin` (scaffold / `--test-enable`) / tests / migrations: the matching instance's
+  `python` field (via `instances_io.py read`) -> `$ODOO_PYTHON` -> system `python3` (last resort),
+  the same chain `50-instance-spinup.sh` uses. Wired into `odoo-coding` (the `odoo-bin scaffold`
+  step), `odoo-test-writer`, and `odoo-data-migration`. Also finishes the instance-resolution wiring
+  in `odoo-demo-recording` (it now falls back to the machine-global `instances.toml` instead of
+  immediately asking the human).
 
 ## [3.11.4] - 2026-06-16
 

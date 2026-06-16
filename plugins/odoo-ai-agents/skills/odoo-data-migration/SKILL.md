@@ -37,8 +37,10 @@ verifiable row counts, and a rollback note in every output.
 **IMPORTANT - execution boundary.** This skill WRITES the migration script. It does NOT
 execute the migration against any live database. Running the migration is a separate,
 human-gated step that belongs in the deploy pipeline (see `odoo-deploy-checklist` Domain 3
-and the project `INSTANCE-LIFECYCLE.md`). Never claim or imply that invoking this skill
-migrates any real data.
+and the project `INSTANCE-LIFECYCLE.md`); when it is run via `odoo-bin -u <module>`, the
+interpreter is resolved per `snippets/venv-resolution.md` (the matching instance's `python`
+field), not system `python3`. Never claim or imply that invoking this skill migrates any real
+data.
 
 ---
 
