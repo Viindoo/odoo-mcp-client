@@ -12,6 +12,7 @@ CPU-only: no PostgreSQL, no Odoo, no network. Uses the real library modules.
 """
 
 import importlib.util
+import os
 import shlex
 import subprocess
 import sys
@@ -417,3 +418,169 @@ def test_port_seed_yields_single_integer(tmp_path, scenario, expected):
     assert proc.stdout == str(expected), (
         f"scenario={scenario} expected {var}={expected} got {proc.stdout!r}"
     )
+
+
+# --- machine-global instances.toml resolution (lib/resolve_instances.sh) ------
+# instances.toml is a HOST fact, not a project fact: an execute-agent has no
+# guaranteed cwd, so the profile must resolve from any directory. These guard
+# the shared resolver's contract (global-wins, project fallback, idempotent
+# migration, fail-closed when HOME is unset). The resolver is bash 3.2-safe so
+# these run on the macOS CI runners too.
+
+RESOLVE = LIB / "resolve_instances.sh"
+
+
+def _run_resolve(body, env_extra=None, drop_env=(), cwd=None):
+    """Source resolve_instances.sh under `set -euo pipefail` and run `body`.
+
+    Builds a clean child env from the current one (so PATH is present), applies
+    drop_env / env_extra, and keeps $PWD in sync with `cwd` (subprocess sets the
+    process cwd, but a stale inherited $PWD would mislead the project-fallback
+    branch). Returns the CompletedProcess.
+    """
+    env = {k: v for k, v in os.environ.items() if k not in drop_env}
+    if env_extra:
+        env.update(env_extra)
+    if cwd is not None:
+        env["PWD"] = str(cwd)
+    snippet = (
+        "set -euo pipefail\n"
+        f"source {shlex.quote(str(RESOLVE))}\n" + body
+    )
+    return subprocess.run(
+        ["bash", "-c", snippet],
+        capture_output=True, text=True,
+        env=env, cwd=(str(cwd) if cwd is not None else None),
+    )
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_resolve_explicit_override_is_both_read_and_write_target(tmp_path):
+    """ODOO_AI_INSTANCES (explicit path) wins for both the read and write side."""
+    target = tmp_path / "custom.toml"
+    proc = _run_resolve(
+        "_write_instances_target\n_resolve_instances",
+        env_extra={"ODOO_AI_INSTANCES": str(target)},
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.split() == [str(target), str(target)]
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_resolve_finds_global_from_arbitrary_cwd(tmp_path):
+    """An agent in an unrelated cwd resolves the machine-global profile.
+
+    Fails if the resolver regresses to a cwd-relative path (the original bug).
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    glob = home / "instances.toml"
+    _append_instance(glob, "17.0", _body("17.0", 8069))
+    elsewhere = tmp_path / "elsewhere"  # no .odoo-ai here
+    elsewhere.mkdir()
+
+    proc = _run_resolve(
+        "_resolve_instances",
+        env_extra={"ODOO_AI_HOME": str(home)}, drop_env=("ODOO_AI_INSTANCES",),
+        cwd=elsewhere,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == str(glob)
+    # and the shipped reader finds the series via the resolved path
+    read = subprocess.run(
+        [sys.executable, str(INSTANCES_IO), "read", proc.stdout.strip(), "17.0"],
+        text=True, capture_output=True,
+    )
+    assert read.returncode == 0, read.stderr
+    assert "INST_VERSION=17.0" in read.stdout
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_resolve_global_wins_over_project(tmp_path):
+    """When both a global and a project file exist, the global is the SSOT.
+
+    Fails if precedence flips to project-wins (which would split the writer 40
+    from the readers 45/50).
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    glob = home / "instances.toml"
+    _append_instance(glob, "19.0", _body("19.0", 8159))
+    proj = tmp_path / "proj"
+    (proj / ".odoo-ai").mkdir(parents=True)
+    _append_instance(proj / ".odoo-ai" / "instances.toml", "17.0", _body("17.0", 8139))
+
+    proc = _run_resolve(
+        "_resolve_instances",
+        env_extra={"ODOO_AI_HOME": str(home)}, drop_env=("ODOO_AI_INSTANCES",),
+        cwd=proj,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == str(glob)
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_resolve_falls_back_to_project_when_no_global(tmp_path):
+    """With no machine-global file, an existing project file still resolves (back-compat)."""
+    home = tmp_path / "home"
+    home.mkdir()  # empty: no instances.toml
+    proj = tmp_path / "proj"
+    (proj / ".odoo-ai").mkdir(parents=True)
+    projfile = proj / ".odoo-ai" / "instances.toml"
+    _append_instance(projfile, "17.0", _body("17.0", 8139))
+
+    proc = _run_resolve(
+        "_resolve_instances",
+        env_extra={"ODOO_AI_HOME": str(home)}, drop_env=("ODOO_AI_INSTANCES",),
+        cwd=proj,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.strip() == str(projfile)
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_migration_seeds_global_then_never_clobbers(tmp_path):
+    """First migration copies project -> global + writes a defensive .gitignore;
+    a re-run with the global already present must NOT overwrite it (idempotent)."""
+    home = tmp_path / "home"
+    home.mkdir()
+    glob = home / "instances.toml"
+    proj = tmp_path / "proj"
+    (proj / ".odoo-ai").mkdir(parents=True)
+    projfile = proj / ".odoo-ai" / "instances.toml"
+    _append_instance(projfile, "17.0", _body("17.0", 8139))
+
+    env_extra = {"ODOO_AI_HOME": str(home)}
+    p1 = _run_resolve(
+        "_migrate_local_instances_to_global",
+        env_extra=env_extra, drop_env=("ODOO_AI_INSTANCES",), cwd=proj,
+    )
+    assert p1.returncode == 0, p1.stderr
+    assert glob.exists()
+    assert glob.read_text() == projfile.read_text()
+    assert (home / ".gitignore").read_text().strip() == "*"
+
+    # Edit the global, re-run: must be left untouched (no clobber).
+    glob.write_text(glob.read_text() + "\n# locally edited\n")
+    edited = glob.read_text()
+    p2 = _run_resolve(
+        "_migrate_local_instances_to_global",
+        env_extra=env_extra, drop_env=("ODOO_AI_INSTANCES",), cwd=proj,
+    )
+    assert p2.returncode == 0, p2.stderr
+    assert glob.read_text() == edited
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_resolve_fails_closed_when_home_and_overrides_unset(tmp_path):
+    """No HOME, no ODOO_AI_HOME, no ODOO_AI_INSTANCES -> fail with a diagnostic.
+
+    Fails if the resolver silently targets /.odoo-ai (an unwritable root path)
+    instead of erroring.
+    """
+    proc = _run_resolve(
+        "_write_instances_target",
+        drop_env=("HOME", "ODOO_AI_HOME", "ODOO_AI_INSTANCES"), cwd=tmp_path,
+    )
+    assert proc.returncode != 0
+    assert "unset" in proc.stderr.lower()

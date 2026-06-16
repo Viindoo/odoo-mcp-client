@@ -23,7 +23,9 @@
 #   - No sudo. docker mode uses `docker compose` (must already be installed).
 #
 # CONFIG:
-#   ODOO_AI_DIR        ${ODOO_AI_DIR:-$PWD/.odoo-ai}
+#   ODOO_AI_DIR        project artifacts dir  ${ODOO_AI_DIR:-$PWD/.odoo-ai}
+#   ODOO_AI_HOME       machine-global dir     ${ODOO_AI_HOME:-$HOME/.odoo-ai}
+#   ODOO_AI_INSTANCES  full-path override for instances.toml
 #   ODOO_BIN           path to odoo-bin (source mode). Auto-detected from
 #                      the 'core' addons_path entry if unset.
 #   ODOO_PG_PASSWORD   postgres password (env only; optional for trust auth).
@@ -33,7 +35,10 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ODOO_AI_DIR="${ODOO_AI_DIR:-$PWD/.odoo-ai}"
-INSTANCES_TOML="$ODOO_AI_DIR/instances.toml"
+# instances.toml is machine-global; resolve it (global-wins) via the shared helper.
+# shellcheck source=../lib/resolve_instances.sh
+source "$SCRIPT_DIR/../lib/resolve_instances.sh"
+INSTANCES_TOML="$(_resolve_instances)"
 INSTANCES_IO="$SCRIPT_DIR/../lib/instances_io.py"
 SPINUP_TIMEOUT="${SPINUP_TIMEOUT:-120}"
 

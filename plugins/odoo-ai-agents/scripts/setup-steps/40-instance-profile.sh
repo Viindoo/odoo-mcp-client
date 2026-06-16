@@ -3,8 +3,9 @@
 #
 # Runs discover_odoo.sh to find Odoo core + addon repos on the machine, prints
 # the discovered TSV for the user to confirm the addons-path ordering, and
-# persists the result to `.odoo-ai/instances.toml` at the project root. Also
-# ensures `.odoo-ai/` is gitignored (same no-op grep pattern as odoo-onboarding).
+# persists the result to the machine-global `~/.odoo-ai/instances.toml` (so any
+# agent on this host resolves it from any cwd; see lib/resolve_instances.sh).
+# Also ensures the project `.odoo-ai/` is gitignored (same no-op grep pattern).
 #
 # Subcommands:
 #   describe   One-line description.
@@ -20,8 +21,10 @@
 #   - Backs up before modifying (via the lib); idempotent on the gitignore line.
 #
 # CONFIG:
-#   ODOO_AI_DIR    project context dir   ${ODOO_AI_DIR:-$PWD/.odoo-ai}
-#   ODOO_GIT_BASE  scan root for repos   (consumed by discover_odoo.sh)
+#   ODOO_AI_DIR        project context dir    ${ODOO_AI_DIR:-$PWD/.odoo-ai}
+#   ODOO_AI_HOME       machine-global state   ${ODOO_AI_HOME:-$HOME/.odoo-ai}
+#   ODOO_AI_INSTANCES  full-path override for instances.toml (tests / custom)
+#   ODOO_GIT_BASE      scan root for repos    (consumed by discover_odoo.sh)
 
 set -euo pipefail
 
@@ -46,15 +49,18 @@ PY
 }
 DISCOVER="$SCRIPT_DIR/../lib/discover_odoo.sh"
 
-ODOO_AI_DIR="${ODOO_AI_DIR:-$PWD/.odoo-ai}"
-INSTANCES_TOML="$ODOO_AI_DIR/instances.toml"
+ODOO_AI_DIR="${ODOO_AI_DIR:-$PWD/.odoo-ai}"   # project artifacts (context.md, worklog, ...) - cwd-scoped
+# instances.toml is machine-global (resolvable from any cwd); the resolver is the SSOT.
+# shellcheck source=../lib/resolve_instances.sh
+source "$SCRIPT_DIR/../lib/resolve_instances.sh"
+INSTANCES_TOML="$(_write_instances_target)"
 GITIGNORE="$PWD/.gitignore"
 
 # ---------------------------------------------------------------------------
 # describe
 # ---------------------------------------------------------------------------
 cmd_describe() {
-    echo "Discover local Odoo repos and declare instance profile(s) in .odoo-ai/instances.toml"
+    echo "Discover local Odoo repos and declare instance profile(s) in ~/.odoo-ai/instances.toml (machine-global)"
 }
 
 # ---------------------------------------------------------------------------
@@ -93,6 +99,11 @@ cmd_apply() {
         return 1
     fi
 
+    # instances.toml is machine-global. Seed it once from an existing project-local
+    # file (idempotent copy, no clobber) and ensure the global dir + a defensive
+    # .gitignore exist before we write.
+    _migrate_local_instances_to_global
+
     echo "Discovering Odoo repos on this machine..."
     local tsv
     tsv="$(bash "$DISCOVER" 2>/dev/null || true)"
@@ -108,7 +119,7 @@ cmd_apply() {
     echo "----------------------------------------------------------------------"
     echo "Review the role -> addons-path ordering above (custom first, core last)."
 
-    mkdir -p "$ODOO_AI_DIR"
+    mkdir -p "$(dirname "$INSTANCES_TOML")"
 
     # Derive distinct versions from the discovered TSV (skip 'unknown'/comments).
     local versions

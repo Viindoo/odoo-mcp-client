@@ -9,7 +9,9 @@
 # build deps). The setup command calls `create-venv` only when the user asks.
 #
 # CONFIG (env overrides):
-#   ODOO_AI_DIR     state dir (default $PWD/.odoo-ai)
+#   ODOO_AI_DIR        project state dir     (default $PWD/.odoo-ai)
+#   ODOO_AI_HOME       machine-global dir    (default $HOME/.odoo-ai)
+#   ODOO_AI_INSTANCES  full-path override for instances.toml
 #
 # Subcommands:
 #   describe
@@ -25,7 +27,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$SCRIPT_DIR/../lib/config_merge.py"
 MATRIX_JSON="$SCRIPT_DIR/../lib/odoo-python-matrix.json"
 ODOO_AI_DIR="${ODOO_AI_DIR:-$PWD/.odoo-ai}"
-INSTANCES_TOML="$ODOO_AI_DIR/instances.toml"
+# instances.toml is machine-global; resolve it (global-wins) via the shared helper.
+# shellcheck source=../lib/resolve_instances.sh
+source "$SCRIPT_DIR/../lib/resolve_instances.sh"
+INSTANCES_TOML="$(_resolve_instances)"
 
 cmd_describe() {
     echo "Optionally create a Python venv for an Odoo instance (reuse existing, or build with uv/pip)"

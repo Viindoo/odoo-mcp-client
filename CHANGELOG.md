@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.11.5] - 2026-06-16
+
+### Changed
+
+- **`instances.toml` is now machine-global, resolvable from any working directory**
+  (`plugins/odoo-ai-agents/scripts/lib/resolve_instances.sh`). Previously the setup steps wrote and
+  read `<cwd>/.odoo-ai/instances.toml`, so an execute-agent running in a different repo could not
+  discover an Odoo instance declared elsewhere - yet the declared instances are a property of the
+  HOST, not the project. The instance profile now lives at the machine-global
+  `~/.odoo-ai/instances.toml` (override with `ODOO_AI_HOME`, or an explicit full-path
+  `ODOO_AI_INSTANCES`). Resolution is global-wins: `$ODOO_AI_INSTANCES` ->
+  `${ODOO_AI_HOME:-$HOME/.odoo-ai}/instances.toml` -> a project-local `./.odoo-ai/instances.toml`
+  (transitional fallback). Steps `40`/`45`/`50` share the new resolver; `40 apply` migrates an
+  existing project-local file to the global path once (idempotent copy, never clobbers) and writes a
+  defensive `~/.odoo-ai/.gitignore`. Every other `.odoo-ai/` artifact (`context.md`, `survey/`,
+  `worklog/`, ...) stays project-scoped. The resolver is bash 3.2-safe (macOS) and covered by new
+  tests in `tests/test_setup_instances.py`. Agent/skill/doc guidance updated; see the new
+  `plugins/odoo-ai-agents/snippets/instance-resolution.md`.
+
 ## [3.11.4] - 2026-06-16
 
 ### Fixed

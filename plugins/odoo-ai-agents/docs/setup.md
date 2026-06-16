@@ -228,7 +228,7 @@ drop-in. What it does:
    never writes to `~/.claude.json`.
 2. **Browser deps** — checks Node >= 20, installs Playwright Chromium, checks `ffmpeg`.
 3. **Permissions** — auto-allows the browser MCP tools in Claude permissions.
-4. **Instance profile** — discovers local Odoo repos and writes `.odoo-ai/instances.toml`.
+4. **Instance profile** — discovers local Odoo repos and writes the machine-global `~/.odoo-ai/instances.toml` (any agent on this host resolves instances regardless of working directory).
 5. **Instance spin-up** (optional) — launches a declared Odoo instance and waits for HTTP 200.
 
 > **Note for Claude Code users:** `/odoo-setup` no longer writes the browser servers into

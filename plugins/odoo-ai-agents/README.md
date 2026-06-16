@@ -310,7 +310,7 @@ provisions the browser environment, then four skills run independently and conve
 flowchart TD
     SETUP["/odoo-ai-agents:odoo-setup"]
     SETUP --> MCPW["Wires 3 browser MCP servers<br/>chrome-devtools + playwright + pagecast"]
-    SETUP --> CTX[".odoo-ai/context.md<br/>.odoo-ai/instances.toml"]
+    SETUP --> CTX[".odoo-ai/context.md (project)<br/>~/.odoo-ai/instances.toml (machine-global)"]
 
     MCPW --> SK["Visual skills available"]
     CTX --> SK
