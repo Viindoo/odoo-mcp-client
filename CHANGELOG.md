@@ -6,6 +6,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.12.0] - 2026-06-16
+
+### Added
+
+- **`/odoo-setup` runs an interactive checkbox menu when given no arguments** -
+  `plugins/odoo-ai-agents/commands/odoo-setup.md`. You no longer need to remember any flag: type
+  `/odoo-setup` and pick what to do from an `AskUserQuestion` multi-select (browser automation stack /
+  declare + spin up a local instance / reset `instances.toml`). The filter arguments
+  (`all`/`browser`/`runtime`/`permissions`/`instance`/`--reset`) remain as optional shortcuts.
+- **New setup step `47-instance-reset.sh`** - backs up `instances.toml` then writes a clean file,
+  dropping dead/legacy entries; `--hard` wipes all instances. Reset-only (`--reset` filter); its
+  `check` is always-satisfied so the `all` loop never triggers it.
+- **New library `scripts/lib/osm_repo_map.py`** - normalizes any git remote URL (SCP/SSH/HTTPS) to a
+  single match key and builds SSH clone commands (`-b <branch> --no-single-branch`, `odoo<major>` dir).
+
+### Changed
+
+- **The `/odoo-setup` instance cluster is now OSM-grounded and propose-then-confirm** instead of
+  auto-deciding. It asks the Odoo Semantic index for versions -> profiles -> repos, spawns a read-only
+  scan to map each repo/venv to a local path, and confirms every mapping with the user before any file
+  is written (5 confirm gates). When the index is unavailable it degrades to a user-declared mode.
+  `addons_path` ordering is own-repos-first -> ancestor -> core-last (Odoo resolves modules
+  first-wins), reorderable at the confirm gate. The hard rule "do not spawn a subagent" is replaced by
+  "spawn a read-only scan only; all file mutations go through the deterministic step scripts".
+- **Setup step `40-instance-profile.sh` no longer auto-discovers-and-writes.** `apply` requires a
+  confirmed `ODOO_AI_PROFILE_SPEC` (validated upfront - no partial writes) and refuses to write
+  without it.
+- **Setup steps `45-venv.sh` / `50-instance-spinup.sh` hardened.** `45` records the `python` field only
+  after `import odoo` succeeds and accepts multiple `--requirements`; `50` validates the interpreter
+  and database reachability before launch and fails loudly instead of polling a doomed start.
+
 ## [3.11.5] - 2026-06-16
 
 ### Changed

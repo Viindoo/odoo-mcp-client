@@ -15,27 +15,72 @@ What it sets up:
    (local stdio `npx` servers) into Claude Code, Codex CLI and Gemini CLI.
 2. **Browser deps** — Node >= 20 check, Playwright Chromium install, ffmpeg check.
 3. **Permissions** — auto-allows the browser MCP tools in Claude permissions.
-4. **Instance profile** — discovers local Odoo repos, writes the machine-global `~/.odoo-ai/instances.toml` (resolvable from any cwd by any agent on this host).
+4. **Instance profile** — discovers local Odoo repos via OSM-grounded propose-then-confirm,
+   writes the machine-global `~/.odoo-ai/instances.toml` (resolvable from any cwd by any agent
+   on this host).
 5. **Instance spin-up** — launches a declared Odoo instance and waits for HTTP 200.
 
 ## Argument filter
 
-`$ARGUMENTS` selects which steps run. Default (empty) = `all`.
+`$ARGUMENTS` selects which steps run. **Arguments are optional shortcuts you
+don't need to remember** — if you run `/odoo-setup` with no argument (or an
+unrecognised token), the AI agent presents an interactive checkbox menu so you
+can pick what to do without memorising filter names (see "Interactive menu"
+below).
 
 | Arg            | Runs steps |
 |----------------|------------|
-| `all` / (none) | Preflight (Gate #1 + Gate #2) then every step in `scripts/setup-steps/` |
+| `all`          | Preflight (Gate #1 + Gate #2) then every step in `scripts/setup-steps/` EXCEPT `47-instance-reset` (47 is reset-only, excluded from the all loop) |
 | `browser`      | Preflight (Gate #1 soft, Gate #2) then `10-browser-mcp` + `20-browser-deps` |
 | `runtime`      | Preflight (Gate #1 soft) then `10-browser-mcp` (cross-runtime wiring only) |
 | `permissions`  | `30-permissions` (no preflight needed - config file only) |
-| `instance`     | Preflight (Gate #1 + Gate #2) then `40-instance-profile` + optional `45-venv` + `50-instance-spinup` |
+| `instance`     | Preflight (Gate #1 + Gate #2) then AI-1..AI-4 + `40-instance-profile` + optional `45-venv` + `50-instance-spinup`. SKIPS `47` (47 is reset-only, excluded from the instance loop) |
+| `--reset`      | Runs ONLY `47-instance-reset` (Case 3: backup then clear `instances.toml`). No other steps run. |
+| (none / unknown) | **Interactive menu** — present AskUserQuestion with multiSelect=true (see below). Do NOT default to `all`. |
 
-Parse `$ARGUMENTS` (first token). If it is not one of the above, tell the user
-the valid filters and stop. For `instance` spin-up, also accept a trailing
-`--version X.Y` and pass it through to `50-instance-spinup`.
+For `instance` spin-up, also accept a trailing `--version X.Y` and pass it
+through to `50-instance-spinup`.
+
+## Interactive menu (no-argument mode)
+
+When `$ARGUMENTS` is empty **or** is not one of the valid filter tokens above,
+do **NOT** silently run `all`. Instead, present an **AskUserQuestion** with
+`multiSelect: true` listing the following checkbox options (grouped by user
+intent, not by internal filter name):
+
+```
+Which parts of the Odoo visual workflow would you like to set up?
+(You may tick more than one.)
+
+[ ] Browser automation stack - install MCP servers, browser deps, and
+    auto-allow tool permissions (runs steps 10, 20, 30)
+
+[ ] Declare + spin up a local Odoo instance - OSM-grounded propose-then-confirm
+    flow that writes ~/.odoo-ai/instances.toml and launches an Odoo process
+    (runs steps AI-1..AI-4 + 40 + optional 45 + 50)
+
+[ ] Reset instances.toml - backup then clean the instance registry
+    (runs step 47 only; equivalent to --reset)
+```
+
+Map each ticked option to its corresponding filter/steps and execute them in
+numeric order:
+
+| Checkbox ticked | Equivalent filter / steps |
+|-----------------|--------------------------|
+| Browser automation stack | `browser` — steps 10, 20, 30 |
+| Declare + spin up a local Odoo instance | `instance` — AI-1..AI-4 + 40 + optional 45 + 50 |
+| Reset instances.toml | `--reset` — step 47 only |
+
+If the user ticks multiple options, run them in the order listed above (browser
+steps first, then instance steps, then reset). After collecting the selections,
+confirm the plan with the user before executing (the normal per-step [Y/n] gates
+still apply).
 
 Preflight (`00-osm-gate` + `05-prereq-check`) always runs first - see Step 0.
 `45-venv` is an optional instance sub-step (offered between `40` and `50`).
+`47-instance-reset` runs ONLY when `$ARGUMENTS` is `--reset`; it is never
+included in the `all` or `instance` filter loops.
 
 ## Steps for the AI agent
 
@@ -96,9 +141,117 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    for s in "$STEPS_DIR"/*.sh; do echo "- $(basename "$s"): $("$s" describe)"; done
    ```
    Print this as the plan. Map the `$ARGUMENTS` filter to the matching scripts
-   (see the table above).
+   (see the table above). Exclude `47-instance-reset` from `all` and `instance`
+   plan listings — it runs only via `--reset`.
 
-2. **For each selected step, in numeric order:**
+2. **Instance cluster — OSM-grounded propose-then-confirm (AI-1 through AI-4).**
+   This cluster runs when the filter is `all` or `instance`. It precedes the
+   numbered step scripts `40`/`45`/`50` and drives them with confirmed data.
+
+   **AI-1 — OSM version + profile probe (CONFIRM #1)**
+
+   Call `mcp__odoo-semantic__list_available_versions` and
+   `mcp__odoo-semantic__list_available_profiles` (no arguments). Present the
+   results to the user and ask:
+   - Which Odoo version(s) / version range do you want to set up? (e.g. `17.0`,
+     `16.0-17.0`)
+   - Which profile should be used? (pick from the list OSM returned, or type a
+     custom name)
+
+   Wait for the user's answer before continuing — this is **CONFIRM #1**.
+
+   **OSM unavailable — Degraded Case 2:** If `list_available_versions` or
+   `list_available_profiles` fails or is unreachable, do NOT abort. Instead,
+   warn the user:
+   > "OSM is unavailable — no OSM grounding. You must declare version, profile,
+   > and repos manually. The downstream flow is identical; we just cannot
+   > cross-check against the indexed source."
+   Then ask the user to provide: Odoo version(s), profile name, and the repo
+   list (SSH URL, branch, role). Collect these and continue to AI-3 directly
+   (skip AI-2). This is the **user-declared path** — label all output clearly
+   as "no OSM grounding — user-declared" throughout.
+
+   **AI-2 — OSM repo set (CONFIRM #2)**
+
+   For each version confirmed in AI-1, call:
+   ```
+   mcp__odoo-semantic__profile_inspect(method='repos', name=<profile>, odoo_version=<version>)
+   ```
+   (fall back to `method='summary'` if `repos` is unsupported). OSM returns a
+   repo set: SSH URL @ branch, own vs. inherited. Present this list to the user
+   and ask:
+   - Are there repos NOT listed by OSM that you want to include? (provide SSH
+     URL, branch, and role — `own` or `inherited`)
+
+   Wait for the user's answer — this is **CONFIRM #2**. Merge any user-added
+   repos into the set.
+
+   **AI-3 — Local repo scan + missing repo guidance (CONFIRM #3)**
+
+   Spawn a **read-only HAIKU subagent** to scan local repos and build a
+   mapping: each OSM repo (normalized SSH URL + branch) → local absolute path.
+
+   Normalization: strip `git@github.com:` vs `https://github.com/` prefix and
+   `.git` suffix → canonical key `github.com/<Org>/<repo>`; match against
+   `git remote get-url origin` output of every local directory under
+   `$ODOO_GIT_BASE` (or a set of candidate parent directories the user
+   suggests). Branch must also match.
+
+   The HAIKU subagent is **read-only**: it runs `git remote get-url` and
+   `git rev-parse --abbrev-ref HEAD` in local directories; it makes no writes,
+   no clones, no edits.
+
+   For each repo in the confirmed set:
+   - **MATCHED** → record the local absolute path; show it to the user.
+   - **MISSING** → print the SSH clone command:
+     ```
+     git clone -b <branch> --no-single-branch git@github.com:<Org>/<repo>.git odoo<major>
+     ```
+     (OSM already returns SSH URLs; `<Org>/<repo>` is the placeholder — the
+     actual value comes from OSM at runtime.) Then print the optional dev fork
+     step:
+     ```
+     gh repo fork --remote --remote-name fork
+     ```
+     Do **NOT** auto-clone. Print the commands and ask the user to run them
+     first, then re-run this step — or confirm they want to skip that repo.
+
+   Present the matched paths and addons_path ordering to the user. Default
+   ordering: **own repos first → ancestor/inherited repos → Odoo core last**
+   (Odoo resolves modules FIRST-WINS, so overriding repos must precede core).
+   The user may reorder at this point.
+
+   Wait for the user's final confirmation of paths and order — this is
+   **CONFIRM #3**. Then call `40 apply` with the confirmed spec via env
+   `ODOO_AI_PROFILE_SPEC` (a JSON array of instance objects). Step `40` refuses
+   to auto-write without this env — never call `40 apply` without it.
+
+   **AI-4 — Venv scan (CONFIRM #4)**
+
+   Spawn a **read-only HAIKU subagent** to scan local Python virtual
+   environments and build a mapping: venv → Odoo series (inspect the venv's
+   `odoo` package version or `site-packages/odoo` directory).
+
+   The HAIKU subagent is **read-only**: it only reads filesystem paths; it
+   installs nothing.
+
+   For each series in the confirmed spec:
+   - **MATCHED** → show the venv path and its detected series.
+   - **MISSING** → gather `requirements.txt` files from the repos in the
+     confirmed `addons_path` for that series, and present the option to build
+     a new venv via `45-venv.sh create-venv`.
+
+   Wait for the user's choice (reuse existing venv / build new / skip) — this
+   is **CONFIRM #4**. Then run `45 apply` for the chosen series.
+
+   **CONFIRM #5 — choose the series to spin up**
+
+   Present the list of series in the confirmed spec and ask the user which one
+   to launch now. Do not silently pick the highest — always ask. Then run `50
+   apply` for the chosen series (fail-loud preflight: verify `import odoo` +
+   `pg_isready` before launch; see step-specific notes).
+
+3. **For each selected step (non-instance steps), in numeric order:**
    a. Run `"$s" check`. Capture the exit code.
       - Exit `0` → the step is already satisfied. Report
         `✓ <name>: already configured — skipping` and move on.
@@ -108,8 +261,8 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
       `Run <name> now? [Y/n]`. (Step `30-permissions` asks its own [Y/n] inside
       `apply`; you may still surface a heads-up first.)
    c. On `Y`: run `"$s" apply` and stream its output to the user.
-      - For `50-instance-spinup`, pass `--version <X.Y>` if the user gave one
-        (or one was discovered in `~/.odoo-ai/instances.toml`).
+      - For `50-instance-spinup`, pass `--version <X.Y>` if the user confirmed
+        one at CONFIRM #5 (or one was discovered in `~/.odoo-ai/instances.toml`).
       - If `apply` exits `2` → it is a refuse-to-corrupt signal (invalid JSON
         target). Surface the stderr verbatim and STOP that step; do not retry,
         do not delete anything.
@@ -118,7 +271,7 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
         instance-profile).
    d. On `n`: skip the step and note it can be re-run via the matching filter.
 
-3. **Final summary.** Print a table: each step → `configured` / `skipped
+4. **Final summary.** Print a table: each step → `configured` / `skipped
    (already done)` / `skipped (declined)` / `failed`. Then remind the user:
    > MCP servers do NOT hot-reload — restart your Claude Code / Codex / Gemini
    > session for the newly wired browser servers and permissions to take effect.
@@ -157,15 +310,18 @@ step required in the normal flow:
   ONLY prints install guidance for your OS — it never runs sudo/apt for you.
 - **30-permissions** — appends browser tool prefixes to `permissions.allow[]`
   in `$CLAUDE_SETTINGS` = `~/.claude/settings.json`. Asks [Y/n] itself.
-- **40-instance-profile** — runs the Odoo repo discovery, prints the discovered
-  TSV for you to confirm the addons-path ordering, writes
-  the machine-global `~/.odoo-ai/instances.toml` (resolvable from any working
-  directory) as `[[instance]]` array-of-tables entries keyed by a `series` field
-  (one per Odoo series, each with a distinct `http_port`; NO password stored). A
-  project-local `./.odoo-ai/instances.toml` is honored only as a transitional
-  fallback. It also gitignores the project `.odoo-ai/` and writes a defensive
-  `~/.odoo-ai/.gitignore`. If no Odoo repo is found it writes nothing and tells
-  the user to clone a repo or set `ODOO_GIT_BASE`.
+- **40-instance-profile** — writes `~/.odoo-ai/instances.toml` as
+  `[[instance]]` array-of-tables entries from the confirmed spec passed via
+  `ODOO_AI_PROFILE_SPEC` (a JSON array of instance objects). Step `40` does
+  NOT auto-discover or auto-write; it refuses to run `apply` without a
+  confirmed `ODOO_AI_PROFILE_SPEC`. The AI agent builds this spec from the
+  OSM-grounded + user-confirmed mapping (AI-1..AI-3 above) and passes it as an
+  env before calling `40 apply`. addons_path ordering in the spec is
+  own-repos-first → ancestor → core-last; the user may reorder at CONFIRM #3.
+  The file is machine-global (resolvable from any cwd); a project-local
+  `./.odoo-ai/instances.toml` is honored only as a transitional fallback. Step
+  40 also gitignores the project `.odoo-ai/` and writes a defensive
+  `~/.odoo-ai/.gitignore`. Backup + idempotent.
 - **45-venv** *(optional, source instances only — offered between 40 and 50)* —
   each Odoo series supports only certain Python versions, so a source instance
   needs an interpreter whose deps match. After `40` declares the profile, offer
@@ -176,17 +332,34 @@ step required in the normal flow:
        `[[instance]]` in `~/.odoo-ai/instances.toml`, or export `ODOO_PYTHON`.
        Step 50 prefers the `python` field, then `ODOO_PYTHON`, then `python3`.
      - **Build a new venv** (opt-in; needs system build deps):
-       `"$STEPS_DIR/45-venv.sh" create-venv --series <X.Y> --tool uv|pip [--python <VER>]`.
-       This creates the venv, installs the series' `requirements.txt`, and records
-       the interpreter back onto the instance.
+       `"$STEPS_DIR/45-venv.sh" create-venv --series <X.Y> --tool uv|pip [--python <VER>] [--requirements <path>] ...`
+       Accepts multiple `--requirements` flags to gather deps from all addon
+       repos in the addons_path. This creates the venv, installs the deps, and
+       records the interpreter back onto the instance.
+  In both cases, step `45` verifies `import odoo` succeeds in the chosen
+  interpreter BEFORE writing the `python` field to `instances.toml`. If the
+  venv is empty or lacks the Odoo package, step `45` does NOT record the
+  python field and prints an error with guidance.
   Never silently pick an incompatible Python. If the user declines, just print
   the suggestion and move on - step 50 will fall back to `python3`.
-- **50-instance-spinup** — generates a temp `odoo.conf`, launches Odoo (source
-  `odoo-bin --dev=all` or `docker compose up -d`), polls `/web/login` to HTTP
-  200, prints the URL. With no `--version` it selects the highest declared
-  series. The Python interpreter comes from the instance `python` field /
-  `$ODOO_PYTHON` / `python3`. The DB password is read only from
-  `$ODOO_PG_PASSWORD`.
+- **47-instance-reset** *(reset-only — runs ONLY via `--reset`, never via `all` or `instance`)* —
+  `apply`: backs up `instances.toml` to `<path>.bak.<timestamp>` then writes a
+  clean replacement. Default mode (`apply`): preserves instances whose local
+  paths still exist on disk; removes entries with missing paths and legacy /
+  junk records (e.g. version `0.0`, dotted-key format). Hard mode (`apply
+  --hard`): wipes all entries unconditionally. `check` always exits 0 (reset
+  is always available); it is intentionally excluded from the `all` and
+  `instance` filter loops so it never runs silently.
+- **50-instance-spinup** — before launching anything, runs a **fail-loud
+  preflight**: verifies (a) the instance's Python can `import odoo` and
+  (b) `pg_isready` (or equivalent) confirms PostgreSQL is reachable. If either
+  check fails, it prints a clear error with remediation guidance and stops —
+  it does NOT launch and then time out polling. On preflight pass: generates a
+  temp `odoo.conf`, launches Odoo (`odoo-bin --dev=all` or
+  `docker compose up -d`), polls `/web/login` to HTTP 200, prints the URL.
+  The series to spin up comes from CONFIRM #5 (never silently defaulted). The
+  Python interpreter comes from the instance `python` field / `$ODOO_PYTHON` /
+  `python3`. The DB password is read only from `$ODOO_PG_PASSWORD`.
 
 ## Hard rules
 
@@ -203,8 +376,10 @@ step required in the normal flow:
   user runs any privileged install themselves.
 - **Idempotent.** Always run a step's `check` before its `apply`. Re-running
   the whole command must be a no-op when everything is already configured.
-- **Do not spawn a subagent.** This command runs at depth 0. Use the `Bash`
-  tool to invoke the step scripts directly.
+- **Spawn a HAIKU subagent ONLY for read-only local filesystem scans** (repo →
+  local path mapping in AI-3, venv → series mapping in AI-4). Every file
+  mutation goes through the deterministic `*.sh` step scripts (40/45/47/50),
+  NEVER through a subagent. The HAIKU subagent reads; the shell scripts write.
 
 ## Standalone / fallback
 

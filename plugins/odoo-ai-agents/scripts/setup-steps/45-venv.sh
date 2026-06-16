@@ -101,14 +101,15 @@ _core_root_for_series() {
 }
 
 cmd_create_venv() {
-    local series="" pyver="" tool="" path="" reqs=""
+    local series="" pyver="" tool="" path=""
+    local -a reqs_list=()
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --series) series="$2"; shift 2 ;;
             --python) pyver="$2"; shift 2 ;;
             --tool)   tool="$2"; shift 2 ;;
             --path)   path="$2"; shift 2 ;;
-            --requirements) reqs="$2"; shift 2 ;;
+            --requirements) reqs_list+=("$2"); shift 2 ;;
             *) echo "Unknown arg: $1" >&2; return 2 ;;
         esac
     done
@@ -117,10 +118,10 @@ cmd_create_venv() {
     [[ -n "$tool" ]]  || tool="uv"
     [[ -n "$path" ]]  || path="$ODOO_AI_DIR/venvs/$series"
 
-    # Resolve requirements.txt if not given.
-    if [[ -z "$reqs" ]]; then
-        local core; core="$(_core_root_for_series "$series")"
-        [[ -n "$core" ]] && reqs="$core/requirements.txt"
+    # Resolve a default requirements.txt when none were supplied via --requirements.
+    if [[ ${#reqs_list[@]} -eq 0 ]]; then
+        local core; core="$(_core_root_for_series "$series")" || true
+        [[ -n "$core" && -f "$core/requirements.txt" ]] && reqs_list+=("$core/requirements.txt")
     fi
 
     echo "  Creating venv for Odoo $series at $path (python ${pyver:-default}, tool $tool)"
@@ -128,9 +129,17 @@ cmd_create_venv() {
         uv)
             command -v uv >/dev/null 2>&1 || { echo "x 'uv' not found. Install uv or use --tool pip." >&2; return 1; }
             if [[ -n "$pyver" ]]; then uv venv "$path" --python "$pyver"; else uv venv "$path"; fi
-            if [[ -n "$reqs" && -f "$reqs" ]]; then
-                uv pip install --python "$path/bin/python" -r "$reqs" \
-                    || { echo "x dependency install failed (check system build deps)." >&2; return 1; }
+            if [[ ${#reqs_list[@]} -gt 0 ]]; then
+                local r
+                for r in "${reqs_list[@]}"; do
+                    if [[ -f "$r" ]]; then
+                        echo "  Installing requirements: $r"
+                        uv pip install --python "$path/bin/python" -r "$r" \
+                            || { echo "x dependency install failed for $r (check system build deps)." >&2; return 1; }
+                    else
+                        echo "  Warning: requirements file not found, skipping: $r" >&2
+                    fi
+                done
             else
                 echo "  (no requirements.txt found - venv created empty; install deps manually)"
             fi
@@ -145,9 +154,17 @@ cmd_create_venv() {
                 fi
             fi
             "$py" -m venv "$path" || { echo "x venv creation failed." >&2; return 1; }
-            if [[ -n "$reqs" && -f "$reqs" ]]; then
-                "$path/bin/pip" install -r "$reqs" \
-                    || { echo "x dependency install failed (check system build deps)." >&2; return 1; }
+            if [[ ${#reqs_list[@]} -gt 0 ]]; then
+                local r
+                for r in "${reqs_list[@]}"; do
+                    if [[ -f "$r" ]]; then
+                        echo "  Installing requirements: $r"
+                        "$path/bin/pip" install -r "$r" \
+                            || { echo "x dependency install failed for $r (check system build deps)." >&2; return 1; }
+                    else
+                        echo "  Warning: requirements file not found, skipping: $r" >&2
+                    fi
+                done
             else
                 echo "  (no requirements.txt found - venv created empty; install deps manually)"
             fi
@@ -155,12 +172,29 @@ cmd_create_venv() {
         *) echo "x Unknown --tool '$tool'. Use uv or pip." >&2; return 2 ;;
     esac
 
+    # Verify the venv can actually import odoo before recording it as the instance
+    # python. An empty venv or one with missing deps would silently poison step 50.
+    local venv_py="$path/bin/python"
+    if [[ ! -x "$venv_py" ]]; then
+        echo "x venv python not found at $venv_py - something went wrong during creation." >&2
+        return 1
+    fi
+    if ! "$venv_py" -c "import odoo" 2>/dev/null; then
+        echo "x import odoo failed in the new venv ($venv_py)." >&2
+        echo "  The venv exists but Odoo is not importable." >&2
+        echo "  Install Odoo into the venv first (e.g. pip install -e /path/to/odoo)" >&2
+        echo "  or pass --requirements /path/to/odoo/requirements.txt and ensure odoo" >&2
+        echo "  itself is on PYTHONPATH or installed in the venv." >&2
+        echo "  The 'python' field was NOT recorded in instances.toml." >&2
+        return 1
+    fi
+
     # Record the interpreter on the instance so step 50 uses it.
     # NOTE: this only REPLACES an existing `python = ...` line in the matched
     # [[instance]] block; it assumes step 40 already wrote a `python = ""`
     # placeholder line into that block. If the line is absent, nothing is written.
-    if [[ -f "$INSTANCES_TOML" && -x "$path/bin/python" ]]; then
-        python3 - "$INSTANCES_TOML" "$series" "$path/bin/python" <<'PY' || true
+    if [[ -f "$INSTANCES_TOML" ]]; then
+        python3 - "$INSTANCES_TOML" "$series" "$venv_py" <<'PY' || true
 import sys
 path, series, py = sys.argv[1], sys.argv[2], sys.argv[3]
 try:
@@ -189,7 +223,7 @@ if updated:
     print(f"  recorded python for {series} -> {py}")
 PY
     fi
-    echo "ok venv ready: $path/bin/python"
+    echo "ok venv ready: $venv_py"
 }
 
 case "${1:-}" in

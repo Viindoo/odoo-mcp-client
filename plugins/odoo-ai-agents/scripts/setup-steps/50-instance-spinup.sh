@@ -181,6 +181,62 @@ cmd_apply() {
                 echo "x Could not locate odoo-bin. Set ODOO_BIN=/path/to/odoo-bin and retry." >&2
                 return 1
             }
+            # Resolve the Python interpreter: the instance's own `python` field
+            # (a venv with Odoo deps) wins, then $ODOO_PYTHON, else system python3.
+            local py
+            py="${INST_PYTHON:-}"
+            [[ -z "$py" ]] && py="${ODOO_PYTHON:-}"
+            [[ -z "$py" ]] && py="python3"
+            if ! command -v "$py" >/dev/null 2>&1 && [[ ! -x "$py" ]]; then
+                echo "x Python interpreter '$py' not found. Set 'python' in" \
+                     "instances.toml (a venv with Odoo deps) or ODOO_PYTHON, or" \
+                     "install python3." >&2
+                return 1
+            fi
+
+            # ---- PREFLIGHT: verify python can import odoo BEFORE launching ----
+            # Catching this here produces a clear actionable error instead of
+            # launch-then-poll-timeout which wastes 120s and hides the real cause.
+            if ! "$py" -c "import odoo" 2>/dev/null; then
+                echo "" >&2
+                echo "x PREFLIGHT FAILED: '$py' cannot import odoo." >&2
+                echo "  Odoo will not start. Fix this BEFORE retrying:" >&2
+                echo "    - Confirm the 'python' field in instances.toml points to a venv" >&2
+                echo "      that has Odoo installed (run step 45 create-venv first)." >&2
+                echo "    - Or set ODOO_PYTHON=/path/to/venv/bin/python." >&2
+                echo "    - Or install Odoo in the active Python environment." >&2
+                return 1
+            fi
+
+            # ---- PREFLIGHT: warn when ODOO_PG_PASSWORD is unset ---------------
+            # An unauthenticated conf works only with trust auth; warn so the user
+            # does not silently get a connection-refused or role-missing error at
+            # runtime with no indication of why.
+            if [[ -z "${ODOO_PG_PASSWORD:-}" ]]; then
+                echo "  Warning: ODOO_PG_PASSWORD is unset - generated conf will omit" \
+                     "db_password. This works only when pg is configured for trust auth." >&2
+            fi
+
+            # ---- PREFLIGHT: pg_isready check when available ------------------
+            # Skipped silently when pg_isready is not on PATH (Docker-only envs
+            # may not have the postgres client tools installed).
+            local db_host="${INST_DB_HOST:-localhost}"
+            local db_user="${INST_DB_USER:-odoo}"
+            local db_name="${INST_DB_NAME:-odoo}"
+            if command -v pg_isready >/dev/null 2>&1; then
+                if ! pg_isready -h "$db_host" -U "$db_user" -d "$db_name" -q 2>/dev/null; then
+                    echo "" >&2
+                    echo "x PREFLIGHT FAILED: PostgreSQL is not reachable." >&2
+                    echo "  pg_isready -h $db_host -U $db_user -d $db_name reported failure." >&2
+                    echo "  Odoo will not start until the database is reachable. Fix:" >&2
+                    echo "    - Start / check your PostgreSQL service." >&2
+                    echo "    - Verify db_host/db_user/db_name in instances.toml." >&2
+                    echo "    - If using docker-compose for postgres, start it first." >&2
+                    return 1
+                fi
+                echo "  ok pg_isready: PostgreSQL reachable at $db_host"
+            fi
+
             # Portable mktemp: `mktemp -t PREFIX.XXXXXX.conf` is GNU-specific.
             # On BSD/macOS `-t` treats the arg as a prefix only, a suffix after
             # the X's is not honored, and ${INST_VERSION} contains a dot. Create
@@ -200,18 +256,6 @@ cmd_apply() {
                 fi
             } >"$conf"
             echo "  Generated temp conf: $conf"
-            # Resolve the Python interpreter: the instance's own `python` field
-            # (a venv with Odoo deps) wins, then $ODOO_PYTHON, else system python3.
-            local py
-            py="${INST_PYTHON:-}"
-            [[ -z "$py" ]] && py="${ODOO_PYTHON:-}"
-            [[ -z "$py" ]] && py="python3"
-            if ! command -v "$py" >/dev/null 2>&1 && [[ ! -x "$py" ]]; then
-                echo "x Python interpreter '$py' not found. Set 'python' in" \
-                     "instances.toml (a venv with Odoo deps) or ODOO_PYTHON, or" \
-                     "install python3." >&2
-                return 1
-            fi
             echo "  Launching: $py '$bin' -c '$conf' -d '${INST_DB_NAME:-odoo}' --dev=all"
             # Run in background so we can poll. Logs to a temp file.
             # Capture the PID directly (no subshell `( )`, which would hide it)
