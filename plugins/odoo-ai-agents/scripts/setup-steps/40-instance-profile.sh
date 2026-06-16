@@ -91,11 +91,78 @@ _ensure_gitignore() {
 }
 
 # ---------------------------------------------------------------------------
+# _write_instance_from_spec  (shared by apply)
+#   $1 = series   $2 = addons_path TOML literal (already quoted, comma-sep)
+#   $3 = http_port  $4 = db_name  $5 = db_host  $6 = db_user  $7 = python
+# ---------------------------------------------------------------------------
+_write_instance_from_spec() {
+    local ver="$1" paths="$2" port="$3" db_name="$4" db_host="$5" db_user="$6" py="$7"
+    local suggested_py pyline out
+
+    suggested_py="$(_suggested_python "$ver")"
+    if [[ -n "$py" ]]; then
+        pyline=$(printf 'python = "%s"' "$py")
+    elif [[ -n "$suggested_py" ]]; then
+        pyline=$(printf 'python = ""                     # venv python for source mode; suggested Python for %s: %s' "$ver" "$suggested_py")
+    else
+        pyline='python = ""                     # venv python for source mode (empty = system python3)'
+    fi
+
+    out="$( {
+        printf 'series = "%s"\n' "$ver"
+        printf 'addons_path = [%s]\n' "$paths"
+        printf 'run_mode = "source"            # source | docker\n'
+        printf 'http_port = %s\n' "$port"
+        printf 'db_name = "%s"\n' "$db_name"
+        printf 'db_host = "%s"\n' "$db_host"
+        printf 'db_user = "%s"\n' "$db_user"
+        printf '%s\n' "$pyline"
+        printf '# db_password: DO NOT store here. Use env ODOO_PG_PASSWORD or your keychain.\n'
+    } | python3 "$LIB" toml-append-array-item "$INSTANCES_TOML" instance series "$ver" )"
+    if printf '%s' "$out" | grep -q '^exists'; then
+        echo "  [[instance]] series=$ver already present - skip"
+        return 0
+    else
+        echo "  wrote [[instance]] series=$ver (http_port=$port) -> $INSTANCES_TOML"
+        return 1   # signal: new item written (caller increments port_idx)
+    fi
+}
+
+# ---------------------------------------------------------------------------
 # apply
 # ---------------------------------------------------------------------------
 cmd_apply() {
-    if [[ ! -f "$LIB" || ! -f "$DISCOVER" ]]; then
-        echo "x lib/discover script missing under $SCRIPT_DIR/../lib - install the plugin fully." >&2
+    if [[ ! -f "$LIB" ]]; then
+        echo "x lib/config_merge.py missing under $SCRIPT_DIR/../lib - install the plugin fully." >&2
+        return 1
+    fi
+
+    # Guard: require a confirmed spec. Without it we MUST NOT auto-write anything.
+    local spec_file="${ODOO_AI_PROFILE_SPEC:-}"
+    if [[ -z "$spec_file" ]]; then
+        echo "----------------------------------------------------------------------" >&2
+        echo "  ODOO_AI_PROFILE_SPEC is not set." >&2
+        echo >&2
+        echo "  This step no longer auto-discovers and writes instances.toml without" >&2
+        echo "  confirmation. To proceed:" >&2
+        echo >&2
+        echo "  1. Review the discovered Odoo repos on this machine:" >&2
+        if [[ -f "$DISCOVER" ]]; then
+            echo "       bash $DISCOVER" >&2
+        fi
+        echo >&2
+        echo "  2. Build a confirmed JSON spec file, e.g. /tmp/profile.json:" >&2
+        echo '       [{"series":"17.0","addons_path":["/abs/custom","/abs/core"]}]' >&2
+        echo >&2
+        echo "  3. Re-run with the spec exported:" >&2
+        echo "       ODOO_AI_PROFILE_SPEC=/tmp/profile.json bash $0 apply" >&2
+        echo "----------------------------------------------------------------------" >&2
+        echo "x provide ODOO_AI_PROFILE_SPEC with the confirmed profile to write" >&2
+        return 1
+    fi
+
+    if [[ ! -f "$spec_file" ]]; then
+        echo "x ODOO_AI_PROFILE_SPEC=$spec_file: file not found" >&2
         return 1
     fi
 
@@ -104,40 +171,7 @@ cmd_apply() {
     # .gitignore exist before we write.
     _migrate_local_instances_to_global
 
-    echo "Discovering Odoo repos on this machine..."
-    local tsv
-    tsv="$(bash "$DISCOVER" 2>/dev/null || true)"
-
-    echo "----------------------------------------------------------------------"
-    if [[ -z "$tsv" ]] || ! printf '%s' "$tsv" | grep -qvE '^#'; then
-        echo "  (no Odoo repos auto-discovered under \${ODOO_GIT_BASE:-\$HOME/git})"
-        echo "  The instance profile will be written with placeholders for you/the"
-        echo "  AI agent to fill in (addons_path, version)."
-    else
-        printf '%s\n' "$tsv"
-    fi
-    echo "----------------------------------------------------------------------"
-    echo "Review the role -> addons-path ordering above (custom first, core last)."
-
     mkdir -p "$(dirname "$INSTANCES_TOML")"
-
-    # Derive distinct versions from the discovered TSV (skip 'unknown'/comments).
-    local versions
-    versions="$(printf '%s\n' "$tsv" \
-        | grep -vE '^#' \
-        | awk -F'\t' 'NF>=2 && $2!="unknown" && $2!="" {print $2}' \
-        | sort -u || true)"
-
-    # If nothing was discovered, do NOT write a junk placeholder instance.
-    # Guide the user to clone a repo / point ODOO_GIT_BASE and re-run instead.
-    if [[ -z "$versions" ]]; then
-        echo "  No Odoo series discovered under \${ODOO_GIT_BASE:-\$HOME/git}."
-        echo "  Clone an Odoo repo (e.g. 'git clone https://github.com/odoo/odoo -b 17.0 ~/git/odoo17')"
-        echo "  or set ODOO_GIT_BASE to where your repos live, then re-run this step."
-        echo "  (No instance profile written - nothing to declare yet.)"
-        _ensure_gitignore
-        return 0
-    fi
 
     # Port allocation: assign a distinct http_port per NEW instance, stepping by
     # 10 so each instance leaves room for a longpolling/gevent port later. Seed
@@ -153,47 +187,102 @@ cmd_apply() {
     port_idx="$(grep -cE '^\[\[instance\]\]' "$INSTANCES_TOML" 2>/dev/null || true)"
     port_idx="${port_idx:-0}"
 
-    # Build the addons_path per series: join paths whose series matches, in the
-    # role-priority order discover_odoo.sh already emits. Each series becomes an
-    # [[instance]] array-of-tables item keyed by the `series` field (no dotted
-    # table headers, so every Python TOML parser reads it back correctly).
-    local ver
-    while IFS= read -r ver; do
-        [[ -n "$ver" ]] || continue
-        local paths port suggested_py out pyline
-        paths="$(printf '%s\n' "$tsv" \
-            | grep -vE '^#' \
-            | awk -F'\t' -v v="$ver" 'NF>=3 && $2==v {printf "\"%s\", ", $3}' \
-            | sed 's/, $//' || true)"
-        [[ -z "$paths" ]] && paths=""
-        port=$((base_port + port_idx * 10))
-        suggested_py="$(_suggested_python "$ver")"
-        if [[ -n "$suggested_py" ]]; then
-            pyline=$(printf 'python = ""                     # venv python for source mode; suggested Python for %s: %s' "$ver" "$suggested_py")
-        else
-            pyline='python = ""                     # venv python for source mode (empty = system python3)'
-        fi
+    # Parse each instance object from the JSON spec and write it.
+    # Required: series, addons_path. Defaults for the rest.
+    local n_items
+    n_items="$(python3 - "$spec_file" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+if not isinstance(data, list):
+    print("x ODOO_AI_PROFILE_SPEC JSON must be a list of instance objects", file=sys.stderr)
+    sys.exit(1)
+print(len(data))
+PY
+)" || return 1
 
-        # Body: no password. Host/user/db/port are sensible local defaults the
-        # user/agent confirms; password stays in env (ODOO_PG_PASSWORD).
-        out="$( {
-            printf 'series = "%s"\n' "$ver"
-            printf 'addons_path = [%s]\n' "$paths"
-            printf 'run_mode = "source"            # source | docker\n'
-            printf 'http_port = %s\n' "$port"
-            printf 'db_name = "odoo_%s"\n' "${ver//./_}"
-            printf 'db_host = "localhost"\n'
-            printf 'db_user = "odoo"\n'
-            printf '%s\n' "$pyline"
-            printf '# db_password: DO NOT store here. Use env ODOO_PG_PASSWORD or your keychain.\n'
-        } | python3 "$LIB" toml-append-array-item "$INSTANCES_TOML" instance series "$ver" )"
-        if printf '%s' "$out" | grep -q '^exists'; then
-            echo "  [[instance]] series=$ver already present - skip"
+    # Validate ENTIRE spec upfront before writing anything (no partial write).
+    python3 - "$spec_file" <<'PY' || return 1
+import json, sys
+data = json.load(open(sys.argv[1]))
+errors = []
+for idx, item in enumerate(data):
+    series = item.get("series")
+    if not series or not str(series).strip():
+        errors.append(f"item[{idx}]: missing or empty 'series'")
+    addons = item.get("addons_path")
+    if not isinstance(addons, list) or len(addons) == 0:
+        errors.append(f"item[{idx}]: 'addons_path' must be a non-empty list")
+if errors:
+    for e in errors:
+        print(f"x spec validation error: {e}", file=sys.stderr)
+    sys.exit(1)
+PY
+
+    local i=0
+    while [[ $i -lt $n_items ]]; do
+        local ver addons_raw db_name_raw db_host_raw db_user_raw http_port_raw py_raw
+        ver="$(python3 - "$spec_file" "$i" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+item = data[int(sys.argv[2])]
+print(item["series"])
+PY
+)"
+        addons_raw="$(python3 - "$spec_file" "$i" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+item = data[int(sys.argv[2])]
+paths = item.get("addons_path", [])
+print(", ".join(f'"{p}"' for p in paths))
+PY
+)"
+        http_port_raw="$(python3 - "$spec_file" "$i" "$base_port" "$port_idx" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+item = data[int(sys.argv[2])]
+base = int(sys.argv[3])
+idx  = int(sys.argv[4])
+print(item.get("http_port") or (base + idx * 10))
+PY
+)"
+        db_name_raw="$(python3 - "$spec_file" "$i" "$ver" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+item = data[int(sys.argv[2])]
+default = "odoo_" + sys.argv[3].replace(".", "_")
+print(item.get("db_name") or default)
+PY
+)"
+        db_host_raw="$(python3 - "$spec_file" "$i" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+item = data[int(sys.argv[2])]
+print(item.get("db_host") or "localhost")
+PY
+)"
+        db_user_raw="$(python3 - "$spec_file" "$i" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+item = data[int(sys.argv[2])]
+print(item.get("db_user") or "odoo")
+PY
+)"
+        py_raw="$(python3 - "$spec_file" "$i" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+item = data[int(sys.argv[2])]
+print(item.get("python") or "")
+PY
+)"
+
+        if _write_instance_from_spec "$ver" "$addons_raw" "$http_port_raw" \
+                "$db_name_raw" "$db_host_raw" "$db_user_raw" "$py_raw"; then
+            : # already present - port_idx unchanged
         else
-            echo "  wrote [[instance]] series=$ver (http_port=$port) -> $INSTANCES_TOML"
             port_idx=$((port_idx + 1))
         fi
-    done <<<"$versions"
+        i=$((i + 1))
+    done
 
     _ensure_gitignore
 
