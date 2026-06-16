@@ -6,6 +6,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.11.4] - 2026-06-16
+
+### Fixed
+
+- **Playwright browser deps now install correctly across the supported Ubuntu LTS line
+  (22.04 / 24.04 / 26.04) and macOS 13+** (`plugins/odoo-ai-agents/scripts/setup-steps/20-browser-deps.sh`).
+  Playwright is now pinned via `PLAYWRIGHT_PIN` (default `1.61.0`, the first release that supports
+  Ubuntu 26.04 per microsoft/playwright#40117, and still valid on 22.04/24.04 and macOS). The
+  previous unpinned `npx -y playwright install` resolved to whatever the local npx cache held (e.g.
+  1.60.0), which cannot install Chromium on Ubuntu 26.04. The pinned Chromium build is shared by the
+  `pagecast` server, so this covers pagecast too. A new CI matrix
+  (`.github/workflows/validate.yml` -> `browser-deps`) runs the real install plus a headless
+  Chromium launch on ubuntu-22.04, ubuntu-24.04, ubuntu-26.04 (public preview), and every macOS
+  version GitHub still hosts a runner for - macos-14 / macos-15 / macos-26 (arm64) plus
+  macos-15-intel (x86_64). (macos-13 is not used: GitHub retired that runner image on 2025-12-08,
+  so any job pinned to it queues forever; the binary-only macOS path still works on macOS 13+.)
+
+### Changed
+
+- `20-browser-deps.sh apply` now also installs Chromium's shared system libraries on apt-based
+  Linux: automatically via `playwright install-deps` when passwordless `sudo` is available,
+  otherwise it prints the exact command to run (it never runs sudo silently). `check` now probes
+  those libraries by real soname, so a host that has the browser binary cached but the libraries
+  missing is correctly reported as not-ready instead of being skipped. macOS, Windows, and non-apt
+  Linux keep the binary-only path unchanged.
+
 ## [3.11.3] - 2026-06-14
 
 ### Fixed
