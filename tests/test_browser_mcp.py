@@ -5,13 +5,13 @@ servers that give the visual-UI skills their "eyes". Each of the three browser
 backends (chrome-devtools, playwright, pagecast) ships TWO variants:
 
   - a headless DEFAULT (`<name>`): no UI, safe on no-display/CI hosts and for
-    concurrent sessions — passes `--headless`;
+    concurrent sessions - passes `--headless`;
   - a HEADED variant (`<name>-headed`): visible UI the AI selects only when the
-    human asks to watch the browser — omits `--headless`.
+    human asks to watch the browser - omits `--headless`.
 
 These servers MUST stay local stdio-npx so the same declaration is portable
 across Claude Code, Codex CLI, and Gemini CLI (Codex only accepts local servers
-— the narrowest common denominator). Browser mode is fixed at launch, so the
+- the narrowest common denominator). Browser mode is fixed at launch, so the
 headless/headed choice is server-selection, NOT an env var / on-disk flag.
 
 Stdlib-only so it runs anywhere `python3 -m pytest` works.

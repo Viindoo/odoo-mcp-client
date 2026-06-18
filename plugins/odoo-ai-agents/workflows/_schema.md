@@ -1,4 +1,4 @@
-# Workflow Schema — `workflows/*.workflow.yaml`
+# Workflow Schema - `workflows/*.workflow.yaml`
 
 > **SSOT for the `*.workflow.yaml` composition contract.**
 > The `workflow-chaining` skill reads files conforming to this schema at runtime.
@@ -24,10 +24,10 @@ plugins/odoo-ai-agents/workflows/<name>.workflow.yaml
 | Field | Type | Required | Purpose |
 |-------|------|----------|---------|
 | `name` | string | YES | Slug identifier; must match the filename stem |
-| `domain` | enum (9) | YES | Persona bucket — drives `odoo-intake` tier-3 routing row |
-| `team_pattern` | enum (6) | YES | Execution shape — tells the runner how to orchestrate phases |
+| `domain` | enum (9) | YES | Persona bucket - drives `odoo-intake` tier-3 routing row |
+| `team_pattern` | enum (6) | YES | Execution shape - tells the runner how to orchestrate phases |
 | `description` | string (block) | YES | NL text matched by tier-3 keyword routing and NL-dispatch; no trailing period |
-| `output_dir` | string | YES | Must start with `.odoo-ai/` — all artifacts land here |
+| `output_dir` | string | YES | Must start with `.odoo-ai/` - all artifacts land here |
 | `inputs` | string[] | NO | Named args collected by the runner at Phase 0 |
 | `phases` | Phase[] | YES | Ordered list of phases; at least 1 required |
 | `resume` | bool | NO | Default `false`; if `true`, writes `<slug>-state.json` after each phase |
@@ -89,9 +89,9 @@ haiku | sonnet | opus | inherit
 ```
 
 - `haiku` - read-only lookup, classification, simple Q&A with no writes. NEVER for write phases or for multi-tool OSM synthesis (e.g. capability tables, feature-existence verdicts); those need `sonnet`.
-- `sonnet` — write tasks, edits, single-file refactor, review. **Minimum for write phases.**
-- `opus` — cross-file reasoning, orchestration, DAG cluster reasoning. Max 3 concurrent.
-- `inherit` — defer to the calling context's model; use for inline phases.
+- `sonnet` - write tasks, edits, single-file refactor, review. **Minimum for write phases.**
+- `opus` - cross-file reasoning, orchestration, DAG cluster reasoning. Max 3 concurrent.
+- `inherit` - defer to the calling context's model; use for inline phases.
 
 ---
 
@@ -155,17 +155,17 @@ fallback: standalone
 
 ### Annotation notes
 
-- `team_pattern: Pipeline` — phases run in order with a gate between each; equivalent to
+- `team_pattern: Pipeline` - phases run in order with a gate between each; equivalent to
   the existing command shape.
-- `inputs: [discovery_notes]` — the runner collects this from the user at Phase 0 before
+- `inputs: [discovery_notes]` - the runner collects this from the user at Phase 0 before
   emitting the soft-plan-gate.
-- `nl_trigger` — the exact NL prompt the runner passes to the context to fire the target
+- `nl_trigger` - the exact NL prompt the runner passes to the context to fire the target
   skill via description-match. It should naturally match the skill's `description` field.
-- `inline: true` on `synthesize` — the runner assembles the two phase outputs and writes
+- `inline: true` on `synthesize` - the runner assembles the two phase outputs and writes
   `.odoo-ai/discovery/<slug>-synthesize.md` itself; no external skill is dispatched.
-- `resume: true` — the runner writes `.odoo-ai/discovery/<slug>-state.json` after each
+- `resume: true` - the runner writes `.odoo-ai/discovery/<slug>-state.json` after each
   phase so a cancelled or interrupted workflow can be resumed.
-- `fallback: standalone` — if OSM is unreachable, each specialist phase runs in standalone
+- `fallback: standalone` - if OSM is unreachable, each specialist phase runs in standalone
   mode; the runner appends a caveat to the final artifact.
 
 ---
@@ -191,19 +191,19 @@ auto-discovers `*.workflow.yaml` files from the `workflows/` directory at runtim
 
 ---
 
-## 11. `on_complete[]` — cross-workflow transition (optional)
+## 11. `on_complete[]` - cross-workflow transition (optional)
 
 After the final phase, the runner evaluates `on_complete` entries and **emits** matches into
 its Continuation Contract `next[]` for the depth-0 `run-driver` to dispatch (the runner never
-self-dispatches a spawner — depth-2 ceiling). Each entry:
+self-dispatches a spawner - depth-2 ceiling). Each entry:
 
 | Field | Type | Required | Purpose |
 |-------|------|----------|---------|
-| `when` | string | YES | Predicate the runner evaluates against accumulated phase outputs — exactly the same mechanism as `phases[].when` (e.g. `classification == 'bug'`). A phase that an `on_complete` reads MUST surface the referenced key in its output (e.g. the qa-suite bug-triage phase emits `code_bugs_found: true`). Simple comparisons only: `==`, `!=` (and `>`/`<` on a numeric key). No formal typed state store — the runner reads the prior phase output and judges, as it already does for `phases[].when` |
+| `when` | string | YES | Predicate the runner evaluates against accumulated phase outputs - exactly the same mechanism as `phases[].when` (e.g. `classification == 'bug'`). A phase that an `on_complete` reads MUST surface the referenced key in its output (e.g. the qa-suite bug-triage phase emits `code_bugs_found: true`). Simple comparisons only: `==`, `!=` (and `>`/`<` on a numeric key). No formal typed state store - the runner reads the prior phase output and judges, as it already does for `phases[].when` |
 | `next` | string | YES | Target skill **or** workflow name; must exist; must not be this same workflow (no self-loop) |
 | `reason` | string | YES | Why the chain fires (shown to the human / recorded in the contract) |
 | `inputs` | mapping | NO | Args threaded into the next step |
-| `gate_tier` | enum | NO | `L0` / `L1` / `L2` — the driver gates accordingly (L2 always human) |
+| `gate_tier` | enum | NO | `L0` / `L1` / `L2` - the driver gates accordingly (L2 always human) |
 
 ```yaml
 on_complete:

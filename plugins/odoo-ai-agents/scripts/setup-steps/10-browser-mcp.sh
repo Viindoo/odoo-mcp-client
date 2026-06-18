@@ -8,7 +8,7 @@
 # Claude Code does NOT need to be wired here: this plugin bundles its own
 # .mcp.json which Claude reads automatically. Writing the same servers into
 # ~/.claude.json would create duplicates, causing Claude to print
-# "MCP server <X> skipped — same command/URL as already-configured <X>" notes.
+# "MCP server <X> skipped - same command/URL as already-configured <X>" notes.
 # Therefore this script NEVER writes to ~/.claude.json.
 #
 # Subcommands (registry contract, shared by every setup step):
@@ -23,7 +23,7 @@
 #   GEMINI_SETTINGS  Gemini settings JSON         ${GEMINI_SETTINGS:-$HOME/.gemini/settings.json}
 #
 # HARD RULES:
-#   - Claude is handled natively by the plugin's bundled .mcp.json — never
+#   - Claude is handled natively by the plugin's bundled .mcp.json - never
 #     write browser MCP servers to ~/.claude.json.
 #   - Codex only accepts local stdio servers - npx command is correct here.
 #   - No secrets are written (these servers need none).
@@ -159,9 +159,9 @@ cmd_apply() {
         return 1
     fi
     echo "Wiring browser MCP servers into Codex/Gemini..."
-    # Claude is handled natively by the plugin's bundled .mcp.json — never write
+    # Claude is handled natively by the plugin's bundled .mcp.json - never write
     # browser MCP servers to ~/.claude.json to avoid duplicate-skip notes.
-    # Codex and Gemini are OPTIONAL — only wire them when their config file
+    # Codex and Gemini are OPTIONAL - only wire them when their config file
     # already exists, so a Claude-only machine never gets an uninvited
     # ~/.codex/config.toml or ~/.gemini/settings.json created.
     if [[ -f "$CODEX_CONFIG" ]]; then

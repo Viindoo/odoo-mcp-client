@@ -1,9 +1,9 @@
 ---
 name: odoo-competitive-brief
 description: >
-  Produce a competitive intelligence brief for a Strategist / CEO — board-ready capability
+  Produce a competitive intelligence brief for a Strategist / CEO - board-ready capability
   matrix vs Odoo, GTM moves (user-provided only), threat assessment, and recommended response.
-  Standalone-first — works WITHOUT OSM. Fire when user mentions a competitor alongside
+  Standalone-first - works WITHOUT OSM. Fire when user mentions a competitor alongside
   strategic intent: "competitor brief on", "analyze competitor X",
   "competitive landscape analysis", "competitive update for board",
   "threat assessment for", "competitive intelligence update".
@@ -18,7 +18,7 @@ description: >
 
 ## Persona
 
-Strategist / CEO needing competitive intelligence in board-ready form — usable directly in board decks, investor updates, or strategy sessions. The CEO is the primary intelligence source; this skill structures and prioritizes what the user already knows. It does NOT invent competitive facts.
+Strategist / CEO needing competitive intelligence in board-ready form - usable directly in board decks, investor updates, or strategy sessions. The CEO is the primary intelligence source; this skill structures and prioritizes what the user already knows. It does NOT invent competitive facts.
 
 ---
 
@@ -37,30 +37,30 @@ Strategist / CEO needing competitive intelligence in board-ready form — usable
 
 ## MCP tools
 
-<!-- BEGIN MANUAL TOOLS — odoo-competitive-brief -->
+<!-- BEGIN MANUAL TOOLS - odoo-competitive-brief -->
 
-**Optional — call only when grounding "your platform has X" or "Odoo can't do Y" claims:**
-- `profile_inspect` — Profile-level introspection (`method='summary'|'repos'|'modules'`): inheritance
+**Optional - call only when grounding "your platform has X" or "Odoo can't do Y" claims:**
+- `profile_inspect` - Profile-level introspection (`method='summary'|'repos'|'modules'`): inheritance
   chain + repos + indexed module count/list for your platform profile. Use it to fill the "your
   platform" column of the Round 2 capability matrix with indexed fact instead of training-data
   assertion (the board-facing reason this matters).
-- `check_module_exists` — Verify that a module or feature exists in your platform
+- `check_module_exists` - Verify that a module or feature exists in your platform
   (CE/EE/custom distribution), used to substantiate or refute capability claims a
   competitor makes in their messaging. Call when the user says "competitor claims Odoo
-  lacks X — is that true?".
-- `find_examples` — Semantic code search returning real indexed code snippets from the
+  lacks X - is that true?".
+- `find_examples` - Semantic code search returning real indexed code snippets from the
   Odoo codebase, used when a competitor's marketing claims "Odoo cannot do Y" and the
   CEO needs concrete proof-of-existence before a board meeting.
-<!-- END MANUAL TOOLS — odoo-competitive-brief -->
+<!-- END MANUAL TOOLS - odoo-competitive-brief -->
 
 **Default posture:** skip MCP calls entirely. The brief is grounded in user-provided
-intelligence. MCP is additive verification only — never a blocker.
+intelligence. MCP is additive verification only - never a blocker.
 
 ---
 
 ## Workflow
 
-### Round 0 — Scope confirmation (at most 1 question)
+### Round 0 - Scope confirmation (at most 1 question)
 
 Identify: (1) subject (named competitor or landscape question), (2) scope (Product / Pricing / GTM / Positioning / All), (3) output use (board deck / investor update / internal / quick scan).
 
@@ -73,7 +73,7 @@ Make reasonable defaults if user is partially specific.
 
 ---
 
-### Round 1 — Competitor snapshot
+### Round 1 - Competitor snapshot
 
 **Pre-Round (self-serve before marking Unknown):**
 
@@ -84,18 +84,18 @@ Make reasonable defaults if user is partially specific.
 Pre-fill every field from these tiers. Only mark `Unknown` when all three return no signal. Quote source inline for any external fetch. Never invent.
 
 Required fields:
-- **Name** — formal company name
-- **Parent company** — if subsidiary (e.g., "acquired by Group X in YYYY")
-- **HQ** — city / country
-- **Primary geo** — regions where actively selling (Vietnam / SEA / Global)
-- **Product line** — named products or modules (brief list)
-- **Target segment** — SME / Mid-market / Enterprise; verticals if known
-- **Headcount band** — S (<50) / M (50-200) / L (200-1000) / XL (>1000)
-- **Funding / ownership** — bootstrapped / PE-backed / listed / subsidiary
+- **Name** - formal company name
+- **Parent company** - if subsidiary (e.g., "acquired by Group X in YYYY")
+- **HQ** - city / country
+- **Primary geo** - regions where actively selling (Vietnam / SEA / Global)
+- **Product line** - named products or modules (brief list)
+- **Target segment** - SME / Mid-market / Enterprise; verticals if known
+- **Headcount band** - S (<50) / M (50-200) / L (200-1000) / XL (>1000)
+- **Funding / ownership** - bootstrapped / PE-backed / listed / subsidiary
 
 ---
 
-### Round 2 — Capability matrix vs your platform
+### Round 2 - Capability matrix vs your platform
 
 Build a comparison table on 5-10 dimensions. Select the most relevant from:
 
@@ -113,12 +113,12 @@ Build a comparison table on 5-10 dimensions. Select the most relevant from:
 | Support & SLA | Tiered support, local support language, SLA commitments |
 
 Mark each cell: **+** (competitor advantage) / **-** (your platform advantage) /
-**=** (parity) / **?** (Unknown — data not provided).
+**=** (parity) / **?** (Unknown - data not provided).
 
 Your platform baseline must be grounded in the index, not asserted from training data. When OSM is
 reachable, fill the "your platform" column from `profile_inspect(method='summary', name=<your_profile>,
 odoo_version='<version>')` (real inheritance chain + repos + module count) and `profile_inspect(method='modules', …)`
-for the module-coverage row — this turns the platform side of the matrix into verifiable fact. The competitor
+for the module-coverage row - this turns the platform side of the matrix into verifiable fact. The competitor
 column is filled from user-provided data only; do NOT infer competitor capabilities not stated by the user.
 
 If the user questions a specific platform capability, also call `check_module_exists` to verify before
@@ -126,7 +126,7 @@ marking + / - / =.
 
 ---
 
-### Round 3 — GTM moves (observed)
+### Round 3 - GTM moves (observed)
 
 List only user-provided signals. Do NOT invent or infer. For each: move type, date/quarter, source type.
 
@@ -134,7 +134,7 @@ If none available: _No GTM signals provided. Recommend monitoring: [competitor's
 
 ---
 
-### Round 4 — Threat assessment
+### Round 4 - Threat assessment
 
 Score each Round 2 dimension: Low / Med / High / Critical.
 
@@ -149,9 +149,9 @@ Cite signals for each High/Critical. Do not assign High/Critical without a Round
 
 ---
 
-### Round 5 — Recommended response
+### Round 5 - Recommended response
 
-3-5 actionable moves, prioritized by urgency. For each: action (what) + owner (CEO/Product/Marketing/Sales/Partner) + timeline (Immediate/Short-term/Medium-term) + dependency/blocker if any. Must link to a specific Round 4 threat signal — no generic strategic moves.
+3-5 actionable moves, prioritized by urgency. For each: action (what) + owner (CEO/Product/Marketing/Sales/Partner) + timeline (Immediate/Short-term/Medium-term) + dependency/blocker if any. Must link to a specific Round 4 threat signal - no generic strategic moves.
 
 ---
 
@@ -203,8 +203,8 @@ _Legend: + = competitor advantage · - = your platform advantage · = = parity �
 
 ## GTM moves (observed)
 
-- <Move 1> — <source type> / <date or quarter>
-- <Move 2> — <source type> / <date or quarter>
+- <Move 1> - <source type> / <date or quarter>
+- <Move 2> - <source type> / <date or quarter>
 
 _No moves listed = no signals provided by user._
 
@@ -230,14 +230,14 @@ _No moves listed = no signals provided by user._
 
 ## Recommended response
 
-1. **<Action 1>** — Owner: <CEO/Product/Marketing/Sales/Partner> · Timeline: <Immediate/Short/Medium>
+1. **<Action 1>** - Owner: <CEO/Product/Marketing/Sales/Partner> · Timeline: <Immediate/Short/Medium>
    - Rationale: <link to threat signal>
    - Dependency: <blocker if any>
 
-2. **<Action 2>** — Owner: <…> · Timeline: <…>
+2. **<Action 2>** - Owner: <…> · Timeline: <…>
    - Rationale: <…>
 
-3. **<Action 3>** — Owner: <…> · Timeline: <…>
+3. **<Action 3>** - Owner: <…> · Timeline: <…>
    - Rationale: <…>
 
 ---
@@ -245,15 +245,15 @@ _No moves listed = no signals provided by user._
 ## Open data needs
 
 _What additional intelligence would sharpen this brief:_
-- <data point 1> — suggested source
-- <data point 2> — suggested source
+- <data point 1> - suggested source
+- <data point 2> - suggested source
 ```
 
 ---
 
 ## Standalone-first fallback
 
-When OSM is unreachable: skip MCP calls entirely. Insert `<TBD: verify via odoo-feature-check — module_name>` for unverifiable capability claims. Proceed with full brief on user-provided data + training knowledge. Add footer: _OSM not connected. `<TBD>` claims should be verified before board/investor use._
+When OSM is unreachable: skip MCP calls entirely. Insert `<TBD: verify via odoo-feature-check - module_name>` for unverifiable capability claims. Proceed with full brief on user-provided data + training knowledge. Add footer: _OSM not connected. `<TBD>` claims should be verified before board/investor use._
 
 ---
 

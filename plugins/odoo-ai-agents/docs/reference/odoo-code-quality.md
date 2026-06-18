@@ -1,8 +1,8 @@
-# Odoo code-quality gate — local reproduction (multi-version aware)
+# Odoo code-quality gate - local reproduction (multi-version aware)
 
 > **What this is.** A local, pre-push **parity** gate for the Odoo CI code-quality checks, so the
 > `odoo-coding` / `odoo-code-review` / `odoo-qa-suite` / `odoo-deploy-checklist` / `wave` personas
-> catch lint failures **before** push — not in CI. Not a CI replacement; a fast inner-loop mirror.
+> catch lint failures **before** push - not in CI. Not a CI replacement; a fast inner-loop mirror.
 >
 > Consumed by: `agents/odoo-coder.md`, `agents/odoo-code-reviewer.md`,
 > `skills/odoo-deploy-checklist`, and the test-run SSOT `ODOO-TESTING.md`. Brand-fidelity is a
@@ -10,10 +10,10 @@
 
 ## The gate is two public parts
 
-1. **Core `test_lint`** — Odoo core's own lint test module (manifest checks, eslint, pofile,
+1. **Core `test_lint`** - Odoo core's own lint test module (manifest checks, eslint, pofile,
    `__init__` consistency, …). It runs **only** when included in `--test-tags`; a normal
    `--test-tags /<module>` run does **not** include it. → see `ODOO-TESTING.md`.
-2. **`pylint-odoo`** — the OCA pylint plugin (`consider-merging-classes-inherited`, `sql-injection`,
+2. **`pylint-odoo`** - the OCA pylint plugin (`consider-merging-classes-inherited`, `sql-injection`,
    `print-used`, `translation-*`, …). Not a test-suite module; reproduced by
    **`scripts/verify-backend.sh`** (the backend sibling of `verify-frontend.sh`).
 
@@ -23,7 +23,7 @@ it now fires deterministically on security-rule-class patterns like sql-injectio
 `[pattern]`) but still does not cover the whole pylint-odoo ruleset. That gap is exactly why
 lint failures slipped to CI.
 
-## `verify-backend.sh` — the inner-loop static gate
+## `verify-backend.sh` - the inner-loop static gate
 
 ```
 scripts/verify-backend.sh [--series X.Y] [file ...]          # default target: git diff --name-only HEAD (.py only)
@@ -36,23 +36,23 @@ exit 0, when the toolchain is absent), HARD-fail (exit 1) only on real findings,
 (`odoo_version`).
 
 It runs `pylint --load-plugins=pylint_odoo` from an **isolated tools venv**
-(`$ODOO_AI_DIR/tools/pylint-<series>/`) — never the instance venv — with the
+(`$ODOO_AI_DIR/tools/pylint-<series>/`) - never the instance venv - with the
 pylint/astroid/pylint-odoo versions pinned per Odoo series.
 
 ## Per-version matrix (`scripts/lib/odoo-python-matrix.json` → `lint`)
 
 `pylint-odoo` major tracks the Odoo series; **pylint/astroid must be era-matched** to that major
-(16/17 → pylint 2.15, 18 → pylint 3.x, 19 → pylint 4.x, which `pylint-odoo 10` hard-requires) —
+(16/17 → pylint 2.15, 18 → pylint 3.x, 19 → pylint 4.x, which `pylint-odoo 10` hard-requires) -
 using an off-era `pylint` crashes the Odoo-era checker plugins.
 
 | Odoo series | pylint-odoo | pylint | astroid | lint Python | note |
 |---|---|---|---|---|---|
-| 8.0 – 15.0 | `>=8,<9` | `>=2.15,<2.16` | `>=2.13,<2.14` | 3.10 | best-effort (pre-modern) |
+| 8.0 - 15.0 | `>=8,<9` | `>=2.15,<2.16` | `>=2.13,<2.14` | 3.10 | best-effort (pre-modern) |
 | 16.0 / 17.0 | `==8.0.22` | `==2.15.10` | `==2.13.5` | 3.10 | **verified-faithful** |
 | 18.0 | `>=9,<10` | `>=3,<4` | `>=3,<4` | 3.12 | |
 | 19.0 | `>=10,<11` | `>=4,<5` | `>=4,<5` | 3.12 | `pylint-odoo 10` requires `pylint 4` |
 
-`lint_python` is the venv interpreter the **linter** needs (e.g. pylint 2.15 requires ≤ 3.11) — it
+`lint_python` is the venv interpreter the **linter** needs (e.g. pylint 2.15 requires ≤ 3.11) - it
 is independent of the instance's `recommended` Python. When **v20** ships, default to extending the
 19.0 row; only add a new row if the era-matched pylint/astroid majors must change.
 
@@ -60,8 +60,8 @@ is independent of the instance's `recommended` Python. When **v20** ships, defau
 
 A source pragma `# pylint: disable=consider-merging-classes-inherited` (R8180) is **valid and
 required** when `pylint_odoo` is loaded. Run the same file through **bare** pylint (plugin not
-loaded) and that pragma reads as `unknown-option-value (W0012)` — which `--disable=all` does **not**
-reliably suppress — so it looks like a failure to "fix" by deleting the pragma. Deleting it then
+loaded) and that pragma reads as `unknown-option-value (W0012)` - which `--disable=all` does **not**
+reliably suppress - so it looks like a failure to "fix" by deleting the pragma. Deleting it then
 **re-breaks real CI**. Therefore `verify-backend.sh` **always** loads `pylint_odoo` and never runs
 bare core pylint.
 
@@ -73,7 +73,7 @@ Verified behaviour (Odoo 17.0, pylint-odoo 8.0.22):
   sql-injection` (deterministic), but lint_check covers only the security-rule class - it is
   a hint, not the full pylint-odoo gate.
 
-## Enabled-code set — single source of truth from the deployment
+## Enabled-code set - single source of truth from the deployment
 
 When a deployment ships its own quality module (commonly `test_pylint` / `test_lint`) on the addons
 path, `verify-backend.sh` **derives the enabled-code set from it** (its `.pylintrc` or an
@@ -104,7 +104,7 @@ Frontend JS formatting is governed by the **target repo's committed** `.eslintrc
 resolves this (repo config → Odoo `addons/web/tooling` → shipped fallback → soft-warn). No version
 matrix is needed for them.
 
-## Section 5 — Brand fidelity (sibling, optional, brand-agnostic)
+## Section 5 - Brand fidelity (sibling, optional, brand-agnostic)
 
 Brand-token fidelity is a separate optional layer and is **not** vendored: the plugin ships a
 mechanism, the consumer declares the brand. Set `brand_tokens_source` in `.odoo-ai/context.md` to a

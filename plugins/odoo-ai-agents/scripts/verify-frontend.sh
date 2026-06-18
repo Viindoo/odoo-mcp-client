@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# verify-frontend.sh — 3-tier OWL/JS/SCSS quality gate for Odoo frontend files.
+# verify-frontend.sh - 3-tier OWL/JS/SCSS quality gate for Odoo frontend files.
 #
 # TIERS (each independently degrades; only BLOCK-tier failures cause non-zero exit):
 #
-#   Tier 1 — FORMAT/LINT (toolchain-dependent, graceful degradation)
+#   Tier 1 - FORMAT/LINT (toolchain-dependent, graceful degradation)
 #     Python (.py):  run `ruff check <files>` if ruff is available.
 #                    Line-length read from target repo's pyproject.toml / ruff.toml (never hardcoded).
 #                    Never runs `ruff format` (version-sensitive, mutating).
@@ -14,11 +14,11 @@
 #       (3) shipped fallback ${CLAUDE_PLUGIN_ROOT}/scripts/odoo-prettierrc.json → HARD if prettier avail
 #       (4) no config anywhere → SOFT warn, do NOT block
 #
-#   Tier 2 — STATIC OWL/SCSS (grep/ERE, always runs, zero toolchain needed)
+#   Tier 2 - STATIC OWL/SCSS (grep/ERE, always runs, zero toolchain needed)
 #     Applies ${CLAUDE_PLUGIN_ROOT}/scripts/rules/owl-pitfalls.txt over .js/.xml/.scss files.
 #     BLOCK on classes 1/3/6.  WARN on 2/4/5.
 #
-#   Tier 3 — RUNTIME SMOKE (only when a live Odoo instance is configured)
+#   Tier 3 - RUNTIME SMOKE (only when a live Odoo instance is configured)
 #     Skipped silently when not configured. Never blocks when absent.
 #
 # USAGE:
@@ -92,7 +92,7 @@ if [[ ${#EXISTING_FILES[@]} -eq 0 ]]; then
 fi
 
 echo "============================================================"
-echo " verify-frontend — ${#EXISTING_FILES[@]} file(s)"
+echo " verify-frontend - ${#EXISTING_FILES[@]} file(s)"
 echo "============================================================"
 
 # ---------------------------------------------------------------------------
@@ -113,13 +113,13 @@ for f in "${EXISTING_FILES[@]}"; do
 done
 
 # ===========================================================================
-# TIER 1 — FORMAT / LINT
+# TIER 1 - FORMAT / LINT
 # ===========================================================================
 echo
 echo "--- Tier 1: Format / Lint ---"
 
 # ---------------------------------------------------------------------------
-# T1-A: Python — ruff check (never ruff format)
+# T1-A: Python - ruff check (never ruff format)
 # ---------------------------------------------------------------------------
 if [[ ${#PY_FILES[@]} -gt 0 ]]; then
     echo
@@ -177,10 +177,10 @@ PY
                 _info "ruff: reading line-length=$_LINE_LEN from $_PYPROJECT"
                 RUFF_EXTRA_ARGS=("--line-length" "$_LINE_LEN")
             else
-                _info "ruff: no line-length in $_PYPROJECT — using ruff default"
+                _info "ruff: no line-length in $_PYPROJECT - using ruff default"
             fi
         else
-            _info "ruff: no pyproject.toml/ruff.toml found — using ruff default"
+            _info "ruff: no pyproject.toml/ruff.toml found - using ruff default"
         fi
 
         # Run ruff check (read-only; never ruff format).
@@ -191,12 +191,12 @@ PY
             _block "ruff check failed (see output above)"
         fi
     else
-        _warn "ruff not found — skipping Python lint (install ruff to enable HARD check)"
+        _warn "ruff not found - skipping Python lint (install ruff to enable HARD check)"
     fi
 fi
 
 # ---------------------------------------------------------------------------
-# T1-B: JavaScript — config-resolution-ordered prettier --check
+# T1-B: JavaScript - config-resolution-ordered prettier --check
 # ---------------------------------------------------------------------------
 if [[ ${#JS_FILES[@]} -gt 0 ]]; then
     echo
@@ -288,25 +288,25 @@ PY
             [[ -n "$_TEMP_PRETTIER" && -f "$_TEMP_PRETTIER" ]] && rm -f "$_TEMP_PRETTIER"
         else
             if [[ "$JS_HARD" == "true" ]]; then
-                _warn "prettier not found — skipping JS format check (install prettier to enable HARD check with $JS_CONFIG_SRC)"
+                _warn "prettier not found - skipping JS format check (install prettier to enable HARD check with $JS_CONFIG_SRC)"
             else
-                _warn "prettier not found — skipping JS format check"
+                _warn "prettier not found - skipping JS format check"
             fi
         fi
     else
-        # (4) No config available — soft warn only
-        _warn "no JS prettier config found (repo root / Odoo tooling / fallback) — skipping JS format check"
+        # (4) No config available - soft warn only
+        _warn "no JS prettier config found (repo root / Odoo tooling / fallback) - skipping JS format check"
     fi
 fi
 
 # ===========================================================================
-# TIER 2 — STATIC OWL/SCSS (grep/ERE, always runs)
+# TIER 2 - STATIC OWL/SCSS (grep/ERE, always runs)
 # ===========================================================================
 echo
 echo "--- Tier 2: Static OWL/SCSS (always runs) ---"
 
 if [[ ! -f "$RULES_FILE" ]]; then
-    _warn "rules file not found: $RULES_FILE — skipping Tier 2"
+    _warn "rules file not found: $RULES_FILE - skipping Tier 2"
 else
     # Combine files by applicability
     OWL_FILES=("${JS_FILES[@]:-}" "${TEMPLATE_FILES[@]:-}")
@@ -339,7 +339,7 @@ else
 
         elif [[ "$message" == "class-2:"* ]]; then
             # Class-2: useService("ui") warn ONLY when NOT wrapped in useState() on same line.
-            # If the line also contains useState(, it is the correct pattern — skip it.
+            # If the line also contains useState(, it is the correct pattern - skip it.
             matched_lines=$(grep -nE "$pattern" "$file" 2>/dev/null \
                 | grep -vE 'useState[(]' \
                 | grep -vE '^[0-9]+:[[:space:]]*//' \
@@ -347,7 +347,7 @@ else
 
         elif [[ "$message" == "class-3:"* ]]; then
             # Class-3: raw contenteditable in an OWL *template*.
-            # Only applies to template files (.xml/.html) — a bare `contenteditable=`
+            # Only applies to template files (.xml/.html) - a bare `contenteditable=`
             # in .js is almost always a CSS/attribute SELECTOR string
             # (e.g. querySelector("[contenteditable=true]")), which is legitimate and
             # must NOT block. Restricting to templates removes that false positive.
@@ -363,7 +363,7 @@ else
                 || true)
 
         elif [[ "$message" == "class-6:"* ]]; then
-            # Class-6: t-set-slot="body" — skip XML comment lines.
+            # Class-6: t-set-slot="body" - skip XML comment lines.
             matched_lines=$(grep -nE "$pattern" "$file" 2>/dev/null \
                 | grep -vE '^[0-9]+:[[:space:]]*<!--' \
                 || true)
@@ -379,10 +379,10 @@ else
             local lineno="${line%%:*}"
             local content="${line#*:}"
             if [[ "$severity" == "BLOCK" ]]; then
-                _block "$file:$lineno — $message"
+                _block "$file:$lineno - $message"
                 echo "         matched: $content"
             else
-                _warn "$file:$lineno — $message"
+                _warn "$file:$lineno - $message"
                 echo "         matched: $content"
             fi
         done <<< "$matched_lines"
@@ -391,7 +391,7 @@ else
     # Parse rules file and apply each rule
     ALL_SCAN_FILES=("${OWL_FILES[@]:-}" "${SCSS_FILES[@]:-}")
     if [[ ${#ALL_SCAN_FILES[@]} -eq 0 ]]; then
-        _skip "no .js/.xml/.html/.scss files — Tier 2 skipped"
+        _skip "no .js/.xml/.html/.scss files - Tier 2 skipped"
     else
         while IFS='|' read -r pattern severity message || [[ -n "$pattern" ]]; do
             # Skip comments and blank lines
@@ -426,14 +426,14 @@ else
 fi
 
 # ===========================================================================
-# TIER 3 — RUNTIME SMOKE (optional)
+# TIER 3 - RUNTIME SMOKE (optional)
 # ===========================================================================
 echo
 echo "--- Tier 3: Runtime Smoke ---"
 if [[ -z "${ODOO_INSTANCE_URL:-}" ]]; then
-    _skip "ODOO_INSTANCE_URL not set — runtime smoke skipped (not a blocking condition)"
+    _skip "ODOO_INSTANCE_URL not set - runtime smoke skipped (not a blocking condition)"
 else
-    _info "ODOO_INSTANCE_URL=$ODOO_INSTANCE_URL — checking /web/login reachability"
+    _info "ODOO_INSTANCE_URL=$ODOO_INSTANCE_URL - checking /web/login reachability"
     if _have curl; then
         if curl -sf -o /dev/null --max-time 10 "${ODOO_INSTANCE_URL}/web/login" 2>/dev/null; then
             _ok "Instance reachable at ${ODOO_INSTANCE_URL}/web/login"
@@ -441,16 +441,16 @@ else
             _warn "Instance not responding at ${ODOO_INSTANCE_URL}/web/login (non-blocking)"
         fi
     else
-        _skip "curl not available — skipping runtime smoke"
+        _skip "curl not available - skipping runtime smoke"
     fi
 fi
 
 # ===========================================================================
-# TIER 4 — BRAND FIDELITY (optional, brand-agnostic, static)
+# TIER 4 - BRAND FIDELITY (optional, brand-agnostic, static)
 # ===========================================================================
 # Runs ONLY when the consumer declares `brand_tokens_source` in .odoo-ai/context.md
 # (a JSON map of token -> color, e.g. {"--primary": "#1E88E5", ...}). The plugin
-# ships NO brand of its own — the map is discovered from the consumer environment,
+# ships NO brand of its own - the map is discovered from the consumer environment,
 # mirroring how verify-backend.sh derives ENABLED_CODES from the deployment's
 # quality module. No browser here: this is the STATIC half (hardcoded-hex vs brand
 # palette). The RUNTIME half (getComputedStyle :root ΔE-diff) is the ui-reviewer's
@@ -465,13 +465,13 @@ fi
 COLOR_DELTA="${CLAUDE_PLUGIN_ROOT}/scripts/lib/color_delta.py"
 _BRAND_NEAR="${BRAND_NEAR_DELTA:-3.0}"   # hardcoded hex this close to a brand token => should use the var
 if [[ -z "$_BRAND_SRC" ]]; then
-    _skip "no brand_tokens_source in .odoo-ai/context.md — brand fidelity skipped (not a blocking condition)"
+    _skip "no brand_tokens_source in .odoo-ai/context.md - brand fidelity skipped (not a blocking condition)"
 elif [[ ! -f "$_BRAND_SRC" ]]; then
     _warn "brand_tokens_source declared but file not found: $_BRAND_SRC"
 elif ! _have python3 || [[ ! -f "$COLOR_DELTA" ]]; then
-    _skip "python3 / color_delta.py unavailable — brand fidelity skipped"
+    _skip "python3 / color_delta.py unavailable - brand fidelity skipped"
 elif [[ ${#SCSS_FILES[@]} -eq 0 ]]; then
-    _skip "no .scss/.css files changed — brand fidelity skipped"
+    _skip "no .scss/.css files changed - brand fidelity skipped"
 else
     _info "brand map: $_BRAND_SRC (near-token ΔE threshold $_BRAND_NEAR)"
     _BRAND_WARN_BEFORE=$WARN_COUNT
@@ -508,7 +508,7 @@ PY
 )"
             if [[ -n "$near" ]]; then
                 tok="${near%%|*}"; de="${near#*|}"
-                _warn "$sf:$lineno — hardcoded hex $hex ≈ brand token $tok (ΔE $de); reference the token var instead of inlining the brand color"
+                _warn "$sf:$lineno - hardcoded hex $hex ≈ brand token $tok (ΔE $de); reference the token var instead of inlining the brand color"
             fi
         done < <(grep -niE '#[0-9a-f]{6}|#[0-9a-f]{3}' "$sf" 2>/dev/null || true)
     done
@@ -527,12 +527,12 @@ echo "  WARN  issues : $WARN_COUNT"
 
 if [[ $BLOCK_COUNT -gt 0 ]]; then
     echo
-    echo "  RESULT: FAILED ($BLOCK_COUNT blocking issue(s) — fix before proceeding)"
+    echo "  RESULT: FAILED ($BLOCK_COUNT blocking issue(s) - fix before proceeding)"
     exit 1
 else
     if [[ $WARN_COUNT -gt 0 ]]; then
         echo
-        echo "  RESULT: PASS (with $WARN_COUNT warning(s) — review recommended)"
+        echo "  RESULT: PASS (with $WARN_COUNT warning(s) - review recommended)"
     else
         echo
         echo "  RESULT: PASS (clean)"

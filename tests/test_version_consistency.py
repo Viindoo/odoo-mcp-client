@@ -1,7 +1,7 @@
 """Guard: the client version stays internally consistent and in lockstep.
 
 `VERSION` (repo-level single source of truth) and the `odoo-ai-agents`
-plugin's `plugin.json.version` MUST be equal — bumping one without the other is
+plugin's `plugin.json.version` MUST be equal - bumping one without the other is
 exactly how 2.4.0/2.4.1 shipped with no matching CHANGELOG section. CI fails here
 if they drift. Use `scripts/bump-version.sh <major|minor|patch>` to bump both
 together (and cut the changelog) so this test stays green.

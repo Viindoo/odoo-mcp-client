@@ -18,7 +18,7 @@ description: >
 
 ## Persona
 
-QA engineer / Odoo developer — producing test plans, checklist gates, and structured
+QA engineer / Odoo developer - producing test plans, checklist gates, and structured
 bug reports for a module or feature change. Audience is the engineering team preparing
 a release. Output is operational and actionable; not executive-level. Three jobs in one
 pass: (1) generate test cases, (2) gate on a pre-deploy checklist, (3) triage bugs with
@@ -43,15 +43,15 @@ via NL-dispatch to leaf skills; handle work inline only when no leaf skill cover
 
 ---
 
-## Phase 0 — Scope confirmation
+## Phase 0 - Scope confirmation
 
 Read `.odoo-ai/context.md` first (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) to extract `odoo_version` and `modules`. Use those as defaults and skip asking for already-resolved fields.
 
 Ask for all missing inputs in a **single message**:
 1. **Feature / module name** (skip if clear from context)
 2. **Odoo version** e.g. `17.0` (skip if pre-filled)
-3. **Open bugs to triage** (optional) — as a list, or a file path to `Read`; pass `none` to skip triage
-4. **Scope** — `unit` / `integration` / `both` (default: `both`)
+3. **Open bugs to triage** (optional) - as a list, or a file path to `Read`; pass `none` to skip triage
+4. **Scope** - `unit` / `integration` / `both` (default: `both`)
 
 Present a **soft-plan-gate** before running any phase:
 
@@ -66,7 +66,7 @@ Gate: approve / refine: [feedback] / cancel
 
 ---
 
-## Phase 1 — Test-case generation (inline)
+## Phase 1 - Test-case generation (inline)
 
 Generate a structured test suite table:
 
@@ -75,16 +75,16 @@ Generate a structured test suite table:
 
 Rules:
 - Test name must state a **business rule**, not an implementation detail. Good: "Sale order total updates when line quantity changes". Bad: "test_compute_amount_total".
-- Every test must have one scenario that would make it **fail** — if no wrong answer exists, the test is useless and must not be included.
-- **Steps must drive the real workflow, not seed a state.** Name the actual `action_*` / `button_*` method (e.g. "call `action_confirm`"), build via `Form()` where an onchange is involved, run access checks as the real user (`with_user(...)`), never `sudo()` on the action under test — never write a step that injects terminal `state` with `create({'state': ...})` (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`).
+- Every test must have one scenario that would make it **fail** - if no wrong answer exists, the test is useless and must not be included.
+- **Steps must drive the real workflow, not seed a state.** Name the actual `action_*` / `button_*` method (e.g. "call `action_confirm`"), build via `Form()` where an onchange is involved, run access checks as the real user (`with_user(...)`), never `sudo()` on the action under test - never write a step that injects terminal `state` with `create({'state': ...})` (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`).
 - Cover at minimum: happy path, edge case (empty/zero/boundary), error path (invalid input), permission check (user without access gets rejected).
 - Separate unit tests (no DB, no UI) from integration tests (multi-model or multi-user).
-- Ground test mechanics in the TARGET version — test classes, tag syntax, and JS framework (QUnit vs Hoot) differ across Odoo versions. Resolve via OSM (`set_active_version` + `cli_help`) and follow `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`; never assume one version's command line applies to another.
+- Ground test mechanics in the TARGET version - test classes, tag syntax, and JS framework (QUnit vs Hoot) differ across Odoo versions. Resolve via OSM (`set_active_version` + `cli_help`) and follow `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`; never assume one version's command line applies to another.
 - Output file: `.odoo-ai/qa/<slug>-test-cases.md`
 
 ---
 
-## Phase 2 — QA checklist (NL-dispatch to odoo-deploy-checklist)
+## Phase 2 - QA checklist (NL-dispatch to odoo-deploy-checklist)
 
 Dispatch via NL: "Generate a pre-deployment QA checklist for <module> targeting Odoo <version> in staging environment, covering all 8 domains: pre-flight, backup, data migration, downtime, deploy mechanics, smoke tests, monitoring, and rollback."
 
@@ -94,7 +94,7 @@ Gate before dispatching: "approve / skip / cancel".
 
 ---
 
-## Phase 3 — Bug triage (inline, or NL-dispatch to odoo-debug for runtime issues)
+## Phase 3 - Bug triage (inline, or NL-dispatch to odoo-debug for runtime issues)
 
 If no open bugs provided in Phase 0, skip and note "No bugs to triage" in the summary.
 
@@ -104,7 +104,7 @@ For each bug:
 ### Bug: <title>
 
 **Severity:** Critical | High | Medium | Low
-Severity rationale: <one sentence — business impact>
+Severity rationale: <one sentence - business impact>
 
 **Reproduction steps:**
 1. <step>
@@ -119,7 +119,7 @@ Severity rationale: <one sentence — business impact>
 **Suggested next step:** <odoo-debug for runtime inspection | odoo-coding for fix | escalate>
 ```
 
-Severity rules (non-negotiable — never soften):
+Severity rules (non-negotiable - never soften):
 - **Critical**: data loss, financial integrity failure, security breach, system down.
 - **High**: core business flow broken (sale, invoice, purchase) with no workaround.
 - **Medium**: non-critical flow broken or degraded; workaround exists.
@@ -131,28 +131,28 @@ Output file: `.odoo-ai/qa/<slug>-bug-triage.md`
 
 ---
 
-## Phase 4 — Summary (inline)
+## Phase 4 - Summary (inline)
 
 Write `.odoo-ai/qa/<slug>-qa-summary.md`:
 
 ```
-# QA Summary — <feature/module> @ Odoo <version>
+# QA Summary - <feature/module> @ Odoo <version>
 
 ## Test suite
 - Total cases: <N>  Unit: <N>  Integration: <N>
 - Coverage areas: <list of business rules covered>
 
 ## Checklist verdict
-<READY / NEEDS WORK / NOT READY> — <one-sentence reason>
+<READY / NEEDS WORK / NOT READY> - <one-sentence reason>
 
 ## Bug triage
 - Bugs triaged: <N>  Critical: <N>  High: <N>  Medium: <N>  Low: <N>
 - Blockers (Critical + High): <list or "none">
 
 ## Suggested next skills
-- `odoo-debug` — for any Critical/High bugs requiring live runtime investigation
-- `odoo-deploy-checklist` — run standalone for the full 8-domain gate if not done
-- `odoo-coding` — for implementing fixes uncovered during triage
+- `odoo-debug` - for any Critical/High bugs requiring live runtime investigation
+- `odoo-deploy-checklist` - run standalone for the full 8-domain gate if not done
+- `odoo-coding` - for implementing fixes uncovered during triage
 ```
 
 ---
@@ -160,9 +160,9 @@ Write `.odoo-ai/qa/<slug>-qa-summary.md`:
 ## Standalone-first fallback
 
 When OSM is unreachable:
-1. **Phase 1 (test-case gen)**: fully inline — no MCP tools needed. Runs normally.
+1. **Phase 1 (test-case gen)**: fully inline - no MCP tools needed. Runs normally.
 2. **Phase 2 (deploy checklist)**: dispatch `odoo-deploy-checklist` in standalone mode (leaf skill marks OSM-dependent Domain 1 rows as `⚠ Manual check` automatically).
-3. **Phase 3 (bug triage)**: inline triage runs normally; skip `odoo-debug` NL-dispatch for runtime inspection and note: `(OSM offline — runtime inspection via odoo-debug requires reconnection)`
+3. **Phase 3 (bug triage)**: inline triage runs normally; skip `odoo-debug` NL-dispatch for runtime inspection and note: `(OSM offline - runtime inspection via odoo-debug requires reconnection)`
 
 Add notice at top of summary: `> Note: QA suite ran in standalone mode. OSM-dependent checks marked ⚠ Manual check.`
 

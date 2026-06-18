@@ -1,5 +1,5 @@
 ---
-name: odoo-test-writer
+name: odoo-test-writing
 description: >
   Write executable Odoo test files that protect business behavior - not just cover code.
   Produces Python `test_*.py` (TransactionCase / Form helper / `@tagged`) for backend models
@@ -31,8 +31,8 @@ QA Engineer / backend developer writing automated tests for Odoo, all supported 
 
 Two roles, both governed by the red-before-green contract (`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`):
 
-- **Test-first (before the code).** Inside the `odoo-coding` loop, a non-trivial module's failing test is authored HERE first — independent from the coder — so the test specifies intended behavior and the coder implements to green. This is the primary, highest-value mode.
-- **Coverage (after the code).** Backfill behavior-protecting tests for existing code — the `odoo-code-review` test-coverage gate routes here when a CRITICAL/HIGH change ships with no protecting test.
+- **Test-first (before the code).** Inside the `odoo-coding` loop, a non-trivial module's failing test is authored HERE first - independent from the coder - so the test specifies intended behavior and the coder implements to green. This is the primary, highest-value mode.
+- **Coverage (after the code).** Backfill behavior-protecting tests for existing code - the `odoo-code-review` test-coverage gate routes here when a CRITICAL/HIGH change ships with no protecting test.
 
 Use when the user wants: test coverage for a model/computed field/constraint/onchange/wizard; a test guarding a named business rule; JS Hoot or QUnit tests for an OWL component; a test file droppable into `tests/` and runnable with `odoo-bin -i <module> --test-enable`; or the failing test a coder will implement to green.
 
@@ -44,19 +44,19 @@ Call `set_active_version('<version>')`. Resolve from `.odoo-ai/context.md` first
 
 ### Round 1 - framework selection (OSM-grounded)
 
-- **Python (all versions):** `TransactionCase` (rolls back after each test); `Form` helper (v13+) for UI-level interactions. Tag with `@tagged('post_install', '-at_install')` or `@tagged('at_install')`. Call `lookup_core_api(name='TransactionCase', odoo_version='17.0')` and `find_examples(query='TransactionCase test setUp', odoo_version='17.0')` for real import path and setUp signature.
-- **JS v16 and earlier:** QUnit / `odoo.define` style. Call `find_examples(query='QUnit test odoo.define', odoo_version='17.0')`.
-- **JS v17+:** Hoot (`import { describe, test, expect } from "@odoo/hoot"`). Call `find_examples(query='Hoot describe test expect', odoo_version='17.0')` and `lookup_core_api(name='hoot', odoo_version='17.0')`.
+- **Python (all versions):** `TransactionCase` (rolls back after each test); `Form` helper (v13+) for UI-level interactions. Tag with `@tagged('post_install', '-at_install')` or `@tagged('at_install')`. Call `lookup_core_api(name='TransactionCase', odoo_version='<version>')` and `find_examples(query='TransactionCase test setUp', odoo_version='<version>')` for real import path and setUp signature.
+- **JS v16 and earlier:** QUnit / `odoo.define` style. Call `find_examples(query='QUnit test odoo.define', odoo_version='<version>')`.
+- **JS v17+:** Hoot (`import { describe, test, expect } from "@odoo/hoot"`). Call `find_examples(query='Hoot describe test expect', odoo_version='<version>')` and `lookup_core_api(name='hoot', odoo_version='<version>')`.
 
-Never assume same JS import paths between major versions — always call OSM.
+Never assume same JS import paths between major versions - always call OSM.
 
 ### Round 2 - model / field grounding
 
-For each model call `model_inspect(model='<model>', odoo_version='17.0')` to get real field names and types (do not guess from description), relational paths for `@api.depends`/`Form` interactions, existing method signatures. Call `validate_relation` or `resolve_orm_chain` for relational chains (`partner_id.country_id.code`) to confirm each hop.
+For each model call `model_inspect(model='<model>', odoo_version='<version>')` to get real field names and types (do not guess from description), relational paths for `@api.depends`/`Form` interactions, existing method signatures. Call `validate_relation` or `resolve_orm_chain` for relational chains (`partner_id.country_id.code`) to confirm each hop.
 
 ### Round 3 - find existing test patterns
 
-Call `find_examples(query='test <model or feature> TransactionCase', odoo_version='17.0')` (or `Hoot`/`QUnit` for JS) to find real patterns already in the codebase. Prefer those over hand-written boilerplate.
+Call `find_examples(query='test <model or feature> TransactionCase', odoo_version='<version>')` (or `Hoot`/`QUnit` for JS) to find real patterns already in the codebase. Prefer those over hand-written boilerplate.
 
 ### Round 4 - write tests
 
@@ -64,13 +64,13 @@ Write `tests/test_<feature>.py` (or `static/tests/test_<feature>.js` for JS). Ap
 
 **Business-rule naming.** Every test method name states the rule being protected: `test_discount_cannot_exceed_20pct`, `test_confirmed_order_locks_price`, `test_access_denied_for_portal_user`. Not: `test_sale_order_field`, `test_write_method`.
 
-**Assert observable outcomes.** Assert computed field values, state after ORM call, exception from constraint, domain filter result — not private method call counts or ORM cache internals.
+**Assert observable outcomes.** Assert computed field values, state after ORM call, exception from constraint, domain filter result - not private method call counts or ORM cache internals.
 
-**Drive the real workflow - never the shortcut (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`).** Reach a state by CALLING the action (`action_confirm` / `action_validate` / `button_validate` / `action_approve`) — never seed with `create({'state': ...})` or a raw insert. Use `Form(self.env['<model>'])` when an `onchange` produces the value under test. Test access with `record.with_user(self.<user>).action_*()` and assert allowed-or-`AccessError`; `sudo()` is for ARRANGE setup only, NEVER on the action whose permission you assert.
+**Drive the real workflow - never the shortcut (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`).** Reach a state by CALLING the action (`action_confirm` / `action_validate` / `button_validate` / `action_approve`) - never seed with `create({'state': ...})` or a raw insert. Use `Form(self.env['<model>'])` when an `onchange` produces the value under test. Test access with `record.with_user(self.<user>).action_*()` and assert allowed-or-`AccessError`; `sudo()` is for ARRANGE setup only, NEVER on the action whose permission you assert.
 
 **One business rule per test.** Each `def test_*` covers exactly one invariant.
 
-**Each test must be able to fail - confirm RED (binding).** Core of `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`: in test-first mode the production code doesn't exist — state it's RED. In coverage mode confirm by reasoning (or intentionally removing the rule) that it would go red. Never weaken a test to make it pass; fix the code instead.
+**Each test must be able to fail - confirm RED (binding).** Core of `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`: in test-first mode the production code doesn't exist - state it's RED. In coverage mode confirm by reasoning (or intentionally removing the rule) that it would go red. Never weaken a test to make it pass; fix the code instead.
 
 **Minimal arrange.** `setUp` creates only records required by the test. No fields/models/fixtures for "possible future tests".
 
@@ -86,6 +86,8 @@ Write `tests/test_<feature>.py` (or `static/tests/test_<feature>.js` for JS). Ap
 
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <test file>` for the pylint-odoo gate. When these tests are later executed via `odoo-bin -i <module> --test-enable`, resolve the interpreter (the matching instance's `python` field) per `snippets/venv-resolution.md`, not system `python3`.
 
+If you are working on version 17.0 or later, you MUST add `--skip-auto-install` to the `odoo-bin -i <module> --test-enable` to avoid noise from auto installed modules
+
 ## Output format
 
 Files written directly to the addon's `tests/` (or `static/tests/`) directory:
@@ -93,7 +95,7 @@ Files written directly to the addon's `tests/` (or `static/tests/`) directory:
 - `<addon>/tests/test_<feature>.py` - the test file
 - `<addon>/static/tests/test_<feature>.js` - JS test file (only when JS tests requested)
 
-Report format: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writer/references/output-format.md`
+Report format: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/references/output-format.md`
 
 ## Standalone-first fallback
 
@@ -102,7 +104,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 - **Tier 2 - Disk:** `Grep`/`Read` the addon's `models/*.py` for field names/types; locate existing tests in `tests/` to infer the framework in use. Write the test file to the correct location - do NOT fall back to copy-pasteable blocks unless the repo is genuinely inaccessible.
 - **Tier 2 - Version fallback:** Derive Odoo version from manifest `version` field if `.odoo-ai/context.md` is absent.
 - **Copy-pasteable-only mode** (last resort): emit standalone blocks only when the repo itself is unreachable. Label `grounded: local-source (not OSM-indexed)` when built from disk; `OSM unavailable - ungrounded` only when neither OSM nor local source is available.
-- Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes — never ask a human to paste field lists, model definitions, or manifests.
+- Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes - never ask a human to paste field lists, model definitions, or manifests.
 
 ## Continuation Contract
 

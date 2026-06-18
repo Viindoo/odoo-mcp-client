@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# detect-intent.sh — UserPromptSubmit hook: lightweight Odoo/business intent detector.
+# detect-intent.sh - UserPromptSubmit hook: lightweight Odoo/business intent detector.
 # READ-ONLY: no LLM, no writes, no blocking. Emits hookSpecificOutput.additionalContext
 # when a vague/multi-fragment Odoo or business prompt is detected; stays silent otherwise.
-# Always exits 0 — invisible to user even when it emits context.
+# Always exits 0 - invisible to user even when it emits context.
 set -uo pipefail
 
 # --- Read stdin JSON ---
@@ -13,7 +13,7 @@ if command -v jq >/dev/null 2>&1; then
   _prompt=$(printf '%s' "${_input}" | jq -r '.prompt // ""' 2>/dev/null || echo "")
   _mode=$(printf '%s' "${_input}" | jq -r '.permission_mode // ""' 2>/dev/null || echo "")
 else
-  # Minimal grep/sed fallback — handles simple single-line JSON values
+  # Minimal grep/sed fallback - handles simple single-line JSON values
   _prompt=$(printf '%s' "${_input}" | grep -o '"prompt"[[:space:]]*:[[:space:]]*"[^"]*"' \
     | sed 's/"prompt"[[:space:]]*:[[:space:]]*"//;s/"$//' || echo "")
   _mode=$(printf '%s' "${_input}" | grep -o '"permission_mode"[[:space:]]*:[[:space:]]*"[^"]*"' \
@@ -38,7 +38,7 @@ _domain=""
 
 _p_lower=$(printf '%s' "${_prompt}" | tr '[:upper:]' '[:lower:]')
 
-# Primary Odoo/ERP anchor — must be present or one of the domain buckets must match
+# Primary Odoo/ERP anchor - must be present or one of the domain buckets must match
 _odoo_anchor=false
 case "${_p_lower}" in
   *odoo*|*viindoo*|*erp*|*openerp*)
@@ -132,7 +132,7 @@ case "${_p_lower}" in
     _has_action=true ;;
 esac
 
-# Lookup/introspection intent — question is about indexed STRUCTURE (which
+# Lookup/introspection intent - question is about indexed STRUCTURE (which
 # modules/repos/models a profile or version contains), NOT code-gen. The
 # indexed answer lives in odoo-semantic (profile_inspect / describe_module /
 # model_inspect), never in the vault. EN + VI phrasings.
@@ -151,7 +151,7 @@ fi
 
 # --- OSM reminder block (emitted BEFORE any early-exit) ---
 # Emitted when odoo-semantic MCP is wired AND domain is engineering/upgrade/visual-UI.
-# Fires regardless of vague/specific — specific prompts need it most.
+# Fires regardless of vague/specific - specific prompts need it most.
 _osm_context=""
 case "${_domain}" in
   engineering|upgrade|visual-UI)
@@ -164,13 +164,13 @@ case "${_domain}" in
 esac
 
 # --- OSM lookup hint (composition/introspection) ---
-# Fires on Odoo/Viindoo anchor + lookup intent, INDEPENDENT of _domain — so a
+# Fires on Odoo/Viindoo anchor + lookup intent, INDEPENDENT of _domain - so a
 # "general"-domain Viindoo question (e.g. "viindoo 17 gồm những gì") still gets
 # routed to the index instead of the vault. Names the exact lookup tools, which
-# may be ToolSearch-deferred (only their name in context) — this hint is the
+# may be ToolSearch-deferred (only their name in context) - this hint is the
 # in-context pointer that survives deferral.
 if [ "${_osm_wired}" = "true" ] && [ "${_odoo_anchor}" = "true" ] && [ "${_is_lookup}" = "true" ]; then
-  _osm_lk="[OSM-lookup] This is a STRUCTURE-lookup over indexed data (module/repo/profile/version composition) - use mcp__odoo-semantic__profile_inspect (composition of one profile, e.g. standard_viindoo_17 / viindoo_internal_17: repos + module count + ancestor chain), describe_module (what one module does), or model_inspect (fields/methods of one model). Do NOT search the vault for data already indexed in odoo-semantic."
+  _osm_lk="[OSM-lookup] This is a STRUCTURE-lookup over indexed data (module/repo/profile/version composition) - use mcp__odoo-semantic__profile_inspect (composition of one profile, e.g. standard_viindoo_17 / odoo_17: repos + module count + ancestor chain), describe_module (what one module does), or model_inspect (fields/methods of one model). Do NOT search the vault for data already indexed in odoo-semantic."
   _osm_context="${_osm_context:+${_osm_context}\n}${_osm_lk}"
 fi
 
@@ -182,9 +182,9 @@ case "${_domain}" in
     _osm_context="${_osm_context:+${_osm_context}\n}${_fe_hint}"
     ;;
   engineering)
-    # Only when OSM context already fired (i.e. OSM wired) — avoids noising every prompt.
+    # Only when OSM context already fired (i.e. OSM wired) - avoids noising every prompt.
     if [ -n "${_osm_context}" ]; then
-      _fe_hint="[Stack check] If the change touches JS/OWL/QWeb or an asset bundle, odoo-coding covers it (its frontend leg) alongside the backend in the same pass — full-stack is one skill, no separate frontend step needed."
+      _fe_hint="[Stack check] If the change touches JS/OWL/QWeb or an asset bundle, odoo-coding covers it (its frontend leg) alongside the backend in the same pass - full-stack is one skill, no separate frontend step needed."
       _osm_context="${_osm_context}\n${_fe_hint}"
     fi
     ;;
@@ -198,7 +198,7 @@ fi
 # --- Emit additionalContext (hookSpecificOutput JSON) ---
 # The hint is NL-dispatch friendly: names outcomes/domains, NOT tool names.
 # Newlines inside the JSON string MUST be the escaped sequence \n (two chars),
-# not a literal control character — a raw newline inside a JSON string is invalid
+# not a literal control character - a raw newline inside a JSON string is invalid
 # JSON and Claude Code silently drops the hook. Build the message with literal
 # "\n" separators and emit valid JSON (prefer jq; safe printf fallback).
 

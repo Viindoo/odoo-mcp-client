@@ -135,8 +135,8 @@ def test_wave_respects_module_boundaries():
 def test_code_review_gates_test_coverage_and_loops():
     """Review routes uncovered behavior to the test writer and keeps the loop."""
     body = _read(SKILLS / "odoo-code-review" / "SKILL.md")
-    assert "next: odoo-test-writer" in body, (
-        "code-review must route an uncovered behavior change to odoo-test-writer"
+    assert "next: odoo-test-writing" in body, (
+        "code-review must route an uncovered behavior change to odoo-test-writing"
     )
     assert "next: odoo-coding" in body, (
         "code-review must keep the code->review->code loop for CRITICAL/HIGH fixes"
@@ -175,7 +175,7 @@ def test_new_authored_files_use_ascii_hyphen_only():
 
 
 # ---------------------------------------------------------------------------
-# B2 — coding-guidelines as mandatory context (read-before-write)
+# B2 - coding-guidelines as mandatory context (read-before-write)
 # ---------------------------------------------------------------------------
 
 GUIDELINE_STRING = "coding_guidelines/<version>/INDEX.md"
@@ -207,17 +207,27 @@ def test_read_before_write_snippet_wired_into_code_agents():
         )
 
 
-def test_coding_dispatch_brief_injects_guidelines():
-    """The odoo-coding dispatch brief must tell a dispatched coder to read the coding
-    guidelines - otherwise an autonomous coder never gets told at execution time."""
-    body = _read(SKILLS / "odoo-coding" / "SKILL.md")
-    assert "coding_guidelines" in body, (
-        "odoo-coding dispatch brief must name the coding_guidelines path"
+def test_coding_brief_defers_procedure_to_agent_system_prompt():
+    """A dispatched coder reads the coding guidelines before writing. After the brief slim-down
+    the execution-time SSOT for that read-before-write rule is the coder AGENT BODY (its Round-1
+    HARD RULE) - NOT a re-taught copy in the odoo-coding dispatch brief, which would duplicate the
+    SSOT and silently drift. So this protects the real behavior, not a brief snapshot:
+    (1) each coder agent body names the version-pinned guideline index, and (2) the odoo-coding
+    brief defers procedure to the coder's own system prompt instead of re-teaching it."""
+    guideline = "coding_guidelines/<version>/INDEX.md"
+    for agent in ("odoo-coder", "odoo-frontend-coder"):
+        assert guideline in _read(AGENTS / f"{agent}.md"), (
+            f"{agent}: agent body must name {guideline} (execution-time SSOT for read-before-write)"
+        )
+    skill = _read(SKILLS / "odoo-coding" / "SKILL.md")
+    assert "system prompt" in skill.lower(), (
+        "odoo-coding brief must defer procedure to the coder's system-prompt Rounds "
+        "(not re-teach the guideline read)"
     )
 
 
 # ---------------------------------------------------------------------------
-# B3 — test-behavior contract (anti-shortcut)
+# B3 - test-behavior contract (anti-shortcut)
 # ---------------------------------------------------------------------------
 
 TEST_BEHAVIOR_SNIPPET = "test-behavior-contract.md"
@@ -229,7 +239,7 @@ TEST_BEHAVIOR_WIRED = [
     AGENTS / "odoo-code-reviewer.md",
     AGENTS / "odoo-solution-architect.md",
     AGENTS / "odoo-backend-debugger.md",
-    SKILLS / "odoo-test-writer" / "SKILL.md",
+    SKILLS / "odoo-test-writing" / "SKILL.md",
     SKILLS / "odoo-qa-suite" / "SKILL.md",
     SKILLS / "odoo-coding" / "SKILL.md",
 ]

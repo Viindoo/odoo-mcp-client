@@ -4,7 +4,7 @@
 #
 # Installs Claude Code, registers the Viindoo marketplace, installs the
 # odoo-ai-agents plugin from it, and asserts the install succeeded. Designed for
-# the GitHub Actions matrix (Ubuntu / macOS) — it touches the network and
+# the GitHub Actions matrix (Ubuntu / macOS) - it touches the network and
 # installs a global npm package, so it is NOT part of the default `make test`.
 #
 # Hard assertions: plugin installs and is listed.

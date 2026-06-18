@@ -116,7 +116,7 @@ def test_command_frontmatter(cmd):
 
 @pytest.mark.parametrize("cmd", COMMAND_FILES, ids=lambda p: p.stem)
 def test_command_description_no_trailing_punctuation(cmd):
-    """Command descriptions must not end in . ! ? — Anthropic plugin marketplace style."""
+    """Command descriptions must not end in . ! ? - Anthropic plugin marketplace style."""
     fm = _frontmatter(cmd.read_text(encoding="utf-8"))
     desc = fm.get("description", "").rstrip()
     assert desc and desc[-1] not in ".!?", (
@@ -141,7 +141,7 @@ def test_command_in_plugin_manifest(cmd):
     """Each command must be declared in the plugin.json of the plugin that contains it.
 
     After the v2 split, the 5 workflow commands belong to the skills manifest
-    and connect.md belongs to the mcp manifest — a command declared in the wrong
+    and connect.md belongs to the mcp manifest - a command declared in the wrong
     manifest (or in neither) is a packaging bug.
     """
     plugin_root = _plugin_root_for(cmd)

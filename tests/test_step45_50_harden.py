@@ -13,9 +13,12 @@ Business rules protected:
 All tests use stub binaries on a synthetic PATH - no network, no real postgres,
 no real Python venv, no real Odoo install required. Offline and deterministic.
 """
+import json
 import os
 import shutil
+import signal
 import subprocess
+import sys
 import textwrap
 from pathlib import Path
 
@@ -28,6 +31,7 @@ STEP45 = (
 STEP50 = (
     ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "setup-steps" / "50-instance-spinup.sh"
 )
+ALLOC = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "allocator.py"
 
 requires_bash = pytest.mark.skipif(
     shutil.which("bash") is None, reason="bash not available"
@@ -337,3 +341,139 @@ def test_step50_validates_python_imports_odoo_before_launch(tmp_path):
     assert "Polling" not in out, (
         f"Step 50 entered the poll loop despite preflight failure.\nOutput:\n{out}"
     )
+
+
+# ---------------------------------------------------------------------------
+# step 50 <-> allocator: shared-lease registration of the live render target
+# (no Postgres / no network; the 'odoo-bin' launch is faked by the py stub).
+# ---------------------------------------------------------------------------
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(int(pid), 0)
+    except OSError:
+        return False
+    return True
+
+
+def _leases_at(home: Path) -> list:
+    reg = home / "runtime" / "leases.json"
+    if not reg.exists():
+        return []
+    return json.loads(reg.read_text(encoding="utf-8")).get("leases", [])
+
+
+def _make_step50_spinup_env(tmp_path: Path, *, curl_mode: str):
+    """A source-mode step-50 scenario whose preflights PASS and whose 'odoo-bin'
+    launch is faked by the python stub (logs the launch, then `exec sleep` to
+    stay alive with a clean pid). curl_mode: 'up' (always 200), 'down' (always
+    000), 'up_after_launch' (000 on the first probe, 200 thereafter)."""
+    launch_log = tmp_path / "odoo-launch.log"
+    py_bin_dir = tmp_path / "fake-py-bin"
+    py_bin_dir.mkdir(exist_ok=True)
+    fake_py = py_bin_dir / "python"
+    # `-c "import odoo"` -> ok; any other call (the launch) -> log + stay alive.
+    _write_stub(fake_py, textwrap.dedent(f"""\
+        if [[ "$1" == "-c" && "$2" == "import odoo" ]]; then exit 0; fi
+        echo "odoo-bin launched $*" >> "{launch_log}"
+        exec sleep 15
+    """))
+    odoo_bin = tmp_path / "odoo-bin"
+    _write_stub(odoo_bin, "exit 0\n")  # only needs to be executable for _find_odoo_bin
+
+    bind = tmp_path / "bin50"
+    bind.mkdir(exist_ok=True)
+    if curl_mode == "up":
+        _write_stub(bind / "curl", 'echo "200"\n')
+    elif curl_mode == "down":
+        _write_stub(bind / "curl", 'echo "000"\n')
+    else:  # up_after_launch: 000 on the first probe, 200 once the server "launched"
+        cnt = tmp_path / "curl.count"
+        _write_stub(bind / "curl", textwrap.dedent(f"""\
+            n="$(cat "{cnt}" 2>/dev/null || echo 0)"
+            echo $((n + 1)) > "{cnt}"
+            if [[ "$n" -ge 1 ]]; then echo "200"; else echo "000"; fi
+        """))
+    _write_stub(bind / "pg_isready", "exit 0\n")  # reachable -> skip the real-PG preflight
+
+    toml = _make_step50_toml(tmp_path, series="17.0", py_path=str(fake_py))
+    home = tmp_path / "odoo-ai-home"
+    env = dict(os.environ)
+    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_AI_HOME"] = str(home)
+    env["SPINUP_TIMEOUT"] = "3"
+    env.pop("ODOO_PG_PASSWORD", None)
+    env["ODOO_BIN"] = str(odoo_bin)
+    return env, home, launch_log
+
+
+def _run_step50(env) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["bash", str(STEP50), "apply", "--version", "17.0"],
+        capture_output=True, text=True, env=env, timeout=30,
+    )
+
+
+@requires_bash
+def test_step50_registers_shared_lease_after_server_up(tmp_path):
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    res = _run_step50(env)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    assert launch_log.exists(), f"odoo-bin must have launched\n{out}"
+    shared = [lz for lz in _leases_at(home) if lz.get("mode") == "shared"]
+    assert len(shared) == 1, f"step 50 must register exactly one shared lease\n{_leases_at(home)}"
+    lz = shared[0]
+    assert lz["series"] == "17.0"
+    assert lz["ports"] == [18069], "the lease records the actual bound port"
+    assert lz["created_db"] is False, "the shared render lease must NEVER own the declared DB"
+    pid = lz["owner"]["pid"]
+    assert pid and _alive(pid), "the live server pid is recorded (for gc + cross-session discovery)"
+    os.kill(int(pid), signal.SIGTERM)  # reap the backgrounded sleep
+
+
+@requires_bash
+def test_step50_attaches_to_existing_shared_lease_without_relaunch(tmp_path):
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up")
+    # Pre-seed a LIVE shared lease (pid = this pytest process, which is alive).
+    pre = subprocess.run(
+        [sys.executable, str(ALLOC), "acquire", "--series", "17.0", "--mode", "shared",
+         "--port", "18069", "--db-name", "odoo_test", "--pid", str(os.getpid())],
+        capture_output=True, text=True, env=env,
+    )
+    assert pre.returncode == 0, pre.stderr
+    assert len(_leases_at(home)) == 1
+
+    res = _run_step50(env)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    assert "already up" in out, f"step 50 must take the already-up path\n{out}"
+    assert not launch_log.exists(), f"step 50 must NOT launch a second odoo-bin\n{out}"
+    shared = [lz for lz in _leases_at(home) if lz.get("mode") == "shared"]
+    assert len(shared) == 1, "attach must not duplicate the shared lease row"
+    assert shared[0]["owner"]["pid"] == os.getpid(), "attach must not overwrite the live server pid"
+
+
+@requires_bash
+def test_step50_leaves_no_shared_lease_when_server_never_comes_up(tmp_path):
+    env, home, _ = _make_step50_spinup_env(tmp_path, curl_mode="down")
+    res = _run_step50(env)
+    out = res.stdout + res.stderr
+    assert res.returncode != 0, f"a never-ready spin-up must fail\n{out}"
+    assert _leases_at(home) == [], (
+        "a failed spin-up must leave NO shared lease (registration happens only after the server is up)"
+    )
+
+
+@requires_bash
+def test_step50_degrades_to_plain_spinup_without_allocator(tmp_path):
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    env["ODOO_AI_ALLOCATOR"] = ""  # disable allocator coordination
+    res = _run_step50(env)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    assert "is up:" in out, f"the server must still spin up and print its URL\n{out}"
+    assert launch_log.exists(), "the server must still launch when the allocator is disabled"
+    assert _leases_at(home) == [], "with the allocator disabled, NO lease is written"
+    # The degraded path leaves a short backgrounded `sleep` (no lease records its
+    # pid); it is detached and self-reaps, so it does not block the suite.

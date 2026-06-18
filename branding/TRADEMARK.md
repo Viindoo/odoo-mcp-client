@@ -6,7 +6,7 @@ The source code and documentation in this repository are released under the
 ## What the MIT License covers
 
 The MIT License lets you copy, modify, and redistribute the *files* in this
-repository — including the SVG assets in this `branding/` directory — as part
+repository - including the SVG assets in this `branding/` directory - as part
 of using or forking the Odoo MCP Client.
 
 ## What the MIT License does NOT cover
@@ -25,7 +25,7 @@ the property of their owners:
 
 - Referencing the official Odoo Semantic service (`odoo-semantic.viindoo.com`)
   using the unmodified logo, e.g. in a "Powered by" link.
-- Nominative, factual references — "a client for the Viindoo Odoo Semantic
+- Nominative, factual references - "a client for the Viindoo Odoo Semantic
   server".
 
 ## Not permitted without written permission from Viindoo Technology JSC

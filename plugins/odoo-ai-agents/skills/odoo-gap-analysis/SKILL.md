@@ -4,11 +4,11 @@ description: >
   Produce a gap analysis comparing client requirements against Odoo standard
   functionality, ending in a concrete effort matrix (Standard / Configuration / Extension /
   Custom + S/M/L/XL day estimates), ready for a proposal or downstream skills. Use this skill ANY time
-  someone is about to quote, scope, or estimate an Odoo project — even if they don't say
+  someone is about to quote, scope, or estimate an Odoo project - even if they don't say
   "gap". Fire when the conversation contains a list of customer requirements + any hint of
   "what does Odoo do natively?" / "what needs to be built?" / "how many days?" / "what
-  should we charge?" — catch phrases like "is this standard Odoo or do we need to build it?",
-  "list of features → effort matrix", "RFP mentions 23 requirements — classify them".
+  should we charge?" - catch phrases like "is this standard Odoo or do we need to build it?",
+  "list of features → effort matrix", "RFP mentions 23 requirements - classify them".
   Also fires on Vietnamese: "phân tích gap", "cái này Odoo có sẵn hay phải build thêm",
   "ước lượng bao nhiêu ngày công", "ma trận effort cho báo giá". When
   the user asks about ONE specific feature route to odoo-feature-check instead. When they
@@ -37,16 +37,16 @@ Consultant / Project Manager
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
-- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
-- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
-- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
-- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+- `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `lookup_core_api` - Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `suggest_pattern` - Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -61,19 +61,19 @@ Gap analysis sets client expectations and determines budget. Errors in either di
 | Extension | `_inherit` extension pattern | 1-5 days/req |
 | Custom | New model, complex logic, or integration | 5+ days/req |
 
-Version matters: "Custom" on v12 may be "Standard" on v16. v8/v9 migrations cost more (Python 2, `_columns`, `osv.osv`). **Data priority:** MCP over training knowledge — trust `check_module_exists` results.
+Version matters: "Custom" on v12 may be "Standard" on v16. v8/v9 migrations cost more (Python 2, `_columns`, `osv.osv`). **Data priority:** MCP over training knowledge - trust `check_module_exists` results.
 
 ## Instructions
 
-Use parallel MCP calls — 10+ requirements can complete in 3 rounds vs 30+ sequential.
+Use parallel MCP calls - 10+ requirements can complete in 3 rounds vs 30+ sequential.
 
-**Round 0 - Bootstrap + pin:** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`. Read `.odoo-ai/context.md`; extract `odoo_version` and `viindoo_profile` (never hard-code `viindoo_internal_17`). Derive version from manifests on disk if file absent. Requirement list is already in context — do not ask the user to re-provide it.
+**Round 0 - Bootstrap + pin:** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`. Read `.odoo-ai/context.md`; extract `odoo_version` and `viindoo_profile` (never hard-code `standard_viindoo_17`). Derive version from manifests on disk if file absent. Requirement list is already in context - do not ask the user to re-provide it.
 
-**Round 1 — Parallel:** `check_module_exists` for ALL requirements simultaneously.
+**Round 1 - Parallel:** `check_module_exists` for ALL requirements simultaneously.
 
-**Round 2 — Parallel (partial matches):** `model_inspect(model=…, method='fields')` + `module_inspect(name=<module>, method='summary', odoo_version='<version>')` for all partial-coverage modules simultaneously. The module-level view/OWL/JS inventory is what distinguishes **Configuration** (module ships the needed view/flow) from **Extension** (view/field absent).
+**Round 2 - Parallel (partial matches):** `model_inspect(model=…, method='fields')` + `module_inspect(name=<module>, method='summary', odoo_version='<version>')` for all partial-coverage modules simultaneously. The module-level view/OWL/JS inventory is what distinguishes **Configuration** (module ships the needed view/flow) from **Extension** (view/field absent).
 
-**Round 3 — Parallel (Extension/Custom gaps):** `find_examples` + `lookup_core_api` + `suggest_pattern` in one batch for all remaining gaps.
+**Round 3 - Parallel (Extension/Custom gaps):** `find_examples` + `lookup_core_api` + `suggest_pattern` in one batch for all remaining gaps.
 
 Decision logic per requirement:
 - Full match → Standard/Config; no further calls
@@ -84,7 +84,7 @@ Decision logic per requirement:
 
 ## Standalone-first fallback
 
-When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. Proceed immediately — requirement list is in context. Classify from training knowledge (Tier 3) and note: "Classification not yet verified against code examples; double-check estimates once OSM is online."
+When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. Proceed immediately - requirement list is in context. Classify from training knowledge (Tier 3) and note: "Classification not yet verified against code examples; double-check estimates once OSM is online."
 
 ## Output format
 
@@ -100,11 +100,11 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 |---|-------------|------------------|--------|-------------|--------|-------|
 | 1 | ...         | Full/Partial/None | ...   | Standard/Config/Extension/Custom | S/M/L/XL | ... |
 
-**Effort legend:** S = <1d · M = 1–3d · L = 3–10d · XL = >10d
+**Effort legend:** S = <1d · M = 1-3d · L = 3-10d · XL = >10d
 
 ### Effort summary
-- **Standard** (no dev): <N> requirements — <list>
-- **Configuration only**: <N> requirements — <list>
+- **Standard** (no dev): <N> requirements - <list>
+- **Configuration only**: <N> requirements - <list>
 - **Extension** (custom field/method): <N> requirements
 - **Full custom development**: <N> requirements
 

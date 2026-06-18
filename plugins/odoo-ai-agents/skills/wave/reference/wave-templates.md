@@ -192,7 +192,7 @@ Verify after cleanup:
 This is the load-bearing safe-squash procedure. Follow it exactly.
 
 ```bash
-# Step 0: Stale-base guard — MUST run before squashing
+# Step 0: Stale-base guard - MUST run before squashing
 # Fetch the latest principal branch tip from the remote.
 git fetch origin <principal-branch-name>
 
@@ -204,14 +204,14 @@ git fetch origin <principal-branch-name>
 # ABORT: rebase integration onto origin/<principal-branch-name> first,
 # re-run the full verify command, then return to Step 1.
 git merge-base --is-ancestor origin/<principal-branch-name> HEAD \
-  || { echo "ABORT: principal has moved — rebase integration first"; exit 1; }
+  || { echo "ABORT: principal has moved - rebase integration first"; exit 1; }
 
 # Step 1: Create a backup ref BEFORE squashing
 git tag wave-backup-<slug> HEAD
 
 # Step 2: Squash all integration commits into one
 # (from the integration worktree, not the principal)
-# Use origin/<principal-branch-name> — guaranteed fresh after Step 0 fetch.
+# Use origin/<principal-branch-name> - guaranteed fresh after Step 0 fetch.
 git reset --soft origin/<principal-branch-name>
 git commit -m "<conventional commit message>"
 

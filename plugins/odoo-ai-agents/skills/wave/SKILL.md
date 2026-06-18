@@ -35,18 +35,18 @@ principal branch.
 > These rules are load-bearing safety contracts. Deleting or softening any one of them
 > is a breaking change and must be caught by `tests/test_wave_hardrules.py`.
 
-1. **Principal-branch-lock** — NEVER run `git checkout`, `git switch`, `git commit`,
+1. **Principal-branch-lock** - NEVER run `git checkout`, `git switch`, `git commit`,
    `git rebase`, `git merge`, `git pull`, or `git reset --hard` on the principal branch
    (the branch active at skill invocation). All WI branches and the integration branch
    live in separate worktrees. Read-only ops (`git log`, `git diff`, `git status`) on
    the principal are allowed.
 
-2. **Depth-0 / self-spawn legality** — This skill (wave) runs at depth 0 (main context)
+2. **Depth-0 / self-spawn legality** - This skill (wave) runs at depth 0 (main context)
    only. It spawns WI subagents at depth 1 (integration/coordination layer), which are
    themselves leaf workers at depth-2 ceiling. Leaf workers MUST NOT spawn further
    subagents or invoke any depth0-only skill (the spawner bundles `odoo-coding`,
    `odoo-code-review`, `odoo-ui-review`, plus `/code-review`,
-   `skill-creator`, `wave`, `odoo-intake`, `odoo-brl`, `workflow-chaining` — see the
+   `skill-creator`, `wave`, `odoo-intake`, `odoo-brl`, `workflow-chaining` - see the
    Skill-Delegation Matrix below and `docs/reference/ORCHESTRATION-MAP.md`).
    Depth ceiling: wave (depth 0) → WI subagent (depth 1) → leaf worker (depth-2 max);
    no further spawning allowed. Concurrency: model-weighted budget (BUDGET=8) per
@@ -55,31 +55,31 @@ principal branch.
    budget (OOM guard). The cherry-pick step is NOT part of this budget - it is a depth-0
    critical section serialized to one at a time (Phase 2/3), never pushed down to a leaf.
 
-3. **/code-review inline-only** — The `/code-review` skill auto-spawns and is therefore
+3. **/code-review inline-only** - The `/code-review` skill auto-spawns and is therefore
    only legal at depth 0 (this skill's context). Invoke it here in Phase 4, never inside
    a WI subagent. Findings are fixed either inline or via a brief targeted subagent.
 
-4. **Human-confirm merge** — The skill MUST stop at Phase 6 and wait for explicit user
+4. **Human-confirm merge** - The skill MUST stop at Phase 6 and wait for explicit user
    confirmation before merging the integration branch. No automated merge, no auto-squash-
    and-merge, no CI-triggered merge. The skill presents the PR URL and waits.
 
-5. **Confidentiality (public-repo — 8 banned groups)** — Artifacts and commit messages
+5. **Confidentiality (public-repo - 8 banned groups)** - Artifacts and commit messages
    MUST NOT contain: CEO personal info, customer PII or contract details, internal pricing,
    competitor intelligence beyond public sources, product roadmap details, marketing-in-draft,
    OKR/targets, or internal-tooling paths. Use abstract labels (Customer-A, etc.).
    If a user prompt contains such data, acknowledge intent only - do not echo it into files.
    Full 8-group list: `reference/wave-templates.md` §Confidentiality Long-Form.
 
-6. **Squash tree-identity gate** — Before force-with-lease, verify that the squashed commit
+6. **Squash tree-identity gate** - Before force-with-lease, verify that the squashed commit
    produces an identical tree: `git diff --quiet <backup-ref>` must exit 0. If it exits
    non-zero the squash is aborted and reported. Full recipe: `reference/wave-templates.md`
    §Squash Tree-Identity Recipe.
 
-7. **Disjoint file-ownership** — The Phase 0 ownership map must partition all affected
+7. **Disjoint file-ownership** - The Phase 0 ownership map must partition all affected
    files across WIs with no overlap. A file appearing in two WI scopes is a hard blocker;
    resolve it before creating any worktrees.
 
-8. **Verify subagent claims** — Do not trust a subagent's self-report of success. After
+8. **Verify subagent claims** - Do not trust a subagent's self-report of success. After
    each cherry-pick, run the repo verify command from the Repo Capability Card to confirm
    the integrated state is green.
 
@@ -122,22 +122,22 @@ If any file appears in two WI scopes, STOP and ask the user to resolve before pr
 
 **0.3 - Odoo module DAG (respect module boundaries)**:
 
-Disjoint files alone are not enough — partition by **module**. Compute the module DAG per
+Disjoint files alone are not enough - partition by **module**. Compute the module DAG per
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`:
 - Map each WI to its module(s): `{WI -> [modules]}`.
 - **Auto-infer `depends_on`:** if a module owned by WI-B depends (directly or transitively)
-  on a module owned by WI-A, add that edge — cherry-pick order follows the manifest graph.
+  on a module owned by WI-A, add that edge - cherry-pick order follows the manifest graph.
 - **Warn on boundary-crossing WIs:** if one WI spans multiple modules at different DAG depths,
-  flag it and propose splitting along module lines. Soft gate — let the user decide.
+  flag it and propose splitting along module lines. Soft gate - let the user decide.
 
 **0.4 - Topology selection**:
 
 Choose from the four standard patterns in `reference/wave-templates.md` §Four Topology Patterns,
 using the module DAG from 0.3:
-- **Independent** — disjoint files AND disjoint module sub-graphs; cherry-pick any order
-- **Linear** — WI-B depends on WI-A output; cherry-pick A then B
-- **Mixed** — some independent, some sequential; pick independent first
-- **Diamond** — WI-B and WI-C both depend on WI-A; pick A first, then B+C parallel
+- **Independent** - disjoint files AND disjoint module sub-graphs; cherry-pick any order
+- **Linear** - WI-B depends on WI-A output; cherry-pick A then B
+- **Mixed** - some independent, some sequential; pick independent first
+- **Diamond** - WI-B and WI-C both depend on WI-A; pick A first, then B+C parallel
 
 **0.5 - Plan artifact** (for >=4 WIs):
 
@@ -191,7 +191,7 @@ After plan approval:
 
 ## Phase 2 - Dispatch WI Subagents (Mode B rolling-window)
 
-Dispatch WI subagents with the **Agent tool** — one Agent tool call per WI, each passing the
+Dispatch WI subagents with the **Agent tool** - one Agent tool call per WI, each passing the
 WI brief as its `prompt`. Scheduling is **Mode B model-weighted rolling-window**: as each worker
 returns and its weight is freed, the next eligible WI (deps cherry-picked) is dispatched.
 SSOT for weights and budget: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B).
@@ -235,17 +235,17 @@ Repo Capability Card:
   confidential: <level>
 
 Hard rules:
-  - Ground in OSM first — follow the OSM-First Grounding Contract
+  - Ground in OSM first - follow the OSM-First Grounding Contract
     (${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md): verify every model/field/method/
     module/CLI/design-token claim via OSM (set_active_version + model_inspect / entity_lookup /
     find_examples / resolve_stylesheet) BEFORE writing. Never code Odoo from memory.
   - Nesting guard (full text: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md): you are a
-    leaf worker (depth-2). You ARE the specialist — write/review the code yourself, grounding
+    leaf worker (depth-2). You ARE the specialist - write/review the code yourself, grounding
     every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is always
     allowed); follow the odoo-coding / odoo-code-review conventions but
     do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-coding,
     odoo-code-review, odoo-ui-review, wave, odoo-intake, odoo-brl,
-    workflow-chaining, /code-review, skill-creator) — they dispatch a fresh agent and are
+    workflow-chaining, /code-review, skill-creator) - they dispatch a fresh agent and are
     main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill (e.g.
     odoo-feature-check, odoo-override-finding) for a read-only lookup. Do NOT invoke the Skill
     tool to trigger a spawner. Do NOT spawn a sub-agent. Do NOT git branch/cherry-pick/merge/push;
@@ -255,7 +255,7 @@ Hard rules:
   - Run the verify command and confirm it passes before declaring done. If verify involves
     `odoo-bin` (install/upgrade/test), resolve the target version's real CLI via OSM
     `cli_help` first and follow ${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md
-    and ODOO-TESTING.md — never assume one version's flags apply to another.
+    and ODOO-TESTING.md - never assume one version's flags apply to another.
   - Append significant decisions to .odoo-ai/worklog/<slug>/<id>-wi.md per
     ${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md (one file per worker - no shared-file race).
   - Return your result using EXACTLY this template (no prose substitution):
@@ -264,7 +264,7 @@ Hard rules:
 Status:  DONE | FAILED
 SHA:     <commit sha(s) on wave/wi-<slug>-<id> - REQUIRED on DONE; the orchestrator
          cherry-picks these onto integration. A DONE with no SHA is a failed contract.>
-Verify:  PASS | FAIL — <command + result>
+Verify:  PASS | FAIL - <command + result>
 Changes: <1-3 bullets: file + what changed>
 
 Confidentiality: <8-group restriction if restricted; otherwise "public repo - standard caution">
@@ -291,12 +291,12 @@ cherry-picked. If a subagent exceeds 15 minutes without output, check its status
 `skill-creator`) each dispatch a fresh agent and may ONLY be invoked from the main
 agent. A leaf worker IS the specialist: it writes/reviews directly, and leaf subagents MAY
 NL-dispatch genuinely non-spawning (`leaf`) skills for read-only lookups. Leaf subagents
-must NOT spawn further subagents — they are the depth-2 ceiling.
+must NOT spawn further subagents - they are the depth-2 ceiling.
 
 ## Phase 3 - Cherry-pick + Conflict Resolution
 
 > This is the cherry-pick contract that Phase 2's Mode B loop applies per WI inside its
-> serialized depth-0 critical section — one cherry-pick in flight at a time, in topology
+> serialized depth-0 critical section - one cherry-pick in flight at a time, in topology
 > (module-DAG) order. Cherry-pick is NEVER pushed down to a leaf worker (Hard Rules 1 + 2).
 
 For each WI in topology order:
@@ -308,12 +308,12 @@ For each WI in topology order:
 
 3. **On conflict**: dispatch a brief Sonnet resolver subagent with:
    - The conflicting diff and the two WI briefs whose files overlap
-   - Nesting guard (verbatim, mandatory — SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md):
-     "You are a leaf worker (depth-2). You ARE the specialist — resolve and verify directly,
+   - Nesting guard (verbatim, mandatory - SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md):
+     "You are a leaf worker (depth-2). You ARE the specialist - resolve and verify directly,
      grounding any Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn). Do NOT
      invoke any depth0-only skill (odoo-coding, odoo-code-review, odoo-ui-review,
      wave, odoo-intake, odoo-brl, workflow-chaining, /code-review, skill-creator)
-     — they are main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill for a
+     - they are main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill for a
      read-only lookup. Do NOT invoke the Skill tool to trigger a spawner. Do NOT spawn a
      sub-agent. Do NOT git branch/cherry-pick/merge/push; stay in your assigned worktree. Only
      Read/Grep/Glob/Edit/Write/Bash."
@@ -331,7 +331,7 @@ After all WIs are cherry-picked, run the verify command one final time on the fu
 Measure: `git diff <principal>...HEAD --shortstat` (changed lines) and WI count N.
 
 - **Large wave** (>~1500 changed lines OR N >= 8 WIs): escalate to a **fable** review subagent
-  dispatched from depth-0. fable costs ~2x opus — ALWAYS needs explicit confirmation: state tier,
+  dispatched from depth-0. fable costs ~2x opus - ALWAYS needs explicit confirmation: state tier,
   cost, and one-line why; wait for user yes. If user declines or fable is unavailable, fall back
   to **opus inline review** and note the downgrade.
 - **Otherwise** (common case): **opus inline review** in this context.
@@ -364,7 +364,7 @@ git merge-base --is-ancestor origin/<principal> HEAD
 If the ancestry check fails, the principal has moved since integration was cut.
 ABORT: rebase integration onto `origin/<principal>` first, re-run verify, then return here.
 Skipping this guard can silently revert commits that landed on the principal after the
-integration branch was created — the tree-identity check does NOT catch this.
+integration branch was created - the tree-identity check does NOT catch this.
 
 After the guard passes:
 `git tag wave-backup-<slug> HEAD`

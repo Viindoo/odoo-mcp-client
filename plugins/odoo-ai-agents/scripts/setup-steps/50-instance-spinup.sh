@@ -30,6 +30,8 @@
 #                      the 'core' addons_path entry if unset.
 #   ODOO_PG_PASSWORD   postgres password (env only; optional for trust auth).
 #   SPINUP_TIMEOUT     poll timeout seconds (default 120).
+#   ODOO_AI_ALLOCATOR  path to allocator.py (default ../lib/allocator.py). Set it
+#                      empty to skip shared-lease registration (plain spin-up).
 
 set -euo pipefail
 
@@ -156,7 +158,28 @@ cmd_apply() {
     eval "$kv"
     local port="${INST_HTTP_PORT:-8069}"
 
+    # Register this spin-up as the SHARED, NON-exclusive render target so other
+    # sessions discover it (allocator.py query) and gc reclaims it when it dies.
+    # Best-effort only: an absent allocator/python degrades to plain spin-up,
+    # exactly as before. We register AFTER the server answers (never before), so
+    # a failed start leaves NO stale lease and we never need a teardown release.
+    local alloc_py="${ODOO_AI_ALLOCATOR-$SCRIPT_DIR/../lib/allocator.py}"
+    _register_shared() {
+        # $1 = optional live server pid. The pid is recorded only when it is
+        # still alive, so a concurrent loser (whose odoo-bin lost the port bind
+        # and exited) cannot overwrite the live winner's pid. created_db is
+        # always False on a shared lease, so gc never drops the declared DB.
+        [[ -n "$alloc_py" && -f "$alloc_py" ]] || return 0
+        local args=(acquire --series "${INST_VERSION:-}" --mode shared
+                    --port "$port" --db-name "${INST_DB_NAME:-odoo}")
+        if [[ -n "${1:-}" ]] && kill -0 "$1" 2>/dev/null; then
+            args+=(--pid "$1")
+        fi
+        python3 "$alloc_py" "${args[@]}" >/dev/null 2>&1 || true
+    }
+
     if [[ "$(_http_status "$port")" == "200" ]]; then
+        _register_shared
         echo "ok Instance ${INST_VERSION} already up at http://localhost:$port/web/login"
         return 0
     fi
@@ -274,11 +297,12 @@ cmd_apply() {
     esac
 
     if _poll_until_up "$port"; then
+        _register_shared "$odoo_pid"
         echo "ok Odoo ${INST_VERSION} is up: http://localhost:$port/web/login"
         return 0
     fi
 
-    # Poll timed out — tear down what we started so we leave no orphan.
+    # Poll timed out - tear down what we started so we leave no orphan.
     echo "x Odoo did not become ready. Check the launch log above." >&2
     if [[ "$run_mode" == "source" ]]; then
         if [[ -n "$odoo_pid" ]]; then

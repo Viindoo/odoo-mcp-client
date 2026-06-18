@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-gen_surface.py — SSOT generator for the Odoo Semantic MCP tool surface.
+gen_surface.py - SSOT generator for the Odoo Semantic MCP tool surface.
 
 Reads generator/server-surface.json and emits:
   1. skills/*/SKILL.md                        (only content between markers)
@@ -55,11 +55,11 @@ SKIP_SKILL_DIRS = {
     "odoo-onboarding",
     "odoo-intake",
     "odoo-ui-review",
-    # Shared reference docs (e.g. odoo-frontend-fidelity.md), not a skill — no SKILL.md, no tool deps.
+    # Shared reference docs (e.g. odoo-frontend-fidelity.md), not a skill - no SKILL.md, no tool deps.
     "_shared",
-    # Pure orchestration runner — no direct MCP invocations; dispatches via NL only.
+    # Pure orchestration runner - no direct MCP invocations; dispatches via NL only.
     "workflow-chaining",
-    # Read-only survey spawner — OSM tools live in the dispatched fan-out workers, not in
+    # Read-only survey spawner - OSM tools live in the dispatched fan-out workers, not in
     # the skill body; no GENERATED TOOLS marker block.
     "odoo-deep-survey",
 }
@@ -151,7 +151,7 @@ def version_badge(tool: dict) -> str:
     removed = tool.get("version_removed")
     badge = f"v{added}+" if added else ""
     if removed:
-        badge += f" — removed in v{removed}"
+        badge += f" - removed in v{removed}"
     return badge
 
 
@@ -191,7 +191,7 @@ def _load_skill_tool_deps() -> None:
     "orchestration" block) for each skill's spawn class, depth policy and stack.
     Session bootstrap tools (set_active_version, set_active_profile) are included
     in each skill's mcp_tools list and separated at render time in
-    gen_skill_tools_block() — same logic as before, just data-driven now.
+    gen_skill_tools_block() - same logic as before, just data-driven now.
     """
     with open(SKILL_TOOL_DEPS_FILE, encoding="utf-8") as fh:
         data = json.load(fh)
@@ -208,7 +208,7 @@ def _load_skill_tool_deps() -> None:
 def gen_orchestration_map(orch: dict[str, dict]) -> str:
     """Full human/agent-readable orchestration map: one row per skill dir."""
     lines = [
-        "# Orchestration Map (GENERATED — do not edit by hand)",
+        "# Orchestration Map (GENERATED - do not edit by hand)",
         "",
         "> SSOT: `generator/skill_tool_deps.json` → `orchestration`. Regenerate with `make gen`.",
         "> Tells any planning/main agent which skills spawn subagents (so it never forbids a",
@@ -219,8 +219,8 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
     ]
     for name in sorted(orch):
         e = orch[name]
-        spawns = ", ".join(e.get("spawns", [])) or "—"
-        inst = "yes" if e.get("instance_touching") else "—"
+        spawns = ", ".join(e.get("spawns", [])) or "-"
+        inst = "yes" if e.get("instance_touching") else "-"
         lines.append(
             f"| `{name}` | {e.get('spawn_class','?')} | {e.get('depth_policy','?')} | "
             f"{e.get('stack','none')} | {inst} | {spawns} |"
@@ -228,12 +228,12 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
     lines.append("")
     lines.append("## Legend")
     lines.append("")
-    lines.append("- **spawn_class** — `leaf` (runs inline) · `orchestrator-nl` (chains other skills via")
+    lines.append("- **spawn_class** - `leaf` (runs inline) · `orchestrator-nl` (chains other skills via")
     lines.append("  natural-language dispatch, no Agent-tool spawn) · `spawner-agent` (dispatches a named")
     lines.append("  agent, depth 0→1) · `spawner-wave` (worktree fan-out, depth 0→1→2).")
-    lines.append("- **depth_policy** — `depth0-only` skills must be invoked only from the main agent,")
+    lines.append("- **depth_policy** - `depth0-only` skills must be invoked only from the main agent,")
     lines.append("  never from inside a subagent (nesting-crash guard). `any-depth` is safe to NL-dispatch.")
-    lines.append("- **stack** — drives backend↔frontend routing; `fullstack` work must engage both a")
+    lines.append("- **stack** - drives backend↔frontend routing; `fullstack` work must engage both a")
     lines.append("  backend and a frontend specialist.")
     lines.append("")
     lines.append("## Skill Conflict Resolution")
@@ -247,14 +247,14 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
     lines.append("### `odoo-coding`: legacy JS widgets vs OWL (version-aware)")
     lines.append("")
     lines.append(
-        "- **No skill conflict:** A single skill — `odoo-coding` — owns all Odoo coding "
+        "- **No skill conflict:** A single skill - `odoo-coding` - owns all Odoo coding "
         "(backend Python/XML and front-end JS/OWL) and, for the front end, handles both "
         "paradigms internally via the `odoo-frontend-coder` agent."
     )
     lines.append(
         "- **Resolution (internal):** the `odoo-frontend-coder` agent selects the paradigm by "
         "version. Legacy JS widget system on older Odoo; OWL components on newer Odoo. Odoo v14 "
-        "is the grey zone (pre-OWL but post-legacy peak) — prefer the legacy widget system there "
+        "is the grey zone (pre-OWL but post-legacy peak) - prefer the legacy widget system there "
         "since it is still dominant."
     )
     lines.append(
@@ -305,7 +305,7 @@ def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
         for st in session_tools:
             t = tools_by_name.get(st)
             if t:
-                lines.append(f"- `{t['example_call']}` — {_first_sentence(t['description'])}")
+                lines.append(f"- `{t['example_call']}` - {_first_sentence(t['description'])}")
         lines.append("")
 
     if work_tools:
@@ -315,7 +315,7 @@ def gen_skill_tools_block(skill_name: str, surface: dict) -> str:
             if t:
                 label = tool_group_label(t)
                 label_str = f" {label}" if label else ""
-                lines.append(f"- `{tn}`{label_str} — {_first_sentence(t['description'])}")
+                lines.append(f"- `{tn}`{label_str} - {_first_sentence(t['description'])}")
         lines.append("")
 
     return "\n".join(lines).rstrip()
@@ -346,7 +346,7 @@ def gen_cursor_tools_block(surface: dict) -> str:
         label_str = f" {label}" if label else ""
         kw = tool.get("routing_keywords", [])
         trigger = kw[0] if kw else name
-        lines.append(f'- "{trigger}" → `{name}{label_str}` — {_first_sentence(tool["description"])}')
+        lines.append(f'- "{trigger}" → `{name}{label_str}` - {_first_sentence(tool["description"])}')
     return "\n".join(lines)
 
 
@@ -365,7 +365,7 @@ def gen_openai_tools_block(surface: dict) -> str:
     if dis_block:
         lines.append(dis_block)
         lines.append("")
-    lines.append("**TOOLS (generated — v{ver}):**".format(ver=server_ver))
+    lines.append("**TOOLS (generated - v{ver}):**".format(ver=server_ver))
     lines.append("")
     for tool in tools:
         name = tool["name"]
@@ -374,7 +374,7 @@ def gen_openai_tools_block(surface: dict) -> str:
         req = tool.get("required_params", [])
         opt = tool.get("optional_params", [])
         desc = _first_sentence(tool["description"])
-        lines.append(f"**{name}**{label_str} — {desc}")
+        lines.append(f"**{name}**{label_str} - {desc}")
         if req:
             lines.append(f"  REQUIRED: {', '.join(req)}")
         if opt:
@@ -386,7 +386,7 @@ def gen_openai_tools_block(surface: dict) -> str:
     lines.append("**MCP RESOURCES (generated):**")
     lines.append("")
     for res in resources:
-        lines.append(f"- `{res['uri_template']}` — {res['description']}")
+        lines.append(f"- `{res['uri_template']}` - {res['description']}")
     return "\n".join(lines)
 
 
@@ -427,7 +427,7 @@ def gen_gemini_tools_block(surface: dict) -> str:
     lines.append("### MCP Resources (read-only, URI-addressable)")
     lines.append("")
     for res in resources:
-        lines.append(f"- `{res['uri_template']}` — {res['description']}")
+        lines.append(f"- `{res['uri_template']}` - {res['description']}")
     return "\n".join(lines)
 
 
@@ -483,7 +483,7 @@ def inject_markers_into_file(path: Path, new_block: str) -> bool:
         path.write_text(new_text, encoding="utf-8")
         return True
 
-    # Case 2: no markers — find ## MCP tools heading and insert
+    # Case 2: no markers - find ## MCP tools heading and insert
     heading_idx = None
     for i, line in enumerate(lines):
         if mcp_heading_re.match(line):
@@ -491,7 +491,7 @@ def inject_markers_into_file(path: Path, new_block: str) -> bool:
             break
 
     if heading_idx is None:
-        # No MCP tools section at all — nothing to do for this file
+        # No MCP tools section at all - nothing to do for this file
         return False
 
     # Find end of the MCP tools section (next H2 or EOF)
@@ -561,7 +561,7 @@ def inject_markers_into_snippet(path: Path, new_block: str) -> bool:
         path.write_text(new_text, encoding="utf-8")
         return True
 
-    # No markers — append at end
+    # No markers - append at end
     separator = "\n\n---\n\n"
     new_section = (
         separator

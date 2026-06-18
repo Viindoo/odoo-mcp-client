@@ -1,7 +1,7 @@
 # odoo-respond-bid.workflow.yaml
 # Declarative SSOT for the /odoo-respond-bid command.
 # Replaces the inline prose logic in commands/odoo-respond-bid.md.
-# Runner: skills/workflow-chaining — auto-discovered at runtime.
+# Runner: skills/workflow-chaining - auto-discovered at runtime.
 name: odoo-respond-bid
 domain: presales
 team_pattern: Pipeline
@@ -24,7 +24,7 @@ fallback: standalone
 
 phases:
   # ------------------------------------------------------------------
-  # Phase 0 — Parse arguments + context check (inline: runner handles)
+  # Phase 0 - Parse arguments + context check (inline: runner handles)
   # ------------------------------------------------------------------
   - id: parse-and-context
     inline: true
@@ -37,7 +37,7 @@ phases:
     #   - No external writes before Gate 5
 
   # ------------------------------------------------------------------
-  # Phase 1 — Discovery synthesis
+  # Phase 1 - Discovery synthesis
   # ------------------------------------------------------------------
   - id: discovery-synthesis
     skill: odoo-discovery-summary
@@ -51,7 +51,7 @@ phases:
     gate: "yes / edit / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 2 — Gap analysis
+  # Phase 2 - Gap analysis
   # ------------------------------------------------------------------
   - id: gap-analysis
     skill: odoo-gap-analysis
@@ -65,7 +65,7 @@ phases:
     gate: "yes / edit / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 3 — Capability proof
+  # Phase 3 - Capability proof
   # ------------------------------------------------------------------
   - id: capability-proof
     skill: odoo-capability-proof
@@ -80,7 +80,7 @@ phases:
     gate: "yes / iterate / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 4 — Objection pre-empt
+  # Phase 4 - Objection pre-empt
   # ------------------------------------------------------------------
   - id: objection-preempt
     skill: odoo-objection-handling
@@ -94,7 +94,7 @@ phases:
     gate: "yes / edit / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 5 — Assemble proposal draft (inline assembly)
+  # Phase 5 - Assemble proposal draft (inline assembly)
   # ------------------------------------------------------------------
   - id: assemble-proposal
     inline: true
@@ -114,7 +114,7 @@ phases:
     gate: "yes - save file + export / iterate / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 6 — Output (inline write)
+  # Phase 6 - Output (inline write)
   # ------------------------------------------------------------------
   - id: output
     inline: true

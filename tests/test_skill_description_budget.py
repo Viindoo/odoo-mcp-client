@@ -57,6 +57,6 @@ def test_description_under_hard_cap(skill):
     n = len(desc)
     assert n <= HARD_CAP, (
         f"{skill.parent.name}: description is {n} chars, over the {HARD_CAP}-char hard cap "
-        f"— Claude will truncate it. Compact the description (trim duplicate trigger "
+        f"- Claude will truncate it. Compact the description (trim duplicate trigger "
         f"phrases / examples; keep routing/disambiguation clauses)."
     )

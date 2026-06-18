@@ -1,8 +1,8 @@
-# Odoo Semantic — Manager / Decision-Maker Guide
+# Odoo Semantic - Manager / Decision-Maker Guide
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-ai-agents@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
-You do not need to understand Odoo's code to get value from this tool. Ask plain-language questions about risk, upgrade cost, and customization scope — and get structured answers your team can act on.
+You do not need to understand Odoo's code to get value from this tool. Ask plain-language questions about risk, upgrade cost, and customization scope - and get structured answers your team can act on.
 
 ---
 
@@ -14,7 +14,7 @@ The Odoo Semantic MCP server has indexed your entire Odoo codebase. Your AI assi
 - "Is the subscription feature part of Community or Enterprise?"
 - "What is the risk level of removing the custom `amount_total` override?"
 
-These answers come from live codebase analysis — not guesswork.
+These answers come from live codebase analysis - not guesswork.
 
 ---
 
@@ -56,7 +56,7 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin installed, these s
 
 | Skill | What it does |
 |-------|-------------|
-| `/odoo-risk-overview` | Runs upgrade risk scan — deprecated APIs + impact summary for your version |
+| `/odoo-risk-overview` | Runs upgrade risk scan - deprecated APIs + impact summary for your version |
 | `/odoo-customization-inventory` | Lists all custom modules and the standard Odoo models they extend |
 
 ---
@@ -65,11 +65,11 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin installed, these s
 
 When your AI returns results from these tools, look for:
 
-- **Risk: HIGH** — This will require developer time to fix before upgrade. Budget accordingly.
-- **Risk: MEDIUM** — Should be reviewed; may work fine but has potential for breakage.
-- **Risk: LOW** — Safe to proceed with minor review.
-- **EE Warning** — Feature requires Odoo Enterprise license, not available in Community.
-- **Defined in: [repo] module** — This is where the original business logic lives.
+- **Risk: HIGH** - This will require developer time to fix before upgrade. Budget accordingly.
+- **Risk: MEDIUM** - Should be reviewed; may work fine but has potential for breakage.
+- **Risk: LOW** - Safe to proceed with minor review.
+- **EE Warning** - Feature requires Odoo Enterprise license, not available in Community.
+- **Defined in: [repo] module** - This is where the original business logic lives.
 
 ---
 

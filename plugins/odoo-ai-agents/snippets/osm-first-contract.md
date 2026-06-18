@@ -6,7 +6,7 @@
 # OSM-First Grounding Contract
 
 You are working in an Odoo context. **OSM (the `odoo-semantic` MCP server) and the live
-runtime are the ground truth — your training memory is not.** Each Odoo version differs
+runtime are the ground truth - your training memory is not.** Each Odoo version differs
 (models, fields, CLI flags, asset bundles, Bootstrap version, design tokens), so a fact
 that is true for one version may be false for another. Obey this contract for any Odoo
 code you write or any claim you make about what Odoo does.
@@ -15,11 +15,11 @@ code you write or any claim you make about what Odoo does.
 
 Any statement that an Odoo model / field / method / module / edition / CLI flag / design
 token *exists*, *has a given signature*, or *behaves a certain way* MUST be backed by an
-OSM call OR a direct source read — never asserted from memory:
+OSM call OR a direct source read - never asserted from memory:
 
 - `set_active_version` first (pin the target version), then
 - `model_inspect`, `entity_lookup`, `check_module_exists`, `lookup_core_api`,
-  `module_inspect` — as appropriate to the claim.
+  `module_inspect` - as appropriate to the claim.
 - When OSM is reachable but the SPECIFIC entity is not in the index (a customer-local
   custom module/model), `Read`/`Grep` the local source for that entity instead - a
   Tier-1 MISS per `disk-fallback-protocol.md` - and keep OSM for everything it does
@@ -42,7 +42,7 @@ Before generating any non-trivial Odoo artifact, find what already exists and pr
   **real design tokens and style origins for the target version** (see
   `skills/_shared/odoo-frontend-fidelity.md`). Never invent token or selector names.
 
-If the index genuinely has nothing relevant, say so explicitly — then write.
+If the index genuinely has nothing relevant, say so explicitly - then write.
 
 ## 3. Validate before you declare done
 
@@ -56,11 +56,11 @@ If the index genuinely has nothing relevant, say so explicitly — then write.
   other findings are `[fuzzy]` heuristic hints. Either way it is a hint, **not** the gate -
   a clean `lint_check` is NOT a passing quality gate; the gate is `verify-backend.sh` +
   `/test_lint`. Treat a `[pattern]` security hit as a real finding to act on, not noise.
-- **Frontend:** verify against the running instance — read `getComputedStyle` to confirm
+- **Frontend:** verify against the running instance - read `getComputedStyle` to confirm
   tokens resolve (not empty/cyclic) and the UI matches the mockup; recompile assets and
   re-read, never trust that an edit "took" (see `skills/_shared/odoo-frontend-fidelity.md`).
 - **Instance / CLI:** before emitting any `odoo-bin` command, resolve the target version's
-  real CLI with `cli_help` — do not assume one version's flags apply to another (see
+  real CLI with `cli_help` - do not assume one version's flags apply to another (see
   `INSTANCE-LIFECYCLE.md`, `ODOO-TESTING.md`).
 
 ## 4. Standalone fallback: read the source, don't ask the human
@@ -98,7 +98,7 @@ For **spawned workers** (wave WI workers, workflow-chaining fan-out, code/UI age
 verify or relabel honestly (`grounded: local-source` / `OSM unavailable - ungrounded`). The
 label must be *earned* from real calls, not asserted. Two softer gaps raise a **non-blocking
 note** (not a block): backend code written with OSM reachable but the ORM validators skipped;
-and backend `.py` written with zero OSM calls and no grounding label at all (the silent case) —
+and backend `.py` written with zero OSM calls and no grounding label at all (the silent case) -
 the note asks you to ground it, or to state plainly it is pure-Python/standalone so the gate is
 satisfied. Only the provable lie (`grounded: osm` with zero calls) is blocked. Honest grounding
-is cheaper than a blocked stop — make the calls.
+is cheaper than a blocked stop - make the calls.

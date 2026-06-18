@@ -1,7 +1,7 @@
 # Deploy Checklist Output Template
 
 ```
-# Deploy Checklist — <env> <version>
+# Deploy Checklist - <env> <version>
 
 ## Scope
 - Target version: <X.Y>
@@ -18,8 +18,8 @@
 ## Checklist by domain
 
 ### 1. Pre-flight
-- [✓/⚠/✗/N/A] Deprecation audit run — <link or "not run">
-- [✓/⚠/✗/N/A] Version diff reviewed — <link or "not run">
+- [✓/⚠/✗/N/A] Deprecation audit run - <link or "not run">
+- [✓/⚠/✗/N/A] Version diff reviewed - <link or "not run">
 - [✓/⚠/✗/N/A] All BREAKING issues resolved
 - [✓/⚠/✗/N/A] Module existence verified: <module_a> ✓ / <module_b> ✗
 - [✓/⚠/✗/N/A] Third-party modules compatibility confirmed
@@ -73,10 +73,10 @@
 - [✓/⚠/✗/N/A] Human escalation contacts listed
 
 ## Blockers
-<List of ✗ items — each with one-line action required. Empty = no blockers.>
+<List of ✗ items - each with one-line action required. Empty = no blockers.>
 
 ## Suggested next skills
-- `odoo-deprecation-audit` — if Domain 1 pre-flight items are unchecked
-- `odoo-version-diff` — if API diff for target version was not reviewed
-- `/odoo-plan-upgrade` — if no full upgrade plan exists (Phase C command)
+- `odoo-deprecation-audit` - if Domain 1 pre-flight items are unchecked
+- `odoo-version-diff` - if API diff for target version was not reviewed
+- `/odoo-plan-upgrade` - if no full upgrade plan exists (Phase C command)
 ```

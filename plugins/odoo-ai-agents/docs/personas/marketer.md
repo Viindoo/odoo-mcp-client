@@ -1,8 +1,8 @@
-# Odoo Semantic — Marketer Guide
+# Odoo Semantic - Marketer Guide
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-ai-agents@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
-Create accurate, data-backed Odoo content: version comparison articles, feature highlight posts, upgrade guides, and capability summaries — all grounded in real codebase facts, not marketing sheets.
+Create accurate, data-backed Odoo content: version comparison articles, feature highlight posts, upgrade guides, and capability summaries - all grounded in real codebase facts, not marketing sheets.
 
 ---
 
@@ -11,9 +11,9 @@ Create accurate, data-backed Odoo content: version comparison articles, feature 
 Marketing content about Odoo lives or dies on accuracy. Wrong feature claims, misattributed CE/EE boundaries, or outdated version numbers erode credibility. The Odoo Semantic MCP server lets you query the actual indexed codebase to verify claims before publishing.
 
 Use cases:
-- "What's new in Odoo 17 vs 16?" — get real API changes, not just release notes
-- "Does Odoo have [feature] in Community?" — verify before writing the comparison table
-- "Show me a code example of how Odoo handles [business process]" — for technical content pieces
+- "What's new in Odoo 17 vs 16?" - get real API changes, not just release notes
+- "Does Odoo have [feature] in Community?" - verify before writing the comparison table
+- "Show me a code example of how Odoo handles [business process]" - for technical content pieces
 
 ---
 
@@ -22,7 +22,7 @@ Use cases:
 | Tool | What it answers |
 |------|----------------|
 | `api_version_diff` | What actually changed between two Odoo versions for a specific model/API |
-| `find_examples` | Real code snippets showing how a feature works — useful for technical blog posts |
+| `find_examples` | Real code snippets showing how a feature works - useful for technical blog posts |
 | `check_module_exists` | Is this feature CE or EE? What version added it? |
 | `model_inspect` | How many modules and extensions does this core business object have? |
 
@@ -33,17 +33,17 @@ Use cases:
 ### Version comparison content
 
 ```
-api_version_diff("sale.order", "16.0", "17.0")
+api_version_diff("sale.order", "16.0", "<version>")
 ```
 
-Returns actual API changes — new fields, deprecated methods, status changes. Use this to write factual "What's new in Odoo 17" sections instead of relying solely on official release notes.
+Returns actual API changes - new fields, deprecated methods, status changes. Use this to write factual "What's new in Odoo 17" sections instead of relying solely on official release notes.
 
 ### CE vs EE feature tables
 
 ```
-check_module_exists("account_accountant", "17.0")
-check_module_exists("sign", "17.0")
-check_module_exists("website_livechat", "17.0")
+check_module_exists("account_accountant", "<version>")
+check_module_exists("sign", "<version>")
+check_module_exists("website_livechat", "<version>")
 ```
 
 Build accurate CE/EE comparison tables. The tool returns the `is_ee` flag and EE confusion warnings for look-alike module names.
@@ -96,7 +96,7 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin:
 
 1. Run `api_version_diff` for the relevant model or API
 2. Run `check_module_exists` for any module you mention
-3. Note the `odoo_version` in your tool call — always specify which version you verified against
+3. Note the `odoo_version` in your tool call - always specify which version you verified against
 4. For CE/EE claims: cite the `is_ee` flag from `check_module_exists`
 
 **Common accuracy mistakes to avoid:**
@@ -104,5 +104,5 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin:
 | Wrong claim | How to verify with MCP |
 |-------------|----------------------|
 | "Odoo 17 has [feature] for free" | `check_module_exists` -> verify `is_ee: false` |
-| "In Odoo 17, name_get was replaced by..." | `lookup_core_api("name_get", "17.0")` -> check `status` |
+| "In Odoo 17, name_get was replaced by..." | `lookup_core_api("name_get", "<version>")` -> check `status` |
 | "Odoo added [API] in version X" | `api_version_diff` -> `added_in` field |

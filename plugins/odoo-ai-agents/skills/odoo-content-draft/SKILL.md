@@ -1,12 +1,12 @@
 ---
 name: odoo-content-draft
 description: >
-  Draft ready-to-publish marketing content for Odoo or your distribution — LinkedIn post,
+  Draft ready-to-publish marketing content for Odoo or your distribution - LinkedIn post,
   blog article, YouTube script, email sequence, landing page copy, or social caption.
   Language: English default; Vietnamese and other locales on request.
   Trigger on: "draft a blog post", "write a LinkedIn post", "YouTube script for",
   "draft email sequence", "landing page copy", "social caption for".
-  Trigger when user asks to CREATE any of these formats — even without the word "marketing".
+  Trigger when user asks to CREATE any of these formats - even without the word "marketing".
   Also fires on Vietnamese: "viết bài blog", "soạn bài LinkedIn", "kịch bản YouTube",
   "chuỗi email", "nội dung landing page", "caption mạng xã hội".
   DO NOT trigger for: proposal/gap-analysis text (-> odoo-gap-analysis),
@@ -31,13 +31,13 @@ GTM marketer for Odoo or a custom distribution. Audience: B2B SMB owners, financ
 
 ## MCP tools
 
-<!-- BEGIN MANUAL TOOLS — odoo-content-draft -->
+<!-- BEGIN MANUAL TOOLS - odoo-content-draft -->
 
-**Optional — use only when grounding a specific feature claim:**
-- `check_module_exists` — Verify that a named Odoo/Viindoo module actually exists before
+**Optional - use only when grounding a specific feature claim:**
+- `check_module_exists` - Verify that a named Odoo/Viindoo module actually exists before
   citing it in content. Call when user names a specific module (e.g., "mrp", "helpdesk")
   and you want to confirm edition (CE/EE/Viindoo) and version presence.
-- `find_examples` — Fetch 1-2 real code or config snippets from the indexed Odoo codebase
+- `find_examples` - Fetch 1-2 real code or config snippets from the indexed Odoo codebase
   for technical credibility (e.g., a field name, a workflow state). Use sparingly; content
   audiences rarely need raw code.
 
@@ -45,7 +45,7 @@ GTM marketer for Odoo or a custom distribution. Audience: B2B SMB owners, financ
 - The topic is generic (ERP benefits, SME pain points, productivity tips)
 - OSM is unreachable (see Standalone-first fallback section)
 - User has already provided feature details verbally
-<!-- END MANUAL TOOLS — odoo-content-draft -->
+<!-- END MANUAL TOOLS - odoo-content-draft -->
 
 ## Channel matrix
 
@@ -63,7 +63,7 @@ GTM marketer for Odoo or a custom distribution. Audience: B2B SMB owners, financ
 1. **Tone**: confident and credible, never condescending. Expert guide, not pushy vendor.
 2. **Outcome-first**: lead with business outcome, not feature.
    - BAD: "The system has an MRP module with multi-level BOM."
-   - GOOD: "Manage materials for 200+ SKUs without stockouts — MRP raises the alert automatically."
+   - GOOD: "Manage materials for 200+ SKUs without stockouts - MRP raises the alert automatically."
 3. **Specifics, not vague claims**: cite verified numbers or use relative language ("down from 3 days to a few hours") / abstract templates ("Company X in industry Y reported..."). Never invent hard numbers.
 4. **Language**: default to English unless user specifies. Vietnamese output → full diacritics. Product names, module names, UI labels stay in English regardless of language.
 5. **Vocabulary discipline**:
@@ -82,7 +82,7 @@ Then confirm only what is still missing: channel, topic/product angle, audience,
 
 ### Round 1 - Optional MCP grounding
 
-If topic names a specific module AND OSM is reachable: call `check_module_exists(name=<name>, odoo_version='<version>')` + `find_examples(query=<feature context>, limit=2, odoo_version='<version>')`. Use as background — do not paste raw code into marketing copy.
+If topic names a specific module AND OSM is reachable: call `check_module_exists(name=<name>, odoo_version='<version>')` + `find_examples(query=<feature context>, limit=2, odoo_version='<version>')`. Use as background - do not paste raw code into marketing copy.
 
 Skip if: topic is generic, OSM unreachable, or user already provided all feature details.
 
@@ -117,11 +117,11 @@ Present the draft in the channel-native format:
 - **YouTube script**: structured with timestamp markers in bold (`**0:00-0:15 Hook**`) and
   `[NOTE: show screen of X]` cues for the editor. The script + timestamps can be handed to
   `odoo-demo-recording` to capture a real Odoo screencast for the `[NOTE: show screen]` cues
-  instead of sourcing footage separately (forward suggestion only — this skill stays text).
+  instead of sourcing footage separately (forward suggestion only - this skill stays text).
 - **Email sequence**: numbered emails, each with Subject line, Preview text (45 chars),
   Body, and CTA link placeholder `[LINK: ...]`.
 - **Landing page copy**: sectioned with HTML-comment labels `<!-- HERO -->`, `<!-- VALUE PROPS -->`,
-  etc. for the web developer. Copy only — no HTML tags.
+  etc. for the web developer. Copy only - no HTML tags.
 - **Social caption**: plain text, emoji-light, ready to paste into Facebook/Zalo Business.
 
 After the draft, add a short `---` section: **Suggestions for next steps** (1-3 bullets):
@@ -138,7 +138,7 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/examples.md` for
 ## Notes
 
 - **Brand assets**: check `branding/STYLE.md` or equivalent if copy must describe visual elements. Video scripts → `odoo-demo-recording` can realize as a live screencast (this skill stays text-only).
-- **Context file**: `.odoo-ai/context.md` read in Round 0 — audience personas, messaging pillars, channel restrictions, tone preferences all override defaults.
+- **Context file**: `.odoo-ai/context.md` read in Round 0 - audience personas, messaging pillars, channel restrictions, tone preferences all override defaults.
 - **Depth rule**: depth 1. Does NOT invoke other skills or spawn subagents.
 - **Localization**: Vietnamese final deliverable → full diacritics. Workflow notes/placeholders in this file may be ASCII-only.
 

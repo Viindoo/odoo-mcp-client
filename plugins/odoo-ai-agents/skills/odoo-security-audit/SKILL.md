@@ -34,7 +34,7 @@ Invoke whenever:
 - A PR touches controllers, model methods with `sudo()`, QWeb templates with `t-raw`, or CSV access files
 - A module is being deployed or reviewed for the first time with no prior security audit
 
-**Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a runtime security symptom here (observed leak, unexpected `AccessError`, apparent injection — with reproduction + version), root-cause THAT symptom following `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` and emit the same graded report. A direct invocation with no specific symptom stays a proactive audit.
+**Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a runtime security symptom here (observed leak, unexpected `AccessError`, apparent injection - with reproduction + version), root-cause THAT symptom following `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` and emit the same graded report. A direct invocation with no specific symptom stays a proactive audit.
 
 ## MCP tools
 
@@ -49,11 +49,11 @@ Invoke whenever:
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Primary tools:**
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-- `lint_check` — Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.9.1+).
-- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `lookup_core_api` - Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `lint_check` - Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.9.1+).
+- `entity_lookup` ★ - Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
 <!-- END GENERATED TOOLS -->
 
 ## Method
@@ -66,18 +66,18 @@ Use parallel MCP calls to minimize round trips. Full audit completes in 3-4 roun
 
 ### Round 1 - Parallel triage (fire together)
 
-1. `lint_check` on Python/JS source — note results are hints, not gates.
-2. `find_examples(query='safe_eval usage', odoo_version='<version>')` — indexed safe_eval examples to compare against audited code.
-3. `find_examples(query='http.route auth public', odoo_version='<version>')` — controller auth patterns.
-4. `find_examples(query='t-raw QWeb XSS Markup', odoo_version='<version>')` — safe QWeb output patterns.
+1. `lint_check` on Python/JS source - note results are hints, not gates.
+2. `find_examples(query='safe_eval usage', odoo_version='<version>')` - indexed safe_eval examples to compare against audited code.
+3. `find_examples(query='http.route auth public', odoo_version='<version>')` - controller auth patterns.
+4. `find_examples(query='t-raw QWeb XSS Markup', odoo_version='<version>')` - safe QWeb output patterns.
 
 ### Round 2 - Pattern scan + model/method inspection (parallel)
 
-- `model_inspect` on each model in scope (`method='methods'`) — enumerate methods and flag sudo() usage counts.
+- `model_inspect` on each model in scope (`method='methods'`) - enumerate methods and flag sudo() usage counts.
 - `entity_lookup(kind='method', ...)` for each suspicious method (sudo() call, cr.execute, t-raw).
-- `lookup_core_api(name='safe_eval', odoo_version='<version>')` — exact safe API signature.
-- `lookup_core_api(name='Markup', odoo_version='<version>')` — correct Markup/escape usage.
-- `lookup_core_api(name='http.route', odoo_version='<version>')` — auth parameter accepted values.
+- `lookup_core_api(name='safe_eval', odoo_version='<version>')` - exact safe API signature.
+- `lookup_core_api(name='Markup', odoo_version='<version>')` - correct Markup/escape usage.
+- `lookup_core_api(name='http.route', odoo_version='<version>')` - auth parameter accepted values.
 
 ### Round 3 - Access control verification (parallel)
 
@@ -110,11 +110,11 @@ Full vulnerability patterns (SQL injection, XSS, access control, CSRF, unsafe de
 
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
-- **Tier 2 - Disk scan:** Run the grep commands from the Method section against the local source tree — surfaces SQL injection candidates, XSS candidates, sudo() calls, eval/pickle, public routes, and hardcoded secrets without MCP.
+- **Tier 2 - Disk scan:** Run the grep commands from the Method section against the local source tree - surfaces SQL injection candidates, XSS candidates, sudo() calls, eval/pickle, public routes, and hardcoded secrets without MCP.
 - **Tier 2 - Access CSV check:** Run the `find` command to detect models missing `ir.model.access.csv`.
 - **Tier 2 - Version:** Read `.odoo-ai/context.md` for `odoo_version`; derive from manifest if absent.
-- Label output `grounded: local-source (not OSM-indexed)`. OSM-enriched exploitability context (inheritance chain, exact API signature for `safe_eval`/`Markup`) unavailable — note findings as "requires OSM verification for full exploit path".
-- Escalate (`NEEDS_CONTEXT`) only if target version is genuinely unresolvable and severity grading would materially change between versions — never ask the caller to supply code or file lists that a disk scan can retrieve.
+- Label output `grounded: local-source (not OSM-indexed)`. OSM-enriched exploitability context (inheritance chain, exact API signature for `safe_eval`/`Markup`) unavailable - note findings as "requires OSM verification for full exploit path".
+- Escalate (`NEEDS_CONTEXT`) only if target version is genuinely unresolvable and severity grading would materially change between versions - never ask the caller to supply code or file lists that a disk scan can retrieve.
 
 ## Continuation Contract
 

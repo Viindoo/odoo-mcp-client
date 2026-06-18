@@ -1,7 +1,7 @@
 ---
 name: odoo-produce-video
 description: |
-  Produce a multi-scene Odoo demo video: author a storyboard (scene list with click paths), record each scene via odoo-demo-recording, then assemble all clips into a single MP4 or GIF deliverable. Invoke when you need a structured multi-scene walkthrough — e.g. "make a 3-scene product demo", "record storyboard and assemble into one video", "multi-scene Odoo marketing video", "quay nhiều scene ghép thành một video demo"
+  Produce a multi-scene Odoo demo video: author a storyboard (scene list with click paths), record each scene via odoo-demo-recording, then assemble all clips into a single MP4 or GIF deliverable. Invoke when you need a structured multi-scene walkthrough - e.g. "make a 3-scene product demo", "record storyboard and assemble into one video", "multi-scene Odoo marketing video", "quay nhiều scene ghép thành một video demo"
 ---
 # /odoo-produce-video
 
@@ -17,7 +17,7 @@ plugins/odoo-ai-agents/workflows/video-produce.workflow.yaml
 ## How to run
 
 The `workflow-chaining` skill auto-discovers `video-produce.workflow.yaml` and executes it
-when this command fires. Dispatch happens via natural-language routing — the runner reads
+when this command fires. Dispatch happens via natural-language routing - the runner reads
 the workflow YAML and drives each phase in sequence.
 
 To invoke: type `/odoo-produce-video` (optionally followed by a project label, e.g.
@@ -37,4 +37,4 @@ Three gated phases (Pipeline pattern):
 Output lands in `.odoo-ai/video/<project_label>-<YYYY-MM-DD>/`.
 
 For full phase specifications, gate behavior, standalone fallback rules, hard rules,
-and examples — read `workflows/video-produce.workflow.yaml` directly.
+and examples - read `workflows/video-produce.workflow.yaml` directly.

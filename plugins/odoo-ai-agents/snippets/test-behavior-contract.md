@@ -1,6 +1,6 @@
 <!-- SSOT snippet. Orthogonal to test-first-contract.md: that one governs WHEN (red before green);
      this one governs HOW a test is ARRANGED so it actually exercises the behavior. Referenced (not
-     copy-pasted) by odoo-test-writer, odoo-coder, odoo-frontend-coder, odoo-code-reviewer (rejects
+     copy-pasted) by odoo-test-writing, odoo-coder, odoo-frontend-coder, odoo-code-reviewer (rejects
      shortcut tests), odoo-qa-suite, odoo-solution-architect, odoo-backend-debugger, and the
      odoo-coding dispatch brief. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md. -->

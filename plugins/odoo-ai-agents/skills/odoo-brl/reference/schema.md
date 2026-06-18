@@ -54,7 +54,7 @@ Written once at Phase 0 before Gate 0. Never mutated after gate approval.
   "odoo_version": "17.0",
   "profiles": {
     "odoo": "odoo_17",
-    "viindoo": "viindoo_internal_17"
+    "viindoo": "standard_viindoo_17"
   },
   "total_reqs": 1000,
   "chunk_size": 50,
@@ -194,7 +194,7 @@ holds the revised value. The chunk CHECKPOINT merger uses this to update `result
 
 One object per requirement. Final merged output of A + B + C (+ D when implemented).
 Rebuilt by concatenating `chunks/chunk-*.merged.jsonl` in chunk order after every chunk
-(never appended directly — append would duplicate rows on a chunk re-run). Finalized at Phase E.
+(never appended directly - append would duplicate rows on a chunk re-run). Finalized at Phase E.
 
 ```json
 {
@@ -296,7 +296,7 @@ via the formula in `docs/reference/workflow-harness.md`.
 **Invariant:** `sum(phase_breakdown_usd.values()) == budget_usd.max`. `phase_distribution`
 in `cost-config.json` sums to exactly 1.0, so the breakdown reconciles to the final budget.
 Contingency is applied ONCE (the `(1 + contingency_pct)` factor in `budget_usd`); it is NOT a
-separate phase line — listing it twice would double-count. `annual_maintenance_usd` is a
+separate phase line - listing it twice would double-count. `annual_maintenance_usd` is a
 separate forward-looking figure (`budget_max * annual_maintenance_pct`), not part of the budget.
 
 ---
@@ -360,13 +360,13 @@ Dependency adjacency written by Phase D after all chunks finish. The reasoning a
 | `edges[]` | array | Directed `from -> to` (from must complete before to). Each has `type` + `reason` |
 | `edges[].type` | enum | `technical \| business-logic \| data-flow` |
 | `topological_order` | array | Implementation sequence from Kahn's algorithm (acyclic remainder if a cycle exists) |
-| `phases` | object | `{phase_number: [req_ids]}` — in-degree-0 peel layers; drives `impl_phase` |
+| `phases` | object | `{phase_number: [req_ids]}` - in-degree-0 peel layers; drives `impl_phase` |
 | `cycles` | array | Cycle members when a circular dependency is detected (empty `[]` for a valid DAG). Each entry: `{members: [req_ids], resolution_options: ["split","manual","shared-prereq"]}` |
 | `critical_path` | array | Longest EST/EFT path (req_ids) |
 | `critical_path_days` | number | Sum of `effort_days` along the critical path (= max EFT) |
 | `meta.clusters` | array | Cluster ids used in D2 |
 | `meta.cluster_caps` | array | Records any cluster that exceeded the 120-item cap and was split |
-| `meta.cluster_size_cap` | int | Heuristic bound (120) — documented identically in `dag-prompt.md` and SKILL.md Phase D |
+| `meta.cluster_size_cap` | int | Heuristic bound (120) - documented identically in `dag-prompt.md` and SKILL.md Phase D |
 | `meta.technical_edges` | string | `from-module-deps` normally; `skipped-osm-unreachable` in standalone fallback |
 | `meta.custom_affinity_edges` | int | Count of inter-cluster edges added via D4-B business-domain affinity heuristic for Custom clusters (0 if no Custom items produced cross-cluster edges) |
 
@@ -388,6 +388,6 @@ Edge `type` values: `technical | business-logic | data-flow`
 
 ## References
 
-- `docs/reference/workflow-harness.md` §3 — BRL job schema SSOT
-- `cost-config.json` — effort lookup + rate card SSOT
-- `docs/reference/workflow-harness.md` — harness architecture and BRL schema SSOT
+- `docs/reference/workflow-harness.md` §3 - BRL job schema SSOT
+- `cost-config.json` - effort lookup + rate card SSOT
+- `docs/reference/workflow-harness.md` - harness architecture and BRL schema SSOT

@@ -1,4 +1,4 @@
-# Odoo Semantic — Cursor Rules
+# Odoo Semantic - Cursor Rules
 
 ## Overview
 
@@ -9,12 +9,12 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 ## Add to `.cursorrules`
 
 ```
-# Odoo Semantic MCP — Developer Rules (v0.13.1 tool surface)
+# Odoo Semantic MCP - Developer Rules (v0.13.1 tool surface)
 # Auto-triggers for Odoo codebase intelligence via MCP
 
 ## Session bootstrap (run once per chat session)
 - At session start, call list_available_versions() to discover indexed versions
-- Pin the version with set_active_version("17.0") — the pin is per-API-key server state (24h idle TTL); racy under concurrency
+- Pin the version with set_active_version("17.0") - the pin is per-API-key server state (24h idle TTL); racy under concurrency
 - Pass the concrete version on every call - the pin is per-API-key and racy under concurrency (omitting odoo_version raises a validation error)
 - Pin tenant with set_active_profile("<name>") if multi-tenant MCP
 
@@ -45,7 +45,7 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 - User wants views of a module → call module_inspect(name=<name>, method="views", odoo_version='<version>')
 
 ### Working with CSS/SCSS/LESS stylesheets
-- User wants to know what stylesheets a module ships (CSS, SCSS, or LESS — LESS covers legacy v8-v11)
+- User wants to know what stylesheets a module ships (CSS, SCSS, or LESS - LESS covers legacy v8-v11)
   → call resolve_stylesheet(module=<name>, odoo_version='<version>')
 - User asks where a CSS selector or SCSS/LESS variable is defined or overridden
   → call find_style_override(selector_or_variable=<selector_or_var>, odoo_version='<version>')
@@ -94,7 +94,7 @@ These are platform invariants, not suggestions - apply them whenever you design 
 - odoo://{version}/pattern/{name}           # canonical pattern catalogue entry
 - odoo://{version}/stylesheet/{module}/{file_path*}   # CSS/SCSS/LESS record
 
-Use Resources when you already know the entity ID — no tool call overhead.
+Use Resources when you already know the entity ID - no tool call overhead.
 
 ## Example: superset tools replace the old multi-call pattern
 
@@ -180,7 +180,7 @@ Default Odoo version: 17.0 (detect from project manifest if available, else use 
 For a project already configured for Odoo 17.0 development:
 
 ```
-# .cursorrules — Odoo 17.0 project
+# .cursorrules - Odoo 17.0 project
 
 ## MCP tools (use odoo-semantic for all Odoo questions)
 
@@ -257,29 +257,29 @@ _Tool surface: server v0.13.1. Generated from `generator/server-surface.json`. R
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 ## Key mappings (generated)
-- "inspect model" → `model_inspect ★` — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- "inspect module" → `module_inspect ★` — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
-- "lookup field" → `entity_lookup ★` — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
-- "which repos make up profile" → `profile_inspect` — Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
-- "show me examples" → `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- "what breaks if I change" → `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
-- "is API deprecated" → `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-- "what changed between versions" → `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
-- "deprecated API in code" → `find_deprecated_usage` — Scan the indexed codebase for usages of deprecated API patterns.
-- "lint check" → `lint_check` — Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.9.1+).
-- "odoo-bin options" → `cli_help` — Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags.
-- "best pattern for" → `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
-- "does module exist" → `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
-- "where to override" → `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
-- "what does module do" → `describe_module` — Module manifest + defined/extended model counts + view/JS inventory in one call.
-- "set version" → `set_active_version ☆` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
-- "set profile" → `set_active_profile ☆` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
-- "what versions are indexed" → `list_available_versions ☆` — Enumerate which Odoo versions the server has indexed.
-- "what profiles exist" → `list_available_profiles ☆` — Enumerate which tenant profiles exist in the server index.
-- "stylesheets in module" → `resolve_stylesheet ✦` — Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain.
-- "where is CSS selector defined" → `find_style_override ✦` — Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain.
-- "trace field path" → `resolve_orm_chain ⊕` — Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
-- "is this domain valid" → `validate_domain ⊕` — Validate search domain terms: field-path resolution and operator version-awareness.
-- "validate compute depends" → `validate_depends ⊕` — Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.
-- "does field point to model" → `validate_relation ⊕` — Assert a relational field points at the expected comodel (many2one/one2many/many2many).
+- "inspect model" → `model_inspect ★` - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- "inspect module" → `module_inspect ★` - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- "lookup field" → `entity_lookup ★` - Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- "which repos make up profile" → `profile_inspect` - Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
+- "show me examples" → `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
+- "what breaks if I change" → `impact_analysis` - Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
+- "is API deprecated" → `lookup_core_api` - Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- "what changed between versions" → `api_version_diff` - Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- "deprecated API in code" → `find_deprecated_usage` - Scan the indexed codebase for usages of deprecated API patterns.
+- "lint check" → `lint_check` - Validate code against Odoo-specific lint rules (Python/JavaScript), or return corpus-level XML RelaxNG violation nodes (language='xml', server v0.9.1+).
+- "odoo-bin options" → `cli_help` - Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags.
+- "best pattern for" → `suggest_pattern` - Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+- "does module exist" → `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- "where to override" → `find_override_point` - Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
+- "what does module do" → `describe_module` - Module manifest + defined/extended model counts + view/JS inventory in one call.
+- "set version" → `set_active_version ☆` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+- "set profile" → `set_active_profile ☆` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- "what versions are indexed" → `list_available_versions ☆` - Enumerate which Odoo versions the server has indexed.
+- "what profiles exist" → `list_available_profiles ☆` - Enumerate which tenant profiles exist in the server index.
+- "stylesheets in module" → `resolve_stylesheet ✦` - Enumerate CSS/SCSS/LESS stylesheets a module ships with selector/variable/mixin counts and the @import chain.
+- "where is CSS selector defined" → `find_style_override ✦` - Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain.
+- "trace field path" → `resolve_orm_chain ⊕` - Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
+- "is this domain valid" → `validate_domain ⊕` - Validate search domain terms: field-path resolution and operator version-awareness.
+- "validate compute depends" → `validate_depends ⊕` - Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.
+- "does field point to model" → `validate_relation ⊕` - Assert a relational field points at the expected comodel (many2one/one2many/many2many).
 <!-- END GENERATED TOOLS -->

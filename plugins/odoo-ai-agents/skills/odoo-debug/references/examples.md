@@ -1,4 +1,4 @@
-# odoo-debug — Worked Examples
+# odoo-debug - Worked Examples
 
 ## Example 1 - backend, contained
 

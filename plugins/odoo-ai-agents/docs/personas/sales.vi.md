@@ -34,7 +34,7 @@ Các kịch bản chính:
 ### Xử lý "Odoo có X không?" tức thì
 
 ```
-check_module_exists("sign", "17.0")
+check_module_exists("sign", "<version>")
 ```
 
 Trả về: module có tồn tại hay không, CE hay EE, cảnh báo nhầm lẫn EE nếu cần. Trả lời câu hỏi của khách hàng với sự chắc chắn.
@@ -50,7 +50,7 @@ Trả về code thật từ các repo Odoo đã lập chỉ mục - không phả
 ### Khảo sát instance Odoo hiện có của khách hàng
 
 ```
-model_inspect(model="sale.order", method="summary", odoo_version="16.0")
+model_inspect(model="sale.order", method="summary", odoo_version="<version>")
 ```
 
 Xem có bao nhiêu module mở rộng các model lõi của họ. Nếu khách hàng đang dùng phiên bản cũ với nhiều tùy chỉnh nặng, điều này cho bạn biết độ phức tạp của việc nâng cấp trước cả đối thủ.

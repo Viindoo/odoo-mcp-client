@@ -1,8 +1,8 @@
 ---
 name: odoo-coding
 description: >
-  Write complete, production-ready Odoo code end-to-end — Python/XML backend AND
-  JavaScript/OWL/QWeb/SCSS frontend — from a single computed field up to a multi-module
+  Write complete, production-ready Odoo code end-to-end - Python/XML backend AND
+  JavaScript/OWL/QWeb/SCSS frontend - from a single computed field up to a multi-module
   full-stack feature. The single front door for ALL coding: it works out which modules the
   change touches and their dependency order, then dispatches the odoo-coder (backend) and
   odoo-frontend-coder (frontend) agents in the right sequence. Fire ANY time someone asks to
@@ -17,7 +17,7 @@ description: >
 
 ## Persona
 
-Developer — full-stack Odoo coder (all versions, v8 onward). Orchestrates two specialist agents:
+Developer - full-stack Odoo coder (all versions, v8 onward). Orchestrates two specialist agents:
 `odoo-coder` for Python/XML backend and `odoo-frontend-coder` for JS/OWL/QWeb/SCSS frontend.
 Pair-works with `odoo-code-review` for review.
 
@@ -36,13 +36,13 @@ entry point: it figures out per-module whether work is backend / frontend / full
 just the agents needed. The agents stay specialists; this skill owns orchestration (module set,
 dependency order, sequencing), not codegen.
 
-## Phase 0 — Scope + module graph (1-turn gate, mandatory)
+## Phase 0 - Scope + module graph (1-turn gate, mandatory)
 
 This is the single confirmation checkpoint. It applies even when the request arrived directly
-(e.g. intake bypass) — **unless your brief carries the AUTONOMOUS FIX sentinel (see the exception
+(e.g. intake bypass) - **unless your brief carries the AUTONOMOUS FIX sentinel (see the exception
 immediately below), in which case you skip this gate entirely.**
 
-**Autonomous-fix exception — SKIP this gate entirely** when your brief contains
+**Autonomous-fix exception - SKIP this gate entirely** when your brief contains
 **"AUTONOMOUS FIX (review-driven)"** or **"AUTONOMOUS FIX (debug-driven)"**: the human already
 opted into the autonomous review/debug fix loop, so do NOT stop for a confirmation. Read the worklog
 + the review report / proven root cause passed in, fix directly to those findings, and the moment
@@ -55,21 +55,21 @@ Otherwise (normal invocation), First READ any existing worklog for this run
 phase (e.g. `odoo-solution-design`) already recorded instead of re-deriving them. Then do six
 things, then stop for the user's reply.
 
-**1. Design-gate first (safety net).** Judge whether the change is **non-trivial** — the set
+**1. Design-gate first (safety net).** Judge whether the change is **non-trivial** - the set
 `odoo-solution-design` defines: Extension-L/Custom-XL, a new module/model or restructuring, a
 core `create`/`write`/`unlink` override or a ≥3-override-chain method, a >1-strategy migration, a
 cross-model computed chain or multi-company logic, a full-stack feature, or a refactor. If it is
 non-trivial AND no approved design exists (no `.odoo-ai/designs/<slug>-*.md`, and none passed in
-via a `design_doc` input), recommend `SUGGESTED_NEXT: odoo-solution-design` first — a
+via a `design_doc` input), recommend `SUGGESTED_NEXT: odoo-solution-design` first - a
 recommendation, not a hard block, so the user may still say "code it directly". When a
-`design_doc` IS present, read it and **build to it** — do not re-derive the approach. **Trivial**
+`design_doc` IS present, read it and **build to it** - do not re-derive the approach. **Trivial**
 work (a single field, boilerplate, a one-approach fix) skips design.
 
 **2. Determine the target module set.** Derive the modules the change will touch from the design
-doc / the request (coding *creates* the change, so there is no git diff to read — unlike
+doc / the request (coding *creates* the change, so there is no git diff to read - unlike
 `odoo-code-review`). A "module" is the directory holding `__manifest__.py`.
 
-**3. Tag each module's stack-need** — `backend`, `frontend`, or `fullstack`. Take it from the
+**3. Tag each module's stack-need** - `backend`, `frontend`, or `fullstack`. Take it from the
 design doc when it already splits the work; otherwise infer: touching `models/` `views/`
 `security/` `*.csv` ⇒ backend; touching `static/src` JS/SCSS/QWeb ⇒ frontend; both ⇒ fullstack.
 
@@ -164,6 +164,12 @@ model-weighted budget - WEIGHT haiku=1, sonnet=2, opus=4, fable=8; at most 8 wei
 at once (keeps opus <=2 and fable exclusive while haiku/sonnet flow freely - the OOM risk comes from
 opus-class fan-out, so heavier tiers weigh more).
 
+Instance-allocation rule (SSOT: same `concurrency-guard.md` § Odoo instance allocation): a coder or
+test-author that runs `odoo-bin` against a database (tests via `--test-enable`, `-i`/`-u`, or
+scaffolding into a DB) acquires an ISOLATED instance via `scripts/lib/allocator.py` (a unique
+ephemeral DB) instead of the single declared db/port - the coder agents already do this from their
+system prompt, so the brief never passes a shared db/port.
+
 ### Dispatch loop - model-weighted batches
 
 The Phase 0 plan carries, per module: name, path on disk, stack, model (and `frontendModel` when
@@ -196,46 +202,54 @@ the UI leg). Resolve ONE Odoo version for the whole run; carry the design-doc pa
 
 ### Per-module briefs
 
-Each Agent-tool call carries the brief below as its `prompt`. Keep identifiers verbatim.
+Each Agent-tool call carries the brief below as its `prompt`. The brief is **run-specific inputs
+only**: every procedure (OSM grounding, coding guidelines, worklog read/append, ORM + static gates,
+demo data, output format, test-first) already lives in the coder's system prompt, so do NOT re-teach
+it here - a re-taught copy duplicates the SSOT and drifts. Keep identifiers verbatim.
 
-Backend coder (`agentType: odoo-coder`):
+Coder (`agentType: odoo-coder` for a backend leg / `odoo-frontend-coder` for a frontend leg):
 
 ```
 DISPATCH MODEL: <tier>
-You are the odoo-coder agent. Produce production-ready Python/XML Odoo code.
-REQUEST: <the change for this module, with target model + constraints>
-MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest__.py).
-NEW MODULE: <yes - scaffold the skeleton with `odoo-bin scaffold` first, then fill it in (do NOT hand-roll the skeleton) | no>. To run `odoo-bin` (scaffold, or tests via `--test-enable`), resolve the interpreter per `snippets/venv-resolution.md` - never assume system `python3`.
+REQUEST: <the change for this module: target model + constraints; for a frontend leg use the module's frontendRequest, falling back to its request>
+MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest__.py / static assets).
+NEW MODULE: <yes - scaffold the skeleton with `odoo-bin scaffold` first, then fill it in | no>
 ODOO VERSION: <version>
 DESIGN_DOC: <path | none> - if present, build to it; do not re-derive.
-TEST: <test-author -> "FAILING TEST (written by a separate author, currently RED): <paths> - implement until these pass; do NOT edit the tests to make them pass." | self -> "TEST-FIRST: write the failing test for the business rule FIRST and confirm it goes RED, then implement to green; never weaken the test. The test MUST drive the real workflow (action_confirm/action_validate/button_validate, Form() for onchange, with_user() not sudo()) - never seed the terminal state with create({state:...})."> See snippets/test-first-contract.md and snippets/test-behavior-contract.md.
-GUIDELINES: before writing, read skills/_shared/coding_guidelines/<version>/INDEX.md and the by-task files for this change (python/naming/model-ordering for models, xml for views) - conform on the first pass. snippets/read-before-write-contract.md.
-WORKLOG: read then append your significant decisions (approach, impact + mitigation, demo-data, tier) to .odoo-ai/worklog/<runSlug>/ per snippets/worklog-contract.md.
-Step 0 (only if mcp__odoo-semantic__* is available): set_active_version('<version>'), then follow Rounds 1-4 from your system prompt. If OSM is down, use the disk-grounded fallback and still write files. If OSM answers but a specific module/model is not in the index (customer-local addon), Read/Grep the local addon for just that entity and ground hybrid (osm + local-source) - an index miss is not proof of absence. Do not spawn subagents or invoke skills.
-USER LANGUAGE (omit when the user works in English): <lang> - write the summary in this language; keep identifiers verbatim.
+TEST: <test-author -> "FAILING TEST (RED, written by a separate author): <paths> - implement until they pass; do NOT edit the tests." | self -> "write the failing test FIRST, confirm RED, then code to green - never weaken it">
+WORKLOG: <runSlug> - read it, then append your significant decisions.
+USER LANGUAGE: <lang | omit when the user works in English> - write the summary in this language; keep identifiers verbatim.
+Follow the Rounds in your system prompt - it owns every procedure; do not re-derive what it already specifies.
 ```
 
-Frontend coder (`agentType: odoo-frontend-coder`): the same brief shape, with `REQUEST` set to the
-module's frontendRequest (fall back to its request), the MODULE SCOPE covering its
-`__manifest__.py` assets, and two extra lines - "ground styling tokens against
-skills/_shared/odoo-frontend-fidelity.md (no hardcoded hex for themeable colors, no self-referential
---bs-* shim)" and "if the Skill tool is unavailable, Read skills/odoo-frontend-design/SKILL.md
-directly instead of invoking it".
+- To run `odoo-bin` (scaffold, or tests via `--test-enable`), resolve the interpreter per
+  `snippets/venv-resolution.md` - never assume system `python3`.
+- Frontend leg only: ground styling tokens against `skills/_shared/odoo-frontend-fidelity.md`
+  (no hardcoded hex for themeable colors, no self-referential `--bs-*` shim) - the full method lives
+  in the agent's system prompt.
 
 Test-author (`agentType` = `odoo-coder` for a backend leg / `odoo-frontend-coder` for a frontend
-leg, in TEST-AUTHOR mode): "Write ONLY the failing test(s) that protect the business behavior below
-- do NOT write the implementation." Carry REQUEST / MODULE SCOPE (test files only: `tests/` or
-`static/tests/`) / ODOO VERSION as above; follow snippets/test-first-contract.md (red-before-green)
-AND snippets/test-behavior-contract.md (drive the real workflow: action_confirm/action_validate/
-button_validate, Form() for onchange, with_user() not sudo(), never seed the terminal state with
-create({state:...})): assert observable behavior, not internals; ONE intent per test; confirm each
-test goes RED. Append to the worklog. Return the test file paths and a one-line RED confirmation.
-Do not spawn subagents or invoke skills.
+leg, in TEST-AUTHOR mode - this mode is NOT in the agent's own system prompt, so the brief defines
+it):
 
-Each agent locates files via Read/Grep, writes the code, and reports the files it wrote plus
+```
+DISPATCH MODEL: <tier>
+TEST-AUTHOR MODE: write ONLY the failing test(s) protecting the business behavior below - do NOT write the implementation.
+REQUEST: <the business rule to protect>
+MODULE SCOPE: <name> @ <path> - test files only (`tests/` or `static/tests/`).
+ODOO VERSION: <version>
+WORKLOG: <runSlug> - read, then append; return the test paths + a one-line RED confirmation.
+```
+
+Follow `snippets/test-first-contract.md` (red-before-green) and `snippets/test-behavior-contract.md`
+(drive the real workflow - action_confirm/action_validate/button_validate, Form() for onchange,
+with_user() not sudo(); never seed the terminal state with create({state:...})): assert observable
+behavior not internals; ONE intent per test; confirm each goes RED.
+
+Each agent locates files via Read/Grep, writes its output, and reports the files written plus
 `__manifest__.py` changes.
 
-## Artifacts — persist the coding plan
+## Artifacts - persist the coding plan
 
 Write the orchestration plan to `.odoo-ai/coding/<slug>-<YYYY-MM-DD>/plan.md` (`.odoo-ai/` is
 gitignored): the module/stack/wave/**model** table, the computed dependency order, and the design
@@ -252,15 +266,15 @@ unless the human changes it.
 ## Standalone-first fallback
 
 When OSM (the odoo-semantic-mcp server) is unreachable, the dependency graph and stack tags come
-from disk — read each `__manifest__.py` `depends` and scan `static/src` (or the haiku reader
-above) — and each agent falls back to its own disk-grounded mode per
+from disk - read each `__manifest__.py` `depends` and scan `static/src` (or the haiku reader
+above) - and each agent falls back to its own disk-grounded mode per
 `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`, still writing files to their correct
 locations. Label the plan "graph from disk (OSM unavailable)"; the wave/pair topology is
 unchanged, only the grounding degrades. Never ask a human to paste code, field lists, or manifests.
 
 ## Agent-managed tools
 
-This skill is part of an agent+skill bundle. The codegen tool lists live on the two agents —
+This skill is part of an agent+skill bundle. The codegen tool lists live on the two agents -
 see `agents/odoo-coder.md` (backend) and `agents/odoo-frontend-coder.md` (frontend) for the full
 restricted allowlists and execution detail.
 

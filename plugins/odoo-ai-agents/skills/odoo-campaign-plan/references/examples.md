@@ -27,7 +27,7 @@
 ### Example 2 - English (Q4 Release Announcement)
 
 **Input:**
-- Angle: Release announcement — new Odoo 18 features for SME
+- Angle: Release announcement - new Odoo 18 features for SME
 - Objective: Awareness + trial sign-ups from existing community (Odoo partners + prospects)
 - Timeline: 4 weeks
 - Budget: S (content-only)
@@ -35,14 +35,14 @@
 
 **Summary of plan output:**
 
-- **Title**: "Campaign Plan: Odoo 18 SME Features — Q4 Announcement"
+- **Title**: "Campaign Plan: Odoo 18 SME Features - Q4 Announcement"
 - **Angle**: Release announcement ("What's new in Odoo 18 that your SME will actually use")
-- **Week 1**: Teaser — "What's coming" LinkedIn post + email preview to list
-- **Week 2**: Launch — long-form blog post (1,200 words, top 5 features), LinkedIn article
+- **Week 1**: Teaser - "What's coming" LinkedIn post + email preview to list
+- **Week 2**: Launch - long-form blog post (1,200 words, top 5 features), LinkedIn article
   repurpose, email #1 (announcement)
-- **Week 3**: Deep-dive — two LinkedIn posts (one per feature), email #2 (use case story)
-- **Week 4**: CTA push — email #3 (trial offer), LinkedIn final recap post
-- **Assets**: 1 blog post, 4 LinkedIn posts, 3 emails — all drafted via `odoo-content-draft`
+- **Week 3**: Deep-dive - two LinkedIn posts (one per feature), email #2 (use case story)
+- **Week 4**: CTA push - email #3 (trial offer), LinkedIn final recap post
+- **Assets**: 1 blog post, 4 LinkedIn posts, 3 emails - all drafted via `odoo-content-draft`
 - **KPI leading**: LinkedIn post reach, email open rate (target >35% on launch week email)
 - **KPI lagging**: trial sign-ups attributable to campaign period, blog-to-trial conversion %
 - **Owner map**: all 8 assets AI-doable; scheduling + publish + partner outreach = Human (est.

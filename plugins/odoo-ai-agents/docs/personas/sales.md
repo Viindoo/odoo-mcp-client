@@ -1,4 +1,4 @@
-# Odoo Semantic — Sales Guide
+# Odoo Semantic - Sales Guide
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-ai-agents@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
@@ -13,7 +13,7 @@ When a prospect asks "can Odoo do X?", you have two options: guess, or know. The
 Key scenarios:
 - **Feature verification:** "Does Odoo Community have [feature], or is it Enterprise?"
 - **Capability demonstration:** "Show me that Odoo actually handles [business scenario]"
-- **Objection handling:** "The prospect says Odoo can't do X — prove them wrong (or right)"
+- **Objection handling:** "The prospect says Odoo can't do X - prove them wrong (or right)"
 - **Competitive positioning:** "What does Odoo have that competitors don't?"
 
 ---
@@ -34,7 +34,7 @@ Key scenarios:
 ### Handle "Does Odoo have X?" instantly
 
 ```
-check_module_exists("sign", "17.0")
+check_module_exists("sign", "<version>")
 ```
 
 Returns: module exists yes/no, CE vs EE, EE confusion warnings if relevant. Answer the prospect's question with certainty.
@@ -45,7 +45,7 @@ Returns: module exists yes/no, CE vs EE, EE confusion warnings if relevant. Answ
 find_examples("digital signature on purchase order approval workflow", odoo_version='<version>')
 ```
 
-Returns actual code from indexed Odoo repos — not a demo script, but real implementation evidence. Use this when prospects want proof that Odoo's feature is production-ready, not just a checkbox.
+Returns actual code from indexed Odoo repos - not a demo script, but real implementation evidence. Use this when prospects want proof that Odoo's feature is production-ready, not just a checkbox.
 
 ### Scope a prospect's existing Odoo instance
 
@@ -94,11 +94,11 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin:
 
 ## Reading the Results
 
-- **`is_ee: false`** — Feature is in Community Edition. Free for the prospect.
-- **`is_ee: true`** — Requires Enterprise license. Factor into pricing discussion.
-- **`is_ee_confusion: true`** — There is a CE module AND an EE module with similar names. Be careful — clarify which tier the prospect expects.
-- **`Fields: 148`** — The model has 148 fields across all versions. This is evidence of a mature, feature-rich implementation.
-- **Real code from `find_examples`** — This is not a demo — it is actual production code from Odoo's codebase. That is your credibility advantage.
+- **`is_ee: false`** - Feature is in Community Edition. Free for the prospect.
+- **`is_ee: true`** - Requires Enterprise license. Factor into pricing discussion.
+- **`is_ee_confusion: true`** - There is a CE module AND an EE module with similar names. Be careful - clarify which tier the prospect expects.
+- **`Fields: 148`** - The model has 148 fields across all versions. This is evidence of a mature, feature-rich implementation.
+- **Real code from `find_examples`** - This is not a demo - it is actual production code from Odoo's codebase. That is your credibility advantage.
 
 ---
 
@@ -106,7 +106,7 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin:
 
 Before a major demo, run these checks:
 
-1. `check_module_exists` for every feature you plan to show — verify CE vs EE
-2. `find_examples` for 2-3 key scenarios — have proof-points ready
-3. `api_version_diff` if the prospect is upgrading — know the upgrade story
-4. `model_inspect` for the core model you're demoing — know the field count and module depth
+1. `check_module_exists` for every feature you plan to show - verify CE vs EE
+2. `find_examples` for 2-3 key scenarios - have proof-points ready
+3. `api_version_diff` if the prospect is upgrading - know the upgrade story
+4. `model_inspect` for the core model you're demoing - know the field count and module depth

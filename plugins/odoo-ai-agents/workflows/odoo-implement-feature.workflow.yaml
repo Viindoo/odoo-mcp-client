@@ -2,9 +2,9 @@
 # Declarative SSOT for the end-to-end "requirement -> shipped code" engineering pipeline.
 # The DESIGN -> CODE -> REVIEW tail is driven by the depth-0 run-driver via Continuation
 # Contracts (those are depth0-only spawner skills and CANNOT be workflow-chaining phases at
-# depth 1 — see ORCHESTRATION-MAP.md). This workflow therefore does the leaf SCOPING phase
+# depth 1 - see ORCHESTRATION-MAP.md). This workflow therefore does the leaf SCOPING phase
 # here, then EMITs the first spawner (odoo-solution-design for non-trivial work, else straight
-# to odoo-coding) via on_complete for run-driver to chain — exactly the qa-suite shape.
+# to odoo-coding) via on_complete for run-driver to chain - exactly the qa-suite shape.
 name: odoo-implement-feature
 domain: engineering
 team_pattern: Pipeline

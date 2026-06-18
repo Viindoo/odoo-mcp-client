@@ -95,7 +95,7 @@ def test_fix_only_suggests_patch(tmp_path):
 def test_new_skill_file_suggests_minor(tmp_path):
     repo = _init_repo(tmp_path)
     # A new skill added under skills/ must read as MINOR even when the commit type
-    # is a non-feat (here `chore:`) — the added-path rule, not the subject, drives it.
+    # is a non-feat (here `chore:`) - the added-path rule, not the subject, drives it.
     _commit(repo, "chore: add skill", touch="skills/foo/SKILL.md")
     assert _suggested_level(_run_auto_dryrun(repo)) == "minor"
 

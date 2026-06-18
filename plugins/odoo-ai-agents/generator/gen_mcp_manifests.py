@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-gen_mcp_manifests.py — SSOT generator for Codex CLI and Gemini CLI MCP manifests.
+gen_mcp_manifests.py - SSOT generator for Codex CLI and Gemini CLI MCP manifests.
 
 Reads:
   - plugins/odoo-ai-agents/.mcp.json          (browser MCP server SSOT)
@@ -14,7 +14,7 @@ Usage:
   python3 generator/gen_mcp_manifests.py          # write mode (idempotent)
   python3 generator/gen_mcp_manifests.py check    # check mode: diff in-memory vs on-disk; exit 1 on drift
 
-Run from the repo root (or the plugin root — paths are resolved relative to this file).
+Run from the repo root (or the plugin root - paths are resolved relative to this file).
 """
 
 import json
@@ -60,7 +60,7 @@ def build_gemini_extension(ssot_servers: dict, plugin_meta: dict) -> dict:
 
     Note: no 'trust' field (forbidden in Gemini extension manifests).
     Note: no 'type' field per server (Gemini infers transport from command).
-    Note: 'cwd' omitted — not needed for npx invocations.
+    Note: 'cwd' omitted - not needed for npx invocations.
     """
     mcp_servers = {
         name: _strip_type(entry)
@@ -145,7 +145,7 @@ def check_mode() -> int:
 
     if drifted:
         print(
-            "ERROR: gen_mcp_manifests.py check failed — the following generated files are "
+            "ERROR: gen_mcp_manifests.py check failed - the following generated files are "
             "out of sync with plugins/odoo-ai-agents/.mcp.json.\n"
             "Run: python3 plugins/odoo-ai-agents/generator/gen_mcp_manifests.py",
             file=sys.stderr,

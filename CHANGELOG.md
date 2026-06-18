@@ -6,6 +6,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.13.0] - 2026-06-18
+
+### Added
+
+- **Concurrent Odoo instance allocator** (`plugins/odoo-ai-agents/scripts/lib/allocator.py`) - a
+  deterministic, version-agnostic lease allocator so many subagents across many concurrent Claude
+  Code sessions stop colliding on the single declared `db_name`/`http_port`. Each caller gets either
+  an isolated **ephemeral** database (auto `createdb` on acquire, `dropdb` + filestore cleanup on
+  release/GC; degrades to exclusive when the DB role lacks `CREATEDB`), an **exclusive** lease on the
+  declared instance (single holder + pooled ports), or a lease-free **readonly** handle.
+  Coordination is an atomic RMW under an `fcntl.flock`-guarded registry at
+  `${ODOO_AI_HOME:-$HOME/.odoo-ai}/runtime/`; stale leases are reclaimed opportunistically at each
+  acquire (dead-pid same-host + TTL). The allocator returns resource facts only (db, ports, token);
+  consumers build the `odoo-bin` command and map ports to CLI flags via `cli_help` at runtime, so
+  future Odoo CLI changes never touch the script. Subcommands `acquire`/`release`/`heartbeat`/`gc`/
+  `list` emit shell-eval `ALLOC_*` lines. Design: `docs/reference/INSTANCE-ALLOCATION.md`; 12
+  behavior tests in `tests/test_allocator.py` (the Postgres `createdb`/`dropdb` path skips when no
+  local PG). Wired into the backend/frontend coders (DB-touching `odoo-bin` runs acquire an ephemeral
+  DB, then release), the resolution snippets (`instance-resolution.md` "Allocate, don't just
+  resolve"; `resolve_instances.sh` `_odoo_ai_runtime_dir` SSOT; `venv-resolution.md`),
+  `skills/_shared/concurrency-guard.md`, `skills/odoo-coding/SKILL.md`, and
+  `docs/reference/ODOO-TESTING.md`.
+- **Shared live-render target wired into the allocator** - a new non-exclusive `shared` mode plus a
+  `query --series` discovery subcommand let `scripts/setup-steps/50-instance-spinup.sh` register the
+  spun-up server (its actual bound port + the live server pid; `created_db=false` so gc never drops
+  the declared DB) and let `snippets/instance-resolution.md` discover that live port across sessions
+  before falling back to the static `http_port`. The four visual consumers (`odoo-ui-reviewer` /
+  `odoo-ui-debugger` / `odoo-visual-regression` / `odoo-demo-recording`) inherit it through the
+  resolution snippet with no per-consumer edits; registration is best-effort and degrades to plain
+  spin-up when the allocator is absent. A concurrent same-series start is benign (the loser loses the
+  OS port bind and both sessions attach to the one live server).
+
+### Changed
+
+- **Engineering agents hardened and compacted** (`odoo-coder`, `odoo-solution-architect`,
+  `odoo-frontend-coder`, `odoo-code-reviewer`). New normative guidance - Domain Knowledge
+  Activation, Module Ownership / dependency-direction integrity (incl. the CE/EE bug-fixes-only
+  policy), Code Quality Standards (flake8 / ESLint as functional requirements), solution/module
+  Acceptance Criteria, and a per-module-vs-synthesis review mode - while the preloaded
+  system-prompt token cost was reduced by tightening prose (agent bodies are rewrite-only, so no
+  relocation). `odoo-coder`'s `disallowedTools` was narrowed to block only `Agent`, so it can invoke
+  the `odoo-test-writing` skill for the test-first loop. `odoo-ui-debugger` / `odoo-ui-reviewer`
+  gained a "headless by default, headed only on request" browser-mode section.
+- **`odoo-code-reviewer` now reviews intent + domain + TDD conformance, and is compacted 299 -> 183
+  lines.** It gained a Domain Knowledge Activation section, an intent / business-value lens, and a
+  TDD-conformance step: when the dispatch brief carries `DESIGN_DOC: <path>` (wired through
+  `skills/odoo-code-review`), the reviewer verifies the code against the design's Intent & Business
+  Value (section 1) and Acceptance Criteria (section 9, solution + per-module) and emits a
+  `### TDD Conformance` block - an unmet criterion or a code-vs-intent divergence is a HIGH/CRITICAL
+  finding.
+- **No more hardcoded `17.0` version default.** Across agents, personas, skills and snippets the
+  example tool-calls now use a `<version>` placeholder, and the agents STOP and ask when the target
+  Odoo version is ambiguous instead of silently assuming v17.
+- **`odoo-coding` dispatch brief slimmed to run-specific params only** - the per-module procedure is
+  stated once in the agent system prompt (SSOT). `tests/test_execute_agent_hardening.py` was
+  repurposed from a brief-snapshot assert to a behavior assert.
+- **Repo-wide ASCII-hyphen normalization** (em-/en-dash -> `-`) across docs, skills, agents,
+  snippets, workflows and tests.
+
+### Fixed
+
+- **Profile-name correction** `viindoo_internal_17` -> `standard_viindoo_17` in
+  `generator/server-surface.json`, `hooks/detect-intent.sh`, `docs/reference/workflow-harness.md`
+  and several skills/snippets.
+- **Skill-name consistency** `odoo-test-writer` -> `odoo-test-writing` (skill directory rename plus
+  all references in docs, agents, skills, snippets and tests).
+
 ## [3.12.0] - 2026-06-16
 
 ### Added
@@ -60,7 +127,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   to run `odoo-bin` (scaffold / `--test-enable`) / tests / migrations: the matching instance's
   `python` field (via `instances_io.py read`) -> `$ODOO_PYTHON` -> system `python3` (last resort),
   the same chain `50-instance-spinup.sh` uses. Wired into `odoo-coding` (the `odoo-bin scaffold`
-  step), `odoo-test-writer`, and `odoo-data-migration`. Also finishes the instance-resolution wiring
+  step), `odoo-test-writing`, and `odoo-data-migration`. Also finishes the instance-resolution wiring
   in `odoo-demo-recording` (it now falls back to the machine-global `instances.toml` instead of
   immediately asking the human).
 
@@ -154,13 +221,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   refactor (no behavior change): reference-only blocks (worked examples, output-format templates,
   lookup tables, the brl Phase-E deliverable templates, the wave Mode-B dispatch loop) were relocated
   to per-skill `references/` files behind a one-line `${CLAUDE_PLUGIN_ROOT}/...` pointer (progressive
-  disclosure — loaded on demand, not every invocation), and verbose prose was tightened. Agents are
+  disclosure - loaded on demand, not every invocation), and verbose prose was tightened. Agents are
   rewrite-only (their body is a preloaded system prompt, so no relocation). Skill bodies -25.0%
   (645,872 -> 484,526 B), agent bodies -16.6% (160,026 -> 133,507 B); ~188 KB removed from the
   on-invoke load. Frontmatter/descriptions byte-identical (triggering unchanged); all generated tool
   blocks untouched; full `pytest tests/` green.
-- **`odoo-intake`: added a "Your role — orchestrator, not implementer" section** at the top of the
-  body — frames the main agent as the team leader that gets work done by invoking the right skill
+- **`odoo-intake`: added a "Your role - orchestrator, not implementer" section** at the top of the
+  body - frames the main agent as the team leader that gets work done by invoking the right skill
   (Skill tool), launching an agent directly only when no skill fits, and owning orchestration +
   decisions rather than hand-implementing.
 
@@ -192,7 +259,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **Two-variant browser MCP servers (headless default + headed on request).** Each browser backend
   (chrome-devtools, playwright, pagecast) now ships TWO servers: a headless default (`<name>`, passes
-  `--headless`) and a visible `<name>-headed` variant — 6 servers total. The AI agent selects the
+  `--headless`) and a visible `<name>-headed` variant - 6 servers total. The AI agent selects the
   `-headed` variant only when the human asks to watch the browser; the choice is which tool it calls
   (NL/AI-driven), NOT an env var or on-disk flag. chrome-devtools + playwright also pass `--isolated`
   so concurrent Claude/Codex/Gemini sessions get a private profile (fixes the "browser already
@@ -275,7 +342,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Test-first loop in `odoo-coding`**: a separate test-author writes a failing test before the
   code for non-trivial modules (the coder self-tests for trivial ones), feeding a bounded
   `code -> review+test -> code` loop; `odoo-code-review` gates test coverage and loops fixes back to
-  `odoo-coding` / `odoo-test-writer`.
+  `odoo-coding` / `odoo-test-writing`.
 - **Module-aware `wave`**: Phase 0 computes the Odoo module DAG, auto-infers work-item `depends_on`
   from module dependencies, and warns on work-items that cross module boundaries.
 
@@ -395,7 +462,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Removed
 
-- **`odoo-backend-coding`** and **`odoo-frontend-coding`** skills — subsumed by the unified
+- **`odoo-backend-coding`** and **`odoo-frontend-coding`** skills - subsumed by the unified
   `odoo-coding` front door (the `odoo-coder` / `odoo-frontend-coder` agents are retained as its
   companions). Net skill count 39 → 40; agents 6 → 7.
 
@@ -450,7 +517,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   stops for a human; the dial can never lower it), plus cross-workflow `on_complete`
   transitions. Three advisory hooks (`remind-delegate`, `drive-continuation`,
   `parse-continuation`) nudge but never hard-block the main agent.
-- **7 new domain skills:** `odoo-test-writer`, `odoo-security-audit`, `odoo-data-migration`,
+- **7 new domain skills:** `odoo-test-writing`, `odoo-security-audit`, `odoo-data-migration`,
   `odoo-perf-audit`, `odoo-pricing-proposal`, `odoo-rfp-response`, `odoo-customer-health`.
 - **`research-multiphase` workflow** - flexible-phase, multi-model-tier research dogfood.
 
@@ -463,7 +530,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [3.0.0] - 2026-06-06
 
-### Changed (BREAKING) — naming normalization across skills, agents, and commands
+### Changed (BREAKING) - naming normalization across skills, agents, and commands
 
 Names now encode **role** so an AI router (and a human) can tell the three layers apart even
 when a name appears bare, without its `odoo-semantic-skills:` namespace: **skill** = a
@@ -472,10 +539,10 @@ capability noun (`-review`, `-analysis`, `-coding`), **agent** = an actor noun (
 name collisions and the agent-suffixed skills that were masquerading as executors. The full
 convention is documented in `CONTRIBUTING.md` → "Naming convention: skill vs agent vs command".
 
-**Migration (clean break, no aliases).** There is **no backward-compatibility shim** — invoking
+**Migration (clean break, no aliases).** There is **no backward-compatibility shim** - invoking
 an old name after updating to 3.0.0 fails with "not found"; use the new name (table below). To
 defer migration, pin the plugin to `2.x`. The four **agent** names are unchanged. Skill
-descriptions/trigger phrases are unchanged, so natural-language routing behaves identically —
+descriptions/trigger phrases are unchanged, so natural-language routing behaves identically -
 only explicit slash commands and bare name references changed.
 
 **Skills renamed (10):**
@@ -493,7 +560,7 @@ only explicit slash commands and bare name references changed.
 | `odoo-ui-debug` | `odoo-ui-debugging` |
 | `workflow-runner` | `workflow-chaining` |
 
-**Commands renamed (9)** — `name:` now equals the filename (the invoked name); old `name:`
+**Commands renamed (9)** - `name:` now equals the filename (the invoked name); old `name:`
 fields that never matched their file are corrected:
 
 | Old command | New command |
@@ -516,18 +583,18 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
 
 ### Added
 
-- **Local reproduction of the Odoo code-quality CI gate (issue #46) — multi-version aware, baked
+- **Local reproduction of the Odoo code-quality CI gate (issue #46) - multi-version aware, baked
   into the verify/test flow.** New `scripts/verify-backend.sh` is the backend sibling of
   `verify-frontend.sh`: it runs `pylint --load-plugins=pylint_odoo` on changed Python from an
   **isolated tools venv** (`$ODOO_AI_DIR/tools/pylint-<series>/`, never the instance venv), with
   pylint/astroid/pylint-odoo pinned per Odoo series in the extended
   `scripts/lib/odoo-python-matrix.json` (`lint` block; 16/17 → the verified-faithful
   pylint-odoo 8.0.22 · pylint 2.15.10 · astroid 2.13.5 combo, 18 → 9.x (pylint 3), 19 → 10.x
-  (pylint 4, which pylint-odoo 10 hard-requires) — each pylint era-matched to its pylint-odoo major
+  (pylint 4, which pylint-odoo 10 hard-requires) - each pylint era-matched to its pylint-odoo major
   to avoid checker-plugin crashes). Always loads `pylint_odoo` so the
   `consider-merging-classes-inherited` pragma never reads as the `W0012` vanilla false signal, and
   **derives the enabled-code set from the deployment's own quality module** (`test_pylint`/`test_lint`)
-  when present — no deployment-internal config is vendored. Graceful degradation (soft-warn, exit 0)
+  when present - no deployment-internal config is vendored. Graceful degradation (soft-warn, exit 0)
   when the toolchain/series/files are absent, with an opt-in `--provision` to build the pinned venv.
   Shipped fallback `scripts/odoo-pylintrc` (OCA defaults).
 - **`/test_lint` mandate in the test-run SSOT.** `docs/reference/ODOO-TESTING.md` now documents the
@@ -535,14 +602,14 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
   `wave`, `INSTANCE-LIFECYCLE.md` and `osm-first-contract.md` inherit it via their existing pointers.
   `odoo-coder` (Round 4) and `odoo-code-reviewer` now run `verify-backend.sh`; `odoo-deploy-checklist`
   gains a Domain-6 pre-push parity item. New reference: `docs/reference/odoo-code-quality.md`.
-- **Enforcement substrate — `SubagentStop` grounding hook (`hooks/enforce-grounding.sh`).** Turns the
+- **Enforcement substrate - `SubagentStop` grounding hook (`hooks/enforce-grounding.sh`).** Turns the
   previously advisory OSM-first contract into a checkable invariant: it reads the worker's own
   transcript (assistant-authored content only) and **blocks once** (loop-safe via `stop_hook_active`)
   when an artifact claims `grounded: osm` but made zero `mcp__odoo-semantic__*` calls, asking the
   agent to actually verify or relabel honestly. Self-gates to Odoo-shaped subagents. Two softer
-  gaps raise a **non-blocking note** (never a block — a block there only manufactures unverifiable
+  gaps raise a **non-blocking note** (never a block - a block there only manufactures unverifiable
   `grounded: local-source` labels and false-blocks legit pure-Python/standalone work): backend
-  code written with OSM reachable but the ORM validators skipped; and the **silent-skipper** —
+  code written with OSM reachable but the ORM validators skipped; and the **silent-skipper** -
   backend `.py` written with zero OSM calls and no grounding label at all (previously slipped
   through unnoticed). The `odoo-coder` Round-4 "skipped with reason noted" free bypass was
   tightened to require the standalone `grounded: local-source` label. Hook behavior is locked by
@@ -559,11 +626,11 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
 
 ### Fixed
 
-- **`detect-intent.sh` routed structure-lookup questions to the vault instead of the OSM index** —
+- **`detect-intent.sh` routed structure-lookup questions to the vault instead of the OSM index** -
   the UserPromptSubmit hook only surfaced the index hint for code-gen intents (domain
   `engineering|upgrade|visual-UI`) and worded it as "before generating or editing Odoo code", so a
   composition/lookup question ("which modules / repos does profile X contain") got no pointer to the
-  index and the agent fell back to the vault — even though `profile_inspect` answers it directly.
+  index and the agent fell back to the vault - even though `profile_inspect` answers it directly.
   Added an `_is_lookup` intent probe (EN `module/repo/profile/version/inventory/composition` + VI
   `gồm / có gì / module nào / repo nào / những gì / có bao nhiêu`) that emits an `[OSM-lookup]` hint
   naming `profile_inspect` / `describe_module` / `model_inspect`, fired on Odoo/Viindoo anchor +
@@ -574,18 +641,18 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
 
 ### Added
 
-- **OSM server 0.13.1 surface sync (24 → 25 tools)** — mirror the new `profile_inspect` tool
+- **OSM server 0.13.1 surface sync (24 → 25 tools)** - mirror the new `profile_inspect` tool
   (`method=summary|repos|modules`: profile inheritance chain + repos + module inventory/count,
   ADR-0028) into `generator/server-surface.json` and wire it into the skills that answer
   "what's in this profile" questions: `odoo-onboard` (records module inventory into
   `.odoo-ai/context.md`), `odoo-customization-inventory`, `odoo-addon-diff`, `odoo-brl`,
   `odoo-risk-overview`, `odoo-competitive-brief`, `odoo-discovery-summarize`, `odoo-campaign-plan`.
-- **Live version-gate (closes #40 Finding 2)** — `check_deps.py` now enforces the previously-dead
+- **Live version-gate (closes #40 Finding 2)** - `check_deps.py` now enforces the previously-dead
   `server_version_required` / per-skill `min_server_version` fields: each floor must cover the
   newest tool the skill/agent uses and stay ≤ the mirrored server version (semver compare).
-- **OSM-maximization pass across skills + agents** — wired, at each phase, the OSM tool/resource
+- **OSM-maximization pass across skills + agents** - wired, at each phase, the OSM tool/resource
   that removes a concrete guessing step: `impact_analysis` (BRL Extension-M/L blast radius);
-  `set_active_version` pins (ui-debug / visual-regression / demo-recorder / ui-reviewer — stop
+  `set_active_version` pins (ui-debug / visual-regression / demo-recorder / ui-reviewer - stop
   `odoo_version='auto'` resolving to latest-indexed); `module_inspect` scope numbers
   (feature-highlights / capability-proof / objection-handler / gap-analysis); `find_deprecated_usage`
   + `module_inspect(dependencies)` (customization-inventory upgrade-risk); `lookup_core_api` /
@@ -598,18 +665,18 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
 
 ### Fixed
 
-- **#41 — skill examples pinned non-existent profile names** — replaced `viindoo-internal` (hyphen)
-  and bare `odoo` with versioned names (`viindoo_internal_17`, `odoo_17`) across odoo-brl,
+- **#41 - skill examples pinned non-existent profile names** - replaced `viindoo-internal` (hyphen)
+  and bare `odoo` with versioned names (`standard_viindoo_17`, `odoo_17`) across odoo-brl,
   odoo-gap-analysis, odoo-onboard, odoo-customization-inventory, odoo-addon-diff, evals, schema,
   workflow-harness, context-bootstrap; preserved the "read from `.odoo-ai/context.md` /
   `list_available_profiles`, never hard-code" guidance.
-- **Tool descriptions resynced to 0.13.x behaviour** — `find_examples` documents the lexical
+- **Tool descriptions resynced to 0.13.x behaviour** - `find_examples` documents the lexical
   fallback when the embedder is down (#264); `model_inspect` documents the `extenders` method +
   the real page caps (#262).
 
 ### Changed
 
-- **Provenance stamp 0.11.1 → 0.13.1 (closes #40)** — `server_version` in the surface SSOT plus
+- **Provenance stamp 0.11.1 → 0.13.1 (closes #40)** - `server_version` in the surface SSOT plus
   every hand-maintained "24 tools / v0.11.1" label (README, ROADMAP, setup.md, dev.md, snippet
   intros, MANUAL skill footers); generated surfaces regenerated via `make gen`.
 
@@ -617,55 +684,55 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
 
 ### Added
 
-- **Agent-first grounding SSOT (PR #42)** — two new snippets the skills/agents reference by
+- **Agent-first grounding SSOT (PR #42)** - two new snippets the skills/agents reference by
   path: `snippets/disk-fallback-protocol.md` (three-tier grounding: OSM index → disk self-serve
   via Read/Grep/Bash/WebFetch → training-memory flagged `ungrounded`) and
   `snippets/context-bootstrap.md` (a mandatory Round 0 that reads `.odoo-ai/context.md` before
   asking the caller for version/profile/module list).
-- **`odoo-frontend-coder` agent (PR #43)** — frontend coding is now an agent+skill bundle
+- **`odoo-frontend-coder` agent (PR #43)** - frontend coding is now an agent+skill bundle
   (mirrors `odoo-coder` / `odoo-code-reviewer`): a slim routing skill plus an isolated executor
   agent with a restricted tool allowlist (incl. `resolve_stylesheet` / `find_style_override`),
   so version-gating + multi-round MCP runs out of the main agent's context.
 
 ### Changed
 
-- **Standalone-first fallback: paste-only → disk-grounded (PR #42)** — when OSM is unreachable
+- **Standalone-first fallback: paste-only → disk-grounded (PR #42)** - when OSM is unreachable
   a skill now reads the source itself (`find`/`grep`/`Read`, `WebFetch` upstream) instead of
   asking a human to paste code/fields/manifests; copy-pasteable output is the last resort
   (repo genuinely inaccessible). **This reverses the [2.5.0] decision to keep the fallback
   paste-only.** Visual skills return `BLOCKED(...)` when a browser/instance is unreachable
   rather than soliciting screenshots. `hooks/detect-intent.sh` recommends disk-grounded
   fallback accordingly.
-- **Portability (PR #42)** — sales/visual flows no longer depend on the non-official live Odoo
+- **Portability (PR #42)** - sales/visual flows no longer depend on the non-official live Odoo
   ERP MCP (`mcp__odoo__*`) or the claude.ai Gmail MCP; deal/CRM/email data comes from the
   invocation context and `.odoo-ai/context.md`, instance URL from `.odoo-ai/instances.toml`.
   Any live ERP/email integration is an optional bonus, never assumed.
-- **Code skills self-author (PR #42)** — `odoo-coder` / `odoo-code-reviewer` /
+- **Code skills self-author (PR #42)** - `odoo-coder` / `odoo-code-reviewer` /
   `odoo-frontend-coder` write and review code natively (boilerplate from `find_examples`
   templates, complex logic reasoned step by step, inline self-review) instead of delegating.
-- **Model-tier (PR #42)** — `feature-positioning.workflow.yaml` feature-check / addon-diff
+- **Model-tier (PR #42)** - `feature-positioning.workflow.yaml` feature-check / addon-diff
   `haiku` → `sonnet` (OSM synthesis, not simple lookup); `haiku` definition tightened in
   `_schema.md` / `workflow-harness.md` (never for write/synthesis phases). The
   `set_active_profile` example reads `viindoo_profile` from `.odoo-ai/context.md` instead of
   hard-coding `viindoo-internal`.
-- **Frontend bundle + version portability (PR #43)** — the `odoo-frontend-coder` skill is
+- **Frontend bundle + version portability (PR #43)** - the `odoo-frontend-coder` skill is
   renamed `odoo-frontend-coding` (the agent keeps the `odoo-frontend-coder` name); the
   wave / nesting-guard guidance is corrected so a depth-2 leaf worker never invokes a
-  depth0-only bundle (it writes/reviews directly via OSM tools); hard-pinned `v8–v19` version
+  depth0-only bundle (it writes/reviews directly via OSM tools); hard-pinned `v8-v19` version
   ranges that only meant "all supported" are replaced with open phrasing ("any/all supported
   version", "v8+") while real era boundaries are kept; the README no longer tracks the plugin
   version.
 
 ### Removed
 
-- **ollama-delegate (PR #42)** — removed all `mcp__ollama-delegate__*` delegation from the
+- **ollama-delegate (PR #42)** - removed all `mcp__ollama-delegate__*` delegation from the
   plugin and the `ollama_tools` field from every `generator/skill_tool_deps.json` entry (plus
   the `SKILL_OLLAMA_TOOLS` load and the "Ollama-delegate tools" render block in
   `generator/gen_surface.py`). The running agent generates/reviews code itself.
 
 ### Fixed
 
-- **Session-pin scope wording (#253, follow-up to server #251/#252)** — corrected the
+- **Session-pin scope wording (#253, follow-up to server #251/#252)** - corrected the
   `set_active_version` / `set_active_profile` sticky-context description from "per API key"
   to **per live MCP session** (single api-key/`_nosession` fallback for stdio/header-less,
   24h idle TTL, resets on server restart). Fixed at the SSOT
@@ -673,19 +740,19 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
   regenerated via `make gen` (propagates to `mcp-tool-routing.md`, 12 SKILL.md, 3 snippets),
   plus the manual prose outside the generator (`docs/setup.md`, `docs/personas/dev.md`,
   `odoo-deploy-checklist`/`odoo-frontend-coder` SKILL.md, snippet intros, and the
-  `odoo-brl` state-file `schema.md` re-bootstrap note). Prose-only — no tool-surface change
+  `odoo-brl` state-file `schema.md` re-bootstrap note). Prose-only - no tool-surface change
   (tool count stays 24), no client code change.
 
 ## [2.5.0] - 2026-06-03
 
 ### Added
 
-- **Frontend fidelity (#37)** — make AI-authored Odoo OWL/JS + SCSS correct and lint-compliant
+- **Frontend fidelity (#37)** - make AI-authored Odoo OWL/JS + SCSS correct and lint-compliant
   by construction: an era-sectioned SSOT pitfall catalogue
-  (`skills/_shared/odoo-frontend-fidelity.md`, v8–v19+), a write-time OWL grounding checklist
+  (`skills/_shared/odoo-frontend-fidelity.md`, v8-v19+), a write-time OWL grounding checklist
   plus a post-write verify gate (`scripts/verify-frontend.sh`, `scripts/rules/owl-pitfalls.txt`,
   `scripts/odoo-prettierrc.json`), and passing/broken `odoo-frontend-coder` examples.
-- **Agent-facing guidance guard** (`tests/test_agent_facing_guidance.py`) — four checks keeping
+- **Agent-facing guidance guard** (`tests/test_agent_facing_guidance.py`) - four checks keeping
   skills/snippets/agents/docs in sync with the server tool surface: no "omit/optional
   odoo_version" prose, no drifted parameter names, every named argument is a real parameter of
   its tool, and every example call to a version-required tool supplies `odoo_version`.
@@ -699,26 +766,26 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
   `suggest_pattern(query=)`→`intent`, `lookup_core_api(symbol=)`→`name`,
   `api_version_diff(scope)`→`symbol`) across skills, the cursor/gemini/openai snippets, and
   agent definitions.
-- **Tool-permission grants for file-authoring skills** — removed the `disallowed-tools: Write Edit`
+- **Tool-permission grants for file-authoring skills** - removed the `disallowed-tools: Write Edit`
   frontmatter block from the four skills whose own contract is to write deliverables to disk
   (`odoo-brl` → `.odoo-ai/brl/` rtm.csv/cost.json/dag/report.md, `odoo-qa-suite` →
   `.odoo-ai/qa/*.md`, `workflow-runner` → `output_dir` artifacts + checkpoints, `wave` →
   `.odoo-ai/wave/<slug>/plan.md`), which were previously blocked from delivering their output.
 - Restored `odoo-coder` / `odoo-frontend-coder` to write/apply code directly (with a patch
-  preview before applying), per the README's coder intent ("Coder — Write Odoo backend or
+  preview before applying), per the README's coder intent ("Coder - Write Odoo backend or
   frontend code", "fix writer … writes the override and shows a patch preview before
-  applying") — undoing the v2.4.0 `disallowed-tools: Write Edit` drift that had reduced them
+  applying") - undoing the v2.4.0 `disallowed-tools: Write Edit` drift that had reduced them
   to copy-paste-only. Removed the block from both skills, added `Write`/`Edit` to the
   `odoo-coder` agent's tool list, and reframed Phase 0 as a patch preview (not a write-block).
   The OSM-unreachable Standalone-first fallback stays paste-only.
 - **AI-agent-consumer review follow-ups:**
-  - Workflow-harness doc sync — `docs/reference/workflow-harness.md` no longer claims a
+  - Workflow-harness doc sync - `docs/reference/workflow-harness.md` no longer claims a
     platform-enforced `disallowed-tools: Write Edit` write-block (the gate is now behavioral
     Iron Law + Plan Mode; coders preview a patch then write). Updated the layer diagram,
     enforcement-stack table, and the mechanisms prose.
-  - `set_active_version` 'auto'-needs-pin warning — clarified in `generator/server-surface.json`
+  - `set_active_version` 'auto'-needs-pin warning - clarified in `generator/server-surface.json`
     (the regeneration SSOT) that the tool needs a CONCRETE version (sentinels rejected), other
-    calls reuse the pin via `odoo_version='auto'`, and `'auto'` is only safe AFTER a pin —
+    calls reuse the pin via `odoo_version='auto'`, and `'auto'` is only safe AFTER a pin -
     without a pinned session it silently falls back to the latest indexed version. Regenerated
     all derived blocks.
   - Frontend gate hardening (`scripts/verify-frontend.sh` + `scripts/rules/owl-pitfalls.txt`):
@@ -731,7 +798,7 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
   - Agent-facing guard (`tests/test_agent_facing_guidance.py`) now matches the fully-qualified
     `mcp__<server>__tool(...)` call form (not just the bare name) and credits a positional
     toward `odoo_version` only when positionals reach its slot in the tool's canonical
-    signature order — catching `suggest_pattern(...)`, `lint_check(code_chunk)`, and bare
+    signature order - catching `suggest_pattern(...)`, `lint_check(code_chunk)`, and bare
     `cli_help(...)`/`lint_check(...)` calls that omitted the now-required version; fixed all
     the calls it newly caught.
   - Corrected the class-4 SCSS literal in `skills/_shared/odoo-frontend-fidelity.md` to the
@@ -744,10 +811,10 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
 
 #### Added
 
-- **`requirements.txt`** — single source of truth for test dependencies (`pytest` + `PyYAML`);
+- **`requirements.txt`** - single source of truth for test dependencies (`pytest` + `PyYAML`);
   previously undeclared, causing contributors to install deps ad-hoc and PyYAML-gated
   workflow tests to silently skip (~99 parametrized cases masked by the missing import).
-- **`make setup`** — bootstraps `.venv` by probing for Python >= 3.12 (`python3.12` through
+- **`make setup`** - bootstraps `.venv` by probing for Python >= 3.12 (`python3.12` through
   `python`). All Makefile targets (`make test`, `make validate`, etc.) now run through
   `$(VENV)/bin/python` and auto-bootstrap the venv on first use if `make setup` was skipped.
 - **Python 3.12+ prerequisite** documented in `README.md` (contributor section) and
@@ -773,7 +840,7 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
   tool prefix, the brand `Odoo Semantic`, and the product URL) are unchanged.
 - Compacted every specialist skill `description` under the 1024-character per-entry
   cap (28 skills; ~40,071 → ~27,051 chars, −32%). This eliminates skill-listing
-  truncation — previously 28 descriptions exceeded the cap, forcing Claude to drop
+  truncation - previously 28 descriptions exceeded the cap, forcing Claude to drop
   descriptions and degrade triggering. All `route to …` / `DO NOT trigger → …`
   disambiguation clauses, bilingual (EN+VN) triggers, version-resolution, and
   OSM-grounding signals are preserved; skill bodies, generated `## MCP tools` blocks,
@@ -801,12 +868,12 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
 
 #### Added
 
-- **`wave` skill** — depth-0 multi-subagent git-wave orchestration: integration branch +
+- **`wave` skill** - depth-0 multi-subagent git-wave orchestration: integration branch +
   WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate
   + human-confirm merge. Self-spawning, principal-branch-locked, auto-merge never allowed.
   Covers 1-WI minimal through ≥4-WI full plan-artifact (`.odoo-ai/wave/<slug>/plan.md`)
   with topology diagram and disjoint ownership map.
-- **`/odoo-semantic-skills:wave-run` command** — thin dispatcher to the `wave` skill;
+- **`/odoo-semantic-skills:wave-run` command** - thin dispatcher to the `wave` skill;
   accepts optional work-item description, emits plan gate before any branch is created.
 
 ## [2.2.0] - 2026-05-31
@@ -815,18 +882,18 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
 
 #### Added
 
-- **`intake` skill** — universal front door for all 9 persona buckets (CEO/strategist,
+- **`intake` skill** - universal front door for all 9 persona buckets (CEO/strategist,
   consultant, sales AE, pre-sales, marketer, developer, QA, customer-success). Handles
   vague prompts via a 4-tier brainstorm-or-fast-path routing flow, proposes a plan gate
   before any execution skill fires, and is depth-0 only (never spawns subagents).
-- **`odoo-brl` skill** — BRL engine for classifying and costing tens-to-thousands of
+- **`odoo-brl` skill** - BRL engine for classifying and costing tens-to-thousands of
   business requirements: 4-way classification (CE/EE/Viindoo/Custom), deterministic cost
   lookup, dependency DAG with Kahn topological sort, and checkpoint/resume support for
   large jobs.
-- **3 domain workflow YAMLs** — `bid-respond.workflow.yaml`, `discovery-pipeline.workflow.yaml`,
+- **3 domain workflow YAMLs** - `bid-respond.workflow.yaml`, `discovery-pipeline.workflow.yaml`,
   and `feature-positioning.workflow.yaml` added as composition-runnable workflows using
   the `workflow-runner` skill as the execution harness.
-- **Security hardening** — confidentiality guard expanded to cover 8 banned content groups
+- **Security hardening** - confidentiality guard expanded to cover 8 banned content groups
   across all skill/agent/command surface; intake hard-rule enforces depth-0 constraint.
 
 #### Changed
@@ -841,38 +908,38 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
 ## [2.1.0] - 2026-05-29
 
 ### Added
-- **Visual UI testing stack** for the `odoo-semantic-skills` plugin — review, debug,
+- **Visual UI testing stack** for the `odoo-semantic-skills` plugin - review, debug,
   regression-test, and record a *rendered* Odoo UI in a live browser (complementing the
   existing source-level skills). Four new skills:
-  - `odoo-ui-reviewer` — five-lens verdict (aesthetics, functional correctness, runtime
+  - `odoo-ui-reviewer` - five-lens verdict (aesthetics, functional correctness, runtime
     stability, accessibility, performance) on a rendered screen (slim; paired with the new
     `odoo-ui-reviewer` agent bundle).
-  - `odoo-ui-debug` — root-cause a broken/misbehaving UI at runtime (console errors, failed
+  - `odoo-ui-debug` - root-cause a broken/misbehaving UI at runtime (console errors, failed
     requests, blank OWL renders, CSS that renders wrong) and point at the exact override point.
-  - `odoo-visual-regression` — screenshot-baseline + diff between two Odoo states (before/after
+  - `odoo-visual-regression` - screenshot-baseline + diff between two Odoo states (before/after
     an upgrade, module install, theme change, or code edit) with blast-radius assessment.
-  - `odoo-demo-recorder` — record an MP4/GIF screen-capture of a scripted Odoo click-path for a
+  - `odoo-demo-recorder` - record an MP4/GIF screen-capture of a scripted Odoo click-path for a
     demo, sales walkthrough, or marketing clip.
-- **`odoo-ui-reviewer` agent bundle** (`agents/odoo-ui-reviewer.md`, Sonnet) — drives the
+- **`odoo-ui-reviewer` agent bundle** (`agents/odoo-ui-reviewer.md`, Sonnet) - drives the
   multi-step browser review with screenshot/console/Lighthouse evidence plus OSM source pointers.
-- **Bundled browser MCP servers** (`.mcp.json`) — `chrome-devtools`, `playwright`, and
+- **Bundled browser MCP servers** (`.mcp.json`) - `chrome-devtools`, `playwright`, and
   `pagecast` (local stdio `npx` servers) load automatically when the plugin is installed,
   powering the visual stack.
-- **`/odoo-semantic-skills:setup` command** — one-shot, idempotent, extensible setup for the
+- **`/odoo-semantic-skills:setup` command** - one-shot, idempotent, extensible setup for the
   visual workflow. Drives a registry of numbered step scripts (`scripts/setup-steps/`), each
   with a `describe | check | apply` contract: wires the 3 browser MCP servers across Claude
   Code / Codex CLI / Gemini CLI, installs browser dependencies (Node >= 20, Playwright
   Chromium, ffmpeg), auto-allows the browser tool permissions, discovers local Odoo repos into
   `.odoo-ai/instances.toml`, and optionally spins up a declared instance.
-- **SessionStart hook** (`hooks/hooks.json` + `hooks/check-setup-deps.sh`) — read-only
+- **SessionStart hook** (`hooks/hooks.json` + `hooks/check-setup-deps.sh`) - read-only
   readiness probe that hints `/odoo-semantic-skills:setup` when visual-stack deps are missing;
   silent when everything is ready, never installs or blocks.
-- **Shared setup utilities** (`scripts/lib/`) — `config_merge.py` (idempotent cross-runtime MCP
+- **Shared setup utilities** (`scripts/lib/`) - `config_merge.py` (idempotent cross-runtime MCP
   config merge) and `discover_odoo.sh` (local Odoo instance discovery), reused by the
   setup-step scripts.
 
 ### Changed
-- Plugin description + keywords bumped to reflect the visual stack — now **26 skill personas +
+- Plugin description + keywords bumped to reflect the visual stack - now **26 skill personas +
   3 specialist agents + 6 workflow commands** across engineering, sales, marketing, strategy,
   onboarding, and visual UI testing.
 - Documentation counts corrected from `22 skills / 2 agents / 5 commands` to
@@ -883,7 +950,7 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
 ## [2.0.1] - 2026-05-29
 
 ### Fixed
-- **Broken docs anchor in `README.md`** — the MCP-resources link pointed at the stale
+- **Broken docs anchor in `README.md`** - the MCP-resources link pointed at the stale
   `docs/setup.md#mcp-resources-7-uri-templates` fragment; corrected to the actual
   `plugins/odoo-semantic-skills/docs/setup.md#mcp-resources-odoo-uri-scheme-v05` heading.
 - **Stylesheet resource URI template** corrected to
@@ -927,7 +994,7 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
 - **Neutralized Viindoo-specific framing** in `README.md`: "Viindoo CEO use case" ->
   "small-team founder use case"; "vs Viindoo" -> "vs your Odoo distribution"; Viindoo
   as legitimate project sponsor and trademark holder is retained throughout.
-- **Replaced private server repository links** — all references to
+- **Replaced private server repository links** - all references to
   `github.com/Viindoo/odoo-semantic-server` replaced with the public hosted endpoint
   `https://odoo-semantic.viindoo.com/` or the sign-up page; self-host instructions
   redirect to post-registration server docs.
@@ -947,11 +1014,11 @@ No functional changes to skills, agents, or commands in this release.
 - 7 new skills: `odoo-frontend-coder` (merges legacy `odoo-js-coder` + `odoo-owl-coder` with v8-v19 internal version gate), `odoo-deal-followup`, `odoo-discovery-summarize`, `odoo-content-draft`, `odoo-campaign-plan`, `odoo-competitive-brief`, `odoo-deploy-checklist`.
 - 2 new agent bundles in `agents/`: `odoo-coder` + `odoo-code-reviewer` (restricted-tool autonomy for code-write work).
 - 5 slash command-recipes in `commands/`: `/odoo-bid-respond`, `/odoo-customer-followup-draft`, `/odoo-discovery-quick`, `/odoo-feature-positioning`, `/odoo-upgrade-plan-full` (replaces legacy `odoo-upgrade-planner` agent).
-- `odoo-router` skill — silent disambiguation concierge with 21-row routing table + 4 collision-test cases.
-- `odoo-onboard` skill — bootstrap Odoo project context to `.odoo-ai/context.md` (gitignored, portable markdown-bullet schema).
-- SSOT generator (`generator/gen_surface.py`) — emits routing matrix + per-skill `## MCP tools` blocks + IDE snippets from `generator/server-surface.json`. Idempotent.
-- Skill↔tool dependency map (`generator/skill_tool_deps.json`) + CI assertion (`generator/check_deps.py`) — fails if a skill/agent references a removed server tool.
-- Confidentiality pre-commit hook + CI workflow — blocks vault paths and absolute `~/.` references in committed files.
+- `odoo-router` skill - silent disambiguation concierge with 21-row routing table + 4 collision-test cases.
+- `odoo-onboard` skill - bootstrap Odoo project context to `.odoo-ai/context.md` (gitignored, portable markdown-bullet schema).
+- SSOT generator (`generator/gen_surface.py`) - emits routing matrix + per-skill `## MCP tools` blocks + IDE snippets from `generator/server-surface.json`. Idempotent.
+- Skill↔tool dependency map (`generator/skill_tool_deps.json`) + CI assertion (`generator/check_deps.py`) - fails if a skill/agent references a removed server tool.
+- Confidentiality pre-commit hook + CI workflow - blocks vault paths and absolute `~/.` references in committed files.
 - Multi-runtime smoke test checklist (`tests/smoke/runtime_parity.md`).
 - README section "For the small-team Odoo founder" with use cases covering all 8 personas.
 - `## Out of Scope` + `## Standalone-first fallback` sections in all 22 skills + 5 of 5 new commands (CI-enforced by `tests/test_skill_format.py`).
@@ -961,21 +1028,21 @@ No functional changes to skills, agents, or commands in this release.
 - Plugin description + keywords updated to reflect post-refinement scope.
 - 11 existing skills (`odoo-addon-diff`, `odoo-capability-proof`, `odoo-customization-inventory`, `odoo-deprecation-audit`, `odoo-feature-check`, `odoo-feature-highlights`, `odoo-gap-analysis`, `odoo-objection-handler`, `odoo-override-finder`, `odoo-risk-overview`, `odoo-version-diff`) gained `## Out of Scope` + `## Standalone-first fallback` sections.
 - `odoo-coder` + `odoo-code-reviewer` skills slimmed (≤100 lines each) into agent+skill bundle pattern; execution detail moved to `agents/<name>.md`.
-- `docs/reference/mcp-tool-routing.md` (442 lines) — fully generator-managed, no longer hand-maintained.
+- `docs/reference/mcp-tool-routing.md` (442 lines) - fully generator-managed, no longer hand-maintained.
 
 ### Removed
 - `skills/odoo-js-coder/` + `skills/odoo-owl-coder/` (merged into `odoo-frontend-coder`).
-- Hardcoded `SKILL_TO_TOOLS` Python dict in generator — replaced by JSON SSOT in `skill_tool_deps.json`.
+- Hardcoded `SKILL_TO_TOOLS` Python dict in generator - replaced by JSON SSOT in `skill_tool_deps.json`.
 
 ### Deprecated
-- `agents/odoo-upgrade-planner.md` — kept in tree for git history but marked DEPRECATED; users should invoke `/odoo-upgrade-plan-full` slash command instead.
+- `agents/odoo-upgrade-planner.md` - kept in tree for git history but marked DEPRECATED; users should invoke `/odoo-upgrade-plan-full` slash command instead.
 
 ### Fixed
 - Generator `description.split(".")[0]` clipping bug (truncated descriptions at inline periods like `@api.depends`, decimal version numbers).
-- Confidentiality leak: 3 files referenced an absolute `~/.claude/plans/...` path — replaced with in-repo `docs/refinement-plan-2026-05-28.md`.
-- 4 skills had redundant handwritten `## Additional tools (ollama-delegate)` section duplicating generator-managed content — removed.
-- Agent bundle tools allowlist missing `set_active_version` — both `odoo-coder` and `odoo-code-reviewer` agents had this fixed (would have caused runtime denial of the first MCP call).
-- Marker labels in 5 new B.2 skills renamed from `BEGIN GENERATED TOOLS` to honest `BEGIN MANUAL TOOLS — <name>` (since these skills are in `SKIP_SKILL_DIRS`).
+- Confidentiality leak: 3 files referenced an absolute `~/.claude/plans/...` path - replaced with in-repo `docs/refinement-plan-2026-05-28.md`.
+- 4 skills had redundant handwritten `## Additional tools (ollama-delegate)` section duplicating generator-managed content - removed.
+- Agent bundle tools allowlist missing `set_active_version` - both `odoo-coder` and `odoo-code-reviewer` agents had this fixed (would have caused runtime denial of the first MCP call).
+- Marker labels in 5 new B.2 skills renamed from `BEGIN GENERATED TOOLS` to honest `BEGIN MANUAL TOOLS - <name>` (since these skills are in `SKIP_SKILL_DIRS`).
 
 ### Refinement history (v0.8 → v1.0)
 
@@ -994,25 +1061,25 @@ Detailed orchestration log retained internally.
 
 ### Migration notes
 - Users invoking the legacy `odoo-upgrade-planner` agent should switch to `/odoo-upgrade-plan-full` slash command.
-- `commands/discovery-summarize.md` was renamed to `commands/discovery-quick.md` (slash command is now `/odoo-discovery-quick` — the skill `odoo-discovery-summarize` retains its name for natural-language invocation).
+- `commands/discovery-summarize.md` was renamed to `commands/discovery-quick.md` (slash command is now `/odoo-discovery-quick` - the skill `odoo-discovery-summarize` retains its name for natural-language invocation).
 - Custom modules using `odoo-js-coder` / `odoo-owl-coder` skill names should switch to `odoo-frontend-coder` (handles both legacy and OWL based on detected version).
 
 ### Deferred to v1.1.0
 - AC-D6: router trigger optimization via `/skill-creator` Mode 5 + `run_loop.py`. The 20-query eval set is authored in `skills/odoo-router/evals/evals.json` (15 cases) + the 5 collision-test cases in `skills/odoo-router/SKILL.md`. Mode 5 requires the Claude Code subprocess API, which is CC-only; multi-runtime parity is verified manually via `tests/smoke/runtime_parity.md` for v1.0.0. Re-runnable in v1.1.0 after multi-runtime smoke is fully executed.
 - AC-D8 CI version-sync test: VERSION ↔ plugin.json sync is currently manual. Add a CI assertion in v1.1.0 (e.g., `test_version_sync` in `tests/test_plugin_schema.py`).
-- Confidentiality scan marker convention: PR #14 wave-2 removed the file-name allowlist entirely by moving the refinement plan to an internal planning document. v1.1.0 may adopt an opt-in HTML marker convention (e.g., `<!-- confidentiality-exempt: reason -->`) if any future public doc must legitimately reference an internal-only path — currently no such file exists, so defense-in-depth is restored without an allowlist.
+- Confidentiality scan marker convention: PR #14 wave-2 removed the file-name allowlist entirely by moving the refinement plan to an internal planning document. v1.1.0 may adopt an opt-in HTML marker convention (e.g., `<!-- confidentiality-exempt: reason -->`) if any future public doc must legitimately reference an internal-only path - currently no such file exists, so defense-in-depth is restored without an allowlist.
 
 ## [0.8.0] - 2026-05-21
 
 ### Changed (server v0.9.1 surface alignment)
-- **`license_notice` output marker** — `describe_module` and `module_inspect(method='summary')` (and the `odoo://{version}/module/{name}` resource) may now emit a `License notice:` line for license-restricted modules. OEEL-1 modules are skipped by default, so the notice is the intentional, non-silent marker that content is withheld — documented as such in the routing matrix so an AI client treats it as expected, not a missing-data bug to retry around.
-- **`lint_check(language='xml')` clarified as corpus-level** — the server lints indexed views against the version-exact grammar at index time, exposing server-indexed XML lint findings. The `xml` mode returns those findings for a version and **ignores the `code` argument** (it is not a snippet check). Documented in the `lint_check` routing-matrix entry. No new tools — server tool surface remains 24.
+- **`license_notice` output marker** - `describe_module` and `module_inspect(method='summary')` (and the `odoo://{version}/module/{name}` resource) may now emit a `License notice:` line for license-restricted modules. OEEL-1 modules are skipped by default, so the notice is the intentional, non-silent marker that content is withheld - documented as such in the routing matrix so an AI client treats it as expected, not a missing-data bug to retry around.
+- **`lint_check(language='xml')` clarified as corpus-level** - the server lints indexed views against the version-exact grammar at index time, exposing server-indexed XML lint findings. The `xml` mode returns those findings for a version and **ignores the `code` argument** (it is not a snippet check). Documented in the `lint_check` routing-matrix entry. No new tools - server tool surface remains 24.
 
 ### Changed (server v0.9.0 surface alignment)
-- **`view_type` gains `'list'` value** (v18+ alias for `'tree'`) — documented in `view_type`
+- **`view_type` gains `'list'` value** (v18+ alias for `'tree'`) - documented in `view_type`
   arg descriptions for `model_inspect` and `module_inspect` across the routing matrix and all
   adapter snippets (Cursor, Gemini Gem, OpenAI Custom GPT).
-- **`.less` stylesheet coverage** — `resolve_stylesheet` and `find_style_override` now cover
+- **`.less` stylesheet coverage** - `resolve_stylesheet` and `find_style_override` now cover
   CSS, SCSS, and LESS files (LESS targets legacy v8-v11 modules). Updated routing matrix §2
   tool entries, legend, dev persona, and all adapter snippets to read "CSS/SCSS/LESS".
 
@@ -1022,16 +1089,16 @@ Detailed orchestration log retained internally.
   `odoo-coder` / `odoo-code-reviewer` skills. Static checks against the indexed graph that
   let an AI client catch hallucinated field-paths, operators, dependencies, and relation
   targets *before* it emits a domain / `@api.depends` / relational field:
-  - **`resolve_orm_chain(model, dotted_path, odoo_version)`** — walks a dotted field path
+  - **`resolve_orm_chain(model, dotted_path, odoo_version)`** - walks a dotted field path
     (e.g. `partner_id.country_id.code`) hop by hop, returning the terminal field type or a
     `BROKEN` line naming the first unresolved hop.
-  - **`validate_domain(model, domain, odoo_version)`** — validates each `(field_path,
+  - **`validate_domain(model, domain, odoo_version)`** - validates each `(field_path,
     operator, value)` term of a search domain. Operator validity is **version-aware**:
     `parent_of` from v9, `any`/`not any` only from v17, v19 access-rights variants.
-  - **`validate_depends(model, method, odoo_version)`** — validates a compute method's
+  - **`validate_depends(model, method, odoo_version)`** - validates a compute method's
     indexed `@api.depends('a.b', ...)` paths; flags depends on `id` and suggests the closest
     field name for typos. Era1 (v8/v9) surfaces a clear "no @api.depends" note.
-  - **`validate_relation(model, field, target_model, odoo_version)`** — asserts a field is a
+  - **`validate_relation(model, field, target_model, odoo_version)`** - asserts a field is a
     many2one/one2many/many2many whose comodel is `target_model` (or a subtype via
     inheritance); reports the actual comodel on mismatch.
 
@@ -1041,7 +1108,7 @@ Detailed orchestration log retained internally.
 
 ### Dependencies
 - The 4 ORM-validation tools require server **v0.8.0**. `validate_depends`
-  additionally requires a server-side backfill operation (see server docs) — until it runs,
+  additionally requires a server-side backfill operation (see server docs) - until it runs,
   `validate_depends` returns the "no @api.depends" note for methods indexed before the
   reindex. The backfill introduces no new MCP tools (surface stays 24), so this client
   release needs no tool changes for it; recommend landing this release alongside that
@@ -1056,22 +1123,22 @@ Detailed orchestration log retained internally.
   files; `find_style_override` does pgvector semantic search (with import-chain traversal) for
   selector/variable origin and overrides.
 - **`from_module` filter** on `model_inspect` (method=`summary`/`fields`/`field`) and
-  `entity_lookup` (kind=`model`/`field`) — restrict results to declarations from a
+  `entity_lookup` (kind=`model`/`field`) - restrict results to declarations from a
   specific module.
-- **`kind` filter** on `model_inspect` (method=`fields`) — filter fields by type
+- **`kind` filter** on `model_inspect` (method=`fields`) - filter fields by type
   (e.g. `'many2one'`).
 - **`view_type` filter** on `model_inspect` (method=`views`) and `module_inspect`
-  (method=`views`) — filter by view type (e.g. `'form'`/`'tree'`).
-- **`bound_model` filter** on `module_inspect` (method=`owl`) — restrict OWL components
+  (method=`views`) - filter by view type (e.g. `'form'`/`'tree'`).
+- **`bound_model` filter** on `module_inspect` (method=`owl`) - restrict OWL components
   to those bound to a specific model.
-- **`era` filter** on `module_inspect` (method=`js`) — filter JS patches by era
+- **`era` filter** on `module_inspect` (method=`js`) - filter JS patches by era
   (`era1`/`era2`/`era3`).
-- **`noqa` support in `lint_check`** — inline `# noqa: RULE_ID` (or bare `# noqa`) in
+- **`noqa` support in `lint_check`** - inline `# noqa: RULE_ID` (or bare `# noqa`) in
   the `code` argument suppresses findings on that line. Documented in routing matrix,
   all three adapter snippets, and both affected skills (`odoo-coder`,
   `odoo-code-reviewer`).
 
-### Changed (v0.6 migration — also part of this release)
+### Changed (v0.6 migration - also part of this release)
 - **Target server v0.6 tool surface.** The upstream server removed the 10
   deprecated flat tools (`resolve_model`, `resolve_field`, `resolve_method`,
   `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`,
@@ -1093,7 +1160,7 @@ Detailed orchestration log retained internally.
 ### Added
 - `BLOCKED_VERSIONS.md` kill-switch registry: add a short SHA to block automatic
   marketplace pin for known-bad commits; `pin-sha.yml` reads the table and skips
-  the pin step (fail-soft — CI stays green) when the HEAD SHA matches.
+  the pin step (fail-soft - CI stays green) when the HEAD SHA matches.
 - `commands/connect.md`: added missing `name: connect` frontmatter field to match
   agent/skill convention (`name:` before `description:`).
 - Initial **public** release of the Odoo MCP Client as a standalone MIT-licensed

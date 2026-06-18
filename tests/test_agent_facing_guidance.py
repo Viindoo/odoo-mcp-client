@@ -1,19 +1,19 @@
 """Guard: AI-agent-facing prose must match the required-odoo_version tool surface.
 
-The real consumers of skills/snippets/agents are AI agents — Claude Code reads
+The real consumers of skills/snippets/agents are AI agents - Claude Code reads
 SKILL.md; Gemini / OpenAI / Cursor read the snippets as their system prompt. The
 server hard-requires ``odoo_version`` on 19 tools: omitting it raises a
 ValidationError *before* the handler runs, and a pinned session can only be reused
 by passing ``odoo_version='auto'`` explicitly (never by omitting it). So any
 guidance telling an agent it may *omit* ``odoo_version``, or that ``odoo_version``
-is *optional / defaults to "auto"*, makes the agent emit a failing tool call —
+is *optional / defaults to "auto"*, makes the agent emit a failing tool call -
 the exact opposite of what these artifacts are for.
 
 ``make gen`` only refreshes content between ``<!-- BEGIN/END GENERATED ... -->``
 markers (all derived from ``generator/server-surface.json``). Hand-maintained prose
 *outside* those markers is never synced to the surface, so it drifts silently and
-``make gen-check`` stays green. These tests scan the WHOLE file — generated blocks
-*and* hand prose — so that drift can no longer hide.
+``make gen-check`` stays green. These tests scan the WHOLE file - generated blocks
+*and* hand prose - so that drift can no longer hide.
 """
 
 from __future__ import annotations
@@ -32,9 +32,9 @@ def _md_files(*subdirs: str) -> list[Path]:
     return sorted(files)
 
 
-# --- Guidance that tells an agent odoo_version is droppable — always wrong now ---
+# --- Guidance that tells an agent odoo_version is droppable - always wrong now ---
 # Tight enough not to flag the correct replacement wording ("pass odoo_version='auto'
-# instead of a concrete version (never omit it ...)") — "omit" must be directly
+# instead of a concrete version (never omit it ...)") - "omit" must be directly
 # followed by odoo_version, and "(optional" must not be separated from odoo_version
 # by a comma (which would mean it qualifies a *different*, genuinely-optional param).
 _OMIT_RE = re.compile(r"omit\s+(?:the\s+)?[`'\"]?odoo_version", re.I)
@@ -85,7 +85,7 @@ def test_no_drifted_param_names_in_agent_snippets():
 # for a tool that requires odoo_version makes the agent emit a call the server
 # rejects. We scan inline-code and fenced example calls for the 19 required tools
 # and assert each call's argument span carries odoo_version. set_active_version is
-# excluded — its sole argument *is* the version (passed positionally or by name).
+# excluded - its sole argument *is* the version (passed positionally or by name).
 import json  # noqa: E402
 
 _SURFACE = json.loads((PLUGIN / "generator" / "server-surface.json").read_text(encoding="utf-8"))
@@ -103,7 +103,7 @@ _TOOL_CALL_RE = re.compile(r"\b" + _MCP_PREFIX + r"(" + "|".join(_REQ_VERSION_TO
 
 # Positional index of odoo_version in each tool's canonical signature ORDER.
 # A bare positional only covers odoo_version when the call supplies positionals up
-# to and including that slot — "enough positionals to fill the required COUNT" is
+# to and including that slot - "enough positionals to fill the required COUNT" is
 # not enough, because some tools (lint_check, cli_help) take optional positionals
 # (code/command) BEFORE odoo_version, so a single positional fills the optional
 # slot, not odoo_version. The SSOT for that signature order is each tool's own
@@ -140,7 +140,7 @@ def _arg_span(text: str, open_paren_idx: int) -> str:
             depth -= 1
             if depth == 0:
                 return text[open_paren_idx : j + 1]
-    return text[open_paren_idx:]  # unbalanced — return the rest
+    return text[open_paren_idx:]  # unbalanced - return the rest
 
 
 def _top_level_args(inner: str) -> list[str]:
@@ -227,8 +227,8 @@ def test_example_tool_calls_pass_required_odoo_version():
     An agent copies example calls verbatim, so a call to a tool that requires odoo_version
     but doesn't supply it makes the server reject the call. A call is considered to supply it
     when EITHER it names `odoo_version=` OR it passes enough positional arguments to cover all
-    of the tool's required params (examples list required params first). Signature sketches —
-    spans containing an ellipsis (`...`/`…`) — are illustrative, not verbatim-copyable, so they
+    of the tool's required params (examples list required params first). Signature sketches -
+    spans containing an ellipsis (`...`/`…`) - are illustrative, not verbatim-copyable, so they
     are skipped (they should still read sensibly, but they don't produce a literal failing call).
     """
     offenders: list[str] = []
@@ -246,7 +246,7 @@ def test_example_tool_calls_pass_required_odoo_version():
                           if not re.match(r"\s*[A-Za-z_]\w*\s*=(?!=)", a)]
             # A positional covers odoo_version only when the call supplies positionals
             # up to and including odoo_version's slot in the canonical signature ORDER
-            # (from the tool's example_call) — NOT merely "enough positionals to fill
+            # (from the tool's example_call) - NOT merely "enough positionals to fill
             # the required count". lint_check(code, language, odoo_version) puts
             # odoo_version at slot 2, so lint_check(code_chunk) (1 positional) fills the
             # `code` slot, not odoo_version → still flagged. find_deprecated_usage puts

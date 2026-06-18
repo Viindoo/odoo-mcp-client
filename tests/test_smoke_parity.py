@@ -82,7 +82,7 @@ def test_parity_table_subset_of_deps_ssot():
     drifts = []
     for skill, parity_tools in parity_rows.items():
         if skill not in deps_by_skill:
-            # Skill might be unmapped intentionally (e.g., router) — skip
+            # Skill might be unmapped intentionally (e.g., router) - skip
             # only if parity also declares no tools.
             if parity_tools - SESSION_BOOTSTRAP_TOOLS:
                 drifts.append(

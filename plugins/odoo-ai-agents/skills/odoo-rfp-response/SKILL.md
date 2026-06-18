@@ -47,9 +47,9 @@ Difference from siblings: `odoo-gap-analysis` outputs effort tiers (days) for qu
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Primary tools:**
-- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -66,7 +66,7 @@ Difference from siblings: `odoo-gap-analysis` outputs effort tiers (days) for qu
 
 **Absolute rule:** Do NOT assign `Yes` when evidence says `Partial`. Do NOT assign `Partial` when evidence says `No`. Overclaiming in an RFP creates legal and commercial risk. When OSM conflicts with training knowledge, trust OSM.
 
-**Fit %:** `(Yes * 1.0 + Partial * 0.5 + via-Extension * 0.7 + Roadmap * 0.3 + No * 0.0) / total * 100` — round to nearest integer. Rough indicator only, not a contractual commitment.
+**Fit %:** `(Yes * 1.0 + Partial * 0.5 + via-Extension * 0.7 + Roadmap * 0.3 + No * 0.0) / total * 100` - round to nearest integer. Rough indicator only, not a contractual commitment.
 
 **Version discipline:** A `No` on v14 may be `Yes` on v17. Always note the target version. For each `No` or `Partial`, optionally note the earliest version where it becomes `Yes` if OSM cross-version data is available.
 
@@ -74,13 +74,13 @@ Difference from siblings: `odoo-gap-analysis` outputs effort tiers (days) for qu
 
 Follow `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` for all claims.
 
-**Round 0 - Context bootstrap + pin:** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`: read `.odoo-ai/context.md` if present and extract `odoo_version` and `viindoo_profile`. Call `set_active_version(odoo_version=…)` and `set_active_profile(profile_name=…)` with those values (never hard-code `viindoo_internal_17`). If `.odoo-ai/context.md` is absent, derive version from manifests on disk per the context-bootstrap snippet before asking.
+**Round 0 - Context bootstrap + pin:** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`: read `.odoo-ai/context.md` if present and extract `odoo_version` and `viindoo_profile`. Call `set_active_version(odoo_version=…)` and `set_active_profile(profile_name=…)` with those values (never hard-code `standard_viindoo_17`). If `.odoo-ai/context.md` is absent, derive version from manifests on disk per the context-bootstrap snippet before asking.
 
 The requirement list is already in the invocation context - proceed directly without asking the user to re-provide it.
 
 **Round 1 - Parallel:** Call `check_module_exists` for EVERY requirement simultaneously. Map each requirement to its most likely module/feature keyword before firing.
 
-**Round 2 - Parallel (after Round 1):** For requirements with partial match or unclear module scope, call `model_inspect(model=…, method='fields')` + `module_inspect(name=<module>, method='summary', odoo_version='<version>')` in parallel — one per ambiguous module/model. These reveal whether the standard view/flow already covers the requirement (no gap) or whether a field/view is absent (gap confirmed).
+**Round 2 - Parallel (after Round 1):** For requirements with partial match or unclear module scope, call `model_inspect(model=…, method='fields')` + `module_inspect(name=<module>, method='summary', odoo_version='<version>')` in parallel - one per ambiguous module/model. These reveal whether the standard view/flow already covers the requirement (no gap) or whether a field/view is absent (gap confirmed).
 
 **Round 3 - Parallel (for Partial/No items):** Call `find_examples` + `suggest_pattern` simultaneously. A matching `suggest_pattern` result upgrades a tentative `No` to `via-Extension` if the extension is bounded and standard ORM patterns apply.
 

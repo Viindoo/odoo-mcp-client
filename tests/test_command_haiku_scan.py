@@ -3,7 +3,7 @@
 These tests grep the command.md file to assert that:
 1. The command documents the read-only HAIKU subagent pattern (for local
    filesystem scans only) and that all file mutations go through the
-   deterministic *.sh step scripts — NOT through a subagent.
+   deterministic *.sh step scripts - NOT through a subagent.
 2. The --reset filter is documented and associated with step 47.
 
 Red-green: both tests fail on the OLD odoo-setup.md (which has a blanket
@@ -17,7 +17,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Locate the command file robustly — search under plugins/odoo-ai-agents/commands/
+# Locate the command file robustly - search under plugins/odoo-ai-agents/commands/
 _COMMAND_DIRS = sorted(
     (ROOT / "plugins" / "odoo-ai-agents" / "commands").glob("odoo-setup.md")
 )
@@ -39,7 +39,7 @@ def _text():
 
 def test_command_allows_readonly_haiku_scan_forbids_mutation_subagent():
     """The command must document the read-only HAIKU scan pattern AND that mutations
-    go through shell step scripts — NOT through a subagent.
+    go through shell step scripts - NOT through a subagent.
 
     The OLD rule was a blanket "Do not spawn a subagent." (forbidden). The NEW rule
     allows HAIKU subagents for read-only local filesystem scans only, with all
@@ -68,7 +68,7 @@ def test_command_allows_readonly_haiku_scan_forbids_mutation_subagent():
 
     # Must NOT contain the blanket "Do not spawn a subagent" sentence
     assert not re.search(r"do not spawn a subagent", text), (
-        "command must NOT contain the blanket 'Do not spawn a subagent' rule — "
+        "command must NOT contain the blanket 'Do not spawn a subagent' rule - "
         "it should be replaced by the read-only-haiku-scan rule"
     )
 
@@ -107,10 +107,10 @@ def test_command_offers_interactive_checkbox_menu_when_no_args():
     on the new one that documents the interactive menu.
 
     Assertions (all case-insensitive):
-    1. The command mentions AskUserQuestion — the mechanism used to present the menu.
-    2. The command mentions multiSelect or checkbox — confirming multi-select behaviour.
+    1. The command mentions AskUserQuestion - the mechanism used to present the menu.
+    2. The command mentions multiSelect or checkbox - confirming multi-select behaviour.
     3. Arguments are framed as optional / shortcuts / something the user doesn't
-       need to remember — confirming the no-arg path is the default UX.
+       need to remember - confirming the no-arg path is the default UX.
     """
     text = _text()
 
@@ -120,7 +120,7 @@ def test_command_offers_interactive_checkbox_menu_when_no_args():
         "shown when no arguments are supplied"
     )
 
-    # 2. multiSelect or checkbox must appear — confirming the multi-pick behaviour
+    # 2. multiSelect or checkbox must appear - confirming the multi-pick behaviour
     has_multiselect = "multiselect" in text or "multi_select" in text
     has_checkbox = "checkbox" in text
     assert has_multiselect or has_checkbox, (
@@ -129,7 +129,7 @@ def test_command_offers_interactive_checkbox_menu_when_no_args():
     )
 
     # 3. Arguments must be described as optional / shortcuts the user doesn't need
-    #    to memorise — confirming the no-arg interactive path is the primary UX
+    #    to memorise - confirming the no-arg interactive path is the primary UX
     has_optional = "optional" in text and "shortcut" in text
     has_dont_need = "don't need to remember" in text or "do not need to remember" in text
     assert has_optional or has_dont_need, (

@@ -1,4 +1,4 @@
-# Odoo Semantic — Consultant Guide
+# Odoo Semantic - Consultant Guide
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-ai-agents@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
@@ -10,10 +10,10 @@ For functional consultants and solution architects: quickly verify feature avail
 
 The most common consultant pain points:
 
-- **"Does Odoo do X natively?"** — check before promising it to the client
-- **"Is this CE or EE?"** — avoid the embarrassing discovery mid-project
-- **"How hard is this customization?"** — understand the inheritance chain before estimating
-- **"Show me an existing example"** — demonstrate capability without building a demo from scratch
+- **"Does Odoo do X natively?"** - check before promising it to the client
+- **"Is this CE or EE?"** - avoid the embarrassing discovery mid-project
+- **"How hard is this customization?"** - understand the inheritance chain before estimating
+- **"Show me an existing example"** - demonstrate capability without building a demo from scratch
 
 ---
 
@@ -35,7 +35,7 @@ The most common consultant pain points:
 ### 1. Check native availability first
 
 ```
-check_module_exists("account_budget", "17.0")
+check_module_exists("account_budget", "<version>")
 ```
 
 This tells you: module exists (yes/no), CE vs EE, and whether there is an EE confusion risk (a free addon with a similar name that might mislead).
@@ -46,15 +46,15 @@ This tells you: module exists (yes/no), CE vs EE, and whether there is an EE con
 find_examples("budget control with approval workflow and department-level limits", odoo_version='<version>')
 ```
 
-Semantic search across indexed repos — returns real code snippets from the codebase that match what you are describing.
+Semantic search across indexed repos - returns real code snippets from the codebase that match what you are describing.
 
 ### 3. Understand the model complexity
 
 ```
-model_inspect(model="account.budget", method="summary", odoo_version="17.0")
+model_inspect(model="account.budget", method="summary", odoo_version="<version>")
 ```
 
-Field count, module extensions, method list. If the model has 15+ modules extending it, customization risk is higher — factor that into your estimate.
+Field count, module extensions, method list. If the model has 15+ modules extending it, customization risk is higher - factor that into your estimate.
 
 ### 4. Check upgrade path if relevant
 
@@ -100,10 +100,10 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin:
 
 ## Reading Results
 
-- **`is_ee_confusion: true`** — There is a known CE module with a similar name; clients often confuse CE and EE. Flag this in your proposal.
-- **`Fields: N`** — The model has N fields across all extending modules. More fields = higher complexity.
-- **`Extends: N modules`** — N modules touch this model. Custom extension risk increases with N.
-- **`status: deprecated`** from `lookup_core_api` — The API your customization relies on is being removed. This is a project risk.
+- **`is_ee_confusion: true`** - There is a known CE module with a similar name; clients often confuse CE and EE. Flag this in your proposal.
+- **`Fields: N`** - The model has N fields across all extending modules. More fields = higher complexity.
+- **`Extends: N modules`** - N modules touch this model. Custom extension risk increases with N.
+- **`status: deprecated`** from `lookup_core_api` - The API your customization relies on is being removed. This is a project risk.
 
 ---
 
@@ -111,7 +111,7 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin:
 
 | Signal | Implication |
 |--------|-------------|
-| Model extended by >10 modules | Customization is medium-to-high risk — plan extra testing |
+| Model extended by >10 modules | Customization is medium-to-high risk - plan extra testing |
 | impact_analysis: Risk HIGH | Budget 2-3x the dev estimate; this will break things |
 | check_module_exists: EE only | Add license cost to proposal |
 | find_deprecated_usage: 3+ items | Upgrade project needs a remediation phase |

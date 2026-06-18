@@ -43,7 +43,7 @@ Use this command when you already know you want to run discovery synthesis and w
 - Do **not** call the MCP `Skill` tool directly. Instead, construct a natural-language prompt that describes what the user wants, and the router will auto-fire the skill.
 - Do **not** spawn a subagent. This command runs at depth 0.
 - Do **not** proceed to gap analysis, proposal drafting, or other chained skills. If the user wants the full discovery → proposal chain, redirect to `/odoo-respond-bid`.
-- Check for `.odoo-ai/context.md` in the project root. If it exists and contains an `odoo_version` key, use that as the default Odoo version for the skill context. If the file is absent, do not assume a version — the skill will use its internal default.
+- Check for `.odoo-ai/context.md` in the project root. If it exists and contains an `odoo_version` key, use that as the default Odoo version for the skill context. If the file is absent, do not assume a version - the skill will use its internal default.
 - The file path `<cwd>/.odoo-ai/discovery/` is the canonical location. Create the directory if it does not exist.
 - Do **not** commit or push the file. File ownership: read-only for this command.
 
@@ -67,7 +67,7 @@ User:
 Agent: [Triggers skill with customer label + notes]
 
 Skill output:
-  ## Customer-A — Discovery Profile
+  ## Customer-A - Discovery Profile
   
   **Business context:** Manufacturing, 120 employees...
   **Pain points:** Manual invoice tracking...
@@ -90,11 +90,11 @@ If `odoo-discovery-summary` skill is unavailable (OSM offline, network error), s
 
 - Does **not** perform gap analysis (use `/odoo-gap-analysis` for that).
 - Does **not** draft a proposal or response (use `/odoo-respond-bid` for the full chain).
-- Does **not** call MCP write tools directly — only `Write` via the agent after user confirmation.
+- Does **not** call MCP write tools directly - only `Write` via the agent after user confirmation.
 - Does **not** commit or push files to Git.
 
 ## See also
 
-- `/odoo-respond-bid` — Full discovery → gap analysis → proposal chain.
-- `/odoo-semantic-mcp:connect` — Setup the Odoo Semantic MCP server (prerequisite).
-- `odoo-discovery-summary` skill — The underlying skill triggered by this command.
+- `/odoo-respond-bid` - Full discovery → gap analysis → proposal chain.
+- `/odoo-semantic-mcp:connect` - Setup the Odoo Semantic MCP server (prerequisite).
+- `odoo-discovery-summary` skill - The underlying skill triggered by this command.

@@ -1,4 +1,4 @@
-# Capability Proof — Worked Examples
+# Capability Proof - Worked Examples
 
 **Example 1:**
 Prompt: "prove Odoo can handle multi-currency invoicing for our prospect"

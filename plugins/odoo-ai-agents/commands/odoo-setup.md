@@ -1,29 +1,29 @@
 ---
 name: odoo-setup
-description: One-shot, idempotent setup for the Odoo visual workflow — wire the 3 browser MCP servers across Claude/Codex/Gemini, install browser dependencies, auto-allow tool permissions, and declare + spin up local Odoo instances
+description: One-shot, idempotent setup for the Odoo visual workflow - wire the 3 browser MCP servers across Claude/Codex/Gemini, install browser dependencies, auto-allow tool permissions, and declare + spin up local Odoo instances
 ---
 # /odoo-ai-agents:odoo-setup
 
 Unified, idempotent, extensible setup command for the Odoo visual / browser
 workflow. It drives a registry of numbered step scripts under
 `scripts/setup-steps/`, each exposing a `describe | check | apply` contract.
-Adding a new capability later is a drop-in: add one more numbered script — you
+Adding a new capability later is a drop-in: add one more numbered script - you
 do NOT edit this command.
 
 What it sets up:
-1. **Browser MCP** — registers `chrome-devtools`, `playwright`, `pagecast`
+1. **Browser MCP** - registers `chrome-devtools`, `playwright`, `pagecast`
    (local stdio `npx` servers) into Claude Code, Codex CLI and Gemini CLI.
-2. **Browser deps** — Node >= 20 check, Playwright Chromium install, ffmpeg check.
-3. **Permissions** — auto-allows the browser MCP tools in Claude permissions.
-4. **Instance profile** — discovers local Odoo repos via OSM-grounded propose-then-confirm,
+2. **Browser deps** - Node >= 20 check, Playwright Chromium install, ffmpeg check.
+3. **Permissions** - auto-allows the browser MCP tools in Claude permissions.
+4. **Instance profile** - discovers local Odoo repos via OSM-grounded propose-then-confirm,
    writes the machine-global `~/.odoo-ai/instances.toml` (resolvable from any cwd by any agent
    on this host).
-5. **Instance spin-up** — launches a declared Odoo instance and waits for HTTP 200.
+5. **Instance spin-up** - launches a declared Odoo instance and waits for HTTP 200.
 
 ## Argument filter
 
 `$ARGUMENTS` selects which steps run. **Arguments are optional shortcuts you
-don't need to remember** — if you run `/odoo-setup` with no argument (or an
+don't need to remember** - if you run `/odoo-setup` with no argument (or an
 unrecognised token), the AI agent presents an interactive checkbox menu so you
 can pick what to do without memorising filter names (see "Interactive menu"
 below).
@@ -36,7 +36,7 @@ below).
 | `permissions`  | `30-permissions` (no preflight needed - config file only) |
 | `instance`     | Preflight (Gate #1 + Gate #2) then AI-1..AI-4 + `40-instance-profile` + optional `45-venv` + `50-instance-spinup`. SKIPS `47` (47 is reset-only, excluded from the instance loop) |
 | `--reset`      | Runs ONLY `47-instance-reset` (Case 3: backup then clear `instances.toml`). No other steps run. |
-| (none / unknown) | **Interactive menu** — present AskUserQuestion with multiSelect=true (see below). Do NOT default to `all`. |
+| (none / unknown) | **Interactive menu** - present AskUserQuestion with multiSelect=true (see below). Do NOT default to `all`. |
 
 For `instance` spin-up, also accept a trailing `--version X.Y` and pass it
 through to `50-instance-spinup`.
@@ -68,9 +68,9 @@ numeric order:
 
 | Checkbox ticked | Equivalent filter / steps |
 |-----------------|--------------------------|
-| Browser automation stack | `browser` — steps 10, 20, 30 |
-| Declare + spin up a local Odoo instance | `instance` — AI-1..AI-4 + 40 + optional 45 + 50 |
-| Reset instances.toml | `--reset` — step 47 only |
+| Browser automation stack | `browser` - steps 10, 20, 30 |
+| Declare + spin up a local Odoo instance | `instance` - AI-1..AI-4 + 40 + optional 45 + 50 |
+| Reset instances.toml | `--reset` - step 47 only |
 
 If the user ticks multiple options, run them in the order listed above (browser
 steps first, then instance steps, then reset). After collecting the selections,
@@ -88,11 +88,11 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
 (`${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps` when available, else the
 `scripts/setup-steps` dir alongside this command's plugin).
 
-0. **Preflight — two gates before anything else.** Run these BEFORE listing the
+0. **Preflight - two gates before anything else.** Run these BEFORE listing the
    plan or touching any file. They make no changes; they only verify the ground
    is ready so setup does not half-configure a broken environment.
 
-   **Gate #1 — Odoo Semantic MCP connection.** The instance steps rely on the
+   **Gate #1 - Odoo Semantic MCP connection.** The instance steps rely on the
    indexing backend, so confirm it is actually reachable in THIS session.
    - Authoritative check (AI-level): try calling the MCP tool
      `mcp__odoo-semantic__list_available_versions` with no arguments (fallback:
@@ -120,7 +120,7 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
      `permissions`) it is a SOFT warning - those steps wire the browser MCP and
      do not use the `odoo-semantic-mcp` server, so the user may proceed.
 
-   **Gate #2 — Host prerequisites.** Only after Gate #1 passes. Skip this gate
+   **Gate #2 - Host prerequisites.** Only after Gate #1 passes. Skip this gate
    entirely for `permissions` and `runtime` (they only edit config files).
    - Run `SETUP_FILTER=<filter> "$STEPS_DIR/05-prereq-check.sh" apply` and show
      the checklist. It probes (read-only, never sudo) the tools setup cannot
@@ -142,13 +142,13 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    ```
    Print this as the plan. Map the `$ARGUMENTS` filter to the matching scripts
    (see the table above). Exclude `47-instance-reset` from `all` and `instance`
-   plan listings — it runs only via `--reset`.
+   plan listings - it runs only via `--reset`.
 
-2. **Instance cluster — OSM-grounded propose-then-confirm (AI-1 through AI-4).**
+2. **Instance cluster - OSM-grounded propose-then-confirm (AI-1 through AI-4).**
    This cluster runs when the filter is `all` or `instance`. It precedes the
    numbered step scripts `40`/`45`/`50` and drives them with confirmed data.
 
-   **AI-1 — OSM version + profile probe (CONFIRM #1)**
+   **AI-1 - OSM version + profile probe (CONFIRM #1)**
 
    Call `mcp__odoo-semantic__list_available_versions` and
    `mcp__odoo-semantic__list_available_profiles` (no arguments). Present the
@@ -158,20 +158,20 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    - Which profile should be used? (pick from the list OSM returned, or type a
      custom name)
 
-   Wait for the user's answer before continuing — this is **CONFIRM #1**.
+   Wait for the user's answer before continuing - this is **CONFIRM #1**.
 
-   **OSM unavailable — Degraded Case 2:** If `list_available_versions` or
+   **OSM unavailable - Degraded Case 2:** If `list_available_versions` or
    `list_available_profiles` fails or is unreachable, do NOT abort. Instead,
    warn the user:
-   > "OSM is unavailable — no OSM grounding. You must declare version, profile,
+   > "OSM is unavailable - no OSM grounding. You must declare version, profile,
    > and repos manually. The downstream flow is identical; we just cannot
    > cross-check against the indexed source."
    Then ask the user to provide: Odoo version(s), profile name, and the repo
    list (SSH URL, branch, role). Collect these and continue to AI-3 directly
-   (skip AI-2). This is the **user-declared path** — label all output clearly
-   as "no OSM grounding — user-declared" throughout.
+   (skip AI-2). This is the **user-declared path** - label all output clearly
+   as "no OSM grounding - user-declared" throughout.
 
-   **AI-2 — OSM repo set (CONFIRM #2)**
+   **AI-2 - OSM repo set (CONFIRM #2)**
 
    For each version confirmed in AI-1, call:
    ```
@@ -181,12 +181,12 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    repo set: SSH URL @ branch, own vs. inherited. Present this list to the user
    and ask:
    - Are there repos NOT listed by OSM that you want to include? (provide SSH
-     URL, branch, and role — `own` or `inherited`)
+     URL, branch, and role - `own` or `inherited`)
 
-   Wait for the user's answer — this is **CONFIRM #2**. Merge any user-added
+   Wait for the user's answer - this is **CONFIRM #2**. Merge any user-added
    repos into the set.
 
-   **AI-3 — Local repo scan + missing repo guidance (CONFIRM #3)**
+   **AI-3 - Local repo scan + missing repo guidance (CONFIRM #3)**
 
    Spawn a **read-only HAIKU subagent** to scan local repos and build a
    mapping: each OSM repo (normalized SSH URL + branch) → local absolute path.
@@ -207,26 +207,26 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
      ```
      git clone -b <branch> --no-single-branch git@github.com:<Org>/<repo>.git odoo<major>
      ```
-     (OSM already returns SSH URLs; `<Org>/<repo>` is the placeholder — the
+     (OSM already returns SSH URLs; `<Org>/<repo>` is the placeholder - the
      actual value comes from OSM at runtime.) Then print the optional dev fork
      step:
      ```
      gh repo fork --remote --remote-name fork
      ```
      Do **NOT** auto-clone. Print the commands and ask the user to run them
-     first, then re-run this step — or confirm they want to skip that repo.
+     first, then re-run this step - or confirm they want to skip that repo.
 
    Present the matched paths and addons_path ordering to the user. Default
    ordering: **own repos first → ancestor/inherited repos → Odoo core last**
    (Odoo resolves modules FIRST-WINS, so overriding repos must precede core).
    The user may reorder at this point.
 
-   Wait for the user's final confirmation of paths and order — this is
+   Wait for the user's final confirmation of paths and order - this is
    **CONFIRM #3**. Then call `40 apply` with the confirmed spec via env
    `ODOO_AI_PROFILE_SPEC` (a JSON array of instance objects). Step `40` refuses
-   to auto-write without this env — never call `40 apply` without it.
+   to auto-write without this env - never call `40 apply` without it.
 
-   **AI-4 — Venv scan (CONFIRM #4)**
+   **AI-4 - Venv scan (CONFIRM #4)**
 
    Spawn a **read-only HAIKU subagent** to scan local Python virtual
    environments and build a mapping: venv → Odoo series (inspect the venv's
@@ -241,20 +241,20 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
      confirmed `addons_path` for that series, and present the option to build
      a new venv via `45-venv.sh create-venv`.
 
-   Wait for the user's choice (reuse existing venv / build new / skip) — this
+   Wait for the user's choice (reuse existing venv / build new / skip) - this
    is **CONFIRM #4**. Then run `45 apply` for the chosen series.
 
-   **CONFIRM #5 — choose the series to spin up**
+   **CONFIRM #5 - choose the series to spin up**
 
    Present the list of series in the confirmed spec and ask the user which one
-   to launch now. Do not silently pick the highest — always ask. Then run `50
+   to launch now. Do not silently pick the highest - always ask. Then run `50
    apply` for the chosen series (fail-loud preflight: verify `import odoo` +
    `pg_isready` before launch; see step-specific notes).
 
 3. **For each selected step (non-instance steps), in numeric order:**
    a. Run `"$s" check`. Capture the exit code.
       - Exit `0` → the step is already satisfied. Report
-        `✓ <name>: already configured — skipping` and move on.
+        `✓ <name>: already configured - skipping` and move on.
       - Exit non-zero → the step needs to run. Continue to (b).
    b. **Present what `apply` will do** (use the `describe` line + the
       step-specific notes below) and ask the user for confirmation, e.g.
@@ -273,44 +273,44 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
 
 4. **Final summary.** Print a table: each step → `configured` / `skipped
    (already done)` / `skipped (declined)` / `failed`. Then remind the user:
-   > MCP servers do NOT hot-reload — restart your Claude Code / Codex / Gemini
+   > MCP servers do NOT hot-reload - restart your Claude Code / Codex / Gemini
    > session for the newly wired browser servers and permissions to take effect.
 
 ## Per-runtime native MCP provisioning
 
 The three browser MCP servers (`chrome-devtools`, `playwright`, `pagecast`) are
-provisioned natively by each runtime when the plugin is installed — no manual
+provisioned natively by each runtime when the plugin is installed - no manual
 step required in the normal flow:
 
 | Runtime | How servers are bundled | Dedup rule |
 |---------|------------------------|------------|
-| **Claude Code** | Plugin's bundled `.mcp.json` (loaded automatically on install) | Claude deduplicates by command/endpoint: an already-configured server with the same command simply wins; the bundled copy is skipped — this is normal, not an error. No manual step. |
-| **Gemini CLI** | Bundled `gemini-extension.json` (installed via `gemini extensions install <your-clone>/plugins/odoo-ai-agents` or `gemini extensions link ...` for live dev). **Note:** Gemini cannot install an extension from a subdirectory of a git repo — the manifest must be at a repo root, so you must install via **local path** after cloning, not directly from a GitHub URL. | Dedup is by server *name*: if the user already has a same-named server in `~/.gemini/settings.json`, that entry wins (no error). The `trust` field is not allowed in the extension manifest. |
+| **Claude Code** | Plugin's bundled `.mcp.json` (loaded automatically on install) | Claude deduplicates by command/endpoint: an already-configured server with the same command simply wins; the bundled copy is skipped - this is normal, not an error. No manual step. |
+| **Gemini CLI** | Bundled `gemini-extension.json` (installed via `gemini extensions install <your-clone>/plugins/odoo-ai-agents` or `gemini extensions link ...` for live dev). **Note:** Gemini cannot install an extension from a subdirectory of a git repo - the manifest must be at a repo root, so you must install via **local path** after cloning, not directly from a GitHub URL. | Dedup is by server *name*: if the user already has a same-named server in `~/.gemini/settings.json`, that entry wins (no error). The `trust` field is not allowed in the extension manifest. |
 | **Codex CLI** | Bundled `.codex-plugin/plugin.json` (installed from a marketplace snapshot). Install flow: `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-ai-agents@<marketplace>`. A Codex marketplace.json publishing this plugin is a separate distribution step (to be published); the manifest ships with the plugin now. | Same dedup-by-name behaviour as Claude. |
 
 > **Fallback:** If you need to wire the browser servers into Codex or Gemini without
-> going through the plugin marketplace, run `/odoo-ai-agents:odoo-setup runtime` —
+> going through the plugin marketplace, run `/odoo-ai-agents:odoo-setup runtime` -
 > it writes the correct config for each runtime idempotently. See the
-> [Standalone / fallback](#standalone--fallback) section for manual equivalents.
+> [Standalone / fallback](#standalone-fallback) section for manual equivalents.
 >
 > **Claude-specific change:** `/odoo-setup` no longer writes the browser servers into
-> `~/.claude.json` for Claude Code — Claude is served by the bundled `.mcp.json`,
+> `~/.claude.json` for Claude Code - Claude is served by the bundled `.mcp.json`,
 > so re-running `/odoo-setup` will not recreate the "skipped duplicate" notes there.
 > Step `10-browser-mcp` never touches `~/.claude.json` at all (it wires Codex and
 > Gemini only).
 
 ## Step-specific notes (what each `apply` does)
 
-- **10-browser-mcp** — wires the browser MCP *registry* for **Codex CLI** and
+- **10-browser-mcp** - wires the browser MCP *registry* for **Codex CLI** and
   **Gemini CLI** only (a `[mcp_servers.*]` table in `$CODEX_CONFIG` and an
   `mcpServers.*` entry with `"trust": true` in `$GEMINI_SETTINGS`). For
   **Claude Code** it writes nothing: Claude is served by the plugin's bundled
   `.mcp.json`, so this step never touches `~/.claude.json`. No secrets.
-- **20-browser-deps** — runs `npx -y playwright install chromium`. For ffmpeg it
-  ONLY prints install guidance for your OS — it never runs sudo/apt for you.
-- **30-permissions** — appends browser tool prefixes to `permissions.allow[]`
+- **20-browser-deps** - runs `npx -y playwright install chromium`. For ffmpeg it
+  ONLY prints install guidance for your OS - it never runs sudo/apt for you.
+- **30-permissions** - appends browser tool prefixes to `permissions.allow[]`
   in `$CLAUDE_SETTINGS` = `~/.claude/settings.json`. Asks [Y/n] itself.
-- **40-instance-profile** — writes `~/.odoo-ai/instances.toml` as
+- **40-instance-profile** - writes `~/.odoo-ai/instances.toml` as
   `[[instance]]` array-of-tables entries from the confirmed spec passed via
   `ODOO_AI_PROFILE_SPEC` (a JSON array of instance objects). Step `40` does
   NOT auto-discover or auto-write; it refuses to run `apply` without a
@@ -322,13 +322,13 @@ step required in the normal flow:
   `./.odoo-ai/instances.toml` is honored only as a transitional fallback. Step
   40 also gitignores the project `.odoo-ai/` and writes a defensive
   `~/.odoo-ai/.gitignore`. Backup + idempotent.
-- **45-venv** *(optional, source instances only — offered between 40 and 50)* —
+- **45-venv** *(optional, source instances only - offered between 40 and 50)* -
   each Odoo series supports only certain Python versions, so a source instance
   needs an interpreter whose deps match. After `40` declares the profile, offer
   this flow for the series the user wants to spin up:
   1. Show the recommended Python: `"$STEPS_DIR/45-venv.sh" suggest <series>`.
   2. Then let the user choose:
-     - **Reuse an existing venv** — set the `python` field on the matching
+     - **Reuse an existing venv** - set the `python` field on the matching
        `[[instance]]` in `~/.odoo-ai/instances.toml`, or export `ODOO_PYTHON`.
        Step 50 prefers the `python` field, then `ODOO_PYTHON`, then `python3`.
      - **Build a new venv** (opt-in; needs system build deps):
@@ -342,7 +342,7 @@ step required in the normal flow:
   python field and prints an error with guidance.
   Never silently pick an incompatible Python. If the user declines, just print
   the suggestion and move on - step 50 will fall back to `python3`.
-- **47-instance-reset** *(reset-only — runs ONLY via `--reset`, never via `all` or `instance`)* —
+- **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
   `apply`: backs up `instances.toml` to `<path>.bak.<timestamp>` then writes a
   clean replacement. Default mode (`apply`): preserves instances whose local
   paths still exist on disk; removes entries with missing paths and legacy /
@@ -350,10 +350,10 @@ step required in the normal flow:
   --hard`): wipes all entries unconditionally. `check` always exits 0 (reset
   is always available); it is intentionally excluded from the `all` and
   `instance` filter loops so it never runs silently.
-- **50-instance-spinup** — before launching anything, runs a **fail-loud
+- **50-instance-spinup** - before launching anything, runs a **fail-loud
   preflight**: verifies (a) the instance's Python can `import odoo` and
   (b) `pg_isready` (or equivalent) confirms PostgreSQL is reachable. If either
-  check fails, it prints a clear error with remediation guidance and stops —
+  check fails, it prints a clear error with remediation guidance and stops -
   it does NOT launch and then time out polling. On preflight pass: generates a
   temp `odoo.conf`, launches Odoo (`odoo-bin --dev=all` or
   `docker compose up -d`), polls `/web/login` to HTTP 200, prints the URL.
@@ -364,9 +364,9 @@ step required in the normal flow:
 ## Hard rules
 
 - **Two different Claude files, never crossed.** `~/.claude.json` is the MCP
-  server *registry* — but step 10 deliberately does **not** write there (Claude's
+  server *registry* - but step 10 deliberately does **not** write there (Claude's
   browser servers come from the plugin's bundled `.mcp.json`).
-  `$CLAUDE_SETTINGS` (`~/.claude/settings.json`) holds *permissions* — step 30
+  `$CLAUDE_SETTINGS` (`~/.claude/settings.json`) holds *permissions* - step 30
   writes there. Do not edit either file by hand with `Edit`/`Write`; the step
   scripts back up, refuse invalid JSON, and stay idempotent.
 - **Never echo secrets.** No API keys, no DB passwords in any output. DB
@@ -403,17 +403,17 @@ step required in the normal flow:
   - Permissions: add `mcp__chrome-devtools`, `mcp__playwright`, `mcp__pagecast`
     to `permissions.allow[]` in `~/.claude/settings.json`. (With the plugin
     installed, the SessionStart hook `ensure-browser-permissions.sh` adds the
-    plugin-namespaced `mcp__plugin_odoo-ai-agents_*` prefixes for you — these
+    plugin-namespaced `mcp__plugin_odoo-ai-agents_*` prefixes for you - these
     bare prefixes are only for the standalone, no-plugin case.)
 - The manual `claude mcp add` line above is only for using these servers
   **without** the plugin installed. If the plugin is installed, do **not** add
-  them to `~/.claude.json` — the bundled `.mcp.json` already provides them, and a
-  duplicate entry is exactly what produces the "skipped — same command" notes.
+  them to `~/.claude.json` - the bundled `.mcp.json` already provides them, and a
+  duplicate entry is exactly what produces the "skipped - same command" notes.
 
 ## See also
 
-- `/odoo-semantic-mcp:connect` — connect the Odoo Semantic MCP *server*
+- `/odoo-semantic-mcp:connect` - connect the Odoo Semantic MCP *server*
   (different scope: that is the indexing backend; this command wires the
   *browser* MCP servers + local Odoo instances for the visual workflow).
-- `odoo-onboarding` skill — writes `.odoo-ai/context.md` (project Odoo version /
+- `odoo-onboarding` skill - writes `.odoo-ai/context.md` (project Odoo version /
   modules / conventions); complementary to this command's `instances.toml`.

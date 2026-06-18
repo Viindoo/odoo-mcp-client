@@ -1,7 +1,7 @@
 {
   "skill_name": "odoo-qa-suite",
   "schema_version": "1",
-  "notes": "Evals cover: (1) dispatch — QA intent routes to odoo-qa-suite, not to leaf skills directly; (2) test-case generation contract (business-rule-first, ETHOS#11, four mandatory paths); (3) checklist delegation contract (odoo-deploy-checklist dispatched, not inlined); (4) bug-triage contract (severity rules non-negotiable, structured output); (5) skip logic (no bugs → triage skipped cleanly); (6) should-not-fire boundary (pure code review, pure deploy gate). Each case has a precise expected_behavior so it can fail for the right reason.",
+  "notes": "Evals cover: (1) dispatch - QA intent routes to odoo-qa-suite, not to leaf skills directly; (2) test-case generation contract (business-rule-first, ETHOS#11, four mandatory paths); (3) checklist delegation contract (odoo-deploy-checklist dispatched, not inlined); (4) bug-triage contract (severity rules non-negotiable, structured output); (5) skip logic (no bugs → triage skipped cleanly); (6) should-not-fire boundary (pure code review, pure deploy gate). Each case has a precise expected_behavior so it can fail for the right reason.",
   "evals": [
     {
       "id": 1,
@@ -24,7 +24,7 @@
     {
       "id": 3,
       "category": "dispatch",
-      "prompt": "QA pipeline for this invoice module change — include test cases, checklist, and bug triage",
+      "prompt": "QA pipeline for this invoice module change - include test cases, checklist, and bug triage",
       "expected_routed_to": "odoo-qa-suite",
       "expected_behavior": "Explicit mention of all three components confirms composition intent. Skill fires; does NOT delegate to individual leaf skills without the orchestration wrapper.",
       "must_not": "Dispatch to odoo-deploy-checklist or odoo-debug directly without the qa-suite composition gate.",
@@ -44,7 +44,7 @@
       "category": "dispatch-boundary",
       "prompt": "Pre-deploy checklist for our Odoo 17 go-live this weekend",
       "expected_routed_to": "odoo-deploy-checklist",
-      "expected_behavior": "Deploy gate only — no test-case generation or bug triage requested. Routes to odoo-deploy-checklist directly, not to the full qa-suite composition.",
+      "expected_behavior": "Deploy gate only - no test-case generation or bug triage requested. Routes to odoo-deploy-checklist directly, not to the full qa-suite composition.",
       "must_not": "Launch the three-phase QA pipeline for a standalone checklist request.",
       "tags": ["dispatch", "should-not-fire", "boundary"]
     },
@@ -53,7 +53,7 @@
       "category": "test-generation-contract",
       "prompt": "Generate test cases for the Odoo purchase approval workflow",
       "expected_routed_to": "odoo-qa-suite",
-      "expected_behavior": "Phase 1 (generate-tests) produces a table with >= 4 test cases covering: (a) happy path — approval flow completes normally, (b) edge case — approval with zero-value PO, (c) error path — approver rejects with mandatory comment missing, (d) permission check — user without approval rights cannot approve. Each test name states a business rule, not a function name.",
+      "expected_behavior": "Phase 1 (generate-tests) produces a table with >= 4 test cases covering: (a) happy path - approval flow completes normally, (b) edge case - approval with zero-value PO, (c) error path - approver rejects with mandatory comment missing, (d) permission check - user without approval rights cannot approve. Each test name states a business rule, not a function name.",
       "must_not": "Produce test names like 'test_approve_po' without a business-rule description. Omit any of the four mandatory path types.",
       "tags": ["test-generation", "ethos-11", "business-rule-first"]
     },
@@ -62,23 +62,23 @@
       "category": "test-generation-contract",
       "prompt": "What tests should I write for the custom_inventory_forecasting module?",
       "expected_routed_to": "odoo-qa-suite",
-      "expected_behavior": "Skill fires (test-generation intent matches). Phase 1 produces test cases with a Pass/Fail column. Every test case must have an identifiable WRONG answer scenario — if a test cannot fail for a specific reason, it is excluded from the output.",
+      "expected_behavior": "Skill fires (test-generation intent matches). Phase 1 produces test cases with a Pass/Fail column. Every test case must have an identifiable WRONG answer scenario - if a test cannot fail for a specific reason, it is excluded from the output.",
       "must_not": "Include a test case that always passes regardless of the system state (ETHOS#11: test that cannot be red is useless).",
       "tags": ["test-generation", "ethos-11", "must-be-falsifiable"]
     },
     {
       "id": 8,
       "category": "checklist-delegation-contract",
-      "prompt": "Run QA suite for sale module — I want tests and a checklist but I have no bugs to triage",
+      "prompt": "Run QA suite for sale module - I want tests and a checklist but I have no bugs to triage",
       "expected_routed_to": "odoo-qa-suite",
-      "expected_behavior": "Phase 2 (qa-checklist) dispatches to odoo-deploy-checklist via NL. odoo-qa-suite does NOT inline the 8-domain checklist logic itself — it delegates. Phase 3 (bug-triage) is skipped cleanly with message 'No bugs to triage'. Summary notes that triage was skipped.",
+      "expected_behavior": "Phase 2 (qa-checklist) dispatches to odoo-deploy-checklist via NL. odoo-qa-suite does NOT inline the 8-domain checklist logic itself - it delegates. Phase 3 (bug-triage) is skipped cleanly with message 'No bugs to triage'. Summary notes that triage was skipped.",
       "must_not": "Reproduce the 8-domain checklist inline without delegating to odoo-deploy-checklist. Proceed to a triage phase when no bugs were provided.",
       "tags": ["checklist-delegation", "skip-logic", "no-bugs-path"]
     },
     {
       "id": 9,
       "category": "bug-triage-contract",
-      "prompt": "Triage this bug: Invoice confirmation crashes with ValueError in account.move._post() — happens every time on Odoo 17 prod",
+      "prompt": "Triage this bug: Invoice confirmation crashes with ValueError in account.move._post() - happens every time on Odoo 17 prod",
       "expected_routed_to": "odoo-qa-suite",
       "expected_behavior": "Phase 3 assigns severity=Critical (core financial flow crash, no workaround). Output includes: severity=Critical with rationale, step-by-step repro, suspected module=account, suspected layer=Business logic, suggested next step=odoo-debug for runtime investigation.",
       "must_not": "Assign severity lower than Critical for a crash in a core financial flow. Omit reproduction steps or suspected module.",
@@ -87,7 +87,7 @@
     {
       "id": 10,
       "category": "bug-triage-contract",
-      "prompt": "Triage: the 'Send by Email' button on the invoice form is slightly misaligned on mobile — low priority cosmetic issue",
+      "prompt": "Triage: the 'Send by Email' button on the invoice form is slightly misaligned on mobile - low priority cosmetic issue",
       "expected_routed_to": "odoo-qa-suite",
       "expected_behavior": "Phase 3 assigns severity=Low (cosmetic, no business-flow impact, UI layer). Output includes severity=Low with rationale citing cosmetic/no-workaround-needed, suspected layer=UI.",
       "must_not": "Assign severity higher than Low for a cosmetic alignment issue. Severity must reflect business impact, not code complexity.",
@@ -96,9 +96,9 @@
     {
       "id": 11,
       "category": "standalone-fallback",
-      "prompt": "Full QA suite for purchase module — OSM server is offline",
+      "prompt": "Full QA suite for purchase module - OSM server is offline",
       "expected_routed_to": "odoo-qa-suite",
-      "expected_behavior": "Skill fires in standalone mode. Phase 1 (test-case gen) completes normally (no MCP needed). Phase 2 dispatches odoo-deploy-checklist in standalone mode — Domain 1 OSM-dependent rows are marked as 'Manual check'. Phase 3 (bug-triage) runs inline without odoo-debug dispatch. Summary includes the standalone-mode notice at the top.",
+      "expected_behavior": "Skill fires in standalone mode. Phase 1 (test-case gen) completes normally (no MCP needed). Phase 2 dispatches odoo-deploy-checklist in standalone mode - Domain 1 OSM-dependent rows are marked as 'Manual check'. Phase 3 (bug-triage) runs inline without odoo-debug dispatch. Summary includes the standalone-mode notice at the top.",
       "must_not": "Block Phase 1 or Phase 3 due to OSM being offline. Fail entirely when OSM is unreachable.",
       "tags": ["standalone-fallback", "degraded-mode", "resilience"]
     },
@@ -107,7 +107,7 @@
       "category": "output-format",
       "prompt": "Generate acceptance tests for the Odoo HR leave management module and triage these 2 bugs: (1) Leave balance goes negative after approval, (2) Leave form does not save when start date equals end date",
       "expected_routed_to": "odoo-qa-suite",
-      "expected_behavior": "Phase 1 produces test table saved to .odoo-ai/qa/<slug>-test-cases.md. Phase 2 dispatches checklist. Phase 3 triages both bugs: bug 1 = High or Critical (financial/data integrity — leave balance corrupted), bug 2 = Medium (form save failure with specific edge case, workaround exists). All three output files written to .odoo-ai/qa/. Final summary at .odoo-ai/qa/<slug>-qa-summary.md.",
+      "expected_behavior": "Phase 1 produces test table saved to .odoo-ai/qa/<slug>-test-cases.md. Phase 2 dispatches checklist. Phase 3 triages both bugs: bug 1 = High or Critical (financial/data integrity - leave balance corrupted), bug 2 = Medium (form save failure with specific edge case, workaround exists). All three output files written to .odoo-ai/qa/. Final summary at .odoo-ai/qa/<slug>-qa-summary.md.",
       "must_not": "Write output to any directory other than .odoo-ai/qa/. Mix both bugs into a single unstructured paragraph instead of separate triage entries.",
       "tags": ["output-format", "output-dir", "multi-bug-triage", "severity-rules"]
     }

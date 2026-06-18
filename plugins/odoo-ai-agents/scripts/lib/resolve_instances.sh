@@ -38,6 +38,25 @@ _odoo_ai_global_instances() {
     return 1
 }
 
+# Echo the machine-global runtime dir (the allocator's lease registry lives here:
+# runtime/leases.json + runtime/registry.lock). Same root as the instances.toml
+# SSOT - ${ODOO_AI_HOME:-$HOME/.odoo-ai}/runtime - and deliberately NOT affected by
+# $ODOO_AI_INSTANCES (that overrides only the catalog file, not the runtime root).
+# Mirrors scripts/lib/allocator.py's _home()/_runtime_dir() so shell and Python
+# resolve the same directory. See docs/reference/INSTANCE-ALLOCATION.md.
+_odoo_ai_runtime_dir() {
+    if [ -n "${ODOO_AI_HOME:-}" ]; then
+        printf '%s\n' "${ODOO_AI_HOME%/}/runtime"
+        return 0
+    fi
+    if [ -n "${HOME:-}" ]; then
+        printf '%s\n' "${HOME%/}/.odoo-ai/runtime"
+        return 0
+    fi
+    printf 'resolve_instances: HOME and ODOO_AI_HOME are both unset - cannot resolve a runtime dir.\n' >&2
+    return 1
+}
+
 # True if $1 is a file that declares at least one [[instance]] table.
 _instances_nonempty() {
     [ -f "$1" ] && grep -qE '^\[\[instance\]\]' "$1" 2>/dev/null

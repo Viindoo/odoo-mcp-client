@@ -1,4 +1,4 @@
-# Runtime Parity Smoke Test — odoo-mcp-client
+# Runtime Parity Smoke Test - odoo-mcp-client
 
 Manual checklist to certify that the 10 representative `odoo-*` skills produce
 functionally equivalent output across all three supported runtimes: Claude Code,
@@ -18,8 +18,8 @@ dependency:
 
 | # | Skill | Phase introduced | Persona | MCP dependency |
 |---|-------|-----------------|---------|---------------|
-| 1 | `odoo-intake` | A | All — universal front door / brainstorm + route | None (pure text routing) |
-| 2 | `odoo-onboarding` | A | All — context bootstrap | Read-only: `list_available_versions`, `list_available_profiles`, `set_active_version`, `set_active_profile` |
+| 1 | `odoo-intake` | A | All - universal front door / brainstorm + route | None (pure text routing) |
+| 2 | `odoo-onboarding` | A | All - context bootstrap | Read-only: `list_available_versions`, `list_available_profiles`, `set_active_version`, `set_active_profile` |
 | 3 | `odoo-feature-check` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `suggest_pattern` |
 | 4 | `odoo-gap-analysis` | A | Pre-Sales Consultant | `check_module_exists`, `model_inspect`, `find_examples`, `lookup_core_api`, `suggest_pattern` |
 | 5 | `odoo-objection-handling` | A | Sales AE | `check_module_exists`, `find_examples`, `model_inspect`, `suggest_pattern` |
@@ -31,11 +31,11 @@ dependency:
 
 ### Runtimes under test (3)
 
-- **Claude Code (CC)** — primary runtime; skills auto-fire on description match
+- **Claude Code (CC)** - primary runtime; skills auto-fire on description match
   via Anthropic harness.
-- **Codex CLI** — OpenAI Codex CLI with plugin manifest loaded; skill invocation
-  via prompt injection (no guaranteed description-match — see Known Gaps).
-- **Gemini CLI** — Google Gemini CLI with plugin manifest loaded; similar
+- **Codex CLI** - OpenAI Codex CLI with plugin manifest loaded; skill invocation
+  via prompt injection (no guaranteed description-match - see Known Gaps).
+- **Gemini CLI** - Google Gemini CLI with plugin manifest loaded; similar
   invocation caveat.
 
 ### Coverage
@@ -87,7 +87,7 @@ Before beginning this checklist, confirm all of the following:
 ### How to run a cell
 
 1. Open the target runtime in a fresh session (no prior context for the skill).
-2. Paste the canonical trigger prompt (VI or EN — pick one; both should work).
+2. Paste the canonical trigger prompt (VI or EN - pick one; both should work).
 3. Observe the output. Do NOT prompt-engineer beyond the canonical prompt.
 4. Score the cell against all four pass criteria (a-d below).
 5. Mark `[x]` in the corresponding checkbox; record freeform notes if anything
@@ -109,7 +109,7 @@ Before beginning this checklist, confirm all of the following:
 - **Codex CLI**: prepend the skill name as a system cue if auto-match is absent.
   Example: `[odoo-feature-check] Customer asks whether Odoo supports multi-warehouse management`.
   If the runtime does not support description-match, criterion (a) is PASS if
-  the skill body executes correctly after the cue — document the cue in Notes.
+  the skill body executes correctly after the cue - document the cue in Notes.
 - **Gemini CLI**: same approach as Codex. Document any prompt prefix needed in
   Notes.
 
@@ -121,11 +121,11 @@ Before beginning this checklist, confirm all of the following:
 
 ### Skill 1: `odoo-intake`
 
-> Phase A — universal front door / brainstorm + 4-tier route + soft-plan-gate. No MCP calls.
+> Phase A - universal front door / brainstorm + 4-tier route + soft-plan-gate. No MCP calls.
 
-**Trigger prompt (VI)**: "I have a prompt to handle but I'm not sure which skill to use — Customer A has a question about Odoo manufacturing"
+**Trigger prompt (VI)**: "I have a prompt to handle but I'm not sure which skill to use - Customer A has a question about Odoo manufacturing"
 
-**Trigger prompt (EN)**: "I'm not sure which skill to use — Customer A has a question about Odoo manufacturing"
+**Trigger prompt (EN)**: "I'm not sure which skill to use - Customer A has a question about Odoo manufacturing"
 
 **Expected output**:
 - Recommended skill name (exactly ONE, e.g. `odoo-feature-check`) OR brainstorm clarifying options if vague
@@ -143,12 +143,12 @@ Before beginning this checklist, confirm all of the following:
 
 ### Skill 2: `odoo-onboarding`
 
-> Phase A — project context bootstrap. Read-only MCP: `list_available_versions`,
+> Phase A - project context bootstrap. Read-only MCP: `list_available_versions`,
 > `list_available_profiles`, `set_active_version`, `set_active_profile`.
 
 **Trigger prompt (VI)**: "I just cloned an Odoo repo, help me set up the context"
 
-**Trigger prompt (EN)**: "first time using Odoo for this project — initialize Odoo context"
+**Trigger prompt (EN)**: "first time using Odoo for this project - initialize Odoo context"
 
 **Expected output**:
 - Pre-flight check result (context present or absent)
@@ -168,7 +168,7 @@ Before beginning this checklist, confirm all of the following:
 
 ### Skill 3: `odoo-feature-check`
 
-> Phase A — Pre-Sales. MCP: `check_module_exists`, `model_inspect`,
+> Phase A - Pre-Sales. MCP: `check_module_exists`, `model_inspect`,
 > `find_examples`, `suggest_pattern`.
 
 **Trigger prompt (VI)**: "Customer A asks whether Odoo supports multi-warehouse management, including in CE"
@@ -192,12 +192,12 @@ Before beginning this checklist, confirm all of the following:
 
 ### Skill 4: `odoo-gap-analysis`
 
-> Phase A — Pre-Sales. MCP: `check_module_exists`, `model_inspect`,
+> Phase A - Pre-Sales. MCP: `check_module_exists`, `model_inspect`,
 > `find_examples`, `lookup_core_api`, `suggest_pattern`.
 
-**Trigger prompt (VI)**: "Customer A requires 3 features: (1) multi-level purchase approval, (2) serial number management, (3) e-signature integration — what does Odoo cover out of the box?"
+**Trigger prompt (VI)**: "Customer A requires 3 features: (1) multi-level purchase approval, (2) serial number management, (3) e-signature integration - what does Odoo cover out of the box?"
 
-**Trigger prompt (EN)**: "Customer A needs: (1) multi-level purchase approval, (2) serial number tracking, (3) e-signature integration — what does Odoo cover out of the box?"
+**Trigger prompt (EN)**: "Customer A needs: (1) multi-level purchase approval, (2) serial number tracking, (3) e-signature integration - what does Odoo cover out of the box?"
 
 **Expected output**:
 - `## Gap Analysis Report` header with client label, version, requirement count
@@ -216,19 +216,19 @@ Before beginning this checklist, confirm all of the following:
 
 ### Skill 5: `odoo-objection-handling`
 
-> Phase A — Sales AE. MCP: `check_module_exists`, `find_examples`,
+> Phase A - Sales AE. MCP: `check_module_exists`, `find_examples`,
 > `model_inspect`, `suggest_pattern`.
 
-**Trigger prompt (VI)**: "Customer A says Odoo can't do multi-level approval — help me write a counter-response"
+**Trigger prompt (VI)**: "Customer A says Odoo can't do multi-level approval - help me write a counter-response"
 
-**Trigger prompt (EN)**: "Customer A says Odoo can't do multi-level approval — help me write a counter-response"
+**Trigger prompt (EN)**: "Customer A says Odoo can't do multi-level approval - help me write a counter-response"
 
 **Expected output**:
 - `## Objection Response: "<objection>"` header
 - `### Acknowledge` block (1 sentence)
 - `### Counter-evidence` table (module exists, code example, key fields)
 - `### Talking points` list (at least 2 concrete points)
-- `### Suggested response (verbatim)` block — a ready-to-paste client paragraph
+- `### Suggested response (verbatim)` block - a ready-to-paste client paragraph
 
 | Runtime | Pass? | Notes |
 |---------|-------|-------|
@@ -240,16 +240,16 @@ Before beginning this checklist, confirm all of the following:
 
 ### Skill 6: `odoo-deal-followup`
 
-> Phase B — Sales AE. No MCP dependency (deal context is user-provided).
+> Phase B - Sales AE. No MCP dependency (deal context is user-provided).
 
-**Trigger prompt (VI)**: "Customer A hasn't replied in a long time, the deal is stalled — help me write a follow-up"
+**Trigger prompt (VI)**: "Customer A hasn't replied in a long time, the deal is stalled - help me write a follow-up"
 
-**Trigger prompt (EN)**: "Customer A hasn't replied in a while, deal is stalled — help me draft a follow-up email"
+**Trigger prompt (EN)**: "Customer A hasn't replied in a while, deal is stalled - help me draft a follow-up email"
 
 **Expected output**:
 - `## Deal status` block with risk level (red/yellow/green) + last touch + stage health
 - `## Tags` line (ghosting, competitor-present, or other relevant tags)
-- `## Next-best action` — one specific, actionable line
+- `## Next-best action` - one specific, actionable line
 - `## Draft email (in Vietnamese)` with Subject line and four-paragraph structure:
   Warm reopener / Value reinforcement / Clear ask / CTA + close
 
@@ -263,7 +263,7 @@ Before beginning this checklist, confirm all of the following:
 
 ### Skill 7: `odoo-feature-highlights`
 
-> Phase B — Marketer. MCP: `api_version_diff`, `find_examples`.
+> Phase B - Marketer. MCP: `api_version_diff`, `find_examples`.
 
 **Trigger prompt (VI)**: "summarize the headline features of Odoo 17 for an internal slide deck next week, compared to Odoo 16"
 
@@ -286,7 +286,7 @@ Before beginning this checklist, confirm all of the following:
 
 ### Skill 8: `odoo-content-draft`
 
-> Phase B — Marketer. Standalone-first: OSM optional (`find_examples`).
+> Phase B - Marketer. Standalone-first: OSM optional (`find_examples`).
 
 **Trigger prompt (VI)**: "write a LinkedIn post about project management features in Odoo 17, from the perspective of Vietnamese SMEs"
 
@@ -308,12 +308,12 @@ Before beginning this checklist, confirm all of the following:
 
 ### Skill 9: `odoo-version-diff`
 
-> Phase A — Developer + Marketer cross-cutting. MCP: `api_version_diff`,
+> Phase A - Developer + Marketer cross-cutting. MCP: `api_version_diff`,
 > `entity_lookup`, `lookup_core_api`, `model_inspect`.
 
 **Trigger prompt (VI)**: "which APIs changed from Odoo v16 to v17, what should developers know before upgrading"
 
-**Trigger prompt (EN)**: "which APIs changed between Odoo v16 and v17 — what should a developer know before upgrading"
+**Trigger prompt (EN)**: "which APIs changed between Odoo v16 and v17 - what should a developer know before upgrading"
 
 **Expected output**:
 - `## Version Diff: Odoo <from> → <to>` header with era label + migration complexity rating
@@ -332,12 +332,12 @@ Before beginning this checklist, confirm all of the following:
 
 ### Skill 10: `odoo-deprecation-audit`
 
-> Phase A — Developer. MCP: `api_version_diff`, `entity_lookup`,
+> Phase A - Developer. MCP: `api_version_diff`, `entity_lookup`,
 > `find_deprecated_usage`, `lookup_core_api`, `module_inspect`.
 
-**Trigger prompt (VI)**: "audit our Odoo codebase before upgrading from v16 to v17 — find everything that will break"
+**Trigger prompt (VI)**: "audit our Odoo codebase before upgrading from v16 to v17 - find everything that will break"
 
-**Trigger prompt (EN)**: "audit our Odoo codebase before upgrading from v16 to v17 — find everything that will break"
+**Trigger prompt (EN)**: "audit our Odoo codebase before upgrading from v16 to v17 - find everything that will break"
 
 **Expected output**:
 - `## Deprecation Audit Report` header with source/target version, era, file count, issue count
@@ -357,10 +357,10 @@ Before beginning this checklist, confirm all of the following:
 ## Known multi-runtime gaps
 
 The following features are **intentionally not parity** across runtimes. These
-are not failures — they are architectural boundaries that should be documented,
+are not failures - they are architectural boundaries that should be documented,
 not closed.
 
-### Gap 1 — Commands (Claude Code only)
+### Gap 1 - Commands (Claude Code only)
 
 Files under `commands/*.md` define slash-command chains (`/odoo-respond-bid`,
 `/odoo-draft-followup`, `/odoo-summarize-discovery`, etc.). The
@@ -374,20 +374,20 @@ README "Use case" section as a scripted walkthrough.
 **Mitigation (planned)**: README examples for each command show the equivalent
 manual multi-turn sequence. These work across all runtimes.
 
-### Gap 2 — Agent bundles
+### Gap 2 - Agent bundles
 
 Agent workflows (e.g., multi-step proposal pipeline) depend on the Agent tool
 which is native to Claude Code's harness. Codex CLI may support subagent
 spawn via its own API; Gemini CLI typically does not expose an equivalent.
 
 **Impact**: agent-bundle orchestration cannot be certified for parity. Tester
-should mark agent-bundle cells as "N/A — Agent tool not available" rather than
+should mark agent-bundle cells as "N/A - Agent tool not available" rather than
 FAIL.
 
 **Mitigation**: agents are not included in this 10-skill smoke test. The gap is
 noted here for completeness.
 
-### Gap 3 — `/skill-creator` Mode 5 trigger optimization
+### Gap 3 - `/skill-creator` Mode 5 trigger optimization
 
 The `run_loop.py` trigger eval harness invokes `claude -p` as a subprocess.
 This is CC-specific. Codex/Gemini runtimes do not have an equivalent
@@ -397,7 +397,7 @@ This is CC-specific. Codex/Gemini runtimes do not have an equivalent
 trigger optimization must be done manually using the canonical prompts in this
 document.
 
-### Gap 4 — Pre-commit hook (`.githooks/pre-commit`)
+### Gap 4 - Pre-commit hook (`.githooks/pre-commit`)
 
 The bash pre-commit hook validates skill format before each commit. It requires
 bash + git hooks infrastructure. Windows users without WSL cannot run it
@@ -409,7 +409,7 @@ equivalent check (`python test_skill_format.py`) or rely on CI.
 **Mitigation**: CI runs the same check on every push. The hook is advisory on
 developer machines; CI is authoritative.
 
-### Gap 5 — `.odoo-ai/context.md` write step (onboard skill)
+### Gap 5 - `.odoo-ai/context.md` write step (onboard skill)
 
 `odoo-onboarding` writes `.odoo-ai/context.md` to the local filesystem. All
 three runtimes can execute this write via their respective file-write tool.
@@ -479,7 +479,7 @@ Add this block at the top of your dated copy after completing the walk-through:
 All three conditions must hold:
 
 1. **≥25 / 30 cells** marked pass (across all runtimes).
-2. **All 10 Claude Code cells** pass (CC is the primary runtime — any CC failure
+2. **All 10 Claude Code cells** pass (CC is the primary runtime - any CC failure
    is blocking regardless of total count).
 3. **No P0 failure** in any runtime: a P0 failure means a skill produces output
    that is factually incorrect AND would be surfaced to a customer without
