@@ -6,6 +6,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.14.0] - 2026-06-18
+
+### Added
+
+- **`/odoo-forward-port` command** (`commands/odoo-forward-port.md`) - thin shim for
+  continuous and one-shot forward-port workflows; accepts `<source-ref> <target-branch>
+  [--scope] [--since] [--one-shot]` and resume-checks `checkpoint.json` before dispatching
+  to the `odoo-run-forward-port` skill orchestrator.
+- **`odoo-intent-extractor` agent** (`agents/odoo-intent-extractor.md`) - read-only
+  per-commit intent extraction used in Phase 1 of the forward-port pipeline; model is
+  `sonnet` by default with caller-level override at dispatch; `disallowedTools` blocks
+  `Agent`, `Task`, and `Skill` to enforce the read-only contract.
+- **`odoo-run-forward-port` skill** (`skills/odoo-run-forward-port/SKILL.md`) - 8-phase
+  forward-port orchestrator (SSOT): P0 plan-gate, P1 parallel intent-extract, P2
+  4-outcome classify, P3 merge --no-commit, P3.5 symbol-survival-check (autosilent-break
+  gate), P4 test-first adapt (serial per commit), P5 per-batch verify, P6 merge-gate,
+  P7 PR + review. Merge-keep-SHA protocol: outcome (a)/(d) commits merge without adapt
+  diff; worktree isolation throughout.
+- **Snippet `fp-intent-4outcome`** (`snippets/fp-intent-4outcome.md`) - SSOT 4-outcome
+  classification table for forward-port commits (skip / 3-way+adapt / re-implement /
+  skip-new-module).
+- **Snippet `fp-symbol-survival-check`** (`snippets/fp-symbol-survival-check.md`) - SSOT
+  Phase 3.5 autosilent-break gate: OSM-ground every symbol on the source side of
+  conflicted + merge-clean-but-source-touched files; symbol absent in target forces bucket
+  b/c/d, blocking silent field-break absorption.
+- **Snippet `fp-merge-absorption`** (`snippets/fp-merge-absorption.md`) - merge-keep-SHA
+  protocol and per-batch verify toggle; codifies the skip-code-still-merges rule (outcome
+  a/d) and the RED-then-GREEN confirm-by-toggle gate for FP-delta tests.
+- **Snippet `fp-installable-false`** (`snippets/fp-installable-false.md`) - new-module
+  forward-port handling: set `installable: False`, comment out `auto_install` and
+  `application`, run only lint; tracks the migration-rename gate
+  (`installed < parse(dir)`).
+
+### Changed
+
+- **`odoo-test-writing`** gains a new `adapt` mode for forward-port test forwarding:
+  translates API calls to the target version, strips source-snapshot assertions, and
+  confirms RED-on-target before handing back to the adapt phase. Reference detail in
+  `skills/odoo-test-writing/references/fp-adapt-mode.md`.
+- **`odoo-version-diff`** gains a reference to the FP 4-outcome mapping
+  (`snippets/fp-intent-4outcome.md`) so version-diff callers can bucket findings
+  consistently with the forward-port pipeline.
+- **`odoo-code-review`** gains pitfall #11 (test-coupled-to-src-API): flag tests that
+  hard-code source-version field names or method signatures as HIGH when reviewing
+  forward-ported code.
+- **`snippets/test-first-contract`** gains a forward-port RED-on-target paragraph:
+  a test that passes without modification on the target branch is not a forwarded test,
+  it is a tautology - confirm RED before adapting.
+
 ## [3.13.0] - 2026-06-18
 
 ### Added

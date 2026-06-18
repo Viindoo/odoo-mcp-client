@@ -441,6 +441,19 @@
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
       "notes": "Front-door debug orchestrator. Stays light on tools - pins version + quick layer classification, then dispatches specialist debug agents (odoo-backend-debugger OSM-only; odoo-ui-debugger browser, serial-exclusive). Heavy OSM localization happens inside the agents. Writes run notes to .odoo-ai/debug/ (gitignored)."
+    },
+    "odoo-run-forward-port": {
+      "mcp_tools": [
+        "set_active_version",
+        "api_version_diff",
+        "model_inspect",
+        "module_inspect",
+        "entity_lookup",
+        "find_override_point"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Forward-port orchestrator: api_version_diff grounds version-boundary breaks and outcome classification; model_inspect/entity_lookup verify symbol survival at target to catch autosilent field breaks; find_override_point assists in locating insertion points during adapt phase."
     }
   },
   "orchestration": {
@@ -832,6 +845,18 @@
       "instance_touching": false,
       "output_mode": "writes-files",
       "default_gate_tier": "L1"
+    },
+    "odoo-run-forward-port": {
+      "spawn_class": "spawner-agent",
+      "depth_policy": "depth0-only",
+      "spawns": [
+        "odoo-intent-extractor (read-only per-commit; model per complexity)",
+        "odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees)"
+      ],
+      "stack": "fullstack",
+      "instance_touching": true,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L2"
     }
   }
 }

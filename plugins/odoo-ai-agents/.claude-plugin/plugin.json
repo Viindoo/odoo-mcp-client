@@ -1,8 +1,8 @@
 {
   "name": "odoo-ai-agents",
   "displayName": "Odoo AI Agent Team",
-  "version": "3.13.0",
-  "description": "Odoo AI workforce toolkit - 41 skills + 7 specialist agents + 9 workflow commands across engineering, sales, marketing, strategy, onboarding, visual UI testing, and git-wave orchestration. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed). Includes browser-automation agents for Odoo UI review and automated setup.",
+  "version": "3.14.0",
+  "description": "Odoo AI workforce toolkit - 42 skills + 8 specialist agents + 10 workflow commands across engineering, sales, marketing, strategy, onboarding, visual UI testing, and git-wave orchestration. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed). Includes browser-automation agents for Odoo UI review and automated setup.",
   "keywords": ["odoo", "erp", "ai-workforce", "odoo-semantic", "semantic-search", "workflow", "sales", "marketing", "strategy", "onboarding", "code-generation", "code-review", "upgrade", "visual-testing", "browser-automation", "ui-review", "setup", "ai-agents", "agent-team"],
   "author": {
     "name": "Viindoo",
@@ -18,7 +18,8 @@
     "./agents/odoo-ui-reviewer.md",
     "./agents/odoo-frontend-coder.md",
     "./agents/odoo-backend-debugger.md",
-    "./agents/odoo-ui-debugger.md"
+    "./agents/odoo-ui-debugger.md",
+    "./agents/odoo-intent-extractor.md"
   ],
   "commands": [
     "./commands/odoo-respond-bid.md",
@@ -29,7 +30,8 @@
     "./commands/odoo-setup.md",
     "./commands/odoo-run-brl.md",
     "./commands/odoo-produce-video.md",
-    "./commands/odoo-run-wave.md"
+    "./commands/odoo-run-wave.md",
+    "./commands/odoo-forward-port.md"
   ],
   "mcpServers": "./.mcp.json",
   "dependencies": ["odoo-semantic-mcp"]
