@@ -102,6 +102,6 @@ If `odoo-deal-followup` skill is unavailable, do not hand the work back to the u
 
 ## See also
 
-- `/odoo-respond-bid` — full proposal chain (RFQ → draft proposal → email → CRM sync).
-- `odoo-deal-followup` skill — direct invocation for deal risk assessment without email drafting.
-- `odoo-objection-handling` skill — for handling customer objections in follow-up threads.
+- `/odoo-respond-bid` - full proposal chain (RFQ → draft proposal → email → CRM sync).
+- `odoo-deal-followup` skill - direct invocation for deal risk assessment without email drafting.
+- `odoo-objection-handling` skill - for handling customer objections in follow-up threads.

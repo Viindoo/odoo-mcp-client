@@ -1,6 +1,6 @@
 """Behavioral guard for hooks/enforce-grounding.sh (SubagentStop grounding enforcement).
 
-These tests protect the BEHAVIOR contract of the hook (ETHOS#11) for its consumer — an
+These tests protect the BEHAVIOR contract of the hook (ETHOS#11) for its consumer - an
 AI subagent (odoo-coder / odoo-frontend-coder / odoo-code-reviewer). Each test states the
 business rule it locks in and fails for exactly one reason: that rule changed.
 
@@ -10,7 +10,7 @@ The contract under test:
 - NOTE (non-blocking) the half-grounded case: backend .py written, OSM called, ORM validators
   skipped.
 - NOTE (non-blocking) the SILENT-SKIPPER: backend .py written with zero OSM calls and no
-  grounding label. (Deliberately a note, not a block — a block there only manufactures
+  grounding label. (Deliberately a note, not a block - a block there only manufactures
   unverifiable `grounded: local-source` labels and false-blocks legit pure-python/standalone
   work. The hard quality gate is verify-backend.sh/CI, not OSM-call-count.)
 - PASS (stay out of the way): non-Odoo subagents (self-gate), honest local-source label,
@@ -91,7 +91,7 @@ def test_silent_skipper_gets_a_note_not_a_pass(tmp_path):
 
 
 def test_silent_skipper_is_not_blocked_even_with_orm_looking_code(tmp_path):
-    """A note, never a block — absence of an OSM call is not a provable lie."""
+    """A note, never a block - absence of an OSM call is not a provable lie."""
     lines = [_line(content=[_tool_use("Edit", "models/account_move.py")])]
     _, out = _run(tmp_path, lines)
     assert out is not None and out.get("decision") != "block"

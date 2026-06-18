@@ -12,7 +12,7 @@ skill body - this command is a recipe shim only, following the 1-orchestration-S
 > Named `odoo-run-brl` (not `odoo-brl`) because a command name must stay disjoint from the
 > skill name `odoo-brl`. The skill also auto-registers `/odoo-ai-agents:odoo-brl`; this
 > command is the convenience entry point that takes a customer-label argument and dispatches to
-> the same skill body — one orchestration mechanism, two entry points.
+> the same skill body - one orchestration mechanism, two entry points.
 
 ## When to use
 

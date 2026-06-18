@@ -1,4 +1,4 @@
-# RFP Response — Worked Examples
+# RFP Response - Worked Examples
 
 **Example 1:**
 Prompt: "RFP has 15 requirements for a manufacturing client: MRP, batch production,

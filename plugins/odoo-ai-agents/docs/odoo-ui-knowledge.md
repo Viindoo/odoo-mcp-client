@@ -2,7 +2,7 @@
 
 Portable, version-aware reference shared by the visual skills (`odoo-ui-review`,
 `odoo-visual-regression`, `odoo-demo-recording`) and the `odoo-ui-reviewer` / `odoo-ui-debugger`
-agents. Contains no instance-specific or confidential values — concrete URLs, logins, and
+agents. Contains no instance-specific or confidential values - concrete URLs, logins, and
 baseline directories live in each project's `.odoo-ai/context.md`.
 
 ## URLs and entry points
@@ -35,11 +35,11 @@ version-dependent part.
 
 | Odoo version | Web client framework | Implication for debugging |
 |--------------|----------------------|---------------------------|
-| v8–v14 | Legacy `web.Widget` / `odoo.define()` (QWeb2) | Render failures show as missing DOM nodes; check `field_registry` and template names. |
+| v8-v14 | Legacy `web.Widget` / `odoo.define()` (QWeb2) | Render failures show as missing DOM nodes; check `field_registry` and template names. |
 | v15 | OWL 1.x (`patch(Class.prototype, …)`) | Reactivity via `useState`; prototype-level patches. |
 | v16+ | OWL 2.x (`patch(Class, …)`, ES modules) | `odoo.define` removed; registries via `registry.category(...)`; class-level patches. Confirmed through v19; verify new majors via OSM. |
 
-A render-then-error symptom and an empty-render symptom have different root causes — confirm which
+A render-then-error symptom and an empty-render symptom have different root causes - confirm which
 via a DOM snapshot before attributing the cause to JS.
 
 ## Responsive breakpoints
@@ -58,7 +58,7 @@ Use a consistent set for review, regression, and recording so captures are compa
 For repeatable, deterministic captures and for exercising role-specific UI:
 
 1. Log in once via `/web/login` and persist the browser session (storage state) to a named file,
-   e.g. `storageState-admin.json`, `storageState-portal.json` — one per role under the project's
+   e.g. `storageState-admin.json`, `storageState-portal.json` - one per role under the project's
    baseline directory.
 2. Re-use the stored state on subsequent navigations instead of logging in each time; this keeps
    screenshots deterministic and avoids login-page noise in diffs.
@@ -66,22 +66,22 @@ For repeatable, deterministic captures and for exercising role-specific UI:
    be reviewed without re-authenticating mid-session.
 
 Credential values themselves come from the agreed credential source referenced in
-`.odoo-ai/context.md` (`instance_login`) — never hard-code them here.
+`.odoo-ai/context.md` (`instance_login`) - never hard-code them here.
 
 ## Context file keys consumed by the visual skills
 
 All four skills read `.odoo-ai/context.md` (Markdown bullets `- **key**: value`, not YAML):
 
-- `odoo_version` — selects `/odoo` vs `/web` and the framework era above.
-- `instance_base_url` — root of the running instance to navigate.
-- `instance_login` — login identifier + agreed credential source.
-- `screenshot_baseline_dir` — where baselines/evidence screenshots are written; videos default to
+- `odoo_version` - selects `/odoo` vs `/web` and the framework era above.
+- `instance_base_url` - root of the running instance to navigate.
+- `instance_login` - login identifier + agreed credential source.
+- `screenshot_baseline_dir` - where baselines/evidence screenshots are written; videos default to
   `.odoo-ai/visual/videos/`.
-- `brand_tokens_source` — (optional) path to a consumer-declared JSON map `token -> expected color`
+- `brand_tokens_source` - (optional) path to a consumer-declared JSON map `token -> expected color`
   (e.g. `{"--primary": "#1E88E5"}`). When present, `odoo-ui-review` Step 4b ΔE-diffs the resolved
   `getComputedStyle(:root)` brand tokens against it (runtime brand fidelity, `odoo-frontend-fidelity.md`
-  Section G). Brand-agnostic — no brand is vendored in the plugin; omit for pure-Odoo projects.
-- `mockup_dir` — (optional) directory of reference mockups/design specs for the mockup-first check.
+  Section G). Brand-agnostic - no brand is vendored in the plugin; omit for pure-Odoo projects.
+- `mockup_dir` - (optional) directory of reference mockups/design specs for the mockup-first check.
 
 If a *required* key (the first four) is missing, the skill asks the user rather than guessing; the
 optional brand/mockup keys simply disable their checks when absent.

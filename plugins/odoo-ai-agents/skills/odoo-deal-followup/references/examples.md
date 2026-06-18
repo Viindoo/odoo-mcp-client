@@ -1,4 +1,4 @@
-# Deal Followup — Worked Examples
+# Deal Followup - Worked Examples
 
 ## Example 1 - Yellow deal, manufacturing SME
 

@@ -37,14 +37,14 @@ Developer + Marketer
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+- `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
-- `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
-- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
-- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `api_version_diff` - Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- `entity_lookup` ★ - Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `lookup_core_api` - Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -53,18 +53,18 @@ Two audiences: **Developers** (file paths, method signatures, migration instruct
 
 Historical breaking points: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-version-diff/references/breaking-points-history.md`
 
-Use training knowledge for era-level historical context (Python 2→3, `@api.multi` removal, OWL timeline) but never assert specific API changes without MCP confirmation. `api_version_diff` results are ground truth. Always flag when the diff spans an **era boundary** — these require significantly more migration work.
+Use training knowledge for era-level historical context (Python 2→3, `@api.multi` removal, OWL timeline) but never assert specific API changes without MCP confirmation. `api_version_diff` results are ground truth. Always flag when the diff spans an **era boundary** - these require significantly more migration work.
 
 ## Instructions
 
-**Round 1:** Call `api_version_diff` first — this supplies the symbol list for all subsequent calls.
+**Round 1:** Call `api_version_diff` first - this supplies the symbol list for all subsequent calls.
 
-**Round 2 — Parallel:** After Round 1, batch ALL calls simultaneously (they are independent — one batch cuts round trips dramatically for large version gaps):
+**Round 2 - Parallel:** After Round 1, batch ALL calls simultaneously (they are independent - one batch cuts round trips dramatically for large version gaps):
 - `lookup_core_api` for every Removed/Changed signature symbol
 - `entity_lookup(kind='method', …)` for every changed-signature method that is commonly overridden
 - `find_examples(query=<new API>, odoo_version=<to_version>)` for Added symbols (shows real indexed usage rather than bare description)
 
-**Round 2b — Structural diff (when user names a specific model):** Batch simultaneously:
+**Round 2b - Structural diff (when user names a specific model):** Batch simultaneously:
 - `model_inspect(model=<name>, method='fields', odoo_version=<from_version>)`
 - `model_inspect(model=<name>, method='fields', odoo_version=<to_version>)`
 - `model_inspect(model=<name>, method='views', odoo_version=<from_version>)`
@@ -99,7 +99,7 @@ When OSM is unreachable, follow the three-tier grounding order from
 ```
 ## Version Diff: Odoo <from> → <to>
 
-**Era:** <Within-era / Cross-era — specify which eras>
+**Era:** <Within-era / Cross-era - specify which eras>
 **Migration complexity:** <Low (within-era, <2 versions) / Medium / High / Very High (cross-era)>
 
 ### Added APIs (<N> new)
@@ -125,13 +125,13 @@ When OSM is unreachable, follow the three-tier grounding order from
 ### Era migration (if cross-era)
 <Explanation of the broader migration work required beyond API changes>
 
-### Structural diff — `<model>` (when model-specific diff requested)
+### Structural diff - `<model>` (when model-specific diff requested)
 **Fields added:** `<field1>`, `<field2>` …
 **Fields removed:** `<field3>` …
 **Views added:** `<view_id>` (<type>) …
 **Views removed:** `<view_id>` …
 
-### Feature highlights (business value — for marketers)
+### Feature highlights (business value - for marketers)
 - **<Feature>**: <business-language description>
 - **<Feature>**: <business-language description>
 

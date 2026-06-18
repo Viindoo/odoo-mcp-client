@@ -101,7 +101,7 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Standalone-first. check_module_exists optional — only when user requests feature fact-check."
+      "notes": "Standalone-first. check_module_exists optional - only when user requests feature fact-check."
     },
     "odoo-demo-recording": {
       "mcp_tools": [
@@ -113,7 +113,7 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Standalone-first. OSM optional — only to plan the demo click path; video capture is browser-MCP side. set_active_version pins the target version so view/URL paths are not resolved against latest-indexed."
+      "notes": "Standalone-first. OSM optional - only to plan the demo click path; video capture is browser-MCP side. set_active_version pins the target version so view/URL paths are not resolved against latest-indexed."
     },
     "odoo-deploy-checklist": {
       "mcp_tools": [
@@ -268,7 +268,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Slim SKILL.md for the design bundle — companion to the odoo-solution-architect agent. Designs the technical solution (approach / data model / override strategy / module structure) before any code is written. impact_analysis grounds blast-radius in Risks; find_override_point grounds super() position; validate_* verify the proposed ORM chains so the coder inherits a verified design. min_server 0.13.1 for impact_analysis + profile_inspect."
+      "notes": "Slim SKILL.md for the design bundle - companion to the odoo-solution-architect agent. Designs the technical solution (approach / data model / override strategy / module structure) before any code is written. impact_analysis grounds blast-radius in Risks; find_override_point grounds super() position; validate_* verify the proposed ORM chains so the coder inherits a verified design. min_server 0.13.1 for impact_analysis + profile_inspect."
     },
     "odoo-risk-overview": {
       "mcp_tools": [
@@ -289,13 +289,13 @@
       "mcp_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
-      "notes": "Pure text routing and brainstorm — no MCP tool calls. Tool names mentioned in routing table discriminators are references to OTHER skills' tools, not invocations by intake itself."
+      "notes": "Pure text routing and brainstorm - no MCP tool calls. Tool names mentioned in routing table discriminators are references to OTHER skills' tools, not invocations by intake itself."
     },
     "wave": {
       "mcp_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
-      "notes": "Depth-0 git-wave orchestration skill — no MCP tools; spawns WI subagents over worktrees + cherry-pick + /code-review + squash. Outputs to .odoo-ai/wave/ (gitignored)."
+      "notes": "Depth-0 git-wave orchestration skill - no MCP tools; spawns WI subagents over worktrees + cherry-pick + /code-review + squash. Outputs to .odoo-ai/wave/ (gitignored)."
     },
     "odoo-ui-review": {
       "mcp_tools": [
@@ -345,7 +345,7 @@
       "mcp_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
-      "notes": "Composition skill — no MCP tools called directly. NL-dispatches to odoo-debug (bug path) and odoo-feature-check (feature-request path) via description-match. All outputs to .odoo-ai/support/ (gitignored, confidentiality-safe)."
+      "notes": "Composition skill - no MCP tools called directly. NL-dispatches to odoo-debug (bug path) and odoo-feature-check (feature-request path) via description-match. All outputs to .odoo-ai/support/ (gitignored, confidentiality-safe)."
     },
     "odoo-qa-suite": {
       "mcp_tools": [
@@ -362,7 +362,7 @@
       "deprecated_tools_used": [],
       "notes": "Depth-0 drive-to-done loop: walks the RUN-DAG in .odoo-ai/run-<id>.json, dispatches each node, reads its Continuation Contract, advances to DONE/BLOCKED/NEEDS_CONTEXT. Pure orchestration - no MCP tools of its own."
     },
-    "odoo-test-writer": {
+    "odoo-test-writing": {
       "mcp_tools": [
         "set_active_version",
         "model_inspect",
@@ -449,7 +449,7 @@
       "spawn_class": "spawner-agent",
       "depth_policy": "depth0-only",
       "spawns": [
-        "(Phase R: ≤2 read-only recon agents — Explore or specialist in read-only mode; no writes, no further spawn)"
+        "(Phase R: ≤2 read-only recon agents - Explore or specialist in read-only mode; no writes, no further spawn)"
       ],
       "stack": "none",
       "instance_touching": false,
@@ -460,7 +460,7 @@
       "spawn_class": "spawner-agent",
       "depth_policy": "depth0-only",
       "spawns": [
-        "(anonymous read-only fan-out workers via Agent tool, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under .odoo-ai/survey/, no further spawn — see skills/_shared/concurrency-guard.md Mode B)"
+        "(anonymous read-only fan-out workers via Agent tool, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under .odoo-ai/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B)"
       ],
       "stack": "none",
       "instance_touching": false,
@@ -758,7 +758,7 @@
       "output_mode": "chat-only",
       "default_gate_tier": "L0"
     },
-    "odoo-test-writer": {
+    "odoo-test-writing": {
       "spawn_class": "leaf",
       "depth_policy": "any-depth",
       "spawns": [],

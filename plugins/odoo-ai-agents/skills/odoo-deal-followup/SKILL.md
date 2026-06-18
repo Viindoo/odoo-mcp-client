@@ -31,20 +31,20 @@ This skill prevents deals going cold due to missed follow-ups or unclear next st
 
 ## MCP tools
 
-<!-- BEGIN MANUAL TOOLS — odoo-deal-followup -->
-_This skill is standalone-first — OSM/MCP is OPTIONAL. Most invocations do not need MCP._
+<!-- BEGIN MANUAL TOOLS - odoo-deal-followup -->
+_This skill is standalone-first - OSM/MCP is OPTIONAL. Most invocations do not need MCP._
 
 **OSM usage rule:** Only invoke when the user explicitly asks to fact-check a specific Odoo
 feature claim in the email or deal context. Do not call MCP automatically just because the deal involves Odoo.
 
 **Optional tool (on-demand only):**
-- `check_module_exists` — Verify whether a specific Odoo module/feature exists and in which
+- `check_module_exists` - Verify whether a specific Odoo module/feature exists and in which
   edition (CE/EE/your custom distribution). Call only when user asks to fact-check a feature
   claim present in the deal thread or email. Do NOT call speculatively.
 
 This skill performs text analysis and email composition directly - no code generation or
 external model delegation is involved.
-<!-- END MANUAL TOOLS — odoo-deal-followup -->
+<!-- END MANUAL TOOLS - odoo-deal-followup -->
 
 ## Standalone-first fallback
 
@@ -52,9 +52,9 @@ Skill **always operates without OSM**. All logic runs on user-provided text.
 
 ### Round 0 - Bootstrap context, then ask only for gaps
 
-1. **Use the invocation context first.** Deal details are usually already in the request — do not re-ask for anything already provided.
-2. **Read `.odoo-ai/context.md`** if present — extract `odoo_version` and any CRM defaults.
-3. **Optional enrichment:** If a live CRM/email integration is available, enrich from it — but treat as a bonus, never required. Skill must work with only request text + local files.
+1. **Use the invocation context first.** Deal details are usually already in the request - do not re-ask for anything already provided.
+2. **Read `.odoo-ai/context.md`** if present - extract `odoo_version` and any CRM defaults.
+3. **Optional enrichment:** If a live CRM/email integration is available, enrich from it - but treat as a bonus, never required. Skill must work with only request text + local files.
 4. Ask only for fields still unresolved after steps 1-3, in one message.
 
 **Required inputs:**
@@ -102,16 +102,16 @@ Round 2 output is **one top-priority action**.
 Write in the language matching the customer's thread or the user's request. Default: English.
 
 **4-paragraph template:**
-1. **Warm reopener** — Reference the last interaction. Do NOT open with "I haven't heard back from you."
-2. **Value reinforcement** — 1-2 specific points of value tied to their stated needs. Personalised, not generic.
-3. **Clear ask** — One single action: schedule a call, confirm a decision, review the quote. No multiple questions.
-4. **Low-friction CTA** — 2-3 specific time slots OR a calendar link. Open sentence if break-up email.
+1. **Warm reopener** - Reference the last interaction. Do NOT open with "I haven't heard back from you."
+2. **Value reinforcement** - 1-2 specific points of value tied to their stated needs. Personalised, not generic.
+3. **Clear ask** - One single action: schedule a call, confirm a decision, review the quote. No multiple questions.
+4. **Low-friction CTA** - 2-3 specific time slots OR a calendar link. Open sentence if break-up email.
 
 **Tone:** Confident, respectful, not pleading. Appropriate for B2B.
 
 ### Round 4 - Output assembly
 
-Combine Rounds 1-3 into the Output format. If the thread contains technical Odoo claims the user might want to verify, list under "Optional: feature claims to verify" — do NOT call MCP unless the user confirms.
+Combine Rounds 1-3 into the Output format. If the thread contains technical Odoo claims the user might want to verify, list under "Optional: feature claims to verify" - do NOT call MCP unless the user confirms.
 
 ## Output format
 

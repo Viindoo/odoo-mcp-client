@@ -63,7 +63,7 @@ TOOLS_REQUIRE_VERSION = {
 }
 
 # Tools that must NOT have odoo_version in required_params
-# (set_active_version already requires it as its payload — intentional; not in this set)
+# (set_active_version already requires it as its payload - intentional; not in this set)
 TOOLS_KEEP_VERSION_OPTIONAL = {
     "list_available_versions",
     "list_available_profiles",

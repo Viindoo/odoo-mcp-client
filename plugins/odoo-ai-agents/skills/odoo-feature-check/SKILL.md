@@ -1,10 +1,10 @@
 ---
 name: odoo-feature-check
 description: >
-  Answer "does standard Odoo already do this?" with evidence — module name, edition (CE / EE),
+  Answer "does standard Odoo already do this?" with evidence - module name, edition (CE / EE),
   key fields/models, and a one-line verdict ready for a client email. Version-aware: uses MCP
   check_module_exists/find_examples; confirm version when unspecified. Fire before answering
-  from memory — training data about Odoo modules drifts fast.
+  from memory - training data about Odoo modules drifts fast.
   Trigger on: "does Odoo have…", "is X available out of the box?", "do we need to build this
   or is it already there?", "what edition do I need for Z?".
   Also fires on Vietnamese: "Odoo có sẵn tính năng này không", "cần code thêm hay đã có sẵn",
@@ -36,35 +36,35 @@ Consultant / Developer
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+- `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
-- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
-- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
-- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+- `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `suggest_pattern` - Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 <!-- END GENERATED TOOLS -->
 
 ## Context
 
-Coverage levels: (1) **CE native** — free, zero customization; (2) **EE only** — paid subscription; (3) **OCA/App Store** — third-party, not officially supported.
+Coverage levels: (1) **CE native** - free, zero customization; (2) **EE only** - paid subscription; (3) **OCA/App Store** - third-party, not officially supported.
 
-Version matters: v12+ feature may not exist in v8/v9 (OpenERP era — different module names, `_columns` dict, etc.). Always resolve the target version.
+Version matters: v12+ feature may not exist in v8/v9 (OpenERP era - different module names, `_columns` dict, etc.). Always resolve the target version.
 
-**Data priority:** MCP results over training knowledge — training data about Odoo module names/versions drifts fast.
+**Data priority:** MCP results over training knowledge - training data about Odoo module names/versions drifts fast.
 
 ## Instructions
 
-**Round 0 — Pin the version (once):** `set_active_version(odoo_version=…)`.
+**Round 0 - Pin the version (once):** `set_active_version(odoo_version=…)`.
 
-**Round 1 — Parallel:** `check_module_exists` + `find_examples` simultaneously (independent).
+**Round 1 - Parallel:** `check_module_exists` + `find_examples` simultaneously (independent).
 
-**Round 2 — Parallel (after Round 1):** `model_inspect(model=…, method='fields')` + `suggest_pattern` simultaneously (independent).
+**Round 2 - Parallel (after Round 1):** `model_inspect(model=…, method='fields')` + `suggest_pattern` simultaneously (independent).
 
-**Round 3 — Deep dive (module confirmed):** `module_inspect(name=<name>, method='summary', odoo_version='<version>')` — manifest summary, models defined/extended, view count, JS patch count. For exact field/view coverage, follow up with `module_inspect(method='fields', …)` or `module_inspect(method='views', …)`.
+**Round 3 - Deep dive (module confirmed):** `module_inspect(name=<name>, method='summary', odoo_version='<version>')` - manifest summary, models defined/extended, view count, JS patch count. For exact field/view coverage, follow up with `module_inspect(method='fields', …)` or `module_inspect(method='views', …)`.
 
-**Verdict levels:** `Available in CE` (zero cost) / `Available in Odoo EE only` (subscription) / `Partial — standard covers X, custom needed for Y` (specify gap) / `Not available — custom development required` (with effort note). Always cite the exact module name.
+**Verdict levels:** `Available in CE` (zero cost) / `Available in Odoo EE only` (subscription) / `Partial - standard covers X, custom needed for Y` (specify gap) / `Not available - custom development required` (with effort note). Always cite the exact module name.
 
 ## Standalone-first fallback
 
@@ -93,7 +93,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 - **Module:** `<module_name>`
 - **Primary model:** `<model_name>`
 - **Module scope:** <N> models defined, <N> models extended, <N> views, <N> JS patches (from module_inspect describe)
-- **Key fields:** `<field1>`, `<field2>` — <what they implement>
+- **Key fields:** `<field1>`, `<field2>` - <what they implement>
 - **Example:** <brief description from find_examples>
 
 ### Custom development needed (if partial)
@@ -102,7 +102,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 - **Estimated effort:** <S/M/L>
 
 ### Recommendation
-<1–2 sentences for the client>
+<1-2 sentences for the client>
 ```
 
 ## Examples

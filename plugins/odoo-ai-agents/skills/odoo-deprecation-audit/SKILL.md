@@ -1,7 +1,7 @@
 ---
 name: odoo-deprecation-audit
 description: >
-  Systematic audit of deprecated Odoo API usage in a codebase before a version upgrade —
+  Systematic audit of deprecated Odoo API usage in a codebase before a version upgrade -
   finds `@api.multi`, `osv.osv`, `_columns`, `web.Widget`, `fields.Html` and other
   era-specific APIs that break or warn in the target version, grouped by file with the exact
   replacement and urgency (BREAKING / WARN / STYLE). Resolve the target version from context;
@@ -38,15 +38,15 @@ Developer / Tech Lead
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
-- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
-- `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
-- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
-- `find_deprecated_usage` — Scan the indexed codebase for usages of deprecated API patterns.
-- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `api_version_diff` - Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- `entity_lookup` ★ - Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `find_deprecated_usage` - Scan the indexed codebase for usages of deprecated API patterns.
+- `lookup_core_api` - Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -61,17 +61,17 @@ Era-specific deprecation patterns and data priority guidance:
 
 ## Instructions
 
-Use parallel MCP calls — full audit completes in 3 rounds.
+Use parallel MCP calls - full audit completes in 3 rounds.
 
-**Round 0 — Pin the source version + customer profile:** `set_active_version(odoo_version=<source_version>)`, then `set_active_profile(profile_name=<viindoo_profile from .odoo-ai/context.md>)`. `find_deprecated_usage` honours the session profile, so pinning scopes the scan to the customer's own modules instead of the default Odoo CE scope — otherwise the report is polluted with standard-Odoo deprecations irrelevant to this codebase.
+**Round 0 - Pin the source version + customer profile:** `set_active_version(odoo_version=<source_version>)`, then `set_active_profile(profile_name=<viindoo_profile from .odoo-ai/context.md>)`. `find_deprecated_usage` honours the session profile, so pinning scopes the scan to the customer's own modules instead of the default Odoo CE scope - otherwise the report is polluted with standard-Odoo deprecations irrelevant to this codebase.
 
-**Round 1 — Parallel:** Call `find_deprecated_usage` + `api_version_diff` simultaneously. These are completely independent: one scans the codebase, the other fetches the version spec. No dependency between them.
+**Round 1 - Parallel:** Call `find_deprecated_usage` + `api_version_diff` simultaneously. These are completely independent: one scans the codebase, the other fetches the version spec. No dependency between them.
 
-**Round 2 — Parallel:** Merge symbol lists from Round 1. Call `lookup_core_api` for ALL deprecated/removed symbols in one batch. Every call is independent — fire them all together.
+**Round 2 - Parallel:** Merge symbol lists from Round 1. Call `lookup_core_api` for ALL deprecated/removed symbols in one batch. Every call is independent - fire them all together.
 
-**Round 3 — Parallel:** Call `entity_lookup(kind='method', …)` for ALL changed-signature methods simultaneously. Independent of each other and of Round 2.
+**Round 3 - Parallel:** Call `entity_lookup(kind='method', …)` for ALL changed-signature methods simultaneously. Independent of each other and of Round 2.
 
-**Round 3b — JS patch audit (when migrating from v8-v13):** Call `module_inspect(name=<scope>, method='js', odoo_version='<version>')` to enumerate all legacy `web.Widget`-based patches. Era1 (v8-v13) patches require manual OWL rewrites because the Widget API was removed in v16. Flag each patch as BREAKING if target version is v14+ and the patch still references `AbstractField`, `FieldWidget`, or `web.Widget`. Fire in parallel with Round 3 if both apply.
+**Round 3b - JS patch audit (when migrating from v8-v13):** Call `module_inspect(name=<scope>, method='js', odoo_version='<version>')` to enumerate all legacy `web.Widget`-based patches. Era1 (v8-v13) patches require manual OWL rewrites because the Widget API was removed in v16. Flag each patch as BREAKING if target version is v14+ and the patch still references `AbstractField`, `FieldWidget`, or `web.Widget`. Fire in parallel with Round 3 if both apply.
 
 Capture file, line, symbol name, and deprecation message from Round 1; merge with Round 2 replacement info before building the output table. Group findings by file so developers can batch-fix one file at a time. Include the exact replacement API with a one-line migration note.
 

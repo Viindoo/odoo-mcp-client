@@ -1,4 +1,4 @@
-# Objection Handling — Worked Examples
+# Objection Handling - Worked Examples
 
 **Example 1:**
 Prompt: "handle the objection that Odoo doesn't support complex approval workflows"

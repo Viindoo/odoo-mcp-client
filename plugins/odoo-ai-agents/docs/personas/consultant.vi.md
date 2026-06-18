@@ -35,7 +35,7 @@ Những nỗi đau phổ biến nhất của tư vấn viên:
 ### 1. Kiểm tra tính sẵn có nguyên bản trước tiên
 
 ```
-check_module_exists("account_budget", "17.0")
+check_module_exists("account_budget", "<version>")
 ```
 
 Lệnh này cho bạn biết: module có tồn tại không (có/không), CE hay EE, và liệu có rủi ro nhầm lẫn EE hay không (một addon miễn phí có tên tương tự dễ gây hiểu lầm).
@@ -51,7 +51,7 @@ Tìm kiếm ngữ nghĩa trên các repo đã được lập chỉ mục - trả
 ### 3. Hiểu độ phức tạp của model
 
 ```
-model_inspect(model="account.budget", method="summary", odoo_version="17.0")
+model_inspect(model="account.budget", method="summary", odoo_version="<version>")
 ```
 
 Số lượng trường, các module mở rộng, danh sách method. Nếu model có hơn 15 module mở rộng, rủi ro tùy chỉnh cao hơn - hãy tính điều đó vào ước lượng của bạn.

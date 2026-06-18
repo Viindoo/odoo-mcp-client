@@ -51,7 +51,7 @@ the phase/step label (`Phase 0`, `Round 2`); pick exactly ONE verb:
 Worked example:
 
 ```
-- Round 2 | architect | DECIDED | extend sale.order via _inherit (not a new model) | WHY: the margin field belongs on the existing order | EVIDENCE: model_inspect(model='sale.order', method='summary', odoo_version='17.0')
+- Round 2 | architect | DECIDED | extend sale.order via _inherit (not a new model) | WHY: the margin field belongs on the existing order | EVIDENCE: model_inspect(model='sale.order', method='summary', odoo_version='<version>')
 ```
 
 `EVIDENCE` is the Completion-status #8 hook - cite a real path, command output, or OSM call, not

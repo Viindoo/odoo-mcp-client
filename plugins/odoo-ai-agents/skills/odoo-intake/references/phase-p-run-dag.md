@@ -1,33 +1,33 @@
-# Intake — Phase P: RUN-DAG persistence + drive-to-done (optional, additive)
+# Intake - Phase P: RUN-DAG persistence + drive-to-done (optional, additive)
 
 Load this only when the approved plan is multi-step or the user wants hands-off execution. This
 phase turns an approved plan into a self-advancing run. It is **purely additive**: a single-step
-plan still dispatches exactly as before — Phase P only matters for multi-step work or hands-off
+plan still dispatches exactly as before - Phase P only matters for multi-step work or hands-off
 execution. Full schema + loop: `docs/reference/workflow-harness.md` §8.
 
-**Autonomy dial** — parse from the user prompt (default `--auto`):
+**Autonomy dial** - parse from the user prompt (default `--auto`):
 - `--auto` (default): drive to done; auto-pass L0/L1 nodes; stop only at L2 gates + BLOCKED.
-- `--step`: gate every node ≥ L1 (this is today's behaviour — safest).
+- `--step`: gate every node ≥ L1 (this is today's behaviour - safest).
 - `--plan`: emit the RUN-DAG and STOP; do not run the driver.
 
-**When to engage Phase P** (decidable rule — the autonomy dial is NOT a trigger; it is only
+**When to engage Phase P** (decidable rule - the autonomy dial is NOT a trigger; it is only
 recorded in `run.json` once engaged). After the plan is approved, ENGAGE Phase P if ANY holds:
-1. `node_count >= 2` (multi-step — needs DAG sequencing / `next[]` materialization), OR
+1. `node_count >= 2` (multi-step - needs DAG sequencing / `next[]` materialization), OR
 2. a single node whose `output_mode == writes-files` (needs gate-tier tracking + a driver to
    catch any runtime `next[]`), OR
 3. a single node that is a workflow (`approach_kind == workflow`) whose YAML declares
-   `on_complete` (needs the depth-0 driver present to dispatch the cross-workflow chain — see
+   `on_complete` (needs the depth-0 driver present to dispatch the cross-workflow chain - see
    "workflow-as-node" below).
 
-SKIP Phase P (dispatch directly, as today — no run file, no driver) ONLY when the plan is a
+SKIP Phase P (dispatch directly, as today - no run file, no driver) ONLY when the plan is a
 single node AND `output_mode == chat-only` AND it is not a workflow-with-`on_complete`. A
 single chat-only node fires the specialist on the next turn; `--auto` on it is a harmless no-op
 (nothing to drive). Note: a directly-dispatched single node does NOT materialize its
-Continuation Contract `next[]` — if a step emits a `next[]` worth chaining, re-run `/odoo-intake` to
+Continuation Contract `next[]` - if a step emits a `next[]` worth chaining, re-run `/odoo-intake` to
 open a RUN-DAG.
 
 **Procedure** (when Phase P is engaged):
-1. Serialize the approved Plan Mode 3-block content (workitems + dependency DAG + assignment —
+1. Serialize the approved Plan Mode 3-block content (workitems + dependency DAG + assignment -
    already produced per § Plan Mode Content Schema) into `.odoo-ai/run-<id>.json` per the
    blackboard schema (harness §8.3): one `nodes[]` entry per workitem, with `depends_on` from
    the dependency graph and `approach`/`approach_kind` from the assignment. The `<id>` is
@@ -41,10 +41,10 @@ open a RUN-DAG.
 
 **Depth safety:** intake (depth-0) writing the file and handing off to `run-driver` (also
 depth-0) keeps everything at the main level; the driver does the depth-0→1→2 dispatch. intake
-never spawns the specialists itself here — it persists the plan and yields to the driver.
+never spawns the specialists itself here - it persists the plan and yields to the driver.
 
 **Workflow-as-node (G-B):** a workflow-command (e.g. `/odoo-respond-bid`) is ONE node at the
-DAG level — its internal phases are SSOT inside the `.workflow.yaml` (gated by
+DAG level - its internal phases are SSOT inside the `.workflow.yaml` (gated by
 `workflow-chaining`), never expanded into separate WIs. Routing:
 - single workflow node, NO `on_complete` declared → hand the YAML name straight to
   `workflow-chaining` (it self-gates each phase); no run file needed.

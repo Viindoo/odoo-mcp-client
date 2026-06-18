@@ -1,6 +1,6 @@
-# Discovery Summary — Worked Examples
+# Discovery Summary - Worked Examples
 
-## Example 1 — Customer A (manufacturing SME, traceability need)
+## Example 1 - Customer A (manufacturing SME, traceability need)
 
 **User input (VI):**
 > "Họp với Customer A hôm nay. Sản xuất linh kiện nhựa, khoảng 80 người, đang dùng
@@ -11,18 +11,18 @@
 **Expected profile (excerpt):**
 
 ```
-# Discovery Profile — Customer A
+# Discovery Profile - Customer A
 
 ## Snapshot
-- Industry: Manufacturing — plastic components
+- Industry: Manufacturing - plastic components
 - Headcount band: M (80 employees)
 - Current system: Excel + legacy accounting software
 - Decision process: Committee (Production Director + CFO)
 - Timeline urgency: undefined (demo first)
-- Budget signal: [not stated — approval pending demo]
+- Budget signal: [not stated - approval pending demo]
 
 ## Pain points
-1. Lot traceability gap — "chúng tôi không biết lô nào gây ra lỗi trả về vì không có trace"
+1. Lot traceability gap - "chúng tôi không biết lô nào gây ra lỗi trả về vì không có trace"
 2. No production reporting visibility
 
 ## Fit assessment
@@ -31,7 +31,7 @@
 | Lot traceability | Standard (stock.lot + MRP) | High |
 | Production reporting | Config (mrp module dashboards) | Med |
 
-Overall fit: 5/5 — Both pains are covered by standard MRP/inventory modules; main risk
+Overall fit: 5/5 - Both pains are covered by standard MRP/inventory modules; main risk
 is data migration from legacy accounting.
 
 ## Open questions for next call
@@ -40,7 +40,7 @@ is data migration from legacy accounting.
 3. How many concurrent warehouse users at peak picking time?
 ```
 
-## Example 2 — Customer B (multi-store retail, POS + inventory sync)
+## Example 2 - Customer B (multi-store retail, POS + inventory sync)
 
 **User input (EN):**
 > "Discovery call with Customer B. They run 5 retail stores + 1 online shop. ~200 staff
@@ -52,10 +52,10 @@ is data migration from legacy accounting.
 **Expected profile (excerpt):**
 
 ```
-# Discovery Profile — Customer B
+# Discovery Profile - Customer B
 
 ## Snapshot
-- Industry: Retail — multi-store + e-commerce
+- Industry: Retail - multi-store + e-commerce
 - Headcount band: M (200 employees)
 - Current system: Legacy POS (vendor unspecified), separate warehouse system
 - Decision process: Single owner
@@ -63,7 +63,7 @@ is data migration from legacy accounting.
 - Budget signal: Approved up to USD 40k
 
 ## Pain points
-1. Real-time cross-location stock sync — "We lose at least 3 hours a day reconciling
+1. Real-time cross-location stock sync - "We lose at least 3 hours a day reconciling
    stock between stores manually."
 2. Unified loyalty programme (in-store + online)
 
@@ -73,11 +73,11 @@ is data migration from legacy accounting.
 | Cross-location stock sync | Standard (multi-warehouse + POS module) | High |
 | Unified loyalty (POS + eCommerce) | Config (loyalty.card + eCommerce bridge) | Med |
 
-Overall fit: 4/5 — Core pain is standard; loyalty cross-channel sync may need config
+Overall fit: 4/5 - Core pain is standard; loyalty cross-channel sync may need config
 tuning. USD 40k budget is tight if data migration from 5 legacy POS instances is needed.
 
 ## Open questions for next call
-1. What is the current loyalty card data format — can it be exported for migration?
+1. What is the current loyalty card data format - can it be exported for migration?
 2. Does the online shop run on a third-party platform (Shopify, WooCommerce) or is a new
    Odoo eCommerce site also in scope?
 3. Are the 5 stores on separate tax jurisdictions requiring different fiscal positions?

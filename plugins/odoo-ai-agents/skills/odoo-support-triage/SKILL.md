@@ -43,7 +43,7 @@ If OSM unreachable: all phases complete via training knowledge; append caveat th
 > The `workflows/support-triage.workflow.yaml` is the **execution SSOT** for the
 > support-triage workflow. When the `workflow-chaining` fires this skill it follows the
 > phase sequencing declared in that YAML. The phase descriptions below document the
-> **inline behavior** of this skill as invoked by the runner — they do not duplicate
+> **inline behavior** of this skill as invoked by the runner - they do not duplicate
 > the orchestration logic. (Same pattern as `odoo-qa-suite/SKILL.md`.)
 
 ## Phase 0 - Collect ticket input
@@ -52,7 +52,7 @@ Read `.odoo-ai/context.md` if present (`${CLAUDE_PLUGIN_ROOT}/snippets/context-b
 
 Ask only for still-missing fields:
 
-**Required:** ticket description or customer message (accepted as structured text already in request, OR a file path — `Read` it; never ask to re-paste); Odoo version (default from context.md; "unknown" acceptable).
+**Required:** ticket description or customer message (accepted as structured text already in request, OR a file path - `Read` it; never ask to re-paste); Odoo version (default from context.md; "unknown" acceptable).
 
 **Optional:** module/menu path, customer label (abstract; real names not required), customer severity, prior steps taken.
 
@@ -74,7 +74,7 @@ Output: one classification + confidence (high/medium/low) + one-line rationale.
 
 ## Phase 2 - Root-cause hint
 
-One concise paragraph. Flag uncertainty ("likely", "possibly") — never assert unverified claims.
+One concise paragraph. Flag uncertainty ("likely", "possibly") - never assert unverified claims.
 
 **config:** Name the most likely setting or access-right to check.
 
@@ -105,12 +105,12 @@ One concise paragraph. Flag uncertainty ("likely", "possibly") — never assert 
 
 ## Phase 4 - Output assembly
 
-Combine Phases 1-3 into a structured artifact. Write to `.odoo-ai/support/<ticket-slug>.md`; emit the path in output. Use abstract labels (Customer A, Ticket-001) — never log real company or contact names.
+Combine Phases 1-3 into a structured artifact. Write to `.odoo-ai/support/<ticket-slug>.md`; emit the path in output. Use abstract labels (Customer A, Ticket-001) - never log real company or contact names.
 
 ### Output format
 
 ```
-## Ticket Triage — <ticket-slug>
+## Ticket Triage - <ticket-slug>
 Date: <YYYY-MM-DD>
 Odoo version: <version>
 Customer label: <abstract label>
@@ -140,7 +140,7 @@ screenshot" or "Suggest: run odoo-feature-check to confirm edition availability"
 ## Artifact
 Saved to: .odoo-ai/support/<ticket-slug>.md
 Emit this path in the final output so the caller can reference or forward the file.
-Note: .odoo-ai/ is gitignored — no customer data committed to the repo.
+Note: .odoo-ai/ is gitignored - no customer data committed to the repo.
 ```
 
 ## Confidentiality rules
@@ -149,7 +149,7 @@ ALL output → `.odoo-ai/support/` (gitignored). Abstract labels only: never log
 
 ## Depth and dispatch rules
 
-Does NOT invoke the Skill tool. Does NOT spawn subagents. NL-dispatch triggers are natural-language prompts emitted inline — main context fires the specialist via description-match. Other skill references are text suggestions only ("Suggest: run X") — user decides.
+Does NOT invoke the Skill tool. Does NOT spawn subagents. NL-dispatch triggers are natural-language prompts emitted inline - main context fires the specialist via description-match. Other skill references are text suggestions only ("Suggest: run X") - user decides.
 
 ## Continuation Contract
 

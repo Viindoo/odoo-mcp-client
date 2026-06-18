@@ -1,11 +1,11 @@
-# Intake — Collision Zones (worked examples)
+# Intake - Collision Zones (worked examples)
 
 Load this when two candidate skills overlap and the Routing Table's **Discriminator** column
 is not enough to break the tie. These are the canonical resolution logics for the known
 collision zones. The one-line discriminators already live in the Routing Table; this file is
 the elaboration with worked prompts and the "if the user had said X instead" counter-cases.
 
-## Collision 1 — Objection vs Capability Proof
+## Collision 1 - Objection vs Capability Proof
 
 **Prompt**: "write a response to the customer saying Odoo doesn't support multi-level approval"
 
@@ -20,7 +20,7 @@ paragraph they can paste. -> **Pick `odoo-objection-handling`.**
 If the user had said "prepare technical evidence for the multi-level approval demo" -> that
 would be `odoo-capability-proof`.
 
-## Collision 2 — Version Diff vs Feature Highlights
+## Collision 2 - Version Diff vs Feature Highlights
 
 **Prompt**: "summarize the key highlights in Odoo 18 for an internal slide next week"
 
@@ -35,7 +35,7 @@ would be `odoo-capability-proof`.
 If the user had said "which APIs changed from v17 to v18, dev team needs to know" -> that
 would be `odoo-version-diff`.
 
-## Collision 3 — Deprecation Audit vs Version Diff
+## Collision 3 - Deprecation Audit vs Version Diff
 
 **Prompt**: "customer is asking what's different between v16 and v17"
 
@@ -50,7 +50,7 @@ wants a clean diff to relay, not a code scan. -> **Pick `odoo-version-diff`.**
 If the user had said "audit the customer's codebase before upgrading to v17" -> that would be
 `odoo-deprecation-audit`.
 
-## Collision 4 — Deal Follow-up vs Objection Handler
+## Collision 4 - Deal Follow-up vs Objection Handler
 
 **Prompt**: "customer hasn't replied in a while, need to write a follow-up"
 
@@ -65,7 +65,7 @@ re-engagement email, not a counter to an objection. -> **Pick `odoo-deal-followu
 If the user had said "customer says Odoo doesn't support X, I need to write a response" ->
 that would be `odoo-objection-handling`.
 
-## Collision 5 — Skill vs Command (same domain)
+## Collision 5 - Skill vs Command (same domain)
 
 **Prompt**: "synthesize these discovery notes for the Acme deal"
 
@@ -80,7 +80,7 @@ If the user had typed "/odoo-summarize-discovery" -> command invokes directly (i
 consulted). If user said "synthesize discovery + save to .odoo-ai/" -> recommend the COMMAND
 for the save step.
 
-## Collision 6 — Capability Proof (text evidence) vs Demo Recorder (real video)
+## Collision 6 - Capability Proof (text evidence) vs Demo Recorder (real video)
 
 **Prompt**: "I need a demo of multi-currency invoicing for the prospect this Friday"
 
@@ -95,7 +95,7 @@ recorded video/clip of the flow running on a live instance ("record", "video", "
 "GIF"), -> **Pick `odoo-demo-recording`**. When unclear, ask: "written evidence package, or a
 recorded video of the flow?"
 
-## Collision 8 — BRL Scale vs Ad-hoc Gap Analysis vs Single Feature
+## Collision 8 - BRL Scale vs Ad-hoc Gap Analysis vs Single Feature
 
 **Discriminator**:
 - **1 feature** → `odoo-feature-check`
@@ -104,12 +104,12 @@ recorded video of the flow?"
 
 **Prompt examples**:
 - "Does Odoo support multi-currency invoicing?" → `odoo-feature-check` (single feature)
-- "Customer needs A, B, C — which does Odoo have, estimate effort" → `odoo-gap-analysis` (short list, ad-hoc)
-- "We have 1200 requirements from the RFP — classify, cost, and produce a dependency graph" → `odoo-brl` (scale + cost + DAG)
+- "Customer needs A, B, C - which does Odoo have, estimate effort" → `odoo-gap-analysis` (short list, ad-hoc)
+- "We have 1200 requirements from the RFP - classify, cost, and produce a dependency graph" → `odoo-brl` (scale + cost + DAG)
 - "50 requirements but we also need the RTM and cost table" → `odoo-brl` (explicit RTM + cost signals override small count)
 - "Classify these requirements" (no count stated) → ask: "How many requirements? If tens or more with cost/traceability needs, odoo-brl; short ad-hoc list → gap-analysis."
 
-## Collision 7 — Coding (write JS) vs UI Debug (debug runtime)
+## Collision 7 - Coding (write JS) vs UI Debug (debug runtime)
 
 **Prompt**: "my OWL widget isn't showing up in the Odoo 17 form"
 
@@ -124,15 +124,15 @@ asks for the fix to be written, -> route to `odoo-coding`. If the user is starti
 from scratch ("create a color picker widget"), there is no runtime to debug ->
 `odoo-coding`.
 
-## Collision 9 — Wave (git orchestration) vs BRL (requirement classification) vs Coding (single change)
+## Collision 9 - Wave (git orchestration) vs BRL (requirement classification) vs Coding (single change)
 
-**Prompt**: "I have 5 changes to make across 3 files — parallelize them and land as a single reviewed PR"
+**Prompt**: "I have 5 changes to make across 3 files - parallelize them and land as a single reviewed PR"
 
 - `wave`: handles "parallelize these changes", "multi-WI PR with review + squash" ->
   git-wave depth-0 orchestrator: creates an integration branch, dispatches parallel WI subagents,
   cherry-picks, runs end-of-wave review, creates 1 PR, squashes, and waits for human-confirm merge.
 - `odoo-brl`: handles "classify changes", "requirements" -> classifies and costs a
-  list of BUSINESS REQUIREMENTS — produces an RTM/cost/DAG but writes NO code and does NOT touch git.
+  list of BUSINESS REQUIREMENTS - produces an RTM/cost/DAG but writes NO code and does NOT touch git.
 - `odoo-coding`: handles "implement feature", "write code" -> writes code for a SINGLE
   change (backend and/or frontend) in the current working directory; no git orchestration, no worktrees.
 
@@ -144,5 +144,5 @@ from scratch ("create a color picker widget"), there is no runtime to debug ->
 
 If the user said "write a computed field for sale.order" -> `odoo-coding` (single, no orchestration).
 If the user said "classify 200 requirements from the RFP" -> `odoo-brl` (no code, no git).
-If the user said "we have a bug fix, a test addition, and a docs update — land them as one reviewed PR"
+If the user said "we have a bug fix, a test addition, and a docs update - land them as one reviewed PR"
 -> `wave` (multiple disjoint changes, git coordination, end-of-wave review required).

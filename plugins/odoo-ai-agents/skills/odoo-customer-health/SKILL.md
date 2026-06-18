@@ -187,8 +187,8 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-customer-health/references/examples.md` f
 
 - **Data poverty**: "we don't really track this" → apply the penalty and say so. An unobserved account defaults to Amber, not Green.
 - **Honesty over optics**: never soften churn signals. Amber labelled Green gets lost at renewal. Use direct language: "high churn risk", "no visible ROI", "customer may not renew".
-- **Upsell timing**: never lead with upsell for a Red account — it accelerates churn. Note the opportunity but sequence: "address churn first; upsell once back to Amber/Green."
-- **Cross-skill handoff**: suggest `odoo-deal-followup` for outreach, `odoo-feature-check` for upsell validation, `odoo-competitive-brief` for competitive situations. Text suggestions only — this skill does not invoke them.
+- **Upsell timing**: never lead with upsell for a Red account - it accelerates churn. Note the opportunity but sequence: "address churn first; upsell once back to Amber/Green."
+- **Cross-skill handoff**: suggest `odoo-deal-followup` for outreach, `odoo-feature-check` for upsell validation, `odoo-competitive-brief` for competitive situations. Text suggestions only - this skill does not invoke them.
 
 ## Continuation Contract
 

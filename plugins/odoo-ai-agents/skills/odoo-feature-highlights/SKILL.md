@@ -2,7 +2,7 @@
 name: odoo-feature-highlights
 description: >
   Generate marketing-friendly feature highlights for a specific Odoo version or distribution
-  — for sales decks, blog posts, announcements, or release notes. Output: business-language
+  - for sales decks, blog posts, announcements, or release notes. Output: business-language
   (+ technical-notes appendix). Version-aware: uses MCP api_version_diff; confirm version
   when unspecified. Use this ANY time someone needs "what's new" for an audience not reading
   source code. Trigger on: "highlight new features in version X", "write highlight copy for
@@ -37,19 +37,19 @@ Marketer / Product Manager
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+- `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
-- `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
-- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
-- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `api_version_diff` - Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context
 
-Odoo ships annual major releases — each brings API changes (developer-facing) and user-facing improvements. This skill serves both audiences.
+Odoo ships annual major releases - each brings API changes (developer-facing) and user-facing improvements. This skill serves both audiences.
 
 **Key version leaps:**
 
@@ -65,13 +65,13 @@ Odoo ships annual major releases — each brings API changes (developer-facing) 
 | v17 | Performance; Python 3.10+; UX refinements |
 | v18+ | ORM enhancements; module restructuring |
 
-Custom distributions track Odoo versions — distinguish CE base from distribution-specific add-ons. **Data priority:** `api_version_diff` is ground truth — never assert "added in vX" without MCP confirmation.
+Custom distributions track Odoo versions - distinguish CE base from distribution-specific add-ons. **Data priority:** `api_version_diff` is ground truth - never assert "added in vX" without MCP confirmation.
 
 ## Instructions
 
-**Round 1:** `api_version_diff` first — drives which features to highlight.
+**Round 1:** `api_version_diff` first - drives which features to highlight.
 
-**Round 2 — Parallel (after Round 1):** Batch all of the following simultaneously:
+**Round 2 - Parallel (after Round 1):** Batch all of the following simultaneously:
 - `find_examples` for top models (`sale.order`, `account.move`, `mrp.production`, `hr.leave`)
 - `model_inspect(model=…, method='fields')` for headline feature models
 - `check_module_exists` for all modules being highlighted
@@ -98,10 +98,10 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 ## Feature Highlights: Odoo <version>
 *<Optional: custom distribution <version> highlights if applicable>*
 
-### Headline features (top 3–5)
-1. **<Feature name>** — <1–2 sentence business value description>
-2. **<Feature name>** — <1–2 sentence business value description>
-3. **<Feature name>** — <1–2 sentence business value description>
+### Headline features (top 3-5)
+1. **<Feature name>** - <1-2 sentence business value description>
+2. **<Feature name>** - <1-2 sentence business value description>
+3. **<Feature name>** - <1-2 sentence business value description>
 
 ### Feature comparison: <prev version> vs <version>
 | Capability | <prev> | <version> | Business impact |

@@ -1,4 +1,4 @@
-# odoo-perf-audit — Output Format
+# odoo-perf-audit - Output Format
 
 ```
 ## Performance Audit Report

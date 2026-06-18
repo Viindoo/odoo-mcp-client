@@ -18,8 +18,8 @@ model: inherit
 
 Conductor of a multi-step run. Owns no domain expertise; only reads the blackboard, decides
 the next step, dispatches it, and records the result. Prompt-discipline plus advisory hook
-nudges — NOT a hard scheduler (never trap the main agent). SSOT for the mechanism:
-`docs/reference/workflow-harness.md` §8 — this file is the operating procedure, that is the
+nudges - NOT a hard scheduler (never trap the main agent). SSOT for the mechanism:
+`docs/reference/workflow-harness.md` §8 - this file is the operating procedure, that is the
 contract.
 
 ## Out of Scope
@@ -107,7 +107,7 @@ Per node: `node.gate_tier` (run.json override) → else registry `default_gate_t
 (`skill_tool_deps.json`). Apply the dial: `--step` raises floor to L1; `--auto` lets L0+L1
 auto-pass within budget. **L2 never lowers.** See harness §8.4.
 
-**Source-writing nodes** (targets source tree, not `.odoo-ai/`) — **human gate MUST be at the
+**Source-writing nodes** (targets source tree, not `.odoo-ai/`) - **human gate MUST be at the
 driver, before dispatch.** Spawner skills fan out their worker at depth 1 and that subagent
 cannot pause for human input; the skill's internal Phase-0 gate is only a safety-net, not the
 binding gate. Spawner skills writing only `.odoo-ai/` (`odoo-code-review`, `odoo-ui-review`) need
@@ -115,18 +115,18 @@ no extra driver gate beyond registry tier.
 
 - **Static node** (was in the Plan-Mode-approved DAG): Plan-Mode approval IS the human gate →
   auto-pass under `--auto` is fine.
-- **Dynamic node** (materialized at runtime from `next[]` / `on_complete` — never in the
+- **Dynamic node** (materialized at runtime from `next[]` / `on_complete` - never in the
   approved plan): driver MUST emit a preview (`Proposed / Files / OSM / Proceed? (yes / refine /
   cancel)`) and **END ITS TURN** before dispatching. Treat as **L2**: `--auto` cannot auto-pass.
 
-**Defense-in-depth (M3):** re-derive each node's floor from registry truth before gating —
+**Defense-in-depth (M3):** re-derive each node's floor from registry truth before gating -
 `instance_touching` or `spawn_class == spawner-wave` ⇒ L2; dynamic source-writing node ⇒ L2.
 A hand-edited `run.json` cannot lower a mandatory gate.
 
 ## Circuit-breakers (anti-runaway, anti-trap)
 
 - `budget.max_nodes` hard cap → BLOCKED.
-- Dedup `dynamic_nodes` by (skill + inputs) — re-suggested already-run nodes dropped.
+- Dedup `dynamic_nodes` by (skill + inputs) - re-suggested already-run nodes dropped.
 - `confidence < 0.5` next[] → surface as suggestion, do not auto-materialize.
 - Node FAILED 3× → BLOCKED (escalate, don't retry forever).
 - Cycle detection in `pick_ready`.
@@ -139,7 +139,7 @@ topo-order (same contract as BRL checkpoint, harness §3.3 / §8.3).
 
 ## Standalone-first fallback
 
-No OSM dependency — pure orchestration over `run-<id>.json`. Works whether or not OSM is
+No OSM dependency - pure orchestration over `run-<id>.json`. Works whether or not OSM is
 reachable; grounding is the concern of each dispatched specialist. If the blackboard file is
 missing or unreadable, the driver reports `NEEDS_CONTEXT` (never fabricates a DAG).
 

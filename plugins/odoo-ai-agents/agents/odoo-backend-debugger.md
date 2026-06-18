@@ -46,7 +46,7 @@ Odoo symptom catalog by layer (Python/ORM, XML/Views, Security, Performance, Ins
 
 ## Standalone-first fallback
 
-Before calling any MCP tool, probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. You have `Read`, `Grep`, and `Bash` — reading source is a legitimate grounding path:
+Before calling any MCP tool, probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. You have `Read`, `Grep`, and `Bash` - reading source is a legitimate grounding path:
 
 1. Note OSM is unreachable (so the caveat survives).
 2. **Tier 2 - disk first.** `find . -maxdepth 4 -name __manifest__.py`; `grep -rn "class .*models.Model" --include=*.py`; `Read models/*.py` for field definitions, method signatures, `@api.depends`, `_inherit`, and hook order. If the traceback names a file, `Read` it directly.
@@ -61,7 +61,7 @@ Before calling any MCP tool, probe reachability with one cheap call (`set_active
 
 ## Step 0 - Pin the version (once per session)
 
-Call `set_active_version(odoo_version='17.0')` (or the version the user/context states; doubles as reachability probe). Every subsequent OSM call must pass the CONCRETE version (`odoo_version='<version>'`) - never `'auto'`: the pin is per-API-key state any concurrent agent can overwrite. Skip if already pinned this session.
+Call `set_active_version(odoo_version='<version>')` (or the version the user/context states; doubles as reachability probe). Every subsequent OSM call must pass the CONCRETE version (`odoo_version='<version>'`) - never `'auto'`: the pin is per-API-key state any concurrent agent can overwrite. Skip if already pinned this session.
 
 > **OSM-First Grounding Contract** (full text: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`): When OSM is reachable, every structural claim about a model/field/method MUST be backed by an OSM call - never asserted from memory. When OSM is unreachable, state `OSM unavailable - ungrounded` at the top so the caveat survives.
 
@@ -191,7 +191,7 @@ Always distinguish `ir.model.access` vs `ir.rule` before hypothesizing (see Step
 
 Symptom: `amount_total` on `sale.order` stays 0.0 after adding order lines.
 
-- Step 0: `set_active_version('17.0')`.
+- Step 0: `set_active_version('<version>')`.
 - Step 2 (parallel): `model_inspect('sale.order', method='fields', odoo_version='<version>')` to
   confirm `amount_total` is stored-computed and its `@api.depends`; `validate_depends` on
   `_amount_all`; `resolve_orm_chain` for each depends path.

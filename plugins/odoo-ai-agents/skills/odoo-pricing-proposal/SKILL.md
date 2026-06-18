@@ -26,7 +26,7 @@ first, not the IT team.
 ## When to use
 
 - AE has a scoped deal (module list + effort estimate) and needs a formal or semi-formal commercial proposal
-- An `odoo-gap-analysis` was already run — this skill consumes that output directly
+- An `odoo-gap-analysis` was already run - this skill consumes that output directly
 - AE wants to explore pricing options before a negotiation call (CE vs EE? multi-year discount?)
 - Manager needs a quick price sanity-check before approving a quote
 
@@ -58,13 +58,13 @@ Skill always operates without OSM or any live server. All logic runs on user-pro
 ### Round 0 - Bootstrap context, then ask only for gaps
 
 1. **Use the invocation context first.** If `odoo-gap-analysis` output is in the conversation, extract total implementation days directly. If the user stated the module list, derive an edition recommendation from that. Do not re-ask for what is already visible.
-2. **Read `.odoo-ai/context.md`** if present — extract `odoo_version`, partner rate card references, or any pricing defaults the team recorded.
+2. **Read `.odoo-ai/context.md`** if present - extract `odoo_version`, partner rate card references, or any pricing defaults the team recorded.
 3. **Ask only for fields still unresolved** after steps 1-2. Batch into one message.
 
 **Required inputs:**
 - Customer segment: SME / mid-market / enterprise
-- Module scope: list of Odoo functional areas — needed to drive CE vs EE recommendation
-- Implementation effort in days — accept a range (e.g., "15-20 days")
+- Module scope: list of Odoo functional areas - needed to drive CE vs EE recommendation
+- Implementation effort in days - accept a range (e.g., "15-20 days")
 - Support SLA tier: Basic / Standard / Premium
 - Region / currency: affects rate band selection
 

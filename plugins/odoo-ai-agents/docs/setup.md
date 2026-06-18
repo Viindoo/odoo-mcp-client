@@ -1,14 +1,14 @@
-# Client Setup — Odoo Semantic MCP
+# Client Setup - Odoo Semantic MCP
 
 This guide is for **end users** who want to connect their AI tool to an MCP server that an admin has already deployed.
 
-> **For non-Claude-Code clients, nothing to install** — you only need a URL and an API key from your admin, then follow the section that matches your AI tool. (Claude Code users install the plugin — see the Claude Code section below.)
+> **For non-Claude-Code clients, nothing to install** - you only need a URL and an API key from your admin, then follow the section that matches your AI tool. (Claude Code users install the plugin - see the Claude Code section below.)
 
 > **Snippet convention:** replace `<MCP_URL>` with the URL your admin sent (production:
 > `https://odoo-semantic.viindoo.com/mcp`; local self-host: `http://127.0.0.1:8002/mcp`),
 > and `<API_KEY>` with the raw key (`osm_xxxxxxxx...`) your admin issued (via the `/install/` page or Web UI).
 
-> **The most common mistake:** each client stores MCP config in a **different file** with a **different schema**. Copy-pasting the wrong client's snippet means MCP **will not load — but the client will not report an error** (you only notice when a tool call returns "tool not found"). Each section below includes the canonical add command + JSON fallback + verify command + one client-specific pitfall.
+> **The most common mistake:** each client stores MCP config in a **different file** with a **different schema**. Copy-pasting the wrong client's snippet means MCP **will not load - but the client will not report an error** (you only notice when a tool call returns "tool not found"). Each section below includes the canonical add command + JSON fallback + verify command + one client-specific pitfall.
 
 > **Fastest path:** go to **https://odoo-semantic.viindoo.com/install/**, paste your API key, and the page generates the correct snippet for each client. The sections below are the official reference for advanced setup, troubleshooting, and auto-trust patterns.
 
@@ -16,17 +16,17 @@ This guide is for **end users** who want to connect their AI tool to an MCP serv
 
 ## Claude Code
 
-### First-time setup flow — three steps, different scopes
+### First-time setup flow - three steps, different scopes
 
 These three steps are easy to confuse. Only the first is required:
 
 | Step | Command / skill | Scope | When |
 |------|-----------------|-------|------|
-| 1. Connect the MCP server | `/odoo-semantic-mcp:connect` | Once per machine | **Required** — registers server URL + API key so `mcp__odoo-semantic__*` tools load |
-| 2. Wire the visual stack | `/odoo-ai-agents:odoo-setup` | Once per machine | **Optional** — browser MCP + Playwright + local Odoo instance, only for the `Visual` skills |
-| 3. Onboard a project | `odoo-onboarding` skill | Once per repo | **Optional** — writes `.odoo-ai/context.md` (repo version/modules/conventions); runs even without the server |
+| 1. Connect the MCP server | `/odoo-semantic-mcp:connect` | Once per machine | **Required** - registers server URL + API key so `mcp__odoo-semantic__*` tools load |
+| 2. Wire the visual stack | `/odoo-ai-agents:odoo-setup` | Once per machine | **Optional** - browser MCP + Playwright + local Odoo instance, only for the `Visual` skills |
+| 3. Onboard a project | `odoo-onboarding` skill | Once per repo | **Optional** - writes `.odoo-ai/context.md` (repo version/modules/conventions); runs even without the server |
 
-Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual-stack--browser-mcp-setup). Step 3 runs automatically the first time you invoke an `odoo-*` skill in a new repo.
+Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual-stack-browser-mcp-setup). Step 3 runs automatically the first time you invoke an `odoo-*` skill in a new repo.
 
 ### Plugin install (recommended)
 
@@ -62,8 +62,8 @@ Installing `odoo-ai-agents` automatically pulls in the `odoo-semantic-mcp` plugi
 #### 3. Configure API key and server URL
 
 On first use, Claude Code will prompt for:
-- **API Key** — starts with `osm_`, get it from your admin or the [install page](https://odoo-semantic.viindoo.com/install/)
-- **MCP Server URL** — default `https://odoo-semantic.viindoo.com/mcp` (change for self-hosted)
+- **API Key** - starts with `osm_`, get it from your admin or the [install page](https://odoo-semantic.viindoo.com/install/)
+- **MCP Server URL** - default `https://odoo-semantic.viindoo.com/mcp` (change for self-hosted)
 
 Or run the interactive setup command:
 ```
@@ -108,14 +108,14 @@ After install, 41 skills activate automatically:
 | `odoo-onboarding` | Onboarding / Concierge | Bootstrap per-project Odoo context (version, custom modules, profile) so other skills skip setup |
 | `odoo-intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths when clear, always gates with a Proposed Plan before execution |
 | `odoo-ui-review` | Coder / Visual | Five-lens review of a rendered Odoo screen in a live browser - aesthetics, function, runtime stability, accessibility, performance - with screenshot/console/Lighthouse evidence |
-| `odoo-debug` | Coder | Front-door orchestrator for all Odoo debugging — scientific method; dispatches specialist debug agents (backend/UI) |
+| `odoo-debug` | Coder | Front-door orchestrator for all Odoo debugging - scientific method; dispatches specialist debug agents (backend/UI) |
 | `odoo-visual-regression` | Coder / Visual | Capture a screenshot baseline of one Odoo state and diff it against another (before/after upgrade, module install, theme change) with blast-radius assessment |
 | `odoo-demo-recording` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
 
 > **Visual skills need browser setup.** The three `Coder / Visual` skills above (`odoo-ui-review`, `odoo-visual-regression`, `odoo-demo-recording`) drive a live browser
 > and depend on the bundled browser MCP servers + browser binaries. Run
-> **`/odoo-ai-agents:odoo-setup`** once to provision them — see
-> [Visual stack / browser MCP setup](#visual-stack--browser-mcp-setup) below.
+> **`/odoo-ai-agents:odoo-setup`** once to provision them - see
+> [Visual stack / browser MCP setup](#visual-stack-browser-mcp-setup) below.
 
 ---
 
@@ -128,7 +128,7 @@ After install, 41 skills activate automatically:
 
 Docs: <https://code.claude.com/docs/en/mcp>
 
-Option 1 — CLI (recommended, official):
+Option 1 - CLI (recommended, official):
 ```bash
 claude mcp add --scope user --transport http odoo-semantic <MCP_URL> \
     --header "X-API-Key: <API_KEY>"
@@ -139,7 +139,7 @@ per-tool-call timeout to stop a hung server from blocking the agent (see the
 timeout note below) - edit the `~/.claude.json` entry to add `"timeout": 90000`,
 or just run `/odoo-semantic-mcp:connect`, which does this for you.
 
-Option 2 — JSON fallback (file `~/.claude.json`, **not** `~/.claude/settings.json`):
+Option 2 - JSON fallback (file `~/.claude.json`, **not** `~/.claude/settings.json`):
 ```json
 {
   "mcpServers": {
@@ -164,14 +164,14 @@ Option 2 — JSON fallback (file `~/.claude.json`, **not** `~/.claude/settings.j
 
 Verify: run `/mcp` in a live session, or `claude mcp list` from the shell. You should see `odoo-semantic … Connected`.
 
-**Pitfall 1 (very common):** `~/.claude/settings.json` (for permissions/hooks) is **not** the same as `~/.claude.json` (for MCP servers). Older READMEs incorrectly referenced `settings.json` — MCP never loads from there. If you followed an old README: remove the `mcpServers.odoo-semantic` entry from `~/.claude/settings.json`, then re-run the CLI command above.
+**Pitfall 1 (very common):** `~/.claude/settings.json` (for permissions/hooks) is **not** the same as `~/.claude.json` (for MCP servers). Older READMEs incorrectly referenced `settings.json` - MCP never loads from there. If you followed an old README: remove the `mcpServers.odoo-semantic` entry from `~/.claude/settings.json`, then re-run the CLI command above.
 
-**Pitfall 2:** After adding, you must **restart Claude Code** — new entries do not load at runtime.
+**Pitfall 2:** After adding, you must **restart Claude Code** - new entries do not load at runtime.
 
 ### Auto-trust: skip permission prompts
 <a id="claude-code-auto-trust"></a>
 
-> **If you installed via the plugin:** `/odoo-semantic-mcp:connect` already adds this entry to `~/.claude/settings.json` automatically (idempotent, with backup, no side effects on other keys). Confirm at the final prompt — you can skip the rest of this section. If you declined: follow the manual snippet below.
+> **If you installed via the plugin:** `/odoo-semantic-mcp:connect` already adds this entry to `~/.claude/settings.json` automatically (idempotent, with backup, no side effects on other keys). Confirm at the final prompt - you can skip the rest of this section. If you declined: follow the manual snippet below.
 
 Manual snippet (for users who ran `claude mcp add` directly, without the plugin):
 
@@ -193,8 +193,8 @@ Manual snippet (for users who ran `claude mcp add` directly, without the plugin)
 
 The three `Visual` skills (`odoo-ui-review`, `odoo-visual-regression`,
 `odoo-demo-recording`) and the `odoo-ui-reviewer` agent drive a **rendered Odoo screen in a
-live browser**. They depend on three browser MCP servers — `chrome-devtools`, `playwright`,
-and `pagecast` (local stdio `npx` servers) — plus browser binaries and `ffmpeg`.
+live browser**. They depend on three browser MCP servers - `chrome-devtools`, `playwright`,
+and `pagecast` (local stdio `npx` servers) - plus browser binaries and `ffmpeg`.
 
 ### Per-runtime native provisioning
 
@@ -203,12 +203,12 @@ bundle. For most users, install the plugin and the servers are wired automatical
 
 | Runtime | Bundle file | Install command | Dedup behaviour |
 |---------|-------------|-----------------|-----------------|
-| **Claude Code** | `.mcp.json` (auto-loaded on plugin install) | `claude plugin install odoo-ai-agents@viindoo-plugins` | Claude deduplicates by command/endpoint: a same-command server already in your config simply wins; the bundled copy is skipped — normal, not an error. No extra step. |
-| **Gemini CLI** | `gemini-extension.json` (in the plugin directory) | `gemini extensions install <your-clone>/plugins/odoo-ai-agents` (or `...link ...` for live dev) | Dedup is by server **name**: a same-named server already in `~/.gemini/settings.json` wins (no error). **Important:** Gemini cannot install an extension from a subdirectory of a git repo — use the local path after cloning, not a raw GitHub URL. The `trust` field is not permitted in the extension manifest. |
+| **Claude Code** | `.mcp.json` (auto-loaded on plugin install) | `claude plugin install odoo-ai-agents@viindoo-plugins` | Claude deduplicates by command/endpoint: a same-command server already in your config simply wins; the bundled copy is skipped - normal, not an error. No extra step. |
+| **Gemini CLI** | `gemini-extension.json` (in the plugin directory) | `gemini extensions install <your-clone>/plugins/odoo-ai-agents` (or `...link ...` for live dev) | Dedup is by server **name**: a same-named server already in `~/.gemini/settings.json` wins (no error). **Important:** Gemini cannot install an extension from a subdirectory of a git repo - use the local path after cloning, not a raw GitHub URL. The `trust` field is not permitted in the extension manifest. |
 | **Codex CLI** | `.codex-plugin/plugin.json` | `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-ai-agents@<marketplace>` (marketplace.json is to be published as a separate distribution step; the manifest ships now) | Same dedup-by-name behaviour as Claude. |
 
 > **Fallback for Codex / Gemini non-native installs:** run
-> `/odoo-ai-agents:odoo-setup runtime` — it writes the correct config for each
+> `/odoo-ai-agents:odoo-setup runtime` - it writes the correct config for each
 > runtime idempotently without touching the rest of the setup steps.
 
 ### One command: `/odoo-ai-agents:odoo-setup`
@@ -219,20 +219,20 @@ Inside Claude Code, run it once:
 /odoo-ai-agents:odoo-setup
 ```
 
-It is **idempotent and extensible** — re-running only applies what is missing, and it drives
+It is **idempotent and extensible** - re-running only applies what is missing, and it drives
 a registry of numbered step scripts (`scripts/setup-steps/`), so new capabilities are
 drop-in. What it does:
 
-1. **Browser MCP** — registers `chrome-devtools`, `playwright`, `pagecast` into Codex CLI
+1. **Browser MCP** - registers `chrome-devtools`, `playwright`, `pagecast` into Codex CLI
    and Gemini CLI only. For Claude Code the bundled `.mcp.json` provides them, so step 10
    never writes to `~/.claude.json`.
-2. **Browser deps** — checks Node >= 20, installs Playwright Chromium, checks `ffmpeg`.
-3. **Permissions** — auto-allows the browser MCP tools in Claude permissions.
-4. **Instance profile** — discovers local Odoo repos and writes the machine-global `~/.odoo-ai/instances.toml` (any agent on this host resolves instances regardless of working directory).
-5. **Instance spin-up** (optional) — launches a declared Odoo instance and waits for HTTP 200.
+2. **Browser deps** - checks Node >= 20, installs Playwright Chromium, checks `ffmpeg`.
+3. **Permissions** - auto-allows the browser MCP tools in Claude permissions.
+4. **Instance profile** - discovers local Odoo repos and writes the machine-global `~/.odoo-ai/instances.toml` (any agent on this host resolves instances regardless of working directory).
+5. **Instance spin-up** (optional) - launches a declared Odoo instance and waits for HTTP 200.
 
 > **Note for Claude Code users:** `/odoo-setup` no longer writes the browser servers into
-> `~/.claude.json` — Claude is served by the bundled `.mcp.json`. Re-running `/odoo-setup`
+> `~/.claude.json` - Claude is served by the bundled `.mcp.json`. Re-running `/odoo-setup`
 > will therefore not recreate any "skipped duplicate" entries there; that is expected.
 
 A **SessionStart** hint (read-only, never installs or blocks) nudges you to run
@@ -246,12 +246,12 @@ shape for each, merging idempotently into existing config:
 
 | Runtime | Config file | Schema | Note |
 |---------|-------------|--------|------|
-| Claude Code | — (none) | — | Not written by `/odoo-setup`. Served by the plugin's bundled `.mcp.json`; adding a duplicate to `~/.claude.json` is what causes the "skipped" notes. |
-| Codex CLI | `~/.codex/config.toml` | TOML — `[mcp_servers.<name>]` with `command` / `args` | Written only when `~/.codex/config.toml` already exists (Codex is installed). |
-| Gemini CLI | `~/.gemini/settings.json` (key `mcpServers`) | JSON — per-server entry plus `"trust": true` to skip prompts | Written only when `~/.gemini/settings.json` already exists. |
+| Claude Code | - (none) | - | Not written by `/odoo-setup`. Served by the plugin's bundled `.mcp.json`; adding a duplicate to `~/.claude.json` is what causes the "skipped" notes. |
+| Codex CLI | `~/.codex/config.toml` | TOML - `[mcp_servers.<name>]` with `command` / `args` | Written only when `~/.codex/config.toml` already exists (Codex is installed). |
+| Gemini CLI | `~/.gemini/settings.json` (key `mcpServers`) | JSON - per-server entry plus `"trust": true` to skip prompts | Written only when `~/.gemini/settings.json` already exists. |
 
 The browser servers are local stdio `npx` servers (no API key needed), unlike the
-`odoo-semantic` HTTP server documented above — so this wiring is independent of the
+`odoo-semantic` HTTP server documented above - so this wiring is independent of the
 `/odoo-semantic-mcp:connect` flow.
 
 ---
@@ -260,7 +260,7 @@ The browser servers are local stdio `npx` servers (no API key needed), unlike th
 
 Docs: <https://developers.openai.com/codex/mcp>
 
-Edit `~/.codex/config.toml` (the `codex mcp add` CLI does not support a `--header` flag — you must edit the TOML directly):
+Edit `~/.codex/config.toml` (the `codex mcp add` CLI does not support a `--header` flag - you must edit the TOML directly):
 ```toml
 [mcp_servers.odoo-semantic]
 url = "<MCP_URL>"
@@ -280,7 +280,7 @@ docs linked above, as Codex's config schema differs from Claude Code's).
 ### Auto-trust: skip permission prompts
 <a id="codex-cli-auto-trust"></a>
 
-> **Trade-off**: Codex CLI has no per-server pre-approval mechanism. Each tool will prompt for confirmation on first use. This is a limitation of the Codex CLI, not the server. The only workaround is setting `approval_policy = "never"` in config — but that affects all tools, which is not recommended.
+> **Trade-off**: Codex CLI has no per-server pre-approval mechanism. Each tool will prompt for confirmation on first use. This is a limitation of the Codex CLI, not the server. The only workaround is setting `approval_policy = "never"` in config - but that affects all tools, which is not recommended.
 
 API key via environment variable (cleaner than hardcoding in TOML):
 
@@ -343,7 +343,7 @@ Add `"trust": true` to the server entry in `~/.gemini/settings.json`:
 
 Docs: <https://code.visualstudio.com/docs/copilot/reference/mcp-configuration>
 
-Command Palette (`Ctrl/Cmd+Shift+P`) → **`MCP: Open User Configuration`** — opens `mcp.json`:
+Command Palette (`Ctrl/Cmd+Shift+P`) → **`MCP: Open User Configuration`** - opens `mcp.json`:
 ```json
 {
   "servers": {
@@ -361,7 +361,7 @@ Copy-ready snippet (uses `${input:odoo-api-key}` for secure key prompting): [`sn
 
 Click the **Start** codelens that appears on the server block, or reload the window.
 
-**Pitfall:** the top-level key is `servers` (not `mcpServers` as in Claude/Gemini/Antigravity). `type` must be exactly `"http"` (not `"streamable-http"`). Do not put MCP servers into `settings.json` — use the separate `mcp.json` file.
+**Pitfall:** the top-level key is `servers` (not `mcpServers` as in Claude/Gemini/Antigravity). `type` must be exactly `"http"` (not `"streamable-http"`). Do not put MCP servers into `settings.json` - use the separate `mcp.json` file.
 
 ### Auto-trust: skip permission prompts
 <a id="vs-code-auto-trust"></a>
@@ -387,7 +387,7 @@ JSON pre-encoded (replace `YOUR_API_KEY`):
 
 Docs: <https://antigravity.google/docs/mcp>
 
-IDE → **Manage MCP Servers → View raw config** — or edit `~/.gemini/antigravity/mcp_config.json` directly:
+IDE → **Manage MCP Servers → View raw config** - or edit `~/.gemini/antigravity/mcp_config.json` directly:
 ```json
 {
   "mcpServers": {
@@ -404,14 +404,14 @@ Copy-ready snippet: [`snippets/antigravity-mcp.json`](../snippets/antigravity-mc
 
 Save → click **Refresh** in the MCP panel.
 
-**Pitfall:** the property must be `serverUrl` (camelCase, not `url` or `httpUrl`). The file lives under `~/.gemini/antigravity/` — it shares a path prefix with Gemini CLI but has a different schema.
+**Pitfall:** the property must be `serverUrl` (camelCase, not `url` or `httpUrl`). The file lives under `~/.gemini/antigravity/` - it shares a path prefix with Gemini CLI but has a different schema.
 
 ### Auto-trust: skip permission prompts
 <a id="antigravity-auto-trust"></a>
 
 After adding the server: go to **... → MCP Servers** → find `odoo-semantic` → add the allow-list pattern `mcp(odoo-semantic.*)` to pre-approve all tools.
 
-> Antigravity has only a global config, no project-level config. The API key is stored in plaintext in `~/.gemini/antigravity/mcp_config.json` — ensure the file has `600` permissions.
+> Antigravity has only a global config, no project-level config. The API key is stored in plaintext in `~/.gemini/antigravity/mcp_config.json` - ensure the file has `600` permissions.
 
 ---
 
@@ -511,7 +511,7 @@ Commit or `.gitignore` the file as appropriate for your team (the key is sensiti
 
 ---
 
-## Session Context Setup (v0.5+) — `set_active_version` / `set_active_profile`
+## Session Context Setup (v0.5+) - `set_active_version` / `set_active_profile`
 
 The MCP server supports **sticky session context**: run `set_active_version` once and the value is remembered (24h idle TTL). CAUTION: the pin is per-API-key server state - concurrent agents or parallel sessions sharing the key overwrite each other, so under any concurrency pass the concrete `odoo_version` on every call instead of relying on the pin. Similarly `set_active_profile` pins the tenant profile.
 
@@ -519,13 +519,13 @@ The MCP server supports **sticky session context**: run `set_active_version` onc
 
 ```
 1. list_available_versions()    # see which Odoo versions the server has data for
-2. set_active_version("17.0")   # pin the version for this session (24h TTL)
+2. set_active_version("<version>")   # pin the version for this session (24h TTL)
 3. list_available_profiles()    # see which tenant profiles exist (optional)
 4. set_active_profile("<your profile from step 3>")   # pin tenant profile (optional; do not hardcode - read from .odoo-ai/context.md)
 5. <any tool call with odoo_version omitted>   # falls back to the pinned value
 ```
 
-After step 2, pass the concrete pinned version on every call, e.g. `model_inspect(model="sale.order", method="summary", odoo_version='17.0')`. The server also accepts `odoo_version='auto'` to resolve against the sticky pin, but the pin is keyed per API key - any concurrent agent or parallel session sharing the key can overwrite it - so this plugin's skills and agents always pass the concrete version instead.
+After step 2, pass the concrete pinned version on every call, e.g. `model_inspect(model="sale.order", method="summary", odoo_version='<version>')`. The server also accepts `odoo_version='auto'` to resolve against the sticky pin, but the pin is keyed per API key - any concurrent agent or parallel session sharing the key can overwrite it - so this plugin's skills and agents always pass the concrete version instead.
 
 > See the [implicit session context docs](https://odoo-semantic.viindoo.com/docs/adr/0029-implicit-session-context) for the TTL behavior and pin-keying details.
 
@@ -533,7 +533,7 @@ After step 2, pass the concrete pinned version on every call, e.g. `model_inspec
 
 ## MCP Resources (`odoo://` URI scheme, v0.5+)
 
-In addition to the tool calls, the server exposes **7 MCP Resources** addressable via stable URIs — preferred when the caller already knows the entity ID and just wants the canonical record (read-only, bookmark-friendly, no parameters):
+In addition to the tool calls, the server exposes **7 MCP Resources** addressable via stable URIs - preferred when the caller already knows the entity ID and just wants the canonical record (read-only, bookmark-friendly, no parameters):
 
 | URI template | Returns |
 |--------------|---------|
@@ -557,12 +557,12 @@ Clients that implement the MCP `resources/list` and `resources/read` flows surfa
 
 ---
 
-## Superset Tools — server v0.13.1 Reference
+## Superset Tools - server v0.13.1 Reference
 
 The server exposes **25 tools** at v0.13.1: four discriminator-routed supersets
 (`model_inspect`, `module_inspect`, `entity_lookup`, `profile_inspect`), eleven base tools,
 four session-context tools, two stylesheet tools (`resolve_stylesheet`, `find_style_override`),
-and four ORM-validation tools. Use the supersets below for all model / module / entity queries —
+and four ORM-validation tools. Use the supersets below for all model / module / entity queries -
 each folds several narrower lookups into one discriminator-routed call:
 
 | Superset tool | Use case | Valid `method` values |
@@ -574,7 +574,7 @@ each folds several narrower lookups into one discriminator-routed call:
 
 ### ORM-validation tools (server v0.8.0+)
 
-Static checks against the indexed graph — run them before an AI client suggests a domain,
+Static checks against the indexed graph - run them before an AI client suggests a domain,
 `@api.depends`, or relational field so hallucinated paths/operators are caught up front:
 
 | Tool | Use case |
@@ -588,11 +588,11 @@ Static checks against the indexed graph — run them before an AI client suggest
 
 ---
 
-## Verify After Install — Natural-Language Prompts
+## Verify After Install - Natural-Language Prompts
 
-After adding the server, type one of the prompts below into your AI tool — the agent should automatically invoke the `odoo-semantic` MCP server and call `model_inspect`. If the agent returns a generic textbook description of `sale.order` instead of citing real module names and an `odoo_version` from the index, the MCP server has not loaded correctly — return to the section for your client.
+After adding the server, type one of the prompts below into your AI tool - the agent should automatically invoke the `odoo-semantic` MCP server and call `model_inspect`. If the agent returns a generic textbook description of `sale.order` instead of citing real module names and an `odoo_version` from the index, the MCP server has not loaded correctly - return to the section for your client.
 
-- *"Using the odoo-semantic tools, show me the full inheritance chain of `sale.order` in Odoo 17.0 — which modules extend it?"*
+- *"Using the odoo-semantic tools, show me the full inheritance chain of `sale.order` in Odoo 17.0 - which modules extend it?"*
 - *"Inspect the model `sale.order` for version 17.0 and list all fields added by extension modules."*
 
 **Signs the MCP is working correctly:**

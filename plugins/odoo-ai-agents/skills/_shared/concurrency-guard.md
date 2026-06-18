@@ -42,6 +42,19 @@ the server-side default sane - but never rely on its ambient state. Multi-versio
 flows (migrations, cross-version diffs) pass the explicit concrete version per
 call - never the pin.
 
+## Odoo instance allocation (DB / port)
+
+The OSM rule above protects the static index; this protects LIVE instances. Under
+concurrency, never reuse the single declared `db_name`/`http_port` for a MUTATION -
+tests (`--test-enable`), `-i`/`-u`, or a throwaway server - because a concurrent
+agent or another session may hold it. Acquire an isolated lease instead:
+`scripts/lib/allocator.py acquire --mode ephemeral` (a unique created+dropped DB)
+or `--mode exclusive` (single-holder lease on a declared DB); a read-only attach
+stays lease-free. The allocator returns version-agnostic port NUMBERS - map them to
+CLI flags via `cli_help` for the target series at runtime. Full protocol + GC/stale
+rules: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate and
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`.
+
 ## Browser exclusivity (orthogonal)
 
 Browser-driving agents (odoo-ui-debugger / odoo-ui-reviewer) are EXCLUSIVE-serial

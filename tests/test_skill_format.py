@@ -87,7 +87,7 @@ def _fm_list(text, key="tools"):
             if line and line[0:1].isspace() and line.strip().startswith("- "):
                 items.append(line.strip()[2:].strip())
             elif line and not line[0:1].isspace():
-                # Another top-level key — stop collecting
+                # Another top-level key - stop collecting
                 in_block = False
         i += 1
     return items
@@ -120,7 +120,7 @@ def test_agent_frontmatter(agent):
     assert fm.get("model"), f"{agent.stem}: missing 'model'"
     # Agents omit the `tools:` allowlist so they inherit the full (drift-proof) tool
     # surface; least-privilege is a `disallowedTools` denylist that must at minimum block
-    # spawning a sub-subagent (Agent/Task) — the tool-level no-spawn guard.
+    # spawning a sub-subagent (Agent/Task) - the tool-level no-spawn guard.
     assert not _fm_list(text, "tools"), (
         f"{agent.stem}: agents must omit the `tools:` allowlist (inherit the full surface); "
         f"restrict via disallowedTools instead"
@@ -190,7 +190,7 @@ def test_skill_frontmatter(skill):
 
 @pytest.mark.parametrize("skill", SKILL_FILES, ids=lambda p: p.parent.name)
 def test_skill_description_no_trailing_punctuation(skill):
-    """Skill descriptions must not end in . ! ? — Anthropic plugin marketplace style."""
+    """Skill descriptions must not end in . ! ? - Anthropic plugin marketplace style."""
     fm = _frontmatter(skill.read_text(encoding="utf-8"))
     desc = fm.get("description", "").rstrip()
     assert desc and desc[-1] not in ".!?", (
@@ -201,7 +201,7 @@ def test_skill_description_no_trailing_punctuation(skill):
 
 @pytest.mark.parametrize("agent", AGENT_FILES, ids=lambda p: p.stem)
 def test_agent_description_no_trailing_punctuation(agent):
-    """Agent descriptions must not end in . ! ? — Anthropic plugin marketplace style."""
+    """Agent descriptions must not end in . ! ? - Anthropic plugin marketplace style."""
     fm = _frontmatter(agent.read_text(encoding="utf-8"))
     desc = fm.get("description", "").rstrip()
     assert desc and desc[-1] not in ".!?", (

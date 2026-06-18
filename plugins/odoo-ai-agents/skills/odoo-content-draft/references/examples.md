@@ -1,4 +1,4 @@
-# odoo-content-draft — Worked Examples
+# odoo-content-draft - Worked Examples
 
 ## Example 1 - LinkedIn post (Manufacturing / SME audience)
 

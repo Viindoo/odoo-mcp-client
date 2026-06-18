@@ -2,7 +2,7 @@
 name: odoo-campaign-plan
 description: >
   Plan a multi-week, multi-channel marketing campaign for an Odoo vertical or geography push
-  — blueprint with timeline, channel mix matrix, asset inventory, KPIs, and owner map
+  - blueprint with timeline, channel mix matrix, asset inventory, KPIs, and owner map
   (AI-doable vs human-required). ORCHESTRATES campaigns; does NOT draft individual content.
   Trigger on: "plan a campaign for", "campaign brief", "multi-channel plan for vertical X",
   "build a campaign blueprint", "marketing push plan for", "campaign roadmap for",
@@ -18,7 +18,7 @@ description: >
 
 ## Persona
 
-Marketer — Odoo / your Odoo distribution go-to-market team. Planning B2B campaigns targeting
+Marketer - Odoo / your Odoo distribution go-to-market team. Planning B2B campaigns targeting
 small-to-medium business owners, department heads (finance, operations,
 manufacturing), and IT decision-makers. Campaign purpose: generate awareness, drive demo
 requests, and support regional or vertical expansion.
@@ -38,25 +38,25 @@ requests, and support regional or vertical expansion.
 
 ## MCP tools
 
-<!-- BEGIN MANUAL TOOLS — odoo-campaign-plan -->
+<!-- BEGIN MANUAL TOOLS - odoo-campaign-plan -->
 
-**Optional — use only when verifying a specific feature claim in the campaign angle:**
-- `profile_inspect` — When the campaign angle is "competitive displacement" or "platform breadth"
+**Optional - use only when verifying a specific feature claim in the campaign angle:**
+- `profile_inspect` - When the campaign angle is "competitive displacement" or "platform breadth"
   (a claim about what the platform actually covers), call `profile_inspect(method='modules', name=<profile>,
   odoo_version='<version>')` to ground the breadth claim in the real module inventory rather than asserting it.
-- `check_module_exists` — Confirm that a named Odoo/Viindoo module is present in the
+- `check_module_exists` - Confirm that a named Odoo/Viindoo module is present in the
   target version before including a feature claim in the campaign (e.g., "Vietnam VAT
   compliance via l10n_vn", "MRP multi-level BOM"). Call when user names a specific module
   and the claim is central to the campaign angle.
-- `find_examples` — Retrieve 1-2 real code or config examples from the indexed codebase
-  for technical grounding. Use sparingly — campaign plans reference features at a business
+- `find_examples` - Retrieve 1-2 real code or config examples from the indexed codebase
+  for technical grounding. Use sparingly - campaign plans reference features at a business
   level, not implementation level.
 
 **NOT required** for most campaigns. Skip both if:
 - The campaign angle is generic (digital transformation, SME productivity, regional expansion)
 - OSM is unreachable (see Standalone-first fallback section)
 - User has already confirmed the feature exists or provided a product brief
-<!-- END MANUAL TOOLS — odoo-campaign-plan -->
+<!-- END MANUAL TOOLS - odoo-campaign-plan -->
 
 ## Workflow
 
@@ -134,7 +134,7 @@ For the confirmed channel list and budget category, allocate effort percentage a
 Effort % = share of total production + distribution time for the campaign period. Use the default
 allocations per budget category (S / M / L) in
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-campaign-plan/references/channel-mix.md`, then adjust to the
-user's actual available channels — channels not available drop to 0%, redistribute proportionally.
+user's actual available channels - channels not available drop to 0%, redistribute proportionally.
 
 ### Round 4 - Asset inventory
 
@@ -159,14 +159,14 @@ dashboard) so ownership is clear.
 
 For each task in the campaign, classify as:
 
-- **AI-doable** — can be fully delegated to an AI skill; the human reviews and approves
+- **AI-doable** - can be fully delegated to an AI skill; the human reviews and approves
   the output but does not write it:
   - All text drafts → `odoo-content-draft`
   - Competitive angle research → `odoo-competitive-brief`
   - Feature claims verification → OSM `check_module_exists`
   - Campaign plan iteration → this skill (`odoo-campaign-plan`)
 
-- **Human-required** — requires human judgment, relationships, or access:
+- **Human-required** - requires human judgment, relationships, or access:
   - Strategic go/no-go on campaign angle (Round 1 decision)
   - Budget authorization and paid ad account setup
   - Publishing / scheduling content on owned channels (LinkedIn company page admin, email
@@ -190,7 +190,7 @@ Present the campaign plan in the following Markdown structure:
 
 ## Angle + audience
 - **Primary angle**: <vertical pain / geo localization / release announcement / competitive displacement>
-- **Target audience**: <persona — title, company type, challenge>
+- **Target audience**: <persona - title, company type, challenge>
 - **Pain hook**: <one-line problem statement that opens all campaign messaging>
 
 ## Timeline (<N> weeks)
@@ -207,8 +207,8 @@ Present the campaign plan in the following Markdown structure:
 ...
 
 ## Asset inventory
-- **Week 1** — [Asset name] — <type, ~N words> — Audience: <persona> — Draft via `odoo-content-draft`
-- **Week 2** — ...
+- **Week 1** - [Asset name] - <type, ~N words> - Audience: <persona> - Draft via `odoo-content-draft`
+- **Week 2** - ...
 ...
 
 ## KPI definition
@@ -221,18 +221,18 @@ Present the campaign plan in the following Markdown structure:
 ...
 
 ### Human-required (your time)
-- <task> — estimated <N min/hr per week>
+- <task> - estimated <N min/hr per week>
 ...
 
 ## Suggested next skills
-- `odoo-content-draft` — draft each asset listed in Asset inventory above
-- `odoo-competitive-brief` — if angle is competitive displacement
-- `odoo-feature-highlights` — if angle is release announcement and slide deck is needed
-- `odoo-capability-proof` — if a specific prospect demo is part of the campaign
-- `odoo-demo-recording` — if the asset inventory includes demo videos / screencasts (capture them for real from a live instance instead of briefing a designer)
+- `odoo-content-draft` - draft each asset listed in Asset inventory above
+- `odoo-competitive-brief` - if angle is competitive displacement
+- `odoo-feature-highlights` - if angle is release announcement and slide deck is needed
+- `odoo-capability-proof` - if a specific prospect demo is part of the campaign
+- `odoo-demo-recording` - if the asset inventory includes demo videos / screencasts (capture them for real from a live instance instead of briefing a designer)
 ```
 
-After the plan, add a short `---` section: **Campaign health checks** (2-3 bullets) — the
+After the plan, add a short `---` section: **Campaign health checks** (2-3 bullets) - the
 most common reasons this type of campaign underperforms and what to watch in week 1-2.
 
 ## Standalone-first fallback
@@ -248,7 +248,7 @@ When OSM is unreachable or the skill is used without MCP configuration:
    feature claim that anchors the campaign angle but cannot be confirmed without OSM.
    Example:
    > "Campaign angle: Vietnam VAT e-invoice compliance via `<TBD: verify l10n_vn_edi module
-   > in target version>` — confirm before finalizing messaging."
+   > in target version>` - confirm before finalizing messaging."
 
 3. Add a note at the end of the plan:
    > _Note: `<TBD: ...>` placeholders can be confirmed with `check_module_exists` once OSM is
@@ -258,7 +258,7 @@ When OSM is unreachable or the skill is used without MCP configuration:
 ## Examples
 
 Two worked examples (Manufacturing SME / Northern Vietnam lead-gen; English Q4 release
-announcement) are in `${CLAUDE_PLUGIN_ROOT}/skills/odoo-campaign-plan/references/examples.md` —
+announcement) are in `${CLAUDE_PLUGIN_ROOT}/skills/odoo-campaign-plan/references/examples.md` -
 read them when you need a concrete plan shape to anchor against.
 
 ## Notes
@@ -267,7 +267,7 @@ read them when you need a concrete plan shape to anchor against.
   `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`); `odoo_version`, personas, messaging
   pillars, and channel restrictions there are authoritative overrides applied before any question.
 - **Brand assets**: reference the repo's brand guidelines (e.g. `branding/STYLE.md`) only when the
-  plan includes a landing-page or visual-design brief for a designer — this skill stays a planning
+  plan includes a landing-page or visual-design brief for a designer - this skill stays a planning
   document, not visual assets. Demo videos/screencasts in the inventory → `odoo-demo-recording`.
 - **No fabricated data**: NEVER invent customer names, revenue figures, or hard ROI %. Use abstract
   templates ("A manufacturing company in the southern region with ~150 employees"). Incorporate

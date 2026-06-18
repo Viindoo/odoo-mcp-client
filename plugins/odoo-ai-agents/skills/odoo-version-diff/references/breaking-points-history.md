@@ -3,7 +3,7 @@
 | Version jump | Key breaking changes |
 |-------------|---------------------|
 | v8 → v10 | Python 2→3, `__openerp__.py` → `__manifest__.py`, `osv.osv` → `models.Model`, `_columns` → class attributes, `pool.get()` removed |
-| v12 → v13 | `@api.multi`, `@api.one` removed; OWL introduced as new JS framework (alongside old `web.Widget` — NOT yet primary) |
+| v12 → v13 | `@api.multi`, `@api.one` removed; OWL introduced as new JS framework (alongside old `web.Widget` - NOT yet primary) |
 | v13 → v14 | OWL becomes primary frontend framework; `web.Widget` deprecated (still present) |
 | v14 → v15 | OWL 2.0 migration; many widget APIs changed; `AbstractModel`, `AbstractRenderer` removed |
 | v15 → v16 | `web.Widget` removed completely; `fields.Text` with `widget='html'` replaced by `fields.Html`; new `HtmlField` widget; `body_html` field type changes; accounting model restructure |

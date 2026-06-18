@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# verify-backend.sh — pylint-odoo code-quality gate for Odoo backend Python.
+# verify-backend.sh - pylint-odoo code-quality gate for Odoo backend Python.
 #
 # The backend sibling of verify-frontend.sh: a fast, no-DB, pre-push static gate
 # that reproduces the OCA `pylint-odoo` half of the Odoo code-quality CI gate
@@ -15,8 +15,8 @@
 # THE VANILLA TRAP (why we never run bare pylint):
 #   `# pylint: disable=consider-merging-classes-inherited` (R8180) is valid only
 #   because pylint_odoo registers that message. Without the plugin loaded the same
-#   pragma reads as unknown-option-value (W0012) — not suppressed by --disable=all
-#   — looking like a failure to "fix" by deleting the pragma, which re-breaks real
+#   pragma reads as unknown-option-value (W0012) - not suppressed by --disable=all
+#   - looking like a failure to "fix" by deleting the pragma, which re-breaks real
 #   CI. This gate ALWAYS loads pylint_odoo. See docs/reference/odoo-code-quality.md.
 #
 # USAGE:
@@ -136,7 +136,7 @@ _provision() {
     echo " verify-backend --provision (series ${SERIES:-unknown})"
     echo "============================================================"
     if [[ -z "$SERIES" ]]; then
-        _block "no Odoo series resolved — pass --series X.Y or set ODOO_SERIES / .odoo-ai/context.md"
+        _block "no Odoo series resolved - pass --series X.Y or set ODOO_SERIES / .odoo-ai/context.md"
         return 1
     fi
     if [[ -z "$PIN_PYLINT_ODOO" ]]; then
@@ -146,7 +146,7 @@ _provision() {
     local tool="${PROV_TOOL:-uv}"
     _have "$tool" || { [[ "$tool" == "uv" ]] && tool="pip" || true; }
     # Tools-venv Python must match the pinned linter (e.g. pylint 2.15 needs <=3.11),
-    # NOT the instance 'recommended' Python — use lint_python when pinned.
+    # NOT the instance 'recommended' Python - use lint_python when pinned.
     local pyver
     pyver="$(python3 - "$MATRIX_JSON" "$SERIES" <<'PY' 2>/dev/null || true
 import json,sys
@@ -193,9 +193,9 @@ fi
 
 if [[ -z "$PYLINT_BIN" ]]; then
     echo "============================================================"
-    echo " verify-backend — toolchain"
+    echo " verify-backend - toolchain"
     echo "============================================================"
-    _warn "pylint + pylint_odoo not available — skipping backend lint (graceful degrade)"
+    _warn "pylint + pylint_odoo not available - skipping backend lint (graceful degrade)"
     _info "to enable the HARD gate, provision the pinned toolchain:"
     _info "    $(basename "$0") --provision --series ${SERIES:-<X.Y>}"
     _info "  (installs pylint${PIN_PYLINT:-} astroid${PIN_ASTROID:-} pylint-odoo${PIN_PYLINT_ODOO:-} into $TOOLS_VENV)"
@@ -205,7 +205,7 @@ fi
 # ---------------------------------------------------------------------------
 # Resolve the pylintrc / enabled-codes
 #   1. $ODOO_PYLINTRC (explicit)
-#   2. deployment quality module (test_pylint / test_lint) on addons path — SSOT
+#   2. deployment quality module (test_pylint / test_lint) on addons path - SSOT
 #   3. repo-root pylintrc
 #   4. shipped fallback
 # ---------------------------------------------------------------------------
@@ -293,7 +293,7 @@ for f in "${FILES[@]:-}"; do
 done
 
 echo "============================================================"
-echo " verify-backend — pylint-odoo gate"
+echo " verify-backend - pylint-odoo gate"
 echo "============================================================"
 _info "series   : ${SERIES:-<unknown>}${PIN_BEST_EFFORT:+ (best-effort: pre-16 series)}"
 _info "pylint   : $PYLINT_BIN"
@@ -327,10 +327,10 @@ echo "--- pylint-odoo findings ---"
 if [[ $PYLINT_RC -eq 0 ]]; then
     _ok "no pylint-odoo findings"
 elif (( PYLINT_RC & 32 )) || (( PYLINT_RC & 1 )); then
-    # Tool/config problem (e.g. unknown enabled symbol on this version) — surface,
+    # Tool/config problem (e.g. unknown enabled symbol on this version) - surface,
     # do NOT hard-fail the developer's change on our own misconfiguration.
     echo "$OUTPUT"
-    _warn "pylint usage/fatal error (rc=$PYLINT_RC) — config/toolchain issue, not your code (graceful)"
+    _warn "pylint usage/fatal error (rc=$PYLINT_RC) - config/toolchain issue, not your code (graceful)"
 else
     # Real findings (error/warning/refactor/convention from the enabled set).
     _FINDINGS=$(printf '%s\n' "$OUTPUT" | grep -cE '^[^ ].*: \[[A-Z][0-9]+\(' || true)
@@ -351,12 +351,12 @@ echo "  BLOCK issues : $BLOCK_COUNT"
 echo "  WARN  issues : $WARN_COUNT"
 if [[ $BLOCK_COUNT -gt 0 ]]; then
     echo
-    echo "  RESULT: FAILED ($BLOCK_COUNT pylint-odoo finding(s) — fix before push; matches CI)"
+    echo "  RESULT: FAILED ($BLOCK_COUNT pylint-odoo finding(s) - fix before push; matches CI)"
     exit 1
 fi
 echo
 if [[ $WARN_COUNT -gt 0 ]]; then
-    echo "  RESULT: PASS (with $WARN_COUNT warning(s) — review recommended)"
+    echo "  RESULT: PASS (with $WARN_COUNT warning(s) - review recommended)"
 else
     echo "  RESULT: PASS (clean)"
 fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# check-setup-deps.sh — SessionStart readiness probe for odoo-ai-agents visual stack.
+# check-setup-deps.sh - SessionStart readiness probe for odoo-ai-agents visual stack.
 # READ-ONLY: never writes, never installs, never blocks the session.
 # Prints a one-block hint (≤4 lines) when deps are missing; stays silent when all is well.
 # Always exits 0.
@@ -21,7 +21,7 @@ fi
 # A real install contains at least one browser dir (chromium-NNNN, firefox-NNNN,
 # webkit-NNNN) under the cache; the actual binary sits one level deeper
 # (e.g. chromium-1148/chrome-linux/chrome), so a -name "chrome" find misses it.
-# Probe for the chromium-* directory itself — same logic as 20-browser-deps.sh.
+# Probe for the chromium-* directory itself - same logic as 20-browser-deps.sh.
 _pw_ok=false
 for _pw_cache in \
     "${PLAYWRIGHT_BROWSERS_PATH:-}" \
@@ -41,7 +41,7 @@ command -v ffmpeg >/dev/null 2>&1 || missing+=("ffmpeg (not in PATH)")
 
 # (d) chrome-devtools MCP wired in at least one CLI config.
 # Claude Code itself is already wired by virtue of this plugin bundling its own
-# .mcp.json (the three browser servers load when the plugin is installed) — so a
+# .mcp.json (the three browser servers load when the plugin is installed) - so a
 # running Claude Code session that executes this hook is by definition wired.
 # We do NOT check ~/.claude.json: step 10 intentionally never writes there to
 # avoid duplicate-skip notes. We only check cross-runtime CLIs (Codex / Gemini)
@@ -56,7 +56,7 @@ if [ -f "${_gemini_cfg}" ] && ! grep -q "chrome-devtools" "${_gemini_cfg}" 2>/de
   _browser_mcp_wired=false
 fi
 
-${_browser_mcp_wired} || missing+=("chrome-devtools MCP (not wired in Codex/Gemini — run setup)")
+${_browser_mcp_wired} || missing+=("chrome-devtools MCP (not wired in Codex/Gemini - run setup)")
 
 # Emit the human dep hint on STDERR (visible console nudge; does not collide with the
 # JSON we put on stdout for SessionStart context injection).

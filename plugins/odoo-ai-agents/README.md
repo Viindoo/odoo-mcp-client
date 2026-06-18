@@ -34,7 +34,7 @@ whole job once, then drives it to done:
   (e.g. a git push or an email to a customer) or when it is blocked and needs you.
 
 You control how hands-off this is with one optional flag (`--auto` is the default; see
-[Drive to done](#drive-to-done---how-to-use-it)). No execution ever fires before you approve the
+[Drive to done](#drive-to-done-how-to-use-it)). No execution ever fires before you approve the
 plan, and the main agent is never forced or trapped - the stops are real human checkpoints, the
 nudges are advisory.
 
@@ -127,7 +127,7 @@ context-aware, then (4) emits a **Proposed Plan** and waits for your approval. F
   workflows via `on_complete`), so the run keeps moving without re-prompting.
 
 Each step carries a **gate tier** that decides what stops for you (see
-[Drive to done](#drive-to-done---how-to-use-it)). On a new Odoo project, `odoo-onboarding`
+[Drive to done](#drive-to-done-how-to-use-it)). On a new Odoo project, `odoo-onboarding`
 bootstraps `.odoo-ai/context.md` so later skills skip setup. Every skill grounds its answers
 through the OSM MCP server; output is a direct answer or a file under `.odoo-ai/`.
 
@@ -525,14 +525,14 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-deprecation-audit` | Engineer | Audit deprecated API usage for upgrade readiness |
 | `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist covering config, migration, and rollback |
 | `odoo-version-diff` | Engineer + Marketer | Categorized diff of API and feature changes between versions |
-| `odoo-test-writer` | Engineer | Write executable `test_*.py` (or JS Hoot/QUnit) that protect business behavior, not current code; authors the RED-first failing test before the code in the `odoo-coding` loop, and backfills coverage when review flags an unprotected behavior |
+| `odoo-test-writing` | Engineer | Write executable `test_*.py` (or JS Hoot/QUnit) that protect business behavior, not current code; authors the RED-first failing test before the code in the `odoo-coding` loop, and backfills coverage when review flags an unprotected behavior |
 | `odoo-security-audit` | Engineer | Audit code for SQLi / XSS / access-control / CSRF / unsafe deserialization, graded findings |
 | `odoo-data-migration` | Engineer | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
 | `odoo-perf-audit` | Engineer | Audit for N+1 queries, missing prefetch, unindexed domains, compute thrash, with fixes |
 | `odoo-solution-design` | Architect / Coder | Design the technical solution (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding - the analysis-and-design step between requirement scoping and code (slim, paired with agent bundle) |
 | `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, assigns a deterministic model tier per module (haiku/sonnet/opus/fable, sonnet default), and dispatches the `odoo-coder` + `odoo-frontend-coder` agents via Agent-tool model-weighted batches (per-module backend->frontend, model-weighted concurrency budget); orders modules by the shared module DAG, orchestrates red-first test authorship before each non-trivial module's code, and feeds the `code -> review+test -> code` loop (slim, paired with agent bundle) |
 | `odoo-frontend-design` | Architect / Coder / Visual | Knowledge-only design-quality expertise for Odoo UI/UX (view-type choice, form hierarchy, density, semantic tokens, website/portal theming); loaded by `odoo-solution-design` and `odoo-coding`, and the bar `odoo-ui-review` rates against (no agent spawn) |
-| `odoo-code-review` | Code-Reviewer | Review Odoo patches for ORM/inheritance/security pitfalls plus bidirectional module impact, platform-design-principle violations, and missing behavior tests; on a CRITICAL/HIGH finding it drives the fix autonomously through `odoo-coding` and re-reviews to verify (bounded to 3 iterations, then escalates), and loops uncovered behavior back to `odoo-test-writer` (slim, paired with agent bundle) |
+| `odoo-code-review` | Code-Reviewer | Review Odoo patches for ORM/inheritance/security pitfalls plus bidirectional module impact, platform-design-principle violations, and missing behavior tests; on a CRITICAL/HIGH finding it drives the fix autonomously through `odoo-coding` and re-reviews to verify (bounded to 3 iterations, then escalates), and loops uncovered behavior back to `odoo-test-writing` (slim, paired with agent bundle) |
 | `odoo-feature-check` | Pre-Sales Consultant | Check if a feature exists in standard CE or EE |
 | `odoo-gap-analysis` | Pre-Sales Consultant | Gap matrix of client requirements vs. standard Odoo |
 | `odoo-capability-proof` | Pre-Sales Consultant | Evidence-based proof that Odoo supports a client requirement |
@@ -566,7 +566,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 |-------|-----------------|------|
 | `odoo-coder` | Sonnet *(default; per-work-item tier overrides - haiku/sonnet/opus/fable)* | Agent bundle for backend code writing - invoked by main agent and commands; depth-1 safe with restricted-tool autonomy. Reads the target version's coding guidelines BEFORE writing (conform on the first pass), runs an impact pre-flight (bidirectional), respects the platform design principles, implements to a red-first behavior test that drives the real workflow (`test-behavior-contract`), and ships dynamic demo data for new behavior. The dispatcher (`odoo-coding`) passes an explicit `model` per module from its tier table; frontmatter is only the default. |
 | `odoo-solution-architect` | Opus *(default; fable for Custom-XL designs)* | Agent bundle for solution design (companion to `odoo-solution-design`) - produces a grounded Technical Design Document (approach / data model / override strategy / module structure / risks) before code; checks the three platform design principles, surveys bidirectional (upstream + downstream) impact, and designs dynamic demo data; full odoo-semantic tool surface, read-only, writes only the design doc |
-| `odoo-code-reviewer` | Sonnet | Agent bundle for code review - runs full PR-scope analysis with OSM grounding; per-module and cross-module bidirectional impact, platform-principle checks, and a test-coverage gate that loops an uncovered behavior back to `odoo-test-writer` and CRITICAL/HIGH fixes back to `odoo-coding` |
+| `odoo-code-reviewer` | Sonnet | Agent bundle for code review - runs full PR-scope analysis with OSM grounding; per-module and cross-module bidirectional impact, platform-principle checks, and a test-coverage gate that loops an uncovered behavior back to `odoo-test-writing` and CRITICAL/HIGH fixes back to `odoo-coding` |
 | `odoo-ui-reviewer` | Sonnet | Agent bundle for visual UI review - drives a live browser through a five-lens audit with screenshot, console, and Lighthouse evidence plus OSM source pointers |
 | `odoo-frontend-coder` | Sonnet *(default; per-work-item tier overrides - haiku/sonnet/opus/fable)* | Agent bundle for frontend code writing - JS/OWL/QWeb/SCSS across legacy and OWL eras with OSM grounding and design-system fidelity (companion to the `odoo-coding` skill). Reads the target version's coding guidelines BEFORE writing (conform on the first pass), runs an impact pre-flight along the asset-bundle / template-inheritance axis, and implements to a red-first JS behavior test that drives the real workflow (`test-behavior-contract`). Dispatched at the module's tier (or a lower `frontendModel` when the design splits effort). |
 | `odoo-backend-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes Python/ORM/server runtime failures via the scientific method, OSM-only (no browser); assesses bidirectional impact (could the bug originate upstream? what downstream does the fix touch?) |

@@ -1,7 +1,7 @@
 # sales-closing-cycle.workflow.yaml
 # Declarative SSOT for the sales closing cycle workflow.
-# Runner: skills/workflow-chaining — auto-discovered at runtime.
-# Pattern: Pipeline — assess deal health, draft re-engagement, plan concrete next steps.
+# Runner: skills/workflow-chaining - auto-discovered at runtime.
+# Pattern: Pipeline - assess deal health, draft re-engagement, plan concrete next steps.
 name: sales-closing-cycle
 domain: sales
 team_pattern: Pipeline
@@ -22,7 +22,7 @@ fallback: standalone
 
 phases:
   # ------------------------------------------------------------------
-  # Phase 0 — Collect deal context (inline: runner handles)
+  # Phase 0 - Collect deal context (inline: runner handles)
   # ------------------------------------------------------------------
   - id: collect-context
     inline: true
@@ -32,7 +32,7 @@ phases:
     # Enforces confidentiality: abstract labels only; no real customer names in artifacts.
 
   # ------------------------------------------------------------------
-  # Phase 1 — Assess deal health (inline: classify + risk score)
+  # Phase 1 - Assess deal health (inline: classify + risk score)
   # ------------------------------------------------------------------
   - id: assess-deal-health
     inline: true
@@ -43,7 +43,7 @@ phases:
     # and one-line rationale. Output written inline as a structured block.
 
   # ------------------------------------------------------------------
-  # Phase 2 — Re-engagement draft via odoo-deal-followup
+  # Phase 2 - Re-engagement draft via odoo-deal-followup
   # ------------------------------------------------------------------
   - id: re-engagement-draft
     skill: odoo-deal-followup
@@ -59,7 +59,7 @@ phases:
     gate: "approve / refine: [feedback] / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 3 — Next-step action plan (inline assembly)
+  # Phase 3 - Next-step action plan (inline assembly)
   # ------------------------------------------------------------------
   - id: next-step-plan
     inline: true

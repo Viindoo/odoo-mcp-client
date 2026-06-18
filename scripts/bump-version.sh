@@ -127,7 +127,7 @@ date_str="$(date +%F)"
 # 1) VERSION file
 printf '%s\n' "$new" > "$version_file"
 
-# 2) odoo-ai-agents plugin.json — both the Claude (.claude-plugin) and Codex
+# 2) odoo-ai-agents plugin.json - both the Claude (.claude-plugin) and Codex
 #    (.codex-plugin) manifests, which carry their own top-level "version" and must stay
 #    in lockstep with VERSION (gemini-extension.json is regenerated in step 3).
 python3 - "$new" "$plugin_json" "$codex_plugin_json" <<'PY'

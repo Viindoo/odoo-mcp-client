@@ -1,6 +1,6 @@
 # Dependencies for odoo-mcp-client (runtime + dev/test). Single source of truth.
 pytest
-# Required to load/validate workflows/*.workflow.yaml — used by both
+# Required to load/validate workflows/*.workflow.yaml - used by both
 # tests/test_workflow_format.py and plugins/.../generator/check_workflows.py.
 # Without it the workflow tests silently skip (CI was masking this).
 PyYAML

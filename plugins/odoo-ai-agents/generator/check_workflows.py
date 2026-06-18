@@ -99,7 +99,7 @@ def _validate_on_complete(data: dict, self_name: str, fname: str) -> list[str]:
 
     Each entry must: have a string `when` + `reason`; a `next` that resolves to an existing
     skill OR workflow (and never self-loops back to this same workflow); and a `gate_tier` in
-    the allowed set. on_complete only EMITs a next[] for run-driver — it never self-dispatches."""
+    the allowed set. on_complete only EMITs a next[] for run-driver - it never self-dispatches."""
     errors: list[str] = []
     oc = data.get("on_complete")
     if oc is None:
@@ -202,7 +202,7 @@ def _validate_workflow(path: pathlib.Path) -> list[str]:
     if not isinstance(data, dict):
         return [f"File '{path.name}': top-level must be a YAML mapping, got {type(data).__name__}"]
 
-    # Required top-level fields — empty/whitespace strings count as missing
+    # Required top-level fields - empty/whitespace strings count as missing
     for field in REQUIRED_TOP_LEVEL:
         value = data.get(field)
         if value is None or (isinstance(value, str) and not value.strip()):
@@ -215,7 +215,7 @@ def _validate_workflow(path: pathlib.Path) -> list[str]:
             f"File '{path.name}': 'name' field '{name}' does not match file stem '{stem}'"
         )
 
-    # domain enum — empty/whitespace is already caught by required-field check above;
+    # domain enum - empty/whitespace is already caught by required-field check above;
     # skip enum check only when the field is truly absent (avoids duplicate error).
     domain = data.get("domain", "")
     if domain is not None and domain not in ALLOWED_DOMAINS:
@@ -271,7 +271,7 @@ def _validate_workflow(path: pathlib.Path) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Driver-required warning (Flag 2): a workflow declaring on_complete is "driver-required" —
+# Driver-required warning (Flag 2): a workflow declaring on_complete is "driver-required" -
 # its emitted next[] is only auto-dispatched when run under a run-driver (intake Phase P).
 # A slash command that dispatches such a workflow DIRECTLY (bypassing intake) makes on_complete
 # degrade to a human suggestion. Surface that as a WARNING (non-fatal) so a future command does
@@ -305,7 +305,7 @@ def _driver_required_warnings() -> list[str]:
                 warnings.append(
                     f"command '{cmd.name}' references driver-required workflow '{stem}' "
                     f"(it declares on_complete). Ensure the command engages the run-driver "
-                    f"(intake Phase P / a 1-node run), not a direct workflow-chaining dispatch — "
+                    f"(intake Phase P / a 1-node run), not a direct workflow-chaining dispatch - "
                     f"otherwise on_complete degrades to a human suggestion."
                 )
     return warnings

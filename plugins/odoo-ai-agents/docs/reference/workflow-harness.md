@@ -1,4 +1,4 @@
-# Workflow Harness — Reference
+# Workflow Harness - Reference
 
 > **SSOT for the workflow harness architecture.**
 > Skills, workflow files, and the BRL engine reference this document for schema
@@ -9,31 +9,31 @@
 
 ## Table of Contents
 
-1. [Overview — three-layer architecture](#1-overview--three-layer-architecture)
+1. [Overview - three-layer architecture](#1-overview-three-layer-architecture)
 2. [`.odoo-ai/` artifact convention](#2-odoo-ai-artifact-convention)
 3. [BRL job schema](#3-brl-job-schema)
 4. [Soft-plan-gate convention](#4-soft-plan-gate-convention)
-   - [4.1 Plan mode and skills — what is and isn't possible](#41-plan-mode-and-skills--what-is-and-isnt-possible)
-   - [4.2 Gate template](#42-gate-template)
-   - [4.3 Enforcement stack](#43-enforcement-stack)
-   - [4.4 BRL-specific gates](#44-brl-specific-gates)
-   - [4.5 Phase R — Recon (read-only current-state survey)](#45-phase-r--recon-read-only-current-state-survey)
-   - [4.6 Plan Mode Content Schema](#46-plan-mode-content-schema)
-   - [4.7 Inventory discovery — hybrid SSOT rules](#47-inventory-discovery--hybrid-ssot-rules)
+   - [4.1 Plan mode and skills - what is and isn't possible](41-plan-mode-and-skills--what-is-and-isnt-possible)
+   - [4.2 Gate template](42-gate-template)
+   - [4.3 Enforcement stack](43-enforcement-stack)
+   - [4.4 BRL-specific gates](44-brl-specific-gates)
+   - [4.5 Phase R - Recon (read-only current-state survey)](45-phase-r--recon-read-only-current-state-survey)
+   - [4.6 Plan Mode Content Schema](46-plan-mode-content-schema)
+   - [4.7 Inventory discovery - hybrid SSOT rules](47-inventory-discovery--hybrid-ssot-rules)
 5. [Composition contract](#5-composition-contract)
 6. [Skill delegation depth rule](#6-skill-delegation-depth-rule)
 7. [Git-wave orchestration (depth-0)](#7-git-wave-orchestration-depth-0)
-8. [Drive-to-done orchestration (Continuation Contract + run-driver)](#8-drive-to-done-orchestration-continuation-contract--run-driver)
-   - [8.1 North Star diagram](#81-north-star-diagram)
-   - [8.2 Continuation Contract](#82-continuation-contract)
-   - [8.3 run-<id>.json blackboard](#83-run-idjson-blackboard)
-   - [8.4 Gate-tier policy](#84-gate-tier-policy)
-   - [8.5 Command / Skill / Agent — the three axes](#85-command--skill--agent--the-three-axes)
-   - [8.6 Main Agent Operating Contract](#86-main-agent-operating-contract)
+8. [Drive-to-done orchestration (Continuation Contract + run-driver)](8-drive-to-done-orchestration-continuation-contract--run-driver)
+   - [8.1 North Star diagram](81-north-star-diagram)
+   - [8.2 Continuation Contract](82-continuation-contract)
+   - [8.3 run-<id>.json blackboard](83-run-idjson-blackboard)
+   - [8.4 Gate-tier policy](84-gate-tier-policy)
+   - [8.5 Command / Skill / Agent - the three axes](85-command--skill--agent--the-three-axes)
+   - [8.6 Main Agent Operating Contract](86-main-agent-operating-contract)
 
 ---
 
-## 1. Overview — three-layer architecture
+## 1. Overview - three-layer architecture
 
 The workflow harness is organized in three layers. Every workflow lives in exactly
 one layer; cross-layer calls travel top-down only and never skip a layer.
@@ -43,10 +43,10 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 │  ENTRY / INTAKE LAYER  (depth 0)                                │
 │  odoo-intake skill - Odoo front door                             │
 │  · Phase 0: 4-tier routing + intent gate (mandatory)           │
-│  · Phase R: read-only Recon (≤1–2 agents, depth-1, no writes)  │
+│  · Phase R: read-only Recon (≤1-2 agents, depth-1, no writes)  │
 │  · Proposed Plan + soft-plan-gate                               │
 │  · Plan Mode (EnterPlanMode/ExitPlanMode) for writes-files      │
-│  · gate is BEHAVIORAL (in-skill) + Plan Mode — not a write-block │
+│  · gate is BEHAVIORAL (in-skill) + Plan Mode - not a write-block │
 └───────────────────────────────────┬────────────────────────────┘
                                     │ Skill tool (depth-0 canonical; NL-dispatch fallback)
                                     ▼
@@ -64,13 +64,13 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 │  EXECUTION LAYER  (depth 1, max depth 2 for fork workers)       │
 │  Specialist skills (odoo-coding, odoo-code-review, …)          │
 │  MCP tool calls (odoo-semantic-mcp server)                      │
-│  context: fork subagents — carry hard-rules line, no spawn      │
+│  context: fork subagents - carry hard-rules line, no spawn      │
 └────────────────────────────────────────────────────────────────┘
 ```
 
 **Two invariants enforced across every workflow:**
 
-- **1-orchestration-SSOT**: orchestration logic lives in one place — either a
+- **1-orchestration-SSOT**: orchestration logic lives in one place - either a
   `*.workflow.yaml` file or a monolithic skill body. It is never duplicated between
   a command shim and a skill body.
 - **Depth-2 ceiling**: the call stack is at most
@@ -80,7 +80,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 - **No Claude Code Workflow (JS) tool**: this plugin orchestrates entirely through the
   Skill tool, the Agent tool, and the `run-driver` loop. It deliberately does NOT emit
   Claude Code Workflow (JS) scripts (the `Workflow` tool with `args` + `agent()`) for
-  codegen or orchestration — the dispatch fan-out (e.g. `odoo-coding`, `wave`) is real
+  codegen or orchestration - the dispatch fan-out (e.g. `odoo-coding`, `wave`) is real
   Agent-tool calls in model-weighted batches (SSOT
   `skills/_shared/concurrency-guard.md` Mode B). Do not hand-roll a JS Workflow script to
   parallelize plugin work: passing the plan through the tool's `args` channel is the
@@ -131,7 +131,7 @@ The BRL (Business Requirement List) engine writes all artifacts under
     chunk-000.C.jsonl    # evidence output
     chunk-001.A.jsonl
     ...
-  cache.json             # module-verdict cache (key → MCP response) — avoids duplicate calls
+  cache.json             # module-verdict cache (key → MCP response) - avoids duplicate calls
   results.jsonl          # merged final RTM (1 obj/line, machine-readable SSOT)
   rtm.csv                # consultant export (Excel-ready)
   dag.json               # {nodes, edges, topological_order, phases, critical_path}
@@ -139,12 +139,12 @@ The BRL (Business Requirement List) engine writes all artifacts under
   cost.json              # project-level cost roll-up
   report.md              # executive human-readable summary
   errors.jsonl           # per-item failures (license-restricted, MCP error, unmapped)
-                         # informational only — does not block the batch
+                         # informational only - does not block the batch
 ```
 
 ### 3.2 manifest.json
 
-Written once at job creation (Phase 0 — ingest). Never mutated after Gate 0 approval.
+Written once at job creation (Phase 0 - ingest). Never mutated after Gate 0 approval.
 
 ```json
 {
@@ -152,7 +152,7 @@ Written once at job creation (Phase 0 — ingest). Never mutated after Gate 0 ap
   "created_at": "2026-05-31T10:00:00Z",
   "customer_label": "Customer-A",
   "odoo_version": "17.0",
-  "profiles": {"odoo": "odoo_17", "viindoo": "viindoo_internal_17"},
+  "profiles": {"odoo": "odoo_17", "viindoo": "standard_viindoo_17"},
   "total_reqs": 1000,
   "chunk_size": 50,
   "cost_config_ref": "cost-config.json@v1",
@@ -162,11 +162,11 @@ Written once at job creation (Phase 0 — ingest). Never mutated after Gate 0 ap
 }
 ```
 
-### 3.3 checkpoint.json — resume contract
+### 3.3 checkpoint.json - resume contract
 
 Updated after every completed chunk. Resume reads `last_completed_chunk` and enters
 the outer loop at `last_completed_chunk + 1`. Re-running a chunk overwrites its
-`chunk-NNN.*.jsonl` files — the operation is idempotent.
+`chunk-NNN.*.jsonl` files - the operation is idempotent.
 
 ```json
 {
@@ -189,9 +189,9 @@ the outer loop at `last_completed_chunk + 1`. Re-running a chunk overwrites its
 `now - session_pinned_at > 23 h` or the MCP server returns "no active version",
 the engine re-runs bootstrap (`set_active_version` + `set_active_profile`) and
 updates the timestamp before the next chunk.  
-`per_req` is sparse — only in-flight items appear; completed items are omitted.
+`per_req` is sparse - only in-flight items appear; completed items are omitted.
 
-### 3.4 results.jsonl — one object per requirement (RTM SSOT)
+### 3.4 results.jsonl - one object per requirement (RTM SSOT)
 
 ```json
 {
@@ -225,7 +225,7 @@ updates the timestamp before the next chunk.
 `effort_tier` is one of:
 `Standard | Config | Extension-M | Extension-L | Custom-XL`.
 
-### 3.5 rtm.csv — header
+### 3.5 rtm.csv - header
 
 ```
 req_id,req_text,req_category,priority,classification,module,edition,effort_tier,
@@ -235,7 +235,7 @@ evidence_module,evidence_field,risk_flag,status,notes
 
 `dependencies` is pipe-joined (`REQ-0010|REQ-0015`) to remain CSV-safe.
 
-### 3.6 cost.json — project-level roll-up
+### 3.6 cost.json - project-level roll-up
 
 ```json
 {
@@ -269,7 +269,7 @@ Every number traces back to `cost-config.json` (shipped with the skill, override
 at `.odoo-ai/`) via `effort_tier → effort_lookup → rate_card → multiplier`. No cost
 figures are hard-coded in the skill body.
 
-### 3.7 dag.json — dependency graph
+### 3.7 dag.json - dependency graph
 
 ```json
 {
@@ -299,7 +299,7 @@ Business-logic and data-flow edges come from Opus cluster reasoning.
 
 ## 4. Soft-plan-gate convention
 
-### 4.1 Plan mode and skills — what is and isn't possible
+### 4.1 Plan mode and skills - what is and isn't possible
 
 Skills, commands, and hooks **cannot declaratively set** `permission_mode=plan` in
 their frontmatter or configuration. User-initiated plan mode (Shift+Tab, `/plan`, CLI
@@ -308,19 +308,19 @@ flag, `defaultMode` in settings) is separate from anything a skill can declare.
 However, this does **not** mean plan mode is unreachable from within a skill-driven
 flow:
 
-- **Main agent (depth-0) CAN call `EnterPlanMode` / `ExitPlanMode`** — these are
+- **Main agent (depth-0) CAN call `EnterPlanMode` / `ExitPlanMode`** - these are
   platform tools available to the main context. A skill running at depth-0 (e.g.,
   `odoo-intake`) may instruct the main agent to invoke `EnterPlanMode` before any
-  file-touching execution, producing genuine UI-approved Plan Mode — a stronger
+  file-touching execution, producing genuine UI-approved Plan Mode - a stronger
   enforcement than a text gate.
-- **Subagents cannot call `EnterPlanMode`** — the tool is only reachable from the
+- **Subagents cannot call `EnterPlanMode`** - the tool is only reachable from the
   main context. `ExitPlanMode` is only available to a subagent whose `permissionMode`
   is already `plan`.
 
 #### Plan Mode decision tree
 
 Run this before any execute-skill dispatch. Intake reads the chosen Approach's
-`output_mode` (resolved via Phase R inventory discovery — §4.7):
+`output_mode` (resolved via Phase R inventory discovery - §4.7):
 
 - `output_mode = writes-files` → **Plan Mode is REQUIRED**. Proceed through the full
   EnterPlanMode → content schema → ExitPlanMode procedure (see §4.6).
@@ -333,7 +333,7 @@ Run this before any execute-skill dispatch. Intake reads the chosen Approach's
   > **SSOT note:** the authoritative `output_mode` now lives per-skill in
   > `generator/skill_tool_deps.json` → `orchestration.<skill>.output_mode` (see §8.4).
   > The inline list above is a convenience snapshot; once intake reads the registry field
-  > directly (P3), this list is removed in favour of the field. Until then both agree —
+  > directly (P3), this list is removed in favour of the field. Until then both agree -
   > the field is a superset that preserves every skill listed here.
 
 #### Intake-initiated Plan Mode pattern
@@ -346,13 +346,13 @@ file-touching specialist. This is a first-class enforcement option, not a workar
 
 There is **no platform write-block** behind the gate. `odoo-intake` does not declare
 `disallowed-tools: Write Edit`, and the coders (`odoo-coding`)
-DO write/apply code — that is their job. The gate is enforced by two behavioral
+DO write/apply code - that is their job. The gate is enforced by two behavioral
 mechanisms, with Plan Mode as the strongest layer when depth-0 context is available:
 
-1. **Anti-rationalize gate** in the skill body — behavioral: "no execution fires until the user
+1. **Anti-rationalize gate** in the skill body - behavioral: "no execution fires until the user
    has approved a Proposed Plan". Paired with a Red Flags table listing rationalizations
    the agent must refuse (e.g., "This is simple, I'll just start coding" → STOP).
-2. **Coder preview-then-write** — before mutating a file a coder previews the proposed
+2. **Coder preview-then-write** - before mutating a file a coder previews the proposed
    patch in its turn; the write follows the same turn once the approach is settled.
    This is a discipline, not a tool restriction.
 
@@ -393,15 +393,15 @@ and the specialist fires immediately on the next turn (also via the Skill tool).
 On `refine: [feedback]`: the brainstorm loop continues within the current turn.  
 On `cancel`: the skill stops and reports.
 
-**What intake CAN do before the gate closes**: Phase R read-only Recon — dispatching
-≤1–2 read-only agents (Explore or read-only specialists) and calling read-only OSM
+**What intake CAN do before the gate closes**: Phase R read-only Recon - dispatching
+≤1-2 read-only agents (Explore or read-only specialists) and calling read-only OSM
 tools (`model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`).
 Recon is depth-1, no file writes, no sub-agent spawning. This is NOT a breach of the
 gate; it feeds into the Proposed Plan's Findings (Recon) field.
 
 ### 4.4 BRL-specific gates
 
-The BRL engine has two gates (not one per chunk — that would break UX at 20 chunks):
+The BRL engine has two gates (not one per chunk - that would break UX at 20 chunks):
 
 - **Gate 0** (after ingest): shows `{N items, M chunks, version/profile, estimated
   MCP call budget, estimated cost band}`. Options: `approve / refine(chunk_size,
@@ -416,19 +416,19 @@ before Gate 0 (they are not deliverables). Final deliverables (`results.jsonl`,
 
 ---
 
-### 4.5 Phase R — Recon (read-only current-state survey)
+### 4.5 Phase R - Recon (read-only current-state survey)
 
 Phase R is a **formal stage** in the intake 5-phase flow that runs **after** Phase 0
 closes the intent gate and **before** the Proposed Plan is written. Its purpose is to
-turn a generic plan into a context-aware one — surveying what already exists rather
+turn a generic plan into a context-aware one - surveying what already exists rather
 than guessing.
 
 #### Position in the 5-phase flow
 
 ```
-Phase 0 (Context, Detect & Clarify — closes intent/purpose/outcomes gate)
+Phase 0 (Context, Detect & Clarify - closes intent/purpose/outcomes gate)
     ↓
-Phase R (Recon — read-only current-state survey)   ← NEW formal stage
+Phase R (Recon - read-only current-state survey)   ← NEW formal stage
     ↓
 Proposed Plan  (context-rich, informed by Recon findings)
     ↓
@@ -439,7 +439,7 @@ Execute  (writes-files specialist dispatched via the Skill tool; the skill fans 
 
 #### What Phase R does
 
-- **Dispatches ≤1–2 READ-ONLY agents** via the Agent tool: `Explore`, or a specialist
+- **Dispatches ≤1-2 READ-ONLY agents** via the Agent tool: `Explore`, or a specialist
   in read-only mode (e.g. `odoo-feature-check`, `odoo-override-finding`). These agents
   map the code or modules relevant to the stated intent.
 - **Calls read-only OSM tools** as needed: `model_inspect`, `check_module_exists`,
@@ -452,9 +452,9 @@ Execute  (writes-files specialist dispatched via the Skill tool; the skill fans 
 |------------|------|
 | Depth | depth-1 (one hop from main context; these agents are leaves) |
 | Nesting | Recon agents MUST NOT spawn further sub-agents |
-| File writes | PROHIBITED — Read/Grep/Glob/Bash (read-only) only |
+| File writes | PROHIBITED - Read/Grep/Glob/Bash (read-only) only |
 | OSM | Read-only calls allowed; if unreachable, fall back to disk (Read/Grep the local repo, WebFetch upstream source) per `disk-fallback-protocol.md` |
-| Count | ≤1–2 agents per Recon; not a fan-out pipeline |
+| Count | ≤1-2 agents per Recon; not a fan-out pipeline |
 
 The nesting guard is described in full at
 `${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`. Every Recon agent brief MUST
@@ -463,7 +463,7 @@ no Skill tool, no sub-agent spawn).
 
 #### Rationale
 
-Without Phase R, intake writes a Proposed Plan based only on user descriptions — it
+Without Phase R, intake writes a Proposed Plan based only on user descriptions - it
 cannot confirm which modules exist, what the current hook points are, or what the
 blast radius of a change would be. Phase R answers these questions cheaply (read-only,
 depth-1) so the Proposed Plan's `Findings (Recon)` field is concrete rather than
@@ -478,21 +478,21 @@ When `output_mode = writes-files` (see decision tree in §4.1), the implementati
 plan written inside Plan Mode (step 3 of the EnterPlanMode procedure) MUST contain
 three blocks. None is optional.
 
-#### Block 1 — Workitem list
+#### Block 1 - Workitem list
 
-Borrow the WI-Brief shape from `skills/wave/SKILL.md` (~lines 174–219) and/or the
-requirement shape in `odoo-brl/reference/schema.md` (~lines 116–197). Each WI carries:
+Borrow the WI-Brief shape from `skills/wave/SKILL.md` (~lines 174-219) and/or the
+requirement shape in `odoo-brl/reference/schema.md` (~lines 116-197). Each WI carries:
 
-- `id` — short identifier (WI-A, WI-B, …)
+- `id` - short identifier (WI-A, WI-B, …)
 - one-line description of what changes
-- `files-in-scope` — the set of files this WI owns
+- `files-in-scope` - the set of files this WI owns
 
 **File-ownership invariant**: the `files-in-scope` sets across all WIs MUST be
 **disjoint**. No two WIs may claim the same file. For multi-WI deliveries also note:
 worktree name, branch name, and verify command (from the Repo Capability Card).
 
 **Shared-file case (e.g. a form-view XML that a backend WI adds a `<field>` to and a frontend
-WI adds a `widget=` attribute to):** do NOT split one file across two WIs — that breaks the
+WI adds a `widget=` attribute to):** do NOT split one file across two WIs - that breaks the
 invariant. Resolve one of two ways: (a) collapse the XML edit into the backend WI (it adds both
 the field and the `widget=`), leaving the frontend WI to own only the JS/OWL/SCSS files; or
 (b) keep it one WI if the change is small. Disjointness is per-file, never per-node-within-a-file.
@@ -500,13 +500,13 @@ the field and the `widget=`), leaving the frontend WI to own only the JS/OWL/SCS
 **Workflow-as-node:** a WI whose approach is a workflow-command is **one WI**, with
 `files-in-scope` = the workflow's `output_dir/`. Do NOT expand the workflow's internal phases
 into separate WIs (they are SSOT in the `.workflow.yaml` and share the output_dir, which would
-break disjointness), and do NOT redraw the workflow's internal phase-sequence in Block 2 — the
+break disjointness), and do NOT redraw the workflow's internal phase-sequence in Block 2 - the
 workflow is a single node that may carry edges to OTHER WIs.
 
-#### Block 2 — Dependency graph
+#### Block 2 - Dependency graph
 
 For deliveries with a small number of WIs, pick **one of the four topologies** from
-`wave/reference/wave-templates.md` (~lines 29–92):
+`wave/reference/wave-templates.md` (~lines 29-92):
 
 | Topology | When to use |
 |----------|-------------|
@@ -516,7 +516,7 @@ For deliveries with a small number of WIs, pick **one of the four topologies** f
 | `diamond` | Two parallel WIs converge into a final WI |
 
 For deliveries with many WIs, use the full **DAG schema** from
-`odoo-brl/reference/schema.md` (~lines 316–385): `nodes` + `edges` where each edge
+`odoo-brl/reference/schema.md` (~lines 316-385): `nodes` + `edges` where each edge
 carries:
 
 ```json
@@ -529,10 +529,10 @@ carries:
 ```
 
 Also include: `topological_order` (Kahn's algorithm), `critical_path`, and `cycles`
-(must be empty `[]` for a valid DAG — a cycle is reported, never silently dropped).
+(must be empty `[]` for a valid DAG - a cycle is reported, never silently dropped).
 A mermaid diagram is encouraged.
 
-#### Block 3 — Assignment
+#### Block 3 - Assignment
 
 One line per WI:
 
@@ -541,22 +541,22 @@ WI-X → <skill | command | agent>  (model: <from frontmatter>, effort: <S|M|L|X
 ```
 
 Also include per-WI:
-- **acceptance criteria** — observable signal that the WI is done
-- **verify command** — runnable command from the Repo Capability Card
+- **acceptance criteria** - observable signal that the WI is done
+- **verify command** - runnable command from the Repo Capability Card
 
 `model` is read from the candidate's `SKILL.md` or `agents/*.md` frontmatter
-(`model:` field) — never guessed or hard-coded in the plan. Exception: skills
+(`model:` field) - never guessed or hard-coded in the plan. Exception: skills
 with an explicit per-dispatch tier table (`odoo-coding`, `odoo-debug`,
 `odoo-solution-design`) DO record the chosen dispatch `model`
 (haiku/sonnet/opus/fable) in their gate table and plan.md - there the
 frontmatter is only the default the dispatch parameter overrides. `effort`
-follows the gap-analysis legend: **S = <1 day · M = 1–3 days · L = 3–10 days ·
+follows the gap-analysis legend: **S = <1 day · M = 1-3 days · L = 3-10 days ·
 XL = >10 days**.
 
 #### Short examples
 
 ```
-# Full-stack feature (1 WI — odoo-coding sequences both stacks internally)
+# Full-stack feature (1 WI - odoo-coding sequences both stacks internally)
 WI-A → odoo-coding (sonnet, M)        adds backend field + ORM method, THEN renders OWL widget
   (odoo-coding runs the backend agent first so the field exists before the widget binds)
 Verify: ./run_tests.sh sale_order
@@ -570,18 +570,18 @@ DAG: independent (no edges) → hand to `wave` for parallel delivery
 
 ---
 
-### 4.7 Inventory discovery — hybrid SSOT rules
+### 4.7 Inventory discovery - hybrid SSOT rules
 
 When Phase R or plan-writing needs to know which skills, agents, or commands exist
 and their runtime attributes, pull each fact from its **single source of truth**.
-Do NOT copy fields between sources — duplication creates drift.
+Do NOT copy fields between sources - duplication creates drift.
 
 | Attribute | SSOT | How to fetch |
 |-----------|------|--------------|
-| skill/agent/command **exists** + its description | Runtime context (harness-injected by the platform) | Already available — do NOT read files for this |
+| skill/agent/command **exists** + its description | Runtime context (harness-injected by the platform) | Already available - do NOT read files for this |
 | `model_tier` (Haiku / Sonnet / Opus / inherit) | `model:` field in the candidate's `SKILL.md` or `agents/*.md` frontmatter | Read the frontmatter of the **chosen candidate only** at plan time |
-| `output_mode` (`chat-only` ↔ `writes-files`) | the explicit `output_mode` field in `skill_tool_deps.json` → `orchestration.<skill>` | Read that field directly. Its value was set per-skill from the skill's declared Output semantics — NOT crudely derived from `stack` (a backend/frontend-stack skill can be read-only/chat-only) |
-| `effort` (S / M / L / XL) | NOT registered — it is a skill × task property | Reason per the `odoo-gap-analysis` legend: S <1d · M 1–3d · L 3–10d · XL >10d |
+| `output_mode` (`chat-only` ↔ `writes-files`) | the explicit `output_mode` field in `skill_tool_deps.json` → `orchestration.<skill>` | Read that field directly. Its value was set per-skill from the skill's declared Output semantics - NOT crudely derived from `stack` (a backend/frontend-stack skill can be read-only/chat-only) |
+| `effort` (S / M / L / XL) | NOT registered - it is a skill × task property | Reason per the `odoo-gap-analysis` legend: S <1d · M 1-3d · L 3-10d · XL >10d |
 
 **Key invariants:**
 
@@ -592,7 +592,7 @@ Do NOT copy fields between sources — duplication creates drift.
   dispatch tier per work-item.)
 - `effort` is per-task, not per-skill. Two invocations of the same skill can have
   different effort tiers depending on scope.
-- `output_mode` is the only attribute whose SSOT is the registry — the explicit
+- `output_mode` is the only attribute whose SSOT is the registry - the explicit
   `orchestration.<skill>.output_mode` field in `skill_tool_deps.json` (NOT a `spawn_class`/`stack`
   derivation; see §8.4). This is what drives the Plan Mode decision tree (§4.1).
 
@@ -654,8 +654,8 @@ fallback: standalone             # each phase documents OSM-down degradation inl
 | Field | Type | Purpose |
 |-------|------|---------|
 | `name` | string | Command name and state-file slug |
-| `domain` | enum (9) | Persona bucket — drives `odoo-intake` tier-3 routing row |
-| `team_pattern` | enum (6) | Execution shape — tells the runner how to orchestrate phases |
+| `domain` | enum (9) | Persona bucket - drives `odoo-intake` tier-3 routing row |
+| `team_pattern` | enum (6) | Execution shape - tells the runner how to orchestrate phases |
 | `description` | string | NL text for tier-3 / NL-dispatch matching (no separate registration needed) |
 | `output_dir` | string | `.odoo-ai/<subdir>/` path for all artifacts |
 | `inputs[]` | string[] | Named args collected by the runner at Phase 0 |
@@ -664,7 +664,7 @@ fallback: standalone             # each phase documents OSM-down degradation inl
 | `phases[].inline` | bool | Runner handles this phase itself (no separate skill) |
 | `phases[].agent` | string | Agent-tool bundle (e.g. `odoo-code-reviewer`) for read-only passes |
 | `phases[].nl_trigger` | string | NL prompt passed to NL-dispatch to fire the skill |
-| `phases[].model_tier` | enum | `haiku / sonnet / opus` — Sonnet is the floor for write phases. (Agent-tool dispatches outside YAML workflows additionally know the `fable` tier - see `skills/_shared/concurrency-guard.md` Mode B.) |
+| `phases[].model_tier` | enum | `haiku / sonnet / opus` - Sonnet is the floor for write phases. (Agent-tool dispatches outside YAML workflows additionally know the `fable` tier - see `skills/_shared/concurrency-guard.md` Mode B.) |
 | `phases[].gate` | string | Gate options shown to user between phases |
 | `resume` | bool | Write `<slug>-state.json` after each phase for resume support |
 | `fallback` | string | Degradation policy when the odoo-semantic-mcp server is unreachable |
@@ -678,7 +678,7 @@ fallback: standalone             # each phase documents OSM-down degradation inl
 | **Expert-Pool** | `phases[].when:` predicate selects which specialist fires per item (e.g. `check_module_exists` for Standard, `model_inspect` for Custom). | 0 → 1 |
 | **Producer-Reviewer** | Two phases: `produce` + `review`. The review phase uses `agent: odoo-code-reviewer` in read-only mode ("report, never fix"). | 0 → 1 |
 | **Supervisor** | An `inline` supervisor phase distributes sub-tasks via NL-dispatch and collects results. | 0 → 1 |
-| **Hierarchical** | A top phase decomposes into a generated `phases[]` list bounded to one decomposition level — no recursion past depth 2. | 0 → 1 → 2 (max) |
+| **Hierarchical** | A top phase decomposes into a generated `phases[]` list bounded to one decomposition level - no recursion past depth 2. | 0 → 1 → 2 (max) |
 
 **Fan-out ceiling**: `context: fork` workers carry the hard-rules line
 (`Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write.`)
@@ -740,13 +740,13 @@ a skill creates depth 3, which exceeds the platform ceiling.
 ### Dispatch method
 
 The **depth-0 main agent** and **depth-0 orchestrators** (`odoo-intake`, `run-driver`) dispatch a
-target skill via the **Skill tool** — this is the canonical, deterministic mechanism, and it is
+target skill via the **Skill tool** - this is the canonical, deterministic mechanism, and it is
 what lets a `depth0-only` spawner skill (`odoo-code-review`, `odoo-coding`, …) actually RUN its
 own orchestration in the main context. **NL description-match** (a natural-language prompt that
 matches the target skill's `description`) is the soft fallback.
 
 The "never the Skill tool" rule binds **depth≥1 fork-workers / subagents only**: a depth≥1 worker
-that invokes the Skill tool on a spawner skill creates depth-3, exceeding the platform ceiling —
+that invokes the Skill tool on a spawner skill creates depth-3, exceeding the platform ceiling -
 hence the mandatory hard-rules line above. (A subagent invoking the Skill tool on a *spawner*
 skill is the case to avoid; this is surfaced at runtime rather than hard-enforced.) The 5 existing
 command files use NL description-match within their workflow bodies and that is still fine.
@@ -756,8 +756,8 @@ command files use NL description-match within their workflow bodies and that is 
 | Tier | When to use |
 |------|-------------|
 | `haiku` | Read-only lookup, classification, simple Q&A with no writes. NEVER for write phases or for multi-tool OSM synthesis (capability tables, feature verdicts) - use `sonnet` |
-| `sonnet` | Write tasks, edits, single-file refactor, review — **floor for write phases** |
-| `opus` | Cross-file reasoning, orchestration parent, DAG cluster reasoning — max 3 concurrent |
+| `sonnet` | Write tasks, edits, single-file refactor, review - **floor for write phases** |
+| `opus` | Cross-file reasoning, orchestration parent, DAG cluster reasoning - max 3 concurrent |
 
 The BRL skill declares `model: opus` for the orchestrating skill body. Inner MCP
 calls and leaf worker turns use the tier assigned in the chunk/phase declaration.
@@ -797,7 +797,7 @@ principal branch (untouched throughout)
               |
         squash + tree-identity verify  (backup ref + git diff --quiet)
               |
-        HUMAN-CONFIRM MERGE  (mandatory stop — never auto-merge)
+        HUMAN-CONFIRM MERGE  (mandatory stop - never auto-merge)
               |
         cleanup: worktrees + branches + wave dir removed
 ```
@@ -810,11 +810,11 @@ not a `team_pattern` inside the declarative workflow system.
 | Axis | workflow-chaining (depth-1) | wave skill (depth-0) |
 |------|--------------------------|----------------------|
 | Depth | Runs at depth 1; fork workers are depth-2 ceiling | Runs at depth 0; WI subagents are depth-2 ceiling |
-| Git authority | None — runner does NL-dispatch only; no git ops | Full git authority: worktree add, cherry-pick, PR creation, squash, force-with-lease |
-| /code-review legality | Cannot call /code-review (self-spawn only legal at depth-0) | Calls /code-review inline from main context (depth-0) — the only legal call site |
+| Git authority | None - runner does NL-dispatch only; no git ops | Full git authority: worktree add, cherry-pick, PR creation, squash, force-with-lease |
+| /code-review legality | Cannot call /code-review (self-spawn only legal at depth-0) | Calls /code-review inline from main context (depth-0) - the only legal call site |
 | State machine | Declarative phases in `.workflow.yaml`; runner executes them | Imperative phases (0-6) encoded in the skill body; git refs/worktrees ARE the state |
 | Coupling | Coupled to workflow schema; adding GitWave would require new `team_pattern: GitWave` + new runner branch + new yaml keys | Self-contained; no schema changes to existing runner or yaml format |
-| Crash risk | Injecting git orchestration into depth-1 runner would push fork workers to depth-3 — exceeds platform ceiling | Depth ceiling respected: 0 (wave) → 2 (WI subagent) |
+| Crash risk | Injecting git orchestration into depth-1 runner would push fork workers to depth-3 - exceeds platform ceiling | Depth ceiling respected: 0 (wave) → 2 (WI subagent) |
 
 **Decision**: git-wave is a depth-0 actor that sits alongside `odoo-intake` at the top
 layer, not below `workflow-chaining`. This is final and must not be revisited without
@@ -824,25 +824,25 @@ updating this section.
 
 | Phase | Action | Actor |
 |-------|--------|-------|
-| 0 — Discovery + plan gate | Read repo capability, draft WI ownership map, emit plan gate | wave (depth-0) |
-| 1 — Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration | wave (depth-0) |
-| 2 — Dispatch WI subagents | Parallel Sonnet subagents; each carries Phase-4 brief + nesting line | WI workers (depth-2) |
-| 3 — Cherry-pick + resolver | Cherry-pick A → B → C onto integration; Sonnet resolver if conflict | wave (depth-0) |
-| 4 — End-of-wave review | Inline Opus review (4.1) for plan-adherence + correctness, then `/code-review` invoked inline from main context (4.2) | wave (depth-0) |
-| 5 — PR + squash + tree-identity | Create 1 PR (integration → principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup | wave (depth-0) |
-| 6 — Human-confirm merge + cleanup | STOP and wait for explicit user approval before merge; remove worktrees/branches/wave dir after | human + wave (depth-0) |
+| 0 - Discovery + plan gate | Read repo capability, draft WI ownership map, emit plan gate | wave (depth-0) |
+| 1 - Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration | wave (depth-0) |
+| 2 - Dispatch WI subagents | Parallel Sonnet subagents; each carries Phase-4 brief + nesting line | WI workers (depth-2) |
+| 3 - Cherry-pick + resolver | Cherry-pick A → B → C onto integration; Sonnet resolver if conflict | wave (depth-0) |
+| 4 - End-of-wave review | Inline Opus review (4.1) for plan-adherence + correctness, then `/code-review` invoked inline from main context (4.2) | wave (depth-0) |
+| 5 - PR + squash + tree-identity | Create 1 PR (integration → principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup | wave (depth-0) |
+| 6 - Human-confirm merge + cleanup | STOP and wait for explicit user approval before merge; remove worktrees/branches/wave dir after | human + wave (depth-0) |
 
 ### 7.4 Nesting rule for WI subagents (leaf depth-2)
 
 Every WI subagent brief MUST contain the following line verbatim:
 
 ```
-You are a leaf worker (depth-2). You ARE the specialist — write/review the code yourself,
+You are a leaf worker (depth-2). You ARE the specialist - write/review the code yourself,
 grounding every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is
 always allowed); follow the odoo-coding / odoo-code-review conventions
 but do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-coding,
 odoo-code-review, odoo-ui-review, wave, odoo-intake, odoo-brl,
-workflow-chaining, /code-review, skill-creator) — they dispatch a fresh agent and are
+workflow-chaining, /code-review, skill-creator) - they dispatch a fresh agent and are
 main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill (e.g.
 odoo-feature-check, odoo-override-finding) for a read-only lookup. Do NOT invoke the Skill tool
 to trigger a spawner. Do NOT spawn a sub-agent. Do NOT git branch/cherry-pick/merge/push; stay
@@ -856,8 +856,8 @@ hard-rules violation in the wave skill.
 
 | WI count | Action |
 |----------|--------|
-| 1 WI | Minimal — skip integration branch; dispatch single worktree; squash still applies |
-| 2-3 WI | Standard — use integration branch + plan gate before dispatch |
+| 1 WI | Minimal - skip integration branch; dispatch single worktree; squash still applies |
+| 2-3 WI | Standard - use integration branch + plan gate before dispatch |
 | >=4 WI | Full plan artifact required: `.odoo-ai/wave/<slug>/plan.md` (topology + DAG + model-tier per WI) before any worktree is created |
 
 Maximum 3 concurrent WI subagents (OOM ceiling).
@@ -875,11 +875,11 @@ The directory is cleaned up after a successful human-confirm merge.
 The harness turns a one-shot `/odoo-intake "<NL>"` into a self-advancing run: intake plans a DAG,
 `run-driver` (a depth-0 skill) walks it, each step emits a machine-readable **Continuation
 Contract**, and the driver advances until DONE/BLOCKED/NEEDS_CONTEXT. This section is the SSOT
-for that mechanism. **It is additive** — every existing skill/agent/workflow keeps its current
+for that mechanism. **It is additive** - every existing skill/agent/workflow keeps its current
 semantics; the only required change is appending a Continuation Contract block to each step's
 output (back-compat: a legacy `SUGGESTED_NEXT:` line is read as a low-confidence contract).
 
-**Load-bearing principle — NEVER hard-block the main agent.** No hook may `deny` a main-agent
+**Load-bearing principle - NEVER hard-block the main agent.** No hook may `deny` a main-agent
 tool call or `block` a main-agent turn-end. The main agent is the top decision-maker alongside
 the human; coercing it is dangerous (it can trap the agent / deadlock the session). Main stays
 an orchestrator through *structure + instruction + soft nudges*, never force. (`block` is only
@@ -897,7 +897,7 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
 │     └─ Odoo intent ─► Phase R recon (≤2 read-only) ─► Phase P emit RUN-DAG             │
 │  present DAG ONCE ─► [Plan Mode gate if any writes-files node] ─► write run-<id>.json  │
 │        │                                                                               │
-│        ▼  run-driver (NEW skill, orchestrator-nl, depth0-only) — DRIVER LOOP           │
+│        ▼  run-driver (NEW skill, orchestrator-nl, depth0-only) - DRIVER LOOP           │
 │   while RUN.status == NEEDS_NEXT and within budget:                                    │
 │     node = pick_ready(DAG ∪ dynamic_nodes)         # topo-order; tie → confidence desc │
 │     tier = resolve_gate(node)                      # --step raises floor, --auto lowers L1│
@@ -914,7 +914,7 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
    • SubagentStop parse-continuation → subagent Contract NEEDS_NEXT ⇒ systemMessage nudge advance
                  (block applies ONLY to subagents as a quality gate, never to main)
    • Stop        drive-continuation → main ends turn while RUN==NEEDS_NEXT ⇒ systemMessage
-                 advisory (continue=true, never block) — main keeps the right to stop
+                 advisory (continue=true, never block) - main keeps the right to stop
   blackboard .odoo-ai/run-<id>.json = SINGLE SOURCE (only run-driver writes); state on disk ⇒
   main context does not grow with run length.
 ```
@@ -934,7 +934,6 @@ PENDING ─(all depends_on DONE)─► READY ─(driver picks + gate passes)─�
 Every skill/agent appends this fenced block at the **end** of its output (after its normal
 artifact). It is the machine-readable handoff the driver reads to advance.
 
-````
 ```continuation
 status: DONE | NEEDS_NEXT | BLOCKED | NEEDS_CONTEXT
 produced: [<real artifact path>, ...]      # evidence for Completion-status #8
@@ -946,12 +945,11 @@ next:                                       # [] unless status == NEEDS_NEXT
     risk_level: L0 | L1 | L2
 blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 ```
-````
 
 - **Parsing** reuses the transcript jq pipeline already in `hooks/enforce-grounding.sh`.
 - **Back-compat:** a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line maps to
   `next: [{skill, reason, confidence: 0.5, risk_level: L0}]` with `status: NEEDS_NEXT`. This
-  lets the rollout be gradual — an un-migrated skill still drives at low confidence.
+  lets the rollout be gradual - an un-migrated skill still drives at low confidence.
 - **Depth safety:** a subagent only *emits* a contract; it never dispatches. Advancing is the
   depth-0 driver's job. fanout/WI workers (depth 2) emit contracts that bubble up to their
   depth-1 orchestrator, never self-fire.
@@ -959,24 +957,24 @@ blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 ### 8.3 run-`<id>`.json blackboard
 
 Single source of truth for one run, under `.odoo-ai/` (gitignored). **Only `run-driver`
-writes it** (hooks never write — avoids a write race). Resume mirrors the BRL checkpoint
+writes it** (hooks never write - avoids a write race). Resume mirrors the BRL checkpoint
 contract (§3.3): re-entry reads the file, skips `DONE` nodes, resumes at the first `READY`
 node in topo-order.
 
-**When Phase P engages (SSOT in `odoo-intake` § Phase P — restated here to avoid drift):** engage
-(write this file + run the driver) if ANY of — (1) `node_count >= 2`; (2) a single
+**When Phase P engages (SSOT in `odoo-intake` § Phase P - restated here to avoid drift):** engage
+(write this file + run the driver) if ANY of - (1) `node_count >= 2`; (2) a single
 `output_mode == writes-files` node; (3) a single workflow node whose YAML declares
 `on_complete`. Otherwise (single chat-only node, not a workflow-with-on_complete) dispatch
-directly with no run file. The autonomy dial is NOT a trigger — it is only recorded here once
+directly with no run file. The autonomy dial is NOT a trigger - it is only recorded here once
 engaged. A workflow-command is ONE node (its phases are SSOT in the `.workflow.yaml`, never
-expanded into WIs — see §4.6).
+expanded into WIs - see §4.6).
 
-**Invariant — `on_complete` workflows are driver-required.** A workflow that declares
+**Invariant - `on_complete` workflows are driver-required.** A workflow that declares
 `on_complete` only *emits* `next[]`; only a `run-driver` dispatches it. Therefore such a
 workflow MUST be entered through a driver: intake Phase P engages one automatically (trigger 3
 above). A slash command whose workflow declares `on_complete` must likewise engage the driver
 (write a 1-node `run-<id>.json` + invoke `run-driver`) instead of dispatching `workflow-chaining`
-directly — otherwise the chain degrades to a human suggestion (workflow-chaining states this
+directly - otherwise the chain degrades to a human suggestion (workflow-chaining states this
 when it detects no driver above it). `generator/check_workflows.py` WARNs if a command
 references a driver-required workflow directly.
 
@@ -1016,7 +1014,7 @@ neither duplicates the other.
 **The `code -> review+test -> code` loop.** `odoo-coding` (which now orchestrates red-test authorship before the
 code for non-trivial modules, SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`) emits
 `next: odoo-code-review`; that skill reviews AND checks test coverage, emitting `next: odoo-coding`
-on a CRITICAL/HIGH fix or `next: odoo-test-writer` on an uncovered behavior. The driver advances
+on a CRITICAL/HIGH fix or `next: odoo-test-writing` on an uncovered behavior. The driver advances
 this loop via the Continuation Contract (a subagent never re-dispatches itself) and bounds it to 3
 iterations before escalating - same depth-safety as every other chain here.
 
@@ -1026,28 +1024,28 @@ iterations before escalating - same depth-safety as every other chain here.
 `generator/skill_tool_deps.json → orchestration.<skill>` (validated by `check_orchestration.py`,
 which also enforces the derivation below). They replace the hardcoded chat-only lists (§4.1).
 
-- **`output_mode`** — the authoritative runtime source is the explicit
+- **`output_mode`** - the authoritative runtime source is the explicit
   `orchestration.<skill>.output_mode` field in the registry (read that field; §4.7 row agrees).
-  That field's **value was set per-skill from the skill's declared Output semantics — NOT
+  That field's **value was set per-skill from the skill's declared Output semantics - NOT
   derived from `stack`** (a backend/frontend-stack skill can be read-only: `odoo-version-diff`,
   `odoo-deprecation-audit`, `odoo-code-review`, `odoo-ui-review` are all `chat-only`).
   - `writes-files` → persists a file artifact (`.odoo-ai/…` or source) → **Plan Mode required**.
   - `chat-only` → emits to chat only → skip Plan Mode.
 - **`default_gate_tier`** is derived deterministically from `(spawn_class, instance_touching,
   output_mode)`:
-  - **L2** if `instance_touching` OR `spawn_class == spawner-wave` — irreversible / outward
+  - **L2** if `instance_touching` OR `spawn_class == spawner-wave` - irreversible / outward
     (touches an instance, git push/merge, sends to a third party). **ALWAYS human gate; the
     autonomy dial can never lower L2.**
-  - **L1** else if `output_mode == writes-files` — writes internal files. Auto-pass under
+  - **L1** else if `output_mode == writes-files` - writes internal files. Auto-pass under
     `--auto` within budget; gated under `--step`.
-  - **L0** else — read-only / chat. Auto-pass.
+  - **L0** else - read-only / chat. Auto-pass.
 - **Per-node override** lives in `run-<id>.json` (a node may raise its tier, e.g. a coder told
   to write outside `.odoo-ai/`), never in the registry.
 
-### 8.5 Command / Skill / Agent — the three axes
+### 8.5 Command / Skill / Agent - the three axes
 
 These are three **different axes** with a one-way reference chain `Command → Skill → Agent`
-(a DAG, no cycle — consistent with the depth rule that an agent never calls back into a skill).
+(a DAG, no cycle - consistent with the depth rule that an agent never calls back into a skill).
 There is no chicken-and-egg: the recipe (skill) is authored at design-time; the agent is
 instantiated at run-time by the recipe.
 
@@ -1060,7 +1058,7 @@ instantiated at run-time by the recipe.
 **Multi-phase, multi-model expertise** (e.g. research: broad haiku survey → deep sonnet dives
 → opus synthesis) is an *orchestrating skill + a workflow YAML*. The infra already supports it
 (§5.4, `workflows/_schema.md`): `fanout: true` + `chunk_by` + per-phase `model_tier` +
-`context: fork` (≤3 concurrent). The phase count is flexible — fewer or more than three.
+`context: fork` (≤3 concurrent). The phase count is flexible - fewer or more than three.
 
 **named-agent vs fanout-worker (decision rule):**
 - Rich expertise + fixed tool-set + reused in many places → **named agent** (`agents/*.md`,
@@ -1071,7 +1069,7 @@ instantiated at run-time by the recipe.
 ### 8.6 Main Agent Operating Contract
 
 When a run is active (`.odoo-ai/run-<id>.json` exists with `status != DONE`), the main agent
-keeps its context clean by acting as orchestrator + decision-maker only — three layers, in
+keeps its context clean by acting as orchestrator + decision-maker only - three layers, in
 priority order:
 
 1. **Structure (primary):** the Contract + `run-<id>.json` are *summary* interfaces between

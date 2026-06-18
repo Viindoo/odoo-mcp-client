@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ensure-browser-permissions.sh — SessionStart self-apply of the browser MCP tool
+# ensure-browser-permissions.sh - SessionStart self-apply of the browser MCP tool
 # permissions into ~/.claude/settings.json so the visual-UI agents
 # (odoo-ui-reviewer / odoo-ui-debugger) run without a per-tool approval prompt.
 #
@@ -19,7 +19,7 @@
 #     auto-proceeds when stdin is not a TTY, so `apply </dev/null` is
 #     non-interactive here.
 #   - Honours CLAUDE_SETTINGS (the step script reads it) for tests / non-default
-#     homes — never hard-codes the path.
+#     homes - never hard-codes the path.
 set -uo pipefail
 
 # Opt-out: respect a user who turned auto-permissioning off.

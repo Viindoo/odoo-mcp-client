@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
 """
-check_orchestration.py — lint the Declarative Capability & Contract Layer.
+check_orchestration.py - lint the Declarative Capability & Contract Layer.
 
 Validates that orchestration metadata (generator/skill_tool_deps.json -> "orchestration")
 is complete and that skills thread the shared contracts they are required to:
 
-  1. Coverage     — every skills/<dir> has an orchestration entry, and vice versa.
-  2. OSM-first    — skills that spawn/fan-out workers writing Odoo (wave, workflow-chaining,
+  1. Coverage     - every skills/<dir> has an orchestration entry, and vice versa.
+  2. OSM-first    - skills that spawn/fan-out workers writing Odoo (wave, workflow-chaining,
                     odoo-brl) reference snippets/osm-first-contract.md.
-  3. Design-sys   — skills with stack in {frontend, fullstack} reference
+  3. Design-sys   - skills with stack in {frontend, fullstack} reference
                     skills/_shared/odoo-frontend-fidelity.md.
-  4. Instance     — skills with instance_touching=true reference cli_help / the lifecycle
+  4. Instance     - skills with instance_touching=true reference cli_help / the lifecycle
                     docs (so they ground the CLI per target version instead of assuming).
-  5. Spawn truth  — spawn_class is consistent with the SKILL.md body (a 'leaf' must not show
+  5. Spawn truth  - spawn_class is consistent with the SKILL.md body (a 'leaf' must not show
                     Agent-tool spawn language; a 'spawner-*' should).
-  6. No hardcode / no leak — self-referential CSS custom properties, machine-specific
+  6. No hardcode / no leak - self-referential CSS custom properties, machine-specific
                     absolute paths, and hardcoded hex inside skill SCSS code fences.
 
 WARN-FIRST: by default this prints findings and exits 0 (migration-friendly). Pass --strict
-(or set ORCH_STRICT=1) to exit 1 on any finding — flip that on once all skills comply.
+(or set ORCH_STRICT=1) to exit 1 on any finding - flip that on once all skills comply.
 
 Run from the repo root or anywhere; paths are resolved relative to this file.
 """
@@ -48,7 +48,7 @@ CODING_GUIDELINES_VERSIONS = ("14.0", "15.0", "16.0", "17.0", "18.0", "19.0")
 OSM_REQUIRED = {"wave", "workflow-chaining", "odoo-brl"}
 
 # Allowed enum values for the orchestration SSOT. A typo (e.g. "spawner_agent") must be a
-# loud finding, not a silent drop from the generated digest — otherwise the planner is told
+# loud finding, not a silent drop from the generated digest - otherwise the planner is told
 # a real spawner is safe to forbid, defeating the whole nesting guard this layer provides.
 VALID_SPAWN_CLASS = {"leaf", "orchestrator-nl", "spawner-agent", "spawner-wave"}
 VALID_DEPTH_POLICY = {"any-depth", "depth0-only"}
@@ -73,13 +73,13 @@ def _derive_gate_tier(spawn_class: str, instance_touching: bool, output_mode: st
 # High-precision ACTIVE dispatch signals in a SKILL.md body. Deliberately narrow: a generic
 # "spawn subagents" phrase is NOT included because it appears in negated capability statements
 # ("this skill does not invoke other skills or spawn subagents") and is pure noise. We only
-# flag the dangerous drift — a skill declared `leaf` that actively dispatches an agent. The
+# flag the dangerous drift - a skill declared `leaf` that actively dispatches an agent. The
 # orchestration SSOT (skill_tool_deps.json) is the authoritative classification.
 SPAWN_BODY_RE = re.compile(
     r"(invoke the Agent tool|call the Agent tool|dispatch(?:es)? (?:to )?the [a-z][a-z-]+ agent)",
     re.I,
 )
-# Negation tokens that suppress a spawn match. Note: "non-" is deliberately excluded — it
+# Negation tokens that suppress a spawn match. Note: "non-" is deliberately excluded - it
 # matches innocuous words like "non-blocking"/"non-trivial" and caused false negatives.
 NEGATION_RE = re.compile(r"(\bnot\b|\bnever\b|\bcannot\b|n't\b|\bno longer\b)", re.I)
 
@@ -103,7 +103,7 @@ PLACEHOLDER_USERS = {
 
 
 def _machine_path_leak(text: str) -> bool:
-    """True if text contains a real (non-placeholder) absolute home path — a machine leak."""
+    """True if text contains a real (non-placeholder) absolute home path - a machine leak."""
     return any(u.lower() not in PLACEHOLDER_USERS for u in MACHINE_PATH_RE.findall(text))
 HEX_RE = re.compile(r"#[0-9a-fA-F]{6}\b")
 FENCE_RE = re.compile(r"```(scss|css|sass|less)\b(.*?)```", re.S)
@@ -134,7 +134,7 @@ def main(argv: list[str]) -> int:
         findings.append(f"[coverage] orchestration entry '{extra}' has no skills/ dir")
 
     # 1c. The shared contract files the per-skill checks reference by substring must actually
-    #     exist — otherwise a rename leaves every skill "passing" (stale substring) with a dead
+    #     exist - otherwise a rename leaves every skill "passing" (stale substring) with a dead
     #     link. Verify the SSOT targets on disk once.
     coding_guidelines_refs = [f"{CODING_GUIDELINES_ROOT}/INDEX.md"]
     coding_guidelines_refs += [f"{CODING_GUIDELINES_ROOT}/{v}/INDEX.md" for v in CODING_GUIDELINES_VERSIONS]
@@ -151,7 +151,7 @@ def main(argv: list[str]) -> int:
         stack = e.get("stack", "none")
         depth_policy = e.get("depth_policy", "")
 
-        # 1b. Enum validity — a typo'd value silently drops the skill from the generated
+        # 1b. Enum validity - a typo'd value silently drops the skill from the generated
         #     spawner/depth0 digest (the planner is then misled), so treat it as a finding.
         if spawn_class not in VALID_SPAWN_CLASS:
             findings.append(f"[enum] '{name}' has invalid spawn_class '{spawn_class}' (not in {sorted(VALID_SPAWN_CLASS)})")
@@ -160,7 +160,7 @@ def main(argv: list[str]) -> int:
         if stack not in VALID_STACK:
             findings.append(f"[enum] '{name}' has invalid stack '{stack}' (not in {sorted(VALID_STACK)})")
 
-        # 1d. output_mode + default_gate_tier — presence, enum, and gate-tier consistency.
+        # 1d. output_mode + default_gate_tier - presence, enum, and gate-tier consistency.
         #     output_mode is authoritative per-skill (read from the Output field); gate_tier
         #     must equal the derivation so the SSOT cannot drift silently.
         output_mode = e.get("output_mode")
@@ -192,7 +192,7 @@ def main(argv: list[str]) -> int:
                 f"{', '.join(INSTANCE_REFS)}"
             )
 
-        # 5. spawn_class vs body — flag only the dangerous drift: a declared `leaf` that
+        # 5. spawn_class vs body - flag only the dangerous drift: a declared `leaf` that
         #    actively dispatches an agent. (Reverse direction is omitted as noisy; the
         #    orchestration SSOT is authoritative for the spawner declaration.)
         if spawn_class == "leaf" and _has_positive_spawn(body):
@@ -221,10 +221,10 @@ def main(argv: list[str]) -> int:
             print(f"  - {fnd}")
         if strict:
             return 1
-        print("  (warn-only mode — exit 0; pass --strict to enforce)")
+        print("  (warn-only mode - exit 0; pass --strict to enforce)")
         return 0
 
-    print("check_orchestration: OK — all orchestration contracts satisfied.")
+    print("check_orchestration: OK - all orchestration contracts satisfied.")
     return 0
 
 

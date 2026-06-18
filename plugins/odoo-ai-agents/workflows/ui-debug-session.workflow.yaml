@@ -1,7 +1,7 @@
 # ui-debug-session.workflow.yaml
 # Declarative SSOT for the long-running UI debug session workflow.
-# Runner: skills/workflow-chaining — auto-discovered at runtime.
-# Pattern: Pipeline with resume: true — each phase writes state so a multi-hour
+# Runner: skills/workflow-chaining - auto-discovered at runtime.
+# Pattern: Pipeline with resume: true - each phase writes state so a multi-hour
 # debug session can be interrupted and continued without losing context.
 name: ui-debug-session
 domain: engineering
@@ -25,7 +25,7 @@ fallback: standalone
 
 phases:
   # ------------------------------------------------------------------
-  # Phase 0 — Collect symptom + environment (inline)
+  # Phase 0 - Collect symptom + environment (inline)
   # ------------------------------------------------------------------
   - id: collect-symptom
     inline: true
@@ -35,7 +35,7 @@ phases:
     # reproduction steps. Writes a structured symptom card to state.
 
   # ------------------------------------------------------------------
-  # Phase 1 — Reproduce the symptom (inline)
+  # Phase 1 - Reproduce the symptom (inline)
   # ------------------------------------------------------------------
   - id: reproduce
     inline: true
@@ -48,7 +48,7 @@ phases:
     # Writes .odoo-ai/debug/<slug>-reproduce.md
 
   # ------------------------------------------------------------------
-  # Phase 2 — Inspect root cause via inline UI diagnosis (debug-method)
+  # Phase 2 - Inspect root cause via inline UI diagnosis (debug-method)
   # ------------------------------------------------------------------
   - id: inspect
     inline: true
@@ -57,18 +57,18 @@ phases:
       and the UI rows of ${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-failure-modes.md; fill the
       Output Contract.
       Investigate the Odoo UI issue collected in the symptom card and confirmed as
-      reproducible in the reproduce phase. Identify the ROOT CAUSE of the misbehavior —
+      reproducible in the reproduce phase. Identify the ROOT CAUSE of the misbehavior -
       console errors, failed network requests, blank OWL renders, broken widget state,
       wrong computed values, or CSS overrides not applying. Provide: (a) the exact root
       cause with the affected module, view, component, or CSS rule identified, (b) the
       override point or file path where the fix should land, and (c) any secondary
-      contributing factors. Do not write the fix yet — focus on diagnosis.
+      contributing factors. Do not write the fix yet - focus on diagnosis.
       This is an inline reasoning phase with NO live browser - diagnose strictly from the evidence captured in the collect/symptom phase; if live runtime capture is required and absent, return cannot-reproduce and recommend the odoo-debug browser agent rather than fabricating browser observations.
     model_tier: sonnet
     gate: "approve / re-investigate: [feedback] / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 3 — Hypothesize fix options (inline)
+  # Phase 3 - Hypothesize fix options (inline)
   # ------------------------------------------------------------------
   - id: hypothesize
     inline: true
@@ -82,7 +82,7 @@ phases:
     # risk level, and whether it survives an Odoo upgrade.
 
   # ------------------------------------------------------------------
-  # Phase 4 — Fix guidance (inline)
+  # Phase 4 - Fix guidance (inline)
   # ------------------------------------------------------------------
   - id: fix-guidance
     inline: true
@@ -95,7 +95,7 @@ phases:
     # Writes .odoo-ai/debug/<slug>-fix-guidance.md
 
   # ------------------------------------------------------------------
-  # Phase 5 — Verify outcome (inline)
+  # Phase 5 - Verify outcome (inline)
   # ------------------------------------------------------------------
   - id: verify
     inline: true

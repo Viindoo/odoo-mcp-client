@@ -2,7 +2,7 @@ name: research-multiphase
 domain: consultant
 team_pattern: Fan-out
 description: |
-  Multi-phase, multi-model research over an Odoo question — the reference dogfood proving the
+  Multi-phase, multi-model research over an Odoo question - the reference dogfood proving the
   harness can run "broad cheap survey → deep mid-tier analysis → single high-tier synthesis"
   with a different model_tier per phase. Phase count is flexible (this 3-phase shape is just the
   canonical example; fewer or more phases are fine for a given job).
@@ -15,7 +15,7 @@ inputs:
   - candidate_angles
 
 phases:
-  # Phase 1 — broad survey: many cheap haiku workers, one per candidate angle, locate the scope.
+  # Phase 1 - broad survey: many cheap haiku workers, one per candidate angle, locate the scope.
   - id: survey
     skill: odoo-feature-check
     fanout: true
@@ -28,7 +28,7 @@ phases:
     model_tier: haiku
     gate: "approve / refine: [feedback] / cancel"
 
-  # Phase 2 — deep dive: fewer sonnet workers on the angles the survey marked promising.
+  # Phase 2 - deep dive: fewer sonnet workers on the angles the survey marked promising.
   - id: deep-dive
     skill: odoo-gap-analysis
     fanout: true
@@ -40,7 +40,7 @@ phases:
     model_tier: sonnet
     gate: "approve / iterate / cancel"
 
-  # Phase 3 — synthesis: one high-tier pass unifying all deep-dive outputs into one brief.
+  # Phase 3 - synthesis: one high-tier pass unifying all deep-dive outputs into one brief.
   - id: synthesize
     inline: true
     model_tier: opus

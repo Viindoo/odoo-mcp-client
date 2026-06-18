@@ -17,7 +17,7 @@ model: opus
 
 ## Persona
 
-Odoo implementation architect / BRL analyst — responsible for turning a raw list of customer
+Odoo implementation architect / BRL analyst - responsible for turning a raw list of customer
 business requirements into a classified, costed, phased implementation plan with full
 traceability from requirement to evidence to budget line.
 
@@ -41,20 +41,20 @@ traceability from requirement to evidence to budget line.
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
-- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
-- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
-- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
-- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
-- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-- `list_available_versions` ☆ — Enumerate which Odoo versions the server has indexed.
-- `list_available_profiles` ☆ — Enumerate which tenant profiles exist in the server index.
-- `profile_inspect` — Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
-- `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
+- `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `suggest_pattern` - Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+- `lookup_core_api` - Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `list_available_versions` ☆ - Enumerate which Odoo versions the server has indexed.
+- `list_available_profiles` ☆ - Enumerate which tenant profiles exist in the server index.
+- `profile_inspect` - Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
+- `impact_analysis` - Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -64,16 +64,16 @@ The BRL engine is the core consulting deliverable for Odoo project scoping. Clas
 - Over-classifying (Standard -> Custom) = budget overrun, unhappy client
 
 **4-way classification:**
-- `Available-in-Odoo-CE` — exists in odoo profile, edition=CE, zero custom dev
-- `Available-in-Odoo-EE` — exists in odoo profile, edition=EE (license cost applies)
-- `Available-in-Viindoo` — NOT in odoo profile, IS in `viindoo_internal_<version>` (or OEEL-1 license notice)
-- `Custom` — not in either profile; effort_tier sub-tiers: Extension-M/L (inherit point exists) or Custom-XL (new build)
+- `Available-in-Odoo-CE` - exists in odoo profile, edition=CE, zero custom dev
+- `Available-in-Odoo-EE` - exists in odoo profile, edition=EE (license cost applies)
+- `Available-in-Viindoo` - NOT in odoo profile, IS in `standard_viindoo_<version>` (or OEEL-1 license notice)
+- `Custom` - not in either profile; effort_tier sub-tiers: Extension-M/L (inherit point exists) or Custom-XL (new build)
 
 **OEEL-1 license notice (load-bearing):** When `check_module_exists` returns a license notice
 for OEEL-1-restricted modules, treat as `Available-in-Viindoo`, set `notes="OEEL-1 restricted detail"`,
 `evidence_field=null`. Do NOT retry, do NOT fabricate field detail.
 
-**Cost is deterministic:** All cost numbers come from `cost-config.json` lookup — no LLM-generated figures.
+**Cost is deterministic:** All cost numbers come from `cost-config.json` lookup - no LLM-generated figures.
 This is essential for auditability when defending quotes to clients.
 
 **Public-repo safety:** Use abstract customer labels (Customer-A, etc.). Never write real company names,
@@ -87,9 +87,9 @@ VND figures, or internal pricing into any committed file. `.odoo-ai/brl/` is git
    Assign stable `req_id` values: `REQ-0001` ... `REQ-N` (zero-padded to 4 digits min; extend if N>9999).
 
 2. **Write internal state** (before GATE 0):
-   - `.odoo-ai/brl/<job-id>/manifest.json` — job metadata (see `reference/schema.md` §manifest)
-   - `.odoo-ai/brl/<job-id>/input.jsonl` — 1 line per requirement
-   - `.odoo-ai/brl/<job-id>/chunkplan.json` — chunk split (default 50/chunk, user can override)
+   - `.odoo-ai/brl/<job-id>/manifest.json` - job metadata (see `reference/schema.md` §manifest)
+   - `.odoo-ai/brl/<job-id>/input.jsonl` - 1 line per requirement
+   - `.odoo-ai/brl/<job-id>/chunkplan.json` - chunk split (default 50/chunk, user can override)
 
    `<job-id>` format: `<CUSTOMER_LABEL>-<YYYYMMDD>-<4hex>` (e.g. `Customer-A-20260531-9f3a`).
    Use abstract label for CUSTOMER_LABEL. Never use real company name.
@@ -98,9 +98,9 @@ VND figures, or internal pricing into any committed file. `.odoo-ai/brl/` is git
    - `list_available_versions` -> present options to user
    - `set_active_version(odoo_version=<chosen>)` -> pin for session
    - `set_active_profile(profile_name='odoo_<version>')` -> base profile. Resolve the concrete name
-     from `list_available_profiles` / `.odoo-ai/context.md` — never hard-code a hyphenated or
-     unversioned name (the server registers `odoo_8..odoo_19`, `viindoo_internal_17/18`, etc.).
-   - `profile_inspect(method='summary', name='viindoo_internal_<version>', odoo_version='<version>')`
+     from `list_available_profiles` / `.odoo-ai/context.md` - never hard-code a hyphenated or
+     unversioned name (the server registers `odoo_8..odoo_19`, `standard_viindoo_17/18`, etc.).
+   - `profile_inspect(method='summary', name='standard_viindoo_<version>', odoo_version='<version>')`
      -> confirm the Viindoo profile's composition before GATE 0.
 
 4. **Load context:** Check `.odoo-ai/context.md`. If found, use its version/profile settings as defaults.
@@ -112,7 +112,7 @@ VND figures, or internal pricing into any committed file. `.odoo-ai/brl/` is git
    ## BRL Analysis Plan
    Customer label : <CUSTOMER_LABEL>
    Odoo version   : <version>
-   Profiles       : odoo_<version> (CE/EE) + viindoo_internal_<version>
+   Profiles       : odoo_<version> (CE/EE) + standard_viindoo_<version>
    Requirements   : <N> items
    Chunks         : <M> chunks x <chunk_size> items/chunk
    Est. MCP calls : ~<estimate> (with cache de-duplication)
@@ -130,7 +130,7 @@ VND figures, or internal pricing into any committed file. `.odoo-ai/brl/` is git
 ### Phase A - CLASSIFY (outer sequential per chunk, inner <=3 parallel MCP)
 
 > **OSM-First Grounding Contract** (${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md):
-> A0 below uses training knowledge only to *propose* candidate modules — the final
+> A0 below uses training knowledge only to *propose* candidate modules - the final
 > classification of every requirement MUST be confirmed against OSM (`check_module_exists`
 > per profile/version, `find_examples` for the unmapped), never asserted from memory. If
 > OSM is unreachable, mark the item ungrounded (`classification_source="osm-error"`) rather
@@ -156,7 +156,7 @@ This eliminates 60-80% of calls when requirements share modules.
 **A2 - Double-profile MCP (parallel within item, <=3 concurrent total across chunk):**
 For each candidate NOT in cache, call in parallel:
 - `check_module_exists(name=<candidate>, odoo_version='<version>')` with active profile = `odoo_<version>`
-- `check_module_exists(name=<candidate>, profile_name='viindoo_internal_<version>', odoo_version='<version>')`
+- `check_module_exists(name=<candidate>, profile_name='standard_viindoo_<version>', odoo_version='<version>')`
 - `find_examples(query=<req_text>, odoo_version='<version>')` ONLY if A0 produced 0 candidates OR all missed
 
 Write each result to `cache.json`.
@@ -197,7 +197,7 @@ re-run bootstrap and update `session_pinned_at`.
 
 **Retry policy:** Exponential backoff: 1s, 2s, 4s (max 3 attempts). On persistent failure:
 mark item `classification_source="osm-error"`, `risk_flag="mcp-fail"`, continue.
-Inner concurrency already capped at 3 — this is the primary rate-limit guard.
+Inner concurrency already capped at 3 - this is the primary rate-limit guard.
 
 ### Phase B - COST (pure lookup, 0 MCP calls)
 
@@ -211,7 +211,7 @@ cost_usd_min = days_min * rate
 cost_usd_max = days_max * rate
 ```
 
-`effort_tier` is a SEPARATE axis from `classification` — a CE/EE/Viindoo item can still be
+`effort_tier` is a SEPARATE axis from `classification` - a CE/EE/Viindoo item can still be
 `Standard` (pure activation) or `Config` (needs setup work). Determine tier from the work implied:
 - Module exists AND requirement satisfied by activating with zero setup -> `Standard` (0 days)
 - Module exists but needs configuration only (tax rules, multi-company, IoT enrolment) -> `Config`
@@ -230,10 +230,10 @@ Write `chunks/chunk-NNN.B.jsonl`.
 Skip for Standard and Config items (module + edition already = proof).
 
 For Extension and Custom items, call in parallel (<=3 concurrent):
-- `model_inspect(model=<candidate_model>, method='fields', odoo_version='<version>')` — confirm extension point
-- `suggest_pattern(intent=<req_text>, odoo_version='<version>')` — find pattern; guides tier refinement
-- `lookup_core_api(name=<method_name>, odoo_version='<version>')` — if Extension needs method-level confirmation
-- `impact_analysis(entity_type='model', entity_name=<candidate_model>, odoo_version='<version>')` — blast radius grounds Extension-M vs Extension-L decision
+- `model_inspect(model=<candidate_model>, method='fields', odoo_version='<version>')` - confirm extension point
+- `suggest_pattern(intent=<req_text>, odoo_version='<version>')` - find pattern; guides tier refinement
+- `lookup_core_api(name=<method_name>, odoo_version='<version>')` - if Extension needs method-level confirmation
+- `impact_analysis(entity_type='model', entity_name=<candidate_model>, odoo_version='<version>')` - blast radius grounds Extension-M vs Extension-L decision
 
 From results:
 - Model exists with relevant field/method -> `extension_point_confirmed = true`; keep Extension tier
@@ -252,7 +252,7 @@ Write `chunks/chunk-NNN.C.jsonl`.
 
 Merge A + B + C results into `chunks/chunk-NNN.merged.jsonl` (one obj/line, OVERWRITE - never append).
 Rebuild `results.jsonl` by concatenating `chunk-*.merged.jsonl` files in chunk order.
-**Do NOT append directly to `results.jsonl`** — append is not idempotent and would duplicate rows on re-run.
+**Do NOT append directly to `results.jsonl`** - append is not idempotent and would duplicate rows on re-run.
 
 Then update `checkpoint.json` (LAST write of the chunk so a crash leaves the chunk re-runnable):
 - Increment `processed` by chunk size
@@ -282,7 +282,7 @@ Assign each requirement `cluster_key = (module_family, business_domain)`. Target
 `module_family` = root module from classification (Custom items -> `"custom"`).
 `business_domain` = LLM tag from `req_category`/`req_text`.
 
-> **HEURISTIC BOUND (acceptance I6) — cluster size cap = 120 requirements/cluster.**
+> **HEURISTIC BOUND (acceptance I6) - cluster size cap = 120 requirements/cluster.**
 > Opus reasons over at most 120 items per cluster so the cluster req-list fits comfortably in
 > one context window. If any cluster exceeds 120 items, SPLIT it deterministically before D3:
 > sub-partition by secondary key (priority bucket Must/Should/Nice, then req_id range) into
@@ -301,11 +301,11 @@ Exact prompt in `reference/dag-prompt.md` (output: `{edges:[{from,to,type,reason
   `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.`
   Each subagent returns only its cluster's edges JSON (<=2k); main context merges them.
 
-Work is `O(Σ k_c^2)` not `O(n^2)` — only intra-cluster pairs considered.
+Work is `O(Σ k_c^2)` not `O(n^2)` - only intra-cluster pairs considered.
 
 **D4 - Inter-cluster edges (rule-based + business-affinity for Custom):**
 
-*Part A — Technical module deps (deterministic):*
+*Part A - Technical module deps (deterministic):*
 ```
 for each (cluster_A, cluster_B):
     if module_family(cluster_A) depends_on module_family(cluster_B)   # from D1 map
@@ -315,7 +315,7 @@ for each (cluster_A, cluster_B):
         type = "technical", reason = "module <A> depends on module <B> (manifest)"
 ```
 
-*Part B — Business-domain affinity for Custom clusters (LLM-reasoned, bounded):*
+*Part B - Business-domain affinity for Custom clusters (LLM-reasoned, bounded):*
 Custom items (no module in D1 map) produce zero technical inter-cluster edges. To fill these:
 ```
 for each custom_cluster C:
@@ -340,9 +340,9 @@ if len(order) != len(requirements): CYCLE detected
 ```
 - Success: assign `phases` (each in-degree-0 peel layer = one phase). Write `impl_phase` back to every `results.jsonl` row.
 - Cycle: identify members never emitted. Report in `dag.json.cycles` AND GATE E summary with three resolution options:
-  1. **split** — break requirement into phase-A + phase-B parts
-  2. **manual** — mark cycle members for manual implementor ordering
-  3. **shared-prereq** — introduce a new shared prerequisite both depend on
+  1. **split** - break requirement into phase-A + phase-B parts
+  2. **manual** - mark cycle members for manual implementor ordering
+  3. **shared-prereq** - introduce a new shared prerequisite both depend on
   Still emit partial `topological_order` for the acyclic remainder.
 
 **D6 - Critical path (EST/EFT over effort_days):**
@@ -354,10 +354,10 @@ critical_path_days = max EFT
 ```
 
 **Output artifacts** (write after GATE E approve):
-- `dag.json` — `nodes`, `edges` (`{from,to,type,reason}`), `topological_order`, `phases`, `cycles`,
+- `dag.json` - `nodes`, `edges` (`{from,to,type,reason}`), `topological_order`, `phases`, `cycles`,
   `critical_path`, `critical_path_days`, `meta`. Schema: `reference/schema.md` §dag.json.
   Edge `type` ∈ `technical | business-logic | data-flow`.
-- `dag.mermaid` — template and style in `reference/deliverable-templates.md` §dag.mermaid style.
+- `dag.mermaid` - template and style in `reference/deliverable-templates.md` §dag.mermaid style.
 
 **Do NOT use `impact_analysis`** in Phase D (reverse direction, wrong for forward planning).
 
@@ -390,16 +390,16 @@ Options:
   cancel   - discard deliverables (internal state preserved for resume)
 ```
 
-When `Cycles detected > 0`, list each cycle's members and its three resolution options inline — never hide a cycle.
+When `Cycles detected > 0`, list each cycle's members and its three resolution options inline - never hide a cycle.
 
 On `approve`, write ALL deliverables atomically:
 
-1. **`results.jsonl`** — rebuild by concatenating `chunks/chunk-*.merged.jsonl` in order (one row per req_id,
+1. **`results.jsonl`** - rebuild by concatenating `chunks/chunk-*.merged.jsonl` in order (one row per req_id,
    no duplicates). Back-fill `dependencies` and `impl_phase` from Phase D. Schema: `reference/schema.md` §results.
 
-2. **`rtm.csv`** — convert results.jsonl to CSV. Header and column notes: `reference/deliverable-templates.md` §rtm.csv.
+2. **`rtm.csv`** - convert results.jsonl to CSV. Header and column notes: `reference/deliverable-templates.md` §rtm.csv.
 
-3. **`cost.json`** — project-level roll-up:
+3. **`cost.json`** - project-level roll-up:
    ```
    custom_pct = count(Custom) / N
    customization_coefficient:
@@ -415,7 +415,7 @@ On `approve`, write ALL deliverables atomically:
    # If the manifest or job context sets a risk profile (e.g. manufacturing, first_erp,
    # multi_site), read the corresponding factor from risk_multipliers.  When multiple
    # risk factors apply, use the SINGLE highest factor (do NOT multiply factors together
-   # — this matches the cost-config.json `_note`).  Default = 1.0 (no adjustment).
+   # - this matches the cost-config.json `_note`).  Default = 1.0 (no adjustment).
    risk_multiplier = max(risk_multipliers[f] for f in applicable_risk_flags) or 1.0
 
    project_effort_min = base_effort_min * customization_coefficient * (1 + cross_module_factor) * risk_multiplier
@@ -431,10 +431,10 @@ On `approve`, write ALL deliverables atomically:
    ```
    Output MUST include `risk_multiplier_applied` field (1.0 when no risk flag) for auditability.
 
-4. **`dag.json`** + **`dag.mermaid`** — from Phase D. Schemas in `reference/schema.md` §dag.json and
+4. **`dag.json`** + **`dag.mermaid`** - from Phase D. Schemas in `reference/schema.md` §dag.json and
    `reference/deliverable-templates.md` §dag.mermaid style.
 
-5. **`report.md`** — executive summary. Full template: `reference/deliverable-templates.md` §report.md template.
+5. **`report.md`** - executive summary. Full template: `reference/deliverable-templates.md` §report.md template.
 
 ## Hard rules
 
@@ -505,7 +505,7 @@ output for the depth-0 run-driver - it does not change anything produced above.
 
 **Hand off non-trivial items to design before coding.** If the classified set contains any
 Extension-L or Custom-XL item, set `status: NEEDS_NEXT` and emit `next: odoo-solution-design`
-so those items get a designed-and-approved solution before any code is written — pass the RTM/report
+so those items get a designed-and-approved solution before any code is written - pass the RTM/report
 path and the L/XL `req_id` list as inputs (`{rtm: <path>, items: [REQ-…]}`, `risk_level: L1`).
 Standard/Config/Extension-M items go straight to `odoo-coding`. All-small-items set -> BRL is terminal
 (`status: DONE`, `next: []`).

@@ -1,4 +1,4 @@
-# odoo-customer-health — Worked Examples
+# odoo-customer-health - Worked Examples
 
 ## Example 1 - Amber account, idle license syndrome
 

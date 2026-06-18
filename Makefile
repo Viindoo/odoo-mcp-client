@@ -20,7 +20,7 @@ help:
 	@echo "make bump-major      - bump major (X.y.z -> X+1.0.0) for breaking changes"
 
 # Venv stamp: rebuilt whenever requirements.txt changes so new deps are always
-# installed (no stale-venv silent-skip). The build is atomic — on any failure
+# installed (no stale-venv silent-skip). The build is atomic - on any failure
 # the partial venv is removed and the stamp is NOT written, so the next run
 # retries instead of trusting a broken venv.
 $(VENV_STAMP): requirements.txt
@@ -34,7 +34,7 @@ $(VENV_STAMP): requirements.txt
 	{ $$base -m venv $(VENV) && \
 	  $(VENV)/bin/python -m pip install --quiet --upgrade pip && \
 	  $(VENV)/bin/python -m pip install -r requirements.txt; } || \
-	  { echo "ERROR: venv setup failed — removing partial $(VENV)"; rm -rf $(VENV); exit 1; }
+	  { echo "ERROR: venv setup failed - removing partial $(VENV)"; rm -rf $(VENV); exit 1; }
 	@touch $(VENV_STAMP)
 
 setup: $(VENV_STAMP)
@@ -46,7 +46,7 @@ validate: $(VENV_STAMP)
 		claude plugin validate plugins/odoo-ai-agents && \
 		claude plugin validate plugins/odoo-semantic-mcp; \
 	} || \
-		echo "(claude CLI not found — skipping 'claude plugin validate'; running pytest checks)"
+		echo "(claude CLI not found - skipping 'claude plugin validate'; running pytest checks)"
 	$(PYTHON) -m pytest tests/test_plugin_schema.py tests/test_skill_format.py -q
 	$(PYTHON) plugins/odoo-ai-agents/generator/check_workflows.py
 
@@ -67,7 +67,7 @@ gen: $(VENV_STAMP)
 gen-check: gen
 	@dirty="$$(git status --porcelain)"; \
 	if [ -n "$$dirty" ]; then \
-		echo "ERROR: make gen produced uncommitted changes (incl. new untracked artifacts) — commit the generated output."; \
+		echo "ERROR: make gen produced uncommitted changes (incl. new untracked artifacts) - commit the generated output."; \
 		echo "$$dirty"; \
 		exit 1; \
 	fi

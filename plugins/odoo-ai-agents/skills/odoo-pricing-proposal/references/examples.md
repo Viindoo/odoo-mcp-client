@@ -1,4 +1,4 @@
-# Pricing Proposal — Worked Examples
+# Pricing Proposal - Worked Examples
 
 ## Example 1 - SME, basic Accounting + Inventory, 15 days implementation
 

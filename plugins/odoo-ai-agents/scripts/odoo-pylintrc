@@ -1,4 +1,4 @@
-# odoo-pylintrc — shipped fallback config for verify-backend.sh.
+# odoo-pylintrc - shipped fallback config for verify-backend.sh.
 #
 # This is the LAST-RESORT config used only when the consumer's deployment does
 # NOT provide its own pylint-odoo config (no ODOO_PYLINTRC env, no pylintrc in
@@ -10,7 +10,7 @@
 #   A source pragma `# pylint: disable=consider-merging-classes-inherited` (R8180)
 #   is VALID and required only because pylint_odoo registers that message. Run
 #   bare pylint WITHOUT the plugin and the same pragma reads as
-#   `unknown-option-value (W0012)` — which `--disable=all` does NOT suppress — so
+#   `unknown-option-value (W0012)` - which `--disable=all` does NOT suppress - so
 #   it looks like a failure to "fix" by deleting the pragma, which then re-breaks
 #   real CI. verify-backend.sh therefore ALWAYS loads pylint_odoo and never runs
 #   bare core pylint. See docs/reference/odoo-code-quality.md.

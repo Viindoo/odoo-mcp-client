@@ -1,4 +1,4 @@
-# odoo-test-writer — Output Format
+# odoo-test-writing - Output Format
 
 After writing test files, report:
 

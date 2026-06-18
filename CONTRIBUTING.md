@@ -30,7 +30,7 @@ make test
 > `make validate` both use `.venv` automatically; if you skip `make setup`, the first
 > `make test` run will bootstrap the venv for you.
 
-You also need a running MCP server to exercise the tools end-to-end — point
+You also need a running MCP server to exercise the tools end-to-end - point
 `/odoo-semantic-mcp:connect` at the hosted instance (`https://odoo-semantic.viindoo.com/mcp`).
 Use the hosted instance at https://odoo-semantic.viindoo.com/install/ (sign up for an API key).
 
@@ -55,7 +55,7 @@ sensitive numeric values (pricing/OKR figures). Run `make validate && make test`
 | `plugins/odoo-ai-agents/agents/*.md` | Orchestration agents |
 | `plugins/odoo-ai-agents/commands/*.md` | Workflow slash commands |
 | `plugins/odoo-ai-agents/.mcp.json` | Bundled browser MCP servers (`chrome-devtools`, `playwright`, `pagecast`) loaded with the plugin for the visual stack |
-| `plugins/odoo-ai-agents/hooks/` | Plugin lifecycle hooks (`hooks.json` + scripts) — e.g. the SessionStart visual-stack readiness probe |
+| `plugins/odoo-ai-agents/hooks/` | Plugin lifecycle hooks (`hooks.json` + scripts) - e.g. the SessionStart visual-stack readiness probe |
 | `plugins/odoo-ai-agents/scripts/lib/` | Shared bash/python setup utilities (`config_merge.py`, `discover_odoo.sh`) reused by setup steps |
 | `plugins/odoo-ai-agents/scripts/setup-steps/` | Numbered, idempotent setup steps (`describe \| check \| apply`) driven by `/odoo-ai-agents:odoo-setup` |
 | `plugins/odoo-ai-agents/generator/` | SSOT generator (`gen_surface.py`) + server-surface inputs |
@@ -76,13 +76,13 @@ matches what you actually mean:
 | The plugin that ships the MCP server connection + connect command | `odoo-semantic-mcp` | Plugin name, `/odoo-semantic-mcp:connect`, dependency declarations |
 | The plugin that ships the skills / agents / commands | `odoo-ai-agents` | Plugin name, `/odoo-ai-agents:odoo-setup`, etc. |
 | The product / brand / hosted service | `Odoo Semantic` (prose) or `OSM` (abbrev) | README prose, "the Odoo Semantic service"; URL `odoo-semantic.viindoo.com` |
-| The **MCP server id** (runtime identifier) | `odoo-semantic` in backticks, config/code only | `.mcp.json`, editor snippets — naming the registered server id. NEVER as a plugin name |
-| The **tool-call prefix** | `mcp__odoo-semantic__*` | Tool names in skills/agents/docs/tests — always the full `mcp__…__` form |
+| The **MCP server id** (runtime identifier) | `odoo-semantic` in backticks, config/code only | `.mcp.json`, editor snippets - naming the registered server id. NEVER as a plugin name |
+| The **tool-call prefix** | `mcp__odoo-semantic__*` | Tool names in skills/agents/docs/tests - always the full `mcp__…__` form |
 | The running MCP server, as a noun in prose | `the odoo-semantic-mcp server` | Fallback / standalone sections ("when the … server is unreachable") |
 
 Rule of thumb: a bare `odoo-semantic` token that is **not** inside `mcp__…__`, **not** a
 config server-id field, **not** part of a URL, and **not** the brand words "Odoo Semantic" /
-"OSM" is suspect — it should usually carry a `-mcp` / `-skills` suffix or be rephrased.
+"OSM" is suspect - it should usually carry a `-mcp` / `-skills` suffix or be rephrased.
 `tests/test_naming_consistency.py` enforces this on the skill / command / trigger-phrase
 surface; historical entries in `CHANGELOG.md` are intentionally exempt.
 
@@ -118,7 +118,7 @@ SSOT in [Viindoo/odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-
 ### Skill format
 
 Each `plugins/odoo-ai-agents/skills/<name>/SKILL.md` must start with YAML frontmatter containing at least a
-`name` and a `description`. The description is what drives routing — keep it specific and
+`name` and a `description`. The description is what drives routing - keep it specific and
 trigger-rich, but **under 1024 characters**: Claude truncates longer descriptions out of the
 skill listing, which silently degrades triggering. Trim duplicate trigger phrases and
 illustrative examples before cutting any `route to …` / `DO NOT trigger → …` disambiguation
@@ -130,10 +130,10 @@ exist).
 ### Naming convention: skill vs agent vs command (morphology)
 
 Names encode **role**, so an AI router (and a human) can tell the three layers apart even
-when a name appears bare — without its `odoo-ai-agents:` namespace — in a cross-reference
+when a name appears bare - without its `odoo-ai-agents:` namespace - in a cross-reference
 or in the model's own reasoning. The rule:
 
-- **Skill** = a **capability noun** — either a noun phrase (`-review`, `-analysis`, `-diff`,
+- **Skill** = a **capability noun** - either a noun phrase (`-review`, `-analysis`, `-diff`,
   `-audit`, `-proof`, `-overview`) or a gerund (`-coding`, `-recording`, `-handling`). It names
   *what competence is offered*. **Never** an agent suffix (`-er/-or/-ist/-finder/-handler`) and
   **never** a bare imperative verb (`summarize`, `onboard`).
@@ -151,7 +151,7 @@ or in the model's own reasoning. The rule:
 
 A skill that dispatches an agent pairs a capability with an actor: skill `odoo-code-review`
 dispatches agent `odoo-code-reviewer`; skill `odoo-backend-coding` dispatches agent
-`odoo-coder`. The names must differ (capability vs actor) — identical skill==agent names are a
+`odoo-coder`. The names must differ (capability vs actor) - identical skill==agent names are a
 violation, because a bare reference can no longer say which layer it means.
 
 ## Pull requests
@@ -160,7 +160,7 @@ violation, because a bare reference can no longer say which layer it means.
 2. Keep changes scoped; one logical change per PR.
 3. Run `make validate && make test` before pushing.
 4. Fill in the PR template.
-5. **Sign off your commits** (DCO — see below).
+5. **Sign off your commits** (DCO - see below).
 
 ### Developer Certificate of Origin (DCO)
 
@@ -211,17 +211,17 @@ tracks its respective `plugin.json.version`.
 **Bumping.** Prefer `make bump`, which **auto-classifies** the level from the commits
 since `VERSION` last changed and then bumps. It updates `VERSION`, the `odoo-ai-agents`
 `plugin.json.version`, and cuts the `## [Unreleased]` CHANGELOG block to `## [x.y.z] - DATE`
-in one step — so the version and changelog never drift apart. Run `make bump-dry` to preview
+in one step - so the version and changelog never drift apart. Run `make bump-dry` to preview
 the suggested level + resulting version without writing anything.
 
-**How the level is decided (this is the operational policy — apply it, don't default to minor):**
+**How the level is decided (this is the operational policy - apply it, don't default to minor):**
 
-- **patch** (3rd number) — bug fixes / internal refactors / docs / chore / test. **This is the
+- **patch** (3rd number) - bug fixes / internal refactors / docs / chore / test. **This is the
   default** for any change that is not a new feature or a break. Do not skip it: a fix-only
   release is a patch, not a minor.
-- **minor** (2nd number) — a backward-compatible feature, **including a new command, skill, or
+- **minor** (2nd number) - a backward-compatible feature, **including a new command, skill, or
   agent**, or any `feat:` commit.
-- **major** (1st number) — a breaking change (a `type!:` commit or a `BREAKING CHANGE:` note).
+- **major** (1st number) - a breaking change (a `type!:` commit or a `BREAKING CHANGE:` note).
 
 `make bump` reads this from git deterministically: it anchors on the commit that last touched
 `VERSION` (the `v*` tags lag `VERSION` and are **not** used as the anchor) and inspects the
@@ -231,7 +231,7 @@ otherwise → **patch**.
 
 **In an AI session, honor a natural-language version request.** If the human names a specific
 version or level ("bump to 3.11.0", "this is a patch", "minor please"), the agent runs the
-explicit form — `scripts/bump-version.sh 3.11.0` or `scripts/bump-version.sh patch` — which
+explicit form - `scripts/bump-version.sh 3.11.0` or `scripts/bump-version.sh patch` - which
 takes precedence over auto-classification. Otherwise the agent runs `make bump` (i.e.
 `scripts/bump-version.sh auto`) and **confirms the suggested level** (e.g. via `make bump-dry`)
 before applying.
@@ -245,12 +245,12 @@ valid `MAJOR.MINOR.PATCH`.
 
 If a release breaks installs after the marketplace PR merges:
 
-1. **Revert the marketplace pin** — open a one-line PR on `Viindoo/claude-plugins`
+1. **Revert the marketplace pin** - open a one-line PR on `Viindoo/claude-plugins`
    resetting `source.sha` (and `source.url` if it changed) to the last-known-good commit,
    or edit `marketplace.json` directly.
 2. Existing users are unaffected until they `claude plugin update`; the revert restores
    the good SHA for everyone.
-3. If a bad commit must be pulled entirely, fix forward on `master` here — a new
+3. If a bad commit must be pulled entirely, fix forward on `master` here - a new
    qualifying push re-pins automatically.
 4. As a last resort, bump `VERSION` (e.g. `2.0.1-revert`) and announce via the usual
    channel.

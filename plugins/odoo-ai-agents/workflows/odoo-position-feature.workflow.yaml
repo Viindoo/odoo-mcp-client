@@ -1,7 +1,7 @@
 # odoo-position-feature.workflow.yaml
 # Encode the four-phase feature positioning pipeline as a declarative workflow.
 # Phases: feature-check -> addon-diff -> competitive-brief -> positioning-copy (inline)
-# Output lands under .odoo-ai/positioning/ — same as the prose command SSOT.
+# Output lands under .odoo-ai/positioning/ - same as the prose command SSOT.
 name: odoo-position-feature
 domain: marketing
 team_pattern: Pipeline
@@ -57,7 +57,7 @@ phases:
     gate: "approve / skip / cancel"
 
   # ------------------------------------------------------------------
-  # Phase positioning-copy — produce copy block adapted to audience + channel (inline)
+  # Phase positioning-copy - produce copy block adapted to audience + channel (inline)
   # Encodes the old Phase 4 prose contract: per-channel structure + per-audience tone.
   # ------------------------------------------------------------------
   - id: positioning-copy

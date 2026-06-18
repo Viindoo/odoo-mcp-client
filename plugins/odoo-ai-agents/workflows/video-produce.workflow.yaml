@@ -1,6 +1,6 @@
 # video-produce.workflow.yaml
 # Declarative SSOT for the /odoo-produce-video command.
-# Runner: skills/workflow-chaining — auto-discovered at runtime.
+# Runner: skills/workflow-chaining - auto-discovered at runtime.
 name: video-produce
 domain: marketing
 team_pattern: Pipeline
@@ -22,7 +22,7 @@ fallback: standalone
 
 phases:
   # ------------------------------------------------------------------
-  # Phase 0 — Parse args + context check + storyboard (inline gate)
+  # Phase 0 - Parse args + context check + storyboard (inline gate)
   # ------------------------------------------------------------------
   - id: storyboard
     inline: true
@@ -41,7 +41,7 @@ phases:
     #   - Each scene maps to one odoo-demo-recording invocation
 
   # ------------------------------------------------------------------
-  # Phase 1 — Record scenes (odoo-demo-recording, one invocation per scene)
+  # Phase 1 - Record scenes (odoo-demo-recording, one invocation per scene)
   # ------------------------------------------------------------------
   - id: record-scenes
     skill: odoo-demo-recording
@@ -59,7 +59,7 @@ phases:
     gate: "approve-all / retake: [scene numbers] / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 2 — Assemble clips into final deliverable (inline gate)
+  # Phase 2 - Assemble clips into final deliverable (inline gate)
   # ------------------------------------------------------------------
   - id: assemble
     inline: true
@@ -74,4 +74,4 @@ phases:
     #   4. Remind: .odoo-ai/ is gitignored; final file is not committed to the repo.
     # Fallback: if only screenshot capture was available for any scene, the assembler
     # stitches frame sequences and prefixes the output with:
-    #   ⚠ Recorder unavailable for scene(s) N — assembled from screenshot frames.
+    #   ⚠ Recorder unavailable for scene(s) N - assembled from screenshot frames.

@@ -1,9 +1,10 @@
 # Odoo interpreter / venv resolution (which `python` runs odoo-bin, tests, migrations)
 
-When you must actually RUN something against Odoo - `odoo-bin` (`scaffold`, `-i <module>`,
-`--test-enable`, `--stop-after-init`), a unit-test suite, or a migration script - you need a
-Python interpreter whose virtualenv has that Odoo series' dependencies. Do NOT assume the
-system `python3`: it usually lacks `psycopg2` / `lxml` / `babel`, so the import crashes before
+When you must actually RUN something against Odoo - `odoo-bin` (`scaffold`, `-i <module>`, `-u <module>`,
+`--test-enable`, `--test-tags`, `--stop-after-init`, `--skip-auto-install` - since Odoo 17.0, to avoid noise from
+auto installed modules when testing, reviewing, debugging, developing, maintaining, etc), a unit-test suite,
+or a migration script - you need a Python interpreter whose virtualenv has that Odoo series' dependencies.
+Do NOT assume the system `python3`: it usually lacks `psycopg2` / `lxml` / `babel`, so the import crashes before
 Odoo even loads.
 
 ## Resolution order (stop at the first that yields a usable interpreter)
@@ -21,6 +22,10 @@ Odoo even loads.
 
 3. system **`python3`** - last resort only; it likely lacks Odoo deps, so a clean run is not
    guaranteed.
+
+> If you acquired the instance through the allocator (concurrent mutation - see
+> `snippets/instance-resolution.md` § Allocate), the same interpreter is already returned to you
+> as `ALLOC_PYTHON`; use it directly instead of a second `instances_io.py read` lookup.
 
 This is exactly the chain `scripts/setup-steps/50-instance-spinup.sh` uses to launch an
 instance, so spinning up via that step already picks the right interpreter for you.

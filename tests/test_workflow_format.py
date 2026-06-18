@@ -31,7 +31,7 @@ except ImportError:
 pytestmark = pytest.mark.skipif(not HAS_YAML, reason="PyYAML not installed")
 
 # ---------------------------------------------------------------------------
-# Allowed enum values (mirrors check_workflows.py — both reference _schema.md)
+# Allowed enum values (mirrors check_workflows.py - both reference _schema.md)
 # ---------------------------------------------------------------------------
 
 ALLOWED_DOMAINS = {
@@ -340,7 +340,7 @@ def test_skill_phase_requires_nl_trigger():
     cw = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cw)
 
-    # Phase with skill but nl_trigger absent — must fail
+    # Phase with skill but nl_trigger absent - must fail
     phase_missing = {"id": "p1", "skill": "odoo-backend-coding", "model_tier": "sonnet"}
     errors = cw._validate_phase(phase_missing, 0, "test-workflow")
     nl_errors = [e for e in errors if "nl_trigger" in e]
@@ -349,7 +349,7 @@ def test_skill_phase_requires_nl_trigger():
         f"but _validate_phase returned: {errors}"
     )
 
-    # Phase with skill and a valid nl_trigger — must NOT produce nl_trigger error
+    # Phase with skill and a valid nl_trigger - must NOT produce nl_trigger error
     phase_ok = {
         "id": "p2",
         "skill": "odoo-backend-coding",
@@ -363,7 +363,7 @@ def test_skill_phase_requires_nl_trigger():
         f"but got nl_trigger errors: {nl_errors_ok}"
     )
 
-    # Inline phase with no nl_trigger — must NOT produce nl_trigger error
+    # Inline phase with no nl_trigger - must NOT produce nl_trigger error
     phase_inline = {"id": "p3", "inline": True, "model_tier": "inherit"}
     errors_inline = cw._validate_phase(phase_inline, 2, "test-workflow")
     nl_errors_inline = [e for e in errors_inline if "nl_trigger" in e]

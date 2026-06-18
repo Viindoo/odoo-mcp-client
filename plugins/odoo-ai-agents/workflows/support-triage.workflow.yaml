@@ -1,6 +1,6 @@
 # support-triage.workflow.yaml
 # Declarative SSOT for the odoo-support-triage composition workflow.
-# Runner: skills/workflow-chaining — auto-discovered at runtime.
+# Runner: skills/workflow-chaining - auto-discovered at runtime.
 # Pattern note: Pipeline with two mutually-exclusive conditional phases
 # (root-cause-bug / root-cause-feature) gated by `when:` predicates. The runner
 # evaluates `when:` in Pipeline and skips the non-matching branch, so exactly one
@@ -24,7 +24,7 @@ fallback: standalone
 
 phases:
   # ------------------------------------------------------------------
-  # Phase 0 — Collect ticket + context (inline: runner handles)
+  # Phase 0 - Collect ticket + context (inline: runner handles)
   # ------------------------------------------------------------------
   - id: collect-ticket
     inline: true
@@ -35,7 +35,7 @@ phases:
     # in any artifact. Warns user that .odoo-ai/ must be in .gitignore.
 
   # ------------------------------------------------------------------
-  # Phase 1 — Classify the ticket (inline: no specialist needed)
+  # Phase 1 - Classify the ticket (inline: no specialist needed)
   # ------------------------------------------------------------------
   - id: classify
     inline: true
@@ -46,7 +46,7 @@ phases:
     # Output: classification block written to .odoo-ai/support/<slug>-classify.md.
 
   # ------------------------------------------------------------------
-  # Phase 2a — Root-cause via inline UI diagnosis (debug-method) (bug path)
+  # Phase 2a - Root-cause via inline UI diagnosis (debug-method) (bug path)
   # ------------------------------------------------------------------
   - id: root-cause-bug
     inline: true
@@ -64,7 +64,7 @@ phases:
     when: "classification == 'bug'"
 
   # ------------------------------------------------------------------
-  # Phase 2b — Root-cause via odoo-feature-check (feature-request path)
+  # Phase 2b - Root-cause via odoo-feature-check (feature-request path)
   # ------------------------------------------------------------------
   - id: root-cause-feature
     skill: odoo-feature-check
@@ -78,7 +78,7 @@ phases:
     when: "classification == 'feature-request'"
 
   # ------------------------------------------------------------------
-  # Phase 3 — Resolution draft (inline assembly)
+  # Phase 3 - Resolution draft (inline assembly)
   # ------------------------------------------------------------------
   - id: resolution-draft
     inline: true
@@ -92,7 +92,7 @@ phases:
     # + "Suggest next skill" block.
 
   # ------------------------------------------------------------------
-  # Phase 4 — Write artifact (inline, confidentiality-safe)
+  # Phase 4 - Write artifact (inline, confidentiality-safe)
   # ------------------------------------------------------------------
   - id: output
     inline: true

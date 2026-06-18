@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CI dependency check: assert every tool referenced in skill_tool_deps.json exists in
 server-surface.json, AND that the declared version-gate fields are consistent (issue #40
-Finding 2 — previously declared-but-dead).
+Finding 2 - previously declared-but-dead).
 
 Version-gate invariants enforced:
   1. server_version_required <= surface.server_version (the mirror cannot require a server
@@ -9,7 +9,7 @@ Version-gate invariants enforced:
   2. every skill/agent min_server_version <= surface.server_version (each floor is satisfiable
      by the mirrored/deployed server).
   3. every skill/agent min_server_version >= max(version_added) of the tools it references
-     (the declared floor actually covers the newest tool the skill uses — this is what makes
+     (the declared floor actually covers the newest tool the skill uses - this is what makes
      the field meaningful: a skill using profile_inspect (0.13.1) must declare min >= 0.13.1).
 """
 import json
@@ -60,7 +60,7 @@ for section in ("skills", "agents"):
             newest = max(tools, key=lambda t: tool_added.get(t, (0, 0, 0)))
             errors.append(
                 f"{kind} '{name}' min_server_version '{meta.get('min_server_version')}' is below "
-                f"the version_added of '{newest}' ({'.'.join(map(str, needed))}) — bump the floor"
+                f"the version_added of '{newest}' ({'.'.join(map(str, needed))}) - bump the floor"
             )
 
 if errors:
@@ -70,6 +70,6 @@ if errors:
 num_skills = len(deps["skills"])
 num_agents = len(deps.get("agents", {}))
 print(
-    f"OK: {num_skills} skills + {num_agents} agents — all tool references resolve; "
+    f"OK: {num_skills} skills + {num_agents} agents - all tool references resolve; "
     f"version-gate consistent against surface {surface['server_version']}."
 )

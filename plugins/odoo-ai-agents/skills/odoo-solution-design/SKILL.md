@@ -1,12 +1,12 @@
 ---
 name: odoo-solution-design
 description: >
-  Design the technical solution for a non-trivial Odoo change BEFORE code is written — the
+  Design the technical solution for a non-trivial Odoo change BEFORE code is written - the
   analysis-and-design step between requirement analysis (odoo-brl / odoo-gap-analysis) and code
   generation (odoo-coding). Dispatches the odoo-solution-architect
   agent to produce a gate-able Technical Design Document (approach, data model, override strategy,
   module structure, risks) grounded in OSM. Use it to decide HOW to build (inheritance axis,
-  stored vs computed, new module vs extend) — not just WHAT to build or to immediately WRITE code.
+  stored vs computed, new module vs extend) - not just WHAT to build or to immediately WRITE code.
   Fire on: "how should I architect/structure this", "design the solution / data model", "which
   approach", "plan the refactor", "technical design".
   Vietnamese: "thiết kế giải pháp", "phân tích thiết kế", "chọn cách tiếp cận nào", "lên kế hoạch
@@ -17,7 +17,7 @@ description: >
 
 ## Where this sits in the flow (design precedes the code Plan Mode)
 
-Planning/analysis step only. Output: `.odoo-ai/designs/…` (gitignored, L1) — never production
+Planning/analysis step only. Output: `.odoo-ai/designs/…` (gitignored, L1) - never production
 source. Correct order:
 
 ```
@@ -27,10 +27,10 @@ design (architect writes the TDD)  →  HUMAN approves the design  →  Plan Mod
 The approved TDD is the plan the code Plan Mode executes. Do not flip this order. (The design
 step is the planning-artifact exception to "writes-files runs only after Plan Mode".)
 
-## Phase 0 — Design intent gate (1-turn gate)
+## Phase 0 - Design intent gate (1-turn gate)
 
 Before invoking the agent, emit a concise **design scope preview**, then **stop** for
-confirmation. The preview names what the design will decide and which artifact it produces — it
+confirmation. The preview names what the design will decide and which artifact it produces - it
 does NOT write production code (this is a read-only design step):
 
 ```
@@ -45,7 +45,7 @@ Proceed? (yes / refine: [feedback] / cancel)
 ```
 
 Wait for the user's reply before proceeding. This gate is the single mandatory checkpoint and
-applies even on a direct (intake-bypass) entry. It is a **preview, not a write-block** — on
+applies even on a direct (intake-bypass) entry. It is a **preview, not a write-block** - on
 confirmation the architect writes ONLY the design doc under `.odoo-ai/`, never source files.
 
 ---
@@ -53,10 +53,10 @@ confirmation the architect writes ONLY the design doc under `.odoo-ai/`, never s
 ## Persona
 
 Odoo solution architect. Turns a classified requirement (or upgrade/migration/refactor goal)
-into a reviewable design the user approves before any production code is generated. Pairs with
-`odoo-coding` (consumes the design) and `odoo-code-review` (checks implementation vs design).
+into a production-ready and reviewable design the user approves before any production code is generated.
+Pairs with `odoo-coding` (consumes the design) and `odoo-code-review` (checks implementation vs design).
 
-## When to invoke — and the non-trivial threshold
+## When to invoke - and the non-trivial threshold
 
 Invoke `odoo-solution-architect` (via Agent tool) for **non-trivial** changes. Fire for ANY of:
 
@@ -72,11 +72,11 @@ Invoke `odoo-solution-architect` (via Agent tool) for **non-trivial** changes. F
 - **A refactor** (mixin extraction, module split/merge, inheritance axis change).
 
 The architect surveys **bidirectional impact** and designs **dynamic demo data** for any new
-end-user behavior — see `agents/odoo-solution-architect.md` for the template.
+end-user behavior - see `agents/odoo-solution-architect.md` for the template.
 
 **Skip for trivial work:** a single Standard/Config field, boilerplate (one computed field, a
 view shell, a security CSV row), or a localized fix with exactly one obvious approach → route
-straight to `odoo-coding`. If unsure: "this looks like a one-approach change — design it first,
+straight to `odoo-coding`. If unsure: "this looks like a one-approach change - design it first,
 or code it directly?"
 
 ## Out of Scope
@@ -101,24 +101,24 @@ or code it directly?"
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+- `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
-- `find_override_point` — Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
-- `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
-- `suggest_pattern` — Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
-- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `resolve_orm_chain` ⊕ — Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
-- `validate_depends` ⊕ — Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.
-- `validate_domain` ⊕ — Validate search domain terms: field-path resolution and operator version-awareness.
-- `validate_relation` ⊕ — Assert a relational field points at the expected comodel (many2one/one2many/many2many).
-- `lookup_core_api` — Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
-- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
-- `api_version_diff` — Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
-- `profile_inspect` — Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `entity_lookup` ★ - Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `find_override_point` - Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
+- `impact_analysis` - Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
+- `suggest_pattern` - Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
+- `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `resolve_orm_chain` ⊕ - Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
+- `validate_depends` ⊕ - Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.
+- `validate_domain` ⊕ - Validate search domain terms: field-path resolution and operator version-awareness.
+- `validate_relation` ⊕ - Assert a relational field points at the expected comodel (many2one/one2many/many2many).
+- `lookup_core_api` - Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `api_version_diff` - Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
+- `profile_inspect` - Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Brief context
@@ -132,12 +132,12 @@ For full-stack design, ground the frontend approach in the **fidelity** contract
 frontend-design sources, key failure modes prevented):
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/references/brief-context.md`
 
-## Agent invocation — prompt template (P1)
+## Agent invocation - prompt template (P1)
 
 When the user confirms intent (Phase 0 gate passed), invoke `odoo-solution-architect` via the
 Agent tool. Use the template below **verbatim**, filling the bracketed placeholders.
 
-**Model per dispatch** — set as the Agent-tool `model` parameter (the `DISPATCH MODEL` line
+**Model per dispatch** - set as the Agent-tool `model` parameter (the `DISPATCH MODEL` line
 records the tier chosen; both must match):
 - **opus** - default for every design.
 - **fable** - ONLY for Custom-XL tier or a design spanning >=3 modules full-stack with a new
@@ -175,7 +175,7 @@ When OSM is unreachable: architect `Read`/`Grep`s module source (field lists, me
 manifest `depends`), labels doc `grounded: local-source (not OSM-indexed)`. When OSM is
 reachable but a specific module is not in the index (customer-local addon): OSM for what it
 covers, local source for missed entities, doc labeled `grounded: osm + local-source (hybrid)`.
-Only when the repo itself is inaccessible: fall back to memory, label `OSM unavailable —
+Only when the repo itself is inaccessible: fall back to memory, label `OSM unavailable -
 ungrounded`. Three-tier grounding SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`.
 Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes - never to ask a human
 to paste code or manifests.
@@ -209,17 +209,17 @@ Approve design? (approve / refine: [feedback] / cancel)
 - `cancel` → stop; the design doc remains on disk for later.
 
 Optional assist (does not replace human approval): for a high-risk design you MAY ask
-`odoo-code-review` for a read-only second opinion on the doc before presenting it — but the
+`odoo-code-review` for a read-only second opinion on the doc before presenting it - but the
 human still makes the call.
 
 ## Continuation Contract
 
 When the bundle finishes, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). The `next`
-is **gated on the human design-approval above** — the driver dispatches the coder only after the
+is **gated on the human design-approval above** - the driver dispatches the coder only after the
 design is approved (the design doc is the plan the code Plan Mode then executes). For a backend,
 frontend, or full-stack design, emit `next: odoo-coding` (it sequences the backend and frontend
 legs itself per the design); for a migration design, emit `next: odoo-data-migration` (or
-`odoo-coding` for the migration script) — each carrying the design-doc path as a
+`odoo-coding` for the migration script) - each carrying the design-doc path as a
 `design_doc` input so the coder builds to the approved design. Additive output for the depth-0
-run-driver — it does not change anything produced above.
+run-driver - it does not change anything produced above.

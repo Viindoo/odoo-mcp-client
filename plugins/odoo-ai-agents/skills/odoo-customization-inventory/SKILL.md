@@ -2,7 +2,7 @@
 name: odoo-customization-inventory
 description: >
   Generate a structured executive-level inventory of all custom + distribution modules in an
-  Odoo deployment — classifying each as Standard / Distribution-maintained / True custom,
+  Odoo deployment - classifying each as Standard / Distribution-maintained / True custom,
   surfacing business purpose, base model extended, key custom fields, and upgrade risk flag.
   Use this skill ANY time a CEO/CTO/PM needs to understand the scope of their Odoo investment,
   even if they only paste a list of module names. Trigger on: "what have we built on top of
@@ -10,7 +10,7 @@ description: >
   "what's safe to keep vs deprecate?". Also fires on Vietnamese: "đã tuỳ biến những gì trên
   Odoo", "phạm vi customization trước khi nâng cấp", "module nào nên giữ module nào nên bỏ".
   Trigger even if the user dumps a list of names with
-  no context — that's the signal to enumerate. Upgrade risk scoring → odoo-deprecation-audit.
+  no context - that's the signal to enumerate. Upgrade risk scoring → odoo-deprecation-audit.
   Marketing feature highlights → odoo-feature-highlights
 ---
 
@@ -36,42 +36,42 @@ CEO / CTO / Project Manager
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
-- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
-- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
-- `impact_analysis` — Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
-- `list_available_profiles` ☆ — Enumerate which tenant profiles exist in the server index.
-- `find_deprecated_usage` — Scan the indexed codebase for usages of deprecated API patterns.
-- `profile_inspect` — Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
+- `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `impact_analysis` - Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `list_available_profiles` ☆ - Enumerate which tenant profiles exist in the server index.
+- `find_deprecated_usage` - Scan the indexed codebase for usages of deprecated API patterns.
+- `profile_inspect` - Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context
 
 Executives need to understand the scope of their Odoo investment before strategic decisions (upgrades, migrations, vendor changes, compliance audits). Output is business language, not technical jargon.
 
-Key distinctions: Standard Odoo (exclude from inventory), Distribution-maintained (e.g. `viin_*` prefix), True custom (client IT / system integrator). In v8/v9, `__openerp__.py` was used instead of `__manifest__.py` — note OpenERP-era origin if present.
+Key distinctions: Standard Odoo (exclude from inventory), Distribution-maintained (e.g. `viin_*` prefix), True custom (client IT / system integrator). In v8/v9, `__openerp__.py` was used instead of `__manifest__.py` - note OpenERP-era origin if present.
 
 **Data priority:** MCP tool results are ground truth for module classification over training knowledge.
 
 ## Instructions
 
-Use parallel MCP calls — for N modules, sequential calls are N× slower.
+Use parallel MCP calls - for N modules, sequential calls are N× slower.
 
-**Round 0 — Pin version/profile + enumerate:** `list_available_profiles()` first (the server registers versioned names like `viindoo_internal_17` / `odoo_17` — never assume a hyphenated or unversioned one), then `set_active_version(...)` + `set_active_profile(profile_name=<profile>)` in parallel, then `profile_inspect(method='modules', name=<profile>, odoo_version='<version>')` to enumerate the profile's modules — this is the inventory backbone, so you don't depend on the user pasting a module list.
+**Round 0 - Pin version/profile + enumerate:** `list_available_profiles()` first (the server registers versioned names like `standard_viindoo_17` / `odoo_17` - never assume a hyphenated or unversioned one), then `set_active_version(...)` + `set_active_profile(profile_name=<profile>)` in parallel, then `profile_inspect(method='modules', name=<profile>, odoo_version='<version>')` to enumerate the profile's modules - this is the inventory backbone, so you don't depend on the user pasting a module list.
 
-**Round 1 — Parallel:** Call `check_module_exists` for ALL modules simultaneously. Classify each as Standard (exclude), Distribution-maintained, or Custom.
+**Round 1 - Parallel:** Call `check_module_exists` for ALL modules simultaneously. Classify each as Standard (exclude), Distribution-maintained, or Custom.
 
-**Round 2 — Parallel:** Call `model_inspect(model=…, method='fields', odoo_version='<version>')` for ALL distribution-maintained + Custom modules simultaneously. Extract: base Odoo model extended, up to 5 most important custom fields, whether key methods are overridden.
+**Round 2 - Parallel:** Call `model_inspect(model=…, method='fields', odoo_version='<version>')` for ALL distribution-maintained + Custom modules simultaneously. Extract: base Odoo model extended, up to 5 most important custom fields, whether key methods are overridden.
 
-**Round 2.5 — Architecture drill-down (parallel):** For each distribution-maintained or Custom module, call `module_inspect(name=<name>, method='summary', odoo_version='<version>')`. Returns manifest metadata, models defined/extended, view and JS patch counts. Fire all calls in parallel; include the tree output verbatim (~10-15 lines per module).
+**Round 2.5 - Architecture drill-down (parallel):** For each distribution-maintained or Custom module, call `module_inspect(name=<name>, method='summary', odoo_version='<version>')`. Returns manifest metadata, models defined/extended, view and JS patch counts. Fire all calls in parallel; include the tree output verbatim (~10-15 lines per module).
 
 > Resource shortcut: `odoo://{version}/module/{name}` returns the same summary as a `module_inspect` summary call without a tool round-trip.
 
-**Round 3 — Parallel:** Call `impact_analysis` for high-usage or high-risk modules from Round 2. Fire all calls in one batch.
+**Round 3 - Parallel:** Call `impact_analysis` for high-usage or high-risk modules from Round 2. Fire all calls in one batch.
 
 Write "Business purpose" in plain language inferred from field names and module name (e.g., a module adding `vat_number`, `tax_id_file` to `res.partner` = "Vietnamese tax compliance").
 
@@ -103,7 +103,7 @@ When OSM unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-proto
 <List modules with High risk and brief explanation>
 
 ### Executive summary
-<2–3 sentence narrative: scope of customization, what's safe to upgrade, what needs attention>
+<2-3 sentence narrative: scope of customization, what's safe to upgrade, what needs attention>
 
 ### Recommended action
 <1 sentence for the next step>

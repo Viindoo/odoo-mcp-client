@@ -1,12 +1,12 @@
 ---
 name: odoo-addon-diff
 description: >
-  Produce a CE vs EE vs custom-distribution comparison for a business domain — feature table,
+  Produce a CE vs EE vs custom-distribution comparison for a business domain - feature table,
   EE-only business-value notes, and an upgrade recommendation ready for a proposal.
   Version-aware: uses MCP check_module_exists/model_inspect; confirm version when unspecified.
   Trigger when edition differences come up, even in passing.
   Trigger on: "CE vs EE feature table", "edition comparison", "which modules are EE-only?",
-  "is X a CE or EE feature?", "upsell argument for EE", "PLM / Studio / Maintenance — which
+  "is X a CE or EE feature?", "upsell argument for EE", "PLM / Studio / Maintenance - which
   edition?", "which edition is module X in?".
   Also fires on Vietnamese: "so sánh CE và EE", "tính năng nào chỉ có ở Enterprise",
   "module X thuộc bản nào", "cần bản Community hay Enterprise".
@@ -38,16 +38,16 @@ Marketer / Sales Engineer
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_version(odoo_version='17.0')` — Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
-- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` — Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
-- `check_module_exists` — Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `module_inspect` ★ — Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
-- `list_available_profiles` ☆ — Enumerate which tenant profiles exist in the server index.
-- `entity_lookup` ★ — Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
-- `profile_inspect` — Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
+- `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `list_available_profiles` ☆ - Enumerate which tenant profiles exist in the server index.
+- `entity_lookup` ★ - Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
+- `profile_inspect` - Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -58,19 +58,19 @@ Marketer / Sales Engineer
 | EE (Enterprise) | Proprietary add-ons, subscription required |
 | Custom/Partner | Commercial add-ons on CE, may overlap with EE |
 
-CE/EE distinction exists since v9 (v8 was "OpenERP Enterprise", different structure). Version matters. **Data priority:** MCP results are ground truth — training data about edition boundaries is frequently outdated.
+CE/EE distinction exists since v9 (v8 was "OpenERP Enterprise", different structure). Version matters. **Data priority:** MCP results are ground truth - training data about edition boundaries is frequently outdated.
 
 ## Instructions
 
-Use parallel MCP calls — a CE/EE comparison covers 10+ modules across 5+ domains.
+Use parallel MCP calls - a CE/EE comparison covers 10+ modules across 5+ domains.
 
-**Round 0 — Pin + scope:** `set_active_version(odoo_version=…)` then `list_available_profiles()`. For each side: `profile_inspect(method='repos', name=<profile>, odoo_version='<version>')` to get real repo coverage (CE vs EE vs distribution) as ground truth.
+**Round 0 - Pin + scope:** `set_active_version(odoo_version=…)` then `list_available_profiles()`. For each side: `profile_inspect(method='repos', name=<profile>, odoo_version='<version>')` to get real repo coverage (CE vs EE vs distribution) as ground truth.
 
-**Round 1 — Parallel:** `check_module_exists` for ALL modules simultaneously.
+**Round 1 - Parallel:** `check_module_exists` for ALL modules simultaneously.
 
-**Round 2 — Parallel:** For modules with differing depth across editions: `model_inspect(model=…, method='fields')` on all relevant models simultaneously. For doubtful field origin: `entity_lookup(kind='field', model=…, field=…, odoo_version='<version>')` → attribute CE vs EE from index, not training memory.
+**Round 2 - Parallel:** For modules with differing depth across editions: `model_inspect(model=…, method='fields')` on all relevant models simultaneously. For doubtful field origin: `entity_lookup(kind='field', model=…, field=…, odoo_version='<version>')` → attribute CE vs EE from index, not training memory.
 
-Never claim EE-only without tool verification. Write for non-technical decision-makers — translate field names to business language; keep technical names in footnotes. Group by domain. For EE-only/distribution features: add one-line business value note.
+Never claim EE-only without tool verification. Write for non-technical decision-makers - translate field names to business language; keep technical names in footnotes. Group by domain. For EE-only/distribution features: add one-line business value note.
 
 ## Standalone-first fallback
 
@@ -104,11 +104,11 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 
 ## Examples
 
-**Example 1 — manufacturing client:**
+**Example 1 - manufacturing client:**
 Prompt: "compare CE vs EE for a manufacturing client considering Odoo 17"
 Output: Side-by-side table for Manufacturing, Inventory, MRP features; EE-only highlights (e.g. PLM, Maintenance Advanced); custom distribution column if relevant; tailored upgrade recommendation.
 
-**Example 2 — accounting focus:**
+**Example 2 - accounting focus:**
 Prompt: "compare CE and EE for an accounting-focused customer"
 Output: Table covering Accounting, Invoicing, Tax; note specialized localization modules which may exist in custom distributions but not Odoo EE base.
 

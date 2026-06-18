@@ -1,7 +1,7 @@
 {
   "name": "odoo-semantic-mcp",
   "version": "1.0.0",
-  "description": "MCP server connection for Odoo Semantic — semantic code intelligence (inheritance chains, field impact, model inspect, ORM validation) over HTTP. Set API key + server URL via /odoo-semantic-mcp:connect.",
+  "description": "MCP server connection for Odoo Semantic - semantic code intelligence (inheritance chains, field impact, model inspect, ORM validation) over HTTP. Set API key + server URL via /odoo-semantic-mcp:connect.",
   "keywords": ["odoo", "erp", "mcp", "odoo-semantic", "semantic-search", "code-analysis", "orm"],
   "author": {
     "name": "Viindoo",
@@ -17,7 +17,7 @@
     "api_key": {
       "type": "string",
       "title": "API Key",
-      "description": "Odoo Semantic API key (starts with osm_). Get one from your server admin or https://odoo-semantic.viindoo.com/install/. If Claude Code does not prompt for this value during install (known v2.1.x bug — github.com/anthropics/claude-code/issues/39455), run /odoo-semantic-mcp:connect after install instead.",
+      "description": "Odoo Semantic API key (starts with osm_). Get one from your server admin or https://odoo-semantic.viindoo.com/install/. If Claude Code does not prompt for this value during install (known v2.1.x bug - github.com/anthropics/claude-code/issues/39455), run /odoo-semantic-mcp:connect after install instead.",
       "sensitive": true,
       "required": true
     },

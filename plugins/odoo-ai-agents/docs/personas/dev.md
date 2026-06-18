@@ -1,16 +1,16 @@
-# Odoo Semantic — Developer Guide
+# Odoo Semantic - Developer Guide
 
-<!-- This persona intentionally enumerates the full 25-tool arsenal (server v0.13.1) instead of the "Most Useful Tools" template variant — devs need the full surface area, including the 4 superset tools, 4 session-context tools, 11 base tools, 2 stylesheet tools, and 4 ORM-validation tools. -->
+<!-- This persona intentionally enumerates the full 25-tool arsenal (server v0.13.1) instead of the "Most Useful Tools" template variant - devs need the full surface area, including the 4 superset tools, 4 session-context tools, 11 base tools, 2 stylesheet tools, and 4 ORM-validation tools. -->
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-ai-agents@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
-The full **25-tool arsenal (server v0.13.1)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS/LESS stylesheet analysis, and now static ORM validation — this guide covers the daily patterns. All **25 tools** at server v0.13.1 break down as: four discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`, plus the profile-level `profile_inspect` for profile composition / repos / module inventory, v0.13+), four **session-context** tools that let you pin an Odoo version once and pass it as `odoo_version='auto'` on every subsequent call (v0.6+), eleven **base tools** carried since v0.1-v0.4, two **stylesheet tools** for theme/branding work (v0.7+), and four **ORM-validation tools** that catch hallucinated field-paths, operators, dependencies, and relation targets before you ship a domain / `@api.depends` / relational field (v0.8+).
+The full **25-tool arsenal (server v0.13.1)**, optimized for development workflows. From understanding inheritance to safely extending core methods to enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS/LESS stylesheet analysis, and now static ORM validation - this guide covers the daily patterns. All **25 tools** at server v0.13.1 break down as: four discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`, plus the profile-level `profile_inspect` for profile composition / repos / module inventory, v0.13+), four **session-context** tools that let you pin an Odoo version once and pass it as `odoo_version='auto'` on every subsequent call (v0.6+), eleven **base tools** carried since v0.1-v0.4, two **stylesheet tools** for theme/branding work (v0.7+), and four **ORM-validation tools** that catch hallucinated field-paths, operators, dependencies, and relation targets before you ship a domain / `@api.depends` / relational field (v0.8+).
 
 ---
 
 ## All Tools Available to Developers (server v0.13.1)
 
-### Supersets (v0.5+ — preferred over legacy siblings)
+### Supersets (v0.5+ - preferred over legacy siblings)
 
 | Tool | Use case |
 |------|----------|
@@ -42,27 +42,27 @@ The full **25-tool arsenal (server v0.13.1)**, optimized for development workflo
 | `check_module_exists` | Verify module availability + CE/EE flag |
 | `find_override_point` | Locate the safest method to override |
 | `cli_help` | Look up `odoo-bin` flags and options |
-| `describe_module` | Module architecture overview — manifest + defines/extends models + view/JS counts |
+| `describe_module` | Module architecture overview - manifest + defines/extends models + view/JS counts |
 
 ### Stylesheet tools (v0.7+)
 
 | Tool | Use case |
 |------|----------|
-| `resolve_stylesheet(module, odoo_version="auto")` | Enumerate a module's CSS/SCSS/LESS stylesheet files — language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. LESS covers the legacy pre-SCSS era (~v8-v12). |
+| `resolve_stylesheet(module, odoo_version="auto")` | Enumerate a module's CSS/SCSS/LESS stylesheet files - language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. LESS covers the legacy pre-SCSS era (~v8-v12). |
 | `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain. Essential for theming/branding work. Covers CSS, SCSS, and LESS (LESS for the legacy pre-SCSS era, ~v8-v12). |
 
 ### ORM-validation tools (server v0.8.0+)
 
-Static checks against the indexed graph. Run them **before** emitting a domain, `@api.depends`, or relational field — they catch hallucinated field-paths, invalid operators, and wrong comodels that would otherwise surface only at runtime.
+Static checks against the indexed graph. Run them **before** emitting a domain, `@api.depends`, or relational field - they catch hallucinated field-paths, invalid operators, and wrong comodels that would otherwise surface only at runtime.
 
 | Tool | Use case |
 |------|----------|
 | `resolve_orm_chain(model, dotted_path, odoo_version="auto")` | Walk a dotted field path (`partner_id.country_id.code`) hop by hop; returns the terminal field type or a `BROKEN` line naming the first unresolved hop. Use to verify a multi-hop `related=` chain or domain path resolves. |
 | `validate_domain(model, domain, odoo_version="auto")` | Validate every `(field_path, operator, value)` term of a search domain. Operator validity is **version-aware** (`parent_of` v9+, `any`/`not any` v17+). Run before pasting a domain into a view, `ir.rule`, or `search()`. |
-| `validate_depends(model, method, odoo_version="auto")` | Validate an indexed compute method's `@api.depends('a.b', ...)` paths; flags depends on `id` (forbidden) and suggests the closest field for typos — directly catches the "stale compute" failure mode. |
+| `validate_depends(model, method, odoo_version="auto")` | Validate an indexed compute method's `@api.depends('a.b', ...)` paths; flags depends on `id` (forbidden) and suggests the closest field for typos - directly catches the "stale compute" failure mode. |
 | `validate_relation(model, field, target_model, odoo_version="auto")` | Assert a field is a many2one/one2many/many2many whose comodel is `target_model` (or a subtype via inheritance). Use before writing a `related=` that hops through a relation. |
 
-> Prefer these over `entity_lookup(kind='field', odoo_version='<version>')` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) — they reason about the whole construct, not one field.
+> Prefer these over `entity_lookup(kind='field', odoo_version='<version>')` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) - they reason about the whole construct, not one field.
 
 ### Removed in v0.6
 
@@ -83,7 +83,7 @@ Read-only handles for bookmark-stable access. Use these when you already know th
 Before any exploration session, set the version so you can drop `odoo_version=` from every subsequent call:
 
 ```
-set_active_version("17.0")
+set_active_version("<version>")
 ```
 
 TTL is 24h idle and the pin is per-API-key server state - any concurrent agent or session sharing the key can overwrite it, so pass the concrete version on every call under concurrency. Run `list_available_versions()` first if you are not sure which versions are indexed.
@@ -96,7 +96,7 @@ Before adding logic to a model:
 model_inspect(model="sale.order", method="summary", odoo_version='<version>')
 ```
 
-Get the full inheritance chain, field count, method list, view inventory, and which modules have already extended this model — all in one call. Know what you are stepping into before writing a single line.
+Get the full inheritance chain, field count, method list, view inventory, and which modules have already extended this model - all in one call. Know what you are stepping into before writing a single line.
 
 > Need one specific entity? Drill down with `entity_lookup(kind="field", model="sale.order", field="amount_total", odoo_version='<version>')` (or `kind="method"` / `kind="view"`).
 
@@ -105,7 +105,7 @@ Get the full inheritance chain, field count, method list, view inventory, and wh
 Before writing an `@api.onchange`, `_compute_*`, or `super()` call:
 
 ```
-find_override_point("sale.order", "action_confirm", "17.0")
+find_override_point("sale.order", "action_confirm", "<version>")
 ```
 
 Returns `super_safety` score and which modules are already overriding this method. If `super_ratio` is low, your override is at higher risk of being called out-of-order.
@@ -125,10 +125,10 @@ Returns curated pattern entries with code snippets, gotchas, and anti-pattern wa
 Before calling any `@api.*` decorator, `name_get`, `_name_search`, or ORM method:
 
 ```
-lookup_core_api("name_get", "17.0")
+lookup_core_api("name_get", "<version>")
 ```
 
-If the result shows `status: deprecated` or `removed_in: 17.0` — find the replacement before building on it.
+If the result shows `status: deprecated` or `removed_in: <version>` - find the replacement before building on it.
 
 ### 5. Check your work
 
@@ -161,10 +161,10 @@ Example invocations (an AI agent can run these directly as NL dispatch; a human 
    > "Using odoo-semantic, entity_lookup kind=view xmlid=sale.view_order_form in Odoo 17.0. Show the full XPath chain so I know exactly where to inject my override."
 
 6. **Session pin:**
-   > "Using odoo-semantic, set_active_version 17.0 for this session. Then inspect sale.order method=summary — no need to repeat the version on follow-up calls."
+   > "Using odoo-semantic, set_active_version 17.0 for this session. Then inspect sale.order method=summary - no need to repeat the version on follow-up calls."
 
 7. **ORM validation (before shipping a domain / depends):**
-   > "Using odoo-semantic, validate_domain on sale.order for `[('partner_id.country_id.code', '=', 'US'), ('state', 'any', ...)]` in Odoo 16 — are the field-paths and operators valid for that version?" (and: "validate_depends for _compute_amount_total on sale.order — are all @api.depends paths real?")
+   > "Using odoo-semantic, validate_domain on sale.order for `[('partner_id.country_id.code', '=', 'US'), ('state', 'any', ...)]` in Odoo 16 - are the field-paths and operators valid for that version?" (and: "validate_depends for _compute_amount_total on sale.order - are all @api.depends paths real?")
 
 ---
 
@@ -174,11 +174,11 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin:
 
 | Skill | What it does |
 |-------|-------------|
-| `odoo-solution-design` | Design the technical solution (approach / data model / override strategy / module structure / sequencing / test outline / risks) into a gate-able design doc BEFORE coding — the analysis-and-design step for non-trivial work; chains to `odoo-coding` |
+| `odoo-solution-design` | Design the technical solution (approach / data model / override strategy / module structure / sequencing / test outline / risks) into a gate-able design doc BEFORE coding - the analysis-and-design step for non-trivial work; chains to `odoo-coding` |
 | `/odoo-override-finding` | Given a model + method, returns safe override point + existing overrides + suggest_pattern |
 | `/odoo-deprecation-audit` | Full deprecated API scan with replacement suggestions |
 | `/odoo-version-diff` | Side-by-side API diff between two Odoo versions for a given symbol |
-| `odoo-test-writer` | Write executable `test_*.py` (or JS Hoot/QUnit) that assert business behavior, not current code |
+| `odoo-test-writing` | Write executable `test_*.py` (or JS Hoot/QUnit) that assert business behavior, not current code |
 | `odoo-security-audit` | Audit code for SQLi / XSS / access-control / CSRF / unsafe deserialization, graded findings |
 | `odoo-perf-audit` | Audit for N+1, missing prefetch, unindexed domains, compute thrash, with concrete fixes |
 | `odoo-data-migration` | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
@@ -188,7 +188,7 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin:
 
 ## Tips
 
-- Always pass the `odoo_version` parameter — results differ significantly between versions.
-- `find_override_point` returns `anti_patterns` — read them before writing.
+- Always pass the `odoo_version` parameter - results differ significantly between versions.
+- `find_override_point` returns `anti_patterns` - read them before writing.
 - If `model_inspect` shows more than 10 modules extending a model, consider whether your extension logic could conflict with others.
-- `suggest_pattern` queries are semantic, not keyword — describe what you want to achieve, not what method to use.
+- `suggest_pattern` queries are semantic, not keyword - describe what you want to achieve, not what method to use.

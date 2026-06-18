@@ -34,7 +34,7 @@ def _valid_targets():
 
 
 # A backticked token is treated as a routing target only if it looks like a
-# skill/workflow slug — i.e. an odoo-* slug or one of the known orchestrators.
+# skill/workflow slug - i.e. an odoo-* slug or one of the known orchestrators.
 # This avoids false positives on backticked paths, tool names, or file globs.
 TARGET_RE = re.compile(r"`/?([a-z][a-z0-9]*(?:-[a-z0-9]+)+|odoo-intake|wave)`")
 KNOWN_NON_TARGETS = {
@@ -67,5 +67,5 @@ def test_odoo_intake_targets_exist():
     )
     # sanity: the router must reference a meaningful number of real targets
     assert len(referenced) >= 10, (
-        f"odoo-intake referenced only {len(referenced)} routing targets — parsing likely broke"
+        f"odoo-intake referenced only {len(referenced)} routing targets - parsing likely broke"
     )

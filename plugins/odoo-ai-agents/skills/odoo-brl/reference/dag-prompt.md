@@ -21,14 +21,14 @@ It produces three kinds of dependency edge:
 | `business-logic` | Requirement B's business process needs A done first | Opus reasoning (no MCP tool) |
 | `data-flow` | Requirement B needs master data produced by A | Opus reasoning + (optional) `model_inspect` |
 
-`impact_analysis` is NOT used — it is reverse direction (blast radius), wrong for forward
+`impact_analysis` is NOT used - it is reverse direction (blast radius), wrong for forward
 planning.
 
 ---
 
 ## Algorithm (cluster-cut heuristic)
 
-Pairwise reasoning is O(n^2) (1000 items ~= 500k pairs) — infeasible. Phase D bounds the work
+Pairwise reasoning is O(n^2) (1000 items ~= 500k pairs) - infeasible. Phase D bounds the work
 by grouping requirements into clusters and reasoning only **inside** each cluster.
 
 ```
@@ -65,7 +65,7 @@ D3. Intra-cluster reasoning (Opus, per cluster, <=120 items):
 
 D4. Inter-cluster edges (technical module deps + business-affinity for Custom):
 
-    Part A — Technical module deps (deterministic):
+    Part A - Technical module deps (deterministic):
     for each ordered (cluster_A, cluster_B):
         if module_family(A) depends_on module_family(B) in tech_dep:
             add ONE representative technical edge:
@@ -73,7 +73,7 @@ D4. Inter-cluster edges (technical module deps + business-affinity for Custom):
                 to   = earliest req in cluster_A
             type="technical", reason="module <A> depends on module <B> (manifest)"
 
-    Part B — Business-domain affinity for Custom clusters (LLM-reasoned, bounded):
+    Part B - Business-domain affinity for Custom clusters (LLM-reasoned, bounded):
     Custom items carry module_family="custom" and produce NO technical edges from Part A.
     To avoid silently dropping their cross-cluster dependencies:
 
@@ -128,10 +128,10 @@ Emit a directed edge from -> to ONLY when:
 Label each edge with exactly one type:
   - business-logic : `to`'s business process requires `from`'s process to exist first
   - data-flow      : `to` needs master data created/configured by `from`
-(Do NOT emit `technical` edges here — module install order is handled separately by the engine.)
+(Do NOT emit `technical` edges here - module install order is handled separately by the engine.)
 
 Reason only within this cluster's <=120 requirements. Do NOT invent requirements not listed.
-If two requirements are independent, emit no edge. Keep the graph sparse — only true blockers.
+If two requirements are independent, emit no edge. Keep the graph sparse - only true blockers.
 
 OUTPUT FORMAT (JSON only, no prose, no markdown fence):
 {
@@ -195,12 +195,12 @@ def kahn(requirements, edges):
 If `cycle_members` is non-empty, a circular dependency exists. The engine MUST:
 
 1. Record the cycle members in `dag.json.cycles` (and surface them in the GATE E summary).
-2. Present THREE resolution options for the implementor to choose — never silently drop an edge:
-   - **split** — break a requirement into a phase-A part (done early) and a phase-B part (later),
+2. Present THREE resolution options for the implementor to choose - never silently drop an edge:
+   - **split** - break a requirement into a phase-A part (done early) and a phase-B part (later),
      cutting the back-edge.
-   - **manual** — mark the cycle members for manual implementor ordering; leave them unordered
+   - **manual** - mark the cycle members for manual implementor ordering; leave them unordered
      in the topo result but flagged.
-   - **shared-prereq** — introduce a new shared prerequisite (e.g. a base setup requirement)
+   - **shared-prereq** - introduce a new shared prerequisite (e.g. a base setup requirement)
      that both cycle members depend on, removing the mutual edge.
 3. Still emit a partial `topological_order` for the acyclic remainder so the rest of the plan
    is usable.
@@ -266,5 +266,5 @@ and phase-to-phase arrows) to keep the diagram renderable.
 
 ## References
 
-- `reference/schema.md` §dag.json — output schema
-- `docs/reference/workflow-harness.md` — harness architecture and DAG layer design
+- `reference/schema.md` §dag.json - output schema
+- `docs/reference/workflow-harness.md` - harness architecture and DAG layer design

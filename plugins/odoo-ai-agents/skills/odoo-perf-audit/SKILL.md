@@ -45,10 +45,10 @@ Use when the user shares Odoo Python, XML, or QWeb source and wants performance 
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Primary tools:**
-- `model_inspect` ★ — Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `resolve_orm_chain` ⊕ — Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
-- `find_examples` — Semantic code search returning real indexed code snippets from the Odoo codebase.
-- `validate_depends` ⊕ — Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `resolve_orm_chain` ⊕ - Walk a dotted ORM field path hop by hop to the terminal field type or the exact hop where it breaks.
+- `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `validate_depends` ⊕ - Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.
 <!-- END GENERATED TOOLS -->
 
 ## Method
@@ -58,8 +58,8 @@ Use parallel MCP calls to minimize round trips. Full audit completes in 3-4 roun
 **Round 0 - Pin version + profile:** `set_active_version` + `set_active_profile` simultaneously. Read `.odoo-ai/context.md` if present for module scope.
 
 **Round 1 - Structural scan (parallel):** For each model in scope, fire simultaneously:
-- `model_inspect(model=<name>, method='fields', odoo_version='17.0')` — collect `store`, `index`, `compute`, `depends`, `related`, `comodel_name` for fields used in domain/order
-- `model_inspect(model=<name>, method='methods', odoo_version='17.0')` — enumerate methods for loop detection
+- `model_inspect(model=<name>, method='fields', odoo_version='<version>')` - collect `store`, `index`, `compute`, `depends`, `related`, `comodel_name` for fields used in domain/order
+- `model_inspect(model=<name>, method='methods', odoo_version='<version>')` - enumerate methods for loop detection
 
 **Round 2 - Deep-dive (parallel):** For each suspicious field/method from Round 1:
 - `entity_lookup(kind='field', ...)` for fields with `related=` or dotted `depends`
@@ -67,9 +67,9 @@ Use parallel MCP calls to minimize round trips. Full audit completes in 3-4 roun
 - `validate_depends` for every `@api.depends` on stored computed fields
 
 **Round 3 - Pattern confirmation (parallel, selective):**
-- `find_examples(query='read_group instead of loop', odoo_version='17.0')` when ORM-in-loop detected
-- `find_examples(query='prefetch_ids batch search', odoo_version='17.0')` when N+1 browse pattern detected
-- `suggest_pattern(intent='replace ORM loop with read_group', odoo_version='17.0')` when applicable
+- `find_examples(query='read_group instead of loop', odoo_version='<version>')` when ORM-in-loop detected
+- `find_examples(query='prefetch_ids batch search', odoo_version='<version>')` when N+1 browse pattern detected
+- `suggest_pattern(intent='replace ORM loop with read_group', odoo_version='<version>')` when applicable
 
 **Static analysis pass (always):** Scan source for these anti-patterns:
 

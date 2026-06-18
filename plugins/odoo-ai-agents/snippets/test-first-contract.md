@@ -1,5 +1,5 @@
 <!-- SSOT snippet. Referenced (not copy-pasted) by odoo-coding (orchestrates the loop),
-     odoo-coder / odoo-frontend-coder (implement to green), odoo-test-writer (authors the red
+     odoo-coder / odoo-frontend-coder (implement to green), odoo-test-writing (authors the red
      test), and odoo-code-review (gates coverage + loops back). Edit here only; consumers point
      at ${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md. -->
 
@@ -16,7 +16,7 @@ false alarm. This contract makes the test a falsifiable specification of intent.
    100M is locked"), assert only **observable outcomes** (return value, state change, contract-level
    side effect), never internals (private method, call counts, variable names). One intent + one
    expected outcome per test. For the version-correct framework and class (`TransactionCase` /
-   `Form` / Hoot / QUnit) and OSM grounding, follow `skills/odoo-test-writer/SKILL.md` and
+   `Form` / Hoot / QUnit) and OSM grounding, follow `skills/odoo-test-writing/SKILL.md` and
    `docs/reference/ODOO-TESTING.md` - this contract governs the discipline, that governs the shape.
 2. **Confirm it goes RED** - the test MUST fail before the production code exists (or with the rule
    removed). A test that can only ever be green is worthless. State the RED confirmation as evidence
