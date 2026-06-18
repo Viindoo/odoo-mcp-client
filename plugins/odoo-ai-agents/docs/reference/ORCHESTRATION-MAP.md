@@ -37,6 +37,7 @@
 | `odoo-qa-suite` | orchestrator-nl | any-depth | none | yes | - |
 | `odoo-rfp-response` | leaf | any-depth | none | - | - |
 | `odoo-risk-overview` | leaf | any-depth | none | - | - |
+| `odoo-run-forward-port` | spawner-agent | depth0-only | fullstack | yes | odoo-intent-extractor (read-only per-commit; model per complexity), odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees) |
 | `odoo-security-audit` | leaf | any-depth | backend | - | - |
 | `odoo-solution-design` | spawner-agent | depth0-only | fullstack | - | odoo-solution-architect |
 | `odoo-support-triage` | orchestrator-nl | any-depth | none | - | - |

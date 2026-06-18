@@ -72,7 +72,7 @@ Emit paths in the Continuation Contract `produced[]`; later steps reference thes
 Ten failure modes the agent checks for. Full details:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/review-pitfalls.md`
 
-Summary: (1) ORM/N+1, (2) missing `super()` in create/write/unlink, (3) `@api.depends` errors, (4) deprecated API, (5) OWL reactivity + `position="replace"`, (6) design-system SCSS/token fidelity (flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`), (7) coding-guideline conventions (grounded against `coding_guidelines/<version>/`), (8) runtime presence probing (`hasattr`/`getattr` smell), (9) platform design principles (company/branch isolation, generic-before-localization, app-menu shape), (10) behavior change with no protecting test → HIGH finding → route to `odoo-test-writing`.
+Summary: (1) ORM/N+1, (2) missing `super()` in create/write/unlink, (3) `@api.depends` errors, (4) deprecated API, (5) OWL reactivity + `position="replace"`, (6) design-system SCSS/token fidelity (flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`), (7) coding-guideline conventions (grounded against `coding_guidelines/<version>/`), (8) runtime presence probing (`hasattr`/`getattr` smell), (9) platform design principles (company/branch isolation, generic-before-localization, app-menu shape), (10) behavior change with no protecting test → HIGH finding → route to `odoo-test-writing`, (11) forward-ported test coupled to source-version API/snapshot → assert observable outcome on target, RED-then-GREEN, route to `odoo-test-writing` mode `adapt`.
 
 ## Agent invocation
 

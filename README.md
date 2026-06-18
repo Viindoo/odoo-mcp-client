@@ -11,25 +11,27 @@
 > API key and install guide: [`/install`](https://odoo-semantic.viindoo.com/install/)
 
 ```mermaid
-flowchart TB
-    You["You<br/>(natural-language intent)"]
+flowchart TD
+    You["You - plain-language intent"]
 
     subgraph client["odoo-mcp-client (MIT)"]
-        direction TB
-        odoo_intake["odoo-intake<br/>universal front door"]
-        wfrunner["workflow-chaining<br/>declarative YAML executor"]
-        skills["odoo-ai-agents<br/>41 skills / 7 agents / 9 commands"]
-        mcp["odoo-semantic-mcp<br/>MCP connection + /connect"]
-        odoo_intake --> wfrunner --> skills
-        odoo_intake --> skills
-        skills -. "depends on" .-> mcp
+        intake["odoo-intake<br/>front door"]
+        wfrunner["workflow-chaining<br/>YAML executor"]
+        skills["odoo-ai-agents<br/>42 skills / 8 agents / 10 commands"]
+        fp["odoo-run-forward-port<br/>forward-port pipeline"]
+        mcp["odoo-semantic-mcp<br/>MCP connection"]
+        intake --> wfrunner --> skills
+        intake --> skills
+        skills --> fp
+        skills -. depends on .-> mcp
+        fp -. depends on .-> mcp
     end
 
-    server["OSM MCP Server (AGPL-3.0)<br/>25 tools / 7 resources · indexed Odoo v8+"]
-    out["Answer in chat<br/>or file in .odoo-ai/"]
+    server["OSM MCP Server (AGPL-3.0)<br/>25 tools / 7 resources · Odoo v8+"]
+    out["Answer in chat or .odoo-ai/"]
 
-    You --> odoo_intake
-    You -. "or a skill fires directly" .-> skills
+    You --> intake
+    You -. "skill fires directly" .-> skills
     skills --> server
     mcp --> server
     server --> out
@@ -44,7 +46,7 @@ detailed README - start there for usage, install, and reference:
 
 | Plugin | What it is | README |
 |--------|-----------|--------|
-| **[`odoo-ai-agents`](plugins/odoo-ai-agents/)** | The full Odoo AI workforce toolkit: **41 skills + 7 agents + 9 commands** across 9 personas, plus **12 declarative workflows** and the drive-to-done orchestration harness. Depends on `odoo-semantic-mcp` (auto-installed). | [README](plugins/odoo-ai-agents/README.md) |
+| **[`odoo-ai-agents`](plugins/odoo-ai-agents/)** | The full Odoo AI workforce toolkit: **42 skills + 8 agents + 10 commands** across 9 personas, plus **12 declarative workflows** and the drive-to-done orchestration harness. Depends on `odoo-semantic-mcp` (auto-installed). | [README](plugins/odoo-ai-agents/README.md) |
 | **[`odoo-semantic-mcp`](plugins/odoo-semantic-mcp/)** | The thin MCP connection layer: registers the `odoo-semantic` server (**25 tools / 7 resources**) and ships the `/odoo-semantic-mcp:connect` command. Install this alone for raw MCP tools only. | [README](plugins/odoo-semantic-mcp/README.md) |
 
 Most users install **`odoo-ai-agents`**, which pulls in `odoo-semantic-mcp` automatically as

@@ -41,3 +41,13 @@ false alarm. This contract makes the test a falsifiable specification of intent.
 finds CRITICAL/HIGH issues OR a test is red, loop back to code. Bound the loop to **3 iterations**;
 if still not green-and-clean, STOP and escalate - bad work is worse than no work. Record
 each iteration's outcome in the worklog (`worklog-contract.md`).
+
+## Forward-port case: RED-on-target as evidence
+
+When a test is forward-ported to a target platform and **runs RED** on that platform for the first
+time (not before the code, but after landing the forward), it proves: the target platform lacks
+the behavior. This is **different from red-before-green** (writing a new test that fails first).
+RED-on-target signals: the feature needs platform-specific adaptation, not just syntax-translation.
+GREEN-on-target immediately after code adaptation means: the target now satisfies intent. Use
+RED-on-target as a **gate** - do not skip forward-porting the test or stub it to pass; let it fail
+and drive the platform-adapt code. (See [[fp-merge-absorption]], [[fp-intent-4outcome]].)

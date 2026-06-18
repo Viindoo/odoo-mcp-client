@@ -76,6 +76,32 @@ Categorize findings by impact: **Module developer** changes vs **End-user functi
 
 **Cross-era note:** If the jump spans v8/v9→v10+ or v12→v13, add a special "Era migration" section explaining the magnitude.
 
+## Forward-port mode (4-outcome mapping)
+
+When `odoo-version-diff` is invoked inside a forward-port pipeline (i.e., the caller
+is `odoo-run-forward-port` or any agent classifying a commit before touching the git
+index), supplement the standard Added/Removed/Deprecated/Changed tables with a
+**4-outcome bucket suggestion** for every Removed or Changed symbol.
+
+For each Removed or Changed entry, append a `FP bucket` column:
+
+| Symbol | ... | FP bucket |
+|--------|-----|-----------|
+| `account.move._post` | ... | (b) - still needed, mechanism compatible |
+| `res.partner.comment` | ... | (c) - still needed, mechanism gone |
+
+The 4-outcome contract (definitions, grounding protocol via `api_version_diff` /
+`model_inspect`, worklog format, and cross-references) is the SSOT at:
+`[[fp-intent-4outcome]]` - read it; do NOT re-derive or copy the bucket definitions here.
+
+Key rule: bucket assignment is a **business-level decision** - classify against target
+platform behavior, not against source code text. An OSM citation (field/method presence
+at target version) is mandatory evidence for every bucket assignment; "no data" is not
+acceptable.
+
+Added symbols do not need a FP bucket (they confirm target platform availability, which
+is input evidence for bucket (a) or (b), not a bucket itself).
+
 ## Standalone-first fallback
 
 When OSM is unreachable, follow the three-tier grounding order from

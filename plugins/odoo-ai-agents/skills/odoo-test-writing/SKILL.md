@@ -2,16 +2,16 @@
 name: odoo-test-writing
 description: >
   Write executable Odoo test files that protect business behavior - not just cover code.
-  Produces Python `test_*.py` (TransactionCase / Form helper / `@tagged`) for backend models
-  and JS Hoot / QUnit suites for frontend components, selecting the correct framework per Odoo
-  version automatically. Each test is named after the business rule it guards, asserts
-  observable outcomes, and is verified to be able to fail. Grounds every test via OSM MCP
-  calls so field names and test-class APIs match the real target version. Fire on any request
-  for test coverage, CI protection, or behavioral documentation for an Odoo feature - even
-  without the word "test". Vietnamese triggers: "viết test cho model", "test unit cho computed
-  field", "bao phủ ràng buộc bằng test", "test hành vi nghiệp vụ Odoo", "tại sao test fail",
-  "viết test JS Hoot". Scope: new test files only; reviewing existing tests use
-  odoo-code-review; runtime test errors use odoo-debug
+  Produces Python `test_*.py` (TransactionCase / Form helper / `@tagged`) and JS Hoot /
+  QUnit suites, selecting the correct framework per version. Also translates existing tests
+  across major Odoo versions (adapt mode): strips implementation-coupled assertions, maps
+  renamed APIs via OSM, confirms RED on target before production code is adapted. Grounds
+  every test via OSM MCP calls. Fire on: test coverage, CI protection, behavioral
+  documentation, or forward-port test translation. Vietnamese: "viết test cho model", "test
+  unit cho computed field", "bao phủ ràng buộc bằng test", "test hành vi nghiệp vụ Odoo",
+  "dịch test sang version mới", "forward test khi forward-port", "viết test JS Hoot".
+  Scope: new test files + adapt existing tests for forward-port; static review use
+  odoo-code-review; runtime errors use odoo-debug
 model: inherit
 ---
 
@@ -21,20 +21,23 @@ QA Engineer / backend developer writing automated tests for Odoo, all supported 
 
 ## Out of Scope
 
-- **Reviewing existing tests** - use `odoo-code-review`
+- **Static review / quality audit of existing tests** - use `odoo-code-review`
 - **Writing the production code under test** - use `odoo-coding`
 - **Debugging a test that fails at runtime on a live instance** - use `odoo-debug`
 - **Upgrade-safety audit** - use `odoo-deprecation-audit`
 - **Performance / load tests** - out of scope for this skill
 
+> Translating existing tests across major versions (adapt mode) IS in scope - see "Adapt mode" below.
+
 ## When to use
 
-Two roles, both governed by the red-before-green contract (`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`):
+Three modes, all governed by the red-before-green contract (`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`):
 
 - **Test-first (before the code).** Inside the `odoo-coding` loop, a non-trivial module's failing test is authored HERE first - independent from the coder - so the test specifies intended behavior and the coder implements to green. This is the primary, highest-value mode.
 - **Coverage (after the code).** Backfill behavior-protecting tests for existing code - the `odoo-code-review` test-coverage gate routes here when a CRITICAL/HIGH change ships with no protecting test.
+- **Adapt (forward-port test translation).** Translate an existing test file from a source Odoo version to a target version: strip implementation-coupled assertions, map renamed/removed APIs via OSM, confirm the translated test is RED on the target before production code is adapted. Invoked by the forward-port pipeline (P4a of `odoo-run-forward-port`) or directly by the user with a source test file + version pair.
 
-Use when the user wants: test coverage for a model/computed field/constraint/onchange/wizard; a test guarding a named business rule; JS Hoot or QUnit tests for an OWL component; a test file droppable into `tests/` and runnable with `odoo-bin -i <module> --test-enable`; or the failing test a coder will implement to green.
+Use when the user wants: test coverage for a model/computed field/constraint/onchange/wizard; a test guarding a named business rule; JS Hoot or QUnit tests for an OWL component; a test file droppable into `tests/` and runnable with `odoo-bin -i <module> --test-enable`; the failing test a coder will implement to green; or a source test translated to a target version for forward-port.
 
 ## Method
 
@@ -87,6 +90,38 @@ Write `tests/test_<feature>.py` (or `static/tests/test_<feature>.js` for JS). Ap
 Run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <test file>` for the pylint-odoo gate. When these tests are later executed via `odoo-bin -i <module> --test-enable`, resolve the interpreter (the matching instance's `python` field) per `snippets/venv-resolution.md`, not system `python3`.
 
 If you are working on version 17.0 or later, you MUST add `--skip-auto-install` to the `odoo-bin -i <module> --test-enable` to avoid noise from auto installed modules
+
+## Adapt mode (forward-port test translation)
+
+Adapt mode forwards the INTENT of tests from `src_version` to `tgt_version` - it does NOT
+copy the text. Full protocol: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/references/fp-adapt-mode.md`.
+
+**Summary of steps:**
+
+1. **Classify** each assertion as INTENT (guards an observable business outcome) or
+   CAPTURE-CODE (asserts an internal - private method, call count, version-specific field
+   name with no semantic equivalent on target). Use `api_version_diff` + `model_inspect`
+   against `tgt_version` to ground the classification.
+
+2. **Strip** CAPTURE-CODE assertions. Keep every assertion that guards observable behavior.
+   Drop a `def test_*` only when nothing in it is INTENT. Record dropped methods in the
+   Continuation Contract.
+
+3. **Translate API** to `tgt_version` - framework imports, Form helper path, `@tagged`
+   convention, renamed fields (from `api_version_diff`), changed method signatures
+   (from `model_inspect`). OSM grounding is mandatory - same as Rounds 1-2 above but
+   targeting `tgt_version`.
+
+4. **Confirm RED on target** - the translated test must fail on the target before the
+   production code is adapted. State the failing assertion as evidence. If the test passes
+   immediately (behavior already in target), record as outcome (a) and skip code-adapt
+   (see [[fp-merge-absorption]]).
+
+**BANNED in adapt mode** (in addition to the standard bans in `test-behavior-contract.md`):
+- Widening or relaxing an assertion to make it pass on target
+- Changing `expected` values without a cited reason from `api_version_diff` / intent doc
+- Dropping a test because translation is hard (escalate BLOCKED instead)
+- `@skip`, `pass`, or empty assertion bodies to silence a red test
 
 ## Output format
 

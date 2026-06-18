@@ -80,9 +80,9 @@ Expected: tree output with module names, `Defined in:`, field counts.
 
 #### Available persona skills
 
-After install, 41 skills activate automatically:
+After install, 42 skills activate automatically:
 
-> Persona labels are the navigation buckets defined in the [README skill table](../../../README.md#skills-26) - the single source of truth for the skill-to-persona mapping. The five role guides in [`personas/`](personas/) (Manager/CEO, Developer, Consultant, Marketer, Sales) group these buckets.
+> Persona labels are the navigation buckets defined in the [README skill table](../../../README.md#skills-26) - the single source of truth for the skill-to-persona mapping. The five role guides in [`personas/`](personas/) (Manager/CEO, Developer, Consultant, Marketer, Sales) group these buckets. This table is a curated subset; all 42 skills auto-activate on install.
 
 | Skill | Persona | What it does |
 |-------|---------|-------------|
@@ -92,6 +92,7 @@ After install, 41 skills activate automatically:
 | `odoo-override-finding` | Engineer | Find the safe method to override, with the existing override chain and a ready-to-apply `super()` template |
 | `odoo-deprecation-audit` | Engineer | Scan a codebase for deprecated Odoo APIs before an upgrade, grouped by file with replacements and urgency |
 | `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist across 8 domains (backup, migration, smoke tests, rollback, ...) |
+| `odoo-run-forward-port` | Coder / Engineer | Continuous/one-shot Odoo forward-port (merge-keep-SHA, per-commit intent extract, adaptive test forward); output under `.odoo-ai/forward-port/`; invoke via `/odoo-forward-port` |
 | `odoo-version-diff` | Engineer + Marketer | Comprehensive API + feature diff between two Odoo versions (developer track + marketer track) |
 | `odoo-coding` | Coder | The single coding front door - write production-ready backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS) code, from a single computed field to a multi-module full-stack feature; scopes the change and sequences the backend + frontend coder agents |
 | `odoo-code-review` | Code-Reviewer | Review Odoo Python/JS/XML/OWL code for bugs, conventions, security, and performance with graded findings |
