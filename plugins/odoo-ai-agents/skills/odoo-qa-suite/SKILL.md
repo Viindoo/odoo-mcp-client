@@ -64,6 +64,21 @@ Output:         .odoo-ai/qa/
 Gate: approve / refine: [feedback] / cancel
 ```
 
+After gate approval, run the **test inventory** before entering Phase 1. Call
+`tests_covering` for the primary model(s) of the module to find which test
+methods already exercise those models, then call `test_coverage_audit` for the
+module to identify untested methods and coverage gaps. Example:
+
+```
+tests_covering(model='sale.order', odoo_version='17.0')
+test_coverage_audit(module='sale_management', odoo_version='17.0')
+```
+
+Carry both results into Phase 1 so test-case generation focuses on **uncovered
+business rules** - do not generate test cases for behaviors already protected
+by existing tests unless the existing test has a known gap flagged by
+`test_coverage_audit`.
+
 ---
 
 ## Phase 1 - Test-case generation (inline)
@@ -80,6 +95,8 @@ Rules:
 - Cover at minimum: happy path, edge case (empty/zero/boundary), error path (invalid input), permission check (user without access gets rejected).
 - Separate unit tests (no DB, no UI) from integration tests (multi-model or multi-user).
 - Ground test mechanics in the TARGET version - test classes, tag syntax, and JS framework (QUnit vs Hoot) differ across Odoo versions. Resolve via OSM (`set_active_version` + `cli_help`) and follow `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`; never assume one version's command line applies to another.
+- **Python test class grounding:** call `test_base_classes` before specifying any TransactionCase/HttpCase in the generated test table. This tool always returns the `cr.commit() FORBIDDEN - isolation is savepoint rollback` contract alongside the authoritative base-class menu for the target version. Example: `test_base_classes(odoo_version='17.0')`. When dispatching Phase 1 test writing to `odoo-test-writing`, instruct that leaf skill to run `test_base_classes` first.
+- **JS test framework grounding:** for any frontend module, call `js_test_inspect` to discover which framework (hoot/qunit/tour) the module already uses and what test suites exist. Example: `js_test_inspect(module='web', odoo_version='17.0')`. Never assume Hoot vs QUnit from version alone - some modules pin an older framework during a transitional release. When dispatching JS test writing to `odoo-test-writing`, forward the `js_test_inspect` result so the leaf skill writes tests in the correct framework.
 - Output file: `.odoo-ai/qa/<slug>-test-cases.md`
 
 ---
