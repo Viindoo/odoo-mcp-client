@@ -136,6 +136,24 @@ For full-stack design, ground the frontend approach in the **fidelity** contract
 frontend-design sources, key failure modes prevented):
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/references/brief-context.md`
 
+### Test strategy grounding (§7) - when to use which test tool
+
+Section §7 "Test strategy outline" is the highest-leverage output of the TDD: every downstream
+agent (odoo-test-writing, odoo-qa-suite, odoo-coder) inherits the base classes and behavior list
+it specifies. The architect uses four test tools - already visible in `## MCP tools` below - at
+specific moments in the design rounds:
+
+| Tool | When in the rounds | Why |
+|---|---|---|
+| `test_base_classes(odoo_version='<version>')` | Round 0 HARD RULE, before writing any test class name | Returns authoritative `TransactionCase` / `HttpCase` / `SavepointCase` / `Form` menu for the pinned version + always outputs **`cr.commit()` FORBIDDEN** contract. Never assert a base class from memory. |
+| `find_test_examples(query='<feature>', odoo_version='<version>')` | Round 1, call #5, parallel with `find_examples` | Returns ONLY test chunks (no production code). Seeds the workflow-path shapes that populate §7 rows. Use instead of `find_examples` whenever the intent is to find test patterns. |
+| `tests_covering(model='<model>', odoo_version='<version>')` | Round 2, immediately after `impact_analysis` | Lists test methods that already COVER the target model/field/method. Zero edges = unguarded behavior that §7 must add. Non-zero = existing protection (no need to duplicate). Edge count goes in the Impact matrix and §7 "Already covered?" column. |
+| `test_coverage_audit(module='<module>', odoo_version='<version>')` | Round 4, first step before filling §7 rows | Audits the whole module for zero-coverage fields and methods. Each gap surfaced here that the design introduces or modifies MUST appear as a new test row in §7. |
+
+**Invariant:** §7 is only valid if all four tools were called during the design rounds. A §7
+written from memory (no `test_base_classes` call) is a design defect - the wrong base class in the
+TDD flows verbatim into test code.
+
 ## Agent invocation - prompt template (P1)
 
 When the user confirms intent (Phase 0 gate passed), invoke `odoo-solution-architect` via the
