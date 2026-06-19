@@ -8,7 +8,7 @@
 - **Frontend/JS v14+ (OWL primary):** Override via `patch()` utility: `import { patch } from "@web/core/utils/patch"`. Old `web.Widget` `.include()` pattern deprecated in v14, removed completely in v16+. In v13, OWL was introduced but `web.Widget` still coexisted - use `patch()` only for v14+.
 - **XML/QWeb:** Override via `xpath` in XML with `position="replace|before|after|attributes"` on `<template>` or `<record>` with `inherit_id`.
 
-**Data priority:** `find_override_point` and `entity_lookup(kind='method', odoo_version='<version>')` results reflect the actual indexed codebase. If MCP says a method's override chain has 4 entries but training knowledge only knows 2, trust MCP.
+**Data priority:** `find_override_point` and `entity_lookup(kind='method', ...)` results reflect the actual indexed codebase. If MCP says a method's override chain has 4 entries but training knowledge only knows 2, trust MCP.
 
 ## Pattern scenarios
 

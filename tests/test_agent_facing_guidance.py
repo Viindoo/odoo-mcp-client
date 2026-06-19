@@ -190,6 +190,32 @@ _ODOO_VERSION_POS_INDEX = {
 }
 
 
+def _required_param_slots(tool: dict) -> dict[str, int | None]:
+    """Map each required param to its positional slot in the tool's example_call.
+
+    Mirrors _odoo_version_positional_index but covers ALL required params. This is
+    necessary for tools like entity_lookup/profile_inspect/lint_check/cli_help that
+    interleave optional positionals between required ones - consuming required_params
+    in declaration order would mis-assign coverage.
+    """
+    ec = tool.get("example_call", "")
+    open_i, close_i = ec.find("("), ec.rfind(")")
+    if open_i < 0 or close_i < 0:
+        return {}
+    names = []
+    for arg in _top_level_args(ec[open_i + 1 : close_i]):
+        nm = _NAMED_ARG_RE.match(arg)
+        names.append(nm.group(1) if nm else arg.strip())
+    slots = {}
+    for r in tool.get("required_params", []):
+        slots[r] = names.index(r) if r in names else None
+    return slots
+
+
+_REQUIRED_PARAM_SLOTS = {t["name"]: _required_param_slots(t) for t in _SURFACE["tools"]}
+_REQUIRED_PARAMS = {t["name"]: t.get("required_params", []) for t in _SURFACE["tools"]}
+
+
 def test_example_tool_calls_use_valid_param_names():
     """Named arguments in example calls must be real params of the tool (per server-surface.json).
 
@@ -261,6 +287,131 @@ def test_example_tool_calls_pass_required_odoo_version():
         "Example tool calls omit the now-required odoo_version (agents copy these verbatim "
         "and the server rejects the call; pass odoo_version='auto' to reuse the pinned "
         "session, or supply all required params positionally):\n" + "\n".join(offenders)
+    )
+
+
+def test_example_tool_calls_pass_all_required_params():
+    """Every concrete example call must supply ALL required params (per server-surface.json).
+
+    The companion odoo_version test only guards one param; this guards the rest (method, name,
+    model, kind, query, intent, ...). An agent copies an example like
+    model_inspect(model='x', odoo_version='17.0') verbatim and the server rejects it for the
+    missing required method=. A required param counts as supplied when EITHER it is named
+    (param=) OR a positional argument fills its slot in the tool's canonical example_call order
+    (positional coverage uses example-slot index, NOT required_params order - some tools put an
+    optional positional before a required one). Ellipsis sketches (`...`/`...`) are exempt, same
+    as the other example-call gates.
+    """
+    offenders: list[str] = []
+    for f in _md_files("skills", "snippets", "agents", "docs"):
+        text = f.read_text(encoding="utf-8")
+        for m in _ANY_TOOL_CALL_RE.finditer(text):
+            tool = m.group(1)
+            required = _REQUIRED_PARAMS[tool]
+            if not required:
+                continue  # list_available_versions / list_available_profiles
+            span = _arg_span(text, m.end() - 1)
+            if "..." in span or "…" in span:
+                continue  # sketch - exempt (same convention as lines 207, 240)
+            inner = span[1:-1] if span.startswith("(") and span.endswith(")") else span
+            args = _top_level_args(inner)
+            named = {nm.group(1) for a in args for nm in [_NAMED_ARG_RE.match(a)] if nm}
+            positional_count = sum(1 for a in args if not _NAMED_ARG_RE.match(a))
+            slots = _REQUIRED_PARAM_SLOTS[tool]
+            missing = []
+            for r in required:
+                if r in named:
+                    continue
+                slot = slots.get(r)
+                if slot is not None and positional_count > slot:
+                    continue  # a positional fills this required param's example slot
+                missing.append(r)
+            if missing:
+                line_no = text.count("\n", 0, m.start()) + 1
+                snippet = (tool + span).replace("\n", " ")[:90]
+                offenders.append(
+                    f"{f.relative_to(REPO_ROOT)}:{line_no}: {tool}() missing required "
+                    f"{missing}: {snippet}"
+                )
+    assert not offenders, (
+        "Example tool calls omit required params (agents copy these verbatim and the OSM server "
+        "rejects the call with a ValidationError before the handler runs). Supply every required "
+        "param by name, pass them positionally up to the param's slot, or use '...' for an "
+        "illustrative sketch:\n" + "\n".join(offenders)
+    )
+
+
+# Built at module level alongside _REQUIRED_PARAMS / _REQUIRED_PARAM_SLOTS above.
+# Maps tool name -> conditional_required dict from server-surface.json.
+# Tools without the key are absent from this dict (no conditional rules to enforce).
+_CONDITIONAL_REQUIRED = {
+    t["name"]: t["conditional_required"]
+    for t in _SURFACE["tools"]
+    if "conditional_required" in t
+}
+
+
+def test_example_tool_calls_pass_conditional_required_params():
+    """Every concrete example call to a kind-discriminated tool must supply the kind-conditional params.
+
+    Some tools (entity_lookup) have a required `kind` discriminator whose value determines which
+    additional params must be present. For example entity_lookup(kind='field', ...) requires both
+    `model` and `field`; entity_lookup(kind='method', ...) requires `model` and `method_name`.
+    These conditional params are listed in the tool's `conditional_required` map in server-surface.json.
+
+    A call passes when EITHER:
+    - the span contains `...`/`...` (sketch - exempt by convention), OR
+    - `kind` is absent or not a resolvable literal (pipe-alternation, placeholder `<...>`) - skip, OR
+    - `kind` is a literal that matches a `conditional_required` key and all its required params
+      are present as named args in the call.
+
+    To fix: add the missing named arg (e.g. `field=<field_name>` for kind='field'), or convert
+    to an illustrative sketch using `...` if the call is not a copy-template.
+    """
+    offenders: list[str] = []
+    for f in _md_files("skills", "snippets", "agents", "docs"):
+        text = f.read_text(encoding="utf-8")
+        for m in _ANY_TOOL_CALL_RE.finditer(text):
+            tool = m.group(1)
+            if tool not in _CONDITIONAL_REQUIRED:
+                continue
+            span = _arg_span(text, m.end() - 1)
+            if "..." in span or "…" in span:
+                continue  # sketch - exempt
+            inner = span[1:-1] if span.startswith("(") and span.endswith(")") else span
+            args = _top_level_args(inner)
+            named = {nm.group(1): a for a in args for nm in [_NAMED_ARG_RE.match(a)] if nm}
+            # Determine kind value
+            kind_arg = named.get("kind")
+            if kind_arg is None:
+                continue  # kind not provided as named arg - cannot enforce (no discriminator)
+            if "|" in kind_arg:
+                continue  # pipe-alternation (kind='field'|'method') - ambiguous, no single rule to apply
+            # Extract the literal value from kind='value' or kind="value"
+            kind_val_match = re.search(r"""=\s*['"]([^'"]+)['"]""", kind_arg)
+            if not kind_val_match:
+                continue  # not a simple literal (placeholder or complex expression)
+            kind_val = kind_val_match.group(1)
+            # Skip if value contains pipe-alternation or is a placeholder
+            if "|" in kind_val or (kind_val.startswith("<") and kind_val.endswith(">")):
+                continue
+            cond_map = _CONDITIONAL_REQUIRED[tool]
+            if kind_val not in cond_map:
+                continue  # kind value not in the map - no rule to enforce
+            required_for_kind = cond_map[kind_val]
+            missing = [p for p in required_for_kind if p not in named]
+            if missing:
+                line_no = text.count("\n", 0, m.start()) + 1
+                snippet = (tool + span).replace("\n", " ")[:90]
+                offenders.append(
+                    f"{f.relative_to(REPO_ROOT)}:{line_no}: {tool}(kind={kind_val!r}) "
+                    f"missing {missing}: {snippet}"
+                )
+    assert not offenders, (
+        "Example tool calls omit kind-conditional required params (entity_lookup dispatches on "
+        "'kind' and requires different params per kind - e.g. kind='field' needs model= and field=, "
+        "kind='method' needs model= and method_name=). Add the missing param or use '...' for an "
+        "illustrative sketch that is not a copy-template:\n" + "\n".join(offenders)
     )
 
 

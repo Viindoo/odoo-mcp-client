@@ -463,7 +463,7 @@ When OSM is unreachable (bootstrap fails or `check_module_exists` returns repeat
 1. **Phase A degrade:** Classify using LLM training knowledge only. Mark each item:
    `classification_source = "unverified-llm"`, `risk_flag = "osm-unreachable"`.
 2. **Phase C skip:** `evidence_module = null`, `evidence_field = null`.
-3. **Phase D degrade:** `module_inspect(dependencies, odoo_version='<version>')` is unreachable -> skip technical
+3. **Phase D degrade:** `module_inspect(name=<module>, method='dependencies', odoo_version='<version>')` is unreachable -> skip technical
    edges (D1/D4); still run D2/D3/D5/D6. Set `dag.json.meta.technical_edges = "skipped-osm-unreachable"`.
 4. **Phase B/E:** Run normally (cost lookup and roll-up do not need MCP).
 5. **report.md banner:** Add at top:

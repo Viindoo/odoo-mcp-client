@@ -6,6 +6,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.14.2] - 2026-06-19
+
+### Added
+
+- **Example-tool-call required-param gate** (`tests/test_agent_facing_guidance.py`) - new
+  `test_example_tool_calls_pass_all_required_params` asserts every concrete example tool call in
+  `skills/`, `agents/`, `snippets/`, `docs/` supplies ALL required params per
+  `generator/server-surface.json` (not just valid param names). Uses slot-based positional coverage
+  (a param is satisfied when named or when a positional fills its slot in the tool's canonical
+  `example_call`), so tools that interleave an optional positional between required ones
+  (`entity_lookup`, `profile_inspect`, `lint_check`, `cli_help`) are handled correctly. Ellipsis
+  sketches (`...`/`…`) stay exempt. Closes the gap where an example missing a required param
+  (e.g. `model_inspect` without `method=`) passed CI but was rejected by the OSM server at runtime.
+- **Kind-conditional required-param gate** (`tests/test_agent_facing_guidance.py`) - new
+  `test_example_tool_calls_pass_conditional_required_params` enforces `entity_lookup`'s kind-dispatched
+  discriminators (ADR-0028): `kind='field'` needs `model=`+`field=`, `kind='method'` needs
+  `model=`+`method_name=`, `kind='view'` needs `xmlid=`, `kind='module'`/`'pattern'` needs `name=`. Rules
+  are data-driven from a new `conditional_required` map in `generator/server-surface.json`. Catches the
+  class where an example is gate-clean on universal required params but uses the wrong/absent kind
+  discriminator (e.g. `entity_lookup(kind='field', name=...)`), which the OSM server rejects at runtime.
+  Pipe-alternation (`kind='a'|'b'`), placeholders, and `...` sketches are skipped/exempt.
+
+### Fixed
+
+- **21 example tool calls missing a required param** across 13 files - added the missing discriminator
+  (`module_inspect` -> `name=`, `model_inspect` -> `model=`/`method=`) so copied examples are
+  runtime-valid. Doc-only (examples in skills/agents/snippets/docs prose); no runtime behavior change.
+- **`entity_lookup` kind-conditional discriminator examples** - fixed `entity_lookup(kind='field', ...,
+  name=...)` -> `field=...` (OSM rejects `name=` for `kind='field'`) and converted illustrative/
+  comparison-prose `entity_lookup(kind='method'/'field'/'view', ...)` shorthands to `...` sketches.
+- **`lint_check` surface drift** (`generator/server-surface.json`) - moved `code` from `optional_params`
+  to `required_params` to match the live OSM schema (`code` is required); regenerated the Cursor/OpenAI/
+  Gemini tool-surface snippets accordingly. Strengthens the required-param gate for `lint_check`.
+
 ## [3.14.1] - 2026-06-19
 
 ### Added

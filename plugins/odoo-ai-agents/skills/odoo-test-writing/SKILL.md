@@ -55,7 +55,7 @@ Never assume same JS import paths between major versions - always call OSM.
 
 ### Round 2 - model / field grounding
 
-For each model call `model_inspect(model='<model>', odoo_version='<version>')` to get real field names and types (do not guess from description), relational paths for `@api.depends`/`Form` interactions, existing method signatures. Call `validate_relation` or `resolve_orm_chain` for relational chains (`partner_id.country_id.code`) to confirm each hop.
+For each model call `model_inspect(model='<model>', method='fields', odoo_version='<version>')` to get real field names and types (do not guess from description), relational paths for `@api.depends`/`Form` interactions, existing method signatures. Call `validate_relation` or `resolve_orm_chain` for relational chains (`partner_id.country_id.code`) to confirm each hop.
 
 ### Round 3 - find existing test patterns
 

@@ -62,7 +62,7 @@ Các kiểm tra tĩnh dựa trên graph đã index. Chạy chúng **trước khi
 | `validate_depends(model, method, odoo_version="auto")` | Validate các path `@api.depends('a.b', ...)` của một compute method đã index; cờ depends trên `id` (bị cấm) và gợi ý field gần nhất cho các lỗi typo - bắt trực tiếp failure mode "stale compute". |
 | `validate_relation(model, field, target_model, odoo_version="auto")` | Khẳng định một field là many2one/one2many/many2many có comodel là `target_model` (hoặc một subtype qua inheritance). Dùng trước khi viết một `related=` hop qua một relation. |
 
-> Ưu tiên những công cụ này hơn `entity_lookup(kind='field', odoo_version='<version>')` khi bạn có một *path* (`resolve_orm_chain`), một *full domain* (`validate_domain`), một *declared depends* (`validate_depends`), hoặc một *comodel assertion* (`validate_relation`) - chúng suy luận về toàn bộ cấu trúc, không phải một field đơn lẻ.
+> Ưu tiên những công cụ này hơn `entity_lookup(kind='field', ...)` khi bạn có một *path* (`resolve_orm_chain`), một *full domain* (`validate_domain`), một *declared depends* (`validate_depends`), hoặc một *comodel assertion* (`validate_relation`) - chúng suy luận về toàn bộ cấu trúc, không phải một field đơn lẻ.
 
 ### Removed in v0.6
 

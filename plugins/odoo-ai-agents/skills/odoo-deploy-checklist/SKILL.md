@@ -87,7 +87,7 @@ Ask all three in one message: (1) Target Odoo version, (2) Environment (staging/
 If OSM reachable, fire simultaneously:
 ```
 check_module_exists(name=<each_module>, odoo_version=<target>)   # one call per module
-module_inspect(name=<each_module>, odoo_version='<version>')      # one call per module
+module_inspect(name=<each_module>, method='summary', odoo_version='<version>')      # one call per module
 find_deprecated_usage(odoo_version='<version>')                   # one call per version
 ```
 

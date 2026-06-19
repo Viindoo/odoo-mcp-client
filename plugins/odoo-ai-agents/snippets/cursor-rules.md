@@ -86,11 +86,11 @@ These are platform invariants, not suggestions - apply them whenever you design 
 - Test-first (red before green) → write the behavior test first and confirm it fails, then code until it passes; never weaken a test to make it pass.
 
 ## MCP Resources (read-only, bookmark-stable)
-- odoo://{version}/model/{name}             # = model_inspect(method='summary', odoo_version='<version>') equivalent
-- odoo://{version}/field/{model}/{field}    # = entity_lookup(kind='field', odoo_version='<version>')
-- odoo://{version}/method/{model}/{method}  # = entity_lookup(kind='method', odoo_version='<version>')
-- odoo://{version}/module/{name}            # = module_inspect(method='summary', odoo_version='<version>')
-- odoo://{version}/view/{xmlid}             # = entity_lookup(kind='view', odoo_version='<version>')
+- odoo://{version}/model/{name}             # = model_inspect(model=<model>, method='summary', odoo_version='<version>') equivalent
+- odoo://{version}/field/{model}/{field}    # = entity_lookup(kind='field', ...)
+- odoo://{version}/method/{model}/{method}  # = entity_lookup(kind='method', ...)
+- odoo://{version}/module/{name}            # = module_inspect(name=<module>, method='summary', odoo_version='<version>')
+- odoo://{version}/view/{xmlid}             # = entity_lookup(kind='view', ...)
 - odoo://{version}/pattern/{name}           # canonical pattern catalogue entry
 - odoo://{version}/stylesheet/{module}/{file_path*}   # CSS/SCSS/LESS record
 
@@ -122,7 +122,7 @@ When a Python file with `class .*(models\.Model)` is opened:
 - Module names: always in `backticks`
 
 ## Developer workflow
-1. Open model file → model_inspect(method="summary", odoo_version='<version>') to understand inheritance
+1. Open model file → model_inspect(model=<model>, method="summary", odoo_version='<version>') to understand inheritance
 2. Find extension point → find_override_point before writing override
 3. Check pattern → suggest_pattern for the implementation approach
 4. Verify API → lookup_core_api for any core methods used
@@ -192,16 +192,16 @@ When user asks about Odoo models, fields, methods, views, or patterns:
 
 ## Key mappings (v0.8)
 - Session start → list_available_versions + set_active_version("17.0")
-- "how does X work" → entity_lookup(kind="method", odoo_version='<version>') or model_inspect(method="summary", odoo_version='<version>')
+- "how does X work" → entity_lookup(kind="method", ...) or model_inspect(model=<model>, method="summary", odoo_version='<version>')
 - "where to override" → find_override_point
 - "add functionality to" → find_override_point + suggest_pattern
 - "impact of changing" → impact_analysis
 - "deprecated / upgrade" → find_deprecated_usage + api_version_diff
 - "show me code for" → find_examples
 - "does Odoo have" → check_module_exists
-- "what is module X" → module_inspect(method="summary", odoo_version='<version>')
-- "list fields / methods / views of X" → model_inspect(method="fields"|"methods"|"views", odoo_version='<version>')
-- "OWL / QWeb / JS patches in X" → module_inspect(method="owl"|"qweb"|"js", odoo_version='<version>')
+- "what is module X" → module_inspect(name=<module>, method="summary", odoo_version='<version>')
+- "list fields / methods / views of X" → model_inspect(model=<model>, method="fields"|"methods"|"views", odoo_version='<version>')
+- "OWL / QWeb / JS patches in X" → module_inspect(name=<module>, method="owl"|"qweb"|"js", odoo_version='<version>')
 - "stylesheets in module X" → resolve_stylesheet(module=X, odoo_version='<version>')
 - "where is selector/variable X defined" → find_style_override(selector_or_variable=X, odoo_version='<version>')
 - "is this domain / these operators valid" → validate_domain(model=X, domain="...")

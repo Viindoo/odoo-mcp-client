@@ -62,7 +62,7 @@ Static checks against the indexed graph. Run them **before** emitting a domain, 
 | `validate_depends(model, method, odoo_version="auto")` | Validate an indexed compute method's `@api.depends('a.b', ...)` paths; flags depends on `id` (forbidden) and suggests the closest field for typos - directly catches the "stale compute" failure mode. |
 | `validate_relation(model, field, target_model, odoo_version="auto")` | Assert a field is a many2one/one2many/many2many whose comodel is `target_model` (or a subtype via inheritance). Use before writing a `related=` that hops through a relation. |
 
-> Prefer these over `entity_lookup(kind='field', odoo_version='<version>')` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) - they reason about the whole construct, not one field.
+> Prefer these over `entity_lookup(kind='field', ...)` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) - they reason about the whole construct, not one field.
 
 ### Removed in v0.6
 

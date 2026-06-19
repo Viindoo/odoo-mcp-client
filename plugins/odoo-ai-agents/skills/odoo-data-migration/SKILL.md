@@ -91,9 +91,9 @@ Confirm: (1) migration type, (2) source/target field/model names, (3) module nam
 Simultaneously call (parallel):
 
 ```
-model_inspect(model=<source_model>, odoo_version='<version>')
-model_inspect(model=<target_model>, odoo_version='<version>')   # if model changes
-entity_lookup(kind='field', model=<source_model>, name=<source_field>, odoo_version='<version>')
+model_inspect(model=<source_model>, method='fields', odoo_version='<version>')
+model_inspect(model=<target_model>, method='fields', odoo_version='<version>')   # if model changes
+entity_lookup(kind='field', model=<source_model>, field=<source_field>, odoo_version='<version>')
 api_version_diff(symbol=<model_or_field>, from_version=<source_v>, to_version=<target_v>)
 ```
 

@@ -292,7 +292,7 @@ figures are hard-coded in the skill body.
 ```
 
 Edge `type` values: `technical | business-logic | data-flow`.  
-Technical edges come from `module_inspect(method='dependencies', odoo_version='<version>')` (deterministic).  
+Technical edges come from `module_inspect(name=<module>, method='dependencies', odoo_version='<version>')` (deterministic).  
 Business-logic and data-flow edges come from Opus cluster reasoning.
 
 ---
