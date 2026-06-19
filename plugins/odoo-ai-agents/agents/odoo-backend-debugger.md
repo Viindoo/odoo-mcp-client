@@ -102,6 +102,29 @@ Read the FULL traceback bottom-up - the last line is the real exception; the lin
 - `validate_relation(model='<model>', field='<field>', target_model='<comodel>', odoo_version='<version>')` -
   confirm relational target; use for `KeyError`/`ValueError` on Many2one/One2many.
 
+**Test discovery (add to the parallel batch when the bug involves a model/field):**
+
+- `tests_covering(model='<model>', odoo_version='<version>')` - returns the existing test
+  coverage graph for the affected model (and optionally a specific field or method via the
+  optional `field` / `method` parameters). Use when diagnosing a runtime bug on a specific
+  model: knowing which tests already cover the area (a) identifies the reproduction vehicle
+  (run the covering test red to confirm root cause) and (b) informs the regression test
+  field of the Output Contract (avoid reinventing a test that already exists). Example:
+  `tests_covering(model='account.move', odoo_version='17.0')`.
+
+- `find_test_examples(query='<symptom or ORM pattern>', model='<model>', odoo_version='<version>')` -
+  searches the indexed test corpus for existing tests matching a symptom pattern or ORM
+  behavior (compute, onchange, access, hook-order). Fire when hypothesizing (Step 3) to find
+  reference tests that reproduce similar behavior - they serve as templates for the regression
+  test described in the Output Contract. Example:
+  `find_test_examples(query='compute stale after order line change', model='sale.order', odoo_version='17.0')`.
+
+**When the traceback originates inside a test class (bug-in-test context):** call
+`test_class_inspect(name='<ClassName>', odoo_version='<version>')` to retrieve the setUp
+fixtures, base chain, and cursor contract for the class named in the traceback. This
+resolves "why does the test fail in a way unrelated to the production bug" when setUp state
+differs from assumptions. Example: `test_class_inspect(name='AccountTestInvoicingCommon', odoo_version='17.0')`.
+
 **AccessError distinction** (critical - always verify before hypothesizing):
 - `ir.model.access`: CRUD permission on the model/group; toggle with `sudo()` to diagnose only - never recommend sudo as a fix.
 - `ir.rule`: record-rule domain too narrow; inspect with `validate_domain`.
@@ -156,7 +179,15 @@ Fix location: <file · method/selector · which coding skill to hand off to>
 Regression test (red->green): <test that protects the behavior; assert it fails pre-fix. Drive the
 real workflow that reproduced the bug - call the action method, build via Form() for onchange,
 with_user() for access - never seed the terminal state; a shortcut regression test re-passes even
-unfixed. SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md>
+unfixed. SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md.
+Before describing the regression test, call test_base_classes(odoo_version='<version>') to obtain
+the authoritative base-class mapping and cursor contract: it states which class to inherit
+(TransactionCase vs HttpCase vs tagged variant) and the PP3 hard rule (cr.commit() FORBIDDEN -
+isolation is savepoint rollback). If tests_covering (Step 2 batch) returned covering tests, cite
+the closest one as the extension point rather than writing a new class. If the bug occurred inside
+a named test helper, use test_class_inspect results (Step 2) to inherit the correct setUp fixtures.
+Include in this field: chosen base class, cr.commit() status, and the reproduction recipe using
+real workflow calls.>
 Confidence: <HIGH ONLY if the toggle was actually EXECUTED + observed (and any regression test actually run RED) and OSM-grounded; a described-but-unexecuted toggle/test or an inferred location caps at MEDIUM; LOW if unproven>
 Grounding: <osm | local-source (not OSM-indexed) | OSM unavailable - ungrounded>
 ```
