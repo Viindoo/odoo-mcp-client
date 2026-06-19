@@ -116,6 +116,21 @@ Constraints on the table:
 
 **6. Decide test-first authorship per module (red before green).** The test protects the business
 behavior and is written BEFORE the code (`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`).
+
+**Coverage pre-flight (run before assigning test mode).** For each non-trivial module, query OSM
+to ground the test scope - only write what is NOT already covered:
+- `tests_covering(model='<primary_model>', odoo_version='<version>')` - lists every TestMethod
+  already exercising that model; carry this list forward into the test-author brief so the author
+  writes additive tests only, never re-invents existing ones.
+- `test_coverage_audit(module='<module>', odoo_version='<version>')` - surfaces fields with zero/partial static-reference coverage (field-level only; does NOT report method gaps and is NOT executed coverage); use this to bound the scope (test only the field gaps).
+- `test_base_classes(odoo_version='<version>')` - retrieves the authoritative base class menu
+  (TransactionCase, SavepointCase, HttpCase, ...) with the hard rule that **`cr.commit()` is
+  FORBIDDEN inside TransactionCase / SavepointCase - isolation is savepoint rollback**. Include
+  the matching base class in the test-author brief so the author never has to guess.
+
+Skip the coverage pre-flight only when OSM is unreachable (standalone/disk fallback, same flag
+as step 4); in that case the test-author works from disk context alone.
+
 Choose per module, hybrid by complexity:
 - **non-trivial** module (anything the design gate flags non-trivial - core override, cross-model
   chain, multi-company logic, new model, full-stack) → `test: test-author`: a SEPARATE author
@@ -238,6 +253,13 @@ TEST-AUTHOR MODE: write ONLY the failing test(s) protecting the business behavio
 REQUEST: <the business rule to protect>
 MODULE SCOPE: <name> @ <path> - test files only (`tests/` or `static/tests/`).
 ODOO VERSION: <version>
+EXISTING COVERAGE: <output of tests_covering(model='<primary_model>', odoo_version='<version>')
+  listing TestMethods already covering this model - write ADDITIVE tests only, never re-invent these>
+COVERAGE GAPS: <fields flagged by test_coverage_audit(module='<module>', odoo_version='<version>')
+  as having zero/partial static-reference coverage (field-level only; NOT method gaps, NOT executed coverage) - prioritise these field gaps in the new tests>
+BASE CLASS: <base class selected from test_base_classes(odoo_version='<version>') output, e.g.
+  TransactionCase - HARD RULE: cr.commit() is FORBIDDEN inside TransactionCase/SavepointCase;
+  isolation is savepoint rollback>
 WORKLOG: <runSlug> - read, then append; return the test paths + a one-line RED confirmation.
 ```
 

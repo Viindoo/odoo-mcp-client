@@ -237,7 +237,7 @@ Using odoo-semantic, show me the full inheritance chain of sale.order in Odoo 17
 ## Generated Tool Surface
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.13.1. Generated from `generator/server-surface.json`. Run `make gen` to update._
+_Tool surface: server v0.15.0. Generated from `generator/server-surface.json`. Run `make gen` to update._
 
 > **Pick the right tool first.** Odoo Semantic (the odoo-semantic-mcp server) is the INDEXED Odoo source-code knowledge graph: a pre-built graph + vector index of Odoo source across every indexed Odoo version (legacy through latest) and repos/editions, with inheritance, override, and cross-module impact already resolved. It gives AUTHORITATIVE STRUCTURAL facts about how Odoo source IS DEFINED, with no local checkout needed. Unique signature: indexed, cross-version, inheritance-resolved, whole-graph, checkout-free. It is a STATIC index with NO runtime/live data.
 >
@@ -248,7 +248,7 @@ _Tool surface: server v0.13.1. Generated from `generator/server-surface.json`. R
 >
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
-Use these tools based on what the user is asking (v0.13.1 surface):
+Use these tools based on what the user is asking (v0.15.0 surface):
 
 ### model_inspect ★
 TRIGGER: inspect model
@@ -258,7 +258,7 @@ ARGS (optional): profile_name, field, method_name, start_index, limit, from_modu
 
 ### module_inspect ★
 TRIGGER: inspect module
-PREFER: Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+PREFER: Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
 ARGS (required): name, method, odoo_version
 ARGS (optional): profile_name, start_index, limit, view_type, bound_model, era, target
 
@@ -318,7 +318,7 @@ ARGS (optional): command, flag
 TRIGGER: best pattern for
 PREFER: Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 ARGS (required): intent, odoo_version
-ARGS (optional): language, limit
+ARGS (optional): language, limit, category
 
 ### check_module_exists
 TRIGGER: does module exist
@@ -391,6 +391,42 @@ PREFER: Assert a relational field points at the expected comodel (many2one/one2m
 ARGS (required): model, field, target_model, odoo_version
 ARGS (optional): profile_name
 
+### find_test_examples
+TRIGGER: find test examples
+PREFER: Semantic search for Odoo test code examples (test_method, test_class, js_test chunks only - never returns production code).
+ARGS (required): query, odoo_version
+ARGS (optional): model, kind, limit, profile_name
+
+### tests_covering
+TRIGGER: which tests cover model
+PREFER: List test methods that have COVERS_MODEL/COVERS_FIELD/COVERS_METHOD edges to the target model or field (static reference coverage, not runtime executed coverage).
+ARGS (required): model, odoo_version
+ARGS (optional): field, method, profile_name
+
+### test_class_inspect
+TRIGGER: inspect test class
+PREFER: Inspect a TestClass or TestHelper by name: base chain (INHERITS_TEST), setUpClass cursor contract (test_type, commit_allowed), test methods with assert counts, and subclassed-by list.
+ARGS (required): name, odoo_version
+ARGS (optional): module, file_path, method, profile_name
+
+### test_base_classes
+TRIGGER: which base class for test
+PREFER: Menu of official Odoo test framework base classes (TransactionCase, HttpCase, SavepointCase, Form, etc.) for the given version, with test_type and cursor contract.
+ARGS (required): odoo_version
+ARGS (optional): name
+
+### test_coverage_audit
+TRIGGER: test coverage for module
+PREFER: Audit an entire module for test coverage gaps: lists fields/methods with zero COVERS_* edges (never referenced by any test).
+ARGS (required): module, odoo_version
+ARGS (optional): model, profile_name
+
+### js_test_inspect
+TRIGGER: frontend tests in module
+PREFER: List JsTestSuite nodes in a module: framework mix (hoot/qunit/tour), file paths, suite sizes, describe/test sample, mounts, tags.
+ARGS (required): module, odoo_version
+ARGS (optional): framework, profile_name
+
 ### MCP Resources (read-only, URI-addressable)
 
 - `odoo://{version}/model/{name}` - Model record: inheritance chain, field count, defining modules.
@@ -400,4 +436,6 @@ ARGS (optional): profile_name
 - `odoo://{version}/module/{name}` - Module record: manifest, defines/extends counts, license notice if restricted.
 - `odoo://{version}/pattern/{name}` - Pattern catalogue entry: code snippet, gotchas, language, min version.
 - `odoo://{version}/stylesheet/{module}/{file_path*}` - Stylesheet record: selectors, imports, variables, language (CSS/SCSS/LESS).
+- `odoo://{version}/test/{module}/{class_name}` - Markdown tree describing a test class or helper: base chain, setUp fixtures, test methods, subclassed-by list. Equivalent to calling test_class_inspect with method='summary' for the given class.
+- `odoo://{version}/testcoverage/{model}` - Markdown tree listing test methods that reference a model (COVERS_* static reference edges, not runtime coverage). Same content as tests_covering(model=...).
 <!-- END GENERATED TOOLS -->

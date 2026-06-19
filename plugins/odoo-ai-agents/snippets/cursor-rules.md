@@ -245,7 +245,7 @@ In `~/.cursor/mcp.json` (or project `.cursor/mcp.json`):
 ## Generated Tool Surface
 
 <!-- BEGIN GENERATED TOOLS -->
-_Tool surface: server v0.13.1. Generated from `generator/server-surface.json`. Run `make gen` to update._
+_Tool surface: server v0.15.0. Generated from `generator/server-surface.json`. Run `make gen` to update._
 
 > **Pick the right tool first.** Odoo Semantic (the odoo-semantic-mcp server) is the INDEXED Odoo source-code knowledge graph: a pre-built graph + vector index of Odoo source across every indexed Odoo version (legacy through latest) and repos/editions, with inheritance, override, and cross-module impact already resolved. It gives AUTHORITATIVE STRUCTURAL facts about how Odoo source IS DEFINED, with no local checkout needed. Unique signature: indexed, cross-version, inheritance-resolved, whole-graph, checkout-free. It is a STATIC index with NO runtime/live data.
 >
@@ -258,7 +258,7 @@ _Tool surface: server v0.13.1. Generated from `generator/server-surface.json`. R
 
 ## Key mappings (generated)
 - "inspect model" → `model_inspect ★` - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- "inspect module" → `module_inspect ★` - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- "inspect module" → `module_inspect ★` - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
 - "lookup field" → `entity_lookup ★` - Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
 - "which repos make up profile" → `profile_inspect` - Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
 - "show me examples" → `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
@@ -282,4 +282,10 @@ _Tool surface: server v0.13.1. Generated from `generator/server-surface.json`. R
 - "is this domain valid" → `validate_domain ⊕` - Validate search domain terms: field-path resolution and operator version-awareness.
 - "validate compute depends" → `validate_depends ⊕` - Validate compute method's `@api.depends('a.b', ...)` paths; flag `id` and suggest typos.
 - "does field point to model" → `validate_relation ⊕` - Assert a relational field points at the expected comodel (many2one/one2many/many2many).
+- "find test examples" → `find_test_examples` - Semantic search for Odoo test code examples (test_method, test_class, js_test chunks only - never returns production code).
+- "which tests cover model" → `tests_covering` - List test methods that have COVERS_MODEL/COVERS_FIELD/COVERS_METHOD edges to the target model or field (static reference coverage, not runtime executed coverage).
+- "inspect test class" → `test_class_inspect` - Inspect a TestClass or TestHelper by name: base chain (INHERITS_TEST), setUpClass cursor contract (test_type, commit_allowed), test methods with assert counts, and subclassed-by list.
+- "which base class for test" → `test_base_classes` - Menu of official Odoo test framework base classes (TransactionCase, HttpCase, SavepointCase, Form, etc.) for the given version, with test_type and cursor contract.
+- "test coverage for module" → `test_coverage_audit` - Audit an entire module for test coverage gaps: lists fields/methods with zero COVERS_* edges (never referenced by any test).
+- "frontend tests in module" → `js_test_inspect` - List JsTestSuite nodes in a module: framework mix (hoot/qunit/tour), file paths, suite sizes, describe/test sample, mounts, tags.
 <!-- END GENERATED TOOLS -->

@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-06-05T00:00:00Z",
+  "generated_at": "2026-06-19T00:00:00Z",
   "server_version_required": "0.13.1",
   "skills": {
     "odoo-brl": {
@@ -132,14 +132,16 @@
         "api_version_diff",
         "entity_lookup",
         "find_deprecated_usage",
+        "js_test_inspect",
         "lookup_core_api",
         "module_inspect",
         "set_active_version",
-        "set_active_profile"
+        "set_active_profile",
+        "test_base_classes"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "set_active_profile scopes find_deprecated_usage(profile_name) to the customer's modules instead of default Odoo CE scope."
+      "notes": "set_active_profile scopes find_deprecated_usage(profile_name) to the customer's modules instead of default Odoo CE scope. test_base_classes detects deprecated test base class usage (SavepointCase v8-v15 alias); js_test_inspect surfaces deprecated QUnit patterns in v18+ modules. min_server 0.15.0 for test tools."
     },
     "odoo-discovery-summary": {
       "mcp_tools": [
@@ -264,11 +266,15 @@
         "module_inspect",
         "check_module_exists",
         "api_version_diff",
-        "profile_inspect"
+        "profile_inspect",
+        "find_test_examples",
+        "test_base_classes",
+        "test_coverage_audit",
+        "tests_covering"
       ],
-      "min_server_version": "0.13.1",
+      "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Slim SKILL.md for the design bundle - companion to the odoo-solution-architect agent. Designs the technical solution (approach / data model / override strategy / module structure) before any code is written. impact_analysis grounds blast-radius in Risks; find_override_point grounds super() position; validate_* verify the proposed ORM chains so the coder inherits a verified design. min_server 0.13.1 for impact_analysis + profile_inspect."
+      "notes": "Slim SKILL.md for the design bundle - companion to the odoo-solution-architect agent. Designs the technical solution (approach / data model / override strategy / module structure) before any code is written. impact_analysis grounds blast-radius in Risks; find_override_point grounds super() position; validate_* verify the proposed ORM chains so the coder inherits a verified design. test_base_classes/find_test_examples/tests_covering/test_coverage_audit ground test outline in real test surface (PR #323, v0.15.0). min_server 0.15.0 for test tools."
     },
     "odoo-risk-overview": {
       "mcp_tools": [
@@ -436,11 +442,13 @@
         "check_module_exists",
         "entity_lookup",
         "model_inspect",
-        "module_inspect"
+        "module_inspect",
+        "test_base_classes",
+        "tests_covering"
       ],
-      "min_server_version": "0.13.1",
+      "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Front-door debug orchestrator. Stays light on tools - pins version + quick layer classification, then dispatches specialist debug agents (odoo-backend-debugger OSM-only; odoo-ui-debugger browser, serial-exclusive). Heavy OSM localization happens inside the agents. Writes run notes to .odoo-ai/debug/ (gitignored)."
+      "notes": "Front-door debug orchestrator. Stays light on tools - pins version + quick layer classification, then dispatches specialist debug agents (odoo-backend-debugger OSM-only; odoo-ui-debugger browser, serial-exclusive). Heavy OSM localization happens inside the agents. test_base_classes checks for cr.commit() misuse in test context; tests_covering locates existing tests covering the failing model. Writes run notes to .odoo-ai/debug/ (gitignored). min_server 0.15.0 for test tools."
     },
     "odoo-run-forward-port": {
       "mcp_tools": [
@@ -449,11 +457,15 @@
         "model_inspect",
         "module_inspect",
         "entity_lookup",
-        "find_override_point"
+        "find_override_point",
+        "find_test_examples",
+        "test_base_classes",
+        "test_coverage_audit",
+        "tests_covering"
       ],
-      "min_server_version": "0.13.1",
+      "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Forward-port orchestrator: api_version_diff grounds version-boundary breaks and outcome classification; model_inspect/entity_lookup verify symbol survival at target to catch autosilent field breaks; find_override_point assists in locating insertion points during adapt phase."
+      "notes": "Forward-port orchestrator: api_version_diff grounds version-boundary breaks and outcome classification; model_inspect/entity_lookup verify symbol survival at target to catch autosilent field breaks; find_override_point assists in locating insertion points during adapt phase. test_base_classes/find_test_examples/tests_covering/test_coverage_audit ground test verification at target version (PR #323, v0.15.0). min_server 0.15.0 for test tools."
     }
   },
   "orchestration": {

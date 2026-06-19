@@ -6,7 +6,7 @@ Covers safety-critical behavior of the marker-based file injection helpers:
   replace the wrong window).
 
 Also covers server-surface.json invariants:
-- 19 tools must declare odoo_version as REQUIRED (mirror of server ADR-0029 amend)
+- 26 tools must declare odoo_version as REQUIRED (mirror of server ADR-0029 amend)
 - 4 session/version-diff tools must NOT have odoo_version in required_params
 """
 
@@ -41,7 +41,9 @@ SURFACE_FILE = SKILLS_PLUGIN / "generator" / "server-surface.json"
 # Tools that MUST have odoo_version in required_params
 TOOLS_REQUIRE_VERSION = {
     "find_examples",
+    "find_test_examples",
     "impact_analysis",
+    "js_test_inspect",
     "lookup_core_api",
     "find_deprecated_usage",
     "lint_check",
@@ -57,6 +59,10 @@ TOOLS_REQUIRE_VERSION = {
     "resolve_stylesheet",
     "find_style_override",
     "resolve_orm_chain",
+    "test_base_classes",
+    "test_class_inspect",
+    "test_coverage_audit",
+    "tests_covering",
     "validate_domain",
     "validate_depends",
     "validate_relation",
@@ -81,7 +87,7 @@ def surface_tools() -> dict[str, dict]:
 
 
 def test_required_version_tools_have_odoo_version_in_required(surface_tools):
-    """20 tools must list odoo_version in required_params (not optional)."""
+    """26 tools must list odoo_version in required_params (not optional)."""
     failures = []
     for name in sorted(TOOLS_REQUIRE_VERSION):
         tool = surface_tools.get(name)

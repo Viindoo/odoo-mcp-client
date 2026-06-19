@@ -239,6 +239,20 @@ Hard rules:
     (${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md): verify every model/field/method/
     module/CLI/design-token claim via OSM (set_active_version + model_inspect / entity_lookup /
     find_examples / resolve_stylesheet) BEFORE writing. Never code Odoo from memory.
+    If this WI involves writing or adapting tests, also ground the test surface via OSM
+    before generating any test code:
+      - `find_test_examples(query='<feature>', odoo_version='<version>')` - find real test
+        chunks (100% test code, not production); use instead of find_examples when context is tests.
+      - `test_base_classes(odoo_version='<version>')` - get the correct base class for the
+        target version (TransactionCase/SavepointCase/HttpCase); note cr.commit() FORBIDDEN in
+        TransactionCase (isolation is savepoint rollback, not manual commit).
+      - `tests_covering(model='<model>', odoo_version='<version>')` - check existing test
+        coverage for a model/field/method before writing new tests; only write what is missing.
+      - `js_test_inspect(module='<module>', odoo_version='<version>')` - for frontend JS test
+        WIs: identify the framework in use (QUnit v16-/v17, Hoot v18+) and mock_models
+        convention before writing any JS test code; never assume framework from memory.
+      - `test_coverage_audit(module='<module>', odoo_version='<version>')` - audit coverage
+        gaps across a module before proposing a test plan.
   - Nesting guard (full text: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md): you are a
     leaf worker (depth-2). You ARE the specialist - write/review the code yourself, grounding
     every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is always
@@ -283,6 +297,8 @@ cherry-picked. If a subagent exceeds 15 minutes without output, check its status
 |---|---|---|
 | Backend Python/XML | Write directly, grounded via OSM (`model_inspect` / `find_examples` / `validate_*`), following `odoo-coding` conventions | Invoke the `odoo-coding` bundle (depth0-only) |
 | Frontend JS/OWL/SCSS | Write directly, grounded via OSM (`find_examples` / `resolve_stylesheet`), following `odoo-coding` conventions | Invoke the `odoo-coding` bundle (depth0-only) |
+| Test writing (Python) | Ground via `test_base_classes` (base class + cr.commit() contract) + `tests_covering` (coverage gap) + `find_test_examples` (real test patterns) BEFORE writing; only write uncovered paths | Assume base class or cr.commit() legality from memory; re-implement tests that already exist |
+| Test writing (JS) | Ground via `js_test_inspect` (framework: QUnit v16-/v17, Hoot v18+) + `find_test_examples(query='<feature>', kind='js', odoo_version='<version>')` BEFORE writing any JS test | Write Hoot syntax for a QUnit module (or vice versa); assume framework from version heuristic |
 | Review of own output | Self-review inline against `odoo-code-review` conventions | Invoke `odoo-code-review` or `/code-review` |
 | Read-only lookup | NL-dispatch a `leaf` skill (`odoo-feature-check`, `odoo-override-finding`) | Spawn a sub-agent; call any depth0-only skill |
 
@@ -338,6 +354,11 @@ Measure: `git diff <principal>...HEAD --shortstat` (changed lines) and WI count 
 
 Review the full diff (`git diff <principal>...HEAD`) for:
 - Plan adherence, correctness, simplicity, self-containment, confidentiality
+- **Coverage lens** (apply when any WI touches test files or adds behavior that should be tested):
+  for each changed model/module, verify via `tests_covering(model='<model>', odoo_version='<version>')`
+  that the WI did not introduce untested behavior paths, and via `test_coverage_audit(module='<module>',
+  odoo_version='<version>')` that the module coverage gap did not widen after the change.
+  Flag any behavior-change WI that has no corresponding test addition as a finding.
 
 Fix findings inline or via a targeted brief subagent. Re-run verify after any fix.
 

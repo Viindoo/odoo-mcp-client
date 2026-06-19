@@ -1,7 +1,7 @@
 {
   "schema_version": "1",
-  "server_version": "0.13.1",
-  "generated_at": "2026-06-05T00:00:00Z",
+  "server_version": "0.15.0",
+  "generated_at": "2026-06-19T00:00:00Z",
   "disambiguation": {
     "identity": "Odoo Semantic (the odoo-semantic-mcp server) is the INDEXED Odoo source-code knowledge graph: a pre-built graph + vector index of Odoo source across every indexed Odoo version (legacy through latest) and repos/editions, with inheritance, override, and cross-module impact already resolved. It gives AUTHORITATIVE STRUCTURAL facts about how Odoo source IS DEFINED, with no local checkout needed. Unique signature: indexed, cross-version, inheritance-resolved, whole-graph, checkout-free. It is a STATIC index with NO runtime/live data.",
     "precedence": "This is your PRIMARY, context-efficient source for Odoo source/structure questions - the Odoo codebase is huge and reading it directly burns context, so prefer Odoo Semantic first. Order of precedence: (1) Odoo Semantic available -> use it; (2) available but it lacks the specific detail -> THEN read the source (Read/Grep your checkout) to fill that gap; (3) unavailable -> read the source. Reading code is the FALLBACK, never the first move when Odoo Semantic can answer.",
@@ -64,7 +64,7 @@
       "name": "module_inspect",
       "version_added": "0.5.0",
       "version_removed": null,
-      "description": "Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call. method ∈ {summary, views, owl, qweb, js, dependencies}. Supersedes removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (v0.6). method='dependencies' added v0.10.0. method='summary' shares describe_module's output and may include a 'License notice:' line for license-restricted modules (server v0.9.1+) - surface it to the user; do not retry or fabricate omitted content.",
+      "description": "Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call. method ∈ {summary, views, owl, qweb, js, dependencies, tests}. Supersedes removed list_views (module-scoped), list_owl_components, list_qweb_templates, list_js_patches (v0.6). method='dependencies' added v0.10.0. method='tests' returns TestClass nodes in the module (ADR-0051, v0.15.0). method='summary' shares describe_module's output and may include a 'License notice:' line for license-restricted modules (server v0.9.1+) - surface it to the user; do not retry or fabricate omitted content.",
       "persona_tags": [
         "dev",
         "CEO",
@@ -383,7 +383,7 @@
       "name": "suggest_pattern",
       "version_added": "0.1.0",
       "version_removed": null,
-      "description": "Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.",
+      "description": "Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns. Optional category post-filters results by pattern_id prefix (e.g. category='test' returns test-writing patterns added in v0.15.0).",
       "persona_tags": [
         "dev",
         "consultant"
@@ -394,7 +394,8 @@
       ],
       "optional_params": [
         "language",
-        "limit"
+        "limit",
+        "category"
       ],
       "return_type": "array",
       "example_call": "suggest_pattern(intent='wizard with multi-step form', odoo_version='17.0')",
@@ -765,6 +766,176 @@
         "comodel of field",
         "validate_relation"
       ]
+    },
+    {
+      "name": "find_test_examples",
+      "version_added": "0.15.0",
+      "version_removed": null,
+      "description": "Semantic search for Odoo test code examples (test_method, test_class, js_test chunks only - never returns production code). Use to discover existing tests before writing new ones to avoid reinventing already-covered cases.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "query",
+        "odoo_version"
+      ],
+      "optional_params": [
+        "model",
+        "kind",
+        "limit",
+        "profile_name"
+      ],
+      "return_type": "array",
+      "example_call": "find_test_examples(query='unit test for sale order confirmation', odoo_version='17.0')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "find test examples",
+        "existing tests for",
+        "test discovery",
+        "test code examples",
+        "test cases for model",
+        "find_test_examples"
+      ]
+    },
+    {
+      "name": "tests_covering",
+      "version_added": "0.15.0",
+      "version_removed": null,
+      "description": "List test methods that have COVERS_MODEL/COVERS_FIELD/COVERS_METHOD edges to the target model or field (static reference coverage, not runtime executed coverage). Grouped by via type: assert / setup / body.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "model",
+        "odoo_version"
+      ],
+      "optional_params": [
+        "field",
+        "method",
+        "profile_name"
+      ],
+      "return_type": "object",
+      "example_call": "tests_covering(model='sale.order', odoo_version='17.0')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "which tests cover model",
+        "tests for field",
+        "test coverage for model",
+        "tests referencing model",
+        "tests_covering"
+      ]
+    },
+    {
+      "name": "test_class_inspect",
+      "version_added": "0.15.0",
+      "version_removed": null,
+      "description": "Inspect a TestClass or TestHelper by name: base chain (INHERITS_TEST), setUpClass cursor contract (test_type, commit_allowed), test methods with assert counts, and subclassed-by list. Does not return setUpClass fixture contents - Read the source for those. method discriminator: summary | hierarchy | methods | setup.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "name",
+        "odoo_version"
+      ],
+      "optional_params": [
+        "module",
+        "file_path",
+        "method",
+        "profile_name"
+      ],
+      "return_type": "object",
+      "example_call": "test_class_inspect(name='TestSaleOrder', odoo_version='17.0', module='sale')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "inspect test class",
+        "test class hierarchy",
+        "test helper setup",
+        "base class for test",
+        "subclasses of test class",
+        "test_class_inspect"
+      ]
+    },
+    {
+      "name": "test_base_classes",
+      "version_added": "0.15.0",
+      "version_removed": null,
+      "description": "Menu of official Odoo test framework base classes (TransactionCase, HttpCase, SavepointCase, Form, etc.) for the given version, with test_type and cursor contract. Always surfaces: cr.commit() FORBIDDEN - isolation is savepoint rollback.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "odoo_version"
+      ],
+      "optional_params": [
+        "name"
+      ],
+      "return_type": "object",
+      "example_call": "test_base_classes(odoo_version='17.0')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "which base class for test",
+        "TransactionCase vs SavepointCase",
+        "Odoo test framework classes",
+        "cr.commit in test",
+        "test isolation",
+        "test_base_classes"
+      ]
+    },
+    {
+      "name": "test_coverage_audit",
+      "version_added": "0.15.0",
+      "version_removed": null,
+      "description": "Audit an entire module for test coverage gaps: lists fields/methods with zero COVERS_* edges (never referenced by any test). Static reference coverage only, not runtime executed coverage. Limit 200 unreferenced fields.",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "module",
+        "odoo_version"
+      ],
+      "optional_params": [
+        "model",
+        "profile_name"
+      ],
+      "return_type": "object",
+      "example_call": "test_coverage_audit(module='sale', odoo_version='17.0')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "test coverage for module",
+        "untested fields",
+        "coverage gaps",
+        "which fields lack tests",
+        "test audit",
+        "test_coverage_audit"
+      ]
+    },
+    {
+      "name": "js_test_inspect",
+      "version_added": "0.15.0",
+      "version_removed": null,
+      "description": "List JsTestSuite nodes in a module: framework mix (hoot/qunit/tour), file paths, suite sizes, describe/test sample, mounts, tags. Filter by framework. v17 uses QUnit (*_tests.js), v18+ uses Hoot (*.test.js).",
+      "persona_tags": [
+        "dev"
+      ],
+      "required_params": [
+        "module",
+        "odoo_version"
+      ],
+      "optional_params": [
+        "framework",
+        "profile_name"
+      ],
+      "return_type": "object",
+      "example_call": "js_test_inspect(module='account', odoo_version='17.0')",
+      "deprecated_by": null,
+      "routing_keywords": [
+        "frontend tests in module",
+        "JS test files",
+        "Hoot tests",
+        "QUnit tests",
+        "tour tests",
+        "js_test_inspect"
+      ]
     }
   ],
   "resources": [
@@ -844,6 +1015,22 @@
         "dev"
       ],
       "when_to_use": "Want canonical stylesheet definition without a tool call."
+    },
+    {
+      "uri_template": "odoo://{version}/test/{module}/{class_name}",
+      "description": "Markdown tree describing a test class or helper: base chain, setUp fixtures, test methods, subclassed-by list. Equivalent to calling test_class_inspect with method='summary' for the given class.",
+      "persona_tags": [
+        "dev"
+      ],
+      "when_to_use": "Already know module + class name; want a stable bookmarkable URI to re-fetch the test class tree without re-running discovery."
+    },
+    {
+      "uri_template": "odoo://{version}/testcoverage/{model}",
+      "description": "Markdown tree listing test methods that reference a model (COVERS_* static reference edges, not runtime coverage). Same content as tests_covering(model=...).",
+      "persona_tags": [
+        "dev"
+      ],
+      "when_to_use": "Already know the model name; want a stable bookmarkable URI to re-fetch test coverage without re-running the tool."
     }
   ]
 }

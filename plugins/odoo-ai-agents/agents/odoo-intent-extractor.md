@@ -75,9 +75,31 @@ api_version_diff(symbol='account.move._post', from_version='16.0', to_version='1
 
 `odoo_version=` is mandatory in every odoo-semantic-mcp call - never omit it, never rely on a default. The pin is per-API-key state that any concurrent agent can overwrite.
 
+**When the diff contains test changes:** If Step 1 found added or modified test methods, ground
+the test class alongside the production symbols. Fire in parallel with the production-symbol
+probes:
+
+```python
+# Inspect test class base chain, commit_allowed, and subclassed-by list
+test_class_inspect(name='AccountTestInvoicingCommon', odoo_version='16.0')
+
+# Find which production symbols this test class already covers
+tests_covering(model='account.move', odoo_version='16.0')
+```
+
+`test_class_inspect` returns the base chain (e.g. `SavepointCase` vs `TransactionCase`),
+`commit_allowed` flag, and the list of classes that subclass this test class - it does NOT
+return the contents of `setUpClass` fixtures (Read the source file directly if fixture
+internals are needed). The base chain and `commit_allowed` directly inform the 4-outcome hint:
+if the test class uses a base that is deprecated at the target version (e.g. `SavepointCase`
+is a deprecated alias from v16+, still runnable), the hint should lean toward bucket (b).
+`tests_covering` enriches the Behavioral contract section with
+which production behaviors the commit's tests already guard, making the coverage picture concrete
+rather than inferred from the diff alone.
+
 If OSM is unreachable, follow the Standalone fallback in `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`: read the local source tree with `Read`/`Grep` and label the record `grounded: local-source (not OSM-indexed)`.
 
-The output of Step 2 is a **confirmed symbol list**: `model.field`, `model.method`, module name - each with its OSM citation (or local-source citation if OSM is down).
+The output of Step 2 is a **confirmed symbol list**: `model.field`, `model.method`, module name - each with its OSM citation (or local-source citation if OSM is down). When test changes were grounded, include the test class and its base chain in the list.
 
 ---
 

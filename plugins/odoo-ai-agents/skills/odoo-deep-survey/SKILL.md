@@ -86,9 +86,13 @@ Phase-3 coverage-gap trigger - without seeding, that trigger never fires.
 - **Fan-out:** one haiku worker per unit, filling the Mode B budget (rolling-window beyond it).
 - **Each worker** (haiku = read-only lookup/classify only, never multi-tool OSM synthesis):
   reads the module's manifest + skims its models/views, and confirms existence with read-only OSM
-  - `check_module_exists`, `module_inspect` (`method='summary'`). It returns a short bullet map:
-  what the area contains, and which 1-3 spots look most relevant to the stated intent (the
-  hot-spots), each with a `file:line`.
+  - `check_module_exists`, `module_inspect` (`method='summary'`), and
+  `module_inspect` (`method='tests'`) to enumerate the test classes defined in the module. The test
+  class list from Phase 1 seeds the Phase 2 test blast-radius picture: workers record which
+  `TestCase` subclasses exist so the synthesiser knows where to look for coverage edges.
+  Each worker returns a short bullet map: what the area contains, which 1-3 spots look most
+  relevant to the stated intent (the hot-spots) each with a `file:line`, and the module's test
+  class list (or "no tests" if the module has none).
 - **Persist:** `.odoo-ai/survey/<slug>-<date>/phase1/<NN>-<area>.md` + one worklog entry per worker.
 
 ## Phase 2 - narrow / deep dives (sonnet)
@@ -103,6 +107,26 @@ Phase-3 coverage-gap trigger - without seeding, that trigger never fires.
   **bidirectional impact** per `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md` (upstream
   `depends` closure + downstream `impact_analysis`, direct AND transitive). It answers the
   intent's sub-questions and marks each `RESOLVED` / `UNRESOLVED`.
+
+  After `impact_analysis` resolves the blast radius, each worker also calls `tests_covering` for
+  the hot-spot's primary model to determine the **test blast radius**: which existing tests
+  already guard this behavior, and therefore which tests would be at risk if the hot-spot
+  changes. Prefer model-level or field-level narrow over method-level; COVERS_METHOD edges are
+  sparse and frequently return 0 even for well-tested methods - 0 results at method-narrow does
+  NOT mean the method is untested. Example (concrete version required):
+
+  ```python
+  tests_covering(model='account.move', field='state', odoo_version='17.0')
+  ```
+
+  If `tests_covering` returns 0 edges for a method of interest, fall back to
+  `find_test_examples(query='<method_name>', odoo_version='17.0')` before concluding zero
+  coverage. Record the result in the worker's phase2 file as a "Test blast radius" subsection:
+  number of test edges, test file paths, and whether the hot-spot has zero test coverage (a
+  coverage gap confirmed by BOTH tools). Zero-coverage hot-spots are escalation candidates for
+  Phase 3 (trigger: § Phase 3 item 3) and are always surfaced in the synthesis "Test coverage
+  gaps" section.
+
 - **Persist:** `.odoo-ai/survey/<slug>-<date>/phase2/<NN>-<hotspot>.md` + worklog entries.
 
 ## Phase 3 - opus escalation (conditional)
@@ -148,6 +172,16 @@ After the last phase, read every `phase*/*.md` + the worklog (oldest-first) and 
 - **Key findings** - each with `file:line` + OSM citation.
 - **Hot-spots ranked** by relevance to the intent.
 - **Impact map** - bidirectional blast radius of the likely change.
+- **Test coverage gaps** - hot-spots with zero test coverage from `tests_covering` (Phase 2
+  blast-radius calls) and fields/methods flagged by `test_coverage_audit`. To build this section,
+  call `test_coverage_audit` once per surveyed module before writing synthesis:
+
+  ```python
+  test_coverage_audit(module='sale_management', odoo_version='17.0')
+  ```
+
+  List uncovered fields and methods that overlap with the Phase-2 hot-spots, marked with urgency:
+  a hot-spot with zero coverage is a risk multiplier for any change in that area.
 - **Open questions** - anything still `UNRESOLVED` (so intake can flag it honestly).
 - **Recommended approach delta** - how the first Proposed Plan should change given what was found.
 
