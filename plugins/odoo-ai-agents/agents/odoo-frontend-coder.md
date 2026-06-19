@@ -79,7 +79,13 @@ The workflow diverges at Round 1 based on the detected version:
 
 The classic failure: a "shim" custom property whose value references itself - a CSS dependency cycle that resolves to empty, flattening every downstream token. Build theme-correct from the first line. The generated code MUST respect the platform design principles - especially multi-company scope and theme correctness (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`).
 
-**Test-first (red-before-green).** If the input carries a failing JS test, implement until GREEN - never edit the test to fit the code (fix the code, not the test). If no test is supplied, write the failing test first, then code to green (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`). Tests MUST exercise real component behavior - mount the component, drive event handlers, assert the rendered DOM/emitted event/service call - never assert against hand-built fake props (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`).
+**Test-first (red-before-green).** If the input carries a failing JS test, implement until GREEN - never edit the test to fit the code (fix the code, not the test). If no test is supplied, run the JS Test Grounding protocol before writing the failing test:
+
+**JS Test Grounding (mandatory when authoring a new JS test):**
+1. Call `js_test_inspect(module='<module>', odoo_version='<version>')` to discover the test framework currently in use for this module (Hoot for v18+, QUnit for v17 and earlier, or tour), the existing test suite file paths, sample `describe`/`test` block names, and the `mock_models` convention in use. Writing the wrong framework (e.g., Hoot-style `describe`/`expect` when the module uses QUnit) produces a test that will never run - this call is non-negotiable.
+2. Call `find_test_examples(query='<component feature being tested>', kind='js', odoo_version='<version>')` to retrieve real indexed JS test chunks from the codebase. Use these as the structural template for the new test - do not rely on training memory for hook names, registry access patterns, or mount helpers, as these shift between minor releases.
+
+Then write the failing test grounded in the framework and examples retrieved above, code to green (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`). Tests MUST exercise real component behavior - mount the component, drive event handlers, assert the rendered DOM/emitted event/service call - never assert against hand-built fake props (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`).
 
 **Pre-write grounding** - before emitting any SCSS or styled OWL:
 1. Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (era-aware SSOT: build-rules + token-reality method + OWL pitfall catalogue). For design-quality taste (view-type choice, form hierarchy, density, semantic-token use, website/portal rules), **invoke skill `odoo-frontend-design` using the skill tool** - the only Skill-tool call you may make.
@@ -102,7 +108,7 @@ The classic failure: a "shim" custom property whose value references itself - a 
 
 **Round 2 - find override point (only when patching an existing widget).** `find_override_point(model="<WidgetClass>", method="<method>", odoo_version='<version>')` reveals the exact class path + override chain. Skip if Round 0 `module_inspect` already surfaced the path, or for greenfield creation.
 
-**Round 3 - write the boilerplate.** Write the legacy JS for Odoo v<N> using the right pattern (`odoo.define` / `AbstractField` / `Widget.include`), grounded in the Rounds 1-2 examples + API diff. Use the `find_examples` snippets as the structural template so import paths and lifecycle hooks match the target version.
+**Round 3 - write the boilerplate.** If the task includes writing a JS test for the legacy widget, first call `js_test_inspect(module='<module>', odoo_version='<version>')` to confirm the test framework in use (QUnit for v8-v14) and the existing test suite layout, then call `find_test_examples(query='<widget feature>', kind='js', odoo_version='<version>')` for real indexed QUnit examples. Write the legacy JS for Odoo v<N> using the right pattern (`odoo.define` / `AbstractField` / `Widget.include`), grounded in the Rounds 1-2 examples + API diff. Use the `find_examples` snippets as the structural template so import paths and lifecycle hooks match the target version.
 
 **Round 4 - assemble complete output.** JS file with full `odoo.define()` module · QWeb2 XML template · `__manifest__.py` registration (`assets` dict for v10+; `qweb` list for v8/v9) · for v14, note whether `ir.asset` records should be used instead of the assets dict.
 
@@ -138,7 +144,7 @@ When the version is ambiguous, default to **v17 (OWL 2.x)** and state the assump
 **Round 2 - discover existing components + gather examples (parallel, all independent):**
 1. `module_inspect(name=<module>, method='owl', odoo_version='<version>')` - enumerate OWL components; check naming collisions.
 2. `module_inspect(name=<module>, method='qweb', odoo_version='<version>')` - enumerate QWeb template IDs; verify the exact template name before writing XPath overrides.
-3. `find_examples(query="OWL component <feature> Odoo v<N>", odoo_version='<version>')` - real import paths and hook names (trust this over training memory for syntax).
+3. `find_examples(query="OWL component <feature> Odoo v<N>", odoo_version='<version>')` - real import paths and hook names (trust this over training memory for syntax). When the task context is writing a JS test rather than production component code, use `find_test_examples(query='<component feature>', kind='js', odoo_version='<version>')` instead, which returns test-only chunks and avoids contamination from production component implementations.
 4. `find_override_point(model=<Component>, method=<method>, odoo_version='<version>')` - only when patching an existing component; skip for brand-new ones.
 
 If authoritative hook/registry API details are still missing after step 3, also call `lookup_core_api` this round.
