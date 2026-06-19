@@ -148,10 +148,37 @@ absent/changed at target FORCES the commit into bucket b/c/d and BANS leaving th
 line unchanged. This catches the autosilent field-break (no conflict marker, runtime crash).
 SSOT: `[[fp-symbol-survival-check]]`.
 
+**P3.5 TEST-survival sub-check [MUST - runs in parallel with production symbol check].**
+After production symbol check, also run test-coverage grounding to detect test code that
+references a field or model symbol removed at the target version (git auto-merge produces no
+conflict marker, so this break is autosilent at test time, not just at runtime). For each model
+or field touched by the commit, call `tests_covering(model='<model>', odoo_version='<target_version>')`
+(also accepts optional `field='<field>'` to narrow). If the tool returns test methods that
+reference a symbol NOT present in the target `model_inspect` output, those test methods
+reference a deleted symbol and MUST be triaged as part of the same bucket assignment - they
+cannot be forwarded verbatim. When a broader audit is needed (e.g. the commit touches an
+entire module), supplement with `test_coverage_audit(module='<module>', odoo_version='<target_version>')`
+to surface fields and methods with zero COVERS edges at target - these signal tests that have
+silently become dead. Record all broken test-symbol references in the per-commit row of
+`merge-log.md` alongside the production symbols. The P4a adapt brief MUST include this list.
+
 **P4 - Adapt [test-first; SERIAL per-module within a commit (v1 default); SERIAL across commits].** For each touched module/WI,
 spawn an adapt unit in its own child worktree off integration (worktree per module for filesystem isolation):
 - **4a forward the test FIRST** via `odoo-test-writing` mode `adapt`: translate to target API,
   strip implementation-coupled assertions, confirm RED on target (the test is the oracle).
+  Before dispatching `odoo-test-writing`, build an FP-ENRICHED brief that carries:
+  (i) **base class grounding** - call `test_base_classes(odoo_version='<target_version>')` to
+  confirm the correct base class at the target (e.g. `SavepointCase` was removed in v16+;
+  `TransactionCase` is the canonical choice from v16 onward; `cr.commit()` is FORBIDDEN in
+  all test cases - isolation is savepoint rollback); include the `test_base_classes` output
+  in the brief so the `odoo-test-writing` agent adapts to target-native idiom without relying
+  on memory;
+  (ii) **test examples at target** - call `find_test_examples(query='<feature_or_model>', odoo_version='<target_version>')`
+  (also accepts optional `model='<model>'` and `kind='python'` or `kind='js'`) to fetch real
+  test chunks from the target Odoo version; attach the top examples to the brief so the agent
+  has a concrete template to adapt to, not a source-side pattern that may no longer be idiomatic;
+  (iii) **broken test-symbol list** from the P3.5 test-survival sub-check - the adapt agent
+  must rewrite or drop every test assertion that references a symbol removed at target.
 - **4b adapt the code** per bucket via `odoo-coder` (backend) / `odoo-frontend-coder` (frontend),
   dispatched with an FP-ENRICHED brief = intent record + bucket + the failing test + the
   installable:False checklist. Bucket (a)/(d): no adapt code. Bucket (b): 3-way merge + adapt.
