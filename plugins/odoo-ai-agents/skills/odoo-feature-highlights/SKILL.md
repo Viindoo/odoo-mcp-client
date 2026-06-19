@@ -44,7 +44,7 @@ Marketer / Product Manager
 - `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
 <!-- END GENERATED TOOLS -->
 
 ## Context

@@ -6,6 +6,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.15.0] - 2026-06-19
+
+### Added
+
+- **OSM test surface in the tool generator** - register the 6 test-writing tools from
+  odoo-semantic-server PR #323 (`find_test_examples`, `tests_covering`,
+  `test_class_inspect`, `test_base_classes`, `test_coverage_audit`, `js_test_inspect`)
+  and the 2 test resources (`odoo://{version}/test/{module}/{class_name}`,
+  `odoo://{version}/testcoverage/{model}`) into `generator/server-surface.json`
+  (`server_version` 0.13.1 -> 0.15.0, 25 -> 31 tools, 7 -> 9 resources).
+- Declare the test tools in `generator/skill_tool_deps.json` for the auto-gen skills
+  `odoo-solution-design`, `odoo-run-forward-port`, `odoo-debug` and
+  `odoo-deprecation-audit`, bumping their `min_server_version` to 0.15.0; regenerate the
+  `## MCP tools` blocks, snippets and orchestration map via `make gen`.
+
+### Changed
+
+- `suggest_pattern` gains an optional `category` parameter and `module_inspect` documents
+  the `method='tests'` discriminator (metadata refresh from PR #323). The
+  `module_inspect` description refresh propagates to every skill block that lists it.
+
 ## [3.14.0] - 2026-06-18
 
 ### Added
