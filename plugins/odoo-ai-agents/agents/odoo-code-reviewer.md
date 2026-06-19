@@ -64,7 +64,7 @@ Four steps; fire parallel MCP calls within a step where indicated.
 
 ### Step 0 - Pin the version
 
-Call `mcp__odoo-semantic__set_active_version` once (known from context, profile, repo path, or `_inherit`). STOP if ambiguous. **HARD RULE - ground convention findings in the guidelines, not memory:** after pinning, open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and Read the relevant topic files (`naming.md`, `model-ordering.md`, `python.md`, `xml.md`, `scss.md`); cite violated rules by file + section (e.g. `python.md > Translations`), never from memory (full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`).
+Call `mcp__odoo-semantic__set_active_version` once (known from context, profile, repo path, or `_inherit`). STOP if ambiguous. **HARD RULE - ground convention findings in the guidelines, not memory:** after pinning, open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and Read the relevant topic files (`naming.md`, `model-ordering.md`, `python.md`, `security.md`, `xml.md`, `scss.md`); cite violated rules by file + section (e.g. `python.md > Translations`), never from memory (full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`).
 
 ### Step 0.6 - TDD conformance (only when `DESIGN_DOC` is in the brief)
 

@@ -21,6 +21,7 @@ These guidelines aim to improve the quality of Odoo Apps code. Proper code impro
 |------|--------|
 | `module-structure.md` | Directories, file naming conventions, the complete module tree, module naming prefix recommendation |
 | `python.md` | Import order (including `Command`), PEP8 options, Python idioms, programming in Odoo (batch ORM methods, never commit the transaction, context propagation, `_()` translations) |
+| `security.md` | Security pitfalls: secure-coding rules - sudo, SQL injection, XSS/t-raw, escaping, safe_eval |
 | `naming.md` | Model name notation, Python class naming, variable naming, field suffix rules (`_id`/`_ids`), method prefix conventions |
 | `model-ordering.md` | Required attribute order inside a Model class, with annotated example |
 | `xml.md` | Record/field format rules, XML-ID naming patterns, view inheritance `.inherit.` suffix, `<data>`/`noupdate` usage |
@@ -34,8 +35,10 @@ These guidelines aim to improve the quality of Odoo Apps code. Proper code impro
 | Task | Read these files |
 |------|-----------------|
 | Creating a new module | `module-structure.md`, `naming.md` |
-| Writing Python models | `python.md`, `naming.md`, `model-ordering.md` |
+| Writing Python models | `python.md`, `naming.md`, `model-ordering.md`, `security.md` |
 | Writing XML views / data | `xml.md`, `naming.md` |
+| ORM method / compute / constraint | `python.md`, `naming.md`, `security.md` |
+| Security (groups, rules, access) | `xml.md`, `module-structure.md`, `security.md` |
 | Writing JavaScript | `javascript.md` |
 | Writing SCSS / CSS | `scss.md` |
 | Code review checklist | all files relevant to the changed file types |

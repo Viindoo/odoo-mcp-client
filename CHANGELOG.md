@@ -6,6 +6,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.14.1] - 2026-06-19
+
+### Added
+
+- **Security Pitfalls coding-guideline doc** (`skills/_shared/coding_guidelines/<ver>/security.md`)
+  for every supported series 14.0-19.0 - the secure-coding companion to `python.md`, extracted
+  from the official Odoo `security.rst#security-pitfalls` (v14 from `reference/addons/`, v15-19
+  from `reference/backend/`). Covers Unsafe Public Methods, Bypassing the ORM / SQL injection,
+  domain injection (`Domain`, v19), Unescaped field content / `t-raw` XSS, `markupsafe.Markup`
+  (v17+), Escaping vs Sanitizing, Evaluating content / `safe_eval`, and Accessing object
+  attributes / `getattr`. Each file is self-contained per the per-version convention.
+
+### Changed
+
+- The six per-version `python.md` warnings that pointed at a non-existent "Security Pitfalls
+  (reference/security/pitfalls)" section now resolve to the local `security.md` in the same
+  directory - closing a 6-way dangling reference.
+- `security.md` is wired into the mandatory read-before-write set: the Round-1 topic-file
+  enumeration of `odoo-coder`, `odoo-frontend-coder`, `odoo-code-reviewer`, and
+  `odoo-solution-architect`, the backend list in `snippets/read-before-write-contract.md`, and
+  the "Table of contents" + "By task" rows of every `coding_guidelines/<ver>/INDEX.md`.
+
+### Fixed
+
+- Replaced the dangling `scripts/verify-guidelines.sh` reference (a script that never existed)
+  in `coding_guidelines/INDEX.md` and `snippets/read-before-write-contract.md` with the real
+  pre-push gates `scripts/verify-backend.sh` and `scripts/verify-frontend.sh`.
+- Corrected upstream bugs in the v19 "Bypassing the ORM" code example (`x[x]` -> `x[0]`, added
+  the missing closing bracket) carried into `19.0/security.md`, annotated inline.
+
+### Tests
+
+- `tests/test_execute_agent_hardening.py` gains a "B4" section asserting each `security.md`
+  exists with a `# Security Pitfalls` heading, each `python.md` warning resolves locally (no
+  `reference/security/pitfalls`), the four code agents + the contract snippet name `security.md`,
+  the new docs are ASCII-hyphen-only, and `verify-guidelines.sh` is gone.
+
 ## [3.14.0] - 2026-06-18
 
 ### Added

@@ -15,16 +15,19 @@ These guidelines apply to every new module and to all new development. Two warni
 
 1. [module-structure.md](module-structure.md) - Module structure: directories, file naming, and the complete module tree.
 2. [python.md](python.md) - Python: PEP8 options, imports, idiomatics of programming, and programming in Odoo (context, extendable code, never commit, exceptions, translations).
-3. [naming.md](naming.md) - Symbols and Conventions: model name, Python class, variable name, field suffixes, and method prefixes.
-4. [model-ordering.md](model-ordering.md) - Order of attributes in a Model, with a full example class.
-5. [xml.md](xml.md) - XML files: record format, XML IDs and naming, inheriting XML.
-6. [javascript.md](javascript.md) - Javascript: static files organization and coding guidelines.
-7. [scss.md](scss.md) - CSS and SCSS: syntax and formatting, properties order, naming conventions, variables.
+3. [security.md](security.md) - Security pitfalls: secure-coding rules - sudo, SQL injection, XSS/t-raw, escaping, safe_eval.
+4. [naming.md](naming.md) - Symbols and Conventions: model name, Python class, variable name, field suffixes, and method prefixes.
+5. [model-ordering.md](model-ordering.md) - Order of attributes in a Model, with a full example class.
+6. [xml.md](xml.md) - XML files: record format, XML IDs and naming, inheriting XML.
+7. [javascript.md](javascript.md) - Javascript: static files organization and coding guidelines.
+8. [scss.md](scss.md) - CSS and SCSS: syntax and formatting, properties order, naming conventions, variables.
 
 ## By task
 
 - Setting up a new module's directory layout -> [module-structure.md](module-structure.md)
-- Writing or reviewing Python models -> [python.md](python.md), [naming.md](naming.md), [model-ordering.md](model-ordering.md)
+- Writing or reviewing Python models -> [python.md](python.md), [naming.md](naming.md), [model-ordering.md](model-ordering.md), [security.md](security.md)
+- ORM method / compute / constraint -> [python.md](python.md), [naming.md](naming.md), [security.md](security.md)
+- Security (groups, rules, access) -> [xml.md](xml.md), [module-structure.md](module-structure.md), [security.md](security.md)
 - Propagating context, managing transactions, handling exceptions -> [python.md](python.md)
 - Translating static strings in code -> [python.md](python.md)
 - Declaring records, views, actions, menus, security -> [xml.md](xml.md)

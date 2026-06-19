@@ -2,7 +2,7 @@
 
 # Python
 
-> Warning: Do not forget to read the Security Pitfalls section (reference/security/pitfalls) as well to write secure code.
+> Warning: Do not forget to read the Security Pitfalls section (security.md) as well to write secure code.
 
 ## PEP8 options
 
