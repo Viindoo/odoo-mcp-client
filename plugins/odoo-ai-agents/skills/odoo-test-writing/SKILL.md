@@ -47,19 +47,27 @@ Call `set_active_version('<version>')`. Resolve from `.odoo-ai/context.md` first
 
 ### Round 1 - framework selection (OSM-grounded)
 
-- **Python (all versions):** `TransactionCase` (rolls back after each test); `Form` helper (v13+) for UI-level interactions. Tag with `@tagged('post_install', '-at_install')` or `@tagged('at_install')`. Call `lookup_core_api(name='TransactionCase', odoo_version='<version>')` and `find_examples(query='TransactionCase test setUp', odoo_version='<version>')` for real import path and setUp signature.
-- **JS v16 and earlier:** QUnit / `odoo.define` style. Call `find_examples(query='QUnit test odoo.define', odoo_version='<version>')`.
-- **JS v17+:** Hoot (`import { describe, test, expect } from "@odoo/hoot"`). Call `find_examples(query='Hoot describe test expect', odoo_version='<version>')` and `lookup_core_api(name='hoot', odoo_version='<version>')`.
+- **Python (all versions):** `TransactionCase` (rolls back after each test); `Form` helper (v13+) for UI-level interactions. Tag with `@tagged('post_install', '-at_install')` or `@tagged('at_install')`. Call `test_base_classes(odoo_version='<version>')` FIRST - this tool always surfaces the full base class menu (TransactionCase, SavepointCase, HttpCase, Form, SingleTransactionCase) with their PP3 contract: **`cr.commit()` FORBIDDEN - isolation is savepoint rollback**. Then call `lookup_core_api(name='TransactionCase', odoo_version='<version>')` for real import path and setUp signature if additional detail is needed.
+- **JS v16 and earlier:** QUnit / `odoo.define` style. Call `js_test_inspect(module='<module>', odoo_version='<version>')` to discover the exact framework mix, existing suite paths, describe blocks, and mock_models convention already in use. Then call `find_test_examples(query='QUnit test odoo.define', odoo_version='auto')` for concrete test-only examples.
+- **JS v17+:** Hoot (`import { describe, test, expect } from "@odoo/hoot"`). Call `js_test_inspect(module='<module>', odoo_version='<version>')` first to confirm module uses Hoot (not QUnit) and to get sample describe/test structure and mock_models convention. Then call `find_test_examples(query='Hoot describe test expect', odoo_version='auto')` and `lookup_core_api(name='hoot', odoo_version='<version>')` for additional grounding.
 
-Never assume same JS import paths between major versions - always call OSM.
+Never assume same JS import paths between major versions - always call OSM. Never assume JS framework without calling `js_test_inspect` first: QUnit (v16-) and Hoot (v17+/v18+) differ completely in import syntax, describe/test API, and mock_models patterns.
 
 ### Round 2 - model / field grounding
 
 For each model call `model_inspect(model='<model>', odoo_version='<version>')` to get real field names and types (do not guess from description), relational paths for `@api.depends`/`Form` interactions, existing method signatures. Call `validate_relation` or `resolve_orm_chain` for relational chains (`partner_id.country_id.code`) to confirm each hop.
 
+When the test needs to extend an existing test helper (e.g. `AccountTestInvoicingCommon`, `MailCommon`, a module's own `Common` class), call `test_class_inspect(name='<HelperClass>', odoo_version='<version>')` to get the full base chain, `setUpClass` fixtures already available, and which other test files subclass it. Use the inherited fixtures directly - do not copy-paste setUp code that the helper already provides.
+
+### Round 2.5 - coverage baseline (anti-reinvention)
+
+Before writing any test, establish what is already covered. Call `tests_covering(model='<model>', odoo_version='<version>')` to list every existing test method that exercises this model. Scope the new tests to fields, methods, or constraints NOT already in that list. Writing a test that duplicates existing coverage is treated as a defect in this skill - the gap is the deliverable, not a re-implementation of what is already guarded.
+
+For a broader audit (whole module, not just a single model), call `test_coverage_audit(module='<module>', odoo_version='<version>')` to identify which models have zero coverage and which have partial coverage.
+
 ### Round 3 - find existing test patterns
 
-Call `find_examples(query='test <model or feature> TransactionCase', odoo_version='<version>')` (or `Hoot`/`QUnit` for JS) to find real patterns already in the codebase. Prefer those over hand-written boilerplate.
+Call `find_test_examples(query='test <model or feature> TransactionCase', odoo_version='auto')` (or `Hoot`/`QUnit` for JS: `find_test_examples(query='Hoot describe test expect', kind='js', odoo_version='auto')`) to find real test-only patterns already in the codebase. Use `find_test_examples` instead of `find_examples` here - `find_test_examples` returns only test chunks (100% test code), while `find_examples` mixes in production code that can contaminate the pattern. Then cross-reference with `tests_covering(model='<model>', odoo_version='<version>')` to confirm which patterns map to real coverage edges for the target model. Prefer these grounded patterns over hand-written boilerplate.
 
 ### Round 4 - write tests
 
@@ -110,7 +118,7 @@ copy the text. Full protocol: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/re
 3. **Translate API** to `tgt_version` - framework imports, Form helper path, `@tagged`
    convention, renamed fields (from `api_version_diff`), changed method signatures
    (from `model_inspect`). OSM grounding is mandatory - same as Rounds 1-2 above but
-   targeting `tgt_version`.
+   targeting `tgt_version`. Specifically: call `test_base_classes(odoo_version='<tgt_version>')` to confirm the correct base class for the target (e.g. `SavepointCase` removed v16+, use `TransactionCase`) and to reaffirm the `cr.commit()` FORBIDDEN contract. Call `tests_covering(model='<model>', odoo_version='<tgt_version>')` to check whether an equivalent test already exists on the target - if it does, record as outcome (a) "already covered on target" and skip forward-port of that method (see [[fp-merge-absorption]]).
 
 4. **Confirm RED on target** - the translated test must fail on the target before the
    production code is adapted. State the failing assertion as evidence. If the test passes
