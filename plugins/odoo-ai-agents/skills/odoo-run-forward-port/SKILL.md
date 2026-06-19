@@ -148,10 +148,46 @@ absent/changed at target FORCES the commit into bucket b/c/d and BANS leaving th
 line unchanged. This catches the autosilent field-break (no conflict marker, runtime crash).
 SSOT: `[[fp-symbol-survival-check]]`.
 
+**P3.5 TEST-survival sub-check [MUST - runs in parallel with production symbol check].**
+After production symbol check, also run test-coverage grounding to detect test code that
+references a field or model symbol removed at the target version (git auto-merge produces no
+conflict marker, so this break is autosilent at test time, not just at runtime). For each model
+or field touched by the commit, call `tests_covering(model='<model>', odoo_version='<target_version>')`
+(also accepts optional `field='<field>'` to narrow). If the tool returns test methods that
+reference a symbol NOT present in the target `model_inspect` output, those test methods
+reference a deleted symbol and MUST be triaged as part of the same bucket assignment - they
+cannot be forwarded verbatim. When a broader audit is needed (e.g. the commit touches an
+entire module), supplement with `test_coverage_audit(module='<module>', odoo_version='<target_version>')`
+to surface fields with zero COVERS edges at target (field-level only; method gaps are NOT
+reported by this tool - for per-method coverage use `tests_covering(model='<model>', method='<method>',
+odoo_version='<version>')`, which is sparse and may return 0 edges even for tested methods).
+After `tests_covering` returns a list of test methods referencing field X at source, CONFIRM X
+is absent at target before concluding those tests are broken candidates: call
+`model_inspect(model='<model>', method='fields', odoo_version='<target_version>')` - only if X
+is absent in that output are the test methods broken; `tests_covering` does not itself compare
+cross-version. Record all broken test-symbol references in the per-commit row of
+`merge-log.md` alongside the production symbols. The P4a adapt brief MUST include this list.
+
 **P4 - Adapt [test-first; SERIAL per-module within a commit (v1 default); SERIAL across commits].** For each touched module/WI,
 spawn an adapt unit in its own child worktree off integration (worktree per module for filesystem isolation):
 - **4a forward the test FIRST** via `odoo-test-writing` mode `adapt`: translate to target API,
   strip implementation-coupled assertions, confirm RED on target (the test is the oracle).
+  Before dispatching `odoo-test-writing`, build an FP-ENRICHED brief that carries:
+  (i) **base class grounding** - call `test_base_classes(odoo_version='<target_version>')` to
+  confirm the correct base class at the target (e.g. `SavepointCase` is a deprecated alias
+  from v8-v15, still present and runnable in v16+ but should be adapted to `TransactionCase`
+  idiom - not a BREAKING removal; `cr.commit()` is FORBIDDEN in all test cases - isolation
+  is savepoint rollback); include the `test_base_classes` output
+  in the brief so the `odoo-test-writing` agent adapts to target-native idiom without relying
+  on memory;
+  (ii) **test examples at target** - call `find_test_examples(query='<feature_or_model>', odoo_version='<target_version>')`
+  (also accepts optional `model='<model>'`; for kind use `'transaction'`|`'http'`|`'form'`
+  matching the case type, or omit kind to get all Python test types; use `kind='js'` only for
+  JS tests - `kind='python'` is NOT a valid value) to fetch real test chunks from the target
+  Odoo version; attach the top examples to the brief so the agent
+  has a concrete template to adapt to, not a source-side pattern that may no longer be idiomatic;
+  (iii) **broken test-symbol list** from the P3.5 test-survival sub-check - the adapt agent
+  must rewrite or drop every test assertion that references a symbol removed at target.
 - **4b adapt the code** per bucket via `odoo-coder` (backend) / `odoo-frontend-coder` (frontend),
   dispatched with an FP-ENRICHED brief = intent record + bucket + the failing test + the
   installable:False checklist. Bucket (a)/(d): no adapt code. Bucket (b): 3-way merge + adapt.
@@ -251,9 +287,13 @@ Forward-port adds platform-drift classes a pure-Python port misses - flag and ro
 **Primary tools:**
 - `api_version_diff` - Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
 - `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
 - `entity_lookup` ★ - Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
 - `find_override_point` - Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
+- `find_test_examples` - Semantic search for Odoo test code examples (test_method, test_class, js_test chunks only - never returns production code).
+- `test_base_classes` - Menu of official Odoo test framework base classes (TransactionCase, HttpCase, SavepointCase, Form, etc.) for the given version, with test_type and cursor contract.
+- `test_coverage_audit` - Audit an entire module for test coverage gaps: lists fields/methods with zero COVERS_* edges (never referenced by any test).
+- `tests_covering` - List test methods that have COVERS_MODEL/COVERS_FIELD/COVERS_METHOD edges to the target model or field (static reference coverage, not runtime executed coverage).
 <!-- END GENERATED TOOLS -->
 
 ## Standalone-first fallback

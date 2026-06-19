@@ -47,7 +47,7 @@ recording (which menus, which records, what to type) so the take is smooth and r
 - `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
 <!-- END GENERATED TOOLS -->
 
 OSM use is light here - only to plan the click path: `module_inspect(name=<module>, method='views', odoo_version='<version>')` tells you which views/menus exist; `model_inspect(model=<model>, method='summary', odoo_version='<version>')` confirms fields/records the demo will touch; `check_module_exists` confirms the demo module is installed; `find_examples` surfaces the canonical flow for the feature.

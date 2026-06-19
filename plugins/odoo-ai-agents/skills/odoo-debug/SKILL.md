@@ -52,7 +52,9 @@ mandatory Output Contract). Odoo symptom catalog:
 - `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `entity_lookup` ★ - Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
 - `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
-- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
+- `test_base_classes` - Menu of official Odoo test framework base classes (TransactionCase, HttpCase, SavepointCase, Form, etc.) for the given version, with test_type and cursor contract.
+- `tests_covering` - List test methods that have COVERS_MODEL/COVERS_FIELD/COVERS_METHOD edges to the target model or field (static reference coverage, not runtime executed coverage).
 <!-- END GENERATED TOOLS -->
 
 The orchestrator stays light on tools - it pins the version and does a quick classification, then
@@ -162,6 +164,14 @@ causes survive - a self-graded diagnosis is weak.
 
 Compile the final **Output Contract** block from `debug-method.md`: single proven root cause,
 exact fix location, red→green regression test.
+
+**Before invoking `odoo-coding`, ground the regression test brief with two OSM calls:**
+
+1. Call `tests_covering(model='<affected_model>', odoo_version='<version>')` to discover existing tests that already cover the broken model/field/method. If tests exist, pass them to `odoo-coding` as `EXISTING_TESTS:` so the coder extends or reuses rather than reinventing. If the result is empty, note "zero existing test edges - new regression test required" in the brief.
+
+2. Call `test_base_classes(odoo_version='<version>')` to obtain the authoritative base class menu and cursor contract for that version. Pass the relevant base class entry to `odoo-coding` as `TEST_BASE_CLASS:`. This enforces the hard rule: **`cr.commit()` is FORBIDDEN inside TransactionCase - isolation is savepoint rollback.** The brief must name the correct base class so the coder does not guess.
+
+Include both results in the `odoo-coding` brief alongside the proven root cause and fix location.
 
 **Then drive the fix autonomously (mandatory).** You are at depth-0 with the Skill tool available
 - MUST use it; do not stop at a `SUGGESTED_NEXT` line that nothing advances. When the root cause

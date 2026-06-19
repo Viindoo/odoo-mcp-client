@@ -64,9 +64,11 @@ CAPTURE-CODE.
 
 OSM-ground every API reference for `tgt_version`:
 
-- **Framework imports:** call `lookup_core_api(name='TransactionCase', odoo_version='<tgt>')` -
-  import paths change between major versions. Call `find_examples(query='TransactionCase setUp',
-  odoo_version='<tgt>')` for real setUp signature.
+- **Framework imports / base class:** call `test_base_classes(odoo_version='<tgt>', name='TransactionCase')`
+  for the base-class menu, cursor contract and setUp behavior at the target version (do NOT use
+  `lookup_core_api` for test base classes - it indexes core ORM/API symbols only and returns
+  not-found). The standard import is `from odoo.tests import TransactionCase`; use
+  `find_test_examples(query='TransactionCase setUp', odoo_version='<tgt>')` for a real setUp pattern.
 - **Form helper:** available v13+; `from odoo.tests.common import Form` - verify path via OSM.
 - **`@tagged` decorator:** call `find_examples(query='@tagged post_install at_install',
   odoo_version='<tgt>')` for current convention.

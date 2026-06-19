@@ -45,8 +45,10 @@ Developer / Tech Lead
 - `api_version_diff` - Structured diff of an API symbol or scope across two Odoo versions: new, changed, removed, deprecated items.
 - `entity_lookup` ★ - Single-entity drill-down by ID: field, method, or view with full inheritance chain and source module.
 - `find_deprecated_usage` - Scan the indexed codebase for usages of deprecated API patterns.
+- `js_test_inspect` - List JsTestSuite nodes in a module: framework mix (hoot/qunit/tour), file paths, suite sizes, describe/test sample, mounts, tags.
 - `lookup_core_api` - Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
-- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, or module dependency chain in one call.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
+- `test_base_classes` - Menu of official Odoo test framework base classes (TransactionCase, HttpCase, SavepointCase, Form, etc.) for the given version, with test_type and cursor contract.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -65,13 +67,51 @@ Use parallel MCP calls - full audit completes in 3 rounds.
 
 **Round 0 - Pin the source version + customer profile:** `set_active_version(odoo_version=<source_version>)`, then `set_active_profile(profile_name=<viindoo_profile from .odoo-ai/context.md>)`. `find_deprecated_usage` honours the session profile, so pinning scopes the scan to the customer's own modules instead of the default Odoo CE scope - otherwise the report is polluted with standard-Odoo deprecations irrelevant to this codebase.
 
-**Round 1 - Parallel:** Call `find_deprecated_usage` + `api_version_diff` simultaneously. These are completely independent: one scans the codebase, the other fetches the version spec. No dependency between them.
+**Round 1 - Parallel:** Call `find_deprecated_usage` + `api_version_diff` simultaneously. These
+are completely independent: one scans the codebase, the other fetches the version spec. No
+dependency between them.
+
+When the target version is v16 or later, also call `test_base_classes` in the same parallel batch
+to get the authoritative base-class mapping for the target version:
+
+```python
+test_base_classes(odoo_version='17.0')   # replace with actual target version
+```
+
+Use the result to audit test files for legacy base classes. Specifically flag:
+- `SavepointCase` used in test files (deprecated alias from v16+, still runs; migrate for
+  cleanliness to `TransactionCase` idiom) - WARN
+- `cr.commit()` inside `TransactionCase` or `SavepointCase` test bodies - always BREAKING
+  (isolation is savepoint rollback; `cr.commit()` is forbidden in the test transaction)
+- `SingleTransactionCase` if the target version changed its semantics - WARN
+
+These are deprecated TEST API patterns that `find_deprecated_usage` does not cover directly.
+Add them to the output table under a "Test API" group.
 
 **Round 2 - Parallel:** Merge symbol lists from Round 1. Call `lookup_core_api` for ALL deprecated/removed symbols in one batch. Every call is independent - fire them all together.
 
 **Round 3 - Parallel:** Call `entity_lookup(kind='method', …)` for ALL changed-signature methods simultaneously. Independent of each other and of Round 2.
 
-**Round 3b - JS patch audit (when migrating from v8-v13):** Call `module_inspect(name=<scope>, method='js', odoo_version='<version>')` to enumerate all legacy `web.Widget`-based patches. Era1 (v8-v13) patches require manual OWL rewrites because the Widget API was removed in v16. Flag each patch as BREAKING if target version is v14+ and the patch still references `AbstractField`, `FieldWidget`, or `web.Widget`. Fire in parallel with Round 3 if both apply.
+**Round 3b - JS patch audit (when migrating from v8-v13 or from v17 to v18+):** Call
+`module_inspect(name=<scope>, method='js', odoo_version='<version>')` to enumerate all legacy
+`web.Widget`-based patches. Era1 (v8-v13) patches require manual OWL rewrites because the Widget
+API was removed in v16. Flag each patch as BREAKING if target version is v14+ and the patch still
+references `AbstractField`, `FieldWidget`, or `web.Widget`. Fire in parallel with Round 3 if both
+apply.
+
+When the target version is v18 or later, also audit JS test files for framework migration. Call
+`js_test_inspect` for each module that has JS tests:
+
+```python
+js_test_inspect(module='account', odoo_version='18.0')   # replace with actual module + target version
+```
+
+`js_test_inspect` returns the framework mix (hoot / qunit / tour), file paths, and sample
+describe/test blocks. Flag any module still running QUnit suites when the target version ships
+Hoot as the default framework (v18+) - these require migration to Hoot's `describe/test/expect`
+API and `mock_models` convention. Severity: WARN (the tests still execute under a compatibility
+shim in early v18 but will break when the shim is removed). Group findings under "JS Test
+Framework" in the output table.
 
 Capture file, line, symbol name, and deprecation message from Round 1; merge with Round 2 replacement info before building the output table. Group findings by file so developers can batch-fix one file at a time. Include the exact replacement API with a one-line migration note.
 
