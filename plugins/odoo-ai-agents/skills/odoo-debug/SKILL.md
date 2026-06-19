@@ -165,6 +165,14 @@ causes survive - a self-graded diagnosis is weak.
 Compile the final **Output Contract** block from `debug-method.md`: single proven root cause,
 exact fix location, red→green regression test.
 
+**Before invoking `odoo-coding`, ground the regression test brief with two OSM calls:**
+
+1. Call `tests_covering(model='<affected_model>', odoo_version='<version>')` to discover existing tests that already cover the broken model/field/method. If tests exist, pass them to `odoo-coding` as `EXISTING_TESTS:` so the coder extends or reuses rather than reinventing. If the result is empty, note "zero existing test edges - new regression test required" in the brief.
+
+2. Call `test_base_classes(odoo_version='<version>')` to obtain the authoritative base class menu and cursor contract for that version. Pass the relevant base class entry to `odoo-coding` as `TEST_BASE_CLASS:`. This enforces the hard rule: **`cr.commit()` is FORBIDDEN inside TransactionCase - isolation is savepoint rollback.** The brief must name the correct base class so the coder does not guess.
+
+Include both results in the `odoo-coding` brief alongside the proven root cause and fix location.
+
 **Then drive the fix autonomously (mandatory).** You are at depth-0 with the Skill tool available
 - MUST use it; do not stop at a `SUGGESTED_NEXT` line that nothing advances. When the root cause
 needs a code change, **IMMEDIATELY invoke `odoo-coding` via the Skill tool**, passing the proven

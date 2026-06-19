@@ -34,6 +34,8 @@ Main agent invokes the `odoo-code-reviewer` **agent** (via Agent tool) when Odoo
 
 Read any existing worklog (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` - the coding phase records what was intentional vs. accidental. If the worklog or run inputs name a design doc (`.odoo-ai/designs/...`, written by `odoo-solution-architect`), pass it to each reviewer as `DESIGN_DOC:` so the review verifies code against the design's intent + acceptance criteria.
 
+**Coverage baseline (optional, first-review of a module or when test coverage is in doubt):** Before dispatching reviewers, call `test_coverage_audit(module='<module>', odoo_version='<version>')` to get a coverage picture for each changed module. Attach the result as `COVERAGE_BASELINE:` in each reviewer brief - this gives reviewers an authoritative starting point instead of requiring them to guess from file names.
+
 Determine **changed + newly-added** modules (dir containing `__manifest__.py`):
 - **From git:** `git diff --name-only` + `git diff --name-only --diff-filter=A`; map each path to its owning `__manifest__.py` dir and dedupe.
 - **From a pasted block / single `file_path`:** that is one module.
@@ -49,6 +51,8 @@ Dispatch ONE `odoo-code-reviewer` agent (sonnet). It writes its report to `.odoo
 ### Phase A - Per-module fan-out (parallel sonnet, ≤3 concurrent)
 
 One `odoo-code-reviewer` agent per changed/added module, scoped to ONLY that module. Cap at **3 concurrent** (Mode A - see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`); for >3 modules batch in **waves of <=3** like `wave` / `workflow-chaining` / `odoo-debug`. Each agent writes `<module>.md` to `.odoo-ai/reviews/<slug>-<date>/` and returns a short summary + path.
+
+**Before flagging pitfall #10 (behavior change with no protecting test) as a HIGH finding**, verify with evidence rather than heuristic: call `tests_covering(model='<affected_model>', odoo_version='<version>')` on the model(s) touched by the behavior change. If the result shows zero edges for the changed behavior, the HIGH finding stands and should note "zero test edges confirmed via `tests_covering`". If tests exist but do not cover the changed path, the finding stays HIGH with the note "tests exist for model but do not cover this behavior". A finding without this check is heuristic and should be downgraded to MED. Pass the `tests_covering` result to each reviewer agent as `COVERAGE_CHECK:` so the agent has the evidence without re-querying.
 
 ### Phase B - Integration synthesis (one agent, OPUS)
 
