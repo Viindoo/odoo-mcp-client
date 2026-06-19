@@ -6,6 +6,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.16.0] - 2026-06-19
+
+### Changed
+
+- **Ground the test surface across the code/test skills and agents** - wire the OSM PR #323
+  test tools into the existing grounding points so agents stop reinventing tests, picking
+  the wrong base class, or emitting `cr.commit()` inside `TransactionCase`:
+  - `odoo-test-writing`, `odoo-coding`, `odoo-qa-suite` - base-class selection via
+    `test_base_classes` (carries the `cr.commit()` FORBIDDEN contract), coverage baseline
+    via `tests_covering`/`test_coverage_audit`, test-only search via `find_test_examples`,
+    helper inspection via `test_class_inspect`.
+  - `odoo-coder`, `odoo-frontend-coder` - coverage pre-check before dispatching the
+    test-author; a JS Test Grounding mini-protocol (`js_test_inspect` framework detection
+    plus `find_test_examples` with `kind='js'`).
+  - `odoo-code-review`, `odoo-debug`, `odoo-code-reviewer`, `odoo-backend-debugger` -
+    evidence-ground the "missing test" finding and the regression-test spec instead of
+    guessing; flag `cr.commit()` inside test code.
+  - `odoo-solution-design`, `odoo-solution-architect` - §7 test strategy grounded in OSM.
+  - `odoo-run-forward-port` - P3.5 test-survival check so a test referencing a symbol
+    deleted on the target version is caught instead of silently auto-merged.
+  - `wave` injects test grounding into each WI brief; `odoo-deep-survey` maps test
+    blast-radius; `odoo-intent-extractor` grounds test-class base chains;
+    `odoo-deprecation-audit` detects deprecated test APIs (`SavepointCase`, QUnit -> Hoot).
+- `suggest_pattern(category='test')` is intentionally NOT wired: the server returns empty
+  (test patterns not yet seeded) - tracked as a follow-up issue against odoo-semantic-server.
+
 ## [3.15.0] - 2026-06-19
 
 ### Added
