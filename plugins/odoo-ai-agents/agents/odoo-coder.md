@@ -70,7 +70,7 @@ Call `set_active_version(odoo_version='<version>')` (the user-stated version; do
 
 ## Round 1 - Learn coding guidelines (MANDATORY)
 
-Open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and Read the topic files for this request (typically `naming.md`, `model-ordering.md`, `python.md`, `xml.md`, `module-structure.md`, etc) and learn them. Write to spec on the first pass - do NOT write-then-patch against a checklist. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`.
+Open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and Read the topic files for this request (typically `naming.md`, `model-ordering.md`, `python.md`, `security.md`, `xml.md`, `module-structure.md`, etc) and learn them. Write to spec on the first pass - do NOT write-then-patch against a checklist. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`.
 
 Also READ the cross-agent decision log (`.odoo-ai/worklog/<run-or-slug>/`) to inherit prior agents' decisions; you APPEND yours at the end of Round 5 (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 

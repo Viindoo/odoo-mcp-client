@@ -27,6 +27,8 @@ or borrowed from other versions.
   complete module tree example.
 - **python.md** - Import ordering, Python idioms, ORM best practices (never commit, context
   propagation, think extendable). Includes the `_()` translation method with full examples.
+- **security.md** - Security pitfalls: secure-coding rules - sudo, SQL injection, XSS/t-raw,
+  escaping, safe_eval.
 - **naming.md** - Model `_name` conventions, Python class naming, variable naming, field suffix
   rules (`_id`/`_ids`), method prefix conventions.
 - **model-ordering.md** - Required attribute order within a Model class, with annotated example.
@@ -42,8 +44,10 @@ or borrowed from other versions.
 | Task | File(s) to read |
 |---|---|
 | Creating a new module | module-structure.md |
-| Adding Python model code | python.md, naming.md, model-ordering.md |
+| Adding Python model code | python.md, naming.md, model-ordering.md, security.md |
 | Writing XML views or data | xml.md |
+| ORM method / compute / constraint | python.md, naming.md, security.md |
+| Security (groups, rules, access) | xml.md, module-structure.md, security.md |
 | Adding translations / `_()` calls | python.md (translation section) |
 | Adding JS components | javascript.md, module-structure.md |
 | Writing SCSS / CSS styles | scss.md |

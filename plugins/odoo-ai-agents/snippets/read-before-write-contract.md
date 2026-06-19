@@ -25,14 +25,17 @@ rule the guidelines themselves impose.
    - **Backend (Python / XML / ORM):** `python.md` (imports, ORM idioms, `_()` translation form),
      `naming.md` (model `_name`, class, field `_id`/`_ids`, method prefixes), `model-ordering.md`
      (attribute order inside a Model class); `xml.md` for views/data; `module-structure.md` for a
-     new module.
+     new module; `security.md` (secure-coding pitfalls: sudo, SQL injection, XSS, safe_eval).
    - **Frontend (JS / OWL / QWeb / SCSS):** `javascript.md` (JS/OWL conventions) and `scss.md`
      (SCSS/CSS properties order, `$o-[root]-[element]-[property]` naming, `:root` rules). If the
      change also touches Python controllers or view XML, the backend files above stay in force.
 4. **Conform on the first pass - do not write-then-patch.** Naming prefixes, model attribute order,
    import order, ORM idioms, and `_()` form are decided BEFORE you type the code, not corrected
-   afterward. A mechanical subset is enforced by `scripts/verify-guidelines.sh`, but that is a
-   safety net; the semantic rules (ordering, naming intent, structure) are on you, up front.
+   afterward. Two pre-push static gates act as safety nets: `scripts/verify-backend.sh` (runs
+   `pylint-odoo` over changed Python files, catching sql-injection, translation rules, and
+   class-merging issues) and `scripts/verify-frontend.sh` (OWL/JS pitfall checks over changed
+   JS/XML/SCSS files). These gates catch a mechanical subset; the semantic rules (ordering, naming
+   intent, structure, security) are on you, up front.
 
 Each `<version>/` directory is the COMPLETE rule set for that series - read the one matching the
 pinned version, never assume another version's conventions carry over.

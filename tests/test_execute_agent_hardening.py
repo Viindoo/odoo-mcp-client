@@ -280,3 +280,105 @@ def test_qa_suite_steps_name_action_methods():
     body = _read(SKILLS / "odoo-qa-suite" / "SKILL.md")
     assert TEST_BEHAVIOR_SNIPPET in body
     assert "action_" in body, "qa-suite must name action_* methods in its Steps guidance"
+
+
+# ---------------------------------------------------------------------------
+# B4 - security.md pitfalls doc: existence, wiring, and hygiene
+# ---------------------------------------------------------------------------
+
+VERSIONS = ["14.0", "15.0", "16.0", "17.0", "18.0", "19.0"]
+
+CODING_GUIDELINES = SHARED / "coding_guidelines"
+
+SECURITY_AGENTS = [
+    "odoo-coder",
+    "odoo-frontend-coder",
+    "odoo-code-reviewer",
+    "odoo-solution-architect",
+]
+
+
+@pytest.mark.parametrize("ver", VERSIONS)
+def test_security_pitfalls_doc_exists(ver):
+    """Each version directory ships a security.md containing the canonical heading.
+    Red-before-green: deleting a security.md fails exactly its parametrized case."""
+    sec = CODING_GUIDELINES / ver / "security.md"
+    assert sec.is_file(), f"missing {sec}"
+    assert "# Security Pitfalls" in _read(sec), (
+        f"{sec}: must contain '# Security Pitfalls' heading"
+    )
+
+
+@pytest.mark.parametrize("ver", VERSIONS)
+def test_python_guideline_warning_resolves_to_security_md(ver):
+    """python.md warns about Security Pitfalls and the warning resolves locally
+    via the substring 'security.md' - the old dangling token
+    'reference/security/pitfalls' must be gone.
+    Red-before-green: reverting python.md to the dangling form fails this case."""
+    python_md = _read(CODING_GUIDELINES / ver / "python.md")
+    assert "security.md" in python_md, (
+        f"{ver}/python.md: must contain 'security.md' (locally-resolvable warning)"
+    )
+    assert "reference/security/pitfalls" not in python_md, (
+        f"{ver}/python.md: must NOT contain the old dangling token 'reference/security/pitfalls'"
+    )
+
+
+@pytest.mark.parametrize("agent", SECURITY_AGENTS)
+def test_code_agents_must_read_security_guideline(agent):
+    """Secure-coding pitfalls are now part of the mandatory read-before-write set.
+    Each code-writing/reviewing agent body must contain 'security.md' so a
+    dispatched agent is told to read it before producing any code.
+    Red-before-green: removing the reference from an agent body fails that case."""
+    body = _read(AGENTS / f"{agent}.md")
+    assert "security.md" in body, (
+        f"{agent}: must reference 'security.md' (mandatory read-before-write for secure coding)"
+    )
+
+
+def test_read_before_write_snippet_lists_security():
+    """The read-before-write SSOT snippet must enumerate security.md so every
+    consumer of that snippet inherits the secure-coding read obligation."""
+    snip = _read(SNIPPETS / "read-before-write-contract.md")
+    assert "security.md" in snip, (
+        "read-before-write-contract.md: must list 'security.md' in its backend read set"
+    )
+
+
+@pytest.mark.parametrize("ver", VERSIONS)
+def test_security_docs_use_ascii_hyphen_only(ver):
+    """ETHOS output rule: no typographic dashes or smart quotes in the new security.md files.
+    Checked by ordinal so this guard file stays self-consistent."""
+    # codepoints checked by ordinal so this guard file stays self-consistent
+    banned = {
+        0x2013: "en-dash",
+        0x2014: "em-dash",
+        0x2012: "figure-dash",
+        0x2015: "horizontal-bar",
+        0x2018: "left-single-quote",
+        0x2019: "right-single-quote",
+        0x201C: "left-double-quote",
+        0x201D: "right-double-quote",
+    }
+    sec = CODING_GUIDELINES / ver / "security.md"
+    text = _read(sec)
+    offenders = []
+    for cp, label in banned.items():
+        if chr(cp) in text:
+            offenders.append(f"{ver}/security.md: contains {label} (U+{cp:04X})")
+    assert not offenders, "typographic characters found:\n" + "\n".join(offenders)
+
+
+def test_no_dangling_verify_guidelines_script():
+    """'verify-guidelines.sh' was a dangling reference to a non-existent script.
+    It must not appear in INDEX.md or read-before-write-contract.md after being
+    replaced by the real verify-backend.sh / verify-frontend.sh."""
+    dangling = "verify-guidelines.sh"
+    index_md = _read(CODING_GUIDELINES / "INDEX.md")
+    assert dangling not in index_md, (
+        f"coding_guidelines/INDEX.md: must not reference the non-existent '{dangling}'"
+    )
+    rbw = _read(SNIPPETS / "read-before-write-contract.md")
+    assert dangling not in rbw, (
+        f"read-before-write-contract.md: must not reference the non-existent '{dangling}'"
+    )

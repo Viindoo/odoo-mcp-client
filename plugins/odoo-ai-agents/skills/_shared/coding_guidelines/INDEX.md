@@ -38,6 +38,7 @@ the backend coder agent (`_columns`/`cr, uid` for v8-v9, `@api.multi` for v10-v1
 - `INDEX.md` - the version's table of contents + "By task" lookup
 - `module-structure.md` - directory layout, file naming, manifest
 - `python.md` - imports, idioms, ORM programming, translations
+- `security.md` - secure-coding pitfalls (sudo, SQL injection, XSS/t-raw, safe_eval, domain injection)
 - `naming.md` - model/class/variable/field/method naming
 - `model-ordering.md` - attribute order inside a Model class
 - `xml.md` - record/field format, XML-ID naming, view inheritance
@@ -46,11 +47,15 @@ the backend coder agent (`_columns`/`cr, uid` for v8-v9, `@api.multi` for v10-v1
 
 ## Mechanical gate (safety net, not a substitute)
 
-A subset of these rules that can be checked mechanically (deprecated decorators, `_()` misuse,
-`cr.commit()`, `<tree>` on v18+) is enforced by `scripts/verify-guidelines.sh` against changed
-`.py`/`.xml` files. The gate catches only the mechanical subset; the semantic rules (attribute
-ordering, naming intent, structure) are the responsibility of the agent reading these files
-up front.
+A subset of these rules that can be checked mechanically is enforced by two pre-push scripts
+against changed files. `scripts/verify-backend.sh` runs `pylint --load-plugins=pylint_odoo`
+over changed `.py` files using a version-matched, isolated toolchain (deprecated decorators,
+`cr.commit()`, ORM misuse, and other pylint-odoo codes). `scripts/verify-frontend.sh` runs a
+three-tier check over changed `.js`/`.xml`/`.scss` files: Prettier/ruff format (Tier 1),
+static OWL/SCSS pattern scan via `scripts/rules/owl-pitfalls.txt` (Tier 2), and an optional
+runtime smoke check (Tier 3). Both gates catch only the mechanical subset; the semantic rules
+(attribute ordering, naming intent, structure, secure-coding patterns) are the responsibility
+of the agent reading these files up front.
 
 ## Viindoo additions beyond upstream RST
 

@@ -29,12 +29,14 @@ Source header. All rules come directly from the 18.0 RST source.
 1. **module-structure.md** - Directories, file naming, and the complete module tree.
 2. **python.md** - PEP8 options, imports, idiomatics of programming, and programming in Odoo
    (context propagation, think extendable, never commit the transaction, translation method).
-3. **naming.md** - Symbols and conventions: model names, classes, variables, fields, and method
+3. **security.md** - Security pitfalls: secure-coding rules - sudo, SQL injection, XSS/t-raw,
+   escaping, safe_eval.
+4. **naming.md** - Symbols and conventions: model names, classes, variables, fields, and method
    prefixes.
-4. **model-ordering.md** - Order of attributes inside a Model, with a full class example.
-5. **xml.md** - Record/field format, XML IDs and naming, inheriting XML, and the `<data>` tag.
-6. **javascript.md** - Static files organization and Javascript coding guidelines.
-7. **scss.md** - CSS and SCSS: syntax and formatting, properties order, naming conventions,
+5. **model-ordering.md** - Order of attributes inside a Model, with a full class example.
+6. **xml.md** - Record/field format, XML IDs and naming, inheriting XML, and the `<data>` tag.
+7. **javascript.md** - Static files organization and Javascript coding guidelines.
+8. **scss.md** - CSS and SCSS: syntax and formatting, properties order, naming conventions,
    variables (SCSS, scoped, mixins/functions, CSS), and the `:root` pseudo-class.
 
 ## By task
@@ -42,8 +44,10 @@ Source header. All rules come directly from the 18.0 RST source.
 | Task | File(s) to read |
 |---|---|
 | Creating a new module's folders and files | module-structure.md |
-| Writing Python models, methods, idioms | python.md |
+| Writing Python models, methods, idioms | python.md, security.md |
 | Writing translatable strings (`self.env._`) | python.md |
+| ORM method / compute / constraint | python.md, naming.md, security.md |
+| Security (groups, rules, access) | xml.md, module-structure.md, security.md |
 | Naming a model, class, variable, field, or method | naming.md |
 | Ordering attributes and methods in a model class | model-ordering.md |
 | Declaring records, views, actions, menus, inherits | xml.md |
