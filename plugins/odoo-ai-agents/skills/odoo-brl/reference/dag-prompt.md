@@ -17,7 +17,7 @@ It produces three kinds of dependency edge:
 
 | Edge type | Meaning | Source |
 |---|---|---|
-| `technical` | Module A must be installed before module B (Odoo manifest `depends`) | `module_inspect(method='dependencies', odoo_version='<version>')` (deterministic) |
+| `technical` | Module A must be installed before module B (Odoo manifest `depends`) | `module_inspect(name=<module>, method='dependencies', odoo_version='<version>')` (deterministic) |
 | `business-logic` | Requirement B's business process needs A done first | Opus reasoning (no MCP tool) |
 | `data-flow` | Requirement B needs master data produced by A | Opus reasoning + (optional) `model_inspect` |
 

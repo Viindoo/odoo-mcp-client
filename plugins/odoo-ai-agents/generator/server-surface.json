@@ -122,6 +122,14 @@
         "name",
         "from_module"
       ],
+      "conditional_required": {
+        "model":   ["model"],
+        "field":   ["model", "field"],
+        "method":  ["model", "method_name"],
+        "view":    ["xmlid"],
+        "module":  ["name"],
+        "pattern": ["name"]
+      },
       "return_type": "object",
       "example_call": "entity_lookup(kind='field', model='sale.order', field='amount_total', odoo_version='17.0')",
       "deprecated_by": null,
@@ -326,10 +334,10 @@
         "dev"
       ],
       "required_params": [
+        "code",
         "odoo_version"
       ],
       "optional_params": [
-        "code",
         "language"
       ],
       "return_type": "array",

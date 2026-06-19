@@ -22,7 +22,7 @@ Return a 5-line summary (counts by severity + top finding) and the artifact path
 
 ```
 MODE=synthesis. Changed/added modules: [<m1>, <m2>, …]. Compute the dependency closure -
-forward via module_inspect(method='dependencies', odoo_version='<version>') transitively, reverse via impact_analysis -
+forward via module_inspect(name=<module>, method='dependencies', odoo_version='<version>') transitively, reverse via impact_analysis -
 and review CROSS-MODULE integration risk only (override conflicts, MRO, inter-module contracts,
 depends/load-order, ripple to dependents). Read the per-module reports already in
 .odoo-ai/reviews/<slug>-<date>/. Write _synthesis.md there. Return a summary + path.

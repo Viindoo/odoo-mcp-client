@@ -74,7 +74,7 @@ OSM-ground every API reference for `tgt_version`:
   to_version='<tgt>')` to surface renames. Map each renamed field. A field absent in `tgt`
   and with no rename entry is a CAPTURE-CODE candidate unless the intent doc confirms the
   feature still exists under a different model or field.
-- **Method signatures:** call `model_inspect(model='<model>', odoo_version='<tgt>')` to get
+- **Method signatures:** call `model_inspect(model='<model>', method='summary', odoo_version='<tgt>')` to get
   current method signatures and field types. A method renamed or removed -> verify intent
   doc; if behavior is still expected, find the replacement via `find_override_point` or
   `find_examples`; if not expected, drop the test.
