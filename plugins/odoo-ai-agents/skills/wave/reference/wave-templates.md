@@ -272,7 +272,7 @@ paths, no personal info. Groups 1-3 and 5-8 still apply to avoid accidental leak
 Full JS pseudocode for the Phase 2 rolling-window orchestration. Referenced from SKILL.md Phase 2.
 
 ```js
-// Phase 2 - Mode B rolling-window dispatch + serialized depth-0 cherry-pick.
+// Phase 2 - Mode B rolling-window dispatch + cherry-pick serialized in the orchestrating context.
 const WEIGHT = { haiku: 1, sonnet: 2, opus: 4, fable: 8 };
 const BUDGET = 8; // SSOT: skills/_shared/concurrency-guard.md (Mode B) - do not restate
 
@@ -291,7 +291,7 @@ const acquire = (w) => new Promise((res) => {
 });
 const release = (w) => { used -= w; while (waiters.length && waiters[0]()) waiters.shift(); };
 
-// CRITICAL SECTION for cherry-pick: one in-flight at a time, depth-0 only.
+// CRITICAL SECTION for cherry-pick: one in-flight at a time, in the orchestrator only.
 // The promise chain serializes every cherry-pick onto integration -> no branch race.
 let cpChain = Promise.resolve();
 const cherryPickSerial = (fn) => (cpChain = cpChain.then(fn, fn));
@@ -318,7 +318,7 @@ const runWI = async (wi) => {
   await acquire(w);                       // wait for weight budget (rolling window)
   let workerResult;
   try {
-    // leaf worker: write + commit in its OWN worktree, return SHA(s). NO cherry-pick.
+    // WI worker: write + commit in its OWN worktree, return SHA(s). NO cherry-pick.
     workerResult = await agent(wiBrief(wi), {
       label: wi.id, phase: 'implement', model: wi.model, schema: WI_RESULT_SCHEMA,
     });
@@ -326,7 +326,7 @@ const runWI = async (wi) => {
 
   if (!ok(workerResult)) { cpResolvers[wi.id](false); return { id: wi.id, result: workerResult }; }
 
-  // cherry-pick: serialized at depth-0, topology order enforced by the dep gate above.
+  // cherry-pick: serialized in the orchestrating context, topology order enforced by the dep gate above.
   await cherryPickSerial(async () => {
     for (const sha of workerResult.committed_shas) {
       cherryPick(sha);                    // git cherry-pick <sha> in the INTEGRATION worktree
@@ -350,7 +350,7 @@ Prompt: "Parallelize these 3 changes: add computed field to sale.order, add OWL 
 Action: Phase 0 discovers disjoint files, selects independent topology. Gate shows ownership
 map. On approve: integration branch + 3 worktrees. Dispatch the 3 Sonnet WI subagents under the
 Mode B rolling window (3 x sonnet = weight 6, within BUDGET=8, so all three run at once).
-Serialize each cherry-pick at depth-0 as its worker returns. Opus review + /code-review. 1 PR.
+Serialize each cherry-pick in the orchestrating context as its worker returns. Opus review + /code-review. 1 PR.
 Squash + tree-identity. Wait for human-confirm.
 
 **Example 2 - 1-WI edge case:**
