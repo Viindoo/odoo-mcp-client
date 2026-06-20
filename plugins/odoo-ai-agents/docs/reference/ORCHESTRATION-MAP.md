@@ -1,61 +1,58 @@
 # Orchestration Map (GENERATED - do not edit by hand)
 
 > SSOT: `generator/skill_tool_deps.json` → `orchestration`. Regenerate with `make gen`.
-> Tells any planning/main agent which skills spawn subagents (so it never forbids a
-> legitimate spawn) and which are depth0-only (so a subagent never illegally invokes them).
+> Tells any planning agent which skills launch subagents (so it never forbids a legitimate launch).
 
-| Skill | spawn_class | depth_policy | stack | instance | spawns |
-|-------|-------------|--------------|-------|----------|--------|
-| `odoo-addon-diff` | leaf | any-depth | none | - | - |
-| `odoo-brl` | spawner-agent | depth0-only | none | - | (conditional DAG workers when >10 large clusters) |
-| `odoo-campaign-plan` | leaf | any-depth | none | - | - |
-| `odoo-capability-proof` | leaf | any-depth | none | - | - |
-| `odoo-code-review` | spawner-agent | depth0-only | fullstack | - | odoo-code-reviewer |
-| `odoo-coding` | spawner-agent | depth0-only | fullstack | - | odoo-coder, odoo-frontend-coder, (dispatch: Agent-tool model-weighted batches, explicit model per work-item per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B) |
-| `odoo-competitive-brief` | leaf | any-depth | none | - | - |
-| `odoo-content-draft` | leaf | any-depth | none | - | - |
-| `odoo-customer-health` | leaf | any-depth | none | - | - |
-| `odoo-customization-inventory` | leaf | any-depth | none | - | - |
-| `odoo-data-migration` | leaf | any-depth | backend | - | - |
-| `odoo-deal-followup` | leaf | any-depth | none | - | - |
-| `odoo-debug` | spawner-agent | depth0-only | fullstack | - | odoo-backend-debugger, odoo-ui-debugger |
-| `odoo-deep-survey` | spawner-agent | depth0-only | none | - | (anonymous read-only fan-out workers via Agent tool, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under .odoo-ai/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B) |
-| `odoo-demo-recording` | leaf | any-depth | none | - | - |
-| `odoo-deploy-checklist` | leaf | any-depth | none | yes | - |
-| `odoo-deprecation-audit` | leaf | any-depth | backend | - | - |
-| `odoo-discovery-summary` | leaf | any-depth | none | - | - |
-| `odoo-feature-check` | leaf | any-depth | none | - | - |
-| `odoo-feature-highlights` | leaf | any-depth | none | - | - |
-| `odoo-frontend-design` | leaf | any-depth | frontend | - | - |
-| `odoo-gap-analysis` | leaf | any-depth | none | - | - |
-| `odoo-intake` | spawner-agent | depth0-only | none | - | (Phase R: ≤2 read-only recon agents - Explore or specialist in read-only mode; no writes, no further spawn) |
-| `odoo-objection-handling` | leaf | any-depth | none | - | - |
-| `odoo-onboarding` | leaf | any-depth | none | - | - |
-| `odoo-override-finding` | leaf | any-depth | backend | - | - |
-| `odoo-perf-audit` | leaf | any-depth | backend | - | - |
-| `odoo-pricing-proposal` | leaf | any-depth | none | - | - |
-| `odoo-qa-suite` | orchestrator-nl | any-depth | none | yes | - |
-| `odoo-rfp-response` | leaf | any-depth | none | - | - |
-| `odoo-risk-overview` | leaf | any-depth | none | - | - |
-| `odoo-run-forward-port` | spawner-agent | depth0-only | fullstack | yes | odoo-intent-extractor (read-only per-commit; model per complexity), odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees) |
-| `odoo-security-audit` | leaf | any-depth | backend | - | - |
-| `odoo-solution-design` | spawner-agent | depth0-only | fullstack | - | odoo-solution-architect |
-| `odoo-support-triage` | orchestrator-nl | any-depth | none | - | - |
-| `odoo-test-writing` | leaf | any-depth | backend | - | - |
-| `odoo-ui-review` | spawner-agent | depth0-only | frontend | - | odoo-ui-reviewer |
-| `odoo-version-diff` | leaf | any-depth | backend | - | - |
-| `odoo-visual-regression` | leaf | any-depth | frontend | - | - |
-| `run-driver` | orchestrator-nl | depth0-only | none | - | - |
-| `wave` | spawner-wave | depth0-only | none | yes | (per-WI leaf workers over worktrees) |
-| `workflow-chaining` | orchestrator-nl | depth0-only | none | - | - |
+| Skill | spawn_class | stack | instance | spawns |
+|-------|-------------|-------|----------|--------|
+| `odoo-addon-diff` | leaf | none | - | - |
+| `odoo-brl` | spawner-agent | none | - | (conditional DAG workers when >10 large clusters) |
+| `odoo-campaign-plan` | leaf | none | - | - |
+| `odoo-capability-proof` | leaf | none | - | - |
+| `odoo-code-review` | spawner-agent | fullstack | - | odoo-code-reviewer |
+| `odoo-coding` | spawner-agent | fullstack | - | odoo-coder, odoo-frontend-coder, (dispatch: Agent-tool model-weighted batches, explicit model per work-item per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B) |
+| `odoo-competitive-brief` | leaf | none | - | - |
+| `odoo-content-draft` | leaf | none | - | - |
+| `odoo-customer-health` | leaf | none | - | - |
+| `odoo-customization-inventory` | leaf | none | - | - |
+| `odoo-data-migration` | leaf | backend | - | - |
+| `odoo-deal-followup` | leaf | none | - | - |
+| `odoo-debug` | spawner-agent | fullstack | - | odoo-backend-debugger, odoo-ui-debugger |
+| `odoo-deep-survey` | spawner-agent | none | - | (anonymous read-only fan-out workers via Agent tool, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under .odoo-ai/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B) |
+| `odoo-demo-recording` | leaf | none | - | - |
+| `odoo-deploy-checklist` | leaf | none | yes | - |
+| `odoo-deprecation-audit` | leaf | backend | - | - |
+| `odoo-discovery-summary` | leaf | none | - | - |
+| `odoo-feature-check` | leaf | none | - | - |
+| `odoo-feature-highlights` | leaf | none | - | - |
+| `odoo-frontend-design` | leaf | frontend | - | - |
+| `odoo-gap-analysis` | leaf | none | - | - |
+| `odoo-intake` | spawner-agent | none | - | (Phase R: ≤2 read-only recon agents - Explore or specialist in read-only mode; no writes, no further spawn) |
+| `odoo-objection-handling` | leaf | none | - | - |
+| `odoo-onboarding` | leaf | none | - | - |
+| `odoo-override-finding` | leaf | backend | - | - |
+| `odoo-perf-audit` | leaf | backend | - | - |
+| `odoo-pricing-proposal` | leaf | none | - | - |
+| `odoo-qa-suite` | orchestrator-nl | none | yes | - |
+| `odoo-rfp-response` | leaf | none | - | - |
+| `odoo-risk-overview` | leaf | none | - | - |
+| `odoo-run-forward-port` | spawner-agent | fullstack | yes | odoo-intent-extractor (read-only per-commit; model per complexity), odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees) |
+| `odoo-security-audit` | leaf | backend | - | - |
+| `odoo-solution-design` | spawner-agent | fullstack | - | odoo-solution-architect |
+| `odoo-support-triage` | orchestrator-nl | none | - | - |
+| `odoo-test-writing` | leaf | backend | - | - |
+| `odoo-ui-review` | spawner-agent | frontend | - | odoo-ui-reviewer |
+| `odoo-version-diff` | leaf | backend | - | - |
+| `odoo-visual-regression` | leaf | frontend | - | - |
+| `run-driver` | orchestrator-nl | none | - | - |
+| `wave` | spawner-wave | none | yes | (per-WI leaf workers over worktrees) |
+| `workflow-chaining` | orchestrator-nl | none | - | - |
 
 ## Legend
 
 - **spawn_class** - `leaf` (runs inline) · `orchestrator-nl` (chains other skills via
   natural-language dispatch, no Agent-tool spawn) · `spawner-agent` (dispatches a named
-  agent, depth 0→1) · `spawner-wave` (worktree fan-out, depth 0→1→2).
-- **depth_policy** - `depth0-only` skills must be invoked only from the main agent,
-  never from inside a subagent (nesting-crash guard). `any-depth` is safe to NL-dispatch.
+  subagent) · `spawner-wave` (worktree fan-out with parallel subagents).
 - **stack** - drives backend↔frontend routing; `fullstack` work must engage both a
   backend and a frontend specialist.
 
