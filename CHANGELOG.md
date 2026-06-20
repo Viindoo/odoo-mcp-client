@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.16.1] - 2026-06-20
+
 ### Changed
 
 - Merged the forward-port pipeline into a single skill: `odoo-run-forward-port` is renamed
