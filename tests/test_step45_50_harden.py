@@ -426,7 +426,7 @@ def test_step50_registers_shared_lease_after_server_up(tmp_path):
     lz = shared[0]
     assert lz["series"] == "17.0"
     assert lz["ports"] == [18069], "the lease records the actual bound port"
-    assert lz["created_db"] is False, "the shared render lease must NEVER own the declared DB"
+    assert lz["drop_on_release"] is False, "the shared render lease must NEVER own the declared DB"
     pid = lz["owner"]["pid"]
     assert pid and _alive(pid), "the live server pid is recorded (for gc + cross-session discovery)"
     os.kill(int(pid), signal.SIGTERM)  # reap the backgrounded sleep

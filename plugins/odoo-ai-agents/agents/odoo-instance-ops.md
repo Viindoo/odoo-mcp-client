@@ -126,14 +126,17 @@ Drop an existing Odoo database through Odoo (never raw dropdb).
 
 **Inputs:** db name (or lease token), series.
 
-**Mechanism:** If a lease token is known, release it - the allocator calls `odoo_db.py drop` internally for `created_db=True` leases. Otherwise call `odoo_db.py` directly:
+**Mechanism:** If a lease token is known, release it - the allocator calls `odoo_db.py drop` internally for leases with `drop_on_release=true` (all `ephemeral` leases that performed create-on-init). Otherwise delegate to `scripts/setup-steps/55-instance-ops.sh drop`:
 
 ```bash
-"$ALLOC_PYTHON" ${CLAUDE_PLUGIN_ROOT}/scripts/lib/odoo_db.py drop "$DB_NAME" \
-  --db-host "$ALLOC_DB_HOST" --db-user "$ALLOC_DB_USER"
+"${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh" drop \
+  --db "$DB_NAME" \
+  --python "$ALLOC_PYTHON" \
+  [--db-host "$ALLOC_DB_HOST"] \
+  [--db-user "$ALLOC_DB_USER"]
 ```
 
-`odoo_db.py` exits 0 if the DB is already absent (idempotent). Exit 10 means the venv cannot import odoo - rebuild the venv per Step C, then retry.
+The script invokes `odoo_db.py drop` internally and emits `STATUS=ok` on success. Exit 10 from `odoo_db.py` means the venv cannot import odoo - rebuild the venv per Step C, then retry. The script never falls back to raw `dropdb`; that decision belongs to the allocator.
 
 Then release the allocator lease if one is held:
 
@@ -147,7 +150,18 @@ Install one or more modules into an existing Odoo database.
 
 **Inputs:** series, db name, modules (list), addons_path override (optional).
 
-**Mechanism:** Run Steps A-D (mode `exclusive` on the target DB, `--ports 0`). Delegate to `scripts/setup-steps/55-instance-ops.sh init` when that script is present (created by WI-3); it runs `odoo-bin -d <db> -i <modules> --stop-after-init`, writes the persistent log, and parses pass/fail. When `55-instance-ops.sh` is not yet on disk, run the equivalent `odoo-bin` command directly using the version-correct flags from `cli_help`.
+**Mechanism:** Run Steps A-D (mode `exclusive` on the target DB, `--ports 0`). Delegate to `scripts/setup-steps/55-instance-ops.sh init`:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh" init \
+  --db "$ALLOC_DB_NAME" \
+  --python "$ALLOC_PYTHON" \
+  --addons "$ALLOC_ADDONS_PATH" \
+  --modules "<modules>" \
+  [--extra "<version-correct flags from cli_help>"]
+```
+
+The script runs `odoo-bin -d <db> -i <modules> --stop-after-init`, writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init failed - preserve the log path and surface it to the caller. When `55-instance-ops.sh` is not yet on disk, run the equivalent `odoo-bin` command directly using the version-correct flags from `cli_help`.
 
 ### 4. update-modules
 
@@ -155,7 +169,18 @@ Update one or more already-installed modules (-u).
 
 **Inputs:** series, db name, modules (list).
 
-**Mechanism:** Same as init-modules but pass `-u <modules>` instead of `-i <modules>`. Delegate to `scripts/setup-steps/55-instance-ops.sh update` when present. Always add `--stop-after-init` and the version-correct no-HTTP flag so the update run does not try to bind a port.
+**Mechanism:** Same as init-modules but pass `-u <modules>` instead of `-i <modules>`. Delegate to `scripts/setup-steps/55-instance-ops.sh update`:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh" update \
+  --db "$ALLOC_DB_NAME" \
+  --python "$ALLOC_PYTHON" \
+  --addons "$ALLOC_ADDONS_PATH" \
+  --modules "<modules>" \
+  [--extra "<version-correct no-HTTP flag + any extra flags from cli_help>"]
+```
+
+Emits `LOG_PATH=<path>` and `STATUS=ok|error`. Pass the version-correct no-HTTP flag via `--extra` so the update run does not bind a port.
 
 ### 5. run-tests
 
@@ -163,22 +188,21 @@ Run the Odoo test suite for one or more modules against an isolated ephemeral da
 
 **Inputs:** series, modules, test tags (optional), addons_path override (optional).
 
-**Mechanism:** Run Steps A-D (mode `ephemeral`, `--ports 0`). Delegate to `scripts/setup-steps/55-instance-ops.sh test` when present. The script runs:
+**Mechanism:** Run Steps A-D (mode `ephemeral`, `--ports 0`). Delegate to `scripts/setup-steps/55-instance-ops.sh test`:
 
 ```bash
-"$ALLOC_PYTHON" odoo-bin \
-  -d "$ALLOC_DB_NAME" \
-  -i "<modules>" \
-  --addons-path "$ALLOC_ADDONS_PATH" \
-  --test-enable \
-  --stop-after-init \
-  --skip-auto-install \
-  --logfile "$LOG_PATH"
+"${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh" test \
+  --db "$ALLOC_DB_NAME" \
+  --python "$ALLOC_PYTHON" \
+  --addons "$ALLOC_ADDONS_PATH" \
+  --modules "<modules>" \
+  [--test-tags "<tags>"] \
+  [--extra "<version-correct flags from cli_help>"]
 ```
 
-(Add `--test-tags <tags>` when provided. Use version-correct flags from `cli_help`. `--skip-auto-install` is v17+ only - confirm via `cli_help`.)
+(Pass `--test-tags` only when test tags are provided. Version-correct flags such as `--skip-auto-install` (v17+) go in `--extra`; confirm availability via `cli_help`.)
 
-Parse the log for `[OK]` / `FAIL` / `ERROR` lines and report a pass/fail summary. Release the lease when done. On failure, preserve the log and emit its path in the output block so the caller can route to `odoo-debug`.
+The script writes a persistent log, emits `LOG_PATH=<path>`, `TEST_RESULT=passed|failed`, and `STATUS=ok|error` on stdout. Capture all three lines. Report `TEST_RESULT` as the pass/fail summary. Release the lease when done. On `TEST_RESULT=failed`, preserve the log path and forward it in the output block so the caller can route to `odoo-debug`.
 
 ### 6. ensure-up / status
 

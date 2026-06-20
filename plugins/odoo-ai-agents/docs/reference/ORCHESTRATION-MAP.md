@@ -29,6 +29,7 @@
 | `odoo-frontend-design` | leaf | frontend | - | - |
 | `odoo-gap-analysis` | leaf | none | - | - |
 | `odoo-i18n` | spawner-agent | backend | yes | odoo-translator |
+| `odoo-instance` | spawner-agent | backend | yes | odoo-instance-ops |
 | `odoo-intake` | spawner-agent | none | - | (Phase R: ≤2 read-only recon agents - Explore or specialist in read-only mode; no writes, no further spawn) |
 | `odoo-objection-handling` | leaf | none | - | - |
 | `odoo-onboarding` | leaf | none | - | - |
