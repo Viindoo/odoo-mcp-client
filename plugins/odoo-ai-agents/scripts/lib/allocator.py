@@ -18,8 +18,11 @@ Runtime state lives under  ${ODOO_AI_HOME:-$HOME/.odoo-ai}/runtime/ :
 
 Modes:
     readonly   - attach a running instance; NO lease (shared, lease-free)
-    ephemeral  - unique throwaway DB (<prefix>_t_<uuid8>), created + dropped;
-                 ports only when --ports N>0. Default for tests / -i verification.
+    ephemeral  - unique throwaway DB (<prefix>_t_<uuid8>); reserves a unique DB name
+                 + ports - the DB is created through Odoo by the caller's `-i` run
+                 (create-on-init) and dropped through Odoo on release (raw dropdb only
+                 as a venv-unavailable fallback). Ports only when --ports N>0.
+                 Default for tests / -i verification.
                  Auto-degrades to `exclusive` when the role lacks CREATEDB.
     exclusive  - the declared (or named) DB held under an exclusive lease.
     shared     - a long-lived, NON-exclusive lease for the visual stack's live
