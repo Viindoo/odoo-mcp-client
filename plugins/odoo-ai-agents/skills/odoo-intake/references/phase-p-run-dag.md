@@ -16,7 +16,7 @@ recorded in `run.json` once engaged). After the plan is approved, ENGAGE Phase P
 2. a single node whose `output_mode == writes-files` (needs gate-tier tracking + a driver to
    catch any runtime `next[]`), OR
 3. a single node that is a workflow (`approach_kind == workflow`) whose YAML declares
-   `on_complete` (needs the depth-0 driver present to dispatch the cross-workflow chain - see
+   `on_complete` (needs the run-driver present to dispatch the cross-workflow chain - see
    "workflow-as-node" below).
 
 SKIP Phase P (dispatch directly, as today - no run file, no driver) ONLY when the plan is a
@@ -39,8 +39,8 @@ open a RUN-DAG.
 4. If `--plan`: stop here (the DAG file is the deliverable). Otherwise NL-dispatch `run-driver`,
    which walks the DAG to DONE/BLOCKED/NEEDS_CONTEXT.
 
-**Depth safety:** intake (depth-0) writing the file and handing off to `run-driver` (also
-depth-0) keeps everything at the main level; the driver does the depth-0→1→2 dispatch. intake
+**Handoff:** intake writes the file and hands off to `run-driver`, which walks the DAG and
+dispatches each node to specialists (as subagents or Skill-tool invocations). intake
 never spawns the specialists itself here - it persists the plan and yields to the driver.
 
 **Workflow-as-node (G-B):** a workflow-command (e.g. `/odoo-respond-bid`) is ONE node at the
@@ -49,8 +49,8 @@ DAG level - its internal phases are SSOT inside the `.workflow.yaml` (gated by
 - single workflow node, NO `on_complete` declared → hand the YAML name straight to
   `workflow-chaining` (it self-gates each phase); no run file needed.
 - single workflow node WITH `on_complete` declared → engage Phase P anyway (trigger 3 above):
-  the 1-node RUN-DAG is cheap (driver picks the one node, dispatches `workflow-chaining`, then
-  reads the emitted `next[]`), and it is the only way the cross-workflow chain auto-advances
+  the 1-node RUN-DAG is cheap (the run-driver picks the one node, dispatches `workflow-chaining`,
+  then reads the emitted `next[]`), and it is the only way the cross-workflow chain auto-advances
   instead of degrading to a human suggestion.
 - a workflow node sitting in a `>=2`-node DAG → just one node in that DAG; `run-driver`
   dispatches it via `approach_kind: workflow` and advances on its Continuation Contract.

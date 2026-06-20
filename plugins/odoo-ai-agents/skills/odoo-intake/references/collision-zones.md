@@ -129,7 +129,7 @@ from scratch ("create a color picker widget"), there is no runtime to debug ->
 **Prompt**: "I have 5 changes to make across 3 files - parallelize them and land as a single reviewed PR"
 
 - `wave`: handles "parallelize these changes", "multi-WI PR with review + squash" ->
-  git-wave depth-0 orchestrator: creates an integration branch, dispatches parallel WI subagents,
+  git-wave orchestrator: creates an integration branch, dispatches parallel WI subagents,
   cherry-picks, runs end-of-wave review, creates 1 PR, squashes, and waits for human-confirm merge.
 - `odoo-brl`: handles "classify changes", "requirements" -> classifies and costs a
   list of BUSINESS REQUIREMENTS - produces an RTM/cost/DAG but writes NO code and does NOT touch git.
