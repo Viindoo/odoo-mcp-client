@@ -41,23 +41,19 @@ principal branch.
    live in separate worktrees. Read-only ops (`git log`, `git diff`, `git status`) on
    the principal are allowed.
 
-2. **Depth-0 / self-spawn legality** - This skill (wave) runs at depth 0 (main context)
-   only. It spawns WI subagents at depth 1 (integration/coordination layer), which are
-   themselves leaf workers at depth-2 ceiling. Leaf workers MUST NOT spawn further
-   subagents or invoke any depth0-only skill (the spawner bundles `odoo-coding`,
-   `odoo-code-review`, `odoo-ui-review`, plus `/code-review`,
-   `skill-creator`, `wave`, `odoo-intake`, `odoo-brl`, `workflow-chaining` - see the
-   Skill-Delegation Matrix below and `docs/reference/ORCHESTRATION-MAP.md`).
-   Depth ceiling: wave (depth 0) → WI subagent (depth 1) → leaf worker (depth-2 max);
-   no further spawning allowed. Concurrency: model-weighted budget (BUDGET=8) per
-   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B) - up to 8 haiku,
-   4 sonnet, 2 opus, or exactly 1 fable WI subagent in flight at once; never exceed the
-   budget (OOM guard). The cherry-pick step is NOT part of this budget - it is a depth-0
-   critical section serialized to one at a time (Phase 2/3), never pushed down to a leaf.
+2. **Git-authority stays with the orchestrator** - This skill (wave) runs in the
+   orchestrating context that holds git authority for the run. It dispatches WI subagents
+   that are themselves the specialists for their scope. Concurrency: model-weighted budget
+   (BUDGET=8) per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B) -
+   up to 8 haiku, 4 sonnet, 2 opus, or exactly 1 fable WI subagent in flight at once;
+   never exceed the budget (OOM guard). The cherry-pick step is NOT part of this budget -
+   it is an orchestrator-side critical section serialized to one at a time (Phase 2/3),
+   never pushed down to a WI worker.
 
 3. **/code-review inline-only** - The `/code-review` skill auto-spawns and is therefore
-   only legal at depth 0 (this skill's context). Invoke it here in Phase 4, never inside
-   a WI subagent. Findings are fixed either inline or via a brief targeted subagent.
+   only legal in this skill's own orchestrating context (not inside a WI subagent). Invoke
+   it here in Phase 4, never inside a WI subagent. Findings are fixed either inline or via a
+   brief targeted subagent.
 
 4. **Human-confirm merge** - The skill MUST stop at Phase 6 and wait for explicit user
    confirmation before merging the integration branch. No automated merge, no auto-squash-
@@ -191,29 +187,30 @@ After plan approval:
 
 ## Phase 2 - Dispatch WI Subagents (Mode B rolling-window)
 
-Dispatch WI subagents with the **Agent tool** - one Agent tool call per WI, each passing the
+Dispatch WI subagents - one subagent launch per WI, each passing the
 WI brief as its `prompt`. Scheduling is **Mode B model-weighted rolling-window**: as each worker
 returns and its weight is freed, the next eligible WI (deps cherry-picked) is dispatched.
 SSOT for weights and budget: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B).
 Full pseudocode: `reference/wave-templates.md` §Mode B Dispatch Loop.
 
 **Key invariants of the loop:**
-- A leaf WI worker runs in its OWN isolated worktree. It writes + **commits + returns its SHA(s)**.
-  It does **NOT** cherry-pick. Cherry-pick is forbidden to leaves (Hard Rules 1 + 2).
-- **Cherry-pick is a depth-0 CRITICAL SECTION, serialized to one in-flight at a time**, run in
-  this (main) context in topology/DAG order. No race on the shared integration branch.
+- A WI worker runs in its OWN isolated worktree. It writes + **commits + returns its SHA(s)**.
+  It does **NOT** cherry-pick. Cherry-pick is forbidden to WI workers (Hard Rules 1 + 2).
+- **Cherry-pick is an orchestrator-side CRITICAL SECTION, serialized to one in-flight at a time**,
+  run in the orchestrating context in topology/DAG order. No race on the shared integration branch.
 - Dependent-gating promise is `cherry_picked[dep]`, **NOT** `completed[dep]`. A dependent WI
   starts only after every dep is **cherry-picked onto integration** (not merely committed in
   its own worktree), because the dependent's worktree forks from integration.
 - Dependent worktrees are created **lazily** immediately before dispatch (after `cherry_picked[dep]`
   gate passes) so they fork from an up-to-date integration.
 
-**MANDATORY**: Make real Agent tool calls for each worker dispatch. Do NOT narrate dispatch in
+**MANDATORY**: Make real subagent launches for each worker dispatch. Do NOT narrate dispatch in
 prose instead of calling the tool.
 
-Dispatch rule (Agent-tool only - this plugin does not use the Claude Code Workflow JS tool): fire
-every WI whose deps are already cherry-picked, up to the weighted budget; serialize each cherry-pick
-at depth-0 as workers return. Never gate on a fixed-size batch; never let a leaf cherry-pick.
+Dispatch rule (subagent launches only - this plugin does not use the Claude Code Workflow JS tool):
+fire every WI whose deps are already cherry-picked, up to the weighted budget; serialize each
+cherry-pick in the orchestrating context as workers return. Never gate on a fixed-size batch; never
+let a WI worker cherry-pick.
 
 Each subagent receives a **WI brief** as its `prompt`:
 
@@ -253,17 +250,12 @@ Hard rules:
         convention before writing any JS test code; never assume framework from memory.
       - `test_coverage_audit(module='<module>', odoo_version='<version>')` - audit coverage
         gaps across a module before proposing a test plan.
-  - Nesting guard (full text: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md): you are a
-    leaf worker (depth-2). You ARE the specialist - write/review the code yourself, grounding
-    every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is always
-    allowed); follow the odoo-coding / odoo-code-review conventions but
-    do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-coding,
-    odoo-code-review, odoo-ui-review, wave, odoo-intake, odoo-brl,
-    workflow-chaining, /code-review, skill-creator) - they dispatch a fresh agent and are
-    main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill (e.g.
-    odoo-feature-check, odoo-override-finding) for a read-only lookup. Do NOT invoke the Skill
-    tool to trigger a spawner. Do NOT spawn a sub-agent. Do NOT git branch/cherry-pick/merge/push;
-    stay in your assigned worktree. Only Read/Grep/Glob/Edit/Write/Bash.
+  - Worker brief (full text: ${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md): you ARE the
+    specialist - write/review the code yourself, grounding every Odoo claim with the OSM MCP
+    tools (an MCP tool call is never a spawn, so it is always allowed); follow the
+    odoo-coder / odoo-frontend-coder / odoo-code-reviewer conventions. Do NOT git
+    branch/cherry-pick/merge/push; stay in your assigned worktree. Only
+    Read/Grep/Glob/Edit/Write/Bash.
   - Only edit files listed in your "Files in scope". Do not touch files owned by other WIs.
   - Commit your work to branch wave/wi-<slug>-<id> using the repo commit convention.
   - Run the verify command and confirm it passes before declaring done. If verify involves
@@ -287,33 +279,33 @@ Acceptance criteria:
   <specific testable criteria for this WI>
 ```
 
-In Mode B there is no whole-batch barrier: each worker's cherry-pick is serialized inline at
-depth-0 as that worker returns, and a dependent WI is dispatched as soon as its deps are
-cherry-picked. If a subagent exceeds 15 minutes without output, check its status; do not assume success.
+In Mode B there is no whole-batch barrier: each worker's cherry-pick is serialized inline in the
+orchestrating context as that worker returns, and a dependent WI is dispatched as soon as its deps
+are cherry-picked. If a subagent exceeds 15 minutes without output, check its status; do not assume success.
 
 ## Skill-Delegation Matrix
 
-| Task | Leaf worker does this | Leaf worker MUST NOT |
+| Task | WI worker does this | WI worker MUST NOT |
 |---|---|---|
-| Backend Python/XML | Write directly, grounded via OSM (`model_inspect` / `find_examples` / `validate_*`), following `odoo-coding` conventions | Invoke the `odoo-coding` bundle (depth0-only) |
-| Frontend JS/OWL/SCSS | Write directly, grounded via OSM (`find_examples` / `resolve_stylesheet`), following `odoo-coding` conventions | Invoke the `odoo-coding` bundle (depth0-only) |
+| Backend Python/XML | Write directly, grounded via OSM (`model_inspect` / `find_examples` / `validate_*`), following `odoo-coder` conventions | Re-dispatch the `odoo-coding` bundle - you ARE the specialist |
+| Frontend JS/OWL/SCSS | Write directly, grounded via OSM (`find_examples` / `resolve_stylesheet`), following `odoo-frontend-coder` conventions | Re-dispatch the `odoo-coding` bundle - you ARE the specialist |
 | Test writing (Python) | Ground via `test_base_classes` (base class + cr.commit() contract) + `tests_covering` (coverage gap) + `find_test_examples` (real test patterns) BEFORE writing; only write uncovered paths | Assume base class or cr.commit() legality from memory; re-implement tests that already exist |
 | Test writing (JS) | Ground via `js_test_inspect` (framework: QUnit v16-/v17, Hoot v18+) + `find_test_examples(query='<feature>', kind='js', odoo_version='<version>')` BEFORE writing any JS test | Write Hoot syntax for a QUnit module (or vice versa); assume framework from version heuristic |
-| Review of own output | Self-review inline against `odoo-code-review` conventions | Invoke `odoo-code-review` or `/code-review` |
-| Read-only lookup | NL-dispatch a `leaf` skill (`odoo-feature-check`, `odoo-override-finding`) | Spawn a sub-agent; call any depth0-only skill |
+| Review of own output | Self-review inline against `odoo-code-reviewer` conventions | Re-dispatch `odoo-code-review` or `/code-review` from a worktree |
+| Read-only lookup | NL-dispatch a non-spawning skill (`odoo-feature-check`, `odoo-override-finding`) | - |
 
-**Nesting rule**: depth0-only skills (`odoo-coding`, `odoo-code-review`, `odoo-ui-review`,
-`wave`, `odoo-intake`, `odoo-brl`, `workflow-chaining`, `/code-review`,
-`skill-creator`) each dispatch a fresh agent and may ONLY be invoked from the main
-agent. A leaf worker IS the specialist: it writes/reviews directly, and leaf subagents MAY
-NL-dispatch genuinely non-spawning (`leaf`) skills for read-only lookups. Leaf subagents
-must NOT spawn further subagents - they are the depth-2 ceiling.
+**Specialist rule**: a WI worker IS the specialist for its scope - it writes and reviews
+directly, grounded in OSM, following the `odoo-coder` / `odoo-frontend-coder` /
+`odoo-code-reviewer` conventions, rather than re-dispatching the spawner bundle (`odoo-coding`,
+`odoo-code-review`, `odoo-ui-review`, `wave`, `odoo-intake`, `odoo-brl`, `workflow-chaining`,
+`/code-review`, `skill-creator`) that would only fan back out to the same specialist. It MAY
+NL-dispatch genuinely non-spawning skills for read-only lookups.
 
 ## Phase 3 - Cherry-pick + Conflict Resolution
 
 > This is the cherry-pick contract that Phase 2's Mode B loop applies per WI inside its
-> serialized depth-0 critical section - one cherry-pick in flight at a time, in topology
-> (module-DAG) order. Cherry-pick is NEVER pushed down to a leaf worker (Hard Rules 1 + 2).
+> serialized orchestrator-side critical section - one cherry-pick in flight at a time, in topology
+> (module-DAG) order. Cherry-pick is NEVER pushed down to a WI worker (Hard Rules 1 + 2).
 
 For each WI in topology order:
 
@@ -324,15 +316,10 @@ For each WI in topology order:
 
 3. **On conflict**: dispatch a brief Sonnet resolver subagent with:
    - The conflicting diff and the two WI briefs whose files overlap
-   - Nesting guard (verbatim, mandatory - SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md):
-     "You are a leaf worker (depth-2). You ARE the specialist - resolve and verify directly,
-     grounding any Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn). Do NOT
-     invoke any depth0-only skill (odoo-coding, odoo-code-review, odoo-ui-review,
-     wave, odoo-intake, odoo-brl, workflow-chaining, /code-review, skill-creator)
-     - they are main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill for a
-     read-only lookup. Do NOT invoke the Skill tool to trigger a spawner. Do NOT spawn a
-     sub-agent. Do NOT git branch/cherry-pick/merge/push; stay in your assigned worktree. Only
-     Read/Grep/Glob/Edit/Write/Bash."
+   - Worker brief (verbatim, mandatory - SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md):
+     "You ARE the specialist - resolve and verify directly, grounding any Odoo claim with the OSM
+     MCP tools (an MCP tool call is never a spawn). Do NOT git branch/cherry-pick/merge/push; stay
+     in your assigned worktree. Only Read/Grep/Glob/Edit/Write/Bash."
    - Also hand the OSM-First Grounding Contract
      (${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md) when the conflict touches Odoo code.
 
@@ -347,7 +334,7 @@ After all WIs are cherry-picked, run the verify command one final time on the fu
 Measure: `git diff <principal>...HEAD --shortstat` (changed lines) and WI count N.
 
 - **Large wave** (>~1500 changed lines OR N >= 8 WIs): escalate to a **fable** review subagent
-  dispatched from depth-0. fable costs ~2x opus - ALWAYS needs explicit confirmation: state tier,
+  dispatched from the orchestrating context. fable costs ~2x opus - ALWAYS needs explicit confirmation: state tier,
   cost, and one-line why; wait for user yes. If user declines or fable is unavailable, fall back
   to **opus inline review** and note the downgrade.
 - **Otherwise** (common case): **opus inline review** in this context.
@@ -362,7 +349,7 @@ Review the full diff (`git diff <principal>...HEAD`) for:
 
 Fix findings inline or via a targeted brief subagent. Re-run verify after any fix.
 
-**4.2 - /code-review inline** (invoke from depth 0):
+**4.2 - /code-review inline** (invoke from the orchestrating context):
 
 After the Opus review and fixes, invoke `/code-review` on the integration branch.
 Address its findings before Phase 5.
@@ -452,7 +439,7 @@ odoo-code-review, etc.) via NL-dispatch and stop.
 > Full worked examples with action detail: `reference/wave-templates.md` §Examples. Dispatches:
 
 **Example 1 - Standard 3-WI wave:** 3 Sonnet workers (weight 6, within BUDGET=8) all in parallel.
-Serialize cherry-picks at depth-0. Opus review + /code-review. 1 PR. Squash + tree-identity.
+Serialize cherry-picks in the orchestrating context. Opus review + /code-review. 1 PR. Squash + tree-identity.
 Wait for human-confirm before merging.
 
 **Example 2 - 1-WI edge case:** Standalone-first fallback offered ("This is a single-file fix -
@@ -471,4 +458,4 @@ with diff + both WI briefs. Resolver commits fix. Re-run verify. Continue.
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the depth-0 run-driver - it does not change anything produced above.
+output for the run-driver - it does not change anything produced above.
