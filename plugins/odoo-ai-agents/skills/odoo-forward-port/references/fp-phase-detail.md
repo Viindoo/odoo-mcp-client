@@ -144,9 +144,64 @@ Produce the `SYMBOL-BROKEN | <symbol> | <file>:<line> | bucket | evidence` findi
 empty list `SYMBOL-SURVIVAL: clean` is a valid, desirable result). A non-empty list BLOCKS
 Phase 4 on those files. Full contract: `[[fp-symbol-survival-check]]`.
 
+**Run on `tests/` files too** - test files auto-merge silently exactly like production code and
+crash at collection (base-class kwarg drift, broken import, dynamic `ref()`), never reaching
+Phase 5 if collection itself fails. Do NOT re-derive the test-survival logic here - apply the
+six auto-merge-silent symbol classes from `[[fp-symbol-survival-check]]` section 2.5 (it already
+states production AND `tests/` scope). The merge-clean-but-source-touched enumeration above
+already lists test files; feed them through the same section-2.5 grounding, do not filter them
+out.
+
 ---
 
-## P4 - Adapt (test-first; serial per-module within a commit (v1); WORK-tier worktree per module for filesystem isolation)
+## P4.5 - Pre-adapt drift scan (MUST, before the behavioral loop)
+
+This gate is DISTINCT from the P3.5 TEST-survival sub-check:
+- **P3.5 TEST-survival** uses `tests_covering` / `test_coverage_audit` (OSM cross-version
+  symbol lookup) to detect test methods that REFERENCE a field/model removed at the target.
+  It operates at the OSM symbol-graph level and covers both production and test code.
+- **P4.5** uses the six static symbol classes from `[[fp-symbol-survival-check]]` section 2.5
+  (base-class kwarg drift, file-existence, dynamic `ref()`, python import, AST pyflakes,
+  installable flag) applied specifically to the merged `tests/` files, then enforces a
+  collection-level ACCEPTANCE GATE before the red-green behavioral loop begins.
+
+The two checks are COMPLEMENTARY: P3.5 catches symbol-graph breaks via OSM; P4.5 catches
+static grep / import / AST breaks and blocks entry to P4 when test collection itself would
+fail.
+
+**Enumerate scope:**
+
+```bash
+# Merged test files (from the P3 source-touched list, filter to tests/)
+git log --name-only --format="" <merge-base>..<src-SHA> | sort -u | grep -v '^$' \
+  | grep 'tests/'
+```
+
+For each file, apply the six symbol classes from `[[fp-symbol-survival-check]]` section 2.5:
+(a) test base-class kwarg drift, (b) referenced file paths, (c) dynamic `ref()` / `xml_id`,
+(d) python imports, (e) AST pyflakes, (f) installable-flag transitions.
+
+Record findings as `SYMBOL-BROKEN | <symbol/path> | <file>:<line> | <class> | evidence` and
+append to `merge-log.md`. These become the `BROKEN TEST-SYMBOLS` input to the 4a brief.
+
+**ACCEPTANCE GATE (collection clean) - mandatory before Phase 4 starts:**
+
+```bash
+# pytest collection smoke-test
+python -m pytest <test_files> --collect-only -q 2>&1 | tail -20
+# OR Odoo collection (for TestCase subclasses with setUpClass)
+odoo-bin -d $ALLOC_DB_NAME --test-enable --test-tags <tag> --stop-after-init \
+  --skip-auto-install --http-port=$ALLOC_HTTP_PORT 2>&1 | grep -E 'ERROR|setUpClass'
+```
+
+A collection failure (ImportError, setUpClass crash, missing fixture) means the tests NEVER
+RAN in Phase 5 - a count of `0 failed, N error(s)` is NOT a passing result (the setUpClass
+crashed before any test method ran). Resolve every drift finding (P4.5 SYMBOL-BROKEN entries)
+before entering the Phase 4 adapt loop.
+
+---
+
+## P4 - Adapt (test-first; serial per-module within a commit; WORK-tier worktree per module for filesystem isolation)
 
 For each touched module/WI, create a child worktree off integration and dispatch the adapt unit
 (serially - complete one module before starting the next within the same commit):
@@ -154,6 +209,17 @@ For each touched module/WI, create a child worktree off integration and dispatch
 ```bash
 git worktree add -b fp/<slug>-<module> <path>/wt-<module> fp/<slug>
 ```
+
+**Per-commit vs absorb-all worktree.** The child-worktree-per-module command above applies
+when each source commit is committed on integration before the next is merged (one-shot
+`cherry-pick -n`, or continuous merging one SHA at a time) - the child forks from a committed tree
+and sees no in-flight conflicts. For an absorb-all run that merges every commit in ONE
+`git merge --no-commit`, the conflicts live in the integration worktree's WORKING TREE
+(uncommitted); a child worktree forked off the uncommitted integration HEAD CANNOT see them. In
+that case do NOT run `git worktree add` for conflict resolution - resolve conflicts serially, per
+module, directly in the integration worktree, and only resume child-worktree isolation once the
+absorbed merge is committed. Picking the wrong mode here yields child worktrees with a clean tree
+and an unresolved (invisible) conflict still sitting in integration.
 
 **4a - forward the test FIRST** (the test is the oracle; independence keeps it honest). Dispatch
 `odoo-test-writing` in mode `adapt`:
@@ -163,11 +229,29 @@ TEST ADAPT MODE: forward this source test to the target platform.
 SOURCE TEST: <path(s) in the merged tree>
 INTENT: <one-liner from intents/<sha>.md>   BUCKET: <a|b|c|d>
 ODOO VERSION: <target>
+BASE CLASS (target): <signature from test_base_classes(odoo_version='<target>') for the source
+      test's base class - the kwargs the target setUpClass/setUp actually accepts, so the author
+      does not re-introduce a dropped kwarg>
+TARGET TEST EXAMPLES: <1-2 paths from find_test_examples(query='<feature>', odoo_version='<target>')
+      that already test this behavior the target-idiomatic way - imitate their structure>
+BROKEN TEST-SYMBOLS: <the P3.5 / P4.5 SYMBOL-BROKEN entries that land in THIS test file - the
+      author must repair each (do not forward them verbatim)>
 RULE: translate to target API; STRIP implementation-coupled assertions (private method asserts,
       call counts, internal ordering); re-create the BEHAVIOR on target; confirm RED on target.
       Never relax/rewrite an assertion to pass unless the target platform legitimately redefines
       the behavior AND you cite the OSM/platform reason.
 ```
+
+Resolve the three enrichment lines BEFORE dispatch:
+
+```python
+test_base_classes(odoo_version='18.0')                                      # BASE CLASS (target)
+find_test_examples(query='double-post guard on account.move', odoo_version='18.0')  # TARGET TEST EXAMPLES
+```
+
+`BROKEN TEST-SYMBOLS` is the subset of the P3.5 symbol-survival finding list (plus any P4.5 drift
+finding) whose `<file>` is this test file - copy those rows in verbatim; omit the line when the
+list is empty for this file.
 
 **4b - adapt the code** per bucket. Dispatch `odoo-coder` (backend) / `odoo-frontend-coder`
 (frontend) with the FP-ENRICHED brief - the extra context a generic coder brief lacks:
@@ -188,9 +272,48 @@ USER LANGUAGE: <lang | omit when English>
 **4c - new module:** apply `[[fp-installable-false]]` - `installable: False`, comment
 `auto_install`/`application`, lint-fix only, no content upgrade.
 
+**4c-bis - installable:False at target = LINT-ONLY lane.** BEFORE dispatching the coder/reviewer
+for any module (new or pre-existing), confirm its target installable flag:
+
+```python
+module_inspect(name='l10n_vn_edi', method='summary', odoo_version='18.0')   # read installable
+```
+
+(or read the target manifest's `installable` key). If `installable: False` at the target, brief
+the coder in **lint-only mode**: run flake8 / eslint / prettier / ruff and fix ONLY syntax/lint
+breakage to keep CI green - do NOT adapt business logic, do NOT upgrade content. Pass
+`LINT-ONLY: yes` in the 4b brief and the pointer `[[fp-installable-false]]`. The single exception
+to "no logic change" is a syntax/lint error that itself blocks the file from parsing.
+
 **4d - migration script:** rename the `migrations/<src-series>.x.y.z` dir to `<tgt-series>` ONLY
 when the gate `installed < parse(dir) <= current` holds (else the script lands inert - silent).
-The rename is idempotent (re-run safe). See `odoo-data-migration` for the script body.
+The rename is idempotent (re-run safe). See `odoo-data-migration` for the script body. After the
+rename, sweep the migration body for log strings / hardcoded series literals still naming the
+SOURCE series (a `_logger.info("... 17.0 ...")` or a version string left from the source) - they
+survive `git mv` unchanged and mislead the operator:
+
+```bash
+grep -rn '<src-series>' migrations/<tgt-series>/   # e.g. grep -rn '17\.0' migrations/18.0/
+```
+
+**4e - i18n: DISPATCH the `odoo-i18n` cluster, never inline.** When a forwarded commit adds or
+changes translatable strings (new `.po`/`.pot`, new `string=`/labels/help, a new module), hand the
+translation work to the dedicated cluster via a subagent dispatch (or `SUGGESTED_NEXT: odoo-i18n`
+when the run is one-shot):
+
+```
+DISPATCH: odoo-i18n
+SOURCE PO PATHS: <source-side .po/.pot files in the merged tree>
+TARGET MODULES: <module name(s) whose translations need forwarding>
+ODOO VERSION: <target>
+SOURCE SERIES: <source-series>
+TARGET LANGUAGES: <language codes inferred from the source .po filenames, e.g. vi_VN fr_FR;
+    list one code per file (<lang>.po -> <lang>); if forwarding only a subset, list that
+    subset explicitly>
+```
+
+`odoo-i18n` owns the non-destructive `.pot`/`.po` recipe and the isolated-DB export; this pipeline
+forwards only the INTENT (which strings, which modules), never the export itself.
 
 Converge each child worktree back to integration (serialized, keep SHA), then
 `git worktree remove <path>`. Mark `status=adapted`.
@@ -205,14 +328,72 @@ namespace package changes bootstrap; always pass `odoo_version=<target>` to `cli
 Instance lifecycle protocol: `docs/reference/INSTANCE-LIFECYCLE.md`. Test invocation
 conventions: `docs/reference/ODOO-TESTING.md`.
 
+**Env-bootstrap (do this FIRST, before any odoo-bin call).** A multi-repo stack (e.g.
+Viindoo Standard spans 4 repos) needs EVERY repo on disk and concatenated into `--addons-path`
+before verify - a module is invisible (silent ImportError / "module not found") if its repo is
+absent. Build the addons-path from all stack repos:
+
+```bash
+ADDONS_PATH=/path/repo-a/addons,/path/repo-b,/path/repo-c/addons,/path/repo-d
+# verify each repo dir exists on disk; a missing repo = BLOCKED (NEEDS_CONTEXT), not a test red
+```
+
+**Install/verify the FULL transitive `depends` closure, not just the module you edited.**
+A forwarded change can break a downstream depender that you never touched. Resolve the closure
+per module, then install/verify its breadth:
+
+```python
+module_inspect(name='account_accountant', method='dependencies', odoo_version='18.0')
+```
+
+Union the closures of every directly-touched module and feed that whole set to `-i` below.
+
+**Lint toolchain present BEFORE the lint gate.** The verify venv must have flake8 / ruff
+(and eslint / prettier for frontend) installed, or the P7 lint gate silently no-ops. Confirm
+`flake8 --version` and `ruff --version` resolve in the verify env before relying on a green lint.
+
 ```bash
 # one ephemeral DB per BATCH, not per commit
 python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral
 #   -> ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_TOKEN  (cache TOKEN in the batch worklog)
+#   ALLOC_PORTS includes a free HTTP port -> export it as ALLOC_HTTP_PORT
 
-odoo-bin -d $ALLOC_DB_NAME -i mod_a,mod_b --test-enable --stop-after-init   # install N once
-# subsequent same-batch commits touching a subset: -u <changed_mod> (skip full -i)
+# install the full closure once. --skip-auto-install ISOLATES auto_install modules that
+# would otherwise be pulled in silently and mask (or fabricate) a break. --http-port binds the
+# allocator-issued free port: --no-http does NOT prevent the bind a running HttpCase performs,
+# so two parallel batches collide on the default 8069 - always pin the allocated port.
+odoo-bin -d $ALLOC_DB_NAME -i mod_a,mod_b --test-enable --stop-after-init \
+  --skip-auto-install --http-port=$ALLOC_HTTP_PORT 2>&1 | tee install.log
+# subsequent same-batch commits touching a subset: -u <changed_mod> (skip full -i),
+# keep --skip-auto-install --http-port=$ALLOC_HTTP_PORT
 
+python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN
+```
+
+**Confirm EACH module actually loaded; Odoo silent-skips, it does not error.** An
+`installable: False` module (or one excluded by `--skip-auto-install`) is skipped with NO error
+line - a green run is NOT proof it installed. Parse the log for a `Loading module <X>` line per
+module in the closure:
+
+```bash
+for m in mod_a mod_b mod_c; do
+  grep -q "Loading module $m" install.log || echo "NOT LOADED: $m"   # absent = never installed
+done
+```
+
+Reconcile the NOT-LOADED set against the installable scan (`[[fp-symbol-survival-check]]`
+section 2.5f): a module that is `installable: False` at the target is EXPECTED not to load -
+route it to the 4c-bis lint-only lane and do NOT count its absence as a break. A module that is
+installable AND missing its Loading line is a real failure - investigate before reading any test
+count.
+
+**Recover an orphaned odoo-bin before re-running.** A crashed/killed batch can leave an
+odoo-bin process holding the DB and port. Kill ONLY the process bound to this batch's DB (match
+the unique `$ALLOC_DB_NAME`, never a bare `odoo-bin` that would self-match this very command or a
+sibling batch), then release the lease so the allocator can reclaim the port:
+
+```bash
+pkill -f "odoo-bin.*$ALLOC_DB_NAME"   # narrow match - never `pkill -f odoo-bin`
 python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN
 ```
 
@@ -223,6 +404,11 @@ python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN
 - **Triage red:** run the red test on a clean target tip (no absorption). Red there too =
   pre-existing (record, do not fix, do not block). Green on clean / red after = FP-delta (fix
   before committing). Never widen an assertion to hide a pre-existing failure.
+- **Baseline a failed INSTALL the same way.** If a module fails to install, re-run its `-i`
+  on clean `origin/<target-branch>` (no absorption, no merge). Fails there too = a PRE-EXISTING
+  break in the target series, NOT FP-introduced - record it in `merge-log.md` and do NOT block
+  the forward-port on it. Only an install that is green on clean origin/target and red after
+  absorption is an FP-delta to fix.
 - **CREATEDB-role footgun:** verify `SELECT rolcreatedb FROM pg_roles WHERE rolname =
   current_user;` returns `t` before a parallel batch; if `f`, serialize the batch.
 
@@ -256,6 +442,37 @@ Run `/code-review` inline. Optionally
 dispatch `odoo-code-review` for the forward-port pitfall (a forwarded test still coupled to the
 source API). NEVER squash (squash mints a new SHA, defeats merge-base advance). B stays LOCKED -
 the PR adds only the merge commits. Present the PR URL and wait for the human to merge.
+
+**Attribute every finding to the FP diff before rating it.** A reviewer rating the whole
+file blames the forward-port for code it never touched. Before rating any finding, confirm the
+line is actually in the forward-port delta:
+
+```bash
+git diff origin/<target-branch>...fp/<slug> -- <file>   # three-dot: only what the FP added
+```
+
+A finding on a line NOT in this diff is pre-existing - note it separately, do not block the PR on
+it (flag it, do not gate the forward-port on it).
+
+**Per finding, check whether the bug already exists in the SOURCE series.** For each finding,
+open the source-series PR / branch and check if the same defect is present there. If it is, the
+bug is INHERITED (forwarded faithfully, not introduced here) - route a fix UPSTREAM to the source
+series; do NOT patch it silently inside the forward-port (that would diverge source and target and
+hide the real fix location). Record `inherited -> upstream` in `merge-log.md` and carry the
+faithful forward.
+
+**Narrow a field-existence question with a direct lookup, not a model_inspect retry.** When
+a finding hinges on whether one field still exists / changed type at the target, query that field
+directly instead of re-dumping the whole model:
+
+```python
+entity_lookup(kind='field', model='account.move', field='payment_state', odoo_version='18.0')
+```
+
+**installable:False modules get a LINT-ONLY review.** For any module that is
+`installable: False` at the target (4c-bis lane), the reviewer rates ONLY syntax / lint findings -
+do NOT raise business-logic / behavior findings against a module that does not even install at the
+target. Mark such findings out-of-scope for this forward-port.
 
 ---
 

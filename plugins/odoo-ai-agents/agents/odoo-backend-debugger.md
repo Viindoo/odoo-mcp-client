@@ -160,6 +160,13 @@ If you change several things and the symptom clears, you do not know which one m
 
 If your root cause is correct, you can make the bug APPEAR and DISAPPEAR at will. In read-only diagnosis, describe the toggle recipe rather than executing it. If you cannot describe such a toggle, return to Step 3. Do not fill `Confirm-by-toggle` until you can articulate this.
 
+**MED-6 - `0 failed, N error(s)` is NOT a pass.** When a test run reports errors (not failures)
+originating from setUpClass / setUp / module-load, the test bodies DID NOT RUN - the
+collection or fixture crashed before any assertion could execute. Do NOT read this as green.
+Do NOT conclude "transient/flaky" unless you have a deterministic RED->GREEN toggle you have
+ACTUALLY EXECUTED. Require `0 errors` before reading the failed/passed counts; fix
+setup/collection errors first.
+
 ### Step 7 - Name the fix location (do not write the fix)
 
 Once the root cause is proven: name the file, method/selector, and which coding skill to hand off to. Recommend `odoo-coding` (Python/XML). Instruct the coder to read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/` and write to that version's conventions from the first pass. If the symptom touches a broader pattern, suggest a reactive audit (`odoo-perf-audit`, `odoo-security-audit`, `odoo-deprecation-audit`) via the Continuation Contract - do not spawn it.

@@ -9,17 +9,20 @@ Triage is INLINE and deterministic. The orchestrator decides each commit's tier 
 tier by walking the relevant table TOP-DOWN and stopping at the FIRST match. Record the chosen
 tier in `plan.md`; the tier is part of the approved plan, not a runtime improvisation.
 
-There are TWO tables because the two phases do different work: Phase 1 reads and analyzes a
-commit (EXTRACT), Phase 4 writes adapted code (ADAPT). A commit can be opus-to-extract and
-sonnet-to-adapt, or vice-versa.
-
 ---
 
 ## Table 1 - EXTRACT tier (Phase 0 triage -> Phase 1 intent extraction)
 
+> **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row):**
+> If the module's `installable` field is `False` at the TARGET version
+> (confirm via `module_inspect(name='<module>', method='summary', odoo_version='<target>')` or
+> read the target `__manifest__.py`) -> this module is on the **lint-only lane**.
+> Do NOT walk the tier rows below. Do NOT dispatch extract or adapt logic.
+> Only dispatch a haiku lint-fix agent if CI is red due to a syntax error.
+> See [[fp-installable-false]] for the full lint-only lane specification.
+
 Intent extraction is read-only analysis: read the commit message, PR/issue, tests, and
-OSM-ground the touched symbols at the SOURCE version. **fable is intentionally absent** -
-read-only intent work is never worth fable's ~2x-opus cost.
+OSM-ground the touched symbols at the SOURCE version. fable is not available for this phase.
 
 | # | Condition (first match wins) | Tier |
 |---|---|---|
@@ -38,6 +41,14 @@ Constraints:
 ---
 
 ## Table 2 - ADAPT tier (Phase 4 code adapt)
+
+> **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row):**
+> If the module's `installable` field is `False` at the TARGET version
+> (confirm via `module_inspect(name='<module>', method='summary', odoo_version='<target>')` or
+> read the target `__manifest__.py`) -> this module is on the **lint-only lane**.
+> Do NOT walk the tier rows below. Do NOT dispatch adapt logic or business-logic review.
+> Only dispatch a haiku lint-fix agent if CI is red due to a syntax error.
+> See [[fp-installable-false]] for the full lint-only lane specification.
 
 Code adapt WRITES production code on the target platform. It reuses the `odoo-coding`
 deterministic tier table verbatim (SSOT - do not fork it). The condition set, summarized:
@@ -76,3 +87,35 @@ The EXTRACT tier drives the Phase 1 dispatch; the ADAPT tier drives the Phase 4 
 Buckets are assigned in Phase 2 (after extraction), so the ADAPT tier may be refined once the
 bucket is known - a commit triaged opus-to-adapt that classifies as bucket (a) drops to haiku
 (test-only). Re-record any refinement in `plan.md`.
+
+---
+
+## Bucket-(c) upgrade-scale defer-or-do gate
+
+The ADAPT table picks a MODEL; it does NOT decide whether a cluster is even a mechanical port.
+A large bucket-(c) cluster that is really an upgrade-scale RE-IMPLEMENT (a framework migration,
+not a port) MUST be surfaced as an explicit choice, never silently adapted inside a "mechanical"
+forward-port run.
+
+**When the gate fires.** After P2 classify (buckets known), estimate each bucket-(c) cluster's
+adapt size: source-side LOC delta + a framework-migration flag (e.g. v16 legacy widget -> v17+
+OWL, QUnit -> Hoot, an API removed wholesale at the target). The gate trips if EITHER holds:
+- estimated > ~200 LOC of new OWL/JS (or backend) on the target, OR
+- it is a full component / framework rewrite (the source idiom no longer exists at the target).
+
+**What to do when it fires - STOP and present (at the P0 plan gate, or mid-run if discovered
+late):**
+
+```
+This cluster (<modules>) looks like an upgrade-scale re-implement, not a mechanical port
+(~<LOC> LOC / <framework-migration>). Options:
+  (a) defer  - carry as installable:False now, re-implement in a dedicated later effort
+               (lint-only lane meanwhile - see [[fp-installable-false]])
+  (b) do now - estimate ~<X> hours; proceed at the ADAPT tier from Table 2
+Choose (a) or (b).
+```
+
+Record the choice in `plan.md`. On **(a)**, the cluster moves to the lint-only lane - its modules
+go `installable:False` and B2 deferral mode = CARRY (`[[fp-installable-false]]`). On **(b)**,
+proceed normally at the Table-2 tier. Default when the user does not answer: **(a) defer** - never
+silently sink unbounded re-implement effort into a run the user expected to be mechanical.

@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **42 skills + 8 agents + 9 commands**, grouped into **9 persona
+> The Odoo AI workforce toolkit: **43 skills + 9 agents + 9 commands**, grouped into **9 persona
 > buckets**, plus **12 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
@@ -38,81 +38,30 @@ You control how hands-off this is with one optional flag (`--auto` is the defaul
 plan, and the main agent is never forced or trapped - the stops are real human checkpoints, the
 nudges are advisory.
 
-A first-class **forward-port pipeline** (`/odoo-forward-port`) is also included: an 8-phase
+A first-class **forward-port pipeline** (`/odoo-forward-port`) is also included: a 9-phase
 orchestration that ports commits across Odoo series using intent-first extraction (not raw
 code carry-over), merge-keep-SHA strategy, symbol-survival checking, adaptive test forwarding,
 and verify-by-behavior per batch. It runs alongside coding, code review, and upgrade planning
 as a core engineering capability.
 
-> **Counts at a glance:** this plugin ships **42 skills + 8 agents + 9 commands**, grouped into
+> **Counts at a glance:** this plugin ships **43 skills + 9 agents + 9 commands**, grouped into
 > **9 persona buckets** for navigation, plus **12 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
 
 ## Who is it for
 
-```mermaid
-flowchart TD
-    subgraph concierge["Onboarding / Concierge"]
-        intake["odoo-intake"]
-        onboard["odoo-onboarding"]
-    end
-
-    subgraph eng_grp["Engineer"]
-        eng_a["override-finding"]
-        eng_b["deprecation-audit"]
-        eng_c["forward-port / version-diff"]
-    end
-
-    subgraph coder_grp["Coder"]
-        cod_a["odoo-coding"]
-        cod_b["odoo-debug"]
-        cod_c["forward-port / solution-design"]
-    end
-
-    subgraph rev_grp["Code-Reviewer"]
-        rev_a["odoo-code-review"]
-    end
-
-    subgraph qa_grp["Visual / UI QA"]
-        qa_a["ui-review"]
-        qa_b["visual-regression"]
-        qa_c["demo-recording ..."]
-    end
-
-    subgraph presales_grp["Pre-Sales"]
-        ps_a["feature-check"]
-        ps_b["gap-analysis"]
-        ps_c["brl + more ..."]
-    end
-
-    subgraph sales_grp["Sales AE"]
-        sa_a["objection-handling"]
-        sa_b["deal-followup"]
-        sa_c["discovery-summary ..."]
-    end
-
-    subgraph mkt_grp["Marketer"]
-        mk_a["feature-highlights"]
-        mk_b["content-draft"]
-        mk_c["campaign-plan"]
-    end
-
-    subgraph strat_grp["Strategist / CEO"]
-        st_a["risk-overview"]
-        st_b["competitive-brief"]
-        st_c["customization-inventory"]
-    end
-
-    concierge --> eng_grp
-    concierge --> coder_grp
-    concierge --> rev_grp
-    concierge --> qa_grp
-    concierge --> presales_grp
-    concierge --> sales_grp
-    concierge --> mkt_grp
-    concierge --> strat_grp
-```
+| Persona | Key skills |
+|---------|-----------|
+| Onboarding / Concierge | `odoo-intake` - `odoo-onboarding` |
+| Engineer | override-finding - deprecation-audit - forward-port / version-diff |
+| Coder | odoo-coding - odoo-debug - solution-design |
+| Code-Reviewer | odoo-code-review |
+| Visual / UI QA | ui-review - visual-regression - demo-recording |
+| Pre-Sales | feature-check - gap-analysis - brl |
+| Sales AE | objection-handling - deal-followup - discovery-summary |
+| Marketer | feature-highlights - content-draft - campaign-plan |
+| Strategist / CEO | risk-overview - competitive-brief - customization-inventory |
 
 - **Engineer** - Find the correct override point, audit deprecated API usage before an upgrade, or validate a deployment is safe.
 - **Coder** - Write Odoo backend (Python/XML) or frontend (JS/OWL) code that is idiomatic and convention-correct, without looking up every framework rule.
@@ -159,44 +108,34 @@ through the OSM MCP server; output is a direct answer or a file under `.odoo-ai/
 flowchart TD
     A([Plain-language intent]) --> D{"odoo-intake"}
     D -->|"Vague"| E["Brainstorm options"]
-    E -->|approve| D
+    E -->|"approve"| D
     D -->|"Non-Odoo"| X["Route elsewhere"]
-    D -->|"Review / debug<br/>(fast-path)"| SPEC["odoo-code-review<br/>/ odoo-debug"]
-    D -->|"Recon + Plan"| G{"Approved - steps?"}
+    D -->|"Review / debug"| SPEC["odoo-code-review<br/>/ odoo-debug"]
+    D -->|"Recon + Plan"| G{"Approved?"}
 
     G -->|"deep-survey opt-in"| DS["odoo-deep-survey<br/>haiku->sonnet->opus"]
     DS -->|"re-informs plan"| G
 
     G -->|"Single chat"| F1["Specialist fires"]
-    G -->|"Single writes-files"| F2["Specialist + Plan approval"]
-    G -->|"Multi-step"| RUN["run-driver loop<br/>walk run-id.json"]
+    G -->|"Single writes-files"| F2["Specialist + Plan"]
+    G -->|"Multi-step"| RUN["run-driver loop"]
 
-    RUN --> PK{"next node<br/>+ gate tier"}
+    SPEC -->|"CRITICAL/HIGH"| FIX["Fix loop<br/>review->coding->review<br/>(max 3 rounds)"]
+
+    D -->|"Forward-port"| FP["Forward-port pipeline<br/>(9 phases, 2 STOP-gates)<br/>see detail below"]
+
+    RUN --> PK{"next node + tier"}
     PK -->|"L0/L1 auto"| DISP["dispatch:<br/>skill / agent / workflow"]
     PK -->|"L2 irreversible"| STOP["STOP - human gate"]
-    STOP -->|approve| DISP
+    STOP -->|"approve"| DISP
     DISP --> CC["Continuation Contract"]
     CC -->|"next / on_complete"| PK
     CC -->|"all done"| DONE([DONE / BLOCKED])
 
-    subgraph FIXLOOP["Fix loop - CRITICAL/HIGH, max 3 rounds"]
-        REV["code-review / debug"] -->|"drive fix"| FIX["odoo-coding"]
-        FIX -->|"re-review"| REV
-    end
-
-    subgraph FPFLOW["Forward-Port - intent-first, serial per commit"]
-        FP1["intent-extractor<br/>(parallel, read-only)"] --> FP2["4-outcome classify"]
-        FP2 --> FP3["odoo-coder<br/>(FP-enriched, serial)"]
-        FP3 --> FP4["verify-by-behavior<br/>(per-batch)"]
-    end
-
-    SPEC --> FIXLOOP
-    D -->|"Forward-port<br/>(STOP-gate)"| FPFLOW
-
     F1 --> I[("OSM MCP")]
     F2 --> I
     DISP --> I
-    FIXLOOP --> I
+    FIX --> I
     I --> Z([Answer or .odoo-ai/])
 ```
 
@@ -254,10 +193,10 @@ work-item in either direction (same convention as `odoo-debug` and `odoo-solutio
 ```mermaid
 flowchart TD
     GATE["Phase 0 gate<br/>scope + module graph + tier"]
-    GATE --> BATCH["model-weighted subagent batches"]
+    GATE --> BATCH["model-weighted batches"]
 
-    subgraph BUDGET["Budget: 8 weight-units (concurrency-guard.md)"]
-        W["haiku=1 / sonnet=2 / opus=4 / fable=8"]
+    subgraph BUDGET["Budget: 8 weight-units"]
+        W["haiku=1 / sonnet=2<br/>opus=4 / fable=8"]
     end
 
     BATCH --> BUDGET
@@ -296,42 +235,17 @@ that up and chains the next step across workflows automatically.
 | `research-multiphase` | Flexible-phase research: broad survey -> deep dives -> synthesis, a different model tier per phase | `.odoo-ai/research/` |
 
 Commands come in two shapes: multi-phase orchestrators that chain several skills in a
-gated sequence, and single-step wrappers that run one skill and offer a save step. The
-diagrams below show both, plus the visual UI testing pipeline that `setup` provisions.
+gated sequence, and single-step wrappers that run one skill and offer a save step.
 
-```mermaid
-flowchart TD
-    subgraph BID["/odoo-respond-bid"]
-        B1[discovery-summary] --> B2[gap-analysis]
-        B2 --> B3[capability-proof]
-        B3 --> B4[objection-handling]
-        B4 --> B5[(assemble + save)]
-    end
-
-    subgraph POS["/odoo-position-feature"]
-        P1[feature-check] --> P2[addon-diff]
-        P2 --> P3[competitive-brief]
-        P3 --> P4[(positioning + save)]
-    end
-
-    subgraph UPG["/odoo-plan-upgrade"]
-        U1[risk-overview] --> U2[deprecation-audit]
-        U2 --> U3[version-diff]
-        U3 --> U4[(plan + save)]
-    end
-
-    subgraph BRL_CMD["/odoo-run-brl"]
-        R1["Gate 0: chunk plan"] --> R2[classify + cost]
-        R2 --> R3[dependency DAG]
-        R3 --> R4[(RTM + report)]
-    end
-
-    subgraph WRAP["Single-step wrappers"]
-        W1["/odoo-draft-followup"]
-        W2["/odoo-summarize-discovery"]
-        W3["/odoo-produce-video"]
-    end
-```
+| Command | Skill chain | Output |
+|---------|------------|--------|
+| `/odoo-respond-bid` | discovery-summary -> gap-analysis -> capability-proof -> objection-handling -> assemble | `.odoo-ai/bids/` |
+| `/odoo-position-feature` | feature-check -> addon-diff -> competitive-brief -> positioning | `.odoo-ai/positioning/` |
+| `/odoo-plan-upgrade` | risk-overview -> deprecation-audit -> version-diff -> synthesis | `.odoo-ai/upgrade-plans/` |
+| `/odoo-run-brl` | Gate 0 chunk plan -> classify + cost -> dependency DAG -> RTM + report | `.odoo-ai/brl/` |
+| `/odoo-draft-followup` | odoo-deal-followup (single step) | `.odoo-ai/followups/` |
+| `/odoo-summarize-discovery` | odoo-discovery-summary (single step) | `.odoo-ai/discovery/` |
+| `/odoo-produce-video` | odoo-demo-recording per scene | `.odoo-ai/video/` |
 
 The visual UI testing stack is a sibling cluster, not a linear chain: one `setup` step
 provisions the browser environment, then four skills run independently and converge on
@@ -339,30 +253,29 @@ provisions the browser environment, then four skills run independently and conve
 
 ```mermaid
 flowchart TD
-    SETUP["/odoo-setup<br/>(one-time)"]
+    SETUP["/odoo-setup (one-time)"]
     SETUP --> MCPW["3 browser MCP servers<br/>chrome-devtools / playwright / pagecast"]
     SETUP --> CTX["context.md + instances.toml"]
 
     MCPW --> SK["Visual skills ready"]
     CTX --> SK
 
-    SK --> UID["odoo-debug"]
-    SK --> UIR["odoo-ui-review<br/>5-lens + agent"]
-    SK --> VR["odoo-visual-regression"]
+    subgraph FIX_SKILLS["Diagnosis -> fix"]
+        UID["odoo-debug"] --> FC["odoo-coding<br/>(fix writer)"]
+        UIR["odoo-ui-review<br/>5-lens"] --> FC
+        VR["odoo-visual-regression"] --> FC
+    end
+
+    SK --> FIX_SKILLS
     SK --> DR["odoo-demo-recording"]
-
-    UID --> FC["odoo-coding<br/>(fix writer)"]
-    UIR --> FC
-    VR --> FC
-
     DR --> MEDIA["MP4 / GIF artifact"]
 ```
 
 ### Forward-port pipeline (`/odoo-forward-port`)
 
-An 8-phase orchestration that ports commits across Odoo series using intent-first extraction
-(not raw code carry-over), merge-keep-SHA strategy, symbol-survival checking, adaptive test
-forwarding, and verify-by-behavior per batch. Two human STOP-gates bound the automation.
+A 9-phase orchestration that ports commits across Odoo series using intent-first extraction
+(not raw code carry-over), merge-keep-SHA strategy, symbol-survival checking, pre-adapt drift
+scan, adaptive test forwarding, and verify-by-behavior per batch. Two human STOP-gates bound the automation.
 
 ```mermaid
 flowchart TD
@@ -378,17 +291,18 @@ flowchart TD
     IE1 --> P2["P2 - 4-outcome classify<br/>(OSM api_version_diff)"]
     IE2 --> P2
     P2 --> P3["P3 - git merge --no-commit<br/>(keep SHA)"]
-    P3 --> P35["P3.5 - Symbol-survival<br/>(field / method / model)"]
+    P3 --> P35["P3.5 - Symbol-survival<br/>(6 classes: field/method/model/<br/>test-base/import/installable)"]
+    P35 --> P45["P4.5 - Pre-adapt drift scan<br/>(test-collect gate)"]
 
     subgraph P4_grp["P4 - Adapt (serial per commit, test-first)"]
         PA["forward tests RED-on-target"] --> PB["adapt by bucket<br/>a=skip / b=3-way / c=reimplement / d=skip"]
-        PB --> PC["migration rename gate"]
+        PB --> PC["migration rename gate + i18n dispatch"]
     end
 
-    P35 --> PA
+    P45 --> PA
     PC --> P5["P5 - Verify-by-behavior<br/>(per-batch, RED then GREEN)"]
     P5 -->|"STOP - human confirm"| P6["P6 - Gate merge + checkpoint<br/>(all outcomes keep SHA)"]
-    P6 --> P7["P7 - PR + code-review"]
+    P6 --> P7["P7 - PR + code-review<br/>(mandatory for new engines)"]
     P7 --> DONE(["Done - .odoo-ai/forward-port/"])
 ```
 
@@ -396,7 +310,8 @@ flowchart TD
 |-------|-----------|-------------|
 | P0 plan | - | STOP before P1 |
 | P1 intent-extract | Yes (N commits) | - |
-| P2-P3.5 classify + merge | Serial per commit | - |
+| P2-P3.5 classify + merge + symbol-survival | Serial per commit | - |
+| P4.5 pre-adapt drift scan | Serial per commit | - |
 | P4 adapt | Serial per commit | - |
 | P5 verify | Per-batch | STOP before P6 |
 | P6-P7 merge + PR | - | - |
@@ -507,7 +422,7 @@ Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression
 
 ### Frequently asked questions
 
-**I only need one skill - do I have to know all 41?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `odoo-intake` acts as a brainstorm partner when you are not sure which skill to use.
+**I only need one skill - do I have to know all 43?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `odoo-intake` acts as a brainstorm partner when you are not sure which skill to use.
 
 **What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by reading your local codebase and `.odoo-ai/context.md` directly (Read/Grep/WebFetch, three-tier grounding) instead of asking you to paste data; if a browser is genuinely unreachable a visual skill returns BLOCKED rather than requesting screenshots. The plugin does not break when OSM is offline.
 
@@ -586,7 +501,7 @@ snippet once, not each of the agents that consume it):
 | `snippets/worklog-contract.md` | Append-only cross-agent decision journal (`.odoo-ai/worklog/<run>/<NNN>-<agent>.md`) read at start, appended at end, so a later phase can look up why an earlier one decided what it did |
 | `skills/_shared/odoo-module-graph.md` | The Odoo module DAG (from each `__manifest__.py` `depends`), shared by `odoo-coding` and `wave` so both dispatch in dependency order and respect module boundaries |
 
-### Skills (41)
+### Skills (43)
 
 Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 
@@ -602,6 +517,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-test-writing` | Engineer | Write executable `test_*.py` (or JS Hoot/QUnit) that protect business behavior, not current code; authors the RED-first failing test before the code in the `odoo-coding` loop, and backfills coverage when review flags an unprotected behavior |
 | `odoo-security-audit` | Engineer | Audit code for SQLi / XSS / access-control / CSRF / unsafe deserialization, graded findings |
 | `odoo-data-migration` | Engineer | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
+| `odoo-i18n` | Engineer / Coder | Dedicated i18n cluster - export .pot templates, non-destructively merge into maintained .po translations, dispatch leaf translation, and audit cross-module term consistency; the i18n step forward-port and new-module workflows dispatch into |
 | `odoo-perf-audit` | Engineer | Audit for N+1 queries, missing prefetch, unindexed domains, compute thrash, with fixes |
 | `odoo-solution-design` | Architect / Coder | Design the technical solution (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding - the analysis-and-design step between requirement scoping and code (slim, paired with agent bundle) |
 | `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, assigns a deterministic model tier per module (haiku/sonnet/opus/fable, sonnet default), and dispatches the `odoo-coder` + `odoo-frontend-coder` agents via Agent-tool model-weighted batches (per-module backend->frontend, model-weighted concurrency budget); orders modules by the shared module DAG, orchestrates red-first test authorship before each non-trivial module's code, and feeds the `code -> review+test -> code` loop (slim, paired with agent bundle) |
@@ -634,7 +550,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `run-driver` | Internal (harness) | Orchestrating drive-to-done loop - walks the `run-<id>.json` plan, dispatches each work-item, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent |
 | `wave` | Internal (orchestration) | Git-wave orchestration (orchestrating context) - integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge; computes the Odoo module DAG at Phase 0 to auto-infer work-item `depends_on` and warn on module-boundary-crossing WIs; self-spawning, principal-branch-locked |
 
-### Agents (7)
+### Agents (9)
 
 | Agent | Model (default) | Role |
 |-------|-----------------|------|
@@ -645,6 +561,8 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-frontend-coder` | Sonnet *(default; per-work-item tier overrides - haiku/sonnet/opus/fable)* | Agent bundle for frontend code writing - JS/OWL/QWeb/SCSS across legacy and OWL eras with OSM grounding and design-system fidelity (companion to the `odoo-coding` skill). Reads the target version's coding guidelines BEFORE writing (conform on the first pass), runs an impact pre-flight along the asset-bundle / template-inheritance axis, and implements to a red-first JS behavior test that drives the real workflow (`test-behavior-contract`). Dispatched at the module's tier (or a lower `frontendModel` when the design splits effort). |
 | `odoo-backend-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes Python/ORM/server runtime failures via the scientific method, OSM-only (no browser); assesses bidirectional impact (could the bug originate upstream? what downstream does the fix touch?) |
 | `odoo-ui-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes OWL/JS/QWeb/SCSS runtime failures from live browser evidence + OSM grounding (serial-exclusive browser use); assesses impact along the template / asset-inheritance axis |
+| `odoo-intent-extractor` | Sonnet | Read-only pre-analysis specialist dispatched by `odoo-forward-port` (Phase 1, parallel) - extracts the business intent and behavioral contract from a single source commit, separating purpose from implementation details; suitable for parallel dispatch over many commits before any git merge or adapt work begins |
+| `odoo-translator` | Sonnet | Leaf translation worker dispatched by `odoo-i18n` (Phase 3) - translates one module (or module-cluster) for one language by polib merge (forwards translation MEMORY, never regenerates), hand-translates only the new/changed residual, and self-validates with an Odoo `-u` reload; never destroys existing human translation |
 
 ## Requirements
 

@@ -55,6 +55,13 @@ produces it, (c) why this fix blocks that cause rather than masking the symptom.
    at will (toggle the suspected cause on/off). If you cannot, you have not found the root cause -
    return to step 3. This is the gate between "plausible" and "proven."
 
+   **MED-6 - `0 failed, N error(s)` is NOT a pass.** When a test run reports errors (not failures)
+   originating from setUpClass / setUp / module-load, the test bodies DID NOT RUN - the
+   collection or fixture crashed before any assertion could execute. Do NOT read this as green.
+   Do NOT conclude "transient/flaky" unless you have a deterministic RED->GREEN toggle you have
+   ACTUALLY EXECUTED. Require `0 errors` before reading the failed/passed counts; fix
+   setup/collection errors first.
+
 7. **Lock it with a regression test.** Write a test that protects the BEHAVIOR (the business rule
    /contract), not the current code. It must be RED before the fix (proving it catches the bug)
    and GREEN after. Never weaken an assertion or skip a case to get green.

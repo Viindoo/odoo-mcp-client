@@ -359,3 +359,15 @@ error = _("Answer to question %(title)s is not valid.\n" \
 ```
 
 In general in Odoo, when manipulating strings, prefer `%` over `.format()` (when only one variable to replace in a string), and prefer `%(varname)` instead of position (when multiple variables have to be replaced). This makes the translation easier for the community translators.
+
+### Terminology consistency
+
+Before choosing a new label or `string=` value, check whether a canonical term already exists for the concept. Use these three sources in order:
+
+- **Translation memory:** search `.po` files in the Odoo core and your dependency chain for existing `msgid` entries that express the same concept - reuse the established wording verbatim.
+- **Project glossary:** consult `.odoo-ai/glossary.yml` for domain-level term decisions already recorded for this project.
+- **OSM field string:** run `entity_lookup(kind='field', model='<model>', field='<field>', odoo_version='<version>')` and read the `string` attribute - it is the authoritative label used by Odoo for that field.
+
+REUSE the canonical term; do NOT invent a new label that duplicates an existing concept under a different name. Terminology drift makes translation memory unusable and confuses users who switch languages.
+
+This is static read-before-write guidance. To actually export or merge `.pot`/`.po` files, use the `odoo-i18n` skill.
