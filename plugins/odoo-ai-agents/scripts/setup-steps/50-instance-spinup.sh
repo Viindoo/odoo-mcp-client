@@ -231,6 +231,19 @@ cmd_apply() {
                 return 1
             fi
 
+            # Determine the config key for the HTTP port: v8/9/10 use xmlrpc_port;
+            # v11+ renamed it to http_port. Derive from INST_VERSION which carries
+            # the full series string (e.g. "17.0", "10.0"). The major version is
+            # the integer before the first dot.
+            local _ver_major
+            _ver_major="${INST_VERSION%%.*}"
+            local _port_key
+            if [[ "$_ver_major" =~ ^[0-9]+$ ]] && (( _ver_major < 11 )); then
+                _port_key="xmlrpc_port"
+            else
+                _port_key="http_port"
+            fi
+
             # ---- PREFLIGHT: warn when ODOO_PG_PASSWORD is unset ---------------
             # An unauthenticated conf works only with trust auth; warn so the user
             # does not silently get a connection-refused or role-missing error at
@@ -269,7 +282,7 @@ cmd_apply() {
             {
                 echo "[options]"
                 echo "addons_path = $(printf '%s' "${INST_ADDONS_PATH:-}" | tr ':' ',')"
-                echo "http_port = $port"
+                echo "$_port_key = $port"
                 echo "db_name = ${INST_DB_NAME:-odoo}"
                 echo "db_host = ${INST_DB_HOST:-localhost}"
                 echo "db_user = ${INST_DB_USER:-odoo}"
@@ -283,9 +296,16 @@ cmd_apply() {
             # Run in background so we can poll. Logs to a temp file.
             # Capture the PID directly (no subshell `( )`, which would hide it)
             # so a poll timeout can terminate the orphaned process.
-            local logf
-            # Portable mktemp (see the conf note above): bare template + rename.
-            logf="$(mktemp "${TMPDIR:-/tmp}/odoo-spinup-XXXXXX")" && mv "$logf" "$logf.log" && logf="$logf.log"
+            local logf _logs_dir _db_slug _ts
+            # Write log to a stable, named path so a calling agent can capture it
+            # across invocations. Dir: ${ODOO_AI_HOME:-$HOME}/.odoo-ai/logs/
+            # File: <db>-<UTC-timestamp>.log (e.g. odoo_test-20260620T153012Z.log)
+            _logs_dir="${ODOO_AI_HOME:-${HOME:-/tmp}}/.odoo-ai/logs"
+            mkdir -p "$_logs_dir"
+            _db_slug="${INST_DB_NAME:-odoo}"
+            _ts="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%d%H%M%S)"
+            logf="$_logs_dir/${_db_slug}-${_ts}.log"
+            echo "LOG_PATH=$logf"
             "$py" "$bin" -c "$conf" -d "${INST_DB_NAME:-odoo}" --dev=all >"$logf" 2>&1 &
             odoo_pid=$!
             echo "  Odoo starting (pid: $odoo_pid, log: $logf)"
