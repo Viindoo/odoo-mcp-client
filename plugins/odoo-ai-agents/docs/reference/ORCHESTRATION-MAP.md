@@ -10,7 +10,7 @@
 | `odoo-campaign-plan` | leaf | none | - | - |
 | `odoo-capability-proof` | leaf | none | - | - |
 | `odoo-code-review` | spawner-agent | fullstack | - | odoo-code-reviewer |
-| `odoo-coding` | spawner-agent | fullstack | - | odoo-coder, odoo-frontend-coder, (dispatch: Agent-tool model-weighted batches, explicit model per work-item per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B) |
+| `odoo-coding` | spawner-agent | fullstack | - | odoo-coder, odoo-frontend-coder, (dispatch: model-weighted subagent batches, explicit model per work-item per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B) |
 | `odoo-competitive-brief` | leaf | none | - | - |
 | `odoo-content-draft` | leaf | none | - | - |
 | `odoo-customer-health` | leaf | none | - | - |
@@ -18,7 +18,7 @@
 | `odoo-data-migration` | leaf | backend | - | - |
 | `odoo-deal-followup` | leaf | none | - | - |
 | `odoo-debug` | spawner-agent | fullstack | - | odoo-backend-debugger, odoo-ui-debugger |
-| `odoo-deep-survey` | spawner-agent | none | - | (anonymous read-only fan-out workers via Agent tool, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under .odoo-ai/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B) |
+| `odoo-deep-survey` | spawner-agent | none | - | (anonymous read-only fan-out subagents, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under .odoo-ai/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B) |
 | `odoo-demo-recording` | leaf | none | - | - |
 | `odoo-deploy-checklist` | leaf | none | yes | - |
 | `odoo-deprecation-audit` | leaf | backend | - | - |
@@ -51,7 +51,7 @@
 ## Legend
 
 - **spawn_class** - `leaf` (runs inline) · `orchestrator-nl` (chains other skills via
-  natural-language dispatch, no Agent-tool spawn) · `spawner-agent` (dispatches a named
+  natural-language dispatch, no subagent spawn) · `spawner-agent` (dispatches a named
   subagent) · `spawner-wave` (worktree fan-out with parallel subagents).
 - **stack** - drives backend↔frontend routing; `fullstack` work must engage both a
   backend and a frontend specialist.

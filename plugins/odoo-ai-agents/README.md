@@ -240,13 +240,13 @@ When a coding job spans several modules, `odoo-coding` assigns each module a **d
 tier** at its Phase 0 gate - `haiku` (trivial boilerplate), `sonnet` (default), `opus` (core
 override / cross-model / migration), or `fable` (rare Custom-XL, ~2x opus price, design-doc-first) -
 recorded in the gate table and `plan.md`. It then dispatches the `odoo-coder` (backend) and
-`odoo-frontend-coder` (frontend) agents via the **Agent tool** in **model-weighted batches**: per
+`odoo-frontend-coder` (frontend) agents as **subagents** in **model-weighted batches**: per
 module the backend leg runs before the frontend leg, modules are ordered so each runs after its
 in-set dependencies, and each round packs work up to a single model-weighted budget (the OOM
 envelope), whose SSOT is [`skills/_shared/concurrency-guard.md`](skills/_shared/concurrency-guard.md):
 WEIGHT `haiku=1 / sonnet=2 / opus=4 / fable=8`, at most **8 weight-units in flight** (so opus
 throttles to 2 concurrent and fable runs exclusive). The plugin does NOT use the Claude Code
-Workflow tool (JS) for codegen - all fan-out is real Agent-tool calls.
+Workflow tool (JS) for codegen - all fan-out is real subagent launches.
 
 The agent frontmatter `model:` is only a default - the dispatch `model` parameter overrides it per
 work-item in either direction (same convention as `odoo-debug` and `odoo-solution-design`).
@@ -254,7 +254,7 @@ work-item in either direction (same convention as `odoo-debug` and `odoo-solutio
 ```mermaid
 flowchart TD
     GATE["Phase 0 gate<br/>scope + module graph + tier"]
-    GATE --> BATCH["Agent-tool model-weighted batches"]
+    GATE --> BATCH["model-weighted subagent batches"]
 
     subgraph BUDGET["Budget: 8 weight-units (concurrency-guard.md)"]
         W["haiku=1 / sonnet=2 / opus=4 / fable=8"]

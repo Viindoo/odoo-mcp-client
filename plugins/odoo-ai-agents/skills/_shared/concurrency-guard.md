@@ -4,9 +4,9 @@ Root failure log: `unbounded-opus-fanout-oom` - unbounded OPUS fan-out crashed t
 host. The guard has two modes; every skill that fans out agents references this
 file instead of restating the numbers.
 
-## Mode A - Agent-tool batching (legacy, default for un-migrated skills)
+## Mode A - subagent batching (legacy, default for un-migrated skills)
 
-Cap at **3 concurrent** Agent-tool calls (or fork workers / parallel MCP legs);
+Cap at **3 concurrent** subagent launches (or fork workers / parallel MCP legs);
 for more work, batch in waves of <=3 (fire <=3, wait, fire the next <=3). Used
 by: odoo-debug, odoo-code-review, workflow-chaining, odoo-brl (inner MCP
 parallelism), and the YAML workflow fan-out ceiling (workflows/_schema.md,
@@ -24,7 +24,7 @@ docs/reference/workflow-harness.md).
 At most **8 weight-units** in flight at once => up to 8 haiku, 4 sonnet, 2 opus,
 or exactly 1 fable (always exclusive). Mixing is allowed up to the budget. Worst
 case (2 opus) sits within the historical envelope (old cap: 3 sonnet ~ weight 6).
-Used by: odoo-coding (Agent-tool weighted batches), wave.
+Used by: odoo-coding (subagent weighted batches), wave.
 
 If an OOM recurs under Mode B, lower BUDGET to 6 here (one place) - do not patch
 individual skills.
