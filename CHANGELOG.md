@@ -6,6 +6,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.16.0] - 2026-06-20
+
+### Changed
+
+- **Relax the subagent-orchestration model to match Claude Code's multi-level nesting**
+  (subagents may now spawn subagents, hard cap depth 5). The plugin no longer enforces a
+  self-imposed "flat depth-1" model: removed every depth label (`depth0-only`,
+  `depth-2 ceiling`, "never invoke from inside a subagent", "main-agent-only") across
+  skills, agents, commands, docs, hooks and the generated orchestration map/digest.
+- Subagent launching is now described generically as "launch subagent" instead of
+  prescribing the `Agent tool` by name; the architectural `Skill tool` vs `Agent tool`
+  dispatch distinction (skills are loaded via the Skill tool, raw agents via the Agent
+  tool) is kept as accurate documentation.
+- Repurpose `snippets/nesting-guard.md` -> `snippets/worker-brief.md`: drop the depth/
+  nesting guard, keep the non-depth worker rails (OSM grounding + worktree git-isolation).
+
+### Removed
+
+- The `depth_policy` orchestration field (plus its `check_orchestration.py` validator,
+  the generated `ORCHESTRATION-MAP.md` column and the digest line) - it was a duplicate
+  of `spawn_class`.
+- The `disallowedTools` spawn/skill locks (`Agent`, `Task`, `Skill`) on all 8 agent
+  bundles - agents inherit the full tool surface and the harness depth cap is the only net.
+- The flat-depth test guards that protected the retired model (`test_agent_frontmatter`
+  Agent-in-disallowed assert, `test_agent_depth_rule_guard`, `test_agent_skill_invocation_guard`,
+  `test_wi_brief_nesting_rule_present`); the principal-branch-lock and human-confirm-merge
+  wave guards are kept.
+
+### Fixed
+
+- Ground the forward-port frontend adapt leg against `odoo-frontend-fidelity.md`
+  (closes a pre-existing `orchestration-check` design-system gap).
+
 ## [3.15.0] - 2026-06-19
 
 ### Added
