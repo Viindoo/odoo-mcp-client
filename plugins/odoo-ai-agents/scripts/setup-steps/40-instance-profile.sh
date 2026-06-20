@@ -286,6 +286,15 @@ PY
 
     _ensure_gitignore
 
+    # Seed machine-global i18n language registry (idempotent - no clobber)
+    _I18N_JSON="$(dirname "$INSTANCES_TOML")/i18n.json"
+    if [[ ! -f "$_I18N_JSON" ]]; then
+        printf '{"default_languages":["vi_VN"]}\n' >"$_I18N_JSON"
+        echo "  seeded $_I18N_JSON (default_languages=[\"vi_VN\"])"
+    else
+        echo "  $_I18N_JSON already exists - no change"
+    fi
+
     echo "ok instance profile(s) declared in $INSTANCES_TOML"
     echo "   (Edit addons_path / ports / db_name as needed. No password is stored.)"
 }

@@ -1,15 +1,16 @@
 ---
 name: odoo-i18n
 description: >-
-  Translate Odoo modules and keep terminology consistent - the dedicated i18n cluster that exports
-  .pot templates, non-destructively merges them into maintained .po translations, dispatches
-  hand-translation, and audits cross-module term consistency. Front door for ALL Odoo translation
-  and the i18n step other workflows dispatch into (forward-port, a new module/feature, a bugfix). Fire on "translate this module", "export .pot / .po", "update the
-  Vietnamese translation", "sync terminology", "đồng bộ thuật ngữ", "dịch module Odoo",
-  "xuất .pot/.po", "cập nhật bản dịch", or any i18n / terminology-consistency ask for Odoo. The non-destructive contract is load-bearing: re-exporting a .po from a fresh DB destroys
-  40-90% of existing msgstr, so translation MEMORY is always forwarded by merge, never regenerated.
-  Requires a running Odoo instance (export + validate need a live DB); missing instance is a BLOCK.
-  Route a one-line UI label fix to odoo-coding; a rendered-UI language check to odoo-ui-review
+  This skill should be used when the user asks to translate one or more Odoo modules into any
+  target language (default vi_VN), export .pot/.po, update translations, sync terminology, or
+  audit cross-module term consistency. Fire on "translate this module", "export .pot / .po",
+  "update the translation", "sync terminology", "đồng bộ thuật ngữ", "dịch module Odoo",
+  "xuất .pot/.po", "cập nhật bản dịch", or any i18n / terminology-consistency ask for Odoo.
+  Front door for ALL Odoo translation work and the i18n step other workflows dispatch into
+  (forward-port, new module, bugfix). Non-destructive contract is load-bearing: re-exporting a
+  .po from a fresh DB destroys 40-90% of existing msgstr, so translation MEMORY is always
+  forwarded by merge, never regenerated. Requires a running Odoo instance; missing instance is a
+  BLOCK. Route a one-line UI label fix to odoo-coding; a rendered-UI language check to odoo-ui-review
 ---
 
 ## Persona
@@ -69,53 +70,79 @@ under `.odoo-ai/i18n/<slug>-<date>/`. The full non-destructive recipe (every com
 merge, the validation gates, the glossary) lives in `references/i18n-recipe.md` - this skill points
 at it rather than duplicating it.
 
-**P0 - Scope gate [sonnet, STOP].** Parse the request into target modules, target language(s), and
-target Odoo series. Confirm an instance is available (else BLOCK per `## Standalone-first fallback`).
+**P0 - Scope gate [sonnet, STOP].** Resolve the target language list by precedence (highest first),
+then echo which source was used:
+
+1. Explicit languages in the request/args.
+2. Machine-global registry: read `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` and use its
+   `default_languages` array if present and non-empty.
+3. Infer from existing `<lang>.po` filenames in each module's `i18n/` directory
+   (`<module>/i18n/<lang>.po`); skip this tier when no `i18n/` dir exists.
+4. Query the confirmed instance: `res.lang` records with `active = True` (codes).
+5. Default `["vi_VN"]`.
+
+Echo the resolved language list AND the source tier that produced it in the scope summary, then
+STOP for approval before any export or DB op.
+
+Also in P0: confirm an instance is available (else BLOCK per `## Standalone-first fallback`).
 Resolve each module name to its directory and dependency closure. Emit a one-line scope summary
-(modules x languages x series + dependency order) and STOP for approval in a single turn before any
-export or DB op.
+(modules x target_languages x series + dependency order + language-source tier) and STOP for
+approval in a single turn before any export or DB op.
 
 **P1 - Glossary build [haiku or sonnet].** Assemble the translation memory the later phases reuse:
 read the already-translated `<lang>.po` of core Odoo and the module's dependency modules, load the
 project `.odoo-ai/glossary.yml` (domain/regulatory terms + their source citation), and for any
-field-mapped term confirm the canonical label via OSM (see the glossary layer in the recipe). Write
-the assembled TM to `.odoo-ai/i18n/<slug>-<date>/glossary-tm.json`. Sonnet when the scope spans
-domain/regulatory terminology; haiku for a plain module.
+field-mapped term confirm the canonical label via OSM (see the glossary layer in the recipe). Build
+the TM **per language** (one memory per language, covering all in-scope modules) - each language has its own independent memory. Write each assembled TM to
+`.odoo-ai/i18n/<slug>-<date>/glossary-tm-<lang>.json` (one file per target language). Do NOT
+share or merge TM across languages. Sonnet when the scope spans domain/regulatory terminology;
+haiku for a plain module.
 
-**P2 - Export `.pot` template [sonnet].** Per L1 of the recipe: install the module, LOAD the target
-language, then export a `.pot` TEMPLATE on a clean per-module install in an isolated DB, in
-dependency order. Never export over a maintained `.po`. The per-version flags and their rationale -
-`--load-language` (activate in DB) vs `--language`/`-l` (select export file), `--skip-auto-install`
-v17-v18, one fresh DB per module v8-v16, the `odoo-bin i18n` subcommand v19+ - live in the recipe;
-ground the exact form via `cli_help` above (`command='i18n-export'` v8-v18, `command='i18n'` v19+).
-Multi-language is a separate scope (issue #97).
+**P2 - Export `.pot` template [sonnet].** Per L1 of the recipe: install the module, then export a
+`.pot` TEMPLATE on a clean per-module install in an isolated DB, in dependency order (a `.pot`
+template needs NO language load - the L1 load step applies only to a translated `.po` re-export).
+Never export over a maintained `.po`. The `.pot` is language-agnostic (shared
+across all target languages - one export per module, not per language). The per-version flags and
+their rationale - `--load-language` (activate in DB) vs `--language`/`-l` (select export file),
+`--skip-auto-install` v17-v18, one fresh DB per module v8-v16, the `odoo-bin i18n` subcommand
+v19+ - live in the recipe; ground the exact form via `cli_help` above (`command='i18n-export'`
+v8-v18, `command='i18n'` v19+).
 
-**P3 - Translate [dispatch `odoo-translator`].** Dispatch the `odoo-translator` agent (one per
-language, or per module-cluster for a large scope) as a subagent launch to run the L2 polib TM-merge
-and L3 hand-translation of the residual. See the dispatch contract below for the model and brief.
+**P3 - Translate [dispatch `odoo-translator`].** Dispatch the `odoo-translator` agent as a
+subagent launch for EACH (module-cluster × language) pair - the Cartesian product of module
+clusters and target languages. Each leaf carries exactly ONE language; never bundle multiple
+languages in a single leaf. Each leaf runs the L2 polib TM-merge and L3 hand-translation of the
+residual for its specific language. Loop order: see `## Multi-language loop order` in
+`references/i18n-recipe.md` (`.pot` exported once per module, `.po`/glossary/validate per-lang).
+See the dispatch contract below for the model and brief.
 
-**P4 - Validate [haiku].** Per the recipe's validation gates: run the polib non-empty-msgstr
-regression (BLOCK on a large drop - that means the merge was skipped and an overwrite slipped
-through), the placeholder-integrity check, and the Odoo `-u <module>` reload (NOT `msgfmt`). The
-`-u` reload's pre-condition is that the target language is LOADED in the DB (`--load-language` v8-v18
-/ `i18n loadlang` v19+); an absent language makes the reload pass silently while translations stay
-inactive - a false pass. A clean reload with no translation error in the log is the pass signal. See
-`docs/reference/INSTANCE-LIFECYCLE.md` for the reload semantics.
+**P4 - Validate [haiku].** Run all three gates for EACH target language independently. P4 is the
+orchestrator-level gate run after all P3 leaves finish - a second, independent pass over each
+leaf's own Round 4 self-check, not a replacement for it. Per language:
+run the polib non-empty-msgstr regression on `<lang>.po` (BLOCK on a large drop - that means the
+merge was skipped and an overwrite slipped through), the placeholder-integrity check on `<lang>.po`,
+and the Odoo `-u <module>` reload (NOT `msgfmt`). Pre-condition for each language's reload: the
+target language must be LOADED in the DB first (`--load-language=<lang>` v8-v18 / `i18n loadlang
+-l <lang>` v19+); an absent language makes the reload pass silently while translations stay inactive
+- a false pass. A clean reload with no translation error in the log is the pass signal per language.
+See `docs/reference/INSTANCE-LIFECYCLE.md` for the reload semantics.
 
 **P5 - Consistency audit + report [opus, ADVISORY].** Audit terminology consistency across the
-translated modules against the glossary TM and report divergences. This phase is **ADVISORY and
-NEVER blocking**: it surfaces inconsistencies for a human to decide on, but it does NOT auto-edit or
+translated modules for EACH target language separately. This phase is **ADVISORY and NEVER
+blocking**: it surfaces inconsistencies for a human to decide on, but it does NOT auto-edit or
 auto-dedup. Critically, legally independent regimes (e.g. the Vietnam accounting circulars TT200 /
 TT133 / TT99) MUST NOT be deduped even when their `msgid`s match - each regime's translation stays
 complete and self-standing, and an incidental string match is never a reason to share or rewrite a
-translation across regimes. Write the findings to
-`.odoo-ai/i18n/<slug>-<date>/consistency-audit.md`.
+translation across regimes. Write findings per language to
+`.odoo-ai/i18n/<slug>-<date>/consistency-audit-<lang>.md` (one file per target language).
 
 ## Dispatch contract -> odoo-translator
 
-P3 dispatches the `odoo-translator` agent as a subagent launch. Carry a brief with: the target
-module(s), language(s), series; the glossary TM path from P1; the maintained `.po` and fresh `.pot`
-paths; and the validation gates the leaf must self-check. Pass the model both as a `DISPATCH MODEL:`
+P3 dispatches the `odoo-translator` agent as a subagent launch - one leaf per (module-cluster ×
+language) pair. Each leaf is scoped to exactly ONE language. Carry a brief with: the target
+module(s), the single target language, series; the glossary TM path for that language
+(`glossary-tm-<lang>.json`) from P1; the maintained `<lang>.po` and fresh `<module>.pot` paths;
+and the validation gates the leaf must self-check. Pass the model both as a `DISPATCH MODEL:`
 line in the brief and as the Agent `model` parameter:
 
 - **sonnet** (default) for a plain module translation.
@@ -135,11 +162,12 @@ entity_lookup(kind='field', model='account.move', field='amount_total', odoo_ver
 
 All under `.odoo-ai/i18n/<slug>-<date>/`:
 
-- `glossary-tm.json` - assembled translation memory (P1)
-- `<module>.pot` - exported template(s) (P2)
-- `translation-report.json` - per-module non-empty `msgstr` count before/after the merge (the
-  regression evidence; a drop is a BLOCK)
-- `consistency-audit.md` - the advisory P5 findings
+- `glossary-tm-<lang>.json` - assembled translation memory per target language (P1; one file per
+  language; TM of one language is never shared with another)
+- `<module>.pot` - exported template(s) (P2; language-agnostic, shared across all target languages)
+- `translation-report-<lang>.json` - per-module non-empty `msgstr` count before/after the merge
+  for each language (the regression evidence; a drop is a BLOCK)
+- `consistency-audit-<lang>.md` - the advisory P5 findings per language
 
 ## Continuation Contract
 

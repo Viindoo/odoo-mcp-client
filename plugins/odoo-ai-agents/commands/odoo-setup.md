@@ -322,6 +322,9 @@ step required in the normal flow:
   `./.odoo-ai/instances.toml` is honored only as a transitional fallback. Step
   40 also gitignores the project `.odoo-ai/` and writes a defensive
   `~/.odoo-ai/.gitignore`. Backup + idempotent.
+  Also seeds `~/.odoo-ai/i18n.json` (idempotent, no-clobber) with `{"default_languages":["vi_VN"]}` -
+  the machine-global default translation-language registry for the odoo-i18n cluster. Edit this file
+  to add or remove languages (e.g. `["vi_VN","en_US"]`).
 - **45-venv** *(optional, source instances only - offered between 40 and 50)* -
   each Odoo series supports only certain Python versions, so a source instance
   needs an interpreter whose deps match. After `40` declares the profile, offer

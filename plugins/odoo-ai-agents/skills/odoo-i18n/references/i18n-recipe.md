@@ -24,7 +24,7 @@ cli_help(command='i18n-export', odoo_version='<target>')   # v8-v18 (server flag
 cli_help(command='i18n', odoo_version='19.0')              # v19+ (subcommand)
 ```
 
-This session pins `vi_VN` as the worked example. Multi-language is a separate scope: issue #97.
+Examples below use `<lang>` as the target-language placeholder; the default language when none is resolved is `vi_VN`.
 
 ---
 
@@ -59,11 +59,11 @@ its children, so a parent's `.pot` carries only the parent's terms.
 
 ```bash
 # install + load the language into an isolated per-module DB (dependency order):
-odoo-bin -d <db> -i <module> --load-language=vi_VN \
+odoo-bin -d <db> -i <module> --load-language=<lang> \
   --without-demo=all --stop-after-init
-# export the language file (.pot template, or .po once vi_VN is loaded above):
+# export the language file (.pot template, or .po once <lang> is loaded above):
 odoo-bin -d <db> --modules=<module> --i18n-export=<module>.pot \
-  --language=vi_VN --stop-after-init
+  --language=<lang> --stop-after-init
 ```
 
 ### v17-v18 (has `--skip-auto-install`; server flags)
@@ -73,11 +73,11 @@ registry - install just the module and its closure:
 
 ```bash
 # install + load the language, blocking auto_install siblings:
-odoo-bin -d <db> -i <module> --skip-auto-install --load-language=vi_VN \
+odoo-bin -d <db> -i <module> --skip-auto-install --load-language=<lang> \
   --stop-after-init
 # export the language file:
 odoo-bin -d <db> --modules=<module> --i18n-export=<module>.pot \
-  --language=vi_VN --stop-after-init
+  --language=<lang> --stop-after-init
 ```
 
 `--skip-auto-install` is load-bearing: omit it and every `auto_install: True` module whose deps
@@ -95,15 +95,32 @@ before invoking:
 # install the module (still a server-flag concern):
 odoo-bin -d <db> -i <module> --skip-auto-install --stop-after-init
 # load the language INTO the DB (KT1 - activates msgstr for a translated export):
-odoo-bin i18n loadlang -d <db> -l vi_VN
-# export (default -l pot = template .pot; pass vi_VN to emit the translated .po):
-odoo-bin i18n export -d <db> -l vi_VN -o <module>.po <module>
+odoo-bin i18n loadlang -d <db> -l <lang>
+# export (default -l pot = template .pot; pass <lang> to emit the translated .po):
+odoo-bin i18n export -d <db> -l <lang> -o <lang>.po <module>
 # import (e.g. after the polib merge, to reload the merged .po):
-odoo-bin i18n import -d <db> -l vi_VN -w <module>.po
+odoo-bin i18n import -d <db> -l <lang> -w <lang>.po
 ```
 
 The `.pot` is a TEMPLATE: every `msgid` present, every `msgstr` empty - the inventory of current
 translatable terms, NOT a translation. Never commit a `.pot` over a `.po`.
+
+---
+
+## Multi-language loop order
+
+When the resolved scope has more than one target language, run two nested loops:
+
+- Loop 1 (per module, language-agnostic): export the `.pot` template ONCE per module. The `.pot`
+  is the untranslated catalog and does NOT depend on language - never re-export it per language.
+- Loop 2 (per language, module-inner): for each target `<lang>`, and for each module - build the
+  per-language glossary/TM (`glossary-tm-<lang>.json`), `--load-language=<lang>`, merge into
+  `<lang>.po` via polib (non-destructive), hand-translate the residual, then run the per-language
+  validation gates (msgstr-regression + placeholder-integrity on `<lang>.po`; `-u` reload with
+  `<lang>` loaded). Emit `translation-report-<lang>.json` per language.
+
+Artifacts are per-language EXCEPT the shared `.pot`: `<module>.pot` (shared) vs
+`<lang>.po` / `glossary-tm-<lang>.json` / `translation-report-<lang>.json` / `consistency-audit-<lang>.md`.
 
 ---
 
@@ -185,8 +202,8 @@ at load time.
    no translation error in the log.
 
    **Pre-condition - target language must be active in the DB (KT1).** Before `-u`, confirm the
-   target language is LOADED (Settings > Translations > Activate a language, or `--load-language=vi_VN`
-   on the install run for v8-v18 / `odoo-bin i18n loadlang -d <db> -l vi_VN` for v19+ - see L1).
+   target language is LOADED (Settings > Translations > Activate a language, or `--load-language=<lang>`
+   on the install run for v8-v18 / `odoo-bin i18n loadlang -d <db> -l <lang>` for v19+ - see L1).
    Absent language -> reload succeeds silently but translations do not load at runtime - false pass.
 
 4. **Export against the adapted code (PR-head / merged tree).** When odoo-i18n is dispatched from a
