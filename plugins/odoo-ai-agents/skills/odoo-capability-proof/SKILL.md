@@ -115,7 +115,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 
 ## Notes / Integration
 
-This skill produces TEXT/code evidence and written demo steps - not a video. To turn the written demo steps into a real screencast on a live instance, hand them to `odoo-demo-recording`. Mention this as an optional next step; do not invoke it from here (depth rule).
+This skill produces TEXT/code evidence and written demo steps - not a video. To turn the written demo steps into a real screencast on a live instance, hand them to `odoo-demo-recording`. Mention this as an optional next step; do not invoke it from here (this is a leaf skill).
 
 ## Continuation Contract
 

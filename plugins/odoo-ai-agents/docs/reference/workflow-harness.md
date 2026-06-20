@@ -1018,7 +1018,7 @@ code for non-trivial modules, SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-co
 `next: odoo-code-review`; that skill reviews AND checks test coverage, emitting `next: odoo-coding`
 on a CRITICAL/HIGH fix or `next: odoo-test-writing` on an uncovered behavior. The driver advances
 this loop via the Continuation Contract (a subagent never re-dispatches itself) and bounds it to 3
-iterations before escalating - same depth-safety as every other chain here.
+iterations before escalating - same bounded-iteration safety as every other chain here.
 
 ### 8.4 Gate-tier policy
 
@@ -1047,7 +1047,7 @@ which also enforces the derivation below). They replace the hardcoded chat-only 
 ### 8.5 Command / Skill / Agent - the three axes
 
 These are three **different axes** with a one-way reference chain `Command → Skill → Agent`
-(a DAG, no cycle - consistent with the depth rule that an agent never calls back into a skill).
+(a DAG, no cycle - consistent with the rule that an agent never calls back into a skill).
 There is no chicken-and-egg: the recipe (skill) is authored at design-time; the agent is
 instantiated at run-time by the recipe.
 

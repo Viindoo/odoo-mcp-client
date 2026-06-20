@@ -169,7 +169,7 @@ This phase turns an approved plan into a self-advancing run. It is **purely addi
 
 **Engage Phase P** (after plan approval) if ANY holds: (1) `node_count >= 2`; (2) a single `output_mode == writes-files` node; or (3) a single workflow node whose YAML declares `on_complete`. Otherwise SKIP and dispatch directly. When engaged, serialize the approved 3-block plan into `.odoo-ai/run-<id>.json`, tag gate-tiers, and NL-dispatch `run-driver`. Parse the autonomy dial from the prompt (`--auto` / `--step` / `--plan`); default `--auto` if no flag is present.
 
-**When engaging Phase P, read `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md`** for the full engage/skip rule, serialization procedure, autonomy-dial semantics, depth safety, and workflow-as-node routing. Full schema + loop: `docs/reference/workflow-harness.md` §8.
+**When engaging Phase P, read `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md`** for the full engage/skip rule, serialization procedure, autonomy-dial semantics, and workflow-as-node routing. Full schema + loop: `docs/reference/workflow-harness.md` §8.
 
 ## Multi-plugin routing - stay Odoo-centric
 
