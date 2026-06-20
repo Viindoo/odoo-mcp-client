@@ -33,9 +33,9 @@ Probe OSM reachability with one cheap call (`set_active_version`). If it errors,
 
 Every operation MUST execute these four steps in order before doing operation-specific work:
 
-**Step A - Resolve series.** Use the series from the dispatch brief. If absent, read `ALLOC_SERIES` from the highest declared instance via `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read ~/.odoo-ai/instances.toml`.
+**Step A - Resolve series.** Use the series from the dispatch brief. If absent, read `INST_VERSION` from the highest declared instance via `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read ~/.odoo-ai/instances.toml`.
 
-**Step B - Pin version and learn CLI flags (HARD RULE).** Every OSM call MUST pass the concrete `odoo_version=`. Call `set_active_version(odoo_version='<series>')` once as the reachability probe. Then ground the per-version CLI flags before ANY `odoo-bin` run - flags differ per series and must NEVER be assumed from memory or from another version:
+**Step B - Pin version and learn CLI flags (HARD RULE).** Every OSM call MUST pass the concrete `odoo_version=`. Call `set_active_version(odoo_version='<series>')` once as the reachability probe. Then ground the per-version CLI flags before passing them through scripts - flags differ per series and must NEVER be assumed from memory or from another version:
 
 ```
 cli_help(command='server', odoo_version='<series>')
@@ -60,31 +60,36 @@ eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py acquire \
 ```
 
 Mode per operation:
-- `ephemeral` - tests, one-shot init/update (creates a unique throwaway DB; auto-degrades to `exclusive` when the role lacks CREATEDB).
+- `ephemeral` - tests, one-shot init/update (RESERVES a unique throwaway DB name + ports; the DB is created through Odoo by the `-i` run (create-on-init) and dropped through Odoo on release; auto-degrades to `exclusive` when the role lacks CREATEDB).
 - `exclusive` - long-lived instance, declared DB held under a single-holder lease.
 - `shared` - a render server the visual stack or other agents can discover via `allocator.py query`.
 - `readonly` - read-only status check; no lease minted.
 
 Use `--ports 0` for `--stop-after-init` runs that bind no HTTP port. Use `--ports 1` (or `2` when gevent/longpolling is needed) when the server must listen.
 
-**THROUGH-ODOO DB lifecycle (decision B2).** The allocator RESERVES an ephemeral DB name and ports only; it does NOT `createdb`. The database is created THROUGH Odoo by the very `odoo-bin -d <db> -i <modules> --stop-after-init` run (Odoo create-on-init). DROP goes through Odoo via `scripts/lib/odoo_db.py drop <db>`, which uses `odoo.service.db.exp_drop` (handles connection-pool teardown, filestore cleanup, registry teardown). `allocator.py release <token>` calls `odoo_db.py drop` internally for `ephemeral` leases that set `created_db=True`. NEVER run raw `createdb` or `dropdb`.
+**Through-Odoo DB lifecycle.** The allocator RESERVES an ephemeral DB name and ports only; it does NOT run `createdb`. The database is created THROUGH Odoo by the very `odoo-bin -d <db> -i <modules> --stop-after-init` run (Odoo create-on-init). DROP goes through Odoo via `scripts/lib/odoo_db.py drop <db>`, which uses `odoo.service.db.exp_drop` (handles connection-pool teardown, filestore cleanup, registry teardown). `allocator.py release <token>` calls `odoo_db.py drop` internally for `ephemeral` leases that set `drop_on_release=true`. NEVER run raw `createdb` or `dropdb`.
 
 ---
 
 ## Per-version CLI decision table
 
-ALWAYS reconfirm live via `cli_help` - never hardcode. This table is a PRIOR only:
+ALWAYS reconfirm live via `cli_help` - this table is a PRIOR only and MUST NOT be used as the source of truth for any final command. Every flag in the final command must come from the current series' `cli_help` output, not from this table:
 
 | Flag purpose | v8-v10 | v11-v18 | v19+ |
 |---|---|---|---|
 | HTTP port | `--xmlrpc-port` | `--http-port` | `--http-port` |
 | Disable HTTP | `--no-xmlrpc` | `--no-http` | `--no-http` |
 | Longpoll/gevent port | `--longpolling-port` | `--longpolling-port` (v11-v15), `--gevent-port` (v16+) | `--gevent-port` |
-| Demo data off | `--without-demo=all` | `--without-demo=all` (v11-v17), default-off + `--with-demo` (v18+) | default-off + `--with-demo` |
+| Demo data off | `--without-demo=all` | `--without-demo=all` (v11-v17), `--without-demo=all` still valid v18-v19 | `--without-demo=all` |
+| Demo data on | default on | default on (v11-v17); v18+ default flipped to off, use `--with-demo` - always reconfirm via `cli_help` | use `--with-demo` - always reconfirm via `cli_help` |
 | Skip auto-install | not available | `--skip-auto-install` (v17+) | `--skip-auto-install` |
 | DB drop subcommand | `exp_drop` via odoo_db.py | `exp_drop` via odoo_db.py | `odoo-bin db drop` subcommand (confirm via cli_help) |
 
-Source-fallback trigger: when `cli_help(command='db', odoo_version='<series>')` returns nothing, read `odoo/cli/db.py` from the source checkout directly.
+**v19 DROPS the legacy aliases entirely** (`--xmlrpc-port`, `--no-xmlrpc`, `--longpolling-port`). They are not merely deprecated in v19 - they do not exist, so a stale prior will cause a fatal error. Reconfirm every flag via `cli_help` before building any command.
+
+**Self-review checklist line:** every flag in the final command came from this series' `cli_help(command='server', odoo_version='<series>')` output, not the prior table.
+
+Source-fallback trigger: when `cli_help` for the db subcommand reports no usable flags (empty or 'no flags indexed'), read `odoo/cli/db.py` from the source checkout directly.
 
 ---
 
@@ -96,29 +101,26 @@ Create a new Odoo database with a given module set for a target series.
 
 **Inputs:** series, modules (list), demo (bool, default false), addons_path override (optional).
 
-**Mechanism:** Run Steps A-D (mode `ephemeral` or `exclusive` per brief; `--ports 1` or `2` if the instance should stay up after init). Build the `odoo-bin` flags from `cli_help` output. Run init through Odoo so the DB is created on init:
+**Mechanism:** Run Steps A-D (mode `ephemeral` or `exclusive` per brief; `--ports 0` for stop-after-init, `--ports 1` or `2` if the instance must remain running). Resolve the per-version flags via `cli_help(command='server', odoo_version='<series>')`. Pass them to the script via `--extra`. Delegate to `55-instance-ops.sh init`:
 
 ```bash
-"$ALLOC_PYTHON" odoo-bin \
-  -d "$ALLOC_DB_NAME" \
-  -i "<modules>" \
-  --addons-path "$ALLOC_ADDONS_PATH" \
-  --http-port "$HTTP_PORT" \
-  --gevent-port "$GEVENT_PORT" \
-  --without-demo=all \
-  --stop-after-init \
-  --logfile "$LOG_PATH"
+"${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh" init \
+  --db "$ALLOC_DB_NAME" \
+  --python "$ALLOC_PYTHON" \
+  --addons "$ALLOC_ADDONS_PATH" \
+  --modules "<modules>" \
+  --extra "<version-correct flags resolved from cli_help>"
 ```
 
-(Replace flag names with the version-correct forms from `cli_help` output. Add `--skip-auto-install` for v17+. Use `--with-demo` instead of `--without-demo=all` for v18+ if demo is requested.)
+The script locates `odoo-bin` automatically (via `ODOO_BIN` env or addons-path scan), runs Odoo create-on-init, writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init failed - preserve the log path and surface it to the caller.
 
-If the brief requests the instance to stay running after init, omit `--stop-after-init` and register a shared lease:
+If the brief requests the instance to stay running after init, instead of running the `init` verb above, delegate to the spinup script:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py acquire \
-  --series "$ALLOC_SERIES" --mode shared --port "$HTTP_PORT" \
-  --db-name "$ALLOC_DB_NAME" --pid "$ODOO_PID"
+"${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh" apply --version <series>
 ```
+
+The spinup script reads the instance profile from instances.toml, launches the server, polls HTTP 200, registers the shared lease internally, and emits `LOG_PATH=<path>` on stdout. Capture `LOG_PATH=` verbatim. Do NOT also run an allocator acquire for a shared lease - the spinup script handles shared-lease registration itself.
 
 ### 2. drop-instance
 
@@ -161,7 +163,7 @@ Install one or more modules into an existing Odoo database.
   [--extra "<version-correct flags from cli_help>"]
 ```
 
-The script runs `odoo-bin -d <db> -i <modules> --stop-after-init`, writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init failed - preserve the log path and surface it to the caller. When `55-instance-ops.sh` is not yet on disk, run the equivalent `odoo-bin` command directly using the version-correct flags from `cli_help`.
+The script runs `odoo-bin -d <db> -i <modules> --stop-after-init`, writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init failed - preserve the log path and surface it to the caller.
 
 ### 4. update-modules
 
@@ -200,7 +202,7 @@ Run the Odoo test suite for one or more modules against an isolated ephemeral da
   [--extra "<version-correct flags from cli_help>"]
 ```
 
-(Pass `--test-tags` only when test tags are provided. Version-correct flags such as `--skip-auto-install` (v17+) go in `--extra`; confirm availability via `cli_help`.)
+(Pass `--test-tags` only when test tags are provided. Version-correct flags such as `--skip-auto-install` (v17+) go in `--extra`; confirm availability via `cli_help(command='server', odoo_version='<series>')`.)
 
 The script writes a persistent log, emits `LOG_PATH=<path>`, `TEST_RESULT=passed|failed`, and `STATUS=ok|error` on stdout. Capture all three lines. Report `TEST_RESULT` as the pass/fail summary. Release the lease when done. On `TEST_RESULT=failed`, preserve the log path and forward it in the output block so the caller can route to `odoo-debug`.
 
@@ -210,20 +212,20 @@ Check whether an instance is running; start it if not.
 
 **Inputs:** series, db name (optional).
 
-**Mechanism:** Run Step A. Then check:
+**Mechanism:** Run Step A (resolve series from `INST_VERSION` via `instances_io.py read`). Then check:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh check --version <series>
 ```
 
-- Exit 0 - already up. Discover the actual bound port via `allocator.py query --series <series>` and emit the status block.
-- Exit 1 - not running. Run Step B-D (mode `shared`, `--ports 1` or `2`), then spin up:
+- Exit 0 - already up. Discover the actual bound port via `allocator.py query --series <series>` (captures `$ALLOC_PORTS` and `$ALLOC_TOKEN`) and emit the status block.
+- Exit 1 - not running. If spinup is requested, run Step B (pin version, ground CLI flags) then:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh apply --version <series>
 ```
 
-`50-instance-spinup.sh` handles the allocator shared-lease registration, polling `/web/login` until HTTP 200, and emitting `LOG_PATH=<path>` to stdout. For status-only (no spinup requested), return the status in the output block with `status: down`.
+`50-instance-spinup.sh apply` handles allocator shared-lease registration internally, polls `/web/login` until HTTP 200, and emits `LOG_PATH=<path>` to stdout. Capture `LOG_PATH=` verbatim. Do NOT run Steps C-D (no separate ephemeral acquire for an ensure-up - the spinup script registers the shared lease itself). For status-only (no spinup requested), return the status in the output block with `status: down`.
 
 ---
 
@@ -248,14 +250,14 @@ modules_installed: [mod_a, mod_b]
 demo: true | false
 venv_python: <path>
 addons_path: <colon-separated path>
-log_path: ${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<db>-<UTC-ts>.log
+log_path: <captured verbatim from LOG_PATH= line emitted by the script>
 lease_token: <token or null>
 status: up | down | created | dropped | tests-passed | tests-failed | error
 notes: <one-line summary of any non-obvious decision or error>
 ```
 ````
 
-The `log_path` convention: `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<dbname>-<UTC-timestamp>.log` (e.g. `odoo_test_t_a1b2c3d4-20260620T153012Z.log`). `50-instance-spinup.sh` emits `LOG_PATH=<path>` on stdout; `55-instance-ops.sh` writes the path into the same convention. Capture and forward it verbatim.
+The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verbatim rather than reconstructing it - the script is the SSOT for the exact path. The convention the scripts follow is `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<dbname>-<UTC-timestamp>.log` (e.g. `odoo_test_t_a1b2c3d4-20260620T153012Z.log`), but always forward what the script actually emits.
 
 ---
 
@@ -264,10 +266,11 @@ The `log_path` convention: `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<dbname>-<UTC-t
 ```
 - [ ] set_active_version called once; every subsequent OSM call passes concrete odoo_version=
 - [ ] cli_help grounded the per-series flags (not assumed from memory or prior version)
+- [ ] every flag in the final command came from this series' cli_help output, not the prior table
 - [ ] venv resolved or built; $ALLOC_PYTHON used (not system python3)
 - [ ] allocator lease acquired; token in output block
 - [ ] DB created/dropped THROUGH Odoo (odoo_db.py / Odoo create-on-init), never raw createdb/dropdb
-- [ ] log_path captured and forwarded in the output block
+- [ ] log_path captured verbatim from LOG_PATH= script stdout and forwarded in the output block
 - [ ] lease released (or token forwarded to caller for later release)
 - [ ] worklog appended with decisions
 - [ ] OSM caveat preserved if grounding was local-source or ungrounded

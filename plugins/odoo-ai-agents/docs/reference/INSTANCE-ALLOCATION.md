@@ -1,6 +1,6 @@
 # Technical Design - concurrent Odoo instance allocation (user/global, cross-session)
 
-Status: IMPLEMENTED (B2) - 2026-06-20 (readonly/ephemeral/exclusive/shared; caller-side create + through-Odoo drop)
+Status: IMPLEMENTED
 Audience: plugin maintainers + global contributors. This is a design contract, not code.
 Related: `snippets/instance-resolution.md`, `snippets/venv-resolution.md`,
 `docs/reference/INSTANCE-LIFECYCLE.md`, `skills/_shared/concurrency-guard.md`,

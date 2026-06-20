@@ -359,7 +359,7 @@ python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemera
 #   (cache TOKEN in the batch worklog)
 #   ALLOC_PORTS includes a free HTTP port -> export it as ALLOC_HTTP_PORT
 #
-#   B2: the allocator reserves the DB name + ports but does NOT create the DB.
+#   The allocator reserves the DB name + ports but does NOT create the DB.
 #   The -i run below performs Odoo create-on-init, which builds the DB.
 #   On release/gc the allocator drops it through Odoo (raw dropdb only as fallback).
 #   CREATEDB-role probe still degrades ephemeral -> exclusive when the role lacks it,

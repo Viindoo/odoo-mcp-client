@@ -281,25 +281,28 @@ _ODOO_DB_PY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "odoo_db.
 def _drop_through_odoo(lease):
     """Drop the ephemeral DB via odoo_db.py (through-Odoo path, B2 mandate).
 
-    Falls back to raw _dropdb only when:
+    Falls back to raw _dropdb ONLY when:
       - the lease carries no `python` interpreter path, OR
       - odoo_db.py is missing on disk, OR
       - odoo_db.py exits with code 10 (venv-unavailable sentinel).
 
-    Any fallback is logged loudly to stderr so the mandate-violation is visible.
-    The filestore is cleaned up regardless of which drop path succeeded.
+    Any OTHER non-zero exit is a genuine exp_drop failure.  In that case the
+    allocator does NOT fall back to raw dropdb, does NOT drop the filestore,
+    and does NOT remove the lease (so gc can retry / a human can investigate).
+    Returns True on success, False when the drop failed and the lease must be kept.
+
+    Any fallback (rc=10 / no venv) is logged loudly to stderr.
+    The filestore is cleaned up ONLY after a successful drop.
     """
     db = lease.get("db_name", "")
     if not db:
-        return
+        return True
     # New leases store db_host/db_user at the top level; fall back to _pg for
     # leases written by an older allocator version (backward compat).
     pg = lease.get("_pg", {})
     host = lease.get("db_host") or pg.get("host", "localhost")
     user = lease.get("db_user") or pg.get("user", "odoo")
     venv_python = lease.get("python", "")
-
-    dropped = False
 
     if venv_python and os.path.isfile(_ODOO_DB_PY):
         cmd = [venv_python, _ODOO_DB_PY, "drop", db, "--db-host", host, "--db-user", user]
@@ -308,28 +311,43 @@ def _drop_through_odoo(lease):
             cmd += ["--db-password", pw]
         rc, _, err = _run(cmd)
         if rc == 0:
-            dropped = True
+            _drop_filestore(db)
+            return True
         elif rc == 10:
+            # venv-unavailable sentinel: fall back to raw dropdb (logged).
             sys.stderr.write(
-                f"allocator: WARNING - venv unavailable ({venv_python}), "
-                f"dropped {db} via raw dropdb fallback\n"
+                "allocator: WARNING - venv unavailable ({python}), "
+                "dropped {db} via raw dropdb fallback\n".format(
+                    python=venv_python, db=db)
             )
+            _dropdb(host, user, db)
+            _drop_filestore(db)
+            return True
         else:
+            # Genuine exp_drop failure - retain the DB and the lease for retry.
             sys.stderr.write(
-                f"allocator: WARNING - odoo_db.py drop {db} exited {rc}: {err.strip()}; "
-                "falling back to raw dropdb\n"
+                "allocator: ERROR - through-Odoo drop of {db} failed (rc={rc}); "
+                "DB retained, lease kept for retry. stderr: {err}\n".format(
+                    db=db, rc=rc, err=err.strip())
             )
+            return False
 
-    if not dropped:
-        # Fallback: raw dropdb (covers missing venv_python, missing odoo_db.py, or rc!=0/10).
-        if not venv_python:
-            sys.stderr.write(
-                f"allocator: WARNING - venv unavailable, "
-                f"dropped {db} via raw dropdb fallback\n"
-            )
-        _dropdb(host, user, db)
-
+    # No venv python or odoo_db.py missing: fall back to raw dropdb.
+    if not venv_python:
+        sys.stderr.write(
+            "allocator: WARNING - venv unavailable, "
+            "dropped {db} via raw dropdb fallback\n".format(db=db)
+        )
+    else:
+        # odoo_db.py missing on disk (should not happen, but handle gracefully).
+        sys.stderr.write(
+            "allocator: WARNING - odoo_db.py not found at {path}, "
+            "dropped {db} via raw dropdb fallback\n".format(
+                path=_ODOO_DB_PY, db=db)
+        )
+    _dropdb(host, user, db)
     _drop_filestore(db)
+    return True
 
 
 # --------------------------------------------------------------------------- #
@@ -353,7 +371,12 @@ def _gc(reg):
     for lease in reg["leases"]:
         if _is_stale(lease):
             if lease.get("drop_on_release") and lease.get("db_name"):
-                _drop_through_odoo(lease)
+                drop_ok = _drop_through_odoo(lease)
+                if not drop_ok:
+                    # Genuine drop failure: retain the lease so a human / next gc
+                    # can retry.  Do not count it as reclaimed.
+                    kept.append(lease)
+                    continue
             reclaimed.append(lease)
         else:
             kept.append(lease)
@@ -544,6 +567,8 @@ def cmd_acquire(opts):
             # time, even if the caller process is long gone.  Password is NOT stored
             # here - read from ODOO_PG_PASSWORD at drop time.
             "python": inst.get("python", ""),
+            # addons_path is forward-context only (for future tooling that may want
+            # to launch odoo-bin from the lease); the drop path never reads it.
             "addons_path": ":".join(str(x) for x in inst.get("addons_path", [])),
             "db_host": host,
             "db_user": user,
@@ -590,7 +615,13 @@ def cmd_release(opts):
             sys.stderr.write(f"allocator: no lease with token {token!r} (already released?).\n")
             return 0
         if found.get("drop_on_release") and found.get("db_name"):
-            _drop_through_odoo(found)
+            drop_ok = _drop_through_odoo(found)
+            if not drop_ok:
+                # Genuine drop failure: retain the lease, signal error to caller.
+                # The lease stays in the registry so gc can retry.
+                reg["leases"] = kept + [found]
+                _write_registry(reg)
+                return 1
         reg["leases"] = kept
         _write_registry(reg)
     return 0

@@ -70,19 +70,22 @@ HUMAN_GATE: instance_touching - L2 gate applies to all mutations
 to the caller:
 
 ```instance-ops
-status: <done|failed|needs-context>
-operation: <operation>
-series: <series>
-port: <http port or null>
-dbname: <database name or null>
-modules: <list or null>
-demo: <on|off>
-venv: <venv path or null>
-log_path: <log file path or null>
-message: <short human-readable summary>
+op: <create-instance|drop-instance|init-modules|update-modules|run-tests|ensure-up|status>
+series: <X.Y>
+dbname: <db_name>
+http_port: <port or null>
+gevent_port: <port or null (omit if not bound)>
+modules_installed: [<list or null>]
+demo: <true|false>
+venv_python: <path>
+addons_path: <colon-separated path>
+log_path: <log file path>
+lease_token: <token or null>
+status: <created|dropped|up|down|started|tests_passed|tests_failed|BLOCKED|NEEDS_CONTEXT>
+notes: <short human-readable summary or error>
 ```
 
-If the agent returns `status: needs-context`, surface its `blocked_reason` to the caller
+If the agent returns `status: NEEDS_CONTEXT`, surface its `blocked_reason` to the caller
 and stop - do not retry without the missing information.
 
 ## Out of Scope
@@ -103,7 +106,7 @@ a local fallback.
 
 When no instance or venv exists on the machine, the agent builds one from scratch:
 - Discovers or creates a Python venv for the target series
-- Installs Odoo dependencies (`pip install -r requirements.txt`)
+- Builds a venv via `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/45-venv.sh create-venv --series <X.Y> --tool uv` (which installs requirements and validates `import odoo`)
 - Runs `odoo-bin` with the appropriate flags for the requested operation
 
 When no `instances.toml` is found and no allocator is reachable, the agent surfaces a single

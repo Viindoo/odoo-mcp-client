@@ -114,7 +114,16 @@ higher-priority surprise.
 ## Standalone-first fallback
 
 - **OSM unreachable:** skip Round 1; ask the user which screens to compare, or grep the repo for changed views/stylesheets (`grep -rln "<selector>" --include=*.scss`). Prefix with `⚠ OSM unreachable - comparison set chosen without blast-radius analysis, may miss affected screens`.
-- **Browser MCP or instance unreachable:** if the orchestrator has provided pre-captured before/after screenshot paths in context, use those pairs directly. If no pre-captured pairs are available, emit `status: NEEDS_NEXT` with `next: - skill: odoo-instance` (reason: provision the Odoo instance needed for screenshot baseline capture; inputs: the series, modules, and two states to compare) so the run-driver provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots for regression diff)` only if provisioning is itself impossible. Do NOT ask the user to paste screenshots or URLs. Prefix (if pre-captured pairs used) with `⚠ Instance unreachable - diff limited to pre-captured screenshots`.
+- **Browser MCP or instance unreachable:** if the orchestrator has provided pre-captured before/after screenshot paths in context, use those pairs directly. If no pre-captured pairs are available, emit `status: NEEDS_NEXT` with:
+  ```
+  next:
+    - skill: odoo-instance
+      reason: provision the Odoo instance needed for screenshot baseline capture
+      inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules to compare>"]}
+      confidence: 0.9
+      risk_level: L2
+  ```
+  so the run-driver provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots for regression diff)` only if provisioning is itself impossible. Do NOT ask the user to paste screenshots or URLs. Prefix (if pre-captured pairs used) with `⚠ Instance unreachable - diff limited to pre-captured screenshots`.
 
 ## Output format
 

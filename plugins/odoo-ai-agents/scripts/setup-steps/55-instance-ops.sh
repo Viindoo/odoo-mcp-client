@@ -30,7 +30,9 @@
 #             Exit 10 from odoo_db.py -> clear venv-unavailable error (NOT a raw dropdb).
 #
 # LOG convention (mirrors 50-instance-spinup.sh):
-#   Dir:  ${ODOO_AI_HOME:-$HOME}/.odoo-ai/logs/
+#   Dir:  ${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/
+#     ODOO_AI_HOME IS the .odoo-ai dir (allocator semantic); .odoo-ai is appended
+#     ONLY in the HOME fallback so the path is consistent with allocator.py _home().
 #   File: <db>-<UTC-ts>.log  (e.g. mydb-20260620T153012Z.log)
 #   Line: LOG_PATH=<absolute-path>   (parseable; one per operation)
 #
@@ -89,7 +91,7 @@ _find_odoo_bin() {
 _open_log() {
     local db_slug="$1"
     local logs_dir
-    logs_dir="${ODOO_AI_HOME:-${HOME:-/tmp}}/.odoo-ai/logs"
+    logs_dir="${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}/logs"
     mkdir -p "$logs_dir"
     local ts
     ts="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%d%H%M%S)"

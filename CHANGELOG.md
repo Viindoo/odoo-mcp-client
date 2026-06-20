@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (create, drop, init-modules, update-modules, run-tests, ensure-up, status) across all series v8+.
   Allocator B2 model: reserve-only acquire, Odoo create-on-init, through-Odoo drop via `odoo_db.py`
   and `55-instance-ops.sh`. Per-version CLI grounding via OSM `cli_help` with local-source fallback.
-  Persistent logs at `${ODOO_AI_HOME}/.odoo-ai/logs/`; parseable output lines `LOG_PATH=`, `STATUS=`,
+  Persistent logs at `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/`; parseable output lines `LOG_PATH=`, `STATUS=`,
   `TEST_RESULT=` forwarded in the canonical `instance-ops` handoff block.
 
 ## [3.17.0] - 2026-06-20

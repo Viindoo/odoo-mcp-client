@@ -183,7 +183,16 @@ When OSM is unreachable:
 
 Add notice at top of summary: `> Note: QA suite ran in standalone mode. OSM-dependent checks marked ⚠ Manual check.`
 
-When no live Odoo instance is reachable for Phase 3 runtime bug triage: emit `status: NEEDS_NEXT` with `next: - skill: odoo-instance` (reason: provision the Odoo instance needed for runtime bug reproduction; inputs: the series and modules under test) so the run-driver provisions one before re-invoking Phase 3; fall back to `BLOCKED` only if provisioning is itself impossible.
+When no live Odoo instance is reachable for Phase 3 runtime bug triage: emit `status: NEEDS_NEXT` with:
+```
+next:
+  - skill: odoo-instance
+    reason: provision the Odoo instance needed for runtime bug reproduction
+    inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules under test>"]}
+    confidence: 0.9
+    risk_level: L2
+```
+so the run-driver provisions the instance; the caller (or next DAG node) then re-invokes this skill to continue Phase 3. Fall back to `BLOCKED` only if provisioning is itself impossible.
 
 ## Continuation Contract
 

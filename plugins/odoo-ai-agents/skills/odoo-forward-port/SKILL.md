@@ -277,7 +277,7 @@ Converge each child worktree back to integration (serialized), then remove it.
 **P5 - Verify by behavior [PER-BATCH, in integration].** Resolve odoo-bin flags for the
 TARGET series via `cli_help` before invoking (the allocator returns version-agnostic ports;
 flags differ per series, e.g. v19 namespace bootstrap). Acquire ONE ephemeral instance per
-batch via the allocator (B2: reserves DB name + ports; the `-i` run performs Odoo create-on-init
+batch via the allocator (reserves DB name + ports; the `-i` run performs Odoo create-on-init
 and builds the DB; the allocator drops it through Odoo on release), install the N affected modules
 ONCE, run the target suite: RED-then-GREEN for the whole module + confirm-by-toggle for FP-delta
 tests only. Triage each red test as FP-delta vs pre-existing (run it on clean target tip). Never

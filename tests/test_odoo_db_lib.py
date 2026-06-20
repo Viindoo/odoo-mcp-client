@@ -295,20 +295,91 @@ def test_drop_is_idempotent_when_db_already_absent(tmp_path):
 # Test 6: password comes from ODOO_PG_PASSWORD env when no --db-password flag
 # ---------------------------------------------------------------------------
 
-def test_password_from_env_var(tmp_path):
-    """ODOO_PG_PASSWORD env var must be forwarded to config parse_config as --db_password."""
-    marker = tmp_path / "marker.txt"
-    pkg = _build_fake_odoo(tmp_path, exp_drop_returns=True, marker_file=marker)
+def _build_fake_odoo_with_pw_record(tmp_path, marker_file):
+    """Like _build_fake_odoo but parse_config RECORDS the db_password it received
+    into the marker file so we can assert the exact secret reaches parse_config."""
+    pkg_root = tmp_path / "fake_odoo_pw_pkg"
 
-    # We can't easily read what parse_config did from inside the marker, but we CAN
-    # verify the overall command succeeds (no error about missing password etc.)
+    odoo_dir = pkg_root / "odoo"
+    odoo_dir.mkdir(parents=True)
+    service_dir = odoo_dir / "service"
+    service_dir.mkdir()
+    tools_dir = odoo_dir / "tools"
+    tools_dir.mkdir()
+
+    marker_str = repr(str(marker_file))
+
+    (odoo_dir / "__init__.py").write_text(
+        "from odoo import tools, service\n",
+        encoding="utf-8",
+    )
+
+    # tools/__init__.py: parse_config records the parsed db_password to the marker.
+    (tools_dir / "__init__.py").write_text(
+        textwrap.dedent("""\
+        class _Config(dict):
+            def parse_config(self, args=None):
+                args = args or []
+                i = 0
+                while i < len(args):
+                    a = args[i]
+                    if a in ('--db_host', '--db_user', '--db_password') and i + 1 < len(args):
+                        self[a.lstrip('-')] = args[i + 1]
+                        i += 2
+                    else:
+                        i += 1
+                # Record the resolved password to the marker file.
+                import os as _os
+                mf = {marker_str}
+                if mf:
+                    with open(mf, 'a', encoding='utf-8') as _fh:
+                        _fh.write('db_password=' + str(self.get('db_password', '')) + '\\n')
+
+        config = _Config()
+        """.format(marker_str=marker_str)),
+        encoding="utf-8",
+    )
+    (tools_dir / "config.py").write_text("# placeholder\n", encoding="utf-8")
+
+    (service_dir / "__init__.py").write_text(
+        "from odoo.service import db\n",
+        encoding="utf-8",
+    )
+    (service_dir / "db.py").write_text(
+        textwrap.dedent("""\
+        from odoo.tools import config
+
+        def exp_drop(db_name):
+            return True
+
+        def exp_db_exist(db_name):
+            return True
+        """),
+        encoding="utf-8",
+    )
+
+    return pkg_root
+
+
+def test_password_from_env_var(tmp_path):
+    """ODOO_PG_PASSWORD env var must be forwarded to config parse_config as --db_password
+    and the exact secret value must reach parse_config (not just exit 0)."""
+    marker = tmp_path / "pw_marker.txt"
+    pkg = _build_fake_odoo_with_pw_record(tmp_path, marker)
+
+    secret = "s3cr3t_pw_value"
     result = _run(
         "drop", "some_db",
-        env_extra={"ODOO_PG_PASSWORD": "s3cr3t"},
+        env_extra={"ODOO_PG_PASSWORD": secret},
         pythonpath_prepend=pkg,
     )
     assert result.returncode == EXIT_OK, (
-        f"ODOO_PG_PASSWORD should be accepted; exit {result.returncode}; "
-        f"stderr={result.stderr!r}"
+        "ODOO_PG_PASSWORD should be accepted; exit {rc}; stderr={err!r}".format(
+            rc=result.returncode, err=result.stderr)
     )
-    assert marker.exists() and "called=exp_drop" in marker.read_text(encoding="utf-8")
+    assert marker.exists(), "parse_config marker file was not written (parse_config not called?)"
+    content = marker.read_text(encoding="utf-8")
+    assert "db_password={secret}".format(secret=secret) in content, (
+        "ODOO_PG_PASSWORD must reach parse_config as --db_password with the correct value; "
+        "marker content: {content!r}".format(content=content)
+    )

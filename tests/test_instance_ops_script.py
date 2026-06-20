@@ -2,7 +2,7 @@
 
 Business contracts protected:
   1. init  - runs odoo-bin with -i <modules> --stop-after-init; writes a log
-             under ~/.odoo-ai/logs/<db>-<ts>.log and emits LOG_PATH= on stdout.
+             under ${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<db>-<ts>.log and emits LOG_PATH= on stdout.
   2. test  - with exit 0 + passing summary -> TEST_RESULT=passed;
              with exit non-zero or failure marker -> TEST_RESULT=failed.
   3. drop  - invokes scripts/lib/odoo_db.py with `drop <db>` via the instance
@@ -177,8 +177,9 @@ def test_init_runs_odoo_bin_with_install_flag(tmp_path):
     # 2. Log file exists.
     assert log_path.exists(), f"Log file {log_path} was not created."
 
-    # 3. Log is under ODOO_AI_HOME/.odoo-ai/logs/.
-    expected_logs_dir = Path(env["ODOO_AI_HOME"]) / ".odoo-ai" / "logs"
+    # 3. Log is under ODOO_AI_HOME/logs/ (ODOO_AI_HOME IS the .odoo-ai dir;
+    #    .odoo-ai is appended only in the HOME fallback - allocator semantic).
+    expected_logs_dir = Path(env["ODOO_AI_HOME"]) / "logs"
     assert log_path.parent == expected_logs_dir, (
         f"LOG_PATH must be under {expected_logs_dir}, got {log_path.parent}"
     )

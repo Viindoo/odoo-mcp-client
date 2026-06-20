@@ -41,6 +41,8 @@ through ``odoo.service.db.exp_drop`` which handles connection-pool teardown,
 filestore removal, and registry cleanup in a single atomic step.
 """
 
+from __future__ import print_function
+
 import os
 import sys
 
@@ -87,7 +89,7 @@ def _import_odoo():
     except ImportError:
         pass
     try:
-        import openerp as odoo  # v8/v9
+        import openerp as odoo  # v8/v9  # noqa: F401
         return odoo
     except ImportError:
         raise ImportError("neither 'odoo' nor 'openerp' is importable")
@@ -133,7 +135,7 @@ def cmd_drop(db_name, opts):
     try:
         odoo = _import_odoo()
     except ImportError as exc:
-        sys.stderr.write(f"odoo_db: cannot import odoo (no venv?) - {exc}\n")
+        sys.stderr.write("odoo_db: cannot import odoo (no venv?) - {exc}\n".format(exc=exc))
         return EXIT_NO_VENV
 
     _bootstrap_config(odoo, opts)
@@ -142,7 +144,10 @@ def cmd_drop(db_name, opts):
     try:
         result = service_db.exp_drop(db_name)
     except Exception as exc:
-        sys.stderr.write(f"odoo_db: exp_drop({db_name!r}) raised {type(exc).__name__}: {exc}\n")
+        sys.stderr.write(
+            "odoo_db: exp_drop({db!r}) raised {etype}: {exc}\n".format(
+                db=db_name, etype=type(exc).__name__, exc=exc)
+        )
         return EXIT_FAILURE
 
     # exp_drop returns False when the DB is not in the list (already absent) -> idempotent.
@@ -157,7 +162,7 @@ def cmd_exists(db_name, opts):
     try:
         odoo = _import_odoo()
     except ImportError as exc:
-        sys.stderr.write(f"odoo_db: cannot import odoo (no venv?) - {exc}\n")
+        sys.stderr.write("odoo_db: cannot import odoo (no venv?) - {exc}\n".format(exc=exc))
         return EXIT_NO_VENV
 
     _bootstrap_config(odoo, opts)
@@ -166,7 +171,10 @@ def cmd_exists(db_name, opts):
     try:
         exists = service_db.exp_db_exist(db_name)
     except Exception as exc:
-        sys.stderr.write(f"odoo_db: exp_db_exist({db_name!r}) raised {type(exc).__name__}: {exc}\n")
+        sys.stderr.write(
+            "odoo_db: exp_db_exist({db!r}) raised {etype}: {exc}\n".format(
+                db=db_name, etype=type(exc).__name__, exc=exc)
+        )
         return EXIT_FAILURE
 
     print("true" if exists else "false")
@@ -196,7 +204,7 @@ def main(argv):
             return EXIT_USAGE
         return cmd_exists(pos[0], opts)
 
-    sys.stderr.write(f"odoo_db: unknown subcommand {cmd!r}. Use drop|exists.\n")
+    sys.stderr.write("odoo_db: unknown subcommand {cmd!r}. Use drop|exists.\n".format(cmd=cmd))
     return EXIT_USAGE
 
 

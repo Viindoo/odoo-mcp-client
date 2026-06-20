@@ -291,22 +291,35 @@ cmd_apply() {
                     echo "db_password = ${ODOO_PG_PASSWORD}"
                 fi
             } >"$conf"
+            # --dev=all was introduced as a string-valued flag in v10; v9 has a
+            # boolean --dev only (no =all), and v8 has no --dev at all.
+            # Gate: only append --dev=all for major >= 10.
+            local _dev_flag=""
+            if [[ "$_ver_major" =~ ^[0-9]+$ ]] && (( _ver_major >= 10 )); then
+                _dev_flag="--dev=all"
+            fi
+
             echo "  Generated temp conf: $conf"
-            echo "  Launching: $py '$bin' -c '$conf' -d '${INST_DB_NAME:-odoo}' --dev=all"
+            echo "  Launching: $py '$bin' -c '$conf' -d '${INST_DB_NAME:-odoo}' ${_dev_flag}"
             # Run in background so we can poll. Logs to a temp file.
             # Capture the PID directly (no subshell `( )`, which would hide it)
             # so a poll timeout can terminate the orphaned process.
             local logf _logs_dir _db_slug _ts
             # Write log to a stable, named path so a calling agent can capture it
-            # across invocations. Dir: ${ODOO_AI_HOME:-$HOME}/.odoo-ai/logs/
+            # across invocations.
+            # Dir: ${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/
+            #   ODOO_AI_HOME IS the .odoo-ai dir (allocator semantic); .odoo-ai is
+            #   appended ONLY in the HOME fallback so the path stays consistent with
+            #   allocator.py _home() which returns ODOO_AI_HOME directly.
             # File: <db>-<UTC-timestamp>.log (e.g. odoo_test-20260620T153012Z.log)
-            _logs_dir="${ODOO_AI_HOME:-${HOME:-/tmp}}/.odoo-ai/logs"
+            _logs_dir="${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}/logs"
             mkdir -p "$_logs_dir"
             _db_slug="${INST_DB_NAME:-odoo}"
             _ts="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%d%H%M%S)"
             logf="$_logs_dir/${_db_slug}-${_ts}.log"
             echo "LOG_PATH=$logf"
-            "$py" "$bin" -c "$conf" -d "${INST_DB_NAME:-odoo}" --dev=all >"$logf" 2>&1 &
+            # shellcheck disable=SC2086
+            "$py" "$bin" -c "$conf" -d "${INST_DB_NAME:-odoo}" ${_dev_flag} >"$logf" 2>&1 &
             odoo_pid=$!
             echo "  Odoo starting (pid: $odoo_pid, log: $logf)"
             ;;

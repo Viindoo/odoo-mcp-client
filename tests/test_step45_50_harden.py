@@ -503,8 +503,9 @@ def test_step50_apply_writes_log_under_odoo_ai_home(tmp_path):
 
     log_path = Path(log_path_lines[0].split("=", 1)[1])
 
-    # 2. The path must be inside ODOO_AI_HOME/.odoo-ai/logs/.
-    expected_dir = home / ".odoo-ai" / "logs"
+    # 2. The path must be inside ODOO_AI_HOME/logs/ (ODOO_AI_HOME IS the .odoo-ai
+    #    dir; .odoo-ai is appended only in the HOME fallback).
+    expected_dir = home / "logs"
     assert log_path.parent == expected_dir, (
         f"LOG_PATH must be under {expected_dir}, got {log_path.parent}"
     )
@@ -640,4 +641,64 @@ def test_step50_conf_uses_xmlrpc_port_for_legacy_series(tmp_path):
     )
     assert "xmlrpc_port" not in conf17, (
         f"series 17.0: 'xmlrpc_port' must NOT appear in conf, got:\n{conf17}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fix 5: --dev=all version gate (v8/v9 must NOT get --dev=all; v10+ must)
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_step50_dev_flag_gated_by_version(tmp_path):
+    """series 8.0 and 9.0 must NOT include '--dev=all' in the launch command;
+    series 17.0 MUST include '--dev=all'.
+
+    --dev=all is a string-valued flag introduced in v10; v9 has only a boolean
+    --dev and v8 has no --dev at all. Passing --dev=all to either would raise an
+    optparse error and prevent Odoo from starting.
+
+    Strategy: identical to test_step50_conf_uses_xmlrpc_port_for_legacy_series -
+    use an up_after_launch curl stub so the script generates the launch command and
+    succeeds. Capture the 'Launching:' line from stdout and check --dev=all presence.
+    """
+    results = {}
+    for series in ("8.0", "9.0", "17.0"):
+        series_tmp = tmp_path / series.replace(".", "_")
+        series_tmp.mkdir()
+        _, _, env = _make_step50_toml_for_series(series_tmp, series)
+        # up_after_launch: first probe 000 (trigger launch), second+ 200 (success).
+        bind = series_tmp / f"bin-{series.replace('.', '_')}"
+        cnt = series_tmp / "curl.count"
+        _write_stub(bind / "curl", textwrap.dedent(f"""\
+            n="$(cat "{cnt}" 2>/dev/null || echo 0)"
+            echo $((n + 1)) > "{cnt}"
+            if [[ "$n" -ge 1 ]]; then echo "200"; else echo "000"; fi
+        """))
+
+        res = subprocess.run(
+            ["bash", str(STEP50), "apply", "--version", series],
+            capture_output=True, text=True, env=env, timeout=30,
+        )
+        out = res.stdout + res.stderr
+        assert res.returncode == 0, (
+            f"Expected success for series={series}.\nout:\n{out}"
+        )
+        # Capture the 'Launching:' diagnostic line.
+        launch_lines = [line for line in out.splitlines() if "Launching:" in line]
+        assert launch_lines, (
+            f"No 'Launching:' line for series={series}.\nout:\n{out}"
+        )
+        results[series] = launch_lines[0]
+
+    # v8 and v9: --dev=all must NOT appear.
+    for series in ("8.0", "9.0"):
+        assert "--dev=all" not in results[series], (
+            f"series {series}: '--dev=all' must NOT appear in launch command "
+            f"(--dev=all requires v10+); got: {results[series]!r}"
+        )
+
+    # v17: --dev=all must appear.
+    assert "--dev=all" in results["17.0"], (
+        f"series 17.0: '--dev=all' must appear in launch command; "
+        f"got: {results['17.0']!r}"
     )

@@ -535,6 +535,100 @@ db_user = "odoo"
     assert not _db_exists_pg(db), "ephemeral DB must be absent after release via raw dropdb fallback"
 
 
+def test_ephemeral_release_does_not_fallback_on_genuine_drop_failure(tmp_path):
+    """When the fake odoo_db.py exits with rc=1 (genuine exp_drop failure, NOT rc=10),
+    the allocator must NOT invoke raw dropdb, must retain the lease, and must return
+    a non-zero exit code.
+
+    This is a pure-CPU test (no Postgres needed): we use a fake psql that makes
+    _probe_createdb return True, a fake odoo_db.py that exits rc=1, and a fake
+    dropdb binary that logs any invocation so we can assert it was NOT called.
+    """
+    # Fake psql: prints 't' (role has CREATEDB) so probe passes without real PG.
+    bindir = tmp_path / "fakebin"
+    bindir.mkdir()
+    dropdb_log = tmp_path / "dropdb_calls.log"
+
+    fake_psql = bindir / "psql"
+    fake_psql.write_text("#!/bin/sh\necho t\n", encoding="utf-8")
+    fake_psql.chmod(0o755)
+
+    # Fake dropdb: logs any call (must NOT be invoked on genuine rc=1).
+    fake_dropdb = bindir / "dropdb"
+    fake_dropdb.write_text(
+        '#!/bin/sh\necho "dropdb $*" >> "{log}"\n'.format(log=dropdb_log),
+        encoding="utf-8",
+    )
+    fake_dropdb.chmod(0o755)
+
+    # Fake venv python: invoked as `<python> /path/to/odoo_db.py drop <db> ...`
+    # so $1=odoo_db.py path, $2=drop, $3=db_name.
+    # Exits rc=1 to simulate a genuine Odoo exp_drop failure (NOT rc=10).
+    fake_python = bindir / "fake_python"
+    fake_python.write_text(
+        '#!/bin/sh\n'
+        'if [ "$(basename "$1")" = "odoo_db.py" ] && [ "$2" = "drop" ]; then\n'
+        '    echo "odoo_db: exp_drop failed" >&2\n'
+        '    exit 1\n'
+        'fi\n'
+        'exec {real_py} "$@"\n'.format(real_py=sys.executable),
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    # Point the instance's python at our fake_python so the lease stores it.
+    toml.write_text(
+        INSTANCES_TOML.replace(
+            'python = "/srv/venv/bin/python"',
+            'python = "{fake_py}"'.format(fake_py=fake_python),
+        ),
+        encoding="utf-8",
+    )
+    env = _env(home, toml)
+    env["PATH"] = "{bin}{sep}{path}".format(
+        bin=bindir, sep=os.pathsep, path=env.get("PATH", "")
+    )
+
+    # Acquire an ephemeral lease (psql returns 't' so probe passes).
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0
+    assert a["ALLOC_MODE"] == "ephemeral", "fake psql should have allowed ephemeral mode"
+
+    # Release: fake odoo_db.py exits rc=1 -> genuine failure path.
+    rel = _run(env, "release", a["ALLOC_TOKEN"])
+
+    # (i) raw dropdb shell tool was NOT invoked.
+    calls = dropdb_log.read_text(encoding="utf-8") if dropdb_log.exists() else ""
+    assert "dropdb" not in calls, (
+        "raw dropdb must NOT be called when odoo_db.py exits rc=1 (genuine failure); "
+        "got: {calls!r}".format(calls=calls)
+    )
+
+    # (ii) the lease is RETAINED in the registry.
+    leases = _leases(env)
+    assert len(leases) == 1, (
+        "lease must be retained when drop fails (so gc can retry); "
+        "got {n} leases".format(n=len(leases))
+    )
+    assert leases[0]["token"] == a["ALLOC_TOKEN"], "retained lease must be the original token"
+
+    # (iii) cmd_release returned non-zero.
+    assert rel.returncode != 0, (
+        "release must return non-zero when through-Odoo drop fails; "
+        "got rc={rc}".format(rc=rel.returncode)
+    )
+
+    # (iv) stderr carries an ERROR marker.
+    assert "ERROR" in rel.stderr, (
+        "release must emit ERROR to stderr when through-Odoo drop fails; "
+        "got: {stderr!r}".format(stderr=rel.stderr)
+    )
+
+
 # --------------------------------------------------------------------------- #
 # shared mode: the visual stack's live render target - non-exclusive, never
 # drops the declared DB, cross-session discoverable, dead-server reclaimed.

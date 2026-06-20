@@ -180,7 +180,7 @@ When a check needs a RUNNING server (browser tours, live hoot/QUnit against a se
 
 ```bash
 eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py acquire --series <version> --mode ephemeral --ports 1)"
-# The allocator (B2) reserves a unique DB name + port but does NOT create the DB.
+# The allocator reserves a unique DB name + port but does NOT create the DB.
 # Use -i to build it via Odoo create-on-init before the server starts listening.
 # Map $ALLOC_PORTS entries to the right CLI flags via cli_help for the target series.
 "$ALLOC_PYTHON" odoo-bin -d "$ALLOC_DB_NAME" -i base,web,<module> --stop-after-init --addons-path "$ALLOC_ADDONS_PATH"
@@ -191,7 +191,7 @@ kill "$SERVER_PID"
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN"
 ```
 
-Map each `$ALLOC_PORTS` entry to the right CLI flag (`--http-port`, longpoll/gevent) by checking `cli_help` for the target series - they differ per version. **Critical under B2:** the allocator reserves the DB name but does not create the DB - always run an `-i` step first so Odoo create-on-init builds it; a bare server launch (`-d <db>` without `-i`) on a non-existent reserved DB will fail. The static gate (`verify-frontend.sh`) needs no instance.
+Map each `$ALLOC_PORTS` entry to the right CLI flag (`--http-port`, longpoll/gevent) by checking `cli_help` for the target series - they differ per version. **Critical:** the allocator reserves the DB name but does not create the DB - always run an `-i` step first so Odoo create-on-init builds it; a bare server launch (`-d <db>` without `-i`) on a non-existent reserved DB will fail. The static gate (`verify-frontend.sh`) needs no instance.
 
 ---
 
