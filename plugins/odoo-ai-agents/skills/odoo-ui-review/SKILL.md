@@ -34,7 +34,7 @@ unverified impression.
 
 ## When to invoke
 
-Main agent invokes the `odoo-ui-reviewer` **agent** (via Agent tool) when the user has a running
+Main agent launches the `odoo-ui-reviewer` **agent** as a subagent when the user has a running
 Odoo instance and wants a verdict on how a rendered screen looks and behaves. The agent drives a
 live browser (chrome-devtools MCP) to capture the screen, exercises controls, runs a Lighthouse
 audit, sweeps responsive breakpoints, then grounds every styling defect in the codebase via OSM.
@@ -54,7 +54,7 @@ Key things the agent watches for:
 ## Agent invocation
 
 When the user confirms intent (or main detects a running instance + a "how does it look" request),
-main invokes the `odoo-ui-reviewer` agent via Agent tool with restricted tools (odoo-semantic-mcp +
+main launches the `odoo-ui-reviewer` agent as a subagent with restricted tools (odoo-semantic-mcp +
 chrome-devtools, read-only). The agent does NOT spawn further subagents, does NOT invoke any Skill
 tool, and never edits Odoo source - fixes are handed to `odoo-coding`.
 
@@ -80,4 +80,4 @@ restricted tool list (OSM + chrome-devtools) and step-by-step execution detail.
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the depth-0 run-driver - it does not change anything produced above.
+output for the run-driver - it does not change anything produced above.

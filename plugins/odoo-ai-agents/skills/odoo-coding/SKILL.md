@@ -155,7 +155,7 @@ Plan:
   | <m3>   | frontend  | 2    | sonnet | test-author | <m3>/static/src/*.js (depends on <m1>) |
 Design: <path to approved design doc | none (trivial)>
 OSM: backed | standalone
-Dispatch: Agent-tool model-weighted batches
+Dispatch: subagent launch model-weighted batches
 Proceed? (yes / refine: [feedback] / cancel)
 ```
 
@@ -165,13 +165,13 @@ during execution.
 
 On `yes`, execute; on `refine: …`, update and re-emit; on `cancel`, stop.
 
-## Execution - dispatch the coders (Agent-tool, model-weighted batches)
+## Execution - dispatch the coders (subagent launch, model-weighted batches)
 
 The coders run as autonomous agents - never inline codegen in main, never via the Skill tool.
-Dispatch them with the **Agent tool**: `agentType: odoo-coder` (backend) / `agentType:
+Launch them as subagents: `agentType: odoo-coder` (backend) / `agentType:
 odoo-frontend-coder` (frontend); if a short name fails to resolve, retry with the plugin-qualified
 form `odoo-ai-agents:odoo-coder` / `odoo-ai-agents:odoo-frontend-coder`. Do NOT build a Claude Code
-Workflow (JS) script for this - all fan-out is real Agent-tool calls; narrating a dispatch in prose
+Workflow (JS) script for this - all fan-out is real subagent launches; narrating a dispatch in prose
 instead of calling the tool is not allowed.
 
 Concurrency/OOM rule (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`, Mode B):
@@ -198,16 +198,16 @@ the UI leg). Resolve ONE Odoo version for the whole run; carry the design-doc pa
 2. Greedily pack the next batch: take modules in order whose dependencies are all done (done = BOTH
    legs of the dependency finished successfully) and whose summed WEIGHT stays <= 8. A fable item
    always forms a batch of ONE.
-3. Fire the whole batch as parallel Agent-tool calls in a SINGLE message; per module fire only the
+3. Fire the whole batch as parallel subagent launches in a SINGLE message; per module fire only the
    backend leg first, then after it returns fire that module's frontend leg in the next batch round.
 4. Wait for the batch, then pack the next. This is a batch barrier each round - the accepted
    trade-off of dropping the JS dispatch engine: an independent module may wait on a heavier sibling
    in the same batch. There is no cached run to resume; a later step re-dispatches a BLOCKED module
    as a fresh Agent call.
-5. Each Agent-tool call sets BOTH the `model` parameter AND the first prompt line
+5. Each subagent launch sets BOTH the `model` parameter AND the first prompt line
    `DISPATCH MODEL: <haiku|sonnet|opus|fable>` (belt and braces, mirroring `odoo-debug`).
 6. fable -> opus downgrade: if a fable dispatch fails (insufficient usage credit, model unavailable,
-   Agent-tool error), retry that work-item ONCE at `model: opus` and record the downgrade in plan.md
+   subagent error), retry that work-item ONCE at `model: opus` and record the downgrade in plan.md
    (`opus (fable unavailable)`).
 7. Test-first (red before green) for a module marked `test: test-author`: dispatch a SEPARATE
    test-author FIRST - per stack (the backend test before the backend coder; the frontend test
@@ -217,7 +217,7 @@ the UI leg). Resolve ONE Odoo version for the whole run; carry the design-doc pa
 
 ### Per-module briefs
 
-Each Agent-tool call carries the brief below as its `prompt`. The brief is **run-specific inputs
+Each subagent launch carries the brief below as its `prompt`. The brief is **run-specific inputs
 only**: every procedure (OSM grounding, coding guidelines, worklog read/append, ORM + static gates,
 demo data, output format, test-first) already lives in the coder's system prompt, so do NOT re-teach
 it here - a re-taught copy duplicates the SSOT and drifts. Keep identifiers verbatim.
@@ -280,7 +280,7 @@ review / fix / resume step can pick up without recomputing the graph. `<slug>` d
 change (branch, feature name, or the module set).
 
 plan.md MUST record, per work-item: module, stack, wave, the model tier chosen
-(and frontendModel when split), the dispatch path (agent-tool), and the per-module
+(and frontendModel when split), the dispatch path (subagent launch), and the per-module
 result status. A later review / fix / resume step re-dispatches the BLOCKED modules
 at the SAME recorded tier (a fresh Agent call - there is no cached run to resume)
 unless the human changes it.
@@ -307,8 +307,8 @@ separately-authored failing test), the **code -> review+test -> code** round-tri
 `odoo-code-review` reviews AND checks the tests cover the behavior, looping back on a CRITICAL/HIGH
 issue or a red/missing test.
 
-**Drive it yourself when there is no run-driver (mandatory).** You run at depth-0, so the Skill tool
-is available. After writing, **IMMEDIATELY invoke `odoo-code-review` via the Skill tool yourself** - a
+**Drive it yourself when there is no run-driver (mandatory).** The Skill tool is available here.
+After writing, **IMMEDIATELY invoke `odoo-code-review` via the Skill tool yourself** - a
 passive `next: odoo-code-review` is not advanced without an active run-driver (the common case: direct
 invocation, intake fast-path, autonomous fix), so verification would silently never happen. ONLY
 exception: dispatched by an active run-driver (a `run-<id>` is named) - then emit
@@ -324,5 +324,5 @@ When the bundle finishes, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set
 `produced` to the source + test files written, plus `.odoo-ai/coding/<slug>-<date>/plan.md` and the
 `.odoo-ai/worklog/<slug>/` entries, and emit `next: odoo-code-review` so the just-written code is
-reviewed (that skill now scales to the same multi-module set). Additive output for the depth-0
+reviewed (that skill now scales to the same multi-module set). Additive output for the
 run-driver - it does not change anything produced above.

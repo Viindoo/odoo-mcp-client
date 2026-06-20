@@ -32,8 +32,8 @@ Constraints:
   #) wins; if no row clearly applies, use sonnet.
 - A large diff that is mechanically simple (mass rename, generated-file churn) can still be
   haiku - judge by the COMPLEXITY OF THE INTENT, not the line count.
-- The EXTRACT tier sets the `model` override passed to each `odoo-intent-extractor` Agent-tool
-  dispatch in Phase 1 (the agent's own default is sonnet; the override wins).
+- The EXTRACT tier sets the `model` override passed to each `odoo-intent-extractor` subagent
+  launch in Phase 1 (the agent's own default is sonnet; the override wins).
 
 ---
 

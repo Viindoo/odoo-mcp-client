@@ -234,10 +234,10 @@ recommended next step. No internals, no jargon.>
 - **Data priority:** If `odoo-gap-analysis` output is in context, always extract total days from it rather than asking the user to re-state it.
 - **No invented numbers.** If the AE has not provided a rate, output a clearly labeled placeholder.
 - **Language.** Default English (audience = business decision-maker). If the user requests another language or the deal context is clearly in Vietnamese, produce executive summary and next step in the requested language while keeping tables in a language the customer will accept.
-- **Depth rule.** This skill does NOT spawn subagents, does NOT invoke the Skill tool.
+- **Leaf skill.** Does NOT spawn subagents, does NOT invoke the Skill tool.
 
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the depth-0 run-driver - it does not change anything produced above.
+output for the run-driver - it does not change anything produced above.

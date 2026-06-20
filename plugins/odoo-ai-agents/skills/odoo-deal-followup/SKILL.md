@@ -162,10 +162,10 @@ the customer">
 - **Odoo version context:** Feature claims in an email thread are flagged under "Optional: feature claims to verify". Version resolved from `.odoo-ai/context.md` in Round 0.
 - **Email language:** Matches thread language or explicit request. No thread → default English.
 - **No invented information:** Missing last contact date or pipeline stage → ask before computing risk score.
-- **Depth rule:** This skill does NOT spawn subagents, does NOT invoke the Skill tool. References to other skills are text suggestions only.
+- **Leaf skill.** Does NOT spawn subagents, does NOT invoke the Skill tool. References to other skills are text suggestions only.
 
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the depth-0 run-driver - it does not change anything produced above.
+output for the run-driver - it does not change anything produced above.

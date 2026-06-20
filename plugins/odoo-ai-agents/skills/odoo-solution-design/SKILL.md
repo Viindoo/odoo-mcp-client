@@ -58,7 +58,7 @@ Pairs with `odoo-coding` (consumes the design) and `odoo-code-review` (checks im
 
 ## When to invoke - and the non-trivial threshold
 
-Invoke `odoo-solution-architect` (via Agent tool) for **non-trivial** changes. Fire for ANY of:
+Launch `odoo-solution-architect` as a subagent for **non-trivial** changes. Fire for ANY of:
 
 - **Extension-L / Custom-XL** tier (from `odoo-brl` / `odoo-gap-analysis`).
 - **A new module**, new model, or module restructure.
@@ -156,10 +156,10 @@ TDD flows verbatim into test code.
 
 ## Agent invocation - prompt template (P1)
 
-When the user confirms intent (Phase 0 gate passed), invoke `odoo-solution-architect` via the
-Agent tool. Use the template below **verbatim**, filling the bracketed placeholders.
+When the user confirms intent (Phase 0 gate passed), launch `odoo-solution-architect` as a subagent.
+Use the template below **verbatim**, filling the bracketed placeholders.
 
-**Model per dispatch** - set as the Agent-tool `model` parameter (the `DISPATCH MODEL` line
+**Model per dispatch** - set as the subagent `model` parameter (the `DISPATCH MODEL` line
 records the tier chosen; both must match):
 - **opus** - default for every design.
 - **fable** - ONLY for Custom-XL tier or a design spanning >=3 modules full-stack with a new
@@ -243,5 +243,5 @@ design is approved (the design doc is the plan the code Plan Mode then executes)
 frontend, or full-stack design, emit `next: odoo-coding` (it sequences the backend and frontend
 legs itself per the design); for a migration design, emit `next: odoo-data-migration` (or
 `odoo-coding` for the migration script) - each carrying the design-doc path as a
-`design_doc` input so the coder builds to the approved design. Additive output for the depth-0
+`design_doc` input so the coder builds to the approved design. Additive output for the
 run-driver - it does not change anything produced above.

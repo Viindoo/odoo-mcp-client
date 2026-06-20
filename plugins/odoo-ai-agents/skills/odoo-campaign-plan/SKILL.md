@@ -272,8 +272,8 @@ read them when you need a concrete plan shape to anchor against.
 - **No fabricated data**: NEVER invent customer names, revenue figures, or hard ROI %. Use abstract
   templates ("A manufacturing company in the southern region with ~150 employees"). Incorporate
   real data only with attribution when the user provides it.
-- **Depth rule**: operates at depth 1 (called from main agent); does NOT invoke other skills or
-  spawn subagents. The plan is a text deliverable the marketer executes.
+- **Leaf skill.** Does NOT invoke other skills or spawn subagents. The plan is a text deliverable
+  the marketer executes.
 - **Localization**: output language follows the user's request; product/module/channel names stay
   English regardless (e.g. "MRP module", "LinkedIn Ads").
 
@@ -281,4 +281,4 @@ read them when you need a concrete plan shape to anchor against.
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the depth-0 run-driver - it does not change anything produced above.
+output for the run-driver - it does not change anything produced above.
