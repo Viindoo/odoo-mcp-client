@@ -4,9 +4,14 @@ These protect the BEHAVIOR the allocator promises under concurrent multi-agent /
 multi-session use, NOT a snapshot of its code: distinct isolation per caller,
 port-pool disjointness, exclusive mutual-exclusion, stale-lease reclamation
 (dead pid + expired ttl), readonly being lease-free, and portable path
-resolution via $ODOO_AI_HOME. The Postgres-touching createdb/dropdb path is
-covered by a separate test that SKIPS when no local Postgres is available, so
-the core logic stays CPU-only and CI-green without a database.
+resolution via $ODOO_AI_HOME. The Postgres-touching path is covered by a
+separate test that SKIPS when no local Postgres is available, so the core logic
+stays CPU-only and CI-green without a database.
+
+B2 model (this revision): the allocator no longer calls createdb.  The caller
+(odoo-bin -d <db> -i <mods> --stop-after-init) creates the DB; release/gc drop
+it THROUGH odoo_db.py (the through-Odoo path).  The fallback to raw dropdb is
+only allowed when the venv python is absent from the lease.
 """
 
 import json
@@ -19,6 +24,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 ALLOC = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "allocator.py"
+ODOO_DB_PY = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "odoo_db.py"
 
 INSTANCES_TOML = """\
 [[instance]]
@@ -121,6 +127,72 @@ def test_zero_ports_leases_no_port(fixt):
     env, _, _ = fixt
     _, a = _acquire(env, "--mode", "ephemeral", "--no-create", "--ports", "0")
     assert a["ALLOC_PORTS"] == [], "a --stop-after-init test needs a DB but no port"
+
+
+# --------------------------------------------------------------------------- #
+# Lease record shape (B2 model)
+# --------------------------------------------------------------------------- #
+def test_ephemeral_lease_carries_drop_context(tmp_path):
+    """Verify the new B2 lease fields that _drop_through_odoo reads at release time.
+
+    We need drop_on_release=True which requires an ephemeral lease WITHOUT --no-create.
+    Inject a fake psql that makes _probe_createdb return True (role has CREATEDB) so
+    the probe succeeds without a real Postgres.
+    """
+    # Fake psql: any invocation prints 't' (role has CREATEDB) and exits 0.
+    bindir = tmp_path / "fakebin"
+    bindir.mkdir()
+    fake_psql = bindir / "psql"
+    fake_psql.write_text("#!/bin/sh\necho t\n", encoding="utf-8")
+    fake_psql.chmod(0o755)
+
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML, encoding="utf-8")
+    env = _env(home, toml)
+    env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0
+    assert a["ALLOC_MODE"] == "ephemeral", (
+        "fake psql returning 't' must allow the probe to pass and stay in ephemeral mode"
+    )
+
+    leases = _leases(env)
+    assert len(leases) == 1
+    lz = leases[0]
+    assert lz["drop_on_release"] is True, "ephemeral lease must set drop_on_release=True"
+    assert lz["python"] == "/srv/venv/bin/python", "venv interpreter must be stored in lease"
+    assert lz["db_host"] == "localhost", "db_host must be stored for drop-context"
+    assert lz["db_user"] == "odoo", "db_user must be stored for drop-context"
+    # Password must NOT be stored - it is read from ODOO_PG_PASSWORD at drop time.
+    assert "db_password" not in lz, "PG password must never be stored in the lease"
+    assert "created_db" not in lz, "old created_db field must not appear (replaced by drop_on_release)"
+
+
+def test_ephemeral_no_create_lease_does_not_set_drop_on_release(fixt):
+    """--no-create ephemeral leases must NOT drop (caller did not create a DB)."""
+    env, _, _ = fixt
+    _, a = _acquire(env, "--mode", "ephemeral", "--no-create", "--ports", "0")
+    assert a["ALLOC_MODE"] == "ephemeral"
+    leases = _leases(env)
+    assert len(leases) == 1
+    assert leases[0]["drop_on_release"] is False, (
+        "ephemeral+--no-create must set drop_on_release=False (no DB was created)"
+    )
+
+
+def test_exclusive_lease_does_not_set_drop_on_release(fixt):
+    """Exclusive leases must never be dropped by release/gc."""
+    env, _, _ = fixt
+    _, a = _acquire(env, "--mode", "exclusive", "--db-name", "shared_db")
+    leases = _leases(env)
+    assert len(leases) == 1
+    assert leases[0]["drop_on_release"] is False, (
+        "exclusive lease must have drop_on_release=False (DB must survive release)"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -230,11 +302,22 @@ def test_parallel_acquires_never_duplicate_a_port(fixt):
 
 # --------------------------------------------------------------------------- #
 # Postgres lifecycle (skips without a local Postgres)
+#
+# B2 model: the allocator no longer calls createdb.
+# The live-PG tests now guard on dropdb + psql only (createdb is used only by
+# the test harness to stand in for Odoo create-on-init).
 # --------------------------------------------------------------------------- #
 def _pg_available() -> bool:
+    """True when dropdb and psql are on PATH AND a local Postgres is reachable.
+
+    createdb is NOT required by the allocator itself in B2 mode; the test
+    harness uses it to stand in for `odoo-bin --stop-after-init`, but the
+    allocator's own drop path only needs psql (for terminate-backend) and dropdb
+    (for the raw-fallback path).
+    """
     from shutil import which
 
-    if not (which("createdb") and which("dropdb") and which("psql")):
+    if not (which("dropdb") and which("psql")):
         return False
     env = dict(os.environ)
     pw = os.environ.get("ODOO_PG_PASSWORD")
@@ -247,27 +330,303 @@ def _pg_available() -> bool:
     return r.returncode == 0
 
 
-@pytest.mark.skipif(not _pg_available(), reason="no local Postgres (createdb/psql)")
-def test_ephemeral_createdb_then_release_dropdb(fixt):
+def _db_exists_pg(db: str) -> bool:
+    """Check DB existence via psql (not via odoo_db.py - keeps the test isolated)."""
+    env = dict(os.environ)
+    pw = os.environ.get("ODOO_PG_PASSWORD")
+    if pw:
+        env["PGPASSWORD"] = pw
+    r = subprocess.run(
+        ["psql", "-h", "localhost", "-d", "postgres", "-tAc",
+         f"SELECT 1 FROM pg_database WHERE datname='{db}'"],
+        capture_output=True, text=True, env=env,
+    )
+    return r.returncode == 0 and r.stdout.strip() == "1"
+
+
+def _createdb_pg(db: str):
+    """Raw createdb for test setup only - stands in for Odoo create-on-init."""
+    env = dict(os.environ)
+    pw = os.environ.get("ODOO_PG_PASSWORD")
+    if pw:
+        env["PGPASSWORD"] = pw
+    subprocess.run(["createdb", "-h", "localhost", db], check=True, env=env)
+
+
+@pytest.mark.skipif(not _pg_available(), reason="no local Postgres (dropdb/psql)")
+def test_ephemeral_reserve_only_then_caller_creates_then_release_drops(fixt, tmp_path):
+    """B2 contract: acquire does NOT create the DB (reserve-only).
+
+    Flow:
+    1. acquire --mode ephemeral  -> allocator reserves a unique db_name but does
+       NOT create the database (DB absent after acquire).
+    2. Test harness creates the DB via raw createdb (stands in for Odoo create-on-init).
+    3. release drops it THROUGH the odoo_db.py path - we substitute a fake odoo_db.py
+       that records its argv and actually drops the DB via raw dropdb, so the outcome
+       (DB gone) is real and observable while odoo_db.py's invocation is verifiable.
+    4. Assert: (a) DB absent after acquire; (b) fake odoo_db.py was called with
+       `drop <db>`; (c) DB gone after release; (d) raw `dropdb` shell tool was NOT
+       used by the allocator directly (it went through odoo_db.py).
+
+    NOTE: if the role lacks CREATEDB the allocator degrades to exclusive mode,
+    which has drop_on_release=False and no DB drop at release.  Skip the
+    through-Odoo drop assertions in that case (degraded path is separately tested
+    by the fallback test below).
+    """
+    from shutil import which
+
     env, _, _ = fixt
-    p, a = _acquire(env, "--mode", "ephemeral", "--ports", "0")
-    # Either it created an ephemeral DB, or it degraded to exclusive (no CREATEDB).
+
+    # Inject a fake odoo_db.py that records calls and actually drops the DB.
+    # We need to intercept the venv_python -> odoo_db.py call without a real Odoo.
+    # Strategy: create a wrapper that acts as both the "venv python" AND the
+    # "odoo_db.py" target by writing a shim odoo_db.py next to the real one and
+    # pointing the test env at it via a custom _ODOO_DB_PY path is NOT possible
+    # without patching allocator internals.
+    #
+    # Instead: point the instance's `python` to a fake python wrapper that actually
+    # calls `dropdb` when invoked as `<python> odoo_db.py drop <db> ...`.
+    # The wrapper writes its argv to a log file so we can assert it was called.
+    fake_dir = tmp_path / "fakevenv" / "bin"
+    fake_dir.mkdir(parents=True)
+    log = tmp_path / "odoo_db_calls.log"
+    fake_python = fake_dir / "python"
+
+    # The fake python intercepts `python odoo_db.py drop <db> <flags>` and
+    # actually dropdb's (so the outcome is real) while logging the call.
+    # Any other invocation falls through to the real python.
+    fake_python.write_text(
+        f"""\
+#!/bin/sh
+# Fake venv python for test: intercepts odoo_db.py drop calls.
+script="$2"
+cmd="$3"
+db="$4"
+if [ "$(basename "$script")" = "odoo_db.py" ] && [ "$cmd" = "drop" ] && [ -n "$db" ]; then
+    echo "odoo_db.py drop $db $5 $6 $7 $8" >> "{log}"
+    PGPASSWORD="${{ODOO_PG_PASSWORD:-}}" dropdb -h localhost "$db" --if-exists
+    exit $?
+fi
+exec {sys.executable} "$@"
+""",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+
+    # Use a custom instances.toml that points python at our fake wrapper.
+    toml = tmp_path / "instances2.toml"
+    toml.write_text(
+        INSTANCES_TOML.replace("python = \"/srv/venv/bin/python\"",
+                               f"python = \"{fake_python}\""),
+        encoding="utf-8",
+    )
+    home = tmp_path / "home2"
+    home.mkdir()
+    env2 = _env(home, toml)
+    env2["PATH"] = f"{fake_dir}{os.pathsep}{env2['PATH']}"
+
+    p = _run(env2, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+    a = _parse_alloc(p.stdout)
     assert p.returncode == 0
-    if a["ALLOC_MODE"] == "ephemeral":
-        db = a["ALLOC_DB_NAME"]
-        chk = subprocess.run(
-            ["psql", "-h", "localhost", "-d", "postgres", "-tAc",
-             f"SELECT 1 FROM pg_database WHERE datname='{db}'"],
-            capture_output=True, text=True, env=env,
-        )
-        assert chk.stdout.strip() == "1", "ephemeral DB must exist after acquire"
-        assert _run(env, "release", a["ALLOC_TOKEN"]).returncode == 0
-        chk2 = subprocess.run(
-            ["psql", "-h", "localhost", "-d", "postgres", "-tAc",
-             f"SELECT 1 FROM pg_database WHERE datname='{db}'"],
-            capture_output=True, text=True, env=env,
-        )
-        assert chk2.stdout.strip() == "", "ephemeral DB must be dropped after release"
+
+    if a["ALLOC_MODE"] != "ephemeral":
+        pytest.skip("role lacks CREATEDB - degraded to exclusive, B2 drop path not exercised")
+
+    db = a["ALLOC_DB_NAME"]
+
+    # (a) Allocator must NOT have created the DB (reserve-only).
+    assert not _db_exists_pg(db), "ephemeral DB must NOT exist right after acquire (reserve-only)"
+
+    # Simulate Odoo create-on-init: the caller creates the DB.
+    if not which("createdb"):
+        pytest.skip("createdb not on PATH - cannot simulate Odoo create-on-init")
+    _createdb_pg(db)
+    assert _db_exists_pg(db), "test setup: DB must exist after simulated Odoo create-on-init"
+
+    # release: must drop through the odoo_db.py (fake python) path.
+    rel = _run(env2, "release", a["ALLOC_TOKEN"])
+    assert rel.returncode == 0
+
+    # (b) Fake odoo_db.py was invoked with `drop <db>`.
+    assert log.exists(), "odoo_db.py drop must have been called via the venv python"
+    calls = log.read_text(encoding="utf-8")
+    assert f"odoo_db.py drop {db}" in calls, (
+        f"expected 'odoo_db.py drop {db}' in fake log; got: {calls!r}"
+    )
+
+    # (c) DB is gone after release.
+    assert not _db_exists_pg(db), "ephemeral DB must be absent after release"
+
+    # (d) The allocator did NOT call raw `dropdb` directly (it went through odoo_db.py).
+    # The fake python IS our gate: if the raw dropdb shell was called by the allocator
+    # separately, it would also appear in the log (we redirect PATH). But the fake
+    # python IS the venv python intercept, and it is the one that called `dropdb` on
+    # behalf of the through-Odoo path. So we verify the allocator did NOT call
+    # `dropdb` BEFORE the fake python was involved by checking stderr has no
+    # "venv unavailable" warning (fallback marker).
+    assert "WARNING" not in rel.stderr, (
+        "allocator must not emit WARNING (fallback) when venv python is present"
+    )
+
+
+@pytest.mark.skipif(not _pg_available(), reason="no local Postgres (dropdb/psql)")
+def test_ephemeral_release_fallback_when_no_venv(fixt, tmp_path):
+    """When the lease has no python (empty), release drops via raw dropdb AND logs WARNING.
+
+    This exercises the fallback path: venv_python is '' in the lease, so
+    _drop_through_odoo must skip odoo_db.py and call raw _dropdb, emitting the
+    WARNING sentinel to stderr.
+    """
+    from shutil import which
+
+    if not which("createdb"):
+        pytest.skip("createdb not on PATH - cannot simulate Odoo create-on-init")
+
+    # Use an instances.toml WITHOUT a python field so the lease stores python=''.
+    toml_no_python = """\
+[[instance]]
+series = "17.0"
+addons_path = ["/srv/odoo/addons"]
+run_mode = "source"
+http_port = 8069
+http_port_base = 8170
+port_pool_size = 10
+db_name = "odoo_17_0"
+db_name_prefix = "odoo_17_0"
+db_host = "localhost"
+db_user = "odoo"
+"""
+    home = tmp_path / "home_nopy"
+    home.mkdir()
+    toml = tmp_path / "instances_nopy.toml"
+    toml.write_text(toml_no_python, encoding="utf-8")
+    env = _env(home, toml)
+
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0
+
+    if a["ALLOC_MODE"] != "ephemeral":
+        pytest.skip("role lacks CREATEDB - degraded to exclusive, fallback path not exercised")
+
+    db = a["ALLOC_DB_NAME"]
+
+    # Verify the lease has empty python (no venv).
+    leases = json.loads(_run(env, "list").stdout)["leases"]
+    assert len(leases) == 1
+    assert leases[0]["python"] == "", "lease must carry empty python when instances.toml has none"
+    assert leases[0]["drop_on_release"] is True
+
+    # Simulate Odoo create-on-init.
+    _createdb_pg(db)
+    assert _db_exists_pg(db), "test setup: DB must exist after simulated create-on-init"
+
+    # Release: must fall back to raw dropdb AND emit WARNING to stderr.
+    rel = _run(env, "release", a["ALLOC_TOKEN"])
+    assert rel.returncode == 0
+
+    # (a) WARNING marker must appear in stderr.
+    assert "WARNING" in rel.stderr and "venv unavailable" in rel.stderr, (
+        f"allocator must emit 'WARNING - venv unavailable' when python is empty; "
+        f"got stderr: {rel.stderr!r}"
+    )
+
+    # (b) DB is gone (raw dropdb succeeded).
+    assert not _db_exists_pg(db), "ephemeral DB must be absent after release via raw dropdb fallback"
+
+
+def test_ephemeral_release_does_not_fallback_on_genuine_drop_failure(tmp_path):
+    """When the fake odoo_db.py exits with rc=1 (genuine exp_drop failure, NOT rc=10),
+    the allocator must NOT invoke raw dropdb, must retain the lease, and must return
+    a non-zero exit code.
+
+    This is a pure-CPU test (no Postgres needed): we use a fake psql that makes
+    _probe_createdb return True, a fake odoo_db.py that exits rc=1, and a fake
+    dropdb binary that logs any invocation so we can assert it was NOT called.
+    """
+    # Fake psql: prints 't' (role has CREATEDB) so probe passes without real PG.
+    bindir = tmp_path / "fakebin"
+    bindir.mkdir()
+    dropdb_log = tmp_path / "dropdb_calls.log"
+
+    fake_psql = bindir / "psql"
+    fake_psql.write_text("#!/bin/sh\necho t\n", encoding="utf-8")
+    fake_psql.chmod(0o755)
+
+    # Fake dropdb: logs any call (must NOT be invoked on genuine rc=1).
+    fake_dropdb = bindir / "dropdb"
+    fake_dropdb.write_text(
+        '#!/bin/sh\necho "dropdb $*" >> "{log}"\n'.format(log=dropdb_log),
+        encoding="utf-8",
+    )
+    fake_dropdb.chmod(0o755)
+
+    # Fake venv python: invoked as `<python> /path/to/odoo_db.py drop <db> ...`
+    # so $1=odoo_db.py path, $2=drop, $3=db_name.
+    # Exits rc=1 to simulate a genuine Odoo exp_drop failure (NOT rc=10).
+    fake_python = bindir / "fake_python"
+    fake_python.write_text(
+        '#!/bin/sh\n'
+        'if [ "$(basename "$1")" = "odoo_db.py" ] && [ "$2" = "drop" ]; then\n'
+        '    echo "odoo_db: exp_drop failed" >&2\n'
+        '    exit 1\n'
+        'fi\n'
+        'exec {real_py} "$@"\n'.format(real_py=sys.executable),
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    # Point the instance's python at our fake_python so the lease stores it.
+    toml.write_text(
+        INSTANCES_TOML.replace(
+            'python = "/srv/venv/bin/python"',
+            'python = "{fake_py}"'.format(fake_py=fake_python),
+        ),
+        encoding="utf-8",
+    )
+    env = _env(home, toml)
+    env["PATH"] = "{bin}{sep}{path}".format(
+        bin=bindir, sep=os.pathsep, path=env.get("PATH", "")
+    )
+
+    # Acquire an ephemeral lease (psql returns 't' so probe passes).
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0
+    assert a["ALLOC_MODE"] == "ephemeral", "fake psql should have allowed ephemeral mode"
+
+    # Release: fake odoo_db.py exits rc=1 -> genuine failure path.
+    rel = _run(env, "release", a["ALLOC_TOKEN"])
+
+    # (i) raw dropdb shell tool was NOT invoked.
+    calls = dropdb_log.read_text(encoding="utf-8") if dropdb_log.exists() else ""
+    assert "dropdb" not in calls, (
+        "raw dropdb must NOT be called when odoo_db.py exits rc=1 (genuine failure); "
+        "got: {calls!r}".format(calls=calls)
+    )
+
+    # (ii) the lease is RETAINED in the registry.
+    leases = _leases(env)
+    assert len(leases) == 1, (
+        "lease must be retained when drop fails (so gc can retry); "
+        "got {n} leases".format(n=len(leases))
+    )
+    assert leases[0]["token"] == a["ALLOC_TOKEN"], "retained lease must be the original token"
+
+    # (iii) cmd_release returned non-zero.
+    assert rel.returncode != 0, (
+        "release must return non-zero when through-Odoo drop fails; "
+        "got rc={rc}".format(rc=rel.returncode)
+    )
+
+    # (iv) stderr carries an ERROR marker.
+    assert "ERROR" in rel.stderr, (
+        "release must emit ERROR to stderr when through-Odoo drop fails; "
+        "got: {stderr!r}".format(stderr=rel.stderr)
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -289,7 +648,7 @@ def test_shared_acquire_records_actual_port_and_pid(fixt):
     leases = _leases(env)
     assert len(leases) == 1
     lz = leases[0]
-    assert lz["created_db"] is False, "a shared lease must NEVER own the declared DB"
+    assert lz["drop_on_release"] is False, "a shared lease must NEVER own the declared DB"
     assert lz["ports"] == [8069]
     assert lz["owner"]["pid"] == os.getpid(), "the long-lived server pid is recorded"
 
@@ -316,9 +675,10 @@ def test_shared_acquire_never_blocks_a_second_holder(fixt):
 
 def test_gc_reclaims_dead_shared_server_but_never_drops_declared_db(fixt, tmp_path):
     env, _, _ = fixt
-    # Stub the PG CLI so any DB-destroying call is RECORDED; then assert none fired.
-    # If `shared` ever set created_db=True (or the gc guard regressed), gc would
-    # dropdb the SHARED declared database here and this test would go red.
+    # Stub BOTH drop paths so any DB-destroying invocation is RECORDED.
+    # The through-Odoo path (odoo_db.py) would be called by the fake venv python;
+    # the raw-dropdb fallback path would call the shell `dropdb`.
+    # If drop_on_release is False (as it must be for shared), NEITHER path fires.
     bindir = tmp_path / "fakebin"
     bindir.mkdir()
     log = tmp_path / "pg_calls.log"
@@ -326,20 +686,43 @@ def test_gc_reclaims_dead_shared_server_but_never_drops_declared_db(fixt, tmp_pa
         f = bindir / tool
         f.write_text(f'#!/bin/sh\necho "{tool} $*" >> "{log}"\n', encoding="utf-8")
         f.chmod(0o755)
-    env = dict(env)
+
+    # Also create a fake python that logs any odoo_db.py invocation.
+    fake_python = bindir / "fake_python"
+    fake_python.write_text(
+        f"""\
+#!/bin/sh
+echo "fake_python $*" >> "{log}"
+""",
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+
+    # Use an instances.toml pointing to the fake python so if the allocator ever
+    # incorrectly tries to drop via odoo_db.py on a shared lease, the call is logged.
+    home2 = tmp_path / "home2"
+    home2.mkdir()
+    toml2 = tmp_path / "instances2.toml"
+    toml2.write_text(
+        INSTANCES_TOML.replace("python = \"/srv/venv/bin/python\"",
+                               f"python = \"{fake_python}\""),
+        encoding="utf-8",
+    )
+    env = _env(home2, toml2)
     env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
 
     dead = subprocess.Popen([sys.executable, "-c", "pass"])
     dead.wait()  # dead.pid is now a dead pid on this host
     _shared(env, "--port", "8069", "--db-name", "odoo_17_0", "--pid", str(dead.pid))
     leases = _leases(env)
-    assert len(leases) == 1 and leases[0]["created_db"] is False
+    assert len(leases) == 1 and leases[0]["drop_on_release"] is False
 
     _run(env, "gc")
     assert len(_leases(env)) == 0, "a dead-server shared row must be reclaimed (discovery self-heals)"
     calls = log.read_text(encoding="utf-8") if log.exists() else ""
-    assert "odoo_17_0" not in calls, "gc must NEVER dropdb the shared declared database"
-    assert "dropdb" not in calls, "no dropdb may run for a created_db=False shared lease"
+    assert "odoo_17_0" not in calls, "gc must NEVER touch the shared declared database"
+    assert "dropdb" not in calls, "no raw dropdb may run for a drop_on_release=False shared lease"
+    assert "fake_python" not in calls, "odoo_db.py path must not fire for a shared lease"
 
 
 def test_query_returns_live_shared_lease_else_rc1(fixt):

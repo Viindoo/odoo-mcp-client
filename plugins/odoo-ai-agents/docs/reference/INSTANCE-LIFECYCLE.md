@@ -9,6 +9,11 @@
 >
 > Consumed by: `odoo-deploy-checklist`, `odoo-qa-suite`, `wave` (when building/refreshing an
 > instance), the upgrade command chain, and the `setup` scripts.
+>
+> **Programmatic front door:** the `odoo-instance` skill and the `odoo-instance-ops` agent are the
+> high-level interface for build/drop/init/update/test operations on a local instance. Persistent
+> operation logs live under `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<db>-<UTC-ts>.log`. This
+> reference doc covers the underlying semantics those operations rely on.
 
 ## Decision tree - what did you change?
 

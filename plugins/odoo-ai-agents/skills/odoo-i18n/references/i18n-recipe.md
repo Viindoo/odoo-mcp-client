@@ -117,7 +117,9 @@ When the resolved scope has more than one target language, run two nested loops:
   per-language glossary/TM (`glossary-tm-<lang>.json`), `--load-language=<lang>`, merge into
   `<lang>.po` via polib (non-destructive), hand-translate the residual, then run the per-language
   validation gates (msgstr-regression + placeholder-integrity on `<lang>.po`; `-u` reload with
-  `<lang>` loaded). Emit `translation-report-<lang>.json` per language.
+  `<lang>` loaded). Emit `translation-report-<lang>.json` per language. Each language's `-u`
+  reload follows the reserve-only allocator guard (see gate-3 above): reuse the L1 install lease
+  or use `--mode exclusive` on a declared DB - never a fresh ephemeral lease for reload-only.
 
 Artifacts are per-language EXCEPT the shared `.pot`: `<module>.pot` (shared) vs
 `<lang>.po` / `glossary-tm-<lang>.json` / `translation-report-<lang>.json` / `consistency-audit-<lang>.md`.
@@ -205,6 +207,13 @@ at load time.
    target language is LOADED (Settings > Translations > Activate a language, or `--load-language=<lang>`
    on the install run for v8-v18 / `odoo-bin i18n loadlang -d <db> -l <lang>` for v19+ - see L1).
    Absent language -> reload succeeds silently but translations do not load at runtime - false pass.
+
+   **Reserve-only allocator guard.** Reuse the SAME instance and lease the L1 `-i` install used -
+   the `-u` reload requires the DB to ALREADY EXIST with the module installed. Under the
+   reserve-only allocator, `--mode ephemeral` only reserves a unique DB name and ports; the DB is
+   created by the L1 `-i` run via Odoo create-on-init, not by the allocator. Do NOT acquire a
+   fresh ephemeral lease for the reload - its DB is uncreated and `-u` will fail. Keep the L1
+   lease, or use `--mode exclusive` on a declared DB that already has the module installed.
 
 4. **Export against the adapted code (PR-head / merged tree).** When odoo-i18n is dispatched from a
    forward-port run, the Odoo instance must run the POST-ADAPT code (PR branch or merged worktree),

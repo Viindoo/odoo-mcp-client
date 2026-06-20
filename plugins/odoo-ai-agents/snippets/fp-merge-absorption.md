@@ -58,21 +58,24 @@ commit message should record the bucket and reason so reviewers do not flag it a
 
 ## Verify protocol - per-batch, not per-commit
 
-Running a full `-i <module> --test-enable` install for every absorbed commit is prohibitive:
-the allocator provisions an ephemeral DB that starts EMPTY (no modules pre-installed).
-Instead:
+Running a full `-i <module> --test-enable` install for every absorbed commit is prohibitive.
+Instead, use the reserve-only model: the allocator reserves a unique DB name and ports;
+the DB is created through Odoo by your `-i` run (Odoo create-on-init) and dropped through
+Odoo on release (via `scripts/lib/odoo_db.py`). The CREATEDB role is still required because
+Odoo create-on-init needs it; if the role lacks CREATEDB the allocator degrades ephemeral
+to exclusive (see "Allocator footgun" below).
 
 1. Collect a batch of merge commits for the same module set (e.g. all commits in one Phase 6
    gate window).
-2. **Acquire one ephemeral instance for the batch** (see [[concurrency-guard]] § Odoo
-   instance allocation):
+2. **Acquire one ephemeral lease for the batch** (see [[concurrency-guard]] § Odoo
+   instance allocation) - this reserves the DB name and ports but does NOT create the DB:
 
    ```bash
    python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral
    # emits ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_TOKEN
    ```
 
-3. Install the N affected modules ONCE on that DB:
+3. Install the N affected modules ONCE on that DB (Odoo create-on-init creates the DB):
 
    ```
    odoo-bin -d $ALLOC_DB_NAME -i mod_a,mod_b --test-enable --stop-after-init
@@ -80,7 +83,7 @@ Instead:
 
 4. For subsequent commits in the same batch that touch only a subset, run `-u <changed_mod>`
    against the already-installed DB - skip the full `-i` reinstall.
-5. Release the lease when the batch is done:
+5. Release the lease when the batch is done (release drops the DB through Odoo):
 
    ```bash
    python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN
@@ -117,11 +120,13 @@ Never widen or relax an assertion to make a pre-existing failure green - that vi
 
 ## Allocator footgun - CREATEDB role
 
-`allocator.py acquire --mode ephemeral` creates a fresh DB. If the OS user running the
-agent lacks the PostgreSQL `CREATEDB` role, the acquire call degrades to `--mode exclusive`
-silently - it borrows the single declared `db_name` without holding a real lease. Under
-concurrency (another session or another agent running at the same time), both may write to
-the same DB and produce undefined test results.
+`allocator.py acquire --mode ephemeral` reserves a unique DB name; the DB is then created
+by the caller's `odoo-bin -i ... --stop-after-init` (Odoo create-on-init). Both the
+allocator probe and Odoo create-on-init require the PostgreSQL `CREATEDB` role. If the OS
+user lacks it, the allocator degrades to `--mode exclusive` silently - it borrows the
+single declared `db_name` without holding a real isolated lease. Under concurrency (another
+session or another agent running at the same time), both may write to the same DB and
+produce undefined test results.
 
 Verify the role before starting a parallel batch:
 

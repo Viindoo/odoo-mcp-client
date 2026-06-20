@@ -116,7 +116,16 @@ path, duration, and step list so the take is re-runnable.
 ## Standalone-first fallback
 
 - **OSM unreachable:** skip Round 1 verification; grep the repo for menu/view ids (`grep -rn "<menu_id>" --include=*.xml`) to reconstruct the click path from source; only ask the caller to confirm the menu path and records if the grep result is insufficient. Prefix with `⚠ OSM unreachable - click path planned from disk grep, verify menus on the live instance`.
-- **Browser MCP / video recorder unreachable:** if video capture is unavailable, fall back to a screenshot frame sequence assembled into a GIF. If the instance itself is unreachable, re-check `.odoo-ai/context.md` for `instance_base_url` and `instance_login`; if still unreachable after trying the URL from context, return `BLOCKED(instance unreachable - tried <url>)`. Do NOT ask the user for a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.
+- **Browser MCP / video recorder unreachable:** if video capture is unavailable, fall back to a screenshot frame sequence assembled into a GIF. If the instance itself is unreachable, re-check `.odoo-ai/context.md` for `instance_base_url` and `instance_login`; if still unreachable after trying the URL from context, emit `status: NEEDS_NEXT` with:
+  ```
+  next:
+    - skill: odoo-instance
+      reason: provision the Odoo instance needed to record the demo
+      inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules required for workflow>"]}
+      confidence: 0.9
+      risk_level: L2
+  ```
+  so the run-driver provisions one; fall back to `BLOCKED(instance unreachable - tried <url>)` only if provisioning is itself impossible. Do NOT ask the user for a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.
 
 ## Output format
 

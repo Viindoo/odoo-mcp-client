@@ -150,6 +150,17 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 - **Copy-pasteable-only mode** (last resort): emit standalone blocks only when the repo itself is unreachable. Label `grounded: local-source (not OSM-indexed)` when built from disk; `OSM unavailable - ungrounded` only when neither OSM nor local source is available.
 - Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes - never ask a human to paste field lists, model definitions, or manifests.
 
+When no live Odoo instance is reachable to run `odoo-bin -i <module> --test-enable` in Round 5: emit `status: NEEDS_NEXT` with:
+```
+next:
+  - skill: odoo-instance
+    reason: provision the Odoo instance needed to execute the test suite and confirm RED
+    inputs: {operation: run-tests, series: "<series from context>", modules: ["<module under test>"]}
+    confidence: 0.9
+    risk_level: L2
+```
+so the run-driver provisions one; fall back to `BLOCKED` only if provisioning is itself impossible. Test file authoring (Rounds 0-4) proceeds regardless.
+
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the test file paths you wrote, and state the **RED confirmation** (test-first mode: "RED - production code not yet written"; coverage mode: "RED-on-rule-removal verified"). A coder consuming these tests implements to green and must not edit them. Additive output for the run-driver - it does not change anything produced above.

@@ -125,7 +125,10 @@ and the Odoo `-u <module>` reload (NOT `msgfmt`). Pre-condition for each languag
 target language must be LOADED in the DB first (`--load-language=<lang>` v8-v18 / `i18n loadlang
 -l <lang>` v19+); an absent language makes the reload pass silently while translations stay inactive
 - a false pass. A clean reload with no translation error in the log is the pass signal per language.
-See `docs/reference/INSTANCE-LIFECYCLE.md` for the reload semantics.
+See `docs/reference/INSTANCE-LIFECYCLE.md` for the reload semantics. Each per-language `-u
+<module>` reload must run against the SAME lease as the P2/L1 `-i` install that created the DB
+via Odoo create-on-init, or `--mode exclusive` on a declared DB with the module pre-installed -
+never a fresh `ephemeral` lease (reserve-only = uncreated DB, `-u` will fail).
 
 **P5 - Consistency audit + report [opus, ADVISORY].** Audit terminology consistency across the
 translated modules for EACH target language separately. This phase is **ADVISORY and NEVER

@@ -355,8 +355,15 @@ Union the closures of every directly-touched module and feed that whole set to `
 ```bash
 # one ephemeral DB per BATCH, not per commit
 python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral
-#   -> ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_TOKEN  (cache TOKEN in the batch worklog)
+#   -> ALLOC_DB_NAME (unique reserved name) / ALLOC_PORTS / ALLOC_TOKEN
+#   (cache TOKEN in the batch worklog)
 #   ALLOC_PORTS includes a free HTTP port -> export it as ALLOC_HTTP_PORT
+#
+#   The allocator reserves the DB name + ports but does NOT create the DB.
+#   The -i run below performs Odoo create-on-init, which builds the DB.
+#   On release/gc the allocator drops it through Odoo (raw dropdb only as fallback).
+#   CREATEDB-role probe still degrades ephemeral -> exclusive when the role lacks it,
+#   because Odoo create-on-init also requires CREATEDB (same invariant as before).
 
 # install the full closure once. --skip-auto-install ISOLATES auto_install modules that
 # would otherwise be pulled in silently and mask (or fabricate) a break. --http-port binds the

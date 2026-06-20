@@ -8,6 +8,10 @@
 >
 > Consumed by: `odoo-qa-suite`, `odoo-deploy-checklist`, `wave` (when running tests), the
 > upgrade command chain.
+>
+> **Programmatic front door:** the `odoo-instance` skill and the `odoo-instance-ops` agent are the
+> high-level interface for build/drop/init/update/test operations on a local instance. Persistent
+> logs live under `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<db>-<UTC-ts>.log`.
 
 ## Core test invocation (verify flags via `cli_help` for the target)
 
@@ -17,8 +21,10 @@ odoo-bin -d <DB> -i <module> --test-enable --test-tags /<module> --stop-after-in
 
 > **Under concurrency, `<DB>` must be an ISOLATED database, never the shared declared one** - a
 > parallel agent or another Claude Code session may be testing against it. Acquire a throwaway:
-> `python3 scripts/lib/allocator.py acquire --mode ephemeral --ports 0` (a `--stop-after-init` run
-> binds no port), use `$ALLOC_DB_NAME` / `$ALLOC_PYTHON`, then `allocator.py release $ALLOC_TOKEN`.
+> `python3 scripts/lib/allocator.py acquire --mode ephemeral --ports 0` (reserves a unique DB name;
+> the `-i <module>` run below performs Odoo create-on-init to build the DB; a `--stop-after-init`
+> run binds no port), use `$ALLOC_DB_NAME` / `$ALLOC_PYTHON`, then `allocator.py release $ALLOC_TOKEN`
+> (drops through Odoo via `scripts/lib/odoo_db.py`).
 > See `snippets/instance-resolution.md` § Allocate and `docs/reference/INSTANCE-ALLOCATION.md`.
 
 - `--test-enable` - enable running tests at `-i`/`-u`.

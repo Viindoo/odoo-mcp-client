@@ -5,9 +5,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **43 skills + 9 agents + 9 commands**, grouped into **9 persona
+> The Odoo AI workforce toolkit: **44 skills + 10 agents + 9 commands**, grouped into **9 persona
 > buckets**, plus **12 declarative workflows** - covering engineering, coding, code review, visual
-> UI testing, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
+> UI testing, instance provisioning, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
 > dependency), so all knowledge is grounded through the OSM MCP server. This repo is a thin
 > routing and orchestration layer; computation lives on the server.
@@ -44,7 +44,7 @@ code carry-over), merge-keep-SHA strategy, symbol-survival checking, adaptive te
 and verify-by-behavior per batch. It runs alongside coding, code review, and upgrade planning
 as a core engineering capability.
 
-> **Counts at a glance:** this plugin ships **43 skills + 9 agents + 9 commands**, grouped into
+> **Counts at a glance:** this plugin ships **44 skills + 10 agents + 9 commands**, grouped into
 > **9 persona buckets** for navigation, plus **12 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
@@ -249,13 +249,19 @@ gated sequence, and single-step wrappers that run one skill and offer a save ste
 
 The visual UI testing stack is a sibling cluster, not a linear chain: one `setup` step
 provisions the browser environment, then four skills run independently and converge on
-`odoo-coding` as the fix writer.
+`odoo-coding` as the fix writer. When no reachable instance is detected, the visual
+skills emit `NEEDS_NEXT -> odoo-instance` so a live instance can be provisioned
+programmatically before the visual workflow resumes.
 
 ```mermaid
 flowchart TD
-    SETUP["/odoo-setup (one-time)"]
+    SETUP["/odoo-setup (one-time, interactive)"]
     SETUP --> MCPW["3 browser MCP servers<br/>chrome-devtools / playwright / pagecast"]
     SETUP --> CTX["context.md + instances.toml"]
+
+    INST["odoo-instance skill<br/>(programmatic path)"]
+    INST --> IOPS["odoo-instance-ops agent<br/>create / init / ensure-up<br/>odoo_db.py + 55-instance-ops.sh"]
+    IOPS --> CTX
 
     MCPW --> SK["Visual skills ready"]
     CTX --> SK
@@ -269,6 +275,9 @@ flowchart TD
     SK --> FIX_SKILLS
     SK --> DR["odoo-demo-recording"]
     DR --> MEDIA["MP4 / GIF artifact"]
+
+    FIX_SKILLS -. "no instance reachable" .-> INST
+    SK -. "no instance reachable" .-> INST
 ```
 
 ### Forward-port pipeline (`/odoo-forward-port`)
@@ -422,7 +431,7 @@ Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression
 
 ### Frequently asked questions
 
-**I only need one skill - do I have to know all 43?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `odoo-intake` acts as a brainstorm partner when you are not sure which skill to use.
+**I only need one skill - do I have to know all 44?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `odoo-intake` acts as a brainstorm partner when you are not sure which skill to use.
 
 **What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by reading your local codebase and `.odoo-ai/context.md` directly (Read/Grep/WebFetch, three-tier grounding) instead of asking you to paste data; if a browser is genuinely unreachable a visual skill returns BLOCKED rather than requesting screenshots. The plugin does not break when OSM is offline.
 
@@ -501,7 +510,7 @@ snippet once, not each of the agents that consume it):
 | `snippets/worklog-contract.md` | Append-only cross-agent decision journal (`.odoo-ai/worklog/<run>/<NNN>-<agent>.md`) read at start, appended at end, so a later phase can look up why an earlier one decided what it did |
 | `skills/_shared/odoo-module-graph.md` | The Odoo module DAG (from each `__manifest__.py` `depends`), shared by `odoo-coding` and `wave` so both dispatch in dependency order and respect module boundaries |
 
-### Skills (43)
+### Skills (44)
 
 Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 
@@ -525,6 +534,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-code-review` | Code-Reviewer | Review Odoo patches for ORM/inheritance/security pitfalls plus bidirectional module impact, platform-design-principle violations, and missing behavior tests; on a CRITICAL/HIGH finding it drives the fix autonomously through `odoo-coding` and re-reviews to verify (bounded to 3 iterations, then escalates), and loops uncovered behavior back to `odoo-test-writing` (slim, paired with agent bundle) |
 | `odoo-feature-check` | Pre-Sales Consultant | Check if a feature exists in standard CE or EE |
 | `odoo-gap-analysis` | Pre-Sales Consultant | Gap matrix of client requirements vs. standard Odoo |
+| `odoo-instance` | Engineer / Coder | Front door for all Odoo instance lifecycle operations (create, drop, init, update, run-tests, ensure-up, status) for any series v8+; dispatches the `odoo-instance-ops` agent and relays back structured metadata including db name, log path, ports, and lease token |
 | `odoo-capability-proof` | Pre-Sales Consultant | Evidence-based proof that Odoo supports a client requirement |
 | `odoo-addon-diff` | Pre-Sales Consultant | Side-by-side CE vs EE feature comparison |
 | `odoo-brl` | Pre-Sales Consultant | BRL engine - classify and cost tens-to-thousands of business requirements into a phased RTM with dependency DAG and checkpoint/resume |
@@ -550,7 +560,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `run-driver` | Internal (harness) | Orchestrating drive-to-done loop - walks the `run-<id>.json` plan, dispatches each work-item, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent |
 | `wave` | Internal (orchestration) | Git-wave orchestration (orchestrating context) - integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge; computes the Odoo module DAG at Phase 0 to auto-infer work-item `depends_on` and warn on module-boundary-crossing WIs; self-spawning, principal-branch-locked |
 
-### Agents (9)
+### Agents (10)
 
 | Agent | Model (default) | Role |
 |-------|-----------------|------|
@@ -563,6 +573,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-ui-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes OWL/JS/QWeb/SCSS runtime failures from live browser evidence + OSM grounding (serial-exclusive browser use); assesses impact along the template / asset-inheritance axis |
 | `odoo-intent-extractor` | Sonnet | Read-only pre-analysis specialist dispatched by `odoo-forward-port` (Phase 1, parallel) - extracts the business intent and behavioral contract from a single source commit, separating purpose from implementation details; suitable for parallel dispatch over many commits before any git merge or adapt work begins |
 | `odoo-translator` | Sonnet | Leaf translation worker dispatched by `odoo-i18n` (Phase 3) - translates one module (or module-cluster) for one language by polib merge (forwards translation MEMORY, never regenerates), hand-translates only the new/changed residual, and self-validates with an Odoo `-u` reload; never destroys existing human translation |
+| `odoo-instance-ops` | Sonnet | Instance lifecycle specialist dispatched by the `odoo-instance` skill - provisions, drives, and tears down Odoo instances for any series (v8+); learns each version's CLI at runtime via OSM `cli_help`; prefers creating and dropping databases through Odoo (`odoo_db.py` / `odoo-bin db drop`) over raw `createdb`/`dropdb`; returns structured metadata (db name, log path, ports, lease token) so callers keep clean context |
 
 ## Requirements
 

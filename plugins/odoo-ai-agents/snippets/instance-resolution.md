@@ -55,8 +55,11 @@ python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemera
 # ALLOC_DB_USER / ALLOC_TOKEN ; release with `allocator.py release <ALLOC_TOKEN>` when done.
 ```
 
-`ephemeral` gives a unique throwaway DB (created + dropped for you); `exclusive`
-holds the declared DB under a single-holder lease; `shared` registers a long-lived,
+`ephemeral` reserves a unique DB name and ports; the DB is created through Odoo by your
+`-i` run (Odoo create-on-init) and dropped through Odoo on release via
+`scripts/lib/odoo_db.py` (raw `dropdb` only as a logged fallback for the venv-unavailable
+case); `exclusive` holds the declared DB under a single-holder lease; `shared` registers a
+long-lived,
 NON-exclusive render server (the visual stack's live target) with its actual `--port`
 so other sessions discover it via `query` and gc reclaims it when its server pid dies -
 it never drops the declared DB; `readonly` is lease-free (use plain resolution above).

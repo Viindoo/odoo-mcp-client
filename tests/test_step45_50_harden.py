@@ -426,7 +426,7 @@ def test_step50_registers_shared_lease_after_server_up(tmp_path):
     lz = shared[0]
     assert lz["series"] == "17.0"
     assert lz["ports"] == [18069], "the lease records the actual bound port"
-    assert lz["created_db"] is False, "the shared render lease must NEVER own the declared DB"
+    assert lz["drop_on_release"] is False, "the shared render lease must NEVER own the declared DB"
     pid = lz["owner"]["pid"]
     assert pid and _alive(pid), "the live server pid is recorded (for gc + cross-session discovery)"
     os.kill(int(pid), signal.SIGTERM)  # reap the backgrounded sleep
@@ -477,3 +477,228 @@ def test_step50_degrades_to_plain_spinup_without_allocator(tmp_path):
     assert _leases_at(home) == [], "with the allocator disabled, NO lease is written"
     # The degraded path leaves a short backgrounded `sleep` (no lease records its
     # pid); it is detached and self-reaps, so it does not block the suite.
+
+
+# ---------------------------------------------------------------------------
+# WI-4 (a): persistent log path under ~/.odoo-ai/logs/ + parseable LOG_PATH=
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_step50_apply_writes_log_under_odoo_ai_home(tmp_path):
+    """apply must write the Odoo log to <ODOO_AI_HOME>/.odoo-ai/logs/<db>-<ts>.log
+    and emit a parseable 'LOG_PATH=<path>' line on stdout so a calling agent
+    can capture the log location without screen-scraping.
+    """
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    res = _run_step50(env)
+    out = res.stdout + res.stderr
+
+    assert res.returncode == 0, f"Expected success.\nstdout: {res.stdout}\nstderr: {res.stderr}"
+
+    # 1. A parseable LOG_PATH= line must appear on stdout.
+    log_path_lines = [line for line in res.stdout.splitlines() if line.startswith("LOG_PATH=")]
+    assert len(log_path_lines) == 1, (
+        f"Expected exactly one LOG_PATH= line on stdout.\nstdout:\n{res.stdout}"
+    )
+
+    log_path = Path(log_path_lines[0].split("=", 1)[1])
+
+    # 2. The path must be inside ODOO_AI_HOME/logs/ (ODOO_AI_HOME IS the .odoo-ai
+    #    dir; .odoo-ai is appended only in the HOME fallback).
+    expected_dir = home / "logs"
+    assert log_path.parent == expected_dir, (
+        f"LOG_PATH must be under {expected_dir}, got {log_path.parent}"
+    )
+
+    # 3. The filename encodes the db name and a UTC timestamp.
+    assert log_path.name.startswith("odoo_test-"), (
+        f"Log filename must start with the db name 'odoo_test-', got: {log_path.name}"
+    )
+    assert log_path.suffix == ".log", (
+        f"Log file must have .log suffix, got: {log_path.suffix}"
+    )
+
+    # 4. The log file must actually exist (Odoo output was redirected there).
+    assert log_path.exists(), (
+        f"LOG_PATH file {log_path} does not exist (redirect failed?)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# WI-4 (b): port config key - xmlrpc_port for v8/9/10, http_port for v11+
+# ---------------------------------------------------------------------------
+
+def _make_step50_toml_for_series(tmp_path: Path, series: str) -> tuple:
+    """Return (toml_path, fake_py_path, env) for a source-mode step-50 scenario
+    where preflights pass and odoo-bin is a stub that logs launch args.
+    The scenario does NOT reach the poll step (curl always 000) - we only care
+    about the generated conf, not whether the server comes up.
+    """
+    fake_py = _make_step50_fake_py(tmp_path, odoo_importable=True)
+
+    fake_core = tmp_path / "fake-core"
+    fake_addons = fake_core / "addons"
+    fake_addons.mkdir(parents=True, exist_ok=True)
+    fake_bin = fake_core / "odoo-bin"
+    _write_stub(fake_bin, "exit 0\n")
+
+    toml = tmp_path / f"instances-{series.replace('.', '_')}.toml"
+    toml.write_text(
+        textwrap.dedent(f"""\
+            [[instance]]
+            series = "{series}"
+            python = "{fake_py}"
+            http_port = 18069
+            db_name = "odoo_test"
+            db_host = "localhost"
+            db_user = "odoo"
+            run_mode = "source"
+            addons_path = "{fake_addons}"
+        """),
+        encoding="utf-8",
+    )
+
+    bind = tmp_path / f"bin-{series.replace('.', '_')}"
+    bind.mkdir(exist_ok=True)
+    _write_stub(bind / "curl", 'echo "000"\n')
+    _write_stub(bind / "pg_isready", "exit 0\n")
+
+    home = tmp_path / f"home-{series.replace('.', '_')}"
+    env = dict(os.environ)
+    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_AI_HOME"] = str(home)
+    env["SPINUP_TIMEOUT"] = "3"
+    env.pop("ODOO_PG_PASSWORD", None)
+    env["ODOO_BIN"] = str(fake_bin)
+    env["ODOO_AI_ALLOCATOR"] = ""  # skip lease registration
+
+    return toml, fake_py, env
+
+
+
+@requires_bash
+def test_step50_conf_uses_xmlrpc_port_for_legacy_series(tmp_path):
+    """For series 8.0, 9.0, 10.0 the generated odoo.conf must use xmlrpc_port;
+    for 17.0 it must use http_port.
+
+    Strategy: use an 'up_after_launch' curl stub (first probe 000, second+ 200)
+    so the script enters the 'source' branch, generates a conf, and launches
+    odoo-bin. Apply succeeds (HTTP 200 on the 2nd poll) and the conf is NOT
+    cleaned up (cleanup only on poll-timeout). We then read the conf from the
+    path printed on stdout.
+    """
+    results = {}
+    for series in ("8.0", "9.0", "10.0", "17.0"):
+        series_tmp = tmp_path / series.replace(".", "_")
+        series_tmp.mkdir()
+        _, _, env = _make_step50_toml_for_series(series_tmp, series)
+        # Replace the curl stub with an up_after_launch variant:
+        # first probe -> 000 (triggers launch), second probe -> 200 (poll succeeds).
+        bind = series_tmp / f"bin-{series.replace('.', '_')}"
+        cnt = series_tmp / "curl.count"
+        _write_stub(bind / "curl", textwrap.dedent(f"""\
+            n="$(cat "{cnt}" 2>/dev/null || echo 0)"
+            echo $((n + 1)) > "{cnt}"
+            if [[ "$n" -ge 1 ]]; then echo "200"; else echo "000"; fi
+        """))
+
+        res = subprocess.run(
+            ["bash", str(STEP50), "apply", "--version", series],
+            capture_output=True, text=True, env=env, timeout=30,
+        )
+        out = res.stdout + res.stderr
+        assert res.returncode == 0, (
+            f"Expected success for series={series}.\nout:\n{out}"
+        )
+        # Extract the conf path from output.
+        conf_lines = [
+            line for line in out.splitlines()
+            if "Generated temp conf:" in line
+        ]
+        assert conf_lines, (
+            f"No 'Generated temp conf' line for series={series}.\nout:\n{out}"
+        )
+        conf_path = conf_lines[0].split("Generated temp conf:")[-1].strip()
+        assert Path(conf_path).exists(), (
+            f"Conf file {conf_path} does not exist for series={series} "
+            f"(should NOT be cleaned up when apply succeeds)"
+        )
+        results[series] = Path(conf_path).read_text(encoding="utf-8")
+
+    for series in ("8.0", "9.0", "10.0"):
+        conf = results[series]
+        assert "xmlrpc_port" in conf, (
+            f"series {series}: expected 'xmlrpc_port' in conf, got:\n{conf}"
+        )
+        assert "http_port" not in conf, (
+            f"series {series}: 'http_port' must NOT appear in conf (it's xmlrpc_port for <v11), got:\n{conf}"
+        )
+
+    conf17 = results["17.0"]
+    assert "http_port" in conf17, (
+        f"series 17.0: expected 'http_port' in conf, got:\n{conf17}"
+    )
+    assert "xmlrpc_port" not in conf17, (
+        f"series 17.0: 'xmlrpc_port' must NOT appear in conf, got:\n{conf17}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fix 5: --dev=all version gate (v8/v9 must NOT get --dev=all; v10+ must)
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_step50_dev_flag_gated_by_version(tmp_path):
+    """series 8.0 and 9.0 must NOT include '--dev=all' in the launch command;
+    series 17.0 MUST include '--dev=all'.
+
+    --dev=all is a string-valued flag introduced in v10; v9 has only a boolean
+    --dev and v8 has no --dev at all. Passing --dev=all to either would raise an
+    optparse error and prevent Odoo from starting.
+
+    Strategy: identical to test_step50_conf_uses_xmlrpc_port_for_legacy_series -
+    use an up_after_launch curl stub so the script generates the launch command and
+    succeeds. Capture the 'Launching:' line from stdout and check --dev=all presence.
+    """
+    results = {}
+    for series in ("8.0", "9.0", "17.0"):
+        series_tmp = tmp_path / series.replace(".", "_")
+        series_tmp.mkdir()
+        _, _, env = _make_step50_toml_for_series(series_tmp, series)
+        # up_after_launch: first probe 000 (trigger launch), second+ 200 (success).
+        bind = series_tmp / f"bin-{series.replace('.', '_')}"
+        cnt = series_tmp / "curl.count"
+        _write_stub(bind / "curl", textwrap.dedent(f"""\
+            n="$(cat "{cnt}" 2>/dev/null || echo 0)"
+            echo $((n + 1)) > "{cnt}"
+            if [[ "$n" -ge 1 ]]; then echo "200"; else echo "000"; fi
+        """))
+
+        res = subprocess.run(
+            ["bash", str(STEP50), "apply", "--version", series],
+            capture_output=True, text=True, env=env, timeout=30,
+        )
+        out = res.stdout + res.stderr
+        assert res.returncode == 0, (
+            f"Expected success for series={series}.\nout:\n{out}"
+        )
+        # Capture the 'Launching:' diagnostic line.
+        launch_lines = [line for line in out.splitlines() if "Launching:" in line]
+        assert launch_lines, (
+            f"No 'Launching:' line for series={series}.\nout:\n{out}"
+        )
+        results[series] = launch_lines[0]
+
+    # v8 and v9: --dev=all must NOT appear.
+    for series in ("8.0", "9.0"):
+        assert "--dev=all" not in results[series], (
+            f"series {series}: '--dev=all' must NOT appear in launch command "
+            f"(--dev=all requires v10+); got: {results[series]!r}"
+        )
+
+    # v17: --dev=all must appear.
+    assert "--dev=all" in results["17.0"], (
+        f"series 17.0: '--dev=all' must appear in launch command; "
+        f"got: {results['17.0']!r}"
+    )
