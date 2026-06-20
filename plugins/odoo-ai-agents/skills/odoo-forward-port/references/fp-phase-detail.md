@@ -1,4 +1,4 @@
-<!-- Reference for odoo-run-forward-port/SKILL.md § The 8-phase pipeline. Loaded as needed.
+<!-- Reference for odoo-forward-port/SKILL.md § The 8-phase pipeline. Loaded as needed.
      Per-phase git commands, dispatch-brief templates, and worklog formats. The SKILL.md body
      carries the contract; this file carries the verbatim commands and brief text. -->
 

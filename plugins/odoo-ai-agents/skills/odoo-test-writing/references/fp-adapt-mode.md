@@ -1,5 +1,5 @@
 <!-- SSOT reference for adapt mode. Loaded by odoo-test-writing (adapt mode) and by
-     odoo-run-forward-port P4a. Edit here only; SKILL.md carries the summary + pointer.
+     odoo-forward-port P4a. Edit here only; SKILL.md carries the summary + pointer.
      Dau gach ASCII `-`. -->
 
 # odoo-test-writing - Adapt Mode (Forward-Port Test Forwarding)
@@ -11,7 +11,7 @@ during continuous forward-port. It forwards the INTENT of tests, not their text.
 
 Invoke adapt mode (not new-test mode) when:
 - The input is an existing test file path or diff from a source version
-- The context is a forward-port pipeline (P4a of odoo-run-forward-port)
+- The context is a forward-port pipeline (P4a of odoo-forward-port)
 - The user explicitly requests "translate tests from vX to vY" or "forward tests for this commit"
 
 ## Inputs

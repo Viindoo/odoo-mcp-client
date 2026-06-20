@@ -1,13 +1,13 @@
 ---
-name: odoo-run-forward-port
+name: odoo-forward-port
 description: >-
   This skill orchestrates a continuous or one-shot Odoo forward-port - porting fixes
   and features from a lower-series source repo or branch up to a higher-series target -
   as an 8-phase agentic pipeline that forwards INTENT, not code text. It runs a plan gate,
   a parallel read-only intent sweep, a 4-outcome classification, an SHA-preserving git
   merge, a symbol-survival check that catches autosilent field breaks, test-first adapt,
-  per-batch verify-by-behavior, a human-confirm gate, and a PR. Invoked by the
-  /odoo-forward-port command or directly when asked to "forward-port", "port commits to a
+  per-batch verify-by-behavior, a human-confirm gate, and a PR. Invoked when asked to
+  "forward-port", "port commits to a
   newer Odoo version", "merge a fix forward", "continuous forward-port", "one-shot
   back-of-port", or in Vietnamese "forward-port Odoo", "port fix lên phiên bản mới",
   "đẩy commit lên series cao", "forward-port liên tục". Do NOT use to write one isolated
@@ -38,6 +38,60 @@ DAG, never by squashing or cherry-picking it into a new SHA.
 - Designing a non-trivial new architecture before any code -> use `odoo-solution-design`
 - Single-WI parallelism with cherry-pick + squash semantics -> use `wave` (forward-port
   keeps SHA by merge; `wave` re-bases by cherry-pick - different git contract)
+
+## Invocation
+
+Fires three ways - all reach the same pipeline: the `/odoo-forward-port` slash command,
+a natural-language description match, or a Skill-tool call from an orchestrator (e.g.
+`odoo-intake`).
+
+### Arguments
+
+```
+/odoo-forward-port <source-ref> <target-branch> [--scope <mod1,mod2>] [--since <sha>] [--one-shot]
+```
+
+| Argument | Required | Description |
+|---|---|---|
+| `<source-ref>` | yes | Source branch or commit range (e.g. `origin/17.0`, `v17-fixes`) |
+| `<target-branch>` | yes | Target branch (e.g. `origin/18.0`, `18.0-fp-batch-01`) |
+| `--scope <modules>` | no | Comma-separated module list; default = all modified modules in range |
+| `--since <sha>` | no | Only commits after this SHA (continuous or incremental FP) |
+| `--one-shot` | no | Cherry-pick mode for a single one-time port (default: merge mode) |
+
+Parse these from `$ARGUMENTS` in P0; if `source-ref` or `target-branch` is missing, ask
+once in a single brief message before any read or git op.
+
+### When to use
+
+- **1-5 commits** - plan gate + parallel intent-extract + serial adapt + one merge commit.
+- **6+ commits** - full `plan.md` artifact with commit topology, per-commit model tier, and
+  a human-confirm gate per merge batch.
+- **Continuous mode (default)** - recurring; source keeps evolving; SHA preserved so the
+  merge-base advances and past conflicts are never re-resolved.
+
+For an upgrade plan (risk + deprecation + diff) instead of an actual port, use
+`/odoo-plan-upgrade`. Other deflections: see `## Out of Scope`.
+
+### Examples
+
+```
+/odoo-forward-port origin/17.0 origin/18.0 --scope l10n_vn,l10n_vn_viin --since abc1234
+```
+Plan gate: 3 commits, scope 2 modules, Sonnet tier. After approval: 3 parallel read-only
+intent extractions -> symbol-survival check -> serial per-module adapt (worktree per module)
+-> verify-by-behavior (red-then-green) -> GATE MERGE -> merge commit -> checkpoint.
+
+```
+/odoo-forward-port origin/17.0 origin/18.0 --one-shot
+```
+One-shot cherry-pick for a single frozen batch; same intent-extract -> classify ->
+symbol-survival -> adapt -> verify -> gate flow, cherry-pick instead of merge.
+
+```
+/odoo-forward-port
+```
+Prompts for source-ref and target-branch, then the same flow.
 
 ## Hard rules
 
@@ -108,7 +162,9 @@ Run phases in order. Concurrency for any fan-out follows
 do not restate the weight numbers here. Full per-phase dispatch briefs, git commands, and
 worklog templates: `references/fp-phase-detail.md`.
 
-**P0 - Plan gate [STOP].** Read any existing worklog
+**P0 - Plan gate [STOP].** Parse `$ARGUMENTS` (`source-ref` / `target-branch` / `--scope` /
+`--since` / `--one-shot`); if `source-ref` or `target-branch` is missing, ask once in a single
+brief message before any read or git op. Read any existing worklog
 (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`) and `checkpoint.json` (resume - skip
 commits with `status=done`). Enumerate commits with
 `git log <merge-base>..<source-ref>` (read-only ops on B - no worktree, no branch yet);

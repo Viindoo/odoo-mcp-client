@@ -25,6 +25,7 @@
 | `odoo-discovery-summary` | leaf | none | - | - |
 | `odoo-feature-check` | leaf | none | - | - |
 | `odoo-feature-highlights` | leaf | none | - | - |
+| `odoo-forward-port` | spawner-agent | fullstack | yes | odoo-intent-extractor (read-only per-commit; model per complexity), odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees) |
 | `odoo-frontend-design` | leaf | frontend | - | - |
 | `odoo-gap-analysis` | leaf | none | - | - |
 | `odoo-intake` | spawner-agent | none | - | (Phase R: ≤2 read-only recon agents - Explore or specialist in read-only mode; no writes, no further spawn) |
@@ -36,7 +37,6 @@
 | `odoo-qa-suite` | orchestrator-nl | none | yes | - |
 | `odoo-rfp-response` | leaf | none | - | - |
 | `odoo-risk-overview` | leaf | none | - | - |
-| `odoo-run-forward-port` | spawner-agent | fullstack | yes | odoo-intent-extractor (read-only per-commit; model per complexity), odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees) |
 | `odoo-security-audit` | leaf | backend | - | - |
 | `odoo-solution-design` | spawner-agent | fullstack | - | odoo-solution-architect |
 | `odoo-support-triage` | orchestrator-nl | none | - | - |

@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **42 skills + 8 agents + 10 commands**, grouped into **9 persona
+> The Odoo AI workforce toolkit: **42 skills + 8 agents + 9 commands**, grouped into **9 persona
 > buckets**, plus **12 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
@@ -44,7 +44,7 @@ code carry-over), merge-keep-SHA strategy, symbol-survival checking, adaptive te
 and verify-by-behavior per batch. It runs alongside coding, code review, and upgrade planning
 as a core engineering capability.
 
-> **Counts at a glance:** this plugin ships **42 skills + 8 agents + 10 commands**, grouped into
+> **Counts at a glance:** this plugin ships **42 skills + 8 agents + 9 commands**, grouped into
 > **9 persona buckets** for navigation, plus **12 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
@@ -294,7 +294,6 @@ that up and chains the next step across workflows automatically.
 | `ui-debug-session` | Resumable multi-turn UI debug with browser evidence | `.odoo-ai/debug/` |
 | `content-production` | Multi-asset content from a positioning brief | `.odoo-ai/content/` |
 | `research-multiphase` | Flexible-phase research: broad survey -> deep dives -> synthesis, a different model tier per phase | `.odoo-ai/research/` |
-| `/odoo-forward-port` | Continuous/one-shot Odoo forward-port (merge-keep-SHA, per-commit intent extract, adaptive test forward) | `.odoo-ai/forward-port/` |
 
 Commands come in two shapes: multi-phase orchestrators that chain several skills in a
 gated sequence, and single-step wrappers that run one skill and offer a save step. The
@@ -404,7 +403,7 @@ flowchart TD
 
 ### Available commands
 
-> `/odoo-semantic-mcp:connect` ships in the `odoo-semantic-mcp` plugin and is not counted among the 10 commands of this plugin.
+> `/odoo-semantic-mcp:connect` ships in the `odoo-semantic-mcp` plugin and is not counted among the 9 commands of this plugin.
 
 | Command | Purpose | Chained skills |
 |---------|---------|----------------|
@@ -417,7 +416,6 @@ flowchart TD
 | `/odoo-produce-video` | Multi-scene Odoo demo video (storyboard -> record -> assemble), saves to `.odoo-ai/video/` | `odoo-demo-recording` (per scene) |
 | `/odoo-ai-agents:odoo-setup` | One-shot idempotent setup for the visual workflow - wires 3 browser MCP servers across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance | - |
 | `/odoo-ai-agents:odoo-run-wave` | Git-wave orchestration: integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge (auto-merge never allowed) | `wave` |
-| `/odoo-forward-port` | Continuous/one-shot forward-port across Odoo series (merge-keep-SHA, per-commit intent extract, symbol-survival check, adaptive test forward, verify-by-behavior per batch), saves to `.odoo-ai/forward-port/` | `odoo-run-forward-port` -> `odoo-intent-extractor` (parallel) -> `odoo-coder` / `odoo-frontend-coder` (serial per commit) |
 
 ## Use cases - day in the life
 

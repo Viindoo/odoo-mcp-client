@@ -1,5 +1,5 @@
 <!-- SSOT snippet. Phase 3.5 of /odoo-forward-port pipeline. Referenced by
-     odoo-run-forward-port skill. Edit here only.
+     odoo-forward-port skill. Edit here only.
      Cross-ref: fp-intent-4outcome.md, fp-merge-absorption.md, osm-first-contract.md -->
 
 # Forward-Port Symbol Survival Check (Phase 3.5)

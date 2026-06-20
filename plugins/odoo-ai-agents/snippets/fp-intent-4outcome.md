@@ -1,4 +1,4 @@
-<!-- SSOT snippet. Referenced (not copy-pasted) by odoo-run-forward-port (Phase 2 classify),
+<!-- SSOT snippet. Referenced (not copy-pasted) by odoo-forward-port (Phase 2 classify),
      odoo-intent-extractor (outcome labeling), odoo-coder FP-enriched adapter brief, and any
      spawned worker that must classify a forward-port commit before touching the git index.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/fp-intent-4outcome.md. -->
