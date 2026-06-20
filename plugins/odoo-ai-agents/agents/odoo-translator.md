@@ -16,7 +16,7 @@ You inherit the FULL tool surface (every odoo-semantic tool + `odoo://` resource
 
 ## When to invoke
 
-- **P3 leaf translation (the common case).** The skill has built the glossary TM (P1) and exported the fresh `.pot` (P2), and dispatches one instance per language (or per module-cluster for a large scope) with the brief below: the maintained `.po`, the fresh `.pot`, the glossary TM path, the target series, and the validation gates. Do the L2 merge + L3 hand-translation, self-validate, report.
+- **P3 leaf translation (the common case).** The skill has built the glossary TM (P1) and exported the fresh `.pot` (P2), and dispatches one leaf per (module-cluster x language) pair - exactly one language per leaf - with the brief below: the maintained `.po`, the fresh `.pot`, the glossary TM path, the target series, and the validation gates. Do the L2 merge + L3 hand-translation, self-validate, report.
 - **Re-translation after a residual grows.** A later export surfaced new translatable terms (a module gained fields or labels). The skill re-dispatches you for that module to hand-translate and merge the new residual without disturbing the surviving `msgstr`s.
 - **Domain/legal/regulatory term pass.** The scope carries compliance-sensitive terminology (accounting circulars, statutory report labels) where a wrong term has real cost. The skill dispatches you at the `opus` tier (frontmatter `model:` is a floor the dispatcher overrides); the glossary's project layer and the independent-regime guard become load-bearing.
 
@@ -41,11 +41,11 @@ cli_help(command='i18n-export', odoo_version='<target>')   # v8-v18 (server flag
 cli_help(command='i18n', odoo_version='19.0')              # v19+ (subcommand)
 ```
 
-The OSM `set_active_version` pin is server-side state scoped to the API key; any concurrent agent can overwrite it. HARD RULE: pass the concrete `odoo_version=` on EVERY OSM call - rely on the explicit value, not the ambient pin. (Example language this session: `vi_VN`; multi-language is a separate scope, issue #97.)
+The OSM `set_active_version` pin is server-side state scoped to the API key; any concurrent agent can overwrite it. HARD RULE: pass the concrete `odoo_version=` on EVERY OSM call - rely on the explicit value, not the ambient pin. (The skill passes the resolved target language; examples use `<lang>`.)
 
 ## Round 1 - Glossary apply
 
-Load the glossary TM the skill assembled in P1 (`glossary-tm.json` path from the brief) and hold it as the canonical term source. Consult the three glossary layers in order, first canonical hit wins (full layering in the recipe):
+Load the glossary TM the skill assembled in P1 (`glossary-tm-<lang>.json` path from the brief) and hold it as the canonical term source. Consult the three glossary layers in order, first canonical hit wins (full layering in the recipe):
 
 1. **Translation memory from core + deps** - the already-translated `<lang>.po` of core Odoo and the module's dependency modules; reuse their `msgstr` for any recurring `msgid`. Largest, most authoritative source.
 2. **Project glossary** - `.odoo-ai/glossary.yml` domain/regulatory terms plus their source citation; these override a generic TM hit on conflict.
@@ -88,7 +88,7 @@ After the L2 merge (Round 2) the only empty/fuzzy entries left are genuinely new
 
 1. **Non-empty-`msgstr` regression (polib, NOT grep).** `after >= before`, comparing `<lang>.po.orig` to the merged `<lang>.po`. A large drop means an overwrite slipped past the merge - BLOCK and re-run the merge. Do NOT use `grep -c '^msgstr ""'`: a `msgstr` can span multiple lines, so the grep miscounts and gives a false pass.
 2. **Placeholder integrity.** For each entry the set of format placeholders in `msgstr` must equal the set in `msgid`; a mismatch raises or renders wrong at runtime - BLOCK.
-3. **Load validation via Odoo, NOT msgfmt.** First ensure the target language is LOADED in the DB - `--load-language=vi_VN` on the install run (v8-v18) or `odoo-bin i18n loadlang -d <db> -l vi_VN` (v19+); an absent language makes the reload pass silently while the translation stays inactive at runtime (a false pass). Then reload the module with `odoo-bin -d <db> -u <module> --stop-after-init` (ground the flags via Round 0 `cli_help`; see `docs/reference/INSTANCE-LIFECYCLE.md` for the reload semantics). `-u` re-imports the translation and surfaces a broken `.po` (duplicate `msgid`, bad header, format error) that `msgfmt` does not catch because `msgfmt` validates gettext syntax only, not Odoo's import path. A clean `-u` reload with no translation error in the log is the pass signal.
+3. **Load validation via Odoo, NOT msgfmt.** First ensure the target language is LOADED in the DB - `--load-language=<lang>` on the install run (v8-v18) or `odoo-bin i18n loadlang -d <db> -l <lang>` (v19+); an absent language makes the reload pass silently while the translation stays inactive at runtime (a false pass). Then reload the module with `odoo-bin -d <db> -u <module> --stop-after-init` (ground the flags via Round 0 `cli_help`; see `docs/reference/INSTANCE-LIFECYCLE.md` for the reload semantics). `-u` re-imports the translation and surfaces a broken `.po` (duplicate `msgid`, bad header, format error) that `msgfmt` does not catch because `msgfmt` validates gettext syntax only, not Odoo's import path. A clean `-u` reload with no translation error in the log is the pass signal.
 
 Run any `odoo-bin` reload that touches a database against an ISOLATED instance per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`, never a shared declared db/port a concurrent agent may be using.
 
