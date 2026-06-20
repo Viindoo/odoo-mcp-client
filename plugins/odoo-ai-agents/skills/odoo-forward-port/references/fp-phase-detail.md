@@ -195,13 +195,13 @@ odoo-bin -d $ALLOC_DB_NAME --test-enable --test-tags <tag> --stop-after-init \
 ```
 
 A collection failure (ImportError, setUpClass crash, missing fixture) means the tests NEVER
-RAN in Phase 5 - a count of `0 failed, N error(s)` LOOKS green but is a false pass (cite
-`odoo-backend-debugger` MED-6: `0 failed, N error(s)` is NOT a passing result). Resolve
-every drift finding (P4.5 SYMBOL-BROKEN entries) before entering the Phase 4 adapt loop.
+RAN in Phase 5 - a count of `0 failed, N error(s)` is NOT a passing result (the setUpClass
+crashed before any test method ran). Resolve every drift finding (P4.5 SYMBOL-BROKEN entries)
+before entering the Phase 4 adapt loop.
 
 ---
 
-## P4 - Adapt (test-first; serial per-module within a commit (v1); WORK-tier worktree per module for filesystem isolation)
+## P4 - Adapt (test-first; serial per-module within a commit; WORK-tier worktree per module for filesystem isolation)
 
 For each touched module/WI, create a child worktree off integration and dispatch the adapt unit
 (serially - complete one module before starting the next within the same commit):
@@ -210,10 +210,10 @@ For each touched module/WI, create a child worktree off integration and dispatch
 git worktree add -b fp/<slug>-<module> <path>/wt-<module> fp/<slug>
 ```
 
-**Per-commit vs absorb-all worktree (MED-7).** The child-worktree-per-module command above applies
+**Per-commit vs absorb-all worktree.** The child-worktree-per-module command above applies
 when each source commit is committed on integration before the next is merged (one-shot
 `cherry-pick -n`, or continuous merging one SHA at a time) - the child forks from a committed tree
-and sees no in-flight conflicts. For an ABSORB-ALL run that merges every commit in ONE
+and sees no in-flight conflicts. For an absorb-all run that merges every commit in ONE
 `git merge --no-commit`, the conflicts live in the integration worktree's WORKING TREE
 (uncommitted); a child worktree forked off the uncommitted integration HEAD CANNOT see them. In
 that case do NOT run `git worktree add` for conflict resolution - resolve conflicts serially, per
@@ -296,11 +296,10 @@ survive `git mv` unchanged and mislead the operator:
 grep -rn '<src-series>' migrations/<tgt-series>/   # e.g. grep -rn '17\.0' migrations/18.0/
 ```
 
-**4e - i18n: DISPATCH the `odoo-i18n` cluster, never re-export inline.** When a forwarded commit
-adds or changes translatable strings (new `.po`/`.pot`, new `string=`/labels/help, a new module),
-do NOT re-export `.po` in this pipeline - a fresh-DB export silently DROPS 40-90% of existing
-translations (it is data-destructive). Hand the translation work to the dedicated cluster via a
-subagent dispatch (or `SUGGESTED_NEXT: odoo-i18n` when the run is one-shot):
+**4e - i18n: DISPATCH the `odoo-i18n` cluster, never inline.** When a forwarded commit adds or
+changes translatable strings (new `.po`/`.pot`, new `string=`/labels/help, a new module), hand the
+translation work to the dedicated cluster via a subagent dispatch (or `SUGGESTED_NEXT: odoo-i18n`
+when the run is one-shot):
 
 ```
 DISPATCH: odoo-i18n
@@ -313,8 +312,8 @@ TARGET LANGUAGES: <language codes inferred from the source .po filenames, e.g. v
     subset explicitly>
 ```
 
-`odoo-i18n` owns the non-destructive `polib` merge recipe and the isolated-DB export; this
-pipeline only forwards the INTENT (which strings, which modules), never the destructive export.
+`odoo-i18n` owns the non-destructive `.pot`/`.po` recipe and the isolated-DB export; this pipeline
+forwards only the INTENT (which strings, which modules), never the export itself.
 
 Converge each child worktree back to integration (serialized, keep SHA), then
 `git worktree remove <path>`. Mark `status=adapted`.
@@ -329,7 +328,7 @@ namespace package changes bootstrap; always pass `odoo_version=<target>` to `cli
 Instance lifecycle protocol: `docs/reference/INSTANCE-LIFECYCLE.md`. Test invocation
 conventions: `docs/reference/ODOO-TESTING.md`.
 
-**A6 - env-bootstrap (do this FIRST, before any odoo-bin call).** A multi-repo stack (e.g.
+**Env-bootstrap (do this FIRST, before any odoo-bin call).** A multi-repo stack (e.g.
 Viindoo Standard spans 4 repos) needs EVERY repo on disk and concatenated into `--addons-path`
 before verify - a module is invisible (silent ImportError / "module not found") if its repo is
 absent. Build the addons-path from all stack repos:
@@ -339,7 +338,7 @@ ADDONS_PATH=/path/repo-a/addons,/path/repo-b,/path/repo-c/addons,/path/repo-d
 # verify each repo dir exists on disk; a missing repo = BLOCKED (NEEDS_CONTEXT), not a test red
 ```
 
-**A7 - install/verify the FULL transitive `depends` closure, not just the module you edited.**
+**Install/verify the FULL transitive `depends` closure, not just the module you edited.**
 A forwarded change can break a downstream depender that you never touched. Resolve the closure
 per module, then install/verify its breadth:
 
@@ -349,7 +348,7 @@ module_inspect(name='account_accountant', method='dependencies', odoo_version='1
 
 Union the closures of every directly-touched module and feed that whole set to `-i` below.
 
-**LOW-9 - lint toolchain present BEFORE the lint gate.** The verify venv must have flake8 / ruff
+**Lint toolchain present BEFORE the lint gate.** The verify venv must have flake8 / ruff
 (and eslint / prettier for frontend) installed, or the P7 lint gate silently no-ops. Confirm
 `flake8 --version` and `ruff --version` resolve in the verify env before relying on a green lint.
 
@@ -359,7 +358,7 @@ python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemera
 #   -> ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_TOKEN  (cache TOKEN in the batch worklog)
 #   ALLOC_PORTS includes a free HTTP port -> export it as ALLOC_HTTP_PORT
 
-# install the full A7 closure once. --skip-auto-install ISOLATES auto_install modules that
+# install the full closure once. --skip-auto-install ISOLATES auto_install modules that
 # would otherwise be pulled in silently and mask (or fabricate) a break. --http-port binds the
 # allocator-issued free port: --no-http does NOT prevent the bind a running HttpCase performs,
 # so two parallel batches collide on the default 8069 - always pin the allocated port.
@@ -371,10 +370,10 @@ odoo-bin -d $ALLOC_DB_NAME -i mod_a,mod_b --test-enable --stop-after-init \
 python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN
 ```
 
-**A3 - confirm EACH module actually loaded; Odoo silent-skips, it does not error.** An
+**Confirm EACH module actually loaded; Odoo silent-skips, it does not error.** An
 `installable: False` module (or one excluded by `--skip-auto-install`) is skipped with NO error
 line - a green run is NOT proof it installed. Parse the log for a `Loading module <X>` line per
-module in the A7 closure:
+module in the closure:
 
 ```bash
 for m in mod_a mod_b mod_c; do
@@ -382,13 +381,13 @@ for m in mod_a mod_b mod_c; do
 done
 ```
 
-Reconcile the NOT-LOADED set against the A9 installable scan (`[[fp-symbol-survival-check]]`
+Reconcile the NOT-LOADED set against the installable scan (`[[fp-symbol-survival-check]]`
 section 2.5f): a module that is `installable: False` at the target is EXPECTED not to load -
 route it to the 4c-bis lint-only lane and do NOT count its absence as a break. A module that is
 installable AND missing its Loading line is a real failure - investigate before reading any test
 count.
 
-**LOW-11 - recover an orphaned odoo-bin before re-running.** A crashed/killed batch can leave an
+**Recover an orphaned odoo-bin before re-running.** A crashed/killed batch can leave an
 odoo-bin process holding the DB and port. Kill ONLY the process bound to this batch's DB (match
 the unique `$ALLOC_DB_NAME`, never a bare `odoo-bin` that would self-match this very command or a
 sibling batch), then release the lease so the allocator can reclaim the port:
@@ -405,7 +404,7 @@ python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN
 - **Triage red:** run the red test on a clean target tip (no absorption). Red there too =
   pre-existing (record, do not fix, do not block). Green on clean / red after = FP-delta (fix
   before committing). Never widen an assertion to hide a pre-existing failure.
-- **A8 - baseline a failed INSTALL the same way.** If a module fails to install, re-run its `-i`
+- **Baseline a failed INSTALL the same way.** If a module fails to install, re-run its `-i`
   on clean `origin/<target-branch>` (no absorption, no merge). Fails there too = a PRE-EXISTING
   break in the target series, NOT FP-introduced - record it in `merge-log.md` and do NOT block
   the forward-port on it. Only an install that is green on clean origin/target and red after
@@ -444,7 +443,7 @@ dispatch `odoo-code-review` for the forward-port pitfall (a forwarded test still
 source API). NEVER squash (squash mints a new SHA, defeats merge-base advance). B stays LOCKED -
 the PR adds only the merge commits. Present the PR URL and wait for the human to merge.
 
-**MED-8 - attribute every finding to the FP diff before rating it.** A reviewer rating the whole
+**Attribute every finding to the FP diff before rating it.** A reviewer rating the whole
 file blames the forward-port for code it never touched. Before rating any finding, confirm the
 line is actually in the forward-port delta:
 
@@ -453,16 +452,16 @@ git diff origin/<target-branch>...fp/<slug> -- <file>   # three-dot: only what t
 ```
 
 A finding on a line NOT in this diff is pre-existing - note it separately, do not block the PR on
-it (`see-something-say-something`: flag it, do not gate the forward-port on it).
+it (flag it, do not gate the forward-port on it).
 
-**A10 - per finding, check whether the bug already exists in the SOURCE series.** For each finding,
+**Per finding, check whether the bug already exists in the SOURCE series.** For each finding,
 open the source-series PR / branch and check if the same defect is present there. If it is, the
 bug is INHERITED (forwarded faithfully, not introduced here) - route a fix UPSTREAM to the source
 series; do NOT patch it silently inside the forward-port (that would diverge source and target and
 hide the real fix location). Record `inherited -> upstream` in `merge-log.md` and carry the
 faithful forward.
 
-**A12b - narrow a field-existence question with a direct lookup, not a model_inspect retry.** When
+**Narrow a field-existence question with a direct lookup, not a model_inspect retry.** When
 a finding hinges on whether one field still exists / changed type at the target, query that field
 directly instead of re-dumping the whole model:
 
@@ -470,7 +469,7 @@ directly instead of re-dumping the whole model:
 entity_lookup(kind='field', model='account.move', field='payment_state', odoo_version='18.0')
 ```
 
-**NEW-1 - installable:False modules get a LINT-ONLY review.** For any module that is
+**installable:False modules get a LINT-ONLY review.** For any module that is
 `installable: False` at the target (4c-bis lane), the reviewer rates ONLY syntax / lint findings -
 do NOT raise business-logic / behavior findings against a module that does not even install at the
 target. Mark such findings out-of-scope for this forward-port.

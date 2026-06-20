@@ -37,8 +37,10 @@ BACKEND_DEBUGGER = PLUGIN / "agents" / "odoo-backend-debugger.md"
 # ---------------------------------------------------------------------------
 
 class TestI18nNonDestructive:
-    """SKILL.md must not instruct a destructive fresh-DB .po re-export and
-    must route i18n work to the odoo-i18n skill."""
+    """Forward-port must DELEGATE all .po/.pot work to the odoo-i18n skill and must
+    NOT inline the recipe.  The non-destructive contract - including that re-export is
+    valid AFTER loading the language - belongs to odoo-i18n, so this skill only
+    dispatches and never restates a (potentially contradictory) inline warning."""
 
     def setup_method(self):
         self.text = SKILL_MD.read_text(encoding="utf-8")
@@ -55,11 +57,17 @@ class TestI18nNonDestructive:
             "SKILL.md must reference the odoo-i18n skill for i18n forwarding"
         )
 
-    def test_destructive_overwrite_warning_present(self):
-        """SKILL.md must warn that overwriting .po from a fresh DB destroys translations."""
-        # The plan mandates: 'NEVER re-export a .po from a fresh DB and overwrite'
-        assert "fresh DB" in self.text, (
-            "SKILL.md must warn about fresh-DB export data loss"
+    def test_i18n_recipe_delegated_not_inlined(self):
+        """SKILL.md must not inline the contradictory fresh-DB re-export prohibition.
+
+        The flat 'NEVER re-export a .po from a fresh DB' wording reads as forbidding the
+        legitimate load-language-then-export path that odoo-i18n owns; forward-port
+        delegates the whole recipe to odoo-i18n instead of restating it.
+        """
+        assert "re-export a `.po` from a fresh DB" not in self.text, (
+            "forward-port must not inline the 'NEVER re-export a .po from a fresh DB' "
+            "warning - the non-destructive recipe (incl. valid re-export after loading "
+            "the language) belongs to odoo-i18n"
         )
 
 
@@ -250,13 +258,13 @@ class TestB1UpgradeScaleGate:
         )
 
     def test_skill_md_surfaces_b1_gate_in_flow(self):
-        """SKILL.md must surface the B1 gate so the bucket-(c) scale check fires."""
-        text = SKILL_MD.read_text(encoding="utf-8")
-        assert "upgrade-scale" in text.lower(), (
-            "SKILL.md missing the bucket-(c) upgrade-scale gate (B1)"
+        """SKILL.md must surface the upgrade-scale defer-or-do gate in the triage flow."""
+        text = SKILL_MD.read_text(encoding="utf-8").lower()
+        assert "upgrade-scale" in text, (
+            "SKILL.md missing the bucket-(c) upgrade-scale gate"
         )
-        assert "B1" in text, (
-            "SKILL.md must name the B1 gate so it is discoverable in the triage flow"
+        assert "defer" in text, (
+            "SKILL.md upgrade-scale gate must present the defer (vs do-now) option"
         )
 
 
@@ -272,23 +280,23 @@ class TestMED7AbsorbAllWorktree:
 
     def test_phase_detail_clarifies_absorb_all_worktree(self):
         """fp-phase-detail.md P4 must clarify absorb-all vs per-commit worktree handling."""
-        text = PHASE_DETAIL.read_text(encoding="utf-8")
-        low = text.lower()
+        low = PHASE_DETAIL.read_text(encoding="utf-8").lower()
         assert "absorb-all" in low, (
-            "fp-phase-detail.md missing the absorb-all worktree clarification (MED-7)"
+            "fp-phase-detail.md missing the absorb-all worktree clarification"
         )
-        assert "MED-7" in text, "fp-phase-detail.md must tag the rule MED-7"
         assert "per-commit" in low, (
-            "MED-7 clarification must contrast absorb-all with the per-commit case"
+            "the clarification must contrast absorb-all with the per-commit case"
         )
         assert "integration worktree" in low, (
-            "MED-7 must say absorb-all conflicts resolve in the integration worktree"
+            "absorb-all conflicts must resolve in the integration worktree"
         )
 
     def test_skill_md_surfaces_absorb_all_exception(self):
-        """SKILL.md WORK-tier must surface the absorb-all exception (MED-7)."""
-        text = SKILL_MD.read_text(encoding="utf-8")
-        assert "absorb-all" in text.lower(), (
-            "SKILL.md missing the absorb-all child-worktree exception (MED-7)"
+        """SKILL.md WORK-tier must surface the absorb-all child-worktree exception."""
+        low = SKILL_MD.read_text(encoding="utf-8").lower()
+        assert "absorb-all" in low, (
+            "SKILL.md missing the absorb-all child-worktree exception"
         )
-        assert "MED-7" in text, "SKILL.md must tag the rule MED-7"
+        assert "integration worktree" in low, (
+            "SKILL.md must say absorb-all conflicts resolve in the integration worktree"
+        )

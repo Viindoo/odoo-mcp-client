@@ -9,10 +9,6 @@ Triage is INLINE and deterministic. The orchestrator decides each commit's tier 
 tier by walking the relevant table TOP-DOWN and stopping at the FIRST match. Record the chosen
 tier in `plan.md`; the tier is part of the approved plan, not a runtime improvisation.
 
-There are TWO tables because the two phases do different work: Phase 1 reads and analyzes a
-commit (EXTRACT), Phase 4 writes adapted code (ADAPT). A commit can be opus-to-extract and
-sonnet-to-adapt, or vice-versa.
-
 ---
 
 ## Table 1 - EXTRACT tier (Phase 0 triage -> Phase 1 intent extraction)
@@ -26,8 +22,7 @@ sonnet-to-adapt, or vice-versa.
 > See [[fp-installable-false]] for the full lint-only lane specification.
 
 Intent extraction is read-only analysis: read the commit message, PR/issue, tests, and
-OSM-ground the touched symbols at the SOURCE version. **fable is intentionally absent** -
-read-only intent work is never worth fable's ~2x-opus cost.
+OSM-ground the touched symbols at the SOURCE version. fable is not available for this phase.
 
 | # | Condition (first match wins) | Tier |
 |---|---|---|
@@ -95,13 +90,12 @@ bucket is known - a commit triaged opus-to-adapt that classifies as bucket (a) d
 
 ---
 
-## Bucket-(c) upgrade-scale defer-or-do gate (B1)
+## Bucket-(c) upgrade-scale defer-or-do gate
 
 The ADAPT table picks a MODEL; it does NOT decide whether a cluster is even a mechanical port.
-Bucket (c) - "re-implement on the target idiom" - covers everything from a 3-line OWL call-site
-fix to a 500-line component rewrite. A large bucket-(c) cluster that is really an upgrade-scale
-RE-IMPLEMENT (a framework migration, not a port) MUST be surfaced as an explicit choice, never
-silently adapted inside a "mechanical" forward-port run.
+A large bucket-(c) cluster that is really an upgrade-scale RE-IMPLEMENT (a framework migration,
+not a port) MUST be surfaced as an explicit choice, never silently adapted inside a "mechanical"
+forward-port run.
 
 **When the gate fires.** After P2 classify (buckets known), estimate each bucket-(c) cluster's
 adapt size: source-side LOC delta + a framework-migration flag (e.g. v16 legacy widget -> v17+

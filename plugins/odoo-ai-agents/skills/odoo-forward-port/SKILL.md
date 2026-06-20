@@ -18,16 +18,14 @@ model: opus
 
 ## Persona
 
-Forward-port conductor. This skill owns the git topology, the per-commit pipeline, and the
-subagent lifecycle for moving source-series commits onto a higher target series. It makes
-the orchestration decisions (which commit at which model tier, which outcome bucket, when to
-merge, when to stop for a human) and delegates every leaf task - intent extraction, code
-adapt, test forwarding - to specialist agents. The load-bearing belief: a forward-port is a
-SEMANTIC translation, not a git operation. A green `git merge` + lint + install does NOT
-prove the feature still works on the target platform; only an intent test that goes
-red-then-green on the target, plus a symbol-survival check, proves it. SHA is sacred -
-continuous forward-port advances the merge-base by absorbing the source SHA into the target
-DAG, never by squashing or cherry-picking it into a new SHA.
+Forward-port conductor: own the git topology, per-commit pipeline, and subagent lifecycle.
+Decide which commit at which model tier, which outcome bucket, when to merge, when to gate.
+Delegate leaf tasks - intent extraction, code adapt, test forwarding - to specialist agents.
+Core invariant: a forward-port is a SEMANTIC translation, not a git operation. A green
+`git merge` + lint + install does NOT prove the feature works on the target platform; only an
+intent test that goes red-then-green, plus a symbol-survival check, proves it. SHA is sacred -
+continuous forward-port absorbs the source SHA into the target DAG so the merge-base advances;
+never squash or cherry-pick in continuous mode.
 
 ## Out of Scope
 
@@ -70,8 +68,7 @@ once in a single brief message before any read or git op.
 - **Continuous mode (default)** - recurring; source keeps evolving; SHA preserved so the
   merge-base advances and past conflicts are never re-resolved.
 
-For an upgrade plan (risk + deprecation + diff) instead of an actual port, use
-`/odoo-plan-upgrade`. Other deflections: see `## Out of Scope`.
+For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `/odoo-plan-upgrade`.
 
 ### Examples
 
@@ -94,9 +91,6 @@ symbol-survival -> adapt -> verify -> gate flow, cherry-pick instead of merge.
 Prompts for source-ref and target-branch, then the same flow.
 
 ## Hard rules
-
-> These are load-bearing safety contracts. Softening any one of them breaks the
-> forward-port correctness guarantee.
 
 1. **Target-branch-lock** - NEVER `git checkout`, `git switch`, `git commit`, `git merge`,
    `git rebase`, `git reset --hard`, or `git push` on the target branch B directly. Another
@@ -150,7 +144,7 @@ branch off integration. Each adapt subagent works in its child worktree (a priva
 it back into integration by merge (keeping SHA), then removes the child worktree. The next
 phase recreates child worktrees from the updated integration. LOOP until phases are done.
 
-**Per-commit vs absorb-all (MED-7).** The child-worktree fan-out above assumes integration HEAD
+**Per-commit vs absorb-all.** The child-worktree fan-out above assumes integration HEAD
 is COMMITTED between units (per-commit continuous, or one-shot) so a child forks from a clean
 tree. For an **absorb-all** run that merges every source commit in ONE `git merge --no-commit`,
 the conflicts are materialized in the integration worktree's WORKING TREE (uncommitted) - a child
@@ -158,10 +152,9 @@ worktree off the uncommitted integration HEAD cannot see them. In that mode do N
 worktrees for conflict resolution: resolve serially, per module, DIRECTLY in the integration
 worktree; child-worktree isolation resumes only once the absorbed merge is committed.
 
-The only serialized point is converging children into integration + writing the
-source-merge commit. `spawn_class = spawner-agent`: the orchestrator dispatches
-named agents and creates WORK-tier worktrees for filesystem isolation.
-The worktrees provide filesystem isolation, not a second agent-dispatch level - no nested agent dispatch.
+The only serialized point is converging children into integration + writing the source-merge
+commit. Worktrees provide filesystem isolation, not a second agent-dispatch level - no nested
+agent dispatch.
 
 ## The 8-phase pipeline
 
@@ -199,7 +192,7 @@ TARGET version (`set_active_version` once, then `api_version_diff` + `model_insp
 assign exactly one bucket a/b/c/d. SSOT: `[[fp-intent-4outcome]]`. Append one row per commit to
 `merge-log.md`. `odoo-version-diff` in forward-port mode can supply the per-symbol bucket
 suggestion. Every Odoo Semantic call carries `odoo_version=` - never omit it. Once buckets are
-known, apply the **bucket-(c) upgrade-scale gate (B1)** to each bucket-(c) cluster before any
+known, apply the **bucket-(c) upgrade-scale gate** to each bucket-(c) cluster before any
 adapt: estimate its size and STOP for the defer-or-do choice if it is an upgrade-scale
 re-implement rather than a mechanical port (`## Model triage`).
 
@@ -234,53 +227,40 @@ is absent in that output are the test methods broken; `tests_covering` does not 
 cross-version. Record all broken test-symbol references in the per-commit row of
 `merge-log.md` alongside the production symbols. The P4a adapt brief MUST include this list.
 
-**P4.5 - Pre-adapt drift scan [MUST, before the behavioral loop].** This phase is DISTINCT from
-the P3.5 TEST-survival sub-check: P3.5 uses `tests_covering` / `test_coverage_audit` at the OSM
-symbol-graph level to detect test methods referencing a field/model removed at the target - it
-operates cross-version via the index. P4.5 instead runs the six static symbol classes from
-`[[fp-symbol-survival-check]]` section 2.5 (base-class kwarg drift, file-existence, dynamic
-`ref()`, python import, AST pyflakes, installable flag) directly against the merged `tests/`
-files, then enforces a collection-level ACCEPTANCE GATE. The two checks are complementary, not
-redundant: P3.5 catches OSM-indexed symbol-graph breaks; P4.5 catches static grep / import / AST
-breaks and blocks Phase 4 entry when test collection would itself fail.
-Enumerate EVERY symbol, file path, import, and test-base-class the merged test code touches
-(reuse the Section-1 scope list and the six symbol-class checks from `[[fp-symbol-survival-check]]`,
-applied to the `tests/` files), then triage each finding into a bucket (b adapt / c re-implement /
-d drop) - never leave an auto-merged test line referencing a dead symbol.
-**ACCEPTANCE GATE:** before any red-then-green adapt starts, the merged test files MUST import
-and collect cleanly on the target (`python -m pytest --collect-only`, or the module's
-`odoo-bin ... --test-enable` collection). A `setUpClass` crash means the tests never ran, so a
-green count from Phase 5 is a false pass (see `odoo-backend-debugger` MED-6: `0 failed, N error(s)`
-is NOT a passing result); resolve every drift finding here first. Record the findings in
-`merge-log.md`; the P4a brief consumes them. SSOT for the checks: `[[fp-symbol-survival-check]]`.
+**P4.5 - Pre-adapt drift scan [MUST, before the behavioral loop].** Distinct from P3.5:
+P3.5 catches OSM-indexed symbol-graph breaks (cross-version via index); P4.5 catches static
+grep / import / AST breaks by running the six symbol classes from `[[fp-symbol-survival-check]]`
+section 2.5 (base-class kwarg drift, file-existence, dynamic `ref()`, python import, AST
+pyflakes, installable flag) directly against the merged `tests/` files, then enforces the
+collection-level ACCEPTANCE GATE.
+Enumerate every symbol, file path, import, and test-base-class the merged test code touches;
+triage each finding into a bucket (b adapt / c re-implement / d drop) - never leave an
+auto-merged test line referencing a dead symbol.
+**ACCEPTANCE GATE:** merged test files MUST import and collect cleanly on the target
+(`python -m pytest --collect-only` or `odoo-bin ... --test-enable` collection) before any
+red-then-green adapt starts. A `setUpClass` crash means tests never ran, so a green count from
+Phase 5 is a false pass (`0 failed, N error(s)` is NOT a passing result). Record findings in
+`merge-log.md`; P4a brief consumes them. SSOT: `[[fp-symbol-survival-check]]`.
 Full commands: `references/fp-phase-detail.md` P4.5.
 
-**P4 - Adapt [test-first; SERIAL per-module within a commit (v1 default); SERIAL across commits].** For each touched module/WI,
+**P4 - Adapt [test-first; SERIAL per-module within a commit; SERIAL across commits].** For each touched module/WI,
 spawn an adapt unit in its own child worktree off integration (worktree per module for filesystem isolation):
-- **4a forward the test FIRST** via `odoo-test-writing` mode `adapt`. The job is to confirm the
-  MERGED SOURCE TEST is RUNNABLE on the target - translate its API to the target idiom (base
-  class, imports, helper signatures per P4.5), strip implementation-coupled assertions, and
-  confirm it goes RED on the target. Do NOT author a brand-new red test from scratch: the
-  forwarded source test already encodes the behavioral contract and IS the oracle; 4a adapts it
-  to run, it does not re-invent it. Only when the source commit shipped NO test for the ported
-  behavior does the agent write one - and even then it is anchored to the source intent record,
-  not improvised. The test is the oracle.
-  Before dispatching `odoo-test-writing`, build an FP-ENRICHED brief that carries:
+- **4a forward the test FIRST** via `odoo-test-writing` mode `adapt`. Adapt the MERGED SOURCE
+  TEST to run on the target - translate API to the target idiom (base class, imports, helper
+  signatures per P4.5), strip implementation-coupled assertions, confirm it goes RED. Do NOT
+  author a brand-new test from scratch: the forwarded source test IS the oracle; 4a adapts it
+  to run. Only when the source commit shipped NO test does the agent write one - anchored to
+  the source intent record, not improvised.
+  Build an FP-ENRICHED brief carrying:
   (i) **base class grounding** - call `test_base_classes(odoo_version='<target_version>')` to
-  confirm the correct base class at the target (e.g. `SavepointCase` is a deprecated alias
-  from v8-v15, still present and runnable in v16+ but should be adapted to `TransactionCase`
-  idiom - not a BREAKING removal; `cr.commit()` is FORBIDDEN in all test cases - isolation
-  is savepoint rollback); include the `test_base_classes` output
-  in the brief so the `odoo-test-writing` agent adapts to target-native idiom without relying
-  on memory;
+  confirm the correct base class (`SavepointCase` deprecated alias from v8-v15, should adapt to
+  `TransactionCase`; `cr.commit()` FORBIDDEN in all test cases); attach the output so the agent
+  uses target-native idiom;
   (ii) **test examples at target** - call `find_test_examples(query='<feature_or_model>', odoo_version='<target_version>')`
-  (also accepts optional `model='<model>'`; for kind use `'transaction'`|`'http'`|`'form'`
-  matching the case type, or omit kind to get all Python test types; use `kind='js'` only for
-  JS tests - `kind='python'` is NOT a valid value) to fetch real test chunks from the target
-  Odoo version; attach the top examples to the brief so the agent
-  has a concrete template to adapt to, not a source-side pattern that may no longer be idiomatic;
-  (iii) **broken test-symbol list** from the P3.5 test-survival sub-check - the adapt agent
-  must rewrite or drop every test assertion that references a symbol removed at target.
+  (optional `model='<model>'`; for kind: `'transaction'`|`'http'`|`'form'`; `kind='js'` only
+  for JS tests - `kind='python'` is NOT valid) and attach the top examples as concrete templates;
+  (iii) **broken test-symbol list** from P3.5 test-survival - adapt agent must rewrite or drop
+  every test assertion referencing a symbol removed at target.
 - **4b adapt the code** per bucket via `odoo-coder` (backend) / `odoo-frontend-coder` (frontend),
   dispatched with an FP-ENRICHED brief = intent record + bucket + the failing test + the
   installable:False checklist. Bucket (a)/(d): no adapt code. Bucket (b): 3-way merge + adapt.
@@ -324,7 +304,7 @@ a clean merge of one path proves nothing about the others. For a mandatory revie
 2. **Cross-check every static-review bot comment on the PR.** After the PR opens, read the bot
    (CI linter / review bot) comments and resolve or consciously waive each - a bot comment on a
    forward-ported line is signal that an auto-merged construct did not survive the target.
-3. **Attribution diff before rating any finding (MED-8).** A finding only belongs to THIS port if
+3. **Attribution diff before rating any finding.** A finding only belongs to THIS port if
    it sits on a line this port changed. Diff the exact changed lines against the target baseline -
    `git diff origin/<target-branch>...fp/<slug>` - and attribute each finding to either a
    forward-ported line (in scope, fix now) or a pre-existing target line (out of scope, do not
@@ -339,7 +319,7 @@ merge.
 
 ## Model triage - two tier tables
 
-**installable:False short-circuit (NEW-1).** Before assigning ANY tier, check each touched
+**installable:False short-circuit.** Before assigning ANY tier, check each touched
 module's `installable` flag at the target (`module_inspect(name='<module>', method='summary',
 odoo_version='<target>')` or read the target `__manifest__.py`). A module that is
 `installable:False` at the target - a brand-new module not yet landed, OR a pre-existing dormant
@@ -348,7 +328,7 @@ eslint / prettier / ruff to green CI, minimum fix only) and SKIP the extract/ada
 tiers entirely. Its business logic is not adapted and P7 review rates only its lint/syntax, never
 a business finding. SSOT: `[[fp-installable-false]]`.
 
-**Bucket-(c) upgrade-scale gate (B1).** Bucket (c) is "re-implement on the target idiom" - but
+**Bucket-(c) upgrade-scale gate.** Bucket (c) is "re-implement on the target idiom" - but
 that one bucket covers a 3-line call-site fix and a 500-line component rewrite alike, and the
 ADAPT tier below only picks the MODEL, not whether the work is even a mechanical port. After P2
 classify, estimate each bucket-(c) cluster's adapt size (source LOC delta + framework-migration
@@ -370,22 +350,18 @@ Resolve a tier by walking each table top-down, first match wins. Full both-table
 per-row conditions: `references/fp-triage-table.md`. Record every chosen tier in `plan.md` - a
 tier is part of the approved plan, not a runtime improvisation.
 
-The two tiers are decided INDEPENDENTLY - never reuse one tier as the other. A docstring-only
-commit is haiku to EXTRACT (read-only intent analysis) but its ADAPT tier is whatever the
-`odoo-coding` table assigns to the actual code change (often higher); conversely a logic commit
-that extracts at sonnet may adapt at opus if the target re-implementation is cross-module. Run
-the EXTRACT table at P0->P1 and the ADAPT table again at P4 against each table's own conditions;
-the EXTRACT decision carries no information about the ADAPT decision and vice versa.
+The two tiers are decided INDEPENDENTLY - never reuse one tier as the other. Run the EXTRACT
+table at P0->P1 and the ADAPT table at P4 against each table's own conditions; a docstring-only
+commit may be haiku to EXTRACT but opus to ADAPT if the target re-implementation is cross-module.
 
 ## Two modes
 
 - **Continuous (default).** Recurring; source keeps evolving. Merge keeps SHA; merge-base
-  advances; `checkpoint.json` makes the next daily run skip done commits and never re-resolve a
-  past conflict. This is the primary mode and the reason SHA preservation is non-negotiable.
-- **One-shot (`--one-shot`).** Port one frozen batch once; source will not advance, so the
-  repeated-resolution footgun does not apply. `git cherry-pick -n` is the accepted git op. The
-  architecture reserves this path; everything else (intent -> classify -> symbol-survival ->
-  adapt -> verify -> gate) is identical.
+  advances; `checkpoint.json` makes the next run skip done commits and never re-resolve a past
+  conflict.
+- **One-shot (`--one-shot`).** Port one frozen batch once; repeated-resolution footgun does not
+  apply. `git cherry-pick -n` is the accepted git op; everything else (intent -> classify ->
+  symbol-survival -> adapt -> verify -> gate) is identical.
 
 ## Checkpoint / resume
 
@@ -404,31 +380,26 @@ Forward-port adds platform-drift classes a pure-Python port misses - flag and ro
   manifest entry shape) and OWL moved from the legacy `web.Widget` / `odoo.define()` era to
   OWL 2.x `patch()` / `useState` / `useService`. Route a frontend adapt commit to
   `odoo-frontend-coder` (it owns both eras) - never hand-translate OWL from memory.
-- **i18n (.pot / .po).** Do NOT carry a source `.po`/`.pot` forward verbatim, and **NEVER
-  re-export a `.po` from a fresh DB and overwrite the maintained one** - a fresh-DB export has
-  empty `msgstr`s, so overwriting destroys 40-90% of the existing human translation with a clean
-  exit code. After the code adapt, DISPATCH the `odoo-i18n` skill to forward the translation
-  MEMORY (export a `.pot` template, then polib-MERGE it into the maintained `.po`, never
-  overwrite). Pass `odoo-i18n` the source `.po` paths, the target modules, the target
-  `odoo_version`, and the source series; it follows the non-destructive recipe SSOT
-  (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md`) and validates by an Odoo
-  `-u` reload (not `msgfmt`). Full P4 dispatch wiring: `references/fp-phase-detail.md`.
+- **i18n (.pot / .po).** Do NOT hand-port or re-export translation files in this pipeline. When a
+  forwarded commit touches `.po`/`.pot` or adds translatable strings, DISPATCH the `odoo-i18n`
+  skill after the code adapt - it owns the non-destructive `.pot`/`.po` recipe and validates the
+  result. Pass it the source `.po` paths, the target modules, the target `odoo_version`, and the
+  source series. Full dispatch wiring: `references/fp-phase-detail.md`.
 - **Data XML (`noupdate` records).** A source data record may reference an external-id that does
   not resolve at the target. After merge, verify every external-id in touched data XML resolves
   on the target (Phase 3.5 covers `ref()` / `xml_id`); a `noupdate="1"` record will not be
   re-written, so a broken ref is permanent until fixed here.
 
-Three more cross-cutting checks apply per batch (full detail in the detail files, named here so
-the pipeline does not skip them):
+Three more cross-cutting checks apply per batch:
 
-- **Multi-repo env bootstrap (A1).** When source and target live in different repos/clones, bring
+- **Multi-repo env bootstrap.** When source and target live in different repos/clones, bring
   the source ref into reach (`git remote add` + fetch) BEFORE computing the merge-base or merging;
   a forward-port across repos that skips this silently merges against a stale local ref. Detail:
   `references/fp-phase-detail.md`.
-- **Manifest version-bump gate (A2).** Bump a module's manifest `version` only when the absorbed
+- **Manifest version-bump gate.** Bump a module's manifest `version` only when the absorbed
   diff touches a `.js` / `.scss` / `.xml` file or anything under `migrations/`; a pure-`.py` port
   needs no bump. SSOT: `[[fp-installable-false]]`.
-- **Field-label grounding (A12b).** When the port renames or re-labels a field, confirm the
+- **Field-label grounding.** When the port renames or re-labels a field, confirm the
   target's canonical label before adapting -
   `entity_lookup(kind='field', model='<model>', field='<field>', odoo_version='<target>')` - so the
   forwarded string matches the target's own term. Detail: `references/fp-phase-detail.md`.
