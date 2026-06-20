@@ -58,9 +58,8 @@ cli_help(command='i18n-export', odoo_version='<target>')   # v8-v18 (server flag
 cli_help(command='i18n', odoo_version='19.0')              # v19+ (subcommand)
 ```
 
-This is the OSM degradation note for THIS skill: when OSM itself is unreachable the flag grounding
-falls back to the running instance's own `odoo-bin --help` output, but the instance requirement is
-absolute - it never degrades to a no-DB path.
+When OSM itself is unreachable, flag-grounding falls back to the instance's own `odoo-bin --help`;
+the instance requirement is absolute and never degrades to a no-DB path.
 
 ## The 6-phase pipeline
 
@@ -84,17 +83,12 @@ the assembled TM to `.odoo-ai/i18n/<slug>-<date>/glossary-tm.json`. Sonnet when 
 domain/regulatory terminology; haiku for a plain module.
 
 **P2 - Export `.pot` template [sonnet].** Per L1 of the recipe: install the module, LOAD the target
-language (`--load-language=vi_VN` v8-v18 / `odoo-bin i18n loadlang -d <db> -l vi_VN` v19+) so an
-existing-translation re-export carries its `msgstr`s, then export a `.pot` TEMPLATE on a clean
-per-module install in an isolated DB, in dependency order. `--load-language` ACTIVATES the
-translation in the DB and is distinct from the `--language`/`-l` flag that only SELECTS the export
-file's language - omit the load and the export emits empty `msgstr`s (template only). v17-v18 uses
-`-i <module> --skip-auto-install` (server flags) so auto_install siblings do not leak their terms
-into the `.pot`; v8-v16 isolates by one fresh DB per module instead. v19 replaces the server flags
-with the `odoo-bin i18n` subcommand (`loadlang`/`export`/`import`) - do NOT carry the v17-v18
-server-flag form into v19. Never export over a maintained `.po`. Ground the exact flags via
-`cli_help` (above) - `command='i18n-export'` for v8-v18, `command='i18n'` for v19+. Multi-language is
-a separate scope (issue #97).
+language, then export a `.pot` TEMPLATE on a clean per-module install in an isolated DB, in
+dependency order. Never export over a maintained `.po`. The per-version flags and their rationale -
+`--load-language` (activate in DB) vs `--language`/`-l` (select export file), `--skip-auto-install`
+v17-v18, one fresh DB per module v8-v16, the `odoo-bin i18n` subcommand v19+ - live in the recipe;
+ground the exact form via `cli_help` above (`command='i18n-export'` v8-v18, `command='i18n'` v19+).
+Multi-language is a separate scope (issue #97).
 
 **P3 - Translate [dispatch `odoo-translator`].** Dispatch the `odoo-translator` agent (one per
 language, or per module-cluster for a large scope) as a subagent launch to run the L2 polib TM-merge
