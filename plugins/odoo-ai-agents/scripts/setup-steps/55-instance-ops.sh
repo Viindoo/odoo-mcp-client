@@ -186,12 +186,19 @@ cmd_init() {
     local logf
     _open_log "$arg_db"
 
+    # Odoo expects comma-separated addons paths; the allocator/instances_io
+    # hands them over as colon-delimited (shell PATH convention).  Convert here.
+    local addons_csv="${arg_addons//:/, }"
+    # Normalise: remove spaces after commas for Odoo's option parser.
+    addons_csv="${addons_csv//,  /,}"
+    addons_csv="${addons_csv//,  /,}"  # second pass for edge-case double spaces
+
     local rc=0
     # shellcheck disable=SC2086
     "$arg_python" "$odoo_bin" \
         -d "$arg_db" \
         -i "$arg_modules" \
-        --addons-path "$arg_addons" \
+        --addons-path "$addons_csv" \
         --stop-after-init \
         ${arg_extra} \
         >"$logf" 2>&1 || rc=$?
@@ -221,12 +228,17 @@ cmd_update() {
     local logf
     _open_log "$arg_db"
 
+    # Odoo expects comma-separated addons paths; convert from colon-delimited.
+    local addons_csv="${arg_addons//:/, }"
+    addons_csv="${addons_csv//,  /,}"
+    addons_csv="${addons_csv//,  /,}"
+
     local rc=0
     # shellcheck disable=SC2086
     "$arg_python" "$odoo_bin" \
         -d "$arg_db" \
         -u "$arg_modules" \
-        --addons-path "$arg_addons" \
+        --addons-path "$addons_csv" \
         --stop-after-init \
         ${arg_extra} \
         >"$logf" 2>&1 || rc=$?
@@ -261,12 +273,17 @@ cmd_test() {
         test_tags_args=("--test-tags" "$arg_test_tags")
     fi
 
+    # Odoo expects comma-separated addons paths; convert from colon-delimited.
+    local addons_csv="${arg_addons//:/, }"
+    addons_csv="${addons_csv//,  /,}"
+    addons_csv="${addons_csv//,  /,}"
+
     local rc=0
     # shellcheck disable=SC2086
     "$arg_python" "$odoo_bin" \
         -d "$arg_db" \
         -i "$arg_modules" \
-        --addons-path "$arg_addons" \
+        --addons-path "$addons_csv" \
         --test-enable \
         "${test_tags_args[@]}" \
         --stop-after-init \
