@@ -223,10 +223,37 @@ is absent in that output are the test methods broken; `tests_covering` does not 
 cross-version. Record all broken test-symbol references in the per-commit row of
 `merge-log.md` alongside the production symbols. The P4a adapt brief MUST include this list.
 
+**P4.5 - Pre-adapt drift scan [MUST, before the behavioral loop].** This phase is DISTINCT from
+the P3.5 TEST-survival sub-check: P3.5 uses `tests_covering` / `test_coverage_audit` at the OSM
+symbol-graph level to detect test methods referencing a field/model removed at the target - it
+operates cross-version via the index. P4.5 instead runs the six static symbol classes from
+`[[fp-symbol-survival-check]]` section 2.5 (base-class kwarg drift, file-existence, dynamic
+`ref()`, python import, AST pyflakes, installable flag) directly against the merged `tests/`
+files, then enforces a collection-level ACCEPTANCE GATE. The two checks are complementary, not
+redundant: P3.5 catches OSM-indexed symbol-graph breaks; P4.5 catches static grep / import / AST
+breaks and blocks Phase 4 entry when test collection would itself fail.
+Enumerate EVERY symbol, file path, import, and test-base-class the merged test code touches
+(reuse the Section-1 scope list and the six symbol-class checks from `[[fp-symbol-survival-check]]`,
+applied to the `tests/` files), then triage each finding into a bucket (b adapt / c re-implement /
+d drop) - never leave an auto-merged test line referencing a dead symbol.
+**ACCEPTANCE GATE:** before any red-then-green adapt starts, the merged test files MUST import
+and collect cleanly on the target (`python -m pytest --collect-only`, or the module's
+`odoo-bin ... --test-enable` collection). A `setUpClass` crash means the tests never ran, so a
+green count from Phase 5 is a false pass (see `odoo-backend-debugger` MED-6: `0 failed, N error(s)`
+is NOT a passing result); resolve every drift finding here first. Record the findings in
+`merge-log.md`; the P4a brief consumes them. SSOT for the checks: `[[fp-symbol-survival-check]]`.
+Full commands: `references/fp-phase-detail.md` P4.5.
+
 **P4 - Adapt [test-first; SERIAL per-module within a commit (v1 default); SERIAL across commits].** For each touched module/WI,
 spawn an adapt unit in its own child worktree off integration (worktree per module for filesystem isolation):
-- **4a forward the test FIRST** via `odoo-test-writing` mode `adapt`: translate to target API,
-  strip implementation-coupled assertions, confirm RED on target (the test is the oracle).
+- **4a forward the test FIRST** via `odoo-test-writing` mode `adapt`. The job is to confirm the
+  MERGED SOURCE TEST is RUNNABLE on the target - translate its API to the target idiom (base
+  class, imports, helper signatures per P4.5), strip implementation-coupled assertions, and
+  confirm it goes RED on the target. Do NOT author a brand-new red test from scratch: the
+  forwarded source test already encodes the behavioral contract and IS the oracle; 4a adapts it
+  to run, it does not re-invent it. Only when the source commit shipped NO test for the ported
+  behavior does the agent write one - and even then it is anchored to the source intent record,
+  not improvised. The test is the oracle.
   Before dispatching `odoo-test-writing`, build an FP-ENRICHED brief that carries:
   (i) **base class grounding** - call `test_base_classes(odoo_version='<target_version>')` to
   confirm the correct base class at the target (e.g. `SavepointCase` is a deprecated alias
@@ -271,12 +298,44 @@ On confirm: `git commit` the merge (buckets a/d still commit - Hard rule 7), upd
 `checkpoint.json` `{<sha>: done}`. More commits/batches remain -> LOOP back to recreate WORK-tier
 worktrees from integration for the next batch.
 
-**P7 - PR + review.** Open PR `fp/<slug>` -> B. Run `/code-review` inline + optionally dispatch
-`odoo-code-review` for the FP pitfall (test coupled to source API).
+**P7 - PR + review.** Open PR `fp/<slug>` -> B. Run `/code-review` inline. Dispatching
+`odoo-code-review` is OPTIONAL for a trivial port (docstring/string/comment-only buckets), but
+**MANDATORY whenever the batch grafts a new engine or mechanism** (a shared report engine, a
+group-by/total/drill computation, an export/print path, a wizard, any multi-path component) -
+a clean merge of one path proves nothing about the others. For a mandatory review:
+
+1. **Enumerate EVERY code path of the grafted mechanism and confirm each was adapted.** A report
+   or compute engine typically fans out into: total, sub-total/group-by, expand/collapse, drill
+   -down, export (xlsx/csv), and print (PDF/QWeb). List each path and verify the forward-port
+   adapted it - a path the source touched but the adapt missed is a silent partial port that
+   passes the headline test while a sibling path renders wrong. The review is not done until
+   every enumerated path is accounted for (adapted, or explicitly N/A with a reason).
+2. **Cross-check every static-review bot comment on the PR.** After the PR opens, read the bot
+   (CI linter / review bot) comments and resolve or consciously waive each - a bot comment on a
+   forward-ported line is signal that an auto-merged construct did not survive the target.
+3. **Attribution diff before rating any finding (MED-8).** A finding only belongs to THIS port if
+   it sits on a line this port changed. Diff the exact changed lines against the target baseline -
+   `git diff origin/<target-branch>...fp/<slug>` - and attribute each finding to either a
+   forward-ported line (in scope, fix now) or a pre-existing target line (out of scope, do not
+   re-rate the target's own debt as a port regression). Rate findings only after this attribution.
+
+A module that is `installable:False` at the target is in the lint-only lane (`[[fp-installable-false]]`):
+the reviewer rates ONLY lint/syntax for it and MUST NOT raise a business-logic finding (its
+behavior is intentionally not forward-ported - see `## Model triage`).
+
 NEVER squash (keeps SHA). B stays LOCKED - the PR only adds the merge commits. Wait for human
 merge.
 
 ## Model triage - two tier tables
+
+**installable:False short-circuit (NEW-1).** Before assigning ANY tier, check each touched
+module's `installable` flag at the target (`module_inspect(name='<module>', method='summary',
+odoo_version='<target>')` or read the target `__manifest__.py`). A module that is
+`installable:False` at the target - a brand-new module not yet landed, OR a pre-existing dormant
+one - is NOT forward-ported for behavior: route it to the **lint-only lane** (flake8 / pylint /
+eslint / prettier / ruff to green CI, minimum fix only) and SKIP the extract/adapt/review logic
+tiers entirely. Its business logic is not adapted and P7 review rates only its lint/syntax, never
+a business finding. SSOT: `[[fp-installable-false]]`.
 
 Triage is INLINE and deterministic, run twice with different tables:
 
@@ -289,6 +348,13 @@ Triage is INLINE and deterministic, run twice with different tables:
 Resolve a tier by walking each table top-down, first match wins. Full both-table detail with
 per-row conditions: `references/fp-triage-table.md`. Record every chosen tier in `plan.md` - a
 tier is part of the approved plan, not a runtime improvisation.
+
+The two tiers are decided INDEPENDENTLY - never reuse one tier as the other. A docstring-only
+commit is haiku to EXTRACT (read-only intent analysis) but its ADAPT tier is whatever the
+`odoo-coding` table assigns to the actual code change (often higher); conversely a logic commit
+that extracts at sonnet may adapt at opus if the target re-implementation is cross-module. Run
+the EXTRACT table at P0->P1 and the ADAPT table again at P4 against each table's own conditions;
+the EXTRACT decision carries no information about the ADAPT decision and vice versa.
 
 ## Two modes
 
@@ -317,14 +383,34 @@ Forward-port adds platform-drift classes a pure-Python port misses - flag and ro
   manifest entry shape) and OWL moved from the legacy `web.Widget` / `odoo.define()` era to
   OWL 2.x `patch()` / `useState` / `useService`. Route a frontend adapt commit to
   `odoo-frontend-coder` (it owns both eras) - never hand-translate OWL from memory.
-- **i18n (.pot / .po).** Do NOT carry a source `.po`/`.pot` forward verbatim - re-export per
-  module on an isolated target DB after the code adapt; a stale translation references dropped
-  message ids. Treat the re-export as part of the module's adapt, verified by an Odoo `-u`
-  reload (not `msgfmt`).
+- **i18n (.pot / .po).** Do NOT carry a source `.po`/`.pot` forward verbatim, and **NEVER
+  re-export a `.po` from a fresh DB and overwrite the maintained one** - a fresh-DB export has
+  empty `msgstr`s, so overwriting destroys 40-90% of the existing human translation with a clean
+  exit code. After the code adapt, DISPATCH the `odoo-i18n` skill to forward the translation
+  MEMORY (export a `.pot` template, then polib-MERGE it into the maintained `.po`, never
+  overwrite). Pass `odoo-i18n` the source `.po` paths, the target modules, the target
+  `odoo_version`, and the source series; it follows the non-destructive recipe SSOT
+  (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/references/i18n-recipe.md`) and validates by an Odoo
+  `-u` reload (not `msgfmt`). Full P4 dispatch wiring: `references/fp-phase-detail.md`.
 - **Data XML (`noupdate` records).** A source data record may reference an external-id that does
   not resolve at the target. After merge, verify every external-id in touched data XML resolves
   on the target (Phase 3.5 covers `ref()` / `xml_id`); a `noupdate="1"` record will not be
   re-written, so a broken ref is permanent until fixed here.
+
+Three more cross-cutting checks apply per batch (full detail in the detail files, named here so
+the pipeline does not skip them):
+
+- **Multi-repo env bootstrap (A1).** When source and target live in different repos/clones, bring
+  the source ref into reach (`git remote add` + fetch) BEFORE computing the merge-base or merging;
+  a forward-port across repos that skips this silently merges against a stale local ref. Detail:
+  `references/fp-phase-detail.md`.
+- **Manifest version-bump gate (A2).** Bump a module's manifest `version` only when the absorbed
+  diff touches a `.js` / `.scss` / `.xml` file or anything under `migrations/`; a pure-`.py` port
+  needs no bump. SSOT: `[[fp-installable-false]]`.
+- **Field-label grounding (A12b).** When the port renames or re-labels a field, confirm the
+  target's canonical label before adapting -
+  `entity_lookup(kind='field', model='<model>', field='<field>', odoo_version='<target>')` - so the
+  forwarded string matches the target's own term. Detail: `references/fp-phase-detail.md`.
 
 ## MCP tools
 

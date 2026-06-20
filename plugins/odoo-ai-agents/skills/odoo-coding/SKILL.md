@@ -324,5 +324,8 @@ When the bundle finishes, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set
 `produced` to the source + test files written, plus `.odoo-ai/coding/<slug>-<date>/plan.md` and the
 `.odoo-ai/worklog/<slug>/` entries, and emit `next: odoo-code-review` so the just-written code is
-reviewed (that skill now scales to the same multi-module set). Additive output for the
+reviewed (that skill now scales to the same multi-module set). Additionally, when any module in the
+run is new (`NEW MODULE: yes`) OR the change introduces user-facing translatable strings
+(`_("...")` / `string=` field attr), also add `SUGGESTED_NEXT: odoo-i18n` so the module's
+`.pot` / `.po` files are generated and translated via the dedicated i18n skill. Additive output for the
 run-driver - it does not change anything produced above.

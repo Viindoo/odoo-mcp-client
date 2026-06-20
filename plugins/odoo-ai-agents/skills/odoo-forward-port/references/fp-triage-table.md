@@ -17,6 +17,14 @@ sonnet-to-adapt, or vice-versa.
 
 ## Table 1 - EXTRACT tier (Phase 0 triage -> Phase 1 intent extraction)
 
+> **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row):**
+> If the module's `installable` field is `False` at the TARGET version
+> (confirm via `module_inspect(name='<module>', method='summary', odoo_version='<target>')` or
+> read the target `__manifest__.py`) -> this module is on the **lint-only lane**.
+> Do NOT walk the tier rows below. Do NOT dispatch extract or adapt logic.
+> Only dispatch a haiku lint-fix agent if CI is red due to a syntax error.
+> See [[fp-installable-false]] for the full lint-only lane specification.
+
 Intent extraction is read-only analysis: read the commit message, PR/issue, tests, and
 OSM-ground the touched symbols at the SOURCE version. **fable is intentionally absent** -
 read-only intent work is never worth fable's ~2x-opus cost.
@@ -38,6 +46,14 @@ Constraints:
 ---
 
 ## Table 2 - ADAPT tier (Phase 4 code adapt)
+
+> **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row):**
+> If the module's `installable` field is `False` at the TARGET version
+> (confirm via `module_inspect(name='<module>', method='summary', odoo_version='<target>')` or
+> read the target `__manifest__.py`) -> this module is on the **lint-only lane**.
+> Do NOT walk the tier rows below. Do NOT dispatch adapt logic or business-logic review.
+> Only dispatch a haiku lint-fix agent if CI is red due to a syntax error.
+> See [[fp-installable-false]] for the full lint-only lane specification.
 
 Code adapt WRITES production code on the target platform. It reuses the `odoo-coding`
 deterministic tier table verbatim (SSOT - do not fork it). The condition set, summarized:

@@ -6,6 +6,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.17.0] - 2026-06-20
+
+### Added
+
+- **New `odoo-i18n` skill + `odoo-translator` agent (closes #76).** A dedicated spawner skill for
+  Odoo translation work (`.pot`/`.po`) usable by any workflow - forward-port, new-module/feature
+  development, bug-fix. Non-destructive recipe (SSOT `skills/odoo-i18n/references/i18n-recipe.md`):
+  `polib` translation-memory merge (`po.merge(pot)`) that preserves existing `msgstr`, isolated-DB
+  per-module export with `-i <module> --skip-auto-install` (Odoo >=17; isolated-DB-per-dependency-order
+  for <17) to avoid auto-install noise, non-empty-`msgstr` regression via `polib` (not `grep`),
+  placeholder-integrity check, and validation by Odoo `-u` reload (not `msgfmt`). Instance-mandatory
+  (no no-DB workaround); consistency audit is advisory (safe for independent VN circular regimes).
+- **`Terminology consistency` guidance** added to `coding_guidelines/{14..19}.0/python.md` - look up
+  the canonical term (core+deps TM / `.odoo-ai/glossary.yml` / OSM `entity_lookup` field.string)
+  before coining a new label.
+- Invariant test gates `tests/test_forward_port_hardening.py` and `tests/test_odoo_i18n.py`.
+
+### Changed
+
+- **`odoo-forward-port` hardening (closes #90).** P3.5 symbol-survival now covers 6 auto-merge-silent
+  blind-spots (test base-class signature drift, file-existence refs, dynamic `ref()`/xml_id, Python
+  import survival, AST `pyflakes` scan, `installable`-flag transitions) and includes `tests/` files.
+  New P4.5 pre-adapt drift scan with a "test files collect cleanly" acceptance gate. P5 verify adds
+  `--skip-auto-install` + `--http-port`, per-module `Loading module` parse, transitive-deps breadth,
+  and baseline-fail attribution. P7 review made mandatory for grafted engines (enumerate every code
+  path, cross-check static-review bot, attribution diff vs `origin/<target>`). The destructive i18n
+  re-export caveat is replaced by a dispatch to the new `odoo-i18n` skill. New `installable:False`
+  lint-only lane (dormant modules get lint/syntax fixes only, no logic review). `odoo-coding` emits
+  `SUGGESTED_NEXT: odoo-i18n` after new-module or translatable-string work.
+
+### Fixed
+
+- `odoo-backend-debugger` / `_shared/debug-method.md`: a `0 failed, N error(s)` test result (setUpClass
+  crash) is no longer read as a pass - tests did not run; never conclude "transient" without a
+  deterministic red->green toggle.
+
 ## [3.16.2] - 2026-06-20
 
 ### Fixed

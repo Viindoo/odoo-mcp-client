@@ -28,6 +28,7 @@
 | `odoo-forward-port` | spawner-agent | fullstack | yes | odoo-intent-extractor (read-only per-commit; model per complexity), odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees) |
 | `odoo-frontend-design` | leaf | frontend | - | - |
 | `odoo-gap-analysis` | leaf | none | - | - |
+| `odoo-i18n` | spawner-agent | backend | yes | odoo-translator |
 | `odoo-intake` | spawner-agent | none | - | (Phase R: ≤2 read-only recon agents - Explore or specialist in read-only mode; no writes, no further spawn) |
 | `odoo-objection-handling` | leaf | none | - | - |
 | `odoo-onboarding` | leaf | none | - | - |

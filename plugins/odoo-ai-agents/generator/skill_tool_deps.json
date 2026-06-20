@@ -466,6 +466,16 @@
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
       "notes": "Forward-port orchestrator: api_version_diff grounds version-boundary breaks and outcome classification; model_inspect/entity_lookup verify symbol survival at target to catch autosilent field breaks; find_override_point assists in locating insertion points during adapt phase. test_base_classes/find_test_examples/tests_covering/test_coverage_audit ground test verification at target version (PR #323, v0.15.0). min_server 0.15.0 for test tools."
+    },
+    "odoo-i18n": {
+      "mcp_tools": [
+        "set_active_version",
+        "cli_help",
+        "entity_lookup"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Spawner: dispatches odoo-translator for .pot/.po via odoo-bin+polib; OSM only for version flags. cli_help grounds the per-series CLI surface - the --i18n-export/--load-language/-u reload server flags (v8-v18) vs the odoo-bin i18n subcommand (loadlang/export/import, v19+); --load-language loads the language into the DB so an existing translation re-exports with msgstr (distinct from --language/-l which only selects the file). entity_lookup confirms a field's canonical string label for glossary alignment. There is no OSM i18n tool - export/merge/validate are shell odoo-bin + polib in the leaf agent."
     }
   },
   "orchestration": {
@@ -824,6 +834,16 @@
         "odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees)"
       ],
       "stack": "fullstack",
+      "instance_touching": true,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L2"
+    },
+    "odoo-i18n": {
+      "spawn_class": "spawner-agent",
+      "spawns": [
+        "odoo-translator"
+      ],
+      "stack": "backend",
       "instance_touching": true,
       "output_mode": "writes-files",
       "default_gate_tier": "L2"
