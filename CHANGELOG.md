@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.16.2] - 2026-06-20
+
+### Fixed
+
+- `/odoo-plan-upgrade` now routes through `/odoo-intake` Phase P so the workflow's `on_complete`
+  design handoff (`needs_design == true` -> `odoo-solution-design`) auto-advances under the run-driver
+  instead of degrading to a human suggestion when the command is run directly. Closes #93.
+- `check_workflows.py` driver-required warning is now sentinel-aware: a command declaring the
+  `engages-run-driver` marker clears the warning, while a command that dispatches a driver-required
+  (`on_complete`) workflow directly still trips it. Added `tests/test_check_workflows_driver.py`
+  (red-green: sentinel-less command warns, sentinel command clears, plus a real-repo regression guard).
+
 ## [3.16.1] - 2026-06-20
 
 ### Changed
