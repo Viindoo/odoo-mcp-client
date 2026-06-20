@@ -228,7 +228,7 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
     lines.append("## Legend")
     lines.append("")
     lines.append("- **spawn_class** - `leaf` (runs inline) · `orchestrator-nl` (chains other skills via")
-    lines.append("  natural-language dispatch, no Agent-tool spawn) · `spawner-agent` (dispatches a named")
+    lines.append("  natural-language dispatch, no subagent spawn) · `spawner-agent` (dispatches a named")
     lines.append("  subagent) · `spawner-wave` (worktree fan-out with parallel subagents).")
     lines.append("- **stack** - drives backend↔frontend routing; `fullstack` work must engage both a")
     lines.append("  backend and a frontend specialist.")
