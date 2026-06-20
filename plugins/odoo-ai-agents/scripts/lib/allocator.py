@@ -235,11 +235,11 @@ def _probe_createdb(host, user):
     return rc == 0 and out.strip() == "t"
 
 
-def _createdb(host, user, db):
-    rc, _, err = _run(["createdb", "-h", host, "-U", user, db], env=_pg_env())
-    if rc != 0:
-        sys.stderr.write(f"allocator: createdb {db} failed: {err.strip()}\n")
-    return rc == 0
+# _createdb removed: the allocator no longer creates the ephemeral DB.
+# The caller's `odoo-bin -d <db> -i <modules> --stop-after-init` performs
+# create-on-init instead (B2 model: caller-side create, through-Odoo drop).
+# _probe_createdb is still needed: Odoo create-on-init also requires CREATEDB,
+# so if the role lacks it we degrade ephemeral -> exclusive (same invariant).
 
 
 def _dropdb(host, user, db):
@@ -275,6 +275,63 @@ def _drop_filestore(db):
         shutil.rmtree(path, ignore_errors=True)
 
 
+_ODOO_DB_PY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "odoo_db.py")
+
+
+def _drop_through_odoo(lease):
+    """Drop the ephemeral DB via odoo_db.py (through-Odoo path, B2 mandate).
+
+    Falls back to raw _dropdb only when:
+      - the lease carries no `python` interpreter path, OR
+      - odoo_db.py is missing on disk, OR
+      - odoo_db.py exits with code 10 (venv-unavailable sentinel).
+
+    Any fallback is logged loudly to stderr so the mandate-violation is visible.
+    The filestore is cleaned up regardless of which drop path succeeded.
+    """
+    db = lease.get("db_name", "")
+    if not db:
+        return
+    # New leases store db_host/db_user at the top level; fall back to _pg for
+    # leases written by an older allocator version (backward compat).
+    pg = lease.get("_pg", {})
+    host = lease.get("db_host") or pg.get("host", "localhost")
+    user = lease.get("db_user") or pg.get("user", "odoo")
+    venv_python = lease.get("python", "")
+
+    dropped = False
+
+    if venv_python and os.path.isfile(_ODOO_DB_PY):
+        cmd = [venv_python, _ODOO_DB_PY, "drop", db, "--db-host", host, "--db-user", user]
+        pw = os.environ.get("ODOO_PG_PASSWORD")
+        if pw:
+            cmd += ["--db-password", pw]
+        rc, _, err = _run(cmd)
+        if rc == 0:
+            dropped = True
+        elif rc == 10:
+            sys.stderr.write(
+                f"allocator: WARNING - venv unavailable ({venv_python}), "
+                f"dropped {db} via raw dropdb fallback\n"
+            )
+        else:
+            sys.stderr.write(
+                f"allocator: WARNING - odoo_db.py drop {db} exited {rc}: {err.strip()}; "
+                "falling back to raw dropdb\n"
+            )
+
+    if not dropped:
+        # Fallback: raw dropdb (covers missing venv_python, missing odoo_db.py, or rc!=0/10).
+        if not venv_python:
+            sys.stderr.write(
+                f"allocator: WARNING - venv unavailable, "
+                f"dropped {db} via raw dropdb fallback\n"
+            )
+        _dropdb(host, user, db)
+
+    _drop_filestore(db)
+
+
 # --------------------------------------------------------------------------- #
 # GC
 # --------------------------------------------------------------------------- #
@@ -291,15 +348,12 @@ def _is_stale(lease):
 
 
 def _gc(reg):
-    """Reclaim stale leases (drop their ephemeral DB + filestore). Mutates reg."""
+    """Reclaim stale leases (drop their ephemeral DB via through-Odoo path). Mutates reg."""
     kept, reclaimed = [], []
     for lease in reg["leases"]:
         if _is_stale(lease):
-            if lease.get("created_db") and lease.get("db_name"):
-                inst = lease.get("_pg", {})
-                _dropdb(inst.get("host", "localhost"), inst.get("user", "odoo"),
-                        lease["db_name"])
-                _drop_filestore(lease["db_name"])
+            if lease.get("drop_on_release") and lease.get("db_name"):
+                _drop_through_odoo(lease)
             reclaimed.append(lease)
         else:
             kept.append(lease)
@@ -359,9 +413,9 @@ def cmd_acquire(opts):
 
     # shared: a long-lived, NON-exclusive render-server lease (the visual stack's
     # live target). Attach to the existing lease for (series, db_name) when one is
-    # live, else mint one. created_db is ALWAYS False, so gc reclaims a dead row
-    # but never drops the declared DB. Idempotent: a later call carrying the real
-    # server --pid (or the actual bound --port) refreshes the row in place.
+    # live, else mint one. drop_on_release is ALWAYS False, so gc reclaims a dead
+    # row but NEVER drops the declared DB. Idempotent: a later call carrying the
+    # real server --pid (or the actual bound --port) refreshes the row in place.
     if mode == "shared":
         db_name = opts.get("db_name") or inst.get("db_name", "odoo")
         series_c = instances_io.series_of(inst)
@@ -396,7 +450,9 @@ def cmd_acquire(opts):
                     "mode": "shared",
                     "series": series_c,
                     "db_name": db_name,
-                    "created_db": False,
+                    # drop_on_release is ALWAYS False for shared leases:
+                    # the declared DB must never be dropped by gc/release.
+                    "drop_on_release": False,
                     "ports": ports,
                     "owner": {
                         "host": _host(),
@@ -425,12 +481,14 @@ def cmd_acquire(opts):
     base = int(inst.get("http_port_base", inst.get("http_port", 8069)))
     size = int(inst.get("port_pool_size", DEFAULT_POOL_SIZE))
     prefix = inst.get("db_name_prefix", inst.get("db_name", "odoo"))
-    want_create = mode == "ephemeral" and not opts.get("no_create")
 
-    # ephemeral needs CREATEDB; without it, degrade to an exclusive lease.
-    created_db = False
+    # B2 model: the allocator NO LONGER calls createdb.  The ephemeral DB is
+    # created by the caller's `odoo-bin -d <db> -i <mods> --stop-after-init`
+    # (Odoo create-on-init).  We still probe CREATEDB because Odoo create-on-init
+    # also requires the role to have that privilege; if it is absent, degrading to
+    # the declared exclusive DB (which already exists) is still the right move.
     if mode == "ephemeral":
-        if want_create and not _probe_createdb(host, user):
+        if not opts.get("no_create") and not _probe_createdb(host, user):
             sys.stderr.write(
                 "allocator: role lacks CREATEDB - degrading ephemeral -> exclusive "
                 "on the declared database.\n"
@@ -462,20 +520,33 @@ def cmd_acquire(opts):
             sys.stderr.write(f"allocator: {exc}\n")
             return 4
 
-        if want_create and mode == "ephemeral":
-            if not _createdb(host, user, db_name):
-                return 5
-            created_db = True
+        # drop_on_release: True for ephemeral leases where the caller will create
+        # the DB via Odoo create-on-init and we must drop it at release/gc.
+        # False when --no-create is passed (caller declared they won't create the
+        # DB, so there is nothing to drop), and always False for shared/exclusive
+        # (those DBs must survive beyond the lease lifetime).
+        drop_on_release = (mode == "ephemeral" and not opts.get("no_create"))
 
         token = uuid.uuid4().hex
         ttl = int(opts.get("ttl", DEFAULT_TTL_S))
         now = _now()
+        series_val = instances_io.series_of(inst)
         reg["leases"].append({
             "token": token,
             "mode": mode,
-            "series": instances_io.series_of(inst),
+            "series": series_val,
             "db_name": db_name,
-            "created_db": created_db,
+            # drop_on_release replaces the old created_db flag.  It marks whether
+            # release/gc must drop the DB (ephemeral=True, shared/exclusive=False).
+            "drop_on_release": drop_on_release,
+            # Drop context: venv interpreter + connection params so _drop_through_odoo
+            # can invoke odoo_db.py under the right Odoo installation at release/gc
+            # time, even if the caller process is long gone.  Password is NOT stored
+            # here - read from ODOO_PG_PASSWORD at drop time.
+            "python": inst.get("python", ""),
+            "addons_path": ":".join(str(x) for x in inst.get("addons_path", [])),
+            "db_host": host,
+            "db_user": user,
             "ports": ports,
             "owner": {
                 "host": _host(),
@@ -518,10 +589,8 @@ def cmd_release(opts):
         if found is None:
             sys.stderr.write(f"allocator: no lease with token {token!r} (already released?).\n")
             return 0
-        if found.get("created_db") and found.get("db_name"):
-            pg = found.get("_pg", {})
-            _dropdb(pg.get("host", "localhost"), pg.get("user", "odoo"), found["db_name"])
-            _drop_filestore(found["db_name"])
+        if found.get("drop_on_release") and found.get("db_name"):
+            _drop_through_odoo(found)
         reg["leases"] = kept
         _write_registry(reg)
     return 0
