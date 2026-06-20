@@ -190,7 +190,9 @@ spawn an adapt unit in its own child worktree off integration (worktree per modu
 - **4b adapt the code** per bucket via `odoo-coder` (backend) / `odoo-frontend-coder` (frontend),
   dispatched with an FP-ENRICHED brief = intent record + bucket + the failing test + the
   installable:False checklist. Bucket (a)/(d): no adapt code. Bucket (b): 3-way merge + adapt.
-  Bucket (c): re-implement on the target idiom.
+  Bucket (c): re-implement on the target idiom. The frontend leg additionally grounds any
+  ported OWL/QWeb/SCSS against `skills/_shared/odoo-frontend-fidelity.md` so the forwarded UI
+  stays on-theme and design-system-correct for the target version.
 - **4c new module** (exists at source, not yet at target): `installable: False` + comment
   `auto_install`/`application`, lint-fix only. SSOT: `[[fp-installable-false]]`.
 - **4d migration script**: rename `<src-series>` -> `<tgt-series>` dir ONLY when the gate
