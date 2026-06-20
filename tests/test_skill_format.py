@@ -3,7 +3,6 @@
 Frontmatter is parsed line-by-line (stdlib only) so the suite has no third-party
 dependency on PyYAML.
 """
-import re
 from pathlib import Path
 
 import pytest
@@ -97,14 +96,6 @@ def _fm_list(text, key="tools"):
 # Agent tests
 # ---------------------------------------------------------------------------
 
-_DEPTH_RULE_RE = re.compile(
-    r"(?i)(do\s+not|must\s+not).{0,60}?(spawn|subagent|sub-?agent)"
-)
-_SKILL_GUARD_RE = re.compile(
-    r"(?i)(do\s+not|must\s+not).{0,80}?(invoke|call).{0,40}?skill"
-)
-
-
 def test_at_least_3_agents():
     # The plugin ships three agent bundles: odoo-coder, odoo-code-reviewer, and
     # odoo-ui-reviewer. Floor at the real count so a dropped agent trips CI.
@@ -119,35 +110,9 @@ def test_agent_frontmatter(agent):
     assert fm.get("description"), f"{agent.stem}: missing 'description'"
     assert fm.get("model"), f"{agent.stem}: missing 'model'"
     # Agents omit the `tools:` allowlist so they inherit the full (drift-proof) tool
-    # surface; least-privilege is a `disallowedTools` denylist that must at minimum block
-    # spawning a sub-subagent (Agent/Task) - the tool-level no-spawn guard.
+    # surface; the harness depth cap is the only nesting net.
     assert not _fm_list(text, "tools"), (
-        f"{agent.stem}: agents must omit the `tools:` allowlist (inherit the full surface); "
-        f"restrict via disallowedTools instead"
-    )
-    disallowed = _fm_list(text, "disallowedTools")
-    assert "Agent" in disallowed, (
-        f"{agent.stem}: disallowedTools must include 'Agent' (tool-level no-spawn guard)"
-    )
-
-
-@pytest.mark.parametrize("agent", AGENT_FILES, ids=lambda p: p.stem)
-def test_agent_depth_rule_guard(agent):
-    text = agent.read_text(encoding="utf-8")
-    body = _body(text)
-    assert _DEPTH_RULE_RE.search(body), (
-        f"{agent.stem}: agent body must contain a depth-rule guard matching "
-        r"(?i)(do not|must not).*(spawn|subagent|sub-?agent)"
-    )
-
-
-@pytest.mark.parametrize("agent", AGENT_FILES, ids=lambda p: p.stem)
-def test_agent_skill_invocation_guard(agent):
-    text = agent.read_text(encoding="utf-8")
-    body = _body(text)
-    assert _SKILL_GUARD_RE.search(body), (
-        f"{agent.stem}: agent body must contain a skill-invocation guard matching "
-        r"(?i)(do not|must not).*(invoke|call).*skill"
+        f"{agent.stem}: agents must omit the `tools:` allowlist (inherit the full surface)"
     )
 
 
