@@ -28,7 +28,7 @@ Output is written to `.odoo-ai/upgrade-plans/` on explicit user confirmation at 
 **Design handoff (`on_complete`).** The workflow declares an `on_complete` that, when the plan
 contains migration/refactor items with more than one viable approach (`needs_design == true`),
 chains to `odoo-solution-design` so those items are designed before any code is written. For that
-chain to fire automatically, this command must run under the depth-0 run-driver - enter via
+chain to fire automatically, this command must run under the run-driver - enter via
 `/odoo-intake` Phase P (or a 1-node run) rather than a bare `workflow-chaining` dispatch. Without a
 driver above it, `workflow-chaining` degrades the handoff to a visible human suggestion (it tells
 you to run `/odoo-intake` or trigger `odoo-solution-design` manually) rather than auto-chaining.
@@ -42,7 +42,6 @@ you to run `/odoo-intake` or trigger `odoo-solution-design` manually) rather tha
 Do **not** use when:
 - Only a deprecation check is needed: invoke `odoo-deprecation-audit` directly.
 - Only an API diff is needed: invoke `odoo-version-diff` directly.
-- Agent depth >= 1: this command dispatches to `workflow-chaining` (depth 1); launch only from depth 0.
 
 ## See also
 

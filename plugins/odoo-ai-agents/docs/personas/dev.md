@@ -182,7 +182,7 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin:
 | `odoo-security-audit` | Audit code for SQLi / XSS / access-control / CSRF / unsafe deserialization, graded findings |
 | `odoo-perf-audit` | Audit for N+1, missing prefetch, unindexed domains, compute thrash, with concrete fixes |
 | `odoo-data-migration` | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
-| `/odoo-ai-agents:odoo-run-wave` | Depth-0 git-wave orchestration: integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + 1 PR + squash + tree-identity gate + human-confirm merge. Use when landing N parallel WI changes safely without touching the principal branch. |
+| `/odoo-ai-agents:odoo-run-wave` | Git-wave orchestration: integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + 1 PR + squash + tree-identity gate + human-confirm merge. Use when landing N parallel WI changes safely without touching the principal branch. |
 
 ---
 

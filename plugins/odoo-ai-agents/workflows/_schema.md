@@ -194,8 +194,8 @@ auto-discovers `*.workflow.yaml` files from the `workflows/` directory at runtim
 ## 11. `on_complete[]` - cross-workflow transition (optional)
 
 After the final phase, the runner evaluates `on_complete` entries and **emits** matches into
-its Continuation Contract `next[]` for the depth-0 `run-driver` to dispatch (the runner never
-self-dispatches a spawner - depth-2 ceiling). Each entry:
+its Continuation Contract `next[]` for the `run-driver` to dispatch (the runner never
+self-dispatches a spawner). Each entry:
 
 | Field | Type | Required | Purpose |
 |-------|------|----------|---------|

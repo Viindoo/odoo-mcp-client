@@ -206,8 +206,8 @@ second spin-up loses the OS port bind and exits, then both sessions attach to th
 3. **Form = a deterministic SCRIPT (`scripts/lib/allocator.py`) run via `Bash` at any depth** - NOT an
    LLM agent. Subagent-nesting IS available (Claude Code 2.1.172+, depth cap 5) but an LLM agent for a
    deterministic allocation is slow, token-costly, non-deterministic on port choice, and would force
-   opening the `Agent` tool on consumers (breaking the nesting-guard + `test_skill_format` net).
-   `Bash` is allowed at every depth, so even a leaf depth-2 worker calls the script directly.
+   opening the `Agent` tool on consumers (breaking the worker-brief + `test_skill_format` net).
+   `Bash` is allowed at any nesting level, so even a leaf-worker calls the script directly.
 4. **Version-specific stays OUT of the allocator.** It returns resource facts only (db_name, free port
    numbers, token); the CONSUMER builds the `odoo-bin` command - how many ports, and which flags
    (`--http-port`, longpoll/gevent, `--test-enable`, `--stop-after-init`) - from `cli_help` for the `<series>`

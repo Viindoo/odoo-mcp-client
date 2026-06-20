@@ -6,7 +6,7 @@
 # Continuation Contract (emit at the very end of your output)
 
 After your normal output (the artifact/answer this step produces), append ONE fenced block
-tagged `continuation`. It is a machine-readable handoff the depth-0 `run-driver` reads to
+tagged `continuation`. It is a machine-readable handoff the `run-driver` reads to
 decide what runs next. It does NOT replace or alter anything above it - it is purely additive.
 
 ````
@@ -24,9 +24,9 @@ blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 ````
 
 Rules:
-- **You only EMIT this - you never dispatch the next step yourself.** Advancing is the depth-0
-  driver's job (depth guard: a subagent/skill must not spawn the next spawner). See
-  `${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`.
+- **You only EMIT this - you never dispatch the next step yourself.** Advancing is the
+  run-driver's job (a skill/agent emitting a contract must not self-dispatch the next spawner -
+  that is the run-driver's job). See `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`.
 - `status: DONE` when the run's goal is met; `NEEDS_NEXT` when more work should follow (fill
   `next`); `BLOCKED` when you cannot proceed; `NEEDS_CONTEXT` when you need a human decision.
 - `produced` is your evidence (Completion-status #8) - list the real paths you wrote.

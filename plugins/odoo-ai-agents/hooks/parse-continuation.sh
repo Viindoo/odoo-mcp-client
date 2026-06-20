@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # parse-continuation.sh - SubagentStop ADVISORY nudge: when a subagent ends having emitted a
-# Continuation Contract with status NEEDS_NEXT, remind the depth-0 run-driver to advance.
+# Continuation Contract with status NEEDS_NEXT, remind the run-driver to advance.
 #
 # Additive sibling of enforce-grounding.sh in the SubagentStop array - it does NOT modify or
 # depend on that hook (the grounding invariants stay exactly as they were). This one only reads
