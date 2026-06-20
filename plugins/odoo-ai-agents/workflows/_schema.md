@@ -49,14 +49,14 @@ row so this workflow appears in the right routing group without separate registr
 
 ## 4. `team_pattern` enum (6 patterns)
 
-| Value | Runner behavior | Depth |
-|-------|-----------------|-------|
-| `Pipeline` | Phases run sequentially; gate between each. Equivalent to the existing command shape. | 0 -> 1 |
-| `Fan-out` | A phase with `fanout: true` and `chunk_by` splits input, fires N parallel `context: fork` workers (<=3 concurrent), then aggregates. | 0 -> 1 -> 2 |
-| `Expert-Pool` | `phases[].when:` predicate selects which specialist fires per item. | 0 -> 1 |
-| `Producer-Reviewer` | Two phases: `produce` + `review`. Review phase uses `agent:` in read-only mode. | 0 -> 1 |
-| `Supervisor` | An `inline` supervisor phase distributes sub-tasks via NL-dispatch and collects results. | 0 -> 1 |
-| `Hierarchical` | Top phase decomposes into a generated `phases[]` list bounded to one decomposition level. | 0 -> 1 -> 2 (max) |
+| Value | Runner behavior |
+|-------|-----------------|
+| `Pipeline` | Phases run sequentially; gate between each. Equivalent to the existing command shape. |
+| `Fan-out` | A phase with `fanout: true` and `chunk_by` splits input, fires N parallel `context: fork` workers (<=3 concurrent), then aggregates. |
+| `Expert-Pool` | `phases[].when:` predicate selects which specialist fires per item. |
+| `Producer-Reviewer` | Two phases: `produce` + `review`. Review phase uses `agent:` in read-only mode. |
+| `Supervisor` | An `inline` supervisor phase distributes sub-tasks via NL-dispatch and collects results. |
+| `Hierarchical` | Top phase decomposes into a generated `phases[]` list bounded to one decomposition level. |
 
 Fan-out ceiling: `context: fork` workers carry the mandatory hard-rules line and are capped at
 3 concurrent (Mode A - see `skills/_shared/concurrency-guard.md`, the SSOT for the OOM fan-out rule).

@@ -301,7 +301,7 @@
       "mcp_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
-      "notes": "Depth-0 git-wave orchestration skill - no MCP tools; spawns WI subagents over worktrees + cherry-pick + /code-review + squash. Outputs to .odoo-ai/wave/ (gitignored)."
+      "notes": "Git-wave orchestration skill - no MCP tools; spawns WI subagents over worktrees + cherry-pick + /code-review + squash. Outputs to .odoo-ai/wave/ (gitignored)."
     },
     "odoo-ui-review": {
       "mcp_tools": [
@@ -366,7 +366,7 @@
       "mcp_tools": [],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Depth-0 drive-to-done loop: walks the RUN-DAG in .odoo-ai/run-<id>.json, dispatches each node, reads its Continuation Contract, advances to DONE/BLOCKED/NEEDS_CONTEXT. Pure orchestration - no MCP tools of its own."
+      "notes": "Drive-to-done loop: walks the RUN-DAG in .odoo-ai/run-<id>.json, dispatches each node, reads its Continuation Contract, advances to DONE/BLOCKED/NEEDS_CONTEXT. Pure orchestration - no MCP tools of its own."
     },
     "odoo-test-writing": {
       "mcp_tools": [

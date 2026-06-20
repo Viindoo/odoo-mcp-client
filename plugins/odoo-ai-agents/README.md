@@ -228,9 +228,9 @@ watch every edit, `--plan` when you only want the map. You never type a skill na
 
 > **For contributors / AI agents extending this plugin:** the authoritative, diagram-backed
 > spec of this whole mechanism - the Continuation Contract, the `run-<id>.json` blackboard, the
-> gate-tier derivation, the depth rules, and the command/skill/agent taxonomy - lives in
+> gate-tier derivation, and the command/skill/agent taxonomy - lives in
 > [`docs/reference/workflow-harness.md` §8](docs/reference/workflow-harness.md).
-> The per-skill orchestration registry (spawn class, depth policy, output mode, gate tier) is
+> The per-skill orchestration registry (spawn class, output mode, gate tier) is
 > [`docs/reference/ORCHESTRATION-MAP.md`](docs/reference/ORCHESTRATION-MAP.md),
 > generated from `generator/skill_tool_deps.json`. Read those before changing routing or gates.
 
