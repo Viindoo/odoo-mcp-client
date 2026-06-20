@@ -1,4 +1,4 @@
-<!-- Reference for odoo-run-forward-port/SKILL.md § Model triage. Loaded as needed.
+<!-- Reference for odoo-forward-port/SKILL.md § Model triage. Loaded as needed.
      Two deterministic tables: EXTRACT (Phase 0/1) and ADAPT (Phase 4). -->
 
 # Forward-Port Model Triage - full tables

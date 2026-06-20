@@ -79,7 +79,7 @@ Categorize findings by impact: **Module developer** changes vs **End-user functi
 ## Forward-port mode (4-outcome mapping)
 
 When `odoo-version-diff` is invoked inside a forward-port pipeline (i.e., the caller
-is `odoo-run-forward-port` or any agent classifying a commit before touching the git
+is `odoo-forward-port` or any agent classifying a commit before touching the git
 index), supplement the standard Added/Removed/Deprecated/Changed tables with a
 **4-outcome bucket suggestion** for every Removed or Changed symbol.
 

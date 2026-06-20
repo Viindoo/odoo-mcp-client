@@ -14,7 +14,7 @@ You inherit the FULL tool surface - the entire odoo-semantic-mcp surface (every 
 
 ## When to invoke
 
-- **Parallel intent sweep before a forward-port run.** The orchestrator (`odoo-run-forward-port`) has a list of N commits to forward from a source branch. It dispatches one `odoo-intent-extractor` per commit in parallel (Phase 1 SONG SONG, Mode B budget), collecting `intents/<sha>.md` before any git merge or adapt work begins. Each instance of this agent handles exactly one SHA.
+- **Parallel intent sweep before a forward-port run.** The orchestrator (`odoo-forward-port`) has a list of N commits to forward from a source branch. It dispatches one `odoo-intent-extractor` per commit in parallel (Phase 1 SONG SONG, Mode B budget), collecting `intents/<sha>.md` before any git merge or adapt work begins. Each instance of this agent handles exactly one SHA.
 - **Single-commit intent clarification.** During Phase 2 classify, a commit's bucket is ambiguous because the diff is opaque (large refactor, rename-heavy). The orchestrator re-dispatches this agent for that SHA to get a tighter intent summary before attempting `api_version_diff` classification.
 - **Disputed outcome audit.** After adapting a commit, review reveals the adapt diverged from the original purpose. The orchestrator re-runs this agent on the source SHA to re-anchor the intent record and confirm whether the adapt was faithful.
 
@@ -151,7 +151,7 @@ Do NOT include:
 
 ## 4-outcome hint guidance
 
-The hint in Step 3 is OPTIONAL and only filled when the evidence is unambiguous. Use [[fp-intent-4outcome]] as the classification contract. A hint that requires OSM probing on the target version is out of scope for this agent - leave it blank and let the classify phase (Phase 2 in `odoo-run-forward-port`) do it properly. Premature classification is worse than no classification.
+The hint in Step 3 is OPTIONAL and only filled when the evidence is unambiguous. Use [[fp-intent-4outcome]] as the classification contract. A hint that requires OSM probing on the target version is out of scope for this agent - leave it blank and let the classify phase (Phase 2 in `odoo-forward-port`) do it properly. Premature classification is worse than no classification.
 
 ---
 

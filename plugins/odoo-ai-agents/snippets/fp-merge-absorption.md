@@ -1,4 +1,4 @@
-<!-- SSOT snippet. Referenced (not copy-pasted) by odoo-run-forward-port (orchestrator),
+<!-- SSOT snippet. Referenced (not copy-pasted) by odoo-forward-port (orchestrator),
      the future fp-intent-4outcome, fp-symbol-survival-check, and any agent that runs
      a git merge step or a verify step during continuous forward-port.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md. -->
@@ -144,4 +144,4 @@ the PR; integration NEVER fast-forwards into B directly (target-branch-lock, Har
 The only thing that lands on B is the human-confirmed PR merge. This isolation guarantees
 the target branch stays consistent even if one WI worktree is abandoned mid-flight.
 
-Full topology: see the forward-port orchestrator skill (`skills/odoo-run-forward-port/SKILL.md`).
+Full topology: see the forward-port orchestrator skill (`skills/odoo-forward-port/SKILL.md`).

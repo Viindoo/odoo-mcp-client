@@ -1,3 +1,3 @@
 [odoo-ai-agents] Orchestration registry (so you never forbid a legitimate spawn):
-- Skills that LAUNCH subagents (let them; a worker doing delegated work should not re-launch them): odoo-brl, odoo-code-review, odoo-coding, odoo-debug, odoo-deep-survey, odoo-intake, odoo-run-forward-port, odoo-solution-design, odoo-ui-review, wave
+- Skills that LAUNCH subagents (let them; a worker doing delegated work should not re-launch them): odoo-brl, odoo-code-review, odoo-coding, odoo-debug, odoo-deep-survey, odoo-forward-port, odoo-intake, odoo-solution-design, odoo-ui-review, wave
 - Full map: docs/reference/ORCHESTRATION-MAP.md
