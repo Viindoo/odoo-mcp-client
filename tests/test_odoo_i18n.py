@@ -226,3 +226,49 @@ def test_skill_standalone_fallback_blocks_on_missing_instance():
         "Standalone-first fallback must declare NEEDS_CONTEXT as the status when "
         "instance is missing (Continuation Contract compatibility)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 5 - P0 documents the language resolution mechanism
+# ---------------------------------------------------------------------------
+
+def test_p0_documents_language_resolution():
+    """SKILL.md P0 must document the explicit language-resolution precedence mechanism.
+
+    This gate protects the multi-language contract: an agent executing odoo-i18n MUST
+    know HOW to resolve the target language list without guessing.  If the mechanism
+    is removed from SKILL.md, the agent silently defaults to vi_VN or misreads the
+    caller intent.
+
+    The substrings asserted here are canonical strings from the SKILL.md P0 section.
+    Removing or renaming any of them makes this test red.
+    """
+    assert SKILL_MD.exists(), f"SKILL.md not found at {SKILL_MD}"
+    text = SKILL_MD.read_text(encoding="utf-8")
+
+    # P0 section must exist
+    assert "**P0" in text, "P0 section must be present in SKILL.md"
+
+    # Machine-global registry path - the primary multi-lang config source
+    assert "i18n.json" in text, (
+        "P0 must reference i18n.json as the machine-global registry "
+        "for default_languages (tier 2 of resolution precedence)"
+    )
+
+    # The key inside i18n.json that carries the language list
+    assert "default_languages" in text, (
+        "P0 must reference the `default_languages` array inside i18n.json "
+        "so the agent knows which key to read"
+    )
+
+    # Tier 4: query live instance for active languages
+    assert "res.lang" in text, (
+        "P0 must document querying `res.lang` (active=True) as a fallback tier "
+        "when neither args nor i18n.json nor existing .po files supply a language list"
+    )
+
+    # Per-lang artifact naming confirms multi-language is operational (D3 contract)
+    assert "glossary-tm-<lang>" in text, (
+        "SKILL.md must use per-language artifact naming `glossary-tm-<lang>.json` "
+        "(D3 contract) - removing it breaks the multi-language dispatch contract"
+    )

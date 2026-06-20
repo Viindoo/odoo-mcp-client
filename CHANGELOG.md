@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Persistent logs at `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/`; parseable output lines `LOG_PATH=`, `STATUS=`,
   `TEST_RESULT=` forwarded in the canonical `instance-ops` handoff block.
 
+## [3.17.1] - 2026-06-20
+
+### Added
+
+- odoo-i18n: translate into a LIST of target languages in one run (default vi_VN) instead of a single hard-coded language. P0 resolves the language list by precedence (explicit args > ~/.odoo-ai/i18n.json default_languages > existing <lang>.po filenames > res.lang active=True > default vi_VN) and echoes the source before the approval STOP.
+- odoo-i18n: add a machine-global language registry ~/.odoo-ai/i18n.json ({"default_languages":[...]}), seeded idempotently by the odoo-setup instance-profile step; documented in commands/odoo-setup.md and docs/setup.md.
+- odoo-i18n: document a per-language loop order in the recipe (.pot exported once per module, language-agnostic; .po / glossary / validation per language) plus per-language artifact naming (glossary-tm-<lang>.json, translation-report-<lang>.json, consistency-audit-<lang>.md).
+- odoo-i18n: fix the v19 i18n example filenames in the recipe so the export and import lines agree (-o and -w now both use <lang>.po).
+
 ## [3.17.0] - 2026-06-20
 
 ### Added

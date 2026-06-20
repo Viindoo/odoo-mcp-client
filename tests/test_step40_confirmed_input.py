@@ -178,6 +178,60 @@ def test_step40_rejects_malformed_spec_without_partial_write(tmp_path):
 
 
 @pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_step40_seeds_i18n_registry(tmp_path):
+    """40 apply seeds i18n.json alongside instances.toml (idempotent, no-clobber).
+
+    After a successful apply:
+    - i18n.json must exist in the same directory as instances.toml.
+    - Its content must be valid JSON with default_languages == ["vi_VN"].
+    - Running apply a second time must NOT clobber the file (if user edited it,
+      the edited content must survive).
+    Fails if the seed block is removed from the script (file will be absent).
+    """
+    instances_toml = tmp_path / "instances.toml"
+    i18n_json = tmp_path / "i18n.json"
+    spec_file = tmp_path / "profile.json"
+
+    spec = [{"series": "17.0", "addons_path": ["/abs/custom", "/abs/core"]}]
+    spec_file.write_text(json.dumps(spec), encoding="utf-8")
+
+    env_extra = {
+        "ODOO_AI_PROFILE_SPEC": str(spec_file),
+        "ODOO_AI_INSTANCES": str(instances_toml),
+        "HOME": str(tmp_path),
+    }
+
+    proc = _run_step40("apply", env_extra=env_extra, cwd=tmp_path)
+    assert proc.returncode == 0, (
+        f"apply failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+    )
+
+    # i18n.json must have been created next to instances.toml.
+    assert i18n_json.exists(), (
+        f"i18n.json was not seeded at {i18n_json}.\n"
+        f"stdout: {proc.stdout}\nstderr: {proc.stderr}"
+    )
+
+    data = json.loads(i18n_json.read_text(encoding="utf-8"))
+    assert data.get("default_languages") == ["vi_VN"], (
+        f"Unexpected i18n.json content: {data}"
+    )
+
+    # No-clobber: edit the file, re-run apply, content must survive.
+    edited = {"default_languages": ["vi_VN", "en_US"]}
+    i18n_json.write_text(json.dumps(edited), encoding="utf-8")
+
+    proc2 = _run_step40("apply", env_extra=env_extra, cwd=tmp_path)
+    assert proc2.returncode == 0, (
+        f"Second apply failed.\nstdout: {proc2.stdout}\nstderr: {proc2.stderr}"
+    )
+    data2 = json.loads(i18n_json.read_text(encoding="utf-8"))
+    assert data2.get("default_languages") == ["vi_VN", "en_US"], (
+        f"No-clobber failed: expected edited content to survive, got {data2}"
+    )
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
 def test_step40_spec_defaults_fill_missing_optional_fields(tmp_path):
     """40 apply fills defaults for optional fields (db_name, db_host, db_user, http_port).
 
