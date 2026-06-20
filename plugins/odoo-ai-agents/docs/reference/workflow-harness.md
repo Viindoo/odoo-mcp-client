@@ -21,8 +21,8 @@
    - [4.6 Plan Mode Content Schema](46-plan-mode-content-schema)
    - [4.7 Inventory discovery - hybrid SSOT rules](47-inventory-discovery--hybrid-ssot-rules)
 5. [Composition contract](#5-composition-contract)
-6. [Skill delegation depth rule](#6-skill-delegation-depth-rule)
-7. [Git-wave orchestration (depth-0)](#7-git-wave-orchestration-depth-0)
+6. [Skill delegation rule](#6-skill-delegation-rule)
+7. [Git-wave orchestration (orchestrating context)](#7-git-wave-orchestration-orchestrating-context)
 8. [Drive-to-done orchestration (Continuation Contract + run-driver)](8-drive-to-done-orchestration-continuation-contract--run-driver)
    - [8.1 North Star diagram](81-north-star-diagram)
    - [8.2 Continuation Contract](82-continuation-contract)
@@ -40,18 +40,18 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│  ENTRY / INTAKE LAYER  (depth 0)                                │
+│  ENTRY / INTAKE LAYER  (orchestrating context)                  │
 │  odoo-intake skill - Odoo front door                             │
 │  · Phase 0: 4-tier routing + intent gate (mandatory)           │
-│  · Phase R: read-only Recon (≤1-2 agents, depth-1, no writes)  │
+│  · Phase R: read-only Recon (≤1-2 agents, no writes)           │
 │  · Proposed Plan + soft-plan-gate                               │
 │  · Plan Mode (EnterPlanMode/ExitPlanMode) for writes-files      │
 │  · gate is BEHAVIORAL (in-skill) + Plan Mode - not a write-block │
 └───────────────────────────────────┬────────────────────────────┘
-                                    │ Skill tool (depth-0 canonical; NL-dispatch fallback)
+                                    │ Skill tool (orchestrating context canonical; NL-dispatch fallback)
                                     ▼
 ┌────────────────────────────────────────────────────────────────┐
-│  WORKFLOW LAYER  (depth 0 → 1)                                  │
+│  WORKFLOW LAYER  (dispatched-specialist)                        │
 │  Declarative *.workflow.yaml + workflow-chaining skill            │
 │  · maps one of 6 team-patterns to a gated phase sequence        │
 │  · phase gates: approve / refine / cancel between phases        │
@@ -61,7 +61,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
                                     │ NL-dispatch or context: fork (≤3)
                                     ▼
 ┌────────────────────────────────────────────────────────────────┐
-│  EXECUTION LAYER  (depth 1, max depth 2 for fork workers)       │
+│  EXECUTION LAYER  (leaf-worker)                                 │
 │  Specialist skills (odoo-coding, odoo-code-review, …)          │
 │  MCP tool calls (odoo-semantic-mcp server)                      │
 │  context: fork subagents - carry hard-rules line, no spawn      │
@@ -73,10 +73,8 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 - **1-orchestration-SSOT**: orchestration logic lives in one place - either a
   `*.workflow.yaml` file or a monolithic skill body. It is never duplicated between
   a command shim and a skill body.
-- **Depth-2 ceiling**: the call stack is at most
-  `main-context → workflow/skill (depth 1) → fork-worker (depth 2)`.
-  Fork workers carry the hard-rules line and never spawn further agents or invoke
-  the Skill tool.
+- **Nesting ceiling**: fork workers carry the hard-rules line and never spawn further
+  agents or invoke the Skill tool.
 - **No Claude Code Workflow (JS) tool**: this plugin orchestrates entirely through the
   Skill tool, the Agent tool, and the `run-driver` loop. It deliberately does NOT emit
   Claude Code Workflow (JS) scripts (the `Workflow` tool with `args` + `agent()`) for
@@ -103,7 +101,7 @@ artifacts are written here; nothing under `.odoo-ai/` is committed to the repo.
 | BRL job artifacts | `.odoo-ai/brl/<job-id>/` | `odoo-brl` skill |
 | Workflow phase state | `<output_dir>/<slug>-state.json` (output_dir is the full `.odoo-ai/...` path) | `workflow-chaining` |
 | QA artifacts | `.odoo-ai/qa/` | `qa-suite` workflow |
-| Wave plan artifact | `.odoo-ai/wave/<slug>/` | `wave` skill (depth-0) |
+| Wave plan artifact | `.odoo-ai/wave/<slug>/` | `wave` skill (orchestrating context) |
 
 Every new workflow declares its `output_dir` in its `*.workflow.yaml` file
 (see §5). `output_dir` is the full path (e.g. `.odoo-ai/qa`) and is the single
@@ -308,11 +306,11 @@ flag, `defaultMode` in settings) is separate from anything a skill can declare.
 However, this does **not** mean plan mode is unreachable from within a skill-driven
 flow:
 
-- **Main agent (depth-0) CAN call `EnterPlanMode` / `ExitPlanMode`** - these are
-  platform tools available to the main context. A skill running at depth-0 (e.g.,
-  `odoo-intake`) may instruct the main agent to invoke `EnterPlanMode` before any
-  file-touching execution, producing genuine UI-approved Plan Mode - a stronger
-  enforcement than a text gate.
+- **The orchestrating context CAN call `EnterPlanMode` / `ExitPlanMode`** - these are
+  platform tools available to the main context. A skill running in the orchestrating
+  context (e.g., `odoo-intake`) may instruct the main agent to invoke `EnterPlanMode`
+  before any file-touching execution, producing genuine UI-approved Plan Mode - a
+  stronger enforcement than a text gate.
 - **Subagents cannot call `EnterPlanMode`** - the tool is only reachable from the
   main context. `ExitPlanMode` is only available to a subagent whose `permissionMode`
   is already `plan`.
@@ -338,16 +336,18 @@ Run this before any execute-skill dispatch. Intake reads the chosen Approach's
 
 #### Intake-initiated Plan Mode pattern
 
-When a depth-0 skill (`odoo-intake`) reaches the execute phase after the user approves a
-Proposed Plan and the Approach `output_mode = writes-files`, the main agent calls
-`EnterPlanMode` → writes the implementation plan (see §4.6 Content Schema) for UI
-review → receives user approval via `ExitPlanMode` → then dispatches the
-file-touching specialist. This is a first-class enforcement option, not a workaround.
+When `odoo-intake` (running in the orchestrating context) reaches the execute phase
+after the user approves a Proposed Plan and the Approach `output_mode = writes-files`,
+the main agent calls `EnterPlanMode` → writes the implementation plan (see §4.6
+Content Schema) for UI review → receives user approval via `ExitPlanMode` → then
+dispatches the file-touching specialist. This is a first-class enforcement option, not
+a workaround.
 
 There is **no platform write-block** behind the gate. `odoo-intake` does not declare
 `disallowed-tools: Write Edit`, and the coders (`odoo-coding`)
 DO write/apply code - that is their job. The gate is enforced by two behavioral
-mechanisms, with Plan Mode as the strongest layer when depth-0 context is available:
+mechanisms, with Plan Mode as the strongest layer when the orchestrating context is
+available:
 
 1. **Anti-rationalize gate** in the skill body - behavioral: "no execution fires until the user
    has approved a Proposed Plan". Paired with a Red Flags table listing rationalizations
@@ -356,9 +356,9 @@ mechanisms, with Plan Mode as the strongest layer when depth-0 context is availa
    patch in its turn; the write follows the same turn once the approach is settled.
    This is a discipline, not a tool restriction.
 
-For skills that **cannot** rely on depth-0 context (e.g., skills invoked from inside
-a subagent), the behavioral anti-rationalize gate (mechanism 1) is the fallback when
-`EnterPlanMode` is not available; it is not the only option.
+For skills that **cannot** rely on the orchestrating context (e.g., skills invoked
+from inside a subagent), the behavioral anti-rationalize gate (mechanism 1) is the
+fallback when `EnterPlanMode` is not available; it is not the only option.
 
 ### 4.2 Gate template
 
@@ -382,7 +382,7 @@ Gate: approve / refine: [feedback] / cancel
 |-------|-----------|-------|
 | Behavioral | Anti-rationalize gate + Red Flags in skill body | Blocks writes-files dispatch until plan approved |
 | Coder discipline | Preview patch, then write in-turn | Coders apply code; no platform write-block |
-| Recon boundary | Phase R agents: read-only, depth-1, no spawn, no writes | Allows current-state survey without breaching gate |
+| Recon boundary | Phase R agents: read-only, no spawn, no writes | Allows current-state survey without breaching gate |
 | Plan Mode | `EnterPlanMode` / `ExitPlanMode` | Harness-level enforcement before writes-files execution |
 | Approval | `odoo-intake` ends turn; next user prompt enables writes | Write unlock |
 | Refine loop | Gate loops inside brainstorm; no writes until `approve` | Iteration |
@@ -396,8 +396,8 @@ On `cancel`: the skill stops and reports.
 **What intake CAN do before the gate closes**: Phase R read-only Recon - dispatching
 ≤1-2 read-only agents (Explore or read-only specialists) and calling read-only OSM
 tools (`model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`).
-Recon is depth-1, no file writes, no sub-agent spawning. This is NOT a breach of the
-gate; it feeds into the Proposed Plan's Findings (Recon) field.
+Recon agents are leaf-workers, no file writes, no sub-agent spawning. This is NOT a breach
+of the gate; it feeds into the Proposed Plan's Findings (Recon) field.
 
 ### 4.4 BRL-specific gates
 
@@ -450,14 +450,14 @@ Execute  (writes-files specialist dispatched via the Skill tool; the skill fans 
 
 | Constraint | Rule |
 |------------|------|
-| Depth | depth-1 (one hop from main context; these agents are leaves) |
+| Role | dispatched-specialist (leaf - launched by the orchestrating context) |
 | Nesting | Recon agents MUST NOT spawn further sub-agents |
 | File writes | PROHIBITED - Read/Grep/Glob/Bash (read-only) only |
 | OSM | Read-only calls allowed; if unreachable, fall back to disk (Read/Grep the local repo, WebFetch upstream source) per `disk-fallback-protocol.md` |
 | Count | ≤1-2 agents per Recon; not a fan-out pipeline |
 
-The nesting guard is described in full at
-`${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`. Every Recon agent brief MUST
+The worker brief is described in full at
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. Every Recon agent brief MUST
 include the mandatory hard-rules line from §6 (adapted to read-only: no Write/Edit,
 no Skill tool, no sub-agent spawn).
 
@@ -466,8 +466,8 @@ no Skill tool, no sub-agent spawn).
 Without Phase R, intake writes a Proposed Plan based only on user descriptions - it
 cannot confirm which modules exist, what the current hook points are, or what the
 blast radius of a change would be. Phase R answers these questions cheaply (read-only,
-depth-1) so the Proposed Plan's `Findings (Recon)` field is concrete rather than
-speculative. This is the same principle as `odoo-override-finding` confirming a hook
+dispatched as leaf-workers) so the Proposed Plan's `Findings (Recon)` field is concrete
+rather than speculative. This is the same principle as `odoo-override-finding` confirming a hook
 before `odoo-coding` writes the override.
 
 ---
@@ -671,14 +671,14 @@ fallback: standalone             # each phase documents OSM-down degradation inl
 
 ### 5.4 Six team-patterns and runner behavior
 
-| Pattern | Runner behavior | Depth |
-|---------|-----------------|-------|
-| **Pipeline** | Phases run sequentially; gate between each. Equivalent to existing command shape. | 0 → 1 |
-| **Fan-out / Fan-in** | A phase marked `fanout: true` with `chunk_by` splits input, fires N parallel `context: fork` workers (≤3 concurrent), then aggregates. Used by the BRL engine for chunk processing. | 0 → 1 → 2 |
-| **Expert-Pool** | `phases[].when:` predicate selects which specialist fires per item (e.g. `check_module_exists` for Standard, `model_inspect` for Custom). | 0 → 1 |
-| **Producer-Reviewer** | Two phases: `produce` + `review`. The review phase uses `agent: odoo-code-reviewer` in read-only mode ("report, never fix"). | 0 → 1 |
-| **Supervisor** | An `inline` supervisor phase distributes sub-tasks via NL-dispatch and collects results. | 0 → 1 |
-| **Hierarchical** | A top phase decomposes into a generated `phases[]` list bounded to one decomposition level - no recursion past depth 2. | 0 → 1 → 2 (max) |
+| Pattern | Runner behavior | Layer/role |
+|---------|-----------------|------------|
+| **Pipeline** | Phases run sequentially; gate between each. Equivalent to existing command shape. | orchestrating → dispatched-specialist |
+| **Fan-out / Fan-in** | A phase marked `fanout: true` with `chunk_by` splits input, fires N parallel `context: fork` workers (≤3 concurrent), then aggregates. Used by the BRL engine for chunk processing. | orchestrating → dispatched-specialist → leaf-worker |
+| **Expert-Pool** | `phases[].when:` predicate selects which specialist fires per item (e.g. `check_module_exists` for Standard, `model_inspect` for Custom). | orchestrating → dispatched-specialist |
+| **Producer-Reviewer** | Two phases: `produce` + `review`. The review phase uses `agent: odoo-code-reviewer` in read-only mode ("report, never fix"). | orchestrating → dispatched-specialist |
+| **Supervisor** | An `inline` supervisor phase distributes sub-tasks via NL-dispatch and collects results. | orchestrating → dispatched-specialist |
+| **Hierarchical** | A top phase decomposes into a generated `phases[]` list bounded to one decomposition level. | orchestrating → dispatched-specialist → leaf-worker (max) |
 
 **Fan-out ceiling**: `context: fork` workers carry the hard-rules line
 (`Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write.`)
@@ -697,12 +697,12 @@ Wired into `make validate`.
 
 ---
 
-## 6. Skill delegation depth rule
+## 6. Skill delegation rule
 
 ```
-main context (depth 0)
-  └── workflow skill / odoo-intake  (depth 1)
-        └── context: fork worker        (depth 2, ceiling)
+orchestrating context (main agent / run-driver / odoo-intake)
+  └── dispatched-specialist (workflow skill / spawner-agent skill)
+        └── leaf-worker (context: fork worker)
               └── NO further spawn. Hard-rules line mandatory.
 ```
 
@@ -713,17 +713,17 @@ Read/Write/Bash operations. It does NOT use the Agent tool and does NOT spawn wo
 Examples: `odoo-feature-check`, `odoo-gap-analysis`, `odoo-version-diff`, and the other
 leaf specialists.
 
-A **spawner-agent skill** (`spawn_class: spawner-agent`) is `depth0-only`: it runs in
-the depth-0 main context and dispatches a named agent via the **Agent tool** (depth 0→1).
-Because it is depth-0-only, it is itself launched via the **Skill tool** (by the main agent
-or by a depth-0 orchestrator like `run-driver`), never by Agent-tool'ing its name and never
+A **spawner-agent skill** (`spawn_class: spawner-agent`) runs in the orchestrating
+context and dispatches a named agent via the **Agent tool**. Because it requires the
+orchestrating context, it is itself launched via the **Skill tool** (by the main agent
+or by an orchestrator like `run-driver`), never by Agent-tool'ing its name and never
 by reading-and-imitating its SKILL.md. Examples: `odoo-code-review` (→ `odoo-code-reviewer`),
 `odoo-coding` (→ `odoo-coder` / `odoo-frontend-coder`), `odoo-debug`, `odoo-solution-design`,
 `odoo-ui-review`.
 
 A **spawn/orchestrator skill** orchestrates other skills or forks workers via `context: fork`.
 Examples: `odoo-brl` (forks DAG cluster workers), `wave` (worktree fan-out), `odoo-intake` /
-`run-driver` / `workflow-chaining` (depth-0 orchestrators that dispatch specialists).
+`run-driver` / `workflow-chaining` (orchestrators that dispatch specialists).
 
 ### Mandatory hard-rules line
 
@@ -734,22 +734,24 @@ Do NOT invoke Skill tool. Do NOT spawn sub-agent.
 Only Read/Grep/Glob/Write/Bash.
 ```
 
-Omitting this line is a depth-2 violation risk: a well-meaning worker that invokes
-a skill creates depth 3, which exceeds the platform ceiling.
+Omitting this line risks a nesting violation: a well-meaning worker that invokes
+a skill creates an extra layer that may exceed the platform ceiling.
 
 ### Dispatch method
 
-The **depth-0 main agent** and **depth-0 orchestrators** (`odoo-intake`, `run-driver`) dispatch a
-target skill via the **Skill tool** - this is the canonical, deterministic mechanism, and it is
-what lets a `depth0-only` spawner skill (`odoo-code-review`, `odoo-coding`, …) actually RUN its
-own orchestration in the main context. **NL description-match** (a natural-language prompt that
-matches the target skill's `description`) is the soft fallback.
+The **orchestrating context** (main agent and orchestrators like `odoo-intake`,
+`run-driver`) dispatches a target skill via the **Skill tool** - this is the canonical,
+deterministic mechanism, and it is what lets a spawner skill (`odoo-code-review`,
+`odoo-coding`, …) actually RUN its own orchestration in the main context.
+**NL description-match** (a natural-language prompt that matches the target skill's
+`description`) is the soft fallback.
 
-The "never the Skill tool" rule binds **depth≥1 fork-workers / subagents only**: a depth≥1 worker
-that invokes the Skill tool on a spawner skill creates depth-3, exceeding the platform ceiling -
-hence the mandatory hard-rules line above. (A subagent invoking the Skill tool on a *spawner*
-skill is the case to avoid; this is surfaced at runtime rather than hard-enforced.) The 5 existing
-command files use NL description-match within their workflow bodies and that is still fine.
+The "never the Skill tool" rule binds **leaf-workers / subagents** only: a
+leaf-worker that invokes the Skill tool on a spawner skill creates an extra nesting
+layer that may exceed the platform ceiling - hence the mandatory hard-rules line above.
+(A subagent invoking the Skill tool on a *spawner* skill is the case to avoid; this is
+surfaced at runtime rather than hard-enforced.) The 5 existing command files use
+NL description-match within their workflow bodies and that is still fine.
 
 ### Model-tier assignment
 
@@ -770,28 +772,28 @@ referencing skills via the marker-block or direct reference.*
 
 ---
 
-## 7. Git-wave orchestration (depth-0)
+## 7. Git-wave orchestration (orchestrating context)
 
 ### 7.1 What it is
 
-The `wave` skill is a **depth-0 git orchestrator** that lands multiple related
-work-item (WI) changes as one reviewed, squashed PR without ever touching the
-principal branch directly.
+The `wave` skill is a **git orchestrator** that lands multiple related work-item (WI)
+changes as one reviewed, squashed PR without ever touching the principal branch
+directly.
 
 ```
 principal branch (untouched throughout)
   |
   └── integration branch  (wave/integration-<slug>)
         |
-        ├── WI-A worktree  (wave/wi-<slug>-a)  ← Sonnet subagent, leaf depth-2
-        ├── WI-B worktree  (wave/wi-<slug>-b)  ← Sonnet subagent, leaf depth-2
-        └── WI-C worktree  (wave/wi-<slug>-c)  ← Sonnet subagent, leaf depth-2
+        ├── WI-A worktree  (wave/wi-<slug>-a)  ← Sonnet subagent, leaf-worker
+        ├── WI-B worktree  (wave/wi-<slug>-b)  ← Sonnet subagent, leaf-worker
+        └── WI-C worktree  (wave/wi-<slug>-c)  ← Sonnet subagent, leaf-worker
               |
               (cherry-pick A → B → C onto integration)
               |
-        end-of-wave Opus review  (inline, depth-0)
+        end-of-wave Opus review  (inline, orchestrating context)
               |
-        /code-review invoked inline from main context (depth-0)
+        /code-review invoked inline from main context
               |
         1 PR  (integration → principal)
               |
@@ -804,52 +806,52 @@ principal branch (untouched throughout)
 
 ### 7.2 Why wave is NOT a workflow-chaining team-pattern
 
-This is the **authoritative decision record** for why git-wave is a depth-0 skill,
-not a `team_pattern` inside the declarative workflow system.
+This is the **authoritative decision record** for why git-wave is an orchestrating-context
+skill, not a `team_pattern` inside the declarative workflow system.
 
-| Axis | workflow-chaining (depth-1) | wave skill (depth-0) |
-|------|--------------------------|----------------------|
-| Depth | Runs at depth 1; fork workers are depth-2 ceiling | Runs at depth 0; WI subagents are depth-2 ceiling |
+| Axis | workflow-chaining (dispatched-specialist) | wave skill (orchestrating context) |
+|------|------------------------------------------|-------------------------------------|
 | Git authority | None - runner does NL-dispatch only; no git ops | Full git authority: worktree add, cherry-pick, PR creation, squash, force-with-lease |
-| /code-review legality | Cannot call /code-review (self-spawn only legal at depth-0) | Calls /code-review inline from main context (depth-0) - the only legal call site |
+| /code-review legality | Cannot call /code-review (self-spawn only legal from the orchestrating context) | Calls /code-review inline from main context - the only legal call site |
 | State machine | Declarative phases in `.workflow.yaml`; runner executes them | Imperative phases (0-6) encoded in the skill body; git refs/worktrees ARE the state |
 | Coupling | Coupled to workflow schema; adding GitWave would require new `team_pattern: GitWave` + new runner branch + new yaml keys | Self-contained; no schema changes to existing runner or yaml format |
-| Crash risk | Injecting git orchestration into depth-1 runner would push fork workers to depth-3 - exceeds platform ceiling | Depth ceiling respected: 0 (wave) → 2 (WI subagent) |
+| Nesting risk | Injecting git orchestration into the workflow runner would push fork workers an extra level - risks exceeding the platform ceiling | Nesting ceiling respected: wave (orchestrating) → WI subagents (leaf-workers) |
 
-**Decision**: git-wave is a depth-0 actor that sits alongside `odoo-intake` at the top
-layer, not below `workflow-chaining`. This is final and must not be revisited without
-updating this section.
+**Decision**: git-wave is an orchestrating-context actor that sits alongside `odoo-intake`
+at the top layer, not below `workflow-chaining`. This is final and must not be revisited
+without updating this section.
 
 ### 7.3 Phase sequence (summary)
 
 | Phase | Action | Actor |
 |-------|--------|-------|
-| 0 - Discovery + plan gate | Read repo capability, draft WI ownership map, emit plan gate | wave (depth-0) |
-| 1 - Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration | wave (depth-0) |
-| 2 - Dispatch WI subagents | Parallel Sonnet subagents; each carries Phase-4 brief + nesting line | WI workers (depth-2) |
-| 3 - Cherry-pick + resolver | Cherry-pick A → B → C onto integration; Sonnet resolver if conflict | wave (depth-0) |
-| 4 - End-of-wave review | Inline Opus review (4.1) for plan-adherence + correctness, then `/code-review` invoked inline from main context (4.2) | wave (depth-0) |
-| 5 - PR + squash + tree-identity | Create 1 PR (integration → principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup | wave (depth-0) |
-| 6 - Human-confirm merge + cleanup | STOP and wait for explicit user approval before merge; remove worktrees/branches/wave dir after | human + wave (depth-0) |
+| 0 - Discovery + plan gate | Read repo capability, draft WI ownership map, emit plan gate | wave (orchestrating context) |
+| 1 - Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration | wave (orchestrating context) |
+| 2 - Dispatch WI subagents | Parallel Sonnet subagents; each carries Phase-4 brief + worker-brief line | WI workers (leaf-workers) |
+| 3 - Cherry-pick + resolver | Cherry-pick A → B → C onto integration; Sonnet resolver if conflict | wave (orchestrating context) |
+| 4 - End-of-wave review | Inline Opus review (4.1) for plan-adherence + correctness, then `/code-review` invoked inline from main context (4.2) | wave (orchestrating context) |
+| 5 - PR + squash + tree-identity | Create 1 PR (integration → principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup | wave (orchestrating context) |
+| 6 - Human-confirm merge + cleanup | STOP and wait for explicit user approval before merge; remove worktrees/branches/wave dir after | human + wave (orchestrating context) |
 
-### 7.4 Nesting rule for WI subagents (leaf depth-2)
+### 7.4 WI-brief for WI subagents (leaf-workers)
 
 Every WI subagent brief MUST contain the following line verbatim:
 
 ```
-You are a leaf worker (depth-2). You ARE the specialist - write/review the code yourself,
+You are a leaf worker. You ARE the specialist - write/review the code yourself,
 grounding every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is
 always allowed); follow the odoo-coding / odoo-code-review conventions
-but do NOT invoke those bundles. Do NOT invoke any depth0-only skill (odoo-coding,
+but do NOT invoke those bundles. Do NOT invoke any spawner skill (odoo-coding,
 odoo-code-review, odoo-ui-review, wave, odoo-intake, odoo-brl,
-workflow-chaining, /code-review, skill-creator) - they dispatch a fresh agent and are
-main-agent-only. You MAY NL-dispatch a genuinely non-spawning (leaf) skill (e.g.
-odoo-feature-check, odoo-override-finding) for a read-only lookup. Do NOT invoke the Skill tool
-to trigger a spawner. Do NOT spawn a sub-agent. Do NOT git branch/cherry-pick/merge/push; stay
-in your assigned worktree. Only Read/Grep/Glob/Edit/Write/Bash.
+workflow-chaining, /code-review, skill-creator) - they dispatch a fresh agent and must
+be launched from the orchestrating context only. You MAY NL-dispatch a genuinely
+non-spawning (leaf) skill (e.g. odoo-feature-check, odoo-override-finding) for a
+read-only lookup. Do NOT invoke the Skill tool to trigger a spawner. Do NOT spawn a
+sub-agent. Do NOT git branch/cherry-pick/merge/push; stay in your assigned worktree.
+Only Read/Grep/Glob/Edit/Write/Bash.
 ```
 
-This line is the boundary that prevents depth-3 violations. Omitting it is a
+This line is the boundary that prevents nesting violations. Omitting it is a
 hard-rules violation in the wave skill.
 
 ### 7.5 Scaling rule
@@ -873,7 +875,7 @@ The directory is cleaned up after a successful human-confirm merge.
 ## 8. Drive-to-done orchestration (Continuation Contract + run-driver)
 
 The harness turns a one-shot `/odoo-intake "<NL>"` into a self-advancing run: intake plans a DAG,
-`run-driver` (a depth-0 skill) walks it, each step emits a machine-readable **Continuation
+`run-driver` (an orchestrating skill) walks it, each step emits a machine-readable **Continuation
 Contract**, and the driver advances until DONE/BLOCKED/NEEDS_CONTEXT. This section is the SSOT
 for that mechanism. **It is additive** - every existing skill/agent/workflow keeps its current
 semantics; the only required change is appending a Continuation Contract block to each step's
@@ -891,20 +893,20 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
                        HUMAN
                          │  /odoo-intake "<NL>"  [--auto(default) | --step | --plan]
                          ▼
-┌──────────────── DEPTH 0 (MAIN = orchestrator + decision-maker ONLY) ─────────────────┐
+┌──────────────── ORCHESTRATING CONTEXT (MAIN = orchestrator + decision-maker ONLY) ────┐
 │  odoo-intake-planner: Tier1 regex → Tier2 resume → Tier3 keyword(40) → Tier4 LLM      │
 │     ├─ non-Odoo intent ─► route vault / other plugin / flag out-of-plugin (multi-plugin)│
 │     └─ Odoo intent ─► Phase R recon (≤2 read-only) ─► Phase P emit RUN-DAG             │
 │  present DAG ONCE ─► [Plan Mode gate if any writes-files node] ─► write run-<id>.json  │
 │        │                                                                               │
-│        ▼  run-driver (NEW skill, orchestrator-nl, depth0-only) - DRIVER LOOP           │
+│        ▼  run-driver (orchestrating skill) - DRIVER LOOP                               │
 │   while RUN.status == NEEDS_NEXT and within budget:                                    │
 │     node = pick_ready(DAG ∪ dynamic_nodes)         # topo-order; tie → confidence desc │
 │     tier = resolve_gate(node)                      # --step raises floor, --auto lowers L1│
 │       L2 → ALWAYS human gate ; L1 → auto-pass(--auto)/gate(--step) ; L0 → auto-pass    │
-│     dispatch(node):  (3a) leaf skill INLINE (depth 0)                                  │
-│                      (3b) spawner skill → Skill tool → skill spawns AGENT (depth 1)    │
-│                      (3c) workflow-chaining (depth 1) → fanout context:fork (depth 2)  │
+│     dispatch(node):  (3a) leaf skill INLINE (orchestrating context)                    │
+│                      (3b) spawner skill → Skill tool → skill launches subagent          │
+│                      (3c) workflow-chaining → fanout context:fork (leaf-workers)        │
 │     read Continuation Contract ; update run-<id>.json ; materialize next[] → dynamic   │
 │   stop ⇒ DONE | BLOCKED | NEEDS_CONTEXT  → report + evidence (Completion #8)           │
 └────────────────────────────────────────────────────────────────────────────────────────┘
@@ -950,9 +952,9 @@ blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 - **Back-compat:** a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line maps to
   `next: [{skill, reason, confidence: 0.5, risk_level: L0}]` with `status: NEEDS_NEXT`. This
   lets the rollout be gradual - an un-migrated skill still drives at low confidence.
-- **Depth safety:** a subagent only *emits* a contract; it never dispatches. Advancing is the
-  depth-0 driver's job. fanout/WI workers (depth 2) emit contracts that bubble up to their
-  depth-1 orchestrator, never self-fire.
+- **Nesting safety:** a subagent only *emits* a contract; it never dispatches. Advancing is the
+  run-driver's job. fanout/WI leaf-workers emit contracts that bubble up to their
+  dispatching orchestrator, never self-fire.
 
 ### 8.3 run-`<id>`.json blackboard
 
@@ -1069,7 +1071,7 @@ instantiated at run-time by the recipe.
 ### 8.6 Main Agent Operating Contract
 
 When a run is active (`.odoo-ai/run-<id>.json` exists with `status != DONE`), the main agent
-keeps its context clean by acting as orchestrator + decision-maker only - three layers, in
+keeps its context clean by acting as orchestrator + decision-maker only - three principles, in
 priority order:
 
 1. **Structure (primary):** the Contract + `run-<id>.json` are *summary* interfaces between

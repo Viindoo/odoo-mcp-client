@@ -23,7 +23,7 @@ so a later phase can look up *why* an earlier phase did what it did instead of r
   (e.g. the `<slug>-<date>` that `odoo-coding`/`odoo-code-review` write under), so the worklog
   sits beside the work it explains.
 - `<NNN>`: an ordering prefix for chronological sort. Use the zero-padded dispatch order when the
-  depth-0 orchestrator passed one in your brief; if it did not (the common case - most briefs carry
+  orchestrator passed one in your brief; if it did not (the common case - most briefs carry
   only the worklog dir, not a sequence number), fall back to a `date -u +%H%M%S` stamp, or your own
   short label when you have no shell. The HARD requirement is a UNIQUE filename per writer; the
   prefix only makes the sort best-effort, it is not a correctness invariant.

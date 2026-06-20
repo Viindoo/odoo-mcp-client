@@ -68,7 +68,7 @@ fi
 
 # SessionStart context injection: always surface the orchestration digest so the
 # planning/main agent knows up front which skills spawn subagents (never forbids a
-# legitimate spawn) and which are depth0-only. Tiny payload (~80 tokens), plugin-local,
+# legitimate spawn) and which require the orchestrating context. Tiny payload (~80 tokens), plugin-local,
 # no machine-specific data. SSOT: docs/reference/orchestration-digest.txt (generated).
 _plugin_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." 2>/dev/null && pwd)"
 _digest_file="${_plugin_root}/docs/reference/orchestration-digest.txt"

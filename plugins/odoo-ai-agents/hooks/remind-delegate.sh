@@ -46,6 +46,6 @@ done
 shopt -u nullglob
 [[ -n "$active_run" ]] || _pass    # no active run → not in drive-to-done mode → silent
 
-jq -cn --arg ctx "You are mid-run (active drive-to-done run in .odoo-ai/). As the depth-0 orchestrator, prefer delegating this $TOOL to a subagent/specialist so your context stays clean for decisions. This is only a reminder - proceed if you judge it right." \
+jq -cn --arg ctx "You are mid-run (active drive-to-done run in .odoo-ai/). As the orchestrator, prefer delegating this $TOOL to a subagent/specialist so your context stays clean for decisions. This is only a reminder - proceed if you judge it right." \
   '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"allow", additionalContext:$ctx}}'
 exit 0

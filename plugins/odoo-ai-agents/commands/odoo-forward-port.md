@@ -58,9 +58,8 @@ For **version-to-version API delta only** (no merge, no adapt): use `odoo-versio
    in conflicted AND merge-clean-but-source-touched files against the target surface before
    any adapt starts. This catches autosilent field breaks (no conflict marker, runtime crash).
 8. **NL-dispatch only.** This command fires the `odoo-run-forward-port` skill via NL.
-   NL-dispatch keeps this shim minimal (a Skill-tool call is equally valid for a depth-0
-   caller per nesting-guard; either path reaches the skill).
-9. **Depth-0 only.** Do not call this command from inside a subagent.
+   NL-dispatch keeps this shim minimal (a Skill-tool call is equally valid from the
+   orchestrating context; either path reaches the skill).
 
 ## $ARGUMENTS schema
 

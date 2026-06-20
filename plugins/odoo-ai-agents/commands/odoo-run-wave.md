@@ -1,7 +1,7 @@
 ---
 name: odoo-run-wave
 description: |
-  Kick off a depth-0 multi-subagent git-wave orchestration: integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge
+  Kick off a multi-subagent git-wave orchestration: integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge
 ---
 # /odoo-run-wave
 
@@ -36,9 +36,7 @@ For **in-context skill chaining** (no git): use `workflow-chaining` instead.
    worktrees.
 3. **Human-confirm merge.** The wave skill always stops before the final merge and waits
    for your explicit confirmation. Auto-merge is never allowed.
-4. **Depth-0 only.** This command invokes a depth-0 skill (self-spawning). Do not call it
-   from inside a subagent.
-5. **NL-dispatch only.** This command fires the `wave` skill via a natural-language prompt
+4. **NL-dispatch only.** This command fires the `wave` skill via a natural-language prompt
    matching the skill's description. The Skill tool is never used.
 
 ## Invocation
