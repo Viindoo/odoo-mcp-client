@@ -49,9 +49,9 @@ OSM_REQUIRED = {"wave", "workflow-chaining", "odoo-brl"}
 
 # Allowed enum values for the orchestration SSOT. A typo (e.g. "spawner_agent") must be a
 # loud finding, not a silent drop from the generated digest - otherwise the planner is told
-# a real spawner is safe to forbid, defeating the whole nesting guard this layer provides.
+# a real spawner is safe to forbid (typo enum lets the planner be deceived into thinking
+# the skill is a safe non-spawner).
 VALID_SPAWN_CLASS = {"leaf", "orchestrator-nl", "spawner-agent", "spawner-wave"}
-VALID_DEPTH_POLICY = {"any-depth", "depth0-only"}
 VALID_STACK = {"backend", "frontend", "fullstack", "none"}
 # output_mode drives the Plan-Mode decision; default_gate_tier drives the run-driver gate
 # policy. Both are SSOT here (replacing the hardcoded chat-only lists). output_mode is read
@@ -138,7 +138,7 @@ def main(argv: list[str]) -> int:
     #     link. Verify the SSOT targets on disk once.
     coding_guidelines_refs = [f"{CODING_GUIDELINES_ROOT}/INDEX.md"]
     coding_guidelines_refs += [f"{CODING_GUIDELINES_ROOT}/{v}/INDEX.md" for v in CODING_GUIDELINES_VERSIONS]
-    for rel in (f"snippets/{OSM_SNIPPET}.md", f"snippets/nesting-guard.md",
+    for rel in (f"snippets/{OSM_SNIPPET}.md", f"snippets/worker-brief.md",
                 DESIGN_DOC_PATH, "docs/reference/INSTANCE-LIFECYCLE.md",
                 "docs/reference/ODOO-TESTING.md", *coding_guidelines_refs):
         if not (PLUGIN_ROOT / rel).is_file():
@@ -149,14 +149,11 @@ def main(argv: list[str]) -> int:
         body = skill_body(name) or ""
         spawn_class = e.get("spawn_class", "")
         stack = e.get("stack", "none")
-        depth_policy = e.get("depth_policy", "")
 
         # 1b. Enum validity - a typo'd value silently drops the skill from the generated
-        #     spawner/depth0 digest (the planner is then misled), so treat it as a finding.
+        #     spawner digest (the planner is then misled), so treat it as a finding.
         if spawn_class not in VALID_SPAWN_CLASS:
             findings.append(f"[enum] '{name}' has invalid spawn_class '{spawn_class}' (not in {sorted(VALID_SPAWN_CLASS)})")
-        if depth_policy not in VALID_DEPTH_POLICY:
-            findings.append(f"[enum] '{name}' has invalid depth_policy '{depth_policy}' (not in {sorted(VALID_DEPTH_POLICY)})")
         if stack not in VALID_STACK:
             findings.append(f"[enum] '{name}' has invalid stack '{stack}' (not in {sorted(VALID_STACK)})")
 

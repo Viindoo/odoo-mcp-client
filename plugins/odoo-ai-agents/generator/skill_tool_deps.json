@@ -469,10 +469,9 @@
     }
   },
   "orchestration": {
-    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no Agent-tool spawn) | spawner-agent (dispatch a named agent at depth0->1) | spawner-wave (depth0->1->2 worktree fan-out). depth_policy: any-depth | depth0-only (must only be invoked from the main agent, never from a subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes .odoo-ai/ internal, auto-pass under --auto) | L2 (irreversible/outward: instance_touching or spawner-wave - ALWAYS human gate; dial cannot lower). Per-node override lives in run-<id>.json, not here.",
+    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no Agent-tool spawn) | spawner-agent (dispatches a named subagent) | spawner-wave (worktree fan-out with parallel subagents). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes .odoo-ai/ internal, auto-pass under --auto) | L2 (irreversible/outward: instance_touching or spawner-wave - ALWAYS human gate; dial cannot lower). Per-node override lives in run-<id>.json, not here.",
     "odoo-intake": {
       "spawn_class": "spawner-agent",
-      "depth_policy": "depth0-only",
       "spawns": [
         "(Phase R: ≤2 read-only recon agents - Explore or specialist in read-only mode; no writes, no further spawn)"
       ],
@@ -483,7 +482,6 @@
     },
     "odoo-deep-survey": {
       "spawn_class": "spawner-agent",
-      "depth_policy": "depth0-only",
       "spawns": [
         "(anonymous read-only fan-out workers via Agent tool, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under .odoo-ai/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B)"
       ],
@@ -494,7 +492,6 @@
     },
     "odoo-addon-diff": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -503,7 +500,6 @@
     },
     "odoo-brl": {
       "spawn_class": "spawner-agent",
-      "depth_policy": "depth0-only",
       "spawns": [
         "(conditional DAG workers when >10 large clusters)"
       ],
@@ -514,7 +510,6 @@
     },
     "odoo-campaign-plan": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -523,7 +518,6 @@
     },
     "odoo-capability-proof": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -532,7 +526,6 @@
     },
     "odoo-coding": {
       "spawn_class": "spawner-agent",
-      "depth_policy": "depth0-only",
       "spawns": [
         "odoo-coder",
         "odoo-frontend-coder",
@@ -545,7 +538,6 @@
     },
     "odoo-code-review": {
       "spawn_class": "spawner-agent",
-      "depth_policy": "depth0-only",
       "spawns": [
         "odoo-code-reviewer"
       ],
@@ -556,7 +548,6 @@
     },
     "odoo-competitive-brief": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -565,7 +556,6 @@
     },
     "odoo-content-draft": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -574,7 +564,6 @@
     },
     "odoo-customization-inventory": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -583,7 +572,6 @@
     },
     "odoo-deal-followup": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -592,7 +580,6 @@
     },
     "odoo-demo-recording": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -601,7 +588,6 @@
     },
     "odoo-deploy-checklist": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": true,
@@ -610,7 +596,6 @@
     },
     "odoo-deprecation-audit": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "backend",
       "instance_touching": false,
@@ -619,7 +604,6 @@
     },
     "odoo-discovery-summary": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -628,7 +612,6 @@
     },
     "odoo-feature-check": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -637,7 +620,6 @@
     },
     "odoo-feature-highlights": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -646,7 +628,6 @@
     },
     "odoo-frontend-design": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "frontend",
       "instance_touching": false,
@@ -655,7 +636,6 @@
     },
     "odoo-gap-analysis": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -664,7 +644,6 @@
     },
     "odoo-objection-handling": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -673,7 +652,6 @@
     },
     "odoo-onboarding": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -682,7 +660,6 @@
     },
     "odoo-override-finding": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "backend",
       "instance_touching": false,
@@ -691,7 +668,6 @@
     },
     "odoo-solution-design": {
       "spawn_class": "spawner-agent",
-      "depth_policy": "depth0-only",
       "spawns": ["odoo-solution-architect"],
       "stack": "fullstack",
       "instance_touching": false,
@@ -700,7 +676,6 @@
     },
     "odoo-qa-suite": {
       "spawn_class": "orchestrator-nl",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": true,
@@ -709,7 +684,6 @@
     },
     "odoo-risk-overview": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -718,7 +692,6 @@
     },
     "odoo-support-triage": {
       "spawn_class": "orchestrator-nl",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -727,7 +700,6 @@
     },
     "odoo-ui-review": {
       "spawn_class": "spawner-agent",
-      "depth_policy": "depth0-only",
       "spawns": [
         "odoo-ui-reviewer"
       ],
@@ -738,7 +710,6 @@
     },
     "odoo-version-diff": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "backend",
       "instance_touching": false,
@@ -747,7 +718,6 @@
     },
     "odoo-visual-regression": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "frontend",
       "instance_touching": false,
@@ -756,7 +726,6 @@
     },
     "wave": {
       "spawn_class": "spawner-wave",
-      "depth_policy": "depth0-only",
       "spawns": [
         "(per-WI leaf workers over worktrees)"
       ],
@@ -767,7 +736,6 @@
     },
     "workflow-chaining": {
       "spawn_class": "orchestrator-nl",
-      "depth_policy": "depth0-only",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -776,7 +744,6 @@
     },
     "run-driver": {
       "spawn_class": "orchestrator-nl",
-      "depth_policy": "depth0-only",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -785,7 +752,6 @@
     },
     "odoo-test-writing": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "backend",
       "instance_touching": false,
@@ -794,7 +760,6 @@
     },
     "odoo-security-audit": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "backend",
       "instance_touching": false,
@@ -803,7 +768,6 @@
     },
     "odoo-data-migration": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "backend",
       "instance_touching": false,
@@ -812,7 +776,6 @@
     },
     "odoo-perf-audit": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "backend",
       "instance_touching": false,
@@ -821,7 +784,6 @@
     },
     "odoo-pricing-proposal": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -830,7 +792,6 @@
     },
     "odoo-rfp-response": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -839,7 +800,6 @@
     },
     "odoo-customer-health": {
       "spawn_class": "leaf",
-      "depth_policy": "any-depth",
       "spawns": [],
       "stack": "none",
       "instance_touching": false,
@@ -848,7 +808,6 @@
     },
     "odoo-debug": {
       "spawn_class": "spawner-agent",
-      "depth_policy": "depth0-only",
       "spawns": [
         "odoo-backend-debugger",
         "odoo-ui-debugger"
@@ -860,7 +819,6 @@
     },
     "odoo-run-forward-port": {
       "spawn_class": "spawner-agent",
-      "depth_policy": "depth0-only",
       "spawns": [
         "odoo-intent-extractor (read-only per-commit; model per complexity)",
         "odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees)"
