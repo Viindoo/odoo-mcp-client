@@ -7,10 +7,10 @@ description: >-
   odoo-intake AFTER the user explicitly approves a deep survey via the `deep-survey`
   gate keyword - it is NOT a front door and NEVER auto-triggers on a bare prompt. DO NOT
   trigger when: the user has not opted into a deep survey; the intent is a single-file or
-  single-symbol lookup that Phase R recon already covers; you run at depth>=1 (a subagent
-  must never invoke this depth-0 spawner). It is read-only - discovering scope, ranking
-  hot-spots against the stated intent, mapping bidirectional impact, and handing a
-  synthesis back to odoo-intake to re-propose a sharper plan
+  single-symbol lookup that Phase R recon already covers; it must be invoked via the Skill
+  tool from the main context (not from inside a subagent). It is read-only - discovering
+  scope, ranking hot-spots against the stated intent, mapping bidirectional impact, and
+  handing a synthesis back to odoo-intake to re-propose a sharper plan
 model: opus
 ---
 
@@ -22,10 +22,10 @@ finding must be actionable without re-derivation: a `file:line` pointer or OSM c
 
 ## Persona
 
-Read-only reconnaissance orchestrator. Runs at depth-0 (loaded by the **Skill tool** from the
-main context) and fans out anonymous worker agents to map "can the codebase actually meet this
-intent, and where does the work land?" - at three escalating tiers of cost and depth. Writes
-analysis artifacts under `.odoo-ai/survey/`; never writes Odoo source.
+Read-only reconnaissance orchestrator. Loaded by the **Skill tool** from the main context, it
+fans out anonymous worker agents to map "can the codebase actually meet this intent, and where
+does the work land?" - at three escalating tiers of cost and depth. Writes analysis artifacts
+under `.odoo-ai/survey/`; never writes Odoo source.
 
 ## When this runs (opt-in only)
 
@@ -45,9 +45,9 @@ plan. It is heavy (many subagents, real tokens), which is why it is opt-in and n
 
 ## Hard rules
 
-1. **Depth-0 only.** This skill spawns workers (depth 0→1); it MUST run in the main context. If
-   you detect depth>=1, decline - a subagent dispatching this spawner would breach the depth-2
-   ceiling.
+1. **Main-context spawner.** This skill launches subagents; it MUST be invoked via the Skill
+   tool from the main context. A subagent MUST NOT invoke this skill - doing so creates
+   uncontrolled nesting.
 2. **Read-only.** Workers read Odoo source and call read-only OSM tools. The ONLY writes are this
    skill's own analysis artifacts under `.odoo-ai/survey/` and worklog entries under
    `.odoo-ai/worklog/`. No edits to Odoo source, no routed deliverable.
@@ -59,8 +59,8 @@ plan. It is heavy (many subagents, real tokens), which is why it is opt-in and n
 
 ## Fan-out budget
 
-Workers are dispatched via the **Agent tool**, one per scope unit, `general-purpose` type, model
-set per phase (haiku / sonnet / opus). No custom agentType; model alone varies by phase
+Workers are launched as subagents, one per scope unit, `general-purpose` type, model set per
+phase (haiku / sonnet / opus). No custom agentType; model alone varies by phase
 (`docs/reference/workflow-harness.md` §8.5).
 
 Concurrency follows **Mode B (model-weighted budget)** in
@@ -147,10 +147,10 @@ worklog.
 
 ## Worker brief - what every dispatched worker must carry
 
-A worker is a depth-1 subagent that **cannot resolve `${CLAUDE_PLUGIN_ROOT}` itself** - the
+A worker is a leaf subagent that **cannot resolve `${CLAUDE_PLUGIN_ROOT}` itself** - the
 orchestrator must **read referenced snippets and paste their content into the brief**.
 
-1. **Nesting guard** - inline full text of `${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`
+1. **Worker brief** - inline full text of `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
    (leaf: no Skill tool, no sub-agent spawn; read-only on Odoo source; only Write is own findings
    file; OSM calls are always allowed).
 2. **Scope, hard** - the one module / hot-spot / knot, with explicit files in scope.
@@ -216,8 +216,8 @@ truth; `state.json` is the fast index).
 - **NEVER write Odoo source or the routed deliverable.** Analysis artifacts under `.odoo-ai/` only.
 - **NEVER auto-trigger.** This skill exists to be invoked by `odoo-intake` after the `deep-survey`
   opt-in. It is not a front door and does not classify intent - that is `odoo-intake`'s job.
-- **NEVER spawn deeper than depth-1.** Workers are leaves; they do not invoke the Skill tool or
-  spawn sub-agents (nesting guard).
+- **NEVER spawn from workers.** Workers are leaves; they do not invoke the Skill tool or
+  spawn sub-agents (see worker-brief).
 - **NEVER escalate to opus without a measurable trigger** (§ Phase 3). Default is stop-and-synthesize.
 
 ## Standalone-first fallback

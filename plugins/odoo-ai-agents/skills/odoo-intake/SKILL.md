@@ -53,7 +53,7 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
 1. **Gate before execution.** Intake MAY write planning/design artifacts (brainstorm notes, design docs, `state.json`) during the plan turn. What it MUST NOT do before the Proposed Plan is approved: produce the routed deliverable (production code, generated proposals) or dispatch a `writes-files` specialist.
 2. **No `writes-files` specialist before Plan Mode is approved.** Three points, none optional:
    - (a) Never run `odoo-coding`, `wave`, `odoo-brl`, `workflow-chaining`, or any `output_mode = writes-files` skill before approval. Before approval, only describe it in the Proposed Plan.
-   - (b) Phase R MAY dispatch a READ-ONLY agent via the Agent tool (`Explore`, or a specialist in read-only mode - e.g. `odoo-feature-check`, `odoo-override-finding`) to survey current state. That agent MUST NOT write any file and MUST NOT spawn further (nesting guard - see `${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`). Read-only OSM calls (`model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`) are likewise allowed.
+   - (b) Phase R MAY dispatch a READ-ONLY agent via the Agent tool (`Explore`, or a specialist in read-only mode - e.g. `odoo-feature-check`, `odoo-override-finding`) to survey current state. That agent MUST NOT write any file and MUST NOT spawn further (see `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). Read-only OSM calls (`model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`) are likewise allowed.
    - (c) A `writes-files` specialist is dispatched ONLY after Plan Mode approval, by the main agent via the **Skill tool** (not Agent tool - see § Dispatch mechanism, § Plan Mode).
 3. **Phase 0 - Context, Detect & Clarify (mandatory).** Runs at the start of every invocation. Closes the **intent gate** before anything else proceeds.
 
@@ -84,7 +84,7 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
    **3d. GATE - Intent / Purpose / Expected outcomes (MANDATORY).** All three MUST be clear before Phase R may run: **what** the user wants, **why**, and **what done looks like**. Resolve any gap with **pre-structured options** (e.g. "Is the goal (a) ship a code change, (b) scope a proposal, (c) produce marketing copy?"), never an open-ended "what do you want?". **If intent / purpose / expected outcomes are not all clear, you MUST NOT proceed to Phase R.**
 
 4. **Confidentiality (public repo - 8 banned groups).** Do not surface, quote, or transmit: CEO personal info, customer PII/contracts, internal pricing, competitor intelligence beyond public sources, product roadmap details, marketing-in-draft, OKR/targets, vault paths. If a user prompt contains such data, acknowledge intent only - do not echo it.
-5. **Depth-0 only.** This skill MUST NOT be called from inside another skill or subagent. If you detect you are running at depth > 0, decline and inform the caller.
+5. **Main-context only.** This skill is the front door and orchestrator; it MUST NOT be called from inside a subagent. It owns the EnterPlanMode / ExitPlanMode gates and the initial routing decision.
 
 ## Anti-rationalize gate
 
@@ -118,7 +118,7 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 
 `model_tier` lives in frontmatter and `effort` is per-task - NEVER copy either into a registry.
 
-**Hard limits**: read-only, **depth-1** (leaf - must not spawn further; full text `${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`), no file writes. If OSM is unreachable, proceed on user-provided context (standalone).
+**Hard limits**: read-only, leaf - must not spawn further (see `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`), no file writes. If OSM is unreachable, proceed on user-provided context (standalone).
 
 ## Plan Mode - harness-level pre-execute gate
 
@@ -130,7 +130,7 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 
 **When it applies**: after user approves the Proposed Plan AND the next step is an execute-skill that will **write or modify files** - specifically `odoo-coding`, `wave`, `odoo-brl`, `workflow-chaining`, or any skill whose output column is NOT "chat only".
 
-**Why intake can do this**: intake runs at depth-0 (main context). `EnterPlanMode` / `ExitPlanMode` are only callable from the main context - subagents cannot invoke them. Intake MUST be the one to initiate Plan Mode.
+**Why intake can do this**: `EnterPlanMode` / `ExitPlanMode` are harness-level tools callable by the orchestrating agent. Intake MUST be the one to initiate Plan Mode.
 
 **Does NOT apply** for: `odoo-feature-check`, `odoo-version-diff`, `odoo-risk-overview`, `odoo-deprecation-audit`, `odoo-gap-analysis`, `odoo-discovery-summary`, `odoo-capability-proof`, `odoo-objection-handling`, `odoo-content-draft`, `odoo-competitive-brief`, any `chat-only` skill. Also NOT: `odoo-deep-survey`, `odoo-code-review`, `odoo-debug` (skip Plan Mode by design).
 
@@ -155,13 +155,13 @@ The implementation plan written inside Plan Mode (step 3 above) MUST contain thr
 
 ## Dispatch mechanism - Skill tool, not Agent tool
 
-| Target | What it is | How the depth-0 main agent dispatches it |
+| Target | What it is | How the main agent dispatches it |
 |---|---|---|
-| a **skill** (`leaf` or `spawner-agent`/`spawner-wave`) - e.g. `odoo-code-review`, `odoo-coding`, `odoo-feature-check`, `wave` | a **skill**, NOT an agentType | **Skill tool** (deterministic). For a `spawner-agent` skill this runs the skill in the depth-0 main context so the skill itself fans out its agent(s) at depth-1. |
+| a **skill** (`leaf` or `spawner-agent`/`spawner-wave`) - e.g. `odoo-code-review`, `odoo-coding`, `odoo-feature-check`, `wave` | a **skill**, NOT an agentType | **Skill tool** (deterministic). For a `spawner-agent` skill the Skill tool loads it in the main context so the skill itself fans out its own subagents. |
 | a **workflow** - e.g. `qa-suite`, `video-produce` | a `*.workflow.yaml` | its **command** / NL-dispatch |
 | a **command** - e.g. `/odoo-respond-bid` | a slash command | the user's slash kickoff / its command |
 
-A skill is not an agentType, so Agent-tool'ing a skill name fails (and forces the read-and-imitate anti-pattern). A `spawner-agent` skill is `depth0-only` - the Skill tool loads it in the depth-0 main context so it can fan out its own agents at depth-1. The **only** Agent-tool use inside intake is Phase R read-only Recon. Full rationale: `references/maintainers.md`.
+A skill is not an agentType, so Agent-tool'ing a skill name fails (and forces the read-and-imitate anti-pattern). A `spawner-agent` skill must run in the main context so the Skill tool can load it there and let it launch subagents. The **only** Agent-tool use inside intake is Phase R read-only Recon. Full rationale: `references/maintainers.md`.
 
 ## Phase P - RUN-DAG persistence + drive-to-done (optional, additive)
 
@@ -253,7 +253,7 @@ Enforcement stack:
 ### Deep survey (opt-in)
 
 On `deep-survey`:
-1. Invoke **`odoo-deep-survey` via the Skill tool** (a `depth0-only` `spawner-agent` skill - intake at depth-0 loads it in the main context so it fans out workers at depth-1). Pass it the closed intent/purpose/outcomes, the resolved Odoo version + profile, the feature slug, and the first Proposed Plan.
+1. Invoke **`odoo-deep-survey` via the Skill tool** (a `spawner-agent` skill - the Skill tool loads it in the main context so it fans out workers as subagents). Pass it the closed intent/purpose/outcomes, the resolved Odoo version + profile, the feature slug, and the first Proposed Plan.
 2. **No Plan Mode.** `deep-survey` writes only analysis artifacts under `.odoo-ai/survey/` (never the routed deliverable), and the `deep-survey` keyword IS the human gate.
 3. When it returns a `synthesis.md` path, **re-propose** the Proposed Plan: fill the `Survey:` field with that path; update `Approach` / `Chain` / `Findings` / `Workitems` / `Est. effort` from the synthesis. Re-gate with `approve / refine / cancel` - **drop `deep-survey`** from the re-proposed gate (survey runs at most once).
 4. Downstream execute-skills read `synthesis.md` (carried in `Survey:` and, for a RUN-DAG, in the `run-<id>.json` node inputs).
@@ -303,7 +303,7 @@ Use this as Tier-3 keyword routing. Pick the **single best match** based on inte
 | 37 | "deal close cycle", "full sales closing cycle", "multi-step deal closing", "sales follow-up sequence end-to-end", "close this deal from discovery to signature" | `sales-closing-cycle` (workflow) | End-to-end deal-closing pipeline (vs `odoo-deal-followup` which is a single email draft, vs `/odoo-respond-bid` which produces an RFP response document) |
 | 38 | "long debug session", "investigate phiên dài", "multi-turn UI debug", "ui-debug-session", "sustained troubleshooting session for Odoo UI" | `ui-debug-session` (workflow) | Sustained multi-turn UI debug session with state tracking (vs `odoo-debug` which is a single-turn root-cause investigation) |
 | 39 | "content brief to publish", "full content production", "content from brief to done", "multi-step content workflow", "brief → draft → review → publish" | `content-production` (workflow) | End-to-end content pipeline: brief → draft → review → publish (vs `odoo-content-draft` which is single-piece draft only, vs `odoo-campaign-plan` which plans the campaign, not produces the pieces) |
-| 40 | "do this as a wave", "parallelize these changes", "multi-WI PR with review and squash", "land N related changes safely without touching main", "git-wave orchestration", "split this work into parallel worktrees" | `wave` | Depth-0 git-wave orchestration: integration branch + parallel WI worktrees + cherry-pick + end-of-wave review + 1 PR + squash + human-confirm merge (vs `odoo-coding` which handles a SINGLE change with no git orchestration; vs `odoo-brl` which classifies/costs requirements but writes NO code) |
+| 40 | "do this as a wave", "parallelize these changes", "multi-WI PR with review and squash", "land N related changes safely without touching main", "git-wave orchestration", "split this work into parallel worktrees" | `wave` | Git-wave orchestration: integration branch + parallel WI worktrees + cherry-pick + end-of-wave review + 1 PR + squash + human-confirm merge (vs `odoo-coding` which handles a SINGLE change with no git orchestration; vs `odoo-brl` which classifies/costs requirements but writes NO code) |
 | 41 | "design the solution", "thiết kế giải pháp / phân tích thiết kế", "how should I architect / structure this", "which approach", "design the data model", "plan the refactor", "design before we code", "technical design", "architecture decision" | `odoo-solution-design` | Designs HOW to build a non-trivial change into a gate-able design doc BEFORE coding (vs `odoo-coding` which WRITES code, vs `odoo-override-finding` which answers ONE method's hook location, vs `odoo-brl`/`odoo-gap-analysis` which classify WHAT to build + cost). Discriminator: user wants a designed/approved approach, not yet the code |
 | 42 | "implement this feature end-to-end", "from requirement to working code", "design then build then review", "scope → design → code → review" | `odoo-implement-feature` (workflow) | End-to-end feature pipeline: gap/brl → solution-design → odoo-coding → code-review (vs `odoo-solution-design` which produces ONLY the design, vs `odoo-coding` which writes ONE change with no design/review phases) |
 | 43 | "make this Odoo UI look good", "design the form/kanban/list", "this screen looks cluttered/off", "thiết kế giao diện Odoo đẹp đúng chuẩn", "đúng design-system Odoo", "design a clean portal page" | `odoo-frontend-design` | Knowledge-only DESIGN-QUALITY expertise for Odoo UI/UX (view-type choice, form hierarchy, semantic tokens, website/portal) - loaded by solution-design/odoo-coding and the bar ui-review rates against (vs `odoo-coding` which WRITES the JS/OWL/SCSS, vs `odoo-ui-review` which RATES a rendered screen in a browser) |
@@ -370,4 +370,4 @@ Design rationale, the 5-phase flow, inventory-discovery SSOT rules, the routing-
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive output for the depth-0 run-driver - it does not change anything produced above.
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive output for the run-driver - it does not change anything produced above.

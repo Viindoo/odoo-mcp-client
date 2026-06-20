@@ -6,7 +6,7 @@ when changing intake's structure, the routing table, or the harness wiring.
 - **5-phase flow**: Phase 0 (Context, Detect & Clarify - closes the intent/purpose/outcomes
   gate + 4 detect branches) → **Phase R (Recon, read-only)** → Proposed Plan
   (context-rich) → Plan Mode (workitem + DAG + assignment) → Execute. Phase R dispatches
-  ≤1-2 read-only agents (depth-1, no writes, no spawn) to survey current state before the plan
+  ≤1-2 read-only agents (leaf subagents, no writes, no spawn) to survey current state before the plan
   is written.
 - **Inventory discovery is hybrid, SSOT-respecting**: skill/agent/command existence + description
   come from runtime context; `output_mode` from the explicit `orchestration.<skill>.output_mode`
@@ -26,11 +26,10 @@ when changing intake's structure, the routing table, or the harness wiring.
   outright; Agent-tool'ing the bare underlying agent instead would launch it but **bypass the
   skill's own orchestration** (topology decision, agent fan-out, synthesis - e.g.
   `odoo-code-review`'s module-count topology + fan-out + synthesis), forcing the read-and-imitate
-  anti-pattern. A `spawner-agent` skill is `depth0-only` and must run in the depth-0 main context so
-  the Skill tool can load it there and let it spawn its own agents (`odoo-code-reviewer`,
-  `odoo-coder`, …) at depth-1. The depth-0 main agent IS allowed to call the Skill tool; the
-  plugin's "never the Skill tool" rule binds depth≥1 subagents/fork-workers only (a subagent calling
-  the Skill tool on a spawner skill would nest past the depth-2 ceiling).
+  anti-pattern. A `spawner-agent` skill must run in the main context so the Skill tool can load it
+  there and let it launch subagents (`odoo-code-reviewer`, `odoo-coder`, …). The main agent IS
+  allowed to call the Skill tool; the plugin's "never the Skill tool" rule binds subagents/fork-workers
+  only (a subagent calling the Skill tool on a spawner skill would create uncontrolled nesting).
 - Routing table currently lists 43 entries (rows 1-13 = Phase A/B core; rows 14-21 = Phase B
   sales+marketing+engineering; rows 22-27 = Phase D commands; rows 28-32 = Phase E visual;
   rows 33-40 = Phase E+ BRL flagship + workflow domains + wave; rows 41-43 = solution-design,
@@ -38,7 +37,7 @@ when changing intake's structure, the routing table, or the harness wiring.
   when adding entries.
 - **Deep survey gate (opt-in)**: after the Proposed Plan, the gate offers `deep-survey` on
   *large* jobs. It is the heavy alternative to the light Phase R recon - `odoo-deep-survey` (a
-  `depth0-only spawner-agent`, invoked via the Skill tool) fans out broad-haiku → narrow-sonnet →
+  `spawner-agent`, invoked via the Skill tool from the main context) fans out broad-haiku → narrow-sonnet →
   optional-opus workers and returns a `synthesis.md` that intake folds into the `Survey:` field and
   a re-proposed plan. It is the ONE `writes-files` skill intake dispatches WITHOUT Plan Mode: it
   writes only `.odoo-ai/survey/` analysis (not the routed deliverable) and the `deep-survey` keyword

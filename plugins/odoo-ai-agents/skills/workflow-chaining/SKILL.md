@@ -25,15 +25,15 @@ a user approves a multi-step workflow plan at the soft-plan-gate.
 
 1. **NEVER invoke the Skill tool.** Cross-skill dispatch uses NL description-match only.
 2. **NEVER spawn a sub-agent directly** (no Agent tool, no `context: fork` - fan-out is the
-   only exception, ≤3 concurrent workers with the mandatory nesting-guard line).
-3. **Depth-2 ceiling.** This skill runs at depth 1. Fork workers are depth 2 and carry:
+   only exception, ≤3 concurrent workers with the mandatory worker-brief preamble).
+3. **No recursion.** Fork workers are leaf agents and carry:
    "Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash."
 4. **No execution before gate.** Emit a gate before each phase; wait for approval.
 5. **Resume from checkpoint.** If `resume: true` and `<output_dir>/<slug>-state.json` exists
    (`output_dir` is the full `.odoo-ai/...` path from the YAML), load it and skip done phases.
 6. **SSOT for schema** → `workflows/_schema.md`. This body describes behavior, not schema.
 7. **on_complete EMITs, never dispatches.** Matched transitions go to Continuation Contract
-   `next[]` for the depth-0 run-driver - this skill never fires a spawner itself.
+   `next[]` for the run-driver - this skill never fires a spawner itself.
 
 ## Phase 0 - Load and validate
 
@@ -92,8 +92,8 @@ phase boundaries remain clearly visible throughout a multi-phase run.
 For phases marked `fanout: true` with a `chunk_by` field:
 1. Split input into chunks per `chunk_by`.
 2. Cap at 3 concurrent workers (Mode A - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).
-3. Each worker prompt MUST begin with the nesting guard
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/nesting-guard.md`). For Odoo-touching workers also inline
+3. Each worker prompt MUST begin with the worker brief
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). For Odoo-touching workers also inline
    the OSM-First Grounding Contract (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`).
 4. Aggregate worker results before proceeding.
 
@@ -115,7 +115,7 @@ inline before writing to `output_dir`.
 ### Hierarchical (one decomposition level, bounded)
 
 Top phase decomposes work into a sub-`phases[]` list at runtime, then executes as a Pipeline.
-**Bounded to one level** - sub-phases cannot decompose further (no recursion past depth 2).
+**Bounded to one level** - sub-phases cannot decompose further (no recursion).
 
 ## Inline phase handling
 
@@ -149,8 +149,8 @@ phase outputs; the key MUST have surfaced in that phase's output). For every mat
 **add it to your Continuation Contract `next[]`** (`next → skill`, `reason`, `inputs`,
 `gate_tier → risk_level`). Example: a `qa-suite` run that found bugs emits `next: odoo-coding`.
 
-**HARD RULE - EMIT, never self-dispatch.** `on_complete` only *emits* `next[]`. This skill runs
-at depth 1 and MUST NOT invoke a depth0-only spawner - the depth-0 run-driver dispatches it.
+**HARD RULE - EMIT, never self-dispatch.** `on_complete` only *emits* `next[]`. This skill MUST NOT
+invoke a spawner - the run-driver dispatches it.
 If no `on_complete` is declared, or none matches, finish normally (back-compatible).
 
 **No driver above - degrade honestly.** If running WITHOUT an active run-driver (e.g. invoked
@@ -185,4 +185,4 @@ If the odoo-semantic-mcp server is unreachable:
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the depth-0 run-driver - it does not change anything produced above.
+output for the run-driver - it does not change anything produced above.
