@@ -224,3 +224,71 @@ class TestNew1LintOnlyLane:
         assert "installable" in text, (
             "fp-triage-table.md must mention installable flag in its gate"
         )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 6 - B1: a large bucket-(c) cluster that is an upgrade-scale
+# re-implement must hit an explicit defer-or-do gate, not be silently adapted
+# as a mechanical port. Canonical in fp-triage-table.md; surfaced in SKILL.md.
+# ---------------------------------------------------------------------------
+
+class TestB1UpgradeScaleGate:
+    """Bucket (c) covers a 3-line fix and a 500-line rewrite alike; the B1 gate
+    forces a defer-or-do choice when the cluster is an upgrade-scale re-implement."""
+
+    def test_triage_table_defines_upgrade_scale_gate(self):
+        """fp-triage-table.md must define the B1 upgrade-scale defer-or-do gate."""
+        text = TRIAGE_TABLE.read_text(encoding="utf-8")
+        assert "upgrade-scale" in text.lower(), (
+            "fp-triage-table.md missing the B1 upgrade-scale gate"
+        )
+        assert "200 LOC" in text, (
+            "B1 gate must state the ~200 LOC new OWL/JS threshold"
+        )
+        assert "(a) defer" in text and "(b) do now" in text, (
+            "B1 gate must present the explicit defer-or-do options"
+        )
+
+    def test_skill_md_surfaces_b1_gate_in_flow(self):
+        """SKILL.md must surface the B1 gate so the bucket-(c) scale check fires."""
+        text = SKILL_MD.read_text(encoding="utf-8")
+        assert "upgrade-scale" in text.lower(), (
+            "SKILL.md missing the bucket-(c) upgrade-scale gate (B1)"
+        )
+        assert "B1" in text, (
+            "SKILL.md must name the B1 gate so it is discoverable in the triage flow"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 7 - MED-7 (second half): absorb-all merges resolve conflicts in the
+# integration worktree (a child worktree off the uncommitted HEAD cannot see
+# them); child-worktree fan-out is the per-commit case only.
+# ---------------------------------------------------------------------------
+
+class TestMED7AbsorbAllWorktree:
+    """The per-commit child-worktree fan-out must be distinguished from the
+    absorb-all case where conflicts live in the integration working tree."""
+
+    def test_phase_detail_clarifies_absorb_all_worktree(self):
+        """fp-phase-detail.md P4 must clarify absorb-all vs per-commit worktree handling."""
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        low = text.lower()
+        assert "absorb-all" in low, (
+            "fp-phase-detail.md missing the absorb-all worktree clarification (MED-7)"
+        )
+        assert "MED-7" in text, "fp-phase-detail.md must tag the rule MED-7"
+        assert "per-commit" in low, (
+            "MED-7 clarification must contrast absorb-all with the per-commit case"
+        )
+        assert "integration worktree" in low, (
+            "MED-7 must say absorb-all conflicts resolve in the integration worktree"
+        )
+
+    def test_skill_md_surfaces_absorb_all_exception(self):
+        """SKILL.md WORK-tier must surface the absorb-all exception (MED-7)."""
+        text = SKILL_MD.read_text(encoding="utf-8")
+        assert "absorb-all" in text.lower(), (
+            "SKILL.md missing the absorb-all child-worktree exception (MED-7)"
+        )
+        assert "MED-7" in text, "SKILL.md must tag the rule MED-7"

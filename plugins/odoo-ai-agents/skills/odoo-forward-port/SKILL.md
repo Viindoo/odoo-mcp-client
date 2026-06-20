@@ -150,6 +150,14 @@ branch off integration. Each adapt subagent works in its child worktree (a priva
 it back into integration by merge (keeping SHA), then removes the child worktree. The next
 phase recreates child worktrees from the updated integration. LOOP until phases are done.
 
+**Per-commit vs absorb-all (MED-7).** The child-worktree fan-out above assumes integration HEAD
+is COMMITTED between units (per-commit continuous, or one-shot) so a child forks from a clean
+tree. For an **absorb-all** run that merges every source commit in ONE `git merge --no-commit`,
+the conflicts are materialized in the integration worktree's WORKING TREE (uncommitted) - a child
+worktree off the uncommitted integration HEAD cannot see them. In that mode do NOT fan out child
+worktrees for conflict resolution: resolve serially, per module, DIRECTLY in the integration
+worktree; child-worktree isolation resumes only once the absorbed merge is committed.
+
 The only serialized point is converging children into integration + writing the
 source-merge commit. `spawn_class = spawner-agent`: the orchestrator dispatches
 named agents and creates WORK-tier worktrees for filesystem isolation.
@@ -190,7 +198,10 @@ Aggregate the returned summaries into the Phase 2 classify queue.
 TARGET version (`set_active_version` once, then `api_version_diff` + `model_inspect`) and
 assign exactly one bucket a/b/c/d. SSOT: `[[fp-intent-4outcome]]`. Append one row per commit to
 `merge-log.md`. `odoo-version-diff` in forward-port mode can supply the per-symbol bucket
-suggestion. Every Odoo Semantic call carries `odoo_version=` - never omit it.
+suggestion. Every Odoo Semantic call carries `odoo_version=` - never omit it. Once buckets are
+known, apply the **bucket-(c) upgrade-scale gate (B1)** to each bucket-(c) cluster before any
+adapt: estimate its size and STOP for the defer-or-do choice if it is an upgrade-scale
+re-implement rather than a mechanical port (`## Model triage`).
 
 **P3 - Git merge --no-commit [critical section, in integration].** Continuous:
 `git merge --no-ff --no-commit <src-SHA>`. One-shot: `git cherry-pick -n <src-SHA>`. Only one
@@ -336,6 +347,16 @@ one - is NOT forward-ported for behavior: route it to the **lint-only lane** (fl
 eslint / prettier / ruff to green CI, minimum fix only) and SKIP the extract/adapt/review logic
 tiers entirely. Its business logic is not adapted and P7 review rates only its lint/syntax, never
 a business finding. SSOT: `[[fp-installable-false]]`.
+
+**Bucket-(c) upgrade-scale gate (B1).** Bucket (c) is "re-implement on the target idiom" - but
+that one bucket covers a 3-line call-site fix and a 500-line component rewrite alike, and the
+ADAPT tier below only picks the MODEL, not whether the work is even a mechanical port. After P2
+classify, estimate each bucket-(c) cluster's adapt size (source LOC delta + framework-migration
+flag). If it exceeds ~200 LOC of new OWL/JS OR is a full component/framework rewrite, it is an
+upgrade-scale RE-IMPLEMENT, not a mechanical port: STOP and present the defer-or-do gate - (a)
+defer (carry `installable:False`, lint-only lane) or (b) do now (estimate effort, adapt at the
+ADAPT-table tier). Never silently absorb unbounded re-implement work; default on no answer is
+defer. SSOT: `references/fp-triage-table.md` § Bucket-(c) upgrade-scale gate.
 
 Triage is INLINE and deterministic, run twice with different tables:
 

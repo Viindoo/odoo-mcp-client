@@ -210,6 +210,17 @@ For each touched module/WI, create a child worktree off integration and dispatch
 git worktree add -b fp/<slug>-<module> <path>/wt-<module> fp/<slug>
 ```
 
+**Per-commit vs absorb-all worktree (MED-7).** The child-worktree-per-module command above applies
+when each source commit is committed on integration before the next is merged (one-shot
+`cherry-pick -n`, or continuous merging one SHA at a time) - the child forks from a committed tree
+and sees no in-flight conflicts. For an ABSORB-ALL run that merges every commit in ONE
+`git merge --no-commit`, the conflicts live in the integration worktree's WORKING TREE
+(uncommitted); a child worktree forked off the uncommitted integration HEAD CANNOT see them. In
+that case do NOT run `git worktree add` for conflict resolution - resolve conflicts serially, per
+module, directly in the integration worktree, and only resume child-worktree isolation once the
+absorbed merge is committed. Picking the wrong mode here yields child worktrees with a clean tree
+and an unresolved (invisible) conflict still sitting in integration.
+
 **4a - forward the test FIRST** (the test is the oracle; independence keeps it honest). Dispatch
 `odoo-test-writing` in mode `adapt`:
 
