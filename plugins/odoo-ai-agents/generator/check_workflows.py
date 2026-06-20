@@ -36,6 +36,11 @@ WORKFLOWS_DIR = ROOT / "workflows"
 SKILLS_DIR = ROOT / "skills"
 COMMANDS_DIR = ROOT / "commands"
 
+# A command for a driver-required (on_complete) workflow MUST carry this machine-readable sentinel to
+# declare it engages the run-driver (via intake Phase P / a 1-node run) instead of a bare
+# workflow-chaining dispatch. Its presence clears the driver-required warning for that command.
+RUN_DRIVER_SENTINEL = "engages-run-driver"
+
 # ---------------------------------------------------------------------------
 # Allowed enum values
 # ---------------------------------------------------------------------------
@@ -276,6 +281,12 @@ def _validate_workflow(path: pathlib.Path) -> list[str]:
 # A slash command that dispatches such a workflow DIRECTLY (bypassing intake) makes on_complete
 # degrade to a human suggestion. Surface that as a WARNING (non-fatal) so a future command does
 # not silently break the cross-workflow chain.
+#
+# Clearing mechanism: if a command carries the RUN_DRIVER_SENTINEL comment, it explicitly
+# declares that it engages the run-driver (via /odoo-intake Phase P or a 1-node run). The
+# sentinel suppresses the warning for that command. Commands that reference the workflow name
+# but lack the sentinel still trigger the warning - so adding the sentinel is meaningful
+# (it documents intent AND gates the check) while omitting it still gets caught.
 # ---------------------------------------------------------------------------
 
 
@@ -300,6 +311,8 @@ def _driver_required_warnings() -> list[str]:
         return warnings
     for cmd in COMMANDS_DIR.glob("*.md"):
         text = cmd.read_text(encoding="utf-8")
+        if RUN_DRIVER_SENTINEL in text:
+            continue  # command explicitly declares it engages the run-driver
         for stem, names in driver_required.items():
             if any(n in text for n in names):
                 warnings.append(
