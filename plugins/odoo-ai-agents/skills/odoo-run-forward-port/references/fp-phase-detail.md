@@ -64,7 +64,7 @@ On `cancel`: stop (no worktree was created, nothing to remove).
 
 ## P1 - Intent extract (PARALLEL, READ-ONLY)
 
-Dispatch one `odoo-intent-extractor` per commit with the **Agent tool** - real tool calls, never
+Dispatch one `odoo-intent-extractor` per commit as a subagent launch - real tool calls, never
 narrated. Set BOTH the `model` parameter (the triaged EXTRACT tier) and the brief. Concurrency:
 Mode B budget (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`); rolling-window
 beyond the budget. No child worktree - extraction is read-only on git history + OSM.
@@ -245,14 +245,14 @@ integration).
 
 ---
 
-## P7 - PR + review (depth-0)
+## P7 - PR + review
 
 ```bash
 git push origin fp/<slug>                          # push integration, NOT B
 gh pr create --base <target-branch> --head fp/<slug> --title "..." --body "..."
 ```
 
-Run `/code-review` inline (depth-0 only - it auto-spawns, illegal inside a leaf). Optionally
+Run `/code-review` inline. Optionally
 dispatch `odoo-code-review` for the forward-port pitfall (a forwarded test still coupled to the
 source API). NEVER squash (squash mints a new SHA, defeats merge-base advance). B stays LOCKED -
 the PR adds only the merge commits. Present the PR URL and wait for the human to merge.

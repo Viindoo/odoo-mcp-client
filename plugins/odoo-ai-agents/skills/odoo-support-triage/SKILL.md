@@ -147,12 +147,12 @@ Note: .odoo-ai/ is gitignored - no customer data committed to the repo.
 
 ALL output → `.odoo-ai/support/` (gitignored). Abstract labels only: never log real company names, contacts, or pricing. Template fields use `Customer A`, `Module X`, `Error Y`.
 
-## Depth and dispatch rules
+## Dispatch rules
 
-Does NOT invoke the Skill tool. Does NOT spawn subagents. NL-dispatch triggers are natural-language prompts emitted inline - main context fires the specialist via description-match. Other skill references are text suggestions only ("Suggest: run X") - user decides.
+Leaf skill. Does NOT invoke the Skill tool. Does NOT spawn subagents. NL-dispatch triggers are natural-language prompts emitted inline - main context fires the specialist via description-match. Other skill references are text suggestions only ("Suggest: run X") - user decides.
 
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the depth-0 run-driver - it does not change anything produced above.
+output for the run-driver - it does not change anything produced above.

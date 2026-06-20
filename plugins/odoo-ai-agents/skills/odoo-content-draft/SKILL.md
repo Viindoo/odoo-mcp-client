@@ -139,11 +139,11 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/examples.md` for
 
 - **Brand assets**: check `branding/STYLE.md` or equivalent if copy must describe visual elements. Video scripts → `odoo-demo-recording` can realize as a live screencast (this skill stays text-only).
 - **Context file**: `.odoo-ai/context.md` read in Round 0 - audience personas, messaging pillars, channel restrictions, tone preferences all override defaults.
-- **Depth rule**: depth 1. Does NOT invoke other skills or spawn subagents.
+- **Leaf skill.** Does NOT invoke other skills or spawn subagents.
 - **Localization**: Vietnamese final deliverable → full diacritics. Workflow notes/placeholders in this file may be ASCII-only.
 
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the depth-0 run-driver - it does not change anything produced above.
+output for the run-driver - it does not change anything produced above.

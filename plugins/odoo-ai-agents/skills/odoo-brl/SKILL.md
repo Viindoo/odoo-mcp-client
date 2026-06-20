@@ -297,7 +297,7 @@ Exact prompt in `reference/dag-prompt.md` (output: `{edges:[{from,to,type,reason
 
 - Default: reason **inline** in main context, one cluster at a time.
 - Optimization: when there are **>10 large clusters** (large = >=60 requirements, >=50% of the 120 cap),
-  launch **one Opus subagent per cluster** (Agent tool, depth-2 max). Subagent prompt MUST contain:
+  launch **one Opus subagent per cluster**. Subagent prompt MUST contain:
   `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.`
   Each subagent returns only its cluster's edges JSON (<=2k); main context merges them.
 
@@ -439,11 +439,10 @@ On `approve`, write ALL deliverables atomically:
 ## Hard rules
 
 1. **NL-dispatch only:** When delegating to another skill (not expected in normal BRL flow),
-   use a natural-language prompt. Do NOT use the Skill tool. The Agent tool is allowed for EXACTLY
+   use a natural-language prompt. Do NOT use the Skill tool. Subagent launch is allowed for EXACTLY
    ONE purpose: Phase D DAG per-cluster reasoning workers (only when >10 large clusters). Any such
    subagent prompt MUST contain: `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.`
-2. **Depth-2 ceiling:** This skill runs inline (depth 1). Phase D DAG cluster subagents are depth 2 max.
-   A DAG subagent must never spawn another subagent or invoke a skill.
+2. **Leaf subagents:** Phase D DAG cluster subagents must never spawn another subagent or invoke a skill.
 3. **Public-repo safety:** Abstract customer labels only. Never write real company names, VND amounts,
    or internal pricing into any committable file. `.odoo-ai/brl/` is gitignored.
 4. **No cost fabrication:** All cost figures from `cost-config.json` lookup. No LLM-generated numbers.
@@ -501,7 +500,7 @@ emit a partial order + dag.mermaid for the acyclic remainder.
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the depth-0 run-driver - it does not change anything produced above.
+output for the run-driver - it does not change anything produced above.
 
 **Hand off non-trivial items to design before coding.** If the classified set contains any
 Extension-L or Custom-XL item, set `status: NEEDS_NEXT` and emit `next: odoo-solution-design`

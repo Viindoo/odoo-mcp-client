@@ -115,8 +115,8 @@ Route each suspected layer to its specialist, choosing the model **explicitly** 
 
 | Layer / symptom | Dispatch to | Mechanism |
 |---|---|---|
-| Python/ORM, data-state, Expected singleton, AccessError, compute/onchange/constraint, traceback, module-load/migration/ParseError | `odoo-backend-debugger` agent | Agent tool (OSM, parallel-safe) |
-| OWL/JS/QWeb/SCSS runtime, console/network/blank render | `odoo-ui-debugger` agent | Agent tool (BROWSER → serial, exclusive) |
+| Python/ORM, data-state, Expected singleton, AccessError, compute/onchange/constraint, traceback, module-load/migration/ParseError | `odoo-backend-debugger` agent | subagent launch (OSM, parallel-safe) |
+| OWL/JS/QWeb/SCSS runtime, console/network/blank render | `odoo-ui-debugger` agent | subagent launch (BROWSER → serial, exclusive) |
 | "why is it slow" / N+1 happening now | `odoo-perf-audit` (reactive mode) | NL-dispatch |
 | security symptom at runtime (leak, unexpected AccessError, observed injection) | `odoo-security-audit` (reactive mode) | NL-dispatch |
 | pre-upgrade / deprecated-API-at-runtime | `odoo-deprecation-audit` | NL-dispatch |
@@ -127,7 +127,7 @@ Parallelism: the OSM-only legs (backend debugger + reactive audits) run in paral
 **Agent dispatch - prompt template (use verbatim, fill the brackets):**
 
 ```
-DISPATCH MODEL: <haiku|sonnet|opus>  <- set this as the Agent-tool `model` parameter on THIS dispatch; do not rely on the agent's frontmatter default
+DISPATCH MODEL: <haiku|sonnet|opus>  <- set this as the subagent `model` parameter on THIS dispatch; do not rely on the agent's frontmatter default
 You are the <odoo-backend-debugger | odoo-ui-debugger> agent. Diagnose this Odoo issue to a PROVEN
 root cause following the scientific method - do NOT propose a fix before the cause is proven.
 
@@ -145,9 +145,9 @@ Fill EVERY field of the Output Contract in skills/_shared/debug-method.md. Do no
 or invoke skills.
 ```
 
-The agent frontmatter pins `model: sonnet` only as a floor - the Agent-tool `model` parameter you pass OVERRIDES it. Always pass it explicitly (haiku/sonnet/opus per the table); if you omit it, the dispatch silently runs at sonnet and a Phase-2 cross-file case that needed opus will be under-powered.
+The agent frontmatter pins `model: sonnet` only as a floor - the subagent `model` parameter you pass OVERRIDES it. Always pass it explicitly (haiku/sonnet/opus per the table); if you omit it, the dispatch silently runs at sonnet and a Phase-2 cross-file case that needed opus will be under-powered.
 
-NL-dispatch vs Agent-tool: the agent rows (backend/ui) are dispatched via the Agent tool (depth 0->1) with an explicit model. The audit rows (perf/security/deprecation/code-review) are NL-dispatched by YOU, the depth-0 orchestrator, by description-match in the main context - this is NOT delegated to a Phase-1 triage agent (a depth-1 agent cannot invoke skills), and the leaf audit runs at its own `model: inherit` (this context), outside the per-phase model table.
+NL-dispatch vs subagent launch: the agent rows (backend/ui) are dispatched as subagents with an explicit model. The audit rows (perf/security/deprecation/code-review) are NL-dispatched by YOU, the orchestrator, by description-match in the main context - this is NOT delegated to a Phase-1 triage agent, and the leaf audit runs at its own `model: inherit` (this context), outside the per-phase model table.
 
 For NL-dispatch to an audit skill, write a natural-language request that matches that skill's
 description and states the symptom + reproduction + version, asking for a root-cause (reactive),
@@ -173,7 +173,7 @@ exact fix location, red→green regression test.
 
 Include both results in the `odoo-coding` brief alongside the proven root cause and fix location.
 
-**Then drive the fix autonomously (mandatory).** You are at depth-0 with the Skill tool available
+**Then drive the fix autonomously (mandatory).** The Skill tool is available here
 - MUST use it; do not stop at a `SUGGESTED_NEXT` line that nothing advances. When the root cause
 needs a code change, **IMMEDIATELY invoke `odoo-coding` via the Skill tool**, passing the proven
 root cause, exact fix location, regression test, and the literal line **"AUTONOMOUS FIX
@@ -201,7 +201,7 @@ one-line why: e.g. `Fable escalation: opus pass returned no falsifiable root cau
 cost). Confirm fable?`). If declined or unavailable, fall back to **opus** and note the
 downgrade in the Phase 4 Output Contract (`dispatch: opus (fable declined/unavailable)`).
 
-Pass the chosen model explicitly on each Agent tool call. The complexity score from Phase 1 picks
+Pass the chosen model explicitly on each subagent launch. The complexity score from Phase 1 picks
 the Phase 2 tier; do not silently fall back to the inherited default.
 
 ## Standalone-first fallback
@@ -212,7 +212,7 @@ the Phase 2 tier; do not silently fall back to the inherited default.
   context, the `odoo-ui-debugger` uses it (prefix `⚠ Instance unreachable - diagnosis from
   pre-captured evidence only`); otherwise that leg returns `BLOCKED`. Never ask the user to paste
   console output or screenshots - those are evidence the browser agent captures.
-- **Depth:** odoo-debug is depth0-only and is never invoked at depth>0. If a subagent ever needs this exact diagnosis, it should inline `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` directly rather than calling this skill.
+- **Leaf skill.** Does NOT invoke other skills or spawn subagents. If a spawned agent ever needs this exact diagnosis, it should inline `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` directly rather than calling this skill.
 
 ## Output format
 
@@ -230,4 +230,4 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-debug/references/examples.md` for worked 
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the depth-0 run-driver - it does not change anything produced above.
+output for the run-driver - it does not change anything produced above.

@@ -60,7 +60,7 @@ D3. Intra-cluster reasoning (Opus, per cluster, <=120 items):
     For each cluster, run the Opus cluster prompt below (input = that cluster's req-list,
     output = {edges:[{from,to,type,reason}]} JSON, edges only WITHIN the cluster).
     - Default: inline, sequential, one cluster at a time.
-    - When >10 large clusters: one context:fork Opus subagent per cluster (depth-2 max);
+    - When >10 large clusters: launch one Opus subagent per cluster;
       subagent prompt MUST carry the hard-rules line. Each returns ONLY its edges JSON (<=2k).
 
 D4. Inter-cluster edges (technical module deps + business-affinity for Custom):

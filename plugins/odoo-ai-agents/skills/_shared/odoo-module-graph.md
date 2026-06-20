@@ -23,11 +23,11 @@ For a target set of modules `M`:
 3. Topologically order it: modules that do not depend on each other within `M` are **independent**
    (run in the same wave, parallel); a module that depends on another in `M` runs in a **later
    wave** (after its in-set dependency).
-4. **Fallback (OSM unreachable or too thin):** this graph is computed at **depth-0** (the
-   orchestrator: `odoo-coding` Phase 0, `wave` Phase 0) - so the depth-0 agent dispatches a
-   read-only **haiku** agent via the Agent tool to read each `__manifest__.py` `depends` and scan
+4. **Fallback (OSM unreachable or too thin):** this graph is computed by the
+   orchestrator (`odoo-coding` Phase 0, `wave` Phase 0) - so the orchestrator dispatches a
+   read-only **haiku** subagent to read each `__manifest__.py` `depends` and scan
    for `static/src`, and labels the result `graph from disk (OSM unavailable)`. A leaf WI worker
-   (depth-2) must NEVER hit this fallback by spawning - it is computed before any worker exists; if
+   must NEVER hit this fallback by spawning - it is computed before any worker exists; if
    a leaf ever needs the graph it reads the manifests itself, it does not spawn.
 
 ## How `odoo-coding` uses it

@@ -28,7 +28,7 @@ Developer / Tech Lead reviewing Odoo code with semantic MCP enrichment.
 
 ## When to invoke
 
-Main agent invokes the `odoo-code-reviewer` **agent** (via Agent tool) when Odoo code needs review. The code may arrive as a pasted block, a `file_path`/diff, or the output of a prior step. Review **scales with the change size**: one module → one reviewer; many modules → per-module fan-out plus Opus integration pass. Run Phase 0 first. Because review needs parallel MCP round-trips, each leg runs as an autonomous agent.
+Main agent invokes the `odoo-code-reviewer` **agent** (as a subagent launch) when Odoo code needs review. The code may arrive as a pasted block, a `file_path`/diff, or the output of a prior step. Review **scales with the change size**: one module → one reviewer; many modules → per-module fan-out plus Opus integration pass. Run Phase 0 first. Because review needs parallel MCP round-trips, each leg runs as an autonomous agent.
 
 ## Phase 0 - Scope the review
 
@@ -99,7 +99,7 @@ See `agents/odoo-code-reviewer.md` for the full restricted tool list and executi
 
 ## Autonomous fix loop - drive it yourself (mandatory)
 
-You run at **depth-0 in the main context** (the Skill tool loads you here), so the **Skill tool is available to you and you MUST use it to drive the fix loop** - do not write a report and stop. A passive `next: odoo-coding` is NOT enough: when no run-driver is active (a direct invocation, or an intake fast-path - the common case), nothing advances that `next` and the loop dies. So:
+The Skill tool is available in the main context where you run, and you MUST use it to drive the fix loop - do not write a report and stop. A passive `next: odoo-coding` is NOT enough: when no run-driver is active (a direct invocation, or an intake fast-path - the common case), nothing advances that `next` and the loop dies. So:
 
 1. **On a CRITICAL or HIGH finding that needs a code change, IMMEDIATELY invoke `odoo-coding` via the Skill tool yourself.** Pass it the review report path, the exact findings to fix, and the literal line **"AUTONOMOUS FIX (review-driven): skip your Phase 0 human gate, fix to these findings, then invoke odoo-code-review to verify"**. This is autonomous - do NOT pause for a human (running the review IS the opt-in).
 2. `odoo-coding` fixes, then invokes you again to verify. That round-trip - **review → code → review** - repeats until the review is clean (no CRITICAL/HIGH and the behavior is covered).
@@ -117,4 +117,4 @@ When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}
 - A behavior change with no protecting test (pitfall #10) → drive it through `odoo-coding` (which is test-first) the same way; under a run-driver, emit `next: odoo-test-writing` carrying the module + behavior so the gap is closed before merge.
 - Clean review, behavior covered → no fix needed, no `next` (the loop terminates).
 A review that finds a CRITICAL bug in a behavior that also lacks a test drives BOTH the protecting test and the fix (under a run-driver: `next: odoo-coding` and `next: odoo-test-writing`).
-Additive output for the depth-0 run-driver - it does not change anything produced above.
+Additive output for the run-driver - it does not change anything produced above.

@@ -97,10 +97,9 @@ it back into integration by merge (keeping SHA), then removes the child worktree
 phase recreates child worktrees from the updated integration. LOOP until phases are done.
 
 The only serialized point is converging children into integration + writing the
-source-merge commit. `spawn_class = spawner-agent`: the depth-0 orchestrator dispatches
-named agents at depth 0->1 and creates WORK-tier worktrees for filesystem isolation
-(no depth-2 agent dispatch). There is no depth-2 dispatch - the worktrees are filesystem
-isolation, not a second agent-dispatch level.
+source-merge commit. `spawn_class = spawner-agent`: the orchestrator dispatches
+named agents and creates WORK-tier worktrees for filesystem isolation.
+The worktrees provide filesystem isolation, not a second agent-dispatch level - no nested agent dispatch.
 
 ## The 8-phase pipeline
 
@@ -125,7 +124,7 @@ After user approves the plan, create the JOB-tier integration worktree from B (H
 before this point - the plan gate is read-only.
 
 **P1 - Intent extract [PARALLEL, READ-ONLY].** This is the only true parallel speed-up - and
-it is honored fully. Dispatch one `odoo-intent-extractor` agent per commit via the Agent tool,
+it is honored fully. Dispatch one `odoo-intent-extractor` agent per commit as a subagent launch,
 each with its triaged `model` override, up to the Mode B budget (rolling window beyond it).
 Each writes `.odoo-ai/forward-port/<slug>/intents/<sha>.md` (the why + behavioral contract +
 OSM-grounded symbols, never the diff). No worktree children needed - extraction is read-only.
@@ -214,8 +213,8 @@ On confirm: `git commit` the merge (buckets a/d still commit - Hard rule 7), upd
 `checkpoint.json` `{<sha>: done}`. More commits/batches remain -> LOOP back to recreate WORK-tier
 worktrees from integration for the next batch.
 
-**P7 - PR + review [depth-0].** Open PR `fp/<slug>` -> B. Run `/code-review` inline (depth-0
-only) + optionally dispatch `odoo-code-review` for the FP pitfall (test coupled to source API).
+**P7 - PR + review.** Open PR `fp/<slug>` -> B. Run `/code-review` inline + optionally dispatch
+`odoo-code-review` for the FP pitfall (test coupled to source API).
 NEVER squash (keeps SHA). B stays LOCKED - the PR only adds the merge commits. Wait for human
 merge.
 
@@ -316,4 +315,4 @@ When the run finishes (or pauses at a gate), append a Continuation Contract bloc
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
 `produced` lists `plan.md`, `intents/<sha>.md`, `merge-log.md`, `checkpoint.json`, and the PR
 URL; `next` is the human-confirm gate (Phase 6 or Phase 7 merge). Additive output for the
-depth-0 run-driver - it does not change anything produced above.
+run-driver - it does not change anything produced above.
