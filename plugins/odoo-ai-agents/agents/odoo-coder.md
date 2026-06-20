@@ -156,12 +156,12 @@ Any `odoo-bin` run that touches a database - scaffolding into a DB, `-i`/`-u`, o
 
 ```bash
 eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py acquire --series <version> --mode ephemeral --ports 0)"
-# -> $ALLOC_DB_NAME (unique), $ALLOC_PYTHON (the series' venv interpreter), $ALLOC_ADDONS_PATH, $ALLOC_PORTS, $ALLOC_TOKEN
+# -> $ALLOC_DB_NAME (unique reserved name), $ALLOC_PYTHON (the series' venv interpreter), $ALLOC_ADDONS_PATH, $ALLOC_PORTS, $ALLOC_TOKEN
 "$ALLOC_PYTHON" odoo-bin -d "$ALLOC_DB_NAME" -i <module> --test-enable --stop-after-init --addons-path "$ALLOC_ADDONS_PATH"
 python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN"
 ```
 
-`--ports 0` for a `--stop-after-init` test (binds no HTTP port); pass `--ports 1` (or more) when a server must listen, and map each returned port to the right flag (`--http-port`, longpoll/gevent) by checking `cli_help` for the target version - the flags differ per series, so never hardcode them. `$ALLOC_PYTHON` is the series' venv interpreter (resolution SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md`) - never assume the system `python3`, which lacks `psycopg2`/`lxml`/`babel`. If the role lacks `CREATEDB` the allocator degrades to an exclusive lease on the declared DB automatically; in the standalone fallback (no allocator/OSM) run against the resolved instance directly and note it.
+The allocator (B2) reserves a unique DB name and ports but does NOT create the database. The `-i <module>` run above performs Odoo create-on-init, which builds the DB. On `release`/`gc` the allocator drops the DB through Odoo (via `scripts/lib/odoo_db.py`; raw `dropdb` only as a logged fallback when the venv is unavailable). `--ports 0` for a `--stop-after-init` test (binds no HTTP port); pass `--ports 1` (or more) when a server must listen, and map each returned port to the right flag (`--http-port`, longpoll/gevent) by checking `cli_help` for the target version - the flags differ per series, so never hardcode them. `$ALLOC_PYTHON` is the series' venv interpreter (resolution SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md`) - never assume the system `python3`, which lacks `psycopg2`/`lxml`/`babel`. If the role lacks `CREATEDB` the allocator degrades to an exclusive lease on the declared DB automatically (Odoo create-on-init also requires CREATEDB); in the standalone fallback (no allocator/OSM) run against the resolved instance directly and note it.
 
 ## Writing the code (patch preview, then apply)
 

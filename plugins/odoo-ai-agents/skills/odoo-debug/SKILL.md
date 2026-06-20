@@ -210,8 +210,11 @@ the Phase 2 tier; do not silently fall back to the inherited default.
   still diagnose, labeling `grounded: local-source (not OSM-indexed)`. Do not stop.
 - **Browser/instance unreachable:** if pre-captured console/network/screenshot evidence exists in
   context, the `odoo-ui-debugger` uses it (prefix `⚠ Instance unreachable - diagnosis from
-  pre-captured evidence only`); otherwise that leg returns `BLOCKED`. Never ask the user to paste
-  console output or screenshots - those are evidence the browser agent captures.
+  pre-captured evidence only`); otherwise emit `status: NEEDS_NEXT` with `next: - skill: odoo-instance`
+  (reason: provision the Odoo instance needed for browser-layer diagnosis; inputs: the series and
+  modules under test) so the run-driver provisions one; fall back to `BLOCKED` for that leg only if
+  provisioning is itself impossible. Never ask the user to paste console output or screenshots -
+  those are evidence the browser agent captures.
 - **Leaf skill.** Does NOT invoke other skills or spawn subagents. If a spawned agent ever needs this exact diagnosis, it should inline `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` directly rather than calling this skill.
 
 ## Output format

@@ -48,7 +48,8 @@ The OSM rule above protects the static index; this protects LIVE instances. Unde
 concurrency, never reuse the single declared `db_name`/`http_port` for a MUTATION -
 tests (`--test-enable`), `-i`/`-u`, or a throwaway server - because a concurrent
 agent or another session may hold it. Acquire an isolated lease instead:
-`scripts/lib/allocator.py acquire --mode ephemeral` (a unique created+dropped DB)
+`scripts/lib/allocator.py acquire --mode ephemeral` (reserves a unique DB name + ports;
+the DB is created through Odoo by your `-i` run and dropped through Odoo on release)
 or `--mode exclusive` (single-holder lease on a declared DB); a read-only attach
 stays lease-free. The allocator returns version-agnostic port NUMBERS - map them to
 CLI flags via `cli_help` for the target series at runtime. Full protocol + GC/stale

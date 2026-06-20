@@ -1,10 +1,15 @@
 # Technical Design - concurrent Odoo instance allocation (user/global, cross-session)
 
-Status: IMPLEMENTED on branch various_imp_fix_260617_01 - 2026-06-18 (readonly/ephemeral/exclusive/shared)
+Status: IMPLEMENTED (B2) - 2026-06-20 (readonly/ephemeral/exclusive/shared; caller-side create + through-Odoo drop)
 Audience: plugin maintainers + global contributors. This is a design contract, not code.
 Related: `snippets/instance-resolution.md`, `snippets/venv-resolution.md`,
 `docs/reference/INSTANCE-LIFECYCLE.md`, `skills/_shared/concurrency-guard.md`,
-`scripts/lib/instances_io.py`, `scripts/setup-steps/50-instance-spinup.sh`.
+`scripts/lib/instances_io.py`, `scripts/lib/odoo_db.py`, `scripts/setup-steps/50-instance-spinup.sh`.
+
+> **Programmatic front door:** the `odoo-instance` skill and the `odoo-instance-ops` agent are the
+> high-level interface for instance lifecycle operations (build, drop, init, update, test). The
+> allocator is the low-level coordination primitive they use internally. Persistent operation logs
+> are written to `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<db>-<UTC-ts>.log`.
 
 ## 1. Problem & intent
 
@@ -83,17 +88,26 @@ read-modify-written only while holding `fcntl.flock` on `$ODOO_AI_HOME/runtime/r
 ```
 { "leases": [
   { "token": "<uuid>", "mode": "exclusive|ephemeral|shared",
-    "series": "17.0", "db_name": "odoo_17_t_ab12cd34", "created_db": true,
+    "series": "17.0", "db_name": "odoo_17_t_ab12cd34", "drop_on_release": true,
+    "python": "<venv-interpreter>", "db_host": "localhost", "db_user": "odoo",
     "ports": [8170, 8172],                            // [] when the caller passes --ports 0 (e.g. tests with --stop-after-init); N pooled ports otherwise
     "owner": { "host": "<hostname>", "pid": 41234, "session_id": "<cc-session>", "started_at": <epoch> },
     "ttl_s": 3600, "heartbeat_at": <epoch> } ] }
+
+`drop_on_release` replaces the old `created_db` flag (B2): True for ephemeral leases where the
+caller builds the DB via Odoo create-on-init and the allocator must drop it at release/gc via
+`scripts/lib/odoo_db.py` (through-Odoo path); raw `dropdb` is the logged fallback when the venv
+is unavailable. False when `--no-create` is passed, and always False for shared/exclusive (those
+DBs survive beyond the lease). The `python`/`db_host`/`db_user` fields are stored so the drop
+can invoke `odoo_db.py` under the right venv at release/gc time, even after the caller process
+has exited.
 ```
 
 `readonly` callers take NO lease (they only read a running server) - nothing to serialise.
-A `shared` lease IS recorded but is NON-exclusive and always `created_db=false`: it is the
+A `shared` lease IS recorded but is NON-exclusive and always `drop_on_release=false`: it is the
 visual stack's live render server (the actual bound port via `--port`, the long-lived server
 pid via `--pid`). Many readers attach to the one row; gc reclaims it when the recorded pid
-dies (or on TTL), but - because `created_db` is false - it NEVER drops the declared database.
+dies (or on TTL), but - because `drop_on_release` is false - it NEVER drops the declared database.
 
 ## 5. Access modes
 
@@ -102,7 +116,7 @@ dies (or on TTL), but - because `created_db` is false - it NEVER drops the decla
 | `readonly` | query a running instance (OSM-style live reads, UI review against an up server) | the declared `db_name` | the declared `http_port` | none (shared) |
 | `ephemeral` | **default for tests / throwaway `-i` verification** | NEW `<prefix>_t_<uuid8>`, created then dropped | none with `--ports 0` (tests, `--stop-after-init`); else N pooled ports | yes, until release |
 | `exclusive` | a persistent dev server, or `-u`/migration against a REAL database that must not be touched concurrently | the declared (or a named) `db_name` | N pooled ports (`--ports`) | yes, exclusive on (db_name) |
-| `shared` | the visual stack's live render server (UI review / debug / visual-regression / demo against an up server), shared by many readers across sessions | the declared `db_name` | the ACTUAL bound port, recorded verbatim via `--port` (not pooled) | yes, NON-exclusive + `created_db=false` (gc reclaims a dead-server row but NEVER drops the declared DB) |
+| `shared` | the visual stack's live render server (UI review / debug / visual-regression / demo against an up server), shared by many readers across sessions | the declared `db_name` | the ACTUAL bound port, recorded verbatim via `--port` (not pooled) | yes, NON-exclusive + `drop_on_release=false` (gc reclaims a dead-server row but NEVER drops the declared DB) |
 
 Key nuance: a CI-style test (`odoo-bin -d <db> -i <mod> --test-enable --stop-after-init`) binds **no
 HTTP port** - so `ephemeral` tests need only a unique DB, not a port (pass `--ports 0`). Port leasing
@@ -118,24 +132,36 @@ existing reader, so shell consumers stay simple.
 
 | Command | Behavior |
 |---------|----------|
-| `acquire --series <X.Y> --mode <readonly\|ephemeral\|exclusive\|shared> [--ports <N>] [--port <P>] [--pid <pid>] [--ttl <s>] [--session <id>]` | resolve catalog instance for series; under flock: GC stale leases, pick N free ports from the pool (registry-set ∪ live `bind()` probe) when `--ports N>0`, choose db_name (ephemeral: unique; else declared), write the lease atomically; for ephemeral with `ephemeral_ok` -> `createdb`; print `ALLOC_TOKEN/ALLOC_DB_NAME/ALLOC_PORTS (space-separated)/ALLOC_PYTHON/ALLOC_ADDONS_PATH/ALLOC_DB_HOST/ALLOC_DB_USER`. **`shared`**: attach to the live `(series, db_name)` lease if one exists (emit `ALLOC_ATTACHED=1`) else mint one with `created_db=false`; record the KNOWN port verbatim via `--port` (not pooled) and the long-lived server pid via `--pid` (idempotent upsert when a later call supplies a newer pid) - never blocks a second holder |
+| `acquire --series <X.Y> --mode <readonly\|ephemeral\|exclusive\|shared> [--ports <N>] [--port <P>] [--pid <pid>] [--ttl <s>] [--session <id>]` | resolve catalog instance for series; under flock: GC stale leases, pick N free ports from the pool (registry-set ∪ live `bind()` probe) when `--ports N>0`, choose db_name (ephemeral: unique reserved name; else declared), write the lease atomically (B2: does NOT create the DB - the caller's `-i` run performs Odoo create-on-init); probe CREATEDB and degrade ephemeral -> exclusive when absent (Odoo create-on-init requires it too); print `ALLOC_TOKEN/ALLOC_DB_NAME/ALLOC_PORTS (space-separated)/ALLOC_PYTHON/ALLOC_ADDONS_PATH/ALLOC_DB_HOST/ALLOC_DB_USER`. **`shared`**: attach to the live `(series, db_name)` lease if one exists (emit `ALLOC_ATTACHED=1`) else mint one with `drop_on_release=false`; record the KNOWN port verbatim via `--port` (not pooled) and the long-lived server pid via `--pid` (idempotent upsert when a later call supplies a newer pid) - never blocks a second holder |
 | `query --series <X.Y>` | read-only cross-session discovery: print the live `shared` lease for the series (`ALLOC_TOKEN/ALLOC_MODE/ALLOC_DB_NAME/ALLOC_PORTS`), or exit 1 when none. Does not mutate the registry |
-| `release <token>` | under flock: drop the lease; if `created_db` -> `dropdb` the ephemeral DB |
+| `release <token>` | under flock: drop the lease; if `drop_on_release` -> drop the ephemeral DB through Odoo (`scripts/lib/odoo_db.py`); raw `dropdb` as logged fallback when venv unavailable |
 | `heartbeat <token>` | bump `heartbeat_at` (long runs that outlive `ttl_s`) |
-| `gc` | under flock: reclaim leases whose owner pid is dead (same host: `os.kill(pid,0)`) OR `now - heartbeat_at > ttl_s`; `dropdb` any reclaimed `created_db` DB; also drop orphan `<prefix>_t_*` DBs with no live lease |
+| `gc` | under flock: reclaim leases whose owner pid is dead (same host: `os.kill(pid,0)`) OR `now - heartbeat_at > ttl_s`; for each reclaimed `drop_on_release` lease: drop through Odoo (`odoo_db.py`), raw `dropdb` fallback |
 | `list` | print current leases (debug / `odoo-doctor`) |
 
 `acquire`/`release`/`gc` all do their read-modify-write **inside one `fcntl.flock`** so concurrent
 allocators serialise on the registry; the lock is held only for the short critical section, not for
 the duration of the Odoo run.
 
-### 6.1 createdb / dropdb ownership (decision: allocator owns it)
+### 6.1 DB lifecycle ownership (B2 model: caller-side create, through-Odoo drop)
 
-`ephemeral` acquire runs `createdb` and release/gc runs `dropdb`, so an agent just receives a token
-and uses it - no leaked test DBs. **Degrade path:** if `db_user` lacks `CREATEDB` (probe once, cache
-`ephemeral_ok=false`), `ephemeral` automatically falls back to `exclusive` on the declared `db_name`
-(serialise instead of isolate) and the allocator logs the downgrade. This keeps the default safe on
-restricted Postgres roles without failing the run.
+`ephemeral` acquire reserves a unique DB name + ports but does NOT create the DB. The caller's
+`odoo-bin -d <db> -i <modules> --stop-after-init` performs Odoo create-on-init, which builds the
+DB. On `release`/`gc` the allocator drops it through Odoo via `scripts/lib/odoo_db.py` (which
+invokes the Odoo `db` management API under the correct venv). Raw `dropdb` is the logged fallback
+when the venv is unavailable (exit 10 from `odoo_db.py`). The `python`/`db_host`/`db_user` fields
+stored in the lease allow drop-time to reconstruct the right invocation even after the caller exits.
+
+**Degrade path (unchanged):** if `db_user` lacks `CREATEDB` (probed at acquire time), `ephemeral`
+automatically falls back to `exclusive` on the declared `db_name` (serialise instead of isolate)
+and the allocator logs the downgrade. The CREATEDB requirement is identical under B2: Odoo
+create-on-init also needs that privilege, so the degrade logic is the same invariant.
+
+**Consumer contract under B2:** a caller that acquires an ephemeral lease and then runs
+`odoo-bin -d $ALLOC_DB_NAME` WITHOUT `-i` (a bare server launch or a `-u` update) will fail
+because the DB does not exist. Always follow the sequence: acquire -> `-i <modules>` (create-on-init)
+-> use DB -> release. For operations that require a pre-existing populated DB (translation
+reload `-u`, a server-start against existing data), use `--mode exclusive` on a declared DB instead.
 
 ## 7. Crash / stale handling
 
@@ -152,8 +178,8 @@ restricted Postgres roles without failing the run.
 | Risk | Mitigation |
 |------|------------|
 | Two allocators pick the same port | flock serialises the RMW; only one writes the lease; the loser re-scans. Plus a live `bind()` probe rejects a port already taken by a non-allocator process. |
-| Ephemeral db name collision | uuid8 suffix; `createdb` failure -> retry with a new suffix. |
-| Agent dies mid-run | GC reclaims by dead pid (same host) or TTL; `dropdb` the orphan DB. |
+| Ephemeral db name collision | uuid8 suffix; Odoo create-on-init failure -> caller can retry with a new acquire. |
+| Agent dies mid-run | GC reclaims by dead pid (same host) or TTL; drops through Odoo (`odoo_db.py`), raw `dropdb` fallback. |
 | Postgres unreachable | `acquire` fails fast with a clear message; never silently shares a DB. |
 | `$ODOO_AI_HOME` on a network FS without working flock | documented requirement: registry must live on a local FS; setup checks and warns. |
 | Old `instances.toml` with no pool fields | derive pool from `http_port`; fully backward compatible. |
@@ -191,7 +217,7 @@ second spin-up loses the OS port bind and exits, then both sessions attach to th
   `needs_http`) - never the same.
 - A lease whose owner pid is dead is reclaimed by the next `gc`/`acquire`; its ephemeral DB is
   dropped.
-- `release` drops exactly the ephemeral DB it created and leaves declared DBs untouched.
+- `release` drops exactly the ephemeral DB the caller built (via Odoo create-on-init) and leaves declared DBs untouched.
 - Degrade: with `ephemeral_ok=false`, `acquire(ephemeral)` returns an `exclusive` lease on the
   declared DB and logs the downgrade.
 - flock serialises RMW: N parallel acquires yield N unique ports with no duplicate in the registry.
@@ -201,8 +227,10 @@ second spin-up loses the OS port bind and exits, then both sessions attach to th
 ## 11. Decisions taken (this pass)
 
 1. **Deliverable = this design doc first**, implement after review.
-2. **Allocator owns DB lifecycle** (`createdb`/`dropdb` for ephemeral), with automatic degrade to
-   `exclusive`-lease when `db_user` cannot `CREATEDB`.
+2. **B2 model: caller-side create, through-Odoo drop.** `ephemeral` acquire reserves the DB name;
+   the caller's `-i` run performs Odoo create-on-init; release/gc drops through `scripts/lib/odoo_db.py`
+   (raw `dropdb` as logged fallback). Automatic degrade to `exclusive`-lease when `db_user` cannot
+   `CREATEDB` (Odoo create-on-init requires the same privilege).
 3. **Form = a deterministic SCRIPT (`scripts/lib/allocator.py`) run via `Bash` at any depth** - NOT an
    LLM agent. Subagent-nesting IS available (Claude Code 2.1.172+, depth cap 5) but an LLM agent for a
    deterministic allocation is slow, token-costly, non-deterministic on port choice, and would force
