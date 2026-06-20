@@ -179,7 +179,7 @@ def tool_group_label(tool: dict) -> str:
 # assigned inside _load_skill_tool_deps() and referenced by gen_skill_tools_block().
 
 SKILL_TO_TOOLS: dict[str, list[str]] = {}
-# Orchestration SSOT (spawn_class / depth_policy / spawns / stack / instance_touching)
+# Orchestration SSOT (spawn_class / spawns / stack / instance_touching)
 # per skill dir, loaded from skill_tool_deps.json -> "orchestration".
 ORCHESTRATION: dict[str, dict] = {}
 
@@ -188,7 +188,7 @@ def _load_skill_tool_deps() -> None:
     """Populate SKILL_TO_TOOLS and ORCHESTRATION from skill_tool_deps.json.
 
     The JSON is the SSOT for which MCP tools each skill uses, and (in the
-    "orchestration" block) for each skill's spawn class, depth policy and stack.
+    "orchestration" block) for each skill's spawn class and stack.
     Session bootstrap tools (set_active_version, set_active_profile) are included
     in each skill's mcp_tools list and separated at render time in
     gen_skill_tools_block() - same logic as before, just data-driven now.
@@ -211,18 +211,17 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
         "# Orchestration Map (GENERATED - do not edit by hand)",
         "",
         "> SSOT: `generator/skill_tool_deps.json` → `orchestration`. Regenerate with `make gen`.",
-        "> Tells any planning/main agent which skills spawn subagents (so it never forbids a",
-        "> legitimate spawn) and which are depth0-only (so a subagent never illegally invokes them).",
+        "> Tells any planning agent which skills launch subagents (so it never forbids a legitimate launch).",
         "",
-        "| Skill | spawn_class | depth_policy | stack | instance | spawns |",
-        "|-------|-------------|--------------|-------|----------|--------|",
+        "| Skill | spawn_class | stack | instance | spawns |",
+        "|-------|-------------|-------|----------|--------|",
     ]
     for name in sorted(orch):
         e = orch[name]
         spawns = ", ".join(e.get("spawns", [])) or "-"
         inst = "yes" if e.get("instance_touching") else "-"
         lines.append(
-            f"| `{name}` | {e.get('spawn_class','?')} | {e.get('depth_policy','?')} | "
+            f"| `{name}` | {e.get('spawn_class','?')} | "
             f"{e.get('stack','none')} | {inst} | {spawns} |"
         )
     lines.append("")
@@ -230,9 +229,7 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
     lines.append("")
     lines.append("- **spawn_class** - `leaf` (runs inline) · `orchestrator-nl` (chains other skills via")
     lines.append("  natural-language dispatch, no Agent-tool spawn) · `spawner-agent` (dispatches a named")
-    lines.append("  agent, depth 0→1) · `spawner-wave` (worktree fan-out, depth 0→1→2).")
-    lines.append("- **depth_policy** - `depth0-only` skills must be invoked only from the main agent,")
-    lines.append("  never from inside a subagent (nesting-crash guard). `any-depth` is safe to NL-dispatch.")
+    lines.append("  subagent) · `spawner-wave` (worktree fan-out with parallel subagents).")
     lines.append("- **stack** - drives backend↔frontend routing; `fullstack` work must engage both a")
     lines.append("  backend and a frontend specialist.")
     lines.append("")
@@ -268,17 +265,15 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
 
 def gen_orchestration_digest(orch: dict[str, dict]) -> str:
     """Tiny digest injected at SessionStart so the planning agent knows, up front,
-    which skills spawn subagents and which are depth0-only. Kept terse on purpose."""
+    which skills launch subagents. Kept terse on purpose."""
     spawners = sorted(
         n for n, e in orch.items()
         if e.get("spawn_class", "").startswith("spawner")
     )
-    depth0 = sorted(n for n, e in orch.items() if e.get("depth_policy") == "depth0-only")
     lines = [
         "[odoo-ai-agents] Orchestration registry (so you never forbid a legitimate spawn):",
-        "- Skills that SPAWN subagents (let them; invoke only from the main agent): "
+        "- Skills that LAUNCH subagents (let them; a worker doing delegated work should not re-launch them): "
         + (", ".join(spawners) or "none"),
-        "- depth0-only (never invoke these from inside a subagent): " + (", ".join(depth0) or "none"),
         "- Full map: docs/reference/ORCHESTRATION-MAP.md",
     ]
     return "\n".join(lines) + "\n"
