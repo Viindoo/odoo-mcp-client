@@ -87,6 +87,7 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin:
 |-------|-------------|
 | `/odoo-feature-highlights` | Generates a feature highlight summary for a given Odoo version, grounded in real API data |
 | `/odoo-addon-diff` | Compares module availability and features between two Odoo versions |
+| `/odoo-doc-illustration` | Capture annotated screenshots of a live Odoo module for blog posts, sales decks, or app-store listings; multi-locale output |
 
 ---
 

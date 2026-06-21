@@ -87,6 +87,7 @@ Nếu bạn dùng **Claude Code** với plugin Odoo AI Agent Team:
 |-------|-------------|
 | `/odoo-feature-highlights` | Tạo bản tóm tắt điểm nhấn tính năng cho một phiên bản Odoo cho trước, dựa trên dữ liệu API thực |
 | `/odoo-addon-diff` | So sánh mức độ sẵn có và tính năng của module giữa hai phiên bản Odoo |
+| `/odoo-doc-illustration` | Chụp ảnh màn hình module Odoo có chú thích cho bài blog, deck bán hàng, hoặc trang App Store; xuất đa ngôn ngữ |
 
 ---
 
