@@ -97,22 +97,17 @@ Convention for `odoo-doc-illustrator` when writing module visual documentation i
 |-------|------|------|
 | App icon | `static/description/icon.png` | PNG 100x100 (legacy) or 128x128; match the module's existing icon size |
 | Store listing HTML | `static/description/index.html` | Pure HTML; image refs use `<img src="./file">` (relative) |
-| Banner screenshot | `static/description/main_screenshot.png` | ~1200px wide |
-| Localised banner GIF | `static/description/main_screenshot.<locale>.gif` | ~1200px; one file per locale |
-| Feature screenshot | `static/description/<N>-<slug>.<locale>.jpg` | ~1800px wide; `N` = two-digit ordering prefix |
+| Banner screenshot | `static/description/main_screenshot.png` | 1280x600 |
+| Localised banner GIF | `static/description/main_screenshot.<locale>.gif` | 1280x600; one file per locale |
+| Feature screenshot | `static/description/<N>-<slug>.<locale>.jpg` | ~1800px target, >=1200x800 floor; `N` = two-digit ordering prefix |
 
 Manifest key: `'images': ['static/description/main_screenshot.png']`.
 
 ### Writing screenshots from the agent
 
-The MCP browser tools run with cwd = the MCP client repo (not the addons repo). Write captures
-to an absolute staging directory inside the addons repo, then copy to `static/description/`:
-
-1. Capture to `<repo-addons-root>/.odoo-ai/visual/doc-staging/<module>/` (absolute path).
-2. `Bash cp` the staged files to `<module>/static/description/`.
-
-Never write to a relative path or a system temp dir - the cwd drift makes relative paths
-unreliable across tool calls.
+SSOT for the screenshot write mechanism (allowed-roots constraint + 2-tier relative-filename ->
+`.playwright-mcp` -> Bash cp staging): see `agents/odoo-doc-illustrator.md` (Critical path
+constraint section). Do not duplicate that mechanism here - follow the agent SSOT.
 
 ### UC2 - cluster / docs-repo output
 
