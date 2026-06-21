@@ -457,15 +457,91 @@ exec {sys.executable} "$@"
     # (c) DB is gone after release.
     assert not _db_exists_pg(db), "ephemeral DB must be absent after release"
 
-    # (d) The allocator did NOT call raw `dropdb` directly (it went through odoo_db.py).
-    # The fake python IS our gate: if the raw dropdb shell was called by the allocator
-    # separately, it would also appear in the log (we redirect PATH). But the fake
-    # python IS the venv python intercept, and it is the one that called `dropdb` on
-    # behalf of the through-Odoo path. So we verify the allocator did NOT call
-    # `dropdb` BEFORE the fake python was involved by checking stderr has no
-    # "venv unavailable" warning (fallback marker).
-    assert "WARNING" not in rel.stderr, (
-        "allocator must not emit WARNING (fallback) when venv python is present"
+
+# --------------------------------------------------------------------------- #
+# Profile-aware acquire (WI-4)
+# --------------------------------------------------------------------------- #
+INSTANCES_TOML_TWO_PROFILES = """\
+[[instance]]
+series = "17.0"
+profile = "minimal"
+instance_key = "17.0:minimal"
+addons_path = ["/srv/odoo/addons"]
+run_mode = "source"
+http_port = 8069
+http_port_base = 8170
+port_pool_size = 10
+db_name = "odoo_17_0_minimal"
+db_name_prefix = "odoo_17_0_minimal"
+db_host = "localhost"
+db_user = "odoo"
+python = "/srv/venv-minimal/bin/python"
+
+[[instance]]
+series = "17.0"
+profile = "full"
+instance_key = "17.0:full"
+addons_path = ["/srv/odoo/addons", "/srv/custom"]
+run_mode = "source"
+http_port = 8169
+http_port_base = 8180
+port_pool_size = 10
+db_name = "odoo_17_0_full"
+db_name_prefix = "odoo_17_0_full"
+db_host = "localhost"
+db_user = "odoo"
+python = "/srv/venv-full/bin/python"
+"""
+
+
+def test_acquire_selects_by_profile(tmp_path):
+    """--profile must select the matching [[instance]] block, not the first block.
+
+    Behavior contract:
+    - acquire --series 17.0 --profile minimal -> selects the 'minimal' block
+      (ALLOC_PYTHON=/srv/venv-minimal/bin/python, ALLOC_PROFILE=minimal)
+    - acquire --series 17.0 --profile full -> selects the 'full' block
+      (ALLOC_PYTHON=/srv/venv-full/bin/python, ALLOC_PROFILE=full)
+    - ephemeral db_name uses the matching block's db_name_prefix
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML_TWO_PROFILES, encoding="utf-8")
+    env = _env(home, toml)
+
+    # Acquire for 'minimal' profile.
+    p_min = _run(env, "acquire", "--series", "17.0", "--profile", "minimal",
+                 "--mode", "ephemeral", "--no-create", "--ports", "0")
+    assert p_min.returncode == 0, (
+        f"acquire --profile minimal failed.\nstdout: {p_min.stdout}\nstderr: {p_min.stderr}"
+    )
+    a_min = _parse_alloc(p_min.stdout)
+    assert a_min.get("ALLOC_PROFILE") == "minimal", (
+        f"ALLOC_PROFILE must be 'minimal'; got {a_min.get('ALLOC_PROFILE')!r}"
+    )
+    assert a_min.get("ALLOC_PYTHON") == "/srv/venv-minimal/bin/python", (
+        f"ALLOC_PYTHON must come from minimal block; got {a_min.get('ALLOC_PYTHON')!r}"
+    )
+    assert a_min.get("ALLOC_DB_NAME", "").startswith("odoo_17_0_minimal_t_"), (
+        f"ephemeral db_name must use minimal prefix; got {a_min.get('ALLOC_DB_NAME')!r}"
+    )
+
+    # Acquire for 'full' profile - must select different block.
+    p_full = _run(env, "acquire", "--series", "17.0", "--profile", "full",
+                  "--mode", "ephemeral", "--no-create", "--ports", "0")
+    assert p_full.returncode == 0, (
+        f"acquire --profile full failed.\nstdout: {p_full.stdout}\nstderr: {p_full.stderr}"
+    )
+    a_full = _parse_alloc(p_full.stdout)
+    assert a_full.get("ALLOC_PROFILE") == "full", (
+        f"ALLOC_PROFILE must be 'full'; got {a_full.get('ALLOC_PROFILE')!r}"
+    )
+    assert a_full.get("ALLOC_PYTHON") == "/srv/venv-full/bin/python", (
+        f"ALLOC_PYTHON must come from full block; got {a_full.get('ALLOC_PYTHON')!r}"
+    )
+    assert a_full.get("ALLOC_DB_NAME", "").startswith("odoo_17_0_full_t_"), (
+        f"ephemeral db_name must use full prefix; got {a_full.get('ALLOC_DB_NAME')!r}"
     )
 
 

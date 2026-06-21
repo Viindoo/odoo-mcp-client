@@ -47,7 +47,7 @@ The OSM `set_active_version` pin is server-side state scoped to the API key. A c
 **Step C - Resolve venv.** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md`. If `ALLOC_PYTHON` is already in scope (from an allocator acquire), use it directly. If no suitable venv exists, build one first:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/45-venv.sh create-venv --series <X.Y> --tool uv
+${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/45-venv.sh create-venv --series <X.Y> --profile <name> --tool uv
 ```
 
 **Step D - Acquire a lease.** For any operation that touches or creates a database, acquire a concurrency-safe lease so no concurrent agent collides. Map the returned port numbers to the right CLI flags via the `cli_help` output from Step B.

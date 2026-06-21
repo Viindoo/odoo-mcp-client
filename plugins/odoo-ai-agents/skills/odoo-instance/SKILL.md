@@ -106,7 +106,7 @@ a local fallback.
 
 When no instance or venv exists on the machine, the agent builds one from scratch:
 - Discovers or creates a Python venv for the target series
-- Builds a venv via `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/45-venv.sh create-venv --series <X.Y> --tool uv` (which installs requirements and validates `import odoo`)
+- Builds a venv via `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/45-venv.sh create-venv --series <X.Y> [--profile <name>] --tool uv` (which installs requirements and validates `odoo-bin --version` - not a bare `import odoo`)
 - Runs `odoo-bin` with the appropriate flags for the requested operation
 
 When no `instances.toml` is found and no allocator is reachable, the agent surfaces a single

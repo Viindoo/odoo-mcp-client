@@ -5,6 +5,8 @@ field value (never a dotted/quoted table header):
 
     [[instance]]
     series = "17.0"
+    profile = "minimal_17"   # optional; distinguishes two instances of the same series
+    instance_key = "17.0:minimal_17"  # stable identity (<series>:<profile> or <series>)
     addons_path = ["/path/a", "/path/b"]
     run_mode = "source"
     http_port = 8069
@@ -20,11 +22,14 @@ version: both the tomllib path and the text-scan fallback fold the trailing
 header key into the item's `series`, so the two paths return the same instances.
 
 CLI:
-    python3 instances_io.py read <instances.toml> [series]
+    python3 instances_io.py read <instances.toml> [series] [profile]
         Emit shell-eval-able KEY=VALUE lines (shlex.quote'd) for one instance.
-        With no series the highest valid X.Y series is chosen.
+        With no series the highest valid X.Y series is chosen. With profile set,
+        further filters by profile within that series.
         Exit 1 (with an actionable message on stderr and nothing on stdout) if
         the file has no usable instance.
+        Emitted vars include INST_PROFILE and INST_KEY in addition to the
+        existing INST_* fields.
 """
 
 import re
@@ -134,13 +139,25 @@ def series_of(item):
     return str(item.get("series", item.get("version", "")))
 
 
+def profile_of(item):
+    return str(item.get("profile", ""))
+
+
+def instance_key_of(item):
+    """Stable identity: '<series>:<profile>' when profiled, else '<series>'."""
+    prof = profile_of(item)
+    series = series_of(item)
+    return f"{series}:{prof}" if prof else series
+
+
 def _series_key(series):
     m = re.match(r"^(\d+)\.(\d+)$", series)
     return (int(m.group(1)), int(m.group(2))) if m else (-1, -1)
 
 
-def select_instance(items, want=None):
+def select_instance(items, want=None, profile=None):
     """Pick one instance. With ``want`` set, match by series exactly.
+    With ``profile`` set, further filter by profile within that series.
     Otherwise return the highest valid X.Y series (placeholders skipped).
 
     Returns ``(item, defaulted)`` where ``defaulted`` is True when the choice
@@ -153,9 +170,12 @@ def select_instance(items, want=None):
     if want:
         for it in items:
             if series_of(it) == want:
-                return it, False
+                if profile is None or profile_of(it) == profile:
+                    return it, False
         return None, False
-    valid = [it for it in items if _series_key(series_of(it)) != (-1, -1)]
+    # No series filter: pick highest valid X.Y, optionally filtered by profile.
+    candidates = items if profile is None else [it for it in items if profile_of(it) == profile]
+    valid = [it for it in candidates if _series_key(series_of(it)) != (-1, -1)]
     if not valid:
         return None, False
     chosen = max(valid, key=lambda it: _series_key(series_of(it)))
@@ -170,15 +190,16 @@ def _emit(name, value):
 
 def _cmd_read(argv):
     if len(argv) < 1:
-        sys.stderr.write("Usage: instances_io.py read <instances.toml> [series]\n")
+        sys.stderr.write("Usage: instances_io.py read <instances.toml> [series] [profile]\n")
         return 2
     path = argv[0]
     want = argv[1] if len(argv) > 1 and argv[1] else ""
+    prof = argv[2] if len(argv) > 2 and argv[2] else None
     try:
         items = load_instances(path)
     except Exception:
         return 1
-    tbl, defaulted = select_instance(items, want or None)
+    tbl, defaulted = select_instance(items, want or None, profile=prof)
     if tbl is None:
         sys.stderr.write(
             f"No valid Odoo instance found in {path}. "
@@ -199,6 +220,8 @@ def _cmd_read(argv):
     _emit("INST_DB_HOST", tbl.get("db_host", "localhost"))
     _emit("INST_DB_USER", tbl.get("db_user", "odoo"))
     _emit("INST_PYTHON", tbl.get("python", ""))
+    _emit("INST_PROFILE", profile_of(tbl))
+    _emit("INST_KEY", instance_key_of(tbl))
     return 0
 
 

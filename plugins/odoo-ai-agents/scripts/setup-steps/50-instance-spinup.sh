@@ -50,6 +50,7 @@ SPINUP_TIMEOUT="${SPINUP_TIMEOUT:-120}"
 SUBCMD="${1:-}"
 shift || true
 VERSION=""
+PROFILE=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --version)
@@ -60,6 +61,12 @@ while [[ $# -gt 0 ]]; do
                 exit 2
             fi
             VERSION="$2"; shift 2 ;;
+        --profile)
+            if [[ $# -lt 2 ]]; then
+                echo "$(basename "$0") --profile requires a value (e.g. --profile minimal)" >&2
+                exit 2
+            fi
+            PROFILE="$2"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 2 ;;
     esac
 done
@@ -78,10 +85,11 @@ cmd_describe() {
 # ---------------------------------------------------------------------------
 _read_instance() {
     # $1 = series (may be empty -> highest valid series).
+    # $2 = profile (optional; empty -> match any profile / no-profile items).
     # Prints shell-safe KEY=VALUE lines (values shlex.quote'd) so the caller can
     # `eval` them even when a path contains spaces or shell metacharacters.
     [[ -f "$INSTANCES_TOML" ]] || return 1
-    python3 "$INSTANCES_IO" read "$INSTANCES_TOML" "${1:-}"
+    python3 "$INSTANCES_IO" read "$INSTANCES_TOML" "${1:-}" "${2:-}"
 }
 
 # ---------------------------------------------------------------------------
@@ -98,7 +106,7 @@ _http_status() {
 cmd_check() {
     # Non-zero exit OR empty output from the loader = no instance to check.
     local kv port rc=0
-    kv="$(_read_instance "$VERSION")" || rc=$?
+    kv="$(_read_instance "$VERSION" "$PROFILE")" || rc=$?
     [[ "$rc" -eq 0 && -n "$kv" ]] || return 1
     eval "$kv"
     port="${INST_HTTP_PORT:-8069}"
@@ -148,7 +156,7 @@ cmd_apply() {
     # BOTH a non-zero exit AND empty output as "nothing to spin up" so we never
     # proceed with empty INST_* vars.
     local kv rc=0
-    kv="$(_read_instance "$VERSION")" || rc=$?
+    kv="$(_read_instance "$VERSION" "$PROFILE")" || rc=$?
     if [[ "$rc" -ne 0 || -z "$kv" ]]; then
         echo "x No usable Odoo instance found in $INSTANCES_TOML." >&2
         echo "  Declare one first: run the instance-profile step" >&2
@@ -172,6 +180,7 @@ cmd_apply() {
         [[ -n "$alloc_py" && -f "$alloc_py" ]] || return 0
         local args=(acquire --series "${INST_VERSION:-}" --mode shared
                     --port "$port" --db-name "${INST_DB_NAME:-odoo}")
+        [[ -n "${INST_PROFILE:-}" ]] && args+=(--profile "${INST_PROFILE}")
         if [[ -n "${1:-}" ]] && kill -0 "$1" 2>/dev/null; then
             args+=(--pid "$1")
         fi
@@ -217,17 +226,23 @@ cmd_apply() {
                 return 1
             fi
 
-            # ---- PREFLIGHT: verify python can import odoo BEFORE launching ----
+            # ---- PREFLIGHT: verify python can run Odoo BEFORE launching ----
+            # Use `<py> <odoo-bin> --version` instead of `<py> -c "import odoo"`:
+            #   - odoo-bin inserts the repo root into sys.path[0] at startup, so
+            #     this works with source-only checkouts (no pip install -e needed).
+            #   - Catches missing deps (lxml, psycopg2, ...) that bare import hides.
+            #   - Compatible with Odoo v19 namespace packages (no odoo/__init__.py).
+            #   - Uses the venv's own python, so python2 venvs (v8-v10) work too.
             # Catching this here produces a clear actionable error instead of
             # launch-then-poll-timeout which wastes 120s and hides the real cause.
-            if ! "$py" -c "import odoo" 2>/dev/null; then
+            if ! "$py" "$bin" --version >/dev/null 2>&1; then
                 echo "" >&2
-                echo "x PREFLIGHT FAILED: '$py' cannot import odoo." >&2
-                echo "  Odoo will not start. Fix this BEFORE retrying:" >&2
+                echo "x PREFLIGHT FAILED: '$py $bin --version' failed - Odoo will not start." >&2
+                echo "  Fix this BEFORE retrying:" >&2
                 echo "    - Confirm the 'python' field in instances.toml points to a venv" >&2
-                echo "      that has Odoo installed (run step 45 create-venv first)." >&2
+                echo "      that has Odoo's deps installed (run step 45 create-venv first)." >&2
                 echo "    - Or set ODOO_PYTHON=/path/to/venv/bin/python." >&2
-                echo "    - Or install Odoo in the active Python environment." >&2
+                echo "    - Or install Odoo deps in the active Python environment." >&2
                 return 1
             fi
 

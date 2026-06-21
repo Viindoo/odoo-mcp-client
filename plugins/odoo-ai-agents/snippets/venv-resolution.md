@@ -14,8 +14,8 @@ Odoo even loads.
    `~/.odoo-ai/instances.toml`), then read the interpreter:
 
    ```
-   python3 <plugin>/scripts/lib/instances_io.py read <path-to-instances.toml> <series>
-   # emits INST_PYTHON=<path-to-venv-python> among the other INST_* fields
+   python3 <plugin>/scripts/lib/instances_io.py read <path-to-instances.toml> <series> [profile]
+   # emits INST_PYTHON / INST_PROFILE / INST_KEY among the other INST_* fields
    ```
 
 2. **`$ODOO_PYTHON`** - an interpreter path set in the environment.
@@ -35,11 +35,23 @@ instance, so spinning up via that step already picks the right interpreter for y
 Build (or record an existing) venv for the series with the optional setup step:
 
 ```
-<plugin>/scripts/setup-steps/45-venv.sh create-venv --series <X.Y> --tool uv|pip
+<plugin>/scripts/setup-steps/45-venv.sh create-venv --series <X.Y> --profile <name> --tool uv|pip
 ```
 
-It installs the series' requirements and records the interpreter back onto the instance's
-`python` field. The recommended Python per Odoo series lives in
+When multiple profiles share the same series, pass `--profile` to select the right instance
+and venv. The venv is created under `venvs/<series>-<profile>` and its path is recorded as
+the `python` field on the matching `[[instance]]` in `instances.toml`. The script verifies
+all the profile's repos are present and that `odoo-bin --version` runs (not a bare
+`import odoo`) before recording the `python` field.
+
+Read the resulting path with:
+
+```
+python3 <plugin>/scripts/lib/instances_io.py read <path-to-instances.toml> <series> [profile]
+# emits INST_PYTHON / INST_PROFILE / INST_KEY among the INST_* fields
+```
+
+The recommended Python per Odoo series lives in
 `scripts/lib/odoo-python-matrix.json`.
 
 ## Note: the lint gate resolves its own toolchain
