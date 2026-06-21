@@ -74,6 +74,22 @@ Detect from confirmed module list:
 - **field_naming**: assume `snake_case`; override only on user request.
 - **vcs_branch_pattern**: try `git log --oneline -20` for naming heuristic; skip if not a git repo.
 
+Detect doc convention for downstream doc/illustration skills:
+
+```bash
+# image naming pattern in static/description (e.g. omniapproval_overview.png vs 01-overview.en_US.png)
+find . -maxdepth 5 -path "*/static/description/*" -name "*.png" -o -name "*.jpg" -o -name "*.gif" 2>/dev/null | head -10
+# bilingual index files (index_vi_VN.html, index_en_US.html, etc.)
+find . -maxdepth 5 -name "index_*.html" 2>/dev/null | head -5
+# static/description dir path relative to module root
+find . -maxdepth 5 -type d -name "description" 2>/dev/null | head -5
+```
+
+From findings derive:
+- **doc_image_naming**: regex or prose pattern observed (e.g. `<module>_<feature>.png` or `<N>-<slug>.<locale>.png`). Set `"unknown"` if no images found.
+- **doc_languages**: list of locale codes found in bilingual index files (e.g. `["en_US","vi_VN"]`). Set `["en_US"]` as default if no bilingual files found.
+- **doc_static_dir**: relative path from module root to the description image dir (e.g. `static/description`). Set `"static/description"` as default.
+
 Detect lint/format config for downstream skills:
 
 **Python ruff line-length:**
@@ -145,6 +161,9 @@ eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read ~/.odoo-a
 - **module_prefix**: viin_
 - **field_naming**: snake_case
 - **vcs_branch_pattern**: feature/<ticket-id>-<slug>
+- **doc_image_naming**: <pattern observed in static/description, e.g. "viin_<module>_<feature>.png"; "unknown" if no images>
+- **doc_languages**: <comma-separated locale codes found in bilingual index files, e.g. "en_US,vi_VN"; "en_US" if none found>
+- **doc_static_dir**: <relative path from module root to description image dir, e.g. "static/description">
 
 ## Lint / Format
 - **ruff_line_length**: 120  (read from pyproject.toml/ruff.toml; "none" if absent)
