@@ -511,6 +511,15 @@
       "deprecated_tools_used": [],
       "notes": "Browser-driven visual documentation agent: captures screenshots into module static/description or cluster docs. OSM tools ground module/model structure before capture."
     },
+    "odoo-installable-prober": {
+      "mcp_tools": [
+        "module_inspect",
+        "set_active_version"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Read-only forward-port pipeline leaf: probes the target-series installable state for a single module via module_inspect(summary, odoo_version) before cherry-pick / merge. Falls back to direct file read when OSM misses. No writes, no further spawns."
+    },
     "odoo-instance-ops": {
       "mcp_tools": [
         "cli_help",
@@ -885,6 +894,7 @@
       "spawn_class": "spawner-agent",
       "spawns": [
         "odoo-intent-extractor (read-only per-commit; model per complexity)",
+        "odoo-installable-prober (read-only per-module installable-state probe in P2; model per complexity / sonnet)",
         "odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees)"
       ],
       "stack": "fullstack",

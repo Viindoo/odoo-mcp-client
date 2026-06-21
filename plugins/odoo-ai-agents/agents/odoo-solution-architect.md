@@ -213,9 +213,14 @@ After writing the file, return:
 - Approach: <one line>
 - Artifact: .odoo-ai/designs/<slug>-<date>.md
 - Top risk: <one line>
-- Next: code to this design via odoo-coding
+- Next: (if RETURN_TO is SET) Return to: <RETURN_TO> (design approved; caller owns the code phase) | (if RETURN_TO is absent) code to this design via odoo-coding
 ```
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `status: NEEDS_NEXT`, `produced: [.odoo-ai/designs/<slug>-<date>.md]`, and `next:` to `odoo-coding` (or `odoo-data-migration` for a migration design), with `inputs: {design_doc: <path>}`. Additive output for the run-driver - it does not change anything produced above.
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `status: NEEDS_NEXT`, `produced: [.odoo-ai/designs/<slug>-<date>.md]`. Choose `next` based on whether the dispatch brief includes a `RETURN_TO:` line:
+
+- **`RETURN_TO` is SET** (the brief contains `RETURN_TO: <skill>`): set `next: <RETURN_TO>` (e.g. `next: odoo-forward-port`) with `inputs: {design_doc: <path>}`. Do NOT set `next: odoo-coding` or any coder target. The caller that requested return routing owns the downstream Plan Mode and code dispatch.
+- **`RETURN_TO` is ABSENT** (no such line in the brief): set `next: odoo-coding` (or `next: odoo-data-migration` for a migration design) with `inputs: {design_doc: <path>}`.
+
+Additive output for the run-driver - it does not change anything produced above.

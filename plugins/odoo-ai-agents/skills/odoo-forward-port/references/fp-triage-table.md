@@ -1,5 +1,5 @@
 <!-- Reference for odoo-forward-port/SKILL.md § Model triage. Loaded as needed.
-     Two deterministic tables: EXTRACT (Phase 0/1) and ADAPT (Phase 4). -->
+     Two deterministic tables: EXTRACT (P0/P1) and ADAPT (P8). -->
 
 # Forward-Port Model Triage - full tables
 
@@ -11,7 +11,7 @@ tier in `plan.md`; the tier is part of the approved plan, not a runtime improvis
 
 ---
 
-## Table 1 - EXTRACT tier (Phase 0 triage -> Phase 1 intent extraction)
+## Table 1 - EXTRACT tier (P0 triage -> P1 intent extraction)
 
 > **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row):**
 > If the module's `installable` field is `False` at the TARGET version
@@ -36,11 +36,11 @@ Constraints:
 - A large diff that is mechanically simple (mass rename, generated-file churn) can still be
   haiku - judge by the COMPLEXITY OF THE INTENT, not the line count.
 - The EXTRACT tier sets the `model` override passed to each `odoo-intent-extractor` subagent
-  launch in Phase 1 (the agent's own default is sonnet; the override wins).
+  launch in P1 (the agent's own default is sonnet; the override wins).
 
 ---
 
-## Table 2 - ADAPT tier (Phase 4 code adapt)
+## Table 2 - ADAPT tier (P8 code adapt)
 
 > **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row):**
 > If the module's `installable` field is `False` at the TARGET version
@@ -62,7 +62,7 @@ deterministic tier table verbatim (SSOT - do not fork it). The condition set, su
 
 Constraints:
 - **fable is never a default and ALWAYS needs explicit human confirmation** (~2x opus). When a
-  row resolves to fable, the Phase 0 plan gate must call it out on its own line (tier, cost,
+  row resolves to fable, the P4 plan gate must call it out on its own line (tier, cost,
   one-line why); the human's yes covers it. If the human declines fable, downgrade that
   work-item to **opus** and record `<m>: opus (fable declined)` in `plan.md`. Fable-grade work
   with no approved design doc -> recommend `odoo-solution-design` first.
@@ -83,8 +83,8 @@ Each commit in `plan.md` carries two tier columns:
 | `def5678` | rename field across 4 modules | (b) | opus | fable (confirm) |
 | `ghi9012` | fix typo in docstring | (a) | haiku | haiku (test-only) |
 
-The EXTRACT tier drives the Phase 1 dispatch; the ADAPT tier drives the Phase 4 dispatch.
-Buckets are assigned in Phase 2 (after extraction), so the ADAPT tier may be refined once the
+The EXTRACT tier drives the P1 dispatch; the ADAPT tier drives the P8 dispatch.
+Buckets are assigned in P2 (after extraction), so the ADAPT tier may be refined once the
 bucket is known - a commit triaged opus-to-adapt that classifies as bucket (a) drops to haiku
 (test-only). Re-record any refinement in `plan.md`.
 
@@ -103,7 +103,7 @@ OWL, QUnit -> Hoot, an API removed wholesale at the target). The gate trips if E
 - estimated > ~200 LOC of new OWL/JS (or backend) on the target, OR
 - it is a full component / framework rewrite (the source idiom no longer exists at the target).
 
-**What to do when it fires - STOP and present (at the P0 plan gate, or mid-run if discovered
+**What to do when it fires - STOP and present (at the P4 plan gate, or mid-run if discovered
 late):**
 
 ```

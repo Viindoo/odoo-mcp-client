@@ -124,13 +124,13 @@ exception in adapt mode. Additionally:
 Adapt mode runs inside the absorption window described in
 `${CLAUDE_PLUGIN_ROOT}/snippets/fp-merge-absorption.md`:
 
-- Symbol-survival check (P3.5) runs BEFORE adapt mode. If a field or method in the
+- Symbol-survival check (P6) runs BEFORE adapt mode. If a field or method in the
   source test was flagged by symbol-survival as absent on target, treat it as
   CAPTURE-CODE for that symbol and translate accordingly (do not leave a reference to a
   removed symbol).
-- RED-then-GREEN and confirm-by-toggle for FP-delta tests is part of Phase 5 verify
+- RED-then-GREEN and confirm-by-toggle for FP-delta tests is part of P9 verify
   (per-batch), NOT per-test during adapt. Adapt mode confirms RED conceptually (step 4
-  above); the actual toggle runs in Phase 5.
+  above); the actual toggle runs in P9.
 
 ## Continuation Contract for adapt mode
 

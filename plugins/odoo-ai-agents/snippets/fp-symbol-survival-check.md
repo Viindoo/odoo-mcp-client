@@ -1,10 +1,10 @@
-<!-- SSOT snippet. Phase 3.5 of /odoo-forward-port pipeline. Referenced by
+<!-- SSOT snippet. P6 of /odoo-forward-port pipeline. Referenced by
      odoo-forward-port skill. Edit here only.
      Cross-ref: fp-intent-4outcome.md, fp-merge-absorption.md, osm-first-contract.md -->
 
-# Forward-Port Symbol Survival Check (Phase 3.5)
+# Forward-Port Symbol Survival Check (P6)
 
-**When to run:** after `git merge --no-commit` (Phase 3), before any adapt work (Phase 4).
+**When to run:** after `git merge --no-commit` (P5), before any adapt work (P8).
 **Why this phase exists:** git auto-merge silently carries source-side lines that reference
 a symbol (field, method, model, view-id, external-id) that was REMOVED or RENAMED in the
 target version - no conflict marker appears because the target branch never touched that line.
@@ -41,7 +41,7 @@ merge (no conflict marker) is NOT safe-by-default: its `setUpClass`/`setUp`/`_da
 or its assertions can reference a core field, model, base-class kwarg, data file, or
 external-id that was removed or renamed at the target - and because the merge had no
 information that the symbol moved, the test silently lands broken. A broken test crashes at
-collection or setup (Phase 5 reads `0 failed, N error(s)` = the tests never ran), so it must
+collection or setup (P9 reads `0 failed, N error(s)` = the tests never ran), so it must
 be triaged HERE, alongside production code, not waved through as "just a test". Do not filter
 `tests/`, `*/tests/`, or `test_*.py` out of the scope list.
 
@@ -79,9 +79,9 @@ load, or runtime on the target. Run EVERY check below over the scope list from S
 (production AND `tests/` files). Each check states: what auto-merges silently, the command
 to enumerate candidates, and how to ground each candidate against the target. Any candidate
 that fails its ground is a SYMBOL-BROKEN finding (Section 4) - resolve via the
-[[fp-intent-4outcome]] bucket before Phase 4 adapt.
+[[fp-intent-4outcome]] bucket before P8 adapt.
 
-Note: P3.5 runs all classes over the full scope; P4.5 applies a two-lane split - see fp-phase-detail.md P4.5 for the operative per-class scope (Lane 1 = d,e,g over ALL .py; Lane 2 = a,b,c,f over tests/).
+Note: P6 runs all classes over the full scope; P7 applies a two-lane split - see fp-phase-detail.md P7 for the operative per-class scope (Lane 1 = d,e,g over ALL .py; Lane 2 = a,b,c,f over tests/).
 
 ### (a) Test base-class signature drift
 
@@ -220,9 +220,9 @@ rename. Ground the suspected symbol against the target with `model_inspect` / `e
 
 **Autosilent:** a `__manifest__.py` carried in the merge delta flips `installable` between the
 source and the target end-state (`True` -> `False` or `False` -> `True`). This silently changes
-which modules Phase 5 actually loads and tests - a module that flips to `installable: False`
+which modules P9 actually loads and tests - a module that flips to `installable: False`
 drops out of the install set with no error, so its forward-ported code is never exercised
-(reconcile against the Phase 5 `Loading module X` parse - a flipped-off module is expected
+(reconcile against the P9 `Loading module X` parse - a flipped-off module is expected
 NOT to appear there). The merge has no conflict because only one side touched the flag.
 
 **Enumerate** every manifest in the merge delta and check the flag on each side:
@@ -236,7 +236,7 @@ grep -nE "installable" <target-tree>/<module>/__manifest__.py
 **Ground + record:** confirm the post-merge end-state of `installable` for each affected module
 and record it. A flip is not auto-broken, but it MUST be a recorded finding (Section 4,
 kind=installable-flag) because it determines whether the forward-ported code in that module is
-actually loaded and verified in Phase 5 - an un-noticed `True` -> `False` flip is a silent drop
+actually loaded and verified in P9 - an un-noticed `True` -> `False` flip is a silent drop
 of the whole module from the verify set.
 
 ### (g) ORM create/write dict-key field literals
@@ -295,7 +295,7 @@ will surface as a runtime exception; resolve it here, not later.
 
 ## 4. Output contract
 
-Produce a symbol-survival finding list before proceeding to Phase 4. Each entry uses the
+Produce a symbol-survival finding list before proceeding to P8. Each entry uses the
 `kind=` discriminator so the finding is unambiguous and machine-greppable. For a field /
 method / model / view-ref / xml_id symbol from Section 2:
 
@@ -324,21 +324,21 @@ SYMBOL-BROKEN | kind=orm-field-key | <key> on <model>.create/write absent-or-ret
 An empty list is a valid (and desirable) result - document it as
 `SYMBOL-SURVIVAL: clean (0 broken references found)`.
 
-A non-empty list is a BLOCKER for Phase 4 adapt start on those files - resolve each
+A non-empty list is a BLOCKER for P8 adapt start on those files - resolve each
 entry (apply the bucket action) before the adapt subagent touches those files. An
-`installable-flag` entry is a recorded finding (not a Phase-4 blocker by itself) but MUST be
-carried into Phase 5 so the verify set reflects the real install set.
+`installable-flag` entry is a recorded finding (not a P8 blocker by itself) but MUST be
+carried into P9 so the verify set reflects the real install set.
 
 ---
 
-## Why not defer this to Phase 5 verify-by-behavior
+## Why not defer this to P9 verify-by-behavior
 
-Phase 5 runs the test suite and catches failures where a test exercises the broken path.
+P9 runs the test suite and catches failures where a test exercises the broken path.
 Symbol-survival catches broken references in code paths with **no test coverage** - runtime-rare
 paths, configuration-only code, XML view references, and `ir.model.fields` lookups that
-never appear in any test fixture. It also catches breaks that PREVENT Phase 5 from running at
-all: a test base-class kwarg drift (2.5a) or a broken import (2.5d) crashes collection, so Phase
-5 reports `0 failed, N error(s)` - the tests never ran, and a naive reading of the counts looks
+never appear in any test fixture. It also catches breaks that PREVENT P9 from running at
+all: a test base-class kwarg drift (2.5a) or a broken import (2.5d) crashes collection, so P9
+reports `0 failed, N error(s)` - the tests never ran, and a naive reading of the counts looks
 green. Principle #3 of the forward-port design ("no-conflict but feature dies") mandates
-grounding at the SYMBOL level here, not only at the behavior level in Phase 5. Both gates are
+grounding at the SYMBOL level here, not only at the behavior level in P9. Both gates are
 required; neither replaces the other.

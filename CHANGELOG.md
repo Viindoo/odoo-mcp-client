@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.21.0] - 2026-06-21
+
+### Changed
+
+- feat(odoo-ai-agents): forward-port pipeline reorder - intent-extract + 4-outcome classify + a conditional design step now run BEFORE the plan gate, so the plan is built from understood intent (not bucket guesses). New order: P0 recon (no stop) -> P1 intent extract -> P2 classify + installable-probe -> P3 design (conditional route-out) -> P4 plan gate -> P5 merge -> P6 symbol-survival -> P7 drift -> P8 adapt -> P9 verify -> P10 gate-merge -> P11 PR
+- feat(odoo-ai-agents): forward-port plan gate moved into harness Plan Mode (EnterPlanMode / ExitPlanMode); plan.md is now a resume record, not the approval gate
+- feat(odoo-ai-agents): odoo-intake skips its own Plan Mode when routing to odoo-forward-port (forward-port owns its P4 gate - no double Plan Mode)
+
+### Added
+
+- feat(odoo-ai-agents): installable:False category-3 - a module first made-installable at the source series but not yet upgraded for the target lands installable:False, decided by a TARGET CLEAN-TIP (pre-merge) discriminator
+- feat(odoo-ai-agents): new read-only agent odoo-installable-prober - reads target clean-tip manifest + source git-history to drive the category-3 installable decision (delegated heavy git-history read)
+- feat(odoo-ai-agents): conditional design route-out to odoo-solution-design for complex (bucket-(c)) modules via a return_to round-trip (design-only; returns to forward-port without dispatching a coder)
+
 ## [3.20.1] - 2026-06-21
 
 - fix(odoo-ai-agents): odoo-doc-illustrator real-module smoke fixes - never drop existing on-disk doc locales (language list = tier-resolved UNION disk-detected locales, so a module already shipping bilingual docs keeps all of them); derive odoo_version from the parent dir series when the manifest version does not encode an Odoo series (Viindoo-style `0.2.2`); convention-detect now also scans `doc/` for bilingual RST
