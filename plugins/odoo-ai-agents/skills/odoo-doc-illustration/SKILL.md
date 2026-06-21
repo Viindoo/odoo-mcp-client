@@ -8,9 +8,9 @@ description: >
   cho module", "screenshot doc Odoo", "làm static/description với hình", "viết tài liệu cụm
   module kèm ảnh", "illustrate module README with captured screens", "add screenshots to addon
   docs", "thêm ảnh chụp màn hình vào tài liệu module".
-  Routing: record a video walkthrough -> odoo-demo-recording; rate/audit a rendered screen ->
-  odoo-ui-review; pure text draft (no screenshots) -> odoo-content-draft; compare two builds
-  -> odoo-visual-regression; write frontend code -> odoo-coding
+  Routing: record a video -> odoo-demo-recording; audit a screen -> odoo-ui-review; pure text
+  (no screenshots) -> odoo-content-draft; spec/outline before code -> odoo-solution-design or
+  odoo-content-draft; compare builds -> odoo-visual-regression; write frontend code -> odoo-coding
 ---
 
 ## Persona
@@ -25,6 +25,7 @@ working sessions and git commits instead of being lost to an ephemeral temp dir.
 - **Record a video/GIF walkthrough** -> `odoo-demo-recording`
 - **Rate or audit a rendered screen** (aesthetics, a11y, Lighthouse) -> `odoo-ui-review`
 - **Pure text draft** (blog post, marketing copy, no screenshot capture needed) -> `odoo-content-draft`
+- **Spec or outline before any code/doc exists** (define what to build) -> `odoo-solution-design` or `odoo-content-draft`
 - **Compare two builds for visual drift** -> `odoo-visual-regression`
 - **Write or fix frontend source code** -> `odoo-coding`
 
@@ -37,8 +38,26 @@ MODE: module | cluster
 TARGET: <absolute path to module dir (UC1) | doc_output_dir (UC2)>
 SCREENS: <ordered list of menus / views / flows to capture, e.g. "Sales > Orders list, form view of draft order, Confirm button result">
 BROWSER MODE: headless | headed
-USER LANGUAGE: vi | en
+DOC LAYER: appstore | userguide | both
+LANGUAGES: <resolved language list - see i18n resolution below>
 ```
+
+**DOC LAYER.** Controls which output files are produced:
+- `appstore` - writes `static/description/index.html` (App Store listing page)
+- `userguide` - writes `doc/index.rst` (user guide / RST documentation)
+- `both` - writes both; agent uses [Hinh anh: <slug>] markers in the hybrid draft so `odoo-content-draft` can resolve them
+
+**Language resolution (5-tier, SSOT `skills/odoo-i18n/SKILL.md` P0).**
+Resolve the documentation language list in this order - first tier that yields a value wins:
+1. Explicit `LANGUAGES:` value in the dispatch brief
+2. `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` field `default_languages`
+3. Module `i18n/*.po` locales already present
+4. `res.lang` active languages on the live instance
+5. Fallback `["vi_VN"]`
+
+For each resolved language produce a separate output: `index.html` + `index_<locale>.html` (appstore), or locale-suffixed RST (userguide).
+
+**Image anchor markers in hybrid drafts.** When the brief field `DOC LAYER: both` (or when delegating prose to `odoo-content-draft`), use `[Hinh anh: <screen-slug>]` as the placeholder - NOT `[[IMG:]]`. The agent replaces these markers with `<img>` tags (HTML) or `.. image::` directives (RST) after capture.
 
 **Browser exclusivity.** The doc-illustrator drives the browser (playwright by default) sequentially - do NOT
 dispatch it in parallel with odoo-ui-reviewer, odoo-visual-regression, or odoo-demo-recording
@@ -50,6 +69,8 @@ on the same instance, as concurrent browser sessions collide.
 (skill invocation or subagent as appropriate), then slots the captured screenshots into the
 returned document at the agreed anchor points. When `doc_output_dir` is not specified in the
 brief or `.odoo-ai/context.md`, the agent falls back to `.odoo-ai/visual/doc/`.
+
+**Convention-detect.** Before capturing, the agent reads `.odoo-ai/context.md` fields `doc_image_naming`, `doc_languages`, and `doc_static_dir`; also `ls` the module's `static/description/` to infer existing naming patterns. Detected convention wins over brief defaults. Screenshots are cropped by default; highlight overlays are added only when the brief explicitly requests them.
 
 Image quality: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (agent verifies
 on-theme render before capturing).
