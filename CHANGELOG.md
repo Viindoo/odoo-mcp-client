@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.20.1] - 2026-06-21
+
+- fix(odoo-ai-agents): odoo-doc-illustrator real-module smoke fixes - never drop existing on-disk doc locales (language list = tier-resolved UNION disk-detected locales, so a module already shipping bilingual docs keeps all of them); derive odoo_version from the parent dir series when the manifest version does not encode an Odoo series (Viindoo-style `0.2.2`); convention-detect now also scans `doc/` for bilingual RST
+
 ## [3.20.0] - 2026-06-21
 
 - feat(odoo-ai-agents): new odoo-doc-illustrator agent - browser-driven visual documentation (capture screenshots into module static/description or cluster docs)

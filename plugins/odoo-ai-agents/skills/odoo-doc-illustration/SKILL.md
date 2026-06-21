@@ -54,7 +54,7 @@ If `addons_path` is not yet known, TARGET may be just a module name; the agent r
 - `both` (MODE module) - agent writes both files directly (no markers, no content-draft); agent embeds `<img>` / `.. image::` tags after capture
 - `both` (MODE cluster hybrid) - agent uses `[Image: <screen-slug>]` markers in the prose skeleton so standalone `odoo-content-draft` can fill prose; the doc-illustrator agent itself replaces markers with `<img>`/`.. image::` after capture (content-draft does NOT resolve markers)
 
-**Language resolution (6-tier, extends `skills/odoo-i18n/SKILL.md` P0 with one extra tier).**
+**Language resolution (6-tier + disk-UNION, extends `skills/odoo-i18n/SKILL.md` P0 with one extra tier).**
 Resolve the documentation language list in this order - first tier that yields a value wins:
 1. Explicit `LANGUAGES:` value in the dispatch brief
 2. `context.md` field `doc_languages` - written by onboarding as a comma-string (e.g. `en_US,vi_VN`); split on `,` and trim whitespace
@@ -62,6 +62,10 @@ Resolve the documentation language list in this order - first tier that yields a
 4. Module `i18n/*.po` locales already present
 5. `res.lang` active languages on the live instance
 6. Fallback `["vi_VN"]`
+
+**UNION with existing on-disk doc locales (mandatory, applied after tier resolution):** Before dispatching, scan `static/description/` for `index.html` (primary doc already present) and `index_<locale>.html` files; also scan `doc/` for `index.rst` and `index_<locale>.rst` when DOC LAYER is `userguide` or `both`. Collect all as `disk_doc_locales`. Final language list = `tier_resolved_list` ∪ `disk_doc_locales`. Existing on-disk doc locales are ALWAYS included - never pass a `LANGUAGES:` field that omits a locale already documented on disk. This prevents the agent from silently dropping existing translations.
+
+Example: viin_approval has `index.html` (primary/EN) + `index_vi_VN.html`; i18n.json -> `["vi_VN"]`; disk_doc_locales = `{primary, vi_VN}`; dispatch LANGUAGES = `[primary, vi_VN]` -> agent updates all 4 files (2 HTML + 2 RST for DOC LAYER both).
 
 Tiers 3-6 here = odoo-i18n P0 tiers 2-5; P0 tier 1 (explicit) maps to our tiers 1-2. Tier 2 (context.md `doc_languages`) is added here and sits above P0 in the odoo-doc-illustration stack only.
 

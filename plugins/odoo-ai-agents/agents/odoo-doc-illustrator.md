@@ -72,7 +72,7 @@ Work in steps. Fire independent MCP/Bash calls within a step in the same message
 
 READ the cross-agent decision log (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first) to inherit upstream decisions; APPEND your own significant decisions at the end (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
-Read `.odoo-ai/context.md` (Markdown bullets, `- **key**: value` form). Extract: `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir`, `doc_languages`, `doc_image_naming`, `doc_static_dir`, and optionally `modules`, `addons_path`, `doc_output_dir`. If `.odoo-ai/context.md` is absent, derive `odoo_version` from the first `__manifest__.py` on disk (`version` field, first two dotted components). If `addons_path` is absent from context, derive it from the grandparent directory of the target module's `__manifest__.py` - that is, the directory containing the module directory (Bash: `dirname $(dirname $(find . -maxdepth 6 -name __manifest__.py -path "*/<module_name>/*" | head -1))`); if still unresolvable, stop with `status: NEEDS_CONTEXT` for both modes. Ask the caller only for what none of these resolve, in a single message.
+Read `.odoo-ai/context.md` (Markdown bullets, `- **key**: value` form). Extract: `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir`, `doc_languages`, `doc_image_naming`, `doc_static_dir`, and optionally `modules`, `addons_path`, `doc_output_dir`. If `.odoo-ai/context.md` is absent or `odoo_version` is not set there, derive `odoo_version` from the first `__manifest__.py` on disk (`version` field, first two dotted components) - BUT ONLY if the major component is >= 8 (a valid Odoo series); if the major is < 8 (e.g. Viindoo-style `0.2.2` or `1.0.3`), the manifest version does NOT encode the Odoo series - skip it and instead: (1) regex-scan the parent directory name(s) on the path for an Odoo series pattern `(?:addons|tvtmaaddons)(\d+)` (e.g. `tvtmaaddons17` -> `17.0`); (2) if that also fails, stop with `status: NEEDS_CONTEXT` and request `odoo_version` explicitly. If `addons_path` is absent from context, derive it from the grandparent directory of the target module's `__manifest__.py` - that is, the directory containing the module directory (Bash: `dirname $(dirname $(find . -maxdepth 6 -name __manifest__.py -path "*/<module_name>/*" | head -1))`); if still unresolvable, stop with `status: NEEDS_CONTEXT` for both modes. Ask the caller only for what none of these resolve, in a single message.
 
 Once `odoo_version` is concrete, pin it using set_active_version with the concrete version string as the `odoo_version` argument (this is the reachability probe). Pass the CONCRETE version on every subsequent OSM call - never `'auto'`.
 
@@ -85,11 +85,15 @@ If no blackboard/run-id is available from the dispatch brief, use slug `doc-illu
 **Convention detection (run before assuming defaults):**
 ```bash
 ls <module-abs>/static/description/ 2>/dev/null
+ls <module-abs>/doc/ 2>/dev/null
 ```
 Read `.odoo-ai/context.md` fields `doc_image_naming`, `doc_languages`, `doc_static_dir` if present. From these, detect:
 - **naming pattern**: tiebreaker order = (1) disk `ls` of the existing `static/description/` directory WINS (e.g. detected pattern `sale_main.png` -> use `<module>_<feature>.png`); (2) `context.md` `doc_image_naming` template (template notation like `<module>_<feature>.png` means use that scheme); (3) default `main_screenshot.png` / `<feature>-<view>.png` when directory is empty or absent. Example: if `doc_image_naming: <module>_<feature>.png` and disk has `sale_dashboard.png`, the disk file wins and confirms the `<module>_<feature>.png` scheme.
 - **bilingual layout**: if existing files have locale suffixes (e.g. `index_vi_VN.html`) - maintain same pattern for new files.
 - **asset dir**: use `doc_static_dir` from context if set, else `static/description/`.
+- **disk-doc-locales (HTML)**: scan `static/description/` for `index.html` (marks primary language already documented) and `index_<locale>.html` files (each suffix = a locale already documented). Collect these as `disk_html_locales`.
+- **disk-doc-locales (RST)**: when DOC LAYER is `userguide` or `both`, scan `doc/` for `index.rst` (primary) and `index_<locale>.rst` files. Collect as `disk_rst_locales`.
+- **disk-doc-locales union**: `disk_doc_locales` = `disk_html_locales` ∪ `disk_rst_locales`. A file without a locale suffix (`index.html`/`index.rst`) means the module already ships a PRIMARY-language doc - include PRIMARY (element[0] of the tier-resolved list) in `disk_doc_locales`. A file with suffix `_<locale>` adds that locale. Record `disk_doc_locales` for use in Step 2.
 
 Final dest for appstore/both: `<module-abs>/<asset-dir>/`. Final dest for userguide: `<module-abs>/doc/`. Create dirs if absent (Bash `mkdir -p`).
 
@@ -112,7 +116,11 @@ Determine which documentation languages to produce. Apply tiers in order (first 
 5. **Instance active languages** - live `res.lang` with active=True (if live MCP available)
 6. **Default** `["vi_VN"]`
 
-The primary language = element[0] of the resolved list -> produces `index.html` / `index.rst`. Each additional language -> `index_<locale>.html` / `index_<locale>.rst`.
+**UNION with existing on-disk doc locales (mandatory, applied after tier resolution):** After the first matching tier yields a list, UNION it with `disk_doc_locales` from Step 1. The final language list = `tier_resolved_list` ∪ `disk_doc_locales`. Existing on-disk doc locales are ALWAYS included - never produce fewer locales than already exist on disk. Rule: if `index.html` (or `index.rst`) exists, the primary language is always in the output; if `index_vi_VN.html` exists, `vi_VN` is always in the output regardless of what the tier resolved. This prevents overwriting or silently dropping existing translations.
+
+Example - viin_approval: disk has `index.html` (primary, EN) + `index_vi_VN.html`; i18n.json returns `["vi_VN"]`. tier_resolved = `["vi_VN"]`; disk_doc_locales = `{primary, vi_VN}`; final = `["vi_VN", primary]` -> agent updates BOTH `index.html` and `index_vi_VN.html` (+ RST equivalents if DOC LAYER both).
+
+The primary language = element[0] of the tier-resolved list -> produces `index.html` / `index.rst`. Each additional language -> `index_<locale>.html` / `index_<locale>.rst`.
 
 Tiers 3-6 above map to odoo-i18n P0 tiers 2-5; tiers 1-2 here are this agent's additions. The odoo-i18n P0 (`skills/odoo-i18n/SKILL.md`) remains the SSOT for tiers 3-6.
 
