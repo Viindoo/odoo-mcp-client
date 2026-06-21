@@ -124,6 +124,24 @@ asks for the fix to be written, -> route to `odoo-coding`. If the user is starti
 from scratch ("create a color picker widget"), there is no runtime to debug ->
 `odoo-coding`.
 
+## Collision 10 - Doc Illustration (static screenshots) vs Demo Recording (real video)
+
+**Prompt**: "tôi cần tài liệu cho module Sale với ảnh chụp màn hình minh hoạ các bước"
+
+- `odoo-doc-illustration`: handles "viết tài liệu module / cập nhật tài liệu có ảnh chụp màn hình /
+  làm static/description / document this module" -> produces a STATIC written guide with annotated
+  screenshots captured from the live instance, saved as docs/description files.
+- `odoo-demo-recording`: handles "quay video tính năng / demo video / screencast / GIF" ->
+  drives the live instance and produces a REAL recorded MP4/GIF screencast of a flow.
+
+**Discriminator**: "ảnh chụp" / "screenshot" / "tài liệu" / "docs" + no mention of "video",
+"quay", "screencast", "GIF" -> **Pick `odoo-doc-illustration`**. If the user wants a playable
+recording of the flow ("video", "quay lại", "GIF"), -> **Pick `odoo-demo-recording`**.
+When the user says "demo" with no further qualifier, ask: "static screenshot doc, or recorded video?"
+
+**Tie-breaker rule**: deliverable is a DOCUMENT (text + still images) -> `odoo-doc-illustration`;
+deliverable is a PLAYABLE RECORDING (mp4/GIF) -> `odoo-demo-recording`.
+
 ## Collision 9 - Wave (git orchestration) vs BRL (requirement classification) vs Coding (single change)
 
 **Prompt**: "I have 5 changes to make across 3 files - parallelize them and land as a single reviewed PR"
