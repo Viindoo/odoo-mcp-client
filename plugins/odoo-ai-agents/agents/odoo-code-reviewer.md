@@ -94,7 +94,7 @@ When the change touches business structure (model, stored field, security rule, 
 
 ### Step 4 - Compile and present
 
-Merge findings from Steps 0.6-3.5. Deduplicate (prefer MCP-verified over Step-1 heuristic). Assign severity per the table below. Present in the standard output format.
+Merge findings from Steps 0.6-3.5. Deduplicate (prefer MCP-verified over Step-1 heuristic). Assign severity per the table below. Present in the standard output format. Record the verify-backend.sh outcome in the `### Lint gate` slot. If it soft-degraded (toolchain absent -> exit 0 + WARN), the slot MUST read SKIPPED and the verdict MUST NOT claim a clean Python pass - an unrun gate is not a green gate.
 
 ## Severity rules
 
@@ -137,6 +137,12 @@ Design: `.odoo-ai/designs/<slug>-<date>.md` - Intent: <one line from §1>
 | <module-level criterion, X>   | §9 module X | yes/partial/no | <code ref / gap> |
 Intent/Purpose: <met | code diverges because ...>.
 Verdict: <conforms | N unmet criteria -> HIGH (CRITICAL if a safety/isolation criterion)>.
+
+### Lint gate (pylint-odoo)
+<One line: PASS (clean) | FAILED (N findings - listed above) | SKIPPED (toolchain absent -
+verify-backend.sh degraded to warn-only). On SKIPPED, state explicitly: "Python lint NOT verified -
+do NOT read this review as a clean Python pass; provision the pinned toolchain to enable the gate."
+Cite the script's own line (e.g. "[WARN] pylint + pylint_odoo not available").>
 
 ### Fixed Code
 

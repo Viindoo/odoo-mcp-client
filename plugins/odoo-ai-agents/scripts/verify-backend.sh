@@ -32,6 +32,7 @@
 #   ODOO_SERIES           Odoo series (e.g. 17.0) when not resolvable from context
 #   ODOO_PYLINTRC         explicit path to a pylintrc (highest-priority config)
 #   VERIFY_BACKEND_BASE   git diff base ref (default: HEAD)
+#   VERIFY_BACKEND_GIT_DIR  run git diff in this worktree (default: cwd) - set when reviewing a sibling worktree
 #
 # EXIT CODE:
 #   0  passed, or degraded gracefully to warn-only (no toolchain / no series / no files)
@@ -285,7 +286,7 @@ if [[ ${#ARGS[@]} -gt 0 ]]; then
 else
     FILES=()
     while IFS= read -r _line; do FILES+=("$_line"); done \
-        < <(git diff --name-only "${VERIFY_BASE}" 2>/dev/null || true)
+        < <(git ${VERIFY_BACKEND_GIT_DIR:+-C "$VERIFY_BACKEND_GIT_DIR"} diff --name-only "${VERIFY_BASE}" 2>/dev/null || true)
 fi
 PY_FILES=()
 for f in "${FILES[@]:-}"; do

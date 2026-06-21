@@ -6,6 +6,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.19.0] - 2026-06-21
+
+### Fixed
+
+- **forward-port P4.5 now scans production code, not only `tests/`.** The python-import and
+  AST-pyflakes survival classes run over ALL merged-touched `.py` (production AND `tests/`), so a
+  runtime `NameError` left in production code by a clean merge is caught statically before the slow
+  P5 behavioral run instead of slipping through to a chance test path. (Closes #101)
+- **forward-port P5 triages every red against a clean-tip baseline.** A red test - whether in an
+  edited module or in a co-installed dependency pulled in by the install closure - must be proven
+  against a clean target tip before it is called a regression; co-installed-dependency reds are
+  almost always pre-existing.
+- **odoo-code-review surfaces the lint gate in the verdict.** The `### Lint gate (pylint-odoo)` slot
+  reports PASS / FAILED / SKIPPED; a soft-degraded (toolchain-absent) run reads SKIPPED and must not
+  be reported as a clean Python pass - an unrun gate is not a green gate.
+- **odoo-code-review Phase 0 detects a sibling git worktree.** When `WORKTREE_PATH` is supplied it
+  diffs there (`git -C <path> diff`) instead of cwd, so changes living in a `wave` / `odoo-forward-port`
+  worktree are no longer silently reviewed as clean. `verify-backend.sh` gains `VERIFY_BACKEND_GIT_DIR`.
+- **odoo-intake no longer double-gates a skill that owns a stronger gate.** When a routed skill opens
+  with its own STOP plan gate (e.g. `odoo-forward-port` P0 per-commit plan), intake launches it
+  directly instead of emitting a redundant soft-plan-gate.
+
+### Added
+
+- **forward-port symbol-survival class (g): ORM `create`/`write` dict-key field-literal scan.** Over
+  all merged-touched `.py` (production call sites + test helpers), each dict key is cross-checked per
+  field via `entity_lookup(kind='field')` to catch a renamed/removed field or a Many2one->Many2many
+  type flip that pyflakes cannot see.
+- **forward-port P5 optional `--test-tags` narrowing.** When the untagged closure suite is
+  impractically large, the run may narrow to touched modules + their direct dependers - never to the
+  edited module alone, which would hide a broken downstream-depender test.
+- **odoo-onboarding persists a verify-environment cache** (`verify_python`, `addons_path`) into
+  `.odoo-ai/context.md` so P5 / run / verify steps read it instead of re-discovering the interpreter
+  and addons-path each time; the SSOT remains `~/.odoo-ai/instances.toml`.
+
 ## [3.18.0] - 2026-06-20
 
 ### Added

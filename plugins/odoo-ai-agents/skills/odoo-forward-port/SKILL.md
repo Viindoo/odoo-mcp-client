@@ -229,13 +229,13 @@ cross-version. Record all broken test-symbol references in the per-commit row of
 
 **P4.5 - Pre-adapt drift scan [MUST, before the behavioral loop].** Distinct from P3.5:
 P3.5 catches OSM-indexed symbol-graph breaks (cross-version via index); P4.5 catches static
-grep / import / AST breaks by running the six symbol classes from `[[fp-symbol-survival-check]]`
-section 2.5 (base-class kwarg drift, file-existence, dynamic `ref()`, python import, AST
-pyflakes, installable flag) directly against the merged `tests/` files, then enforces the
-collection-level ACCEPTANCE GATE.
-Enumerate every symbol, file path, import, and test-base-class the merged test code touches;
-triage each finding into a bucket (b adapt / c re-implement / d drop) - never leave an
-auto-merged test line referencing a dead symbol.
+grep / import / AST breaks via two lanes: classes (d)(e)(g) run over ALL merged-touched `.py`
+(production AND `tests/`) - (d)(e) catch runtime NameError and (g) catches an autosilent
+ORM Invalid-field key before P5; the remaining classes (a)(b)(c)(f) and the collection
+ACCEPTANCE GATE apply over `tests/` only.
+Enumerate every symbol, file path, import, and test-base-class the merged code touches (Lane 1
+production AND tests; Lane 2 tests only); triage each finding into a bucket (b adapt /
+c re-implement / d drop) - never leave an auto-merged line referencing a dead symbol.
 **ACCEPTANCE GATE:** merged test files MUST import and collect cleanly on the target
 (`python -m pytest --collect-only` or `odoo-bin ... --test-enable` collection) before any
 red-then-green adapt starts. A `setUpClass` crash means tests never ran, so a green count from

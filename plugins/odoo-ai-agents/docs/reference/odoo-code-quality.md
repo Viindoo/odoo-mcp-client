@@ -35,6 +35,16 @@ exit 0, when the toolchain is absent), HARD-fail (exit 1) only on real findings,
 `git diff --name-only`. Series is resolved from `--series` / `$ODOO_SERIES` / `.odoo-ai/context.md`
 (`odoo_version`).
 
+Env overrides:
+
+| Var | Default | Purpose |
+|---|---|---|
+| `ODOO_SERIES` | from context.md | Odoo series (e.g. `17.0`) when not resolvable from context |
+| `VERIFY_BACKEND_BASE` | `HEAD` | git diff base ref |
+| `VERIFY_BACKEND_GIT_DIR` | cwd | run `git diff` in this worktree - set when reviewing a sibling worktree |
+| `ODOO_AI_DIR` | `$PWD/.odoo-ai` | state dir for the tools venv |
+| `ODOO_PYLINTRC` | (auto) | explicit path to a pylintrc (highest-priority config) |
+
 It runs `pylint --load-plugins=pylint_odoo` from an **isolated tools venv**
 (`$ODOO_AI_DIR/tools/pylint-<series>/`) - never the instance venv - with the
 pylint/astroid/pylint-odoo versions pinned per Odoo series.

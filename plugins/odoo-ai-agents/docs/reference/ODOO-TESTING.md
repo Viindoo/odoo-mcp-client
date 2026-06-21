@@ -62,9 +62,11 @@ run the gate:
    `verify-backend.sh` resolves the per-series pylint/astroid/pylint-odoo pins from
    `scripts/lib/odoo-python-matrix.json`, always loads `pylint_odoo` (avoiding the W0012
    "vanilla" false signal), and derives the enabled-code set from the deployment's own quality
-   module (e.g. a `test_pylint`/`test_lint` addon) when present. See
-   `docs/reference/odoo-code-quality.md` for the full two-part gate, the per-version matrix, and
-   the vanilla-vs-`pylint_odoo` trap.
+   module (e.g. a `test_pylint`/`test_lint` addon) when present. Key env overrides:
+   `VERIFY_BACKEND_BASE` (git diff base ref, default `HEAD`); `VERIFY_BACKEND_GIT_DIR` (run
+   `git diff` in this worktree - set when reviewing a sibling worktree; default cwd). See
+   `docs/reference/odoo-code-quality.md` for the full two-part gate, the complete env override
+   table, the per-version matrix, and the vanilla-vs-`pylint_odoo` trap.
 
 **Deployment quality module.** Some deployments wrap pylint-odoo in their own test module
 (commonly `test_pylint`). When such a module is on the addons path, **also include its tag** in

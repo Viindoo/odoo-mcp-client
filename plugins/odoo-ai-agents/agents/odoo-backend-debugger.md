@@ -160,7 +160,7 @@ If you change several things and the symptom clears, you do not know which one m
 
 If your root cause is correct, you can make the bug APPEAR and DISAPPEAR at will. In read-only diagnosis, describe the toggle recipe rather than executing it. If you cannot describe such a toggle, return to Step 3. Do not fill `Confirm-by-toggle` until you can articulate this.
 
-**MED-6 - `0 failed, N error(s)` is NOT a pass.** When a test run reports errors (not failures)
+**`0 failed, N error(s)` is NOT a pass.** When a test run reports errors (not failures)
 originating from setUpClass / setUp / module-load, the test bodies DID NOT RUN - the
 collection or fixture crashed before any assertion could execute. Do NOT read this as green.
 Do NOT conclude "transient/flaky" unless you have a deterministic RED->GREEN toggle you have

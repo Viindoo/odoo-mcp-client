@@ -300,8 +300,8 @@ flowchart TD
     IE1 --> P2["P2 - 4-outcome classify<br/>(OSM api_version_diff)"]
     IE2 --> P2
     P2 --> P3["P3 - git merge --no-commit<br/>(keep SHA)"]
-    P3 --> P35["P3.5 - Symbol-survival<br/>(6 classes: field/method/model/<br/>test-base/import/installable)"]
-    P35 --> P45["P4.5 - Pre-adapt drift scan<br/>(test-collect gate)"]
+    P3 --> P35["P3.5 - Symbol-survival<br/>(7 classes: field/method/model/<br/>test-base/import/installable/orm-field-key)"]
+    P35 --> P45["P4.5 - Pre-adapt drift scan<br/>(Lane 1: ALL .py - import+pyflakes+orm-field-key<br/>Lane 2: tests-only collect gate)"]
 
     subgraph P4_grp["P4 - Adapt (serial per commit, test-first)"]
         PA["forward tests RED-on-target"] --> PB["adapt by bucket<br/>a=skip / b=3-way / c=reimplement / d=skip"]
@@ -320,7 +320,7 @@ flowchart TD
 | P0 plan | - | STOP before P1 |
 | P1 intent-extract | Yes (N commits) | - |
 | P2-P3.5 classify + merge + symbol-survival | Serial per commit | - |
-| P4.5 pre-adapt drift scan | Serial per commit | - |
+| P4.5 pre-adapt drift scan (two-lane: ALL .py for import+pyflakes+orm-field-key; tests-only collect gate) | Serial per commit | - |
 | P4 adapt | Serial per commit | - |
 | P5 verify | Per-batch | STOP before P6 |
 | P6-P7 merge + PR | - | - |

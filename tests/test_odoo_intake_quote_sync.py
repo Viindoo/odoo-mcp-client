@@ -45,6 +45,17 @@ KNOWN_NON_TARGETS = {
 }
 
 
+def test_intake_defers_to_forward_port_own_gate():
+    """Intake must document that skills with a stronger own gate (e.g. odoo-forward-port)
+    are launched directly without a duplicate soft-plan-gate emission."""
+    text = INTAKE.read_text(encoding="utf-8")
+    assert "stronger gate" in text.lower(), (
+        "odoo-intake/SKILL.md must document the exception for skills that own a stronger gate "
+        "(e.g. odoo-forward-port), instructing intake to skip the soft-plan-gate and launch directly. "
+        "Add the 'Exception - skills that own a stronger gate' paragraph to the Soft plan gate section."
+    )
+
+
 def test_odoo_intake_targets_exist():
     valid = _valid_targets()
     text = INTAKE.read_text(encoding="utf-8")
