@@ -27,17 +27,25 @@ project-scoped under `./.odoo-ai/`.)
 5. **`./.odoo-ai/instances.toml`** - a project-local profile, only as a
    transitional fallback when no machine-global file exists yet.
 
+Each `[[instance]]` entry may include an optional `profile` field (a short name
+like `"community"` or `"enterprise"`) and an `instance_key` (a stable key
+`<series>:<profile>` with a colon, computed at read time from `series`+`profile`
+when not explicit). These allow multiple profiles on the same series to coexist
+without ambiguity. Note: the venv DIRECTORY uses a dash: `venvs/<series>-<profile>`.
+
 Read a profile with the shipped reader (it emits shell-eval-able `INST_*` lines):
 
 ```
-python3 <plugin>/scripts/lib/instances_io.py read <path-to-instances.toml> [series]
+python3 <plugin>/scripts/lib/instances_io.py read <path-to-instances.toml> [series] [profile]
+# emits INST_PYTHON / INST_PROFILE / INST_KEY / INST_HTTP_PORT / ... for the matched instance
 ```
 
-The first `[[instance]]` whose `series` matches (or the highest `X.Y` when no
-series is requested) is the active instance; its `http_port` gives
-`instance_base_url = http://localhost:<http_port>`. If none of the sources above
-yields an instance, surface a single clarifying request for the instance URL
-rather than guessing.
+The first `[[instance]]` whose `series` matches (and, when supplied, whose `profile`
+also matches) is the active instance; its `http_port` gives
+`instance_base_url = http://localhost:<http_port>`. Omit `profile` to get the
+highest-priority match for the series. If none of the sources above yields an
+instance, surface a single clarifying request for the instance URL rather than
+guessing.
 
 ## Allocate, don't just resolve (concurrent mutation)
 
@@ -50,9 +58,10 @@ another Claude Code session may be using the same database/port right now.
 For a mutation, acquire an isolated lease instead of reading the catalog directly:
 
 ```
-python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral [--ports N]
-# emits ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_PYTHON / ALLOC_ADDONS_PATH / ALLOC_DB_HOST /
-# ALLOC_DB_USER / ALLOC_TOKEN ; release with `allocator.py release <ALLOC_TOKEN>` when done.
+python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral [--profile <P>] [--ports N]
+# emits ALLOC_SERIES / ALLOC_PROFILE / ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_PYTHON /
+# ALLOC_ADDONS_PATH / ALLOC_DB_HOST / ALLOC_DB_USER / ALLOC_TOKEN
+# release with `allocator.py release <ALLOC_TOKEN>` when done.
 ```
 
 `ephemeral` reserves a unique DB name and ports; the DB is created through Odoo by your

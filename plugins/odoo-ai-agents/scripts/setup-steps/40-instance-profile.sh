@@ -94,10 +94,12 @@ _ensure_gitignore() {
 # _write_instance_from_spec  (shared by apply)
 #   $1 = series   $2 = addons_path TOML literal (already quoted, comma-sep)
 #   $3 = http_port  $4 = db_name  $5 = db_host  $6 = db_user  $7 = python
+#   $8 = profile (optional; empty string = no profile)
 # ---------------------------------------------------------------------------
 _write_instance_from_spec() {
     local ver="$1" paths="$2" port="$3" db_name="$4" db_host="$5" db_user="$6" py="$7"
-    local suggested_py pyline out
+    local profile="${8:-}"
+    local suggested_py pyline profileline instance_key_val match_field match_value out
 
     suggested_py="$(_suggested_python "$ver")"
     if [[ -n "$py" ]]; then
@@ -108,8 +110,26 @@ _write_instance_from_spec() {
         pyline='python = ""                     # venv python for source mode (empty = system python3)'
     fi
 
+    # Compute instance_key and idempotency match-key.
+    # Q1 backward-compat: when profile is empty, match by series (legacy behavior);
+    # when profile is set, match by instance_key so two profiles of the same series
+    # don't conflict and don't dedupe each other.
+    if [[ -n "$profile" ]]; then
+        instance_key_val="${ver}:${profile}"
+        profileline=$(printf 'profile = "%s"\n' "$profile")
+        match_field="instance_key"
+        match_value="$instance_key_val"
+    else
+        instance_key_val="$ver"
+        profileline=""
+        match_field="series"
+        match_value="$ver"
+    fi
+
     out="$( {
         printf 'series = "%s"\n' "$ver"
+        [[ -n "$profileline" ]] && printf '%s\n' "$profileline"
+        printf 'instance_key = "%s"\n' "$instance_key_val"
         printf 'addons_path = [%s]\n' "$paths"
         printf 'run_mode = "source"            # source | docker\n'
         printf 'http_port = %s\n' "$port"
@@ -118,12 +138,14 @@ _write_instance_from_spec() {
         printf 'db_user = "%s"\n' "$db_user"
         printf '%s\n' "$pyline"
         printf '# db_password: DO NOT store here. Use env ODOO_PG_PASSWORD or your keychain.\n'
-    } | python3 "$LIB" toml-append-array-item "$INSTANCES_TOML" instance series "$ver" )"
+    } | python3 "$LIB" toml-append-array-item "$INSTANCES_TOML" instance "$match_field" "$match_value" )"
     if printf '%s' "$out" | grep -q '^exists'; then
-        echo "  [[instance]] series=$ver already present - skip"
+        local label="${ver}${profile:+:$profile}"
+        echo "  [[instance]] $label already present - skip"
         return 0
     else
-        echo "  wrote [[instance]] series=$ver (http_port=$port) -> $INSTANCES_TOML"
+        local label="${ver}${profile:+:$profile}"
+        echo "  wrote [[instance]] $label (http_port=$port) -> $INSTANCES_TOML"
         return 1   # signal: new item written (caller increments port_idx)
     fi
 }
@@ -220,12 +242,19 @@ PY
 
     local i=0
     while [[ $i -lt $n_items ]]; do
-        local ver addons_raw db_name_raw db_host_raw db_user_raw http_port_raw py_raw
+        local ver addons_raw db_name_raw db_host_raw db_user_raw http_port_raw py_raw profile_raw
         ver="$(python3 - "$spec_file" "$i" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
 item = data[int(sys.argv[2])]
 print(item["series"])
+PY
+)"
+        profile_raw="$(python3 - "$spec_file" "$i" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+item = data[int(sys.argv[2])]
+print(item.get("profile") or "")
 PY
 )"
         addons_raw="$(python3 - "$spec_file" "$i" <<'PY'
@@ -245,11 +274,18 @@ idx  = int(sys.argv[4])
 print(item.get("http_port") or (base + idx * 10))
 PY
 )"
-        db_name_raw="$(python3 - "$spec_file" "$i" "$ver" <<'PY'
+        db_name_raw="$(python3 - "$spec_file" "$i" "$ver" "$profile_raw" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
 item = data[int(sys.argv[2])]
+prof = sys.argv[4]
 default = "odoo_" + sys.argv[3].replace(".", "_")
+if prof and not item.get("db_name"):
+    # When profile is set and db_name not explicit, suffix the slug to avoid
+    # two profiles of the same series sharing a database.
+    import re
+    slug = re.sub(r'[^a-zA-Z0-9._-]', '_', prof)
+    default = default + "_" + slug
 print(item.get("db_name") or default)
 PY
 )"
@@ -276,7 +312,7 @@ PY
 )"
 
         if _write_instance_from_spec "$ver" "$addons_raw" "$http_port_raw" \
-                "$db_name_raw" "$db_host_raw" "$db_user_raw" "$py_raw"; then
+                "$db_name_raw" "$db_host_raw" "$db_user_raw" "$py_raw" "$profile_raw"; then
             : # already present - port_idx unchanged
         else
             port_idx=$((port_idx + 1))

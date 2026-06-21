@@ -136,3 +136,68 @@ def test_command_offers_interactive_checkbox_menu_when_no_args():
         "command must state that arguments are optional shortcuts that the user does "
         "not need to remember (e.g. 'optional shortcuts you don\\'t need to remember')"
     )
+
+
+def test_command_ai4_v19_safe_probe():
+    """The AI-4 venv-scan section of odoo-setup.md must teach a v8-v19-safe detection
+    principle and must NOT instruct the LLM to use brittle bare-import or site-packages
+    inspection as the detection method.
+
+    Specifically (all assertions case-insensitive):
+    1. The AI-4 section MUST reference `odoo-bin --version` OR `import odoo.release`
+       as the detection probe.
+    2. The AI-4 section MUST include an UNKNOWN / inconclusive branch that escalates to
+       the user instead of guessing.
+    3. The AI-4 section MUST NOT instruct detecting the series via
+       `site-packages/odoo` directory inspection or `odoo package version` (old wording).
+
+    Pin marker: slice from "ai-4" to "confirm #5" to avoid matching other sections.
+    """
+    raw = COMMAND_FILE.read_text(encoding="utf-8")
+    raw_lower = raw.lower()
+
+    # --- Pin the AI-4 region (case-insensitive slice) ---
+    # Use the full heading "**ai-4 - venv scan" to avoid matching earlier table references.
+    ai4_start = raw_lower.find("**ai-4 - venv scan")
+    confirm5_start = raw_lower.find("confirm #5", ai4_start)
+    assert ai4_start != -1, "AI-4 venv-scan heading not found in command file (expected '**AI-4 - Venv scan')"
+    assert confirm5_start != -1, "CONFIRM #5 heading not found after AI-4 in command file"
+    ai4_region = raw_lower[ai4_start:confirm5_start]
+
+    # 1. Must recommend odoo-bin --version OR import odoo.release as the probe
+    has_odoo_bin_version = "odoo-bin --version" in ai4_region
+    has_odoo_release = "import odoo.release" in ai4_region
+    assert has_odoo_bin_version or has_odoo_release, (
+        "AI-4 section must recommend `odoo-bin --version` or `import odoo.release` "
+        "as the v8-v19-safe venv detection probe; found neither"
+    )
+
+    # 2. Must include an UNKNOWN / inconclusive / ask-the-user escalation branch
+    has_unknown_branch = "unknown" in ai4_region
+    has_inconclusive = "inconclusive" in ai4_region
+    has_ask_user = "ask the user" in ai4_region
+    assert has_unknown_branch or has_inconclusive or has_ask_user, (
+        "AI-4 section must document an UNKNOWN/inconclusive branch that asks the user "
+        "to confirm the venv's series rather than guessing; found none of: "
+        "'unknown', 'inconclusive', 'ask the user'"
+    )
+
+    # 3. Must NOT teach site-packages inspection or "odoo package version" as the DETECTION
+    #    METHOD. Mentioning `site-packages/odoo` after "do not inspect" is VALID (explaining
+    #    why to avoid it); only flag if it appears as a positive instruction.
+    for m in re.finditer(r"site-packages/odoo", ai4_region):
+        # look back 80 chars for a negating phrase
+        window_before = ai4_region[max(0, m.start() - 80):m.start()]
+        is_negated = bool(re.search(r"\bdo not\b|\bnot\b|\bnever\b|\bavoid\b", window_before))
+        assert is_negated, (
+            "AI-4 section must NOT instruct inspecting `site-packages/odoo` as a detection "
+            "method - only mention it in a 'do not inspect' prohibition. "
+            "Found a non-negated reference; old wording must be removed."
+        )
+
+    # "odoo package version" (old wording used as the DETECTION instruction) must not appear
+    assert "odoo` package version" not in ai4_region and "odoo package version" not in ai4_region, (
+        "AI-4 section must NOT instruct detecting the series via 'odoo package version' "
+        "- this is the old brittle wording that fails on v19 namespace packages; "
+        "replace with the `odoo-bin --version` or `import odoo.release` principle"
+    )

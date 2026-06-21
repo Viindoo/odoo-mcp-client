@@ -54,10 +54,15 @@
 ## Instance lifecycle contract (checklist for any build/update/test)
 
 1. **Resolve the target version explicitly** - confirm it is indexed (`list_available_versions`)
-   and pin it (`set_active_version`).
+   and pin it (`set_active_version`). When multiple profiles exist for the same series,
+   also resolve the `profile` field from the matching `[[instance]]` in `instances.toml`
+   (via `instances_io.py read <toml> <series> [profile]`, emitting `INST_PROFILE`/`INST_KEY`).
 2. **Query the CLI for that version - never assume.** `cli_help(command, flag, odoo_version='<version>')` for every
    non-trivial subcommand/flag (entry script, DB management, module management, port flags).
    Do not hardcode one version's CLI for another.
+   **Venv probe gate:** verify the venv by running `odoo-bin --version` (not `import odoo`);
+   a bare `import odoo` fails on source-only checkouts and is unreliable on Odoo 19 namespace
+   packages. The `python` field is only recorded on `[[instance]]` after this gate passes.
 3. **Classify the change** (decision tree above) → choose `-i` / `-u` / restart-only /
    drop+recreate, and state the classification before acting.
 4. **Generalize the environment** - read addons-path, port, DB name, data dir from the

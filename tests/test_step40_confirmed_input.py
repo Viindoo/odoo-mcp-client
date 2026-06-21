@@ -266,3 +266,109 @@ def test_step40_spec_defaults_fill_missing_optional_fields(tmp_path):
     assert inst.get("db_name") == "odoo_18_0"
     # Port: first instance gets base_port (8069) since file was empty.
     assert inst.get("http_port") == 8069
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_step40_two_profiles_same_series_both_persist(tmp_path):
+    """Two items with the same series but different profile must both be written
+    as separate [[instance]] blocks. The idempotency match-key for profiled items
+    must be instance_key (e.g. '17.0:minimal'), not just series; otherwise the
+    second item would be deduplicated away.
+
+    This test MUST be RED on code that uses series as the match-key for all items.
+    """
+    instances_toml = tmp_path / "instances.toml"
+    spec_file = tmp_path / "two_profiles.json"
+
+    spec = [
+        {
+            "series": "17.0",
+            "profile": "minimal",
+            "addons_path": ["/repos/core17"],
+            "http_port": 8069,
+        },
+        {
+            "series": "17.0",
+            "profile": "full",
+            "addons_path": ["/repos/core17", "/repos/enterprise17"],
+            "http_port": 8079,
+        },
+    ]
+    spec_file.write_text(json.dumps(spec), encoding="utf-8")
+
+    env_extra = {
+        "ODOO_AI_PROFILE_SPEC": str(spec_file),
+        "ODOO_AI_INSTANCES": str(instances_toml),
+        "HOME": str(tmp_path),
+    }
+
+    proc = _run_step40("apply", env_extra=env_extra, cwd=tmp_path)
+    assert proc.returncode == 0, (
+        f"apply failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+    )
+
+    data = tomllib.loads(instances_toml.read_text())
+    instances = data.get("instance", [])
+    assert len(instances) == 2, (
+        f"Expected 2 [[instance]] blocks (one per profile), got {len(instances)}.\n"
+        f"TOML:\n{instances_toml.read_text()}"
+    )
+
+    # Each [[instance]] must have its own profile and instance_key.
+    profiles = {inst.get("profile") for inst in instances}
+    assert profiles == {"minimal", "full"}, (
+        f"Expected profiles {{'minimal','full'}}, got {profiles}"
+    )
+
+    instance_keys = {inst.get("instance_key") for inst in instances}
+    assert instance_keys == {"17.0:minimal", "17.0:full"}, (
+        f"Expected instance_keys {{'17.0:minimal','17.0:full'}}, got {instance_keys}"
+    )
+
+    # Second run must be idempotent (still exactly 2).
+    proc2 = _run_step40("apply", env_extra=env_extra, cwd=tmp_path)
+    assert proc2.returncode == 0, (
+        f"Second (idempotent) apply failed.\nstdout: {proc2.stdout}\nstderr: {proc2.stderr}"
+    )
+    data2 = tomllib.loads(instances_toml.read_text())
+    assert len(data2["instance"]) == 2, (
+        f"Idempotency failed: expected 2 instances after second apply, "
+        f"got {len(data2['instance'])}"
+    )
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_step40_writes_profile_and_instance_key_fields(tmp_path):
+    """When a spec item has a 'profile' field, the written [[instance]] must include
+    both 'profile' and 'instance_key' fields with correct values."""
+    instances_toml = tmp_path / "instances.toml"
+    spec_file = tmp_path / "profiled.json"
+
+    spec = [{"series": "17.0", "profile": "dev", "addons_path": ["/repos/core17"]}]
+    spec_file.write_text(json.dumps(spec), encoding="utf-8")
+
+    proc = _run_step40(
+        "apply",
+        env_extra={
+            "ODOO_AI_PROFILE_SPEC": str(spec_file),
+            "ODOO_AI_INSTANCES": str(instances_toml),
+            "HOME": str(tmp_path),
+        },
+        cwd=tmp_path,
+    )
+    assert proc.returncode == 0, (
+        f"apply failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+    )
+
+    data = tomllib.loads(instances_toml.read_text())
+    inst = data["instance"][0]
+    assert inst.get("profile") == "dev", (
+        f"Expected profile='dev', got {inst.get('profile')!r}"
+    )
+    assert inst.get("instance_key") == "17.0:dev", (
+        f"Expected instance_key='17.0:dev', got {inst.get('instance_key')!r}"
+    )
+    # db_name default must have profile slug suffix when profile is set.
+    assert inst.get("db_name") == "odoo_17_0_dev", (
+        f"Expected db_name='odoo_17_0_dev', got {inst.get('db_name')!r}"
+    )

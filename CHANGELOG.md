@@ -6,6 +6,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.22.0] - 2026-06-22
+
+### Fixed
+
+- **`/odoo-setup` verifies Odoo by running `odoo-bin --version`, not `python -c "import odoo"`.**
+  A source-only Odoo checkout is never pip-installed, so the old bare-import gate
+  (`45-venv.sh`, `50-instance-spinup.sh`) false-negatived a healthy venv and refused to record
+  the instance's `python` field; it also misread Odoo 19's namespace package as broken. The gate
+  now runs the real entrypoint - which self-inserts its repo on `sys.path` - and fails loud when
+  the core repo is absent, instead of editable-installing Odoo. (#104)
+- **`/odoo-setup` AI-4 venv probe is v8-v19 safe and principle-based.** Series detection now runs
+  `odoo-bin --version` / `import odoo.release` instead of inspecting `import odoo` /
+  `site-packages/odoo` (a false-negative on namespace-package Odoo 19), and escalates an
+  `unknown` result to the user instead of guessing. (#104)
+
+### Added
+
+- **Per-profile venv and instance recording.** `[[instance]]` blocks gain optional `profile` /
+  `instance_key`; `45-venv.sh create-venv --profile <name>` builds an isolated
+  `venvs/<series>-<profile>` venv and verifies every repo in the profile is present before
+  recording the interpreter. `40-instance-profile.sh`, `50-instance-spinup.sh`,
+  `instances_io.py`, and `allocator.py` (`--profile`) carry the profile through, so two profiles
+  of the same series no longer collide on venv path, DB name, or instance identity. (#104)
+
 ## [3.21.0] - 2026-06-21
 
 ### Changed

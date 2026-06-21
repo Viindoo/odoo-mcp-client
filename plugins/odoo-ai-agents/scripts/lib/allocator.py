@@ -399,9 +399,9 @@ def _emit(name, value):
 # --------------------------------------------------------------------------- #
 # Commands
 # --------------------------------------------------------------------------- #
-def _resolve_instance(path, series):
+def _resolve_instance(path, series, profile=None):
     items = instances_io.load_instances(path)
-    inst, _ = instances_io.select_instance(items, series or None)
+    inst, _ = instances_io.select_instance(items, series or None, profile=profile or None)
     return inst
 
 
@@ -411,12 +411,14 @@ def _emit_instance_common(inst):
     _emit("ALLOC_DB_HOST", inst.get("db_host", "localhost"))
     _emit("ALLOC_DB_USER", inst.get("db_user", "odoo"))
     _emit("ALLOC_SERIES", instances_io.series_of(inst))
+    _emit("ALLOC_PROFILE", instances_io.profile_of(inst))
 
 
 def cmd_acquire(opts):
     path = resolve_instances_path(opts.get("instances"))
     series = opts.get("series", "")
-    inst = _resolve_instance(path, series)
+    profile = opts.get("profile", "")
+    inst = _resolve_instance(path, series, profile=profile or None)
     if inst is None:
         sys.stderr.write(
             f"allocator: no instance for series {series!r} in {path}. "
@@ -469,9 +471,12 @@ def cmd_acquire(opts):
                 else:
                     ports = existing.get("ports", [])
                 existing["heartbeat_at"] = now
+                # Refresh profile when caller supplies it (idempotent re-register).
+                if profile:
+                    existing["profile"] = profile
             else:
                 token = uuid.uuid4().hex
-                reg["leases"].append({
+                new_lease = {
                     "token": token,
                     "mode": "shared",
                     "series": series_c,
@@ -489,7 +494,10 @@ def cmd_acquire(opts):
                     "ttl_s": int(opts.get("ttl", DEFAULT_TTL_S)),
                     "heartbeat_at": now,
                     "_pg": {"host": host, "user": user},
-                })
+                }
+                if profile:
+                    new_lease["profile"] = profile
+                reg["leases"].append(new_lease)
             _write_registry(reg)
         _emit("ALLOC_TOKEN", token)
         _emit("ALLOC_MODE", "shared")
@@ -692,7 +700,7 @@ def cmd_list(opts):
 _FLAG_KEYS = {
     "--series": "series", "--mode": "mode", "--ports": "ports", "--port": "port",
     "--ttl": "ttl", "--session": "session", "--db-name": "db_name",
-    "--instances": "instances", "--pid": "pid",
+    "--instances": "instances", "--pid": "pid", "--profile": "profile",
 }
 _BOOL_KEYS = {"--no-create": "no_create"}
 

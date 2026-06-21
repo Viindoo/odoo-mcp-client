@@ -73,12 +73,18 @@ Per `[[instance]]`, add OPTIONAL fields (absent = derive a default; old files st
 
 | Field | Default | Purpose |
 |-------|---------|---------|
+| `profile` | `""` | short name for this instance within its series (e.g. `"community"`, `"enterprise"`); allows multiple profiles on the same series to coexist |
+| `instance_key` | `<series>:<profile>` (colon) | stable key for addressing this instance; computed at read time from `series`+`profile` when not explicit. Note: the venv DIRECTORY is `venvs/<series>-<profile>` (dash/slug) - a separate concept. |
 | `http_port_base` | `http_port` | low end of this instance's port pool |
 | `port_pool_size` | `10` | how many ports the allocator may hand out from `http_port_base` (version-agnostic numbers; the consumer maps each to a CLI flag via `cli_help`) |
 | `db_name_prefix` | `db_name` | prefix for ephemeral DBs: `<prefix>_t_<uuid8>` |
 | `ephemeral_ok` | auto-probe | whether `db_user` may `CREATEDB` (probed once, cached) |
 
 `instances_io.py` must tolerate unknown/old keys (it already defaults missing fields).
+
+The venv for each instance is built per-profile via `45-venv.sh create-venv --series <X.Y>
+--profile <name>` and lives under `venvs/<series>-<profile>`. The gate for recording the
+`python` field is `odoo-bin --version` (not `import odoo`) - see AI-4 in `commands/odoo-setup.md`.
 
 ### 4.2 Lease registry format
 
@@ -132,7 +138,7 @@ existing reader, so shell consumers stay simple.
 
 | Command | Behavior |
 |---------|----------|
-| `acquire --series <X.Y> --mode <readonly\|ephemeral\|exclusive\|shared> [--ports <N>] [--port <P>] [--pid <pid>] [--ttl <s>] [--session <id>]` | resolve catalog instance for series; under flock: GC stale leases, pick N free ports from the pool (registry-set ∪ live `bind()` probe) when `--ports N>0`, choose db_name (ephemeral: unique reserved name; else declared), write the lease atomically (B2: does NOT create the DB - the caller's `-i` run performs Odoo create-on-init); probe CREATEDB and degrade ephemeral -> exclusive when absent (Odoo create-on-init requires it too); print `ALLOC_TOKEN/ALLOC_DB_NAME/ALLOC_PORTS (space-separated)/ALLOC_PYTHON/ALLOC_ADDONS_PATH/ALLOC_DB_HOST/ALLOC_DB_USER`. **`shared`**: attach to the live `(series, db_name)` lease if one exists (emit `ALLOC_ATTACHED=1`) else mint one with `drop_on_release=false`; record the KNOWN port verbatim via `--port` (not pooled) and the long-lived server pid via `--pid` (idempotent upsert when a later call supplies a newer pid) - never blocks a second holder |
+| `acquire --series <X.Y> --mode <readonly\|ephemeral\|exclusive\|shared> [--profile <P>] [--ports <N>] [--port <P>] [--pid <pid>] [--ttl <s>] [--session <id>]` | resolve catalog instance for series (and profile when supplied); under flock: GC stale leases, pick N free ports from the pool (registry-set ∪ live `bind()` probe) when `--ports N>0`, choose db_name (ephemeral: unique reserved name; else declared), write the lease atomically (B2: does NOT create the DB - the caller's `-i` run performs Odoo create-on-init); probe CREATEDB and degrade ephemeral -> exclusive when absent (Odoo create-on-init requires it too); print `ALLOC_TOKEN/ALLOC_SERIES/ALLOC_PROFILE/ALLOC_DB_NAME/ALLOC_PORTS (space-separated)/ALLOC_PYTHON/ALLOC_ADDONS_PATH/ALLOC_DB_HOST/ALLOC_DB_USER`. When `--profile <P>` is given and `db_name` is not set explicitly in the catalog, `db_name` defaults to `odoo_<series_slug>_<profile_slug>` (e.g. `odoo_17_0_minimal`). **`shared`**: attach to the live `(series, db_name)` lease if one exists (emit `ALLOC_ATTACHED=1`) else mint one with `drop_on_release=false`; record the KNOWN port verbatim via `--port` (not pooled) and the long-lived server pid via `--pid` (idempotent upsert when a later call supplies a newer pid) - never blocks a second holder |
 | `query --series <X.Y>` | read-only cross-session discovery: print the live `shared` lease for the series (`ALLOC_TOKEN/ALLOC_MODE/ALLOC_DB_NAME/ALLOC_PORTS`), or exit 1 when none. Does not mutate the registry |
 | `release <token>` | under flock: drop the lease; if `drop_on_release` -> drop the ephemeral DB through Odoo (`scripts/lib/odoo_db.py`); raw `dropdb` as logged fallback when venv unavailable |
 | `heartbeat <token>` | bump `heartbeat_at` (long runs that outlive `ttl_s`) |

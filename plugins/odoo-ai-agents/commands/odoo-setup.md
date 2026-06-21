@@ -228,28 +228,69 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
 
    **AI-4 - Venv scan (CONFIRM #4)**
 
-   Spawn a **read-only HAIKU subagent** to scan local Python virtual
-   environments and build a mapping: venv → Odoo series (inspect the venv's
-   `odoo` package version or `site-packages/odoo` directory).
+   Spawn a **read-only HAIKU subagent** to map each local Python virtual
+   environment to its Odoo series. The HAIKU subagent only scans and reports
+   findings - it does NOT run `45` or `50`; those are run by the orchestrator
+   after CONFIRM #4. **Detect the series by RUNNING Odoo, never by a bare
+   `import odoo`.**
 
-   The HAIKU subagent is **read-only**: it only reads filesystem paths; it
-   installs nothing.
+   Candidate venv locations to scan (check in this order):
+   - The `python` field in `~/.odoo-ai/instances.toml` for the matching series
+     (if already set from a previous run).
+   - `venvs/<series>-<profile>` inside the plugin's `ODOO_AI_DIR` (per-profile
+     venv path written by `45 create-venv`).
+   - Any path the user already named in this session.
+
+   Two v8-v19-safe probes (the subagent only reads / runs `--version`, installs
+   nothing). Try Probe 1 first; fall back to Probe 2 when the core repo is not
+   available. They are NOT equivalent - Probe 1 exercises the source checkout
+   path while Probe 2 requires a pip-installed package:
+   - **Probe 1** - `<venv>/bin/python <core-repo>/odoo-bin --version`
+     (`<core-repo>` = the repo with role `core` confirmed in CONFIRM #3 - the
+     last entry in the addons_path order own-repos-first -> ancestor -> core-last).
+     Authoritative: works for a source checkout that was never pip-installed.
+   - **Probe 2** - `<venv>/bin/python -c "import odoo.release; print(odoo.release.version)"`
+     - imports the submodule explicitly. Use as fallback when the core repo path
+     is not yet known.
+
+   **"Ambiguous output"** = the probe ran but did not print a recognisable
+   version string `X.Y` (exit code != 0, traceback, or non-numeric output).
+
+   Do NOT inspect `import odoo` / `odoo.__file__` / `site-packages/odoo`: a
+   source-only checkout is not pip-installed (bare import fails even on a
+   healthy venv), and Odoo 19 ships `odoo` as a namespace package whose bare
+   import exposes no `release`/`__file__` - both make a naive probe report a
+   working venv as broken.
 
    For each series in the confirmed spec:
-   - **MATCHED** → show the venv path and its detected series.
-   - **MISSING** → gather `requirements.txt` files from the repos in the
-     confirmed `addons_path` for that series, and present the option to build
-     a new venv via `45-venv.sh create-venv`.
+   - **MATCHED** - the probe prints the expected series: show the venv path.
+   - **MISSING** - no venv runs that series: gather `requirements.txt` from
+     EVERY repo in that series' confirmed `addons_path` and offer to build one
+     via `45-venv.sh create-venv --series <X.Y> --profile <name>` (per-profile
+     venv; it verifies all the profile's repos are present and that
+     `odoo-bin --version` runs before recording the `python` field).
+   - **UNKNOWN** - the probe is inconclusive (ambiguous output, no core repo
+     available for Probe 1): do not guess. State exactly what was inconclusive
+     and ask the user. Resolution options: (a) if the user confirms the series
+     directly, treat as MATCHED and continue; (b) if the user points at the core
+     repo path, re-run Probe 1 with that path.
 
    Wait for the user's choice (reuse existing venv / build new / skip) - this
-   is **CONFIRM #4**. Then run `45 apply` for the chosen series.
+   is **CONFIRM #4**. The orchestrator then runs `45 apply` for the chosen series.
 
-   **CONFIRM #5 - choose the series to spin up**
+   **CONFIRM #5 - choose the series and profile to spin up**
 
-   Present the list of series in the confirmed spec and ask the user which one
-   to launch now. Do not silently pick the highest - always ask. Then run `50
-   apply` for the chosen series (fail-loud preflight: verify `import odoo` +
-   `pg_isready` before launch; see step-specific notes).
+   Present the list of series (and profiles, if any were selected in AI-1) in
+   the confirmed spec and ask the user which one to launch now. Do not silently
+   pick the highest - always ask. When the chosen series has a profile, pass
+   `--profile <name>` to both `45 apply` (if building a venv) and `50 apply`
+   so the correct (series, profile) instance block is selected. The OSM profile
+   chosen in AI-1 IS the `--profile` value passed downstream - both names refer
+   to the same instance slot.
+
+   The orchestrator then runs `50 apply --version <X.Y> [--profile <name>]`
+   (fail-loud preflight: verify `odoo-bin --version` runs + `pg_isready` before
+   launch; see step-specific notes).
 
 3. **For each selected step (non-instance steps), in numeric order:**
    a. Run `"$s" check`. Capture the exit code.
@@ -335,14 +376,16 @@ step required in the normal flow:
        `[[instance]]` in `~/.odoo-ai/instances.toml`, or export `ODOO_PYTHON`.
        Step 50 prefers the `python` field, then `ODOO_PYTHON`, then `python3`.
      - **Build a new venv** (opt-in; needs system build deps):
-       `"$STEPS_DIR/45-venv.sh" create-venv --series <X.Y> --tool uv|pip [--python <VER>] [--requirements <path>] ...`
+       `"$STEPS_DIR/45-venv.sh" create-venv --series <X.Y> --profile <name> --tool uv|pip [--python <VER>] [--requirements <path>] ...`
        Accepts multiple `--requirements` flags to gather deps from all addon
-       repos in the addons_path. This creates the venv, installs the deps, and
+       repos in the addons_path. This creates the venv under
+       `venvs/<series>-<profile>`, installs the deps, verifies all the
+       profile's repos are present and that `odoo-bin --version` runs, then
        records the interpreter back onto the instance.
-  In both cases, step `45` verifies `import odoo` succeeds in the chosen
+  In both cases, step `45` verifies `odoo-bin --version` runs in the chosen
   interpreter BEFORE writing the `python` field to `instances.toml`. If the
-  venv is empty or lacks the Odoo package, step `45` does NOT record the
-  python field and prints an error with guidance.
+  venv cannot run `odoo-bin --version`, step `45` does NOT record the python
+  field and prints an error with guidance.
   Never silently pick an incompatible Python. If the user declines, just print
   the suggestion and move on - step 50 will fall back to `python3`.
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
@@ -354,7 +397,8 @@ step required in the normal flow:
   is always available); it is intentionally excluded from the `all` and
   `instance` filter loops so it never runs silently.
 - **50-instance-spinup** - before launching anything, runs a **fail-loud
-  preflight**: verifies (a) the instance's Python can `import odoo` and
+  preflight**: verifies (a) `odoo-bin --version` runs under the instance's
+  Python (confirms the venv is functional and Odoo is reachable) and
   (b) `pg_isready` (or equivalent) confirms PostgreSQL is reachable. If either
   check fails, it prints a clear error with remediation guidance and stops -
   it does NOT launch and then time out polling. On preflight pass: generates a

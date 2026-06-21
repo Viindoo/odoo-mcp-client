@@ -82,13 +82,15 @@ cmd_apply() {
     echo "setup never installs those for you."
 }
 
-# Find odoo-bin's repo root for a series, to locate requirements.txt. Best
-# effort: scans the instance's addons_path entries one level up.
+# Find odoo-bin's repo root for a series (and optional profile), to locate
+# requirements.txt. Best effort: scans the instance's addons_path entries
+# one level up. When profile is given, reads the (series, profile) instance
+# so the right addons_path is used (avoids picking a different profile's core).
 _core_root_for_series() {
-    local series="$1" io="$SCRIPT_DIR/../lib/instances_io.py"
+    local series="$1" profile="${2:-}" io="$SCRIPT_DIR/../lib/instances_io.py"
     [[ -f "$INSTANCES_TOML" && -f "$io" ]] || return 0
     local kv
-    kv="$(python3 "$io" read "$INSTANCES_TOML" "$series" 2>/dev/null)" || return 0
+    kv="$(python3 "$io" read "$INSTANCES_TOML" "$series" "$profile" 2>/dev/null)" || return 0
     eval "$kv" 2>/dev/null || return 0
     local p
     IFS=':' read -ra _paths <<<"${INST_ADDONS_PATH:-}"
@@ -98,30 +100,177 @@ _core_root_for_series() {
         local up; up="$(dirname "$p")"
         [[ -f "$up/requirements.txt" && -x "$up/odoo-bin" ]] && { echo "$up"; return 0; }
     done
+    return 0
+}
+
+# Echo absolute path to odoo-bin for a series (and optional profile), or nothing.
+_core_odoo_bin_for_series() {
+    local root; root="$(_core_root_for_series "$1" "${2:-}")" || return 0
+    [[ -n "$root" && -x "$root/odoo-bin" ]] && echo "$root/odoo-bin"
+    return 0
+}
+
+# Echo absolute path to odoo-bin scanning a colon-separated addons_path string.
+# Used when INST_ADDONS_PATH is already resolved (e.g. from a profiled read).
+_core_odoo_bin_from_addons_path() {
+    local addons_path="$1"
+    local p up
+    IFS=':' read -ra _bp <<<"${addons_path}"
+    for p in "${_bp[@]}"; do
+        [[ -n "$p" ]] || continue
+        [[ -x "$p/odoo-bin" ]] && { echo "$p/odoo-bin"; return 0; }
+        up="$(dirname "$p")"
+        [[ -x "$up/odoo-bin" ]] && { echo "$up/odoo-bin"; return 0; }
+    done
+    return 0
 }
 
 cmd_create_venv() {
-    local series="" pyver="" tool="" path=""
+    local series="" pyver="" tool="" path="" profile=""
     local -a reqs_list=()
+    local explicit_reqs=0
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --series) series="$2"; shift 2 ;;
             --python) pyver="$2"; shift 2 ;;
             --tool)   tool="$2"; shift 2 ;;
             --path)   path="$2"; shift 2 ;;
-            --requirements) reqs_list+=("$2"); shift 2 ;;
+            --profile) profile="$2"; shift 2 ;;
+            --requirements) reqs_list+=("$2"); explicit_reqs=1; shift 2 ;;
             *) echo "Unknown arg: $1" >&2; return 2 ;;
         esac
     done
     [[ -n "$series" ]] || { echo "x --series is required (e.g. --series 17.0)" >&2; return 2; }
     [[ -n "$pyver" ]] || pyver="$(_suggested_python "$series" | sed -E 's/ .*//')"
     [[ -n "$tool" ]]  || tool="uv"
-    [[ -n "$path" ]]  || path="$ODOO_AI_DIR/venvs/$series"
 
-    # Resolve a default requirements.txt when none were supplied via --requirements.
-    if [[ ${#reqs_list[@]} -eq 0 ]]; then
-        local core; core="$(_core_root_for_series "$series")" || true
-        [[ -n "$core" && -f "$core/requirements.txt" ]] && reqs_list+=("$core/requirements.txt")
+    # Early guard: when --profile is omitted but the toml has ONLY profiled blocks
+    # for this series, fail-loud BEFORE building anything. This avoids building an
+    # expensive venv only to discover we have nowhere clean to record the python path.
+    if [[ -z "$profile" && -f "$INSTANCES_TOML" ]]; then
+        local _ep_rc=0
+        python3 - "$INSTANCES_TOML" "$series" <<'PY' 2>&1 || _ep_rc=$?
+import sys, re
+
+path, series = sys.argv[1], sys.argv[2]
+try:
+    src = open(path, encoding="utf-8").read()
+except OSError:
+    sys.exit(0)
+
+in_block = False
+block_series = ""
+block_profile = ""
+profiled_series = set()
+unprofiled_series = set()
+
+def flush():
+    global in_block, block_series, block_profile
+    if in_block and block_series:
+        if block_profile:
+            profiled_series.add(block_series)
+        else:
+            unprofiled_series.add(block_series)
+    in_block = False
+    block_series = ""
+    block_profile = ""
+
+for raw_line in src.splitlines():
+    s = raw_line.strip()
+    if s == "[[instance]]":
+        flush()
+        in_block = True
+    elif s.startswith("["):
+        flush()
+    if in_block and s.startswith("series") and "=" in s:
+        block_series = s.split("=", 1)[1].strip().strip('"').strip("'")
+    if in_block and s.startswith("profile") and "=" in s:
+        block_profile = s.split("=", 1)[1].strip().strip('"').strip("'")
+flush()
+
+if series in profiled_series and series not in unprofiled_series:
+    print(
+        f"x series {series!r} has only profile-specific [[instance]] blocks but "
+        f"create-venv was called without --profile. Pass --profile <name> to "
+        f"select the correct block. python was NOT recorded.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+PY
+        [[ "$_ep_rc" -eq 0 ]] || return "$_ep_rc"
+    fi
+
+    # Venv path: when --profile is given and --path is absent, use a per-profile path.
+    if [[ -z "$path" ]]; then
+        if [[ -n "$profile" ]]; then
+            local prof_slug
+            prof_slug="$(printf '%s' "$profile" | tr -c '[:alnum:]._-' '_')"
+            path="$ODOO_AI_DIR/venvs/${series}-${prof_slug}"
+        else
+            path="$ODOO_AI_DIR/venvs/$series"
+        fi
+    fi
+
+    # Auto-collect requirements from profile's addons_path when not explicit.
+    # When profile is given, read the specific (series, profile) instance so we
+    # get the right addons_path; fall back to series-only for the unprofiled case.
+    if [[ "$explicit_reqs" -eq 0 ]]; then
+        local io="$SCRIPT_DIR/../lib/instances_io.py"
+        local kv
+        if [[ -f "$INSTANCES_TOML" && -f "$io" ]]; then
+            kv="$(python3 "$io" read "$INSTANCES_TOML" "$series" "${profile:-}" 2>/dev/null)" || kv=""
+            if [[ -n "$kv" ]]; then
+                eval "$kv" 2>/dev/null || true
+                local p
+                IFS=':' read -ra _ap <<<"${INST_ADDONS_PATH:-}"
+                for p in "${_ap[@]}"; do
+                    [[ -n "$p" ]] || continue
+                    [[ -f "$p/requirements.txt" ]] && reqs_list+=("$p/requirements.txt")
+                    local up; up="$(dirname "$p")"
+                    [[ -f "$up/requirements.txt" && "$up" != "$p" ]] && reqs_list+=("$up/requirements.txt")
+                done
+            fi
+        fi
+        # Deduplicate (preserve order, first occurrence wins).
+        # Both expansions guard against set -u on empty arrays (bash 3.2+ portable).
+        local -a uniq_reqs=()
+        local seen_r=""
+        for r in "${reqs_list[@]+"${reqs_list[@]}"}"; do
+            if [[ ":${seen_r}:" != *":${r}:"* ]]; then
+                uniq_reqs+=("$r")
+                seen_r="${seen_r}:${r}"
+            fi
+        done
+        reqs_list=("${uniq_reqs[@]+"${uniq_reqs[@]}"}")
+    fi
+
+    # Verify all repo dirs in the profile's addons_path exist BEFORE building the
+    # venv. A missing repo means the profile is incomplete and the venv would be
+    # built against an inconsistent source set. Fail-loud with actionable message
+    # listing each missing path so the user knows exactly what to clone first.
+    if [[ -n "${INST_ADDONS_PATH:-}" ]]; then
+        local _missing_repos=()
+        local _rp _rp_up
+        IFS=':' read -ra _rcheck <<<"${INST_ADDONS_PATH}"
+        for _rp in "${_rcheck[@]}"; do
+            [[ -n "$_rp" ]] || continue
+            # Accept either the dir itself or its parent (addons subdir pattern)
+            _rp_up="$(dirname "$_rp")"
+            if [[ ! -d "$_rp" && ! -d "$_rp_up" ]]; then
+                _missing_repos+=("$_rp")
+            elif [[ ! -d "$_rp" ]]; then
+                # parent exists but addons subdir is missing
+                _missing_repos+=("$_rp")
+            fi
+        done
+        if [[ "${#_missing_repos[@]}" -gt 0 ]]; then
+            echo "x Repo dirs missing from the profile's addons_path - clone them first:" >&2
+            for _rp in "${_missing_repos[@]}"; do
+                echo "  missing: $_rp" >&2
+            done
+            echo "  The 'python' field was NOT recorded." >&2
+            return 1
+        fi
     fi
 
     echo "  Creating venv for Odoo $series at $path (python ${pyver:-default}, tool $tool)"
@@ -172,47 +321,133 @@ cmd_create_venv() {
         *) echo "x Unknown --tool '$tool'. Use uv or pip." >&2; return 2 ;;
     esac
 
-    # Verify the venv can actually import odoo before recording it as the instance
-    # python. An empty venv or one with missing deps would silently poison step 50.
+    # Verify the venv can actually run Odoo before recording it as the instance
+    # python. We do this by running `<venv_py> <odoo-bin> --version` which:
+    #   - Uses the venv's own interpreter (correct even for python2 venvs on v8-v10)
+    #   - Exercises odoo-bin's actual import path (sys.path[0] = repo root)
+    #   - Works with namespace packages (Odoo v19 has no odoo/__init__.py so bare
+    #     `import odoo` is a false-negative against a source-only checkout)
+    # An empty venv or one with missing deps would silently poison step 50.
     local venv_py="$path/bin/python"
     if [[ ! -x "$venv_py" ]]; then
-        echo "x venv python not found at $venv_py - something went wrong during creation." >&2
+        echo "x venv python not found at $venv_py - creation failed." >&2
         return 1
     fi
-    if ! "$venv_py" -c "import odoo" 2>/dev/null; then
-        echo "x import odoo failed in the new venv ($venv_py)." >&2
-        echo "  The venv exists but Odoo is not importable." >&2
-        echo "  Install Odoo into the venv first (e.g. pip install -e /path/to/odoo)" >&2
-        echo "  or pass --requirements /path/to/odoo/requirements.txt and ensure odoo" >&2
-        echo "  itself is on PYTHONPATH or installed in the venv." >&2
-        echo "  The 'python' field was NOT recorded in instances.toml." >&2
+    # Resolve core_bin: use the profile-specific INST_ADDONS_PATH when available
+    # (set during the auto-collect requirements block above), else fall back to the
+    # series-level scan.
+    local core_bin=""
+    if [[ -n "${INST_ADDONS_PATH:-}" ]]; then
+        core_bin="$(_core_odoo_bin_from_addons_path "${INST_ADDONS_PATH}")" || core_bin=""
+    fi
+    if [[ -z "$core_bin" ]]; then
+        core_bin="$(_core_odoo_bin_for_series "$series" "${profile:-}")" || core_bin=""
+    fi
+    if [[ -z "$core_bin" ]]; then
+        echo "x No Odoo core repo (with odoo-bin) found for series $series." >&2
+        echo "  A source instance REQUIRES the core repo present locally. Add the" >&2
+        echo "  core repo (dir containing odoo-bin) to this series' addons_path and" >&2
+        echo "  re-run. The 'python' field was NOT recorded." >&2
+        return 1
+    fi
+    if ! "$venv_py" "$core_bin" --version >/dev/null 2>&1; then
+        echo "x '$venv_py $core_bin --version' failed - the venv cannot run Odoo." >&2
+        echo "  The venv is missing Odoo's deps (lxml/psycopg2/...). Pass --requirements" >&2
+        echo "  <repo>/requirements.txt for every repo. 'python' was NOT recorded." >&2
         return 1
     fi
 
     # Record the interpreter on the instance so step 50 uses it.
+    # Matches on (series, profile): when profile is set, only update the [[instance]]
+    # block whose series AND profile both match. When profile is empty, match by
+    # series only (first matching block, preserving backward compat).
     # NOTE: this only REPLACES an existing `python = ...` line in the matched
     # [[instance]] block; it assumes step 40 already wrote a `python = ""`
     # placeholder line into that block. If the line is absent, nothing is written.
     if [[ -f "$INSTANCES_TOML" ]]; then
-        python3 - "$INSTANCES_TOML" "$series" "$venv_py" <<'PY' || true
+        local _rec_rc=0
+        python3 - "$INSTANCES_TOML" "$series" "$venv_py" "$profile" <<'PY' || _rec_rc=$?
 import sys
-path, series, py = sys.argv[1], sys.argv[2], sys.argv[3]
+path, series, py, profile = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 try:
     src = open(path, encoding="utf-8").read()
 except OSError:
     sys.exit(0)
 lines = src.splitlines(keepends=True)
-out, in_block, matched, updated = [], False, False, False
+out = []
+in_block = False
+block_series = ""
+block_profile = ""
+matched = False
+updated = False
+
+# When profile is empty: only match unprofiled blocks (block_profile == "").
+# Detect whether the series has ONLY profiled blocks (no unprofiled block to
+# write to) so we can fail-loud instead of silently poisoning the wrong block.
+if profile == "":
+    # Mini scan: collect (series, has_profile) pairs for each [[instance]] block.
+    _in = False
+    _bs = ""
+    _bp = ""
+    _profiled_series = set()    # series that have at least one profiled block
+    _unprofiled_series = set()  # series that have at least one unprofiled block
+    def _flush():
+        if _in and _bs:
+            if _bp:
+                _profiled_series.add(_bs)
+            else:
+                _unprofiled_series.add(_bs)
+    for raw_line in lines:
+        s = raw_line.strip()
+        if s == "[[instance]]":
+            _flush()
+            _in = True; _bs = ""; _bp = ""
+        elif s.startswith("["):
+            _flush()
+            _in = False; _bs = ""; _bp = ""
+        if _in and s.startswith("series") and "=" in s:
+            _bs = s.split("=", 1)[1].strip().strip('"').strip("'")
+        if _in and s.startswith("profile") and "=" in s:
+            _bp = s.split("=", 1)[1].strip().strip('"').strip("'")
+    _flush()  # flush last block
+    # Fail-loud only when ALL blocks for this series are profiled (none unprofiled).
+    if series in _profiled_series and series not in _unprofiled_series:
+        print(
+            f"x series {series!r} has only profile-specific [[instance]] blocks but "
+            f"create-venv was called without --profile. Pass --profile <name> to "
+            f"select the correct block. python was NOT recorded.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
 for line in lines:
     s = line.strip()
     if s == "[[instance]]":
-        in_block, matched = True, False
+        in_block = True
+        block_series = ""
+        block_profile = ""
+        matched = False
     elif s.startswith("["):
-        in_block, matched = False, False
+        in_block = False
+        matched = False
     if in_block and s.startswith("series") and "=" in s:
-        val = s.split("=", 1)[1].strip().strip('"').strip("'")
-        matched = (val == series)
-    if in_block and matched and s.startswith("python") and "=" in s:
+        block_series = s.split("=", 1)[1].strip().strip('"').strip("'")
+    if in_block and s.startswith("profile") and "=" in s:
+        block_profile = s.split("=", 1)[1].strip().strip('"').strip("'")
+    # Re-evaluate match: stricter than select_instance (refuses to guess a profiled block when no --profile is given).
+    # profile=="" -> only match blocks where block_profile=="" (unprofiled).
+    # profile set  -> match blocks where block_series==series AND block_profile==profile.
+    if in_block and block_series:
+        if block_series == series:
+            if profile == "" and block_profile == "":
+                matched = True
+            elif profile != "" and block_profile == profile:
+                matched = True
+            else:
+                matched = False
+        else:
+            matched = False
+    if in_block and matched and s.startswith("python") and "=" in s and not updated:
         indent = line[:len(line) - len(line.lstrip())]
         out.append(f'{indent}python = "{py}"\n')
         updated = True
@@ -220,8 +455,12 @@ for line in lines:
     out.append(line)
 if updated:
     open(path, "w", encoding="utf-8").write("".join(out))
-    print(f"  recorded python for {series} -> {py}")
+    label = f"{series}:{profile}" if profile else series
+    print(f"  recorded python for {label} -> {py}")
 PY
+        # Propagate non-zero exit from the recorder (e.g. fail-loud on profile
+        # ambiguity: sys.exit(1) in the Python block above).
+        [[ "$_rec_rc" -eq 0 ]] || return "$_rec_rc"
     fi
     echo "ok venv ready: $venv_py"
 }
