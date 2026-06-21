@@ -4,7 +4,7 @@ description: >
   Orchestrate a multi-work-item (multi-WI) change as a git wave without touching the
   principal branch: create one integration branch, spin up one isolated worktree per WI,
   dispatch a leaf subagent into each worktree, cherry-pick results back onto integration,
-  run an end-of-wave Opus review plus /code-review inline, produce one PR, verify squash
+  run an end-of-wave Opus review plus odoo-code-review inline, produce one PR, verify squash
   tree-identity, then stop and wait for human-confirm before merging.
   Fire this skill when asked to: "do this as a wave", "parallelize these changes",
   "multi-WI PR with review and squash", "land N changes safely without touching main",
@@ -50,10 +50,10 @@ principal branch.
    it is an orchestrator-side critical section serialized to one at a time (Phase 2/3),
    never pushed down to a WI worker.
 
-3. **/code-review inline-only** - The `/code-review` skill auto-spawns and is therefore
-   only legal in this skill's own orchestrating context (not inside a WI subagent). Invoke
-   it here in Phase 4, never inside a WI subagent. Findings are fixed either inline or via a
-   brief targeted subagent.
+3. **odoo-code-review inline-only** - The `odoo-code-review` skill auto-spawns its own
+   reviewer subagent and is therefore only legal in this skill's own orchestrating context
+   (not inside a WI subagent). Invoke it here in Phase 4 via the Skill tool, never inside a
+   WI subagent. Findings are fixed either inline or via a brief targeted subagent.
 
 4. **Human-confirm merge** - The skill MUST stop at Phase 6 and wait for explicit user
    confirmation before merging the integration branch. No automated merge, no auto-squash-
@@ -291,14 +291,14 @@ are cherry-picked. If a subagent exceeds 15 minutes without output, check its st
 | Frontend JS/OWL/SCSS | Write directly, grounded via OSM (`find_examples` / `resolve_stylesheet`), following `odoo-frontend-coder` conventions | Re-dispatch the `odoo-coding` bundle - you ARE the specialist |
 | Test writing (Python) | Ground via `test_base_classes` (base class + cr.commit() contract) + `tests_covering` (coverage gap) + `find_test_examples` (real test patterns) BEFORE writing; only write uncovered paths | Assume base class or cr.commit() legality from memory; re-implement tests that already exist |
 | Test writing (JS) | Ground via `js_test_inspect` (framework: QUnit v16-/v17, Hoot v18+) + `find_test_examples(query='<feature>', kind='js', odoo_version='<version>')` BEFORE writing any JS test | Write Hoot syntax for a QUnit module (or vice versa); assume framework from version heuristic |
-| Review of own output | Self-review inline against `odoo-code-reviewer` conventions | Re-dispatch `odoo-code-review` or `/code-review` from a worktree |
+| Review of own output | Self-review inline against `odoo-code-reviewer` conventions | Re-dispatch `odoo-code-review` from a worktree |
 | Read-only lookup | NL-dispatch a non-spawning skill (`odoo-feature-check`, `odoo-override-finding`) | - |
 
 **Specialist rule**: a WI worker IS the specialist for its scope - it writes and reviews
 directly, grounded in OSM, following the `odoo-coder` / `odoo-frontend-coder` /
 `odoo-code-reviewer` conventions, rather than re-dispatching the spawner bundle (`odoo-coding`,
-`odoo-code-review`, `odoo-ui-review`, `wave`, `odoo-intake`, `odoo-brl`, `workflow-chaining`,
-`/code-review`, `skill-creator`) that would only fan back out to the same specialist. It MAY
+`odoo-code-review`, `odoo-ui-review`, `wave`, `odoo-intake`, `odoo-brl`,
+`workflow-chaining`) that would only fan back out to the same specialist. It MAY
 NL-dispatch genuinely non-spawning skills for read-only lookups.
 
 ## Phase 3 - Cherry-pick + Conflict Resolution
@@ -349,10 +349,10 @@ Review the full diff (`git diff <principal>...HEAD`) for:
 
 Fix findings inline or via a targeted brief subagent. Re-run verify after any fix.
 
-**4.2 - /code-review inline** (invoke from the orchestrating context):
+**4.2 - odoo-code-review inline** (invoke from the orchestrating context):
 
-After the Opus review and fixes, invoke `/code-review` on the integration branch.
-Address its findings before Phase 5.
+After the Opus review and fixes, invoke the `odoo-code-review` skill (via the Skill tool)
+on the integration branch. Address its findings before Phase 5.
 
 ## Phase 5 - PR + Squash + Tree Identity
 
@@ -439,7 +439,7 @@ odoo-code-review, etc.) via NL-dispatch and stop.
 > Full worked examples with action detail: `reference/wave-templates.md` §Examples. Dispatches:
 
 **Example 1 - Standard 3-WI wave:** 3 Sonnet workers (weight 6, within BUDGET=8) all in parallel.
-Serialize cherry-picks in the orchestrating context. Opus review + /code-review. 1 PR. Squash + tree-identity.
+Serialize cherry-picks in the orchestrating context. Opus review + odoo-code-review. 1 PR. Squash + tree-identity.
 Wait for human-confirm before merging.
 
 **Example 2 - 1-WI edge case:** Standalone-first fallback offered ("This is a single-file fix -

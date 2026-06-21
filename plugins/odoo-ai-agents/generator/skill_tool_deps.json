@@ -301,7 +301,7 @@
       "mcp_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
-      "notes": "Git-wave orchestration skill - no MCP tools; spawns WI subagents over worktrees + cherry-pick + /code-review + squash. Outputs to .odoo-ai/wave/ (gitignored)."
+      "notes": "Git-wave orchestration skill - no MCP tools; spawns WI subagents over worktrees + cherry-pick + odoo-code-review + squash. Outputs to .odoo-ai/wave/ (gitignored)."
     },
     "odoo-ui-review": {
       "mcp_tools": [

@@ -69,7 +69,7 @@ The plan can be executed manually or in a separate session. See skill body
 ```
 Emits a plan gate: topology, WI ownership map, model tier per WI, human-merge note.
 After approval: integration branch -> 3 WI worktrees (parallel Sonnet) -> cherry-pick A->B->C ->
-end-of-wave Opus review -> 1 PR -> /code-review -> squash + tree-identity -> stop for human merge.
+end-of-wave Opus review -> 1 PR -> odoo-code-review -> squash + tree-identity -> stop for human merge.
 
 ```
 /odoo-run-wave

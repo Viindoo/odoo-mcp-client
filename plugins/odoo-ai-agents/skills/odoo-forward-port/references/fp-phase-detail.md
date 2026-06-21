@@ -466,9 +466,9 @@ git push origin fp/<slug>                          # push integration, NOT B
 gh pr create --base <target-branch> --head fp/<slug> --title "..." --body "..."
 ```
 
-Run `/code-review` inline. Optionally
-dispatch `odoo-code-review` for the forward-port pitfall (a forwarded test still coupled to the
-source API). NEVER squash (squash mints a new SHA, defeats merge-base advance). B stays LOCKED -
+Run `odoo-code-review` inline (via the Skill tool, from the orchestrating context) for the
+forward-port pitfall (a forwarded test still coupled to the source API). NEVER squash (squash
+mints a new SHA, defeats merge-base advance). B stays LOCKED -
 the PR adds only the merge commits. Present the PR URL and wait for the human to merge.
 
 **Attribute every finding to the FP diff before rating it.** A reviewer rating the whole

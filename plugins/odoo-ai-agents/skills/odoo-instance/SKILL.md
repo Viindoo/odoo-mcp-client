@@ -47,7 +47,7 @@ any mutation (create, drop, init, update, run-tests). If an active run-driver is
 the brief, do NOT bypass this gate; let the driver surface it. For a direct invocation (no
 run-driver), confirm the mutation with the human before launching the agent.
 
-**Brief shape:** Dispatch the `odoo-instance-ops` agent using the Agent tool with a worker
+**Brief shape:** Launch the `odoo-instance-ops` agent as a subagent with a worker
 brief that follows `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. The brief must include:
 
 ```
