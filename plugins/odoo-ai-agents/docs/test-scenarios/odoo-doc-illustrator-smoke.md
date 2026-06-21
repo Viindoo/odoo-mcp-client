@@ -46,7 +46,7 @@ SCREENS: main list view, form view (draft), approval flow panel
 
 > `DOC LAYER: both` = sinh ca `static/description/index.html` (+ `index_vi_VN.html`) va `doc/index.rst`.
 > Ngon ngu resolve tu `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` key `default_languages`.
-> SCREENS la goi y; agent tu quyet dua tren OSM `module_inspect(method='views')`.
+> SCREENS la goi y; agent tu quyet dua tren ket qua OSM module_inspect cho danh sach view.
 
 ---
 
@@ -56,7 +56,7 @@ SCREENS: main list view, form view (draft), approval flow panel
 2. **Dispatch brief** - paste brief mau o Section 2 vao prompt.
 3. **Quan sat Step 0** - agent doc `.odoo-ai/worklog/` va `.odoo-ai/context.md`; neu `NEEDS_CONTEXT` tra lai -> bo sung truong con thieu roi dispatch lai.
 4. **Quan sat Step 1** - agent resolve `$HOME/git/tvtmaaddons17/viin_approval/` va xac nhan `__manifest__.py`; neu `NEEDS_CONTEXT` -> kiem tra `addons_path` trong context.
-5. **Quan sat Step 2 (OSM)** - `module_inspect(method='views')` va `model_inspect(method='summary')` chay song song; ket qua quyet dinh danh sach screen.
+5. **Quan sat Step 2 (OSM)** - module_inspect lay views va model_inspect lay summary chay song song; ket qua quyet dinh danh sach screen.
 6. **Quan sat Step 3 (auth)** - agent navigate `/web/login`, dang nhap bang `instance_login` tu context.
 7. **Quan sat Step 4 (capture)** - agent chup tung screen; moi screenshot phai dung flow 2-tier (relative filename -> tool tra `actual path` -> Bash `cp` sang `static/description/`).
 8. **Quan sat Step 5 (assemble)** - agent ghi `index.html`, `index_vi_VN.html`, `doc/index.rst`.
