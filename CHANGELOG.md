@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - feat(odoo-ai-agents): new odoo-doc-illustrator agent - browser-driven visual documentation (capture screenshots into module static/description or cluster docs)
 - feat(odoo-ai-agents): new odoo-doc-illustration thin skill dispatching odoo-doc-illustrator
+- feat(odoo-ai-agents): wire odoo-doc-illustration into odoo-intake routing + collision-zones, and into odoo-content-draft / odoo-onboarding / odoo-capability-proof / odoo-feature-highlights continuation contracts
+- feat(odoo-ai-agents): odoo-doc-illustrator real-module workflow - DOC LAYER appstore|userguide|both (App Store index.html + doc/index.rst), multilingual docs resolved from i18n.json default_languages, convention-detect from the target module, crop-default capture, [Hinh anh:] marker shared with odoo-content-draft
+- docs(odoo-ai-agents): post-merge smoke-test scenario for odoo-doc-illustrator on viin_approval
 
 ## [3.19.1] - 2026-06-21
 

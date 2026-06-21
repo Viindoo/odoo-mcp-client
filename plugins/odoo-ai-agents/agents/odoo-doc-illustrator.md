@@ -99,17 +99,18 @@ If module absolute path cannot be resolved, stop with `status: NEEDS_CONTEXT`.
 
 In both modes: determine Branch A vs B (see Critical path constraint section) before the capture loop. For Branch B: `mkdir -p` on the dest dir via Bash before any capture.
 
-### Step 2 - Resolve languages (5-tier SSOT)
+### Step 2 - Resolve languages (6-tier SSOT)
 
 Determine which documentation languages to produce. Apply tiers in order (first match wins):
 
-1. **Explicit brief field** `languages` or `doc_languages` (e.g. `["vi_VN","en_US"]`)
-2. **`i18n.json` `default_languages`** - read `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json`, field `default_languages`
-3. **Module .po filenames** - `ls <module-abs>/i18n/*.po 2>/dev/null` -> locale codes from basenames
-4. **Instance active languages** - live `res.lang` with active=True (if live MCP available)
-5. **Default** `["vi_VN"]`
+1. **Explicit brief field** `LANGUAGES:` or `doc_languages` (e.g. `["vi_VN","en_US"]`)
+2. **`context.md` field `doc_languages`** - read from `.odoo-ai/context.md`; this field is written by onboarding as a COMMA-STRING (e.g. `en_US,vi_VN`) - SPLIT on `,` and trim whitespace to get the list (same parse rule as `addons_path`). Skip this tier if the field is absent.
+3. **`i18n.json` `default_languages`** - read `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json`, field `default_languages`
+4. **Module .po filenames** - `ls <module-abs>/i18n/*.po 2>/dev/null` -> locale codes from basenames
+5. **Instance active languages** - live `res.lang` with active=True (if live MCP available)
+6. **Default** `["vi_VN"]`
 
-Full SSOT for this tier hierarchy: `skills/odoo-i18n/SKILL.md` P0.
+Note: this 6-tier stack adds tier 2 (context.md `doc_languages`) on top of the base 5-tier stack from `skills/odoo-i18n/SKILL.md` P0 (tiers 3-6 above map to P0 tiers 2-5). The odoo-i18n P0 remains the SSOT for tiers 3-6.
 
 **Image sharing rule:** screenshots are language-neutral unless UI text in the screenshot is language-dependent. Capture ONCE per screen; reference the same image file from all language variants of the doc artifact.
 
@@ -133,10 +134,10 @@ Load `${screenshot_baseline_dir}/storageState-admin.json` if it exists; else nav
 For each screen to document (plan 2-6 screens covering the main feature surface):
 
 1. `mcp__plugin_odoo-ai-agents_playwright__browser_navigate` to the screen URL (use `/odoo` for v17+, `/web` for v16 and below, per `docs/odoo-ui-knowledge.md`).
-2. `mcp__plugin_odoo-ai-agents_playwright__browser_resize` - default ~1200px width for banner/header shots, ~1800px for feature detail shots. Set viewport to match the OUTPUT SIZE target:
+2. `mcp__plugin_odoo-ai-agents_playwright__browser_resize` - default ~1200px width for banner/header shots, ~1800px target width for feature detail shots. Set viewport to match the OUTPUT SIZE target:
    - **icon**: 128x128 px
    - **banner**: 1280x600 px (resize browser to this width before capture)
-   - **main_screenshot / feature screenshot**: width >= 1200 px, height >= 800 px
+   - **main_screenshot / feature screenshot**: ~1800px target width, >=1200x800 floor (minimum acceptable)
    - If the module already has existing screenshots of the same type, MATCH their dimensions exactly (read with Bash `identify <file>` or `file <file>`; fallback to the defaults above when identify is unavailable).
 3. **On-theme check (before capture):** use `mcp__plugin_odoo-ai-agents_playwright__browser_evaluate` to read 1-2 primary design tokens (e.g. `getComputedStyle(document.documentElement).getPropertyValue('--primary')` and `'--body-bg'`). If either resolves EMPTY or to a self-referential cycle, the render is off-theme - stop this screen, log `WARN: off-theme render detected (token EMPTY)`, and skip to the next screen or emit `NEEDS_CONTEXT` if all screens fail. (Reference: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.)
 4. **Crop/region default:** capture the smallest viewport region that shows the feature being documented. Use `mcp__plugin_odoo-ai-agents_playwright__browser_take_screenshot` with a `clip` rect or navigate to a focused view. Do NOT use `browser_highlight` unless the dispatch brief explicitly requests it (e.g. `ANNOTATION: highlight`). Do NOT use `browser_annotate` - it opens an interactive dashboard that blocks on headless hosts.
@@ -167,7 +168,12 @@ Write a self-contained HTML file at `<module-abs>/<asset-dir>/index.html` (prima
 When content-draft places image markers, the format is `[Hinh anh: <screen-slug>]`. Replace each `[Hinh anh: <screen-slug>]` with the correct `<img src="./<screen-slug>.png">` tag (HTML) or `.. image:: <screen-slug>.png` directive (RST). If the returned prose is missing any marker, insert the image ref immediately after the heading of the feature it illustrates.
 
 **DOC LAYER: userguide - compose `doc/index.rst`:**
-Write RST at `<module-abs>/doc/index.rst` (primary language) and `doc/index_<locale>.rst` for each additional language. Tone: technical/imperative. Use `.. image:: <file>.png` with `:alt:` captions grounded in OSM field labels. Ground every field/menu reference in OSM data. Do NOT add annotation overlays.
+Write RST at `<module-abs>/doc/index.rst` (primary language) and `doc/index_<locale>.rst` for each additional language. Tone: technical/imperative. Use `.. image::` directives with `:alt:` captions grounded in OSM field labels. Ground every field/menu reference in OSM data. Do NOT add annotation overlays.
+
+**RST image path rule (critical):** the correct relative path in `doc/index.rst` depends on where the image file lives:
+- When images are in `static/description/` (the case for `both` layer and the default asset-dir): use `.. image:: ../static/description/<screen-slug>.png` (one level up from `doc/` into the module root, then down to `static/description/`).
+- When images are co-located inside `doc/` itself (unusual, only when `doc_static_dir` is set to `doc/`): use bare `.. image:: <screen-slug>.png`.
+Never use a bare filename for images that live in `static/description/` - the RST renderer resolves relative paths from the `.rst` file's directory, so `../static/description/` is the correct prefix.
 
 **DOC LAYER: both:**
 Produce both index.html (appstore rules) and doc/index.rst (userguide rules). Reuse the same screenshot files for both artifacts.

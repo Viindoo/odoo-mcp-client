@@ -40,7 +40,7 @@ MODE: module
 TARGET: $HOME/git/tvtmaaddons17/viin_approval
 DOC LAYER: both
 BROWSER MODE: headless
-USER LANGUAGE: vi
+LANGUAGES: ["vi_VN"]
 SCREENS: main list view, form view (draft), approval flow panel
 ```
 
@@ -117,7 +117,7 @@ Khi co FAIL, soi theo thu tu nay:
 | # | Diem de vo | Cach xac nhan | Fix hudong |
 |---|---|---|---|
 | F1 | **allowed-roots cp bo sot** - anh ghi vao `.playwright-mcp/` nhung `cp` khong chay | `ls .playwright-mcp/doc-staging/*.png` va `ls viin_approval/static/description/*.png` so sanh | agent chua chay Bash `cp` sau capture - kiem tra Step 4 log |
-| F2 | **Convention-detect sai** - agent hardcode `main_screenshot` thay vi detect `omniapproval_<feature>` | Grep brief/output cho `omniapproval` vs `main_screenshot` | agent phai doc manifest/views truoc khi dat ten; check OSM `module_inspect` Step 2 co chay khong |
+| F2 | **Convention-detect sai** - agent dung `main_screenshot` khi `static/description/` TRONG (module moi) la DUNG va khong phai bug; chi FAIL neu module da co anh theo pattern `<prefix>_<feature>.png` (vd `omniapproval_<feature>`) ma agent bo qua pattern do | Kiem tra: neu `ls viin_approval/static/description/*.png` truoc dispatch khong co file nao -> `main_screenshot.png` la hop le (A2 PASS). Chi debug F2 neu `static/description/` DA CO file `omniapproval_*.png` ma agent van dat ten `main_screenshot` | agent phai doc manifest/views va `ls static/description/` truoc khi dat ten; check OSM `module_inspect` Step 2 co chay khong; neu thu muc trong thi `main_screenshot.png` la dung |
 | F3 | **Marker hybrid `[Hinh anh:]`** - neu agent dispatch `odoo-content-draft` (MODE: cluster hoac marketing brief) ma quen replace marker | `grep "\[Hinh anh:\]" viin_approval/doc/index.rst index.html` | neu con marker -> agent bo sot replace loop; re-run Step 5 |
 | F4 | **i18n.json khong ton tai** hoac `default_languages` sai key | `cat ${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` | tao/sua i18n.json truoc dispatch |
 | F5 | **RST chua tung verify tren module that** - `doc/` thu muc chua co hoac RST syntax sai | `python3 -m docutils ...` FAIL | agent tao `doc/` neu chua co; fix RST syntax va re-run Step 5 |

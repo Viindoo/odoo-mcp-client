@@ -95,7 +95,7 @@ Convention for `odoo-doc-illustrator` when writing module visual documentation i
 
 | Asset | Path | Spec |
 |-------|------|------|
-| App icon | `static/description/icon.png` | PNG 100x100 |
+| App icon | `static/description/icon.png` | PNG 100x100 (legacy) or 128x128; match the module's existing icon size |
 | Store listing HTML | `static/description/index.html` | Pure HTML; image refs use `<img src="./file">` (relative) |
 | Banner screenshot | `static/description/main_screenshot.png` | ~1200px wide |
 | Localised banner GIF | `static/description/main_screenshot.<locale>.gif` | ~1200px; one file per locale |

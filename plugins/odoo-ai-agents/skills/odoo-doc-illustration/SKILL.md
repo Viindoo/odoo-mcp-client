@@ -47,13 +47,16 @@ LANGUAGES: <resolved language list - see i18n resolution below>
 - `userguide` - writes `doc/index.rst` (user guide / RST documentation)
 - `both` - writes both; agent uses [Hinh anh: <slug>] markers in the hybrid draft so `odoo-content-draft` can resolve them
 
-**Language resolution (5-tier, SSOT `skills/odoo-i18n/SKILL.md` P0).**
+**Language resolution (6-tier, extends `skills/odoo-i18n/SKILL.md` P0 with one extra tier).**
 Resolve the documentation language list in this order - first tier that yields a value wins:
 1. Explicit `LANGUAGES:` value in the dispatch brief
-2. `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` field `default_languages`
-3. Module `i18n/*.po` locales already present
-4. `res.lang` active languages on the live instance
-5. Fallback `["vi_VN"]`
+2. `context.md` field `doc_languages` - written by onboarding as a comma-string (e.g. `en_US,vi_VN`); split on `,` and trim whitespace
+3. `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` field `default_languages`
+4. Module `i18n/*.po` locales already present
+5. `res.lang` active languages on the live instance
+6. Fallback `["vi_VN"]`
+
+Tiers 3-6 above correspond to the base P0 tiers in `skills/odoo-i18n/SKILL.md`. Tier 2 (context.md) is added here and sits above P0 in the odoo-doc-illustration stack only.
 
 For each resolved language produce a separate output: `index.html` + `index_<locale>.html` (appstore), or locale-suffixed RST (userguide).
 
