@@ -291,8 +291,9 @@ On confirm: `git commit` the merge (buckets a/d still commit - Hard rule 7), upd
 `checkpoint.json` `{<sha>: done}`. More commits/batches remain -> LOOP back to recreate WORK-tier
 worktrees from integration for the next batch.
 
-**P7 - PR + review.** Open PR `fp/<slug>` -> B. Run `/code-review` inline. Dispatching
-`odoo-code-review` is OPTIONAL for a trivial port (docstring/string/comment-only buckets), but
+**P7 - PR + review.** Open PR `fp/<slug>` -> B. Run `odoo-code-review` inline (via the Skill
+tool, from this orchestrating context). It is OPTIONAL for a trivial port
+(docstring/string/comment-only buckets), but
 **MANDATORY whenever the batch grafts a new engine or mechanism** (a shared report engine, a
 group-by/total/drill computation, an export/print path, a wizard, any multi-path component) -
 a clean merge of one path proves nothing about the others. For a mandatory review:

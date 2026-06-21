@@ -448,9 +448,9 @@ Execute  (writes-files specialist dispatched via the Skill tool; the skill fans 
 
 #### What Phase R does
 
-- **Dispatches ≤1-2 READ-ONLY agents** via the Agent tool: `Explore`, or a specialist
-  in read-only mode (e.g. `odoo-feature-check`, `odoo-override-finding`). These agents
-  map the code or modules relevant to the stated intent.
+- **Launches ≤1-2 READ-ONLY recon subagents**: `Explore`, or an anonymous recon agent.
+  A read-only leaf skill (e.g. `odoo-feature-check`, `odoo-override-finding`) is instead
+  invoked via the Skill tool. These map the code or modules relevant to the stated intent.
 - **Calls read-only OSM tools** as needed: `model_inspect`, `check_module_exists`,
   `find_override_point`, `impact_analysis`.
 - **Never mutates** the filesystem. No `Write`, no `Edit`, no writes-files specialist.
@@ -802,7 +802,7 @@ principal branch (untouched throughout)
               |
         end-of-wave Opus review  (inline, orchestrating context)
               |
-        /code-review invoked inline from main context
+        odoo-code-review invoked inline from main context
               |
         1 PR  (integration → principal)
               |
@@ -821,7 +821,7 @@ skill, not a `team_pattern` inside the declarative workflow system.
 | Axis | workflow-chaining (dispatched-specialist) | wave skill (orchestrating context) |
 |------|------------------------------------------|-------------------------------------|
 | Git authority | None - runner does NL-dispatch only; no git ops | Full git authority: worktree add, cherry-pick, PR creation, squash, force-with-lease |
-| /code-review legality | Cannot call /code-review (self-spawn only legal from the orchestrating context) | Calls /code-review inline from main context - the only legal call site |
+| odoo-code-review legality | Cannot call odoo-code-review (self-spawn only legal from the orchestrating context) | Calls odoo-code-review inline from main context - the only legal call site |
 | State machine | Declarative phases in `.workflow.yaml`; runner executes them | Imperative phases (0-6) encoded in the skill body; git refs/worktrees ARE the state |
 | Coupling | Coupled to workflow schema; adding GitWave would require new `team_pattern: GitWave` + new runner branch + new yaml keys | Self-contained; no schema changes to existing runner or yaml format |
 | Nesting risk | Injecting git orchestration into the workflow runner would push fork workers an extra level - risks exceeding the platform ceiling | Nesting ceiling respected: wave (orchestrating) → WI subagents (leaf-workers) |
@@ -838,7 +838,7 @@ without updating this section.
 | 1 - Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration | wave (orchestrating context) |
 | 2 - Dispatch WI subagents | Parallel Sonnet subagents; each carries Phase-4 brief + worker-brief line | WI workers (leaf-workers) |
 | 3 - Cherry-pick + resolver | Cherry-pick A → B → C onto integration; Sonnet resolver if conflict | wave (orchestrating context) |
-| 4 - End-of-wave review | Inline Opus review (4.1) for plan-adherence + correctness, then `/code-review` invoked inline from main context (4.2) | wave (orchestrating context) |
+| 4 - End-of-wave review | Inline Opus review (4.1) for plan-adherence + correctness, then `odoo-code-review` invoked inline from main context (4.2) | wave (orchestrating context) |
 | 5 - PR + squash + tree-identity | Create 1 PR (integration → principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup | wave (orchestrating context) |
 | 6 - Human-confirm merge + cleanup | STOP and wait for explicit user approval before merge; remove worktrees/branches/wave dir after | human + wave (orchestrating context) |
 
@@ -852,7 +852,7 @@ grounding every Odoo claim with the OSM MCP tools (an MCP tool call is never a s
 always allowed); follow the odoo-coding / odoo-code-review conventions
 but do NOT invoke those bundles. Do NOT invoke any spawner skill (odoo-coding,
 odoo-code-review, odoo-ui-review, wave, odoo-intake, odoo-brl,
-workflow-chaining, /code-review, skill-creator) - they dispatch a fresh agent and must
+workflow-chaining) - they dispatch a fresh agent and must
 be launched from the orchestrating context only. You MAY NL-dispatch a genuinely
 non-spawning (leaf) skill (e.g. odoo-feature-check, odoo-override-finding) for a
 read-only lookup. Do NOT invoke the Skill tool to trigger a spawner. Do NOT spawn a

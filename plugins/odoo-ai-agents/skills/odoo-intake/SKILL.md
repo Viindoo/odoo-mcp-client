@@ -23,7 +23,7 @@ model: inherit
 
 ## Your role - orchestrator, not implementer (THIS IS MANDATARY)
 
-You are the main agent and team leader. You get work done by **invoking the right skill** with the Skill tool, not by doing it yourself: skills launch the specialist subagents that do the actual work, and only when no skill fits do you launch an agent directly with the Agent tool. Your job is to route, sequence, gate, and decide - own the orchestration and the judgment calls, delegate the execution.
+You are the main agent and team leader. You get work done by **invoking the right skill** with the Skill tool, not by doing it yourself: skills launch the specialist subagents that do the actual work, and only when no skill fits do you launch an agent directly. Your job is to route, sequence, gate, and decide - own the orchestration and the judgment calls, delegate the execution.
 
 **IMPORTANT**: You NEVER read Pull Requests, Github Issues, web pages, codebase and any Internet URL by yourself.
 If no appropriate skill that can do it for you, just launch haiku or sonnet agents untill you have full information you want.
@@ -53,7 +53,7 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
 1. **Gate before execution.** Intake MAY write planning/design artifacts (brainstorm notes, design docs, `state.json`) during the plan turn. What it MUST NOT do before the Proposed Plan is approved: produce the routed deliverable (production code, generated proposals) or dispatch a `writes-files` specialist.
 2. **No `writes-files` specialist before Plan Mode is approved.** Three points, none optional:
    - (a) Never run `odoo-coding`, `wave`, `odoo-brl`, `workflow-chaining`, or any `output_mode = writes-files` skill before approval. Before approval, only describe it in the Proposed Plan.
-   - (b) Phase R MAY dispatch a READ-ONLY agent via the Agent tool (`Explore`, or a specialist in read-only mode - e.g. `odoo-feature-check`, `odoo-override-finding`) to survey current state. That agent MUST NOT write any file and MUST NOT spawn further (see `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). Read-only OSM calls (`model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`) are likewise allowed.
+   - (b) Phase R MAY launch a READ-ONLY recon subagent (`Explore`, or an anonymous recon agent) to survey current state; a read-only **leaf skill** (e.g. `odoo-feature-check`, `odoo-override-finding`) is instead invoked via the **Skill tool** (a skill name is not an agentType). The recon agent MUST NOT write any file and MUST NOT spawn further (see `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). Read-only OSM calls (`model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`) are likewise allowed.
    - (c) A `writes-files` specialist is dispatched ONLY after Plan Mode approval, by the main agent via the **Skill tool** (not Agent tool - see § Dispatch mechanism, § Plan Mode).
 3. **Phase 0 - Context, Detect & Clarify (mandatory).** Runs at the start of every invocation. Closes the **intent gate** before anything else proceeds.
 
@@ -104,7 +104,7 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 **When**: AFTER Phase 0 closes the intent gate, BEFORE the Proposed Plan. Recon turns a generic plan into a context-aware one.
 
 **What it does** - survey, never mutate:
-- Dispatch **≤1-2 READ-ONLY agents** via the Agent tool (`Explore`, or a specialist in read-only mode) to map code/modules relevant to the stated intent. These agents do not write files and do not spawn.
+- Launch **≤1-2 READ-ONLY recon subagents** (`Explore`, or an anonymous recon agent) to map code/modules relevant to the stated intent; a read-only leaf skill (e.g. `odoo-feature-check`) is instead invoked via the Skill tool. These agents do not write files and do not spawn.
 - Call read-only OSM tools as needed: `model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`.
 
 **Inventory discovery (hybrid).** Pull each fact from its SSOT:
@@ -161,7 +161,7 @@ The implementation plan written inside Plan Mode (step 3 above) MUST contain thr
 | a **workflow** - e.g. `qa-suite`, `video-produce` | a `*.workflow.yaml` | its **command** / NL-dispatch |
 | a **command** - e.g. `/odoo-respond-bid` | a slash command | the user's slash kickoff / its command |
 
-A skill is not an agentType, so Agent-tool'ing a skill name fails (and forces the read-and-imitate anti-pattern). A `spawner-agent` skill must run in the main context so the Skill tool can load it there and let it launch subagents. The **only** Agent-tool use inside intake is Phase R read-only Recon. Full rationale: `references/maintainers.md`.
+Skills always go through the Skill tool: a skill name is not an agentType, so passing a skill name to an agent launch fails (and forces the read-and-imitate anti-pattern). A `spawner-agent` skill must run in the main context so the Skill tool can load it there and let it launch its own subagents. Agents, by contrast, are launched directly - inside intake this is only the Phase R read-only recon agent. Full rationale: `references/maintainers.md`.
 
 ## Phase P - RUN-DAG persistence + drive-to-done (optional, additive)
 

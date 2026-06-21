@@ -148,7 +148,7 @@ WI-C owns: [file5, ...]
 | Phase | Reviewer | Findings | Fixed |
 |---|---|---|---|
 | 4.1 Opus review | Opus | <summary> | <yes/no + detail> |
-| 4.2 /code-review | /code-review skill | <findings> | <yes/no + detail> |
+| 4.2 odoo-code-review | odoo-code-review skill | <findings> | <yes/no + detail> |
 
 ## PR
 
@@ -350,7 +350,7 @@ Prompt: "Parallelize these 3 changes: add computed field to sale.order, add OWL 
 Action: Phase 0 discovers disjoint files, selects independent topology. Gate shows ownership
 map. On approve: integration branch + 3 worktrees. Dispatch the 3 Sonnet WI subagents under the
 Mode B rolling window (3 x sonnet = weight 6, within BUDGET=8, so all three run at once).
-Serialize each cherry-pick in the orchestrating context as its worker returns. Opus review + /code-review. 1 PR.
+Serialize each cherry-pick in the orchestrating context as its worker returns. Opus review + odoo-code-review. 1 PR.
 Squash + tree-identity. Wait for human-confirm.
 
 **Example 2 - 1-WI edge case:**

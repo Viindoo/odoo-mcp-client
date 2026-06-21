@@ -6,6 +6,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.19.1] - 2026-06-21
+
+### Fixed
+
+- **Dropped non-portable `/code-review` and `/skill-creator` references.** These slash commands
+  exist only on the maintainer's machine, so the `wave` / `odoo-forward-port` pipelines that called
+  them would fail for any other user of this public plugin. Odoo code review now routes to the
+  bundled `odoo-code-review` skill (OSM-grounded, always available, auto-spawns its reviewer from the
+  orchestrating context); both commands are removed from the WI-worker spawner-ban enumerations and
+  the maintainer notes.
+- **`odoo-intake` Phase R no longer mislabels read-only leaf skills as Agent-tool targets.**
+  `odoo-feature-check` / `odoo-override-finding` are skills (not agentTypes), so they are invoked via
+  the Skill tool; only `Explore` / anonymous recon agents are launched directly - resolving the
+  contradiction with the skill's own dispatch-mechanism rule.
+
+### Changed
+
+- **Neutral subagent-launch language.** Now that nested subagents are supported, skills describe
+  dispatching a specialist agent as "launch ... as a subagent" rather than prescribing "the Agent
+  tool", letting the execute-agent choose the mechanism. Load-bearing technical facts (a skill name
+  is not an agentType, so it must go through the Skill tool) are kept.
+
 ## [3.19.0] - 2026-06-21
 
 ### Fixed

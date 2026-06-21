@@ -44,8 +44,4 @@ when changing intake's structure, the routing table, or the harness wiring.
   is itself the human gate (same rationale as Hard rule 1 letting intake write planning artifacts).
   It is deliberately NOT a routing-table row - it is never intent-routed, only opt-in. The
   re-proposed gate drops `deep-survey` so the survey runs at most once.
-- Trigger description optimization is via `/skill-creator` Mode 5 (`run_loop.py`) with a
-  20-query trigger eval set.
-- Eval set (`evals/evals.json`) is descriptive - not graded. Use `/skill-creator` Mode 5 +
-  `run_loop.py` for a graded trigger accuracy score.
 - This skill carries the standard `odoo-` prefix as `odoo-intake`, consistent with all other skills in this plugin. The unprefixed `intake` namespace is intentionally reserved for a future domain-agnostic front door (general ERP, strategic planning, etc.) that may route to `odoo-intake` when it detects Odoo intent - keeping the Odoo-specific and domain-agnostic responsibilities cleanly separated.
