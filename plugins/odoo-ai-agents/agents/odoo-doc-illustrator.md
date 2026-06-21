@@ -72,9 +72,11 @@ Work in steps. Fire independent MCP/Bash calls within a step in the same message
 
 READ the cross-agent decision log (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first) to inherit upstream decisions; APPEND your own significant decisions at the end (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
-Read `.odoo-ai/context.md` (Markdown bullets, `- **key**: value` form). Extract: `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir`, `doc_languages`, `doc_image_naming`, `doc_static_dir`, and optionally `modules`, `addons_path`, `doc_output_dir`. If `.odoo-ai/context.md` is absent, derive `odoo_version` from the first `__manifest__.py` on disk (`version` field, first two dotted components). If `addons_path` is absent from context, derive it from the parent directory of the target module's `__manifest__.py` (Bash: `dirname $(find . -maxdepth 5 -name __manifest__.py -path "*/<module_name>/*" | head -1)`); if still unresolvable, stop with `status: NEEDS_CONTEXT` for both modes. Ask the caller only for what none of these resolve, in a single message.
+Read `.odoo-ai/context.md` (Markdown bullets, `- **key**: value` form). Extract: `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir`, `doc_languages`, `doc_image_naming`, `doc_static_dir`, and optionally `modules`, `addons_path`, `doc_output_dir`. If `.odoo-ai/context.md` is absent, derive `odoo_version` from the first `__manifest__.py` on disk (`version` field, first two dotted components). If `addons_path` is absent from context, derive it from the grandparent directory of the target module's `__manifest__.py` - that is, the directory containing the module directory (Bash: `dirname $(dirname $(find . -maxdepth 6 -name __manifest__.py -path "*/<module_name>/*" | head -1))`); if still unresolvable, stop with `status: NEEDS_CONTEXT` for both modes. Ask the caller only for what none of these resolve, in a single message.
 
 Once `odoo_version` is concrete, pin it using set_active_version with the concrete version string as the `odoo_version` argument (this is the reachability probe). Pass the CONCRETE version on every subsequent OSM call - never `'auto'`.
+
+If no blackboard/run-id is available from the dispatch brief, use slug `doc-illust-<module>-<YYYYMMDD>` (e.g. `doc-illust-sale-20260621`) as the worklog subdirectory name.
 
 ### Step 1 - Resolve TARGET (absolute paths) + detect conventions
 
@@ -85,7 +87,7 @@ Once `odoo_version` is concrete, pin it using set_active_version with the concre
 ls <module-abs>/static/description/ 2>/dev/null
 ```
 Read `.odoo-ai/context.md` fields `doc_image_naming`, `doc_languages`, `doc_static_dir` if present. From these, detect:
-- **naming pattern**: if existing files follow `<module>_<feature>.png` or `<N>-<slug>.<locale>.jpg` or another pattern - DETECTED PATTERN WINS. Use default `main_screenshot.png` / `<feature>-<view>.png` only when the directory is empty or absent.
+- **naming pattern**: tiebreaker order = (1) disk `ls` of the existing `static/description/` directory WINS (e.g. detected pattern `sale_main.png` -> use `<module>_<feature>.png`); (2) `context.md` `doc_image_naming` template (template notation like `<module>_<feature>.png` means use that scheme); (3) default `main_screenshot.png` / `<feature>-<view>.png` when directory is empty or absent. Example: if `doc_image_naming: <module>_<feature>.png` and disk has `sale_dashboard.png`, the disk file wins and confirms the `<module>_<feature>.png` scheme.
 - **bilingual layout**: if existing files have locale suffixes (e.g. `index_vi_VN.html`) - maintain same pattern for new files.
 - **asset dir**: use `doc_static_dir` from context if set, else `static/description/`.
 
@@ -103,43 +105,51 @@ In both modes: determine Branch A vs B (see Critical path constraint section) be
 
 Determine which documentation languages to produce. Apply tiers in order (first match wins):
 
-1. **Explicit brief field** `LANGUAGES:` or `doc_languages` (e.g. `["vi_VN","en_US"]`)
+1. **Brief field `LANGUAGES:`** - ONLY this exact field in the dispatch brief (e.g. `LANGUAGES: vi_VN,en_US`). Do NOT treat `doc_languages` in the brief as tier-1; it belongs to tier-2.
 2. **`context.md` field `doc_languages`** - read from `.odoo-ai/context.md`; this field is written by onboarding as a COMMA-STRING (e.g. `en_US,vi_VN`) - SPLIT on `,` and trim whitespace to get the list (same parse rule as `addons_path`). Skip this tier if the field is absent.
 3. **`i18n.json` `default_languages`** - read `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json`, field `default_languages`
 4. **Module .po filenames** - `ls <module-abs>/i18n/*.po 2>/dev/null` -> locale codes from basenames
 5. **Instance active languages** - live `res.lang` with active=True (if live MCP available)
 6. **Default** `["vi_VN"]`
 
-Note: this 6-tier stack adds tier 2 (context.md `doc_languages`) on top of the base 5-tier stack from `skills/odoo-i18n/SKILL.md` P0 (tiers 3-6 above map to P0 tiers 2-5). The odoo-i18n P0 remains the SSOT for tiers 3-6.
+The primary language = element[0] of the resolved list -> produces `index.html` / `index.rst`. Each additional language -> `index_<locale>.html` / `index_<locale>.rst`.
+
+Tiers 3-6 above map to odoo-i18n P0 tiers 2-5; tiers 1-2 here are this agent's additions. The odoo-i18n P0 (`skills/odoo-i18n/SKILL.md`) remains the SSOT for tiers 3-6.
 
 **Image sharing rule:** screenshots are language-neutral unless UI text in the screenshot is language-dependent. Capture ONCE per screen; reference the same image file from all language variants of the doc artifact.
 
 **Naming rule for language variants:** follow DETECTED convention from Step 1. If no convention detected: primary language -> `index.html` / `index.rst`; additional languages -> `index_<locale>.html` / `index_<locale>.rst` (e.g. `index_en_US.html`).
 
-### Step 3 - Ground in OSM (parallel)
+### Step 3 - Resolve screen list + Ground in OSM (parallel)
 
-Fire in parallel to understand what the screens actually contain:
+**SCREENS field (AUTHORITATIVE):** if the dispatch brief contains a `SCREENS:` field (e.g. `SCREENS: dashboard, sale-order-form, invoice-list`), treat it as the AUTHORITATIVE list of screens to capture. OSM is used only for grounding (field labels, view structure) within those screens - do NOT derive a different screen set from OSM results.
+
+If `SCREENS:` is absent, use OSM results to decide which screens to capture (prefer primary form views, list views, and the main menu entry).
+
+Fire in parallel to understand what the screens contain:
 - Use module_inspect with `method='views'` and `method='owl'` to enumerate which views and OWL components the module renders.
 - Use model_inspect with `method='summary'` to get field names and labels that appear in the UI - use these for doc text in Step 5.
 - Use check_module_exists to confirm the module and edition.
 
-Use these OSM results to decide which screens to capture (prefer primary form views, list views, and the main menu entry). If OSM is unreachable, fall back to disk grep (`grep -rn "ir.ui.view" --include="*.xml"` and `grep -rn "<menuitem" --include="*.xml"`) to enumerate views and menus; prefix with `⚠ OSM unreachable - screens planned from disk grep`.
+If OSM is unreachable, fall back to disk grep (`grep -rn "ir.ui.view" --include="*.xml"` and `grep -rn "<menuitem" --include="*.xml"`) to enumerate views and menus; prefix with `⚠ OSM unreachable - screens planned from disk grep`.
 
-### Step 4 - Auth
+### Step 4 - Live install check + Auth
 
-Load `${screenshot_baseline_dir}/storageState-admin.json` if it exists; else navigate to `<instance_base_url>/web/login` and fill credentials from `instance_login` via browser_fill_form. Per `docs/odoo-ui-knowledge.md`: always authenticate via `/web/login` before navigating backend URLs.
+**Live install gate (prerequisite):** before any capture, confirm the target module is installed. Use `search_records` on model `ir.module.module` with domain `[['name','=','<module_name>'],['state','=','installed']]`. If the result is empty, stop immediately: `status: BLOCKED` - module `<module_name>` is not installed; route to `odoo-instance` (`operation: install-module`).
+
+**Auth:** load `${screenshot_baseline_dir}/storageState-admin.json` if it exists (storageState caches auth cookies; use it if present). Otherwise navigate to `<instance_base_url>/web/login` and fill credentials from `instance_login` via `browser_fill_form`. If `storageState` file is absent AND `instance_login` contains no password, stop with `status: NEEDS_CONTEXT` and request credentials - do not guess or assume a default password. Per `docs/odoo-ui-knowledge.md`: always authenticate via `/web/login` before navigating backend URLs.
 
 ### Step 5 - Capture loop
 
 For each screen to document (plan 2-6 screens covering the main feature surface):
 
-1. `mcp__plugin_odoo-ai-agents_playwright__browser_navigate` to the screen URL (use `/odoo` for v17+, `/web` for v16 and below, per `docs/odoo-ui-knowledge.md`).
-2. `mcp__plugin_odoo-ai-agents_playwright__browser_resize` - default ~1200px width for banner/header shots, ~1800px target width for feature detail shots. Set viewport to match the OUTPUT SIZE target:
+1. `mcp__plugin_odoo-ai-agents_playwright__browser_navigate` to the screen URL. Build URL from view/menu: for v17+ use `/odoo/<model>` or resolve via `ir.ui.menu` action (live MCP `execute_method` on `ir.ui.menu`); for v16 and below use `/web#action=<action_id>` or `/web#model=<model>&view_type=<type>`. Reference `docs/odoo-ui-knowledge.md` for the full URL resolution pattern.
+2. `mcp__plugin_odoo-ai-agents_playwright__browser_resize` - set viewport to match the OUTPUT SIZE target:
    - **icon**: 128x128 px
-   - **banner**: 1280x600 px (resize browser to this width before capture)
-   - **main_screenshot / feature screenshot**: ~1800px target width, >=1200x800 floor (minimum acceptable)
+   - **banner**: 1280x600 px (resize browser to this exact width before capture)
+   - **main_screenshot / feature screenshot**: ~1800px target width, >=1200x800 floor (minimum acceptable size)
    - If the module already has existing screenshots of the same type, MATCH their dimensions exactly (read with Bash `identify <file>` or `file <file>`; fallback to the defaults above when identify is unavailable).
-3. **On-theme check (before capture):** use `mcp__plugin_odoo-ai-agents_playwright__browser_evaluate` to read 1-2 primary design tokens (e.g. `getComputedStyle(document.documentElement).getPropertyValue('--primary')` and `'--body-bg'`). If either resolves EMPTY or to a self-referential cycle, the render is off-theme - stop this screen, log `WARN: off-theme render detected (token EMPTY)`, and skip to the next screen or emit `NEEDS_CONTEXT` if all screens fail. (Reference: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.)
+3. **On-theme check (before capture):** use `mcp__plugin_odoo-ai-agents_playwright__browser_evaluate` to read 1-2 primary design tokens (e.g. `getComputedStyle(document.documentElement).getPropertyValue('--primary')` and `'--body-bg'`). If either resolves EMPTY (self-referential cycles also resolve to empty per CSS spec), the render is off-theme - stop this screen, log `WARN: off-theme render detected (token EMPTY)`, and skip to the next screen or emit `NEEDS_CONTEXT` if all screens fail. (Reference: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.)
 4. **Crop/region default:** capture the smallest viewport region that shows the feature being documented. Use `mcp__plugin_odoo-ai-agents_playwright__browser_take_screenshot` with a `clip` rect or navigate to a focused view. Do NOT use `browser_highlight` unless the dispatch brief explicitly requests it (e.g. `ANNOTATION: highlight`). Do NOT use `browser_annotate` - it opens an interactive dashboard that blocks on headless hosts.
 5. **Capture (Branch A):** if dest is inside cwd, use `mcp__plugin_odoo-ai-agents_playwright__browser_take_screenshot` with a relative `filename` pointing into the dest subfolder; no further copy needed.
    **Capture (Branch B, default):** use `mcp__plugin_odoo-ai-agents_playwright__browser_take_screenshot` with `filename=doc-staging/<screen-slug>.png` (relative). The tool writes to `<cwd>/.playwright-mcp/doc-staging/<screen-slug>.png` and returns the actual written path. Read that path from the tool result.
@@ -150,7 +160,7 @@ Name screenshots per DETECTED convention (Step 1). When no convention exists: `m
 ### Step 6 - Assemble artifact
 
 **DOC LAYER: appstore (default) - compose `static/description/index.html`:**
-Write a self-contained HTML file at `<module-abs>/<asset-dir>/index.html` (primary language) and `index_<locale>.html` for each additional language (Step 2). Use HTML only (no JS, no external CSS). Reference each screenshot with a **relative** path: `<img src="./<file>.png" alt="<description from OSM field/label data>">`. Structure: one `<h2>` per major feature, `<p>` describing the feature using field names and labels from the OSM model_inspect results (Step 3), followed by the relevant `<img>`. Keep tone technical-documentation (not marketing). Example structure:
+Write a self-contained HTML file directly (no content-draft, no markers) at `<module-abs>/<asset-dir>/index.html` (primary language) and `index_<locale>.html` for each additional language (Step 2). Use HTML only (no JS, no external CSS). Reference each screenshot with a **relative** path: `<img src="./<file>.png" alt="<description from OSM field/label data>">`. Structure: one `<h2>` per major feature, `<p>` describing the feature using field names and labels from the OSM model_inspect results (Step 3), followed by the relevant `<img>`. Keep tone technical-documentation (not marketing). Example structure:
 
 ```html
 <!DOCTYPE html>
@@ -165,10 +175,8 @@ Write a self-contained HTML file at `<module-abs>/<asset-dir>/index.html` (prima
 </html>
 ```
 
-When content-draft places image markers, the format is `[Hinh anh: <screen-slug>]`. Replace each `[Hinh anh: <screen-slug>]` with the correct `<img src="./<screen-slug>.png">` tag (HTML) or `.. image:: <screen-slug>.png` directive (RST). If the returned prose is missing any marker, insert the image ref immediately after the heading of the feature it illustrates.
-
 **DOC LAYER: userguide - compose `doc/index.rst`:**
-Write RST at `<module-abs>/doc/index.rst` (primary language) and `doc/index_<locale>.rst` for each additional language. Tone: technical/imperative. Use `.. image::` directives with `:alt:` captions grounded in OSM field labels. Ground every field/menu reference in OSM data. Do NOT add annotation overlays.
+Write RST directly (no content-draft, no markers) at `<module-abs>/doc/index.rst` (primary language) and `doc/index_<locale>.rst` for each additional language. Tone: technical/imperative. Use `.. image::` directives with `:alt:` captions grounded in OSM field labels. Ground every field/menu reference in OSM data. Do NOT add annotation overlays.
 
 **RST image path rule (critical):** the correct relative path in `doc/index.rst` depends on where the image file lives:
 - When images are in `static/description/` (the case for `both` layer and the default asset-dir): use `.. image:: ../static/description/<screen-slug>.png` (one level up from `doc/` into the module root, then down to `static/description/`).
@@ -176,15 +184,15 @@ Write RST at `<module-abs>/doc/index.rst` (primary language) and `doc/index_<loc
 Never use a bare filename for images that live in `static/description/` - the RST renderer resolves relative paths from the `.rst` file's directory, so `../static/description/` is the correct prefix.
 
 **DOC LAYER: both:**
-Produce both index.html (appstore rules) and doc/index.rst (userguide rules). Reuse the same screenshot files for both artifacts.
+Produce both index.html (appstore rules) and doc/index.rst (userguide rules) directly - no content-draft, no markers. Reuse the same screenshot files for both artifacts. DOC LAYER both + N languages = 2N files total (N html in `<asset-dir>/`, N rst in `doc/`).
 
 **MODE: cluster - compose RST or delegate:**
 If tone is technical-doc: write RST at `<doc_output_dir>/<slug>.rst` with `.. image:: <file>.png` directives and OSM-grounded captions.
-If tone is marketing (brief says so): delegate to odoo-content-draft with the OSM feature summary and instruct it to place a marker `[Hinh anh: <screen-slug>]` at each illustration point. When the prose is returned, replace each `[Hinh anh: <screen-slug>]` with the correct `.. image:: <screen-slug>.png` directive (RST) or `<img src="./<screen-slug>.png">` (HTML). If the returned prose is missing any marker, insert the image ref immediately after the heading of the feature it illustrates.
+If tone is marketing (brief says so): delegate to odoo-content-draft with the OSM feature summary, the captured screenshot slugs list, and an explicit instruction to place a marker `[Hinh anh: <screen-slug>]` (using the EXACT slugs provided) at each illustration point. When prose is returned, resolve markers: match `[Hinh anh: <slug>]` to a file; if slug text does not match a filename exactly, normalize text to slug (lowercase, spaces to `-`) as fallback. Replace each marker with `.. image:: <screen-slug>.png` (RST) or `<img src="./<screen-slug>.png">` (HTML). If the returned prose is missing any expected marker, insert the image ref immediately after the heading of the feature it illustrates.
 
 ### Step 7 - Manifest wiring (MODE: module, DOC LAYER: appstore or both)
 
-Read `<module-abs>/__manifest__.py`. If `'images'` key is absent or does not include the primary screenshot path, add or extend it. Read the full manifest first (Read tool), then apply a targeted Edit that merges `'images': ['<asset-dir>/main_screenshot.png']` (using the DETECTED asset dir and naming convention) without touching any other key. Do NOT rewrite the manifest from scratch.
+Read `<module-abs>/__manifest__.py`. If `'images'` key is absent or does not include the primary screenshot path, add or extend it. Read the full manifest first (Read tool), then apply a targeted Edit that merges `'images': ['<doc_static_dir>/<primary-screenshot-filename>']` where `<doc_static_dir>` is the DETECTED asset dir and `<primary-screenshot-filename>` is the DETECTED primary screenshot filename (per the convention detection in Step 1 - do NOT hardcode `main_screenshot.png`; use the actual filename of the primary screenshot captured). Do NOT rewrite the manifest from scratch.
 
 ---
 
