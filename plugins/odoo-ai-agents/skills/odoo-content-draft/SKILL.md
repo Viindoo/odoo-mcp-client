@@ -92,7 +92,7 @@ Select matching row from Channel matrix. Map inputs to: hook/headline, key messa
 
 ### Round 3 - Draft content
 
-Write full draft per channel template. Apply all Brand voice rules. Internal links, images, timestamps: bracket notation (`[Hinh anh: dashboard MRP]`, `[Link: trang dung thu]`).
+Write full draft per channel template. Apply all Brand voice rules. Internal links, images, timestamps: bracket notation (`[Image: dashboard-mrp]`, `[Link: free-trial-page]`).
 
 ### Round 4 - Self-review pass
 
@@ -147,3 +147,9 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/examples.md` for
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
 output for the run-driver - it does not change anything produced above.
+
+If the produced draft contains one or more `[Image: ...]` placeholders (image slots emitted in Round 3), set `status: NEEDS_NEXT` and include in the `next` field:
+- skill: odoo-doc-illustration
+  confidence: 0.8
+  risk_level: L1
+  reason: fill screenshot into image placeholder(s) in draft

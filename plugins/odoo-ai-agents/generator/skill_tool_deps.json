@@ -477,6 +477,17 @@
       "deprecated_tools_used": [],
       "notes": "Spawner: dispatches odoo-translator for .pot/.po via odoo-bin+polib; OSM only for version flags. cli_help grounds the per-series CLI surface - the --i18n-export/--load-language/-u reload server flags (v8-v18) vs the odoo-bin i18n subcommand (loadlang/export/import, v19+); --load-language loads the language into the DB so an existing translation re-exports with msgstr (distinct from --language/-l which only selects the file). entity_lookup confirms a field's canonical string label for glossary alignment. There is no OSM i18n tool - export/merge/validate are shell odoo-bin + polib in the leaf agent."
     },
+    "odoo-doc-illustration": {
+      "mcp_tools": [
+        "check_module_exists",
+        "model_inspect",
+        "module_inspect",
+        "set_active_version"
+      ],
+      "min_server_version": "0.7.0",
+      "deprecated_tools_used": [],
+      "notes": "Spawner: dispatches odoo-doc-illustrator to capture screenshots + assemble module/cluster docs."
+    },
     "odoo-instance": {
       "mcp_tools": [
         "cli_help",
@@ -489,6 +500,17 @@
     }
   },
   "agents": {
+    "odoo-doc-illustrator": {
+      "mcp_tools": [
+        "check_module_exists",
+        "model_inspect",
+        "module_inspect",
+        "set_active_version"
+      ],
+      "min_server_version": "0.7.0",
+      "deprecated_tools_used": [],
+      "notes": "Browser-driven visual documentation agent: captures screenshots into module static/description or cluster docs. OSM tools ground module/model structure before capture."
+    },
     "odoo-instance-ops": {
       "mcp_tools": [
         "cli_help",
@@ -726,6 +748,16 @@
       "spawn_class": "orchestrator-nl",
       "spawns": [],
       "stack": "none",
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
+    },
+    "odoo-doc-illustration": {
+      "spawn_class": "spawner-agent",
+      "spawns": [
+        "odoo-doc-illustrator"
+      ],
+      "stack": "frontend",
       "instance_touching": false,
       "output_mode": "writes-files",
       "default_gate_tier": "L1"

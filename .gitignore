@@ -24,3 +24,6 @@ node_modules/
 
 # AI workflow runtime artifacts (project context, BRL jobs, brainstorm state) — never commit (may contain customer data)
 .odoo-ai/
+
+# Browser MCP screenshot/video staging (playwright/chrome-devtools output-dir) — transient capture artifacts
+.playwright-mcp/

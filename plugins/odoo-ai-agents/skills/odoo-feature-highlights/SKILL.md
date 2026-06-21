@@ -134,3 +134,9 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
 output for the run-driver - it does not change anything produced above.
+
+In the `next` field, include optional suggestions:
+- skill: odoo-doc-illustration
+  confidence: 0.5
+  risk_level: L1
+  reason: illustrate new features with annotated screenshots for sales deck or blog post (use when static images are needed, not a recorded video)

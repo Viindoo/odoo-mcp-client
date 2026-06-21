@@ -52,6 +52,7 @@ SKIP_SKILL_DIRS = {
     "odoo-deal-followup",
     "odoo-deploy-checklist",
     "odoo-discovery-summary",
+    "odoo-doc-illustration",
     "odoo-onboarding",
     "odoo-intake",
     "odoo-ui-review",

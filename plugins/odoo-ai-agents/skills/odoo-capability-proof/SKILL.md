@@ -122,3 +122,12 @@ This skill produces TEXT/code evidence and written demo steps - not a video. To 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
 output for the run-driver - it does not change anything produced above.
+
+In the `next` field, include optional suggestions:
+- skill: odoo-demo-recording
+  confidence: 0.7
+  reason: turn written demo steps into a live screencast for the client
+- skill: odoo-doc-illustration
+  confidence: 0.5
+  risk_level: L1
+  reason: produce static illustrated screenshots for RFP/deck/static proof documents (use instead of odoo-demo-recording when a video is not needed)

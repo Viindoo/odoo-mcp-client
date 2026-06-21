@@ -85,3 +85,32 @@ All four skills read `.odoo-ai/context.md` (Markdown bullets `- **key**: value`,
 
 If a *required* key (the first four) is missing, the skill asks the user rather than guessing; the
 optional brand/mockup keys simply disable their checks when absent.
+
+## Documentation screenshots (static/description)
+
+Convention for `odoo-doc-illustrator` when writing module visual documentation into
+`<module>/static/description/`. All paths below are relative to the module root.
+
+### Layout
+
+| Asset | Path | Spec |
+|-------|------|------|
+| App icon | `static/description/icon.png` | PNG 100x100 (legacy) or 128x128; match the module's existing icon size |
+| Store listing HTML | `static/description/index.html` | Pure HTML; image refs use `<img src="./file">` (relative) |
+| Banner screenshot | `static/description/main_screenshot.png` | 1280x600 |
+| Localised banner GIF | `static/description/main_screenshot.<locale>.gif` | 1280x600; one file per locale |
+| Feature screenshot | `static/description/<N>-<slug>.<locale>.jpg` | ~1800px target, >=1200x800 floor; `N` = two-digit ordering prefix |
+
+Manifest key: `'images': ['static/description/main_screenshot.png']`.
+
+### Writing screenshots from the agent
+
+SSOT for the screenshot write mechanism (allowed-roots constraint + 2-tier relative-filename ->
+`.playwright-mcp` -> Bash cp staging): see `agents/odoo-doc-illustrator.md` (Critical path
+constraint section). Do not duplicate that mechanism here - follow the agent SSOT.
+
+### UC2 - cluster / docs-repo output
+
+When `doc_output_dir` is set in `.odoo-ai/context.md` (MODE cluster), images go to that
+directory instead of `static/description/`. RST references use `.. image:: <filename>.png`
+(no path prefix when the image is in the same docs dir as the `.rst` file).
