@@ -95,20 +95,6 @@ recorded video/clip of the flow running on a live instance ("record", "video", "
 "GIF"), -> **Pick `odoo-demo-recording`**. When unclear, ask: "written evidence package, or a
 recorded video of the flow?"
 
-## Collision 8 - BRL Scale vs Ad-hoc Gap Analysis vs Single Feature
-
-**Discriminator**:
-- **1 feature** → `odoo-feature-check`
-- **Short ad-hoc list (< ~20 items), no cost/DAG/RTM requirement** → `odoo-gap-analysis`
-- **Hundreds to thousands of items, OR explicit cost estimate, OR dependency graph / RTM output requested** → `odoo-brl`
-
-**Prompt examples**:
-- "Does Odoo support multi-currency invoicing?" → `odoo-feature-check` (single feature)
-- "Customer needs A, B, C - which does Odoo have, estimate effort" → `odoo-gap-analysis` (short list, ad-hoc)
-- "We have 1200 requirements from the RFP - classify, cost, and produce a dependency graph" → `odoo-brl` (scale + cost + DAG)
-- "50 requirements but we also need the RTM and cost table" → `odoo-brl` (explicit RTM + cost signals override small count)
-- "Classify these requirements" (no count stated) → ask: "How many requirements? If tens or more with cost/traceability needs, odoo-brl; short ad-hoc list → gap-analysis."
-
 ## Collision 7 - Coding (write JS) vs UI Debug (debug runtime)
 
 **Prompt**: "my OWL widget isn't showing up in the Odoo 17 form"
@@ -124,23 +110,19 @@ asks for the fix to be written, -> route to `odoo-coding`. If the user is starti
 from scratch ("create a color picker widget"), there is no runtime to debug ->
 `odoo-coding`.
 
-## Collision 10 - Doc Illustration (static screenshots) vs Demo Recording (real video)
+## Collision 8 - BRL Scale vs Ad-hoc Gap Analysis vs Single Feature
 
-**Prompt**: "tôi cần tài liệu cho module Sale với ảnh chụp màn hình minh hoạ các bước"
+**Discriminator**:
+- **1 feature** → `odoo-feature-check`
+- **Short ad-hoc list (< ~20 items), no cost/DAG/RTM requirement** → `odoo-gap-analysis`
+- **Hundreds to thousands of items, OR explicit cost estimate, OR dependency graph / RTM output requested** → `odoo-brl`
 
-- `odoo-doc-illustration`: handles "viết tài liệu module / cập nhật tài liệu có ảnh chụp màn hình /
-  làm static/description / document this module" -> produces a STATIC written guide with annotated
-  screenshots captured from the live instance, saved as docs/description files.
-- `odoo-demo-recording`: handles "quay video tính năng / demo video / screencast / GIF" ->
-  drives the live instance and produces a REAL recorded MP4/GIF screencast of a flow.
-
-**Discriminator**: "ảnh chụp" / "screenshot" / "tài liệu" / "docs" + no mention of "video",
-"quay", "screencast", "GIF" -> **Pick `odoo-doc-illustration`**. If the user wants a playable
-recording of the flow ("video", "quay lại", "GIF"), -> **Pick `odoo-demo-recording`**.
-When the user says "demo" with no further qualifier, ask: "static screenshot doc, or recorded video?"
-
-**Tie-breaker rule**: deliverable is a DOCUMENT (text + still images) -> `odoo-doc-illustration`;
-deliverable is a PLAYABLE RECORDING (mp4/GIF) -> `odoo-demo-recording`.
+**Prompt examples**:
+- "Does Odoo support multi-currency invoicing?" → `odoo-feature-check` (single feature)
+- "Customer needs A, B, C - which does Odoo have, estimate effort" → `odoo-gap-analysis` (short list, ad-hoc)
+- "We have 1200 requirements from the RFP - classify, cost, and produce a dependency graph" → `odoo-brl` (scale + cost + DAG)
+- "50 requirements but we also need the RTM and cost table" → `odoo-brl` (explicit RTM + cost signals override small count)
+- "Classify these requirements" (no count stated) → ask: "How many requirements? If tens or more with cost/traceability needs, odoo-brl; short ad-hoc list → gap-analysis."
 
 ## Collision 9 - Wave (git orchestration) vs BRL (requirement classification) vs Coding (single change)
 
@@ -164,3 +146,21 @@ If the user said "write a computed field for sale.order" -> `odoo-coding` (singl
 If the user said "classify 200 requirements from the RFP" -> `odoo-brl` (no code, no git).
 If the user said "we have a bug fix, a test addition, and a docs update - land them as one reviewed PR"
 -> `wave` (multiple disjoint changes, git coordination, end-of-wave review required).
+
+## Collision 10 - Doc Illustration (static screenshots) vs Demo Recording (real video)
+
+**Prompt**: "tôi cần tài liệu cho module Sale với ảnh chụp màn hình minh hoạ các bước"
+
+- `odoo-doc-illustration`: handles "viết tài liệu module / cập nhật tài liệu có ảnh chụp màn hình /
+  làm static/description / document this module" -> produces a STATIC written guide with annotated
+  screenshots captured from the live instance, saved as docs/description files.
+- `odoo-demo-recording`: handles "quay video tính năng / demo video / screencast / GIF" ->
+  drives the live instance and produces a REAL recorded MP4/GIF screencast of a flow.
+
+**Discriminator**: "ảnh chụp" / "screenshot" / "tài liệu" / "docs" + no mention of "video",
+"quay", "screencast", "GIF" -> **Pick `odoo-doc-illustration`**. If the user wants a playable
+recording of the flow ("video", "quay lại", "GIF"), -> **Pick `odoo-demo-recording`**.
+When the user says "demo" with no further qualifier, ask: "static screenshot doc, or recorded video?"
+
+**Tie-breaker rule**: deliverable is a DOCUMENT (text + still images) -> `odoo-doc-illustration`;
+deliverable is a PLAYABLE RECORDING (mp4/GIF) -> `odoo-demo-recording`.

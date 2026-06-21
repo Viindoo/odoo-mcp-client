@@ -129,4 +129,5 @@ In the `next` field, include optional suggestions:
   reason: turn written demo steps into a live screencast for the client
 - skill: odoo-doc-illustration
   confidence: 0.5
+  risk_level: L1
   reason: produce static illustrated screenshots for RFP/deck/static proof documents (use instead of odoo-demo-recording when a video is not needed)

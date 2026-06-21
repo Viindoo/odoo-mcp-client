@@ -148,7 +148,8 @@ When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
 output for the run-driver - it does not change anything produced above.
 
-If the produced draft contains one or more `[Hinh anh: ...]` placeholders (image slots emitted in Round 3), include in the `next` field:
+If the produced draft contains one or more `[Hinh anh: ...]` placeholders (image slots emitted in Round 3), set `status: NEEDS_NEXT` and include in the `next` field:
 - skill: odoo-doc-illustration
   confidence: 0.8
+  risk_level: L1
   reason: fill screenshot into image placeholder(s) in draft

@@ -340,6 +340,7 @@ The Routing Table's **Discriminator** column resolves most ties inline. **When t
 | 7 | `odoo-coding` vs `odoo-debug` | symptom + "why / not showing" → debug (cause first); "write / create from scratch" → coding |
 | 8 | `odoo-feature-check` vs `odoo-gap-analysis` vs `odoo-brl` | 1 feature → feature-check; short list → gap-analysis; hundreds OR cost/DAG/RTM → brl |
 | 9 | `wave` vs `odoo-brl` vs `odoo-coding` | parallelize+PR+squash → wave; classify/cost reqs → brl; single change → coding |
+| 10 | `odoo-doc-illustration` vs `odoo-demo-recording` | static doc/screenshots → doc-illustration; recorded video/GIF → demo-recording |
 
 ## Command-vs-skill discriminator
 
