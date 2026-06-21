@@ -40,6 +40,14 @@ Determine **changed + newly-added** modules (dir containing `__manifest__.py`):
 - **From git:** `git diff --name-only` + `git diff --name-only --diff-filter=A`; map each path to its owning `__manifest__.py` dir and dedupe.
 - **From a pasted block / single `file_path`:** that is one module.
 
+If the changes live in a sibling git worktree (the common case under `wave` / `odoo-forward-port`,
+where cwd is the principal tree and the work is in `fp/<slug>` or a WI worktree), the cwd `git diff`
+reports CLEAN and silently reviews nothing. When a `WORKTREE_PATH` is supplied in the brief, run the
+diff there: `git -C <WORKTREE_PATH> diff --name-only` (+ `--diff-filter=A`). An orchestrator that
+created the worktree MUST pass its path; on a direct invocation, verify cwd is the tree holding the
+changes (e.g. `git -C . status` shows the expected edits); if cwd is NOT that tree, STOP and report
+`WRONG_TREE: cwd=<path>, expected changes at <WORKTREE_PATH>` - do not proceed on an empty diff.
+
 Count distinct modules → **1 = single-pass; >1 = fan-out + synthesis**.
 
 ## Single module (the common case)

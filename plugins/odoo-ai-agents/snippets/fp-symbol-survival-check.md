@@ -72,7 +72,7 @@ reference = blocker, not a warning.
 
 ## 2.5. Symbol classes that auto-merge silently (no conflict marker each)
 
-Section 2 grounds the symbols you can SEE in a diff. This section enumerates six symbol
+Section 2 grounds the symbols you can SEE in a diff. This section enumerates seven symbol
 classes that survive a clean merge with NO conflict marker AND are easy to miss with a
 naive field/method scan - each can pass lint + install green yet crash at collection,
 load, or runtime on the target. Run EVERY check below over the scope list from Section 1
@@ -80,6 +80,8 @@ load, or runtime on the target. Run EVERY check below over the scope list from S
 to enumerate candidates, and how to ground each candidate against the target. Any candidate
 that fails its ground is a SYMBOL-BROKEN finding (Section 4) - resolve via the
 [[fp-intent-4outcome]] bucket before Phase 4 adapt.
+
+Note: P3.5 runs all classes over the full scope; P4.5 applies a two-lane split - see fp-phase-detail.md P4.5 for the operative per-class scope (Lane 1 = d,e,g over ALL .py; Lane 2 = a,b,c,f over tests/).
 
 ### (a) Test base-class signature drift
 
@@ -214,14 +216,14 @@ or an import that should have been adapted - confirm it is intentional, not a ha
 rename. Ground the suspected symbol against the target with `model_inspect` / `entity_lookup` /
 `module_inspect` (`odoo_version=` mandatory) before deciding the bucket.
 
-### (f) installable flag transition (A9)
+### (f) installable flag transition
 
 **Autosilent:** a `__manifest__.py` carried in the merge delta flips `installable` between the
 source and the target end-state (`True` -> `False` or `False` -> `True`). This silently changes
 which modules Phase 5 actually loads and tests - a module that flips to `installable: False`
 drops out of the install set with no error, so its forward-ported code is never exercised
-(linked to A3 - the `Loading module X` parse). The merge has no conflict because only one side
-touched the flag.
+(reconcile against the Phase 5 `Loading module X` parse - a flipped-off module is expected
+NOT to appear there). The merge has no conflict because only one side touched the flag.
 
 **Enumerate** every manifest in the merge delta and check the flag on each side:
 
@@ -236,6 +238,40 @@ and record it. A flip is not auto-broken, but it MUST be a recorded finding (Sec
 kind=installable-flag) because it determines whether the forward-ported code in that module is
 actually loaded and verified in Phase 5 - an un-noticed `True` -> `False` flip is a silent drop
 of the whole module from the verify set.
+
+### (g) ORM create/write dict-key field literals
+
+**Autosilent:** merged code calls `Model.create({...})` / `.write({...})` (or `[{...}, ...]`)
+with field-name STRING KEYS. The merge keeps the dict verbatim; if a key names a field renamed
+or removed at the target (or one whose TYPE changed, e.g. a Many2one that became a Many2many,
+so the value shape is now wrong), `create`/`write` raises `ValueError: Invalid field` or writes
+a wrong-shape value - and the dict literal never shows up in a field/method symbol scan. Covers
+test SETUP/helper builders (`_create_invoice`, factory helpers) and production call sites alike,
+since a helper's broken key crashes every test that calls it.
+
+**Enumerate** every create/write dict across ALL merged-touched .py files (the same list
+produced by `git log --name-only ... | grep '\.py$'` in Section 1 Lane 1) - production
+AND tests/ helpers included:
+
+```bash
+grep -nE "\.(create|write)\(\s*[\[{]" <files>
+```
+
+For each, extract the string keys of the dict(s) and the model the call runs against.
+
+**Ground:** confirm each key exists AND keeps its type at the target via a per-field lookup
+(returns type, so a Many2one->Many2many flip is caught - a plain field list would miss it).
+Resolve the model from the call receiver - `env['model.name'].create(...)` gives the model
+directly; `self.<field>.write(...)` needs the field comodel, resolved via
+`entity_lookup(kind='field', model='<current>', field='<field>', odoo_version='<target>')`.
+
+```
+entity_lookup(kind='field', model='account.move', field='<key>', odoo_version='18.0')
+```
+
+A key absent at the target, or present but with a changed type that invalidates the passed
+value = BROKEN (bucket b: rename/restructure the dict; bucket c: rebuild the record per the
+target idiom; bucket d: drop if the feature is gone).
 
 ---
 
@@ -281,6 +317,8 @@ SYMBOL-BROKEN | kind=import | <from ... import X> target symbol gone | <file>:<l
                | bucket: <b|c|d> | evidence: pyflakes F821 + module_inspect(...)
 SYMBOL-BROKEN | kind=installable-flag | <module> installable <old> -> <new> at end-state
                | <manifest>:<line> | bucket: record | evidence: git diff + target manifest flag
+SYMBOL-BROKEN | kind=orm-field-key | <key> on <model>.create/write absent-or-retyped at target
+               | <file>:<line> | bucket: <b|c|d> | evidence: entity_lookup field-type / NOT FOUND
 ```
 
 An empty list is a valid (and desirable) result - document it as

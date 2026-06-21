@@ -175,7 +175,7 @@ def test_new_authored_files_use_ascii_hyphen_only():
 
 
 # ---------------------------------------------------------------------------
-# B2 - coding-guidelines as mandatory context (read-before-write)
+# coding-guidelines are mandatory context (read-before-write)
 # ---------------------------------------------------------------------------
 
 GUIDELINE_STRING = "coding_guidelines/<version>/INDEX.md"
@@ -227,7 +227,7 @@ def test_coding_brief_defers_procedure_to_agent_system_prompt():
 
 
 # ---------------------------------------------------------------------------
-# B3 - test-behavior contract (anti-shortcut)
+# test-behavior contract (anti-shortcut)
 # ---------------------------------------------------------------------------
 
 TEST_BEHAVIOR_SNIPPET = "test-behavior-contract.md"
@@ -283,7 +283,7 @@ def test_qa_suite_steps_name_action_methods():
 
 
 # ---------------------------------------------------------------------------
-# B4 - security.md pitfalls doc: existence, wiring, and hygiene
+# security.md pitfalls doc: existence, wiring, and hygiene
 # ---------------------------------------------------------------------------
 
 VERSIONS = ["14.0", "15.0", "16.0", "17.0", "18.0", "19.0"]
@@ -381,4 +381,67 @@ def test_no_dangling_verify_guidelines_script():
     rbw = _read(SNIPPETS / "read-before-write-contract.md")
     assert dangling not in rbw, (
         f"read-before-write-contract.md: must not reference the non-existent '{dangling}'"
+    )
+
+
+# ---------------------------------------------------------------------------
+# onboarding persists the verify-env interpreter so later run/verify steps
+# (and context-bootstrap readers) inherit it instead of re-discovering it
+# ---------------------------------------------------------------------------
+
+
+def test_onboarding_schema_has_verify_environment():
+    """odoo-onboarding SKILL.md must declare the ## Verify environment section
+    and the verify_python field so run/verify steps know where to find the
+    cached interpreter path without re-discovering it."""
+    body = _read(SKILLS / "odoo-onboarding" / "SKILL.md")
+    assert "## Verify environment" in body, (
+        "odoo-onboarding/SKILL.md: missing '## Verify environment' section in schema"
+    )
+    assert "verify_python" in body, (
+        "odoo-onboarding/SKILL.md: missing 'verify_python' field in schema"
+    )
+
+
+def test_context_bootstrap_reads_verify_python():
+    """context-bootstrap.md must list verify_python so every skill that reads
+    the snippet inherits the cached interpreter path as a default."""
+    body = _read(SNIPPETS / "context-bootstrap.md")
+    assert "verify_python" in body, (
+        "snippets/context-bootstrap.md: missing 'verify_python' extraction bullet"
+    )
+
+
+# ---------------------------------------------------------------------------
+# the code-reviewer verdict surfaces the lint-gate outcome (an unrun gate must
+# not read as a clean pass); the code-review skill diffs the sibling worktree
+# ---------------------------------------------------------------------------
+
+
+def test_code_reviewer_surfaces_lint_gate_in_verdict():
+    """odoo-code-reviewer.md must include a '### Lint gate' slot in its output
+    format and must state that a SKIPPED gate is not a green Python pass.
+    Red-before-green: removing either string fails this test."""
+    body = _read(AGENTS / "odoo-code-reviewer.md")
+    assert "### Lint gate" in body, (
+        "odoo-code-reviewer: Output format must include '### Lint gate' slot"
+    )
+    # 'not a green gate' is unique to the new slot's warning; do NOT fall back to
+    # 'clean Python pass', which pre-exists at Step 0.6 and would pass even if the
+    # slot's warning were deleted (tautology).
+    assert "not a green gate" in body, (
+        "odoo-code-reviewer: must warn that an unrun lint gate is not a green gate"
+    )
+
+
+def test_code_review_phase0_handles_sibling_worktree():
+    """odoo-code-review/SKILL.md Phase 0 must guide the agent to run git diff
+    in a sibling worktree when WORKTREE_PATH is supplied, not only in cwd.
+    Red-before-green: removing either string fails this test."""
+    body = _read(SKILLS / "odoo-code-review" / "SKILL.md")
+    assert "WORKTREE_PATH" in body, (
+        "odoo-code-review SKILL.md: Phase 0 must mention WORKTREE_PATH for sibling worktrees"
+    )
+    assert "sibling git worktree" in body, (
+        "odoo-code-review SKILL.md: Phase 0 must explain the sibling worktree cwd-diff trap"
     )

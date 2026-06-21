@@ -219,6 +219,14 @@ Only runs in the **vague branch** (Tier-4 miss or explicit "I'm not sure").
 
 Universal gate emitted by intake at the end of every brainstorm or fast-path turn:
 
+**Exception - skills that own a stronger gate.** When the routed skill itself opens with a STOP plan
+gate richer than this one (e.g. `odoo-forward-port` P0 emits a per-commit plan.md + STOP), do NOT also
+emit the soft-plan-gate. Launch it directly with a one-liner: "Launching `odoo-forward-port` - it will
+present its own per-commit plan and stop for your approval before any branch or merge." Two consecutive
+approval gates for one action is friction, and the skill's own gate is the authoritative one. Phase P
+does NOT engage for these skills either - a self-gating + self-resuming skill (P0 STOP gate +
+checkpoint.json resume) owns its own run-DAG; intake dispatches it once and the skill drives itself.
+
 ```
 ## Proposed Plan
 Project:        <repo / project root, or "non-Odoo workspace">

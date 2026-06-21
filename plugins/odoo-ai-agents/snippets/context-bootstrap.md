@@ -14,6 +14,7 @@ truth for this project. Do this first, silently, every run:
    - `viindoo_profile` -> feeds `set_active_profile` (never hard-code `standard_viindoo_17`).
    - `modules` / addons path -> the module list; do not ask for it.
    - `instance_base_url` / `instance_login` -> for any live-instance or browser step.
+   - `verify_python` / `addons_path` (if `## Verify environment` present) -> defaults for any odoo-bin / test / migration run; still re-resolve from instances.toml when a listed repo path no longer exists on disk.
 2. If `.odoo-ai/context.md` is absent, derive what you can from disk before asking:
    - version from `find . -maxdepth 4 -name __manifest__.py | head -1` -> `Read` -> `version`
      field (first two dotted components are the Odoo version);

@@ -147,7 +147,7 @@ Phase 4 on those files. Full contract: `[[fp-symbol-survival-check]]`.
 **Run on `tests/` files too** - test files auto-merge silently exactly like production code and
 crash at collection (base-class kwarg drift, broken import, dynamic `ref()`), never reaching
 Phase 5 if collection itself fails. Do NOT re-derive the test-survival logic here - apply the
-six auto-merge-silent symbol classes from `[[fp-symbol-survival-check]]` section 2.5 (it already
+seven auto-merge-silent symbol classes from `[[fp-symbol-survival-check]]` section 2.5 (it already
 states production AND `tests/` scope). The merge-clean-but-source-touched enumeration above
 already lists test files; feed them through the same section-2.5 grounding, do not filter them
 out.
@@ -160,36 +160,44 @@ This gate is DISTINCT from the P3.5 TEST-survival sub-check:
 - **P3.5 TEST-survival** uses `tests_covering` / `test_coverage_audit` (OSM cross-version
   symbol lookup) to detect test methods that REFERENCE a field/model removed at the target.
   It operates at the OSM symbol-graph level and covers both production and test code.
-- **P4.5** uses the six static symbol classes from `[[fp-symbol-survival-check]]` section 2.5
-  (base-class kwarg drift, file-existence, dynamic `ref()`, python import, AST pyflakes,
-  installable flag) applied specifically to the merged `tests/` files, then enforces a
-  collection-level ACCEPTANCE GATE before the red-green behavioral loop begins.
+- **P4.5** uses the seven static symbol classes from `[[fp-symbol-survival-check]]` section 2.5
+  over two lanes: (d) python-import + (e) AST-pyflakes + (g) ORM create/write dict-key run over
+  ALL merged-touched `.py` (production AND `tests/`) - (d)(e) catch runtime NameError and (g)
+  catches an Invalid-field key (autosilent: pyflakes does NOT flag it) before P5; the remaining
+  classes (a)(b)(c)(f) and the collection ACCEPTANCE GATE apply to the `tests/` lane only.
 
 The two checks are COMPLEMENTARY: P3.5 catches symbol-graph breaks via OSM; P4.5 catches
 static grep / import / AST breaks and blocks entry to P4 when test collection itself would
 fail.
 
-**Enumerate scope:**
+**Enumerate scope - two lanes:**
 
 ```bash
-# Merged test files (from the P3 source-touched list, filter to tests/)
-git log --name-only --format="" <merge-base>..<src-SHA> | sort -u | grep -v '^$' \
+# Lane 1: ALL merged-touched .py (production AND tests/) - for compile + pyflakes + ORM dict-key
+git log --name-only --format="" <merge-base>..<src-SHA> | sort -u | grep '\.py$'
+
+# Lane 2: tests/ only - for collection ACCEPTANCE GATE and the test-specific classes (a)(b)(c)(f)
+git log --name-only --format="" <merge-base>..<src-SHA> | sort -u | grep '\.py$' \
   | grep 'tests/'
 ```
 
-For each file, apply the six symbol classes from `[[fp-symbol-survival-check]]` section 2.5:
-(a) test base-class kwarg drift, (b) referenced file paths, (c) dynamic `ref()` / `xml_id`,
-(d) python imports, (e) AST pyflakes, (f) installable-flag transitions.
+For Lane 1 files apply classes (d) + (e) (`py_compile` + `pyflakes`) AND (g) (ORM create/write
+dict-key scan) over ALL .py - production AND tests. Treat F821 on a production file as a runtime
+NameError that would crash module load, not a nit; treat a (g) dead key on a production call site
+the same way - it raises `Invalid field` at load/run yet pyflakes stays silent. For Lane 2 files
+additionally apply (a) (b) (c) (f).
 
 Record findings as `SYMBOL-BROKEN | <symbol/path> | <file>:<line> | <class> | evidence` and
 append to `merge-log.md`. These become the `BROKEN TEST-SYMBOLS` input to the 4a brief.
 
 **ACCEPTANCE GATE (collection clean) - mandatory before Phase 4 starts:**
 
+At P4.5 no instance DB has been acquired yet (allocator runs at P5) - use the `pytest --collect-only` path; the odoo-bin collection option requires first acquiring a temp DB.
+
 ```bash
 # pytest collection smoke-test
 python -m pytest <test_files> --collect-only -q 2>&1 | tail -20
-# OR Odoo collection (for TestCase subclasses with setUpClass)
+# OR Odoo collection (for TestCase subclasses with setUpClass) - requires a DB acquired via allocator
 odoo-bin -d $ALLOC_DB_NAME --test-enable --test-tags <tag> --stop-after-init \
   --skip-auto-install --http-port=$ALLOC_HTTP_PORT 2>&1 | grep -E 'ERROR|setUpClass'
 ```
@@ -328,10 +336,14 @@ namespace package changes bootstrap; always pass `odoo_version=<target>` to `cli
 Instance lifecycle protocol: `docs/reference/INSTANCE-LIFECYCLE.md`. Test invocation
 conventions: `docs/reference/ODOO-TESTING.md`.
 
-**Env-bootstrap (do this FIRST, before any odoo-bin call).** A multi-repo stack (e.g.
-Viindoo Standard spans 4 repos) needs EVERY repo on disk and concatenated into `--addons-path`
-before verify - a module is invisible (silent ImportError / "module not found") if its repo is
-absent. Build the addons-path from all stack repos:
+**Env-bootstrap (do this FIRST, before any odoo-bin call).** Read `.odoo-ai/context.md`
+`## Verify environment` FIRST: if `verify_python` / `addons_path` are present, use them and
+skip the instances.toml/venv archaeology below; fall back to the resolution chain
+(`snippets/venv-resolution.md`) only when the section is absent or a listed repo path no
+longer exists on disk. A multi-repo stack (e.g. Viindoo Standard spans 4 repos) needs EVERY
+repo on disk and concatenated into `--addons-path` before verify - a module is invisible
+(silent ImportError / "module not found") if its repo is absent. Build the addons-path from
+all stack repos:
 
 ```bash
 ADDONS_PATH=/path/repo-a/addons,/path/repo-b,/path/repo-c/addons,/path/repo-d
@@ -371,6 +383,11 @@ python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemera
 # so two parallel batches collide on the default 8069 - always pin the allocated port.
 odoo-bin -d $ALLOC_DB_NAME -i mod_a,mod_b --test-enable --stop-after-init \
   --skip-auto-install --http-port=$ALLOC_HTTP_PORT 2>&1 | tee install.log
+# The closure suite can be very large. MAY narrow with --test-tags to touched modules +
+# direct dependers (/mod_a,/mod_b), but NEVER narrow to only the edited module - a
+# forwarded change can break tests in a downstream depender, and a module-only tag would
+# hide that. Default: no --test-tags (run full closure); narrow only when the untagged
+# run is prohibitively large, and record the tag used in merge-log.md.
 # subsequent same-batch commits touching a subset: -u <changed_mod> (skip full -i),
 # keep --skip-auto-install --http-port=$ALLOC_HTTP_PORT
 
@@ -408,9 +425,13 @@ python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN
 - **Confirm-by-toggle (FP-delta tests only):** disable each newly-forwarded adapt -> that test
   must go RED -> restore. Proves the test exercises the adapted behavior. Do NOT toggle the whole
   suite.
-- **Triage red:** run the red test on a clean target tip (no absorption). Red there too =
-  pre-existing (record, do not fix, do not block). Green on clean / red after = FP-delta (fix
-  before committing). Never widen an assertion to hide a pre-existing failure.
+- **Triage red:** Triage EVERY red against a clean-tip baseline before calling it a
+  regression - whether the red is in the edited module or in a co-installed dependency pulled
+  in by the closure. Run the red test on a clean target tip (no absorption, full closure
+  installed the same way). Red there too = pre-existing (record in merge-log.md, do not fix,
+  do not block). Green on clean / red only after absorption = FP-delta (fix before committing).
+  A red in a co-installed dep you never touched is almost always pre-existing - prove it with
+  the clean-tip baseline, do not assume. Never widen an assertion to hide a pre-existing failure.
 - **Baseline a failed INSTALL the same way.** If a module fails to install, re-run its `-i`
   on clean `origin/<target-branch>` (no absorption, no merge). Fails there too = a PRE-EXISTING
   break in the target series, NOT FP-introduced - record it in `merge-log.md` and do NOT block

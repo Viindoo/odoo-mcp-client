@@ -1,18 +1,18 @@
-"""Invariant tests for forward-port hardening (#90).
+"""Invariant tests for forward-port hardening.
 
-Each test pins a specific behavioral contract introduced or fixed in the
-#90 / #76 wave.  Tests are named after the RULE they enforce, not the
-implementation detail they happen to read.  Every assertion is chosen so
-it would be RED if the corresponding WI change were absent.
+Each test pins a specific behavioral contract of the forward-port pipeline.
+Tests are named after the RULE they enforce, not the implementation detail
+they happen to read.  Every assertion is chosen so it would be RED if the
+corresponding change were absent.
 
 Files under test (all under plugins/odoo-ai-agents/):
-  - skills/odoo-forward-port/SKILL.md                (WI-3)
-  - skills/odoo-forward-port/references/fp-phase-detail.md  (WI-4)
-  - snippets/fp-symbol-survival-check.md              (WI-1)
-  - snippets/fp-installable-false.md                  (WI-5)
-  - skills/odoo-forward-port/references/fp-triage-table.md  (WI-5)
-  - skills/_shared/debug-method.md                    (WI-6)
-  - agents/odoo-backend-debugger.md                   (WI-6)
+  - skills/odoo-forward-port/SKILL.md
+  - skills/odoo-forward-port/references/fp-phase-detail.md
+  - snippets/fp-symbol-survival-check.md
+  - snippets/fp-installable-false.md
+  - skills/odoo-forward-port/references/fp-triage-table.md
+  - skills/_shared/debug-method.md
+  - agents/odoo-backend-debugger.md
 """
 
 from pathlib import Path
@@ -137,28 +137,52 @@ class TestP35PointerParity:
             "Symbol-survival snippet must include tests/ files in the check scope"
         )
 
+    def test_p45_pyflakes_covers_production_not_only_tests(self):
+        """fp-phase-detail.md P4.5 must define two lanes: Lane 1 (ALL .py) and Lane 2 (tests/ only)."""
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        assert "Lane 1" in text, (
+            "fp-phase-detail.md P4.5 must introduce Lane 1 (ALL merged-touched .py for compile+pyflakes)"
+        )
+        assert "Lane 2" in text, (
+            "fp-phase-detail.md P4.5 must introduce Lane 2 (tests/ only for ACCEPTANCE GATE)"
+        )
+
+    def test_snippet_contains_orm_field_key_check(self):
+        """fp-symbol-survival-check.md must contain the ORM create/write field-key class."""
+        text = SYMBOL_CHECK.read_text(encoding="utf-8")
+        assert "kind=orm-field-key" in text, (
+            "Symbol-survival snippet missing orm-field-key kind discriminator (section g)"
+        )
+        # Pin the section-(g) grounding call by its unique `field='<key>'` placeholder:
+        # a bare `entity_lookup(kind='field'` already exists in section (a) and would
+        # pass even if section (g) were removed (tautology).
+        assert "entity_lookup(kind='field', model='account.move', field='<key>'" in text, (
+            "Symbol-survival snippet missing section-(g) entity_lookup field-type grounding "
+            "call (field='<key>') for ORM create/write keys"
+        )
+
 
 # ---------------------------------------------------------------------------
-# Invariant 3 - MED-6: both debug-method.md and odoo-backend-debugger.md
-# contain the '0 failed, N error(s)' rule markers.
+# Invariant 3 - the error-count-is-not-a-pass rule: both debug-method.md and
+# odoo-backend-debugger.md contain the '0 failed, N error(s)' rule markers.
 # ---------------------------------------------------------------------------
 
-class TestMED6DebuggerRule:
+class TestErrorCountNotAPassRule:
     """Both the shared debug method doc and the debugger agent must teach the
-    MED-6 rule: N error(s) from setUpClass means tests DID NOT RUN."""
+    rule: N error(s) from setUpClass means tests DID NOT RUN."""
 
     @pytest.mark.parametrize("path,label", [
         (DEBUG_METHOD, "debug-method.md"),
         (BACKEND_DEBUGGER, "odoo-backend-debugger.md"),
     ])
     def test_error_count_not_pass_rule_present(self, path, label):
-        """'error(s)' + 'setUpClass' must both appear (the MED-6 rule)."""
+        """'error(s)' + 'setUpClass' must both appear (the error-not-a-pass rule)."""
         text = path.read_text(encoding="utf-8")
         assert "error(s)" in text, (
-            f"{label}: missing 'error(s)' marker for MED-6 rule"
+            f"{label}: missing 'error(s)' marker for the error-not-a-pass rule"
         )
         assert "setUpClass" in text, (
-            f"{label}: missing 'setUpClass' marker for MED-6 rule"
+            f"{label}: missing 'setUpClass' marker for the error-not-a-pass rule"
         )
 
     @pytest.mark.parametrize("path,label", [
@@ -169,7 +193,7 @@ class TestMED6DebuggerRule:
         """The doc must warn that errors mean tests DID NOT RUN."""
         text = path.read_text(encoding="utf-8")
         assert ("DID NOT RUN" in text or "transient" in text), (
-            f"{label}: missing 'DID NOT RUN' / 'transient' warning for MED-6"
+            f"{label}: missing 'DID NOT RUN' / 'transient' warning"
         )
 
 
@@ -197,14 +221,23 @@ class TestP5IsolationFlags:
             "fp-phase-detail.md missing --http-port in P5 verify section"
         )
 
+    def test_p5_triages_coinstalled_dep_reds_against_baseline(self):
+        """fp-phase-detail.md P5 must instruct triaging reds in co-installed deps against a clean-tip baseline."""
+        assert "clean-tip baseline" in self.text, (
+            "fp-phase-detail.md missing clean-tip baseline triage instruction in P5"
+        )
+        assert "co-installed" in self.text, (
+            "fp-phase-detail.md P5 must address reds from co-installed dependencies"
+        )
+
 
 # ---------------------------------------------------------------------------
-# Invariant 5 - NEW-1 lint-only lane: fp-installable-false.md contains the
+# Invariant 5 - lint-only lane: fp-installable-false.md contains the
 # lint-only lane markers; fp-triage-table.md has the short-circuit gate for
 # installable:False.
 # ---------------------------------------------------------------------------
 
-class TestNew1LintOnlyLane:
+class TestLintOnlyLane:
     """installable:False modules must be routed to a lint-only lane.
     The snippet must declare it; the triage table must gate on it."""
 
@@ -235,29 +268,30 @@ class TestNew1LintOnlyLane:
 
 
 # ---------------------------------------------------------------------------
-# Invariant 6 - B1: a large bucket-(c) cluster that is an upgrade-scale
-# re-implement must hit an explicit defer-or-do gate, not be silently adapted
-# as a mechanical port. Canonical in fp-triage-table.md; surfaced in SKILL.md.
+# Invariant 6 - upgrade-scale gate: a large bucket-(c) cluster that is an
+# upgrade-scale re-implement must hit an explicit defer-or-do gate, not be
+# silently adapted as a mechanical port. Canonical in fp-triage-table.md;
+# surfaced in SKILL.md.
 # ---------------------------------------------------------------------------
 
-class TestB1UpgradeScaleGate:
-    """Bucket (c) covers a 3-line fix and a 500-line rewrite alike; the B1 gate
+class TestUpgradeScaleGate:
+    """Bucket (c) covers a 3-line fix and a 500-line rewrite alike; the gate
     forces a defer-or-do choice when the cluster is an upgrade-scale re-implement."""
 
     def test_triage_table_defines_upgrade_scale_gate(self):
-        """fp-triage-table.md must define the B1 upgrade-scale defer-or-do gate."""
+        """fp-triage-table.md must define the upgrade-scale defer-or-do gate."""
         text = TRIAGE_TABLE.read_text(encoding="utf-8")
         assert "upgrade-scale" in text.lower(), (
-            "fp-triage-table.md missing the B1 upgrade-scale gate"
+            "fp-triage-table.md missing the upgrade-scale gate"
         )
         assert "200 LOC" in text, (
-            "B1 gate must state the ~200 LOC new OWL/JS threshold"
+            "the gate must state the ~200 LOC new OWL/JS threshold"
         )
         assert "(a) defer" in text and "(b) do now" in text, (
-            "B1 gate must present the explicit defer-or-do options"
+            "the gate must present the explicit defer-or-do options"
         )
 
-    def test_skill_md_surfaces_b1_gate_in_flow(self):
+    def test_skill_md_surfaces_upgrade_scale_gate_in_flow(self):
         """SKILL.md must surface the upgrade-scale defer-or-do gate in the triage flow."""
         text = SKILL_MD.read_text(encoding="utf-8").lower()
         assert "upgrade-scale" in text, (
@@ -269,12 +303,12 @@ class TestB1UpgradeScaleGate:
 
 
 # ---------------------------------------------------------------------------
-# Invariant 7 - MED-7 (second half): absorb-all merges resolve conflicts in the
+# Invariant 7 - absorb-all worktree: absorb-all merges resolve conflicts in the
 # integration worktree (a child worktree off the uncommitted HEAD cannot see
 # them); child-worktree fan-out is the per-commit case only.
 # ---------------------------------------------------------------------------
 
-class TestMED7AbsorbAllWorktree:
+class TestAbsorbAllWorktree:
     """The per-commit child-worktree fan-out must be distinguished from the
     absorb-all case where conflicts live in the integration working tree."""
 

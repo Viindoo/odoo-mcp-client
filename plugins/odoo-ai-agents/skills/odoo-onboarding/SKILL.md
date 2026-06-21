@@ -113,6 +113,17 @@ Grep for `.odoo-ai/`; if absent, append (with leading newline if needed). If `.g
 
 Show the summary block (Output Format below). Ask: "Anything to add to `## Notes`? (text / skip)". Append if provided, then output the suggest-next line.
 
+Run:
+
+```bash
+eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read ~/.odoo-ai/instances.toml <series>)"
+```
+
+- If the command exits non-zero (no matching instance in instances.toml), skip the `## Verify environment` section entirely - do not block onboarding on it.
+- If it exits 0 but `INST_PYTHON` is empty (the `python` field was blank in instances.toml), omit `verify_python` from the section.
+- Only write `verify_python` when `INST_PYTHON` is a non-empty path.
+- `INST_ADDONS_PATH` uses colon-separated paths (`:`) - convert to comma-separated (`,`) before writing `addons_path` (the schema and Odoo `--addons-path` both expect commas).
+
 ## Context file schema
 
 ```markdown
@@ -138,6 +149,10 @@ Show the summary block (Output Format below). Ask: "Anything to add to `## Notes
 ## Lint / Format
 - **ruff_line_length**: 120  (read from pyproject.toml/ruff.toml; "none" if absent)
 - **js_config_source**: web/tooling  (or "fallback" when no Odoo checkout with addons/web/tooling/ is locatable)
+
+## Verify environment  (optional - used by run/verify steps; SSOT is ~/.odoo-ai/instances.toml)
+- **verify_python**: /path/to/.venv/bin/python  (interpreter that runs odoo-bin/tests for this series; cache of the matching instances.toml `python` field)
+- **addons_path**: /path/repo-a/addons,/path/repo-b  (cache only - re-resolve from instances.toml if a repo moved)
 
 ## Active session pins
 - **set_active_version**: 17.0 (TTL 24h - re-pin if stale)
