@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.20.0] - 2026-06-21
+
+- feat(odoo-ai-agents): new odoo-doc-illustrator agent - browser-driven visual documentation (capture screenshots into module static/description or cluster docs)
+- feat(odoo-ai-agents): new odoo-doc-illustration thin skill dispatching odoo-doc-illustrator
+
 ## [3.19.1] - 2026-06-21
 
 ### Fixed

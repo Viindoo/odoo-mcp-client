@@ -85,3 +85,37 @@ All four skills read `.odoo-ai/context.md` (Markdown bullets `- **key**: value`,
 
 If a *required* key (the first four) is missing, the skill asks the user rather than guessing; the
 optional brand/mockup keys simply disable their checks when absent.
+
+## Documentation screenshots (static/description)
+
+Convention for `odoo-doc-illustrator` when writing module visual documentation into
+`<module>/static/description/`. All paths below are relative to the module root.
+
+### Layout
+
+| Asset | Path | Spec |
+|-------|------|------|
+| App icon | `static/description/icon.png` | PNG 100x100 |
+| Store listing HTML | `static/description/index.html` | Pure HTML; image refs use `<img src="./file">` (relative) |
+| Banner screenshot | `static/description/main_screenshot.png` | ~1200px wide |
+| Localised banner GIF | `static/description/main_screenshot.<locale>.gif` | ~1200px; one file per locale |
+| Feature screenshot | `static/description/<N>-<slug>.<locale>.jpg` | ~1800px wide; `N` = two-digit ordering prefix |
+
+Manifest key: `'images': ['static/description/main_screenshot.png']`.
+
+### Writing screenshots from the agent
+
+The MCP browser tools run with cwd = the MCP client repo (not the addons repo). Write captures
+to an absolute staging directory inside the addons repo, then copy to `static/description/`:
+
+1. Capture to `<repo-addons-root>/.odoo-ai/visual/doc-staging/<module>/` (absolute path).
+2. `Bash cp` the staged files to `<module>/static/description/`.
+
+Never write to a relative path or a system temp dir - the cwd drift makes relative paths
+unreliable across tool calls.
+
+### UC2 - cluster / docs-repo output
+
+When `doc_output_dir` is set in `.odoo-ai/context.md` (MODE cluster), images go to that
+directory instead of `static/description/`. RST references use `.. image:: <filename>.png`
+(no path prefix when the image is in the same docs dir as the `.rst` file).

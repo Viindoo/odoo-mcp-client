@@ -15,6 +15,7 @@ truth for this project. Do this first, silently, every run:
    - `modules` / addons path -> the module list; do not ask for it.
    - `instance_base_url` / `instance_login` -> for any live-instance or browser step.
    - `verify_python` / `addons_path` (if `## Verify environment` present) -> defaults for any odoo-bin / test / migration run; still re-resolve from instances.toml when a listed repo path no longer exists on disk.
+   - `doc_output_dir` (optional) -> destination directory for cluster/website documentation produced by `odoo-doc-illustration` (MODE cluster); defaults to `.odoo-ai/visual/doc/` when absent.
 2. If `.odoo-ai/context.md` is absent, derive what you can from disk before asking:
    - version from `find . -maxdepth 4 -name __manifest__.py | head -1` -> `Read` -> `version`
      field (first two dotted components are the Odoo version);
