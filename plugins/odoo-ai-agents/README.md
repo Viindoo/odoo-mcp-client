@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **45 skills + 11 agents + 9 commands**, grouped into **9 persona
+> The Odoo AI workforce toolkit: **45 skills + 12 agents + 9 commands**, grouped into **9 persona
 > buckets**, plus **12 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, instance provisioning, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
@@ -38,13 +38,13 @@ You control how hands-off this is with one optional flag (`--auto` is the defaul
 plan, and the main agent is never forced or trapped - the stops are real human checkpoints, the
 nudges are advisory.
 
-A first-class **forward-port pipeline** (`/odoo-forward-port`) is also included: a 9-phase
+A first-class **forward-port pipeline** (`/odoo-forward-port`) is also included: a 12-phase
 orchestration that ports commits across Odoo series using intent-first extraction (not raw
-code carry-over), merge-keep-SHA strategy, symbol-survival checking, adaptive test forwarding,
-and verify-by-behavior per batch. It runs alongside coding, code review, and upgrade planning
-as a core engineering capability.
+code carry-over), merge-keep-SHA strategy, symbol-survival checking, pre-adapt drift scan,
+adaptive test forwarding, and verify-by-behavior per batch. It runs alongside coding, code
+review, and upgrade planning as a core engineering capability.
 
-> **Counts at a glance:** this plugin ships **45 skills + 11 agents + 9 commands**, grouped into
+> **Counts at a glance:** this plugin ships **45 skills + 12 agents + 9 commands**, grouped into
 > **9 persona buckets** for navigation, plus **12 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
@@ -122,7 +122,7 @@ flowchart TD
 
     SPEC -->|"CRITICAL/HIGH"| FIX["Fix loop<br/>review->coding->review<br/>(max 3 rounds)"]
 
-    D -->|"Forward-port"| FP["Forward-port pipeline<br/>(9 phases, 2 STOP-gates)<br/>see detail below"]
+    D -->|"Forward-port"| FP["Forward-port pipeline<br/>(12 phases, 2 STOP-gates)<br/>see detail below"]
 
     RUN --> PK{"next node + tier"}
     PK -->|"L0/L1 auto"| DISP["dispatch:<br/>skill / agent / workflow"]
@@ -285,48 +285,57 @@ flowchart TD
 
 ### Forward-port pipeline (`/odoo-forward-port`)
 
-A 9-phase orchestration that ports commits across Odoo series using intent-first extraction
+A 12-phase orchestration that ports commits across Odoo series using intent-first extraction
 (not raw code carry-over), merge-keep-SHA strategy, symbol-survival checking, pre-adapt drift
 scan, adaptive test forwarding, and verify-by-behavior per batch. Two human STOP-gates bound the automation.
 
 ```mermaid
 flowchart TD
     START(["/odoo-forward-port"])
-    START --> P0["P0 - Plan gate<br/>scope + triage + resume"]
-    P0 -->|"STOP - human approve"| IE1
+    START --> P0["P0 - Recon + triage<br/>(read-only: enumerate commits,<br/>inline-triage model tier)"]
 
     subgraph P1_grp["P1 - Intent extract (parallel, read-only)"]
-        IE1["intent-extractor<br/>commit A"]
-        IE2["intent-extractor<br/>commit B...N"]
+        P0 --> IE1["odoo-intent-extractor<br/>commit A"]
+        P0 --> IE2["odoo-intent-extractor<br/>commit B...N"]
     end
 
-    IE1 --> P2["P2 - 4-outcome classify<br/>(OSM api_version_diff)"]
+    IE1 --> P2["P2 - Classify + installable-probe<br/>(4-outcome bucket via OSM;<br/>odoo-installable-prober for ambiguous cat-3)"]
     IE2 --> P2
-    P2 --> P3["P3 - git merge --no-commit<br/>(keep SHA)"]
-    P3 --> P35["P3.5 - Symbol-survival<br/>(7 classes: field/method/model/<br/>test-base/import/installable/orm-field-key)"]
-    P35 --> P45["P4.5 - Pre-adapt drift scan<br/>(Lane 1: ALL .py - import+pyflakes+orm-field-key<br/>Lane 2: tests-only collect gate)"]
 
-    subgraph P4_grp["P4 - Adapt (serial per commit, test-first)"]
-        PA["forward tests RED-on-target"] --> PB["adapt by bucket<br/>a=skip / b=3-way / c=reimplement / d=skip"]
+    P2 -->|"bucket (c) complex"| P3["P3 - Design<br/>(route-out to odoo-solution-design;<br/>returns to forward-port)"]
+    P3 --> P4_gate
+    P2 -->|"bucket (a/b/d)"| P4_gate["P4 - Plan gate<br/>(EnterPlanMode / ExitPlanMode;<br/>plan.md written as resume record)"]
+    P4_gate -->|"STOP - human approve"| P5["P5 - Git merge --no-commit<br/>(keep SHA)"]
+
+    P5 --> P6["P6 - Symbol-survival check<br/>(7 classes: field/method/model/<br/>test-base/import/installable/orm-field-key)<br/>+ test-survival sub-check"]
+    P6 --> P7["P7 - Pre-adapt drift scan<br/>(Lane 1: ALL .py - import+pyflakes+orm-field-key<br/>Lane 2: tests-only collect gate)"]
+
+    subgraph P8_grp["P8 - Adapt (serial per commit, test-first)"]
+        P7 --> PA["forward tests RED-on-target"]
+        PA --> PB["adapt by bucket<br/>a=skip / b=3-way / c=reimplement / d=skip"]
         PB --> PC["migration rename gate + i18n dispatch"]
     end
 
-    P45 --> PA
-    PC --> P5["P5 - Verify-by-behavior<br/>(per-batch, RED then GREEN)"]
-    P5 -->|"STOP - human confirm"| P6["P6 - Gate merge + checkpoint<br/>(all outcomes keep SHA)"]
-    P6 --> P7["P7 - PR + code-review<br/>(mandatory for new engines)"]
-    P7 --> DONE(["Done - .odoo-ai/forward-port/"])
+    PC --> P9["P9 - Verify by behavior<br/>(ephemeral instance, RED then GREEN,<br/>confirm-by-toggle per batch)"]
+    P9 -->|"STOP - human confirm"| P10["P10 - Gate merge<br/>(commit + checkpoint;<br/>loop to P5 for next commit)"]
+    P10 --> P11["P11 - PR + code-review<br/>(mandatory for new engines)"]
+    P11 --> DONE(["Done - .odoo-ai/forward-port/"])
 ```
 
-| Phase | Parallel? | Human gate? |
-|-------|-----------|-------------|
-| P0 plan | - | STOP before P1 |
-| P1 intent-extract | Yes (N commits) | - |
-| P2-P3.5 classify + merge + symbol-survival | Serial per commit | - |
-| P4.5 pre-adapt drift scan (two-lane: ALL .py for import+pyflakes+orm-field-key; tests-only collect gate) | Serial per commit | - |
-| P4 adapt | Serial per commit | - |
-| P5 verify | Per-batch | STOP before P6 |
-| P6-P7 merge + PR | - | - |
+| Phase | Description | Parallel? | Human gate? |
+|-------|-------------|-----------|-------------|
+| P0 Recon + triage | Enumerate commits; inline-triage model tier; read-only | - | - |
+| P1 Intent extract | Dispatch odoo-intent-extractor per commit | Yes (N commits) | - |
+| P2 Classify + installable-probe | 4-outcome bucket via OSM; odoo-installable-prober for ambiguous cat-3 | Serial per commit | - |
+| P3 Design | CONDITIONAL: route-out to odoo-solution-design for complex bucket-(c) modules; returns to forward-port | Serial per commit | - |
+| P4 Plan gate | EnterPlanMode / ExitPlanMode; plan.md written as resume record after approval | - | STOP - human approve |
+| P5 Git merge --no-commit | Merge source commit onto target branch, keep SHA | Serial per commit | - |
+| P6 Symbol-survival check | 7 classes (field/method/model/test-base/import/installable/orm-field-key) + test-survival sub-check | Serial per commit | - |
+| P7 Pre-adapt drift scan | Lane 1: ALL .py (import+pyflakes+orm-field-key); Lane 2: tests-only collect gate | Serial per commit | - |
+| P8 Adapt | Test-first per module; adapt by bucket (a=skip/b=3-way/c=reimplement/d=skip); migration rename gate + i18n dispatch | Serial per commit | - |
+| P9 Verify by behavior | Ephemeral instance, RED then GREEN, confirm-by-toggle per batch | Per-batch | - |
+| P10 Gate merge | STOP then commit + checkpoint; loop to P5 for next commit | - | STOP - human confirm |
+| P11 PR + code-review | Open PR; mandatory code-review for new engines | - | - |
 
 ### Available commands
 
@@ -564,7 +573,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `run-driver` | Internal (harness) | Orchestrating drive-to-done loop - walks the `run-<id>.json` plan, dispatches each work-item, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent |
 | `wave` | Internal (orchestration) | Git-wave orchestration (orchestrating context) - integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge; computes the Odoo module DAG at Phase 0 to auto-infer work-item `depends_on` and warn on module-boundary-crossing WIs; self-spawning, principal-branch-locked |
 
-### Agents (11)
+### Agents (12)
 
 | Agent | Model (default) | Role |
 |-------|-----------------|------|
@@ -575,7 +584,8 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-frontend-coder` | Sonnet *(default; per-work-item tier overrides - haiku/sonnet/opus/fable)* | Agent bundle for frontend code writing - JS/OWL/QWeb/SCSS across legacy and OWL eras with OSM grounding and design-system fidelity (companion to the `odoo-coding` skill). Reads the target version's coding guidelines BEFORE writing (conform on the first pass), runs an impact pre-flight along the asset-bundle / template-inheritance axis, and implements to a red-first JS behavior test that drives the real workflow (`test-behavior-contract`). Dispatched at the module's tier (or a lower `frontendModel` when the design splits effort). |
 | `odoo-backend-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes Python/ORM/server runtime failures via the scientific method, OSM-only (no browser); assesses bidirectional impact (could the bug originate upstream? what downstream does the fix touch?) |
 | `odoo-ui-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes OWL/JS/QWeb/SCSS runtime failures from live browser evidence + OSM grounding (serial-exclusive browser use); assesses impact along the template / asset-inheritance axis |
-| `odoo-intent-extractor` | Sonnet | Read-only pre-analysis specialist dispatched by `odoo-forward-port` (Phase 1, parallel) - extracts the business intent and behavioral contract from a single source commit, separating purpose from implementation details; suitable for parallel dispatch over many commits before any git merge or adapt work begins |
+| `odoo-intent-extractor` | Sonnet | Read-only pre-analysis specialist dispatched by `odoo-forward-port` (P1, parallel) - extracts the business intent and behavioral contract from a single source commit, separating purpose from implementation details; suitable for parallel dispatch over many commits before any git merge or adapt work begins |
+| `odoo-installable-prober` | Sonnet | Read-only forward-port P2 leaf - probes target clean-tip + source git-history to decide installable:False category-3 outcome for modules where static classify is ambiguous; returns a binary verdict (keep-installable-False / promote-to-True) with evidence; dispatched by `odoo-forward-port` at P2 for ambiguous cat-3 decisions |
 | `odoo-translator` | Sonnet | Leaf translation worker dispatched by `odoo-i18n` (Phase 3) - translates one module (or module-cluster) for one language by polib merge (forwards translation MEMORY, never regenerates), hand-translates only the new/changed residual, and self-validates with an Odoo `-u` reload; never destroys existing human translation |
 | `odoo-instance-ops` | Sonnet | Instance lifecycle specialist dispatched by the `odoo-instance` skill - provisions, drives, and tears down Odoo instances for any series (v8+); learns each version's CLI at runtime via OSM `cli_help`; prefers creating and dropping databases through Odoo (`odoo_db.py` / `odoo-bin db drop`) over raw `createdb`/`dropdb`; returns structured metadata (db name, log path, ports, lease token) so callers keep clean context |
 | `odoo-doc-illustrator` | Sonnet | Browser-driven visual documentation specialist dispatched by `odoo-doc-illustration` - navigates live Odoo, captures screenshots, writes illustrated module docs (`static/description/` or cluster docs dir); multi-locale; reads `doc_image_naming`/`doc_languages`/`doc_static_dir` from context.md |

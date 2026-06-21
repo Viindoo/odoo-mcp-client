@@ -26,7 +26,7 @@
 | `odoo-doc-illustration` | spawner-agent | frontend | - | odoo-doc-illustrator |
 | `odoo-feature-check` | leaf | none | - | - |
 | `odoo-feature-highlights` | leaf | none | - | - |
-| `odoo-forward-port` | spawner-agent | fullstack | yes | odoo-intent-extractor (read-only per-commit; model per complexity), odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees) |
+| `odoo-forward-port` | spawner-agent | fullstack | yes | odoo-intent-extractor (read-only per-commit; model per complexity), odoo-installable-prober (read-only per-module installable-state probe in P2; model per complexity / sonnet), odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees) |
 | `odoo-frontend-design` | leaf | frontend | - | - |
 | `odoo-gap-analysis` | leaf | none | - | - |
 | `odoo-i18n` | spawner-agent | backend | yes | odoo-translator |

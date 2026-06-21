@@ -1,4 +1,4 @@
-<!-- Reference for odoo-forward-port/SKILL.md § The 8-phase pipeline. Loaded as needed.
+<!-- Reference for odoo-forward-port/SKILL.md § The pipeline. Loaded as needed.
      Per-phase git commands, dispatch-brief templates, and worklog formats. The SKILL.md body
      carries the contract; this file carries the verbatim commands and brief text. -->
 
@@ -12,7 +12,7 @@ that any concurrent agent can overwrite.
 
 ---
 
-## P0 - Plan gate (STOP)
+## P0 - Recon & triage (read-only, NO stop)
 
 ```bash
 # 1 - resume: read prior state, skip done commits
@@ -32,33 +32,12 @@ Map each `--scope` module name to its directory path before passing to `git log 
 under an addons subdir, e.g. `addons/l10n_vn/`).
 
 For each commit, triage the EXTRACT tier INLINE (`git show --stat <sha>`; for an override-depth
-question, one `find_override_point` probe) per `references/fp-triage-table.md` Table 1. Emit
-`plan.md`:
+question, one `find_override_point` probe) per `references/fp-triage-table.md` Table 1 - the
+orchestrator triages the tier itself; never dispatch an agent to decide a dispatch.
 
-```markdown
-# Forward-port plan: <source-series> -> <target-series> (<slug>)
-Mode: continuous | one-shot
-Integration worktree: <path>  (branched from <target-branch>, B untouched - created after approval)
-Commits (<N>, after --scope/--since filter, minus checkpoint done):
-
-| SHA | summary | EXTRACT tier | bucket-guess | scope |
-|-----|---------|--------------|--------------|-------|
-| abc1234 | double-post guard | sonnet | (b) | account/ |
-
-Fable rows (if any): <m> - <why> (~2x opus). Confirm fable?
-```
-
-Then STOP. Do NOT create any branch or worktree, run no extraction, until the user approves
-(`approve` / `go` / `yes`).
-
-On approval: create the JOB-tier integration worktree branched FROM B (Hard rule 1 - no branch
-before this point):
-
-```bash
-git worktree add -b fp/<slug> <path>/fp-integration <target-branch>
-```
-
-On `cancel`: stop (no worktree was created, nothing to remove).
+This is recon only. There is NO approval gate here, NO `plan.md` written, NO branch, NO worktree -
+the plan gate is P4 (Plan Mode), after intent + classify + design. Carry the per-commit EXTRACT
+tier forward to P1.
 
 ---
 
@@ -84,12 +63,12 @@ USER LANGUAGE: <lang | omit when English>
 ```
 
 Aggregate each returned summary (`sha / intent_file / intent_one_liner / symbols /
-4_outcome_hint / grounding`) into the Phase 2 classify queue. Mark each commit
+4_outcome_hint / grounding`) into the P2 classify queue. Mark each commit
 `status=extracted` in `checkpoint.json`.
 
 ---
 
-## P2 - 4-outcome classify (per-commit, OSM)
+## P2 - Classify + installable-probe (per-commit, OSM)
 
 ```python
 set_active_version(odoo_version='17.0')                          # pin target; reachability probe
@@ -103,9 +82,131 @@ no blank Reason or Evidence cell). `odoo-version-diff` forward-port mode supplie
 bucket suggestion when the diff is large. Refine the commit's ADAPT tier now that the bucket is
 known (bucket a/d -> haiku, test-only).
 
+**Installable-probe (TARGET CLEAN-TIP rule).** For each touched module, read its `installable`
+flag at the target clean-tip (BEFORE merge), via OSM or the target manifest:
+
+```python
+module_inspect(name='l10n_vn_edi', method='summary', odoo_version='18.0')   # read installable
+```
+
+DISPATCH the read-only sonnet leaf `odoo-installable-prober` ONLY when category-3 is AMBIGUOUS -
+OSM returned `installable:True` at the target AND the module manifest was NOT touched by the
+cherry-pick range, OR OSM was unreachable. Do NOT blanket-sweep every module: OSM already grounds
+categories 1-2, so a probe there is wasted.
+
+Dispatcher inputs (CANONICAL CONTRACT - pass exactly these keys):
+
+```
+{ module, repo_root, source_ref, target_ref, target_version }
+```
+
+- `repo_root` is the MAIN checkout root where git runs. The integration worktree does NOT exist
+  at P2 (it is created at P4) - never reference it here. For a same-repo forward-port `repo_root`
+  is the main clone of the repo holding both refs; for a cross-repo port it is the main clone that
+  has the source remote added + fetched in the P0 bootstrap step (`git remote add source <url>` +
+  fetch). The dispatcher populates `repo_root` deterministically from the P0-recorded checkout
+  root before launching the prober.
+- `source_ref` / `target_ref` are the source / target git refs (the same refs P0 enumerated).
+- `target_version` is the concrete target series for OSM grounding.
+
+The prober consumes those and returns BOTH:
+
+- `merge_log_line:` - a single-line verdict logged VERBATIM to `merge-log.md`.
+- a structured verdict block - `{ module, verdict: yes|no|tentative, evidence }`.
+
+**merge-log row placement.** The prober verdict is its OWN row keyed by module, kept DISTINCT
+from the per-commit rows (intent / bucket / reason / evidence). Place it under a dedicated
+`## Installable probes` heading (one row per probed module) so a module-keyed verdict is never
+confused with a commit-keyed classification row.
+
+**TENTATIVE handling.** A `tentative` verdict is NEVER silently coerced to yes/no: carry it to
+the P4 plan gate as a FLAGGED row requiring explicit human confirmation before that module's
+merge. A `no` verdict means `installable:False` -> the module enters the lint-only lane and SKIPs
+extract/adapt logic tiers. Do not restate the rule - SSOT: `[[fp-installable-false]]`.
+
 ---
 
-## P3 - Git merge --no-commit (critical section)
+## P3 - Design (conditional route-out)
+
+A bucket-(c) "do now" commit that touches a NON-TRIVIAL module routes OUT to
+`odoo-solution-design` instead of being adapted blind. Reuse the non-trivial criterion from
+`skills/odoo-solution-design/SKILL.md` § When to invoke - do NOT invent a third definition. A
+deferred or `installable:False` module needs no design - skip it.
+
+Emit the Continuation Contract and YIELD (forward-port only EMITS the next hop; the run-driver
+advances it):
+
+```
+next: odoo-solution-design
+inputs:
+  return_to: odoo-forward-port
+  design_slug_hint: <slug>-fp-<sha>
+  target_version: <target>
+  modules: [<module-name>, ...]
+  intent_records: [.odoo-ai/forward-port/<slug>/intents/<sha>.md]
+  classification: <bucket-(c) summary>
+```
+
+`<slug>` is the forward-port run slug (`<source-series>-to-<target-series>`); `<sha>` is the
+short SHA of the routed commit. Together `design_slug_hint` gives the design agent a
+deterministic path for the output design doc (`<slug>-fp-<sha>`), ensuring the forward-port
+re-entry can locate it without scanning.
+
+`odoo-solution-design` under `return_to` runs its own design + design-approval gate, then emits
+`next: odoo-forward-port` with `design_doc: <path>`; it does NOT enter a code Plan Mode and does
+NOT dispatch a coder (SSOT: `skills/odoo-solution-design/SKILL.md` § Design-approval gate). On
+re-entry, read `design_doc` from the returned contract's `inputs`, record it against the commit,
+set checkpoint `status=designed`, and proceed to the P4 plan gate with the design linked - do
+not re-run design. If `design_doc` is ABSENT from the returned inputs (design crashed before
+producing it), set the commit back to `status=extracted` and re-enter P3 next run rather than
+advancing to P4 with no design.
+
+---
+
+## P4 - Plan gate (Plan Mode)
+
+The user approves here - AFTER intent + classify + design, so the plan carries the REAL triaged
+tiers and REAL buckets, never guesses. Forward-port runs from the MAIN context, so it MAY call
+`EnterPlanMode` / `ExitPlanMode` (a subagent cannot).
+
+Procedure:
+1. Main agent calls `EnterPlanMode`.
+2. Main agent writes the implementation plan INSIDE Plan Mode: commit topology; per-commit model
+   tier (the real triaged EXTRACT + ADAPT tiers); bucket (the real classification); installable
+   routing per module; design-doc link for any commit P3 designed; merge batches.
+3. Main agent calls `ExitPlanMode` -> Plan Mode UI shown.
+4. User approves in the Plan Mode UI.
+
+Red flags: a text-gate "approve" is NOT Plan Mode approval (two separate steps); `EnterPlanMode`
+MUST come before any branch, worktree, or file touch.
+
+After Plan Mode approval, create the JOB-tier integration worktree branched FROM B (Hard rule 1 -
+no branch before this point):
+
+```bash
+git worktree add -b fp/<slug> <path>/fp-integration <target-branch>
+```
+
+THEN write `.odoo-ai/forward-port/<slug>/plan.md` as the resume RECORD (not the gate - the gate
+is Plan Mode above). Later phases and the checkpoint/continuation read it:
+
+```markdown
+# Forward-port plan: <source-series> -> <target-series> (<slug>)
+Mode: continuous | one-shot
+Integration worktree: <path>  (branched from <target-branch>, B untouched)
+Commits (<N>, after --scope/--since filter, minus checkpoint done):
+
+| SHA | summary | EXTRACT tier | ADAPT tier | bucket | installable routing | design_doc |
+|-----|---------|--------------|------------|--------|---------------------|------------|
+| abc1234 | double-post guard | sonnet | sonnet | (b) | normal | - |
+| def5678 | new report engine | opus | opus | (c) do-now | normal | .odoo-ai/designs/...md |
+
+Fable rows (if any): <m> - <why> (~2x opus). (confirmed in Plan Mode)
+```
+
+---
+
+## P5 - Git merge --no-commit (critical section)
 
 ```bash
 # continuous - keep the source SHA
@@ -116,11 +217,11 @@ git cherry-pick -n <src-SHA>
 ```
 
 Only one merge in flight (shared git index). Do NOT commit - the working tree is the absorption
-zone through Phase 5. Full protocol incl. absorption window order: `[[fp-merge-absorption]]`.
+zone through P9. Full protocol incl. absorption window order: `[[fp-merge-absorption]]`.
 
 ---
 
-## P3.5 - Symbol-survival check (MUST, before adapt)
+## P6 - Symbol-survival check (MUST, before adapt)
 
 ```bash
 # files with conflict markers
@@ -142,11 +243,11 @@ api_version_diff(symbol='account.account.company_id', from_version='17.0', to_ve
 Any absent/changed symbol FORCES bucket b/c/d and bans leaving the auto-merged line unchanged.
 Produce the `SYMBOL-BROKEN | <symbol> | <file>:<line> | bucket | evidence` finding list (an
 empty list `SYMBOL-SURVIVAL: clean` is a valid, desirable result). A non-empty list BLOCKS
-Phase 4 on those files. Full contract: `[[fp-symbol-survival-check]]`.
+P8 on those files. Full contract: `[[fp-symbol-survival-check]]`.
 
 **Run on `tests/` files too** - test files auto-merge silently exactly like production code and
 crash at collection (base-class kwarg drift, broken import, dynamic `ref()`), never reaching
-Phase 5 if collection itself fails. Do NOT re-derive the test-survival logic here - apply the
+P9 if collection itself fails. Do NOT re-derive the test-survival logic here - apply the
 seven auto-merge-silent symbol classes from `[[fp-symbol-survival-check]]` section 2.5 (it already
 states production AND `tests/` scope). The merge-clean-but-source-touched enumeration above
 already lists test files; feed them through the same section-2.5 grounding, do not filter them
@@ -154,20 +255,20 @@ out.
 
 ---
 
-## P4.5 - Pre-adapt drift scan (MUST, before the behavioral loop)
+## P7 - Pre-adapt drift scan (MUST, before the behavioral loop)
 
-This gate is DISTINCT from the P3.5 TEST-survival sub-check:
-- **P3.5 TEST-survival** uses `tests_covering` / `test_coverage_audit` (OSM cross-version
+This gate is DISTINCT from the P6 TEST-survival sub-check:
+- **P6 TEST-survival** uses `tests_covering` / `test_coverage_audit` (OSM cross-version
   symbol lookup) to detect test methods that REFERENCE a field/model removed at the target.
   It operates at the OSM symbol-graph level and covers both production and test code.
-- **P4.5** uses the seven static symbol classes from `[[fp-symbol-survival-check]]` section 2.5
+- **P7** uses the seven static symbol classes from `[[fp-symbol-survival-check]]` section 2.5
   over two lanes: (d) python-import + (e) AST-pyflakes + (g) ORM create/write dict-key run over
   ALL merged-touched `.py` (production AND `tests/`) - (d)(e) catch runtime NameError and (g)
-  catches an Invalid-field key (autosilent: pyflakes does NOT flag it) before P5; the remaining
+  catches an Invalid-field key (autosilent: pyflakes does NOT flag it) before P9; the remaining
   classes (a)(b)(c)(f) and the collection ACCEPTANCE GATE apply to the `tests/` lane only.
 
-The two checks are COMPLEMENTARY: P3.5 catches symbol-graph breaks via OSM; P4.5 catches
-static grep / import / AST breaks and blocks entry to P4 when test collection itself would
+The two checks are COMPLEMENTARY: P6 catches symbol-graph breaks via OSM; P7 catches
+static grep / import / AST breaks and blocks entry to P8 when test collection itself would
 fail.
 
 **Enumerate scope - two lanes:**
@@ -188,11 +289,11 @@ the same way - it raises `Invalid field` at load/run yet pyflakes stays silent. 
 additionally apply (a) (b) (c) (f).
 
 Record findings as `SYMBOL-BROKEN | <symbol/path> | <file>:<line> | <class> | evidence` and
-append to `merge-log.md`. These become the `BROKEN TEST-SYMBOLS` input to the 4a brief.
+append to `merge-log.md`. These become the `BROKEN TEST-SYMBOLS` input to the 8a brief.
 
-**ACCEPTANCE GATE (collection clean) - mandatory before Phase 4 starts:**
+**ACCEPTANCE GATE (collection clean) - mandatory before P8 starts:**
 
-At P4.5 no instance DB has been acquired yet (allocator runs at P5) - use the `pytest --collect-only` path; the odoo-bin collection option requires first acquiring a temp DB.
+At P7 no instance DB has been acquired yet (allocator runs at P9) - use the `pytest --collect-only` path; the odoo-bin collection option requires first acquiring a temp DB.
 
 ```bash
 # pytest collection smoke-test
@@ -203,13 +304,13 @@ odoo-bin -d $ALLOC_DB_NAME --test-enable --test-tags <tag> --stop-after-init \
 ```
 
 A collection failure (ImportError, setUpClass crash, missing fixture) means the tests NEVER
-RAN in Phase 5 - a count of `0 failed, N error(s)` is NOT a passing result (the setUpClass
-crashed before any test method ran). Resolve every drift finding (P4.5 SYMBOL-BROKEN entries)
-before entering the Phase 4 adapt loop.
+RAN in P9 - a count of `0 failed, N error(s)` is NOT a passing result (the setUpClass
+crashed before any test method ran). Resolve every drift finding (P7 SYMBOL-BROKEN entries)
+before entering the P8 adapt loop.
 
 ---
 
-## P4 - Adapt (test-first; serial per-module within a commit; WORK-tier worktree per module for filesystem isolation)
+## P8 - Adapt (test-first; serial per-module within a commit; WORK-tier worktree per module for filesystem isolation)
 
 For each touched module/WI, create a child worktree off integration and dispatch the adapt unit
 (serially - complete one module before starting the next within the same commit):
@@ -229,7 +330,7 @@ module, directly in the integration worktree, and only resume child-worktree iso
 absorbed merge is committed. Picking the wrong mode here yields child worktrees with a clean tree
 and an unresolved (invisible) conflict still sitting in integration.
 
-**4a - forward the test FIRST** (the test is the oracle; independence keeps it honest). Dispatch
+**8a - forward the test FIRST** (the test is the oracle; independence keeps it honest). Dispatch
 `odoo-test-writing` in mode `adapt`:
 
 ```
@@ -242,7 +343,7 @@ BASE CLASS (target): <signature from test_base_classes(odoo_version='<target>') 
       does not re-introduce a dropped kwarg>
 TARGET TEST EXAMPLES: <1-2 paths from find_test_examples(query='<feature>', odoo_version='<target>')
       that already test this behavior the target-idiomatic way - imitate their structure>
-BROKEN TEST-SYMBOLS: <the P3.5 / P4.5 SYMBOL-BROKEN entries that land in THIS test file - the
+BROKEN TEST-SYMBOLS: <the P6 / P7 SYMBOL-BROKEN entries that land in THIS test file - the
       author must repair each (do not forward them verbatim)>
 RULE: translate to target API; STRIP implementation-coupled assertions (private method asserts,
       call counts, internal ordering); re-create the BEHAVIOR on target; confirm RED on target.
@@ -257,11 +358,11 @@ test_base_classes(odoo_version='18.0')                                      # BA
 find_test_examples(query='double-post guard on account.move', odoo_version='18.0')  # TARGET TEST EXAMPLES
 ```
 
-`BROKEN TEST-SYMBOLS` is the subset of the P3.5 symbol-survival finding list (plus any P4.5 drift
+`BROKEN TEST-SYMBOLS` is the subset of the P6 symbol-survival finding list (plus any P7 drift
 finding) whose `<file>` is this test file - copy those rows in verbatim; omit the line when the
 list is empty for this file.
 
-**4b - adapt the code** per bucket. Dispatch `odoo-coder` (backend) / `odoo-frontend-coder`
+**8b - adapt the code** per bucket. Dispatch `odoo-coder` (backend) / `odoo-frontend-coder`
 (frontend) with the FP-ENRICHED brief - the extra context a generic coder brief lacks:
 
 ```
@@ -277,11 +378,12 @@ WORKLOG: <slug> - read, then append.
 USER LANGUAGE: <lang | omit when English>
 ```
 
-**4c - new module:** apply `[[fp-installable-false]]` - `installable: False`, comment
+**8c - new module:** apply `[[fp-installable-false]]` - `installable: False`, comment
 `auto_install`/`application`, lint-fix only, no content upgrade.
 
-**4c-bis - installable:False at target = LINT-ONLY lane.** BEFORE dispatching the coder/reviewer
-for any module (new or pre-existing), confirm its target installable flag:
+**8c-bis - installable:False at target = LINT-ONLY lane.** BEFORE dispatching the coder/reviewer
+for any module (new or pre-existing), confirm its target installable flag (already probed at P2 -
+re-confirm here only if the manifest was touched by the merge):
 
 ```python
 module_inspect(name='l10n_vn_edi', method='summary', odoo_version='18.0')   # read installable
@@ -290,10 +392,10 @@ module_inspect(name='l10n_vn_edi', method='summary', odoo_version='18.0')   # re
 (or read the target manifest's `installable` key). If `installable: False` at the target, brief
 the coder in **lint-only mode**: run flake8 / eslint / prettier / ruff and fix ONLY syntax/lint
 breakage to keep CI green - do NOT adapt business logic, do NOT upgrade content. Pass
-`LINT-ONLY: yes` in the 4b brief and the pointer `[[fp-installable-false]]`. The single exception
+`LINT-ONLY: yes` in the 8b brief and the pointer `[[fp-installable-false]]`. The single exception
 to "no logic change" is a syntax/lint error that itself blocks the file from parsing.
 
-**4d - migration script:** rename the `migrations/<src-series>.x.y.z` dir to `<tgt-series>` ONLY
+**8d - migration script:** rename the `migrations/<src-series>.x.y.z` dir to `<tgt-series>` ONLY
 when the gate `installed < parse(dir) <= current` holds (else the script lands inert - silent).
 The rename is idempotent (re-run safe). See `odoo-data-migration` for the script body. After the
 rename, sweep the migration body for log strings / hardcoded series literals still naming the
@@ -304,7 +406,7 @@ survive `git mv` unchanged and mislead the operator:
 grep -rn '<src-series>' migrations/<tgt-series>/   # e.g. grep -rn '17\.0' migrations/18.0/
 ```
 
-**4e - i18n: DISPATCH the `odoo-i18n` cluster, never inline.** When a forwarded commit adds or
+**8e - i18n: DISPATCH the `odoo-i18n` cluster, never inline.** When a forwarded commit adds or
 changes translatable strings (new `.po`/`.pot`, new `string=`/labels/help, a new module), hand the
 translation work to the dedicated cluster via a subagent dispatch (or `SUGGESTED_NEXT: odoo-i18n`
 when the run is one-shot):
@@ -328,7 +430,7 @@ Converge each child worktree back to integration (serialized, keep SHA), then
 
 ---
 
-## P5 - Verify by behavior (PER-BATCH, in integration)
+## P9 - Verify by behavior (PER-BATCH, in integration)
 
 Resolve odoo-bin flags for the TARGET series via `cli_help` before invoking - the allocator
 returns version-agnostic ports; flags and bootstrap behavior differ per series (e.g. v19
@@ -361,7 +463,7 @@ module_inspect(name='account_accountant', method='dependencies', odoo_version='1
 Union the closures of every directly-touched module and feed that whole set to `-i` below.
 
 **Lint toolchain present BEFORE the lint gate.** The verify venv must have flake8 / ruff
-(and eslint / prettier for frontend) installed, or the P7 lint gate silently no-ops. Confirm
+(and eslint / prettier for frontend) installed, or the P11 lint gate silently no-ops. Confirm
 `flake8 --version` and `ruff --version` resolve in the verify env before relying on a green lint.
 
 ```bash
@@ -407,7 +509,7 @@ done
 
 Reconcile the NOT-LOADED set against the installable scan (`[[fp-symbol-survival-check]]`
 section 2.5f): a module that is `installable: False` at the target is EXPECTED not to load -
-route it to the 4c-bis lint-only lane and do NOT count its absence as a break. A module that is
+route it to the 8c-bis lint-only lane and do NOT count its absence as a break. A module that is
 installable AND missing its Loading line is a real failure - investigate before reading any test
 count.
 
@@ -444,7 +546,7 @@ Full per-batch + allocator protocol: `[[fp-merge-absorption]]`. Mark `status=ver
 
 ---
 
-## P6 - Gate merge (STOP, per batch)
+## P10 - Gate merge (STOP, per batch)
 
 Present `merge-log.md` and wait for human-confirm. On confirm:
 
@@ -454,12 +556,14 @@ git commit -m "fp: absorb <src-SHA> - <one-line summary> [bucket <x>]"
 
 Buckets (a)/(d) STILL commit (keeps SHA, advances merge-base - Hard rule 7); the message records
 the bucket + reason so the empty diff is not flagged. Update `checkpoint.json` `{<sha>: done}`.
-More commits/batches remain -> LOOP to P4 (recreate WORK-tier worktrees from the updated
-integration).
+More commits/batches remain -> LOOP to P5 (each subsequent commit re-runs the full per-commit
+cycle P5 merge -> P6 symbol-survival -> P7 drift -> P8 adapt; P9 then verifies the batch of
+adapted commits and P10 gates that batch - never skip P5/P6/P7 for a later commit by looping
+straight to P8, which would absorb it without a merge or a symbol/drift check).
 
 ---
 
-## P7 - PR + review
+## P11 - PR + review
 
 ```bash
 git push origin fp/<slug>                          # push integration, NOT B
@@ -498,7 +602,7 @@ entity_lookup(kind='field', model='account.move', field='payment_state', odoo_ve
 ```
 
 **installable:False modules get a LINT-ONLY review.** For any module that is
-`installable: False` at the target (4c-bis lane), the reviewer rates ONLY syntax / lint findings -
+`installable: False` at the target (8c-bis lane), the reviewer rates ONLY syntax / lint findings -
 do NOT raise business-logic / behavior findings against a module that does not even install at the
 target. Mark such findings out-of-scope for this forward-port.
 

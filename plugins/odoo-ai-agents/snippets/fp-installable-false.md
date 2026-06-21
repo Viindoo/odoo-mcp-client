@@ -7,22 +7,50 @@
 
 ## Scope - applies to ALL installable:False modules at target
 
-This rule applies to TWO categories of module during forward-port:
+This rule applies to THREE categories of module during forward-port:
 
 1. **New module landing** - module does not yet exist on the target repo.
 2. **Pre-existing / dormant installable:False modules** - module already exists
    on the target repo but carries `'installable': False` (was dormant before the
    forward-port began, or becomes dormant during it).
+3. **First-enabled at source, not yet upgraded to target** - the module became
+   `installable: True` for the first time at source series X (previously dormant
+   or absent) but has NOT yet been verified/upgraded for target series Y. When
+   forward-ported X->Y it must land `installable: False` - same treatment as a
+   brand-new module - because it is not ready for the target stack.
+
+## Discriminator - read TARGET CLEAN-TIP state (before merge)
 
 **Before dispatching any review/adapt agent for a module**, determine its
-`installable` status at the target version:
+`installable` status at the **target clean-tip** - the state of the target
+branch BEFORE the forward-port merge is applied. Do NOT read the manifest
+post-merge; after merge the source-side `installable: True` is already present
+and masks the gap.
 
-- OSM lookup: `module_inspect(name='<module>', method='summary', odoo_version='<target>')`
-- OR read the target-side `__manifest__.py` directly.
+- OSM lookup (static index of target series): `module_inspect(name='<module>', method='summary', odoo_version='<target>')`
+- OR checkout the target branch and read `<module>/__manifest__.py` BEFORE merging.
 
-If `installable` is `False` at target (regardless of source-side status) -> the
-module is not upgraded for the target version -> route to the **LINT-ONLY LANE**
-(see below). Do NOT proceed to extract/adapt/business-logic tiers.
+Decision:
+- Target clean-tip: module ABSENT or `installable: False` -> forward as
+  `installable: False` -> route to the **LINT-ONLY LANE** (see below). Do NOT
+  proceed to extract/adapt/business-logic tiers.
+- Target clean-tip: module EXISTS with `installable: True` -> forward content
+  normally (standard forward-port adapt flow applies).
+
+This covers all three categories: a new module is absent at target; a dormant
+module is `installable: False` at target; a category-3 first-enabled module is
+absent or `installable: False` at target because it was never upgraded there.
+
+### Delegated source-history confirmation (category 3 ambiguity)
+
+When it is unclear whether a module falls under category 3 (recently flipped
+`installable: False -> True` at source), the orchestrator dispatches the
+dedicated read-only leaf agent **`odoo-installable-prober`** (sonnet) to read
+the SOURCE repo git history and confirm whether a recent `installable: False ->
+True` transition exists for the module. The agent returns a one-line verdict
+for the merge-log (e.g. `<module>: first enabled at 17.0 commit abc1234 -
+category-3 confirmed`). This git-history read is heavy and MUST be delegated
+to keep it out of the main/specialist context - do not inline it.
 
 ---
 
@@ -120,10 +148,12 @@ the module from re-appearing in every subsequent port cycle.
 
 ---
 
-## Checklist for adapter (Phase 4c verification)
+## Checklist for adapter (P8c verification)
 
-- [ ] `installable` status at target confirmed before any agent dispatch
-- [ ] `installable:False` at target -> lint-only lane entered; no logic adapt
+- [ ] `installable` status read from TARGET CLEAN-TIP (before merge) - not post-merge
+- [ ] Category determined: new landing / dormant / category-3 first-enabled
+- [ ] If ambiguous category-3: `odoo-installable-prober` dispatched; verdict in merge-log
+- [ ] `installable:False` at target clean-tip -> lint-only lane entered; no logic adapt
 - [ ] For new modules: `'installable': False` is set
 - [ ] For new modules: `'auto_install': True` is commented with TODO note
 - [ ] For new modules: `'application': True` is commented with TODO note

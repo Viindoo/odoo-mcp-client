@@ -29,9 +29,14 @@ step is the planning-artifact exception to "writes-files runs only after Plan Mo
 
 ## Phase 0 - Design intent gate (1-turn gate)
 
-Before invoking the agent, emit a concise **design scope preview**, then **stop** for
-confirmation. The preview names what the design will decide and which artifact it produces - it
-does NOT write production code (this is a read-only design step):
+**Exception: when `return_to` is set**, SKIP this Phase 0 scope-preview gate entirely. The
+caller (e.g. `odoo-forward-port`) has already classified scope and approved entering the design
+step. Go straight to the architect dispatch (Agent invocation - prompt template below) and
+then the single design-approval gate after the architect returns.
+
+**Default (no `return_to`):** Before invoking the agent, emit a concise **design scope
+preview**, then **stop** for confirmation. The preview names what the design will decide and
+which artifact it produces - it does NOT write production code (this is a read-only design step):
 
 ```
 Design scope: <one-line of the change to be designed>
@@ -44,9 +49,10 @@ OSM:          backed | standalone
 Proceed? (yes / refine: [feedback] / cancel)
 ```
 
-Wait for the user's reply before proceeding. This gate is the single mandatory checkpoint and
-applies even on a direct (intake-bypass) entry. It is a **preview, not a write-block** - on
-confirmation the architect writes ONLY the design doc under `.odoo-ai/`, never source files.
+Wait for the user's reply before proceeding. This gate is the single mandatory checkpoint for
+the default (no `return_to`) path and applies even on a direct (intake-bypass) entry. It is a
+**preview, not a write-block** - on confirmation the architect writes ONLY the design doc under
+`.odoo-ai/`, never source files.
 
 ---
 
@@ -175,6 +181,13 @@ production code) for the following change:
 REQUEST: [full requirement/goal, with target model(s), Odoo version, any constraints, and the
 classification/effort tier if it came from odoo-brl/odoo-gap-analysis]
 
+RETURN_TO: [omit this line entirely when absent; set to the caller skill name (e.g.
+odoo-forward-port) when the caller requests return routing after design approval]
+
+DESIGN_SLUG_HINT: [omit when absent; short slug the caller wants used for the design doc
+filename, e.g. account-move-fp-18 - the architect uses this as the <slug> when writing
+.odoo-ai/designs/<slug>-<date>.md]
+
 Step 0 (ONLY if mcp__odoo-semantic__* tools are available): call
 set_active_version('<version>'), then proceed through your design rounds. If OSM is
 unavailable, use the Standalone-first fallback (disk-grounded: Read/Grep the repo). If OSM
@@ -190,6 +203,32 @@ Do NOT write any production source files. Do NOT spawn subagents or invoke skill
 
 The agent runs its rounds using its restricted read-only tool allowlist. It does NOT spawn
 subagents, invoke skills, or write production code.
+
+### Payload mapping when `return_to` is set (caller-return flow)
+
+When this skill is invoked by a caller that supplied `return_to` in its inputs (e.g.
+`odoo-forward-port` routing a bucket-(c) module here), map the caller's payload onto the
+dispatch template as follows - do NOT improvise or drop any field:
+
+| Caller input | Architect template field | How to compose |
+|---|---|---|
+| `target_version` | `REQUEST` preamble + `set_active_version` | Write "Target Odoo version: <target_version>" as the first line of `REQUEST` |
+| `modules` | `REQUEST` preamble | Write "Modules: <names>" as the second line of `REQUEST` |
+| `classification` | `REQUEST` body | Paste the bucket-(c) summary verbatim as the core requirement description in `REQUEST` |
+| `intent_records` | `REQUEST` body | Write "Intent records (read these FIRST for the OSM-grounded behavioral contract): <paths>" as a dedicated line in `REQUEST`; the architect MUST Read each path before designing - this is the behavioral contract the forward-port must preserve |
+| `design_slug_hint` | `DESIGN_SLUG_HINT` line | Copy verbatim; the architect uses it as `<slug>` when naming `.odoo-ai/designs/<slug>-<date>.md` |
+| `return_to` | `RETURN_TO` line | Copy verbatim; routes the architect's Continuation Contract back to the caller |
+
+The assembled `REQUEST` therefore reads:
+```
+REQUEST: Target Odoo version: <target_version>
+Modules: <module names>
+Intent records (read these FIRST for the OSM-grounded behavioral contract): <intent_records paths>
+<classification - bucket-(c) summary>
+```
+
+Never flatten `intent_records` into the classification summary or omit it - it carries the
+behavioral contract the design must honour, distinct from the structural classification.
 
 ## Standalone-first fallback
 
@@ -226,8 +265,13 @@ Approve design? (approve / refine: [feedback] / cancel)
 ```
 
 - `refine: [feedback]` → re-dispatch the architect with the feedback; rewrite the same doc.
-- `approve` → ONLY NOW does the chain move on: enter Plan Mode for the code and dispatch the
-  coder (`odoo-coding`) to build to the approved doc.
+- `approve` → ONLY NOW does the chain move on. Two branches:
+  - **`return_to` is UNSET (default standalone flow):** enter Plan Mode for the code and
+    dispatch the coder (`odoo-coding`) to build to the approved doc.
+  - **`return_to` is SET (caller-return flow):** do NOT enter a code Plan Mode and do NOT
+    dispatch any coder. Emit the Continuation Contract (see below) with `next: <return_to>`
+    and hand control back to the caller. The caller (e.g. `odoo-forward-port`) owns the
+    downstream Plan Mode and code dispatch.
 - `cancel` → stop; the design doc remains on disk for later.
 
 Optional assist (does not replace human approval): for a high-risk design you MAY ask
@@ -238,10 +282,17 @@ human still makes the call.
 
 When the bundle finishes, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). The `next`
-is **gated on the human design-approval above** - the driver dispatches the coder only after the
-design is approved (the design doc is the plan the code Plan Mode then executes). For a backend,
-frontend, or full-stack design, emit `next: odoo-coding` (it sequences the backend and frontend
-legs itself per the design); for a migration design, emit `next: odoo-data-migration` (or
-`odoo-coding` for the migration script) - each carrying the design-doc path as a
-`design_doc` input so the coder builds to the approved design. Additive output for the
-run-driver - it does not change anything produced above.
+is **gated on the human design-approval above** - the driver dispatches the next step only after
+the design is approved. Choose `next` as follows:
+
+- **`return_to` is SET:** emit `next: <return_to>` (e.g. `next: odoo-forward-port`). Include
+  in `inputs`: `design_doc: <path>` only. Do NOT emit a coder target. The caller recovers
+  everything else (module names, branches, versions) from its own checkpoint; only the design
+  doc path needs to cross the boundary. The caller resumes with the approved design doc and
+  runs its own Plan Mode.
+- **`return_to` is UNSET (default):** for a backend, frontend, or full-stack design emit
+  `next: odoo-coding`; for a migration design emit `next: odoo-data-migration` (or
+  `odoo-coding` for the migration script). Each carries `design_doc: <path>` so the coder
+  builds to the approved design.
+
+Additive output for the run-driver - it does not change anything produced above.

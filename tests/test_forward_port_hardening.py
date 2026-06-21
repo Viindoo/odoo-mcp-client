@@ -334,3 +334,174 @@ class TestAbsorbAllWorktree:
         assert "integration worktree" in low, (
             "SKILL.md must say absorb-all conflicts resolve in the integration worktree"
         )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 8 - installable category-3 (first-enabled at source, not yet
+# upgraded for target): fp-installable-false.md teaches the rule AND names
+# the TARGET CLEAN-TIP discriminator.
+# ---------------------------------------------------------------------------
+
+SOLUTION_DESIGN_SKILL = PLUGIN / "skills" / "odoo-solution-design" / "SKILL.md"
+
+
+class TestInstallableCategory3CleanTip:
+    """fp-installable-false.md must document the third category - a module that
+    became installable:True for the first time at source series X but has NOT
+    yet been upgraded for the target series Y - AND must name the TARGET
+    CLEAN-TIP discriminator (read target state BEFORE the merge)."""
+
+    def setup_method(self):
+        self.text = INSTALLABLE_FALSE.read_text(encoding="utf-8")
+
+    def test_category3_rule_documented(self):
+        """fp-installable-false.md must document the first-enabled-at-source category."""
+        assert "First-enabled at source, not yet upgraded to target" in self.text, (
+            "fp-installable-false.md missing the category-3 rule "
+            "'First-enabled at source, not yet upgraded to target'"
+        )
+
+    def test_category3_first_enabled_label_present(self):
+        """fp-installable-false.md must use the 'category-3 first-enabled' label."""
+        assert "category-3 first-enabled" in self.text, (
+            "fp-installable-false.md missing the 'category-3 first-enabled' label"
+        )
+
+    def test_target_clean_tip_discriminator_present(self):
+        """fp-installable-false.md must name the TARGET CLEAN-TIP discriminator
+        (read the target branch state BEFORE the merge is applied)."""
+        assert "TARGET CLEAN-TIP" in self.text, (
+            "fp-installable-false.md missing the TARGET CLEAN-TIP discriminator - "
+            "agents must read installable status before the merge, not post-merge"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 9 - intent extraction BEFORE plan gate: P1 (intent extract)
+# must appear before P4 (plan gate) in SKILL.md, and the P1 heading must
+# explicitly state it runs BEFORE the plan gate.
+# ---------------------------------------------------------------------------
+
+class TestIntentBeforePlanGate:
+    """The intent-extract phase (P1) must precede the plan gate (P4) in SKILL.md,
+    both in document order and in explicit prose.  This pins the bug-fix that
+    moved the plan gate to AFTER intent + classify + design so the plan carries
+    REAL triaged tiers, not guesses."""
+
+    def setup_method(self):
+        self.text = SKILL_MD.read_text(encoding="utf-8")
+
+    def test_intent_phrase_before_plan_gate_in_document_order(self):
+        """P1 heading 'Runs BEFORE the plan gate' must appear before P4 heading
+        'P4 - Plan gate [Plan Mode]' in SKILL.md (index order check)."""
+        intent_marker = "Runs BEFORE the plan gate so the plan is built"
+        plan_gate_marker = "P4 - Plan gate [Plan Mode]"
+        assert intent_marker in self.text, (
+            "SKILL.md P1 must state it 'Runs BEFORE the plan gate so the plan is built'"
+        )
+        assert plan_gate_marker in self.text, (
+            "SKILL.md must have a P4 Plan gate section"
+        )
+        assert self.text.index(intent_marker) < self.text.index(plan_gate_marker), (
+            "P1 intent-extract description must appear BEFORE P4 plan gate in SKILL.md "
+            "(the intent+classify+design phases must precede the plan gate)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 10 - plan gate uses harness Plan Mode, plan.md written as a
+# resume RECORD after approval (not as the gate itself).
+# ---------------------------------------------------------------------------
+
+class TestPlanGateUsesHarnessPlanMode:
+    """SKILL.md must reference EnterPlanMode and ExitPlanMode at the plan gate,
+    and must clarify that plan.md is written AFTER approval as a resume RECORD,
+    not as the gate itself.  This prevents the agent from using a text-based
+    'approve' prompt as a Plan Mode substitute."""
+
+    def setup_method(self):
+        self.text = SKILL_MD.read_text(encoding="utf-8")
+
+    def test_enter_plan_mode_referenced(self):
+        """P4 must reference EnterPlanMode (harness Plan Mode tool)."""
+        assert "EnterPlanMode" in self.text, (
+            "SKILL.md P4 must call EnterPlanMode (the harness Plan Mode UI entry point)"
+        )
+
+    def test_exit_plan_mode_referenced(self):
+        """P4 must reference ExitPlanMode (harness Plan Mode tool)."""
+        assert "ExitPlanMode" in self.text, (
+            "SKILL.md P4 must call ExitPlanMode (the harness Plan Mode UI exit point)"
+        )
+
+    def test_plan_md_is_written_as_resume_record(self):
+        """SKILL.md must clarify plan.md is written after approval as a 'resume RECORD'."""
+        assert "plan.md is now a RECORD" in self.text, (
+            "SKILL.md P4 must state 'plan.md is now a RECORD' (written after Plan Mode "
+            "approval as a resume artifact, not as the gate itself)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 11 - design route-out carries return_to: odoo-forward-port, and
+# odoo-solution-design honors return_to by NOT dispatching a coder.
+# ---------------------------------------------------------------------------
+
+class TestDesignRouteOutWithReturnTo:
+    """P3 must emit return_to: odoo-forward-port when routing a commit to
+    odoo-solution-design; odoo-solution-design must honor return_to by
+    entering design-only mode (no code Plan Mode, no coder dispatch)."""
+
+    def test_forward_port_emits_return_to_in_p3(self):
+        """SKILL.md P3 must carry 'return_to: odoo-forward-port' in the route-out
+        continuation contract payload."""
+        text = SKILL_MD.read_text(encoding="utf-8")
+        assert "return_to: odoo-forward-port" in text, (
+            "SKILL.md P3 must emit 'return_to: odoo-forward-port' so odoo-solution-design "
+            "knows to return control to forward-port after design approval"
+        )
+
+    def test_solution_design_honors_return_to_no_coder(self):
+        """odoo-solution-design SKILL.md must state that when return_to is SET it does
+        NOT enter a code Plan Mode and does NOT dispatch a coder."""
+        text = SOLUTION_DESIGN_SKILL.read_text(encoding="utf-8")
+        assert "do NOT enter a code Plan Mode and do NOT" in text, (
+            "odoo-solution-design SKILL.md must forbid code Plan Mode and coder dispatch "
+            "when return_to is set (design-only mode for caller-return flow)"
+        )
+
+    def test_solution_design_return_to_set_emits_next_caller(self):
+        """odoo-solution-design SKILL.md must emit next: <return_to> when return_to is SET."""
+        text = SOLUTION_DESIGN_SKILL.read_text(encoding="utf-8")
+        assert "`return_to` is SET" in text, (
+            "odoo-solution-design SKILL.md must document the return_to-SET branch "
+            "that emits next: <return_to> instead of next: odoo-coding"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 12 - odoo-installable-prober wired in classify (P2), and
+# 'designed' is a valid checkpoint status.
+# ---------------------------------------------------------------------------
+
+class TestProberWiredAndDesignedCheckpoint:
+    """SKILL.md P2 must dispatch odoo-installable-prober for ambiguous category-3
+    modules; the checkpoint status set must include 'designed' so a crash between
+    design-approval and re-entry resumes correctly."""
+
+    def setup_method(self):
+        self.text = SKILL_MD.read_text(encoding="utf-8")
+
+    def test_installable_prober_dispatched_in_classify(self):
+        """SKILL.md must wire odoo-installable-prober in the P2 classify phase."""
+        assert "odoo-installable-prober" in self.text, (
+            "SKILL.md P2 must reference odoo-installable-prober for category-3 ambiguity"
+        )
+
+    def test_designed_checkpoint_status_present(self):
+        """SKILL.md must include 'status=designed' as a checkpoint status so a
+        P3-routed commit can be resumed at the P4 plan gate with its design_doc."""
+        assert "status=designed" in self.text, (
+            "SKILL.md checkpoint section must include 'status=designed' - required for "
+            "resuming a P3-routed commit after design approval"
+        )

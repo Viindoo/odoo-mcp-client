@@ -40,7 +40,7 @@ All work happens here - in this order:
 4. Fix any lint/eslint/prettier errors introduced by the merge.
 5. `git commit` - the merge commit encapsulates the entire translation cost.
 
-Do NOT `git commit` until verify is green (Phase 5, below). Do NOT open a second
+Do NOT `git commit` until verify is green (P9, below). Do NOT open a second
 `git merge --no-commit` while one is in progress (git index is shared).
 
 ## Skip-code-but-still-merge rule
@@ -65,8 +65,7 @@ Odoo on release (via `scripts/lib/odoo_db.py`). The CREATEDB role is still requi
 Odoo create-on-init needs it; if the role lacks CREATEDB the allocator degrades ephemeral
 to exclusive (see "Allocator footgun" below).
 
-1. Collect a batch of merge commits for the same module set (e.g. all commits in one Phase 6
-   gate window).
+1. Collect a batch of merge commits for the same module set (e.g. all commits in one P10 gate window).
 2. **Acquire one ephemeral lease for the batch** (see [[concurrency-guard]] § Odoo
    instance allocation) - this reserves the DB name and ports but does NOT create the DB:
 
@@ -144,7 +143,7 @@ Full allocation protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md
 The integration worktree branches from the TARGET branch (never the target branch directly -
 no direct commits land there during forward-port). Work-item worktrees branch from
 integration for per-module absorption and converge back into integration via merge
-(keeping SHA). Only after a human-gated Phase 6 + Phase 7 PR review does the human merge
+(keeping SHA). Only after a human-gated P10 + P11 PR review does the human merge
 the PR; integration NEVER fast-forwards into B directly (target-branch-lock, Hard rule 1).
 The only thing that lands on B is the human-confirmed PR merge. This isolation guarantees
 the target branch stays consistent even if one WI worktree is abandoned mid-flight.

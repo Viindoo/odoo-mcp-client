@@ -126,13 +126,14 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 - `output_mode = writes-files` → **Plan Mode REQUIRED** before dispatch. **Exceptions that SKIP Plan Mode:**
   - `odoo-deep-survey` (dispatched via the `deep-survey` gate keyword) - the opt-in keyword is the human gate.
   - `odoo-code-review` and `odoo-debug` - a **review** intent (routing row 13) or **debug** intent (routing row 29) fast-paths straight to the skill once Phase 0 intent gate is closed: emit the one-line § Pro fast-path gate, on `yes` invoke via Skill tool - NO Proposed-Plan blocks, NO Plan Mode. These two then drive their own autonomous fix loop.
+  - `odoo-forward-port` - owns its own Plan Mode at its P4 plan gate (EnterPlanMode / ExitPlanMode called internally, per-commit plan presented to the user before any branch or merge). Intake MUST NOT call EnterPlanMode for it; dispatch directly after the § Soft plan gate "stronger gate" one-liner is acknowledged.
 - `output_mode = chat-only` → **SKIP Plan Mode**; intake ends its turn and the specialist fires via the Skill tool on the next turn.
 
 **When it applies**: after user approves the Proposed Plan AND the next step is an execute-skill that will **write or modify files** - specifically `odoo-coding`, `wave`, `odoo-brl`, `workflow-chaining`, or any skill whose output column is NOT "chat only".
 
 **Why intake can do this**: `EnterPlanMode` / `ExitPlanMode` are harness-level tools callable by the orchestrating agent. Intake MUST be the one to initiate Plan Mode.
 
-**Does NOT apply** for: `odoo-feature-check`, `odoo-version-diff`, `odoo-risk-overview`, `odoo-deprecation-audit`, `odoo-gap-analysis`, `odoo-discovery-summary`, `odoo-capability-proof`, `odoo-objection-handling`, `odoo-content-draft`, `odoo-competitive-brief`, any `chat-only` skill. Also NOT: `odoo-deep-survey`, `odoo-code-review`, `odoo-debug` (skip Plan Mode by design).
+**Does NOT apply** for: `odoo-feature-check`, `odoo-version-diff`, `odoo-risk-overview`, `odoo-deprecation-audit`, `odoo-gap-analysis`, `odoo-discovery-summary`, `odoo-capability-proof`, `odoo-objection-handling`, `odoo-content-draft`, `odoo-competitive-brief`, any `chat-only` skill. Also NOT: `odoo-deep-survey`, `odoo-code-review`, `odoo-debug`, `odoo-forward-port` (skip Plan Mode by design - each owns its own gate).
 
 **Procedure** (execute-skill that touches files):
 1. User sends `approve` on the Proposed Plan.
@@ -220,11 +221,12 @@ Only runs in the **vague branch** (Tier-4 miss or explicit "I'm not sure").
 Universal gate emitted by intake at the end of every brainstorm or fast-path turn:
 
 **Exception - skills that own a stronger gate.** When the routed skill itself opens with a STOP plan
-gate richer than this one (e.g. `odoo-forward-port` P0 emits a per-commit plan.md + STOP), do NOT also
-emit the soft-plan-gate. Launch it directly with a one-liner: "Launching `odoo-forward-port` - it will
+gate richer than this one (e.g. `odoo-forward-port` presents its plan in harness Plan Mode at its P4
+plan gate, after intent extract + classify + design), do NOT emit the full `## Proposed Plan` block;
+instead launch it directly with a single acknowledgment one-liner: "Launching `odoo-forward-port` - it will
 present its own per-commit plan and stop for your approval before any branch or merge." Two consecutive
 approval gates for one action is friction, and the skill's own gate is the authoritative one. Phase P
-does NOT engage for these skills either - a self-gating + self-resuming skill (P0 STOP gate +
+does NOT engage for these skills either - a self-gating + self-resuming skill (P4 Plan Mode gate +
 checkpoint.json resume) owns its own run-DAG; intake dispatches it once and the skill drives itself.
 
 ```
@@ -242,7 +244,7 @@ Assignment (skill/agent + model + effort): <WI → skill|agent (model from front
 Output:         .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
 Est. effort:    <S / M / L / XL / "single turn">
 OSM:            backed | standalone   (backed if OSM (`mcp__odoo-semantic__*`) tools are available; standalone if not)
-Plan Mode:      required | not   (required when Approach output_mode = writes-files)
+Plan Mode:      required | not | skill-owned   (skill-owned when the routed skill drives its own Plan Mode - e.g. odoo-forward-port at P4)
 Next turn:      invoke the routed **skill** via the **Skill tool** (workflow/command: via its command) - you will see the tool call
 
 Gate: approve / refine: [your feedback] / deep-survey / cancel
