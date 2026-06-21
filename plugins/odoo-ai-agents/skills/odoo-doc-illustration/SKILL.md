@@ -52,7 +52,7 @@ If `addons_path` is not yet known, TARGET may be just a module name; the agent r
 - `appstore` - writes `static/description/index.html` (App Store listing page)
 - `userguide` - writes `doc/index.rst` (user guide / RST documentation)
 - `both` (MODE module) - agent writes both files directly (no markers, no content-draft); agent embeds `<img>` / `.. image::` tags after capture
-- `both` (MODE cluster hybrid) - agent uses `[Hinh anh: <screen-slug>]` markers in the prose skeleton so standalone `odoo-content-draft` can fill prose; the doc-illustrator agent itself replaces markers with `<img>`/`.. image::` after capture (content-draft does NOT resolve markers)
+- `both` (MODE cluster hybrid) - agent uses `[Image: <screen-slug>]` markers in the prose skeleton so standalone `odoo-content-draft` can fill prose; the doc-illustrator agent itself replaces markers with `<img>`/`.. image::` after capture (content-draft does NOT resolve markers)
 
 **Language resolution (6-tier, extends `skills/odoo-i18n/SKILL.md` P0 with one extra tier).**
 Resolve the documentation language list in this order - first tier that yields a value wins:
@@ -67,7 +67,7 @@ Tiers 3-6 here = odoo-i18n P0 tiers 2-5; P0 tier 1 (explicit) maps to our tiers 
 
 For each resolved language produce a separate output: `index.html` + `index_<locale>.html` (appstore), or locale-suffixed RST (userguide).
 
-**Image anchor markers in hybrid drafts.** In MODE cluster with `DOC LAYER: both`, use `[Hinh anh: <screen-slug>]` as the placeholder (slug only, no spaces) - NOT `[[IMG:]]`. The `odoo-doc-illustrator` agent itself replaces these markers with `<img>` tags (HTML) or `.. image::` directives (RST) after capture. `odoo-content-draft` only EMITS markers when invoked standalone for cluster prose; it does not resolve them.
+**Image anchor markers in hybrid drafts.** In MODE cluster with `DOC LAYER: both`, use `[Image: <screen-slug>]` as the placeholder (slug only, no spaces) - NOT `[[IMG:]]`. The `odoo-doc-illustrator` agent itself replaces these markers with `<img>` tags (HTML) or `.. image::` directives (RST) after capture. `odoo-content-draft` only EMITS markers when invoked standalone for cluster prose; it does not resolve them.
 
 **Browser exclusivity.** The doc-illustrator drives the browser (playwright by default) sequentially - do NOT
 dispatch it in parallel with odoo-ui-reviewer, odoo-visual-regression, or odoo-demo-recording

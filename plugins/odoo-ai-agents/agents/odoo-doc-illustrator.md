@@ -188,7 +188,7 @@ Produce both index.html (appstore rules) and doc/index.rst (userguide rules) dir
 
 **MODE: cluster - compose RST or delegate:**
 If tone is technical-doc: write RST at `<doc_output_dir>/<slug>.rst` with `.. image:: <file>.png` directives and OSM-grounded captions.
-If tone is marketing (brief says so): delegate to odoo-content-draft with the OSM feature summary, the captured screenshot slugs list, and an explicit instruction to place a marker `[Hinh anh: <screen-slug>]` (using the EXACT slugs provided) at each illustration point. When prose is returned, resolve markers: match `[Hinh anh: <slug>]` to a file; if slug text does not match a filename exactly, normalize text to slug (lowercase, spaces to `-`) as fallback. Replace each marker with `.. image:: <screen-slug>.png` (RST) or `<img src="./<screen-slug>.png">` (HTML). If the returned prose is missing any expected marker, insert the image ref immediately after the heading of the feature it illustrates.
+If tone is marketing (brief says so): delegate to odoo-content-draft with the OSM feature summary, the captured screenshot slugs list, and an explicit instruction to place a marker `[Image: <screen-slug>]` (using the EXACT slugs provided) at each illustration point. When prose is returned, resolve markers: match `[Image: <slug>]` to a file; if slug text does not match a filename exactly, normalize text to slug (lowercase, spaces to `-`) as fallback. Replace each marker with `.. image:: <screen-slug>.png` (RST) or `<img src="./<screen-slug>.png">` (HTML). If the returned prose is missing any expected marker, insert the image ref immediately after the heading of the feature it illustrates.
 
 ### Step 7 - Manifest wiring (MODE: module, DOC LAYER: appstore or both)
 
