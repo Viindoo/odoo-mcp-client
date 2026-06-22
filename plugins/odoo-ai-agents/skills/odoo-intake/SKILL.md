@@ -127,13 +127,15 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
   - `odoo-deep-survey` (dispatched via the `deep-survey` gate keyword) - the opt-in keyword is the human gate.
   - `odoo-code-review` and `odoo-debug` - a **review** intent (routing row 13) or **debug** intent (routing row 29) fast-paths straight to the skill once Phase 0 intent gate is closed: emit the one-line § Pro fast-path gate, on `yes` invoke via Skill tool - NO Proposed-Plan blocks, NO Plan Mode. These two then drive their own autonomous fix loop.
   - `odoo-forward-port` - owns its own Plan Mode at its P4 plan gate (EnterPlanMode / ExitPlanMode called internally, per-commit plan presented to the user before any branch or merge). Intake MUST NOT call EnterPlanMode for it; dispatch directly after the § Soft plan gate "stronger gate" one-liner is acknowledged.
+  - `odoo-git-rebase` - owns its own Plan Mode at its P6 plan gate (per-batch plan presented before any branch touch or adapt step). Intake MUST NOT call EnterPlanMode for it; dispatch directly after the § Soft plan gate "stronger gate" one-liner is acknowledged.
+  - `odoo-modules-upgrade` - owns its own Plan Mode at its P3 plan gate (per-module batch plan presented before any adapt step). Intake MUST NOT call EnterPlanMode for it; dispatch directly after the § Soft plan gate "stronger gate" one-liner is acknowledged.
 - `output_mode = chat-only` → **SKIP Plan Mode**; intake ends its turn and the specialist fires via the Skill tool on the next turn.
 
 **When it applies**: after user approves the Proposed Plan AND the next step is an execute-skill that will **write or modify files** - specifically `odoo-coding`, `wave`, `odoo-brl`, `workflow-chaining`, or any skill whose output column is NOT "chat only".
 
 **Why intake can do this**: `EnterPlanMode` / `ExitPlanMode` are harness-level tools callable by the orchestrating agent. Intake MUST be the one to initiate Plan Mode.
 
-**Does NOT apply** for: `odoo-feature-check`, `odoo-version-diff`, `odoo-risk-overview`, `odoo-deprecation-audit`, `odoo-gap-analysis`, `odoo-discovery-summary`, `odoo-capability-proof`, `odoo-objection-handling`, `odoo-content-draft`, `odoo-competitive-brief`, any `chat-only` skill. Also NOT: `odoo-deep-survey`, `odoo-code-review`, `odoo-debug`, `odoo-forward-port` (skip Plan Mode by design - each owns its own gate).
+**Does NOT apply** for: `odoo-feature-check`, `odoo-version-diff`, `odoo-risk-overview`, `odoo-deprecation-audit`, `odoo-gap-analysis`, `odoo-discovery-summary`, `odoo-capability-proof`, `odoo-objection-handling`, `odoo-content-draft`, `odoo-competitive-brief`, any `chat-only` skill. Also NOT: `odoo-deep-survey`, `odoo-code-review`, `odoo-debug`, `odoo-forward-port`, `odoo-git-rebase`, `odoo-modules-upgrade` (skip Plan Mode by design - each owns its own gate).
 
 **Procedure** (execute-skill that touches files):
 1. User sends `approve` on the Proposed Plan.
@@ -188,7 +190,7 @@ Run tiers in order; first hit wins; cost rises per tier.
 |---|---|---|---|
 | **1 - regex/intent** | Explicit verb+noun pattern: "write computed field", "diff v16 v17", "review this PR", "/..." | 0 | Exact specialist → **pro fast-path** (see § Pro fast-path) |
 | **2 - session state** | `.odoo-ai/brainstorm/state.json` exists and contains in-progress brainstorm | 0 | Resume that brainstorm thread |
-| **3 - keyword table** | 43-row routing table (see § Routing Table) covering all 9 persona domains | 0 | Map to single skill or workflow → soft-plan-gate |
+| **3 - keyword table** | 46-row routing table (see § Routing Table) covering all 9 persona domains | 0 | Map to single skill or workflow → soft-plan-gate |
 | **4 - LLM classify** | Only on Tier 1-3 miss: classify the ambiguous prompt (~500 tok) | ~500 tok | Single clear target → gate; vague/multi-domain → **enter brainstorm** |
 
 Brainstorm fires ONLY when Tier 1-3 all miss AND Tier-4 returns either (a) **no confident single target** (≥2 candidate skills with no decisive discriminator), or (b) a **large / multi-domain job** (≥10 requirement items, OR a scale signal like "hundreds of requirements" / "win this deal end-to-end" / "plan + build + ship an upgrade").
@@ -222,12 +224,15 @@ Universal gate emitted by intake at the end of every brainstorm or fast-path tur
 
 **Exception - skills that own a stronger gate.** When the routed skill itself opens with a STOP plan
 gate richer than this one (e.g. `odoo-forward-port` presents its plan in harness Plan Mode at its P4
-plan gate, after intent extract + classify + design), do NOT emit the full `## Proposed Plan` block;
-instead launch it directly with a single acknowledgment one-liner: "Launching `odoo-forward-port` - it will
-present its own per-commit plan and stop for your approval before any branch or merge." Two consecutive
-approval gates for one action is friction, and the skill's own gate is the authoritative one. Phase P
-does NOT engage for these skills either - a self-gating + self-resuming skill (P4 Plan Mode gate +
-checkpoint.json resume) owns its own run-DAG; intake dispatches it once and the skill drives itself.
+plan gate, after intent extract + classify + design; `odoo-git-rebase` at its P6 plan gate, after
+intent extract + classify + triage; `odoo-modules-upgrade` at its P3 plan gate, after module list +
+classify), do NOT emit the full `## Proposed Plan` block; instead launch it directly with a single
+acknowledgment one-liner: "Launching `odoo-forward-port` - it will present its own per-commit plan
+and stop for your approval before any branch or merge." (Substitute the actual skill name.) Two
+consecutive approval gates for one action is friction, and the skill's own gate is the authoritative
+one. Phase P does NOT engage for these skills either - a self-gating + self-resuming skill (Plan Mode
+gate + checkpoint.json resume) owns its own run-DAG; intake dispatches it once and the skill drives
+itself.
 
 ```
 ## Proposed Plan
@@ -244,7 +249,7 @@ Assignment (skill/agent + model + effort): <WI → skill|agent (model from front
 Output:         .odoo-ai/<subdir>/<slug>-<date>.<ext>   (or "chat only")
 Est. effort:    <S / M / L / XL / "single turn">
 OSM:            backed | standalone   (backed if OSM (`mcp__odoo-semantic__*`) tools are available; standalone if not)
-Plan Mode:      required | not | skill-owned   (skill-owned when the routed skill drives its own Plan Mode - e.g. odoo-forward-port at P4)
+Plan Mode:      required | not | skill-owned   (skill-owned when the routed skill drives its own Plan Mode - e.g. odoo-forward-port at P4, odoo-git-rebase at P6, odoo-modules-upgrade at P3)
 Next turn:      invoke the routed **skill** via the **Skill tool** (workflow/command: via its command) - you will see the tool call
 
 Gate: approve / refine: [your feedback] / deep-survey / cancel
@@ -318,6 +323,8 @@ Use this as Tier-3 keyword routing. Pick the **single best match** based on inte
 | 42 | "implement this feature end-to-end", "from requirement to working code", "design then build then review", "scope → design → code → review" | `odoo-implement-feature` (workflow) | End-to-end feature pipeline: gap/brl → solution-design → odoo-coding → code-review (vs `odoo-solution-design` which produces ONLY the design, vs `odoo-coding` which writes ONE change with no design/review phases) |
 | 43 | "make this Odoo UI look good", "design the form/kanban/list", "this screen looks cluttered/off", "thiết kế giao diện Odoo đẹp đúng chuẩn", "đúng design-system Odoo", "design a clean portal page" | `odoo-frontend-design` | Knowledge-only DESIGN-QUALITY expertise for Odoo UI/UX (view-type choice, form hierarchy, semantic tokens, website/portal) - loaded by solution-design/odoo-coding and the bar ui-review rates against (vs `odoo-coding` which WRITES the JS/OWL/SCSS, vs `odoo-ui-review` which RATES a rendered screen in a browser) |
 | 44 | "viết tài liệu module", "cập nhật tài liệu có ảnh chụp màn hình", "làm static/description cho module", "minh hoạ tài liệu module bằng screenshot", "write module docs with screenshots", "document this module", "screenshot-illustrated module guide", "static description with screenshots" | `odoo-doc-illustration` | Produces STATIC screenshot-illustrated module docs (vs `odoo-demo-recording` which records a REAL VIDEO/GIF of a live flow; vs `odoo-content-draft` which drafts TEXT-only copy with no screenshots; vs `odoo-ui-review` which RATES a screen for quality/accessibility, not creates docs; vs `odoo-visual-regression` which DIFFS two builds for drift) |
+| 45 | "rebase onto", "rebase branch onto another branch same version", "absorb my branch onto an updated base", "rebase feature onto X", "rebase intent", VI: "rebase nhánh lên nhánh khác cùng phiên bản", "đưa nhánh feature lên base mới", "gộp ý đồ khi rebase nhánh" | `odoo-git-rebase` | SAME Odoo series; whole-range `rebase --onto` absorbing intent (vs `odoo-forward-port` = CROSS major; vs `wave` = cherry-pick+squash N disjoint WIs; vs `odoo-coding` = one change, nothing to replay) |
+| 46 | "upgrade my module(s) to v<N>", "migrate custom module from v16 to v17", "upgrade this cluster across majors", "make this module installable on the new Odoo version", VI: "nâng cấp module lên phiên bản Odoo mới", "chuyển module custom từ v16 lên v17", "đưa cluster lên series cao hơn" | `odoo-modules-upgrade` | EXECUTE a cross-major cluster upgrade (CODE-LEVEL: installable+working; DELETE core-absorbed modules) (vs `/odoo-plan-upgrade` = PLAN only; vs `odoo-forward-port` = ONE commit same major; vs `odoo-deprecation-audit`/`odoo-version-diff` = detection only) |
 
 ## Full-stack tasks - `odoo-coding` handles both stacks in one skill
 
@@ -343,6 +350,8 @@ The Routing Table's **Discriminator** column resolves most ties inline. **When t
 | 8 | `odoo-feature-check` vs `odoo-gap-analysis` vs `odoo-brl` | 1 feature → feature-check; short list → gap-analysis; hundreds OR cost/DAG/RTM → brl |
 | 9 | `wave` vs `odoo-brl` vs `odoo-coding` | parallelize+PR+squash → wave; classify/cost reqs → brl; single change → coding |
 | 10 | `odoo-doc-illustration` vs `odoo-demo-recording` | static doc/screenshots → doc-illustration; recorded video/GIF → demo-recording |
+| 11 | `odoo-git-rebase` vs `odoo-forward-port` vs `wave` | same series + one branch's whole range = git-rebase; cross-major single commit = forward-port; N disjoint WIs squashed = wave |
+| 12 | `odoo-modules-upgrade` vs `odoo-forward-port` / `/odoo-plan-upgrade` / `odoo-deprecation-audit` / `odoo-version-diff` | execute + working code/PR for a cluster across majors = modules-upgrade; plan only = plan-upgrade; one commit same major = forward-port; detection only = deprecation-audit/version-diff |
 
 ## Command-vs-skill discriminator
 

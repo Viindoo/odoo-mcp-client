@@ -22,6 +22,7 @@
 | `odoo-demo-recording` | leaf | none | - | - |
 | `odoo-deploy-checklist` | leaf | none | yes | - |
 | `odoo-deprecation-audit` | leaf | backend | - | - |
+| `odoo-diff-comparator` | leaf | none | - | - |
 | `odoo-discovery-summary` | leaf | none | - | - |
 | `odoo-doc-illustration` | spawner-agent | frontend | - | odoo-doc-illustrator |
 | `odoo-feature-check` | leaf | none | - | - |
@@ -29,9 +30,11 @@
 | `odoo-forward-port` | spawner-agent | fullstack | yes | odoo-intent-extractor (read-only per-commit; model per complexity), odoo-installable-prober (read-only per-module installable-state probe in P2; model per complexity / sonnet), odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees) |
 | `odoo-frontend-design` | leaf | frontend | - | - |
 | `odoo-gap-analysis` | leaf | none | - | - |
+| `odoo-git-rebase` | spawner-agent | fullstack | yes | intake subagent (sonnet: NL -> structured refs/base, PR-resolve, worktree-not-switch), Explore (read-only range enumerate + diff read), odoo-intent-extractor (rebase MODE, per-commit, base-head grounding), odoo-diff-comparator (cluster behavior comparison + range-diff/dup-guard verify), odoo-coder / odoo-frontend-coder (conflict resolution + adapt, per-commit work-tier worktrees), odoo-test-writing (mode adapt, RED-first), odoo-instance-ops (CONDITIONAL: only when range touches DB-stateful behavior), the plugin's review capability (delegated PR review before merge) |
 | `odoo-i18n` | spawner-agent | backend | yes | odoo-translator |
 | `odoo-instance` | spawner-agent | backend | yes | odoo-instance-ops |
 | `odoo-intake` | spawner-agent | none | - | (Phase R: ≤2 read-only recon agents - Explore or specialist in read-only mode; no writes, no further spawn) |
+| `odoo-modules-upgrade` | spawner-agent | fullstack | yes | intake subagent (sonnet: branch->series->profile, installable:False candidate detection, scope clarify), Explore (dependency-graph build + diff read), odoo-deprecation-audit + odoo-version-diff (P1 recon, NL/Skill dispatch), odoo-diff-comparator (per-module core-absorption comparison), odoo-gap-analysis (core-feature coverage), odoo-solution-architect (conditional hard-call design), odoo-coder / odoo-frontend-coder (P4 adapt, dep order, per-module worktrees), odoo-instance-ops (P5 install/test) + odoo-backend-debugger / odoo-ui-debugger (failure diagnose), the plugin's review capability (delegated P7 dep-order PR review) |
 | `odoo-objection-handling` | leaf | none | - | - |
 | `odoo-onboarding` | leaf | none | - | - |
 | `odoo-override-finding` | leaf | backend | - | - |

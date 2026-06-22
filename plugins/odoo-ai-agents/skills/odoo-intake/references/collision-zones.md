@@ -164,3 +164,53 @@ When the user says "demo" with no further qualifier, ask: "static screenshot doc
 
 **Tie-breaker rule**: deliverable is a DOCUMENT (text + still images) -> `odoo-doc-illustration`;
 deliverable is a PLAYABLE RECORDING (mp4/GIF) -> `odoo-demo-recording`.
+
+## Collision 11 - Rebase vs Forward-Port vs Wave
+
+**Prompt**: "I need to rebase my feature branch onto the updated 17.0 base - there are about 12
+commits to replay and a few conflicts to resolve."
+
+- `odoo-git-rebase`: handles "rebase branch onto another branch SAME series" -> whole-range
+  `git rebase --onto <newbase> <upstream> <branch>` that replays a commit range and resolves
+  conflicts in-flight; SAME Odoo major throughout.
+- `odoo-forward-port`: handles "port a commit/PR to a HIGHER major version" -> single-commit
+  cherry-pick + adapt across a version boundary (e.g. 16.0 -> 17.0).
+- `wave`: handles "parallelize N disjoint work items into one squashed PR" -> cherry-pick + squash
+  N independent changes that do NOT share a continuous range; git coordination for multi-item
+  landing, not replaying one branch's history.
+
+**Discriminator**: same Odoo series + one branch's whole commit range to replay ->
+**Pick `odoo-git-rebase`**. Cross-major single commit/PR to port -> `odoo-forward-port`. Many
+disjoint changes to land together -> `wave`.
+
+If the user said "rebase my 17.0-custom onto origin/17.0" -> `odoo-git-rebase` (same series,
+whole range).
+If the user said "port this 16.0 fix to 17.0" -> `odoo-forward-port` (cross-major, single commit).
+If the user said "land the bugfix, the new field, and the docs update as one reviewed PR" ->
+`wave` (disjoint WIs, no range replay).
+
+## Collision 12 - Modules-Upgrade vs Forward-Port vs Plan-Upgrade vs Deprecation-Audit vs Version-Diff
+
+**Prompt**: "nâng cấp cluster sale_custom + sale_discount từ Odoo 16 lên 17 - cần code chạy được
+và xoá module nào core đã hấp thụ."
+
+- `odoo-modules-upgrade`: EXECUTE a cross-major cluster upgrade at CODE level - adapts source so
+  modules are installable and working on the target series, deletes core-absorbed modules, produces
+  a mergeable PR.
+- `odoo-plan-upgrade`: produces a PLAN / risk dashboard only - no code written, no files changed;
+  for decision-makers who want scope and risk before committing to the upgrade.
+- `odoo-forward-port`: moves ONE commit from one major to the next - not a full module adaptation,
+  not a cluster upgrade.
+- `odoo-deprecation-audit`: scans for deprecated-symbol usage only - detection report, no fixes.
+- `odoo-version-diff`: reports API delta between two versions - what changed, added, removed - no
+  code changes, no upgrade execution.
+
+**Discriminator**: "execute + produce working code / PR" for a cluster across majors ->
+**Pick `odoo-modules-upgrade`**. "just give me a plan / risk overview, no code" ->
+`odoo-plan-upgrade`. "move one commit to the next major" -> `odoo-forward-port`. "scan for
+deprecated symbols only" -> `odoo-deprecation-audit`. "show me what the API changed between
+versions" -> `odoo-version-diff`.
+
+If the user said "tell me what risks I face upgrading to v17 but don't touch the code yet" ->
+`odoo-plan-upgrade` (plan only).
+If the user said "make our modules actually run on v17" -> `odoo-modules-upgrade` (execute).

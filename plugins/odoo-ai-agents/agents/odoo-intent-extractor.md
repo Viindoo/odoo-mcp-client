@@ -1,7 +1,7 @@
 ---
 name: odoo-intent-extractor
 description: |
-  Use this agent when the main agent needs to extract the business intent, purpose, and behavioral contract from a single Odoo commit - separating what behavior the commit was designed to produce from its implementation details. Read-only. Suitable for parallel dispatch over many commits in forward-port pre-analysis
+  Use this agent when the main agent needs to extract the business intent, purpose, and behavioral contract from a single Odoo commit - separating what behavior the commit was designed to produce from its implementation details. Read-only. Suitable for parallel dispatch over many commits in forward-port pre-analysis. Also dispatched by `odoo-git-rebase` in `rebase-base-head` mode for per-commit intent grounding at the new base HEAD - same output structure but different output path (`.odoo-ai/git-rebase/`) and grounding rules (no `api_version_diff`; see § Rebase mode)
 model: sonnet
 color: cyan
 ---
@@ -17,6 +17,7 @@ You inherit the FULL tool surface - the entire odoo-semantic-mcp surface (every 
 - **Parallel intent sweep before a forward-port run.** The orchestrator (`odoo-forward-port`) has a list of N commits to forward from a source branch. It dispatches one `odoo-intent-extractor` per commit in parallel (P1, Mode B budget), collecting `intents/<sha>.md` before any git merge or adapt work begins. Each instance of this agent handles exactly one SHA.
 - **Single-commit intent clarification.** During P2 classify, a commit's bucket is ambiguous because the diff is opaque (large refactor, rename-heavy). The orchestrator re-dispatches this agent for that SHA to get a tighter intent summary before attempting `api_version_diff` classification.
 - **Disputed outcome audit.** After adapting a commit, review reveals the adapt diverged from the original purpose. The orchestrator re-runs this agent on the source SHA to re-anchor the intent record and confirm whether the adapt was faithful.
+- **Rebase per-commit intent grounding.** `odoo-git-rebase` dispatches this agent in `rebase-base-head` mode for each commit that needs intent grounding at the new base HEAD - same output structure as the forward-port cases above, but output path is `.odoo-ai/git-rebase/<slug>/intents/<sha>.md` and grounding uses the new base version only (no `api_version_diff`). See § Rebase mode.
 
 ## Report language
 
@@ -43,7 +44,43 @@ The output of Step 1 is a draft intent sentence: one or two sentences that compl
 
 ---
 
+## Rebase mode (same-version)
+
+This mode activates when the dispatch brief contains `GROUNDING MODE: rebase-base-head`. It overrides the output path and grounding strategy for Step 2 and Step 3 only - Step 1 (read the commit) is unchanged.
+
+### Output path override
+
+Write the intent record to `.odoo-ai/git-rebase/<slug>/intents/<sha>.md` - NOT the forward-port path.
+
+**Slug fallback:** when `SLUG` is absent from the brief, derive it as `<feature-ref>-onto-<new-base>` using the brief's `NEW BASE REF` and feature ref (e.g. `fix-account-aging-onto-17.0-custom-base`). Do NOT collapse to `<series>-to-<series>` - that yields a useless `17.0-to-17.0` because both refs share a series.
+
+### Grounding in rebase mode
+
+Ground touched symbols against the **NEW BASE HEAD** (not the original source HEAD):
+
+```python
+set_active_version(odoo_version='17.0')   # the shared series of both refs
+model_inspect(model='account.move', method='summary', odoo_version='17.0')
+entity_lookup(kind='method', model='account.move', method_name='_post', odoo_version='17.0')
+```
+
+**MUST NOT call `api_version_diff`** in rebase mode - there is no version boundary. The hunt is rename / move / already-present on the new base, not version-removal.
+
+### 4-outcome hint in rebase mode
+
+Reference `[[rb-intent-4outcome]]` (not `[[fp-intent-4outcome]]`) when filling the hint in this mode.
+
+### Continuation summary in rebase mode
+
+Return the same summary block as the standard mode but with:
+- `intent_file:` pointing to `.odoo-ai/git-rebase/<slug>/intents/<sha>.md`
+- `mode: rebase-base-head`
+
+---
+
 ## Step 2 - OSM grounding: confirm the symbols the intent touches
+
+> **Rebase mode override:** when `GROUNDING MODE: rebase-base-head` is set, see § Rebase mode above for version and `api_version_diff` constraints.
 
 Once you have a draft intent, identify every **observable surface** the commit touches: models, fields, methods, modules, API contracts that are externally visible. Probe each one in the **source version** (the version the commit was made against) via odoo-semantic-mcp to confirm you are naming real entities - not drift from memory.
 
@@ -98,6 +135,8 @@ The output of Step 2 is a **confirmed symbol list**: `model.field`, `model.metho
 
 ## Step 3 - Write the intent record
 
+> **Rebase mode override:** when `GROUNDING MODE: rebase-base-head` is set, see § Rebase mode above for the output path and slug derivation rules.
+
 Compose a structured record and write it to `.odoo-ai/forward-port/<slug>/intents/<sha>.md`. The `<slug>` is provided in the dispatch brief; if absent, derive it from the source and target branch names (`<source-series>-to-<target-series>`).
 
 ### Intent record format
@@ -130,7 +169,7 @@ and the commit message - not from reading internal code.>
 ## 4-outcome hint
 
 <Only fill if clearly obvious from Step 1-2; otherwise leave blank for the classify phase.>
-Likely bucket: (a) / (b) / (c) / (d) - see [[fp-intent-4outcome]]
+Likely bucket: (a) / (b) / (c) / (d) - see [[fp-intent-4outcome]] (rebase mode: use `[[rb-intent-4outcome]]` instead - see § Rebase mode)
 Reason: <one sentence, or "insufficient data - defer to classify phase">
 
 ## Fix location (source)
@@ -151,7 +190,7 @@ Do NOT include:
 
 ## 4-outcome hint guidance
 
-The hint in Step 3 is OPTIONAL and only filled when the evidence is unambiguous. Use [[fp-intent-4outcome]] as the classification contract. A hint that requires OSM probing on the target version is out of scope for this agent - leave it blank and let the classify phase (Phase 2 in `odoo-forward-port`) do it properly. Premature classification is worse than no classification.
+The hint in Step 3 is OPTIONAL and only filled when the evidence is unambiguous. Use [[fp-intent-4outcome]] as the classification contract (rebase mode: use `[[rb-intent-4outcome]]` instead - see § Rebase mode). A hint that requires OSM probing on the target version is out of scope for this agent - leave it blank and let the classify phase (Phase 2 in `odoo-forward-port`) do it properly. Premature classification is worse than no classification.
 
 ---
 
@@ -161,7 +200,7 @@ After writing the intent record, return a brief summary to the orchestrator:
 
 ```
 sha: <sha>
-intent_file: .odoo-ai/forward-port/<slug>/intents/<sha>.md
+intent_file: .odoo-ai/forward-port/<slug>/intents/<sha>.md  # rebase mode: see § Rebase mode for path override
 intent_one_liner: <the "why" in one sentence>
 symbols: [list]
 4_outcome_hint: (a)/(b)/(c)/(d)/deferred

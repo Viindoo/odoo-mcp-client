@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **45 skills + 13 agents + 9 commands**, grouped into **9 persona
+> The Odoo AI workforce toolkit: **47 skills + 14 agents + 9 commands**, grouped into **9 persona
 > buckets**, plus **12 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, instance provisioning, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
@@ -44,7 +44,7 @@ code carry-over), merge-keep-SHA strategy, symbol-survival checking, pre-adapt d
 adaptive test forwarding, and verify-by-behavior per batch. It runs alongside coding, code
 review, and upgrade planning as a core engineering capability.
 
-> **Counts at a glance:** this plugin ships **45 skills + 13 agents + 9 commands**, grouped into
+> **Counts at a glance:** this plugin ships **47 skills + 14 agents + 9 commands**, grouped into
 > **9 persona buckets** for navigation, plus **12 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
@@ -54,7 +54,7 @@ review, and upgrade planning as a core engineering capability.
 | Persona | Key skills |
 |---------|-----------|
 | Onboarding / Concierge | `odoo-intake` - `odoo-onboarding` |
-| Engineer | override-finding - deprecation-audit - forward-port / version-diff |
+| Engineer | override-finding - deprecation-audit - forward-port / version-diff - git-rebase - modules-upgrade |
 | Coder | odoo-coding - odoo-debug - solution-design |
 | Code-Reviewer | odoo-code-review |
 | Visual / UI QA | ui-review - visual-regression - demo-recording - doc-illustration |
@@ -341,6 +341,137 @@ flowchart TD
 | P10 Gate merge | STOP then commit + checkpoint; loop to P5 for next commit | - | STOP - human confirm |
 | P11 PR + code-review | Open PR; mandatory code-review for new engines | - | - |
 
+### Git-rebase pipeline (`/odoo-git-rebase`)
+
+A 13-phase orchestration (P0-P12, with P8b and P9b sub-phases) that replays commits across Odoo
+series using intent-aware conflict resolution, scale-conditional design before Plan Mode, an
+in-pipeline code-review-and-fix loop after adapt, and a final pre-merge PR review. Two human
+STOP-gates bound the automation; a third automated review gate (P9b) catches defects before verify.
+
+```mermaid
+flowchart TD
+    START(["/odoo-git-rebase"])
+    START --> P0["P0 - Intake / resolve<br/>(sonnet; clarify gate if open_questions)"]
+    P0 --> P1["P1 - Recon<br/>(enumerate range, patch-id pre-filter,<br/>EXTRACT-tier triage)"]
+
+    subgraph P2_grp["P2 - Intent extract (parallel, read-only)"]
+        P1 --> IE1["odoo-intent-extractor<br/>commit A (rebase MODE)"]
+        P1 --> IE2["odoo-intent-extractor<br/>commit B...N"]
+    end
+
+    IE1 --> P3["P3 - Cluster behavior comparison<br/>(opus; 4-outcome a/b/c/d + failure mode)"]
+    IE2 --> P3
+    P3 --> P4["P4 - Classify (record only)<br/>(assign one outcome a/b/c/d per commit)"]
+
+    P4 -->|"(c) do-now non-trivial,<br/>OR (b) field/sig/override-point change,<br/>OR (b) > 3 files / >= 2 modules,<br/>OR full-stack"| P5["P5 - Design (route-out to<br/>odoo-solution-design; returns)"]
+    P5 --> P6_gate
+    P4 -->|"(a)/(d), OR trivial single-symbol (b)"| P6_gate["P6 - Plan Mode gate<br/>(EnterPlanMode / ExitPlanMode;<br/>decides adapt strategy BEFORE rebase)"]
+    P6_gate -->|"STOP - human approve"| P7["P7 - Create integration worktree<br/>+ git rebase --onto (rebase starts)"]
+
+    subgraph P8_grp["P8 - Conflict-resolution loop (per stopped commit)"]
+        P7 --> CR1["Explore reads conflict + intent"]
+        CR1 --> CR2["odoo-coder / odoo-frontend-coder<br/>resolve hunks to INTENT (ADAPT tier)"]
+        CR2 --> CR3["git rebase --continue / --skip"]
+        CR3 -.->|"more stopped commits"| CR1
+    end
+
+    CR3 --> P8b["P8b - Symbol-survival + collection gate<br/>(MUST; autosilent symbol-break catch)"]
+    P8b --> P9["P9 - Test forward<br/>(adapt branch tests RED then GREEN)"]
+
+    subgraph P9b_grp["P9b - In-pipeline code-review loop (fix-until-clean)"]
+        P9 --> RV["odoo-code-review -> odoo-code-reviewer<br/>(scoped to adapt diff)"]
+        RV -->|"CRITICAL/HIGH findings<br/>(cap 3, else escalate BLOCKED)"| FX["odoo-coding<br/>(fix to root cause)"]
+        FX --> RV
+    end
+
+    RV -->|"clean: no CRITICAL/HIGH"| P10["P10 - Verify<br/>(range-diff + dup-guard + conditional instance)"]
+    P10 -->|"STOP - human confirm"| P11["P11 - Gate (human-confirm)"]
+    P11 --> P12["P12 - PR + FINAL review (human merge; never squash)"]
+    P12 --> DONE(["Done - .odoo-ai/git-rebase/"])
+```
+
+Two review points are visible: the **P9b in-pipeline code-review loop** (fix-until-clean, right
+after the adapt, before verify) AND the **P12 final PR review** (pre-merge). This is intentionally
+more rigorous than forward-port (PR review only).
+
+| Phase | Description | Parallel? | Human gate? |
+|-------|-------------|-----------|-------------|
+| P0 Intake / resolve | Clarify gate if open questions; read-only | - | - |
+| P1 Recon | Enumerate range; patch-id pre-filter; EXTRACT-tier triage | - | - |
+| P2 Intent extract | Dispatch odoo-intent-extractor per commit in rebase MODE | Yes (N commits) | - |
+| P3 Cluster behavior comparison | Opus; 4-outcome a/b/c/d + failure mode per commit | - | - |
+| P4 Classify | Assign one outcome a/b/c/d per commit (record only) | Serial per commit | - |
+| P5 Design | CONDITIONAL: route-out to odoo-solution-design when non-trivial (see design-trigger table); returns | Serial per commit | - |
+| P6 Plan Mode gate | EnterPlanMode / ExitPlanMode; decides adapt strategy BEFORE rebase starts | - | STOP - human approve |
+| P7 Create integration worktree + rebase | Create worktree; git rebase --onto (rebase starts here) | - | - |
+| P8 Conflict-resolution loop | Per stopped commit: explore conflict + intent; odoo-coder / odoo-frontend-coder resolve hunks to INTENT; git rebase --continue / --skip | Serial per commit | - |
+| P8b Symbol-survival + collection gate | MUST run; autosilent symbol-break catch before test forward | - | - |
+| P9 Test forward | Adapt branch tests RED then GREEN | - | - |
+| P9b Code-review loop | In-pipeline: odoo-code-review -> odoo-code-reviewer scoped to adapt diff; fix via odoo-coding on CRITICAL/HIGH; cap 3 iterations; automated fix-until-clean | - | - |
+| P10 Verify | Range-diff + dup-guard + conditional instance | - | STOP - human confirm |
+| P11 Gate | Human-confirm gate | - | STOP - human confirm |
+| P12 PR + FINAL review | Open PR; mandatory final code-review before human merge; never squash | - | - |
+
+### Modules-upgrade pipeline (`/odoo-modules-upgrade`)
+
+A 8-phase orchestration (P0-P7, with P2b and P4b sub-phases) that upgrades custom Odoo modules
+across a major version jump using dependency-ordered absorption, scale-conditional design before
+Plan Mode, an in-pipeline per-module code-review-and-fix loop after adapt, and a final pre-merge
+dep-order PR review. Two human STOP-gates bound the automation; a third automated review gate
+(P4b) catches defects before the install/test wave.
+
+```mermaid
+flowchart TD
+    START(["/odoo-modules-upgrade"])
+    START --> P0["P0 - Intake / resolve<br/>(sonnet; clarify scope if open_questions)"]
+
+    subgraph P1_grp["P1 - Recon (parallel)"]
+        P0 --> R1["Explore: dependency DAG<br/>(topo-sort, leaves first)"]
+        P0 --> R2["odoo-deprecation-audit"]
+        P0 --> R3["odoo-version-diff"]
+    end
+
+    subgraph P2_grp["P2 - Core-absorption comparison (per module, dep order)"]
+        R1 --> CMP["odoo-diff-comparator + odoo-gap-analysis<br/>verdict: DELETE / KEEP / REWRITE(api) /<br/>REWRITE(model) / MERGE / SPLIT / OBSOLETE"]
+    end
+    R2 --> CMP
+    R3 --> CMP
+
+    CMP -->|"MERGE / SPLIT / REWRITE(model field-type) /<br/>DELETE-with-risk, OR REWRITE(api)/KEEP that<br/>changes public surface / > 5 call sites / >= 2 modules"| P2b["P2b - Hard-call design<br/>(route-out to odoo-solution-design; returns)"]
+    P2b --> P3_gate
+    CMP -->|"DELETE-no-risk / OBSOLETE, OR trivial<br/>REWRITE(api)/KEEP (<= 5 call sites, 1 module)"| P3_gate["P3 - Plan Mode gate<br/>(EnterPlanMode / ExitPlanMode;<br/>per-DELETE confirms)"]
+    P3_gate -->|"STOP - human approve + per-DELETE confirm"| P4["P4 - Adapt (per module, dep order,<br/>child worktrees: odoo-coding)"]
+
+    subgraph P4b_grp["P4b - In-pipeline code-review loop (per module, dep order, fix-until-clean)"]
+        P4 --> RV["odoo-code-review -> odoo-code-reviewer<br/>(scoped to each module's adapt diff)"]
+        RV -->|"CRITICAL/HIGH findings<br/>(cap 3, else escalate BLOCKED)"| FX["odoo-coding<br/>(fix to root cause)"]
+        FX --> RV
+    end
+
+    RV -->|"clean: no CRITICAL/HIGH (all modules)"| P5["P5 - Install + test gate<br/>(ephemeral instance, wave-by-wave green)"]
+    P5 -->|"red wave -> debugger -> back to P4"| P4
+    P5 -->|"all waves green"| P6["P6 - Gate (STOP, human sign-off)"]
+    P6 -->|"STOP - human confirm"| P7["P7 - PR + FINAL dep-order review (human merge; never squash)"]
+    P7 --> DONE(["Done - .odoo-ai/modules-upgrade/"])
+```
+
+Two review points are visible: the **P4b in-pipeline code-review loop** (per module, dep order,
+fix-until-clean, right after the adapt, before the install/test gate) AND the **P7 final dep-order
+PR review** (pre-merge). This is intentionally more rigorous than forward-port (PR review only).
+
+| Phase | Description | Parallel? | Human gate? |
+|-------|-------------|-----------|-------------|
+| P0 Intake / resolve | Clarify scope if open questions; read-only | - | - |
+| P1 Recon | Parallel: dependency DAG (topo-sort); odoo-deprecation-audit; odoo-version-diff | Yes (3 lanes) | - |
+| P2 Core-absorption comparison | odoo-diff-comparator + odoo-gap-analysis per module in dep order; emits verdict per module | Serial per module | - |
+| P2b Hard-call design | CONDITIONAL: route-out to odoo-solution-design for MERGE / SPLIT / REWRITE(model field-type) / DELETE-with-risk and for REWRITE(api)/KEEP meeting the non-trivial criterion; returns | Serial per module | - |
+| P3 Plan Mode gate | EnterPlanMode / ExitPlanMode; per-DELETE confirmation before any file deletion | - | STOP - human approve |
+| P4 Adapt | Per module in dep order; child worktrees; odoo-coding | Serial per module | - |
+| P4b Code-review loop | In-pipeline per module dep order: odoo-code-review -> odoo-code-reviewer scoped to each module's adapt diff; fix via odoo-coding on CRITICAL/HIGH; cap 3 iterations per module; automated fix-until-clean | Serial per module | - |
+| P5 Install + test gate | Ephemeral instance; wave-by-wave green; red wave loops back to P4 via debugger | Per wave | - |
+| P6 Gate | Human sign-off after all waves green | - | STOP - human confirm |
+| P7 PR + FINAL dep-order review | Open PR; mandatory final dep-order code-review before human merge; never squash | - | - |
+
 ### Available commands
 
 > `/odoo-semantic-mcp:connect` ships in the `odoo-semantic-mcp` plugin and is not counted among the 9 commands of this plugin.
@@ -447,7 +578,7 @@ Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression
 
 ### Frequently asked questions
 
-**I only need one skill - do I have to know all 45?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `odoo-intake` acts as a brainstorm partner when you are not sure which skill to use.
+**I only need one skill - do I have to know all 47?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `odoo-intake` acts as a brainstorm partner when you are not sure which skill to use.
 
 **What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by reading your local codebase and `.odoo-ai/context.md` directly (Read/Grep/WebFetch, three-tier grounding) instead of asking you to paste data; if a browser is genuinely unreachable a visual skill returns BLOCKED rather than requesting screenshots. The plugin does not break when OSM is offline.
 
@@ -534,7 +665,7 @@ There are two distinct loading mechanisms for shared context:
 | `snippets/worklog-contract.md` | Append-only cross-agent decision journal (`.odoo-ai/worklog/<run>/<NNN>-<agent>.md`) read at start, appended at end, so a later phase can look up why an earlier one decided what it did |
 | `skills/_shared/odoo-module-graph.md` | The Odoo module DAG (from each `__manifest__.py` `depends`), shared by `odoo-coding` and `wave` so both dispatch in dependency order and respect module boundaries |
 
-### Skills (45)
+### Skills (47)
 
 Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 
@@ -552,6 +683,8 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-data-migration` | Engineer | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
 | `odoo-i18n` | Engineer / Coder | Dedicated i18n cluster - export .pot templates, non-destructively merge into maintained .po translations, dispatch leaf translation for one or more target languages in a single run (default vi_VN; reads machine-global `~/.odoo-ai/i18n.json`), and audit cross-module term consistency; the i18n step forward-port and new-module workflows dispatch into |
 | `odoo-perf-audit` | Engineer | Audit for N+1 queries, missing prefetch, unindexed domains, compute thrash, with fixes |
+| `odoo-git-rebase` | Engineer | Rebase a feature branch onto another branch of the SAME Odoo series, absorbing intent (not code text) via whole-range `git rebase --onto`. |
+| `odoo-modules-upgrade` | Engineer | Upgrade a custom module cluster from a lower Odoo major to a higher one (code-level): drop what core now provides, adapt the rest, 1 PR per cluster. |
 | `odoo-solution-design` | Architect / Coder | Design the technical solution (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding - the analysis-and-design step between requirement scoping and code (slim, paired with agent bundle) |
 | `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, assigns a deterministic model tier per module (haiku/sonnet/opus/fable, sonnet default), and dispatches the `odoo-coder` + `odoo-frontend-coder` agents as subagents in model-weighted batches (per-module backend->frontend, model-weighted concurrency budget); orders modules by the shared module DAG, orchestrates red-first test authorship before each non-trivial module's code, and feeds the `code -> review+test -> code` loop (slim, paired with agent bundle) |
 | `odoo-frontend-design` | Architect / Coder / Visual | Knowledge-only design-quality expertise for Odoo UI/UX (view-type choice, form hierarchy, density, semantic tokens, website/portal theming); loaded by `odoo-solution-design` and `odoo-coding`, and the bar `odoo-ui-review` rates against (no agent spawn) |
@@ -585,7 +718,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `run-driver` | Internal (harness) | Orchestrating drive-to-done loop - walks the `run-<id>.json` plan, dispatches each work-item, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent |
 | `wave` | Internal (orchestration) | Git-wave orchestration (orchestrating context) - integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge; computes the Odoo module DAG at Phase 0 to auto-infer work-item `depends_on` and warn on module-boundary-crossing WIs; self-spawning, principal-branch-locked |
 
-### Agents (13)
+### Agents (14)
 
 | Agent | Model (default) | Role |
 |-------|-----------------|------|
@@ -602,6 +735,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-translator` | Sonnet | Leaf translation worker dispatched by `odoo-i18n` (Phase 3) - translates one module (or module-cluster) for one language by polib merge (forwards translation MEMORY, never regenerates), hand-translates only the new/changed residual, and self-validates with an Odoo `-u` reload; never destroys existing human translation |
 | `odoo-instance-ops` | Sonnet | Instance lifecycle specialist dispatched by the `odoo-instance` skill - provisions, drives, and tears down Odoo instances for any series (v8+); learns each version's CLI at runtime via OSM `cli_help`; prefers creating and dropping databases through Odoo (`odoo_db.py` / `odoo-bin db drop`) over raw `createdb`/`dropdb`; returns structured metadata (db name, log path, ports, lease token) so callers keep clean context |
 | `odoo-doc-illustrator` | Sonnet | Browser-driven visual documentation specialist dispatched by `odoo-doc-illustration` - navigates live Odoo, captures screenshots, writes illustrated module docs (`static/description/` or cluster docs dir); multi-locale; reads `doc_image_naming`/`doc_languages`/`doc_static_dir` from context.md |
+| `odoo-diff-comparator` | Sonnet | Read-only: reads a git-diff range and emits a structured business-intent / expected-outcome / acceptance-criteria comparison (rebase: branch vs base; upgrade: custom vs core). |
 
 ## Requirements
 

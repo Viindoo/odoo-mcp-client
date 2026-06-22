@@ -30,7 +30,7 @@ Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual
 
 ### Plugin install (recommended)
 
-For Claude Code users, the plugin is the fastest path: it bundles the MCP server config, all 26 persona skills, and the setup command in one install.
+For Claude Code users, the plugin is the fastest path: it bundles the MCP server config, all 47 skills, and the setup command in one install.
 
 #### 1. Add the marketplace (one-time)
 
@@ -80,9 +80,9 @@ Expected: tree output with module names, `Defined in:`, field counts.
 
 #### Available persona skills
 
-After install, 43 skills activate automatically:
+After install, 47 skills activate automatically:
 
-> Persona labels are the navigation buckets defined in the [README skill table](../../../README.md#skills-26) - the single source of truth for the skill-to-persona mapping. The five role guides in [`personas/`](personas/) (Manager/CEO, Developer, Consultant, Marketer, Sales) group these buckets. This table is a curated subset; all 43 skills auto-activate on install.
+> Persona labels are the navigation buckets defined in the [README skill table](../../../README.md#skills-47) - the single source of truth for the skill-to-persona mapping. The five role guides in [`personas/`](personas/) (Manager/CEO, Developer, Consultant, Marketer, Sales) group these buckets. This table is a curated subset; all 47 skills auto-activate on install.
 
 | Skill | Persona | What it does |
 |-------|---------|-------------|
