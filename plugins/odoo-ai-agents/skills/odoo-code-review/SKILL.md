@@ -6,13 +6,11 @@ description: >
   to the odoo-code-reviewer agent. Fire whenever code is shared with feedback intent, even
   without the word "review". Trigger on: "does this look correct?", "audit this PR",
   "should I worry about N+1?", "before I merge", "review PR #123", "review this pull request".
-  Also fires on Vietnamese requests: "review giúp đoạn này", "kiểm tra code Odoo",
-  "code này có bug không", "có bị N+1 không", "soát trước khi merge", "đánh giá PR",
-  "review PR này". Trigger especially on model overrides, write/create overrides, computed
-  fields, OWL components, or XML view overrides - Odoo-specific failure modes a generic
-  reviewer misses. A false positive is cheap; a missed CRITICAL bug in production is expensive.
-  Static analysis only - live render errors → odoo-debug. Write new code → odoo-coding.
-  Pre-upgrade audit → odoo-deprecation-audit. Override safety → odoo-override-finding
+  Also fires on Vietnamese: "review giúp đoạn này", "kiểm tra code Odoo", "code này có bug
+  không", "soát trước khi merge", "đánh giá PR". Trigger on model overrides, write/create
+  overrides, computed fields, OWL components, or XML view overrides - Odoo-specific failure
+  modes a generic reviewer misses. Static analysis only - live render errors → odoo-debug.
+  Write new code → odoo-coding. Pre-upgrade audit → odoo-deprecation-audit
 ---
 
 ## Persona
@@ -44,6 +42,8 @@ Main agent invokes the `odoo-code-reviewer` **agent** (as a subagent launch) whe
 | Orchestrator dispatching from a principal tree where work lives in another worktree | `TARGET: worktree:<abs-path>` - REQUIRED; if omitted, scoper diffs principal cwd (empty diff → BLOCKED) |
 | Pasted code block or single file_path with no git context | skip scoper - see pasted-block path above |
 
+For a sibling git worktree (e.g. the wave/forward-port integration tree), the orchestrator passes its WORKTREE_PATH as `TARGET: worktree:<abs-path>` so review runs there, not cwd.
+
 ## Phase 0 - Scope the review (git targets only)
 
 Dispatch agent `odoo-review-scoper` (sonnet) per the SCOPER I/O CONTRACT (full SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Pass it:
@@ -56,10 +56,10 @@ The scoper writes a compact scope file at `.odoo-ai/reviews/<slug>-<date>/_scope
 
 Scope output fields used by main:
 - `slug` - used to name the review dir
-- `target_type` - `local` | `worktree` | `pr` (as resolved by scoper)
+- `target_kind` - `local` | `worktree` | `pr` (as resolved by scoper)
 - `review_root` - absolute path where reviewers MUST read files (NOT master/cwd unless scoper says so)
 - `modules[]` - `{name, path}` list of changed/added modules
-- `design_doc` - path to `.odoo-ai/designs/...` if any (pass as `DESIGN_DOC:` to reviewers)
+- `design_doc` - path to `.odoo-ai/designs/...` if any (pass as `DESIGN_DOC:` to reviewers; when non-null, TDD verification is MANDATORY - reviewer MUST Read it, verify §1 Intent & §9 Acceptance Criteria, and emit `### TDD Conformance`; skipping TDD verify when design_doc is present is a review defect; omit only when design_doc=null)
 - `coverage_baseline` - `test_coverage_audit` result at module level (from scoper); pass as `COVERAGE_BASELINE:` to reviewers - label this BASELINE throughout to distinguish from per-model edge data
 - `pr` - `{number, title, head, base, repo}` or null
 - `fanout` - `single` | `multi`
@@ -74,7 +74,7 @@ Dispatch ONE `odoo-code-reviewer` agent (sonnet). It writes its report to `.odoo
 
 ### Phase A - Per-module fan-out (parallel sonnet)
 
-Dispatch one `odoo-code-reviewer` agent per module in `modules[]` from the scoper output, all in one batch. The Claude Code harness caps concurrent subagents automatically (~16, or cpu-2) and queues the remainder safely - do NOT set a manual wave-cap. Each agent is scoped to ONLY its module; it reads files at `review_root` (from scoper). Each agent writes `<module>.md` to `.odoo-ai/reviews/<slug>-<date>/` and returns a short summary + path.
+Dispatch one `odoo-code-reviewer` agent per module in `modules[]` from the scoper output, all in one batch. Fan-out is one reviewer per module; concurrency is bounded by the harness automatically - do NOT set a manual wave-cap. For the project-level concurrency policy and any overrides, see the SSOT at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`. Each agent is scoped to ONLY its module; it reads files at `review_root` (from scoper). Each agent writes `<module>.md` to `.odoo-ai/reviews/<slug>-<date>/` and returns a short summary + path.
 
 **Before dispatching the batch**, for each affected model in `modules[]`, call OSM `tests_covering(model='<affected_model>', odoo_version='<version>')`. Collect results. Include the result as `COVERAGE_CHECK:` in each reviewer brief so the agent has the evidence without re-querying. `COVERAGE_CHECK` is model-edge level data from main (distinct from `COVERAGE_BASELINE` which is the module-level `test_coverage_audit` result from the scoper).
 

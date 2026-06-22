@@ -1,7 +1,7 @@
 ---
 name: odoo-review-scoper
 description: |
-  Use this agent when the odoo-code-review skill needs to resolve the review target, map changed files to modules, and produce a compact scope block before dispatching reviewers. Typical triggers include the skill receiving a `TARGET=local` instruction to scope the current branch diff, a `TARGET=worktree:<abs-path>` instruction to scope a specific worktree, and a `TARGET=pr:<number-or-url>` instruction to resolve a GitHub PR to a local branch or isolated worktree and compute its module scope. This agent scopes only - it does NOT review code, does NOT fix anything, and does NOT spawn subagents. See "When to invoke" in the agent body for worked scenarios.
+  Use this agent when the odoo-code-review skill needs to resolve the review target, map changed files to modules, and produce a compact scope block before dispatching reviewers. Typical triggers include the skill receiving a `TARGET=local` instruction to scope the current branch diff, a `TARGET=worktree:<abs-path>` instruction to scope a specific worktree, and a `TARGET=pr:<number-or-url>` instruction to resolve a GitHub PR to a local branch or isolated worktree and compute its module scope. This agent scopes only - it does NOT review code, does NOT fix anything, and does NOT spawn subagents. See "When to invoke" in the agent body for worked scenarios
 model: sonnet
 color: cyan
 ---
@@ -51,14 +51,14 @@ Determine `review_root` (the directory reviewers will read files from) and the r
 git diff --name-only <BASE>...HEAD
 git diff --name-only --diff-filter=A <BASE>...HEAD
 ```
-Set `review_root` = working tree root (output of `git rev-parse --show-toplevel`). Set `target_type = local`.
+Set `review_root` = working tree root (output of `git rev-parse --show-toplevel`). Set `target_kind = local`.
 
 **TARGET=worktree:<abs-path>:**
 ```bash
 git -C <abs-path> diff --name-only <BASE>...HEAD
 git -C <abs-path> diff --name-only --diff-filter=A <BASE>...HEAD
 ```
-Set `review_root = <abs-path>`. Set `target_type = worktree`.
+Set `review_root = <abs-path>`. Set `target_kind = worktree`.
 
 **TARGET=pr:<n-or-url> (PR SMART-REUSE):**
 
@@ -71,7 +71,7 @@ Set `review_root = <abs-path>`. Set `target_type = worktree`.
    - (ii) **Exists but STALE** (SHAs differ): `git fetch origin <headRefName>:<headRefName>` then fast-forward, OR `gh pr checkout <n>` to update; use the updated root as `review_root`.
    - (iii) **Absent**: create an isolated worktree - pick a path like `/tmp/pr-review-<n>`, run `git worktree add /tmp/pr-review-<n>` (no `--detach HEAD`), then inside that worktree run `gh pr checkout <n> --force`; set `review_root = /tmp/pr-review-<n>`.
 5. Compute diff: `gh pr diff <n> --name-only` (yields changed files relative to PR base).
-6. Set `target_type = pr`. Set `pr = {number, title, head: headRefName, base: baseRefName, repo: headRepository.fullName}`.
+6. Set `target_kind = pr`. Set `pr = {number, title, head: headRefName, base: baseRefName, repo: headRepository.fullName}`.
 
 Merge the two diff commands (or PR diff output) into one deduplicated list `changed_files`.
 
@@ -97,10 +97,11 @@ Set `fanout`:
 ## Step 3 - Locate design doc (optional)
 
 Locate the design/acceptance doc for this review:
-- Look for `.odoo-ai/designs/` under `review_root`; if a matching slug or recent file exists, record its path as `design_doc`.
-- If none exists, set `design_doc = null`.
+- Look for `.odoo-ai/designs/` under `review_root`; list all files in that directory, sort by mtime descending, and take the most-recently-modified file as `design_doc`.
+- If the directory does not exist or contains no files, set `design_doc = null`.
+- For PR targets, the design doc is typically a local artifact (gitignored) that may not live inside `review_root` - `design_doc = null` is acceptable.
 
-Note: `.odoo-ai/worklog/` holds implementation intent logs that reviewers read directly. Worklog is NOT part of `design_doc`; do not merge the two concepts.
+Note: `.odoo-ai/worklog/` holds implementation intent logs (worklog records what the author intended). Design docs record acceptance criteria. Worklog is NOT part of `design_doc`; do not merge the two concepts.
 
 ---
 
@@ -121,8 +122,8 @@ Fire these calls in parallel across all modules.
 ## Step 5 - Generate slug and write _scope.md
 
 Generate `slug`:
-- For `target_type=pr`: `pr-<number>`
-- For `target_type=local` or `worktree`: derive from branch name (`git rev-parse --abbrev-ref HEAD`), replace `/` with `-`, truncate to 40 chars.
+- For `target_kind=pr`: `pr-<number>`
+- For `target_kind=local` or `worktree`: derive from branch name (`git rev-parse --abbrev-ref HEAD`), replace `/` with `-`, truncate to 40 chars.
 
 Generate date: `YYYY-MM-DD` format.
 
@@ -139,7 +140,7 @@ Return a compact final message to the orchestrator in this exact structure (SSOT
 ```
 ## Scope: <slug>
 
-- target_type: <local|worktree|pr>
+- target_kind: <local|worktree|pr>
 - review_root: <abs-path> [IMPORTANT: reviewers read files from THIS path, not from master]
 - base_ref: <BASE>
 - slug: <slug>
@@ -151,7 +152,7 @@ Return a compact final message to the orchestrator in this exact structure (SSOT
 | <name> | <path> |
 
 ### PR metadata
-(include only when target_type=pr)
+(include only when target_kind=pr)
 - number: <n>
 - title: <title>
 - head: <headRefName>

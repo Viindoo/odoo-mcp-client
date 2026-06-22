@@ -602,7 +602,8 @@
     "odoo-code-review": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-code-reviewer"
+        "odoo-code-reviewer",
+        "odoo-review-scoper"
       ],
       "stack": "fullstack",
       "instance_touching": false,
@@ -856,6 +857,14 @@
       "default_gate_tier": "L0"
     },
     "odoo-pricing-proposal": {
+      "spawn_class": "leaf",
+      "spawns": [],
+      "stack": "none",
+      "instance_touching": false,
+      "output_mode": "chat-only",
+      "default_gate_tier": "L0"
+    },
+    "odoo-review-scoper": {
       "spawn_class": "leaf",
       "spawns": [],
       "stack": "none",

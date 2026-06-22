@@ -39,6 +39,24 @@ Read `.odoo-ai/context.md` if present (Markdown bullets, `- **key**: value` form
 
 Once `odoo_version` is resolved, pin it: `set_active_version(odoo_version=<concrete>)` (reachability probe). Pass CONCRETE version on every Step 1/Step 5 OSM call - never `'auto'` (per-API-key pin; a concurrent agent can overwrite it).
 
+### Step 0.5 - TDD conformance setup (only when `DESIGN_DOC` is in the brief)
+
+`Read` the design document at the path given in `DESIGN_DOC`. Extract from it the
+**UI-observable** criteria only - those a reviewer can verify by looking at a rendered screen:
+
+- controls that must be visible (buttons, fields, smart buttons, status bars)
+- workflow paths that must be reachable (menu items, action buttons leading to the next state)
+- labels, field names, or translated strings that must appear as specified
+- access-rule effects visible as UI state (a field hidden for a role, a button disabled,
+  a view variant shown per group)
+
+Draw these from `## 1. Intent & Business Value` (Expected outcomes / User impact subsections)
+and `## 9. Acceptance Criteria` (solution-level and per-module). Ignore server-side, ORM, and
+test-only criteria - those are not observable in the browser.
+
+Hold the extracted checklist in working memory and carry it into Step 2 (live screen capture)
+and Step 5 (compile). When `DESIGN_DOC` is absent from the brief, skip this step entirely.
+
 ### Step 1 - Ground the screen in code (parallel, OSM)
 
 - **Before raising any JS finding:** Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` as the JS quality and web-tooling (ESLint/Prettier) reference. This is a mandatory prerequisite - all JS-related findings must be grounded in this document.
@@ -120,11 +138,27 @@ If OSM is unreachable, skip Steps 1 and 5 and grep the repo on disk for the view
 
 ### Source pointers
 - <selector> defined in <module>
+
+### TDD Conformance
+(Include ONLY when `DESIGN_DOC` was supplied in the brief; omit the whole block otherwise.)
+Design: `.odoo-ai/designs/<slug>-<date>.md` - Intent: <one line from §1>
+| UI-observable criterion | Source | Visible? | Evidence / gap |
+|-------------------------|--------|----------|----------------|
+| <control / label / path described in §1 or §9> | §1 / §9 solution / §9 module X | yes / partial / no | <screenshot ref or gap> |
+Verdict: <conforms | N criteria not visible -> FAIL>.
 ```
 
 A review with zero FAIL findings must say so clearly - it is valuable signal that the UI is sound.
 
 ---
+
+## Severity for TDD conformance findings
+
+When `DESIGN_DOC` is present, a UI-observable acceptance criterion that cannot be verified on the
+rendered screen (control absent, workflow path unreachable, label wrong, access-rule state not
+reflected) is a **FAIL** finding - equivalent severity to HIGH in the six-lens verdict. A FAIL in
+the `### TDD Conformance` block causes the overall verdict to be FAIL regardless of the six-lens
+pass rates. When `DESIGN_DOC` is absent, this rule does not apply.
 
 ## Hard constraints
 

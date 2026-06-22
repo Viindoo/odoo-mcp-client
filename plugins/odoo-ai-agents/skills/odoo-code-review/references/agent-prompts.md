@@ -12,7 +12,7 @@ Scope this review per your full I/O contract (${CLAUDE_PLUGIN_ROOT}/agents/odoo-
 Resolve the diff, detect modules (dirs with __manifest__.py), run test_coverage_audit per module,
 detect any design doc, determine fanout (single|multi), and write the compact scope file to
 .odoo-ai/reviews/<slug>-<date>/_scope.md.
-Return the compact scope fields: slug, target_type, review_root, base_ref,
+Return the compact scope fields: slug, target_kind, review_root, base_ref,
 modules[{name,path}], design_doc, coverage_baseline, pr (or null), fanout.
 ```
 
@@ -27,10 +27,11 @@ stays the synthesis job, but flag an obvious cross-module break even in single-m
 Check the change against ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md
 (multi-company/branch, generic-before-localization, app-menu) and flag a behavior change with no
 protecting test.
-Optional: DESIGN_DOC: <path to .odoo-ai/designs/<slug>-<date>.md> (present only when
-odoo-solution-architect ran). If given, Read it and verify the code against its
-"## 1. Intent & Business Value" and "## 9. Acceptance Criteria"; emit the "### TDD Conformance"
-block. If absent, review intent from this brief alone.
+DESIGN_DOC: <path to .odoo-ai/designs/<slug>-<date>.md> (present only when odoo-solution-architect
+ran). When DESIGN_DOC path is provided (non-null): MANDATORY - Read it, verify the code against
+"## 1. Intent & Business Value" and "## 9. Acceptance Criteria", and emit the "### TDD Conformance"
+block. Skipping TDD verify when DESIGN_DOC is present is a review defect. When DESIGN_DOC is absent
+(null/omitted): OMIT the TDD Conformance block and review intent from this brief alone.
 Optional: COVERAGE_BASELINE: <test_coverage_audit result> (from scoper). Attach as context.
 Artifacts dir: .odoo-ai/reviews/<slug>-<date>/ - write your report to <module>.md there.
 Output contract: per odoo-code-reviewer agent SSOT (${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md)
@@ -50,8 +51,10 @@ depends/load-order, ripple to dependents). Read the per-module reports already i
 .odoo-ai/reviews/<slug>-<date>/. Write _synthesis.md there.
 Output contract: per odoo-code-reviewer agent SSOT (${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md)
 - include overall VERDICT (APPROVE/REQUEST_CHANGES) and SCORE 0-100 aggregated across all modules.
-Optional: DESIGN_DOC: <path> - if given, also verify the closure satisfies the design's
-"## 9. Acceptance Criteria" solution-level criteria; emit the "### TDD Conformance" block.
+DESIGN_DOC: <path> - When provided (non-null): MANDATORY - verify the closure satisfies the design's
+"## 9. Acceptance Criteria" solution-level criteria and emit the "### TDD Conformance" block.
+Skipping TDD verify when DESIGN_DOC is present is a review defect. When absent (null/omitted):
+OMIT the TDD Conformance block.
 Optional: COVERAGE_BASELINE: <test_coverage_audit result at module level from scoper> - context only.
 Optional: COVERAGE_CHECK: <tests_covering results at model-edge level from main> - context only.
 Return a summary + path.
