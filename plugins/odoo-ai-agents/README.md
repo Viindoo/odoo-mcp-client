@@ -75,6 +75,8 @@ review, and upgrade planning as a core engineering capability.
 
 ### How it works
 
+Every agent - the main agent and every custom sub-agent - carries a shared universal **Work Ethos** (11 principles: completeness, root-cause, SSOT, and so on) loaded from `ODOO-AI-ETHOS.md` via a managed `@import` in your global `~/.claude/CLAUDE.md`.
+
 Everything runs through the **main agent**, which acts as an **orchestrator + decision-maker
 only** - it routes, decides at gates, and delegates the heavy work to specialists so its own
 context stays clean across a long session. Roles: orchestrating context (main agent) ->
@@ -138,6 +140,8 @@ flowchart TD
     FIX --> I
     I --> Z([Answer or .odoo-ai/])
 ```
+
+_All agents (main + custom sub-agents) share a universal Work Ethos loaded from `ODOO-AI-ETHOS.md`; built-in Plan/Explore agents skip it by design._
 
 ### Drive to done - how to use it
 
@@ -467,6 +471,11 @@ Inside Claude Code, run:
 
 Installing `odoo-ai-agents` **automatically pulls in `odoo-semantic-mcp`** via the plugin dependency, so you get the skills, agents, commands, and the MCP connection in one step. Then **restart Claude Code**.
 
+**On first session after install**, a SessionStart hook adds a managed `@import` block of `ODOO-AI-ETHOS.md` to your **global `~/.claude/CLAUDE.md`**. Because CLAUDE.md is loaded by every Claude Code session (and `@import` is resolved recursively), these principles apply to **all your Claude Code projects**, not only Odoo work. The current session gets coverage immediately via `additionalContext`; subsequent sessions load the file through the `@import`.
+
+- **Opt out:** set `ODOO_AI_NO_ETHOS_IMPORT=1` before starting Claude Code (dedicated var - independent of `ODOO_AI_NO_AUTO_PERMS`).
+- **Uninstall cleanup:** removing the plugin leaves an orphan `@import` block in `~/.claude/CLAUDE.md`. To fully remove it, delete the sentinel-marked block between `<!-- BEGIN odoo-ai-agents ETHOS import ... -->` and `<!-- END odoo-ai-agents ETHOS import -->` from `~/.claude/CLAUDE.md` manually.
+
 You will need an **API key** (format `osm_...`) from the [install page](https://odoo-semantic.viindoo.com/install/), and the **MCP server URL** (default `https://odoo-semantic.viindoo.com/mcp`). For MCP-only setup and the `connect` command details, see the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin.
 
 ### Browser MCP servers / cross-CLI install
@@ -508,8 +517,11 @@ new `mcp__plugin_odoo-ai-agents_*` prefix.
 
 ### Grounding contracts (SSOT snippets)
 
-Cross-cutting rules every design / code / review / debug agent loads **by reference** (edit the
-snippet once, not each of the agents that consume it):
+There are two distinct loading mechanisms for shared context:
+
+**Global universal principles** (`ODOO-AI-ETHOS.md`) - a single SSOT file containing 11 work-ethic principles (completeness, root-cause analysis, SSOT, ASCII hyphens, and so on) that apply across all agents and all of your Claude Code projects. A SessionStart hook writes a managed `@import` block to your global `~/.claude/CLAUDE.md`; because `@import` is resolved recursively, the main agent and every custom sub-agent in any project inherit these principles automatically. Built-in Plan/Explore agents skip CLAUDE.md by design and are NOT covered. Edit `ODOO-AI-ETHOS.md` once and all agents pick it up on the next session restart.
+
+**Per-agent snippet contracts** - agents reference `${CLAUDE_PLUGIN_ROOT}/snippets/...` directly in their bodies (edit the snippet once, not each of the agents that consume it):
 
 | Contract | What it enforces |
 |----------|------------------|
