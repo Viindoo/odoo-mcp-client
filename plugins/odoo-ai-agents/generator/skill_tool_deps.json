@@ -208,6 +208,21 @@
       "deprecated_tools_used": [],
       "notes": "module_inspect distinguishes Configuration vs Extension via view/JS inventory, not just the field list."
     },
+    "odoo-git-rebase": {
+      "mcp_tools": [
+        "set_active_version",
+        "model_inspect",
+        "module_inspect",
+        "entity_lookup",
+        "find_override_point",
+        "find_test_examples",
+        "test_base_classes",
+        "tests_covering"
+      ],
+      "min_server_version": "0.15.0",
+      "deprecated_tools_used": [],
+      "notes": "Same-series rebase orchestrator (pure delegation): subagents read diffs + compare behavior; model_inspect/entity_lookup ground replayed symbols at the NEW BASE HEAD to catch rename/move/already-present absorption failures git does not flag; find_override_point checks refactored override points; test tools ground test-survival at the shared series. No cross-version api_version_diff (same series). min_server 0.15.0 for test tools."
+    },
     "odoo-objection-handling": {
       "mcp_tools": [
         "check_module_exists",
@@ -497,9 +512,41 @@
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": "Spawner: dispatches odoo-instance-ops agent for instance lifecycle (create/drop/init/update/test). cli_help grounds per-version odoo-bin CLI flags; set_active_version pins the target series for OSM calls; list_available_versions lets the skill discover indexed versions when the user specifies a vague target."
+    },
+    "odoo-modules-upgrade": {
+      "mcp_tools": [
+        "set_active_version",
+        "api_version_diff",
+        "model_inspect",
+        "module_inspect",
+        "check_module_exists",
+        "find_deprecated_usage",
+        "entity_lookup",
+        "lookup_core_api",
+        "validate_depends",
+        "cli_help",
+        "list_available_profiles",
+        "profile_inspect"
+      ],
+      "min_server_version": "0.15.0",
+      "deprecated_tools_used": [],
+      "notes": "Cross-major cluster upgrade orchestrator (full delegation; CODE-LEVEL, no data migration): validate_depends + module_inspect(dependencies) build the topo DAG; subagents compare custom-vs-core and adapt; reuses odoo-deprecation-audit + odoo-version-diff (recon), odoo-gap-analysis (core-absorption), odoo-coding (adapt), odoo-instance (install/test), and the plugin review capability (PR). Module wholly absorbed -> delete + record reason. cli_help grounds per-target odoo-bin flags. min_server 0.15.0."
     }
   },
   "agents": {
+    "odoo-diff-comparator": {
+      "mcp_tools": [
+        "set_active_version",
+        "model_inspect",
+        "module_inspect",
+        "entity_lookup",
+        "check_module_exists",
+        "api_version_diff"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Read-only diff-range comparator: reads a whole-cluster or per-module git diff and emits a structured nghiệp vụ / intent / expected-outcome / acceptance-criteria comparison between two branches (rebase) or between a custom module and new-version core (upgrade). Writes only its findings file; no further spawn. Reused by odoo-git-rebase (P3 cluster comparison + P10 verify) and odoo-modules-upgrade (P2 core-absorption)."
+    },
     "odoo-doc-illustrator": {
       "mcp_tools": [
         "check_module_exists",
@@ -666,6 +713,14 @@
       "output_mode": "chat-only",
       "default_gate_tier": "L0"
     },
+    "odoo-diff-comparator": {
+      "spawn_class": "leaf",
+      "spawns": [],
+      "stack": "none",
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
+    },
     "odoo-discovery-summary": {
       "spawn_class": "leaf",
       "spawns": [],
@@ -705,6 +760,23 @@
       "instance_touching": false,
       "output_mode": "chat-only",
       "default_gate_tier": "L0"
+    },
+    "odoo-git-rebase": {
+      "spawn_class": "spawner-agent",
+      "spawns": [
+        "intake subagent (sonnet: NL -> structured refs/base, PR-resolve, worktree-not-switch)",
+        "Explore (read-only range enumerate + diff read)",
+        "odoo-intent-extractor (rebase MODE, per-commit, base-head grounding)",
+        "odoo-diff-comparator (cluster behavior comparison + range-diff/dup-guard verify)",
+        "odoo-coder / odoo-frontend-coder (conflict resolution + adapt, per-commit work-tier worktrees)",
+        "odoo-test-writing (mode adapt, RED-first)",
+        "odoo-instance-ops (CONDITIONAL: only when range touches DB-stateful behavior)",
+        "the plugin's review capability (delegated PR review before merge)"
+      ],
+      "stack": "fullstack",
+      "instance_touching": true,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L2"
     },
     "odoo-objection-handling": {
       "spawn_class": "leaf",
@@ -927,6 +999,24 @@
         "odoo-instance-ops"
       ],
       "stack": "backend",
+      "instance_touching": true,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L2"
+    },
+    "odoo-modules-upgrade": {
+      "spawn_class": "spawner-agent",
+      "spawns": [
+        "intake subagent (sonnet: branch->series->profile, installable:False candidate detection, scope clarify)",
+        "Explore (dependency-graph build + diff read)",
+        "odoo-deprecation-audit + odoo-version-diff (P1 recon, NL/Skill dispatch)",
+        "odoo-diff-comparator (per-module core-absorption comparison)",
+        "odoo-gap-analysis (core-feature coverage)",
+        "odoo-solution-architect (conditional hard-call design)",
+        "odoo-coder / odoo-frontend-coder (P4 adapt, dep order, per-module worktrees)",
+        "odoo-instance-ops (P5 install/test) + odoo-backend-debugger / odoo-ui-debugger (failure diagnose)",
+        "the plugin's review capability (delegated P7 dep-order PR review)"
+      ],
+      "stack": "fullstack",
       "instance_touching": true,
       "output_mode": "writes-files",
       "default_gate_tier": "L2"
