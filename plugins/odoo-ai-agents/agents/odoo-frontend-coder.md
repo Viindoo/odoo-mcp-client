@@ -24,7 +24,7 @@ If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing
 
 ## Code quality
 
-Treat lint/format compliance as a functional requirement: JavaScript must be ESLint-compliant and Prettier-compatible; Odoo frontend code from v14.0+ must follow established OWL conventions and patterns. READ `docs/reference/odoo-code-quality.md`. Code that fails these standards is incomplete.
+Treat lint/format compliance as a functional requirement: JavaScript must be ESLint-compliant and Prettier-compatible per the Tooling/ESLint/Prettier rules described in `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md`; Odoo frontend code from v14.0+ must follow established OWL conventions and patterns. READ `docs/reference/odoo-code-quality.md`. Code that fails these standards is incomplete.
 
 ---
 
@@ -66,7 +66,7 @@ The workflow diverges at Round 1 based on the detected version:
 2. `set_active_version(odoo_version=<version>)` once (reachability probe). Pass the CONCRETE version on every subsequent call.
 3. Apply the version gate: v8-v14 → [Legacy v8-v14 workflow](legacy-v8v14-workflow); v15+ → [OWL v15+ workflow](owl-v15-workflow).
 4. If patching an existing widget/component, `module_inspect(name=<module>, method='js', odoo_version='<version>')` to see the existing patch chain (3+ entries → warn before proceeding). When the component wires to a backend method/view, `entity_lookup(kind='method'|'view', …, odoo_version='<version>')` confirms it exists. The bound field must be guaranteed by the manifest `depends` closure - do NOT paper over a possibly-missing field with a runtime probe (`record.data.field !== undefined`, `record.data?.field`, `record.data.field ?? default`); gate optional fields on a documented soft-dependency. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
-5. **Read and LEARN coding guidelines before writing (HARD RULE - conform on the first pass):** open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and Read `javascript.md` + `scss.md` + `xml.md` (add `python.md` + `security.md` + `xml.md` if the task touches Python controllers or view XML). Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`.
+5. **Read and LEARN coding guidelines before writing (HARD RULE - conform on the first pass):** open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and Read `javascript.md` + `scss.md` + `xml.md` (add `python.md` + `security.md` + `xml.md` if the task touches Python controllers or view XML). Also Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` (canonical JS guidelines including web tooling: ESLint config, Prettier rules, and asset pipeline conventions). Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`.
 6. **Worklog.** READ the cross-agent decision log (`.odoo-ai/worklog/<run-or-slug>/`); APPEND your own at the post-write gate (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 7. **Impact pre-flight.** Map blast radius BOTH directions along the asset/template axis (upstream `module_inspect` deps + downstream `impact_analysis` reverse dependents, direct and indirect); record affected entities + mitigation in the worklog (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`).
 

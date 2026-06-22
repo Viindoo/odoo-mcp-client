@@ -41,6 +41,7 @@ Once `odoo_version` is resolved, pin it: `set_active_version(odoo_version=<concr
 
 ### Step 1 - Ground the screen in code (parallel, OSM)
 
+- **Before raising any JS finding:** Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` as the JS quality and web-tooling (ESLint/Prettier) reference. This is a mandatory prerequisite - all JS-related findings must be grounded in this document.
 - `module_inspect(name=<module>, method='views', odoo_version='<version>')` and/or `method='owl'` - which view/component renders the screen.
 - `resolve_stylesheet(module=<module>, odoo_version='<version>')` - which stylesheets ship.
 - `model_inspect(model=<model>, method='summary', odoo_version='<version>')` - confirm the backing model.

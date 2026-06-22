@@ -8,7 +8,7 @@ file instead of restating the numbers.
 
 Cap at **3 concurrent** subagent launches (or fork workers / parallel MCP legs);
 for more work, batch in waves of <=3 (fire <=3, wait, fire the next <=3). Used
-by: odoo-debug, odoo-code-review, workflow-chaining, odoo-brl (inner MCP
+by: odoo-debug, workflow-chaining, odoo-brl (inner MCP
 parallelism), and the YAML workflow fan-out ceiling (workflows/_schema.md,
 docs/reference/workflow-harness.md).
 

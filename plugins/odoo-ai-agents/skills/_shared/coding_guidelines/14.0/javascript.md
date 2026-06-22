@@ -36,4 +36,4 @@ The convention is to organize the code according to the following structure:
 - Never add minified Javascript Libraries
 - Use camelcase for class declaration
 
-More precise JS guidelines are detailed in the github wiki (https://github.com/odoo/odoo/wiki/Javascript-coding-guidelines). You may also have a look at existing API in Javascript by looking Javascript References.
+More precise JS/OWL guidelines incl. web tooling (ESLint/Prettier) are in the local canonical copy: `../javascript-coding-guidelines.md`. You may also have a look at existing API in Javascript by looking Javascript References.

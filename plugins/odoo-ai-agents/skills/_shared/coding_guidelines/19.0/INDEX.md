@@ -32,5 +32,5 @@ These guidelines apply to every new module and to all new development. Two warni
 - Translating static strings in code -> [python.md](python.md)
 - Declaring records, views, actions, menus, security -> [xml.md](xml.md)
 - Naming XML IDs and inheriting views -> [xml.md](xml.md)
-- Organizing or writing web assets (JS) -> [javascript.md](javascript.md)
+- Organizing or writing web assets (JS) -> [javascript.md](javascript.md) (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`)
 - Writing CSS/SCSS, variables, mixins, and naming classes -> [scss.md](scss.md)
