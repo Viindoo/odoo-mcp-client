@@ -352,7 +352,9 @@ Fix findings inline or via a targeted brief subagent. Re-run verify after any fi
 **4.2 - odoo-code-review inline** (invoke from the orchestrating context):
 
 After the Opus review and fixes, invoke the `odoo-code-review` skill (via the Skill tool)
-on the integration branch. Address its findings before Phase 5.
+on the integration branch. Pass `TARGET: worktree:<path>/integration` (the integration worktree
+created in Phase 2 step 1 - `<path>` is the same base path used in `git worktree add`) so the
+skill reviews the integration tree, not the principal tree. Address its findings before Phase 5.
 
 ## Phase 5 - PR + Squash + Tree Identity
 

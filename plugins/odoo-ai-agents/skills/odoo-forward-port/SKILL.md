@@ -360,7 +360,9 @@ gating it. Never loop straight to P8 - that would absorb the next commit without
 symbol/drift check.
 
 **P11 - PR + review.** Open PR `fp/<slug>` -> B. Run `odoo-code-review` inline (via the Skill
-tool, from this orchestrating context). It is OPTIONAL for a trivial port
+tool, from this orchestrating context) passing `TARGET: worktree:<path>/fp-integration` (the
+JOB-tier integration worktree created at P4 - `<path>` is the base path used in `git worktree add`)
+so the skill reviews the fp integration tree, not the principal tree. It is OPTIONAL for a trivial port
 (docstring/string/comment-only buckets), but
 **MANDATORY whenever the batch grafts a new engine or mechanism** (a shared report engine, a
 group-by/total/drill computation, an export/print path, a wizard, any multi-path component) -

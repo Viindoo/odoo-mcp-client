@@ -23,7 +23,7 @@ These guidelines aim to improve the quality of Odoo Apps code. Proper code impro
 | `naming.md` | Model name notation, Python class naming, variable naming, field suffix rules (`_id`/`_ids`), method prefix conventions |
 | `model-ordering.md` | Required attribute order inside a Model class, with annotated example |
 | `xml.md` | Record/field format rules, XML-ID naming patterns, view inheritance `.inherit.` suffix, `<data>`/`noupdate` usage |
-| `javascript.md` | JavaScript coding guidelines, pointer to the upstream wiki |
+| `javascript.md` | JavaScript coding guidelines, pointer to the canonical local copy `../javascript-coding-guidelines.md` |
 | `scss.md` | CSS coding guidelines from the 15.0 source |
 
 ## By task
@@ -36,5 +36,5 @@ These guidelines aim to improve the quality of Odoo Apps code. Proper code impro
 | Translation / `_()` usage | `python.md` |
 | CRUD override or onchange | `model-ordering.md`, `python.md`, `security.md` |
 | Security (groups, rules, access) | `xml.md`, `module-structure.md`, `security.md` |
-| Writing JavaScript | `javascript.md` |
+| Writing JavaScript | `javascript.md` (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
 | Writing CSS / SCSS | `scss.md` |

@@ -42,8 +42,12 @@ the backend coder agent (`_columns`/`cr, uid` for v8-v9, `@api.multi` for v10-v1
 - `naming.md` - model/class/variable/field/method naming
 - `model-ordering.md` - attribute order inside a Model class
 - `xml.md` - record/field format, XML-ID naming, view inheritance
-- `javascript.md` - JS/OWL conventions
+- `javascript.md` - version-specific JS/OWL stub (static file layout, class-case rule); points to the canonical detail file below
 - `scss.md` - SCSS/CSS conventions
+
+One file lives at the root of `coding_guidelines/` and is shared across all versions:
+
+- `javascript-coding-guidelines.md` - canonical, version-agnostic JS/OWL reference incl. ESLint/Prettier tooling config and full linting rules. Each `<v>/javascript.md` stub points here for detail beyond the version-specific excerpt.
 
 ## Mechanical gate (safety net, not a substitute)
 

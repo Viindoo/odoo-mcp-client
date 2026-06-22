@@ -49,7 +49,7 @@ or borrowed from other versions.
 | ORM method / compute / constraint | python.md, naming.md, security.md |
 | Security (groups, rules, access) | xml.md, module-structure.md, security.md |
 | Adding translations / `_()` calls | python.md (translation section) |
-| Adding JS components | javascript.md, module-structure.md |
+| Adding JS components | javascript.md, module-structure.md (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
 | Writing SCSS / CSS styles | scss.md |
 | Naming fields, methods, classes | naming.md |
 | Ordering model attributes | model-ordering.md |

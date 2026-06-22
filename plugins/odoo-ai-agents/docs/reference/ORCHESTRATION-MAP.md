@@ -9,7 +9,7 @@
 | `odoo-brl` | spawner-agent | none | - | (conditional DAG workers when >10 large clusters) |
 | `odoo-campaign-plan` | leaf | none | - | - |
 | `odoo-capability-proof` | leaf | none | - | - |
-| `odoo-code-review` | spawner-agent | fullstack | - | odoo-code-reviewer |
+| `odoo-code-review` | spawner-agent | fullstack | - | odoo-code-reviewer, odoo-review-scoper |
 | `odoo-coding` | spawner-agent | fullstack | - | odoo-coder, odoo-frontend-coder, (dispatch: model-weighted subagent batches, explicit model per work-item per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B) |
 | `odoo-competitive-brief` | leaf | none | - | - |
 | `odoo-content-draft` | leaf | none | - | - |
@@ -38,6 +38,7 @@
 | `odoo-perf-audit` | leaf | backend | - | - |
 | `odoo-pricing-proposal` | leaf | none | - | - |
 | `odoo-qa-suite` | orchestrator-nl | none | yes | - |
+| `odoo-review-scoper` | leaf | none | - | - |
 | `odoo-rfp-response` | leaf | none | - | - |
 | `odoo-risk-overview` | leaf | none | - | - |
 | `odoo-security-audit` | leaf | backend | - | - |

@@ -25,7 +25,7 @@ These guidelines aim to improve the quality of Odoo Apps code. Proper code impro
 | `naming.md` | Model name notation, Python class naming, variable naming, field suffix rules (`_id`/`_ids`), method prefix conventions |
 | `model-ordering.md` | Required attribute order inside a Model class, with annotated example |
 | `xml.md` | Record/field format rules, XML-ID naming patterns, view inheritance `.inherit.` suffix, `<data>`/`noupdate` usage |
-| `javascript.md` | Static files organization, JS coding guidelines, pointer to the upstream wiki |
+| `javascript.md` | Static files organization, JS coding guidelines, pointer to the canonical local copy `../javascript-coding-guidelines.md` |
 | `scss.md` | Full CSS/SCSS section: syntax and formatting, Stylelint settings, properties order, naming conventions, SCSS variables, scoped SCSS variables, mixins and functions, CSS variables (BEM), use of CSS variables, CSS vs SCSS variables, the `:root` pseudo-class |
 
 ---
@@ -39,6 +39,6 @@ These guidelines aim to improve the quality of Odoo Apps code. Proper code impro
 | Writing XML views / data | `xml.md`, `naming.md` |
 | ORM method / compute / constraint | `python.md`, `naming.md`, `security.md` |
 | Security (groups, rules, access) | `xml.md`, `module-structure.md`, `security.md` |
-| Writing JavaScript | `javascript.md` |
+| Writing JavaScript | `javascript.md` (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
 | Writing SCSS / CSS | `scss.md` |
 | Code review checklist | all files relevant to the changed file types |

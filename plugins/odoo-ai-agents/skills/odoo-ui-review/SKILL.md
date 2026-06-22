@@ -53,6 +53,20 @@ Key things the agent watches for:
 
 ## Agent invocation
 
+**Before dispatching:** check for a design document from an upstream `odoo-solution-design` /
+`odoo-solution-architect` run. List `.odoo-ai/designs/` under the project root; if one or more
+files are present, take the most recently modified one and add the following line to the dispatch
+brief:
+
+```
+DESIGN_DOC: .odoo-ai/designs/<filename>
+```
+
+The reviewer uses this to verify UI-observable acceptance criteria (controls visible, workflow
+paths reachable, labels correct, access-rule state reflected in the UI) from §1 (Expected outcomes /
+User impact) and §9 (Acceptance Criteria) of the design document. When no `designs/` directory
+exists or it is empty, omit the line entirely.
+
 When the user confirms intent (or main detects a running instance + a "how does it look" request),
 main launches the `odoo-ui-reviewer` agent as a subagent with restricted tools (odoo-semantic-mcp +
 chrome-devtools, read-only). The agent does NOT spawn further subagents, does NOT invoke any Skill

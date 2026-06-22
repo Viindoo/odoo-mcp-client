@@ -35,6 +35,5 @@ static/
 - **Never add minified JavaScript Libraries**
 - Use Pascal case for class declaration
 
-More precise JS guidelines are detailed in the
-[Odoo GitHub wiki](https://github.com/odoo/odoo/wiki/Javascript-coding-guidelines). You may also
+More precise JS/OWL guidelines incl. web tooling (ESLint/Prettier) are in the local canonical copy: `../javascript-coding-guidelines.md`. You may also
 have a look at existing API in Javascript by looking at Javascript References.

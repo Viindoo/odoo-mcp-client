@@ -51,5 +51,5 @@ Source header. All rules come directly from the 18.0 RST source.
 | Naming a model, class, variable, field, or method | naming.md |
 | Ordering attributes and methods in a model class | model-ordering.md |
 | Declaring records, views, actions, menus, inherits | xml.md |
-| Organizing and writing web assets in Javascript | javascript.md |
+| Organizing and writing web assets in Javascript | javascript.md (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
 | Writing CSS/SCSS styles, variables, and mixins | scss.md |

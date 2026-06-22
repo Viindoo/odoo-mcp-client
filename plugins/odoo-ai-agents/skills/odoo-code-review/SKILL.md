@@ -5,14 +5,12 @@ description: >
   and performance - severity-graded findings, suggested fixes, corrected version. Dispatches
   to the odoo-code-reviewer agent. Fire whenever code is shared with feedback intent, even
   without the word "review". Trigger on: "does this look correct?", "audit this PR",
-  "should I worry about N+1?", "before I merge". Also fires on Vietnamese requests: "review
-  giúp đoạn này", "kiểm tra code Odoo", "code này có bug không", "có bị N+1 không", "soát
-  trước khi merge", "đánh giá PR". Trigger especially on model overrides,
-  write/create overrides, computed fields, OWL components, or XML view overrides -
-  Odoo-specific failure modes a generic reviewer misses. A false positive is cheap; a missed
-  CRITICAL bug in production is expensive. Static analysis only - live render errors →
-  odoo-debug. Write new code → odoo-coding. Pre-upgrade audit → odoo-deprecation-audit.
-  Override safety → odoo-override-finding
+  "should I worry about N+1?", "before I merge", "review PR #123", "review this pull request".
+  Also fires on Vietnamese: "review giúp đoạn này", "kiểm tra code Odoo", "code này có bug
+  không", "soát trước khi merge", "đánh giá PR". Trigger on model overrides, write/create
+  overrides, computed fields, OWL components, or XML view overrides - Odoo-specific failure
+  modes a generic reviewer misses. Static analysis only - live render errors → odoo-debug.
+  Write new code → odoo-coding. Pre-upgrade audit → odoo-deprecation-audit
 ---
 
 ## Persona
@@ -28,39 +26,59 @@ Developer / Tech Lead reviewing Odoo code with semantic MCP enrichment.
 
 ## When to invoke
 
-Main agent invokes the `odoo-code-reviewer` **agent** (as a subagent launch) when Odoo code needs review. The code may arrive as a pasted block, a `file_path`/diff, or the output of a prior step. Review **scales with the change size**: one module → one reviewer; many modules → per-module fan-out plus Opus integration pass. Run Phase 0 first. Because review needs parallel MCP round-trips, each leg runs as an autonomous agent.
+Main agent invokes the `odoo-code-reviewer` **agent** (as a subagent launch) when Odoo code needs review. Review **scales with the change size**: one module → one reviewer; many modules → per-module fan-out plus Opus integration pass.
 
-## Phase 0 - Scope the review
+**Two entry paths - choose before dispatching scoper:**
 
-Read any existing worklog (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` - the coding phase records what was intentional vs. accidental. If the worklog or run inputs name a design doc (`.odoo-ai/designs/...`, written by `odoo-solution-architect`), pass it to each reviewer as `DESIGN_DOC:` so the review verifies code against the design's intent + acceptance criteria.
+- **Pasted block or single file_path (not a git target):** treat as one review unit, dispatch ONE `odoo-code-reviewer` directly (skip scoper). The code block / file is the review scope; no diff resolution needed.
+- **Git target (local working tree, worktree, or PR):** dispatch `odoo-review-scoper` first (Phase 0), then fan-out reviewers from scoper output. Because review needs parallel MCP round-trips, each leg runs as an autonomous agent.
 
-**Coverage baseline (optional, first-review of a module or when test coverage is in doubt):** Before dispatching reviewers, call `test_coverage_audit(module='<module>', odoo_version='<version>')` to get a coverage picture for each changed module. Attach the result as `COVERAGE_BASELINE:` in each reviewer brief - this gives reviewers an authoritative starting point instead of requiring them to guess from file names.
+**Deriving `TARGET` from user intent:**
 
-Determine **changed + newly-added** modules (dir containing `__manifest__.py`):
-- **From git:** `git diff --name-only` + `git diff --name-only --diff-filter=A`; map each path to its owning `__manifest__.py` dir and dedupe.
-- **From a pasted block / single `file_path`:** that is one module.
+| User intent | TARGET to pass |
+|---|---|
+| No explicit target - just "review this" on the working tree | `TARGET: local` |
+| "review PR #N" or a GitHub PR URL | `TARGET: pr:<N>` or `TARGET: pr:<url>` |
+| Orchestrator dispatching from a principal tree where work lives in another worktree | `TARGET: worktree:<abs-path>` - REQUIRED; if omitted, scoper diffs principal cwd (empty diff → BLOCKED) |
+| Pasted code block or single file_path with no git context | skip scoper - see pasted-block path above |
 
-If the changes live in a sibling git worktree (the common case under `wave` / `odoo-forward-port`,
-where cwd is the principal tree and the work is in `fp/<slug>` or a WI worktree), the cwd `git diff`
-reports CLEAN and silently reviews nothing. When a `WORKTREE_PATH` is supplied in the brief, run the
-diff there: `git -C <WORKTREE_PATH> diff --name-only` (+ `--diff-filter=A`). An orchestrator that
-created the worktree MUST pass its path; on a direct invocation, verify cwd is the tree holding the
-changes (e.g. `git -C . status` shows the expected edits); if cwd is NOT that tree, STOP and report
-`WRONG_TREE: cwd=<path>, expected changes at <WORKTREE_PATH>` - do not proceed on an empty diff.
+For a sibling git worktree (e.g. the wave/forward-port integration tree), the orchestrator passes its WORKTREE_PATH as `TARGET: worktree:<abs-path>` so review runs there, not cwd.
 
-Count distinct modules → **1 = single-pass; >1 = fan-out + synthesis**.
+## Phase 0 - Scope the review (git targets only)
+
+Dispatch agent `odoo-review-scoper` (sonnet) per the SCOPER I/O CONTRACT (full SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Pass it:
+- `TARGET:` - `local` | `worktree:<abs-path>` | `pr:<number-or-url>` (the scoper resolves diffs, PR smart-reuse, and worktree detection)
+- `BASE:` - default `master`
+- `odoo_version:` - target series
+- `USER LANGUAGE:` - language for the scoper's own output
+
+The scoper writes a compact scope file at `.odoo-ai/reviews/<slug>-<date>/_scope.md` and returns the scope result directly. Main receives the compact output only (keeps main context clean - do NOT run `git diff`, `__manifest__.py` mapping, or `test_coverage_audit` in main context; the scoper handles all of this).
+
+Scope output fields used by main:
+- `slug` - used to name the review dir
+- `target_kind` - `local` | `worktree` | `pr` (as resolved by scoper)
+- `review_root` - absolute path where reviewers MUST read files (NOT master/cwd unless scoper says so)
+- `modules[]` - `{name, path}` list of changed/added modules
+- `design_doc` - path to `.odoo-ai/designs/...` if any (pass as `DESIGN_DOC:` to reviewers; when non-null, TDD verification is MANDATORY - reviewer MUST Read it, verify §1 Intent & §9 Acceptance Criteria, and emit `### TDD Conformance`; skipping TDD verify when design_doc is present is a review defect; omit only when design_doc=null)
+- `coverage_baseline` - `test_coverage_audit` result at module level (from scoper); pass as `COVERAGE_BASELINE:` to reviewers - label this BASELINE throughout to distinguish from per-model edge data
+- `pr` - `{number, title, head, base, repo}` or null
+- `fanout` - `single` | `multi`
+
+Decide review topology from `fanout`: `single` → one reviewer pass; `multi` → fan-out + synthesis.
 
 ## Single module (the common case)
 
-Dispatch ONE `odoo-code-reviewer` agent (sonnet). It writes its report to `.odoo-ai/reviews/<slug>-<date>/<module>.md`. No synthesis pass needed - UNLESS Phase 0's reverse closure shows many dependents (base/core module); then also run the Opus integration pass below.
+Dispatch ONE `odoo-code-reviewer` agent (sonnet). It writes its report to `.odoo-ai/reviews/<slug>-<date>/<module>.md`. No synthesis pass needed for a single module.
 
 ## Multi-module - fan-out, then integration synthesis
 
-### Phase A - Per-module fan-out (parallel sonnet, ≤3 concurrent)
+### Phase A - Per-module fan-out (parallel sonnet)
 
-One `odoo-code-reviewer` agent per changed/added module, scoped to ONLY that module. Cap at **3 concurrent** (Mode A - see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`); for >3 modules batch in **waves of <=3** like `wave` / `workflow-chaining` / `odoo-debug`. Each agent writes `<module>.md` to `.odoo-ai/reviews/<slug>-<date>/` and returns a short summary + path.
+Dispatch one `odoo-code-reviewer` agent per module in `modules[]` from the scoper output, all in one batch. Fan-out is one reviewer per module; concurrency is bounded by the harness automatically - do NOT set a manual wave-cap. For the project-level concurrency policy and any overrides, see the SSOT at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`. Each agent is scoped to ONLY its module; it reads files at `review_root` (from scoper). Each agent writes `<module>.md` to `.odoo-ai/reviews/<slug>-<date>/` and returns a short summary + path.
 
-**Before flagging pitfall #10 (behavior change with no protecting test) as a HIGH finding**, verify with evidence rather than heuristic: call `tests_covering(model='<affected_model>', odoo_version='<version>')` on the model(s) touched by the behavior change. If the model-level result shows zero covering tests, the HIGH finding stands and should note "zero test edges confirmed via `tests_covering` (model-level)". If tests exist but do not cover the changed path, the finding stays HIGH with the note "tests exist for model but do not cover this behavior". A finding without this check is heuristic and should be downgraded to MED. **Caveat on method-narrow queries:** `tests_covering` with `method=` returns zero edges for many well-tested methods because COVERS_METHOD edges are sparse; a zero from a method-narrow call is supporting evidence, not proof - corroborate with the model-level count or `find_test_examples` before escalating to HIGH. Pass the `tests_covering` result to each reviewer agent as `COVERAGE_CHECK:` so the agent has the evidence without re-querying.
+**Before dispatching the batch**, for each affected model in `modules[]`, call OSM `tests_covering(model='<affected_model>', odoo_version='<version>')`. Collect results. Include the result as `COVERAGE_CHECK:` in each reviewer brief so the agent has the evidence without re-querying. `COVERAGE_CHECK` is model-edge level data from main (distinct from `COVERAGE_BASELINE` which is the module-level `test_coverage_audit` result from the scoper).
+
+**Before flagging pitfall #10 (behavior change with no protecting test) as a HIGH finding**, verify with evidence rather than heuristic: if the model-level `COVERAGE_CHECK` shows zero covering tests, the HIGH finding stands and should note "zero test edges confirmed via `tests_covering` (model-level)". If tests exist but do not cover the changed path, the finding stays HIGH with the note "tests exist for model but do not cover this behavior". A finding without this check is heuristic and should be downgraded to MED. **Caveat on method-narrow queries:** `tests_covering` with `method=` returns zero edges for many well-tested methods because COVERS_METHOD edges are sparse; a zero from a method-narrow call is supporting evidence, not proof - corroborate with the model-level count or `find_test_examples` before escalating to HIGH.
 
 ### Phase B - Integration synthesis (one agent, OPUS)
 
@@ -72,16 +90,19 @@ The Opus pass reviews only what per-module legs cannot: override-chain conflicts
 
 ## Artifacts
 
-All output under `.odoo-ai/reviews/<slug>-<YYYY-MM-DD>/` (gitignored). Slug = branch name, PR title, or changed-module set:
-- `<module>.md` - per-module review (or single-module review)
-- `_synthesis.md` - Opus integration review
-- `index.md` - short map: modules reviewed, dependency closure, per-module severity counts, highest-severity findings linking to detail files
+All output under `.odoo-ai/reviews/<slug>-<YYYY-MM-DD>/` (gitignored). Slug comes from scoper `slug` field:
+- `_scope.md` - scoper output (written by scoper agent)
+- `<module>.md` - per-module review (or single-module review); each contains VERDICT + SCORE per the `odoo-code-reviewer` agent output contract (SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md`)
+- `_synthesis.md` - Opus integration review; also contains overall VERDICT (APPROVE/REQUEST_CHANGES) + SCORE 0-100
+- `index.md` - short map: modules reviewed, dependency closure, per-module severity counts, overall verdict + score, highest-severity findings linking to detail files
+
+Report is presented as an artifact in chat by default. Post to PR ONLY when user explicitly requests it (keyword `post`): use PR number from `pr.number` in the scope result; `gh pr comment` posts a flat comment; `gh pr review` with `--comment` and `--body` supports per-finding inline comments - prefer inline for actionable findings.
 
 Emit paths in the Continuation Contract `produced[]`; later steps reference these instead of re-reviewing.
 
 ## Brief context - Odoo review pitfalls
 
-Ten failure modes the agent checks for. Full details:
+Eleven failure modes the agent checks for. Full details:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/review-pitfalls.md`
 
 Summary: (1) ORM/N+1, (2) missing `super()` in create/write/unlink, (3) `@api.depends` errors, (4) deprecated API, (5) OWL reactivity + `position="replace"`, (6) design-system SCSS/token fidelity (flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`), (7) coding-guideline conventions (grounded against `coding_guidelines/<version>/`), (8) runtime presence probing (`hasattr`/`getattr` smell), (9) platform design principles (company/branch isolation, generic-before-localization, app-menu shape), (10) behavior change with no protecting test → HIGH finding → route to `odoo-test-writing`, (11) forward-ported test coupled to source-version API/snapshot → assert observable outcome on target, RED-then-GREEN, route to `odoo-test-writing` mode `adapt`.

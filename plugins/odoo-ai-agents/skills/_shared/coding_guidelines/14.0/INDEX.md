@@ -39,4 +39,4 @@ Read the files relevant to your task before writing code. The two warnings below
 | Translations / i18n | `python.md` (section: Use translation method correctly) |
 | Wizard / TransientModel | `naming.md` + `module-structure.md` |
 | Report (SQL view or QWeb) | `module-structure.md` + `naming.md` |
-| JavaScript / CSS assets | `javascript.md` + `scss.md` |
+| JavaScript / CSS assets | `javascript.md` + `scss.md` (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |

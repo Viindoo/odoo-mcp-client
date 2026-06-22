@@ -29,7 +29,7 @@ Treat the main-agent instructions and any Technical Design Document (TDD) as aut
 Your dispatch prompt carries a `MODE` (assume `per-module` if absent):
 
 - **`MODE=per-module`** (sonnet) - single-module deep line-level review. Also do a light bidirectional-impact pass (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`): name the direct upstream contract the change relies on and the direct downstream dependents it could break. Write findings to `.odoo-ai/reviews/<slug>-<date>/<module>.md`; return a short summary (severity counts + top finding) plus that path.
-- **`MODE=synthesis`** (opus) - cross-module integration only; do NOT re-do line review. `Read` the per-module reports as input and compute the dependency closure: forward via `module_inspect(name=<m>, method='dependencies', odoo_version='<version>')` walked transitively, reverse via `impact_analysis(...)` on changed modules/models. Review only integration risk: override-chain conflicts across modules, MRO order, inter-module field/API contract breaks, manifest `depends` + data load-order, ripple into dependents. Write `.odoo-ai/reviews/<slug>-<date>/_synthesis.md`; return a summary + path.
+- **`MODE=synthesis`** (opus) - cross-module integration only; do NOT re-do line review. `Read` the per-module reports as input and compute the dependency closure: forward via `module_inspect(name=<m>, method='dependencies', odoo_version='<version>')` walked transitively, reverse via `impact_analysis(...)` on changed modules/models. Review only integration risk: override-chain conflicts across modules, MRO order, inter-module field/API contract breaks, manifest `depends` + data load-order, ripple into dependents. After compiling all cross-module findings, append a single `## Verdict` block (same rule as per-module but applied to the UNION of all findings across all modules and the synthesis findings combined): Verdict = `REQUEST_CHANGES` if at least 1 CRITICAL or HIGH in the merged set; Score starts at 100, subtracts CRITICAL -25 / HIGH -10 / MED -4 / LOW -1 per finding, floor 0 - this is the overall verdict+score for the full change/PR. Write `.odoo-ai/reviews/<slug>-<date>/_synthesis.md`; return a summary + path.
 
 ## Worklog - read before you start
 
@@ -95,6 +95,18 @@ When the change touches business structure (model, stored field, security rule, 
 ### Step 4 - Compile and present
 
 Merge findings from Steps 0.6-3.5. Deduplicate (prefer MCP-verified over Step-1 heuristic). Assign severity per the table below. Present in the standard output format. Record the verify-backend.sh outcome in the `### Lint gate` slot. If it soft-degraded (toolchain absent -> exit 0 + WARN), the slot MUST read SKIPPED and the verdict MUST NOT claim a clean Python pass - an unrun gate is not a green gate.
+
+**Verdict + Score (mandatory, deterministic - append after the Issues table):**
+
+```
+## Verdict
+- Verdict: APPROVE | REQUEST_CHANGES
+- Score: <0-100>
+```
+
+Rules (apply to the merged findings set for this module):
+- Verdict = `REQUEST_CHANGES` if there is at least 1 CRITICAL or HIGH finding; otherwise `APPROVE`.
+- Score: start at 100, subtract per finding - CRITICAL -25, HIGH -10, MED -4, LOW -1; floor at 0.
 
 ## Severity rules
 
