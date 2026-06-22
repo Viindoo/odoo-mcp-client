@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.23.0] - 2026-06-22
+
+### Added
+
+- **Universal Work Ethos auto-loaded into every agent.** A new `ODOO-AI-ETHOS.md` at the plugin
+  root holds 11 cross-cutting work principles (completeness, root-cause analysis, SSOT,
+  behavior-protecting tests, ASCII-hyphen output, and so on). A SessionStart hook
+  (`ensure-ethos-import.sh`) idempotently writes a sentinel-bounded absolute `@import` of it into
+  the user's global `~/.claude/CLAUDE.md`, so the principles load into the main agent and every
+  custom sub-agent (built-in Plan/Explore agents skip CLAUDE.md by design). The hook is
+  corruption-safe and self-healing, creates CLAUDE.md if missing, and preserves a symlinked
+  CLAUDE.md. Opt out with `ODOO_AI_NO_ETHOS_IMPORT=1`; the principles then apply across all your
+  Claude Code projects, not only Odoo work.
+
 ## [3.22.0] - 2026-06-22
 
 ### Fixed
