@@ -150,6 +150,8 @@ odoo-bin scaffold <new_module_name> </path/to/addons-dir>
 
 Then fill in the scaffolded models/views/security/`depends` per Rounds 2-4. Hand-create files only if `odoo-bin` is genuinely unavailable (note it in the checklist). Extending an EXISTING module needs no scaffold.
 
+After scaffold, fill in only the keys the task requires and **keep all commented placeholder keys** that `odoo-bin scaffold` emits (e.g. `# 'category': 'Uncategorized',`, `# 'depends': [],`, `# 'data': [],`, `# 'demo': [],`) - do NOT delete or uncomment them unless the task needs them. Manifest `version`: keep the short form `odoo-bin scaffold` emits (e.g. `0.1` - 2 or 3 numeric parts, NOT series-prefixed); if hand-creating without scaffold, match a sibling `__manifest__.py` in the same addons-dir. NEVER rewrite it to the series-prefixed `<series>.x.y.z` form (e.g. `17.0.1.0.0`) - that is the module-upgrade / OCA per-series convention only. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md`.
+
 ## Running odoo-bin (isolated, concurrency-safe)
 
 Any `odoo-bin` run that touches a database - scaffolding into a DB, `-i`/`-u`, or `--test-enable` - must use an ISOLATED instance, never the single declared db/port (a concurrent agent or another Claude Code session may be using it). Acquire one per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate:
@@ -214,6 +216,8 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
       (model attribute order, method/field naming prefixes, import order)
 - [ ] No hasattr/getattr-default/try-except-AttributeError presence guard - presence resolved via
       dep closure (direct access), `'field' in record._fields` + documented soft-dep, or amended `depends`
+- [ ] (New module only) Manifest `version` matches sibling manifests / `odoo-bin scaffold` default (short form, 2-3 numeric parts, e.g. `0.1`), NOT the series-prefixed `<series>.x.y.z` upgrade form
+- [ ] (New module only) Scaffolded via `odoo-bin scaffold`; commented placeholder keys in `__manifest__.py` preserved (only needed keys edited, comments not deleted)
 - [ ] Implementation meets the TDD's intent, expected outcomes, and business purpose
 ```
 

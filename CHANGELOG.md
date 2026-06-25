@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.26.0] - 2026-06-25
+
+### Added
+
+- Added greenfield `__manifest__.py` authoring guidance (scaffold-first, preserve scaffold commented placeholders, short non-series-prefixed `version`) as a dedicated snippet (`new-module-manifest.md`) wired into `odoo-coder` (directive + checklist) and `odoo-code-reviewer` (MED convention finding); `odoo-frontend-coder` references it at the manifest-wiring step; `odoo-coding` skill brief updated.
+
 ## [3.24.0] - 2026-06-22
 
 ## [3.23.0] - 2026-06-22
