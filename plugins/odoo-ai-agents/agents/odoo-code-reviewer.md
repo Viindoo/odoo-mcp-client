@@ -59,7 +59,7 @@ Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md`. Severity: ME
 
 **Styling / design-system (SCSS / theme).** Hardcoded color instead of a runtime design token (breaks theming/dark mode - name the token via `find_style_override(selector_or_variable=<token/selector>, odoo_version='<version>')` / `resolve_stylesheet(module=<module>, odoo_version='<version>')`); self-referential custom property (a cycle resolving to empty - backfill against a token the version actually emits); Sass function inside `calc()` without `#{}` interpolation (LibSass drops the property). Flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`; route the fix to `odoo-coding`.
 
-When a finding touches JS/OWL/SCSS, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <files>` and cite its BLOCK/WARN output as evidence. When it touches backend `.py`, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <files>` and cite it - this reproduces the `pylint-odoo` CI code-quality gate (sql-injection, consider-merging-classes-inherited, translation rules, ...) that OSM `lint_check` (a V0.5 hybrid matcher) only partially covers; a BLOCK is a CRITICAL/HIGH finding. If it soft-degrades (toolchain absent), say so rather than reporting a clean Python pass. See `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md`.
+When a finding touches JS/OWL/SCSS, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <files>` and cite its output as evidence - for the Tier-1 JS eslint path cite the eslint output lines plus the `RESULT:` summary line (PASS/FAIL/CANNOT-VERIFY); for Tier-2 OWL/SCSS paths cite the per-file `[BLOCK]`/`[WARN]` markers. If `verify-frontend.sh` returns `RESULT: CANNOT-VERIFY` (exit 2), the JS lint gate did NOT run - the JS lint slot MUST read `CANNOT-VERIFY` and the verdict MUST NOT claim a clean JS pass; an unrun gate is not a green gate. Only exit 0 with `RESULT: PASS` counts as a clean JS pass. When it touches backend `.py`, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <files>` and cite it - this reproduces the `pylint-odoo` CI code-quality gate (sql-injection, consider-merging-classes-inherited, translation rules, ...) that OSM `lint_check` (a V0.5 hybrid matcher) only partially covers; a BLOCK is a CRITICAL/HIGH finding. If it soft-degrades (toolchain absent), say so rather than reporting a clean Python pass. See `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md`.
 
 ## Review workflow
 
@@ -101,7 +101,7 @@ When the change touches business structure (model, stored field, security rule, 
 
 ### Step 4 - Compile and present
 
-Merge findings from Steps 0.6-3.5. Deduplicate (prefer MCP-verified over Step-1 heuristic). Assign severity per the table below. Present in the standard output format. Record the verify-backend.sh outcome in the `### Lint gate` slot. If it soft-degraded (toolchain absent -> exit 0 + WARN), the slot MUST read SKIPPED and the verdict MUST NOT claim a clean Python pass - an unrun gate is not a green gate.
+Merge findings from Steps 0.6-3.5. Deduplicate (prefer MCP-verified over Step-1 heuristic). Assign severity per the table below. Present in the standard output format. Record the verify-backend.sh outcome in the `### Lint gate` slot. If it soft-degraded (toolchain absent -> exit 0 + WARN), the slot MUST read SKIPPED and the verdict MUST NOT claim a clean Python pass - an unrun gate is not a green gate. Record the verify-frontend.sh outcome in the `### JS lint gate` slot. If it returned `RESULT: CANNOT-VERIFY` (exit 2), the slot MUST read CANNOT-VERIFY and the verdict MUST NOT claim a clean JS pass.
 
 **Verdict + Score (mandatory, deterministic - append after the Issues table):**
 
@@ -128,7 +128,7 @@ Convention findings cite the violated guideline by version file + section (e.g. 
 
 ### Test coverage of the behavior
 
-A CRITICAL or HIGH change to business behavior (new/altered constraint, compute, override, or access rule) that ships **without a test protecting that rule** is itself a HIGH finding. The test must protect the **business behavior, not the current implementation** (red-before-green; SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`); flag the missing-test finding and emit `next: odoo-test-writing` in the Continuation Contract. A test that *exists* but takes the shortcut - seeding terminal state with `create({'state': ...})`, raw-inserting an already-validated record, or `sudo()`-ing the action whose access it claims to check instead of driving `action_confirm`/`action_validate`/`button_validate` and building via `Form()` - is **also a HIGH finding**: it goes green even when the workflow is broken (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`). A review with zero CRITICAL/HIGH findings must say so clearly - it is valuable signal.
+A CRITICAL or HIGH change to business behavior (new/altered constraint, compute, override, or access rule) that ships **without a test protecting that rule** is itself a HIGH finding. The test must protect the **business behavior, not the current implementation** (red-before-green; SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`); flag the missing-test finding and emit `next: odoo-test-writing` in the Continuation Contract. A test that *exists* but takes the shortcut - seeding terminal state with `create({'state': ...})`, raw-inserting an already-validated record, or `sudo()`-ing the action whose access it claims to check instead of driving `action_confirm`/`action_validate`/`button_validate` and building via `Form()` - is **also a HIGH finding**: it goes green even when the workflow is broken (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`). A negative test that triggers a server WARNING/ERROR or `IntegrityError` WITHOUT `assertLogs` / `mute_logger` is **also a HIGH finding**: it leaks expected noise into CI logs and misses asserting that the guard actually fired (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`). A review with zero CRITICAL/HIGH findings must say so clearly - it is valuable signal.
 
 ## Output format
 
@@ -162,6 +162,14 @@ Verdict: <conforms | N unmet criteria -> HIGH (CRITICAL if a safety/isolation cr
 verify-backend.sh degraded to warn-only). On SKIPPED, state explicitly: "Python lint NOT verified -
 do NOT read this review as a clean Python pass; provision the pinned toolchain to enable the gate."
 Cite the script's own line (e.g. "[WARN] pylint + pylint_odoo not available").>
+
+### JS lint gate (eslint via verify-frontend.sh)
+<One line: PASS (clean) | PASS (with N warning(s)) | FAIL (N blocking issue(s) - listed above) |
+CANNOT-VERIFY (JS lint toolchain unresolved - verify-frontend.sh exit 2). On CANNOT-VERIFY, state
+explicitly: "JS lint NOT verified - do NOT read this review as a clean JS pass; resolve the
+repo-pinned eslint toolchain or escalate." Cite the script's own marker line (e.g.
+"[CANNOT-VERIFY] eslint not resolvable from node_modules/.bin"). Omit this slot when no JS/OWL/SCSS
+files are in scope.>
 
 ### Fixed Code
 

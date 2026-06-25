@@ -46,6 +46,76 @@ git config --local core.hooksPath .githooks/
 The hook blocks hard-fail patterns (vault path, personal email) and issues warnings for
 sensitive numeric values (pricing/OKR figures). Run `make validate && make test` as well.
 
+### Running tests locally
+
+Run the full quality gate locally before pushing - the same steps that CI runs. This is
+how to avoid the version-drift and generated-artifact failures that block PRs.
+
+**1. Create the venv (one time per checkout)**
+
+`make setup` bootstraps `.venv/` and installs all test dependencies from `requirements.txt`:
+
+```bash
+make setup
+```
+
+If you prefer `uv` (faster, no ensurepip dependency):
+
+```bash
+uv venv .venv --python 3.12
+uv pip install -r requirements.txt
+touch .venv/.stamp   # let Makefile targets reuse this venv
+```
+
+`.venv/` is gitignored and must never be staged.
+
+**2. Run the full gate**
+
+```bash
+make validate    # plugin schema check + tests/test_plugin_schema.py + test_skill_format.py + workflow schema
+make test        # full pytest suite (tests/) - same command CI runs
+make gen-check   # regenerate SSOT artifacts, then fail if any diff remains
+```
+
+What each gate enforces:
+
+| Command | What it catches |
+|---|---|
+| `make validate` | Malformed plugin.json, bad skill frontmatter, description over 1024 chars, workflow schema violations |
+| `make test` | All pytest tests including `test_version_consistency.py` (VERSION == plugin.json), naming rules, routing-sync checks, disambiguation contract |
+| `make gen-check` | Generated artifacts (gemini-extension.json, skill `## MCP tools` sections, IDE snippets, orchestration map) not committed after a change to their SSOT |
+
+Run all three together before every push:
+
+```bash
+make validate && make test && make gen-check
+```
+
+**3. Never hand-edit version fields - always use the bump script**
+
+The repo tracks `VERSION` (root), `plugins/odoo-ai-agents/.claude-plugin/plugin.json`,
+`plugins/odoo-ai-agents/.codex-plugin/plugin.json`, and `gemini-extension.json` as a
+lockstep set. Editing any of them by hand will cause `tests/test_version_consistency.py`
+to fail in CI, and the gemini manifest to drift (caught by `make gen-check`).
+
+Always bump via the script, which updates all four atomically and cuts the CHANGELOG:
+
+```bash
+# Level policy: patch = fix/refactor/docs, minor = new feature/skill/agent/command, major = breaking
+scripts/bump-version.sh minor    # or patch / major / an explicit X.Y.Z
+# Preview without writing:
+make bump-dry
+```
+
+After bumping, run `make gen` to regenerate all version-derived artifacts, then `make gen-check`
+to confirm zero drift, then check the CHANGELOG `## [x.y.z]` section looks right before committing.
+
+**4. Sign every commit (DCO)**
+
+Every commit must carry a `Signed-off-by:` trailer - see [DCO](#developer-certificate-of-origin-dco)
+below. Use `git commit -s` (the `-s` flag appends the trailer automatically). PRs without
+signed commits will be asked to amend before merge.
+
 ## What lives where
 
 | Path | Contents |

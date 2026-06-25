@@ -34,8 +34,10 @@ rule the guidelines themselves impose.
    afterward. Two pre-push static gates act as safety nets: `scripts/verify-backend.sh` (runs
    `pylint-odoo` over changed Python files, catching sql-injection, translation rules, and
    class-merging issues) and `scripts/verify-frontend.sh` (OWL/JS pitfall checks over changed
-   JS/XML/SCSS files). These gates catch a mechanical subset; the semantic rules (ordering, naming
-   intent, structure, security) are on you, up front.
+   JS/XML/SCSS files). Either gate can return `RESULT: CANNOT-VERIFY` (exit 2) when its
+   toolchain cannot be resolved - this is **not a pass**; the agent MUST NOT declare done and
+   must resolve the toolchain or escalate. These gates catch a mechanical subset; the semantic
+   rules (ordering, naming intent, structure, security) are on you, up front.
 
 Each `<version>/` directory is the COMPLETE rule set for that series - read the one matching the
 pinned version, never assume another version's conventions carry over.

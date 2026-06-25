@@ -1,5 +1,5 @@
 {
-  "_comment": "Odoo web/tooling fallback prettier config (tier-3 only). Values recovered from odoo/addons/web/tooling/_prettierrc.json (v15-v16) and inline prettier/prettier rule in _eslintrc.json (v17-v19). tabWidth=4, printWidth=100 are canonical across all versions. Used ONLY when no repo-committed .prettierrc and no Odoo checkout with tooling/ is locatable.",
+  "_comment": "RETIRED as a verify-frontend.sh oracle. The JS lint gate now runs repo-pinned eslint via the target repo's addons/web/tooling/_eslintrc.json (the real Runbot oracle); a standalone prettier config cannot reproduce that gate, so this file NO LONGER drives a PASS - an unresolvable eslint toolchain yields CANNOT-VERIFY, not a fallback pass. Kept only as a reference snapshot of canonical Odoo prettier values recovered from odoo/addons/web/tooling/_prettierrc.json (v15-v16) and the inline prettier/prettier rule in _eslintrc.json (v17-v19): tabWidth=4, printWidth=100 are canonical across all versions.",
   "tabWidth": 4,
   "semi": true,
   "singleQuote": false,
