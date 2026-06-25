@@ -107,12 +107,26 @@ odoo-bin -d <DB> -u <module> --test-enable \
 # + the deployment's quality module tag when present, e.g. ,/test_pylint
 ```
 
-## ESLint / Prettier are NOT version-pinned here
+## JS lint gate - repo-pinned eslint oracle
 
-Frontend JS formatting is governed by the **target repo's committed** `.eslintrc*` +
-`package.json`/`package-lock.json` (e.g. `eslint 8` + `prettier 2.7`). `verify-frontend.sh` already
-resolves this (repo config → Odoo `addons/web/tooling` → shipped fallback → soft-warn). No version
-matrix is needed for them.
+Frontend JS is linted by `verify-frontend.sh` Tier 1 using the **repo-pinned** eslint toolchain,
+not a global binary. Resolution order: the changed-files repo's `node_modules/.bin/eslint` ->
+main worktree `node_modules/.bin/eslint` (git-worktree-aware) -> `npx --no-install`. The gate
+runs `eslint --no-eslintrc -c <_eslintrc.json> --resolve-plugins-relative-to <MAIN_ROOT>` - the
+same oracle Runbot uses. Version pinning is provided by the repo's own `node_modules`; no
+separate matrix is needed here.
+
+The gate is tri-state:
+
+| Result | Exit | Meaning |
+|---|---|---|
+| `RESULT: PASS (clean)` / `RESULT: PASS (with N warning(s))` | 0 | eslint ran on the repo-pinned toolchain and found zero errors |
+| `RESULT: FAIL (N blocking issue(s) - fix before proceeding)` | 1 | eslint found >=1 error |
+| `RESULT: CANNOT-VERIFY (JS lint toolchain unresolved - DO NOT treat as pass)` | 2 | toolchain absent, version-mismatched, or v14 (no gate) - eslint did NOT run |
+
+Exit 2 is **not clean**. An agent MUST NOT declare done on `CANNOT-VERIFY`; it must resolve the
+toolchain (run `npm install` in the target repo) or escalate. Only exit 0 with `RESULT: PASS`
+counts as a green JS lint gate.
 
 ## Section 5 - Brand fidelity (sibling, optional, brand-agnostic)
 

@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.27.0] - 2026-06-25
+
+### Added
+
+- Added `snippets/test-expected-log-contract.md` (SSOT): the expected-log contract for tests that legitimately emit a server/console WARNING/ERROR - an `assertLogs`-vs-`mute_logger` decision rule plus a 3-layer matrix (Python log / SQL constraint / JS-OWL), with the JS framework era split (v17 QUnit vs v18+ Hoot) resolved at runtime via `js_test_inspect` rather than hardcoded. Wired as a pointer (rule body stays in the snippet) into the coder/reviewer/debugger triad with distinct duties - coder wraps, reviewer flags a missing wrapper as HIGH, debugger treats a matching WARNING as expected noise: `odoo-test-writing`, `odoo-coder`, `odoo-frontend-coder`, `odoo-code-reviewer`, `odoo-debug`, `odoo-backend-debugger`, and `docs/reference/ODOO-TESTING.md` (#114).
+
+### Fixed
+
+- Fixed `scripts/verify-frontend.sh` reporting a false-green `PASS` for the JS lint gate. It now resolves `eslint`/`prettier` from the repo-pinned `node_modules/.bin` (git-worktree aware, with an `npx --no-install` last resort; global `command -v` resolution removed), runs the real Runbot oracle `eslint --no-eslintrc -c _eslintrc.json --resolve-plugins-relative-to MAIN_ROOT` (replacing standalone `prettier --check`) with a prettier version-pin pre-check, and emits a tri-state result - `PASS` (exit 0) / `FAIL` (exit 1) / `CANNOT-VERIFY` (exit 2). An unresolved toolchain or a v14 no-gate layout now emits `CANNOT-VERIFY` (a soft-stop the agent must not treat as a pass), never `PASS`. Consumer agents/skills/docs updated to honor `CANNOT-VERIFY` = not-clean (#112).
+
 ## [3.26.0] - 2026-06-25
 
 ### Added

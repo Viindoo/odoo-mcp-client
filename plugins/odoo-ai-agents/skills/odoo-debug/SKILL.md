@@ -104,6 +104,8 @@ run unless the caller already authorized auto-run.
 
 ### Phase 1 - Triage (classify + reproduce)
 
+> **Expected-log triage (deny-path / guard / constraint WARNING - check before escalating).** A WARNING in a test run that matches a deny-path, guard, or SQL-constraint signature is EXPECTED noise - verify it is wrapped with `assertLogs` / `mute_logger`; do NOT open a code investigation. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`.
+
 Dispatch ONE agent (model **haiku**, or **sonnet** if the traceback is long/cross-file) to:
 pin the version, read the symptom/traceback/console, produce the **smallest stable reproduction
 recipe**, classify the layer using `odoo-failure-modes.md`, and emit a **complexity score**

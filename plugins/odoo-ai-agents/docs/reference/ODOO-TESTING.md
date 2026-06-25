@@ -94,6 +94,10 @@ run the gate:
   transition. **Detect which framework a given version/module uses** (check the module's JS
   test assets / `module_inspect`), do not assume.
 
+## Expected-log handling per layer (deny-path / guard tests)
+
+Tests that exercise a deny-path, guard, or constraint that legitimately emits WARNING/ERROR must capture or silence that log - an unwrapped test leaks expected noise into CI output and misses asserting the guard fired. The rule applies across all three layers (Python server log, SQL constraint, and JS-OWL with the era-correct idiom). Full rule per layer: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`.
+
 ## Verify-via-OSM checklist before writing a test command
 
 1. `set_active_version(<target>)`.

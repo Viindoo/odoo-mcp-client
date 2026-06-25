@@ -68,6 +68,8 @@ Before you start, READ the cross-agent decision log (`.odoo-ai/worklog/<run-or-s
 
 Full scientific method: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`. Condensed execution order:
 
+> **Expected-log triage (deny-path / guard / constraint WARNING - check before escalating).** Before opening a code investigation on a WARNING that appears in a test run, check whether it originates from a deny-path, guard, or SQL constraint. If so, the WARNING is EXPECTED noise - not a bug. Verify the test wraps it with `assertLogs` / `mute_logger` and do NOT code-fix. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`.
+
 ### Step 1 - Reproduce (stably)
 
 Identify the smallest input/state that triggers the symptom ~100% of the time. Record the exact recipe. A bug you cannot reproduce you cannot debug.

@@ -3,16 +3,23 @@
 #
 # TIERS (each independently degrades; only BLOCK-tier failures cause non-zero exit):
 #
-#   Tier 1 - FORMAT/LINT (toolchain-dependent, graceful degradation)
+#   Tier 1 - FORMAT/LINT (toolchain-dependent)
 #     Python (.py):  run `ruff check <files>` if ruff is available.
 #                    Line-length read from target repo's pyproject.toml / ruff.toml (never hardcoded).
 #                    Never runs `ruff format` (version-sensitive, mutating).
 #                    If ruff absent: soft-warn, continue.
-#     JavaScript (.js): config resolution order:
-#       (1) repo-committed root .eslintrc* / .prettierrc* + local bin  → run HARD
-#       (2) <odoo_checkout>/addons/web/tooling/_eslintrc.json present  → use it HARD if prettier avail
-#       (3) shipped fallback ${CLAUDE_PLUGIN_ROOT}/scripts/odoo-prettierrc.json → HARD if prettier avail
-#       (4) no config anywhere → SOFT warn, do NOT block
+#     JavaScript (.js): the JS oracle is REPO-PINNED eslint - the same gate Runbot runs:
+#                    `eslint --no-eslintrc -c <web/tooling/_eslintrc.json> --resolve-plugins-relative-to <MAIN_ROOT>`.
+#       Toolchain resolution (NEVER global `command -v` - that is the historical false-green bug):
+#         (a) <current-worktree-top>/node_modules/.bin/<bin>
+#         (b) <main-worktree-top>/node_modules/.bin/<bin>  (node_modules is not copied into linked worktrees)
+#         (c) `npx --no-install <bin>`  (uses a reachable repo-pinned package; never downloads)
+#         (d) none of the above resolvable -> CANNOT-VERIFY (exit 2), NEVER a pass.
+#       The script must run from INSIDE the target addon/Odoo repo (CWD anchors `git rev-parse`),
+#       with the changed JS files passed as args.
+#       Before running, the resolved prettier version is compared against the repo pin
+#       (web/tooling/_package.json or repo-root package.json); a mismatch -> CANNOT-VERIFY.
+#       v14 (no web/tooling JS lint gate) -> CANNOT-VERIFY, never PASS.
 #
 #   Tier 2 - STATIC OWL/SCSS (grep/ERE, always runs, zero toolchain needed)
 #     Applies ${CLAUDE_PLUGIN_ROOT}/scripts/rules/owl-pitfalls.txt over .js/.xml/.scss files.
@@ -31,9 +38,13 @@
 #   ODOO_INSTANCE_URL     live instance base URL for Tier-3 smoke (e.g. http://localhost:8069)
 #   VERIFY_FRONTEND_BASE  git diff base ref (default: HEAD)
 #
-# EXIT CODE:
-#   0  all tiers passed (or degraded gracefully to warn-only)
-#   1  at least one BLOCK-tier failure
+# EXIT CODE (tri-state - calling agents branch on these; the marker strings are byte-exact):
+#   0  RESULT: PASS (clean) | PASS (with N warning(s)) - eslint ran on the repo-pinned
+#      toolchain and found zero blocking issues
+#   1  RESULT: FAIL (N blocking issue(s) - fix before proceeding) - the gate fired
+#   2  RESULT: CANNOT-VERIFY (JS lint toolchain unresolved - DO NOT treat as pass) - the
+#      gate could NOT run (toolchain absent / version-mismatched / v14 no-gate). NEVER a pass.
+#   Precedence: BLOCK>0 -> FAIL(1); elif CANNOT-VERIFY>0 -> CANNOT-VERIFY(2); else PASS(0).
 
 set -euo pipefail
 
@@ -47,7 +58,9 @@ if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
 fi
 
 RULES_FILE="${CLAUDE_PLUGIN_ROOT}/scripts/rules/owl-pitfalls.txt"
-FALLBACK_PRETTIERRC="${CLAUDE_PLUGIN_ROOT}/scripts/odoo-prettierrc.json"
+# NOTE: scripts/odoo-prettierrc.json is RETIRED as a PASS driver. The JS oracle is now
+# repo-pinned eslint via the target repo's _eslintrc.json; a standalone prettier config
+# can no longer reproduce the real gate, so it never yields a PASS (see Tier 1 T1-B).
 ODOO_GIT_BASE="${ODOO_GIT_BASE:-$HOME/git}"
 VERIFY_BASE="${VERIFY_FRONTEND_BASE:-HEAD}"
 
@@ -59,12 +72,66 @@ _have() { command -v "$1" >/dev/null 2>&1; }
 # Counters
 BLOCK_COUNT=0
 WARN_COUNT=0
+CANNOT_VERIFY_COUNT=0
 
 _block() { echo "  [BLOCK] $*"; BLOCK_COUNT=$((BLOCK_COUNT + 1)); }
 _warn()  { echo "  [WARN ] $*"; WARN_COUNT=$((WARN_COUNT + 1)); }
 _ok()    { echo "  [  ok ] $*"; }
 _info()  { echo "  [info ] $*"; }
 _skip()  { echo "  [skip ] $*"; }
+# CANNOT-VERIFY is a distinct tier: the gate could not run. It MUST NOT roll into
+# WARN_COUNT (a warning still permits a PASS); it forces exit 2 so an unrun gate can
+# never read as green.
+_cannot_verify() { echo "  [CANNOT-VERIFY] $*"; CANNOT_VERIFY_COUNT=$((CANNOT_VERIFY_COUNT + 1)); }
+
+# ---------------------------------------------------------------------------
+# MAIN_ROOT - the main worktree root (dirname of the common git dir).
+# git rev-parse --git-common-dir resolves to the MAIN worktree's .git even from
+# inside a linked worktree, so its dirname is the main worktree root. Computed once
+# here and reused both for binary resolution and as --resolve-plugins-relative-to.
+# Empty when CWD is not inside a git repo.
+# ---------------------------------------------------------------------------
+MAIN_ROOT=""
+_git_common_dir="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+if [[ -n "$_git_common_dir" ]]; then
+    # git may return a relative .git path - make it absolute.
+    case "$_git_common_dir" in
+        /*) ;;
+        *) _git_common_dir="$(cd "$(dirname "$_git_common_dir")" 2>/dev/null && pwd)/$(basename "$_git_common_dir")" ;;
+    esac
+    MAIN_ROOT="$(dirname "$_git_common_dir")"
+fi
+WORKTREE_TOP="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+
+# ---------------------------------------------------------------------------
+# _resolve_repo_bin <bin>
+# Echoes a runnable invocation for a repo-pinned JS tool (eslint|prettier) on
+# success, nothing on failure. Search order (NEVER global `command -v` - that is
+# the historical false-green bug):
+#   1. <current-worktree-top>/node_modules/.bin/<bin>
+#   2. <main-worktree-top>/node_modules/.bin/<bin>  (node_modules is not copied into
+#      linked worktrees, so a worktree run must fall back to the main checkout)
+#   3. `npx --no-install <bin>`  (resolves a reachable repo-pinned package; never downloads)
+# Returns non-zero when genuinely absent -> caller emits CANNOT-VERIFY.
+# ---------------------------------------------------------------------------
+_resolve_repo_bin() {
+    local bin="$1"
+    local root
+    for root in "$WORKTREE_TOP" "$MAIN_ROOT"; do
+        [[ -n "$root" ]] || continue
+        if [[ -x "$root/node_modules/.bin/$bin" ]]; then
+            printf '%s\n' "$root/node_modules/.bin/$bin"
+            return 0
+        fi
+    done
+    # Last resort: npx --no-install (uses a repo-pinned package reachable from CWD;
+    # never downloads). Caller must still version-check.
+    if command -v npx >/dev/null 2>&1 && npx --no-install "$bin" --version >/dev/null 2>&1; then
+        printf 'npx --no-install %s\n' "$bin"
+        return 0
+    fi
+    return 1
+}
 
 # ---------------------------------------------------------------------------
 # Collect file list
@@ -196,106 +263,116 @@ PY
 fi
 
 # ---------------------------------------------------------------------------
-# T1-B: JavaScript - config-resolution-ordered prettier --check
+# T1-B: JavaScript - repo-pinned eslint oracle (the gate Runbot runs).
+#   eslint --no-eslintrc -c <web/tooling/_eslintrc.json> \
+#          --resolve-plugins-relative-to <MAIN_ROOT> <files>
+# Absence / version-mismatch / v14-no-gate -> CANNOT-VERIFY (exit 2), never PASS.
 # ---------------------------------------------------------------------------
 if [[ ${#JS_FILES[@]} -gt 0 ]]; then
     echo
     echo "  JavaScript files (${#JS_FILES[@]}):"
 
-    JS_CONFIG=""
-    JS_CONFIG_SRC=""
-    JS_HARD=false
+    # --- Locate the eslint config (the -c argument) -------------------------
+    # The real Runbot oracle is eslint driven by addons/web/tooling/_eslintrc.json.
+    # Resolution order:
+    #   (1) repo-committed root .eslintrc* (the target repo's own committed config)
+    #   (2) <odoo_checkout>/addons/web/tooling/_eslintrc.json  (v17+: embedded prettier rule)
+    #       or _prettierrc.json (v15-v16: eslint still run via _eslintrc.json when present)
+    # No shipped-fallback path produces a PASS: without an _eslintrc.json the gate
+    # cannot reproduce the real oracle, so it is CANNOT-VERIFY, not a soft pass.
+    ESLINTRC=""
+    ESLINTRC_SRC=""
+    PKG_JSON=""          # for the prettier version pin
+    TOOLING_DIR_SEEN=false
 
-    # (1) Repo-committed root .prettierrc* / .eslintrc*
-    for _rc in .prettierrc .prettierrc.json .prettierrc.js .prettierrc.yaml .prettierrc.yml prettier.config.js; do
+    # (1) Repo-committed root eslintrc.
+    for _rc in .eslintrc.json .eslintrc.js .eslintrc.cjs .eslintrc.yaml .eslintrc.yml .eslintrc; do
         if [[ -f "$_rc" ]]; then
-            JS_CONFIG="$_rc"
-            JS_CONFIG_SRC="repo-committed root $_rc"
-            JS_HARD=true
+            ESLINTRC="$_rc"
+            ESLINTRC_SRC="repo-committed root $_rc"
+            [[ -f "package.json" ]] && PKG_JSON="package.json"
             break
         fi
     done
 
-    # (2) Odoo checkout web/tooling/_eslintrc.json (has embedded prettier config since v17)
-    #     or _prettierrc.json (v15-v16)
-    if [[ -z "$JS_CONFIG" ]]; then
+    # (2) Odoo checkout web/tooling/_eslintrc.json.
+    if [[ -z "$ESLINTRC" ]]; then
         while IFS= read -r _odoo_dir; do
-            for _tooling_cfg in \
-                "$_odoo_dir/addons/web/tooling/_prettierrc.json" \
-                "$_odoo_dir/addons/web/tooling/_eslintrc.json"; do
-                if [[ -f "$_tooling_cfg" ]]; then
-                    JS_CONFIG="$_tooling_cfg"
-                    JS_CONFIG_SRC="odoo checkout tooling: $_tooling_cfg"
-                    JS_HARD=true
-                    break 2
-                fi
-            done
+            _tooling="$_odoo_dir/addons/web/tooling"
+            [[ -d "$_tooling" ]] && TOOLING_DIR_SEEN=true
+            if [[ -f "$_tooling/_eslintrc.json" ]]; then
+                ESLINTRC="$_tooling/_eslintrc.json"
+                ESLINTRC_SRC="odoo checkout tooling: $ESLINTRC"
+                [[ -f "$_tooling/_package.json" ]] && PKG_JSON="$_tooling/_package.json"
+                break
+            fi
         done < <(find "$ODOO_GIT_BASE" -maxdepth 2 -name "odoo-bin" 2>/dev/null \
                  | xargs -I{} dirname {} 2>/dev/null | head -5)
     fi
 
-    # (3) Shipped fallback
-    if [[ -z "$JS_CONFIG" && -f "$FALLBACK_PRETTIERRC" ]]; then
-        JS_CONFIG="$FALLBACK_PRETTIERRC"
-        JS_CONFIG_SRC="shipped fallback odoo-prettierrc.json (tier-3 fallback)"
-        JS_HARD=true
-    fi
+    if [[ -z "$ESLINTRC" ]]; then
+        # No eslintrc anywhere. If we saw a web/tooling dir without _eslintrc.json this
+        # is a pre-v17 / v14-style layout; either way the real oracle is unreproducible.
+        if [[ "$TOOLING_DIR_SEEN" == "true" ]]; then
+            _cannot_verify "no addons/web/tooling/_eslintrc.json found (pre-v17 / v14 layout has no JS lint gate); cannot run the eslint oracle - DO NOT treat as pass"
+        else
+            _cannot_verify "no eslint config found (repo root .eslintrc* / Odoo addons/web/tooling/_eslintrc.json); cannot run the JS lint oracle - DO NOT treat as pass"
+        fi
+    else
+        _info "JS eslint config: $ESLINTRC_SRC"
 
-    if [[ -n "$JS_CONFIG" ]]; then
-        _info "JS config: $JS_CONFIG_SRC"
-        if _have prettier; then
-            # prettier --config only works with its own config format (not .eslintrc)
-            # If the config is an eslintrc, extract the prettier/prettier rule values
-            # and write a temp config, then clean up.
-            _PRETTIER_CONFIG_ARG="$JS_CONFIG"
-            _TEMP_PRETTIER=""
-            if [[ "$JS_CONFIG" == *"_eslintrc"* ]] || [[ "$JS_CONFIG" == *".eslintrc"* ]]; then
-                # Extract prettier options from eslintrc prettier/prettier rule
-                _TEMP_PRETTIER="$(mktemp /tmp/odoo-prettierrc-XXXXXX.json)"
-                python3 - "$JS_CONFIG" "$_TEMP_PRETTIER" <<'PY' 2>/dev/null || true
-import json, sys
+        # --- Resolve eslint (repo-pinned; never global command -v) ----------
+        ESLINT="$(_resolve_repo_bin eslint || true)"
+        if [[ -z "$ESLINT" ]]; then
+            _cannot_verify "eslint not resolvable from ${WORKTREE_TOP:-<cwd>}/node_modules/.bin or main worktree ${MAIN_ROOT:-<none>}/node_modules/.bin; npx --no-install unavailable - DO NOT treat as pass"
+        else
+            # --- Prettier version-pin pre-check -----------------------------
+            # eslint-plugin-prettier delegates to prettier; a resolved prettier whose
+            # major differs from the repo pin produces directionally opposite results.
+            # On any detectable mismatch -> CANNOT-VERIFY (do not run a misleading gate).
+            PRETTIER="$(_resolve_repo_bin prettier || true)"
+            _PIN_MISMATCH=false
+            if [[ -n "$PKG_JSON" && -f "$PKG_JSON" && -n "$PRETTIER" ]]; then
+                _PINNED_PRETTIER="$(python3 - "$PKG_JSON" <<'PY' 2>/dev/null || true
+import json, re, sys
 try:
     with open(sys.argv[1]) as fh:
         data = json.load(fh)
-    rules = data.get("rules", {})
-    pp = rules.get("prettier/prettier", [])
-    opts = {}
-    if isinstance(pp, list) and len(pp) >= 2 and isinstance(pp[1], dict):
-        opts = pp[1]
-    if not opts:
-        # fallback canonical values
-        opts = {"tabWidth": 4, "semi": True, "singleQuote": False, "printWidth": 100, "endOfLine": "auto"}
-    with open(sys.argv[2], "w") as fh:
-        json.dump(opts, fh, indent=2)
-except Exception as e:
-    # write fallback
-    with open(sys.argv[2], "w") as fh:
-        json.dump({"tabWidth": 4, "semi": True, "singleQuote": False, "printWidth": 100, "endOfLine": "auto"}, fh)
+    spec = ""
+    for sect in ("devDependencies", "dependencies"):
+        spec = (data.get(sect) or {}).get("prettier") or spec
+    m = re.search(r'(\d+)', spec or "")
+    if m:
+        print(m.group(1))
+except Exception:
+    pass
 PY
-                _PRETTIER_CONFIG_ARG="$_TEMP_PRETTIER"
-            fi
-
-            if prettier --config "$_PRETTIER_CONFIG_ARG" --check "${JS_FILES[@]}" 2>&1; then
-                _ok "prettier --check passed"
-            else
-                if [[ "$JS_HARD" == "true" ]]; then
-                    _block "prettier --check failed (HARD: config $JS_CONFIG_SRC)"
-                else
-                    _warn "prettier --check failed (SOFT: config $JS_CONFIG_SRC)"
+)"
+                # shellcheck disable=SC2086
+                _RESOLVED_PRETTIER="$($PRETTIER --version 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)"
+                if [[ -n "$_PINNED_PRETTIER" && -n "$_RESOLVED_PRETTIER" \
+                      && "$_PINNED_PRETTIER" != "$_RESOLVED_PRETTIER" ]]; then
+                    _PIN_MISMATCH=true
+                    _cannot_verify "prettier version mismatch: resolved major $_RESOLVED_PRETTIER vs repo pin $_PINNED_PRETTIER ($PKG_JSON); the eslint-plugin-prettier result would be unreliable - DO NOT treat as pass"
                 fi
             fi
 
-            [[ -n "$_TEMP_PRETTIER" && -f "$_TEMP_PRETTIER" ]] && rm -f "$_TEMP_PRETTIER"
-        else
-            if [[ "$JS_HARD" == "true" ]]; then
-                _warn "prettier not found - skipping JS format check (install prettier to enable HARD check with $JS_CONFIG_SRC)"
-            else
-                _warn "prettier not found - skipping JS format check"
+            if [[ "$_PIN_MISMATCH" != "true" ]]; then
+                # --resolve-plugins-relative-to pins eslint-plugin-prettier + prettier to
+                # the repo's node_modules. MAIN_ROOT is the resolved main-worktree root.
+                _RESOLVE_ROOT="${MAIN_ROOT:-$WORKTREE_TOP}"
+                _info "running: eslint --no-eslintrc -c $ESLINTRC --resolve-plugins-relative-to $_RESOLVE_ROOT"
+                # shellcheck disable=SC2086
+                if $ESLINT --no-eslintrc \
+                           -c "$ESLINTRC" \
+                           --resolve-plugins-relative-to "$_RESOLVE_ROOT" \
+                           "${JS_FILES[@]}" 2>&1; then
+                    _ok "eslint passed (repo-pinned oracle, config $ESLINTRC_SRC)"
+                else
+                    _block "eslint reported issues (repo-pinned oracle, config $ESLINTRC_SRC) - fix the lint/prettier errors above"
+                fi
             fi
         fi
-    else
-        # (4) No config available - soft warn only
-        _warn "no JS prettier config found (repo root / Odoo tooling / fallback) - skipping JS format check"
     fi
 fi
 
@@ -522,17 +599,27 @@ echo
 echo "============================================================"
 echo " Summary"
 echo "============================================================"
-echo "  BLOCK issues : $BLOCK_COUNT"
-echo "  WARN  issues : $WARN_COUNT"
+echo "  BLOCK issues        : $BLOCK_COUNT"
+echo "  WARN  issues        : $WARN_COUNT"
+echo "  CANNOT-VERIFY items : $CANNOT_VERIFY_COUNT"
 
+# Tri-state precedence:
+#   BLOCK>0          -> FAIL          (exit 1)  the gate ran and found real errors
+#   CANNOT_VERIFY>0  -> CANNOT-VERIFY (exit 2)  the gate could not run - NEVER a pass
+#   else             -> PASS          (exit 0)
+# FAIL outranks CANNOT-VERIFY: a gate that ran and found errors is reported as FAIL.
 if [[ $BLOCK_COUNT -gt 0 ]]; then
     echo
-    echo "  RESULT: FAILED ($BLOCK_COUNT blocking issue(s) - fix before proceeding)"
+    echo "  RESULT: FAIL ($BLOCK_COUNT blocking issue(s) - fix before proceeding)"
     exit 1
+elif [[ $CANNOT_VERIFY_COUNT -gt 0 ]]; then
+    echo
+    echo "  RESULT: CANNOT-VERIFY (JS lint toolchain unresolved - DO NOT treat as pass)"
+    exit 2
 else
     if [[ $WARN_COUNT -gt 0 ]]; then
         echo
-        echo "  RESULT: PASS (with $WARN_COUNT warning(s) - review recommended)"
+        echo "  RESULT: PASS (with $WARN_COUNT warning(s))"
     else
         echo
         echo "  RESULT: PASS (clean)"

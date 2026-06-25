@@ -55,11 +55,15 @@ A subset of these rules that can be checked mechanically is enforced by two pre-
 against changed files. `scripts/verify-backend.sh` runs `pylint --load-plugins=pylint_odoo`
 over changed `.py` files using a version-matched, isolated toolchain (deprecated decorators,
 `cr.commit()`, ORM misuse, and other pylint-odoo codes). `scripts/verify-frontend.sh` runs a
-three-tier check over changed `.js`/`.xml`/`.scss` files: Prettier/ruff format (Tier 1),
-static OWL/SCSS pattern scan via `scripts/rules/owl-pitfalls.txt` (Tier 2), and an optional
-runtime smoke check (Tier 3). Both gates catch only the mechanical subset; the semantic rules
-(attribute ordering, naming intent, structure, secure-coding patterns) are the responsibility
-of the agent reading these files up front.
+three-tier check over changed `.js`/`.xml`/`.scss` files: JS lint/format via repo-pinned
+`eslint -c _eslintrc.json` (Tier 1 - the same oracle Runbot uses), static OWL/SCSS pattern scan
+via `scripts/rules/owl-pitfalls.txt` (Tier 2), and an optional runtime smoke check (Tier 3).
+The JS Tier-1 gate is tri-state: `RESULT: PASS` (exit 0) means eslint ran clean; `RESULT: FAIL`
+(exit 1) means eslint found errors; `RESULT: CANNOT-VERIFY` (exit 2) means the repo-pinned
+toolchain could not be resolved - exit 2 is NOT a pass, and the agent MUST NOT declare done on
+it. Both gates catch only the mechanical subset; the semantic rules (attribute ordering, naming
+intent, structure, secure-coding patterns) are the responsibility of the agent reading these
+files up front.
 
 ## Viindoo additions beyond upstream RST
 
