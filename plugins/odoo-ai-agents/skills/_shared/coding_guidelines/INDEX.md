@@ -76,3 +76,11 @@ defects (lookup-gap, wrong ORM path, or missing `depends`) instead of surfacing 
 presence via OSM before writing or accepting the access.
 Full rule, 3-way classification, worked examples, and JS/OWL analogue:
 `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`
+
+**Module rename conventions (profile-gated - Viindoo Standard/Internal only):** When a module is
+renamed (technical name / directory changes) under a Viindoo Standard or Internal profile
+(OSM-detected; profiles of the form `standard_viindoo_<series>` or `viindoo_internal_<series>`),
+the renamed module's `__manifest__.py` must carry `'old_technical_name': '<previous name>'` so
+Viindoo internal tooling can map the old technical name to the new one. This key is ignored by the
+Odoo core loader and is NOT an OCA convention - do not apply it outside Viindoo distributions.
+Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/module-rename.md`
