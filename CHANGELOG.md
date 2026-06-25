@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Added greenfield `__manifest__.py` authoring guidance (scaffold-first, preserve scaffold commented placeholders, short non-series-prefixed `version`) as a dedicated snippet (`new-module-manifest.md`) wired into `odoo-coder` (directive + checklist) and `odoo-code-reviewer` (MED convention finding); `odoo-frontend-coder` references it at the manifest-wiring step; `odoo-coding` skill brief updated.
+- Added profile-gated module-rename guidance (`snippets/module-rename.md`): under a Viindoo Standard/Internal profile (OSM-detected), a renamed module's manifest must carry `old_technical_name` (Viindoo-internal tooling key, ignored by Odoo core loader, additive to OpenUpgrade DB-level rename); wired into `odoo-coder` (directive + checklist item) and `odoo-code-reviewer` (MED finding, explicitly non-applicable outside Viindoo distributions).
 
 ## [3.24.0] - 2026-06-22
 
