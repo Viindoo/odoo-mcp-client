@@ -151,7 +151,7 @@ If authoritative hook/registry API details are still missing after step 3, also 
 **Round 4 - assemble complete output.**
 1. **JS file** - `/** @odoo-module **/` first line (v16-v17; optional but harmless in v18+), then `import`s from verified paths, then the component class, then registry `.add()`.
 2. **XML template file** - separate file preferred for templates over ~10 lines.
-3. **`__manifest__.py` assets block** - list both `.js` and `.xml` under `web.assets_backend`.
+3. **`__manifest__.py` assets block** - list both `.js` and `.xml` under `web.assets_backend`. If this is a new module, the `version` field follows the short scaffold-default form - see `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md`; backend `odoo-coder` owns the `version` key.
 4. **OWL version notes** - briefly note any 1.x→2.x differences relevant to the generated code.
 
 **Round 5 - suggest visual verification (forward-wiring).** Same as the legacy Round 5: emit a `SUGGESTED_NEXT: odoo-ui-review (…)` signal for the orchestrator. Do NOT invoke any skill yourself.

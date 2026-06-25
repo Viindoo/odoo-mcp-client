@@ -228,7 +228,7 @@ Coder (`agentType: odoo-coder` for a backend leg / `odoo-frontend-coder` for a f
 DISPATCH MODEL: <tier>
 REQUEST: <the change for this module: target model + constraints; for a frontend leg use the module's frontendRequest, falling back to its request>
 MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest__.py / static assets).
-NEW MODULE: <yes - scaffold the skeleton with `odoo-bin scaffold` first, then fill it in | no>
+NEW MODULE: <yes - ALWAYS scaffold with `odoo-bin scaffold` first; edit only needed keys and KEEP scaffold's commented placeholders; keep its short version default, do NOT rewrite to `<series>.x.y.z` | no>
 ODOO VERSION: <version>
 DESIGN_DOC: <path | none> - if present, build to it; do not re-derive.
 TEST: <test-author -> "FAILING TEST (RED, written by a separate author): <paths> - implement until they pass; do NOT edit the tests." | self -> "write the failing test FIRST, confirm RED, then code to green - never weaken it">
