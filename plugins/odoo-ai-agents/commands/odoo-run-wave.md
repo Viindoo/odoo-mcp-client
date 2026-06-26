@@ -36,8 +36,7 @@ For **in-context skill chaining** (no git): use `workflow-chaining` instead.
    worktrees.
 3. **Human-confirm merge.** The wave skill always stops before the final merge and waits
    for your explicit confirmation. Auto-merge is never allowed.
-4. **NL-dispatch only.** This command fires the `wave` skill via a natural-language prompt
-   matching the skill's description. The Skill tool is never used.
+4. **Dispatch via the Skill tool.** This command fires the `wave` skill using the Skill tool. NL description-match is the fallback when the Skill tool is unavailable.
 
 ## Invocation
 

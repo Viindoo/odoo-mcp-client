@@ -189,10 +189,16 @@ design. Triage tier table: `references/fp-triage-table.md`.
 
 **P1 - Intent extract [PARALLEL, READ-ONLY].** Runs BEFORE the plan gate so the plan is built
 on extracted intent, not a guess. This is the only true parallel speed-up - and it is honored
-fully. Dispatch one `odoo-intent-extractor` agent per commit as a subagent launch,
-each with its triaged `model` override, up to the Mode B budget (rolling window beyond it).
-Each writes `.odoo-ai/forward-port/<slug>/intents/<sha>.md` (the why + behavioral contract +
-OSM-grounded symbols, never the diff). No worktree children needed - extraction is read-only.
+fully. Dispatch one `odoo-intent-extractor` agent per commit using CHP Tier-B `subagent_type:
+"fork"` (see `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B), each
+with its triaged `model` override, up to the Mode B budget (rolling window beyond it). A fork
+worker inherits the parent's full context (slug, source-ref, target-branch, OSM version pin,
+profile) and shares the parent's prompt cache, eliminating per-worker re-grounding cost. No
+worktree children needed - extraction is read-only; Tier B applies unconditionally here.
+Fallback (Tier C): if `subagent_type: "fork"` is unavailable, dispatch a fresh `general-purpose`
+spawn with an explicit brief (current behavior) - the worklog is always written regardless of tier.
+Each worker writes `.odoo-ai/forward-port/<slug>/intents/<sha>.md` (the why + behavioral contract +
+OSM-grounded symbols, never the diff).
 Aggregate the returned summaries into the P2 classify queue.
 
 **P2 - Classify + installable-probe [per-commit, OSM].** For each commit, ground its symbols
@@ -309,14 +315,43 @@ P9 is a false pass (`0 failed, N error(s)` is NOT a passing result). Record find
 Full commands: `references/fp-phase-detail.md` P7.
 
 **P8 - Adapt [test-first; SERIAL per-module within a commit; SERIAL across commits].** For each touched module/WI,
-spawn an adapt unit in its own child worktree off integration (worktree per module for filesystem isolation):
+spawn an adapt unit in its own child worktree off integration (worktree per module for filesystem isolation).
+
+Run the CHP capability probe once (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`
+- Capability probe) before the first P8 adapt dispatch, and cache the result for every P8 dispatch
+in this run - this tells the orchestrator up front whether Tier-A is available at all.
+
+CHP Tier-A (SendMessage-resume) applies to the P8 adapt worker / P9 verify cycle: after the
+adapt worker finishes 8a+8b and the merge back to integration, P9 may reveal a failing test.
+Instead of spawning a cold fresh worker for the re-adapt, resume the SAME adapt worker via
+`SendMessage` (see `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier A),
+sending it the P9 failure output. The worker keeps its full prior context (intent record, bucket,
+worktree path, partially adapted code) - far cheaper than rebuilding from a brief. Structure the
+exchange as async park-and-be-resumed: send the P9 failure output, end your turn, and wait to be
+resumed when the worker's re-adapt reply arrives. On resume the worker MUST immediately `cd` to
+its child worktree path before any Bash command (the shell cwd is NOT guaranteed to be restored
+across resume - see the CHP snippet "Tier-A workers in a git worktree - cd on resume"). Assign
+each adapt worker a stable `name` (e.g. `adapt-<slug>-<module>`) when spawning it and record the
+returned `agentId` in `plan.md` keyed by module, so `plan.md` becomes the agentId registry for
+re-adapt dispatches.
+Fallback (Tier C): if the capability probe is negative (env unset, `SendMessage` absent, or probe
+signals the orchestrator is not the team lead), spawn a fresh `odoo-coder` /
+`odoo-test-writing` agent with an explicit brief containing the P9 failure output. Tier C is
+always correct; the worklog is always written regardless of tier.
+
 - **8a forward the test FIRST** via `odoo-test-writing` mode `adapt`. Adapt the MERGED SOURCE
   TEST to run on the target - translate API to the target idiom (base class, imports, helper
   signatures per P7), strip implementation-coupled assertions, confirm it goes RED. Do NOT
   author a brand-new test from scratch: the forwarded source test IS the oracle; 8a adapts it
   to run. Only when the source commit shipped NO test does the agent write one - anchored to
   the source intent record, not improvised.
-  Build an FP-ENRICHED brief carrying:
+  Build an FP-ENRICHED brief carrying a named **Child worktree path: `<absolute path>`** field
+  (the worker's own child worktree off integration - the same path the orchestrator created for
+  this module/WI), plus:
+  (0) **cd-on-resume (HARD RULE - Tier-A):** On resume via `SendMessage`, immediately `cd` to the
+  Child worktree path listed in this brief before running any Bash command. Shell cwd is NOT
+  guaranteed to be restored across a SendMessage-resume; the explicit `cd` makes Tier-A re-adapt
+  safe regardless of runtime behavior. Apply this on every resume, not only the first;
   (i) **base class grounding** - call `test_base_classes(odoo_version='<target_version>')` to
   confirm the correct base class (`SavepointCase` deprecated alias from v8-v15, should adapt to
   `TransactionCase`; `cr.commit()` FORBIDDEN in all test cases); attach the output so the agent
@@ -327,8 +362,9 @@ spawn an adapt unit in its own child worktree off integration (worktree per modu
   (iii) **broken test-symbol list** from P6 test-survival - adapt agent must rewrite or drop
   every test assertion referencing a symbol removed at target.
 - **8b adapt the code** per bucket via `odoo-coder` (backend) / `odoo-frontend-coder` (frontend),
-  dispatched with an FP-ENRICHED brief = intent record + bucket + the failing test + the
-  installable:False checklist. Bucket (a)/(d): no adapt code. Bucket (b): 3-way merge + adapt.
+  dispatched with an FP-ENRICHED brief = the named **Child worktree path: `<absolute path>`** field
+  + the same **cd-on-resume (HARD RULE - Tier-A)** item as 8a + intent record + bucket + the failing
+  test + the installable:False checklist. Bucket (a)/(d): no adapt code. Bucket (b): 3-way merge + adapt.
   Bucket (c): re-implement on the target idiom. The frontend leg additionally grounds any
   ported OWL/QWeb/SCSS against `skills/_shared/odoo-frontend-fidelity.md` so the forwarded UI
   stays on-theme and design-system-correct for the target version.
@@ -337,7 +373,13 @@ spawn an adapt unit in its own child worktree off integration (worktree per modu
 - **8d migration script**: rename `<src-series>` -> `<tgt-series>` dir ONLY when the gate
   `installed < parse(dir) <= current` holds - never rename blind (an inert dir is silent).
   (`installed` = `ir.module.module.installed_version` for the module; `current` = manifest `version`.)
-Converge each child worktree back to integration (serialized), then remove it.
+Converge each child worktree back to integration (serialized) - the converge-back stays
+serialized, one in-flight at a time. Do NOT remove the child worktree at converge-back time:
+under Tier-A the adapt -> verify -> (re-adapt on failure) cycle for that module may resume the
+SAME worker, which `cd`s back into its still-existing child worktree, so the worktree MUST persist
+through the whole cycle. Remove a module's child worktree only AFTER that module's cycle is
+confirmed done (P9 GREEN for that module's batch); a worktree removed before P9 verify would leave
+a Tier-A re-adapt worker `cd`-ing into a deleted path.
 
 **P9 - Verify by behavior [PER-BATCH, in integration].** Resolve odoo-bin flags for the
 TARGET series via `cli_help` before invoking (the allocator returns version-agnostic ports;

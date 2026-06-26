@@ -78,11 +78,11 @@ One concise paragraph. Flag uncertainty ("likely", "possibly") - never assert un
 
 **config:** Name the most likely setting or access-right to check.
 
-**bug:** State suspected module + trigger. If runtime symptoms present, emit NL-dispatch:
-> "[NL-dispatch]: Debug the following Odoo runtime issue: [ticket description]. Identify root cause, affected module, and fix recommendation."
+**bug:** State suspected module + trigger. If runtime symptoms present, invoke `odoo-debug` via the Skill tool:
+> "Debug the following Odoo runtime issue: [ticket description]. Identify root cause, affected module, and fix recommendation."
 
-**feature-request:** State if likely available in another edition/app. Emit NL-dispatch if verification needed:
-> "[NL-dispatch]: Does Odoo [version] support [feature description]? Provide module name, edition (CE/EE), and one-line verdict."
+**feature-request:** State if likely available in another edition/app. If verification is needed, invoke `odoo-feature-check` via the Skill tool:
+> "Does Odoo [version] support [feature description]? Provide module name, edition (CE/EE), and one-line verdict."
 
 **training:** Name exact menu path + Odoo docs section if known.
 
@@ -122,8 +122,7 @@ Severity: <blocker|high|normal|low|unknown>
 - Rationale: <one-line>
 
 ## Root-cause hint
-<One paragraph. NL-dispatch triggers shown inline if odoo-debug or odoo-feature-check
-were invoked. Uncertainty flagged explicitly.>
+<One paragraph. Skill-tool invocations of odoo-debug or odoo-feature-check shown inline if invoked. Uncertainty flagged explicitly.>
 
 ## Resolution draft
 ### Customer-facing reply (if resolvable)
@@ -149,7 +148,7 @@ ALL output → `.odoo-ai/support/` (gitignored). Abstract labels only: never log
 
 ## Dispatch rules
 
-Leaf skill. Does NOT invoke the Skill tool. Does NOT spawn subagents. NL-dispatch triggers are natural-language prompts emitted inline - main context fires the specialist via description-match. Other skill references are text suggestions only ("Suggest: run X") - user decides.
+This skill dispatches `odoo-debug` (Skill tool) for runtime bug symptoms and `odoo-feature-check` (Skill tool) for edition/feature verification, when the ticket needs them. Other skill references are text suggestions only ("Suggest: run X") - user decides.
 
 ## Continuation Contract
 

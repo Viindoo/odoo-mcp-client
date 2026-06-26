@@ -40,8 +40,7 @@ Use this command when you already know you want to run discovery synthesis and w
 
 ## Hard rules
 
-- Do **not** call the MCP `Skill` tool directly. Instead, construct a natural-language prompt that describes what the user wants, and the router will auto-fire the skill.
-- Do **not** spawn a subagent.
+- Dispatch the target skill via the Skill tool. NL description-match is an acceptable fallback.
 - Do **not** proceed to gap analysis, proposal drafting, or other chained skills. If the user wants the full discovery → proposal chain, redirect to `/odoo-respond-bid`.
 - Check for `.odoo-ai/context.md` in the project root. If it exists and contains an `odoo_version` key, use that as the default Odoo version for the skill context. If the file is absent, do not assume a version - the skill will use its internal default.
 - The file path `<cwd>/.odoo-ai/discovery/` is the canonical location. Create the directory if it does not exist.

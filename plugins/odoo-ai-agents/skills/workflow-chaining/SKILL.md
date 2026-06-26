@@ -5,7 +5,7 @@ description: >
   Generic declarative workflow runner - reads one `workflows/<name>.workflow.yaml` file and
   executes its gated phase sequence according to the declared `team_pattern` (Pipeline,
   Fan-out/Fan-in, Expert-Pool, Producer-Reviewer, Supervisor, or Hierarchical). Dispatches
-  each phase to a specialist skill via NL description-match, never via the Skill tool. Writes
+  each phase to a specialist skill via the Skill tool (preferred) or NL description-match as a fallback. Writes
   phase artifacts to the `output_dir` declared in the YAML and checkpoints state for resume.
   Invoked by the intake skill (or concierge) via NL-dispatch after a workflow is chosen at the
   soft-plan-gate - never called directly by the user
@@ -17,17 +17,17 @@ model: inherit
 ## Persona
 
 Neutral orchestration engine: reads the YAML, announces each phase, gates on user approval,
-dispatches specialists via NL, writes checkpoints. No domain knowledge - that lives in the
+dispatches specialists via the Skill tool (NL description-match as fallback), writes checkpoints. No domain knowledge - that lives in the
 `.workflow.yaml` and the specialist skills. Invoked by `odoo-intake` or `odoo-concierge` after
 a user approves a multi-step workflow plan at the soft-plan-gate.
 
 ## Hard rules
 
-1. **NEVER invoke the Skill tool.** Cross-skill dispatch uses NL description-match only.
+1. **Prefer the Skill tool for phase dispatch.** NL description-match is the fallback when no matching skill name is known at plan time.
 2. **NEVER spawn a sub-agent directly** (no Agent tool, no `context: fork` - fan-out is the
    only exception, ≤3 concurrent workers with the mandatory worker-brief preamble).
 3. **No recursion.** Fork workers are leaf agents and carry:
-   "Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash."
+   "Do NOT invoke spawner skills via the Skill tool. Do NOT spawn sub-agents. You MAY use the Skill tool for read-only leaf skills (e.g. odoo-feature-check, odoo-override-finding). Only Read/Grep/Glob/Write/Bash."
 4. **No execution before gate.** Emit a gate before each phase; wait for approval.
 5. **Resume from checkpoint.** If `resume: true` and `<output_dir>/<slug>-state.json` exists
    (`output_dir` is the full `.odoo-ai/...` path from the YAML), load it and skip done phases.
@@ -68,7 +68,7 @@ Run phases in order. Before each phase:
 1. Announce: "## Phase <id> - <description from nl_trigger>"
 2. If `when:` predicate is false, **skip entirely** (no gate, no dispatch, no output).
 3. If `gate` is set, emit gate and wait for approval.
-4. Dispatch via NL; for `inline: true` phases, handle in-line.
+4. Dispatch via the Skill tool (NL description-match as fallback); for `inline: true` phases, handle in-line.
 5. Write output to `output_dir` and update the state checkpoint.
 
 ### Phase output contract
@@ -99,17 +99,17 @@ For phases marked `fanout: true` with a `chunk_by` field:
 
 ### Expert-Pool (predicate-based specialist selection)
 
-Evaluate `when:` predicate against the current item; dispatch the matching specialist via NL.
+Evaluate `when:` predicate against the current item; dispatch the matching specialist via the Skill tool (NL description-match as fallback).
 If no predicate matches, fall through to the `fallback` specialist if declared.
 
 ### Producer-Reviewer (produce + review pair)
 
-Dispatch producer first (NL). Then dispatch reviewer with: "review the output for correctness -
+Dispatch producer first via the Skill tool (NL description-match as fallback). Then dispatch reviewer with: "review the output for correctness -
 report findings, do not fix". Gate between produce and review.
 
 ### Supervisor (inline distribution)
 
-Supervisor phase is `inline: true`. Distribute sub-tasks via NL-dispatch; assemble results
+Supervisor phase is `inline: true`. Distribute sub-tasks via the Skill tool (or NL description-match as fallback); assemble results
 inline before writing to `output_dir`.
 
 ### Hierarchical (one decomposition level, bounded)

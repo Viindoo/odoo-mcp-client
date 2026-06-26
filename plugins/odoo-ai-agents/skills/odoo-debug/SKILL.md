@@ -119,10 +119,10 @@ Route each suspected layer to its specialist, choosing the model **explicitly** 
 |---|---|---|
 | Python/ORM, data-state, Expected singleton, AccessError, compute/onchange/constraint, traceback, module-load/migration/ParseError | `odoo-backend-debugger` agent | subagent launch (OSM, parallel-safe) |
 | OWL/JS/QWeb/SCSS runtime, console/network/blank render | `odoo-ui-debugger` agent | subagent launch (BROWSER → serial, exclusive) |
-| "why is it slow" / N+1 happening now | `odoo-perf-audit` (reactive mode) | NL-dispatch |
-| security symptom at runtime (leak, unexpected AccessError, observed injection) | `odoo-security-audit` (reactive mode) | NL-dispatch |
-| pre-upgrade / deprecated-API-at-runtime | `odoo-deprecation-audit` | NL-dispatch |
-| need a broad static sweep of code | `odoo-code-review` | NL-dispatch |
+| "why is it slow" / N+1 happening now | `odoo-perf-audit` (reactive mode) | Skill tool |
+| security symptom at runtime (leak, unexpected AccessError, observed injection) | `odoo-security-audit` (reactive mode) | Skill tool |
+| pre-upgrade / deprecated-API-at-runtime | `odoo-deprecation-audit` | Skill tool |
+| need a broad static sweep of code | `odoo-code-review` | Skill tool |
 
 Parallelism: the OSM-only legs (backend debugger + reactive audits) run in parallel (<=3 - Mode A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). The browser leg (odoo-ui-debugger) runs as its OWN exclusive step and MAY overlap the OSM legs - just never run two browser-driving agents at once.
 
@@ -149,11 +149,9 @@ or invoke skills.
 
 The agent frontmatter pins `model: sonnet` only as a floor - the subagent `model` parameter you pass OVERRIDES it. Always pass it explicitly (haiku/sonnet/opus per the table); if you omit it, the dispatch silently runs at sonnet and a Phase-2 cross-file case that needed opus will be under-powered.
 
-NL-dispatch vs subagent launch: the agent rows (backend/ui) are dispatched as subagents with an explicit model. The audit rows (perf/security/deprecation/code-review) are NL-dispatched by YOU, the orchestrator, by description-match in the main context - this is NOT delegated to a Phase-1 triage agent, and the leaf audit runs at its own `model: inherit` (this context), outside the per-phase model table.
+Dispatch mechanism: the agent rows (backend/ui) are dispatched as subagents with an explicit model. The audit rows (perf/security/deprecation/code-review) are invoked via the Skill tool by YOU, the orchestrator, in the main context - this is NOT delegated to a Phase-1 triage agent, and each audit runs at its own `model: inherit` (this context), outside the per-phase model table.
 
-For NL-dispatch to an audit skill, write a natural-language request that matches that skill's
-description and states the symptom + reproduction + version, asking for a root-cause (reactive),
-not a full proactive scan.
+When invoking an audit skill via the Skill tool, pass the symptom + reproduction + version, asking for a root-cause (reactive), not a full proactive scan.
 
 ### Phase 3 - Verify (adversarial)
 
@@ -224,7 +222,7 @@ the Phase 2 tier; do not silently fall back to the inherited default.
   so the run-driver provisions one; fall back to `BLOCKED` for that leg only if
   provisioning is itself impossible. Never ask the user to paste console output or screenshots -
   those are evidence the browser agent captures.
-- **Leaf skill.** Does NOT invoke other skills or spawn subagents. If a spawned agent ever needs this exact diagnosis, it should inline `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` directly rather than calling this skill.
+- **Orchestrator.** Dispatches specialist debug agents (subagents) and audit skills (Skill tool). Does NOT accept re-invocation from inside a subagent: a spawned agent that needs this exact diagnosis should inline `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` directly rather than calling this skill.
 
 ## Output format
 

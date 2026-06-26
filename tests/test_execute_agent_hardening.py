@@ -30,6 +30,7 @@ NEW_SNIPPETS = [
     SHARED / "odoo-module-graph.md",
     SNIPPETS / "read-before-write-contract.md",
     SNIPPETS / "test-behavior-contract.md",
+    SNIPPETS / "context-handoff-protocol.md",
 ]
 
 # The seven agents that touch architecture / code / review / debug.

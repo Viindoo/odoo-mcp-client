@@ -4,7 +4,7 @@ description: >
   Orchestrate a full QA cycle for an Odoo feature or module in one pass: generate
   structured test cases from a feature description, produce a pre-deploy QA checklist,
   and triage open bugs with severity, repro steps, and suspected module. Delegates
-  phases via NL-dispatch (odoo-deploy-checklist for checklist; odoo-debug for
+  phases via the Skill tool (odoo-deploy-checklist for checklist; odoo-debug for
   runtime triage), handles test-gen and bug-triage inline. Trigger on: "write test
   cases for this feature", "QA checklist before release", "triage this bug", "QA
   pipeline for this change", "full QA suite", "test plan for this release",
@@ -25,7 +25,7 @@ pass: (1) generate test cases, (2) gate on a pre-deploy checklist, (3) triage bu
 severity and root-cause hints.
 
 This skill is a **composition orchestrator**: do not call MCP tools directly. Delegate phases
-via NL-dispatch to leaf skills; handle work inline only when no leaf skill covers it.
+via the Skill tool to leaf skills; handle work inline only when no leaf skill covers it.
 
 ---
 
@@ -101,9 +101,9 @@ Rules:
 
 ---
 
-## Phase 2 - QA checklist (NL-dispatch to odoo-deploy-checklist)
+## Phase 2 - QA checklist (Skill tool: odoo-deploy-checklist)
 
-Dispatch via NL: "Generate a pre-deployment QA checklist for <module> targeting Odoo <version> in staging environment, covering all 8 domains: pre-flight, backup, data migration, downtime, deploy mechanics, smoke tests, monitoring, and rollback."
+Invoke `odoo-deploy-checklist` via the Skill tool: "Generate a pre-deployment QA checklist for <module> targeting Odoo <version> in staging environment, covering all 8 domains: pre-flight, backup, data migration, downtime, deploy mechanics, smoke tests, monitoring, and rollback."
 
 Write the returned checklist to `.odoo-ai/qa/<slug>-deploy-checklist.md`.
 
@@ -111,7 +111,7 @@ Gate before dispatching: "approve / skip / cancel".
 
 ---
 
-## Phase 3 - Bug triage (inline, or NL-dispatch to odoo-debug for runtime issues)
+## Phase 3 - Bug triage (inline, or Skill tool: odoo-debug for runtime issues)
 
 If no open bugs provided in Phase 0, skip and note "No bugs to triage" in the summary.
 
@@ -142,7 +142,7 @@ Severity rules (non-negotiable - never soften):
 - **Medium**: non-critical flow broken or degraded; workaround exists.
 - **Low**: cosmetic, minor UX, or edge-case inconvenience.
 
-If a bug requires live browser inspection to classify, NL-dispatch to `odoo-debug`: "Investigate the following runtime issue in Odoo <version> and return a root-cause analysis with reproduction steps: <bug description>." Incorporate the returned root-cause into the triage entry.
+If a bug requires live browser inspection to classify, invoke `odoo-debug` via the Skill tool: "Investigate the following runtime issue in Odoo <version> and return a root-cause analysis with reproduction steps: <bug description>." Incorporate the returned root-cause into the triage entry.
 
 Output file: `.odoo-ai/qa/<slug>-bug-triage.md`
 
@@ -179,7 +179,7 @@ Write `.odoo-ai/qa/<slug>-qa-summary.md`:
 When OSM is unreachable:
 1. **Phase 1 (test-case gen)**: fully inline - no MCP tools needed. Runs normally.
 2. **Phase 2 (deploy checklist)**: dispatch `odoo-deploy-checklist` in standalone mode (leaf skill marks OSM-dependent Domain 1 rows as `⚠ Manual check` automatically).
-3. **Phase 3 (bug triage)**: inline triage runs normally; skip `odoo-debug` NL-dispatch for runtime inspection and note: `(OSM offline - runtime inspection via odoo-debug requires reconnection)`
+3. **Phase 3 (bug triage)**: inline triage runs normally; skip the `odoo-debug` Skill-tool invocation for runtime inspection and note: `(OSM offline - runtime inspection via odoo-debug requires reconnection)`
 
 Add notice at top of summary: `> Note: QA suite ran in standalone mode. OSM-dependent checks marked ⚠ Manual check.`
 
