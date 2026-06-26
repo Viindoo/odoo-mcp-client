@@ -17,6 +17,7 @@ gate. NO data-migration content.
 | **REWRITE(model)** | A model the module extends has structural changes (field renamed, type changed, removed) at target | `model_inspect` on the extended model at target shows field absent or type-changed |
 | **MERGE** | Two or more modules in the cluster address the same business domain and can be consolidated into one at target | Shared model extension + shared views + no external dependers outside the cluster |
 | **SPLIT** | A single module has grown to cover multiple unrelated domains; splitting improves maintainability + target installability | Module has >1 unrelated model domains with separate dependency trees |
+| **RECONCILE** | EITHER (a) target-core newly writes/computes the SAME business quantity on the SAME records as the custom code (data-divergence: two SSOTs), OR (b) target-core gained a NEW mechanism/API that can replace or materially simplify the custom implementation (new-feature wire-in). The custom intent survives, but the SSOT/wire-in choice is architectural -> MUST route to P2b design (odoo-solution-design); never silently KEEP/coexist | `api_version_diff` shows a NEW core compute/field on the same model+records the custom code writes (a), or a `new` API entry covering the custom feature's acceptance criteria (b); triangulate with `model_inspect` / `suggest_pattern` / `find_examples` |
 | **OBSOLETE** | The module's entire purpose is moot at target because core changed the underlying workflow or replaced the mechanism, but there is NO named core module/feature that directly absorbs it (it is deprecated because the need evaporated, not because a feature absorbed it) | OSM shows the workflow or mechanism the module customized no longer exists or is irrelevant at target; no single `absorbing_core_feature` can be honestly named |
 
 ### "Core absorbed it" signals (positive)
@@ -61,29 +62,31 @@ risks in plan.md, and require explicit user confirmation at the P3 gate.
 ## 2. Cross-major breaking-change catalog
 
 Apply to all KEEP / REWRITE / MERGE / SPLIT modules in P4. The `odoo-coder` brief cites
-this catalog; the coder applies every relevant item.
+this catalog; the coder applies every relevant item. The "Affected versions" column is
+indicative and frozen at v18; new pivots live ONLY in
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` (F0) - consult it for v19+. Verify there
+(and via OSM `api_version_diff` at target) before applying.
 
 ### Python / ORM API breaks
 
 | Break | Affected versions | Fix |
 |-------|------------------|-----|
-| `@api.multi` decorator removed | v14+ | Remove decorator; methods now implicitly multi-record |
-| `@api.one` decorator removed | v14+ | Remove decorator; return a scalar, not a list |
+| `@api.multi` decorator removed | v13+ | Remove decorator; methods now implicitly multi-record |
+| `@api.one` decorator removed | v13+ | Remove decorator; return a scalar, not a list |
 | `_columns` dict removed | v13+ | Use `fields.*` class attributes |
 | `osv.osv` / `orm.TransientModel` (old-style) | v13+ | Inherit from `models.Model` / `models.TransientModel` |
 | `ir.values` model removed | v13+ | Use `ir.default` for user defaults |
-| `name_get()` overrides | v17+ | Replace with `_compute_display_name()` compute field |
-| `fields_view_get()` override | v17+ | Replace with `get_views()` (new signature) |
-| `_sql_constraints` list of tuples | v17+ | Use `models.Constraint` objects (new API) |
+| `name_get()` overrides | v17 deprecated (WARN); **v18+ REMOVED** | Replace with `_compute_display_name()` compute field |
+| `fields_view_get()` override | v16 deprecated; **v17+ REMOVED** | Replace with `get_views()` (new signature) |
 | `attrs` / `states` view attribute (Python-eval) | v17+ | Replace with `invisible` / `required` / `readonly` domain-style attributes |
 | `cr.commit()` in tests | all | FORBIDDEN inside `TransactionCase` / `SavepointCase`; remove or restructure test |
-| `SavepointCase` alias | v16+ WARN, v18+ BREAKING | Migrate to `TransactionCase` |
+| `SavepointCase` alias | v16+ WARN (alias of `TransactionCase`; still works) | Migrate to `TransactionCase` |
 
 ### View / QWeb breaks
 
 | Break | Affected versions | Fix |
 |-------|------------------|-----|
-| `<tree>` tag renamed to `<list>` | v17+ | Replace `<tree>` with `<list>` in all XML views |
+| `<tree>` tag renamed to `<list>` | **v18+** (at v17 `<tree>` is still canonical; `<list>` is unknown pre-v18) | Replace `<tree>` with `<list>` in all XML views |
 | `<form>` `string=` attribute on groups | check per version | Validate against `model_inspect(model='<model>', method='views', odoo_version='auto')` at target |
 | `<field widget="...">` legacy widgets | v14-v17+ | Check widget availability at target; OWL widgets may need replacing |
 | `attrs` / `states` on form/tree fields | v17+ | Migrate to domain-based `invisible` / `required` / `readonly` attributes |
@@ -104,7 +107,7 @@ this catalog; the coder applies every relevant item.
 
 | Break | Affected versions | Fix |
 |-------|------------------|-----|
-| `version` field still at source series | any | Bump to `<target_series>.X.Y.Z` (e.g. `16.0.1.0.0` -> `17.0.1.0.0`) |
+| `version` field at source series | any | **Profile-gated** (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` + F0 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`): Viindoo Standard/Internal profile -> SHORT form, no series prefix, and for a code-level upgrade with no data change do NOT bump at all (cross-ref `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md` §3). OCA/upstream/non-Viindoo -> replace source series prefix with target series prefix (`<src>.X.Y.Z` -> `<tgt>.X.Y.Z`, e.g. `16.0.1.0.0` -> `17.0.1.0.0`) |
 | `depends` listing a module removed at target | any | Remove or replace with the new core module; flag in plan.md |
 | `installable: False` carried from source | any | Set to `True` in the P4 manifest bump (after all other P4 fixes are applied), BEFORE P5 is run; P5 confirms the module installs - do NOT leave `installable: False` going into P5 |
 | `auto_install: True` with condition that no longer holds | any | Review trigger condition against target module list |
@@ -123,7 +126,7 @@ Run in P5 after `odoo-instance` completes, before P6 human sign-off.
 - [ ] No `Field <field> is not valid for model <model>` (field reference to removed field)
 - [ ] No `External ID not found in the system: <xmlid>` in data XML
 - [ ] `installable: True` in every adapted module's manifest
-- [ ] Manifest `version` field uses the target series prefix
+- [ ] Manifest `version` field matches the profile convention (Viindoo Standard/Internal: short form, no series prefix, per `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`; OCA/upstream: target series prefix)
 
 ### Test verification
 

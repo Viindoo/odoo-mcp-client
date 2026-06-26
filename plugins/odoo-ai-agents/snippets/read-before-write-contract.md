@@ -8,10 +8,13 @@
 
 You are about to write or change Odoo code. The official Odoo coding guidelines are extracted,
 per-version and self-contained, under
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/`. You MUST read the topic files for the
-work BEFORE writing a line - not after, against a checklist. Writing first and patching later
-churns the diff, fights the reviewer, and (in a stable series) violates the "keep diffs minimal"
-rule the guidelines themselves impose.
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/`.
+
+**MANDATORY HARD RULE:** do NOT write a single line of a given file type until you have read the
+By-task-mapped guideline file + the matching `odoo-version-pivots.md` section for that file type.
+Reading the version INDEX 'By task' table first is mandatory; reading ONLY the mapped files is
+mandatory. Writing first and patching later churns the diff, fights the reviewer, and (in a
+stable series) violates the "keep diffs minimal" rule the guidelines themselves impose.
 
 ## The contract
 
@@ -19,16 +22,19 @@ rule the guidelines themselves impose.
    or what the user stated). The guidelines are version-pinned and do NOT inherit across series; a
    v17 rule may be wrong for v18. If the version cannot be resolved, resolve it before writing - a
    precondition, not optional.
-2. **Open the version index:** `coding_guidelines/<version>/INDEX.md` (e.g. `17.0/INDEX.md`). It
-   carries a "By task" table that maps your task to the exact files to read.
-3. **Read the by-task files for THIS change, then write to spec on the first pass.** Map by stack:
-   - **Backend (Python / XML / ORM):** `python.md` (imports, ORM idioms, `_()` translation form),
-     `naming.md` (model `_name`, class, field `_id`/`_ids`, method prefixes), `model-ordering.md`
-     (attribute order inside a Model class); `xml.md` for views/data; `module-structure.md` for a
-     new module; `security.md` (secure-coding pitfalls: sudo, SQL injection, XSS, safe_eval).
-   - **Frontend (JS / OWL / QWeb / SCSS):** `javascript.md` (JS/OWL conventions) and `scss.md`
-     (SCSS/CSS properties order, `$o-[root]-[element]-[property]` naming, `:root` rules). If the
-     change also touches Python controllers or view XML, the backend files above stay in force.
+2. **Open `coding_guidelines/<version>/INDEX.md` first** (e.g. `17.0/INDEX.md`). It carries a
+   "By task" table - **use it**: read ONLY the files it maps to the task categories you are
+   executing (topic file(s) + any listed snippet + the `odoo-version-pivots §` for that task).
+   Do NOT read the whole directory; files for task categories not in scope waste tokens and add
+   noise. Domain-knowledge activation (e.g. HR payroll, Accounting) applies within the mapped
+   files - read the relevant section, not the whole file.
+3. **Read the By-task mapped files for THIS change, then write to spec on the first pass.** The
+   INDEX By-task table maps each task category to the exact files - follow it. Reference only:
+   Python/ORM tasks typically pull `python.md`, `naming.md`, `model-ordering.md`; XML/view tasks
+   pull `xml.md`; new module pulls `module-structure.md`; security tasks pull `security.md`;
+   JS/OWL tasks pull `javascript.md`; SCSS tasks add `scss.md`. These are examples - the By-task
+   table in the version index is authoritative; do not read a file unless the table maps it to
+   your task.
 4. **Conform on the first pass - do not write-then-patch.** Naming prefixes, model attribute order,
    import order, ORM idioms, and `_()` form are decided BEFORE you type the code, not corrected
    afterward. Two pre-push static gates act as safety nets: `scripts/verify-backend.sh` (runs
@@ -41,3 +47,29 @@ rule the guidelines themselves impose.
 
 Each `<version>/` directory is the COMPLETE rule set for that series - read the one matching the
 pinned version, never assume another version's conventions carry over.
+
+## Just-in-time re-read (anti-compaction, mandatory)
+
+Context compaction between the read phase and the write phase silently erases version-pivot rules
+that differ most between series (e.g. `<list>` vs `<tree>`, `check_access` vs
+`check_access_rights`, always-invisible field XML comment).
+
+**Just-in-time re-read:** immediately before writing each file type (the first `.py` file, the
+first `.xml` view file, the first `.js` file), re-open ONLY the pivot row for that type in
+`odoo-version-pivots.md` and the matching topic file's "Version <N>" section. This is a
+30-second targeted re-scan, not a full re-read. It is a compaction hedge.
+
+## VERSION RULES APPLIED (anti-compaction sticky note, mandatory)
+
+Before emitting the FIRST code block of any file type, write a short block titled
+`VERSION RULES APPLIED (v<target>):` listing the load-bearing version-specific rules you will
+follow, sourced from `odoo-version-pivots.md`. For example:
+
+    VERSION RULES APPLIED (v18):
+    - XML: `<list>` not `<tree>`; always-invisible field needs `<!-- invisible: reason -->` XML comment
+    - Python: `_compute_display_name` not `name_get()`
+    - ACL: `check_access(mode)` not `check_access_rights()` + `check_access_rule()`
+    (omit file types not in scope for this task)
+
+This sticky note survives context compaction and is verified by the reviewer. A self-citation
+block that does not match the actual code is a HIGH finding.

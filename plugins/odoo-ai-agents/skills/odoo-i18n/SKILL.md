@@ -161,6 +161,13 @@ and uses OSM only to confirm canonical field labels, e.g.:
 entity_lookup(kind='field', model='account.move', field='amount_total', odoo_version='<target>')
 ```
 
+**`.po`/`.pot` file format constraint (authoring and hand-editing):** Every message entry in a
+`.po` or `.pot` file MUST carry a `#. module: <technical_name>` extractor comment on the line
+immediately before the `#: <file>:<line>` location reference. A hand-written or hand-patched entry
+missing this comment causes `translate.py` to crash at module load and Runbot misattributes the
+failure to a later module. Odoo's `--i18n-export` generates this comment automatically; it must be
+preserved in polib merges and added manually when entries are written by hand.
+
 ## Artifacts
 
 All under `.odoo-ai/i18n/<slug>-<date>/`:

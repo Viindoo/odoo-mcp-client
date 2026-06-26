@@ -171,7 +171,7 @@ setup/collection errors first.
 
 ### Step 7 - Name the fix location (do not write the fix)
 
-Once the root cause is proven: name the file, method/selector, and which coding skill to hand off to. Recommend `odoo-coding` (Python/XML). Instruct the coder to read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/` and write to that version's conventions from the first pass. If the symptom touches a broader pattern, suggest a reactive audit (`odoo-perf-audit`, `odoo-security-audit`, `odoo-deprecation-audit`) via the Continuation Contract - do not spawn it.
+Once the root cause is proven: name the file, method/selector, and which coding skill to hand off to. Recommend `odoo-coding` (Python/XML). Instruct the coder: **MANDATORY HARD RULE: do NOT write a single line of a given file type until you have read the By-task-mapped guideline file + `odoo-version-pivots.md` section for that file type.** The coder must open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first, consult the "By task" table for the fix type (e.g. Python model / ORM / security), read ONLY the mapped files, write to that version's conventions from the first pass, and emit a "**VERSION RULES APPLIED**" self-citation block before the first code block. Also instruct the coder to apply `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` in any new or modified Python (Rule A is universal; Rules B/C when Viindoo Standard/Internal profile). If the symptom touches a broader pattern, suggest a reactive audit (`odoo-perf-audit`, `odoo-security-audit`, `odoo-deprecation-audit`) via the Continuation Contract - do not spawn it.
 
 ---
 

@@ -414,30 +414,32 @@ more rigorous than forward-port (PR review only).
 
 ### Modules-upgrade pipeline (`/odoo-modules-upgrade`)
 
-A 8-phase orchestration (P0-P7, with P2b and P4b sub-phases) that upgrades custom Odoo modules
-across a major version jump using dependency-ordered absorption, scale-conditional design before
-Plan Mode, an in-pipeline per-module code-review-and-fix loop after adapt, and a final pre-merge
-dep-order PR review. Two human STOP-gates bound the automation; a third automated review gate
-(P4b) catches defects before the install/test wave.
+An 8-phase orchestration (P0-P7, with P1d, P2b, P4b, and P5.7 sub-phases) that upgrades custom
+Odoo modules (v8-v19) across a major version jump using dependency-ordered absorption,
+scale-conditional design before Plan Mode, an in-pipeline per-module code-review-and-fix loop
+after adapt, and a final pre-merge dep-order PR review. Two human STOP-gates bound the
+automation; a third automated review gate (P4b) catches defects before the install/test wave.
 
 ```mermaid
 flowchart TD
     START(["/odoo-modules-upgrade"])
     START --> P0["P0 - Intake / resolve<br/>(sonnet; clarify scope if open_questions)"]
 
-    subgraph P1_grp["P1 - Recon (parallel)"]
+    subgraph P1_grp["P1 - Recon (parallel, 4 lanes)"]
         P0 --> R1["Explore: dependency DAG<br/>(topo-sort, leaves first)"]
         P0 --> R2["odoo-deprecation-audit"]
         P0 --> R3["odoo-version-diff"]
+        P0 --> R4["P1d - Transitive Symbol Survey<br/>(Explore, read-only; emits blockers[] at target)"]
     end
 
     subgraph P2_grp["P2 - Core-absorption comparison (per module, dep order)"]
-        R1 --> CMP["odoo-diff-comparator + odoo-gap-analysis<br/>verdict: DELETE / KEEP / REWRITE(api) /<br/>REWRITE(model) / MERGE / SPLIT / OBSOLETE"]
+        R1 --> CMP["odoo-diff-comparator + odoo-gap-analysis<br/>verdict: DELETE / KEEP / REWRITE(api) /<br/>REWRITE(model) / MERGE / SPLIT / RECONCILE / OBSOLETE"]
     end
     R2 --> CMP
     R3 --> CMP
+    R4 --> CMP
 
-    CMP -->|"MERGE / SPLIT / REWRITE(model field-type) /<br/>DELETE-with-risk, OR REWRITE(api)/KEEP that<br/>changes public surface / > 5 call sites / >= 2 modules"| P2b["P2b - Hard-call design<br/>(route-out to odoo-solution-design; returns)"]
+    CMP -->|"MERGE / SPLIT / RECONCILE /<br/>REWRITE(model field-type) / DELETE-with-risk,<br/>OR non-trivial REWRITE(api)/KEEP"| P2b["P2b - Hard-call design<br/>(route-out to odoo-solution-design; returns)"]
     P2b --> P3_gate
     CMP -->|"DELETE-no-risk / OBSOLETE, OR trivial<br/>REWRITE(api)/KEEP (<= 5 call sites, 1 module)"| P3_gate["P3 - Plan Mode gate<br/>(EnterPlanMode / ExitPlanMode;<br/>per-DELETE confirms)"]
     P3_gate -->|"STOP - human approve + per-DELETE confirm"| P4["P4 - Adapt (per module, dep order,<br/>child worktrees: odoo-coding)"]
@@ -448,10 +450,11 @@ flowchart TD
         FX --> RV
     end
 
-    RV -->|"clean: no CRITICAL/HIGH (all modules)"| P5["P5 - Install + test gate<br/>(ephemeral instance, wave-by-wave green)"]
+    RV -->|"clean: no CRITICAL/HIGH (all modules)"| P5["P5 - Install + test gate<br/>(ephemeral instance, wave-by-wave, demo=on)"]
     P5 -->|"red wave -> debugger -> back to P4"| P4
-    P5 -->|"all waves green"| P6["P6 - Gate (STOP, human sign-off)"]
-    P6 -->|"STOP - human confirm"| P7["P7 - PR + FINAL dep-order review (human merge; never squash)"]
+    P5 -->|"all waves green"| P57["P5.7 - i18n reconcile<br/>(gated-on; auto-SKIP if no translatable surface change)"]
+    P57 --> P6["P6 - Gate (STOP, human sign-off)"]
+    P6 -->|"STOP - human confirm"| P7["P7 - PR + FINAL dep-order review (human merge; no cluster-squash)"]
     P7 --> DONE(["Done - .odoo-ai/modules-upgrade/"])
 ```
 
@@ -462,15 +465,17 @@ PR review** (pre-merge). This is intentionally more rigorous than forward-port (
 | Phase | Description | Parallel? | Human gate? |
 |-------|-------------|-----------|-------------|
 | P0 Intake / resolve | Clarify scope if open questions; read-only | - | - |
-| P1 Recon | Parallel: dependency DAG (topo-sort); odoo-deprecation-audit; odoo-version-diff | Yes (3 lanes) | - |
+| P1 Recon | Parallel (4 lanes): dependency DAG (topo-sort); odoo-deprecation-audit; odoo-version-diff; P1d transitive-symbol survey | Yes (4 lanes) | - |
+| P1d Transitive Symbol Survey | (sub-phase of P1, parallel) Scans cluster for every symbol referencing external/core deps; grounds each at target; emits blockers[] used as preemptive fix list in P4 | Part of P1 | - |
 | P2 Core-absorption comparison | odoo-diff-comparator + odoo-gap-analysis per module in dep order; emits verdict per module | Serial per module | - |
-| P2b Hard-call design | CONDITIONAL: route-out to odoo-solution-design for MERGE / SPLIT / REWRITE(model field-type) / DELETE-with-risk and for REWRITE(api)/KEEP meeting the non-trivial criterion; returns | Serial per module | - |
+| P2b Hard-call design | CONDITIONAL: route-out to odoo-solution-design for MERGE / SPLIT / RECONCILE / REWRITE(model field-type) / DELETE-with-risk and non-trivial REWRITE(api)/KEEP; returns | Serial per module | - |
 | P3 Plan Mode gate | EnterPlanMode / ExitPlanMode; per-DELETE confirmation before any file deletion | - | STOP - human approve |
-| P4 Adapt | Per module in dep order; child worktrees; odoo-coding | Serial per module | - |
+| P4 Adapt | Per module in dep order; child worktrees; odoo-coding; P1d blockers[] prepended as preemptive fix list; manifest bump profile-gated | Serial per module | - |
 | P4b Code-review loop | In-pipeline per module dep order: odoo-code-review -> odoo-code-reviewer scoped to each module's adapt diff; fix via odoo-coding on CRITICAL/HIGH; cap 3 iterations per module; automated fix-until-clean | Serial per module | - |
-| P5 Install + test gate | Ephemeral instance; wave-by-wave green; red wave loops back to P4 via debugger | Per wave | - |
+| P5 Install + test gate | Ephemeral instance; wave-by-wave green with demo=on (no separate framework-validation phase); red wave loops back to P4 via debugger | Per wave | - |
+| P5.7 i18n reconcile | GATED-ON; auto-SKIP when no translatable surface changed; when active: polib-merge existing .po into P5 instance (never regenerate) | - | - |
 | P6 Gate | Human sign-off after all waves green | - | STOP - human confirm |
-| P7 PR + FINAL dep-order review | Open PR; mandatory final dep-order code-review before human merge; never squash | - | - |
+| P7 PR + FINAL dep-order review | Open PR; Runbot parity gates + convention-compliance pass; mandatory final dep-order code-review; no cluster-squash (per-module consolidation to 1 clean commit per module allowed) | - | - |
 
 ### Available commands
 

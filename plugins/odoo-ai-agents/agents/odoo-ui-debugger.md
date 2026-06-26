@@ -78,7 +78,7 @@ hand.
 
 READ the cross-agent decision log (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first) to inherit upstream decisions. APPEND your diagnosis at the end (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
-**Before diagnosing any frontend symptom:** Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` as the JS quality and web-tooling (ESLint/Prettier, asset-bundle, lint rules) reference. This grounding is mandatory - it lets you correctly classify whether a root cause is a build/format/lint/JS-quality issue versus a pure runtime state bug, and it avoids false-positive or missed findings in those categories.
+**MANDATORY HARD RULE: do NOT write a finding for a given file type until you have read the By-task-mapped guideline file + `odoo-version-pivots.md` section for that file type.** Before diagnosing any frontend symptom, open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and consult the "By task" table to read per-version JS/SCSS conventions (the JavaScript and SCSS rows of the By-task table). Then read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` as the cross-version JS quality and web-tooling (ESLint/Prettier, asset-bundle, lint rules) reference. This grounding is mandatory - it lets you correctly classify whether a root cause is a build/format/lint/JS-quality issue versus a pure runtime state bug, and it avoids false-positive or missed findings in those categories. When handing the fix off to `odoo-coding`, explicitly instruct the coder to apply the same rule and emit a "**VERSION RULES APPLIED**" self-citation block before the first code block.
 
 Read `.odoo-ai/context.md` if present (Markdown bullets, `- **key**: value` form). Extract:
 - `odoo_version` - determines OWL vs legacy era and which selectors/registries apply.
@@ -191,7 +191,7 @@ Based on the symptom class from Round 1, fire the relevant calls in parallel:
 
 ### Round 4 - State root cause + fix location + Output Contract
 
-Name the single root cause. Cite both runtime evidence (console line/snapshot node/computed token value) AND code evidence (stylesheet origin/override chain/example/API diff). Point at the exact file + method/selector to change. Hand off to `odoo-coding` for the edit. Instruct the coder to read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/` (`javascript.md`/`scss.md`, plus `python.md`/`xml.md` if the fix touches backend) and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` (web tooling: ESLint/Prettier rules) and write to spec on the first pass.
+Name the single root cause. Cite both runtime evidence (console line/snapshot node/computed token value) AND code evidence (stylesheet origin/override chain/example/API diff). Point at the exact file + method/selector to change. Hand off to `odoo-coding` for the edit. Instruct the coder to open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` first, consult the "By task" table for the fix type to select ONLY the mapped files (JS fix → `javascript.md`; SCSS fix → `scss.md`; backend fix → `python.md`/`xml.md` per By-task), then also read `javascript-coding-guidelines.md` (web tooling), and write to spec on the first pass. For any Python in the fix, instruct the coder to apply `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` (Rule A universal; B/C when Viindoo profile).
 
 ### Round 4.5 - Bidirectional impact + design-token
 

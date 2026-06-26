@@ -239,6 +239,11 @@ for dp, _, fns in os.walk(root):
             txt = open(os.path.join(dp, fn), encoding="utf-8").read()
         except OSError:
             continue
+        # Strip '#'-comment tails (per line) BEFORE the regex so codes a
+        # deployment intentionally commented out (license-allowed C8105,
+        # manifest-version-format C8106, missing-readme C8112, ...) are NOT
+        # silently re-enabled, and a ')' inside a comment can't truncate the list.
+        txt = "\n".join(ln.split("#", 1)[0] for ln in txt.splitlines())
         m = re.search(r'ENABLED_CODES\s*=\s*[\[\(](.*?)[\]\)]', txt, re.S)
         if m:
             codes = re.findall(r'["\']([A-Za-z0-9_-]+)["\']', m.group(1))
@@ -253,7 +258,15 @@ PY
     done < <(find . "$ODOO_GIT_BASE" -maxdepth 4 -type d \( -name 'test_pylint' -o -name 'test_lint' \) 2>/dev/null | head -5)
     return 1
 }
+_quality_module_present() {
+    # True if a deployment quality module dir exists (even when we can't derive
+    # its ENABLED_CODES) - lets us fail-closed instead of silently passing (B2).
+    local d
+    d="$(find . "$ODOO_GIT_BASE" -maxdepth 4 -type d \( -name 'test_pylint' -o -name 'test_lint' \) 2>/dev/null | head -1 || true)"
+    [[ -n "$d" ]]
+}
 
+DERIVE_FAILED=""
 if [[ -n "${ODOO_PYLINTRC:-}" && -f "${ODOO_PYLINTRC}" ]]; then
     RCFILE="$ODOO_PYLINTRC"
     RC_SRC="env ODOO_PYLINTRC"
@@ -271,6 +284,14 @@ else
         elif [[ -f "pylintrc" || -f ".pylintrc" ]]; then
             RCFILE="$([[ -f .pylintrc ]] && echo .pylintrc || echo pylintrc)"
             RC_SRC="repo-root $RCFILE"
+        elif _quality_module_present; then
+            # B2 fail-closed: a quality module exists but its whitelist could NOT be
+            # derived and there is no pylintrc to fall back on. NEVER run an empty
+            # whitelist (that would --disable=all and pass with zero checks = false
+            # GREEN). Run the full shipped OCA config and flag the gap LOUDLY below.
+            DERIVE_FAILED=1
+            RCFILE="$FALLBACK_PYLINTRC"
+            RC_SRC="shipped fallback (could NOT derive whitelist from quality module)"
         else
             RCFILE="$FALLBACK_PYLINTRC"
             RC_SRC="shipped fallback odoo-pylintrc (OCA defaults)"
@@ -300,6 +321,9 @@ _info "series   : ${SERIES:-<unknown>}${PIN_BEST_EFFORT:+ (best-effort: pre-16 s
 _info "pylint   : $PYLINT_BIN"
 _info "config   : $RC_SRC"
 [[ -n "$ENABLE_FROM_MODULE" ]] && _info "enable   : ${ENABLE_FROM_MODULE}"
+if [[ -n "$DERIVE_FAILED" ]]; then
+    _warn "could not derive the deployment whitelist from its quality module - running the FULL shipped OCA config instead (fail-closed); this gate is NOT a silent pass. Fix the quality module's ENABLED_CODES or set ODOO_PYLINTRC."
+fi
 
 if [[ ${#PY_FILES[@]} -eq 0 ]]; then
     _skip "no changed .py files to check"
@@ -314,7 +338,11 @@ _info "files    : ${#PY_FILES[@]}"
 PYLINT_ARGS=(--rcfile="$RCFILE" --load-plugins=pylint_odoo
              --score=no --reports=no
              --msg-template='{path}:{line}: [{msg_id}({symbol})] {msg}')
-[[ -n "$ENABLE_FROM_MODULE" ]] && PYLINT_ARGS+=(--enable="$ENABLE_FROM_MODULE")
+# When the enabled codes come from the deployment's own whitelist, --disable=all
+# FIRST so ONLY that whitelist runs - otherwise the rcfile's broad OCA defaults
+# stack on top and the gate reports findings the deployment's CI never enforces.
+# Order matters: --disable=all THEN --enable=<whitelist>.
+[[ -n "$ENABLE_FROM_MODULE" ]] && PYLINT_ARGS+=(--disable=all --enable="$ENABLE_FROM_MODULE")
 
 set +e
 OUTPUT="$("$PYLINT_BIN" "${PYLINT_ARGS[@]}" "${PY_FILES[@]}" 2>&1)"
@@ -333,12 +361,29 @@ elif (( PYLINT_RC & 32 )) || (( PYLINT_RC & 1 )); then
     echo "$OUTPUT"
     _warn "pylint usage/fatal error (rc=$PYLINT_RC) - config/toolchain issue, not your code (graceful)"
 else
-    # Real findings (error/warning/refactor/convention from the enabled set).
-    _FINDINGS=$(printf '%s\n' "$OUTPUT" | grep -cE '^[^ ].*: \[[A-Z][0-9]+\(' || true)
-    printf '%s\n' "$OUTPUT" | grep -E '^[^ ].*: \[[A-Z][0-9]+\(' | while IFS= read -r line; do
-        echo "  [BLOCK] $line"
-    done
-    BLOCK_COUNT=$(( BLOCK_COUNT + ${_FINDINGS:-0} ))
+    # Findings from the enabled set. Split off unknown-option-value (W0012, or the
+    # legacy bad-option-value): it fires when our derived whitelist names a message
+    # THIS pylint-odoo build doesn't know - version drift between the deployment's
+    # pinned linter and ours, i.e. OUR config, not the developer's code. WARN, never
+    # BLOCK (match on the stable symbol, not the version-drifting numeric id).
+    # Everything else is a real finding and BLOCKs (matches CI).
+    _ALL_FIND=$(printf '%s\n' "$OUTPUT" | grep -E '^[^ ].*: \[[A-Z][0-9]+\(' || true)
+    _DRIFT=$(printf '%s\n' "$_ALL_FIND" | grep -E '\((unknown-option-value|bad-option-value)\)' || true)
+    _REAL=$(printf '%s\n' "$_ALL_FIND" | grep -vE '\((unknown-option-value|bad-option-value)\)' || true)
+    if [[ -n "$_DRIFT" ]]; then
+        printf '%s\n' "$_DRIFT" | while IFS= read -r line; do
+            [[ -n "$line" ]] && echo "  [WARN ] $line"
+        done
+        _DRIFT_N=$(printf '%s\n' "$_DRIFT" | grep -c . || true)
+        WARN_COUNT=$(( WARN_COUNT + ${_DRIFT_N:-0} ))
+    fi
+    if [[ -n "$_REAL" ]]; then
+        printf '%s\n' "$_REAL" | while IFS= read -r line; do
+            [[ -n "$line" ]] && echo "  [BLOCK] $line"
+        done
+        _REAL_N=$(printf '%s\n' "$_REAL" | grep -c . || true)
+        BLOCK_COUNT=$(( BLOCK_COUNT + ${_REAL_N:-0} ))
+    fi
 fi
 
 # ---------------------------------------------------------------------------

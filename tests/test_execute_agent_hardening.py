@@ -445,3 +445,132 @@ def test_code_review_phase0_handles_sibling_worktree():
     assert "sibling git worktree" in body, (
         "odoo-code-review SKILL.md: Phase 0 must explain the sibling worktree cwd-diff trap"
     )
+
+
+# ---------------------------------------------------------------------------
+# M5: forced read-guidelines mechanism - three locking phrases must survive
+# compaction / future edits (anti-weakening guard)
+# ---------------------------------------------------------------------------
+
+# Agents that must carry MANDATORY HARD RULE (the Round-1 read-before-write gate).
+# These are the write/review/debug agents where skipping the guidelines causes wrong
+# code to reach PR - the cost of a miss is highest here.
+MANDATORY_HARD_RULE_AGENTS = [
+    "odoo-coder",
+    "odoo-frontend-coder",
+    "odoo-code-reviewer",
+    "odoo-solution-architect",
+    "odoo-ui-debugger",
+    "odoo-backend-debugger",
+]
+
+# Agents that must carry VERSION RULES APPLIED (sticky-note anti-compaction /
+# reviewer-verify contract). These are the code-producing agents where context
+# compaction most dangerously erases version-pivot rules like <tree>-><list> at v18.
+VERSION_RULES_APPLIED_AGENTS = [
+    "odoo-coder",
+    "odoo-frontend-coder",
+    "odoo-code-reviewer",
+]
+
+# Agents that must carry MANDATORY READ GATE (the per-file-type re-read trigger).
+# Same set: the agent that writes or reviews must explicitly re-read before emitting.
+MANDATORY_READ_GATE_AGENTS = [
+    "odoo-coder",
+    "odoo-frontend-coder",
+    "odoo-code-reviewer",
+]
+
+
+def test_read_before_write_contract_has_mandatory_index_first_rules():
+    """The read-before-write SSOT snippet must contain all three locking phrases.
+
+    - MANDATORY HARD RULE: the explicit "do not write until you have read" gate -
+      removing it turns a hard requirement into an optional suggestion.
+    - Just-in-time re-read: the anti-compaction hedge that forces a targeted re-scan
+      of version-pivot rows immediately before writing each file type - removing it
+      lets context compaction silently erase version-specific rules (e.g. <tree> vs
+      <list> at v18, check_access vs check_access_rights) between the read phase and
+      the write phase.
+    - VERSION RULES APPLIED: the sticky-note contract that forces the agent to
+      declare which version rules it is following before emitting the first code block,
+      so the reviewer can verify the claim rather than trust it - removing it makes
+      the version-pivot compliance unverifiable.
+
+    Red-before-green: removing any phrase from the snippet fails exactly that assertion.
+    """
+    body = _read(SNIPPETS / "read-before-write-contract.md")
+    assert "MANDATORY HARD RULE" in body, (
+        "read-before-write-contract.md: missing 'MANDATORY HARD RULE' - "
+        "this is the explicit read-before-write gate; removing it degrades the rule to a suggestion"
+    )
+    assert "Just-in-time re-read" in body, (
+        "read-before-write-contract.md: missing 'Just-in-time re-read' - "
+        "this hedge forces a targeted re-scan of version-pivot rows before each file type is written, "
+        "preventing context compaction from silently erasing rules like <tree>-><list> at v18"
+    )
+    assert "VERSION RULES APPLIED" in body, (
+        "read-before-write-contract.md: missing 'VERSION RULES APPLIED' - "
+        "this sticky-note contract forces the agent to declare version rules before emitting code "
+        "so the reviewer can verify compliance rather than trust a silent assumption"
+    )
+
+
+@pytest.mark.parametrize("agent", MANDATORY_HARD_RULE_AGENTS)
+def test_code_agents_have_mandatory_hard_rule(agent):
+    """Every write/review/debug agent body must contain 'MANDATORY HARD RULE'.
+
+    These agents sit at the entry point of the code-production chain. If any of them
+    omits the hard-rule phrase, a dispatched agent can reach the write step without
+    reading the guidelines - producing wrong code that reaches the reviewer.
+    The hard-rule phrase is the execution-time gate; the SSOT snippet containing it is
+    not enough if the agent body does not reference or inline it.
+
+    Red-before-green: removing the phrase from one agent body fails that parametrized case.
+    """
+    body = _read(AGENTS / f"{agent}.md")
+    assert "MANDATORY HARD RULE" in body, (
+        f"{agent}: agent body must contain 'MANDATORY HARD RULE' - "
+        f"the Round-1 read-before-write gate is absent; a dispatched {agent} can write "
+        f"code without reading the version-pinned guidelines"
+    )
+
+
+@pytest.mark.parametrize("agent", VERSION_RULES_APPLIED_AGENTS)
+def test_coder_agents_emit_version_rules_applied(agent):
+    """Code-producing and reviewing agents must carry 'VERSION RULES APPLIED'.
+
+    This sticky-note contract requires the agent to declare, before emitting the first
+    code block, which version-specific rules it will follow (sourced from
+    odoo-version-pivots.md). Without it a reviewer cannot verify version-pivot compliance
+    and context compaction can ship v17 syntax into a v18 target (e.g. <tree> instead of
+    <list>, name_get() instead of _compute_display_name).
+
+    Red-before-green: removing the phrase from one agent body fails that parametrized case.
+    """
+    body = _read(AGENTS / f"{agent}.md")
+    assert "VERSION RULES APPLIED" in body, (
+        f"{agent}: agent body must contain 'VERSION RULES APPLIED' - "
+        f"the sticky-note anti-compaction contract is absent; a reviewer cannot verify "
+        f"that {agent} applied the correct version-pivot rules before emitting code"
+    )
+
+
+@pytest.mark.parametrize("agent", MANDATORY_READ_GATE_AGENTS)
+def test_coder_agents_have_mandatory_read_gate(agent):
+    """Code-producing and reviewing agents must carry 'MANDATORY READ GATE'.
+
+    This per-file-type re-read trigger forces the agent to re-open the pivot row for
+    each file type immediately before writing the first file of that type. Without it
+    a compacted context produces files where earlier-read version rules were silently
+    forgotten between the read phase and the write phase - the most common source of
+    wrong-version constructs reaching the diff.
+
+    Red-before-green: removing the phrase from one agent body fails that parametrized case.
+    """
+    body = _read(AGENTS / f"{agent}.md")
+    assert "MANDATORY READ GATE" in body, (
+        f"{agent}: agent body must contain 'MANDATORY READ GATE' - "
+        f"the per-file-type re-read trigger is absent; {agent} can emit code for a file "
+        f"type without re-checking the version-pivot row for that type after compaction"
+    )

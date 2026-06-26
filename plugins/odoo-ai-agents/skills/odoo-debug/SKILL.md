@@ -173,7 +173,7 @@ exact fix location, red→green regression test.
 
 2. Call `test_base_classes(odoo_version='<version>')` to obtain the authoritative base class menu and cursor contract for that version. Pass the relevant base class entry to `odoo-coding` as `TEST_BASE_CLASS:`. This enforces the hard rule: **`cr.commit()` is FORBIDDEN inside TransactionCase - isolation is savepoint rollback.** The brief must name the correct base class so the coder does not guess.
 
-Include both results in the `odoo-coding` brief alongside the proven root cause and fix location.
+Include both results in the `odoo-coding` brief alongside the proven root cause and fix location. Also include in the brief: "open `coding_guidelines/<version>/INDEX.md` first, consult the 'By task' table for the fix type, read ONLY the mapped files before writing."
 
 **Then drive the fix autonomously (mandatory).** The Skill tool is available here
 - MUST use it; do not stop at a `SUGGESTED_NEXT` line that nothing advances. When the root cause

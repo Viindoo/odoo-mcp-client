@@ -56,7 +56,7 @@ Treat lint/format compliance as a functional requirement: Python must be Flake8-
 
 ## View design (UX is functional, not cosmetic)
 
-For any view (form, list - formerly tree in v17 and earlier - search, kanban, wizard), arrange fields, sections, and actions by the natural business workflow and the order users think, review, and enter data - not by technical convenience or available insertion points. Prefer layouts that follow the decision-making process, minimise navigation/scrolling, group related information, present information before dependent input, and reduce cognitive load. When EXTENDING a view, evaluate the final rendered result, not just the inherited fragment: respect existing field ordering, workflows, visual consistency, and avoid clutter/duplication. A technically-correct XPath that degrades usability is not acceptable. Final gate: does the layout follow the workflow, is the data-entry sequence natural, are related fields grouped, is the result clear and easy to use, would a business user find the placement intuitive?
+For any view (form, list, search, kanban, wizard - view arch tag history per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §XML views), arrange fields, sections, and actions by the natural business workflow and the order users think, review, and enter data - not by technical convenience or available insertion points. Prefer layouts that follow the decision-making process, minimise navigation/scrolling, group related information, present information before dependent input, and reduce cognitive load. When EXTENDING a view, evaluate the final rendered result, not just the inherited fragment: respect existing field ordering, workflows, visual consistency, and avoid clutter/duplication. A technically-correct XPath that degrades usability is not acceptable. Final gate: does the layout follow the workflow, is the data-entry sequence natural, are related fields grouped, is the result clear and easy to use, would a business user find the placement intuitive?
 
 ---
 
@@ -68,13 +68,19 @@ Call `set_active_version(odoo_version='<version>')` (the user-stated version; do
 
 ## Round 1 - Learn coding guidelines (MANDATORY)
 
-Open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and Read the topic files for this request (typically `naming.md`, `model-ordering.md`, `python.md`, `security.md`, `xml.md`, `module-structure.md`, etc) and learn them. Write to spec on the first pass - do NOT write-then-patch against a checklist. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`.
+**MANDATORY HARD RULE:** do NOT write a single line of a given file type until you have read the By-task-mapped guideline file + `odoo-version-pivots.md` section for that file type. "I read it earlier this session" is NOT sufficient - pivot rules are the facts most likely to be compacted away; re-scan the relevant pivot row immediately before writing each file type.
+
+Open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and consult the "By task" table; read ONLY the files it maps to the task categories in this request. Do not read files for task categories not in scope (full contract: INDEX-first mandate in `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`). Any change that touches a model, an ORM method, or an access rule MUST include `security.md` (it is mapped to those By-task rows) - secure-coding review is never skipped. Any Python file you write or touch MUST follow `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` Rule A (no `l`/`O`/`i` single-letter variable names - pylint C0104 blocks CI) - applies to ALL profiles. The per-version topic files are verbatim upstream RST; for cross-version API/view/manifest pivots that differ by series (e.g. ACL `check_access` from v18, `<list>` from v18, the always-invisible-field XML comment from v18, `assets` manifest key from v15) also consult `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`. Write to spec on the first pass - do NOT write-then-patch against a checklist. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`.
 
 Also READ the cross-agent decision log (`.odoo-ai/worklog/<run-or-slug>/`) to inherit prior agents' decisions; you APPEND yours at the end of Round 5 (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
+
+If the active profile is Viindoo Standard or Internal (check `.odoo-ai/context.md` field `viindoo_profile`, or `profile_inspect` via OSM), also read `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` for Viindoo-specific upgrade conventions (version short-form/no-bump-on-port, old_technical_name rename rule); also read `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` for Viindoo variable naming conventions (l/O/i ban is universal; meaningful names + for-r-in-self are Viindoo-gated); do NOT restate their content in your output. (Always-invisible field XML comment and `hr.employee`-field groups rule are CORE Odoo - reachable for ALL profiles via the By-task table in the version index, not Viindoo-gated.)
 
 ## Round 2 - Gather context (fire in parallel)
 
 **Impact pre-flight first.** Map blast radius BOTH directions - upstream (`module_inspect` deps) and downstream (`impact_analysis` reverse dependents), direct and indirect - and record affected entities + mitigation in the worklog (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`).
+
+**Test-protection pre-flight.** For every model/field/method you will touch, identify which tests already guard it - follow `${CLAUDE_PLUGIN_ROOT}/snippets/test-protection-contract.md` (three-tier OSM protocol: own-module tests via `tests_covering`/`find_test_examples`/`test_coverage_audit`, base/dependency tests via `tests_covering` + `impact_analysis`, framework gates via the parity checklist). Record the assembled MUST-NOT-BREAK list in the worklog under `PROTECTION_SCOPE`. Ensure your change does not break any listed test. Run this step unconditionally - independent of whether a deep-survey artifact exists.
 
 Then loop-call these simultaneously:
 
@@ -93,7 +99,9 @@ If the target model is unknown, ask before proceeding - do not guess. If these d
 
 ## Round 4 - Generate code
 
-Write the code yourself, grounded in Rounds 1-3 evidence (verified field names/types from `model_inspect`, reused patterns from `suggest_pattern`/`find_examples`). It MUST respect the three platform design principles - multi-company/branch, generic before localization, standard app menu (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`). When the change introduces a new model or new end-user behavior, ship dynamic demo data alongside it (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/demo-data-dynamic.md`). Test code MUST respect the test-behavior contract - never shortcut the arrange phase with direct state creation (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`). When the test exercises a deny-path, guard, or constraint that legitimately logs WARNING/ERROR, wrap per the expected-log contract (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`).
+**Before emitting the first code block**, write a "**VERSION RULES APPLIED (v<N>):**" block listing the key pivot rules you will apply (e.g. "XML: `<list>` not `<tree>`; Security: `check_access` not `check_access_rights/check_access_rule`; Python: model attribute order per `python.md`") drawn from `odoo-version-pivots.md` and the coding guidelines read in Round 1. This is the anti-compaction sticky note per `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`; the reviewer (`odoo-code-reviewer`) WILL verify each cited rule against the actual code; a self-citation that does not match code is a HIGH finding.
+
+Write the code yourself, grounded in Rounds 1-3 evidence (verified field names/types from `model_inspect`, reused patterns from `suggest_pattern`/`find_examples`). It MUST respect the three platform design principles - multi-company/branch, generic before localization, standard app menu (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`). When the change introduces a new model or new end-user behavior, ship dynamic demo data alongside it (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/demo-data-dynamic.md`). Test code MUST respect the test-behavior contract - never shortcut the arrange phase with direct state creation (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`). When the test exercises a deny-path, guard, or constraint that legitimately logs WARNING/ERROR, wrap per the expected-log contract (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`). When a stored compute aggregates over a high-volume relation, apply the grouped-query rule (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`). When writing to a stored/computed core field, verify value survival (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`).
 
 **Test-first (red-before-green).** If the input carries a failing test, implement until GREEN - never edit the test to fit the code (fix the code, not the test). If no test is supplied, run a two-step pre-check before invoking `odoo-test-writing`:
 
@@ -136,7 +144,7 @@ Infer the Odoo version from context (user-stated version, profile, or repo name)
 | v10-v12  | Class attribute + `fields.Char(…)`           | `@api.constrains`          | `@api.multi` required                               |
 | v13+     | Class attribute + `fields.Char(…)`           | `@api.constrains`          | Recordset-aware, `super()` no args                  |
 
-When the version is ambiguous, STOP and note the reason in the output.
+When the version is ambiguous, STOP and note the reason in the output. For removal versions of legacy decorators (`@api.multi`, `@api.one`, `_columns`, etc.) see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` row "Record-style API".
 
 ## Module structure
 
@@ -214,8 +222,7 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
       was reachable is surfaced as a NON-BLOCKING note. This item is on YOU - do not skip the
       validators assuming the hook will stop you; it will not.
 - [ ] Backend static gate (`verify-backend.sh`) ran - BLOCK fixed, or soft-degrade noted
-- [ ] Read `coding_guidelines/<version>/` in Round 1 and wrote to spec on the first pass
-      (model attribute order, method/field naming prefixes, import order)
+- [ ] **MANDATORY READ GATE** - LIST the exact guideline files + sections read for each file type written (e.g. "xml.md §List Views; python.md §Model Attribute Order; odoo-version-pivots.md §check_access (v18)"); an unchecked or empty item = INCOMPLETE, do not present output until filled
 - [ ] No hasattr/getattr-default/try-except-AttributeError presence guard - presence resolved via
       dep closure (direct access), `'field' in record._fields` + documented soft-dep, or amended `depends`
 - [ ] (New module only) Manifest `version` matches sibling manifests / `odoo-bin scaffold` default (short form, 2-3 numeric parts, e.g. `0.1`), NOT the series-prefixed `<series>.x.y.z` upgrade form

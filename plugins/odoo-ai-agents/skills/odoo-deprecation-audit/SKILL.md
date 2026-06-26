@@ -88,6 +88,26 @@ Use the result to audit test files for legacy base classes. Specifically flag:
 These are deprecated TEST API patterns that `find_deprecated_usage` does not cover directly.
 Add them to the output table under a "Test API" group.
 
+**Round 1b - TARGET-version survival pass (upgrade audits only - when a target version is set).**
+`find_deprecated_usage` scans for patterns deprecated AT THE SOURCE version; it is BLIND to a
+symbol that is stable at source but deprecated/removed at the target (the class that breaks an
+upgrade). Ground every own-source ORM symbol at the TARGET:
+1. Grep own-source for ORM call-sites (the corpus, not Odoo core):
+   `grep -rnE "\.(check_access_rights|check_access_rule|flush|invalidate_cache|get_xml_id|fields_get_keys|_check_recursion|_filter_access_rules|user_has_groups|name_get)\b|@api\.(one|multi)|_columns|fields\.function" --include="*.py" <module_dirs>`
+   plus model `_inherit` targets, method overrides, and `env.ref` xml_ids the modules touch.
+2. For EACH symbol found, resolve it AT THE TARGET: `lookup_core_api(name='<sym>', odoo_version='<target>')`
+   + `api_version_diff(symbol='<sym>', from_version='<source>', to_version='<target>')`. Classify
+   `stable-at-source / deprecated-at-target` (WARN) or `stable-at-source / removed-at-target` (BREAKING).
+This is the same "ground every symbol at target" principle as
+`${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md` § 2 - cross-ref it, do not re-derive the mechanism.
+
+**OSM blind-spot fallback (version-range, until the server re-index lands).** OSM currently fails
+to resolve the v18 underscore-rename family (`_has_cycle` <- `_check_recursion`, `_filtered_access`
+<- `_filter_access_rules*`, `check_access` <- `check_access_rights`+`check_access_rule`) and
+`res.users.has_group`/`has_groups`. For these KNOWN renames, fall back to
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-deprecation-audit/references/era-reference.md` (authoritative
+version-range table) rather than trusting an OSM MISS as "symbol absent". Scan AT the target.
+
 **Round 2 - Parallel:** Merge symbol lists from Round 1. Call `lookup_core_api` for ALL deprecated/removed symbols in one batch. Every call is independent - fire them all together.
 
 **Round 3 - Parallel:** Call `entity_lookup(kind='method', …)` for ALL changed-signature methods simultaneously. Independent of each other and of Round 2.

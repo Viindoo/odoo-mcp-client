@@ -94,6 +94,25 @@ Set `fanout`:
 
 ---
 
+## Step 2.5 - Classify changed files + per-module UI-review flag
+
+For each module, tag its changed files by type and decide whether the module needs a rendered-UI review. This drives the orchestrator's `UI_REVIEW=delegated` arm (Phase A) and its Phase A.5 dispatch. Keep it cheap: the heavy OSM confirmation runs ONCE per module and ONLY when that module has a Python change.
+
+**`changed_file_types` (per module)** - tag each changed file under the module:
+- `xml_view` - `.xml` defining/extending a view or screen wiring (path under `views/`, or a record on `ir.ui.view` / `ir.actions.*` / `ir.ui.menu`)
+- `js` - `.js` under `static/src/`
+- `owl` - OWL/QWeb template `.xml` under `static/src/`
+- `scss` - `.scss` / `.css` under `static/src/`
+- `python_model` - `.py` declaring `fields.*`, `@api.onchange`, `@api.depends`, or a view-bound method
+
+**`needs_ui_review` (per module)** - set `true` when EITHER:
+1. the module has any view-layer change (`xml_view` / `js` / `owl` / `scss`), OR
+2. a `python_model` change touches a **view-bound** symbol - confirm per module (not per file): for the changed model(s), call OSM `model_inspect(model='<model>', method='views', odoo_version='<version>')` / `impact_analysis(...)` and check whether a field/method the diff ACTUALLY changed surfaces on a view. Run this OSM confirmation only when the module has a `python_model` change, and only for the symbols the diff changed (skip otherwise - do not scan untouched fields). If OSM is unreachable, set the flag to `candidate` (note "view-bound unconfirmed - OSM unavailable") so the per-module reviewer resolves it.
+
+**`affected_screens` (per module)** - when `needs_ui_review`, collect the view/action/menu xmlids to brief the ui-reviewer with: the `inherit_id` / record ids from changed `xml_view` files, plus the view xmlids OSM returned for a view-bound Python change. Empty list when `needs_ui_review=false`.
+
+---
+
 ## Step 3 - Locate design doc (optional)
 
 Locate the design/acceptance doc for this review:
@@ -129,7 +148,7 @@ Generate date: `YYYY-MM-DD` format.
 
 Create directory `.odoo-ai/reviews/<slug>-<date>/` under `review_root` if it does not exist.
 
-Write `_scope.md` to that path.
+Write `_scope.md` to that path, including the per-module UI-scope fields from Step 2.5 (`needs_ui_review`, `changed_file_types`, `affected_screens`) so a re-run can reuse them.
 
 ---
 
@@ -147,9 +166,9 @@ Return a compact final message to the orchestrator in this exact structure (SSOT
 - fanout: <single|multi>
 
 ### Modules
-| name | path |
-|------|------|
-| <name> | <path> |
+| name | path | needs_ui_review |
+|------|------|-----------------|
+| <name> | <path> | <true\|false\|candidate> |
 
 ### PR metadata
 (include only when target_kind=pr)
@@ -164,6 +183,10 @@ Return a compact final message to the orchestrator in this exact structure (SSOT
 
 ### Coverage baseline
 <per-module summary | none>
+
+### UI scope
+(one line per module with needs_ui_review != false; omit modules that need no UI review)
+- <name>: changed_file_types=[<types>], affected_screens=[<view/action/menu xmlids>]
 ```
 
 Also state explicitly: `_scope.md written to: <abs-path-to-scope-file>`.

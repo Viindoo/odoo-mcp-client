@@ -63,12 +63,15 @@ Scope output fields used by main:
 - `coverage_baseline` - `test_coverage_audit` result at module level (from scoper); pass as `COVERAGE_BASELINE:` to reviewers - label this BASELINE throughout to distinguish from per-model edge data
 - `pr` - `{number, title, head, base, repo}` or null
 - `fanout` - `single` | `multi`
+- `needs_ui_review` (per module) - `true` | `false` | `candidate`; drives the `UI_REVIEW=delegated` arm of Phase A and the Phase A.5 rendered-UI dispatch
+- `changed_file_types` (per module) - `xml_view` / `js` / `owl` / `scss` / `python_model` tags (route guideline reads + the delegated-source check)
+- `affected_screens` (per module) - view/action/menu xmlids the ui-reviewer is briefed on
 
 Decide review topology from `fanout`: `single` → one reviewer pass; `multi` → fan-out + synthesis.
 
 ## Single module (the common case)
 
-Dispatch ONE `odoo-code-reviewer` agent (sonnet). It writes its report to `.odoo-ai/reviews/<slug>-<date>/<module>.md`. No synthesis pass needed for a single module.
+Dispatch ONE `odoo-code-reviewer` agent (sonnet). It writes its report to `.odoo-ai/reviews/<slug>-<date>/<module>.md`. No synthesis pass needed for a single module. When `module.needs_ui_review` is `true` or `candidate`, add `UI_REVIEW=delegated` to the reviewer brief and run Phase A.5 (same instance-check + dispatch) after the reviewer completes.
 
 ## Multi-module - fan-out, then integration synthesis
 
@@ -76,24 +79,46 @@ Dispatch ONE `odoo-code-reviewer` agent (sonnet). It writes its report to `.odoo
 
 Dispatch one `odoo-code-reviewer` agent per module in `modules[]` from the scoper output, all in one batch. Fan-out is one reviewer per module; concurrency is bounded by the harness automatically - do NOT set a manual wave-cap. For the project-level concurrency policy and any overrides, see the SSOT at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`. Each agent is scoped to ONLY its module; it reads files at `review_root` (from scoper). Each agent writes `<module>.md` to `.odoo-ai/reviews/<slug>-<date>/` and returns a short summary + path.
 
+**When `module.needs_ui_review` is `true` or `candidate`**, add `UI_REVIEW=delegated` to that module's reviewer brief. Under that flag the reviewer still reviews everything NON-rendered - Python/ORM/security/perf/data AND the SOURCE correctness of the view layer (XPath targets resolve, view `arch` well-formed, no dead JS module import, SCSS compiles + reuses real tokens) - but does NOT grade rendered appearance, UX, accessibility, or runtime; that rendered-UI verdict is delegated to Phase A.5's `odoo-ui-reviewer`, so the two passes never overlap. The reviewer still writes `<module>.md` (and, for a `candidate`, resolves view-binding via OSM and records `ui_review_required` there).
+
 **Before dispatching the batch**, for each affected model in `modules[]`, call OSM `tests_covering(model='<affected_model>', odoo_version='<version>')`. Collect results. Include the result as `COVERAGE_CHECK:` in each reviewer brief so the agent has the evidence without re-querying. `COVERAGE_CHECK` is model-edge level data from main (distinct from `COVERAGE_BASELINE` which is the module-level `test_coverage_audit` result from the scoper).
 
 **Before flagging pitfall #10 (behavior change with no protecting test) as a HIGH finding**, verify with evidence rather than heuristic: if the model-level `COVERAGE_CHECK` shows zero covering tests, the HIGH finding stands and should note "zero test edges confirmed via `tests_covering` (model-level)". If tests exist but do not cover the changed path, the finding stays HIGH with the note "tests exist for model but do not cover this behavior". A finding without this check is heuristic and should be downgraded to MED. **Caveat on method-narrow queries:** `tests_covering` with `method=` returns zero edges for many well-tested methods because COVERS_METHOD edges are sparse; a zero from a method-narrow call is supporting evidence, not proof - corroborate with the model-level count or `find_test_examples` before escalating to HIGH.
 
-### Phase B - Integration synthesis (one agent, OPUS)
+### Phase A.5 - Rendered-UI review (conditional, per module)
 
-After all per-module reviews, dispatch ONE `odoo-code-reviewer` at **opus** for cross-module review. Scope = full **dependency closure** computed from OSM:
+For each module with `needs_ui_review` (`true` or `candidate`):
+- **For a `candidate` module**, first read its `<module>.md` and check `ui_review_required`; skip the ui-reviewer dispatch when it is `false` or absent (the reviewer already resolved the Python change is not view-bound).
+- **Resolve an instance.** Read `instance_base_url` from `.odoo-ai/context.md`, else `~/.odoo-ai/instances.toml` (project `./.odoo-ai/instances.toml` is a transitional fallback; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`), and confirm a browser MCP is reachable.
+- **Instance reachable** → dispatch one `odoo-ui-reviewer` (sonnet) scoped to that module's `affected_screens`, briefing `ARTIFACT_DIR: .odoo-ai/reviews/<slug>-<date>/` and `ARTIFACT_FILE: ui-review-<module>.md` (brief template in `references/agent-prompts.md`). These run in parallel; each `ui-review-<module>.md` feeds Phase B synthesis.
+- **No instance / browser unreachable** → do NOT block. Write `ui-review-<module>.md` holding `UI review REQUIRED - no running instance (affected_screens: [...])`, and mark the run `DONE_WITH_CONCERNS` for the UI dimension - surface to the user that an instance is needed to finish the rendered-UI review.
+
+### Phase B - Integration synthesis (OPUS)
+
+Pick the synthesis topology by scale - default threshold **~8 modules** (adjustable: lower it when per-module reports are unusually large and the combined set would overflow one opus context).
+
+**Small set (`len(modules)` ≤ ~8 and reports fit one context) - single pass:**
+Dispatch ONE `odoo-code-reviewer` at **opus**. Scope = full **dependency closure** from OSM:
 - **Forward closure:** walk `module_inspect(name=<m>, method='dependencies', odoo_version='<version>')` transitively.
 - **Reverse closure:** `impact_analysis(...)` on changed modules, walked transitively.
 
-The Opus pass reviews only what per-module legs cannot: override-chain conflicts, inheritance/MRO across closure, inter-module field/API contract breaks, manifest `depends` and data load-order, and ripple into dependents. Reads per-module reports on disk; writes `_synthesis.md`.
+It reviews only what per-module legs cannot: override-chain conflicts, inheritance/MRO across closure, inter-module field/API contract breaks, manifest `depends` and data load-order, ripple into dependents. It `Read`s every `<module>.md` AND every `ui-review-<module>.md` on disk; writes `_synthesis.md`.
+
+**Large set (`len(modules)` > ~8 or reports overflow one context) - domain-partition:**
+1. **Group by business domain** - classify each module with OSM `describe_module` (fall back to the manifest `category` on disk) into business-domain buckets (e.g. Accounting/Finance, Sales/CRM, Purchase, Inventory/Logistics, MRP, HR/Payroll, Project/Helpdesk, eCommerce/Website, Core/Base).
+2. **Per-domain synthesis** - for each bucket, dispatch one `odoo-code-reviewer` at **opus** (`MODE=synthesis`, scoped to that bucket): it reads only that bucket's `<module>.md` + `ui-review-<module>.md`, computes the closure WITHIN the bucket, and writes `domain-<d>.md`.
+3. **Final cross-domain synthesis** - dispatch ONE final `odoo-code-reviewer` at **opus** that `Read`s every `domain-<d>.md`, computes cross-domain closure (inter-domain field/API contracts, load-order, ripple), and writes `_synthesis.md` with the overall verdict + score.
+
+(The per-domain and final cross-domain passes use the two domain-synthesis brief templates in `references/agent-prompts.md`.)
 
 ## Artifacts
 
-All output under `.odoo-ai/reviews/<slug>-<YYYY-MM-DD>/` (gitignored). Slug comes from scoper `slug` field:
+All output under `.odoo-ai/reviews/<slug>-<YYYY-MM-DD>/` (gitignored). Slug comes from scoper `slug` field; every phase agent (scoper, per-module reviewer, ui-reviewer, domain + final synthesis) writes ONLY into this directory:
 - `_scope.md` - scoper output (written by scoper agent)
 - `<module>.md` - per-module review (or single-module review); each contains VERDICT + SCORE per the `odoo-code-reviewer` agent output contract (SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md`)
+- `ui-review-<module>.md` - rendered-UI six-lens review for a `needs_ui_review` module (Phase A.5); when no instance was available it holds the `UI review REQUIRED - no running instance` placeholder (run is `DONE_WITH_CONCERNS` for UI)
 - `_synthesis.md` - Opus integration review; also contains overall VERDICT (APPROVE/REQUEST_CHANGES) + SCORE 0-100
+- `domain-<d>.md` - per-domain synthesis (large sets only, Phase B domain-partition); the final `_synthesis.md` is built from these
 - `index.md` - short map: modules reviewed, dependency closure, per-module severity counts, overall verdict + score, highest-severity findings linking to detail files
 
 Report is presented as an artifact in chat by default. Post to PR ONLY when user explicitly requests it (keyword `post`): use PR number from `pr.number` in the scope result; `gh pr comment` posts a flat comment; `gh pr review` with `--comment` and `--body` supports per-finding inline comments - prefer inline for actionable findings.
@@ -115,6 +140,7 @@ Key constraints for each dispatched agent:
 - Per-module (sonnet): write `<module>.md`, light bidirectional-impact pass, platform-design check, flag unprotected behavior. Return 5-line summary + path.
 - Synthesis (opus): cross-module closure only; read per-module reports on disk; write `_synthesis.md`. Return summary + path.
 - Each agent: restricted tools, writes only its own artifact, does NOT spawn subagents, does NOT invoke Skill tool.
+- Guidelines: reviewer reads `<version>/INDEX.md` index-first, consults the "By task" table, reads ONLY the files mapping to the changed file types (not all 6 topic files; full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`).
 
 After legs finish, main writes `index.md` summarizing the set.
 

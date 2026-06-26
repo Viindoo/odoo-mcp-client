@@ -80,12 +80,14 @@ ALWAYS reconfirm live via `cli_help` - this table is a PRIOR only and MUST NOT b
 | HTTP port | `--xmlrpc-port` | `--http-port` | `--http-port` |
 | Disable HTTP | `--no-xmlrpc` | `--no-http` | `--no-http` |
 | Longpoll/gevent port | `--longpolling-port` | `--longpolling-port` (v11-v15), `--gevent-port` (v16+) | `--gevent-port` |
-| Demo data off | `--without-demo=all` | `--without-demo=all` (v11-v17), `--without-demo=all` still valid v18-v19 | `--without-demo=all` |
-| Demo data on | default on | default on (v11-v17); v18+ default flipped to off, use `--with-demo` - always reconfirm via `cli_help` | use `--with-demo` - always reconfirm via `cli_help` |
+| Demo data off | `--without-demo=all` | `--without-demo=all` (exists v8-v19; demo ON is default v8-v18 so this flag is how you disable it) | `--without-demo=all` still valid; v19 demo is OFF by default so this flag is usually unnecessary |
+| Demo data on | default on (no flag) | default on v11-v18 (no flag needed; `--with-demo` does NOT exist v8-v18 - `--without-demo=False` is INVALID) | default OFF from v19; use `--with-demo` to enable - always reconfirm via `cli_help` |
 | Skip auto-install | not available | `--skip-auto-install` (v17+) | `--skip-auto-install` |
 | DB drop subcommand | `exp_drop` via odoo_db.py | `exp_drop` via odoo_db.py | `odoo-bin db drop` subcommand (confirm via cli_help) |
 
 **v19 DROPS the legacy aliases entirely** (`--xmlrpc-port`, `--no-xmlrpc`, `--longpolling-port`). They are not merely deprecated in v19 - they do not exist, so a stale prior will cause a fatal error. Reconfirm every flag via `cli_help` before building any command.
+
+**CLI flag ground truth:** `cli_help` reflects the indexed source and may be stale (known gap: v18 `--with-demo` was erroneously indexed; see OSM bug tracker). For demo and port flags, cross-check against the actual build's `odoo/tools/config.py` when the instance is available locally (`grep -n 'with.demo\|without.demo\|http.port' odoo/tools/config.py`). Structural facts (model/field existence) = OSM primary; runtime/CLI facts = live build is ground truth. Version-range SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`.
 
 **Self-review checklist line:** every flag in the final command came from this series' `cli_help(command='server', odoo_version='<series>')` output, not the prior table.
 

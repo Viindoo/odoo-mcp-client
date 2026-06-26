@@ -6,6 +6,14 @@ file specifies HOW. Cross-references reused skills' SSOTs; copies none.
 
 ---
 
+## Symbols (resolve once, reuse everywhere)
+
+- `<cluster>` = `cluster_slug` resolved in P0 intake (the scope slug).
+- `<path>` = the upgrade-worktree base: a `.upg-worktrees/` directory SIBLING to the principal
+  checkout (NEVER inside it - keeps the principal `git status` clean). All worktrees below live under it.
+- `<work-base>` = the base ref the integration branch forks from: HEAD of the target-series branch
+  when one exists, else the merge-base of the cluster against the target series.
+
 ## Artifact paths
 
 Base: `.odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/`
@@ -31,6 +39,10 @@ TASK: Resolve the upgrade request into structured inputs.
     present on disk. If the branch-inferred series and the manifest-max series disagree
     (e.g. branch says `17.0` but manifests say `16.0.x.y.z`), raise as open_question
     rather than silently trusting the branch name.
+    EXCEPTION - Viindoo Standard/Internal profile (manifests carry a SHORT `version` with NO
+    series prefix, per ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md): there is no series
+    in the manifest to compare, so SKIP the branch-vs-manifest-series cross-check entirely and
+    resolve the source series from branch + profile. Do NOT raise a false "disagree" open_question.
 
 (2) Map that series to the OSM profile:
     - set_active_version(odoo_version='<inferred_series>')
@@ -52,7 +64,12 @@ TASK: Resolve the upgrade request into structured inputs.
        NOT use it as the primary detector. A module can be `installable: True` and still
        be a valid upgrade target; a `installable: False` module that is a helper/dev/demo
        module may NOT be an upgrade target.
-    Emit the candidate list with paths and the reason for candidacy (version-series|depends-on-stale|installable-hint).
+    e. SHORT-FORM blind spot: for Viindoo Standard/Internal manifests the `version` carries NO
+       series prefix (e.g. `1.0.0`), so the version-series scan in (b) yields NOTHING. When the
+       matched profile is Viindoo Standard/Internal, detect candidates by PROFILE MEMBERSHIP
+       (`profile_inspect` module set) intersected with branch series + repo path instead;
+       candidacy_reason = `profile-membership`.
+    Emit the candidate list with paths and the reason for candidacy (version-series|depends-on-stale|profile-membership|installable-hint).
 
 (4) Determine:
     - source_version: from the matched profile's Odoo version or the manifest `version`
@@ -73,13 +90,15 @@ OUTPUT FORMAT (write to intake.md):
 ```yaml
 resolved_series: "17.0"
 matched_profile: "viindoo_standard_17"
+cluster_slug: "l10n_vn"   # scope slug; becomes <cluster> in every artifact path + worktree/branch name
 source_version: "16.0"
 target_version: "17.0"
 series_cross_check: "branch=17.0, manifest_max=16.0 -> DISAGREE -> open_question raised"
+  # for a Viindoo short-form profile: "skipped (short-form manifest, no series prefix)"
 candidate_modules:
   - path: "l10n_vn_custom/"
     module: "l10n_vn_custom"
-    candidacy_reason: "version-series"  # version-series | depends-on-stale | installable-hint
+    candidacy_reason: "version-series"  # version-series | depends-on-stale | profile-membership | installable-hint
     installable: false
 proposed_cluster:
   - "l10n_vn_custom"
@@ -94,7 +113,8 @@ open_questions:
 
 ## P1 - Recon parallel dispatch
 
-Three dispatches fire simultaneously (Mode B concurrency, independent).
+Four dispatches fire simultaneously (Mode B concurrency, independent): P1a DAG, P1b deprecation
+audit, P1c version delta, P1d transitive symbol survey.
 
 ### P1a - DAG build (Explore, sonnet)
 
@@ -134,11 +154,13 @@ Modules: <confirmed_cluster as comma-separated list>
 REPO_ROOT: <absolute path to the repository root>
 MODULE_PATHS: <comma-separated absolute paths from intake.md candidate_modules[].path>
 matched_profile: <matched_profile from intake.md>
+Run the TARGET-version survival pass (symbols stable at <source> but deprecated/removed at
+<target> - the upgrade-critical class find_deprecated_usage misses when pinned to source).
 Output to: .odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/deprecation.md
 ```
 
 `odoo-deprecation-audit` has its own protocol (find_deprecated_usage + api_version_diff +
-lookup_core_api rounds). Do NOT replicate it here; it owns its own SSOT.
+lookup_core_api rounds + TARGET-version survival pass). Do NOT replicate it here; it owns its own SSOT.
 The upgrade orchestrator consumes its output as a per-module fix list in P4.
 
 ### P1c - Version delta (Skill tool: odoo-version-diff)
@@ -154,6 +176,50 @@ Output to: .odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/version-delta.md
 `odoo-version-diff` owns its own protocol. The upgrade orchestrator consumes its
 Removed APIs + Changed signatures tables in P4 via the breaking-change catalog.
 
+### P1d - Transitive Symbol Survey (Explore, sonnet, read-only)
+
+P1a confirms a dep MODULE exists at target; it does NOT ground the SYMBOLS the cluster pulls
+from that dep down to base/ORM/tools. P1d closes that gap: it grounds every external/core
+symbol the cluster references AT THE TARGET, so a renamed/removed symbol surfaces in P1 instead
+of crashing at P5.
+
+```
+TASK: Transitive symbol-survival survey for cluster '<cluster>' upgrading <src> -> <tgt>.
+MODULE PATHS: <comma-separated absolute paths from intake.md candidate_modules[].path>
+
+1. set_active_version(odoo_version='<target_version>').
+2. Scan the cluster source for every symbol that references an EXTERNAL/core dependency
+   (a dep NOT in the cluster): model `_inherit` / `env['<model>']` targets, fields read/written
+   on those models, ORM chains 3+ levels deep, method calls/overrides, `env.ref` / template
+   xml_ids, and manifest `depends` entries.
+3. Ground EACH symbol at the target using OSM, REUSING the procedure in
+   ${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md § 2 (per-symbol grounding) and
+   § 2.5 (the seven autosilent symbol classes) BY PATH - do NOT copy the steps here. Use
+   `model_inspect` / `entity_lookup` / `api_version_diff` / `resolve_orm_chain` / `check_module_exists`.
+4. Classify each symbol: SURVIVED | RENAMED | REMOVED | TYPE_CHANGED.
+   Emit ONLY the non-SURVIVED ones as `blockers[]` (RENAMED/REMOVED/TYPE_CHANGED) - these gate P3/P4.
+   For a CUSTOM `_inherit`/symbol OSM cannot resolve, that is an OSM MISS (custom code is not
+   indexed), NOT absence at target: confirm against module source and label `grounded: osm + local-source (hybrid)`.
+
+FALLBACK: if OSM is unreachable, run the grep-only enumeration from § 2/§ 2.5 and label the
+whole survey `grounded: local-source (not OSM-indexed)`; still emit best-effort blockers[].
+
+OUTPUT: transitive-symbol-survey.md
+FORMAT:
+  cluster: <cluster>
+  grounded: "osm" | "osm + local-source (hybrid)" | "local-source (not OSM-indexed)"
+  blockers:
+    - module: <module>          # the cluster module that references the symbol
+      symbol: <symbol>
+      kind: model|field|method|orm-chain|xml_id|depends
+      status: RENAMED|REMOVED|TYPE_CHANGED
+      target_equivalent: <new symbol or null>
+      fix_hint: "<one line: how to rewrite the call site at target>"
+```
+
+The orchestrator feeds each module's `blockers[]` into P4 as that module's PREEMPTIVE FIX LIST
+(prepended before the deprecation + breaking-change fixes).
+
 ### P1 gate
 
 Assert: DAG is acyclic. On cycle: surface the cycle edges as `DONE_WITH_CONCERNS` +
@@ -161,6 +227,8 @@ list the cycle + ask the user to break it before P2 proceeds (do NOT hard-fail).
 Assert: no dep_missing_at_target or dep_identity_changed (if any flagged, surface as
 `DONE_WITH_CONCERNS` + list affected deps with their new identity or missing status +
 ask user to confirm the resolution before P2).
+Record P1d `blockers[]` for P3/P4; a non-empty blockers list is NOT a hard-fail (it is the
+preemptive fix list), but list it in the P3 plan so the human sees what P4 will fix up front.
 
 ---
 
@@ -205,8 +273,23 @@ STEPS:
       - KEEP: custom logic that core does not provide and API is stable
       - REWRITE(api): API changed at target; custom logic still needed; adapt call sites
       - REWRITE(model): model structure changed (field renamed/type-changed/removed)
+      - RECONCILE: custom intent survives BUT target-core now writes/computes the SAME business
+        quantity on the SAME records (data-divergence), OR a new core mechanism can replace/
+        simplify the custom impl -> route to P2b design (never a silent KEEP)
       - MERGE: this module + another cluster module are now best combined
       - SPLIT: this module has grown to warrant splitting
+3b. NEW-FEATURE SWEEP (RECONCILE detection) - run ONLY for features classified KEEP or
+   REWRITE(api)/REWRITE(model), AND only when the api_version_diff result from step 3.b above
+   contains a `new` section - REUSE that same per-feature result; do NOT call api_version_diff a second time for the same feature.
+   For each surviving custom feature, judge whether a NEW target-core mechanism/API can replace
+   or materially simplify it AND still cover the feature's acceptance criteria. Evidence: the
+   api_version_diff `new` items + `suggest_pattern` / `find_examples` / `describe_module`.
+   - New core mechanism can wire-in and covers the criteria -> reclassify RECONCILE (b);
+     record it in `reuse_candidates[]`.
+   - New core ALSO writes/computes the SAME business quantity on the SAME records the custom
+     code writes -> reclassify RECONCILE (a) data-divergence (two SSOTs).
+   A RECONCILE feature sets the module verdict to RECONCILE (or MIXED if other features stay
+   KEEP/REWRITE); the orchestrator routes that verdict to P2b design (§ P2b) - never a silent KEEP.
 4. If EVERY feature is DELETE-absorbed, return verdict=DELETE-absorbed with
    the SINGLE core module/feature that replaces the whole module.
 4a. BEHAVIORAL-EQUIVALENCE CHECK (MANDATORY for DELETE-absorbed verdict):
@@ -225,12 +308,21 @@ STEPS:
 OUTPUT: write to absorption/<module>.md
 FORMAT:
   module: <module>
-  verdict: DELETE-absorbed | OBSOLETE | KEEP | REWRITE(api) | REWRITE(model) | MERGE | SPLIT | MIXED
+  grounded: "osm" | "osm + local-source (hybrid)" | "local-source (not OSM-indexed)"
+    # hybrid = OSM resolved core symbols but a CUSTOM _inherit/symbol was confirmed from module
+    # source (OSM does not index custom code; an OSM MISS on a custom symbol is NOT absence).
+  verdict: DELETE-absorbed | OBSOLETE | KEEP | REWRITE(api) | REWRITE(model) | RECONCILE | MERGE | SPLIT | MIXED
   features:
     - name: <feature_description>
       classification: <class>
       evidence: <OSM citation>
       proposed_action: <action>
+  reuse_candidates:
+    # NEW-FEATURE SWEEP output (RECONCILE-b). Omit when empty.
+    - feature: <feature_description>
+      new_core_mechanism: "<core module/API that can replace or simplify it>"
+      covers_acceptance_criteria: true | false
+      evidence: "<api_version_diff new item + suggest_pattern/find_examples citation>"
   whole_module_absorbed: true | false
   absorbing_core_feature: "<core_module>/<feature>" (only when whole_module_absorbed=true; omit for OBSOLETE)
   data_at_risk: true | false
@@ -267,12 +359,14 @@ comparator's behavioral-equivalence proof (signal #5), not on a "Standard" gap-a
 ## P2b - Hard-call design (conditional route-out)
 
 Fires when a module's P2 verdict matches the design-trigger table in SKILL.md § P2b -
-ALWAYS for MERGE / SPLIT / REWRITE(model with a field-type change) / DELETE-absorbed (with
-risk); AND for REWRITE(api) or KEEP when the adaptation is NON-TRIVIAL (changes the module's
-public model surface, OR touches > 5 call sites, OR spans >= 2 modules, OR meets the
-solution-design non-trivial criterion). A trivial localized fix (<= 5 call sites, 1 module, no
-public-surface change) skips design. DELETE-absorbed (no risk) and OBSOLETE never route - the
-module is removed, not adapted.
+ALWAYS for MERGE / SPLIT / REWRITE(model with a field-type change) / RECONCILE (data-divergence
+or new-feature wire-in - the SSOT/wire-in choice is architectural) / MIXED (the whole module is
+routed to design to resolve the mixed per-feature verdicts) / DELETE-absorbed (with risk); AND
+for REWRITE(api) or KEEP when the adaptation is NON-TRIVIAL (changes the module's public model
+surface, OR touches > 5 call sites, OR spans >= 2 modules, OR meets the solution-design
+non-trivial criterion). A trivial localized fix (<= 5 call sites, 1 module, no public-surface
+change) skips design. DELETE-absorbed (no risk) and OBSOLETE never route - the module is removed,
+not adapted.
 
 Reuse the non-trivial criterion from `${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/SKILL.md`
 § "When to invoke - and the non-trivial threshold" - do NOT invent a third definition.
@@ -332,9 +426,11 @@ Write this inside Plan Mode (between `EnterPlanMode` and `ExitPlanMode`).
 2. <m2> (depends on m3)
 3. DELETE <m1> (depends on m2; will be removed after m2 adapted)
 
-### Manifest version bumps required
-- <m2>: 16.0.1.0.0 -> 17.0.1.0.0
-- <m3>: 16.0.2.0.0 -> 17.0.2.0.0
+### Manifest version bumps required (profile-gated - see ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md)
+# Viindoo Standard/Internal: short form, no series prefix; usually UNCHANGED for a code-level upgrade.
+# OCA/upstream/non-Viindoo: replace source series prefix with target series prefix.
+- <m2>: OCA -> 16.0.1.0.0 -> 17.0.1.0.0  |  Viindoo -> 1.0.0 (unchanged)
+- <m3>: OCA -> 16.0.2.0.0 -> 17.0.2.0.0  |  Viindoo -> 2.0.0 (unchanged)
 
 ### Commit plan
 - `upg: m3 16.0->17.0 - KEEP update API call sites`
@@ -382,6 +478,7 @@ WORKTREE: <path>/upg-<module>
 
 INPUTS:
 - Absorption verdict: absorption/<module>.md
+- Preemptive fix list (this module's blockers[] - apply FIRST): transitive-symbol-survey.md
 - Deprecation fix list (rows for this module only): deprecation.md
 - Breaking-change catalog: ${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md
 - Version delta (Removed + Changed for relevant symbols): version-delta.md
@@ -398,8 +495,10 @@ If ACTION=DELETE-absorbed or ACTION=OBSOLETE:
     grep -rn "env.ref('<module>\." . --include="*.py"
     grep -rn "group_<module>" . --include="*.xml" --include="*.py" --include="*.csv"
     grep -rn "<xmlid from the module>" . --include="*.xml"
-  The orchestrator pre-populates the module's model names (from absorption/<module>.md)
-  and known XML IDs (from module_inspect at source) in the brief. For EACH dangling
+  The orchestrator pre-populates the module's model names (from absorption/<module>.md) and
+  known XML IDs in the brief, sourced from `module_inspect(name='<module>', method='models',
+  odoo_version='<source_version>')` + the module's data/security XML at SOURCE (the module is
+  about to be deleted, so it is no longer at target - read it at source). For EACH dangling
   reference found: either rehome it to the absorbing core module/feature OR remove it.
   Document the rehoming decisions in the commit message or a `# upg: rehomed` comment.
 
@@ -414,6 +513,10 @@ If ACTION=DELETE-absorbed or ACTION=OBSOLETE:
   Commit message (obsolete): "upg: delete <module> - obsolete at <target_version> (<one-line reason why the need evaporated>)"
 
 If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
+  0. PREEMPTIVE FIX LIST (apply FIRST): for every blocker attributed to this module in
+     transitive-symbol-survey.md (status RENAMED/REMOVED/TYPE_CHANGED), rewrite the call site
+     to its `target_equivalent` per `fix_hint`. These are external/core symbols that auto-survive
+     a clean port yet break at install/runtime - fix them before the catalog passes below.
   1. Apply all deprecation fix-list items for this module (from deprecation.md).
   2. Apply all breaking-change items that affect this module (from upg-classification-table.md).
   3. For REWRITE(model): update field references, compute methods, search/domain expressions,
@@ -424,8 +527,14 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
      - `ir.rule` records - update domain expressions referencing renamed/removed fields
      These files break installation just as hard as Python or view files when a field
      or model they reference no longer exists at target.
-  4. Bump manifest version: replace the source series prefix with the target series prefix
+  4. Bump manifest `version` PROFILE-GATED (${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md
+     + F0 ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md): Viindoo Standard/Internal ->
+     SHORT form, no series prefix, and for a code-level upgrade with no data change do NOT bump
+     at all (cross-ref ${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md §3). OCA/upstream/
+     non-Viindoo -> replace the source series prefix with the target series prefix
      (e.g. 16.0.1.2.3 -> 17.0.1.2.3).
+  4b. Set `installable: True` (flip from False) AFTER all other P4 fixes are applied, BEFORE P5
+     runs - per the upg-classification-table.md manifest-break row. P5 confirms it installs.
   5. If a migration script is genuinely needed (field type change with data to preserve,
      renaming with existing data), write it inline under migrations/<target_version>/
      as a standard Odoo migration script. This is the EXCEPTION, not the default.
@@ -476,11 +585,23 @@ failures localize to the wave that introduced them and resume skips proven waves
 Per-wave green is recorded in `checkpoint.json` (status `installed` per module) and
 `install-test.md`.
 
-Step 1 - create instance (once):
+**Framework-validation gate is MERGED into P5 (no separate phase) and runs demo=on.** A module
+that flips `installable: False -> True` is scanned by the target's FULL test suite for the first
+time; from v18 `base.TestInvisibleField` (every always-invisible view field needs an explanatory
+XML comment) and `hr.TestSelfAccessProfile` (custom `hr.employee` fields need
+`groups='hr.group_hr_user'`) run as part of that suite and require demo data. So the gate runs
+demo=on. Demo default is version-keyed - F0 ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md:
+v8-v18 demo ON by default (`--without-demo` disables); v19 demo OFF by default (`--with-demo`
+enables); `--without-demo=False` is INVALID. The gate stays demo=on regardless of the default
+(on v19 the instance must be created `--with-demo`). The P4b review for any flipped module MUST
+additionally cover ACL / `.sudo()` for every create/write/compute override on a widely-used core
+model. Cross-ref ${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md.
+
+Step 1 - create instance (once), demo=on:
 ```
 operation: create
 series: <target_version>
-demo: off
+demo: on   # framework-validation gate REQUIRES demo data (see note above); on v19 -> --with-demo
 ```
 
 For each wave in topo_order (leaves first), run Steps 2-3 before moving to the next wave:
@@ -489,8 +610,9 @@ Step 2 - init (install) this wave's modules:
 ```
 operation: init
 series: <target_version>
-modules: <transitive closure of THIS WAVE's modules + all previously installed modules,
-          comma-separated - ensures deps are re-specified so Odoo's dep-order logic holds>
+modules: <FULL transitive closure of THIS WAVE's modules - including external/core deps from
+          graph.md P1a's full closure - plus all previously installed modules, comma-separated;
+          re-specifying deps ensures Odoo's dep-order logic holds and no external dep is skipped>
 CONFIRM: "confirm each module in this wave emits a Loading line; report per-module install status"
 ```
 
@@ -534,7 +656,72 @@ overall: green | red
 
 ---
 
+## P5.7 - i18n reconcile (gated-on by default; auto-SKIP)
+
+Wires the EXISTING `odoo-i18n` skill as a post-install phase - no new i18n logic. Non-destructive
+is load-bearing: re-exporting a `.po` from a fresh DB destroys 40-90% of existing `msgstr`, so
+translation MEMORY is always forwarded by MERGE, never regenerated.
+
+SKIP gate (evaluate first): SKIP this phase when the cluster changed NO translatable surface -
+no add/remove/rename of a translatable field, view label/string, selection value, help text, or
+report label across the adapted modules (diff the P4 commits for translatable tokens). Record
+`i18n: skipped (no translatable-surface change)` and proceed to P6.
+
+When it runs (against the P5 instance, demo=on):
+```
+SKILL: odoo-i18n
+INSTANCE: the P5 ephemeral instance (already up)
+MODULES: <cluster adapted modules>
+TARGET_VERSION: <target_version>
+MODE: reconcile (non-destructive)
+STEPS (odoo-i18n owns the detail; do NOT replicate its protocol):
+  1. export .pot for each adapted module
+  2. polib-MERGE the new .pot into each existing <lang>.po (preserve every existing msgstr)
+  3. hand-translate ONLY the residual untranslated entries
+  4. reload with `-u <module>` on the P5 instance and confirm the catalog loads
+```
+Output: `i18n-reconcile.md` (per-module: residual count, translated count, skipped?).
+
+---
+
+## Commit consolidation (P6/P7 capability)
+
+"No cluster-squash" means: NEVER collapse the whole cluster into ONE opaque commit - the
+per-module commit messages ARE the upgrade record. It does NOT forbid consolidating a single
+module's WIP/fixup commits into ONE clean commit per module. Per-module consolidation is ALLOWED
+and preferred when a module accumulated fixups during P4/P4b:
+
+```bash
+# from the integration worktree. <base> = <work-base>, or the commit BEFORE this module's first commit.
+git branch upg-backup HEAD                 # safety ref for the tree-identity check
+git reset --mixed <base>                    # unstage back to <base>, keep the working tree intact
+git add <module>/                           # re-stage ONLY this module's tree
+git commit -s -m "upg: <module> <src>-><tgt> - <ACTION> <summary>"
+# repeat per module, in dependency order (leaves first)
+
+# Verify the consolidated tree byte-matches the pre-consolidation tree (must be identical):
+git diff --quiet upg-backup HEAD && echo "TREE-IDENTICAL" || echo "TREE-DIVERGED - investigate"
+git branch -D upg-backup
+```
+
+Non-interactive autosquash is also available in this environment (no TTY for an editor is NOT a
+block): `EDITOR=true GIT_SEQUENCE_EDITOR=true git -c commit.gpgsign=false rebase --autosquash <base>`.
+Keep exactly ONE commit per module; never one commit per cluster.
+
+---
+
 ## P7 - PR creation command
+
+**Pre-PR checklist (extends P6 sign-off).** Run the Runbot parity gates
+(${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md) PLUS
+these three passes before opening the PR, each cross-referencing its owning snippet:
+- Convention-compliance: manifest version-form per profile, always-invisible view fields carry an
+  explanatory XML comment from v18, renames done via `old_technical_name` with no migration script
+  for no-data modules - per ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md.
+- Perf-lens: no per-record `mapped()` aggregate over a high-volume model (`hr.attendance`,
+  `stock.move`, `account.move.line`, `account.analytic.line`) in a stored compute - use a grouped
+  `_read_group`.
+- i18n: P5.7 ran, or was correctly auto-SKIPPED with the recorded reason.
 
 ```bash
 # Artifact base dir (absolute)
@@ -594,7 +781,12 @@ CONTEXT: cross-major upgrade <src>-><tgt> for cluster <cluster>
 - `odoo-gap-analysis` output format: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-gap-analysis/SKILL.md`
 - `odoo-coding` ADAPT tier table: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md` Phase 0 step 5
 - `odoo-instance` dispatch: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`
+- `odoo-i18n` reconcile (P5.7): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/SKILL.md`
 - Concurrency guard (Mode B): `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+- Symbol grounding § 2 / § 2.5 (P1d): `${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md`
+- Viindoo upgrade conventions (profile-gated): `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`
+- F0 version-pivot SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`
+- Runbot parity checklist (P5 gate + pre-PR): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`
 - Worker brief format: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
 - Continuation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
 - Disk fallback protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`

@@ -5,7 +5,7 @@ Key failure modes the reviewer checks for:
 1. **ORM / N+1** - `search()`, `browse()`, `.read()`, `.mapped()` inside `for rec in self` loops; use `mapped()` or prefetch outside loop.
 2. **Inheritance breaks** - missing `super()` in `create`/`write`/`unlink` breaks tracking, compute triggers, and downstream overrides (always CRITICAL).
 3. **`@api.depends` errors** - stale or wrong dotted paths; `id` in depends list; constraint on relational field (silently skipped).
-4. **Deprecated API** - `@api.multi`, `@api.one` removed in v13/v14; raise at call time, not import.
+4. **Deprecated API** - `@api.multi`, `@api.one` removed v13 (see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §Python ORM - model API); raise at call time, not import.
 5. **OWL reactivity** - direct `this.state.items.push()` bypasses OWL reactivity; `position="replace"` in XML views breaks other override chains. Confirm visually on live instance with `odoo-debug`.
 6. **Design-system fidelity (SCSS/OWL styling)** - hardcoded `hex`/`rgba` for themeable colors, or surface tokens chained into Bootstrap `--bs-*` custom properties the target version does not emit at runtime (self-referential CSS var cycle). Flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`; confirm at runtime with `odoo-debug`/`odoo-ui-review`, route fix to `odoo-coding`.
 7. **Coding-guideline conventions** - after pinning the version, reviewer grounds convention findings against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/` (naming prefixes, model attribute order, import order, `_()` form) and cites the violated file + section - see `agents/odoo-code-reviewer.md`.
