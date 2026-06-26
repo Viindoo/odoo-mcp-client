@@ -25,8 +25,10 @@ absorbed -> DELETE it + record the reason in the commit message; KEEP / REWRITE 
 SPLIT the rest). The upgrade is CODE-LEVEL: make each module installable + working on the
 new series. NO data migration is assumed (modules are typically `installable: False` with
 no users); if one module genuinely needs a script, the delegated coder writes it INLINE.
-The result is a NEW module version (manifest bump). Never squash; human sign-off before
-the PR merges.
+The result is a NEW module version (manifest bump, profile-gated - see § P4). No cluster-squash
+(never collapse the whole cluster into one opaque commit); per-module consolidation to ONE clean
+commit per module IS allowed (see `references/upg-phase-detail.md` § Commit consolidation). Human
+sign-off before the PR merges.
 
 First principle: the orchestrator parses nothing it can delegate, reads no diff, and
 compares no behavior inline. It dispatches subagents with a brief, reads their structured
@@ -56,8 +58,13 @@ rather than guessing it.
 
 ## The pipeline
 
-`<cluster>` = the scope slug. Artifacts under `.odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/`.
-ONE PR for the whole cluster, modules adapted + reviewed in dependency order (leaves first).
+`<cluster>` = the scope slug (the `cluster_slug` field resolved in P0 intake). Artifacts under
+`.odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/`. `<path>` = the upgrade-worktree base, a
+`.upg-worktrees/` directory SIBLING to the principal checkout (never inside it, so principal
+`git status` stays clean). `<work-base>` = the base ref the integration branch forks from: HEAD
+of the target-series branch when one exists, else the merge-base of the cluster against the
+target series. ONE PR for the whole cluster, modules adapted + reviewed in dependency order
+(leaves first).
 
 Full per-phase commands, dispatch briefs, and artifact formats:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md`.
@@ -80,13 +87,19 @@ Dispatch 1x intake subagent (sonnet). Brief: (1) read the CURRENT BRANCH NAME an
 the Odoo series (branch `17.0-*` or `17.0` -> series `17.0`); cross-check the inferred
 series against the MAX manifest `version` series found on disk (read sample
 `__manifest__.py` files); if they disagree, raise as `open_question` rather than
-silently inferring from the branch name alone; (2) map to the matching OSM profile via
+silently inferring from the branch name alone. EXCEPTION (Viindoo Standard/Internal
+profile - manifests carry a SHORT version with NO series prefix, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`): the manifest `version` has no
+series to compare, so SKIP this branch-vs-manifest-series cross-check and resolve the
+source series from branch + profile - do NOT raise a false `disagree`; (2) map to the matching OSM profile via
 `set_active_version` + `list_available_profiles` + `profile_inspect`; report repos +
 module set; (3) auto-detect CANDIDATE MODULES by scanning `__manifest__.py` files for
 a manifest `version` field whose major series is LESS THAN the target series (e.g.
 `16.0.x.y.z` when target is `17.0`) AND by scanning for modules that depend on any
 such stale module (depends-on-stale); `installable: False` is logged as a weak hint
-only and is NOT the primary detector; (4) determine SOURCE version from the matched
+only and is NOT the primary detector. For Viindoo short-form manifests (no series
+prefix) the version-series scan yields nothing - detect candidates by profile
+membership (`profile_inspect` module set) + branch series instead; (4) determine SOURCE version from the matched
 profile's Odoo version or manifest `version` fields and TARGET version from the NL ask
 (or next major if implied); (5) if the user's MODULE SCOPE is not explicit, do NOT
 guess - return the candidate list + a proposed cluster (seeded from the dependency
@@ -97,14 +110,17 @@ candidate_modules[], proposed_cluster[], dependency_hints, open_questions[]}.
 **Gate:** if `open_questions` non-empty, orchestrator presents the candidate list +
 proposed cluster, asks the user to confirm/narrow scope, then resumes P1.
 
-**P1 - Recon [graph + deprecation + diff, parallel].**
+**P1 - Recon [graph + deprecation + diff + transitive-symbol, parallel].**
 Goal: build the dependency DAG; get per-module deprecated-symbol fix list + platform API
-delta. Three parallel dispatches: (a) 1x `Explore` (sonnet) reads each `__manifest__.py`
-`depends` -> emits {module, depends[]} for every module in the confirmed cluster ->
-orchestrator topo-sorts to leaves-first order (cheap, deterministic); (b) `odoo-deprecation-audit`
-(via Skill tool, sonnet) for source_version + module list; (c) `odoo-version-diff` (via
-Skill tool, sonnet) for source->target delta.
-Output: `graph.md` (DAG + topo order), `deprecation.md`, `version-delta.md`.
+delta + a transitive symbol-survival survey grounded at target. Four parallel dispatches:
+(a) 1x `Explore` (sonnet) reads each `__manifest__.py` `depends` -> emits {module, depends[]}
+for every module in the confirmed cluster -> orchestrator topo-sorts to leaves-first order
+(cheap, deterministic); (b) `odoo-deprecation-audit` (via Skill tool, sonnet) for source +
+TARGET version + module list (it runs the TARGET-version survival pass); (c) `odoo-version-diff`
+(via Skill tool, sonnet) for source->target delta; (d) **P1d Transitive Symbol Survey**
+(`Explore`, sonnet, read-only) - scans cluster source for every symbol referencing an external/core
+dep and grounds each at target, emitting `blockers[]` that gate P3/P4 (full brief: phase-detail § P1d).
+Output: `graph.md` (DAG + topo order), `deprecation.md`, `version-delta.md`, `transitive-symbol-survey.md`.
 Assert DAG is acyclic: if a cycle is found, surface the cycle edges as
 `DONE_WITH_CONCERNS` and ask the user to break the cycle before P2 proceeds (do not
 hard-fail - cycles exist in real custom clusters and require human resolution).
@@ -131,6 +147,8 @@ Route to `odoo-solution-design` (`odoo-solution-architect` opus) when P2 returns
 the following verdicts (tied to the verdict enum, not to a fuzzy "ambiguous" judgment):
 - `MERGE` (any merge, regardless of apparent clarity)
 - `SPLIT` (any split)
+- `RECONCILE` (always - data-divergence or new-feature wire-in; the SSOT/wire-in choice is architectural)
+- `MIXED` (always - route the whole module to design to resolve the mixed per-feature verdicts)
 - `REWRITE(model)` where at least one field type changes
 - `DELETE-absorbed (with risk)` (any absorption verdict carrying risk flags)
 - `REWRITE(api)` when the adaptation changes the module's PUBLIC MODEL SURFACE (adds/removes/
@@ -182,9 +200,13 @@ sweep first (grep repo for model names, XML IDs, group xmlids, env.ref targets),
 record the reason; the commit message carries it (absorbed: `upg: delete <module> -
 absorbed by core <core-module/feature> in <tgt> (no custom delta remains)`;
 obsolete: `upg: delete <module> - obsolete at <tgt> (<reason>)`).
-For KEEP/REWRITE/MERGE/SPLIT: apply the breaking-change catalog from
+For KEEP/REWRITE/MERGE/SPLIT: prepend this module's `blockers[]` from P1d
+`transitive-symbol-survey.md` as a PREEMPTIVE FIX LIST, apply the breaking-change catalog from
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`,
-the per-module deprecation fix list from P1, bump manifest `version`.
+the per-module deprecation fix list from P1, flip `installable: False -> True`, and bump the
+manifest `version` PROFILE-GATED (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` + F0
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`): Viindoo Standard/Internal -> short
+form, no series prefix, often NO bump for code-level upgrade; OCA/upstream -> series-prefix bump.
 Converge each child worktree back to integration (serialized); remove child worktree.
 **Principal-checkout-lock: NEVER `git checkout` / `git switch` the principal checkout.**
 Materialize any needed branch via `git worktree add`.
@@ -202,10 +224,17 @@ reviews or fixes inline. Write `<module>: reviewed` in checkpoint.json. Brief + 
 `references/upg-phase-detail.md` P4b. This is the in-pipeline review; the final pre-merge dep-order
 review stays at P7 (two review points total).
 
-**P5 - Install + test gate [ephemeral instance, wave-by-wave].**
+**P5 - Install + test gate [ephemeral instance, wave-by-wave, demo=on].**
 Goal: prove the whole cluster installs + tests green on a fresh target DB, bottom-up
 wave by wave (one wave = one DAG depth level, leaves first). Installing wave-by-wave
 localizes failures and allows resume to skip proven waves.
+Run the instance with **demo=on** (no separate framework-validation phase): a module that
+flips `installable: False -> True` is scanned by the target's FULL suite for the first time -
+from v18 `base.TestInvisibleField` + `hr.TestSelfAccessProfile` run there and need demo data
+(demo default is version-keyed - F0 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`;
+gate stays demo=on regardless). The P4b review MUST cover ACL / `.sudo()` for every create/
+write/compute override on a widely-used core model. Cross-ref
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`.
 Dispatch `odoo-instance` (via Skill tool, L2 human gate applies). Create the instance
 once; then for each wave: dispatch init for that wave's modules, then run-tests for that
 wave. Record per-wave green in `checkpoint.json` (status `installed`) and `install-test.md`.
@@ -214,13 +243,28 @@ to root cause; feed the diagnosis back to P4 for the affected module. Resume P5 
 failing wave (skip already-green waves per `checkpoint.json`). Loop until all waves green.
 Output: `install-test.md` - {per-wave + per-module install ok?, test result, root-cause if red}.
 
+**P5.7 - i18n reconcile [gated-on by default; auto-SKIP].**
+Goal: keep translations intact across the upgrade WITHOUT regenerating them. Gated-on by
+default; AUTO-SKIP when the cluster changed no translatable surface (no add/remove/rename of
+a translatable field, label, view string, or selection). When it runs, wire the existing
+`odoo-i18n` skill (no new i18n logic) against the P5 instance: export `.pot` -> polib-MERGE
+into each existing `.po` (NEVER regenerate - a fresh export destroys existing msgstr) ->
+hand-translate only the residual untranslated entries -> reload with `-u`. Detail: phase-detail § P5.7.
+
 **P6 - Gate [STOP, human sign-off].**
 Present `plan.md` + `absorption/*` summaries + `install-test.md` (including the list of
 DELETED-absorbed modules + their reasons). Wait for human sign-off before the PR.
 
 **P7 - PR + review [human merge].**
+Pre-PR checklist (extends P6 sign-off): run the Runbot parity gates
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`), then
+add a convention-compliance pass (manifest version-form + always-invisible XML comment + rename
+via `old_technical_name` - per `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`), a perf-lens
+pass (no per-record `mapped()` aggregate on a high-volume model - use grouped `_read_group`), and
+an i18n pass (P5.7 ran or was correctly auto-SKIPPED).
 Open PR: `gh pr create -R Viindoo/<repo> --base <work-base>
---head davidtranhp:upg/<src>-<tgt>-<cluster>`. NEVER squash.
+--head davidtranhp:upg/<src>-<tgt>-<cluster>`. No cluster-squash (per-module consolidation is
+allowed - see `references/upg-phase-detail.md` § Commit consolidation).
 Resolve `<repo>` from `git remote get-url origin` (parse the repository name from the URL).
 Delegate a dep-order code review of the integration worktree before human merge (via the
 plugin's review capability, passing `worktree:<path>/upg-integration` and asking it to
@@ -232,7 +276,11 @@ review modules in dependency order). Wait for human merge.
    checkout off its branch. Materialize any needed branch via `git worktree add`.
 2. **Plan Mode before any delete or code write.** P3 Plan Mode gate covers the irreversible
    DELETE decisions; no `git rm`, no code changes, no worktree branch until P4 post-gate.
-3. **Never squash.** Commit message format is the record: `upg: <module> <src>-><tgt> -
+3. **No cluster-squash; per-module consolidation allowed.** Never collapse the whole cluster
+   into one opaque commit - the per-module commit messages are the upgrade record. Consolidating
+   a single module's WIP/fixup commits into ONE clean commit per module IS allowed (capability:
+   `references/upg-phase-detail.md` § Commit consolidation - `reset --mixed <base>` + re-`git add
+   <module>/` + tree-hash verify). Commit message format: `upg: <module> <src>-><tgt> -
    <KEEP|REWRITE|MERGE|SPLIT> <summary>` for adapts; `upg: delete <module> - absorbed by
    core <core-module/feature> in <tgt> (no custom delta remains)` for absorbed deletes;
    `upg: delete <module> - obsolete at <tgt> (<reason>)` for obsolete deletes.
@@ -299,7 +347,7 @@ so re-runs do not re-install proven waves.
 - Commit messages (absorbed delete): `upg: delete <module> - absorbed by core <core-module/feature> in <tgt> (no custom delta remains)`.
 - Commit messages (obsolete delete): `upg: delete <module> - obsolete at <tgt> (<one-line reason>)`.
 - Push to fork: `git push davidtranhp upg/<src>-<tgt>-<cluster>`.
-- PR: `gh pr create -R Viindoo/<repo> --base <work-base> --head davidtranhp:upg/<src>-<tgt>-<cluster>`. NEVER squash. Resolve `<repo>` from `git remote get-url origin`.
+- PR: `gh pr create -R Viindoo/<repo> --base <work-base> --head davidtranhp:upg/<src>-<tgt>-<cluster>`. No cluster-squash (per-module consolidation allowed - see `references/upg-phase-detail.md` § Commit consolidation). Resolve `<repo>` from `git remote get-url origin`.
 
 ## MCP tools
 
@@ -345,7 +393,8 @@ P2 comparator falls back to disk reads of the source module + the target checkou
 When the run finishes (or pauses at a gate), append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
 `produced` lists `intake.md`, `graph.md`, `deprecation.md`, `version-delta.md`,
-`absorption/*.md`, `plan.md`, `install-test.md`, `checkpoint.json`, and the PR URL.
+`transitive-symbol-survey.md`, `absorption/*.md`, `plan.md`, `install-test.md`,
+`checkpoint.json`, and the PR URL.
 When P2b routes a module out to design, `next: odoo-solution-design` with the Continuation
 Contract payload and the run YIELDS. Additive output for the run-driver - does not change
 anything produced above.

@@ -93,6 +93,10 @@ Phase-3 coverage-gap trigger - without seeding, that trigger never fires.
   Each worker returns a short bullet map: what the area contains, which 1-3 spots look most
   relevant to the stated intent (the hot-spots) each with a `file:line`, and the module's test
   class list (or "no tests" if the module has none).
+- **Two Phase-1 lenses** (`references/survey-lenses.md` § Phase 1): **L1 module purpose**
+  (`describe_module` - 1-2 lines, downgrades a hot-spot in an off-intent module) and **L2
+  entry-point map** (`ir.actions` / controllers / `ir.cron` / view buttons / `execute_kw`-reachable
+  `@api.model` methods, each `file:line` -> dispatched model/route) as a first-class artifact.
 - **Persist:** `.odoo-ai/survey/<slug>-<date>/phase1/<NN>-<area>.md` + one worklog entry per worker.
 
 ## Phase 2 - narrow / deep dives (sonnet)
@@ -107,6 +111,26 @@ Phase-3 coverage-gap trigger - without seeding, that trigger never fires.
   **bidirectional impact** per `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md` (upstream
   `depends` closure + downstream `impact_analysis`, direct AND transitive). It answers the
   intent's sub-questions and marks each `RESOLVED` / `UNRESOLVED`.
+
+  On top of the trace, each worker applies the **Phase-2 lenses** in
+  `references/survey-lenses.md` (the orchestrator inlines the lens block into the brief), recording
+  each as a labelled subsection: **L3 data-flow** (`A -> B -> C -> stored field X`,
+  `resolve_orm_chain` + `find_override_point`), **L4 layer labels** (`[LAYER: ...]`), **L5
+  side-effects** (mail/attachment/redirect/stock/cron/bus), **L6 cross-cutting** (`groups=` /
+  `sudo()` / `@api.constrains` - FLAG existence only, no overlap with `odoo-security-audit`),
+  **L7 prior art** (`find_examples` + `suggest_pattern` + `entity_lookup` - existing
+  override/pattern/test the downstream agent ADAPTS instead of reinventing; a MISS is a recorded
+  result), and **L8 tech-debt** (N+1 / `find_deprecated_usage` / missing `@api.model` -
+  FLAG-only, never fix).
+
+  Each worker also runs the **dependency-closure drill** (`references/survey-lenses.md` §
+  Dependency-closure): walk the hot-spot's `depends` graph DOWN from the nearest owner toward
+  `base`, PHASED one layer per wave (respect the Mode B budget), and ground each external symbol by
+  REUSING `${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md` § 2 + § 2.5 BY PATH (the
+  orchestrator inlines those two sections into the brief - never copy them). Output a
+  dependency-closure map (`nearest -> ... -> base`, layer + why + `grounded:`). Ground at the
+  current version; if the intent is upgrade-adjacent, ground at the target version so the drill
+  doubles as a pre-upgrade symbol check.
 
   After `impact_analysis` resolves the blast radius, each worker also calls `tests_covering` for
   the hot-spot's primary model to determine the **test blast radius**: which existing tests
@@ -124,8 +148,11 @@ Phase-3 coverage-gap trigger - without seeding, that trigger never fires.
   coverage. Record the result in the worker's phase2 file as a "Test blast radius" subsection:
   number of test edges, test file paths, and whether the hot-spot has zero test coverage (a
   coverage gap confirmed by BOTH tools). Zero-coverage hot-spots are escalation candidates for
-  Phase 3 (trigger: § Phase 3 item 3) and are always surfaced in the synthesis "Test coverage
-  gaps" section.
+  Phase 3 (trigger: § Phase 3 item 3). This call populates tiers (i) own-module and (ii)
+  dependency tests of the **test-protection map** (`references/survey-lenses.md` § Test-protection
+  map); tier (iii) framework-validation + lint gates (`base.TestInvisibleField`,
+  `hr.TestSelfAccessProfile`, `test_pylint`, `test_lint`) is assembled at synthesis. All three feed
+  the synthesis `tests_protecting` section.
 
 - **Persist:** `.odoo-ai/survey/<slug>-<date>/phase2/<NN>-<hotspot>.md` + worklog entries.
 
@@ -137,7 +164,8 @@ synthesis - opus is the costly tier, 2 in-flight max under Mode B):
 1. **Conflict** - two or more Phase-2 reports disagree on one load-bearing fact (e.g. which module
    owns the hook).
 2. **Cross-cutting unresolved** - a hot-spot's `impact_analysis` shows >=3 modules depending on it
-   transitively that no worker fully traced.
+   transitively that no worker fully traced, OR the Phase-2 dependency-closure drill left a branch
+   >=3 layers deep ungrounded to `base` (the closure exceeded one worker's wave budget).
 3. **Coverage gap** - an intent sub-question is still marked `UNRESOLVED` in the worklog after
    Phase 2.
 
@@ -162,28 +190,37 @@ orchestrator must **read referenced snippets and paste their content into the br
    prefix so files sort in dispatch sequence); append one worklog entry per decision in the
    inlined `worklog-contract.md` format.
 6. **Tier + why** - haiku (wide/shallow), sonnet (deep), or opus (cross-file knot).
+7. **Lens block** - inline the phase-relevant lens text from
+   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-deep-survey/references/survey-lenses.md` (Phase 1 lenses for
+   haiku; Phase 2 lenses + the dependency-closure drill for sonnet). For a worker that runs the
+   dependency-closure drill, ALSO inline `${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md`
+   § 2 + § 2.5. A leaf cannot resolve these paths - paste, do not cite-by-path-only.
 
 ## Synthesis + hand back to intake
 
-After the last phase, read every `phase*/*.md` + the worklog (oldest-first) and write
-`.odoo-ai/survey/<slug>-<date>/synthesis.md`:
+After the last phase, read every `phase*/*.md` + the worklog (oldest-first), aggregate the lens
+subsections (do NOT re-survey), and write `.odoo-ai/survey/<slug>-<date>/synthesis.md` to the full
+contract in `references/synthesis-schema.md`. Each section is few-token, agent-readable, and
+carries `grounded: osm | hybrid | local-source`. Sections:
 
-- **Scope covered** - areas surveyed, tier per area.
-- **Key findings** - each with `file:line` + OSM citation.
-- **Hot-spots ranked** by relevance to the intent.
-- **Impact map** - bidirectional blast radius of the likely change.
-- **Test coverage gaps** - hot-spots with zero test coverage from `tests_covering` (Phase 2
-  blast-radius calls) and fields/methods flagged by `test_coverage_audit`. To build this section,
-  call `test_coverage_audit` once per surveyed module before writing synthesis:
+- **scope_covered**, **key_findings** (`file:line` + OSM), **hot_spots_ranked** - as before.
+- **entry_points** (L2), **dependency_closure** (`nearest -> base`), **data_flow** (`A -> B -> X`
+  + `[LAYER: ...]`), **prior_art** ("read BEFORE coding - do not reinvent"), **side_effects**,
+  **tech_debt** (flag-only), **cross_cutting** (flag-only) - aggregated from the Phase-2 lenses.
+- **tests_protecting** - the three-tier test-protection map (own-module / dependency / framework
+  gates). It SUBSUMES the old "test coverage gaps" bullet: a zero-coverage hot-spot is a flagged
+  row. Build tier (i)+(ii) by calling `test_coverage_audit` once per surveyed module:
 
   ```python
   test_coverage_audit(module='sale_management', odoo_version='17.0')
   ```
 
-  List uncovered fields and methods that overlap with the Phase-2 hot-spots, marked with urgency:
-  a hot-spot with zero coverage is a risk multiplier for any change in that area.
-- **Open questions** - anything still `UNRESOLVED` (so intake can flag it honestly).
-- **Recommended approach delta** - how the first Proposed Plan should change given what was found.
+  Tier (iii) framework gates are `grounded: local-source` (OSM does not index them) - list them
+  from the runbot-parity-checklist cross-ref in `references/survey-lenses.md`, each "verify live".
+- **essential_reading** - 5-10 files MAX to UNDERSTAND the scope (distinct from files-to-change),
+  each + one-line "why" + `file:line`.
+- **open_questions** (`UNRESOLVED`), **recommended_approach_delta**, and **upgrade_symbol_gaps**
+  (optional, upgrade-adjacent intent only - non-SURVIVED symbols from the closure drill).
 
 Return to intake: the path to `synthesis.md` plus 3-5 bullets naming what changed versus the first
 plan. Intake fills the `Survey:` field with that path and **re-proposes** the plan; downstream
@@ -195,6 +232,22 @@ Always pass a **concrete** Odoo version on every OSM call; `'auto'` is unsafe un
 (version pin is server-state shared across concurrent workers -
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM version-pin race). Call
 `set_active_version` once as the reachability probe, then pass the explicit version per call.
+
+**OSM-first, by principle.** OSM is the PRIMARY source (indexed, cross-version,
+inheritance-resolved, checkout-free); read raw Odoo source only when OSM is silent on a fact, and
+then label the finding `grounded: local-source`. Reach for the tool whose PURPOSE fits the
+question - never hardcode params beyond the mandatory concrete `odoo_version`:
+
+- module shape / purpose / deps: `describe_module`, `module_inspect`, `check_module_exists`,
+  `validate_depends`
+- model / symbol structure: `model_inspect`, `entity_lookup`, `resolve_orm_chain`
+- override + blast radius: `find_override_point`, `impact_analysis`
+- prior art + recommended approach: `find_examples`, `suggest_pattern`
+- tests guarding the scope: `find_test_examples`, `tests_covering`, `test_coverage_audit`
+- version-aware (upgrade-adjacent intent): `api_version_diff`, `find_deprecated_usage`
+
+Every finding carries one grounding label - `grounded: osm | hybrid | local-source` (defined in
+`references/synthesis-schema.md`).
 
 ## Artifacts & resume
 

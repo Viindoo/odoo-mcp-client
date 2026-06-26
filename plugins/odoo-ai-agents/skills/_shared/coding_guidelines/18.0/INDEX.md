@@ -41,15 +41,17 @@ Source header. All rules come directly from the 18.0 RST source.
 
 ## By task
 
+> Read ONLY the files mapped to your current task. Snippet path prefix: `${CLAUDE_PLUGIN_ROOT}/snippets/`.
+
 | Task | File(s) to read |
 |---|---|
-| Creating a new module's folders and files | module-structure.md |
-| Writing Python models, methods, idioms | python.md, security.md |
+| Creating a new module's folders and files | module-structure.md, `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md` |
+| Writing Python models, methods, idioms | python.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
 | Writing translatable strings (`self.env._`) | python.md |
-| ORM method / compute / constraint | python.md, naming.md, security.md |
-| Security (groups, rules, access) | xml.md, module-structure.md, security.md |
-| Naming a model, class, variable, field, or method | naming.md |
+| ORM method / compute / constraint | python.md, naming.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
+| Security (groups, rules, access) | xml.md, module-structure.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §ACL`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §Core test-enforced authoring rules (hr.employee field groups, v16+)` |
+| Naming a model, class, variable, field, or method | naming.md, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` |
 | Ordering attributes and methods in a model class | model-ordering.md |
-| Declaring records, views, actions, menus, inherits | xml.md |
+| Declaring records, views, actions, menus, inherits | xml.md, `${CLAUDE_PLUGIN_ROOT}/snippets/xml-view-conventions.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
 | Organizing and writing web assets in Javascript | javascript.md (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
 | Writing CSS/SCSS styles, variables, and mixins | scss.md |

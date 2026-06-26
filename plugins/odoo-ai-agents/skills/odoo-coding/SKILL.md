@@ -92,9 +92,9 @@ When a design doc is present, its effort tier takes precedence over the heuristi
 | # | Condition (first match wins) | Tier |
 |---|---|---|
 | 1 | Design doc grades it Custom-XL; OR the work-item spans >=3 modules of the set AND is full-stack AND estimated >800 LOC; OR it changes an inheritance axis across modules | **fable** |
-| 2 | Design doc grades it Extension-L; OR it overrides core `create`/`write`/`unlink`; OR the override chain has >=3 entries (`find_override_point`); OR cross-model computed chain / multi-company logic; OR a migration with >1 viable strategy; OR full-stack module with >5 intended files | **opus** |
+| 2 | Design doc grades it Extension-L; OR it overrides core `create`/`write`/`unlink`; OR the override chain has >=3 entries (`find_override_point`); OR cross-model computed chain / multi-company logic; OR a migration with >1 viable strategy; OR full-stack module with >5 intended files; OR the work-item is LARGE by size or surrounding-codebase load - net-new-or-changed >=~200 LOC, OR >=~5 intended files, OR a large / high-blast-radius target module (many existing methods or downstream dependents to hold in context, e.g. `impact_analysis`/`model_inspect` shows a wide method surface or ripple) even when the change is single-stack | **opus** |
 | 3 | Design doc grades it Standard or Config; OR (single-stack AND <=2 intended files AND ~<=50 LOC AND no method override): one field/attr, boilerplate XML view shell, label/string change, security CSV row | **haiku** |
-| 4 | Everything else - Extension-M, normal computed/onchange/constraint, single-method override, standard OWL widget, mid-size single-stack module - and ANY case you cannot classify confidently | **sonnet** (default) |
+| 4 | Everything else - Extension-M, normal computed/onchange/constraint, single-method override, standard OWL widget, mid-size single-stack module BELOW the Row-2 size/scope thresholds (<~200 LOC AND <5 files AND not a large/high-blast-radius module) - and ANY genuinely ambiguous case you cannot classify confidently | **sonnet** (default) |
 
 Constraints on the table:
 - **sonnet is the ambiguous-case default.** If two rows seem to apply, the higher
@@ -235,6 +235,7 @@ TEST: <test-author -> "FAILING TEST (RED, written by a separate author): <paths>
 WORKLOG: <runSlug> - read it, then append your significant decisions.
 USER LANGUAGE: <lang | omit when the user works in English> - write the summary in this language; keep identifiers verbatim.
 Follow the Rounds in your system prompt - it owns every procedure; do not re-derive what it already specifies.
+GUIDELINES: Round 1 owns this - open `coding_guidelines/<version>/INDEX.md` first, consult the "By task" table, read ONLY the mapped files (not the whole directory).
 ```
 
 - To run `odoo-bin` (scaffold, or tests via `--test-enable`), resolve the interpreter per

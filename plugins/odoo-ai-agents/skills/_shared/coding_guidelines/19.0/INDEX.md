@@ -24,13 +24,18 @@ These guidelines apply to every new module and to all new development. Two warni
 
 ## By task
 
-- Setting up a new module's directory layout -> [module-structure.md](module-structure.md)
-- Writing or reviewing Python models -> [python.md](python.md), [naming.md](naming.md), [model-ordering.md](model-ordering.md), [security.md](security.md)
-- ORM method / compute / constraint -> [python.md](python.md), [naming.md](naming.md), [security.md](security.md)
-- Security (groups, rules, access) -> [xml.md](xml.md), [module-structure.md](module-structure.md), [security.md](security.md)
-- Propagating context, managing transactions, handling exceptions -> [python.md](python.md)
-- Translating static strings in code -> [python.md](python.md)
-- Declaring records, views, actions, menus, security -> [xml.md](xml.md)
-- Naming XML IDs and inheriting views -> [xml.md](xml.md)
-- Organizing or writing web assets (JS) -> [javascript.md](javascript.md) (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`)
-- Writing CSS/SCSS, variables, mixins, and naming classes -> [scss.md](scss.md)
+> Read ONLY the files mapped to your current task. Snippet path prefix: `${CLAUDE_PLUGIN_ROOT}/snippets/`.
+
+| Task | File(s) to read |
+|---|---|
+| Setting up a new module's directory layout | module-structure.md, `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md` |
+| Writing or reviewing Python models | python.md, naming.md, model-ordering.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
+| ORM method / compute / constraint | python.md, naming.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
+| Security (groups, rules, access) | xml.md, module-structure.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §ACL`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §Core test-enforced authoring rules (hr.employee field groups, v16+)` |
+| Propagating context, managing transactions, handling exceptions | python.md |
+| Translating static strings in code | python.md |
+| Declaring records, views, actions, menus, security | xml.md, `${CLAUDE_PLUGIN_ROOT}/snippets/xml-view-conventions.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
+| Naming XML IDs and inheriting views | xml.md, `${CLAUDE_PLUGIN_ROOT}/snippets/xml-view-conventions.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
+| Organizing or writing web assets (JS) | javascript.md (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
+| Writing CSS/SCSS, variables, mixins, and naming classes | scss.md |
+| Naming fields, methods, classes, variables | naming.md, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` |

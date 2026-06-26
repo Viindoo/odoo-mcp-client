@@ -25,6 +25,8 @@ Out of scope: rating/auditing a rendered screen (-> odoo-ui-reviewer), recording
 
 Browser MCP tools (playwright, chrome-devtools, pagecast) only write files inside **allowed roots** = the cwd of the MCP process plus `.playwright-mcp/`. A filename with a RELATIVE path lands in `<cwd>/.playwright-mcp/<file>` (persistent, NOT os.tmpdir()). A filename with an ABSOLUTE path pointing outside the allowed roots is REJECTED: "File access denied: <path> is outside allowed roots".
 
+**P9 - preferred staging directory:** Where the tool accepts a configurable output path (e.g. `chrome-devtools-headed` `take_screenshot` `path` parameter, `pagecast-headed` output dir), use `.odoo-ai/visual/doc-staging/` as the staging root rather than `.playwright-mcp/`. This keeps transient captures in the gitignored `.odoo-ai/` area. Confirmed headed server names: `chrome-devtools-headed`, `pagecast-headed`. If a server writes only to `.playwright-mcp/` with no override (the current playwright constraint), that directory is still the required staging path - do NOT fabricate an alternative mechanism; note `WARN: playwright staging constrained to .playwright-mcp/ (browser allowed-roots)` in the output.
+
 Two-tier write mechanism (mandatory for all capture steps):
 1. Capture screenshots using a **relative filename** (e.g. `doc-staging/<screen-slug>.png`) - the tool writes to `<cwd>/.playwright-mcp/doc-staging/<screen-slug>.png` and returns the actual path written.
 2. **READ the actual path from the tool result**, then use Bash `cp`/`mv` (not MCP file tools, not subject to allowed-roots) to place the image at the final destination (`<module-abs>/static/description/` or `<doc_output_dir>`).

@@ -52,7 +52,7 @@ The workflow diverges at Round 1 based on the detected version:
 | v10-v12 | `odoo.define()` | `AbstractField`, `field_registry`, `Widget.include({})` | QWeb2 XML |
 | v13-v14 | `odoo.define()` + optional `patch()` | `web.Widget` primary; OWL available but not default | QWeb2 XML |
 | v15 | OWL 1.x + `/** @odoo-module **/` | `patch(Class.prototype, 'name', {})`, hooks from `@odoo/owl` | QWeb3 (OWL templates) |
-| v16-v19 | OWL 2.x + ES modules | `patch(Class, {})`, `import`/`export`, no `odoo.define()` | QWeb3 inline or separate XML |
+| v16+ | OWL 2.x + ES modules | `patch(Class, {})`, `import`/`export`, no `odoo.define()` | QWeb3 inline or separate XML |
 
 - **v14 crossover:** `web.Widget` still works and is the safest choice for extensions; OWL is for *new* components only. If the user is unsure, ask.
 - **v16+:** `web.Widget` and `odoo.define()` are fully removed.
@@ -66,9 +66,10 @@ The workflow diverges at Round 1 based on the detected version:
 2. `set_active_version(odoo_version=<version>)` once (reachability probe). Pass the CONCRETE version on every subsequent call.
 3. Apply the version gate: v8-v14 → [Legacy v8-v14 workflow](legacy-v8v14-workflow); v15+ → [OWL v15+ workflow](owl-v15-workflow).
 4. If patching an existing widget/component, `module_inspect(name=<module>, method='js', odoo_version='<version>')` to see the existing patch chain (3+ entries → warn before proceeding). When the component wires to a backend method/view, `entity_lookup(kind='method'|'view', …, odoo_version='<version>')` confirms it exists. The bound field must be guaranteed by the manifest `depends` closure - do NOT paper over a possibly-missing field with a runtime probe (`record.data.field !== undefined`, `record.data?.field`, `record.data.field ?? default`); gate optional fields on a documented soft-dependency. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
-5. **Read and LEARN coding guidelines before writing (HARD RULE - conform on the first pass):** open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and Read `javascript.md` + `scss.md` + `xml.md` (add `python.md` + `security.md` + `xml.md` if the task touches Python controllers or view XML). Also Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` (canonical JS guidelines including web tooling: ESLint config, Prettier rules, and asset pipeline conventions). Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`.
+5. **Read and LEARN coding guidelines before writing (MANDATORY HARD RULE: do NOT write a single line of JS/SCSS/XML until you have read the By-task-mapped guideline file + `odoo-version-pivots.md` section for that file type):** open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and consult the "By task" table; read ONLY the files it maps to the task (JS-only task → `javascript.md`; SCSS involved → add `scss.md`; view XML → add `xml.md`; backend controllers → add `python.md` + `security.md`). Also Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` (canonical cross-version JS guidelines: ESLint config, Prettier rules, asset pipeline conventions). When the task involves writing any Python (controllers, models, helpers), read `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` - Rule A (l/O/i ban) applies universally; Rules B/C (meaningful names, for-r-in-self) apply when the active profile is Viindoo Standard or Internal. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`.
 6. **Worklog.** READ the cross-agent decision log (`.odoo-ai/worklog/<run-or-slug>/`); APPEND your own at the post-write gate (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 7. **Impact pre-flight.** Map blast radius BOTH directions along the asset/template axis (upstream `module_inspect` deps + downstream `impact_analysis` reverse dependents, direct and indirect); record affected entities + mitigation in the worklog (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`).
+8. **JS test-protection pre-flight.** For every view/component/template you will touch, identify which tests already guard it - follow `${CLAUDE_PLUGIN_ROOT}/snippets/test-protection-contract.md` (three-tier protocol, using the frontend OSM tools: `find_test_examples(query='<component>', kind='js', odoo_version='<version>')` + `js_test_inspect` for tier (i), `impact_analysis` for tier (ii), parity checklist for tier (iii)). Record the MUST-NOT-BREAK list in the worklog under `PROTECTION_SCOPE`. Run this step unconditionally.
 
 ---
 
@@ -149,7 +150,10 @@ If authoritative hook/registry API details are still missing after step 3, also 
 **Round 3 - write the component.** Write the OWL `<1.x|2.x>` component - `setup()` + lifecycle hooks + template, any `patch()` block, and the `registry.category('…').add(…)` registration - grounded in the Rounds 1-2 example snippets, registry category, and verified import paths. Reason step by step before writing when: logic crosses multiple components via `useChildSubEnv`/`useBus`; a custom service holds state surviving unmount; or a `patch` must call `super` at a position-sensitive point relative to side effects.
 
 **Round 4 - assemble complete output.**
-1. **JS file** - `/** @odoo-module **/` first line (v16-v17; optional but harmless in v18+), then `import`s from verified paths, then the component class, then registry `.add()`.
+
+**Before emitting the first code block**, write a "**VERSION RULES APPLIED (v<N>):**" block listing the key pivot rules for the JS/OWL/SCSS you will write (e.g. "JS module header: per F0 §JavaScript/OWL/tests; OWL patch form: 2-arg `patch(Class, {…})`; SCSS: no `--bs-*` tokens") drawn from `odoo-version-pivots.md` and `odoo-frontend-fidelity.md`. Anti-compaction sticky note; `odoo-code-reviewer` WILL verify each cited rule against the actual code.
+
+1. **JS file** - `/** @odoo-module **/` first line per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §JavaScript/OWL/tests row "JS module header" (and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`), then `import`s from verified paths, then the component class, then registry `.add()`.
 2. **XML template file** - separate file preferred for templates over ~10 lines.
 3. **`__manifest__.py` assets block** - list both `.js` and `.xml` under `web.assets_backend`. If this is a new module, the `version` field follows the short scaffold-default form - see `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md`; backend `odoo-coder` owns the `version` key.
 4. **OWL version notes** - briefly note any 1.x→2.x differences relevant to the generated code.
@@ -280,6 +284,10 @@ registry.category("<category>").add("<key>", <ComponentName>);
 ```
 
 If imports differ by version, show both with a comment.
+
+**Self-review checklist (both workflows):**
+- [ ] **MANDATORY READ GATE** - LIST the exact guideline files + sections read for each file type written (e.g. "javascript.md §Imports; odoo-version-pivots.md §JS module header; odoo-frontend-fidelity.md §OWL pitfall catalogue"); an unchecked or empty item = INCOMPLETE, do not present output until filled
+- [ ] `verify-frontend.sh` ran and exited 0 with `RESULT: PASS` (exit 2 = CANNOT-VERIFY is NOT green)
 
 ---
 

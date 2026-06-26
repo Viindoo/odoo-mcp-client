@@ -73,7 +73,9 @@ and how to apply it.
 
 - The module already existed in a prior series AND
 - The task explicitly upgrades or ports it to a new series AND
-- Sibling manifests in the target addons directory already use the series-prefixed form.
+- Sibling manifests in the target addons directory already use the series-prefixed form AND
+- The distribution is NOT a Viindoo Standard or Viindoo Internal profile (those keep the short
+  form on code-level upgrades - see `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md §1`).
 
 ---
 
@@ -83,7 +85,8 @@ and how to apply it.
 |---|---|---|
 | New module via `odoo-bin scaffold` | Scaffold default (short) | `0.1` |
 | New module hand-created | Match sibling manifest (short) | `1.0.0` |
-| Existing module - upgrade to new series | Series-prefixed | `17.0.1.0.0` |
+| Existing module - upgrade to new series (OCA / upstream) | Series-prefixed | `17.0.1.0.0` |
+| Existing module - upgrade to new series (Viindoo Standard/Internal profile, code-level only) | Short form - keep unchanged | `0.1` (unchanged) - see `upg-conventions.md §1` |
 | Existing module - patch/feature in same series | Keep current value | unchanged |
 
 ---

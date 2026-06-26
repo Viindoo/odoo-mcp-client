@@ -41,15 +41,17 @@ or borrowed from other versions.
 
 ## By task
 
+> Read ONLY the files mapped to your current task. Snippet path prefix: `${CLAUDE_PLUGIN_ROOT}/snippets/`.
+
 | Task | File(s) to read |
 |---|---|
-| Creating a new module | module-structure.md |
-| Adding Python model code | python.md, naming.md, model-ordering.md, security.md |
-| Writing XML views or data | xml.md |
-| ORM method / compute / constraint | python.md, naming.md, security.md |
-| Security (groups, rules, access) | xml.md, module-structure.md, security.md |
+| Creating a new module | module-structure.md, `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md` |
+| Adding Python model code | python.md, naming.md, model-ordering.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
+| Writing XML views or data | xml.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
+| ORM method / compute / constraint | python.md, naming.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
+| Security (groups, rules, access) | xml.md, module-structure.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §ACL`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §Core test-enforced authoring rules (hr.employee field groups, v16+)` |
 | Adding translations / `_()` calls | python.md (translation section) |
 | Adding JS components | javascript.md, module-structure.md (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
 | Writing SCSS / CSS styles | scss.md |
-| Naming fields, methods, classes | naming.md |
+| Naming fields, methods, classes, variables | naming.md, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` |
 | Ordering model attributes | model-ordering.md |

@@ -71,7 +71,9 @@ A UI change ripples along the **template/asset-bundle inheritance** graph, not t
 
 ### Step 2 - Capture and exercise the live screen (browser)
 
-Authenticate first, reusing a saved session: if `${screenshot_baseline_dir}/storageState-admin.json` exists, load it; otherwise fill the login form at `<instance_base_url>/web/login` with `instance_login` and the agreed credential, then save the resulting session state for reuse (per `docs/odoo-ui-knowledge.md`). Then navigate to the screen, `take_screenshot` (desktop), `take_snapshot` for DOM/a11y tree, `list_console_messages` for runtime errors. Use `evaluate_script` to probe live state when needed.
+Authenticate first, reusing a saved session: if `${screenshot_baseline_dir}/storageState-admin.json` exists, load it; otherwise fill the login form at `<instance_base_url>/web/login` with `instance_login` and the agreed credential, then save the resulting session state for reuse (per `docs/odoo-ui-knowledge.md`). Then navigate to the screen, take a screenshot (desktop), `take_snapshot` for DOM/a11y tree, `list_console_messages` for runtime errors. Use `evaluate_script` to probe live state when needed.
+
+**Screenshot output directory (P9):** Stage all screenshots to `.odoo-ai/visual/screenshots/<slug>/` to keep evidence files out of the repo working tree. Pass this as the `path` or `filename` argument to `take_screenshot` (confirmed server: `chrome-devtools-headed` for headed mode). If the tool does not accept an output path parameter, note `WARN: screenshots staged to browser tool default directory, not .odoo-ai/` in the review report rather than fabricating a path mechanism.
 
 ### Step 3 - Accessibility + performance
 
@@ -105,6 +107,8 @@ If OSM is unreachable, skip Steps 1 and 5 and grep the repo on disk for the view
 ---
 
 ## Output format
+
+When the dispatch brief carries `ARTIFACT_DIR` and `ARTIFACT_FILE` (e.g. from odoo-code-review Phase A.5), Write your report to that path in addition to returning the summary.
 
 ```
 ## UI Review: <screen / module> (Odoo v<N>)

@@ -200,6 +200,7 @@ For each feature the custom module provides, propose one classification. Use the
 | `REWRITE(model)` | Feature touches a model that was substantially restructured at target |
 | `MERGE` | Feature partially overlaps a new core feature; merge the delta |
 | `SPLIT` | Feature bundles multiple concerns; split into separate functions for the target |
+| `RECONCILE` | Target-core newly writes/computes the SAME business quantity on the SAME records as the custom code (data-divergence: two SSOTs), OR target-core gained a NEW mechanism/API that can replace or materially simplify the custom implementation (new-feature wire-in). The custom intent survives, but the SSOT/wire-in choice is architectural - MUST route to P2b design (odoo-solution-design); never silently KEEP/coexist |
 
 Write to `.odoo-ai/modules-upgrade/<slug>/absorption/<module>.md`:
 
@@ -231,6 +232,15 @@ DELETE-absorbed - it is at most REWRITE/MERGE. -->
 | Override (symbol @ path) | Core equivalent at target | Same effect? | Notes |
 |---|---|---|---|
 | `<model.method>` @ `<path>` | `<core model.method>` (OSM v<target>) | yes / no / no-op | <evidence> |
+
+## Reuse candidates
+
+<!-- Populate ONLY for a feature proposed RECONCILE (new-feature wire-in). One row per candidate:
+the target-core mechanism the custom code could wire into instead of carrying its own impl.
+Drives the P2b wire-in design decision. Empty if no RECONCILE features. -->
+
+| Feature | Custom impl (symbol @ path) | Target-core mechanism to wire into | Why it replaces/simplifies | Evidence (`api_version_diff` `new` / `suggest_pattern` / `find_examples`) |
+|---|---|---|---|---|
 
 ## Breaking-change flags
 
@@ -303,6 +313,8 @@ proposed_classification:
   REWRITE(model): <count>
   MERGE: <count>
   SPLIT: <count>
+  RECONCILE: <count>  # routes to P2b design (odoo-solution-design); never silently KEEP/coexist
+reuse_candidates: <count>  # new-feature wire-in candidates listed in absorption file (RECONCILE features)
 breaking_change_flags: <N>
 data_at_risk: true | false  # true if module is installable:True AND has stored non-computed fields or noupdate records
 grounding: <osm | local-source | ungrounded>

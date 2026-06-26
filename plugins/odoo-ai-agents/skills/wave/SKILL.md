@@ -210,7 +210,9 @@ prose instead of calling the tool.
 Dispatch rule (subagent launches only - this plugin does not use the Claude Code Workflow JS tool):
 fire every WI whose deps are already cherry-picked, up to the weighted budget; serialize each
 cherry-pick in the orchestrating context as workers return. Never gate on a fixed-size batch; never
-let a WI worker cherry-pick.
+let a WI worker cherry-pick. Resolve each WI's model tier with the `odoo-coding` SKILL § "Assign a
+model tier" table (size/scope-aware) and pass it as the subagent launch `model` - this is also the
+WI's scheduling weight. A large or complex WI must NOT fall back to the leaf agent's default sonnet.
 
 Each subagent receives a **WI brief** as its `prompt`:
 

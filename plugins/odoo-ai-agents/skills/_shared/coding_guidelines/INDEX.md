@@ -65,26 +65,20 @@ it. Both gates catch only the mechanical subset; the semantic rules (attribute o
 intent, structure, secure-coding patterns) are the responsibility of the agent reading these
 files up front.
 
-## Viindoo additions beyond upstream RST
+## Snippets catalog
 
-The per-version `<version>/python.md` files are verbatim extractions of the official Odoo RST
-source - they are not edited to carry Viindoo-specific rules. Rules that go beyond upstream RST
-live here (in this root index) or in the shared snippets directory, and are kept in a single
-SSOT to avoid 6-way duplication.
+The per-version topic files are verbatim RST extractions - not edited for rules beyond upstream.
+Extra rules live in shared snippets. Read `<version>/INDEX.md` FIRST, then follow its "By task"
+map to load only the snippets that apply to your task.
 
-**Field / method presence resolution (don't probe - resolve):** Do NOT probe whether an Odoo
-field or method exists on a recordset at runtime (`hasattr(record, 'field')`,
-`getattr(record, 'field', default)`, `try: record.field except AttributeError`). The ORM schema
-is statically knowable from the module dependency graph; a runtime probe masks one of three real
-defects (lookup-gap, wrong ORM path, or missing `depends`) instead of surfacing it. Resolve
-presence via OSM before writing or accepting the access.
-Full rule, 3-way classification, worked examples, and JS/OWL analogue:
-`${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`
-
-**Module rename conventions (profile-gated - Viindoo Standard/Internal only):** When a module is
-renamed (technical name / directory changes) under a Viindoo Standard or Internal profile
-(OSM-detected; profiles of the form `standard_viindoo_<series>` or `viindoo_internal_<series>`),
-the renamed module's `__manifest__.py` must carry `'old_technical_name': '<previous name>'` so
-Viindoo internal tooling can map the old technical name to the new one. This key is ignored by the
-Odoo core loader and is NOT an OCA convention - do not apply it outside Viindoo distributions.
-Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/module-rename.md`
+| Snippet | Read when | Scope |
+|---|---|---|
+| `field-presence-resolution.md` | Writing or reviewing any field/method access | CORE - all distributions |
+| `xml-view-conventions.md` | Writing/reviewing XML views in v18+ (always-invisible comment, `<chatter/>`) | CORE - all distributions |
+| `odoo-version-pivots.md` | Any cross-version migration, or code touching a version-sensitive API | CORE + Viindoo addendum |
+| `module-rename.md` | Renaming a module technical name/directory | VIINDOO-gated (Standard/Internal) |
+| `upg-conventions.md` | Upgrading a Viindoo module to a new Odoo series | VIINDOO-gated (Standard/Internal) |
+| `new-module-manifest.md` | Creating a new module `__manifest__.py` | CORE + Viindoo short-form note |
+| `orm-performance.md` | Stored compute aggregating a relation on a high-volume model | CORE - all distributions |
+| `stored-write-survival.md` | Writing a stored/computed core field | CORE - all distributions |
+| `python-naming-conventions.md` | Naming Python variables (l/O/i ban; meaningful names; for-r-in-self) | CORE Rule A; Viindoo-gated Rules B/C |
