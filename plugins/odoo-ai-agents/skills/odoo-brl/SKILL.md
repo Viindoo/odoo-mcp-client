@@ -297,7 +297,14 @@ Exact prompt in `reference/dag-prompt.md` (output: `{edges:[{from,to,type,reason
 
 - Default: reason **inline** in main context, one cluster at a time.
 - Optimization: when there are **>10 large clusters** (large = >=60 requirements, >=50% of the 120 cap),
-  launch **one Opus subagent per cluster**. Subagent prompt MUST contain:
+  launch **one Opus subagent per cluster** using CHP Tier-B `subagent_type: "fork"` (see
+  `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B). A fork inherits the
+  parent's full context (loaded requirements, cluster JSON, job-id, version pin) and skips the
+  Opus cold-start cost. The cluster JSON snapshot passed by prompt remains the authoritative
+  input for that worker. Fallback (Tier C): if `subagent_type: "fork"` is unavailable, dispatch
+  a fresh Opus `general-purpose` spawn with an explicit brief containing the cluster JSON. Tier C
+  is always correct; the worklog is always written regardless of tier.
+  Subagent prompt MUST contain the existing leaf restrictions regardless of tier:
   `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.`
   Each subagent returns only its cluster's edges JSON (<=2k); main context merges them.
 

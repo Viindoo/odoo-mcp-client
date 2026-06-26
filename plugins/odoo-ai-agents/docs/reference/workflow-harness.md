@@ -64,7 +64,9 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 │  EXECUTION LAYER  (leaf-worker)                                 │
 │  Specialist skills (odoo-coding, odoo-code-review, …)          │
 │  MCP tool calls (odoo-semantic-mcp server)                      │
-│  context: fork subagents - carry hard-rules line, no spawn      │
+│  context: fork subagents - carry hard-rules line, no spawner-  │
+│    skill dispatch (depth-cap-5; non-fork interior agents CAN    │
+│    spawn their own subagents - see §6 Skill delegation rule)    │
 └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -73,8 +75,10 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 - **1-orchestration-SSOT**: orchestration logic lives in one place - either a
   `*.workflow.yaml` file or a monolithic skill body. It is never duplicated between
   a command shim and a skill body.
-- **Nesting ceiling**: fork workers carry the hard-rules line and never spawn further
-  agents or invoke the Skill tool.
+- **Fan-out worker constraint**: `context: fork` fan-out workers carry the hard-rules
+  line and do NOT dispatch spawner skills or spawn further subagents. Non-fork interior
+  agents (e.g. `odoo-coder`, `odoo-code-reviewer`) MAY spawn their own subagents;
+  the platform enforces a depth cap of 5. Resources are platform-managed.
 - **No Claude Code Workflow (JS) tool**: this plugin orchestrates entirely through the
   Skill tool, the Agent tool, and the `run-driver` loop. It deliberately does NOT emit
   Claude Code Workflow (JS) scripts (the `Workflow` tool with `args` + `agent()`) for
@@ -690,7 +694,7 @@ fallback: standalone             # each phase documents OSM-down degradation inl
 | **Hierarchical** | A top phase decomposes into a generated `phases[]` list bounded to one decomposition level. | orchestrating → dispatched-specialist → leaf-worker (max) |
 
 **Fan-out ceiling**: `context: fork` workers carry the hard-rules line
-(`Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write.`)
+(`Do NOT invoke spawner skills via the Skill tool. Do NOT spawn sub-agents. You MAY use the Skill tool for read-only leaf skills (e.g. odoo-feature-check, odoo-override-finding). Only Read/Grep/Glob/Write/Bash.`)
 and are capped at 3 concurrent workers (Mode A - see
 `skills/_shared/concurrency-guard.md`, the SSOT for the OOM fan-out rule).
 
@@ -711,8 +715,9 @@ Wired into `make validate`.
 ```
 orchestrating context (main agent / run-driver / odoo-intake)
   └── dispatched-specialist (workflow skill / spawner-agent skill)
-        └── leaf-worker (context: fork worker)
-              └── NO further spawn. Hard-rules line mandatory.
+        └── leaf-worker (context: fork worker)                ← hard-rules line; no spawner-skill dispatch
+        └── named interior agent (odoo-coder, odoo-code-reviewer, …)
+              └── may spawn its own subagents (depth cap 5)
 ```
 
 ### Leaf vs spawn
@@ -739,12 +744,14 @@ Examples: `odoo-brl` (forks DAG cluster workers), `wave` (worktree fan-out), `od
 Every `context: fork` subagent prompt MUST contain:
 
 ```
-Do NOT invoke Skill tool. Do NOT spawn sub-agent.
+Do NOT invoke spawner skills via the Skill tool. Do NOT spawn sub-agents.
+You MAY use the Skill tool for read-only leaf skills (e.g. odoo-feature-check, odoo-override-finding).
 Only Read/Grep/Glob/Write/Bash.
 ```
 
-Omitting this line risks a nesting violation: a well-meaning worker that invokes
-a skill creates an extra layer that may exceed the platform ceiling.
+Omitting this line risks an uncontrolled fan-out: a well-meaning worker that invokes a
+*spawner* skill launches a fresh agent pipeline that wastes a depth level. Invoking a
+genuine leaf skill (no agent dispatch) is fine and adds no depth.
 
 ### Dispatch method
 
@@ -755,12 +762,31 @@ deterministic mechanism, and it is what lets a spawner skill (`odoo-code-review`
 **NL description-match** (a natural-language prompt that matches the target skill's
 `description`) is the soft fallback.
 
-The "never the Skill tool" rule binds **leaf-workers / subagents** only: a
-leaf-worker that invokes the Skill tool on a spawner skill creates an extra nesting
-layer that may exceed the platform ceiling - hence the mandatory hard-rules line above.
-(A subagent invoking the Skill tool on a *spawner* skill is the case to avoid; this is
-surfaced at runtime rather than hard-enforced.) The 5 existing command files use
-NL description-match within their workflow bodies and that is still fine.
+The "no spawner-skill dispatch" restriction binds **`context: fork` fan-out workers** only:
+a fork worker that dispatches a spawner skill via the Skill tool kicks off a fresh agent
+pipeline that wastes a depth level and breaks fan-out isolation - hence the mandatory
+hard-rules line. Named interior agents (e.g. `odoo-coder`, `odoo-code-reviewer`) ARE
+allowed to dispatch further agents or use the Skill tool; the platform depth cap (5) is the
+hard guard. Commands dispatch via the Skill tool (canonical) or NL description-match
+(acceptable fallback) - either is correct at the command level.
+
+### Context-Handoff Protocol (CHP)
+
+When an orchestrator skill dispatches worker agents in a loop (e.g. per-module coders,
+per-commit extractors), it should apply the CHP to cut cold-start cost. The 3 tiers:
+
+| Tier | Mechanism | When |
+|------|-----------|------|
+| A | `SendMessage`-resume - spawn once, resume the same worker per iteration | Capability probe positive: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` + `SendMessage` present + addressable worker + team lead |
+| B | `subagent_type: "fork"` - inherits parent context + prompt cache | Read-heavy fan-outs where workers do not mutate shared state |
+| C | Fresh spawn + worklog | Always correct; automatic fallback when Tier A/B is unavailable |
+
+Tier C is the SSOT baseline. Tier A/B are optimizations; any path degrades silently to Tier C
+without error. SSOT for all probe conditions, fallback rules, and async semantics:
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`.
+
+The `handoff` field in `generator/skill_tool_deps.json` records the preferred tier per skill
+(`send-message | fork | fresh`) and is surfaced as a column in `docs/reference/ORCHESTRATION-MAP.md`.
 
 ### Model-tier assignment
 
@@ -824,7 +850,7 @@ skill, not a `team_pattern` inside the declarative workflow system.
 | odoo-code-review legality | Cannot call odoo-code-review (self-spawn only legal from the orchestrating context) | Calls odoo-code-review inline from main context - the only legal call site |
 | State machine | Declarative phases in `.workflow.yaml`; runner executes them | Imperative phases (0-6) encoded in the skill body; git refs/worktrees ARE the state |
 | Coupling | Coupled to workflow schema; adding GitWave would require new `team_pattern: GitWave` + new runner branch + new yaml keys | Self-contained; no schema changes to existing runner or yaml format |
-| Nesting risk | Injecting git orchestration into the workflow runner would push fork workers an extra level - risks exceeding the platform ceiling | Nesting ceiling respected: wave (orchestrating) → WI subagents (leaf-workers) |
+| Nesting risk | Injecting git orchestration into the workflow runner would push WI workers one depth level deeper (depth cap 5 platform-wide), leaving less headroom for any interior spawns needed by WI workers | Wave sits at the orchestrating layer (depth 1-2), keeping WI workers well inside the depth budget |
 
 **Decision**: git-wave is an orchestrating-context actor that sits alongside `odoo-intake`
 at the top layer, not below `workflow-chaining`. This is final and must not be revisited
@@ -855,7 +881,7 @@ odoo-code-review, odoo-ui-review, wave, odoo-intake, odoo-brl,
 workflow-chaining) - they dispatch a fresh agent and must
 be launched from the orchestrating context only. You MAY NL-dispatch a genuinely
 non-spawning (leaf) skill (e.g. odoo-feature-check, odoo-override-finding) for a
-read-only lookup. Do NOT invoke the Skill tool to trigger a spawner. Do NOT spawn a
+read-only lookup. Do NOT invoke spawner skills via the Skill tool or NL-dispatch. Do NOT spawn a
 sub-agent. Do NOT git branch/cherry-pick/merge/push; stay in your assigned worktree.
 Only Read/Grep/Glob/Edit/Write/Bash.
 ```
@@ -1021,6 +1047,15 @@ race-free, unlike the single blackboard which only the driver touches). When a r
 driver records the worklog dir so all nodes resolve the same path; standalone, a skill derives it
 from its own slug. The blackboard holds machine state; the worklog holds decision rationale -
 neither duplicates the other.
+
+**Context-Handoff Protocol (CHP) - 3-tier agent dispatch.** Orchestrator skills that dispatch
+worker agents (odoo-coding, odoo-code-review, wave, odoo-forward-port, odoo-deep-survey,
+odoo-brl) use the CHP to optimize cold-start cost: Tier A `SendMessage`-resume (preferred when
+the capability probe passes), Tier B `subagent_type: "fork"` (read-heavy fan-outs), and Tier C
+fresh spawn + worklog (always-correct fallback). Tier C is the SSOT baseline - the worklog
+ensures a fresh worker loses nothing. CHP is an optimization layer, never a dependency; every
+Tier-A/B path degrades silently to Tier C. SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`.
 
 **The `code -> review+test -> code` loop.** `odoo-coding` (which now orchestrates red-test authorship before the
 code for non-trivial modules, SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`) emits

@@ -579,7 +579,7 @@
     }
   },
   "orchestration": {
-    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no subagent spawn) | spawner-agent (dispatches a named subagent) | spawner-wave (worktree fan-out with parallel subagents). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes .odoo-ai/ internal, auto-pass under --auto) | L2 (irreversible/outward: instance_touching or spawner-wave - ALWAYS human gate; dial cannot lower). Per-node override lives in run-<id>.json, not here.",
+    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no subagent spawn) | spawner-agent (dispatches a named subagent) | spawner-wave (worktree fan-out with parallel subagents). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes .odoo-ai/ internal, auto-pass under --auto) | L2 (irreversible/outward: instance_touching or spawner-wave - ALWAYS human gate; dial cannot lower). Per-node override lives in run-<id>.json, not here. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: lead resumes a named worker via SendMessage, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via Agent tool + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md.",
     "odoo-intake": {
       "spawn_class": "spawner-agent",
       "spawns": [
@@ -592,6 +592,7 @@
     },
     "odoo-deep-survey": {
       "spawn_class": "spawner-agent",
+      "handoff": "fork",
       "spawns": [
         "(anonymous read-only fan-out subagents, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under .odoo-ai/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B)"
       ],
@@ -610,6 +611,7 @@
     },
     "odoo-brl": {
       "spawn_class": "spawner-agent",
+      "handoff": "fork",
       "spawns": [
         "(conditional DAG workers when >10 large clusters)"
       ],
@@ -636,6 +638,7 @@
     },
     "odoo-coding": {
       "spawn_class": "spawner-agent",
+      "handoff": "send-message",
       "spawns": [
         "odoo-coder",
         "odoo-frontend-coder",
@@ -648,6 +651,7 @@
     },
     "odoo-code-review": {
       "spawn_class": "spawner-agent",
+      "handoff": "send-message",
       "spawns": [
         "odoo-code-reviewer",
         "odoo-review-scoper"
@@ -872,6 +876,7 @@
     },
     "wave": {
       "spawn_class": "spawner-wave",
+      "handoff": "send-message",
       "spawns": [
         "(per-WI leaf workers over worktrees)"
       ],
@@ -973,6 +978,7 @@
     },
     "odoo-forward-port": {
       "spawn_class": "spawner-agent",
+      "handoff": "send-message",
       "spawns": [
         "odoo-intent-extractor (read-only per-commit; model per complexity)",
         "odoo-installable-prober (read-only per-module installable-state probe in P2; model per complexity / sonnet)",

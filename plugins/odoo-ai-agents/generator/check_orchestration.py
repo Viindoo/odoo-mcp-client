@@ -59,6 +59,10 @@ VALID_STACK = {"backend", "frontend", "fullstack", "none"}
 # so it is NOT derived from stack). default_gate_tier IS derived once output_mode is known.
 VALID_OUTPUT_MODE = {"chat-only", "writes-files"}
 VALID_GATE_TIER = {"L0", "L1", "L2"}
+# Context-Handoff Protocol (CHP) tier declared per skill. send-message = Tier-A (lead resumes
+# a named worker via SendMessage); fork = Tier-B (subagent_type=fork fan-out); fresh = Tier-C
+# default (cold-spawn every turn - always correct baseline). Absence == fresh.
+VALID_HANDOFF = {"send-message", "fork", "fresh"}
 
 
 def _derive_gate_tier(spawn_class: str, instance_touching: bool, output_mode: str) -> str:
@@ -140,7 +144,9 @@ def main(argv: list[str]) -> int:
     coding_guidelines_refs += [f"{CODING_GUIDELINES_ROOT}/{v}/INDEX.md" for v in CODING_GUIDELINES_VERSIONS]
     for rel in (f"snippets/{OSM_SNIPPET}.md", f"snippets/worker-brief.md",
                 DESIGN_DOC_PATH, "docs/reference/INSTANCE-LIFECYCLE.md",
-                "docs/reference/ODOO-TESTING.md", *coding_guidelines_refs):
+                "docs/reference/ODOO-TESTING.md",
+                "snippets/context-handoff-protocol.md",
+                *coding_guidelines_refs):
         if not (PLUGIN_ROOT / rel).is_file():
             findings.append(f"[ref-target] shared contract file '{rel}' is referenced but missing on disk")
 
@@ -197,7 +203,29 @@ def main(argv: list[str]) -> int:
                 f"[spawn-truth] '{name}' is spawn_class=leaf but body actively dispatches an agent"
             )
 
-    # 6. No-hardcode / no-leak across skills + snippets (reference docs exempt: they teach by example)
+        # 6. CHP (Context-Handoff Protocol) - handoff enum + Tier-C fallback documentation.
+        #    A skill declaring handoff=send-message or handoff=fork MUST document the Tier-C
+        #    fallback (fresh spawn) in its body so the protocol is never a hard dependency.
+        handoff = e.get("handoff", "fresh")
+        if handoff not in VALID_HANDOFF:
+            findings.append(
+                f"[enum] '{name}' has invalid handoff '{handoff}' (not in {sorted(VALID_HANDOFF)})"
+            )
+        if handoff in ("send-message", "fork"):
+            body_lower = body.lower()
+            has_tier_c_doc = (
+                "tier-c" in body_lower
+                or "fresh spawn" in body_lower
+                or "context-handoff-protocol.md" in body
+            )
+            if not has_tier_c_doc:
+                findings.append(
+                    f"[chp-tier-c-fallback] '{name}' declares handoff={handoff!r} but body does not "
+                    f"document the Tier-C fallback (fresh spawn). Add a fallback clause or reference "
+                    f"snippets/context-handoff-protocol.md."
+                )
+
+    # 7. No-hardcode / no-leak across skills + snippets (reference docs exempt: they teach by example)
     scan_files = list(SKILLS_DIR.rglob("SKILL.md")) + list((PLUGIN_ROOT / "snippets").glob("*.md"))
     for f in scan_files:
         text = f.read_text(encoding="utf-8")

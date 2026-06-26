@@ -214,15 +214,16 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
         "> SSOT: `generator/skill_tool_deps.json` → `orchestration`. Regenerate with `make gen`.",
         "> Tells any planning agent which skills launch subagents (so it never forbids a legitimate launch).",
         "",
-        "| Skill | spawn_class | stack | instance | spawns |",
-        "|-------|-------------|-------|----------|--------|",
+        "| Skill | spawn_class | handoff | stack | instance | spawns |",
+        "|-------|-------------|---------|-------|----------|--------|",
     ]
     for name in sorted(orch):
         e = orch[name]
         spawns = ", ".join(e.get("spawns", [])) or "-"
         inst = "yes" if e.get("instance_touching") else "-"
+        handoff = e.get("handoff", "fresh")
         lines.append(
-            f"| `{name}` | {e.get('spawn_class','?')} | "
+            f"| `{name}` | {e.get('spawn_class','?')} | {handoff} | "
             f"{e.get('stack','none')} | {inst} | {spawns} |"
         )
     lines.append("")
@@ -231,6 +232,11 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
     lines.append("- **spawn_class** - `leaf` (runs inline) · `orchestrator-nl` (chains other skills via")
     lines.append("  natural-language dispatch, no subagent spawn) · `spawner-agent` (dispatches a named")
     lines.append("  subagent) · `spawner-wave` (worktree fan-out with parallel subagents).")
+    lines.append("- **handoff** - Context-Handoff Protocol (CHP) tier for resuming subagents across turns.")
+    lines.append("  `send-message` (Tier-A: lead resumes a named worker via SendMessage, avoiding")
+    lines.append("  cold-spawn overhead) · `fork` (Tier-B: subagent_type=fork fan-out inheriting parent")
+    lines.append("  context + prompt cache) · `fresh` (Tier-C default: cold-spawn every turn via Agent")
+    lines.append("  tool + worklog blackboard - always-correct baseline; implicit when field is absent).")
     lines.append("- **stack** - drives backend↔frontend routing; `fullstack` work must engage both a")
     lines.append("  backend and a frontend specialist.")
     lines.append("")

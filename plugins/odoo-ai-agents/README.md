@@ -80,7 +80,13 @@ Every agent - the main agent and every custom sub-agent - carries a shared unive
 Everything runs through the **main agent**, which acts as an **orchestrator + decision-maker
 only** - it routes, decides at gates, and delegates the heavy work to specialists so its own
 context stays clean across a long session. Roles: orchestrating context (main agent) ->
-dispatched specialist (skill/workflow) -> leaf-worker (fan-out/worktree worker).
+dispatched specialist (skill/workflow) -> named-agent interior worker (e.g. `odoo-coder`) or
+fan-out leaf-worker. Multi-level nesting is supported (platform depth cap 5); `context: fork`
+fan-out workers carry a hard-rules line that prevents them from dispatching further spawner
+skills. Orchestrator skills that dispatch worker agents use the **Context-Handoff Protocol
+(CHP)** - a 3-tier dispatch optimization (Tier A `SendMessage`-resume / Tier B fork /
+Tier C fresh spawn + worklog) whose SSOT is `snippets/context-handoff-protocol.md`. Resources
+are platform-managed.
 
 `odoo-intake` is the front door for any plain-language intent. It (1) closes an intent gate (what /
 why / what-done), (2) resolves the Odoo version - escalating to `odoo-onboarding` to pick
@@ -668,6 +674,7 @@ There are two distinct loading mechanisms for shared context:
 | `snippets/test-first-contract.md` | Red-before-green: the behavior test is authored and fails BEFORE the code, and is never weakened to pass (drives the `code -> review+test -> code` loop, bounded to 3 rounds) |
 | `snippets/test-behavior-contract.md` | Tests drive the REAL workflow (call `action_confirm`/`action_validate`/`button_validate`, build via `Form()` for onchange, `with_user()` not `sudo()` for access) and assert observable outcomes - never seed the terminal state with `create({'state': ...})`, which hides transition/constraint/onchange bugs |
 | `snippets/worklog-contract.md` | Append-only cross-agent decision journal (`.odoo-ai/worklog/<run>/<NNN>-<agent>.md`) read at start, appended at end, so a later phase can look up why an earlier one decided what it did |
+| `snippets/context-handoff-protocol.md` | 3-tier agent dispatch optimization (Tier A `SendMessage`-resume / Tier B `subagent_type: "fork"` / Tier C fresh spawn + worklog); Tier C is the always-correct SSOT fallback; consumed by `odoo-coding`, `odoo-code-review`, `wave`, `odoo-forward-port`, `odoo-deep-survey`, `odoo-brl`. The `handoff` metadata field (`send-message \| fork \| fresh`) is surfaced per-skill in `docs/reference/ORCHESTRATION-MAP.md` |
 | `snippets/new-module-manifest.md` | Greenfield `__manifest__.py` authoring: scaffold-first, preserve commented placeholder keys, and use the short version form (`0.1` / `1.0.0`) - never the series-prefixed `17.0.1.0.0` form on a new module (enforced by `odoo-coder`, `odoo-frontend-coder`, and `odoo-code-reviewer`) |
 | `snippets/module-rename.md` | Module rename conventions (Viindoo Standard/Internal profile, OSM-gated): a renamed module's `__manifest__.py` must carry `old_technical_name` so Viindoo tooling can map the old name to the new one; does not replace OpenUpgrade DB-level rename (consumed by `odoo-coder`, `odoo-code-reviewer`) |
 | `skills/_shared/odoo-module-graph.md` | The Odoo module DAG (from each `__manifest__.py` `depends`), shared by `odoo-coding` and `wave` so both dispatch in dependency order and respect module boundaries |

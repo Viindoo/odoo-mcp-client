@@ -193,6 +193,14 @@ module, the test-mode (`test-author | self`), and the per-module request (+ a fr
 the UI leg). Resolve ONE Odoo version for the whole run; carry the design-doc path, the runSlug
 (scopes the shared worklog dir) and - when the user is not working in English - the userLanguage.
 
+0. Context-handoff probe (run ONCE per run, before the first batch fires). Follow
+   `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`: run the capability probe a single
+   time and cache the result for the whole run. When Tier A is available, spawn each coder with a
+   stable `name` (e.g. `coder-<module-slug>`), and - as the LEAD and sole address authority - capture
+   the `agentId` the Agent launch returns and record it per work-item in plan.md (the coder never
+   self-IDs). When Tier A is NOT available, proceed exactly as today (Tier C: fresh Agent calls,
+   worklog for context). Tier C is always correct; Tier A is an optional optimization that degrades
+   silently to Tier C.
 1. Order modules so every module appears after its in-set dependencies (the wave column already
    encodes this).
 2. Greedily pack the next batch: take modules in order whose dependencies are all done (done = BOTH
@@ -200,10 +208,14 @@ the UI leg). Resolve ONE Odoo version for the whole run; carry the design-doc pa
    always forms a batch of ONE.
 3. Fire the whole batch as parallel subagent launches in a SINGLE message; per module fire only the
    backend leg first, then after it returns fire that module's frontend leg in the next batch round.
+   When Tier A is in effect, give each launch its stable `name` and record the returned `agentId` in
+   plan.md as you go.
 4. Wait for the batch, then pack the next. This is a batch barrier each round - the accepted
    trade-off of dropping the JS dispatch engine: an independent module may wait on a heavier sibling
-   in the same batch. There is no cached run to resume; a later step re-dispatches a BLOCKED module
-   as a fresh Agent call.
+   in the same batch. A later step re-dispatches a BLOCKED module at the SAME recorded tier: under
+   Tier A, resume the recorded `agentId` by `SendMessage` when it is still addressable; otherwise
+   (Tier C, the always-correct fallback) make a fresh Agent call. Either way the worklog stays the
+   always-correct context layer the re-dispatched worker reads.
 5. Each subagent launch sets BOTH the `model` parameter AND the first prompt line
    `DISPATCH MODEL: <haiku|sonnet|opus|fable>` (belt and braces, mirroring `odoo-debug`).
 6. fable -> opus downgrade: if a fable dispatch fails (insufficient usage credit, model unavailable,
@@ -281,10 +293,12 @@ review / fix / resume step can pick up without recomputing the graph. `<slug>` d
 change (branch, feature name, or the module set).
 
 plan.md MUST record, per work-item: module, stack, wave, the model tier chosen
-(and frontendModel when split), the dispatch path (subagent launch), and the per-module
-result status. A later review / fix / resume step re-dispatches the BLOCKED modules
-at the SAME recorded tier (a fresh Agent call - there is no cached run to resume)
-unless the human changes it.
+(and frontendModel when split), the dispatch path (subagent launch), the per-module
+result status, and the `agentId` (when CHP Tier A is in effect - plan.md is the agentId
+registry per `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`; omit when Tier C).
+A later review / fix / resume step re-dispatches the BLOCKED modules at the SAME recorded tier
+unless the human changes it: under Tier A, resume the recorded `agentId` by `SendMessage` when it
+is still addressable; otherwise (Tier C, the always-correct fallback) make a fresh Agent call.
 
 ## Standalone-first fallback
 

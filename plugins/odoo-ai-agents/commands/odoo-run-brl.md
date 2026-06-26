@@ -35,8 +35,7 @@ For a **short ad-hoc gap matrix** (no cost, no scale): use `/odoo-gap-analysis` 
    `/odoo-onboarding` but allow manual continuation.
 3. **Abstract labels.** Use the customer label from `$ARGUMENTS` or default "Customer-A".
    Never write real company names, VND figures, or internal pricing into any committed file.
-4. **NL-dispatch only.** This command fires the `odoo-brl` skill via a natural-language prompt
-   matching the skill's description. The Skill tool is never used.
+4. **Dispatch via the Skill tool.** This command fires the `odoo-brl` skill using the Skill tool. NL description-match is the fallback when the Skill tool is unavailable.
 5. **Public repo safety.** All job artifacts go to `.odoo-ai/brl/<job-id>/` which is gitignored.
    No deliverable is committed to the repo.
 
@@ -50,7 +49,7 @@ For a **short ad-hoc gap matrix** (no cost, no scale): use `/odoo-gap-analysis` 
    `.csv`/`.md`/`.txt`/`.xlsx`, or passes a file-exists check), `Read` it and embed the actual
    content into the dispatch. If the BRL is already present in the invocation context, use that.
    Only ask for a path or paste when no source is available.
-3. Fire the `odoo-brl` skill via NL dispatch (substitute the real BRL content, never leave a
+3. Fire the `odoo-brl` skill via the Skill tool (substitute the real BRL content, never leave a
    placeholder):
 
 > "Process this business requirement list for [CUSTOMER_LABEL]: classify each requirement

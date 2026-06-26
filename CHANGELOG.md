@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.29.0] - 2026-06-26
+
+### Added
+
+- Context-Handoff Protocol (CHP), an opt-in 3-tier agent-dispatch optimization (issue #98). New SSOT `snippets/context-handoff-protocol.md`: Tier A `SendMessage`-resume of a previously-spawned worker (gated on a runtime capability probe: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, `SendMessage` tool present, target addressable, orchestrator is the team lead), Tier B `subagent_type: "fork"` for read-heavy fan-outs, and Tier C fresh-spawn + worklog as the always-correct SSOT fallback. The snippet codifies the fallback trigger matrix (silent/automatic/degraded-but-correct), async park-and-be-resumed semantics, the lead-is-address-authority contract, "no nested teams = roster only", a confidentiality guard (never frame a handoff payload as a "secret"), the worklog-as-SSOT invariant, and an invariant/cross-check-at-aggregation rule. Wired into `odoo-coding` + `odoo-code-review` (coder<->reviewer loop, Tier A), `wave` (per-WI Tier A with a cd-on-resume hard rule), `odoo-forward-port` (P1 intent-extract fork + P8/P9 adapt Tier A), `odoo-deep-survey` and `odoo-brl` (read fan-out fork). New generator field `handoff: send-message | fork | fresh` in `generator/skill_tool_deps.json` (absent = `fresh`), a `[chp-tier-c-fallback]` lint in `generator/check_orchestration.py`, a `handoff` column in the generated `docs/reference/ORCHESTRATION-MAP.md`, and `tests/test_chp_hardening.py` (#98).
+
+### Changed
+
+- Removed obsolete "no Skill tool / no subagent / NL-dispatch only" prohibitions now that Claude Code supports multi-level agent nesting (depth cap 5; interior agents can spawn subagents; "no nested teams" = roster only) and self-manages resources (concurrency cap, rolling windows, queueing). Skills, agents, and commands may now dispatch via the Skill tool: `odoo-qa-suite`, `odoo-debug` (relabeled Orchestrator), `odoo-support-triage`, `workflow-chaining` (phase dispatch incl. spawner skills), the `odoo-coder` / `odoo-frontend-coder` / `odoo-solution-architect` agents (blanket Skill-tool bans dropped; execution-pipeline carve-outs kept as scope correctness, not nesting fear), the `odoo-run-brl` / `odoo-run-wave` / `odoo-summarize-discovery` commands, and `docs/reference/workflow-harness.md` (fork-worker hard-rule narrowed to spawner-skills-only, internal inconsistency resolved). Genuine non-nesting/non-resource carve-outs preserved: `wave` cherry-pick critical-section + principal-branch lock + human-confirm-merge, `odoo-brl` sequential-outer ordering for checkpoint/resume correctness, `odoo-intake` fresh-context run-driver dispatch, and browser-main-context constraints. `README.md` and `workflow-harness.md` updated to document the CHP model and the corrected nesting reality (#98).
+
 ## [3.28.0] - 2026-06-26
 
 ### Added

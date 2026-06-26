@@ -193,6 +193,19 @@ returns and its weight is freed, the next eligible WI (deps cherry-picked) is di
 SSOT for weights and budget: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B).
 Full pseudocode: `reference/wave-templates.md` §Mode B Dispatch Loop.
 
+**CHP Tier-A wiring (follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`):**
+
+Run the capability probe once before the first WI dispatch. When Tier-A is available (all four
+probe conditions positive):
+
+- Assign each WI worker a stable `name` at spawn time - use the pattern `wi-<slug>-<id>-coder`.
+- Capture the returned `agentId` for each WI worker immediately after launch.
+- Record `name` + `agentId` in the plan artifact (keyed by WI id) so the plan becomes the
+  agentId registry for Phase 4.
+
+When the probe is negative (any condition fails), dispatch exactly as below - Tier C (fresh
+subagent per WI) is the always-correct baseline. [chp-tier-c-fallback]
+
 **Key invariants of the loop:**
 - A WI worker runs in its OWN isolated worktree. It writes + **commits + returns its SHA(s)**.
   It does **NOT** cherry-pick. Cherry-pick is forbidden to WI workers (Hard Rules 1 + 2).
@@ -258,6 +271,10 @@ Hard rules:
     odoo-coder / odoo-frontend-coder / odoo-code-reviewer conventions. Do NOT git
     branch/cherry-pick/merge/push; stay in your assigned worktree. Only
     Read/Grep/Glob/Edit/Write/Bash.
+  - **cd-on-resume (HARD RULE - Tier-A):** On resume via SendMessage, immediately `cd` to the
+    Worktree path listed above before running any Bash command. Shell cwd is NOT guaranteed to be
+    restored across a SendMessage-resume; the explicit `cd` makes Tier-A safe regardless of
+    runtime behavior. Apply this on every resume, not only the first.
   - Only edit files listed in your "Files in scope". Do not touch files owned by other WIs.
   - Commit your work to branch wave/wi-<slug>-<id> using the repo commit convention.
   - Run the verify command and confirm it passes before declaring done. If verify involves
@@ -294,14 +311,14 @@ are cherry-picked. If a subagent exceeds 15 minutes without output, check its st
 | Test writing (Python) | Ground via `test_base_classes` (base class + cr.commit() contract) + `tests_covering` (coverage gap) + `find_test_examples` (real test patterns) BEFORE writing; only write uncovered paths | Assume base class or cr.commit() legality from memory; re-implement tests that already exist |
 | Test writing (JS) | Ground via `js_test_inspect` (framework: QUnit v16-/v17, Hoot v18+) + `find_test_examples(query='<feature>', kind='js', odoo_version='<version>')` BEFORE writing any JS test | Write Hoot syntax for a QUnit module (or vice versa); assume framework from version heuristic |
 | Review of own output | Self-review inline against `odoo-code-reviewer` conventions | Re-dispatch `odoo-code-review` from a worktree |
-| Read-only lookup | NL-dispatch a non-spawning skill (`odoo-feature-check`, `odoo-override-finding`) | - |
+| Read-only lookup | Invoke a non-spawning skill via the Skill tool (`odoo-feature-check`, `odoo-override-finding`) | - |
 
 **Specialist rule**: a WI worker IS the specialist for its scope - it writes and reviews
 directly, grounded in OSM, following the `odoo-coder` / `odoo-frontend-coder` /
 `odoo-code-reviewer` conventions, rather than re-dispatching the spawner bundle (`odoo-coding`,
 `odoo-code-review`, `odoo-ui-review`, `wave`, `odoo-intake`, `odoo-brl`,
 `workflow-chaining`) that would only fan back out to the same specialist. It MAY
-NL-dispatch genuinely non-spawning skills for read-only lookups.
+invoke genuinely non-spawning (leaf) skills via the Skill tool for read-only lookups.
 
 ## Phase 3 - Cherry-pick + Conflict Resolution
 
@@ -349,7 +366,18 @@ Review the full diff (`git diff <principal>...HEAD`) for:
   odoo_version='<version>')` that the module coverage gap did not widen after the change.
   Flag any behavior-change WI that has no corresponding test addition as a finding.
 
-Fix findings inline or via a targeted brief subagent. Re-run verify after any fix.
+Fix findings inline or via a targeted subagent. For each finding:
+
+- If the finding maps to a specific WI's files AND that WI worker's `agentId` is recorded in the
+  plan artifact AND the Tier-A probe passed for this run: attempt a Tier-A `SendMessage`-resume of
+  that WI worker (park-and-be-resumed, async) with the finding details, end your turn, and wait to
+  be resumed when the worker's fix reply arrives - then re-run verify. Do NOT emit further output
+  in this turn after the SendMessage; the orchestrator is parked until the worker replies. The
+  resumed worker keeps its full prior context - it is the mind that wrote the code, not a cold reader.
+- Otherwise (finding is cross-WI, or agentId not recorded, or probe did not pass): fall back to the
+  current behavior - spawn a fresh targeted brief subagent (Tier C). Tier C is always correct.
+
+Re-run verify after any fix regardless of which tier was used.
 
 **4.2 - odoo-code-review inline** (invoke from the orchestrating context):
 
@@ -436,7 +464,7 @@ When the wave process is unnecessary (1 WI, trivial change, or user preference):
 3. Offer: "Run directly (simpler) OR proceed as a wave (more isolation)?"
 
 If the user chooses direct: dispatch the appropriate specialist skill (odoo-coding,
-odoo-code-review, etc.) via NL-dispatch and stop.
+odoo-code-review, etc.) via the Skill tool and stop.
 
 ## Examples
 

@@ -59,9 +59,17 @@ plan. It is heavy (many subagents, real tokens), which is why it is opt-in and n
 
 ## Fan-out budget
 
-Workers are launched as subagents, one per scope unit, `general-purpose` type, model set per
-phase (haiku / sonnet / opus). No custom agentType; model alone varies by phase
-(`docs/reference/workflow-harness.md` §8.5).
+Workers are launched as subagents, one per scope unit, using CHP Tier-B `subagent_type: "fork"`
+(see `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier B). A fork worker
+inherits the parent's full context (intent decomposition, survey slug, Odoo version pin, the
+full lens block text, OSM grounding instructions) and shares the parent's prompt cache - this
+eliminates per-worker re-passing of the lens block and OSM bootstrap, which is the dominant
+per-worker cost across all three phases. Model varies by phase (haiku / sonnet / opus); no
+custom agentType beyond the fork. Each fork still writes its OWN findings file; forks never
+share mutable state.
+Fallback (Tier C): if `subagent_type: "fork"` is unavailable in the current runtime, dispatch a
+fresh `general-purpose` spawn with an explicit brief per the current behavior. Tier C is always
+correct; the worklog is always written regardless of tier.
 
 Concurrency follows **Mode B (model-weighted budget)** in
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` - SSOT for the weight table and
