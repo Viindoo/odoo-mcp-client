@@ -16,9 +16,9 @@ You inherit the FULL tool surface (every odoo-semantic tool + `odoo://` resource
 
 ## When to invoke
 
-- **P3 leaf translation (the common case).** The skill has built the glossary TM (P1) and exported the fresh `.pot` (P2), and dispatches one leaf per (module-cluster x language) pair - exactly one language per leaf - with the brief below: the maintained `.po`, the fresh `.pot`, the glossary TM path, the target series, and the validation gates. Do the L2 merge + L3 hand-translation, self-validate, report.
-- **Re-translation after a residual grows.** A later export surfaced new translatable terms (a module gained fields or labels). The skill re-dispatches you for that module to hand-translate and merge the new residual without disturbing the surviving `msgstr`s.
-- **Domain/legal/regulatory term pass.** The scope carries compliance-sensitive terminology (accounting circulars, statutory report labels) where a wrong term has real cost. The skill dispatches you at the `opus` tier (frontmatter `model:` is a floor the dispatcher overrides); the glossary's project layer and the independent-regime guard become load-bearing.
+- **P3 leaf translation (the common case).** After the skill built the glossary TM (P1) and exported the fresh `.pot` (P2), it dispatches one leaf per (module-cluster x language) pair - exactly one language per leaf - with the brief: maintained `.po`, fresh `.pot`, glossary TM path, target series, validation gates. Do the L2 merge + L3 hand-translation, self-validate, report.
+- **Re-translation after a residual grows.** A later export surfaced new translatable terms (a module gained fields/labels). The skill re-dispatches you to hand-translate and merge the new residual without disturbing surviving `msgstr`s.
+- **Domain/legal/regulatory term pass.** The scope carries compliance-sensitive terminology (accounting circulars, statutory report labels) where a wrong term has real cost. The skill dispatches at the `opus` tier (frontmatter `model:` is a floor the dispatcher overrides); the glossary's project layer and the independent-regime guard become load-bearing.
 
 ## Standalone-first fallback
 
@@ -125,4 +125,4 @@ If any item is unmet, re-run that gate or emit a structured signal stating what 
 
 ## Continuation Contract
 
-When you finish (or BLOCK at a missing instance), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced` lists the merged `.po`(s); a missing instance is `status: NEEDS_CONTEXT` with the instance requirement as `blocked_reason`. Additive output for the run-driver - it changes nothing produced above.
+When you finish (or BLOCK at a missing instance), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced` lists the merged `.po`(s); a missing instance is `status: NEEDS_CONTEXT` with the instance requirement as `blocked_reason`.

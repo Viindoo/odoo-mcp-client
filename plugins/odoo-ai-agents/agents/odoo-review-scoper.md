@@ -20,10 +20,10 @@ The I/O contract in this file IS the SSOT for the scoper contract; it governs th
 
 ## When to invoke
 
-- **Local branch scope.** The skill was invoked with no TARGET (default `local`) or `TARGET=local`. This agent diffs the current working tree/branch against BASE (`git diff --name-only BASE...HEAD` plus `--diff-filter=A` for added files) to compute which files changed, then maps each to its owning module.
-- **Worktree scope.** The skill was invoked with `TARGET=worktree:<abs-path>`. This agent runs all git operations inside that path (`git -C <abs-path> ...`) instead of the default working tree.
-- **PR scope.** The skill was invoked with `TARGET=pr:<number-or-url>`. The code-review skill has already resolved the PR to an isolated worktree (via github-operator + git-operator) and passes `review_root`, `pr_meta`, and `pr_changed_files` in the brief. This agent uses those directly - it does NOT fetch PR metadata, create worktrees, or call any GitHub API. It computes the module scope from `review_root`.
-- **NOT a reviewer.** This agent never reads code for bugs, conventions, or correctness. Its only output is the scope block and `_scope.md`.
+- **Local branch scope.** No TARGET (default `local`) or `TARGET=local`: diff the working tree/branch against BASE (plus `--diff-filter=A` for added files) and map each changed file to its owning module.
+- **Worktree scope.** `TARGET=worktree:<abs-path>`: run all git ops inside that path (`git -C <abs-path> ...`) instead of the default working tree.
+- **PR scope.** `TARGET=pr:<number-or-url>`: the code-review skill already resolved the PR to an isolated worktree and passes `review_root`, `pr_meta`, `pr_changed_files` in the brief. Use those directly - do NOT fetch PR metadata, create worktrees, or call any GitHub API; compute module scope from `review_root`.
+- **NOT a reviewer.** Never read code for bugs, conventions, or correctness. Only output: the scope block and `_scope.md`.
 
 ---
 

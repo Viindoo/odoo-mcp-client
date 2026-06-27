@@ -16,7 +16,7 @@ The Skill tool is allowed - use it for what the task needs (most commonly invoke
 
 ## Intent over implementation
 
-Treat the main-agent instructions and any Technical Design Document (TDD) as authoritative for intent, requirements, constraints, and acceptance criteria - not as line-by-line prescriptions. Examples, pseudocode, and reference code are illustrative, not normative unless stated otherwise. Deliver the intended OUTCOME: preserve intent, satisfy every acceptance criterion, respect explicit constraints, and prioritise correctness, maintainability, security, performance, and user value. If you find a safer/simpler/more idiomatic approach that meets the same outcome, use it. When an implementation detail conflicts with stated goals, the goals win - document the trade-off. Do not optimise for literal compliance at the expense of the outcome.
+Treat the main-agent instructions and any Technical Design Document (TDD) as authoritative for intent, requirements, constraints, and acceptance criteria - not line-by-line prescriptions; examples/pseudocode/reference code are illustrative, not normative unless stated. Deliver the intended OUTCOME: preserve intent, satisfy every acceptance criterion, respect explicit constraints, prioritise correctness, maintainability, security, performance, and user value. If a safer/simpler/more idiomatic approach meets the same outcome, use it. When an implementation detail conflicts with stated goals, the goals win - document the trade-off.
 
 ## Domain knowledge
 
@@ -32,13 +32,7 @@ If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing
 
 ## Standalone-first fallback
 
-Probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` - reading source is a legitimate grounding path:
-
-1. Note OSM is unreachable (so the caveat survives).
-2. **Tier 2 - disk.** `find . -maxdepth 4 -name __manifest__.py`; `grep -rn "class .*models.Model" --include=*.py`; `Read models/*.py` for fields and method signatures. If the request carries a `file_path`, `Read` it directly.
-3. Use disk-read context in place of `model_inspect`/`entity_lookup`; still write/apply files the same way. Label `grounded: local-source (not OSM-indexed)`.
-4. Skip the ORM validation gate (Round 5) - note this in the output checklist.
-5. Only when the repo itself is inaccessible, emit copy-pasteable blocks labelled `OSM unavailable - ungrounded`. Escalate (`NEEDS_CONTEXT`) only for secrets or business decisions no source encodes - never ask a human to paste code, field lists, or manifests you could read.
+Probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md` - reading source is a legitimate grounding path: note OSM unreachable; disk-read (`find . -maxdepth 4 -name __manifest__.py`, `grep -rn "class .*models.Model"`, `Read models/*.py`, or the request's `file_path`) in place of `model_inspect`/`entity_lookup`, still writing/applying files the same way, labelled `grounded: local-source (not OSM-indexed)`; SKIP the Round-5 ORM validation gate (note in the output checklist); only when the repo itself is inaccessible emit copy-pasteable blocks labelled `OSM unavailable - ungrounded`. Escalate (`NEEDS_CONTEXT`) only for secrets or business decisions no source encodes - never ask a human to paste code, field lists, or manifests you could read.
 
 **Tier-1 MISS (OSM reachable, entity not in index).** A not-found/empty result for a module/model/field the request says exists is a MISS, not proof of absence: keep OSM for what it covers, `Read`/`Grep` local addons for the missed entity, label `grounded: osm + local-source (hybrid)`. Never conclude "does not exist" from an index miss when a local repo is readable.
 
@@ -154,7 +148,7 @@ odoo-bin scaffold <new_module_name> </path/to/addons-dir>
 
 Then fill in the scaffolded models/views/security/`depends` per Rounds 2-4. Hand-create files only if `odoo-bin` is genuinely unavailable (note it in the checklist). Extending an EXISTING module needs no scaffold.
 
-After scaffold, fill in only the keys the task requires and **keep all commented placeholder keys** that `odoo-bin scaffold` emits (e.g. `# 'category': 'Uncategorized',`, `# 'depends': [],`, `# 'data': [],`, `# 'demo': [],`) - do NOT delete or uncomment them unless the task needs them. Manifest `version`: keep the short form `odoo-bin scaffold` emits (e.g. `0.1` - 2 or 3 numeric parts, NOT series-prefixed); if hand-creating without scaffold, match a sibling `__manifest__.py` in the same addons-dir. NEVER rewrite it to the series-prefixed `<series>.x.y.z` form (e.g. `17.0.1.0.0`) - that is the module-upgrade convention only. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md`.
+After scaffold, fill in only the keys the task requires and **keep all commented placeholder keys** `odoo-bin scaffold` emits (e.g. `# 'category': 'Uncategorized',`, `# 'depends': [],`, `# 'data': [],`, `# 'demo': [],`) - do NOT delete/uncomment unless needed. Manifest `version`: keep the scaffold-default short form (e.g. `0.1` - 2-3 numeric parts), or match a sibling `__manifest__.py` if hand-creating; NEVER the series-prefixed `<series>.x.y.z` form (e.g. `17.0.1.0.0`) - that is the module-upgrade convention only. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md`.
 
 **Renaming an EXISTING module (profile-gated - Viindoo Standard/Internal via OSM only).** When the task renames a module (changes its technical name / directory), follow `[[upg-conventions]]`. The key rule: add `'old_technical_name': '<previous technical name>'` to the renamed module's `__manifest__.py`. This applies ONLY when OSM is reachable AND the active profile is Viindoo Standard or Internal (profiles of the form `standard_viindoo_<series>` or `viindoo_internal_<series>`); do NOT apply it for Odoo CE/EE upstream or any other non-Viindoo distribution.
 
@@ -251,4 +245,4 @@ SUGGESTED_NEXT: odoo-ui-review (reason=view XML modified, target=<instance_base_
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive output for the run-driver - it changes nothing produced above.
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).

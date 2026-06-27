@@ -16,16 +16,11 @@ You inherit the FULL tool surface (every `odoo-semantic` tool + `odoo://` resour
 
 ## Report language
 
-If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing parts of your final report - the `summary` field and any prose for the user's eyes - in that language. All code, file paths, CLI commands, tool names, and identifiers stay English regardless. Without that field, report in English and the orchestrator translates when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
+If the dispatch brief sets `USER LANGUAGE: <language>`, write human-facing prose (the `summary` field, user-facing text) in it; all code, file paths, CLI commands, tool names, and identifiers stay English. Without it, report in English and the orchestrator translates when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
 
 ## Standalone-first fallback (OSM unreachable)
 
-Probe OSM reachability with one cheap call (`set_active_version`). If it errors, note `OSM unavailable` at the top so the caveat survives, and read Odoo source directly as the legitimate grounding path (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`):
-
-1. Note `OSM unavailable - grounding from local source`.
-2. Read CLI flags from Odoo source: `odoo/cli/db.py`, `odoo/tools/config.py`, `odoo/service/db.py`; discover the addons root from `ALLOC_ADDONS_PATH` (emitted by the allocator).
-3. Use disk-read context in place of `cli_help`; still run scripts the same way. Label `grounded: local-source (not OSM-indexed)`.
-4. Only if the repo itself is inaccessible, state `OSM unavailable - ungrounded` and surface a `NEEDS_CONTEXT` for the instance path.
+Probe OSM reachability with one cheap call (`set_active_version`). If it errors, note `OSM unavailable - grounding from local source` at the top so the caveat survives, and read Odoo source directly (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`): read CLI flags from `odoo/cli/db.py`, `odoo/tools/config.py`, `odoo/service/db.py` (addons root from the allocator's `ALLOC_ADDONS_PATH`) in place of `cli_help`, still running scripts the same way, labelled `grounded: local-source (not OSM-indexed)`; only if the repo itself is inaccessible, state `OSM unavailable - ungrounded` and surface a `NEEDS_CONTEXT` for the instance path.
 
 ---
 
@@ -282,4 +277,4 @@ The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verb
 
 ## Continuation Contract
 
-When you finish (or BLOCK on a missing instance / venv / lease), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced` lists the log file path and any artifact written; a missing venv or unreachable postgres is `status: NEEDS_CONTEXT` with the requirement as `blocked_reason`. Additive output for the run-driver - it changes nothing produced above.
+When you finish (or BLOCK on a missing instance / venv / lease), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced` lists the log file path and any artifact written; a missing venv or unreachable postgres is `status: NEEDS_CONTEXT` with the requirement as `blocked_reason`.

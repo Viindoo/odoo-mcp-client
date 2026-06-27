@@ -16,7 +16,7 @@ If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing
 
 ## Domain Knowledge Activation
 
-Reason as a domain expert first, reviewer second. Identify the business domain that OWNS the code under review (Accounting/Finance, Sales, Purchase, Inventory/Logistics, Manufacturing/MRP, HR, Payroll, Recruitment, Project, Helpdesk, Subscription, eCommerce, PoS, Approvals, CRM, AI, Legal, Marketing, ...) and apply its rules. Before grading findings, ask: which domain owns this, which business concepts and rules must never be violated, which existing Odoo workflows must stay consistent, which side effects hit other processes. Code that is technically correct but violates domain rules, accounting principles, business workflows, or established Odoo practice is INCORRECT - passing tests does not make it right. A domain-rule violation is at least HIGH (CRITICAL when it breaks ledger integrity or tenant isolation).
+Reason as a domain expert first, reviewer second. Identify the business domain that OWNS the code under review (Accounting/Finance, Sales, Purchase, Inventory/Logistics, Manufacturing/MRP, HR, Payroll, Recruitment, Project, Helpdesk, Subscription, eCommerce, PoS, Approvals, CRM, AI, Legal, Marketing, ...) and apply its rules. Ask: which domain owns this, which business rules must never be violated, which Odoo workflows must stay consistent, which side effects hit other processes. Code technically correct but violating domain rules, accounting principles, business workflows, or established Odoo practice is INCORRECT - passing tests does not make it right. A domain-rule violation is at least HIGH (CRITICAL when it breaks ledger integrity or tenant isolation).
 
 ## Intent, business value, and TDD conformance
 
@@ -121,7 +121,7 @@ When the change touches business structure (model, stored field, security rule, 
 
 ### Step 4 - Compile and present
 
-Merge findings from Steps 0.6-3.5. Deduplicate (prefer MCP-verified over Step-1 heuristic). Assign severity per the table below. Present in the standard output format. Record the `/test_lint` backend lint gate outcome in the `### Lint gate` slot. If the gate was not run (instance/DB not available), the slot MUST read SKIPPED and the verdict MUST NOT claim a clean Python pass - an unrun gate is not a green gate. Record the verify-frontend.sh outcome in the `### JS lint gate` slot. If it returned `RESULT: CANNOT-VERIFY` (exit 2), the slot MUST read CANNOT-VERIFY and the verdict MUST NOT claim a clean JS pass.
+Merge findings from Steps 0.6-3.5. Deduplicate (prefer MCP-verified over Step-1 heuristic). Assign severity per the table below. Present in the standard output format. Record the `/test_lint` backend lint gate outcome in the `### Lint gate` slot; if it was not run (instance/DB unavailable), the slot MUST read SKIPPED and the verdict MUST NOT claim a clean Python pass. Record the verify-frontend.sh outcome in the `### JS lint gate` slot; on `RESULT: CANNOT-VERIFY` (exit 2) the slot MUST read CANNOT-VERIFY and the verdict MUST NOT claim a clean JS pass.
 
 **Verdict + Score (mandatory, deterministic - append after the Issues table):**
 
@@ -239,4 +239,4 @@ read-only and produces findings only, so it does not spawn the reviewer itself:
 
 Before finishing, APPEND your significant findings to the run worklog - CRITICAL/HIGH findings, design-principle deviations, blast-radius ripples, unmet TDD acceptance criteria, and any missing-test gap - so later phases inherit them (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the artifact written. If CRITICAL/HIGH issues (including an unmet TDD acceptance criterion or a code-vs-intent divergence) need a fix, emit `next: odoo-coding` carrying the report path (and the `DESIGN_DOC` path when present); if a CRITICAL/HIGH behavior change lacks a protecting test, also emit `next: odoo-test-writing`. Additive output for the run-driver - it does not change anything produced above.
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the artifact written. If CRITICAL/HIGH issues (including an unmet TDD acceptance criterion or a code-vs-intent divergence) need a fix, emit `next: odoo-coding` carrying the report path (and the `DESIGN_DOC` path when present); if a CRITICAL/HIGH behavior change lacks a protecting test, also emit `next: odoo-test-writing`.
