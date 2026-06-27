@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.30.2] - 2026-06-28
+
+### Changed
+
+- Semantic-preserving compression of plugin runtime docs (agents / skills / commands / references /
+  snippets / docs) across `odoo-ai-agents` and `git-toolkit` - terse prose, within-file dedup, and
+  inline-copy -> existing-pointer trims. No `name`/`description` frontmatter and no behavior changed
+  (verified: `make validate` + `make test` 946 passed, frontmatter byte-diff vs `master` empty,
+  `make gen` idempotent). Per-plugin `COMPRESSION-REPORT.md` added. Realized ~2.6k token / ~0.76%
+  reduction - the repo was already heavily SSOT-factored, so the safe headroom was small.
+
 ## [3.30.1] - 2026-06-27
 
 ### Added
