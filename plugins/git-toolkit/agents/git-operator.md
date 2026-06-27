@@ -92,9 +92,11 @@ writing the message.
    gated -> STOP, return BLOCKED.
 4. Execute the op headlessly; follow `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md` for
    any large diff pass (summary-first, cluster, never read a huge diff whole). Resolve conflicts
-   to the stated intent; never leave a marker or a reference to a renamed/moved symbol. On 3
-   consecutive failed `--continue`: abort (`rebase/cherry-pick --abort`), restore from the S1
-   backup, return BLOCKED. See
+   to the stated intent; never leave a marker or a reference to a renamed/moved symbol. Drive every
+   `--continue`/`--skip` decision by the S10 conflict continue-driver in
+   `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: NEVER `--skip` on "no unmerged files";
+   only `--skip` when `--continue` reports an empty patch. On 3 consecutive failed `--continue`:
+   abort (`rebase/cherry-pick --abort`), restore from the S1 backup, return BLOCKED. See
    `${CLAUDE_PLUGIN_ROOT}/skills/git-ops/references/conflict-resolution.md`.
 5. Verify: tree-identity for rewrites; range-diff for replays; `git status` clean for integration.
 6. Write a worklog/findings file; return the compact block.
