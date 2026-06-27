@@ -80,13 +80,12 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
   agents (e.g. `odoo-coder`, `odoo-code-reviewer`) MAY spawn their own subagents;
   the platform enforces a depth cap of 5. Resources are platform-managed.
 - **No Claude Code Workflow (JS) tool**: this plugin orchestrates entirely through the
-  Skill tool, the Agent tool, and the `run-driver` loop. It deliberately does NOT emit
+  Skill tool, the Agent tool, and the `run-driver` loop - it deliberately does NOT emit
   Claude Code Workflow (JS) scripts (the `Workflow` tool with `args` + `agent()`) for
-  codegen or orchestration - the dispatch fan-out (e.g. `odoo-coding`, `wave`) is real
-  Agent-tool calls in model-weighted batches (SSOT
-  `skills/_shared/concurrency-guard.md` Mode B). Do not hand-roll a JS Workflow script to
-  parallelize plugin work: passing the plan through the tool's `args` channel is the
-  args-undefined footgun this design avoids.
+  codegen or orchestration. Dispatch fan-out (e.g. `odoo-coding`, `wave`) is real
+  Agent-tool calls in model-weighted batches (SSOT `skills/_shared/concurrency-guard.md`
+  Mode B). Never hand-roll a JS Workflow script to parallelize plugin work: passing the
+  plan through the tool's `args` channel is the args-undefined footgun this design avoids.
 
 ---
 
@@ -356,22 +355,21 @@ Content Schema) for UI review → receives user approval via `ExitPlanMode` → 
 dispatches the file-touching specialist. This is a first-class enforcement option, not
 a workaround.
 
-There is **no platform write-block** behind the gate. `odoo-intake` does not declare
-`disallowed-tools: Write Edit`, and the coders (`odoo-coding`)
-DO write/apply code - that is their job. The gate is enforced by two behavioral
-mechanisms, with Plan Mode as the strongest layer when the orchestrating context is
-available:
+There is **no platform write-block** behind the gate: `odoo-intake` does not declare
+`disallowed-tools: Write Edit`, and the coders (`odoo-coding`) DO write/apply code - that is
+their job. The gate is enforced by two behavioral mechanisms, Plan Mode being the strongest
+layer when the orchestrating context is available:
 
 1. **Anti-rationalize gate** in the skill body - behavioral: "no execution fires until the user
    has approved a Proposed Plan". Paired with a Red Flags table listing rationalizations
    the agent must refuse (e.g., "This is simple, I'll just start coding" → STOP).
 2. **Coder preview-then-write** - before mutating a file a coder previews the proposed
    patch in its turn; the write follows the same turn once the approach is settled.
-   This is a discipline, not a tool restriction.
+   A discipline, not a tool restriction.
 
-For skills that **cannot** rely on the orchestrating context (e.g., skills invoked
-from inside a subagent), the behavioral anti-rationalize gate (mechanism 1) is the
-fallback when `EnterPlanMode` is not available; it is not the only option.
+For skills that **cannot** rely on the orchestrating context (e.g. invoked from inside a
+subagent), the behavioral anti-rationalize gate (mechanism 1) is the fallback when
+`EnterPlanMode` is unavailable.
 
 ### 4.2 Gate template
 
@@ -476,11 +474,10 @@ no Skill tool, no sub-agent spawn).
 
 #### Rationale
 
-Without Phase R, intake writes a Proposed Plan based only on user descriptions - it
-cannot confirm which modules exist, what the current hook points are, or what the
-blast radius of a change would be. Phase R answers these questions cheaply (read-only,
-dispatched as leaf-workers) so the Proposed Plan's `Findings (Recon)` field is concrete
-rather than speculative. This is the same principle as `odoo-override-finding` confirming a hook
+Without Phase R, intake writes a Proposed Plan from user descriptions alone - it cannot
+confirm which modules exist, the current hook points, or a change's blast radius. Phase R
+answers these cheaply (read-only leaf-workers) so the Proposed Plan's `Findings (Recon)` field
+is concrete, not speculative - the same principle as `odoo-override-finding` confirming a hook
 before `odoo-coding` writes the override.
 
 ---
@@ -756,19 +753,17 @@ genuine leaf skill (no agent dispatch) is fine and adds no depth.
 ### Dispatch method
 
 The **orchestrating context** (main agent and orchestrators like `odoo-intake`,
-`run-driver`) dispatches a target skill via the **Skill tool** - this is the canonical,
-deterministic mechanism, and it is what lets a spawner skill (`odoo-code-review`,
-`odoo-coding`, …) actually RUN its own orchestration in the main context.
-**NL description-match** (a natural-language prompt that matches the target skill's
-`description`) is the soft fallback.
+`run-driver`) dispatches a target skill via the **Skill tool** - the canonical, deterministic
+mechanism, and what lets a spawner skill (`odoo-code-review`, `odoo-coding`, …) actually RUN
+its own orchestration in the main context. **NL description-match** (a prompt matching the
+target skill's `description`) is the soft fallback.
 
 The "no spawner-skill dispatch" restriction binds **`context: fork` fan-out workers** only:
-a fork worker that dispatches a spawner skill via the Skill tool kicks off a fresh agent
-pipeline that wastes a depth level and breaks fan-out isolation - hence the mandatory
-hard-rules line. Named interior agents (e.g. `odoo-coder`, `odoo-code-reviewer`) ARE
-allowed to dispatch further agents or use the Skill tool; the platform depth cap (5) is the
-hard guard. Commands dispatch via the Skill tool (canonical) or NL description-match
-(acceptable fallback) - either is correct at the command level.
+a fork worker dispatching a spawner skill kicks off a fresh agent pipeline that wastes a depth
+level and breaks fan-out isolation - hence the mandatory hard-rules line. Named interior agents
+(e.g. `odoo-coder`, `odoo-code-reviewer`) ARE allowed to dispatch further agents or use the Skill
+tool; the platform depth cap (5) is the hard guard. Commands dispatch via the Skill tool
+(canonical) or NL description-match (fallback) - either is correct at the command level.
 
 ### Context-Handoff Protocol (CHP)
 
@@ -1037,25 +1032,21 @@ references a driver-required workflow directly.
 ```
 
 **Worklog vs. blackboard (two different things, no overlap).** The blackboard above is the
-driver-only *state machine* (only `run-driver` writes it; machine state). Alongside it lives the
-**worklog** - an append-only *decision journal* every participant (architect, test-author, coder,
-reviewer, debugger, wave WI worker) reads before it starts and writes when it finishes, SSOT
+driver-only *state machine* (only `run-driver` writes it). The **worklog** is an append-only
+*decision journal* every participant (architect, test-author, coder, reviewer, debugger, wave WI
+worker) reads before starting and writes when finishing, SSOT
 `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`. It answers "*why* did the prior phase do
 this" so a later phase builds on intent instead of re-deriving it. It is **one file per writer**
 under `.odoo-ai/worklog/<run-or-slug>/<NNN>-<agent>.md` (per-writer files make parallel appends
-race-free, unlike the single blackboard which only the driver touches). When a run is active the
-driver records the worklog dir so all nodes resolve the same path; standalone, a skill derives it
-from its own slug. The blackboard holds machine state; the worklog holds decision rationale -
-neither duplicates the other.
+race-free; the single blackboard only the driver touches). When a run is active the driver records
+the worklog dir so all nodes resolve the same path; standalone, a skill derives it from its own
+slug. Blackboard = machine state, worklog = decision rationale; neither duplicates the other.
 
 **Context-Handoff Protocol (CHP) - 3-tier agent dispatch.** Orchestrator skills that dispatch
 worker agents (odoo-coding, odoo-code-review, wave, odoo-forward-port, odoo-deep-survey,
-odoo-brl) use the CHP to optimize cold-start cost: Tier A `SendMessage`-resume (preferred when
-the capability probe passes), Tier B `subagent_type: "fork"` (read-heavy fan-outs), and Tier C
-fresh spawn + worklog (always-correct fallback). Tier C is the SSOT baseline - the worklog
-ensures a fresh worker loses nothing. CHP is an optimization layer, never a dependency; every
-Tier-A/B path degrades silently to Tier C. SSOT:
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`.
+odoo-brl) use the CHP (§6) to cut cold-start cost. Tier C (fresh spawn + worklog) is the SSOT
+baseline; Tier A/B are optimizations that degrade silently to C. CHP is an optimization layer,
+never a dependency. SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`.
 
 **The `code -> review+test -> code` loop.** `odoo-coding` (which now orchestrates red-test authorship before the
 code for non-trivial modules, SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`) emits

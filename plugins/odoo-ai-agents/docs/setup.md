@@ -156,13 +156,12 @@ Option 2 - JSON fallback (file `~/.claude.json`, **not** `~/.claude/settings.jso
 ```
 
 > **Why `timeout`?** Claude Code's default per-tool-call timeout
-> (`MCP_TOOL_TIMEOUT`) is ~28 hours. The server now bounds each query (~30 s) and
-> rejects fast under load, so a request will not hang indefinitely on its own; the
-> client `"timeout": 90000` (90 s, in milliseconds) is a defensive backstop on top of
-> that, capping the wait if a transport-level stall ever slips past the server
-> bound. The field is honored per-server in `~/.claude.json` / `.mcp.json`
-> (min 1000 ms; HTTP has a 60 s first-byte floor). Drop it to `60000` if you want
-> the fastest fallback, or raise it for very large `impact_analysis` calls.
+> (`MCP_TOOL_TIMEOUT`) is ~28 hours. The server already bounds each query (~30 s) and
+> rejects fast under load, so a request won't hang on its own; the client
+> `"timeout": 90000` (90 s, in ms) is a defensive backstop capping the wait if a
+> transport-level stall slips past the server bound. Honored per-server in
+> `~/.claude.json` / `.mcp.json` (min 1000 ms; HTTP 60 s first-byte floor). Drop to
+> `60000` for the fastest fallback, or raise it for very large `impact_analysis` calls.
 
 Verify: run `/mcp` in a live session, or `claude mcp list` from the shell. You should see `odoo-semantic … Connected`.
 
@@ -529,7 +528,7 @@ The MCP server supports **sticky session context**: run `set_active_version` onc
 5. <any tool call with odoo_version omitted>   # falls back to the pinned value
 ```
 
-After step 2, pass the concrete pinned version on every call, e.g. `model_inspect(model="sale.order", method="summary", odoo_version='<version>')`. The server also accepts `odoo_version='auto'` to resolve against the sticky pin, but the pin is keyed per API key - any concurrent agent or parallel session sharing the key can overwrite it - so this plugin's skills and agents always pass the concrete version instead.
+After step 2, pass the concrete pinned version on every call, e.g. `model_inspect(model="sale.order", method="summary", odoo_version='<version>')`. The server also accepts `odoo_version='auto'` to resolve against the sticky pin, but because the pin is per-API-key and racy under concurrency (above), this plugin's skills and agents always pass the concrete version instead.
 
 > See the [implicit session context docs](https://odoo-semantic.viindoo.com/docs/adr/0029-implicit-session-context) for the TTL behavior and pin-keying details.
 

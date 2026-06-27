@@ -5,12 +5,11 @@
 # Worklog Contract (cross-agent decision log)
 
 A multi-phase Odoo run spans several agents (architect -> test-author -> coder -> reviewer ->
-debugger) and several waves of parallel workers. Each one makes decisions the *next* one needs:
-which approach was chosen and which were rejected, what scope was added or dropped, which model
-tier was picked, which cross-module impacts were found and how they were mitigated. The
-Continuation Contract is a *handoff signal* (status/produced/next) - it is NOT this. This is the
-**append-only decision journal** every agent reads before it starts and writes when it finishes,
-so a later phase can look up *why* an earlier phase did what it did instead of re-deriving it.
+debugger) and several waves of parallel workers. Each makes decisions the *next* one needs:
+approach chosen vs rejected, scope added or dropped, model tier picked, cross-module impacts
+found and mitigated. The Continuation Contract is a *handoff signal* (status/produced/next) - NOT
+this. This is the **append-only decision journal** every agent reads before it starts and writes
+when it finishes, so a later phase can look up *why* instead of re-deriving it.
 
 ## Where it lives
 
@@ -22,11 +21,11 @@ so a later phase can look up *why* an earlier phase did what it did instead of r
   the worklog dir there); otherwise the feature slug the skill already uses for its artifacts
   (e.g. the `<slug>-<date>` that `odoo-coding`/`odoo-code-review` write under), so the worklog
   sits beside the work it explains.
-- `<NNN>`: an ordering prefix for chronological sort. Use the zero-padded dispatch order when the
-  orchestrator passed one in your brief; if it did not (the common case - most briefs carry
-  only the worklog dir, not a sequence number), fall back to a `date -u +%H%M%S` stamp, or your own
-  short label when you have no shell. The HARD requirement is a UNIQUE filename per writer; the
-  prefix only makes the sort best-effort, it is not a correctness invariant.
+- `<NNN>`: an ordering prefix for chronological sort. Use the zero-padded dispatch order if the
+  orchestrator passed one; else (the common case - most briefs carry only the worklog dir, not a
+  sequence number) fall back to a `date -u +%H%M%S` stamp, or a short label when you have no shell.
+  The HARD requirement is a UNIQUE filename per writer; the prefix only makes the sort best-effort,
+  it is not a correctness invariant.
 - `<agent>`: the writer's short name (`architect`, `coder-<module>`, `reviewer-<module>`,
   `wi-<id>`, ...). Combined with the prefix, two writers never collide on a filename.
 

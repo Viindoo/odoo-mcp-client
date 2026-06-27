@@ -1,10 +1,9 @@
 # Artifact voice - state the truth, not the journey (SSOT)
 
-An artifact outlives the process that produced it. A reader six months from now
-needs to know what the system IS and what the deliverable SAYS - not what was
-tried, in what order, by whom, or which ticket tracked it. Process narration
-embedded in a deliverable goes stale the moment it ships and forces every
-future reader to mentally subtract history from fact.
+An artifact outlives the process that produced it. A reader months later needs to
+know what the system IS and what the deliverable SAYS - not what was tried, in what
+order, by whom, or which ticket tracked it. Process narration goes stale the moment
+it ships and forces every future reader to subtract history from fact.
 
 ## The contract
 

@@ -163,11 +163,11 @@ automatically falls back to `exclusive` on the declared `db_name` (serialise ins
 and the allocator logs the downgrade. The CREATEDB requirement is identical under B2: Odoo
 create-on-init also needs that privilege, so the degrade logic is the same invariant.
 
-**Consumer contract under B2:** a caller that acquires an ephemeral lease and then runs
-`odoo-bin -d $ALLOC_DB_NAME` WITHOUT `-i` (a bare server launch or a `-u` update) will fail
-because the DB does not exist. Always follow the sequence: acquire -> `-i <modules>` (create-on-init)
--> use DB -> release. For operations that require a pre-existing populated DB (translation
-reload `-u`, a server-start against existing data), use `--mode exclusive` on a declared DB instead.
+**Consumer contract under B2:** a caller that acquires an ephemeral lease then runs
+`odoo-bin -d $ALLOC_DB_NAME` WITHOUT `-i` (bare launch or a `-u` update) fails - the DB does not
+exist. Always: acquire -> `-i <modules>` (create-on-init) -> use DB -> release. For operations
+needing a pre-existing populated DB (translation reload `-u`, a server-start against existing
+data), use `--mode exclusive` on a declared DB instead.
 
 ## 7. Crash / stale handling
 
@@ -233,10 +233,10 @@ second spin-up loses the OS port bind and exits, then both sessions attach to th
 ## 11. Decisions taken (this pass)
 
 1. **Deliverable = this design doc first**, implement after review.
-2. **B2 model: caller-side create, through-Odoo drop.** `ephemeral` acquire reserves the DB name;
-   the caller's `-i` run performs Odoo create-on-init; release/gc drops through `scripts/lib/odoo_db.py`
-   (raw `dropdb` as logged fallback). Automatic degrade to `exclusive`-lease when `db_user` cannot
-   `CREATEDB` (Odoo create-on-init requires the same privilege).
+2. **B2 model: caller-side create, through-Odoo drop** (mechanism §6.1): `ephemeral` acquire
+   reserves the DB name; the caller's `-i` run does Odoo create-on-init; release/gc drops through
+   `scripts/lib/odoo_db.py` (raw `dropdb` fallback). Automatic degrade to an `exclusive` lease when
+   `db_user` cannot `CREATEDB` (create-on-init needs the same privilege).
 3. **Form = a deterministic SCRIPT (`scripts/lib/allocator.py`) run via `Bash` at any depth** - NOT an
    LLM agent. Subagent-nesting IS available (Claude Code 2.1.172+, depth cap 5) but an LLM agent for a
    deterministic allocation is slow, token-costly, non-deterministic on port choice, and would force
