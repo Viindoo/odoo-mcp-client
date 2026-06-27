@@ -41,13 +41,14 @@ _All knowledge and computation live on the OSM server; this repo is a thin routi
 
 ## What is in this repo
 
-This is a **monorepo of two Claude Code plugins** under [`plugins/`](plugins/). Each has its own
+This is a **monorepo of three Claude Code plugins** under [`plugins/`](plugins/). Each has its own
 detailed README - start there for usage, install, and reference:
 
 | Plugin | What it is | README |
 |--------|-----------|--------|
 | **[`odoo-ai-agents`](plugins/odoo-ai-agents/)** | The full Odoo AI workforce toolkit: **47 skills + 14 agents + 9 commands** across 9 personas, plus **12 declarative workflows** and the drive-to-done orchestration harness. Includes instance lifecycle ops (create/drop/init/update/run-tests for any Odoo series v8+). Depends on `odoo-semantic-mcp` (auto-installed). | [README](plugins/odoo-ai-agents/README.md) |
 | **[`odoo-semantic-mcp`](plugins/odoo-semantic-mcp/)** | The thin MCP connection layer: registers the `odoo-semantic` server (**25 tools / 7 resources**) and ships the `/odoo-semantic-mcp:connect` command. Install this alone for raw MCP tools only. | [README](plugins/odoo-semantic-mcp/README.md) |
+| **[`git-toolkit`](plugins/git-toolkit/)** | A domain-agnostic, **Apache-2.0** git + GitHub toolkit for AI agents: one front-door skill (`git-ops`) + 4 agents that run git/github work safely in a delegated context - never losing code, scaling to thousands of files. Depends on the `github` plugin (auto-installed). No Odoo dependency. | [README](plugins/git-toolkit/README.md) |
 
 Most users install **`odoo-ai-agents`**, which pulls in `odoo-semantic-mcp` automatically as
 a declared dependency - the skills, agents, commands, and the MCP connection all arrive in one step.
@@ -90,6 +91,7 @@ under `plugins/` - point `--plugin-dir` at the one you are working on:
 ```bash
 claude --plugin-dir ./plugins/odoo-ai-agents   # skills + agents + commands
 claude --plugin-dir ./plugins/odoo-semantic-mcp      # MCP connection + connect command
+claude --plugin-dir ./plugins/git-toolkit            # git/github toolkit (skill + agents)
 ```
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the full plugin-dev workflow, the release /
