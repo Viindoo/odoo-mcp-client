@@ -1,11 +1,11 @@
 # Odoo Failure Modes - by-layer symptom -> root-cause -> localize catalog (SSOT)
 
 > Shared grounding doc for the debug front-door (`odoo-debug`) and its specialist agents. It maps
-> the recurring Odoo failure modes per layer to their usual root causes and the OSM tool that
-> localizes them, so a debug run starts from known territory instead of from scratch. This is the
-> stable-knowledge half; any concrete signature / token / field is version-specific - confirm it
-> for the target version via OSM (`set_active_version` first) before relying on it. Skills/agents
-> cross-reference this doc; they do not duplicate it.
+> recurring Odoo failure modes per layer to their usual root causes and the OSM tool that localizes
+> them, so a debug run starts from known territory. The rows are stable knowledge; any concrete
+> signature / token / field is version-specific - confirm it for the target version via OSM
+> (`set_active_version` first) before relying on it. Skills/agents cross-reference this doc; they do
+> not duplicate it.
 >
 > Each row is: **symptom -> likely root cause -> how to localize**. Use it to pick a falsifiable
 > hypothesis (see `debug-method.md` step 3), not as a list of fixes to apply blindly.

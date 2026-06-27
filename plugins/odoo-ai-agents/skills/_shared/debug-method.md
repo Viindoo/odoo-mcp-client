@@ -2,15 +2,15 @@
 
 > Shared methodology doc for the debug front-door (`odoo-debug`) and its specialist agents
 > (`odoo-backend-debugger`, `odoo-ui-debugger`) and, by light reference, the reactive mode of the
-> audit skills (`odoo-security-audit`, `odoo-perf-audit`, `odoo-deprecation-audit`). It exists so
-> every debug run - whatever the layer - follows the SAME industry-standard scientific loop and
-> emits the SAME evidence-bearing contract, instead of jumping to a guessed fix. Skills/agents
-> cross-reference this doc; they do not duplicate it.
+> audit skills (`odoo-security-audit`, `odoo-perf-audit`, `odoo-deprecation-audit`). Every debug
+> run - whatever the layer - follows the SAME scientific loop and emits the SAME evidence-bearing
+> contract, instead of jumping to a guessed fix. Skills/agents cross-reference this doc; they do
+> not duplicate it.
 >
-> **You are an AI agent executing a debug task.** This doc is written FOR you, the execute-time
-> reader. The Output Contract at the bottom is not optional decoration - filling every field is
-> how you prove (to yourself and the caller) that you actually performed each step. An empty or
-> hand-waved field means that step was skipped, which means the root cause is not yet proven.
+> **Written FOR you, the execute-time reader.** The Output Contract at the bottom is not optional
+> decoration - filling every field is how you prove (to yourself and the caller) that you performed
+> each step. An empty or hand-waved field means that step was skipped - so the root cause is not
+> yet proven.
 
 ---
 
@@ -80,8 +80,7 @@ fix) for the edit, and to the relevant audit skill when a broader scan is warran
 
 Emit this block. A field you cannot fill truthfully marks an incomplete diagnosis - say so
 explicitly (e.g. `Confirm-by-toggle: NOT YET CONFIRMED - hypothesis unproven`) rather than
-leaving it blank or fabricating. This contract is the soft enforcement of the loop above: an
-honest fill is only possible if you actually performed each step.
+leaving it blank or fabricating.
 
 ```
 ## Debug: <symptom> · layer=<backend|ui|perf|security|install> · Odoo v<N>

@@ -8,7 +8,7 @@ Turn objections into answered questions in seconds. Verify Odoo capabilities on 
 
 ## What This Tool Does for Sales
 
-When a prospect asks "can Odoo do X?", you have two options: guess, or know. The Odoo Semantic MCP server lets you query the actual indexed Odoo codebase to give factual, confident answers.
+When a prospect asks "can Odoo do X?", you have two options: guess, or know. The Odoo Semantic MCP server lets you query the indexed Odoo codebase to give factual, confident answers.
 
 Key scenarios:
 - **Feature verification:** "Does Odoo Community have [feature], or is it Enterprise?"

@@ -1,9 +1,9 @@
 # Language mirroring - chat output contract (SSOT)
 
 The humans using this plugin work in many languages. They prompt in their own
-language and they review gates, proposals, plans, and summaries in chat. An answer that mixes English prose and unexplained
-jargon into their language is hard to review and erodes trust in the gate flow -
-the human approves things they only half-understood.
+language and review gates, proposals, plans, and summaries in chat. An answer mixing
+English prose and unexplained jargon into their language is hard to review and erodes
+trust in the gate flow - the human approves things they only half-understood.
 
 ## The contract
 
