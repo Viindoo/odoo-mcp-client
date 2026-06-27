@@ -42,41 +42,42 @@ odoo-bin -d <DB> -i <module> --test-enable --test-tags /<module> --stop-after-in
 
 ## Quality gate / lint tests - always include (the part that slips to CI)
 
-The Odoo CI code-quality gate is **two parts**, and a normal `--test-tags /<module>` run includes
-**neither** - which is why lint failures pass locally then fail CI. When you run the suite, also
-run the gate:
+A normal `--test-tags /<module>` run does **not** include lint tests - which is why lint failures
+pass locally then fail CI. **Always append the lint module tag(s)** when running the suite.
+Requires a running instance + DB.
 
-1. **Core `test_lint`** - Odoo core's lint test module (manifest checks, eslint, pofile,
-   `__init__` consistency, …). **Append it to `--test-tags`** so it runs with the suite:
-   ```
-   odoo-bin -d <DB> -u <module> --test-enable --test-tags '/<module>,/test_lint' --stop-after-init --log-level=test
-   ```
-   Confirm the exact module/tag name for the target version via `cli_help` / the addons path
-   (it may differ by series); never assume it exists unchecked.
-2. **`pylint-odoo`** - the Odoo pylint quality plugin (`consider-merging-classes-inherited`,
-   `sql-injection`, `print-used`, …). This is **not** a test-suite module; reproduce it with the
-   fast, no-DB inner-loop gate **before** the test run:
-   ```
-   scripts/verify-backend.sh <changed .py>          # loads pylint_odoo; pins per series
-   ```
-   `verify-backend.sh` resolves the per-series pylint/astroid/pylint-odoo pins from
-   `scripts/lib/odoo-python-matrix.json`, always loads `pylint_odoo` (avoiding the W0012
-   "vanilla" false signal), and derives the enabled-code set from the deployment's own quality
-   module (e.g. a `test_pylint`/`test_lint` addon) when present. Key env overrides:
-   `VERIFY_BACKEND_BASE` (git diff base ref, default `HEAD`); `VERIFY_BACKEND_GIT_DIR` (run
-   `git diff` in this worktree - set when reviewing a sibling worktree; default cwd). See
-   `docs/reference/odoo-code-quality.md` for the full two-part gate, the complete env override
-   table, the per-version matrix, and the vanilla-vs-`pylint_odoo` trap.
+Odoo ships its own lint test module that runs Odoo's custom AST checkers (`sql_injection`,
+`gettext`, `unlink_override`) plus manifest, eslint, pofile, and `__init__` consistency checks.
+This is **not** the third-party `pylint-odoo` package - it is Odoo's own module and is what Runbot runs.
 
-**Deployment quality module.** Some deployments wrap pylint-odoo in their own test module
-(commonly `test_pylint`). When such a module is on the addons path, **also include its tag** in
-`--test-tags` (e.g. `/test_pylint`) - it is the authoritative enabled-code set.
+| Series | Tag(s) to append to `--test-tags` | Source |
+|---|---|---|
+| v10-v13 | `/test_pylint` | Odoo CE (module renamed to `test_lint` at v13/saas-15 boundary) |
+| v14-v15 | `/test_lint` | Odoo CE only |
+| v16+ | `/test_lint,/test_pylint` | CE `test_lint` + Viindoo `tvtmaaddons` custom `test_pylint` |
 
-> Note: OSM's `lint_check` is a fast V0.5 hybrid matcher (deterministic `[pattern]` on
-> security-rule classes like sql-injection, `[fuzzy]` heuristic elsewhere) - useful for
-> deprecated-API hints and as an early security signal, but it is **not** a substitute for this
-> gate (it does not reproduce the full pylint-odoo enabled-code set). Run `verify-backend.sh` +
-> `/test_lint`, not `lint_check` alone, for pre-push CI parity.
+```bash
+# v14-v15: test_lint only
+odoo-bin -d <DB> -u <module> --test-enable \
+  --test-tags '/<module>,/test_lint' --stop-after-init --log-level=test
+
+# v16+ Viindoo: also add /test_pylint (tvtmaaddons)
+odoo-bin -d <DB> -u <module> --test-enable \
+  --test-tags '/<module>,/test_lint,/test_pylint' --stop-after-init --log-level=test
+```
+
+**Confirm the exact tag and module name for the target version via OSM before running:**
+`set_active_version(<version>)` then `check_module_exists("test_lint", odoo_version='<version>')` and
+`cli_help("server", "--test-tags", odoo_version='<version>')`. The table above is illustrative -
+never assume without checking.
+
+> `test_lint` (Odoo CE) is distinct from the third-party `pylint-odoo` package
+> (`pip install pylint-odoo` / `pylint --load-plugins=pylint_odoo`). They are separate tools with
+> separate checker sets. The authoritative gate is Odoo's own module, not the third-party package.
+>
+> OSM's `lint_check` is a fast V0.5 hybrid matcher - useful for sql-injection hints as an early
+> signal, but it is **not** a substitute for running the lint test module (it does not reproduce
+> the full Odoo AST checker set). See `docs/reference/odoo-code-quality.md` for the JS lint gate.
 
 ## Test classes (Python)
 

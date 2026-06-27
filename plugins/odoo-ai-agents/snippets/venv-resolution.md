@@ -54,8 +54,8 @@ python3 <plugin>/scripts/lib/instances_io.py read <path-to-instances.toml> <seri
 The recommended Python per Odoo series lives in
 `scripts/lib/odoo-python-matrix.json`.
 
-## Note: the lint gate resolves its own toolchain
+## Note: the backend lint gate uses the instance interpreter
 
-`scripts/verify-backend.sh` (the pylint-odoo gate) manages its OWN isolated tools venv per
-series from the matrix - you do not pick an interpreter for it. The chain above is for RUNNING
-Odoo (odoo-bin / tests / migrations), not for linting.
+The backend code-quality gate (`/test_lint` + `/test_pylint` on v16+ Viindoo) runs INSIDE an
+Odoo instance (`odoo-bin --test-enable --test-tags /test_lint,...`). Use the same interpreter
+resolved above for the instance run - you do not need a separate toolchain for linting.

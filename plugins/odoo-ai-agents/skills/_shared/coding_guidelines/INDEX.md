@@ -51,10 +51,11 @@ One file lives at the root of `coding_guidelines/` and is shared across all vers
 
 ## Mechanical gate (safety net, not a substitute)
 
-A subset of these rules that can be checked mechanically is enforced by two pre-push scripts
-against changed files. `scripts/verify-backend.sh` runs `pylint --load-plugins=pylint_odoo`
-over changed `.py` files using a version-matched, isolated toolchain (deprecated decorators,
-`cr.commit()`, ORM misuse, and other pylint-odoo codes). `scripts/verify-frontend.sh` runs a
+A subset of these rules that can be checked mechanically is enforced by two gates against changed
+files. The backend gate is Odoo's own lint test module: append `/test_lint` (and `/test_pylint` on
+v16+ Viindoo profiles) to `--test-tags` in the instance test run - same gate as Runbot (deprecated
+decorators, `cr.commit()`, ORM misuse, sql-injection, translation rules). See
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`. `scripts/verify-frontend.sh` runs a
 three-tier check over changed `.js`/`.xml`/`.scss` files: JS lint/format via repo-pinned
 `eslint -c _eslintrc.json` (Tier 1 - the same oracle Runbot uses), static OWL/SCSS pattern scan
 via `scripts/rules/owl-pitfalls.txt` (Tier 2), and an optional runtime smoke check (Tier 3).

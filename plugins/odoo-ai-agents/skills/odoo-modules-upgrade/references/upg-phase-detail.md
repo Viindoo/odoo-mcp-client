@@ -793,7 +793,7 @@ CONTEXT: cross-major upgrade <src>-><tgt> for cluster <cluster>
 - `odoo-i18n` reconcile (P5.7): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/SKILL.md`
 - Concurrency guard (Mode B): `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
 - Symbol grounding § 2 / § 2.5 (P1d): `${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md`
-- Viindoo upgrade conventions: `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`
+- Odoo upgrade conventions: `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`
 - F0 version-pivot SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`
 - Runbot parity checklist (P5 gate + pre-PR): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`
 - Worker brief format: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
