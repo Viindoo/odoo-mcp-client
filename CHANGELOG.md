@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.30.1] - 2026-06-27
+
+### Added
+
+- Forward-port conventions C1/C2/C3, folded into the existing merge-window SSOT `snippets/fp-merge-absorption.md` (no new snippet) (issue #126). **C1** - a forward-port never invents a `__manifest__.py` `version` bump; on conflict the target file's version wins. **C2** - a forwarded `migrations/<src-series>.a.b.c/` dir is retargeted to the target series (FULL form); the manifest is bumped only when the source version `<=` the target's current manifest (so the migration fires on already-deployed target DBs), grounded in Odoo `adapt_version`/`migration.py` (verified v17+v18); a legacy source-origin-only data fix keeps the source-series dir. **C3** - a bug pre-existing at the source series is carried faithfully forward and surfaced upstream (source-series issue), not inline-fixed; security/safety fixes go on the destination immediately. C1 and C2 are explicitly de-conflated, and a module made `installable` by a prior-series upgrade then forward-ported is re-set to `installable:False` when the target clean-tip was not yet upgraded. Same-series manifest-conflict analogue added to `odoo-git-rebase`. RED-before-green invariants in `tests/test_forward_port_hardening.py`.
+
+### Changed
+
+- `odoo-modules-upgrade` Rule A is now unconditional: a code-level upgrade never bumps the manifest `version`, never writes migration scripts (a genuine data-bearing case routes to `odoo-data-migration`), and restores `auto_install`/`application` only when an explicit `# TODO: Uncomment when upgrading` manifest breadcrumb (left by forward-port) directs - wiring forward-port and upgrade together.
+- The backend code-quality gate is now Odoo's own lint test module - `test_lint` (v14+, renamed from `test_pylint` at v13) plus `test_pylint` on v16+ Viindoo profiles - run via `--test-tags` on an instance, instead of the OCA `pylint-odoo` package. `docs/reference/ODOO-TESTING.md` is the lint SSOT. Note: this requires a running instance (matching what Runbot runs); the previous fast no-DB static gate is removed.
+- Consolidated `snippets/module-rename.md` into `snippets/upg-conventions.md` (net -1 snippet, no new files); its consumers repointed.
+
+### Removed
+
+- OCA support entirely, across skills/agents/snippets/scripts/docs - including `scripts/verify-backend.sh`, `scripts/odoo-pylintrc`, the per-series `lint` pins in `scripts/lib/odoo-python-matrix.json`, the OCA addons-path role in `scripts/lib/discover_odoo.sh`, and the `"OCA style violations"` `lint_check` routing keyword. Upgrade/manifest rules collapse to single Viindoo/Odoo conventions.
+
+### Fixed
+
+- The forward-port manifest version-bump gate no longer fires merely because a diff touches `migrations/` - the root-cause conflation of C1 (no bump) with C2 (migration-dir retarget) is removed from both `snippets/fp-installable-false.md` and `skills/odoo-forward-port/SKILL.md` (issue #126).
+
 ## [3.30.0] - 2026-06-27
 
 ### Added
