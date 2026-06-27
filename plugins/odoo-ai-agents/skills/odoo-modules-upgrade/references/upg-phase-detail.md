@@ -599,10 +599,10 @@ Per-wave green is recorded in `checkpoint.json` (status `installed` per module) 
 that flips `installable: False -> True` is scanned by the target's FULL test suite for the first
 time; from v18 `base.TestInvisibleField` (every always-invisible view field needs an explanatory
 XML comment) and `hr.TestSelfAccessProfile` (custom `hr.employee` fields need
-`groups='hr.group_hr_user'`) run as part of that suite and require demo data. So the gate runs
-demo=on. Demo default is version-keyed - F0 ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md:
+`groups='hr.group_hr_user'`) run in that suite and require demo data. Demo default is
+version-keyed - F0 ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md:
 v8-v18 demo ON by default (`--without-demo` disables); v19 demo OFF by default (`--with-demo`
-enables); `--without-demo=False` is INVALID. The gate stays demo=on regardless of the default
+enables); `--without-demo=False` is INVALID. The gate stays demo=on regardless
 (on v19 the instance must be created `--with-demo`). The P4b review for any flipped module MUST
 additionally cover ACL / `.sudo()` for every create/write/compute override on a widely-used core
 model. Cross-ref ${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md.

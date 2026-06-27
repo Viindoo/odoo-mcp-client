@@ -1,9 +1,8 @@
 # Intake - Phase P: RUN-DAG persistence + drive-to-done (optional, additive)
 
-Load this only when the approved plan is multi-step or the user wants hands-off execution. This
-phase turns an approved plan into a self-advancing run. It is **purely additive**: a single-step
-plan still dispatches exactly as before - Phase P only matters for multi-step work or hands-off
-execution. Full schema + loop: `docs/reference/workflow-harness.md` §8.
+Load this only when the approved plan is multi-step or the user wants hands-off execution. It
+turns an approved plan into a self-advancing run, and is **purely additive**: a single-step plan
+still dispatches exactly as before. Full schema + loop: `docs/reference/workflow-harness.md` §8.
 
 **Autonomy dial** - parse from the user prompt (default `--auto`):
 - `--auto` (default): drive to done; auto-pass L0/L1 nodes; stop only at L2 gates + BLOCKED.

@@ -140,8 +140,7 @@ match routes. Genuinely tiny/mechanical commits fall through and skip design.
 | 5 | (a) already-present / (d) no-longer-relevant | never (no adapt code is written) | NO |
 | 6 | (b) adapt | none of rows 2-4 match - a single-file, single-symbol, signature-preserving rename/move resolved to intent | NO (skip - trivial) |
 
-Threshold rationale (roundable): **> 3 files** and **>= 2 modules** are the same magnitude
-forward-port and solution-design already treat as the small/large boundary; a model-field or
-method-signature change is the "changes public model surface" line; the override-point/full-stack
-rows mirror solution-design § When to invoke verbatim. Row 6 is the explicit "very small scale
-skips design" the reviewer asked for.
+Threshold rationale (roundable): **> 3 files** and **>= 2 modules** are the small/large boundary
+forward-port and solution-design already use; a model-field or method-signature change is the
+"changes public model surface" line; the override-point/full-stack rows mirror solution-design
+§ When to invoke. Row 6 is the explicit "very small scale skips design".

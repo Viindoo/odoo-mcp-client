@@ -7,11 +7,10 @@
 # Deep-Survey Analytical Lenses (worker mandates)
 
 OSM-first on every lens: name OSM tools by PRINCIPLE, pass a **concrete** `odoo_version` on
-every call, and read raw source only when OSM is silent (then label the finding
+every call, read raw source only when OSM is silent (then label the finding
 `grounded: local-source`). Each lens states what to PRODUCE so a later execute agent acts
-without re-deriving. The grounding vocabulary (`osm` / `hybrid` / `local-source`) - `osm` = OSM-grounded,
-`hybrid` = OSM + local source, `local-source` = read from disk because OSM was insufficient -
-is carried on every finding.
+without re-deriving. Grounding vocabulary, carried on every finding: `osm` = OSM-grounded,
+`hybrid` = OSM + local source, `local-source` = read from disk because OSM was insufficient.
 
 ---
 
@@ -19,15 +18,14 @@ is carried on every finding.
 
 ### L1. Module purpose
 
-Call `describe_module` for the unit to capture WHY the module exists in 1-2 lines. This feeds
-hot-spot ranking: a hot-spot in a module whose purpose is unrelated to the intent is downgraded
-before any sonnet time is spent on it.
+Call `describe_module` to capture WHY the module exists in 1-2 lines. Feeds hot-spot ranking:
+a hot-spot in a module whose purpose is unrelated to the intent is downgraded before any sonnet
+time is spent on it.
 
 ### L2. Entry-point map (Odoo-specific, first-class artifact)
 
-Enumerate the surfaces from which execution STARTS - that is where a downstream change is
-triggered and observed, so the consumer needs them named up front, not buried. Odoo entry-point
-classes:
+Enumerate the surfaces from which execution STARTS - where a downstream change is triggered and
+observed, so the consumer needs them named up front. Odoo entry-point classes:
 
 - act_window / server / client actions (`ir.actions.*`)
 - HTTP controllers (`route=`)
@@ -84,8 +82,7 @@ view). Output a **Cross-cutting** subsection.
 
 ### L7. Prior art + existing patterns (anti-reinvention - the reason this lens exists)
 
-Before the downstream agent writes anything, tell it what already solves this so it ADAPTS instead
-of reinventing:
+Before the downstream agent writes anything, tell it what already solves this so it ADAPTS, not reinvents:
 
 - `find_examples` - existing implementations of this pattern in core / Viindoo / custom code.
 - `suggest_pattern` - the recommended approach for this kind of change.
@@ -116,8 +113,7 @@ structure: § Test-protection map below.
 
 Goal: for each hot-spot's external / core symbols, walk the `depends` graph DOWN from the nearest
 owning module to `base`, so the downstream agent knows every layer a change rests on - not just the
-top ring. This is the systematic transitive grounding the bidirectional-impact upstream walk only
-sketches.
+top ring. The systematic transitive grounding the bidirectional-impact upstream walk only sketches.
 
 **PHASED - never swallow the whole tree at once** (respect the Mode B budget):
 

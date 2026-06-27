@@ -256,7 +256,7 @@ req_id,req_text,req_category,priority,classification,module,edition,effort_tier,
 ## 10. cost.json
 
 Project-level cost roll-up. All numbers trace to `cost-config.json` via the formula
-via the formula in `docs/reference/workflow-harness.md`.
+in `docs/reference/workflow-harness.md`.
 
 ```json
 {

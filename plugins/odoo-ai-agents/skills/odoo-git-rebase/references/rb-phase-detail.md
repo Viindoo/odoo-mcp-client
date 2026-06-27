@@ -6,17 +6,17 @@
 
 All paths are under the integration worktree unless noted. `<slug> = <feature-ref>-onto-<new-base>`
 (sanitized). Artifacts live under `.odoo-ai/git-rebase/<slug>/` (gitignored). Every Odoo
-Semantic call passes a concrete `odoo_version=` - never omit it; the version pin is per-API-key
-state that any concurrent agent can overwrite.
+Semantic call passes a concrete `odoo_version=` (never a default; the pin is per-API-key state
+any concurrent agent can overwrite).
 
 ---
 
 ## Principal-checkout-lock (MUST - enforced at P0 and P7)
 
-NEVER checkout, switch, or hard-reset the principal (main) working-tree off its current
-branch. The main checkout must stay on its branch for the entire run. Any branch that needs
-to be present locally (`<new-base>`, the feature branch, or a PR HEAD) is materialized by
-delegating a worktree-add to git-operator - never by switching the principal.
+NEVER checkout, switch, or hard-reset the principal (main) working-tree off its current branch -
+it must stay on its branch for the entire run. Any branch needed locally (`<new-base>`, the
+feature branch, or a PR HEAD) is materialized by delegating a worktree-add to git-operator -
+never by switching the principal.
 
 ---
 
