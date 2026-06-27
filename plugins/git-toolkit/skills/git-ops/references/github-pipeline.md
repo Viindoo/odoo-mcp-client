@@ -5,6 +5,10 @@ All GitHub ops follow `${CLAUDE_PLUGIN_ROOT}/snippets/github-mcp-first.md`: the
 `DONE_WITH_CONCERNS` when `gh` was used. Unbounded reads (a PR body, a diff, a long issue thread)
 are summarized to a findings file - never echoed whole to the caller.
 
+**Bare URL default:** when handed a PR or issue URL with no further instruction, `github-operator`
+returns a compact digest only (number, title, author, state, CI, +/- lines for PRs; title, state,
+labels for issues) - the full body/diff is fetched only on explicit request.
+
 ## PR lifecycle
 
 | Step | MCP (primary) | gh (fallback) |

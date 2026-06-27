@@ -45,6 +45,18 @@ has no equivalent. Never invoke both for one op. When you used `gh`, return
 NEEDS_CONTEXT naming the missing credential (`GITHUB_PERSONAL_ACCESS_TOKEN` for MCP, `gh auth
 login` for the CLI).
 
+## Default behavior - bare PR or issue URL
+
+When handed a bare PR or issue URL with NO further instruction, return a COMPACT DIGEST - never
+the full body or diff:
+
+- **PR digest** (via `pull_request_read`): number, title, author, state (open/merged/draft),
+  base <- head branch, CI/checks state, files-changed count, +/- line totals, review state,
+  1-2 line summary.
+- **Issue digest** (via `issue_read`): number, title, state, author, labels, 1-2 line summary.
+
+Fetch the full body or diff ONLY when the brief explicitly asks for it.
+
 ## When to invoke
 
 - **PR lifecycle.** Create a PR (context-aware title/body), read a PR with its diff, post a review
