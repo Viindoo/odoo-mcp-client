@@ -259,6 +259,7 @@ REQUEST: <the change for this module: target model + constraints; for a frontend
 MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest__.py / static assets).
 NEW MODULE: <yes - ALWAYS scaffold with `odoo-bin scaffold` first; edit only needed keys and KEEP scaffold's commented placeholders; keep its short version default, do NOT rewrite to `<series>.x.y.z` | no>
 ODOO VERSION: <version>
+INSTANCE_HANDLE: <the run's provisioned instance handle from a prior odoo-instance step, when present - db_name/http_port/addons_path/venv/lease_token; omit when the run provisioned none>
 DESIGN_DOC: <child TDD path | none> - per-module spec; if present, build to it; do not re-derive.
 MASTER_DESIGN_DOC: <master TDD path | none> - hard constraints (ownership, dep-direction, §10 contracts); `none` in single mode.
 TEST: <test-author -> "FAILING TEST (RED, written by a separate author): <paths> - implement until they pass; do NOT edit the tests." | self -> "write the failing test FIRST, confirm RED, then code to green - never weaken it">
@@ -268,6 +269,10 @@ Follow the Rounds in your system prompt - it owns every procedure; do not re-der
 GUIDELINES: Round 1 owns this - open `coding_guidelines/<version>/INDEX.md` first, consult the "By task" table, read ONLY the mapped files (not the whole directory).
 ```
 
+- When an `INSTANCE_HANDLE` is present in the brief, the coder MUST use it for confirm-by-toggle
+  and `--test-enable` runs and MUST NOT self-provision a DB / port / addons_path; absent a handle
+  it falls back to its own isolated ephemeral instance (`skills/_shared/concurrency-guard.md`
+  § Odoo instance allocation). Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
 - To run `odoo-bin` (scaffold, or tests via `--test-enable`), resolve the interpreter per
   `snippets/venv-resolution.md` - never assume system `python3`.
 - Frontend leg only: ground styling tokens against `skills/_shared/odoo-frontend-fidelity.md`

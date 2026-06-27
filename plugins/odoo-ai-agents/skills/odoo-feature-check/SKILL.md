@@ -40,9 +40,11 @@ Consultant / Developer
 
 **Primary tools:**
 - `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `describe_module` - Module manifest + defined/extended model counts + view/JS inventory in one call.
 - `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 - `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
+- `profile_inspect` - Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
 - `suggest_pattern` - Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 <!-- END GENERATED TOOLS -->
 
@@ -53,6 +55,8 @@ Coverage levels: (1) **CE native** - free, zero customization; (2) **EE only** -
 Version matters: v12+ feature may not exist in v8/v9 (OpenERP era - different module names, `_columns` dict, etc.). Always resolve the target version.
 
 **Data priority:** MCP results over training knowledge - training data about Odoo module names/versions drifts fast.
+
+**Index coverage is not ground truth.** A module ABSENT from the OSM index is NOT proof the product lacks the feature - profile/index coverage is incomplete for commercial layers. Surface coverage with a `profile_inspect(method='repos', …)` repo check and tag unknowns `[inferred]` rather than asserting absence.
 
 ## Instructions
 
@@ -65,6 +69,8 @@ Version matters: v12+ feature may not exist in v8/v9 (OpenERP era - different mo
 **Round 3 - Deep dive (module confirmed):** `module_inspect(name=<name>, method='summary', odoo_version='<version>')` - manifest summary, models defined/extended, view count, JS patch count. For exact field/view coverage, follow up with `module_inspect(method='fields', …)` or `module_inspect(method='views', …)`.
 
 **Verdict levels:** `Available in CE` (zero cost) / `Available in Odoo EE only` (subscription) / `Partial - standard covers X, custom needed for Y` (specify gap) / `Not available - custom development required` (with effort note). Always cite the exact module name.
+
+**Never infer brand from slug.** A module's technical slug is NOT evidence of its provider/brand/integrated vendor - a vendor-like token in the slug is not proof of that vendor. Take module identity only from OSM `check_module_exists` / `describe_module` / `module_inspect` output (`author`, and `shortdesc` when present). If neither is available, tag the claim `[inferred]` and do NOT assert a provider/brand.
 
 ## Standalone-first fallback
 
@@ -82,9 +88,9 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 **Feature requested:** <feature description>
 **Odoo version:** <version>
 
-| Feature aspect | CE | Odoo EE | Module | Notes |
-|---------------|:--:|:-------:|--------|-------|
-| ...           | ✓/✗ | ✓/✗ | ...  | ...   |
+| Feature aspect | CE | Odoo EE | Module | Source | Notes |
+|---------------|:--:|:-------:|--------|--------|-------|
+| ...           | ✓/✗ | ✓/✗ | ...  | [OSM-index] / [inferred] | ...   |
 
 ### Verdict
 **<Available in CE / Available in EE only / Partial / Not available>**
@@ -104,6 +110,11 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 ### Recommendation
 <1-2 sentences for the client>
 ```
+
+**Provenance rules:**
+- Tag each table row `[OSM-index]` (found in the indexed source) or `[inferred]` (reasoned, not grounded).
+- Downgrade customer-facing wording for any `[inferred]` claim - use "likely / typically / to be confirmed", never "verified / guaranteed".
+- OSM index is a static source index - necessary but NOT sufficient proof a shipped product does X; live verification is out of scope here, so never phrase an `[OSM-index]` hit as "verified available".
 
 ## Examples
 

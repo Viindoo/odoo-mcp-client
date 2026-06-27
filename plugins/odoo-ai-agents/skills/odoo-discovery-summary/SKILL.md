@@ -68,6 +68,8 @@ Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` before asking for a
 
 Categorize every sentence/bullet into slots. Preserve verbatim quotes where the user transcribed the prospect's words.
 
+**Branch on input type:** if the input IS an SSOT source doc (RFP / contract / spec / requirement list) rather than raw notes, switch to SSOT-extraction mode per `${CLAUDE_PLUGIN_ROOT}/snippets/ssot-extraction-contract.md` - extract requirements verbatim, never infer specifics the document does not state.
+
 | Slot | What to look for |
 |---|---|
 | **Industry vertical** | Sector keywords (manufacturing, retail, distribution, F&B, healthcare, education, professional services…) |

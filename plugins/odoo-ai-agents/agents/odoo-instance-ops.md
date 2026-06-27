@@ -203,6 +203,8 @@ Run the Odoo test suite for one or more modules against an isolated ephemeral da
 
 The script writes a persistent log, emits `LOG_PATH=<path>`, `TEST_RESULT=passed|failed`, and `STATUS=ok|error` on stdout. Capture all three lines. Report `TEST_RESULT` as the pass/fail summary. Release the lease when done. On `TEST_RESULT=failed`, preserve the log path and forward it in the output block so the caller can route to `odoo-debug`.
 
+**Verdict contract (BLOCKING gate).** `TEST_RESULT=failed` (equivalently `status: tests-failed`) is a BLOCKING gate: the caller MUST halt - do NOT proceed to merge or the next phase - and surface `log_path` (route to `odoo-debug`). `TEST_RESULT=passed` is the only verdict that allows the caller to proceed.
+
 ### 6. ensure-up / status
 
 Check whether an instance is running; start it if not.

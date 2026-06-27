@@ -85,6 +85,12 @@ status: <created|dropped|up|down|started|tests_passed|tests_failed|BLOCKED|NEEDS
 notes: <short human-readable summary or error>
 ```
 
+This `instance-ops` block IS the canonical `INSTANCE_HANDLE` for the run: the calling orchestrator
+forwards it (`dbname` / `http_port` / `addons_path` / `venv_python` / `lease_token`) as an
+`INSTANCE_HANDLE:` field into every downstream code / test brief, and downstream agents consume it
+instead of self-provisioning a DB / port / addons_path. Contract:
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
+
 If the agent returns `status: NEEDS_CONTEXT`, surface its `blocked_reason` to the caller
 and stop - do not retry without the missing information.
 

@@ -80,6 +80,8 @@ and public-repo safety / abstract customer labels (Hard rule 3).
 
 1. **Parse input:** Accept BRL in any format (CSV, XLSX-exported CSV, JSONL, pasted list, free text).
    Assign stable `req_id` values: `REQ-0001` ... `REQ-N` (zero-padded to 4 digits min; extend if N>9999).
+   If the input is a source requirement document (RFP / spec / list) rather than free-form, apply
+   `${CLAUDE_PLUGIN_ROOT}/snippets/ssot-extraction-contract.md` - extract each requirement faithfully, not inferred.
 
 2. **Write internal state** (before GATE 0):
    - `.odoo-ai/brl/<job-id>/manifest.json` - job metadata (see `reference/schema.md` §manifest)
