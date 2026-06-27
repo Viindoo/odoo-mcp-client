@@ -98,7 +98,7 @@ Write `tests/test_<feature>.py` (or `static/tests/test_<feature>.js` for JS). Ap
 - `@api.depends` paths used in `Form` interactions pass `validate_depends`
 - Field names in `env['<model>'].create({...})` match `model_inspect` output
 
-Run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <test file>` for the pylint-odoo gate. Test method local variables must follow `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md`: Rule A (no `l`/`O`/`i`) applies universally (pylint C0104 blocks the gate); Rules B/C (meaningful names, `for r in self`) apply when the active profile is Viindoo Standard or Internal. When these tests are later executed via `odoo-bin -i <module> --test-enable`, resolve the interpreter (the matching instance's `python` field) per `snippets/venv-resolution.md`, not system `python3`.
+Backend code-quality gate: append `/test_lint` (and `/test_pylint` on v16+ Viindoo profiles) to `--test-tags` when running tests (see `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`). Test method local variables must follow `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md`: Rule A (no `l`/`O`/`i`) applies universally (pylint C0104 blocks the gate); Rules B/C (meaningful names, `for r in self`) apply when the active profile is Viindoo Standard or Internal. When these tests are later executed via `odoo-bin -i <module> --test-enable`, resolve the interpreter (the matching instance's `python` field) per `snippets/venv-resolution.md`, not system `python3`.
 
 If you are working on version 17.0 or later, you MUST add `--skip-auto-install` to the `odoo-bin -i <module> --test-enable` to avoid noise from auto installed modules
 

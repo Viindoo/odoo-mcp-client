@@ -128,13 +128,7 @@ Then invoke skill `odoo-test-writing` with the Skill tool (Read-fallback per the
 
 Any `BROKEN`/`ERROR`/`MISMATCH` is a blocker - fix before presenting.
 
-**Static gate (pylint-odoo) - the backend parity check.** After writing, run:
-
-```
-${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <changed .py files>
-```
-
-It loads `pylint_odoo` (avoiding the W0012 vanilla-trap) and covers what the ORM gate misses (`sql-injection`, `consider-merging-classes-inherited`, `print-used`, translation rules, …). A BLOCK (exit 1) is a real CI failure - fix it before presenting. If the toolchain is absent it soft-degrades (warn, exit 0) - note the degradation rather than treating it as a pass. See `docs/reference/ODOO-TESTING.md` and `docs/reference/odoo-code-quality.md`.
+**Backend code-quality gate.** After writing, reproduce the backend lint CI by running Odoo's own lint test module: append `/test_lint` to `--test-tags` on the `-u <module> --test-enable` instance run (v14+; renamed from `test_pylint` at v13). On v16+ Viindoo profiles also include `/test_pylint`. This is the same gate Runbot runs - covers `sql-injection`, `consider-merging-classes-inherited`, `print-used`, translation rules, and more that the ORM gate misses. A failure is a real CI failure - fix it before presenting. Requires a running instance + DB; if unavailable, note that explicitly rather than treating it as a pass. See `docs/reference/ODOO-TESTING.md`.
 
 ## Era detection
 
@@ -223,7 +217,7 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
       the provable lie (`grounded: osm` with zero OSM calls); skipping the ORM validators while OSM
       was reachable is surfaced as a NON-BLOCKING note. This item is on YOU - do not skip the
       validators assuming the hook will stop you; it will not.
-- [ ] Backend static gate (`verify-backend.sh`) ran - BLOCK fixed, or soft-degrade noted
+- [ ] Backend code-quality gate (`/test_lint` + `/test_pylint` on v16+ Viindoo) passed, or instance/DB not available (note this explicitly - not a pass)
 - [ ] **MANDATORY READ GATE** - LIST the exact guideline files + sections read for each file type written (e.g. "xml.md §List Views; python.md §Model Attribute Order; odoo-version-pivots.md §check_access (v18)"); an unchecked or empty item = INCOMPLETE, do not present output until filled
 - [ ] No hasattr/getattr-default/try-except-AttributeError presence guard - presence resolved via
       dep closure (direct access), `'field' in record._fields` + documented soft-dep, or amended `depends`

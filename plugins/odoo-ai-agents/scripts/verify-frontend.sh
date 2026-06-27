@@ -527,10 +527,9 @@ fi
 # ===========================================================================
 # Runs ONLY when the consumer declares `brand_tokens_source` in .odoo-ai/context.md
 # (a JSON map of token -> color, e.g. {"--primary": "#1E88E5", ...}). The plugin
-# ships NO brand of its own - the map is discovered from the consumer environment,
-# mirroring how verify-backend.sh derives ENABLED_CODES from the deployment's
-# quality module. No browser here: this is the STATIC half (hardcoded-hex vs brand
-# palette). The RUNTIME half (getComputedStyle :root ΔE-diff) is the ui-reviewer's
+# ships NO brand of its own - the map is discovered from the consumer environment.
+# No browser here: this is the STATIC half (hardcoded-hex vs brand palette).
+# The RUNTIME half (getComputedStyle :root ΔE-diff) is the ui-reviewer's
 # Step 4b. Both share scripts/lib/color_delta.py. WARN-only (never blocks).
 echo
 echo "--- Tier 4: Brand fidelity (optional) ---"

@@ -373,7 +373,7 @@ def test_security_docs_use_ascii_hyphen_only(ver):
 def test_no_dangling_verify_guidelines_script():
     """'verify-guidelines.sh' was a dangling reference to a non-existent script.
     It must not appear in INDEX.md or read-before-write-contract.md after being
-    replaced by the real verify-backend.sh / verify-frontend.sh."""
+    replaced by the real verify-frontend.sh."""
     dangling = "verify-guidelines.sh"
     index_md = _read(CODING_GUIDELINES / "INDEX.md")
     assert dangling not in index_md, (

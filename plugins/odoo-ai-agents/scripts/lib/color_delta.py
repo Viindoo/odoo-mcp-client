@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """color_delta.py - perceptual color distance (CIEDE2000) for brand-fidelity checks.
 
-Brand-agnostic helper used by verify-backend/verify-frontend's optional brand block:
+Brand-agnostic helper used by verify-frontend's optional brand block:
 given an EXPECTED brand token value (declared by the consumer) and the ACTUAL value
 rendered by the running instance (read via getComputedStyle), compute the perceptual
 deltaE so SCSS shorthand / rgb() / hex variations don't trip a naive string compare.

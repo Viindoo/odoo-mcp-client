@@ -1014,9 +1014,7 @@ class TestOcaAbsence:
         PLUGIN / "skills" / "odoo-support-triage" / "evals" / "evals.json",
         PLUGIN / "skills" / "odoo-feature-check" / "SKILL.md",
         PLUGIN / "skills" / "odoo-objection-handling" / "SKILL.md",
-        PLUGIN / "scripts" / "verify-backend.sh",
         PLUGIN / "scripts" / "lib" / "odoo-python-matrix.json",
-        REPO_ROOT / "tests" / "test_verify_backend_gate.py",
     ]
 
     def test_oca_word_absent_from_rewritten_files(self):

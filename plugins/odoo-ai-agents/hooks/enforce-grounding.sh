@@ -87,7 +87,7 @@ fi
 
 # --- Invariant 2 (NON-BLOCKING note): backend code written, OSM reachable, validators skipped
 if [[ "$PY_WRITES" -gt 0 && "$OSM_CALLS" -gt 0 && "$VALIDATOR_CALLS" -eq 0 && "$CLAIMS_LOCAL" -eq 0 ]]; then
-    jq -cn --arg m "Quality-gate note: backend Python was written and OSM was reachable, but no ORM validators (validate_depends/validate_domain/resolve_orm_chain/validate_relation) ran in this subagent. Per agents/odoo-coder.md Round 4, run the ORM gate + scripts/verify-backend.sh before presenting, or label standalone-mode explicitly.${GUIDELINES_NOTE}" \
+    jq -cn --arg m "Quality-gate note: backend Python was written and OSM was reachable, but no ORM validators (validate_depends/validate_domain/resolve_orm_chain/validate_relation) ran in this subagent. Per agents/odoo-coder.md Round 4, run the ORM gate + the /test_lint backend lint gate before presenting, or label standalone-mode explicitly.${GUIDELINES_NOTE}" \
         '{continue:true, systemMessage:$m}'
     exit 0
 fi
@@ -99,9 +99,9 @@ fi
 # happened upstream), and many .py writes legitimately need no OSM (util/migration/test/
 # __init__/__manifest__/data, or OSM simply unreachable). Blocking those would false-block real
 # work and pressure the agent into emitting an unverifiable `grounded: local-source`. So: nudge,
-# don't gate - the hard quality gate is verify-backend.sh/CI (behavior), not OSM-call-count.
+# don't gate - the hard quality gate is /test_lint/CI (behavior), not OSM-call-count.
 if [[ "$PY_WRITES" -gt 0 && "$OSM_CALLS" -eq 0 && "$CLAIMS_OSM" -eq 0 && "$CLAIMS_LOCAL" -eq 0 ]]; then
-    jq -cn --arg m "Grounding note: this subagent wrote backend Python (.py) but made ZERO mcp__odoo-semantic__* calls and emitted no grounding label. If the file touches ORM (models/fields/@api.depends/domain=/related=), ground it before presenting - set_active_version + model_inspect/entity_lookup to verify, then the Round-4 ORM validators + scripts/verify-backend.sh - or, if OSM is unreachable, ground against disk and label \`grounded: local-source (not OSM-indexed)\`. If the file is pure-Python with no ORM (util/migration/test/__init__/__manifest__/data), say so, so the grounding gate is satisfied. Don't leave Odoo backend code silently ungrounded.${GUIDELINES_NOTE}" \
+    jq -cn --arg m "Grounding note: this subagent wrote backend Python (.py) but made ZERO mcp__odoo-semantic__* calls and emitted no grounding label. If the file touches ORM (models/fields/@api.depends/domain=/related=), ground it before presenting - set_active_version + model_inspect/entity_lookup to verify, then the Round-4 ORM validators + the /test_lint backend lint gate - or, if OSM is unreachable, ground against disk and label \`grounded: local-source (not OSM-indexed)\`. If the file is pure-Python with no ORM (util/migration/test/__init__/__manifest__/data), say so, so the grounding gate is satisfied. Don't leave Odoo backend code silently ungrounded.${GUIDELINES_NOTE}" \
         '{continue:true, systemMessage:$m}'
     exit 0
 fi

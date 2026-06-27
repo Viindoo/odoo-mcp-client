@@ -77,7 +77,7 @@ SSOT: `[[fp-merge-absorption]]`.
 
 **Styling / design-system (SCSS / theme).** Hardcoded color instead of a runtime design token (breaks theming/dark mode - name the token via `find_style_override(selector_or_variable=<token/selector>, odoo_version='<version>')` / `resolve_stylesheet(module=<module>, odoo_version='<version>')`); self-referential custom property (a cycle resolving to empty - backfill against a token the version actually emits); Sass function inside `calc()` without `#{}` interpolation (LibSass drops the property). Flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`; route the fix to `odoo-coding`.
 
-When a finding touches JS/OWL/SCSS, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <files>` and cite its output as evidence - for the Tier-1 JS eslint path cite the eslint output lines plus the `RESULT:` summary line (PASS/FAIL/CANNOT-VERIFY); for Tier-2 OWL/SCSS paths cite the per-file `[BLOCK]`/`[WARN]` markers. If `verify-frontend.sh` returns `RESULT: CANNOT-VERIFY` (exit 2), the JS lint gate did NOT run - the JS lint slot MUST read `CANNOT-VERIFY` and the verdict MUST NOT claim a clean JS pass; an unrun gate is not a green gate. Only exit 0 with `RESULT: PASS` counts as a clean JS pass. When it touches backend `.py`, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-backend.sh <files>` and cite it - this reproduces the `pylint-odoo` CI code-quality gate (sql-injection, consider-merging-classes-inherited, translation rules, ...) that OSM `lint_check` (a V0.5 hybrid matcher) only partially covers; a BLOCK is a CRITICAL/HIGH finding. If it soft-degrades (toolchain absent), say so rather than reporting a clean Python pass. See `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md`.
+When a finding touches JS/OWL/SCSS, run `${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <files>` and cite its output as evidence - for the Tier-1 JS eslint path cite the eslint output lines plus the `RESULT:` summary line (PASS/FAIL/CANNOT-VERIFY); for Tier-2 OWL/SCSS paths cite the per-file `[BLOCK]`/`[WARN]` markers. If `verify-frontend.sh` returns `RESULT: CANNOT-VERIFY` (exit 2), the JS lint gate did NOT run - the JS lint slot MUST read `CANNOT-VERIFY` and the verdict MUST NOT claim a clean JS pass; an unrun gate is not a green gate. Only exit 0 with `RESULT: PASS` counts as a clean JS pass. When it touches backend `.py`, reproduce the code-quality CI gate by running Odoo's own lint test module: append `/test_lint` (and `/test_pylint` on v16+ Viindoo profiles) to `--test-tags` in the instance test run and cite the output - this is the authoritative gate (sql-injection, consider-merging-classes-inherited, translation rules, and more) that OSM `lint_check` (a V0.5 hybrid matcher) only partially covers; a failure is a CRITICAL/HIGH finding. If a running instance + DB is not available, say so rather than reporting a clean Python pass. See `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 
 ## Review workflow
 
@@ -121,7 +121,7 @@ When the change touches business structure (model, stored field, security rule, 
 
 ### Step 4 - Compile and present
 
-Merge findings from Steps 0.6-3.5. Deduplicate (prefer MCP-verified over Step-1 heuristic). Assign severity per the table below. Present in the standard output format. Record the verify-backend.sh outcome in the `### Lint gate` slot. If it soft-degraded (toolchain absent -> exit 0 + WARN), the slot MUST read SKIPPED and the verdict MUST NOT claim a clean Python pass - an unrun gate is not a green gate. Record the verify-frontend.sh outcome in the `### JS lint gate` slot. If it returned `RESULT: CANNOT-VERIFY` (exit 2), the slot MUST read CANNOT-VERIFY and the verdict MUST NOT claim a clean JS pass.
+Merge findings from Steps 0.6-3.5. Deduplicate (prefer MCP-verified over Step-1 heuristic). Assign severity per the table below. Present in the standard output format. Record the `/test_lint` backend lint gate outcome in the `### Lint gate` slot. If the gate was not run (instance/DB not available), the slot MUST read SKIPPED and the verdict MUST NOT claim a clean Python pass - an unrun gate is not a green gate. Record the verify-frontend.sh outcome in the `### JS lint gate` slot. If it returned `RESULT: CANNOT-VERIFY` (exit 2), the slot MUST read CANNOT-VERIFY and the verdict MUST NOT claim a clean JS pass.
 
 **Verdict + Score (mandatory, deterministic - append after the Issues table):**
 
@@ -177,11 +177,11 @@ Design: `.odoo-ai/designs/<slug>-<date>.md` - Intent: <one line from §1>
 Intent/Purpose: <met | code diverges because ...>.
 Verdict: <conforms | N unmet criteria -> HIGH (CRITICAL if a safety/isolation criterion)>.
 
-### Lint gate (pylint-odoo)
-<One line: PASS (clean) | FAILED (N findings - listed above) | SKIPPED (toolchain absent -
-verify-backend.sh degraded to warn-only). On SKIPPED, state explicitly: "Python lint NOT verified -
-do NOT read this review as a clean Python pass; provision the pinned toolchain to enable the gate."
-Cite the script's own line (e.g. "[WARN] pylint + pylint_odoo not available").>
+### Lint gate (/test_lint)
+<One line: PASS (clean) | FAILED (N findings - listed above) | SKIPPED (instance/DB not available).
+On SKIPPED, state explicitly: "Backend lint NOT verified - do NOT read this review as a clean
+Python pass; a running Odoo instance + DB is required to run /test_lint (and /test_pylint on v16+
+Viindoo profiles)." Cite the test runner output lines as evidence.>
 
 ### JS lint gate (eslint via verify-frontend.sh)
 <One line: PASS (clean) | PASS (with N warning(s)) | FAIL (N blocking issue(s) - listed above) |

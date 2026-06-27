@@ -208,8 +208,8 @@ Sections A-F enforce fidelity to **Odoo's own design system** (the `--primary` /
 runtime tokens). Brand fidelity - "does this match *our* brand?" - is a **separate, optional**
 layer, and it is deliberately **not** baked into this plugin: the plugin serves many brands, so
 it ships a **mechanism, never a brand**. The consumer declares their brand; the skills discover
-and assert against it. This mirrors how `verify-backend.sh` derives lint ENABLED_CODES from the
-deployment's own quality module - **single source of truth lives in the consumer environment,
+and assert against it. This mirrors how the backend lint gate (`/test_lint`) reads lint rules from
+the deployment's own quality module - **single source of truth lives in the consumer environment,
 not vendored here.**
 
 **Declaration (consumer side).** A project opts in by setting `brand_tokens_source` in

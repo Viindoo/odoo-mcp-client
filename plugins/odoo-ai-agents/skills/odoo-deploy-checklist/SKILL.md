@@ -66,7 +66,7 @@ Domain purposes (for autofill logic):
 - **3 Data migration** - scripts present, correct, and tested at scale.
 - **4 Downtime** - business continuity planned and communicated.
 - **5 Deploy mechanics** - deploy is deterministic and repeatable. CLI flags grounded for TARGET version via OSM `cli_help` (`set_active_version` first); install/upgrade/reinstall classified per `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md`; tests per `ODOO-TESTING.md`. Never reuse one version's command line for another.
-- **6 Smoke tests** - system functional after deploy. Code-quality CI gate reproduced locally (pre-push parity): `/test_lint` included in `--test-tags` run AND `scripts/verify-backend.sh` clean on changed Python - per `docs/reference/ODOO-TESTING.md`.
+- **6 Smoke tests** - system functional after deploy. Code-quality CI gate reproduced: `/test_lint` (and `/test_pylint` on v16+ Viindoo profiles) included in `--test-tags` run - per `docs/reference/ODOO-TESTING.md`.
 - **7 Monitoring** - observability ready before production traffic.
 - **8 Rollback** - can undo the deploy quickly.
 

@@ -33,8 +33,8 @@ to find which dependent-module tests reach it.
 full gate list + reproduction steps; mark each "verify against live test class":
 - `base.TestInvisibleField` - v18+ always-invisible view fields need an explanatory XML comment.
 - `hr.TestSelfAccessProfile` - custom `hr.employee` fields need `groups=`.
-- `test_pylint` (flake8 + pylint-odoo) - static analysis gate.
-- `test_lint` - static lint gate.
+- `test_lint` - Odoo CE static lint gate (v14+); the authoritative backend code-quality CI gate.
+- `test_pylint` (flake8 + extended static analysis) - Viindoo tvtmaaddons only (v16+); run alongside `test_lint` on v16+ Viindoo profiles.
 
 ## MUST-NOT-BREAK
 

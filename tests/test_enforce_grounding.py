@@ -12,7 +12,7 @@ The contract under test:
 - NOTE (non-blocking) the SILENT-SKIPPER: backend .py written with zero OSM calls and no
   grounding label. (Deliberately a note, not a block - a block there only manufactures
   unverifiable `grounded: local-source` labels and false-blocks legit pure-python/standalone
-  work. The hard quality gate is verify-backend.sh/CI, not OSM-call-count.)
+  work. The hard quality gate is Odoo's test_lint/test_pylint CI module, not OSM-call-count.)
 - PASS (stay out of the way): non-Odoo subagents (self-gate), honest local-source label,
   properly grounded work, and any loop re-entry (stop_hook_active).
 

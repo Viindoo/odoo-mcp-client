@@ -30,25 +30,24 @@ stray bugbear or a different `--max-line-length` value.
 
 ---
 
-## Gate 2 - pylint-odoo (version-keyed)
+## Gate 2 - Odoo lint test module (/test_lint + /test_pylint v16+)
 
-`pylint_odoo` version is **pinned per series** - check `scripts/lib/odoo-python-matrix.json` for
-the exact pin before installing. Running with the wrong version produces false positives or missed
-errors vs. Runbot.
+Reproduce the backend code-quality CI by running Odoo's own lint test module. Append `/test_lint`
+to `--test-tags` on a `-u <module> --test-enable` instance run (v14+; renamed from `test_pylint`
+at v13). On v16+ Viindoo profiles also include `/test_pylint` (tvtmaaddons). Requires a running
+instance + DB.
 
 ```bash
-# Install the series-specific pin (version from odoo-python-matrix.json)
-pip install pylint-odoo==<pinned-version>
+# v14-v15 CE (and v16+ CE without Viindoo tvtmaaddons):
+odoo-bin -d <DB> -u <module> --test-enable \
+    --test-tags '/<module>,/test_lint' --stop-after-init
 
-# Run pylint-odoo on installable modules
-python -m pylint --load-plugins=pylint_odoo \
-       --rcfile=<addons-root>/.pylintrc \
-       <module_dirs...>
+# v16+ Viindoo (tvtmaaddons installed):
+odoo-bin -d <DB> -u <module> --test-enable \
+    --test-tags '/<module>,/test_lint,/test_pylint' --stop-after-init
 ```
 
-Note: `pylint_odoo` 9.x emits ephemeral rule IDs. If you see `duplicate-msg-id` warnings for
-`odoo-checker-sql-injection`, drop `_odoo_checker_sql_injection` from the plugin list (it was
-merged into the main distribution in a point release).
+See `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` for the authoritative gate reference.
 
 ---
 
@@ -153,7 +152,8 @@ Viindoo-specific gates (hr.employee groups, always-invisible comment).
 | Gate | v8-v12 | v13-v14 | v15-v16 | v17 | v18+ |
 |---|---|---|---|---|---|
 | flake8 (no bugbear) | yes | yes | yes | yes | yes |
-| pylint-odoo | no (v12+) | yes | yes | yes | yes |
+| /test_lint (Odoo CE) | yes (v14+) | yes | yes | yes | yes |
+| /test_pylint (tvtmaaddons) | no | no | v16+ | yes | yes |
 | description RST | yes (v12+) | yes | yes | yes | yes |
 | images PIL | yes | yes | yes | yes | yes |
 | .po `#. module:` | yes | yes | yes | yes | yes |
