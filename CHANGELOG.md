@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.30.0] - 2026-06-27
+
+### Added
+
+- `git-toolkit` delegation: all git/GitHub operations in `odoo-ai-agents` now delegate to `git-toolkit` agents (`git-surveyor`, `git-operator`, `github-operator`, `git-pipeline-lead`) instead of running inline. New caller SSOT `plugins/odoo-ai-agents/snippets/git-delegation.md` documents the boundary and carve-outs; `git-toolkit` declared as an `odoo-ai-agents` dependency in `plugin.json`; boundary enforced by the new `tests/test_git_delegation_boundary.py`.
+
+### Changed
+
+- The four heavy pipelines (`odoo-git-rebase`, `odoo-forward-port`, `odoo-modules-upgrade`, `wave`), `odoo-code-review`, and the read-only leaf agents (`odoo-diff-comparator`, `odoo-intent-extractor`, `odoo-installable-prober`, `odoo-review-scoper`) no longer execute git or `gh` CLI calls inline; they cold-spawn the appropriate `git-toolkit` agent. Bounded reads (e.g. `git log`, `git diff`) and a subagent's own-worktree `git add`/`commit`/`stash` are explicitly permitted to stay inline.
+- `git-toolkit` safety contract gains S9 (worktree-always / principal-checkout-lock, mandatory for all delegated ops); `git-operator` now emits a `BLOCKED-CONFLICT` status with `conflicted_files` and `stopped_commit` fields to support the stateless conflict-resume loop at the orchestrator level.
+- Hardcoded fork and upstream identifiers removed from `odoo-git-rebase`, `odoo-forward-port`, and `odoo-modules-upgrade` agent prose; these are now resolved at runtime via `git remote get-url origin`.
+
 ## [3.29.0] - 2026-06-26
 
 ### Added

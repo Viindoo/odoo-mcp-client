@@ -126,6 +126,11 @@ aggregation point, not only at the end.
 
 ## Tier-A workers in a git worktree - cd on resume
 
-If a Tier-A worker runs in an assigned git worktree, the shell cwd is NOT guaranteed to be restored
-across resume. On resume, immediately `cd` to the assigned worktree path before any Bash command. Put
-this instruction in the worker's brief so it holds whether or not the runtime restores cwd.
+Worktree lifecycle (creation, removal, topology changes) is owned exclusively by **git-operator**
+(S9 invariant - SSOT in git-toolkit `snippets/git-safety-contract.md`). Tier-A workers do NOT
+create or tear down their own worktree - they receive a pre-created worktree path from the
+orchestrator, which delegates any worktree mutation to git-operator before dispatching the worker.
+
+However, the shell cwd is NOT guaranteed to be restored across a Tier-A resume. On resume,
+immediately `cd` to the assigned worktree path before any Bash command. Put this instruction in
+the worker's brief so it holds whether or not the runtime restores cwd.

@@ -6,13 +6,20 @@
 # Worker Brief (OSM grounding + worktree isolation)
 
 A subagent dispatched into an isolated worktree carries this brief. It keeps two rails:
-the work is done directly by the specialist, and every git mutation stays out of the
-worker's hands.
+the work is done directly by the specialist, and integration / history-rewrite git ops
+stay out of the worker's hands (own-worktree add/commit/stash are allowed - see below).
 
 - **You ARE the specialist - do the work directly.** Write or review the Python, XML, JS,
   OWL, or SCSS yourself, grounding every Odoo claim with the OSM MCP tools
   (`set_active_version`, `model_inspect`, `find_examples`, `validate_*`, `resolve_stylesheet`,
   …). An MCP tool call is never a subagent spawn, so it is always allowed. Follow the same
   conventions the `odoo-coder` / `odoo-frontend-coder` / `odoo-code-reviewer` agents use.
-- Stay inside your assigned scope: only `Read/Grep/Glob/Edit/Write/Bash`. Do NOT
-  `git branch/checkout/cherry-pick/merge/push`; remain in your assigned worktree.
+- **Git in your worktree - narrow allowance.** You may run `git add` and `git commit`
+  to stage and commit your OWN work in your assigned worktree, then return the commit SHA
+  to the orchestrator. You may also `git stash` if you need to park in-progress work.
+  Do NOT run integration or history-rewrite ops - `branch`, `checkout`, `switch`,
+  `cherry-pick`, `merge`, `rebase`, `reset`, `tag`, `push`, `force-push`, `fetch`,
+  `pull`, or `worktree add/remove`. You have no Agent tool and cannot delegate to
+  git-toolkit; if you need one of these, return BLOCKED with the reason so the
+  orchestrator can delegate. Full policy:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Stay in your assigned worktree.

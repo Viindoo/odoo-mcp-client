@@ -4,7 +4,7 @@
 
 # Forward-Port Symbol Survival Check (P6)
 
-**When to run:** after `git merge --no-commit` (P5), before any adapt work (P8).
+**When to run:** after git-operator has opened the no-commit merge window (P5), before any adapt work (P8).
 **Why this phase exists:** git auto-merge silently carries source-side lines that reference
 a symbol (field, method, model, view-id, external-id) that was REMOVED or RENAMED in the
 target version - no conflict marker appears because the target branch never touched that line.
@@ -23,14 +23,16 @@ Check BOTH categories - do NOT limit to files with conflict markers:
    merged but with no conflict marker in the result. To enumerate:
 
 ```bash
-# compute merge-base first (use the result as <merge-base> below):
-# Same-repo (both refs on origin): MB=$(git merge-base <target-branch> <source-ref>)
-# Cross-repo: git remote add source <source-repo-clone-url>  # then fetch
+# compute merge-base first (allowed bounded reads):
+# Same-repo: MB=$(git merge-base <target-branch> <source-ref>)
+# Cross-repo: ask git-operator to add the source remote first, then:
 #             MB=$(git merge-base <target-branch> source/<branch>)
-
-# commits being merged (adjust range to your actual source..target range)
-git log --name-only --format="" ${MB}..<source-ref> | sort -u | grep -v '^$'
 ```
+
+Delegate to **git-surveyor** the enumeration of source-touched files:
+`op: list files changed by commits in ${MB}..<source-ref>` (scoped log with name-only output).
+The surveyor writes the sorted unique file list to a findings file and returns the path.
+Use that list as the scope for categories 1 and 2 below.
 
 Cross-reference that list against the clean working tree files. Category 2 is where
 autosilent breaks hide - a line was never touched on the target side, so merge has no
@@ -228,8 +230,9 @@ NOT to appear there). The merge has no conflict because only one side touched th
 **Enumerate** every manifest in the merge delta and check the flag on each side:
 
 ```bash
-git diff <merge-base>..<source-ref> -- '*/__manifest__.py' | grep -nE "installable"
-# then read the TARGET end-state flag per manifest to detect the flip:
+# Get changed manifests (bounded read - allowed):
+git diff --name-only <merge-base>..<source-ref> -- '*/__manifest__.py'
+# then read the TARGET end-state installable flag per found manifest:
 grep -nE "installable" <target-tree>/<module>/__manifest__.py
 ```
 
@@ -250,7 +253,7 @@ test SETUP/helper builders (`_create_invoice`, factory helpers) and production c
 since a helper's broken key crashes every test that calls it.
 
 **Enumerate** every create/write dict across ALL merged-touched .py files (the same list
-produced by `git log --name-only ... | grep '\.py$'` in Section 1 Lane 1) - production
+produced by git-surveyor in Section 1) - production
 AND tests/ helpers included:
 
 ```bash
@@ -316,7 +319,7 @@ SYMBOL-BROKEN | kind=file-path | <path> deleted at target | <file>:<line>
 SYMBOL-BROKEN | kind=import | <from ... import X> target symbol gone | <file>:<line>
                | bucket: <b|c|d> | evidence: pyflakes F821 + module_inspect(...)
 SYMBOL-BROKEN | kind=installable-flag | <module> installable <old> -> <new> at end-state
-               | <manifest>:<line> | bucket: record | evidence: git diff + target manifest flag
+               | <manifest>:<line> | bucket: record | evidence: git-surveyor diff output + target manifest flag
 SYMBOL-BROKEN | kind=orm-field-key | <key> on <model>.create/write absent-or-retyped at target
                | <file>:<line> | bucket: <b|c|d> | evidence: entity_lookup field-type / NOT FOUND
 ```

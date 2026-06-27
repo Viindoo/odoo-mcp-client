@@ -171,7 +171,7 @@ deliverable is a PLAYABLE RECORDING (mp4/GIF) -> `odoo-demo-recording`.
 commits to replay and a few conflicts to resolve."
 
 - `odoo-git-rebase`: handles "rebase branch onto another branch SAME series" -> whole-range
-  `git rebase --onto <newbase> <upstream> <branch>` that replays a commit range and resolves
+  a rebase that replays the <upstream>..<branch> range onto <newbase> and resolves
   conflicts in-flight; SAME Odoo major throughout.
 - `odoo-forward-port`: handles "port a commit/PR to a HIGHER major version" -> single-commit
   cherry-pick + adapt across a version boundary (e.g. 16.0 -> 17.0).

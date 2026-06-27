@@ -70,9 +70,12 @@ Run phases in order; each phase dispatches the worker + model from the per-phase
   `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`) - present the plan, STOP, wait. The
   human-confirm gate is YOURS, never a leaf's.
 - **P4 EXECUTE - git-operator @ sonnet (opus for complex rewrite), per cluster.** Hand each
-  operator one cluster + the approved plan slice, worktree-isolated when parallel. Each operator
-  backs up, applies, and per-batch verifies under the safety contract. Pass `model: sonnet` (or
-  `model: opus` for a complex rewrite cluster) in the Agent-tool call - do not rely on inherit.
+  operator one cluster + the approved plan slice. Each brief MUST include a dedicated worktree path
+  per the S9 invariant (Worktree-always / principal-checkout-lock) in
+  `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md` - never ask the operator to mutate the
+  primary checkout in-place. Each operator backs up, applies, and per-batch verifies under the
+  safety contract. Pass `model: sonnet` (or `model: opus` for a complex rewrite cluster) in the
+  Agent-tool call - do not rely on inherit.
 - **P5 VERIFY - git-surveyor @ sonnet.** Prove no loss across the whole change: tree-identity
   (`git diff backup/..HEAD` empty), `git range-diff` per-commit survival, tree-SHA match. FAIL ->
   do not report DONE; restore from backup and escalate. Pass `model: sonnet` in the Agent-tool

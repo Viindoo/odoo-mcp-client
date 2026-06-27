@@ -846,7 +846,7 @@ skill, not a `team_pattern` inside the declarative workflow system.
 
 | Axis | workflow-chaining (dispatched-specialist) | wave skill (orchestrating context) |
 |------|------------------------------------------|-------------------------------------|
-| Git authority | None - runner does NL-dispatch only; no git ops | Full git authority: worktree add, cherry-pick, PR creation, squash, force-with-lease |
+| Git authority | None - runner does NL-dispatch only; no git ops | Delegates all git/github to git-toolkit: git-operator (worktree/cherry-pick/squash/force-with-lease), github-operator (PR), git-surveyor (review diff) |
 | odoo-code-review legality | Cannot call odoo-code-review (self-spawn only legal from the orchestrating context) | Calls odoo-code-review inline from main context - the only legal call site |
 | State machine | Declarative phases in `.workflow.yaml`; runner executes them | Imperative phases (0-6) encoded in the skill body; git refs/worktrees ARE the state |
 | Coupling | Coupled to workflow schema; adding GitWave would require new `team_pattern: GitWave` + new runner branch + new yaml keys | Self-contained; no schema changes to existing runner or yaml format |
@@ -861,11 +861,11 @@ without updating this section.
 | Phase | Action | Actor |
 |-------|--------|-------|
 | 0 - Discovery + plan gate | Read repo capability, draft WI ownership map, emit plan gate | wave (orchestrating context) |
-| 1 - Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration | wave (orchestrating context) |
+| 1 - Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration | git-operator via wave (orchestrating context) |
 | 2 - Dispatch WI subagents | Parallel Sonnet subagents; each carries Phase-4 brief + worker-brief line | WI workers (leaf-workers) |
-| 3 - Cherry-pick + resolver | Cherry-pick A → B → C onto integration; Sonnet resolver if conflict | wave (orchestrating context) |
+| 3 - Cherry-pick + resolver | Cherry-pick A → B → C onto integration; Sonnet resolver if conflict | git-operator via wave (orchestrating context) |
 | 4 - End-of-wave review | Inline Opus review (4.1) for plan-adherence + correctness, then `odoo-code-review` invoked inline from main context (4.2) | wave (orchestrating context) |
-| 5 - PR + squash + tree-identity | Create 1 PR (integration → principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup | wave (orchestrating context) |
+| 5 - PR + squash + tree-identity | Create 1 PR (integration → principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup | github-operator (PR) + git-operator (squash/verify) via wave (orchestrating context) |
 | 6 - Human-confirm merge + cleanup | STOP and wait for explicit user approval before merge; remove worktrees/branches/wave dir after | human + wave (orchestrating context) |
 
 ### 7.4 WI-brief for WI subagents (leaf-workers)

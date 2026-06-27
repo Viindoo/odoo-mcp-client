@@ -132,6 +132,10 @@ def test_skills_depends_on_mcp(skills_manifest):
         f"odoo-ai-agents must depend on 'odoo-semantic-mcp'; "
         f"found dependencies={deps}"
     )
+    assert "git-toolkit" in deps, (
+        f"odoo-ai-agents must depend on 'git-toolkit'; "
+        f"found dependencies={deps}"
+    )
 
 
 # ---------------------------------------------------------------------------

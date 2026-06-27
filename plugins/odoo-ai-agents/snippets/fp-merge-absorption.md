@@ -9,28 +9,31 @@
 
 **Continuous forward-port** (recurring, source repo keeps evolving):
 
-```bash
-git merge --no-ff --no-commit <src-SHA>
-# ... agents resolve conflicts, platform-adapt code, adjust tests ...
-git commit -m "fp: absorb <src-SHA> - <one-line summary>"
-```
+Delegate to **git-operator** (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
+- `op: merge --no-ff --no-commit <src-SHA>` (request worktree isolation)
+
+On return from git-operator, the working tree is the absorption zone. All adapt work
+(steps 1-4 in "Absorption window" below) happens there. When adapt is complete, delegate
+to **git-operator** again:
+- `op: commit`, `message: "fp: absorb <src-SHA> - <one-line summary>"`
 
 `--no-ff` forces a true merge commit so the source SHA enters the DAG of the target branch.
-The merge-base advances to `<src-SHA>` after the commit. Next run, `git log src..tgt` will
-no longer see this commit - no re-resolution ever.
+The merge-base advances to `<src-SHA>` after the commit. Next run, the scoped log
+(src..tgt) will no longer see this commit - no re-resolution ever.
 
 **NEVER squash or cherry-pick for continuous forward-port.** Both create a fresh SHA on
 the target: merge-base does not move, and tomorrow's run encounters the same conflict again,
 permanently.
 
-**One-shot mode** (port once, source is frozen): `git cherry-pick -n <src-SHA>` is
-acceptable as a SHOULD fallback - the repeated-resolution footgun does not apply when the
-source will never advance.
+**One-shot mode** (port once, source is frozen): delegate to **git-operator** with
+`op: cherry-pick -n <src-SHA>` (the -n / no-commit flag keeps the tree open for absorption;
+request this explicitly in the brief) as a SHOULD fallback - the repeated-resolution footgun
+does not apply when the source will never advance.
 
-## Absorption window (inside --no-commit)
+## Absorption window (inside the no-commit merge)
 
-Between `git merge --no-commit` and `git commit`, the working tree is the absorption zone.
-All work happens here - in this order:
+Between the no-commit merge opened by git-operator and the subsequent commit step, the
+working tree is the absorption zone. All work happens here - in this order:
 
 1. Symbol-survival check - see [[fp-symbol-survival-check]] BEFORE touching any file.
 2. Resolve conflict markers in source-touched files (3-way merge, platform-adapt per bucket,
@@ -38,10 +41,11 @@ All work happens here - in this order:
 3. Forward tests - translate API to target, strip implementation-coupled assertions
    (see [[test-behavior-contract]]).
 4. Fix any lint/eslint/prettier errors introduced by the merge.
-5. `git commit` - the merge commit encapsulates the entire translation cost.
+5. Delegate the commit to git-operator - the merge commit encapsulates the entire
+   translation cost.
 
-Do NOT `git commit` until verify is green (P9, below). Do NOT open a second
-`git merge --no-commit` while one is in progress (git index is shared).
+Do NOT ask git-operator to commit until verify is green (P9, below). Do NOT open a second
+no-commit merge while one is in progress (git index is shared; git-operator enforces this).
 
 ## Skip-code-but-still-merge rule
 
@@ -147,5 +151,10 @@ integration for per-module absorption and converge back into integration via mer
 the PR; integration NEVER fast-forwards into B directly (target-branch-lock, Hard rule 1).
 The only thing that lands on B is the human-confirmed PR merge. This isolation guarantees
 the target branch stays consistent even if one WI worktree is abandoned mid-flight.
+
+**git-operator owns the worktree lifecycle** (S9 invariant - SSOT in git-toolkit
+`snippets/git-safety-contract.md`). All worktree creation, removal, and
+topology changes must be delegated to git-operator. This skill may read topology state (e.g.
+via `git worktree list`) but never mutates it directly.
 
 Full topology: see the forward-port orchestrator skill (`skills/odoo-forward-port/SKILL.md`).

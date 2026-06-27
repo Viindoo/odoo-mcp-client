@@ -189,17 +189,20 @@ any branch, worktree, code write, or file deletion.
 
 **P4 - Adapt [per module, dep order, child worktrees].**
 Goal: make each module installable + working at the target series.
-Create the JOB-tier integration worktree: `git worktree add -b upg/<src>-<tgt>-<cluster>
-<path>/upg-integration <work-base>`. Per module in dep order: dispatch `odoo-coding`
+Create the JOB-tier integration worktree: delegate to git-operator (op: worktree add,
+branch `upg/<src>-<tgt>-<cluster>`, worktree `<path>/upg-integration`, base `<work-base>`).
+Per module in dep order: dispatch `odoo-coding`
 (via Skill tool) -> `odoo-coder` / `odoo-frontend-coder` (ADAPT tier per
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-triage-table.md`)
 in a child worktree off integration. When `odoo-frontend-coder` is dispatched, ported OWL/QWeb/SCSS is grounded against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.
 For DELETE-absorbed and OBSOLETE modules: dispatch `odoo-coder` to run the dangling-reference
 sweep first (grep repo for model names, XML IDs, group xmlids, env.ref targets), then
-`git rm -r <module>`, drop it from every depender's `depends` in their manifests, and
-record the reason; the commit message carries it (absorbed: `upg: delete <module> -
-absorbed by core <core-module/feature> in <tgt> (no custom delta remains)`;
-obsolete: `upg: delete <module> - obsolete at <tgt> (<reason>)`).
+delegate the directory removal, staging, and commit to git-operator in the child worktree
+(op: rm -r module dir + stage deletion + commit -s; confirmed: yes - user confirmed DELETE
+at P3 Plan Mode gate; commit message: absorbed: `upg: delete <module> - absorbed by core
+<core-module/feature> in <tgt> (no custom delta remains)`, obsolete: `upg: delete
+<module> - obsolete at <tgt> (<reason>)`); drop it from every depender's `depends`
+in their manifests.
 For KEEP/REWRITE/MERGE/SPLIT: prepend this module's `blockers[]` from P1d
 `transitive-symbol-survey.md` as a PREEMPTIVE FIX LIST, apply the breaking-change catalog from
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`,
@@ -208,8 +211,8 @@ manifest `version` PROFILE-GATED (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-convention
 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`): Viindoo Standard/Internal -> short
 form, no series prefix, often NO bump for code-level upgrade; OCA/upstream -> series-prefix bump.
 Converge each child worktree back to integration (serialized); remove child worktree.
-**Principal-checkout-lock: NEVER `git checkout` / `git switch` the principal checkout.**
-Materialize any needed branch via `git worktree add`.
+**Principal-checkout-lock: NEVER check out or switch the principal checkout yourself.**
+Materialize any needed branch by delegating a worktree add to git-operator.
 
 **P4b - Code-review loop [odoo-code-review -> odoo-code-reviewer; fix via odoo-coding; cap 3].**
 After P4 adapts the cluster into the integration worktree, dispatch `odoo-code-review` (via the
@@ -262,25 +265,24 @@ add a convention-compliance pass (manifest version-form + always-invisible XML c
 via `old_technical_name` - per `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`), a perf-lens
 pass (no per-record `mapped()` aggregate on a high-volume model - use grouped `_read_group`), and
 an i18n pass (P5.7 ran or was correctly auto-SKIPPED).
-Open PR: `gh pr create -R Viindoo/<repo> --base <work-base>
---head davidtranhp:upg/<src>-<tgt>-<cluster>`. No cluster-squash (per-module consolidation is
-allowed - see `references/upg-phase-detail.md` § Commit consolidation).
-Resolve `<repo>` from `git remote get-url origin` (parse the repository name from the URL).
+Push branch and open PR: delegate push to git-operator, then delegate PR creation to
+github-operator - resolve upstream org/repo and base from `git remote get-url origin`.
+No cluster-squash (per-module consolidation is allowed - see `references/upg-phase-detail.md` § Commit consolidation).
 Delegate a dep-order code review of the integration worktree before human merge (via the
 plugin's review capability, passing `worktree:<path>/upg-integration` and asking it to
 review modules in dependency order). Wait for human merge.
 
 ## Hard rules
 
-1. **Principal-checkout-lock.** NEVER `git checkout` / `git switch` the principal (main)
-   checkout off its branch. Materialize any needed branch via `git worktree add`.
+1. **Principal-checkout-lock.** NEVER check out or switch the principal (main)
+   checkout off its branch. Materialize any needed branch by delegating a worktree add to git-operator.
 2. **Plan Mode before any delete or code write.** P3 Plan Mode gate covers the irreversible
-   DELETE decisions; no `git rm`, no code changes, no worktree branch until P4 post-gate.
+   DELETE decisions; no directory removal, no code changes, no worktree branch until P4 post-gate.
 3. **No cluster-squash; per-module consolidation allowed.** Never collapse the whole cluster
    into one opaque commit - the per-module commit messages are the upgrade record. Consolidating
    a single module's WIP/fixup commits into ONE clean commit per module IS allowed (capability:
-   `references/upg-phase-detail.md` § Commit consolidation - `reset --mixed <base>` + re-`git add
-   <module>/` + tree-hash verify). Commit message format: `upg: <module> <src>-><tgt> -
+   `references/upg-phase-detail.md` § Commit consolidation - delegate to git-operator;
+   tree-identity verified via `git diff --quiet`). Commit message format: `upg: <module> <src>-><tgt> -
    <KEEP|REWRITE|MERGE|SPLIT> <summary>` for adapts; `upg: delete <module> - absorbed by
    core <core-module/feature> in <tgt> (no custom delta remains)` for absorbed deletes;
    `upg: delete <module> - obsolete at <tgt> (<reason>)` for obsolete deletes.
@@ -295,9 +297,9 @@ review modules in dependency order). Wait for human merge.
    reports BLOCKED status and requires explicit human decision before proceeding code-only.
    The fresh P5 ephemeral DB cannot detect data loss - proceeding code-only on a
    data-at-risk module is a production-incident risk.
-6. **DELETE-absorbed = `git rm` + dep cleanup + commit message, with two mandatory gates.**
+6. **DELETE-absorbed = delegated directory removal + dep cleanup + commit message, with two mandatory gates.**
    A module wholly absorbed by core is removed entirely, not set to `installable: False`.
-   The commit message carries the reason (which core feature replaces it). No `git rm` is
+   The commit message carries the reason (which core feature replaces it). No directory removal is
    permitted without: (a) signal #5 behavioral-equivalence proof recorded in
    `absorption/<module>.md` (all overrides enumerated + each proved equivalent or no-op);
    AND (b) an explicit per-DELETE human acknowledgment at P3, issued as a SEPARATE
@@ -341,13 +343,19 @@ so re-runs do not re-install proven waves.
 
 ## Git / PR conventions
 
+Git delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+
 - Branch: `upg/<src>-<tgt>-<cluster>` (e.g. `upg/16.0-17.0-l10n_vn`).
-- Integration worktree: `git worktree add -b upg/<src>-<tgt>-<cluster> <path>/upg-integration <work-base>`.
+- Integration worktree: delegate to git-operator (op: worktree add, branch
+  `upg/<src>-<tgt>-<cluster>`, worktree `<path>/upg-integration`, base `<work-base>`).
 - Commit messages (adapt): `upg: <module> <src>-><tgt> - <KEEP|REWRITE|MERGE|SPLIT> <summary>`.
 - Commit messages (absorbed delete): `upg: delete <module> - absorbed by core <core-module/feature> in <tgt> (no custom delta remains)`.
 - Commit messages (obsolete delete): `upg: delete <module> - obsolete at <tgt> (<one-line reason>)`.
-- Push to fork: `git push davidtranhp upg/<src>-<tgt>-<cluster>`.
-- PR: `gh pr create -R Viindoo/<repo> --base <work-base> --head davidtranhp:upg/<src>-<tgt>-<cluster>`. No cluster-squash (per-module consolidation allowed - see `references/upg-phase-detail.md` § Commit consolidation). Resolve `<repo>` from `git remote get-url origin`.
+- Push to fork: delegate to git-operator (op: push branch `upg/<src>-<tgt>-<cluster>` to the fork
+  remote; resolve fork remote URL from `git remote get-url origin` or a dedicated fork remote).
+- PR: delegate to github-operator (op: create PR; resolve upstream org/repo and base from
+  `git remote get-url origin`; no cluster-squash - per-module consolidation allowed -
+  see `references/upg-phase-detail.md` § Commit consolidation).
 
 ## MCP tools
 

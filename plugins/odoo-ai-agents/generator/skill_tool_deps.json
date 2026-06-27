@@ -654,7 +654,9 @@
       "handoff": "send-message",
       "spawns": [
         "odoo-code-reviewer",
-        "odoo-review-scoper"
+        "odoo-review-scoper",
+        "github-operator (PR read + inline comment via GitHub MCP - delegated to git-toolkit)",
+        "git-operator (local diff/branch read before review - delegated to git-toolkit)"
       ],
       "stack": "fullstack",
       "instance_touching": false,
@@ -775,7 +777,9 @@
         "odoo-coder / odoo-frontend-coder (conflict resolution + adapt, per-commit work-tier worktrees)",
         "odoo-test-writing (mode adapt, RED-first)",
         "odoo-instance-ops (CONDITIONAL: only when range touches DB-stateful behavior)",
-        "the plugin's review capability (delegated PR review before merge)"
+        "git-operator (all local git mutations: cherry-pick, branch, squash, force-with-lease - delegated to git-toolkit)",
+        "git-surveyor (read-only diff/range analysis + tree-identity verify - delegated to git-toolkit)",
+        "github-operator (PR create + review - delegated to git-toolkit)"
       ],
       "stack": "fullstack",
       "instance_touching": true,
@@ -878,7 +882,10 @@
       "spawn_class": "spawner-wave",
       "handoff": "send-message",
       "spawns": [
-        "(per-WI leaf workers over worktrees)"
+        "(per-WI leaf workers over worktrees)",
+        "git-operator (worktree add, cherry-pick A->B->C onto integration, squash, force-with-lease - all git ops delegated to git-toolkit)",
+        "git-surveyor (read-only diff + tree-identity verify - delegated to git-toolkit)",
+        "github-operator (PR integration->principal + review - delegated to git-toolkit)"
       ],
       "stack": "none",
       "instance_touching": true,
@@ -982,7 +989,10 @@
       "spawns": [
         "odoo-intent-extractor (read-only per-commit; model per complexity)",
         "odoo-installable-prober (read-only per-module installable-state probe in P2; model per complexity / sonnet)",
-        "odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees)"
+        "odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees)",
+        "git-operator (cherry-pick, merge, branch/worktree ops - all local git mutations delegated to git-toolkit)",
+        "git-surveyor (read-only diff/range map + P5 verify - delegated to git-toolkit)",
+        "github-operator (PR create + review - delegated to git-toolkit)"
       ],
       "stack": "fullstack",
       "instance_touching": true,
@@ -1020,7 +1030,9 @@
         "odoo-solution-architect (conditional hard-call design)",
         "odoo-coder / odoo-frontend-coder (P4 adapt, dep order, per-module worktrees)",
         "odoo-instance-ops (P5 install/test) + odoo-backend-debugger / odoo-ui-debugger (failure diagnose)",
-        "the plugin's review capability (delegated P7 dep-order PR review)"
+        "git-operator (branch, worktree, cherry-pick, squash - all git mutations delegated to git-toolkit)",
+        "git-surveyor (read-only diff scope + verify - delegated to git-toolkit)",
+        "github-operator (P7 PR review + creation - delegated to git-toolkit)"
       ],
       "stack": "fullstack",
       "instance_touching": true,

@@ -168,6 +168,7 @@ pass rates. When `DESIGN_DOC` is absent, this rule does not apply.
 
 - Do NOT modify any file in the repository or the running Odoo instance - read-only.
 - If OSM or the browser is unreachable after one retry, continue with the documented fallback and note it in the output.
+- Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline.
 
 ## Continuation Contract
 

@@ -1,7 +1,7 @@
 ---
 name: odoo-run-wave
 description: |
-  Kick off a multi-subagent git-wave orchestration: integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge
+  Kick off a multi-subagent git-wave orchestration that delegates all git/github ops to git-toolkit agents (git-operator for worktree/cherry-pick/squash/force-with-lease, github-operator for PR, git-surveyor for diff/verify): integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge
 ---
 # /odoo-run-wave
 
@@ -37,6 +37,7 @@ For **in-context skill chaining** (no git): use `workflow-chaining` instead.
 3. **Human-confirm merge.** The wave skill always stops before the final merge and waits
    for your explicit confirmation. Auto-merge is never allowed.
 4. **Dispatch via the Skill tool.** This command fires the `wave` skill using the Skill tool. NL description-match is the fallback when the Skill tool is unavailable.
+5. **Git/GitHub ops are delegated to git-toolkit.** Wave never executes git mutations or GitHub API calls inline. All such ops are dispatched to git-operator (worktree/cherry-pick/squash/force-with-lease), github-operator (PR create/review), or git-surveyor (diff/verify) via Agent tool.
 
 ## Invocation
 
@@ -59,7 +60,7 @@ tree-identity -> human-confirm merge + cleanup).
 If git or worktree ops are unavailable in the current environment, the skill
 degrades to producing the plan artifact and ownership map only - no branches are created.
 The plan can be executed manually or in a separate session. See skill body
-`## Standalone-first fallback` section.
+`## Standalone fallback` section.
 
 ## Examples
 
