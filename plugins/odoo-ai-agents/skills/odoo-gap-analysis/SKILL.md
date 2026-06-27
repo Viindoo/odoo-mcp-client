@@ -42,10 +42,12 @@ Consultant / Project Manager
 
 **Primary tools:**
 - `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
+- `describe_module` - Module manifest + defined/extended model counts + view/JS inventory in one call.
 - `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
 - `lookup_core_api` - Verify Odoo core API symbol signature, status (stable/deprecated/removed), and replacement.
 - `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 - `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
+- `profile_inspect` - Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
 - `suggest_pattern` - Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 <!-- END GENERATED TOOLS -->
 
@@ -62,6 +64,8 @@ Gap analysis sets client expectations and determines budget. Errors in either di
 | Custom | New model, complex logic, or integration | 5+ days/req |
 
 Version matters: "Custom" on v12 may be "Standard" on v16. v8/v9 migrations cost more (Python 2, `_columns`, `osv.osv`). **Data priority:** MCP over training knowledge - trust `check_module_exists` results.
+
+**Index coverage is not ground truth.** A module ABSENT from the OSM index is NOT proof the product lacks the feature - profile/index coverage is incomplete for commercial layers. Surface coverage with a `profile_inspect(method='repos', …)` repo check and tag unknowns `[inferred]` rather than asserting absence.
 
 ## Instructions
 
@@ -82,6 +86,8 @@ Decision logic per requirement:
 
 **Be conservative**: upgrade effort tier when in doubt.
 
+**Never infer brand from slug.** A module's technical slug is NOT evidence of its provider/brand/integrated vendor - a vendor-like token in the slug is not proof of that vendor. Take module identity only from OSM `check_module_exists` / `describe_module` / `module_inspect` output (`author`, and `shortdesc` when present). If neither is available, tag the row `[inferred]` and do NOT assert a provider/brand.
+
 ## Standalone-first fallback
 
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`. Proceed immediately - requirement list is in context. Classify from training knowledge (Tier 3) and note: "Classification not yet verified against code examples; double-check estimates once OSM is online."
@@ -96,9 +102,9 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 **Requirements analyzed:** <N>
 **Analysis date:** <date>
 
-| # | Requirement | Standard coverage | Module | Effort type | Effort | Notes |
-|---|-------------|------------------|--------|-------------|--------|-------|
-| 1 | ...         | Full/Partial/None | ...   | Standard/Config/Extension/Custom | S/M/L/XL | ... |
+| # | Requirement | Standard coverage | Module | Effort type | Effort | Source | Notes |
+|---|-------------|------------------|--------|-------------|--------|--------|-------|
+| 1 | ...         | Full/Partial/None | ...   | Standard/Config/Extension/Custom | S/M/L/XL | [OSM-index] / [inferred] | ... |
 
 **Effort legend:** S = <1d · M = 1-3d · L = 3-10d · XL = >10d
 
@@ -120,6 +126,11 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 Phase 1 (must-have): ...
 Phase 2 (nice-to-have): ...
 ```
+
+**Provenance rules:**
+- Tag every row `[OSM-index]` (found in the indexed source) or `[inferred]` (reasoned, not grounded).
+- Downgrade customer-facing wording for any `[inferred]` row - use "likely / typically / to be confirmed", never "verified / guaranteed".
+- OSM index is a static source index - necessary but NOT sufficient proof a shipped product does X; live verification is out of scope here, so never phrase an `[OSM-index]` hit as "verified available".
 
 ## Examples
 

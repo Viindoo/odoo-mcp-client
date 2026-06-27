@@ -46,10 +46,18 @@ Difference from siblings: `odoo-gap-analysis` outputs effort tiers (days) for qu
 >
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
+**Session bootstrap** (call once at session start):
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+
 **Primary tools:**
 - `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
-- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `describe_module` - Module manifest + defined/extended model counts + view/JS inventory in one call.
 - `find_examples` - Semantic code search returning real indexed code snippets from the Odoo codebase.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
+- `profile_inspect` - Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
+- `suggest_pattern` - Find curated Odoo design patterns from the catalogue with gotchas and anti-patterns.
 <!-- END GENERATED TOOLS -->
 
 ## Context
@@ -69,6 +77,8 @@ Difference from siblings: `odoo-gap-analysis` outputs effort tiers (days) for qu
 **Fit %:** `(Yes * 1.0 + Partial * 0.5 + via-Extension * 0.7 + Roadmap * 0.3 + No * 0.0) / total * 100` - round to nearest integer. Rough indicator only, not a contractual commitment.
 
 **Version discipline:** A `No` on v14 may be `Yes` on v17. Always note the target version. For each `No` or `Partial`, optionally note the earliest version where it becomes `Yes` if OSM cross-version data is available.
+
+**Index coverage is not ground truth.** A module ABSENT from the OSM index is NOT proof the product lacks the feature - profile/index coverage is incomplete for commercial layers. Surface coverage with a `profile_inspect(method='repos', …)` repo check and tag unknowns `[inferred]` rather than asserting a `No`.
 
 ## Method
 
@@ -97,6 +107,8 @@ cross-version check shows it exists in a later release → Roadmap
 
 **Honesty discipline:** If OSM returns `not found` for a module that training knowledge says exists, report the OSM result and note the discrepancy. Do not silently override OSM with training memory.
 
+**Never infer brand from slug.** A module's technical slug is NOT evidence of its provider/brand/integrated vendor - a vendor-like token in the slug is not proof of that vendor. Take module identity only from OSM `check_module_exists` / `describe_module` / `module_inspect` output (`author`, and `shortdesc` when present). If neither is available, tag the row `[inferred]` and do NOT assert a provider/brand in the matrix or executive summary.
+
 ## Standalone-first fallback
 
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`.
@@ -116,12 +128,12 @@ The requirement list is already in the invocation context - proceed immediately 
 **Requirements analyzed:** <N>
 **Analysis date:** <date>
 
-| # | Requirement | Odoo path (module / model / feature) | Compliance | Evidence | Notes / effort |
-|---|-------------|--------------------------------------|:----------:|----------|----------------|
-| 1 | <req text>  | `<module_name>` / `<model.name>`     | Yes        | <source> | <note>         |
-| 2 | ...         | ...                                  | Partial    | ...      | Gap: <what is missing> |
-| 3 | ...         | ...                                  | via-Extension | ...   | Pattern: `<suggest_pattern result>`; est. <S/M/L> |
-| 4 | ...         | -                                    | No         | Not found in OSM | Custom dev required; est. <L/XL> |
+| # | Requirement | Odoo path (module / model / feature) | Compliance | Evidence | Source | Notes / effort |
+|---|-------------|--------------------------------------|:----------:|----------|--------|----------------|
+| 1 | <req text>  | `<module_name>` / `<model.name>`     | Yes        | <source> | [OSM-index] | <note>         |
+| 2 | ...         | ...                                  | Partial    | ...      | [OSM-index] | Gap: <what is missing> |
+| 3 | ...         | ...                                  | via-Extension | ...   | [inferred] | Pattern: `<suggest_pattern result>`; est. <S/M/L> |
+| 4 | ...         | -                                    | No         | Not found in OSM | [inferred] | Custom dev required; est. <L/XL> |
 
 **Compliance key:**
 - Yes - standard CE or EE, zero development
@@ -148,6 +160,11 @@ The requirement list is already in the invocation context - proceed immediately 
 <1-2 sentences: whether to bid, what to note in the covering letter about gaps, whether
 EE license is required>
 ```
+
+**Provenance rules:**
+- Tag every matrix row `[OSM-index]` (found in the indexed source) or `[inferred]` (reasoned, not grounded).
+- Downgrade customer-facing wording for any `[inferred]` row - use "likely / typically / to be confirmed", never "verified / guaranteed".
+- OSM index is a static source index - necessary but NOT sufficient proof a shipped product does X; live verification is out of scope here, so never phrase an `[OSM-index]` hit as "verified available".
 
 **Effort legend (for via-Extension and No rows):** S = <1d - M = 1-3d - L = 3-10d - XL = >10d
 

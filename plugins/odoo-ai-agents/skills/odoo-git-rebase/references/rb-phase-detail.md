@@ -326,12 +326,19 @@ Two-arg onto form: target <new-base>, upstream <old-base>. Avoids 'already used 
 | <sha> | <subj> | (c) | opus | fable (CONFIRM) | <path> | framework rewrite |
 
 ## Conflict-resolution policy
-Resolve each stopped commit to INTENT on the new-base idiom.
+Resolve each stopped commit to INTENT on the new-base idiom via the `odoo-coding` skill
+(dispatched through the Skill tool; it owns the backend/frontend coder fan-out and synthesis).
+Review is the `odoo-code-review` skill (P9b in-pipeline + P12 final PR review).
 outcome-(a) stops -> git-operator skips that commit (--skip).
 Never leave a line referencing a renamed/moved symbol.
 
 ## Instance verify (B3 decision)
-<"WILL run odoo-instance-ops at P10 because: <reason>" | "SKIP: pure-frontend / docstring range">
+<"WILL provision ONE instance via odoo-instance at P10 because: <reason>" | "SKIP: pure-frontend / docstring range">
+
+## Installable guard
+A module shipped `installable: False` at the new base is intentionally deferred: keep it
+`installable: False`, exclude it from the install/test set, and do NOT flip it True. Rules:
+`${CLAUDE_PLUGIN_ROOT}/snippets/fp-installable-false.md`.
 
 ## Bucket-(c) upgrade-scale decisions
 <"<sha>: DEFER (installable:False, lint-only)" | "<sha>: DO NOW (est. <N> LOC, ADAPT tier: <tier>)">
@@ -353,7 +360,8 @@ worktree: create at <WT_ROOT>/rb-integration; branch rb/<slug>; start ref: <feat
   checked out in another worktree - use the two-arg form on current HEAD instead to avoid
   the "already used by worktree" abort.
 scope:
-  - enable rerere in the integration worktree
+  - enable rerere in the integration worktree with `rerere.autoupdate=true` (local config)
+    so rerere-replayed hunks are auto-staged
     (rr-cache is repo-global and shared across all worktrees; assume one rebase per repo at a time)
   - run two-arg onto form: target <new-base>, upstream <old-base>
 conflict_resolution_policy:
@@ -383,7 +391,27 @@ for text hunks:
 | `.po` / `.pot` | Take feature side (--theirs; note rebase inverts merge ours/theirs: --ours=base, --theirs=feature); git-operator resolves autonomously per `po_policy` in P7 brief; then re-run `odoo-i18n` after the full rebase completes; do NOT hand-merge gettext diffs |
 | Binary (PNG, ODS, PDF, etc.) | Prefer feature per project convention per `binary_policy` in P7 brief; git-operator applies the chosen side; choice is flagged in `rebase-log.md` for human review |
 | Generated assets (compiled JS, minified CSS, etc.) | Regenerate from source after the rebase completes per `generated_policy` in P7 brief; do NOT hand-merge generated content |
-| Text hunk (Python/XML/JS/SCSS/CSV) | Route to adapt coder per ADAPT tier as described below |
+| Text hunk (Python/XML/JS/SCSS/CSV) | Route to the `odoo-coding` skill per ADAPT tier as described below |
+
+### Conflict-TYPE taxonomy (rename-commit scenarios, Odoo rebases)
+
+The table above is FILE-TYPE. Odoo same-series rebases also hit CONFLICT-TYPE cases born of
+module/file renames on the new base - resolve these per type:
+
+- **static/binary add/add from a renamed module** (e.g. `static/description/*.png`, generated
+  assets duplicated under both the old and renamed module path) -> take the NON-EMPTY side; never
+  leave a zero-byte file.
+- **modify/delete of a renamed-away module** (the new base deleted/relocated a file the feature
+  still edits) -> honor the base's removal of the path (the git-operator S10 continue-driver runs
+  the deletion), then re-home the intent into the renamed module via the `odoo-coding` skill.
+- **rename/rename** (both sides renamed the same file differently) -> keep the new-base name; the
+  `odoo-coding` skill ports the feature hunk onto it.
+
+For the generic per-path mechanics (UD/DD -> honor the deletion; text file with markers -> hand to the
+`odoo-coding` skill; rerere-resolved-no-markers -> verify then `git add`; continue-vs-skip), do NOT
+restate them - follow git-toolkit S10, the canonical continue-driver in git-toolkit
+`snippets/git-safety-contract.md` § "S10 - Conflict continue-driver (canonical)". INVARIANT: NEVER
+`--skip` on "no unmerged files"; only `--skip` when `--continue` itself reports an empty patch.
 
 ### rerere hygiene
 
@@ -425,9 +453,12 @@ git-surveyor to write the commit dump to `.odoo-ai/git-rebase/<slug>/commits/<sh
 then dispatch `odoo-intent-extractor` (rebase MODE, P2 brief with `commit_dump_path:` set)
 to create the intent file before proceeding to the coder.
 
-Dispatch Explore first if context is needed, then the ADAPT-tier coder:
+Dispatch Explore first if context is needed, then the `odoo-coding` skill via the Skill tool
+(mirroring P9b - do NOT dispatch raw `odoo-coder` / `odoo-frontend-coder` agents; `odoo-coding`
+owns the backend/frontend split, coder fan-out, and synthesis):
 
 ```
+SKILL: odoo-coding
 DISPATCH MODEL: <adapt_tier from plan.md>
 TASK: Resolve a rebase conflict for one commit in a same-series Odoo rebase.
 SHA: <sha>
@@ -447,13 +478,14 @@ RULE: Resolve to the INTENT expressed in INTENT_FILE, using the idiom of the new
       before staging - rerere replays text, not intent.
       After resolving: emit a "RESOLVED" status listing the resolved files.
       Caller will dispatch git-operator to stage and continue per the stateless-resume recipe.
-      When dispatching `odoo-frontend-coder` for OWL/QWeb/SCSS conflicts: ground all ported
-      frontend output against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`
-      so the adapted UI stays on-theme and design-system-correct for the target series.
+      `odoo-coding` routes OWL/QWeb/SCSS legs to `odoo-frontend-coder`, grounded against
+      `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` so the adapted UI stays
+      on-theme and design-system-correct for the target series.
 ```
 
-After coder returns RESOLVED: dispatch git-operator per the stateless-resume recipe in
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`:
+After `odoo-coding` returns RESOLVED: dispatch git-operator to drive continue/skip per the
+canonical continue-driver (git-toolkit S10, cited in the Conflict-TYPE taxonomy above) and the
+stateless-resume recipe in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`:
 - outcome=(a) or (d): instruct git-operator to skip that commit (--skip)
 - outcome=(b)/(c): instruct git-operator to stage the resolved files and invoke --continue
 
@@ -474,20 +506,26 @@ every file touched by the replayed range - both conflicted (already handled by P
 merge-clean-but-feature-touched files (the silent-break risk: no conflict marker, but base
 may have renamed/moved/removed the symbol).
 
-### Identifying feature-touched files
+### Identifying feature-touched files (delegated to Explore)
+
+Dispatch `Explore` (read-only) to enumerate the files the replayed range touches; it runs the
+bounded read below and returns the sorted file list. The orchestrator does NOT read the diff
+inline:
 
 ```bash
 # All files touched by the replayed range (relative to old-base)
 git diff --name-only <old-base>..<feature-ref>
 ```
 
-This is the complete file set for symbol-survival grounding.
+This list is the complete file set for the symbol-survival, import-resolvability, and collection
+gates below.
 
-### Symbol-survival check
+### Symbol-survival check (delegated)
 
-Dispatch Explore + OSM `entity_lookup` over feature-touched files per
+Dispatch Explore + OSM `entity_lookup` over the feature-touched files per
 `[[fp-symbol-survival-check]]` (`${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md`)
-Sections 1-2.5 - adapted for rebase context:
+Sections 1-2.5 - adapted for rebase context (the orchestrator records the verdict only, never
+reads diffs inline):
 
 - Ground: the SHARED-SERIES base HEAD (`<new-base>`) - NOT a cross-version diff.
 - For each symbol the replayed range imports, calls, or references: confirm it exists
@@ -499,9 +537,27 @@ Sections 1-2.5 - adapted for rebase context:
   its 4-outcome bucket (outcome b/c/d typically) and re-stage the file before P9.
 - Record all findings in `verify.md` § symbol_survival.
 
-### Collection acceptance gate
+### Import-resolvability gate (pyflakes F821)
 
-After all symbol-survival blockers are resolved, run the test-collection gate:
+Run `pyflakes` over every feature-touched `.py` from the Explore list. Any `F821` (undefined name)
+is a broken import that survived the clean merge and MUST be resolved (4-outcome bucket) before P9.
+This is the same check as `[[fp-symbol-survival-check]]`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md`) Sections 2.5(d) and 2.5(e), and it
+applies to SAME-SERIES rebases too: an import valid at the old base can have been removed within
+the series at the new base (e.g. `from odoo.tools import relativedelta`, valid in 17.0, removed in
+18.0 - the same class of within-series removal occurs between two same-series bases). Dispatch this
+as a read-only delegate (git-surveyor / Explore running `pyflakes`); the orchestrator records the
+PASS/FAIL verdict only.
+
+```bash
+pyflakes <every-feature-touched-.py-from-the-Explore-list>   # any F821 = blocker
+```
+
+### Collection acceptance gate (delegated to git-surveyor)
+
+After all symbol-survival + import-resolvability blockers are resolved, dispatch git-surveyor
+(read-only) to run the test-collection gate and return a compact PASS/FAIL; the orchestrator
+records the verdict only and never reads the diff or log inline:
 
 ```bash
 # Odoo test collection (replace with pytest --collect-only for non-Odoo test runners)
@@ -628,7 +684,7 @@ FORMAT:
 
 ### B3 - conditional instance verify
 
-Run `odoo-instance-ops` ONLY when the rebased range touches ANY of:
+Provision ONE instance via the `odoo-instance` skill ONLY when the rebased range touches ANY of:
 - A model field add, remove, rename, or type-change
 - A stored compute or constraint
 - An ORM `create` / `write` / `unlink` override
@@ -637,6 +693,14 @@ Run `odoo-instance-ops` ONLY when the rebased range touches ANY of:
 
 Skip for pure-frontend (JS/OWL/SCSS), docstring/label/comment-only, or non-DB-stateful ranges.
 The orchestrator decides from `recon.md` commits[].modules[] + P3 comparison metadata.
+
+The `odoo-instance` skill owns provisioning (port allocation + leasing). The orchestrator captures
+its canonical output block ONCE as the run's `INSTANCE_HANDLE` and forwards that handle as an
+`INSTANCE_HANDLE:` field in EVERY downstream verify / coder / test brief - downstream agents consume
+the provided handle and never self-provision a DB / port / addons_path. One instance per run;
+release it via its `lease_token` at the end. Contract:
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
+
 Instance lifecycle protocol: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md`.
 Test invocation conventions: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 Resolve odoo-bin flags for the target series via `cli_help` before invoking - flags differ

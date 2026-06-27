@@ -53,11 +53,14 @@ orchestrator dispatches the P0 intake subagent first (below) and asks the user O
 
 ## Artifact layout
 
-`<slug> = <feature-ref>-onto-<new-base>` (sanitized). Artifacts under
-`.odoo-ai/git-rebase/<slug>/` (gitignored). `<old-base> = git merge-base <new-base> <feature-ref>`
-(the orchestrator runs this ONE mechanical command; everything that reads diff CONTENT is
-delegated). Full git commands, dispatch briefs, and format templates:
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-git-rebase/references/rb-phase-detail.md`.
+`<slug> = <feature-ref>-onto-<new-base>`, sanitized: lowercase; replace each space, slash, or
+any character outside `[a-z0-9._-]` with `-`; collapse repeated `-`; truncate to 64 chars. The
+orchestrator computes `<slug>` ONCE and passes the ABSOLUTE artifact path
+(`.odoo-ai/git-rebase/<slug>/...`) into every subagent brief - subagents never recompute the slug
+(prevents artifact-path drift). Artifacts under `.odoo-ai/git-rebase/<slug>/` (gitignored).
+`<old-base> = git merge-base <new-base> <feature-ref>` (the orchestrator runs this ONE mechanical
+command; everything that reads diff CONTENT is delegated). Full git commands, dispatch briefs, and
+format templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-git-rebase/references/rb-phase-detail.md`.
 
 ## Checkpoint / resume
 
@@ -106,7 +109,7 @@ guarantees correctness at small scale and is not optional even on a 1-commit bra
 git-surveyor to write the stopped commit's full output to
 `.odoo-ai/git-rebase/<slug>/commits/<sha>.dump`; then dispatch `odoo-intent-extractor` (rebase
 MODE, brief: `references/rb-phase-detail.md` P2) with `commit_dump_path:` set to that path
-before dispatching the adapt coder.
+before dispatching the `odoo-coding` skill at P8.
 
 **Sequence invariant (non-negotiable order).** The pipeline order is
 `recon/classify -> (conditional) solution-design -> Plan Mode gate -> odoo-coding execution`.
@@ -210,29 +213,35 @@ worktree, avoiding the `fatal: already used by worktree` abort. git-operator ret
 `DONE` (-> P8b) or `BLOCKED-CONFLICT` with `conflicted_files: [<paths>]` and
 `stopped_commit: <sha>` (-> P8). Full dispatch brief: `references/rb-phase-detail.md` P7.
 
-**P8 - Conflict-resolution loop [per stopped commit: Explore + odoo-coder or odoo-frontend-coder ADAPT tier].**
+**P8 - Conflict-resolution loop [per stopped commit: Explore + the `odoo-coding` skill, ADAPT tier].**
 For each commit the rebase stops on: dispatch Explore to read conflicted files + the commit's
-`intents/<sha>.md` + P4 outcome; dispatch the ADAPT-tier coder to resolve hunks to INTENT on
-the new-base idiom. If outcome=(a) or (d), instruct git-operator to skip that commit. Never
-leave an auto-merged line referencing a renamed/moved symbol. When `odoo-frontend-coder` is
-dispatched, ported OWL/QWeb/SCSS is grounded against
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`. After the coder returns
-RESOLVED: re-dispatch git-operator per the stateless-resume recipe in
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` (mechanical batch -> semantic bounce ->
-on-disk --continue). On 3 consecutive BLOCKED returns from git-operator: request git-operator
-to abort the rebase, restore from checkpoint, escalate per ETHOS #7. Loop until the rebase
-finishes. Conflict-class policy (`.po`/binary/generated), rerere hygiene, and abort path:
-`references/rb-phase-detail.md` P8.
+`intents/<sha>.md` + P4 outcome; then dispatch the `odoo-coding` skill (via the Skill tool,
+mirroring §P9b) at the ADAPT tier to resolve hunks to INTENT on the new-base idiom. `odoo-coding`
+owns the backend/frontend split and the coder fan-out/synthesis - including `odoo-frontend-coder`
+for OWL/QWeb/SCSS legs, grounded against
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - so do NOT dispatch raw
+`odoo-coder` / `odoo-frontend-coder` agents for conflict resolution. If outcome=(a) or (d),
+instruct git-operator to skip that commit. Never leave an auto-merged line referencing a
+renamed/moved symbol. After `odoo-coding` returns RESOLVED: re-dispatch git-operator per the
+stateless-resume recipe in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` (mechanical batch ->
+semantic bounce -> on-disk --continue). On 3 consecutive BLOCKED returns from git-operator:
+request git-operator to abort the rebase, restore from checkpoint, escalate per ETHOS #7. Loop
+until the rebase finishes. Conflict-class policy (`.po`/binary/generated), rerere hygiene, and
+abort path: `references/rb-phase-detail.md` P8.
 
-**P8b - Symbol-survival + collection gate [MUST - before any test-forward].**
+**P8b - Symbol-survival + collection gate [MUST - before any test-forward; all heavy checks DELEGATED].**
 After the rebase finishes, ground every Odoo symbol the replayed range touches (conflicted
 AND merge-clean-but-feature-touched files) against the shared-series base HEAD per
 `[[fp-symbol-survival-check]]` Sections 1-2.5. A symbol absent/renamed/retyped at base is a
 BLOCKER: it auto-merged with no conflict marker and will crash at runtime. Resolve each into
-its 4-outcome bucket and re-stage before P9. Then run the collection ACCEPTANCE GATE: the
-replayed test files MUST import and collect cleanly; `0 failed, N error(s)` is NOT a pass -
-a setUpClass crash means the tests never ran. Reuse the same gate as forward-port P7. Full
-brief: `references/rb-phase-detail.md` P8b.
+its 4-outcome bucket and re-stage before P9. Then run the import-resolvability gate (`pyflakes`
+over every feature-touched `.py`; any F821 = a broken import to resolve before P9) and the
+collection ACCEPTANCE GATE: the replayed test files MUST import and collect cleanly;
+`0 failed, N error(s)` is NOT a pass - a setUpClass crash means the tests never ran. Reuse the
+same gate as forward-port P7. The orchestrator does NOT run these checks in its own context: it
+dispatches the read-only delegates (Explore to enumerate feature-touched files, git-surveyor to
+run the gates) and records only the PASS/FAIL verdict. Full brief incl. delegation contract +
+import gate: `references/rb-phase-detail.md` P8b.
 
 **P9 - Test forward (per touched module, conditional) [odoo-test-writing adapt + odoo-coder - no gate].**
 For modules whose behavior changed (driven by P8b symbol-survival findings + recon.md

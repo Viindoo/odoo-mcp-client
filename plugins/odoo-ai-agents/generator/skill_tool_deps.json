@@ -50,15 +50,17 @@
     "odoo-capability-proof": {
       "mcp_tools": [
         "check_module_exists",
+        "describe_module",
         "entity_lookup",
         "find_examples",
         "model_inspect",
         "module_inspect",
+        "profile_inspect",
         "set_active_version"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "module_inspect(summary) adds architecture scope (N models/views) to the proof package beyond field-level evidence."
+      "notes": "module_inspect(summary) adds architecture scope (N models/views) to the proof package beyond field-level evidence; profile_inspect(repos) grounds index coverage (absence-in-index transparency); describe_module attributes module identity (author/shortdesc). min_server 0.13.1 for profile_inspect."
     },
     "odoo-competitive-brief": {
       "mcp_tools": [
@@ -156,15 +158,17 @@
     "odoo-feature-check": {
       "mcp_tools": [
         "check_module_exists",
+        "describe_module",
         "find_examples",
         "model_inspect",
         "module_inspect",
+        "profile_inspect",
         "set_active_version",
         "suggest_pattern"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": ""
+      "notes": "profile_inspect(repos) grounds index coverage (absence-in-index transparency); describe_module attributes module identity (author/shortdesc). min_server 0.13.1 for profile_inspect."
     },
     "odoo-feature-highlights": {
       "mcp_tools": [
@@ -196,17 +200,19 @@
     "odoo-gap-analysis": {
       "mcp_tools": [
         "check_module_exists",
+        "describe_module",
         "find_examples",
         "lookup_core_api",
         "model_inspect",
         "module_inspect",
+        "profile_inspect",
         "set_active_profile",
         "set_active_version",
         "suggest_pattern"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "module_inspect distinguishes Configuration vs Extension via view/JS inventory, not just the field list."
+      "notes": "module_inspect distinguishes Configuration vs Extension via view/JS inventory, not just the field list; profile_inspect(repos) grounds index coverage (absence-in-index transparency); describe_module attributes module identity (author/shortdesc). min_server 0.13.1 for profile_inspect."
     },
     "odoo-git-rebase": {
       "mcp_tools": [
@@ -438,12 +444,18 @@
     "odoo-rfp-response": {
       "mcp_tools": [
         "check_module_exists",
+        "describe_module",
+        "find_examples",
         "model_inspect",
-        "find_examples"
+        "module_inspect",
+        "profile_inspect",
+        "set_active_profile",
+        "set_active_version",
+        "suggest_pattern"
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Rates Odoo compliance per RFP requirement into a Yes/Partial/Roadmap/No matrix with evidence + executive fit summary."
+      "notes": "Rates Odoo compliance per RFP requirement into a Yes/Partial/Roadmap/No matrix with evidence + executive fit summary; module_inspect adds view/flow coverage to distinguish Yes vs Partial; profile_inspect(repos) grounds index coverage (absence-in-index transparency); describe_module attributes module identity; suggest_pattern backs the No path. min_server 0.13.1 for profile_inspect."
     },
     "odoo-customer-health": {
       "mcp_tools": [],
@@ -774,9 +786,10 @@
         "Explore (read-only range enumerate + diff read)",
         "odoo-intent-extractor (rebase MODE, per-commit, base-head grounding)",
         "odoo-diff-comparator (cluster behavior comparison + range-diff/dup-guard verify)",
-        "odoo-coder / odoo-frontend-coder (conflict resolution + adapt, per-commit work-tier worktrees)",
+        "odoo-coding skill (via Skill tool: P8 conflict resolution + adapt; owns odoo-coder/odoo-frontend-coder fan-out and synthesis - the rebase does NOT dispatch raw coders for conflicts)",
+        "odoo-code-review skill (via Skill tool: P9b in-pipeline review + P12 final PR review)",
         "odoo-test-writing (mode adapt, RED-first)",
-        "odoo-instance-ops (CONDITIONAL: only when range touches DB-stateful behavior)",
+        "odoo-instance skill (CONDITIONAL at P10: provisions ONE instance when range touches DB-stateful behavior; its INSTANCE_HANDLE is forwarded to every downstream verify/coder brief - downstream never self-provisions)",
         "git-operator (all local git mutations: cherry-pick, branch, squash, force-with-lease - delegated to git-toolkit)",
         "git-surveyor (read-only diff/range analysis + tree-identity verify - delegated to git-toolkit)",
         "github-operator (PR create + review - delegated to git-toolkit)"
