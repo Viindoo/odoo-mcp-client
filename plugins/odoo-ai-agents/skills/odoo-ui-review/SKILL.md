@@ -67,6 +67,13 @@ paths reachable, labels correct, access-rule state reflected in the UI) from §1
 User impact) and §9 (Acceptance Criteria) of the design document. When no `designs/` directory
 exists or it is empty, omit the line entirely.
 
+**Master-child mode (index-aware):** If `.odoo-ai/designs/<master-slug>/index.yaml` exists,
+resolve the per-module child path from `index.yaml` (`modules[].child_path` for the module
+being reviewed) instead of picking the most-recently-modified flat file. Also add
+`MASTER_DESIGN_DOC: <subdir>/_master-<date>.md` to the dispatch brief so the reviewer can
+cross-check hard constraints from the master TDD. Single mode (no `index.yaml`): unchanged.
+Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
+
 When the user confirms intent (or main detects a running instance + a "how does it look" request),
 main launches the `odoo-ui-reviewer` agent as a subagent with restricted tools (odoo-semantic-mcp +
 chrome-devtools, read-only). The agent does NOT spawn further subagents, does NOT invoke any Skill

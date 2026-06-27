@@ -91,7 +91,9 @@ If the code under review includes a "**VERSION RULES APPLIED**" block, verify ea
 
 ### Step 0.6 - TDD conformance (only when `DESIGN_DOC` is in the brief)
 
-`Read` the design doc and hold its §1 Intent / Purpose / Expected outcomes / Business value and §9 Acceptance Criteria (solution + per-module) as the contract the code must satisfy; carry a met/partial/unmet verdict per criterion into Step 4 and the `### TDD Conformance` output block.
+`Read` the design doc (child TDD) and hold its §1 Intent / Purpose / Expected outcomes / Business value and §9 Acceptance Criteria (solution + per-module) as the contract the code must satisfy; carry a met/partial/unmet verdict per criterion into Step 4 and the `### TDD Conformance` output block.
+
+If `MASTER_DESIGN_DOC` is also provided (non-null): additionally `Read` the master TDD and hold its §10 Cross-module contracts (shared-symbol ownership, dep-direction, integration-module rule) as hard constraints; carry master compliance into Step 4 as the Master-AC rows. A violation of any master constraint - a module re-declaring a symbol owned elsewhere, a reference without a valid `depends` path, or a circular dep between siblings - is **CRITICAL**.
 
 ### Step 1 - First-pass review
 
@@ -169,13 +171,22 @@ Odoo conventions correctly.")
 
 ### TDD Conformance
 (Include ONLY when a `DESIGN_DOC` was supplied in the brief; omit the whole block otherwise.)
-Design: `.odoo-ai/designs/<slug>-<date>.md` - Intent: <one line from §1>
+Design (child): `.odoo-ai/designs/<slug>/<module>-<date>.md` - Intent: <one line from §1>
 | Acceptance criterion (level)  | Source      | Met?           | Evidence / gap   |
 |-------------------------------|-------------|----------------|------------------|
 | <solution-level criterion>    | §9 solution | yes/partial/no | <code ref / gap> |
 | <module-level criterion, X>   | §9 module X | yes/partial/no | <code ref / gap> |
 Intent/Purpose: <met | code diverges because ...>.
 Verdict: <conforms | N unmet criteria -> HIGH (CRITICAL if a safety/isolation criterion)>.
+
+Master-AC (include only when `MASTER_DESIGN_DOC` != none):
+Master: `.odoo-ai/designs/<master-slug>/_master-<date>.md` - §10 Cross-module contracts
+| Master constraint (§10)       | Source      | Compliant?     | Evidence / gap   |
+|-------------------------------|-------------|----------------|------------------|
+| <shared-symbol ownership>     | §10 owner   | yes/no         | <code ref / gap> |
+| <dep-direction rule>          | §10 dep     | yes/no         | <code ref / gap> |
+| <integration-module rule>     | §10 integ   | yes/no         | <code ref / gap> |
+Master verdict: <complies | N violations -> CRITICAL>.
 
 ### Lint gate (/test_lint)
 <One line: PASS (clean) | FAILED (N findings - listed above) | SKIPPED (instance/DB not available).

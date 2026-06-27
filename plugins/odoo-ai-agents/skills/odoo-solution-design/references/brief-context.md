@@ -26,3 +26,13 @@ design names real design tokens / style origins for the target version via `reso
 `find_style_override` rather than inventing selectors or colors. The frontend half of the design
 is then consumed by `odoo-coding` (its frontend leg), which loads the same two sources when it
 writes the JS/OWL/SCSS.
+
+**Master vs child architect brief (master-child mode only).** The same architect agent is
+dispatched at different altitudes:
+- `MODE: master` - cross-module altitude. Produces §10 shared-symbol registry + dep direction
+  decisions. Does NOT design module internals. Master = hard constraint layer.
+- `MODE: child` - single-module altitude. Standard 8-section TDD for one module. Must cite
+  master §10 for every cross-module symbol. Child = coder's primary spec (`DESIGN_DOC`).
+- `MODE: consistency` - reads CONTRACT SUBSET of each child (§1, §9, cross-module symbols)
+  + master §10; reconciles seams; emits conflict-list. Full brief template:
+  `agents/odoo-solution-architect.md`.

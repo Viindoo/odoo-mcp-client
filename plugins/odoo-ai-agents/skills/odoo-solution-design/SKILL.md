@@ -54,6 +54,96 @@ the default (no `return_to`) path and applies even on a direct (intake-bypass) e
 **preview, not a write-block** - on confirmation the architect writes ONLY the design doc under
 `.odoo-ai/`, never source files.
 
+**Multi-module scope heuristic.** Before emitting the preview, check for these qualitative
+signals - a cluster of them suggests master-child decomposition is worth offering:
+- Multiple independent modules each needing a new model or new inheritance axis.
+- Independent business domains where sub-designs are mostly orthogonal.
+- Several Custom-XL / Extension-L items (from `odoo-brl` / `odoo-gap-analysis`) referencing
+  different module entry points and sharing a non-trivial cross-module contract.
+
+Module enumeration priority (first available): deep-survey `synthesis.md` → brl `dag.json`
+→ modules-upgrade `graph.md` → fallback: scan `__manifest__.py` + topo-sort `depends`
+(pattern: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/SKILL.md` § P1(a)).
+
+When the heuristic fires, replace `Proceed? (yes / refine: [feedback] / cancel)` with:
+
+```
+Proceed?
+  approve-master-child  - one master TDD + one child TDD per module (see Decompose branch)
+  approve-single / yes  - flat TDD covering full scope (default; use when in doubt)
+  refine: [feedback]    - clarify scope first
+  cancel
+```
+
+Default is `approve-single` / plain `yes`. Show `approve-master-child` only when the heuristic
+fires - never for a single-module or narrowly-scoped design.
+
+**`approve-single` / plain `yes`:** MUST set `MODE: single` in the architect dispatch brief (P1
+template). Without this explicit field, the architect's decompose-bounce heuristic may re-evaluate
+scope as multi-module, return `NEEDS_NEXT`, and loop instead of writing the TDD.
+
+---
+
+## Decompose branch (master-child mode)
+
+Only entered when the user replied `approve-master-child` at Phase 0.
+Contract SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
+Artifact root: `.odoo-ai/designs/<master-slug>/`.
+
+**a. Master TDD dispatch.** Dispatch `odoo-solution-architect` with `MODE: master`. Architect
+produces `_master-<date>.md` (cross-module altitude: §10 shared-symbol registry, dep directions,
+integration-module decisions - NOT module internals) and `index.yaml` (per contract schema).
+Use same prompt template as P1 below; add `MODE: master`.
+
+**b. Master gate (human, MANDATORY).** Present master TDD summary: §10 symbol count, dep order,
+top cross-module risks. Gate: `approve-master / refine: [feedback] / cancel`. No child dispatch
+before this clears. The approved master §10 is the hard constraint for all children.
+
+**c. DAG fan-out (child TDDs).** After master gate:
+- Read `dag_layers` from `index.yaml` (topo order is encoded in list order).
+- Dispatch `odoo-solution-architect` `MODE: child` per module, following **Mode B**
+  (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Same-`dag_layer` modules
+  run in parallel. Dep-wait only when a child consumes an interface PROPOSED (not yet in master
+  §10) by a sibling; if already in §10, no wait needed.
+- **Model floor: opus.** Scale toward fable for modules with a new inheritance axis (same
+  fable-confirmation rule as single mode).
+- Child brief includes `MODE: child`, `CHILD_MODULE: <name>`, `MASTER_DESIGN_DOC: <abs path>`,
+  `ODOO_VERSION: <version>`. Child cites master §10 for every cross-module symbol it references.
+- After each child subagent returns, YOU (the orchestrating main agent) write `status: designed`
+  for that module to `index.yaml` (checkpoint for resume on interruption).
+
+**d. Consistency pass (MANDATORY after all children `designed`).** Dispatch
+`odoo-solution-architect` `MODE: consistency`. Reads CONTRACT SUBSET of each child (§1 Intent,
+§9 Acceptance Criteria, cross-module fields/models/deps - NOT full body) + master §10. Reconciles seams,
+updates §10 where needed, emits `conflict-list.md` at the artifact root.
+
+**e. Batch gate (human, single gate for all children).** Present conflict-list (MANDATORY - state
+explicitly if empty; do not skip) + per-child TDD summaries (approach, top risk, data-model delta).
+Gate: `approve-all / refine:<module>: [feedback] / cancel`. A `refine:<module>` re-dispatches that
+child only, re-runs consistency pass, then re-presents this gate. One batch gate total.
+On `approve-all`, write `status: approved` for all modules in `index.yaml`.
+
+**f. Continuation Contract (master-child).** Emit per
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. All paths are repo-root-relative;
+`child_path` under `design_docs` MUST be the full repo-root path (not relative to subdir):
+
+```yaml
+status: NEEDS_NEXT
+next: <return_to or odoo-coding>
+inputs:
+  design_index: .odoo-ai/designs/<master-slug>/index.yaml
+  master_design_doc: .odoo-ai/designs/<master-slug>/_master-<date>.md
+  design_docs:
+    - module: <name>
+      child_path: .odoo-ai/designs/<master-slug>/<name>-<date>.md
+```
+
+Do NOT emit bare `design_doc:` (single-mode only). Do NOT put `design_index` /
+`master_design_doc` / `design_docs` as bare top-level keys - they belong under `inputs:`.
+`next:` same rule as single mode: `return_to` SET → `next: <return_to>`; UNSET →
+`next: odoo-coding` (per module in `dag_layer` order, each with `DESIGN_DOC: <child-path>` and
+`MASTER_DESIGN_DOC: <master-path>`).
+
 ---
 
 ## Persona
@@ -294,5 +384,8 @@ the design is approved. Choose `next` as follows:
   `next: odoo-coding`; for a migration design emit `next: odoo-data-migration` (or
   `odoo-coding` for the migration script). Each carries `design_doc: <path>` so the coder
   builds to the approved design.
+
+- **Master-child mode (`approve-master-child` path):** see Decompose branch § f above. Emit
+  `design_index` / `master_design_doc` / `design_docs` - NOT bare `design_doc:` (single-mode only).
 
 Additive output for the run-driver - it does not change anything produced above.

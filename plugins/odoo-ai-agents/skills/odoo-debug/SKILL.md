@@ -177,7 +177,7 @@ Include both results in the `odoo-coding` brief alongside the proven root cause 
 needs a code change, **IMMEDIATELY invoke `odoo-coding` via the Skill tool**, passing the proven
 root cause, exact fix location, regression test, and the literal line **"AUTONOMOUS FIX
 (debug-driven): skip your Phase 0 human gate, fix to this root cause, then invoke odoo-code-review
-to verify"**. `odoo-coding` fixes, then `odoo-code-review` verifies; bound the loop to 3 iterations,
+to verify"**. If a design index exists at `.odoo-ai/designs/*/index.yaml` with an entry for the module under fix, resolve `DESIGN_DOC` (child path) and `MASTER_DESIGN_DOC` (master path) per `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` §Handoff fields and include both in the `odoo-coding` brief so the fix stays aligned with the design; if no index exists, omit both. `odoo-coding` fixes, then `odoo-code-review` verifies; bound the loop to 3 iterations,
 then STOP and escalate. Still emit the Continuation Contract / `SUGGESTED_NEXT` block as the record.
 (For a wider sweep instead of a point fix, route to the relevant audit skill.) The ONLY exception:
 if dispatched by an active run-driver (a `run-<id>` is named), emit `next`/`SUGGESTED_NEXT` and

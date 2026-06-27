@@ -32,6 +32,11 @@ when it finishes, so a later phase can look up *why* instead of re-deriving it.
 **One file per writer is mandatory.** Parallel workers (rolling-window coders, wave WIs) would
 race on a single shared file; per-writer files make every append conflict-free.
 
+**Master-child design runs**: each child architect writes under a module subpath to prevent
+collision across N parallel children:
+`.odoo-ai/worklog/<run-or-slug>/<module>/NNN-architect.md`. The master architect uses the
+top-level dir (no `<module>` subpath): `.odoo-ai/worklog/<run-or-slug>/NNN-architect.md`.
+
 ## When you WRITE (append, at end of your step)
 
 Log only **decisions that change the outcome or that a later phase must not re-litigate** - not

@@ -18,6 +18,17 @@ The Skill tool is allowed - use it for what the task needs (most commonly invoke
 
 Treat the main-agent instructions and any Technical Design Document (TDD) as authoritative for intent, requirements, constraints, and acceptance criteria - not line-by-line prescriptions; examples/pseudocode/reference code are illustrative, not normative unless stated. Deliver the intended OUTCOME: preserve intent, satisfy every acceptance criterion, respect explicit constraints, prioritise correctness, maintainability, security, performance, and user value. If a safer/simpler/more idiomatic approach meets the same outcome, use it. When an implementation detail conflicts with stated goals, the goals win - document the trade-off.
 
+**Master TDD (hard constraint layer).** If the dispatch brief carries `MASTER_DESIGN_DOC: <path>`,
+read it before writing. The master TDD's §10 cross-module contracts - shared-symbol ownership,
+dep-direction, and integration-module rules - are non-negotiable; a child implementation that
+violates them is a CRITICAL finding. `MASTER_DESIGN_DOC: none` = single mode; skip master check.
+The child TDD (`DESIGN_DOC`) remains the per-module spec; master constrains, not replaces.
+When `MASTER_DESIGN_DOC` is not `none`, ALSO READ `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` and verify each symbol you declare against the §10 ownership table in the master TDD (if another module owns a shared symbol, you are consumer-only). Full contract: that snippet.
+
+**TDD conformance (run before writing any code):**
+- [ ] `DESIGN_DOC` resolved and read - intent, acceptance criteria, and per-module spec built to
+- [ ] `MASTER_DESIGN_DOC` not `none` - §10 cross-module contracts verified; each symbol you declare checked vs §10 ownership table (another module owns it = consumer-only); `none` - skip
+
 ## Domain knowledge
 
 Reason as a domain expert first, programmer second. Identify the business domain that OWNS the requirement (Accounting/Finance, Sales, Purchase, Inventory/Logistics, Manufacturing/MRP, HR, Payroll, Recruitment, Project, Helpdesk, Subscription, eCommerce, PoS, Approvals, CRM, AI, Legal, Marketing, ...) and actively apply its rules. Before writing, determine: which domain owns it, which business concepts and rules must never be violated, which existing Odoo workflows must stay consistent, and which side effects hit other processes. Validate each decision against BOTH Odoo technical architecture AND the domain's business rules. A solution that is technically correct but violates domain rules, accounting principles, business workflows, or established Odoo practice is INCORRECT - passing tests does not make it right.
@@ -219,6 +230,7 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 - [ ] (New module only) Scaffolded via `odoo-bin scaffold`; commented placeholder keys in `__manifest__.py` preserved (only needed keys edited, comments not deleted)
 - [ ] (Module rename only, Viindoo profile via OSM) Renamed module's `__manifest__.py` carries `old_technical_name`; see `[[upg-conventions]]`
 - [ ] Implementation meets the TDD's intent, expected outcomes, and business purpose
+- [ ] (Master-child mode) No drift from master TDD - shared-symbol ownership respected, dep-direction valid, §10 cross-module contracts honored; `MASTER_DESIGN_DOC: none` - skip
 ```
 
 If any item is unmet, re-implement, or emit a structured signal stating what blocks finishing to the original requirements.

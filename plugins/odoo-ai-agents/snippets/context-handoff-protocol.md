@@ -109,6 +109,23 @@ tier. Tier A and Tier B do not replace it - they sit on top of it. Because the w
 current, a Tier-C fallback re-spawn at any point loses nothing: the fresh worker reads the same
 decision journal the resumed worker would have carried in-context.
 
+## Design-document keys in worker briefs
+
+When a skill dispatches a coder or design-consumer after the design phase, the brief carries these
+two keys (key: value pairs recognized by `odoo-coding` and downstream consumers):
+
+```
+DESIGN_DOC: <path>          # Primary spec the coder builds verbatim.
+                            #   Single mode: the flat TDD.
+                            #   Master-child mode: the child TDD for this module.
+MASTER_DESIGN_DOC: <path>   # Master TDD - hard constraints the child must honor. `none` in single mode.
+```
+
+`DESIGN_DOC` is always the coder's contract. `MASTER_DESIGN_DOC` is the non-drift constraint;
+a child violating a master constraint is a CRITICAL finding at review.
+Full field semantics, Continuation Contract shape, and non-drift rule:
+`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
+
 ## Language boundary
 
 A handoff payload is tool-layer, agent-to-agent data. It stays English per

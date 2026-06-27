@@ -66,18 +66,14 @@ Dispatch agent `odoo-review-scoper` (sonnet) per the SCOPER I/O CONTRACT (full S
 
 The scoper writes a compact scope file at `.odoo-ai/reviews/<slug>-<date>/_scope.md` and returns the scope result directly. Main receives the compact output only (keeps main context clean - do NOT run git diff inline, map `__manifest__.py`, or call `test_coverage_audit` in main context; the scoper handles all of this).
 
-Scope output fields used by main:
-- `slug` - used to name the review dir
-- `target_kind` - `local` | `worktree` | `pr` (as resolved by scoper)
-- `review_root` - absolute path where reviewers MUST read files (NOT master/cwd unless scoper says so)
-- `modules[]` - `{name, path}` list of changed/added modules
-- `design_doc` - path to `.odoo-ai/designs/...` if any (pass as `DESIGN_DOC:` to reviewers; when non-null, TDD verification is MANDATORY - reviewer MUST Read it, verify §1 Intent & §9 Acceptance Criteria, and emit `### TDD Conformance`; skipping TDD verify when design_doc is present is a review defect; omit only when design_doc=null)
-- `coverage_baseline` - `test_coverage_audit` result at module level (from scoper); pass as `COVERAGE_BASELINE:` to reviewers - label this BASELINE throughout to distinguish from per-model edge data
-- `pr` - `{number, title, head, base, repo}` or null
-- `fanout` - `single` | `multi`
-- `needs_ui_review` (per module) - `true` | `false` | `candidate`; drives the `UI_REVIEW=delegated` arm of Phase A and the Phase A.5 rendered-UI dispatch
-- `changed_file_types` (per module) - `xml_view` / `js` / `owl` / `scss` / `python_model` tags (route guideline reads + the delegated-source check)
-- `affected_screens` (per module) - view/action/menu xmlids the ui-reviewer is briefed on
+Scope output fields used by main: full field schema per Step 6 of the scoper I/O contract (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Key dispatch behaviors:
+
+**Mode detection:** master-child mode iff `master_design_doc != none` in the scope block; else single mode.
+
+- `design_doc` (per-module column in master-child; `### Design doc` field in single): when non-null, pass as `DESIGN_DOC:` to each per-module reviewer - MANDATORY TDD verify (§1 Intent + §9 ACs + `### TDD Conformance`; skipping is a review defect).
+- `master_design_doc`: when != none, pass as `MASTER_DESIGN_DOC:` to all reviewers AND synthesis - MANDATORY §10 cross-module constraint check; violation = CRITICAL.
+- `coverage_baseline`: pass as `COVERAGE_BASELINE:` - label BASELINE throughout to distinguish from per-model `COVERAGE_CHECK`.
+- `needs_ui_review` (per module): drives `UI_REVIEW=delegated` arm (Phase A) and Phase A.5 dispatch.
 
 Decide review topology from `fanout`: `single` → one reviewer pass; `multi` → fan-out + synthesis.
 
@@ -122,6 +118,8 @@ It reviews only what per-module legs cannot: override-chain conflicts, inheritan
 3. **Final cross-domain synthesis** - dispatch ONE final `odoo-code-reviewer` at **opus** that `Read`s every `domain-<d>.md`, computes cross-domain closure (inter-domain field/API contracts, load-order, ripple), and writes `_synthesis.md` with the overall verdict + score.
 
 (The per-domain and final cross-domain passes use the two domain-synthesis brief templates in `references/agent-prompts.md`.)
+
+**`DESIGN_DOC` for synthesis:** In master-child mode, pass `DESIGN_DOC: null` to ALL synthesis passes (per-module §9 ACs verified in Phase A; synthesis checks §10 only via `MASTER_DESIGN_DOC`). In single mode, pass the flat TDD path as `DESIGN_DOC`.
 
 ## Artifacts
 
