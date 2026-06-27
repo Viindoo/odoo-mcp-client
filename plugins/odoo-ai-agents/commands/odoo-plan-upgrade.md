@@ -32,13 +32,12 @@ Output is written to `.odoo-ai/upgrade-plans/` on explicit user confirmation at 
 dispatch `workflow-chaining` directly - without the run-driver above it, the `on_complete` design
 handoff degrades to a human suggestion (see below).
 
-**Design handoff (`on_complete`).** The workflow declares an `on_complete` that, when the plan contains
-migration/refactor items with more than one viable approach (`needs_design == true`), chains to
-`odoo-solution-design` so those items are designed before any code is written. Because the Dispatch
-above routes through `/odoo-intake` Phase P, the run-driver is present to read the emitted Continuation
-Contract and auto-advance to `odoo-solution-design` - the chain fires automatically. A bare
-`workflow-chaining` dispatch, with no run-driver above it, would degrade this handoff to a visible human
-suggestion instead of auto-chaining, which is why this command routes via intake.
+**Design handoff (`on_complete`).** When the plan contains migration/refactor items with more than one
+viable approach (`needs_design == true`), `on_complete` chains to `odoo-solution-design` so those items
+are designed before any code is written. Routing through `/odoo-intake` Phase P keeps the run-driver
+present to read the emitted Continuation Contract and auto-advance - the chain fires automatically. A
+bare `workflow-chaining` dispatch (no run-driver) degrades this to a visible human suggestion, which is
+why this command routes via intake.
 
 ## When to use
 

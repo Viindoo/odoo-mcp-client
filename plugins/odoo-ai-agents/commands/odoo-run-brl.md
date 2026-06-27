@@ -9,10 +9,10 @@ Thin dispatcher for the `odoo-brl` skill. Accepts an optional `$ARGUMENTS` token
 the customer label (e.g. `/odoo-run-brl Customer-A`). All orchestration logic lives in the
 skill body - this command is a recipe shim only, following the 1-orchestration-SSOT rule.
 
-> Named `odoo-run-brl` (not `odoo-brl`) because a command name must stay disjoint from the
-> skill name `odoo-brl`. The skill also auto-registers `/odoo-ai-agents:odoo-brl`; this
-> command is the convenience entry point that takes a customer-label argument and dispatches to
-> the same skill body - one orchestration mechanism, two entry points.
+> Named `odoo-run-brl` (not `odoo-brl`) so the command name stays disjoint from the skill
+> name. The skill also auto-registers `/odoo-ai-agents:odoo-brl`; this command is the
+> convenience entry point taking a customer-label argument and dispatching to the same skill
+> body - one orchestration mechanism, two entry points.
 
 ## When to use
 
@@ -94,5 +94,5 @@ Defaults to Customer-A label. Same flow.
 - Does NOT send emails or upload files
 - Does NOT commit anything to the repo (all artifacts in `.odoo-ai/brl/`)
 - Does NOT guarantee OSM availability - degrades gracefully when unreachable
-- Does NOT externalize cost estimates without passing GATE E (the approval gate is the
-  safeguard before any deliverable is shared, whether the caller is a human or an orchestrator)
+- Does NOT externalize cost estimates without passing GATE E (the approval gate safeguards
+  any deliverable shared, whether the caller is a human or an orchestrator)

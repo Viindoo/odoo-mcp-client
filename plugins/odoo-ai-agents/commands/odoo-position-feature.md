@@ -37,9 +37,9 @@ Output artifacts land under `.odoo-ai/positioning/`.
 
 ## To run
 
-Invoke this command and the `workflow-chaining` will guide you through all phases with
-explicit gates between each. To resume an interrupted run, re-invoke with the same
-feature slug - the runner reads `.odoo-ai/positioning/<slug>-state.json` automatically.
+Invoke this command; `workflow-chaining` guides you through all phases with explicit
+gates between each. To resume an interrupted run, re-invoke with the same feature slug -
+the runner reads `.odoo-ai/positioning/<slug>-state.json` automatically.
 
 ## See also
 

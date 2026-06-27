@@ -18,10 +18,9 @@ description: >
 
 ## Persona
 
-Marketer - Odoo / your Odoo distribution go-to-market team. Planning B2B campaigns targeting
-small-to-medium business owners, department heads (finance, operations,
-manufacturing), and IT decision-makers. Campaign purpose: generate awareness, drive demo
-requests, and support regional or vertical expansion.
+Marketer on the Odoo / your-distribution go-to-market team. Plans B2B campaigns targeting SMB
+owners, department heads (finance, operations, manufacturing), and IT decision-makers. Purpose:
+generate awareness, drive demo requests, support regional or vertical expansion.
 
 ## Out of Scope
 
@@ -62,21 +61,18 @@ requests, and support regional or vertical expansion.
 
 ### Round 0 - Context bootstrap + confirm campaign inputs
 
-Before asking the user for anything, read what onboarding already captured
+Before asking anything, read what onboarding captured
 (see `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`):
 
-1. **Read `.odoo-ai/context.md`** if present. Extract and apply as authoritative overrides:
-   - `odoo_version` - used as the default for all feature-claim verification and version
-     references in the plan.
-   - Audience personas / messaging pillars defined there override this skill's generic
-     defaults.
-   - Channel restrictions (e.g., "no paid ads", "LinkedIn only") recorded there are applied
-     without asking.
-2. If the file is absent, proceed with this skill's generic defaults.
+1. **Read `.odoo-ai/context.md`** if present; apply as authoritative overrides:
+   - `odoo_version` - default for all feature-claim verification and version references.
+   - Audience personas / messaging pillars there override this skill's generic defaults.
+   - Channel restrictions (e.g. "no paid ads", "LinkedIn only") are applied without asking.
+2. If the file is absent, use this skill's generic defaults.
 
-After the bootstrap, confirm only what is still missing. If more than one input is unclear,
-ask ONE compound question. If the user's request contains enough context, infer reasonable
-defaults and proceed - offer to adjust afterward.
+After bootstrap, confirm only what is still missing. If >1 input is unclear, ask ONE compound
+question. If the request has enough context, infer reasonable defaults and proceed - offer to
+adjust afterward.
 
 **Required inputs (resolved by bootstrap or user):**
 1. **Target vertical or geo**: which industry (manufacturing, trading, services, F&B, retail)
@@ -105,9 +101,8 @@ Choose ONE primary angle. One campaign = one angle. Mixing angles dilutes messag
 | **Release announcement** | New version or major feature shipped | "What's new in Odoo X.Y that matters for SMEs" |
 | **Competitive displacement** | Active competitor in territory | "Why companies switching from [category] are choosing Odoo" |
 
-Declare the chosen angle explicitly in the plan output. If the user's objective suggests a
-different angle than the default inference, flag it and ask for a one-word confirmation before
-proceeding.
+Declare the chosen angle explicitly in the plan output. If the objective suggests a different
+angle than inferred, flag it and ask for a one-word confirmation first.
 
 Optional MCP step (if angle depends on a specific feature claim):
 1. Call `check_module_exists` to confirm the module is present in the target version.
@@ -263,11 +258,10 @@ read them when you need a concrete plan shape to anchor against.
 
 ## Notes
 
-- **Project context file**: `.odoo-ai/context.md` is read automatically in Round 0 (see
-  `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`); `odoo_version`, personas, messaging
-  pillars, and channel restrictions there are authoritative overrides applied before any question.
-- **Brand assets**: reference the repo's brand guidelines (e.g. `branding/STYLE.md`) only when the
-  plan includes a landing-page or visual-design brief for a designer - this skill stays a planning
+- **Project context file**: read automatically in Round 0 (see Round 0 / context-bootstrap snippet);
+  values there are authoritative overrides applied before any question.
+- **Brand assets**: reference repo brand guidelines (e.g. `branding/STYLE.md`) only when the plan
+  includes a landing-page or visual-design brief for a designer - this skill stays a planning
   document, not visual assets. Demo videos/screencasts in the inventory → `odoo-demo-recording`.
 - **No fabricated data**: NEVER invent customer names, revenue figures, or hard ROI %. Use abstract
   templates ("A manufacturing company in the southern region with ~150 employees"). Incorporate
@@ -279,6 +273,5 @@ read them when you need a concrete plan shape to anchor against.
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-driver - it does not change anything produced above.
+Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
+(status / produced / next) - additive run-driver output, changes nothing above.

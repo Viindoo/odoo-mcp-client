@@ -229,7 +229,7 @@ When OSM (`odoo-semantic-mcp`) is unreachable: still auto-discover modules via d
 ## Integration notes
 
 - **Context bootstrap**: Many `odoo-*` skills read `.odoo-ai/context.md` via `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` at Round 0, pre-filling `odoo_version`, `viindoo_profile`, and module list. Forward-compatible - presence never breaks skills that don't yet read it.
-- **Cross-runtime**: Codex and Gemini read the same `.odoo-ai/context.md`. Schema is markdown (not JSON) for portability.
+- **Cross-runtime**: Codex and Gemini read the same `.odoo-ai/context.md`; schema is markdown (not JSON) for portability.
 - **Visual stack**: `.odoo-ai/context.md` is SSOT for instance URL and visual config. `/odoo-ai-agents:odoo-setup` writes `## Instance / Visual`; visual skills (`odoo-ui-review`, `odoo-visual-regression`, `odoo-demo-recording`) read it at Round 0. Onboard preserves that section on refresh.
 
 ## Examples

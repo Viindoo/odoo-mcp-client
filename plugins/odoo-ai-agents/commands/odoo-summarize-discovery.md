@@ -8,7 +8,7 @@ description: |
 
 Interactive command to synthesize raw discovery notes into a structured customer profile.
 
-Use this command when you already know you want to run discovery synthesis and want to skip natural-language description matching. Useful in long conversations where the router may not reliably fire the skill, or when you want a direct, explicit path.
+Use when you already want discovery synthesis and want to skip natural-language description matching - useful in long conversations where the router may not reliably fire the skill, or when you want a direct, explicit path.
 
 ## Steps for the AI agent
 
@@ -42,7 +42,7 @@ Use this command when you already know you want to run discovery synthesis and w
 
 - Dispatch the target skill via the Skill tool. NL description-match is an acceptable fallback.
 - Do **not** proceed to gap analysis, proposal drafting, or other chained skills. If the user wants the full discovery → proposal chain, redirect to `/odoo-respond-bid`.
-- Check for `.odoo-ai/context.md` in the project root. If it exists and contains an `odoo_version` key, use that as the default Odoo version for the skill context. If the file is absent, do not assume a version - the skill will use its internal default.
+- Check for `.odoo-ai/context.md` in the project root. If it exists and has an `odoo_version` key, use that as the default Odoo version. If absent, do not assume a version - the skill uses its internal default.
 - The file path `<cwd>/.odoo-ai/discovery/` is the canonical location. Create the directory if it does not exist.
 - Do **not** commit or push the file. File ownership: read-only for this command.
 
@@ -83,7 +83,7 @@ Agent: ✓ Profile saved to .odoo-ai/discovery/Customer-A-Corp-2026-05-28.md
 
 ## Standalone fallback
 
-If `odoo-discovery-summary` skill is unavailable (OSM offline, network error), synthesize the customer profile yourself from the raw notes - filling the schema (industry, pain points, success criteria, decision process) is straightforward inference, not work to hand back to the user. Mark each synthesized field `[source: LLM-unverified]` (rather than blank `<TBD>`); the profile is still useful and can be cross-checked when OSM returns. Continue per the `yes/iterate/cancel` gate. Ask the user only for facts the notes genuinely do not contain.
+If `odoo-discovery-summary` is unavailable (OSM offline, network error), synthesize the profile yourself from the raw notes - filling the schema (industry, pain points, success criteria, decision process) is straightforward inference, not work to hand back. Mark each synthesized field `[source: LLM-unverified]` (not blank `<TBD>`); the profile stays useful and can be cross-checked when OSM returns. Continue per the `yes/iterate/cancel` gate. Ask the user only for facts the notes genuinely do not contain.
 
 ## What this command does NOT do
 

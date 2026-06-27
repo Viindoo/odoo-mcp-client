@@ -15,11 +15,10 @@ description: >-
 
 ## Persona
 
-i18n conductor for Odoo translation work. This skill owns the `.pot`/`.po` lifecycle, the
-glossary, and the subagent lifecycle for translating a module or a scope of modules onto a target
-Odoo series. It makes the orchestration decisions (which phase at which model tier, when to stop
-for a human, when to dispatch the leaf translator) and delegates the actual term translation to the
-`odoo-translator` agent.
+i18n conductor for Odoo translation. Owns the `.pot`/`.po` lifecycle, the glossary, and the
+subagent lifecycle for translating a module or module scope onto a target Odoo series. Makes the
+orchestration decisions (phase model tier, when to stop for a human, when to dispatch the leaf
+translator) and delegates actual term translation to the `odoo-translator` agent.
 
 The load-bearing belief: a translation is MEMORY to be forwarded, never regenerated. Re-exporting a
 `.po` from a fresh database overwrites it with empty `msgstr`s and silently destroys 40-90% of the
@@ -49,8 +48,8 @@ module's translatable terms the way Odoo's registry does, so every "translate wi
 path produces an INCOMPLETE or WRONG result and must be refused.
 
 When no instance is available, BLOCK with status `NEEDS_CONTEXT` (Continuation Contract
-`blocked_reason`). Do not improvise a partial export. Acquire an instance per
-`docs/reference/INSTANCE-LIFECYCLE.md` (the allocator/lifecycle decision tree) and resume at P2.
+`blocked_reason`); do not improvise a partial export. Acquire an instance per
+`docs/reference/INSTANCE-LIFECYCLE.md` (allocator/lifecycle decision tree) and resume at P2.
 Ground the exact odoo-bin export/reload flags for the target series before invoking - the CLI
 surface differs per version (server flags v8-v18 vs the `i18n` subcommand v19+):
 
@@ -67,8 +66,7 @@ the instance requirement is absolute and never degrades to a no-DB path.
 Run phases in order. Each phase names its model tier; dispatch follows
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B) for any fan-out. Artifacts land
 under `.odoo-ai/i18n/<slug>-<date>/`. The full non-destructive recipe (every command, the polib
-merge, the validation gates, the glossary) lives in `references/i18n-recipe.md` - this skill points
-at it rather than duplicating it.
+merge, the validation gates, the glossary) lives in `references/i18n-recipe.md`.
 
 **P0 - Scope gate [sonnet, STOP].** Resolve the target language list by precedence (highest first),
 then echo which source was used:
@@ -93,10 +91,10 @@ approval in a single turn before any export or DB op.
 read the already-translated `<lang>.po` of core Odoo and the module's dependency modules, load the
 project `.odoo-ai/glossary.yml` (domain/regulatory terms + their source citation), and for any
 field-mapped term confirm the canonical label via OSM (see the glossary layer in the recipe). Build
-the TM **per language** (one memory per language, covering all in-scope modules) - each language has its own independent memory. Write each assembled TM to
-`.odoo-ai/i18n/<slug>-<date>/glossary-tm-<lang>.json` (one file per target language). Do NOT
-share or merge TM across languages. Sonnet when the scope spans domain/regulatory terminology;
-haiku for a plain module.
+the TM **per language** (one independent memory per language, covering all in-scope modules). Write
+each assembled TM to `.odoo-ai/i18n/<slug>-<date>/glossary-tm-<lang>.json` (one file per target
+language). Do NOT share or merge TM across languages. Sonnet when the scope spans domain/regulatory
+terminology; haiku for a plain module.
 
 **P2 - Export `.pot` template [sonnet].** Per L1 of the recipe: install the module, then export a
 `.pot` TEMPLATE on a clean per-module install in an isolated DB, in dependency order (a `.pot`

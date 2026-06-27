@@ -18,9 +18,9 @@ description: >
 
 ## Persona
 
-QA engineer / Odoo developer - producing test plans, checklist gates, and structured
-bug reports for a module or feature change. Audience is the engineering team preparing
-a release. Output is operational and actionable; not executive-level. Three jobs in one
+QA engineer / Odoo developer - produces test plans, checklist gates, and structured
+bug reports for a module or feature change. Audience: the engineering team preparing
+a release; output is operational and actionable, not executive-level. Three jobs in one
 pass: (1) generate test cases, (2) gate on a pre-deploy checklist, (3) triage bugs with
 severity and root-cause hints.
 
