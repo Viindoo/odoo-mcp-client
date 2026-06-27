@@ -61,6 +61,8 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 | Asset bundles | `assets` key in manifest | v15 | Pre-v15: `qweb` key + bundle XML in views |
 | Version string | Strict `adapt_version` regex enforcement | v17 | Pre-v17: lenient; malformed version strings are rejected at install from v17 |
 
+> `adapt_version` above refers to the install-gate version-string validation (v17+ regex enforcement). The same function also series-prefixes the manifest for migration-runner comparison (its second role) - see C2 in `[[fp-merge-absorption]]`.
+
 ## CLI - demo flag
 
 | Scenario | Flag / behavior | Version range |
@@ -111,9 +113,10 @@ class HrEmployee(models.Model):
 
 ## Viindoo-distribution conventions (profile-gated - see `upg-conventions.md`)
 
-These apply ONLY under the gating conditions in `snippets/upg-conventions.md`. NOT Odoo core or OCA.
+These apply ONLY under the gating conditions in `snippets/upg-conventions.md`. NOT Odoo core or other distributions.
 
 | Convention | Rule | Cross-ref |
 |---|---|---|
 | Manifest version on code-level upgrade | Keep short form `x.y.z` - do NOT bump or add series prefix | `snippets/new-module-manifest.md §3` |
-| No-data module rename | `old_technical_name` key only - no migration script | `snippets/module-rename.md` |
+| Forward-port conflict on `version` | Keep TARGET's value - see `[[fp-merge-absorption]]` | C1 |
+| No-data module rename | `old_technical_name` key only - no migration script | `[[upg-conventions]]` |

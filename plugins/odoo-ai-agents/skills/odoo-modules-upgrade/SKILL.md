@@ -23,9 +23,11 @@ dependency order. Delegate every diff read and every custom-vs-core comparison t
 Decide per module - lowest dependency first - what target core now ABSORBS (module wholly
 absorbed -> DELETE it + record the reason in the commit message; KEEP / REWRITE / MERGE /
 SPLIT the rest). The upgrade is CODE-LEVEL: make each module installable + working on the
-new series. NO data migration is assumed (modules are typically `installable: False` with
-no users); if one module genuinely needs a script, the delegated coder writes it INLINE.
-The result is a NEW module version (manifest bump, profile-gated - see § P4). No cluster-squash
+new series. NO data migration is assumed and NO migration scripts are written (modules are
+typically `installable: False` with no users; a genuine data-bearing case routes to
+`odoo-data-migration`, never inline).
+The result is a NEW module version; the manifest `version` is NOT bumped (code-level upgrade
+keeps the existing value - see § P4). No cluster-squash
 (never collapse the whole cluster into one opaque commit); per-module consolidation to ONE clean
 commit per module IS allowed (see `references/upg-phase-detail.md` § Commit consolidation). Human
 sign-off before the PR merges.
@@ -206,10 +208,9 @@ in their manifests.
 For KEEP/REWRITE/MERGE/SPLIT: prepend this module's `blockers[]` from P1d
 `transitive-symbol-survey.md` as a PREEMPTIVE FIX LIST, apply the breaking-change catalog from
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`,
-the per-module deprecation fix list from P1, flip `installable: False -> True`, and bump the
-manifest `version` PROFILE-GATED (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` + F0
-`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`): Viindoo Standard/Internal -> short
-form, no series prefix, often NO bump for code-level upgrade; OCA/upstream -> series-prefix bump.
+the per-module deprecation fix list from P1, flip `installable: False -> True`; do NOT bump the
+manifest `version` (keep the existing short form); set `auto_install`/`application` only when a
+manifest-comment breadcrumb directs (NO auto-detect of "bridge").
 Converge each child worktree back to integration (serialized); remove child worktree.
 **Principal-checkout-lock: NEVER check out or switch the principal checkout yourself.**
 Materialize any needed branch by delegating a worktree add to git-operator.
@@ -287,10 +288,11 @@ review modules in dependency order). Wait for human merge.
    core <core-module/feature> in <tgt> (no custom delta remains)` for absorbed deletes;
    `upg: delete <module> - obsolete at <tgt> (<reason>)` for obsolete deletes.
 4. **ONE PR per cluster.** All modules in one PR, reviewed in dep order.
-5. **Code-level by default; BLOCKED on data-at-risk.** The workflow is CODE-LEVEL only.
-   If a coder determines one module genuinely needs a migration script, it writes it INLINE
-   as part of P4 - it is not a separate phase and not the default assumption.
-   EXCEPTION (data-at-risk detection): if a candidate module is currently `installable: True`
+5. **Code-level only; migration scripts NEVER inline; BLOCKED on data-at-risk.** The workflow is
+   CODE-LEVEL only. This skill NEVER writes migration scripts - inline, as a P4 step, or otherwise.
+   If a module genuinely needs a data migration script, the pipeline reports BLOCKED and routes
+   the case to `odoo-data-migration`; the upgrade itself does not emit the script.
+   Data-at-risk detection: if a candidate module is currently `installable: True`
    AND it defines stored non-computed fields OR has `noupdate="1"` data records, the P2
    comparator flags `data_at_risk: true` in `absorption/<module>.md`. A `data_at_risk`
    module that receives a REWRITE(model) or DELETE verdict MUST ESCALATE: the pipeline

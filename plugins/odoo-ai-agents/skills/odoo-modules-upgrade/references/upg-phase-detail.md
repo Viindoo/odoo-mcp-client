@@ -430,11 +430,11 @@ Write this inside Plan Mode (between `EnterPlanMode` and `ExitPlanMode`).
 2. <m2> (depends on m3)
 3. DELETE <m1> (depends on m2; will be removed after m2 adapted)
 
-### Manifest version bumps required (profile-gated - see ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md)
-# Viindoo Standard/Internal: short form, no series prefix; usually UNCHANGED for a code-level upgrade.
-# OCA/upstream/non-Viindoo: replace source series prefix with target series prefix.
-- <m2>: OCA -> 16.0.1.0.0 -> 17.0.1.0.0  |  Viindoo -> 1.0.0 (unchanged)
-- <m3>: OCA -> 16.0.2.0.0 -> 17.0.2.0.0  |  Viindoo -> 2.0.0 (unchanged)
+### Manifest version (Rule A - NOT bumped)
+# Do NOT bump the manifest `version` for any module in this cluster.
+# Code-level upgrade keeps the existing short form unchanged.
+- <m2>: 1.0.0 (unchanged)
+- <m3>: 2.0.0 (unchanged)
 
 ### Commit plan
 - `upg: m3 16.0->17.0 - KEEP update API call sites`
@@ -541,18 +541,13 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
      - `ir.rule` records - update domain expressions referencing renamed/removed fields
      These files break installation just as hard as Python or view files when a field
      or model they reference no longer exists at target.
-  4. Bump manifest `version` PROFILE-GATED (${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md
-     + F0 ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md): Viindoo Standard/Internal ->
-     SHORT form, no series prefix, and for a code-level upgrade with no data change do NOT bump
-     at all (cross-ref ${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md §3). OCA/upstream/
-     non-Viindoo -> replace the source series prefix with the target series prefix
-     (e.g. 16.0.1.2.3 -> 17.0.1.2.3).
+  4. Do NOT bump the manifest `version` - keep the existing short form unchanged.
   4b. Set `installable: True` (flip from False) AFTER all other P4 fixes are applied, BEFORE P5
      runs - per the upg-classification-table.md manifest-break row. P5 confirms it installs.
-  5. If a migration script is genuinely needed (field type change with data to preserve,
-     renaming with existing data), write it inline under migrations/<target_version>/
-     as a standard Odoo migration script. This is the EXCEPTION, not the default.
-  6. Write or adapt tests: test the adapted behavior, not the old source text. RED first.
+  4c. Scan each `__manifest__.py` for `# TODO: Uncomment when upgrading` markers left by the
+     forward-port skill. Restore `auto_install`/`application` ONLY when the breadcrumb explicitly
+     directs it - do NOT auto-detect from module name or depends structure.
+  5. Write or adapt tests: test the adapted behavior, not the old source text. RED first.
   Always commit with `git commit -s` (DCO sign-off required by CONTRIBUTING.md).
   Commit message: "upg: <module> <source_version>-><target_version> - <ACTION> <one-line summary>"
 
@@ -798,7 +793,7 @@ CONTEXT: cross-major upgrade <src>-><tgt> for cluster <cluster>
 - `odoo-i18n` reconcile (P5.7): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/SKILL.md`
 - Concurrency guard (Mode B): `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
 - Symbol grounding § 2 / § 2.5 (P1d): `${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md`
-- Viindoo upgrade conventions (profile-gated): `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`
+- Viindoo upgrade conventions: `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`
 - F0 version-pivot SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`
 - Runbot parity checklist (P5 gate + pre-PR): `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/runbot-parity-checklist.md`
 - Worker brief format: `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`

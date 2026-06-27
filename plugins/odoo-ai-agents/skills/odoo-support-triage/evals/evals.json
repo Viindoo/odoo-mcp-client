@@ -44,7 +44,7 @@
     {
       "id": 6,
       "prompt": "Ticket says: 'We want Odoo to automatically send WhatsApp messages when a sale order is confirmed. Is this possible?'",
-      "expected_output": "Skill classifies as 'feature-request' (medium confidence - WhatsApp connector exists in some editions/apps). NL-dispatch trigger to odoo-feature-check: verify WhatsApp integration availability in Odoo (CE vs EE vs OCA app). Resolution draft notes options: built-in, OCA module, or custom dev.",
+      "expected_output": "Skill classifies as 'feature-request' (medium confidence - WhatsApp connector exists in some editions/apps). NL-dispatch trigger to odoo-feature-check: verify WhatsApp integration availability in Odoo (CE vs EE vs App Store). Resolution draft notes options: built-in, App Store module, or custom dev.",
       "expected_routed_to": "odoo-feature-check",
       "category": "dispatch-feature-request-to-feature-check",
       "files": []

@@ -91,7 +91,8 @@ model_inspect(model='account.move', method='summary', odoo_version='17.0')
 
 Assign exactly one bucket a/b/c/d per `[[fp-intent-4outcome]]` (read it - do not re-derive the
 definitions). Append one row per commit to `merge-log.md` (intent / bucket / reason / evidence -
-no blank Reason or Evidence cell). `odoo-version-diff` forward-port mode supplies the per-symbol
+no blank Reason or Evidence cell). C3 escalations use the canonical row
+`<sha> | C3 | source issue <ref|DEFERRED> | <evidence one-liner>`. `odoo-version-diff` forward-port mode supplies the per-symbol
 bucket suggestion when the diff is large. Refine the commit's ADAPT tier now that the bucket is
 known (bucket a/d -> haiku, test-only).
 
@@ -434,11 +435,16 @@ MODULE SCOPE: <name>
   WRITE-TO: <absolute-child-worktree-path>/<module>/ (your child worktree; write ALL output here)
 ODOO VERSION: <target>
 WORKLOG: <slug> - read, then append.
+MANIFEST/MIGRATION/PROVENANCE: apply C1 (keep TARGET version on conflict, never bump), C2 (migration-dir
+  retarget), C3 (carry pre-existing source bugs faithfully, do not inline-fix) - [[fp-merge-absorption]]
 USER LANGUAGE: <lang | omit when English>
 ```
 
-**8c - new module:** apply `[[fp-installable-false]]` - `installable: False`, comment
-`auto_install`/`application`, lint-fix only, no content upgrade.
+**8c - installable:False modules** - two sub-cases, same manifest action. (i) **New module** (absent
+at target): `installable: False`, comment `auto_install`/`application`, lint-fix only.
+(ii) **Upgraded-then-forwarded** (target clean-tip = `installable:False` but merge carries `True`):
+re-set to False + re-comment `auto_install`/`application` with `# TODO: Uncomment when upgrading
+module to production-ready status` breadcrumb - then lint-fix only. SSOT: `[[fp-installable-false]]`.
 
 **8c-bis - installable:False at target = LINT-ONLY lane.** BEFORE dispatching the coder/reviewer
 for any module (new or pre-existing), confirm its target installable flag (already probed at P2 -
@@ -453,13 +459,19 @@ the coder in **lint-only mode**: run flake8 / eslint / prettier / ruff and fix O
 breakage to keep CI green - do NOT adapt business logic, do NOT upgrade content. Pass
 `LINT-ONLY: yes` in the 8b brief and the pointer `[[fp-installable-false]]`. The single exception
 to "no logic change" is a syntax/lint error that itself blocks the file from parsing.
+When the merged `__manifest__.py` now shows `installable:True` (upgrade-commit carried in)
+but the target clean-tip was `installable:False`, re-set to False + re-comment
+`auto_install`/`application` with the `# TODO: Uncomment when upgrading` breadcrumb before
+dispatching the coder. SSOT: `[[fp-installable-false]]`.
 
-**8d - migration script:** rename the `migrations/<src-series>.x.y.z` dir to `<tgt-series>` ONLY
-when the gate `installed < parse(dir) <= current` holds (else the script lands inert - silent).
-The rename is idempotent (re-run safe). See `odoo-data-migration` for the script body. After the
-rename, sweep the migration body for log strings / hardcoded series literals still naming the
-SOURCE series (a `_logger.info("... 17.0 ...")` or a version string left from the source) - they
-survive the rename unchanged and mislead the operator:
+**8d - migration script:** RETARGET a forwarded `migrations/<src-series>.a.b.c/` dir per C2:
+default = rename to FULL `<tgt-series>.V` where `V` is chosen so the dir fires on a deployed target
+DB at manifest `M` (if `S > M`: `V=S`, merge already bumped; if `S <= M`: bump manifest to
+`V = M`'s last component +1, name dir `<tgt-series>.V`). Exception: a legacy source-origin-only
+data fix keeps `<src-series>.a.b.c` untouched. Lint-only lane (`installable:False` at target) = do
+NOT retarget. This is a migration-threshold action, NOT a "diff-touched-a-file" bump (C1). Full
+rule + `adapt_version` silent-skip WHY: `[[fp-merge-absorption]]`. After the rename, sweep the
+migration body for source-series literals still in log strings or version constants:
 
 ```bash
 grep -rn '<src-series>' migrations/<tgt-series>/   # e.g. grep -rn '17\.0' migrations/18.0/
@@ -594,6 +606,8 @@ python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN
   do not block). Green on clean / red only after absorption = FP-delta (fix before committing).
   A red in a co-installed dep you never touched is almost always pre-existing - prove it with
   the clean-tip baseline, do not assume. Never widen an assertion to hide a pre-existing failure.
+  For source-series follow-through on a pre-existing red, apply C3 - carry faithfully + open a
+  source issue (resolvable remote) or record it; see `[[fp-merge-absorption]]` § Triage / C3.
 - **Baseline a failed INSTALL the same way.** If a module fails to install, re-run its `-i`
   on clean `origin/<target-branch>` (no absorption, no merge). Fails there too = a PRE-EXISTING
   break in the target series, NOT FP-introduced - record it in `merge-log.md` and do NOT block
@@ -661,12 +675,13 @@ line is actually in the forward-port delta. Delegate to git-surveyor: three-dot 
 A finding on a line NOT in this diff is pre-existing - note it separately, do not block the PR on
 it (flag it, do not gate the forward-port on it).
 
-**Per finding, check whether the bug already exists in the SOURCE series.** For each finding,
-open the source-series PR / branch and check if the same defect is present there. If it is, the
-bug is INHERITED (forwarded faithfully, not introduced here) - route a fix UPSTREAM to the source
-series; do NOT patch it silently inside the forward-port (that would diverge source and target and
-hide the real fix location). Record `inherited -> upstream` in `merge-log.md` and carry the
-faithful forward.
+**Per finding, apply C3 (fix old version first).** Check whether the same defect exists at the source
+series. If it does, it is a **pre-existing source bug** (inherited - forwarded faithfully, not introduced
+by this port): route the fix UPSTREAM via a source-series issue (delegate to github-operator when a source
+remote resolves via `git remote get-url`, else record it in `merge-log.md` + the Continuation Contract);
+do NOT patch it inside the FP. Record `<sha> | C3 | source issue <ref|DEFERRED> | <evidence>` in
+`merge-log.md` and carry it faithfully forward. EXCEPTION: a serious security/safety bug is fixed on the
+destination immediately (still open a source issue). SSOT: `[[fp-merge-absorption]]` § Triage / C3.
 
 **Narrow a field-existence question with a direct lookup, not a model_inspect retry.** When
 a finding hinges on whether one field still exists / changed type at the target, query that field

@@ -393,15 +393,24 @@ always correct; the worklog is always written regardless of tier.
 - **8b adapt the code** per bucket via `odoo-coder` (backend) / `odoo-frontend-coder` (frontend),
   dispatched with an FP-ENRICHED brief = the named **Child worktree path: `<absolute path>`** field
   + the same **cd-on-resume (HARD RULE - Tier-A)** item as 8a + intent record + bucket + the failing
-  test + the installable:False checklist. Bucket (a)/(d): no adapt code. Bucket (b): 3-way merge + adapt.
-  Bucket (c): re-implement on the target idiom. The frontend leg additionally grounds any
-  ported OWL/QWeb/SCSS against `skills/_shared/odoo-frontend-fidelity.md` so the forwarded UI
-  stays on-theme and design-system-correct for the target version.
-- **8c new module** (exists at source, not yet at target): `installable: False` + comment
-  `auto_install`/`application`, lint-fix only. SSOT: `[[fp-installable-false]]`.
-- **8d migration script**: rename `<src-series>` -> `<tgt-series>` dir ONLY when the gate
-  `installed < parse(dir) <= current` holds - never rename blind (an inert dir is silent).
-  (`installed` = `ir.module.module.installed_version` for the module; `current` = manifest `version`.)
+  test + the installable:False checklist + `MANIFEST/MIGRATION/PROVENANCE: apply C1 (keep TARGET
+  version on conflict, never bump), C2 (migration-dir retarget), C3 (carry pre-existing source bugs
+  faithfully, do not inline-fix) - [[fp-merge-absorption]]`. Bucket (a)/(d): no adapt code.
+  Bucket (b): 3-way merge + adapt. Bucket (c): re-implement on the target idiom. The frontend leg
+  additionally grounds any ported OWL/QWeb/SCSS against `skills/_shared/odoo-frontend-fidelity.md`
+  so the forwarded UI stays on-theme and design-system-correct for the target version.
+- **8c installable:False modules** - two sub-cases, same manifest action:
+  (i) **New module** (absent at target): set `installable: False` + comment `auto_install`/
+      `application`, lint-fix only.
+  (ii) **Upgraded-then-forwarded** (pre-existing at target with `installable:False` at clean-tip,
+      but merge carries `installable:True`): re-set to False + re-comment `auto_install`/
+      `application` with breadcrumb - then lint-fix only.
+  Both land in the LINT-ONLY lane. SSOT: `[[fp-installable-false]]`.
+- **8d migration script**: retarget a forwarded `migrations/<src-series>.a.b.c/` dir to the target
+  series per C2 (default: name it FULL `<tgt-series>.V` so it fires on a deployed target DB at manifest
+  `M`; bump the manifest only in the `S<=M` case; legacy source-only data fix keeps `<src-series>.a.b.c`).
+  This is a migration-threshold action, NOT a conflict-resolution version bump (C1). Full rule +
+  `adapt_version` silent-skip WHY: `[[fp-merge-absorption]]`.
 Converge each child worktree back to integration (serialized) - the converge-back stays
 serialized, one in-flight at a time. Do NOT remove the child worktree at converge-back time:
 under Tier-A the adapt -> verify -> (re-adapt on failure) cycle for that module may resume the
@@ -545,9 +554,11 @@ Three more cross-cutting checks apply per batch:
   the source ref into reach (delegate to git-operator: add source remote + fetch) BEFORE computing
   the merge-base or merging; a forward-port across repos that skips this silently merges against a
   stale local ref. Detail: `references/fp-phase-detail.md`.
-- **Manifest version-bump gate.** Bump a module's manifest `version` only when the absorbed
-  diff touches a `.js` / `.scss` / `.xml` file or anything under `migrations/`; a pure-`.py` port
-  needs no bump. SSOT: `[[fp-installable-false]]`.
+- **Manifest version & migration dir.** Forward-port carries the source manifest AS-IS and NEVER
+  auto-bumps `version`: on a `__manifest__.py` conflict keep the TARGET file's value (C1). A forwarded
+  `migrations/` dir is RETARGETED to the target series (C2) - a dir rename with a threshold-driven
+  version, NOT a "diff-touched-a-file" bump. C1 and C2 are distinct; apply both. SSOT:
+  `[[fp-merge-absorption]]`.
 - **Field-label grounding.** When the port renames or re-labels a field, confirm the
   target's canonical label before adapting -
   `entity_lookup(kind='field', model='<model>', field='<field>', odoo_version='<target>')` - so the

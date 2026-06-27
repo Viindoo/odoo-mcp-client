@@ -52,7 +52,7 @@ Sales Engineer / Account Executive
 Objection categories:
 1. **False** - feature exists and works well. Counter with evidence.
 2. **Partially true** - standard coverage is limited; custom development closes the gap easily. Frame as "standard practice, not a gap."
-3. **True but mitigated** - Odoo doesn't support it natively, but an OCA module, custom extension, or well-established integration pattern exists.
+3. **True but mitigated** - Odoo doesn't support it natively, but a third-party module, custom extension, or well-established integration pattern exists.
 4. **True and significant** - honestly acknowledge and propose the workaround or alternative.
 
 **Never fabricate capabilities.** Intellectual honesty builds more long-term trust than overselling. If the objection is valid, say so and pivot to how the gap is handled in practice.

@@ -48,7 +48,7 @@ Consultant / Developer
 
 ## Context
 
-Coverage levels: (1) **CE native** - free, zero customization; (2) **EE only** - paid subscription; (3) **OCA/App Store** - third-party, not officially supported.
+Coverage levels: (1) **CE native** - free, zero customization; (2) **EE only** - paid subscription; (3) **App Store / third-party** - not officially supported.
 
 Version matters: v12+ feature may not exist in v8/v9 (OpenERP era - different module names, `_columns` dict, etc.). Always resolve the target version.
 

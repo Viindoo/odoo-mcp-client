@@ -13,7 +13,7 @@
 1. **Core `test_lint`** - Odoo core's own lint test module (manifest checks, eslint, pofile,
    `__init__` consistency, …). It runs **only** when included in `--test-tags`; a normal
    `--test-tags /<module>` run does **not** include it. → see `ODOO-TESTING.md`.
-2. **`pylint-odoo`** - the OCA pylint plugin (`consider-merging-classes-inherited`, `sql-injection`,
+2. **`pylint-odoo`** - the Odoo pylint quality plugin (`consider-merging-classes-inherited`, `sql-injection`,
    `print-used`, `translation-*`, …). Not a test-suite module; reproduced by
    **`scripts/verify-backend.sh`** (the backend sibling of `verify-frontend.sh`).
 
@@ -89,7 +89,7 @@ When a deployment ships its own quality module (commonly `test_pylint` / `test_l
 path, `verify-backend.sh` **derives the enabled-code set from it** (its `.pylintrc` or an
 `ENABLED_CODES` list) rather than vendoring any deployment-internal config into this public plugin.
 Resolution order: `$ODOO_PYLINTRC` → deployment quality module → repo-root `pylintrc` → shipped
-fallback `scripts/odoo-pylintrc` (OCA defaults). **No deployment-internal data lives in the plugin.**
+fallback `scripts/odoo-pylintrc` (shipped fallback defaults). **No deployment-internal data lives in the plugin.**
 
 ## Copy-paste reproduce
 

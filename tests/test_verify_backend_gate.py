@@ -5,7 +5,7 @@ fix, green with it, per ETHOS #10):
 
   a. Whitelist isolation - when ENABLED_CODES is derived from a deployment quality
      module, the gate runs `--disable=all --enable=<whitelist>` so ONLY that
-     whitelist runs (the rcfile's broad OCA defaults are NOT stacked on top).
+     whitelist runs (the rcfile's broad defaults are NOT stacked on top).
   b. Comment-strip - codes the deployment intentionally commented out (e.g.
      `# 'C8105', ...`) are NOT re-enabled, and a `)` inside a comment cannot
      truncate the list.
@@ -13,7 +13,7 @@ fix, green with it, per ETHOS #10):
      (it is OUR pylint-odoo version drift, not the developer's code), while a
      real finding alongside it still BLOCKs.
   d. B2 fail-closed - a quality module present but its whitelist underivable must
-     NOT silently pass; the gate runs the full OCA config and emits a loud WARN
+     NOT silently pass; the gate runs the full fallback config and emits a loud WARN
      ("could not derive ...") - never a clean GREEN with zero checks.
 
 Hermetic: no real pylint/pylint-odoo. A fake tools venv (recording argv + emitting
@@ -123,7 +123,7 @@ def test_whitelist_isolated_and_commented_codes_excluded(tmp_path):
     """Derived whitelist must run as `--disable=all --enable=<active codes>` and
     a commented-out code (even with a ')' in its comment) must NOT be enabled.
 
-    Red without fix (a): no --disable=all -> OCA defaults stack on top.
+    Red without fix (a): no --disable=all -> shipped defaults stack on top.
     Red without fix (b): the ')' in the comment truncates the list AND the
                          commented C8105 is re-enabled.
     """
@@ -250,7 +250,7 @@ def test_empty_derive_fails_closed_not_silent_green(tmp_path):
     must NOT silently pass: no empty --disable=all, a loud 'could not derive' WARN,
     and the result is not a clean GREEN.
 
-    Red without B2: empty derive falls back to OCA defaults silently -> a clean
+    Red without B2: empty derive falls back to shipped defaults silently -> a clean
     file reports 'PASS (clean)' with no derive-failure signal (false GREEN).
     """
     workdir = tmp_path / "work"
