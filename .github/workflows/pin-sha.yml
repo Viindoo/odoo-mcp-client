@@ -13,6 +13,7 @@ on:
     paths:
       - 'plugins/odoo-ai-agents/**'
       - 'plugins/odoo-semantic-mcp/**'
+      - 'plugins/git-toolkit/**'
 
 # Cancel in-flight pin run when a newer qualifying commit lands.
 concurrency:
@@ -65,7 +66,7 @@ jobs:
           ALL_PINNED=$(python3 -c "
           import json, os
           head = os.environ['HEAD_SHA']
-          names = {'odoo-ai-agents', 'odoo-semantic-mcp'}
+          names = {'odoo-ai-agents', 'odoo-semantic-mcp', 'git-toolkit'}
           m = json.load(open('claude-plugins/.claude-plugin/marketplace.json'))
           seen = {p['name']: p['source'].get('sha', '') for p in m['plugins'] if p['name'] in names}
           ok = names.issubset(seen) and all(seen[n] == head for n in names)
@@ -78,11 +79,11 @@ jobs:
         env:
           HEAD_SHA: ${{ steps.info.outputs.sha }}
         run: |
-          # Pin BOTH split plugins (odoo-ai-agents + odoo-semantic-mcp) to the same HEAD SHA.
+          # Pin all Viindoo plugins (odoo-ai-agents + odoo-semantic-mcp + git-toolkit) to the same HEAD SHA.
           python3 -c "
           import json, os
           head = os.environ['HEAD_SHA']
-          names = {'odoo-ai-agents', 'odoo-semantic-mcp'}
+          names = {'odoo-ai-agents', 'odoo-semantic-mcp', 'git-toolkit'}
           path = 'claude-plugins/.claude-plugin/marketplace.json'
           with open(path) as f: m = json.load(f)
           for p in m['plugins']:
@@ -99,17 +100,17 @@ jobs:
         run: |
           SHA="${{ steps.info.outputs.sha }}"
           SHA7="${SHA:0:7}"
-          BRANCH="auto-pin/odoo-semantic-plugins-${SHA7}"
+          BRANCH="auto-pin/viindoo-plugins-${SHA7}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git add .claude-plugin/marketplace.json
-          git commit -m "pin odoo-semantic plugins to ${SHA7}"
+          git commit -m "pin Viindoo plugins to ${SHA7}"
           git push origin "$BRANCH"
           PR_URL=$(gh pr create \
             --repo Viindoo/claude-plugins \
-            --title "pin odoo-semantic plugins to ${SHA7}" \
-            --body "Auto-pin: plugin content changed in [${SHA7}](https://github.com/Viindoo/odoo-mcp-client/commit/${SHA}). Pins both odoo-ai-agents and odoo-semantic-mcp." \
+            --title "pin Viindoo plugins to ${SHA7}" \
+            --body "Auto-pin: plugin content changed in [${SHA7}](https://github.com/Viindoo/odoo-mcp-client/commit/${SHA}). Pins odoo-ai-agents, odoo-semantic-mcp, and git-toolkit." \
             --label "auto-pin")
           # `gh pr merge --auto` enables auto-merge, which merges the pin PR within
           # seconds (claude-plugins master has no required checks, so a clean PR merges
