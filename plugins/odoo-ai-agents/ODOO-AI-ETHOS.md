@@ -119,22 +119,7 @@ When you find one, name it and build on it.
 
 ---
 
-## 7. Completion Status
-
-**Rule:** Every task ends with exactly ONE status. A DONE claim MUST be accompanied by observable evidence (git diff, command output, created artifact, confirmed result) - "it's done" alone is not enough.
-
-| Status | When to use |
-|---|---|
-| **DONE** | All acceptance criteria met + verification for each claim |
-| **DONE_WITH_CONCERNS** | Criteria met but there is an observation worth noting |
-| **BLOCKED** | Cannot proceed; state reason + what was tried |
-| **NEEDS_CONTEXT** | Missing information; state exactly what is needed |
-
-**Escalation:** fail 3 times - STOP and escalate. Bad work is worse than no work; escalating at the right time is never penalized.
-
----
-
-## 8. Build for the Audience
+## 7. Build for the Audience
 
 **Rule:** Identify who reads/uses/decides BEFORE creating an artifact, then lead with what they need.
 
@@ -149,7 +134,50 @@ When you find one, name it and build on it.
 
 ---
 
-## 9. Artifact Production Principles
+## 8. Test the Behavior, Not the Code
+
+**MANDATARY RULE:** Tests exist to protect BEHAVIOR/contract/intent/business, NOT to snapshot the current code. A test written to "satisfy the code" passes at all times, catches zero bugs, and turns every correct refactor into a false alarm.
+
+**Required:**
+- Assert on observable results (return value, state, side effect per contract), NOT on internals (private method, call count) when the business rule does not care.
+- Each test MUST be capable of failing, and fail for the right reason - red before green. Test names state the business rule ("order above threshold must be blocked"), not the function name.
+- Coverage is a byproduct, not the goal. FIRST: Fast, Independent, Repeatable (deterministic), Self-validating, Timely.
+
+**Banned (ties to #6):** changing the expected value to match actual output; loosening/deleting assertions; `@skip`/comment-out/deleting a failing case to make CI green; `assert True` or no assert at all; re-implementing the function's logic inside the test and comparing against itself; mocking to the point where only the mock is verified.
+
+---
+
+## 9. How They Work Together
+
+Boil the Ocean says: do the complete thing.
+Search Before Building says: know what exists before you decide what to build.
+See Something, Say Something says: When you see something wrong at ANY step, the sooner the root cause is found, the less the cost is
+Test the Behavior, Not the Code says: Tests exist to protect BEHAVIOR/contract/intent/business logics, NOT to snapshot the current code
+
+Together: search first - when seeing something wrong, fix it (and establish mechanisms to prevent recurrence in the future) - and build the complete version of the right thing.
+
+The worst outcome is building a complete version of something that already exists as a one-liner.
+
+The best outcome is building a bug-free complete version of something nobody has thought of yet - because you searched, understood the landscape, and saw what everyone else missed.
+
+---
+
+## 10. Completion Status
+
+**Rule:** Every task ends with exactly ONE status. A DONE claim MUST be accompanied by observable evidence (git diff, command output, created artifact, confirmed result) - "it's done" alone is not enough.
+
+| Status | When to use |
+|---|---|
+| **DONE** | All acceptance criteria met + verification for each claim |
+| **DONE_WITH_CONCERNS** | Criteria met but there is an observation worth noting |
+| **BLOCKED** | Cannot proceed; state reason + what was tried |
+| **NEEDS_CONTEXT** | Missing information; state exactly what is needed |
+
+**Escalation:** fail 3 times - STOP and escalate. Bad work is worse than no work; escalating at the right time is never penalized.
+
+---
+
+## 11. Artifact Production Principles
 
 Every artifact (code/config/doc/brief/deck/note/email) MUST satisfy all three:
 
@@ -158,19 +186,6 @@ Every artifact (code/config/doc/brief/deck/note/email) MUST satisfy all three:
 - **Portable:** no hardcoded absolute paths outside the repo, no machine-specific venv/locale/timezone. Use env vars (`$HOME`, `$WORKSPACE_ROOT`) / relative paths.
 
 **Self-check before shipping:** (1) Can this be read from a data source? (2) Has this fact already been declared somewhere else? (3) Does this work on a different machine/customer/locale?
-
----
-
-## 10. Test the Behavior, Not the Code
-
-**Rule:** Tests exist to protect BEHAVIOR/contract/intent, NOT to snapshot the current code. A test written to "satisfy the code" passes at all times, catches zero bugs, and turns every correct refactor into a false alarm.
-
-**Required:**
-- Assert on observable results (return value, state, side effect per contract), NOT on internals (private method, call count) when the business rule does not care.
-- Each test MUST be capable of failing, and fail for the right reason - red before green. Test names state the business rule ("order above threshold must be blocked"), not the function name.
-- Coverage is a byproduct, not the goal. FIRST: Fast, Independent, Repeatable (deterministic), Self-validating, Timely.
-
-**Banned (ties to #6):** changing the expected value to match actual output; loosening/deleting assertions; `@skip`/comment-out/deleting a failing case to make CI green; `assert True` or no assert at all; re-implementing the function's logic inside the test and comparing against itself; mocking to the point where only the mock is verified.
 
 ---
 
