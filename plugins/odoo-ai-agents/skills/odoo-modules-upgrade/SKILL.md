@@ -329,10 +329,14 @@ Status progression:
 - `installed` - module's wave passed P5 install + test green.
 - `done` - module fully processed (installed green + verified).
 
-Resume behavior: P2 through P5 skip any module with status `done` in the ledger.
+Resume behavior (per-phase skip rules - prevents overwriting completed work on crash/resume):
+- P2 skips modules with status in {absorbed, designed, adapted, reviewed, installed, done}.
+- P4 skips modules with status in {adapted, reviewed, installed, done}.
+- P4b skips modules with status in {reviewed, installed, done}.
+- P5 skips modules at the wave level with status in {installed, done}.
 On crash or credit exhaustion, restart the orchestrator: it reads `checkpoint.json`
-and resumes from the first non-`done` module. P5 per-wave records green in the ledger
-so re-runs do not re-install proven waves.
+and resumes from the first module that has not yet reached the target phase's skip-threshold.
+P5 per-wave records green in the ledger so re-runs do not re-install proven waves.
 
 ## Cluster / dependency handling
 

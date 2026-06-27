@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - The four heavy pipelines (`odoo-git-rebase`, `odoo-forward-port`, `odoo-modules-upgrade`, `wave`), `odoo-code-review`, and the read-only leaf agents (`odoo-diff-comparator`, `odoo-intent-extractor`, `odoo-installable-prober`, `odoo-review-scoper`) no longer execute git or `gh` CLI calls inline; they cold-spawn the appropriate `git-toolkit` agent. Bounded reads (e.g. `git log`, `git diff`) and a subagent's own-worktree `git add`/`commit`/`stash` are explicitly permitted to stay inline.
+
+### Fixed
+
+- `odoo-modules-upgrade` upgrade robustness (review R3 findings M2/M3/L1/L2/L3): RECONCILE new-mechanism detection now runs `suggest_pattern`/`find_examples` unconditionally for every KEEP feature so a new parallel core mechanism (new model/mixin/action on the same domain) is caught even when the feature's own API endpoint shows no `new` items; crash-safe checkpoint resume now uses explicit per-phase skip thresholds (P2 skips {absorbed..done}, P4 skips {adapted..done}, P4b skips {reviewed..done}, P5 skips {installed,done}) preventing a resume from overwriting already-adapted integration worktree work; commit consolidation base is now recorded from the git-operator converge step SHA instead of being re-discovered from an interleaved log; design-trigger condition list removed from `upg-phase-detail.md` P2b (SKILL.md § P2b is the SSOT; duplicate no longer drifts); DCO sign-off (`git commit -s`) made mandatory in the P4 coder brief for KEEP/REWRITE paths.
 - `git-toolkit` safety contract gains S9 (worktree-always / principal-checkout-lock, mandatory for all delegated ops); `git-operator` now emits a `BLOCKED-CONFLICT` status with `conflicted_files` and `stopped_commit` fields to support the stateless conflict-resume loop at the orchestrator level.
 - Hardcoded fork and upstream identifiers removed from `odoo-git-rebase`, `odoo-forward-port`, and `odoo-modules-upgrade` agent prose; these are now resolved at runtime via `git remote get-url origin`.
 
