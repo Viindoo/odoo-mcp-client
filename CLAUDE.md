@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this repo is
 
 `odoo-mcp-client` is the **MIT-licensed client layer** for the Odoo Semantic MCP server
-(`odoo-semantic.viindoo.com`, AGPL, separate repo). It is a **monorepo of two Claude Code
+(`odoo-semantic.viindoo.com`, AGPL, separate repo). It is a **monorepo of three Claude Code
 plugins** under `plugins/`:
 
 - **`odoo-ai-agents`** - the workforce toolkit: skills + specialist agents + workflow commands,
@@ -13,6 +13,9 @@ plugins** under `plugins/`:
   `odoo-semantic-mcp` as a dependency.
 - **`odoo-semantic-mcp`** - the thin MCP connection plugin: registers the `odoo-semantic` server
   and ships `/odoo-semantic-mcp:connect`.
+- **`git-toolkit`** - a domain-agnostic, Apache-2.0 git + GitHub toolkit for AI agents: one
+  front-door skill (`git-ops`) + 4 agents that run git/github work safely in a delegated context.
+  Declares `github` as a dependency; not under the SSOT generator.
 
 There is almost no application logic here. The repo is a **routing + orchestration layer made of
 Markdown** (skills/agents/commands are prose with YAML frontmatter); all knowledge and computation

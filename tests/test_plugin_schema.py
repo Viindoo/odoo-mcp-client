@@ -19,15 +19,27 @@ ROOT = Path(__file__).resolve().parent.parent
 PLUGINS_DIR = ROOT / "plugins"
 SKILLS_PLUGIN = PLUGINS_DIR / "odoo-ai-agents"
 MCP_PLUGIN = PLUGINS_DIR / "odoo-semantic-mcp"
+GIT_PLUGIN = PLUGINS_DIR / "git-toolkit"
 
 SKILLS_MANIFEST = SKILLS_PLUGIN / ".claude-plugin" / "plugin.json"
 MCP_MANIFEST = MCP_PLUGIN / ".claude-plugin" / "plugin.json"
+GIT_MANIFEST = GIT_PLUGIN / ".claude-plugin" / "plugin.json"
 
 # (plugin_root, manifest_path) pairs for the manifests that share common fields.
 ALL_MANIFESTS = [
     pytest.param(SKILLS_PLUGIN, SKILLS_MANIFEST, id="odoo-ai-agents"),
     pytest.param(MCP_PLUGIN, MCP_MANIFEST, id="odoo-semantic-mcp"),
+    pytest.param(GIT_PLUGIN, GIT_MANIFEST, id="git-toolkit"),
 ]
+
+# Each plugin declares its own license; assert the EXACT expected value per plugin
+# (git-toolkit is intentionally Apache-2.0 for its explicit patent grant; the two
+# odoo plugins stay MIT). A new plugin with no entry here fails loudly.
+EXPECTED_LICENSE = {
+    "odoo-ai-agents": "MIT",
+    "odoo-semantic-mcp": "MIT",
+    "git-toolkit": "Apache-2.0",
+}
 
 
 def _load(manifest_path):
@@ -60,8 +72,12 @@ def test_required_fields(plugin_root, manifest_path):
 
 
 @pytest.mark.parametrize("plugin_root, manifest_path", ALL_MANIFESTS)
-def test_license_is_mit(plugin_root, manifest_path):
-    assert _load(manifest_path)["license"] == "MIT"
+def test_license_is_expected(plugin_root, manifest_path):
+    expected = EXPECTED_LICENSE.get(plugin_root.name)
+    assert expected is not None, f"declare an expected license for plugin {plugin_root.name!r}"
+    assert _load(manifest_path)["license"] == expected, (
+        f"{plugin_root.name} license must be {expected!r}"
+    )
 
 
 @pytest.mark.parametrize("plugin_root, manifest_path", ALL_MANIFESTS)

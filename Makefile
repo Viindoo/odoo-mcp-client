@@ -44,7 +44,8 @@ setup: $(VENV_STAMP)
 validate: $(VENV_STAMP)
 	@command -v claude >/dev/null 2>&1 && { \
 		claude plugin validate plugins/odoo-ai-agents && \
-		claude plugin validate plugins/odoo-semantic-mcp; \
+		claude plugin validate plugins/odoo-semantic-mcp && \
+		claude plugin validate plugins/git-toolkit; \
 	} || \
 		echo "(claude CLI not found - skipping 'claude plugin validate'; running pytest checks)"
 	$(PYTHON) -m pytest tests/test_plugin_schema.py tests/test_skill_format.py -q
