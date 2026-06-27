@@ -224,6 +224,8 @@ WI's scheduling weight. A large or complex WI must NOT fall back to the leaf age
 
 Each subagent receives a **WI brief** as its `prompt`:
 
+**Design-doc resolution (fill before dispatch):** If a `design_index` path was passed in the Continuation Contract upstream, or a `.odoo-ai/designs/*/index.yaml` exists and contains an entry whose `modules[].name` matches this WI's module, set `DESIGN_DOC` = `<subdir>/<child_path>` and `MASTER_DESIGN_DOC` = `<subdir>/<master>` (paths relative to repo root). If no index exists, leave both blank / none. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` §Handoff fields.
+
 ```
 ## WI-<ID> Brief
 Worktree path  : <absolute path>
@@ -234,6 +236,8 @@ Module depends-on (in-wave): <WIs whose modules this WI's modules depend on - al
 Upstream deps (out-of-scope): <modules this WI depends on that are NOT being changed - do not edit>
 Downstream impact       : <modules that depend on this WI's modules - your change must not break them>
 Task           : <precise description of what to implement>
+DESIGN_DOC     : <child TDD for this WI's module - blank if no design index>
+MASTER_DESIGN_DOC: <master TDD path - none if no design index>
 
 Repo Capability Card:
   base    : <principal>

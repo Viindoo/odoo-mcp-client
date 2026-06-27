@@ -51,6 +51,12 @@ test-only criteria - those are not observable in the browser.
 Hold the extracted checklist in working memory and carry it into Step 2 (live screen capture)
 and Step 5 (compile). When `DESIGN_DOC` is absent from the brief, skip this step entirely.
 
+**Master-child mode:** If `MASTER_DESIGN_DOC` is also in the brief (set when the skill
+resolved the design from an `index.yaml`), read it for §10 cross-module contracts and flag
+any UI-observable criterion that depends on a shared symbol not owned by this module.
+Single mode: `MASTER_DESIGN_DOC` is absent or `none` - skip. Full contract:
+`${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
+
 ### Step 1 - Ground the screen in code (parallel, OSM)
 
 - **Before raising any JS finding:** Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` as the JS quality and web-tooling (ESLint/Prettier) reference. This is a mandatory prerequisite - all JS-related findings must be grounded in this document.

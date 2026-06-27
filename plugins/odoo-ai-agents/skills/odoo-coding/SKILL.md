@@ -59,11 +59,28 @@ things, then stop for the user's reply.
 `odoo-solution-design` defines: Extension-L/Custom-XL, a new module/model or restructuring, a
 core `create`/`write`/`unlink` override or a ≥3-override-chain method, a >1-strategy migration, a
 cross-model computed chain or multi-company logic, a full-stack feature, or a refactor. If it is
-non-trivial AND no approved design exists (no `.odoo-ai/designs/<slug>-*.md`, and none passed in
-via a `design_doc` input), recommend `SUGGESTED_NEXT: odoo-solution-design` first - a
-recommendation, not a hard block, so the user may still say "code it directly". When a
-`design_doc` IS present, read it and **build to it** - do not re-derive the approach. **Trivial**
-work (a single field, boilerplate, a one-approach fix) skips design.
+non-trivial AND no approved design exists, recommend `SUGGESTED_NEXT: odoo-solution-design` first -
+a recommendation, not a hard block, so the user may still say "code it directly". **Trivial** work
+(a single field, boilerplate, a one-approach fix) skips design.
+
+**Design detection - index-first, backward-compat.** Resolve before step 2.
+When a `design_doc` is already provided by the caller (via Continuation Contract `inputs.design_doc` / `inputs.design_docs`, e.g. a `return_to` or run-driver handoff), use it directly as `DESIGN_DOC` and build to it - skip steps 1-3 below. Otherwise:
+1. **Master-child (priority):** glob `.odoo-ai/designs/*/index.yaml`. If found, read the matching
+   `index.yaml` per `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` - routing SSOT.
+   When glob returns >1 file, apply the tie-break in `§Index selection` of that snippet (largest
+   module-intersection → newest `created:` → alphabetical slug → emit `design_doc_ambiguity: true`
+   when still tied). Resolve `master` and each `child_path` to ABSOLUTE paths (join the index
+   directory + the relative value) before use. Per module: `DESIGN_DOC` = resolved absolute child
+   path; `MASTER_DESIGN_DOC` = resolved absolute master path. Never let the flat glob below match
+   inside a master-child subdir.
+2. **Single (fallback):** no `index.yaml` found - glob `.odoo-ai/designs/<slug>-*.md`. If found:
+   `DESIGN_DOC` = that path; `MASTER_DESIGN_DOC` = `none`. Behavior identical to pre-master-child.
+3. **None:** neither found - "no approved design" (gate above).
+
+When `DESIGN_DOC` is resolved, read it and **build to it** - do not re-derive the approach. When
+`MASTER_DESIGN_DOC` is not `none`, it is the HARD constraint layer: ownership, dep-direction, and
+§10 cross-module contracts in the master TDD are non-negotiable; a child that violates them is a
+CRITICAL defect.
 
 **2. Determine the target module set.** Derive the modules the change will touch from the design
 doc / the request (coding *creates* the change, so there is no git diff to read - unlike
@@ -153,7 +170,7 @@ Plan:
   | <m1>   | backend   | 1    | haiku  | self        | <m1>/models/*.py, __manifest__.py |
   | <m2>   | fullstack | 1    | opus   | test-author | <m2>/models/*.py, <m2>/static/src/*.js, __manifest__.py |
   | <m3>   | frontend  | 2    | sonnet | test-author | <m3>/static/src/*.js (depends on <m1>) |
-Design: <path to approved design doc | none (trivial)>
+Design: <DESIGN_DOC child path | none> [Master: <MASTER_DESIGN_DOC path | none>]
 OSM: backed | standalone
 Dispatch: subagent launch model-weighted batches
 Proceed? (yes / refine: [feedback] / cancel)
@@ -242,7 +259,8 @@ REQUEST: <the change for this module: target model + constraints; for a frontend
 MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest__.py / static assets).
 NEW MODULE: <yes - ALWAYS scaffold with `odoo-bin scaffold` first; edit only needed keys and KEEP scaffold's commented placeholders; keep its short version default, do NOT rewrite to `<series>.x.y.z` | no>
 ODOO VERSION: <version>
-DESIGN_DOC: <path | none> - if present, build to it; do not re-derive.
+DESIGN_DOC: <child TDD path | none> - per-module spec; if present, build to it; do not re-derive.
+MASTER_DESIGN_DOC: <master TDD path | none> - hard constraints (ownership, dep-direction, §10 contracts); `none` in single mode.
 TEST: <test-author -> "FAILING TEST (RED, written by a separate author): <paths> - implement until they pass; do NOT edit the tests." | self -> "write the failing test FIRST, confirm RED, then code to green - never weaken it">
 WORKLOG: <runSlug> - read it, then append your significant decisions.
 USER LANGUAGE: <lang | omit when the user works in English> - write the summary in this language; keep identifiers verbatim.

@@ -85,6 +85,12 @@ Call `set_active_version` and `set_active_profile` (parallel if both available).
 > DESIGN choice. When no approved design doc exists (`.odoo-ai/designs/<slug>-*.md` or a
 > `design_doc` input), recommend `odoo-solution-design` first (`SUGGESTED_NEXT: odoo-solution-design`).
 > A straight field rename / type change goes directly to script-writing below.
+>
+> **Master-child mode (index-aware):** If the design lives in a master-child subdir, resolve
+> the per-module child path from `index.yaml` (`modules[].child_path` for the module being
+> migrated) as `DESIGN_DOC`; the master TDD (`MASTER_DESIGN_DOC`) carries hard constraints
+> only. Single mode (flat `.odoo-ai/designs/<slug>-*.md`): unchanged. Full contract:
+> `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
 
 Confirm: (1) migration type, (2) source/target field/model names, (3) module name and version bump, (4) timing (pre-migrate / post-migrate / both).
 

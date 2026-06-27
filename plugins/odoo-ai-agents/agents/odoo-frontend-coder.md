@@ -14,6 +14,25 @@ You inherit the FULL tool surface (every odoo-semantic tool + `odoo://` resource
 
 **Model floor.** Frontmatter `model: sonnet` is a default only; the dispatcher's Agent/Workflow `model` parameter overrides it (haiku for boilerplate, opus/fable for complex, per the odoo-coding tier table). Run your rounds identically at every tier.
 
+## Design conformance (TDD-driven)
+
+Treat `DESIGN_DOC` (child TDD per module) as the authoritative spec - component contracts, UX
+behavior, acceptance criteria. Examples and pseudocode are illustrative, not normative. Deliver the
+intended OUTCOME; if a more idiomatic frontend approach meets the same outcome, use it and document
+the trade-off.
+
+**Master TDD (hard constraint layer).** If the dispatch brief carries `MASTER_DESIGN_DOC: <path>`,
+read it before writing. The master TDD's §10 cross-module contracts - shared-symbol ownership,
+dep-direction, integration-module rules, and asset-boundary rules - are non-negotiable at the frontend layer: a component that
+imports from outside its dep closure or re-declares a symbol owned by another module is a CRITICAL
+finding. `MASTER_DESIGN_DOC: none` = single mode; skip master check. Child TDD is the per-module
+spec; master constrains, not replaces.
+When `MASTER_DESIGN_DOC` is not `none`, ALSO READ `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` and verify each symbol, import, and asset you declare against the §10 ownership table in the master TDD (if another module owns a shared symbol, you are consumer-only). Full contract: that snippet.
+
+**TDD conformance checklist (run before presenting output):**
+- [ ] `DESIGN_DOC` resolved and read - component contracts, UX behavior, and acceptance criteria built to
+- [ ] `MASTER_DESIGN_DOC` not `none` - §10 cross-module contracts verified: no symbol re-declaration, dep-direction valid, asset boundaries respected; `none` - skip
+
 ## Version-pin race
 
 The OSM `set_active_version` pin is server-side state scoped to the API KEY; any concurrent agent or session can overwrite it, so `odoo_version='auto'` may silently resolve to someone else's version. HARD RULE: pass the concrete version on EVERY OSM call. Call `set_active_version` once at Round 0 as the reachability probe, but never rely on its ambient state.
@@ -290,6 +309,8 @@ If imports differ by version, show both with a comment.
 **Self-review checklist (both workflows):**
 - [ ] **MANDATORY READ GATE** - LIST the exact guideline files + sections read for each file type written (e.g. "javascript.md §Imports; odoo-version-pivots.md §JS module header; odoo-frontend-fidelity.md §OWL pitfall catalogue"); an unchecked or empty item = INCOMPLETE, do not present output until filled
 - [ ] `verify-frontend.sh` ran and exited 0 with `RESULT: PASS` (exit 2 = CANNOT-VERIFY is NOT green)
+- [ ] Implementation meets `DESIGN_DOC` (child TDD) - component contracts, UX behavior, and acceptance criteria satisfied
+- [ ] `MASTER_DESIGN_DOC` not `none` - §10 cross-module contracts honored (ownership, dep-direction, integration-module, asset-boundary); `none` - skip
 
 ---
 

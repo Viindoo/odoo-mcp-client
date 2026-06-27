@@ -12,8 +12,7 @@ Scope this review per your full I/O contract (${CLAUDE_PLUGIN_ROOT}/agents/odoo-
 Resolve the diff, detect modules (dirs with __manifest__.py), run test_coverage_audit per module,
 detect any design doc, determine fanout (single|multi), and write the compact scope file to
 .odoo-ai/reviews/<slug>-<date>/_scope.md.
-Return the compact scope fields: slug, target_kind, review_root, base_ref,
-modules[{name,path}], design_doc, coverage_baseline, pr (or null), fanout.
+Return the scope block exactly per Step 6 of your I/O contract.
 ```
 
 ## Per-module reviewer (sonnet)
@@ -27,11 +26,15 @@ stays the synthesis job, but flag an obvious cross-module break even in single-m
 Check the change against ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md
 (multi-company/branch, generic-before-localization, app-menu) and flag a behavior change with no
 protecting test.
-DESIGN_DOC: <path to .odoo-ai/designs/<slug>-<date>.md> (present only when odoo-solution-architect
-ran). When DESIGN_DOC path is provided (non-null): MANDATORY - Read it, verify the code against
-"## 1. Intent & Business Value" and "## 9. Acceptance Criteria", and emit the "### TDD Conformance"
-block. Skipping TDD verify when DESIGN_DOC is present is a review defect. When DESIGN_DOC is absent
-(null/omitted): OMIT the TDD Conformance block and review intent from this brief alone.
+DESIGN_DOC: <per-module child TDD path from scope design_doc column | null> (in master-child mode:
+child TDD for this module; in single mode: the shared flat TDD; present only when
+odoo-solution-architect ran). When DESIGN_DOC is provided (non-null): MANDATORY - Read it, verify
+the code against "## 1. Intent & Business Value" and "## 9. Acceptance Criteria", and emit the
+"### TDD Conformance" block. Skipping TDD verify when DESIGN_DOC is present is a review defect.
+When absent (null/omitted): OMIT the TDD Conformance block and review intent from this brief alone.
+MASTER_DESIGN_DOC: <master TDD path from scope master_design_doc field | none> - When != none:
+MANDATORY - also Read the master TDD and check §10 cross-module contracts (ownership, dep-direction,
+integration-module rule); a violation of any master constraint is CRITICAL. When none: skip.
 Optional: COVERAGE_BASELINE: <test_coverage_audit result> (from scoper). Attach as context.
 UI_REVIEW: <delegated | absent> - pass `delegated` when scoper set needs_ui_review for this module:
 review NON-rendered concerns + the SOURCE correctness of the view layer only (XPath resolves, arch
@@ -58,10 +61,12 @@ depends/load-order, ripple to dependents). Read the per-module reports already i
 findings from Phase A.5) so the integration verdict accounts for UI findings. Write _synthesis.md there.
 Output contract: per odoo-code-reviewer agent SSOT (${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md)
 - include overall VERDICT (APPROVE/REQUEST_CHANGES) and SCORE 0-100 aggregated across all modules.
-DESIGN_DOC: <path> - When provided (non-null): MANDATORY - verify the closure satisfies the design's
-"## 9. Acceptance Criteria" solution-level criteria and emit the "### TDD Conformance" block.
-Skipping TDD verify when DESIGN_DOC is present is a review defect. When absent (null/omitted):
-OMIT the TDD Conformance block.
+DESIGN_DOC: <null in master-child | flat TDD path in single>
+(master-child: pass null - per-module §9 ACs verified in Phase A; synthesis checks §10 only via MASTER_DESIGN_DOC. Single: pass the flat TDD path.)
+When non-null: MANDATORY - verify the closure satisfies the design's "## 9. Acceptance Criteria" solution-level criteria and emit the "### TDD Conformance" block. Skipping TDD verify when DESIGN_DOC is non-null is a review defect. When null: OMIT the TDD Conformance block.
+MASTER_DESIGN_DOC: <master TDD path | none> - When != none: MANDATORY - verify the closure against
+§10 cross-module contracts from the master TDD (ownership, dep-direction, integration-module rule);
+a violation is CRITICAL; emit Master-AC rows in "### TDD Conformance". When none: skip.
 Optional: COVERAGE_BASELINE: <test_coverage_audit result at module level from scoper> - context only.
 Optional: COVERAGE_CHECK: <tests_covering results at model-edge level from main> - context only.
 Return a summary + path.
@@ -111,9 +116,12 @@ domains). Write _synthesis.md with the overall VERDICT (APPROVE/REQUEST_CHANGES)
 across ALL domains. The final verdict + score MUST aggregate the per-module severity counts carried
 in each domain-<d>.md (not only domain-level integration findings), so a large-set PR still reflects
 every per-module CRITICAL/HIGH. Return a summary + path.
-DESIGN_DOC: <path | absent>
-When provided (non-null): MANDATORY - verify the closure satisfies the design's "## 9. Acceptance
-Criteria" solution-level criteria and emit the "### TDD Conformance" block. Omit when absent.
+DESIGN_DOC: <null in master-child | flat TDD path in single>
+(master-child: pass null - per-module §9 ACs verified in Phase A; synthesis checks §10 only via MASTER_DESIGN_DOC. Single: pass the flat TDD path.)
+When non-null: MANDATORY - verify the closure satisfies the design's "## 9. Acceptance Criteria" solution-level criteria and emit the "### TDD Conformance" block. Omit when null/absent.
+MASTER_DESIGN_DOC: <master TDD path | none> - When != none: MANDATORY - verify the cross-domain
+closure against §10 cross-module contracts (ownership, dep-direction, integration-module rule);
+a violation is CRITICAL; emit Master-AC rows in "### TDD Conformance". When none: skip.
 ```
 
 Each agent: restricted tools, writes only its own report artifact, does NOT spawn subagents, does NOT invoke Skill tool.

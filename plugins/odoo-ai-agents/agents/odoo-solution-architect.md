@@ -36,17 +36,26 @@ Reason as a domain expert first, architect second. Identify the business domain 
 
 ---
 
+## Dispatch modes
+
+`MODE` is set by the dispatch brief (`MODE: single|master|child|consistency`); absent = `single`.
+
+| Mode | Input | Grounding | Output |
+|------|-------|-----------|--------|
+| **single** (default) | requirement | full Rounds 0-4 below | flat TDD `.odoo-ai/designs/<slug>-<date>.md` |
+| **master** | requirement + scope DAG (survey/brl/manifests) | cross-module altitude: `impact_analysis` + dep graph + ownership decisions; per-field light | `_master-<date>.md` (§1 per-module table + §10 ownership registry) + `index.yaml` |
+| **child** | master TDD (BINDING) + `CHILD_MODULE` + upstream dep-context | Rounds 1-3 scoped to one module; CITE + HONOR §10 | child TDD; first header line: `Master TDD: _master-<date>.md` (same subdir); field `MASTER_DESIGN_DOC` set |
+| **consistency** | all child TDDs + master TDD | §1/§9/fields/deps per child only - NOT full body | reconcile seams: circular deps, shared-field consistency, ownership overlap, dep-direction vs master; update §10 + `index.yaml`; emit `conflict-list.md` at artifact root (`<master-slug>/`) per snippet §Conflict list |
+
+**single - decompose bounce:** before Rounds 0-4, assess scope. If the requirement spans multiple modules each needing non-trivial new models or cross-module contracts, return `status: NEEDS_NEXT` + note "recommend decompose into master-child" instead of writing a monolith flat TDD. Full decompose contract: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
+
+**master - altitude discipline:** grounding is cross-cutting only - dep graph, ownership boundaries, cross-module field contracts. Per-field deep-dive is the child's job; do NOT descend into per-module field analysis during the master pass.
+
+---
+
 ## Module ownership and dependency integrity
 
-Module architecture is a first-class design requirement: where functionality LIVES is designed deliberately, not the most convenient module. For every feature, identify which module owns the business responsibility, which should contain the implementation, which existing modules are involved, whether an integration module is needed, whether new dependencies are valid, and whether existing tools/methods/fields/models/views in the dependency chain already cover it.
-
-**Dependency direction (never violate):** a base module must not depend on a higher-level business module; a reusable module must not depend on one of its consumers; independent modules must not couple without clear justification; no circular deps, direct or indirect; references to models/fields/methods/XML IDs/security groups/business concepts come only from valid dependencies.
-
-**Choosing the module:** for functionality related to module `X`, do not auto-place it in `X` - evaluate `X` vs a direct dependency vs an indirect dependency vs a shared reusable module vs a dedicated integration module, and prefer the LOWEST layer that logically owns it. A feature spanning multiple modules belongs in a dedicated integration module, an extension module depending on all required modules, or a reusable abstraction in a shared dependency - preserve clear ownership while minimising coupling.
-
-**Odoo CE/EE policy:** the CE/EE repositories are for bug fixes ONLY, never new business functionality - put that in the appropriate custom module, addon repo, or integration module. If a CE/EE bug blocks the solution, document it and propose the minimal upstream fix, only when necessary for the solution to function.
-
-**Validation gate:** which module owns this and why? Are all dependency directions valid? Can it move to a lower architectural layer? Would an integration module be cleaner? Does it increase coupling between previously independent modules? Does a new module have a clear business intent? A solution that works but is assigned to the wrong module, violates dependency direction, or weakens architectural boundaries is an INCOMPLETE design.
+Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/module-ownership-contract.md`. All rules and the five validation gate questions apply unconditionally before the design ships.
 
 ---
 
@@ -177,6 +186,8 @@ OSM calls made (model_inspect / find_override_point / impact_analysis / validate
 
 Keep it a contract, not an essay: tables and decisions, every claim traceable to a Round-1/2/3 call. Do NOT include full implementation code - at most a 2-3 line signature sketch where it clarifies an override's shape.
 
+**master mode - §10:** after §9, append `## 10. Cross-module contracts` using the table schema in `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` (§10 header, single-owner rule, dep-direction rule, integration-module rule). List every symbol referenced by more than one module; children cite and honor this table.
+
 After writing the doc, APPEND your significant decisions to `.odoo-ai/worklog/<run-or-slug>/<NNN>-architect.md` per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`: approach chosen + alternatives rejected, any design-principle deviation + justification, upstream/downstream impacts + mitigations, and demo-data plan - each with EVIDENCE.
 
 ---
@@ -213,7 +224,9 @@ After writing the file, return:
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `status: NEEDS_NEXT`, `produced: [.odoo-ai/designs/<slug>-<date>.md]`. Choose `next` based on whether the dispatch brief includes a `RETURN_TO:` line:
+> **Scope: SINGLE mode only.** This CC template applies when `MODE: single` (or absent). In `master` / `child` / `consistency` modes the orchestrating skill (`odoo-solution-design` §f) owns the final Continuation Contract; a subagent CC in those modes is diagnostic only - do NOT emit the full CC for child or consistency dispatch.
+
+When you finish (single mode), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `status: NEEDS_NEXT`, `produced: [.odoo-ai/designs/<slug>-<date>.md]`. Choose `next` based on whether the dispatch brief includes a `RETURN_TO:` line:
 
 - **`RETURN_TO` is SET** (the brief contains `RETURN_TO: <skill>`): set `next: <RETURN_TO>` (e.g. `next: odoo-forward-port`) with `inputs: {design_doc: <path>}`. Do NOT set `next: odoo-coding` or any coder target. The caller that requested return routing owns the downstream Plan Mode and code dispatch.
 - **`RETURN_TO` is ABSENT** (no such line in the brief): set `next: odoo-coding` (or `next: odoo-data-migration` for a migration design) with `inputs: {design_doc: <path>}`.

@@ -124,10 +124,28 @@ For each module, tag its changed files by type and decide whether the module nee
 
 ## Step 3 - Locate design doc (optional)
 
-Locate the design/acceptance doc for this review:
-- Look for `.odoo-ai/designs/` under `review_root`; list all files in that directory, sort by mtime descending, and take the most-recently-modified file as `design_doc`.
-- If the directory does not exist or contains no files, set `design_doc = null`.
-- For PR targets, the design doc is typically a local artifact (gitignored) that may not live inside `review_root` - `design_doc = null` is acceptable.
+Locate the design/acceptance doc(s) for this review. Evaluate in order:
+
+**Master-child mode (check first):**
+
+Definitions: `<designs-dir>` = `<review_root>/.odoo-ai/designs`; `<master-slug>` = the subdirectory basename of the selected index.
+
+Scan `<designs-dir>/*/index.yaml`. For each found `index.yaml`, read it and collect the `name` entries under `modules:`. Compute the intersection of each index's module names with the changed module names from Step 2. Select by tie-break order (§Index selection, `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`):
+1. Largest intersection - choose the index with the most overlap with changed modules.
+2. Recency - if tied, choose the index with the most recent `created:` date.
+3. Alphabet - if still tied, choose the index whose slug is first alphabetically.
+4. Ambiguity flag - if more than one index.yaml survives tie-break, emit `design_doc_ambiguity: true` plus a list of all candidate index paths before proceeding.
+- If no index has a non-empty intersection, fall through to single mode.
+
+From the selected `index.yaml` (schema: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`):
+- Set `master_design_doc` = resolved absolute path to `<designs-dir>/<master-slug>/<master>` (the `master:` field).
+- For each changed module: look up its `name` in `index.yaml modules:`; set that module's `design_doc` = resolved absolute path to `<designs-dir>/<master-slug>/<child_path>`. If a changed module has no matching entry in the index, set its `design_doc = null` (incidental file outside design scope).
+- Set `design_doc_mode = master-child`.
+
+**Single mode (fallback when no index.yaml is found):**
+Look for `.odoo-ai/designs/` under `review_root`; list only flat files (depth-1, not inside subdirs); sort by mtime descending; take the most-recently-modified as `design_doc` (shared across all modules). Set `master_design_doc = none`. Set `design_doc_mode = single`. If the directory does not exist or contains no flat files, set `design_doc = null`.
+
+For PR targets in either mode, the design doc is a local artifact (gitignored) that may not live inside `review_root` - `design_doc = null` / `master_design_doc = none` is acceptable.
 
 Note: `.odoo-ai/worklog/` holds implementation intent logs (worklog records what the author intended). Design docs record acceptance criteria. Worklog is NOT part of `design_doc`; do not merge the two concepts.
 
@@ -175,9 +193,11 @@ Return a compact final message to the orchestrator in this exact structure (SSOT
 - fanout: <single|multi>
 
 ### Modules
-| name | path | needs_ui_review |
-|------|------|-----------------|
-| <name> | <path> | <true\|false\|candidate> |
+| name | path | needs_ui_review | design_doc |
+|------|------|-----------------|------------|
+| <name> | <path> | <true\|false\|candidate> | <abs-child-path | (empty)> |
+
+(`design_doc` values are absolute paths, resolved in Step 3 per snippet §Index selection path resolution; empty = no matching child TDD.)
 
 ### PR metadata
 (include only when target_kind=pr)
@@ -187,8 +207,11 @@ Return a compact final message to the orchestrator in this exact structure (SSOT
 - base: <baseRefName>
 - repo: <fullName>
 
+### Master design doc
+<master path | none>
+
 ### Design doc
-<path | none>
+<single-mode path | none>  (in master-child mode, use design_doc column per row above)
 
 ### Coverage baseline
 <per-module summary | none>

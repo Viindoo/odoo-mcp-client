@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.31.0] - 2026-06-28
+
+### Added
+
+- `odoo-solution-design`: master-child design decomposition for large multi-module scope. `odoo-solution-architect` now supports four modes (`single` / `master` / `child` / `consistency`); `master` mode produces one master TDD (cross-module contracts, shared-symbol ownership, DAG layer order) then N child TDDs in `dag_layer` order under `.odoo-ai/designs/<master-slug>/`; machine-readable `index.yaml` is the routing SSOT for downstream consumers. Two-level design handoff (`DESIGN_DOC` = child spec, `MASTER_DESIGN_DOC` = hard-constraint master TDD) wired through `odoo-coding`, `odoo-code-review`, `odoo-debug`, and `wave`. Contract SSOT: `snippets/master-child-design-contract.md`.
+- `odoo-frontend-coder`: TDD-conformance gap fixed - agent now reads and enforces `MASTER_DESIGN_DOC` constraints in addition to the child `DESIGN_DOC` spec.
+
 ## [3.30.2] - 2026-06-28
 
 ### Changed

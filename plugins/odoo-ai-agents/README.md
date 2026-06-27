@@ -220,6 +220,22 @@ flowchart TD
     DEP --> PLAN["plan.md - tier + status"]
 ```
 
+### Solution design decomposition
+
+`odoo-solution-design` produces a flat single TDD (one module or simple scope) or a
+master + N child TDDs (multi-module or large scope). Consumers resolve artifact paths from
+the Continuation Contract - see
+[`snippets/master-child-design-contract.md`](snippets/master-child-design-contract.md) for
+the full schema and handoff fields.
+
+```mermaid
+flowchart TD
+    SD["odoo-solution-design<br/>(odoo-solution-architect)"]
+    SD -->|"single module / simple scope"| S["single TDD<br/>.odoo-ai/designs/slug-date.md<br/>DESIGN_DOC=path"]
+    SD -->|"multi-module / large scope"| M["master + N child TDDs<br/>.odoo-ai/designs/master-slug/"]
+    M --> IDX["index.yaml - routing SSOT<br/>_master-date.md - cross-module constraints<br/>module-date.md per module (DAG order)<br/>design_docs[] in Continuation Contract"]
+```
+
 ## Workflows
 
 The plugin ships 12 declarative workflows in `workflows/*.workflow.yaml`. Each workflow is
@@ -699,7 +715,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-perf-audit` | Engineer | Audit for N+1 queries, missing prefetch, unindexed domains, compute thrash, with fixes |
 | `odoo-git-rebase` | Engineer | Rebase a feature branch onto another branch of the SAME Odoo series, absorbing intent (not code text) via whole-range `git rebase --onto`. |
 | `odoo-modules-upgrade` | Engineer | Upgrade a custom module cluster from a lower Odoo major to a higher one (code-level): drop what core now provides, adapt the rest, 1 PR per cluster. |
-| `odoo-solution-design` | Architect / Coder | Design the technical solution (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding - the analysis-and-design step between requirement scoping and code (slim, paired with agent bundle) |
+| `odoo-solution-design` | Architect / Coder | Design the technical solution (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding - the analysis-and-design step between requirement scoping and code; supports master-child decomposition for large multi-module scope (slim, paired with agent bundle) |
 | `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, assigns a deterministic model tier per module (haiku/sonnet/opus/fable, sonnet default), and dispatches the `odoo-coder` + `odoo-frontend-coder` agents as subagents in model-weighted batches (per-module backend->frontend, model-weighted concurrency budget); orders modules by the shared module DAG, orchestrates red-first test authorship before each non-trivial module's code, and feeds the `code -> review+test -> code` loop (slim, paired with agent bundle) |
 | `odoo-frontend-design` | Architect / Coder / Visual | Knowledge-only design-quality expertise for Odoo UI/UX (view-type choice, form hierarchy, density, semantic tokens, website/portal theming); loaded by `odoo-solution-design` and `odoo-coding`, and the bar `odoo-ui-review` rates against (no agent spawn) |
 | `odoo-code-review` | Code-Reviewer | Review Odoo patches for ORM/inheritance/security pitfalls plus bidirectional module impact, platform-design-principle violations, and missing behavior tests; accepts `TARGET: local \| worktree:<path> \| pr:<number-or-url>` - Phase 0 dispatches `odoo-review-scoper` to resolve diffs and map modules, then `odoo-code-reviewer` agents for analysis; emits a VERDICT (APPROVE/REQUEST_CHANGES) with SCORE 0-100 and findings grouped by severity; on a CRITICAL/HIGH finding drives the fix autonomously through `odoo-coding` and re-reviews to verify (bounded to 3 iterations, then escalates), and loops uncovered behavior back to `odoo-test-writing` (slim, paired with agent bundle) |

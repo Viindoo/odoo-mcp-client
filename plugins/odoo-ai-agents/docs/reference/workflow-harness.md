@@ -105,6 +105,8 @@ artifacts are written here; nothing under `.odoo-ai/` is committed to the repo.
 | Workflow phase state | `<output_dir>/<slug>-state.json` (output_dir is the full `.odoo-ai/...` path) | `workflow-chaining` |
 | QA artifacts | `.odoo-ai/qa/` | `qa-suite` workflow |
 | Wave plan artifact | `.odoo-ai/wave/<slug>/` | `wave` skill (orchestrating context) |
+| Design doc (single mode) | `.odoo-ai/designs/<slug>-<date>.md` | `odoo-solution-architect` (one module or simple scope) |
+| Design artifacts (master-child) | `.odoo-ai/designs/<master-slug>/` - `index.yaml` (routing SSOT) + `_master-<date>.md` + `<module>-<date>.md` per module; full schema: `snippets/master-child-design-contract.md` | `odoo-solution-architect` (multi-module or large scope) |
 
 Every new workflow declares its `output_dir` in its `*.workflow.yaml` file
 (see §5). `output_dir` is the full path (e.g. `.odoo-ai/qa`) and is the single

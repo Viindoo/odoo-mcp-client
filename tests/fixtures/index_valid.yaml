@@ -1,0 +1,22 @@
+slug: fleet-billing
+created: 2026-06-28
+master: _master-2026-06-28.md
+modules:
+  - name: viin_fleet_billing
+    child_path: viin_fleet_billing-2026-06-28.md
+    depends_on: []
+    dag_layer: 0
+    status: pending
+  - name: viin_fleet_billing_account
+    child_path: viin_fleet_billing_account-2026-06-28.md
+    depends_on: [viin_fleet_billing]
+    dag_layer: 1
+    status: pending
+  - name: viin_fleet_billing_report
+    child_path: viin_fleet_billing_report-2026-06-28.md
+    depends_on: [viin_fleet_billing]
+    dag_layer: 1
+    status: designed
+dag_layers:
+  - [viin_fleet_billing]
+  - [viin_fleet_billing_account, viin_fleet_billing_report]
