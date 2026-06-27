@@ -20,10 +20,10 @@ If OSM is unreachable, follow the standalone fallback in `${CLAUDE_PLUGIN_ROOT}/
 
 ## When to invoke
 
-- **Rebase P3 - cluster behavior comparison.** `odoo-git-rebase` has finished per-commit intent extraction (P2). It dispatches this agent (opus for cluster) with the three-dot diff of the feature branch vs the new base HEAD and the `intents/*.md` directory. The agent compares which intents the new base already satisfies, which symbols it renamed or moved, and which override points it refactored - one row per commit, each with a proposed absorption failure mode from `[[rb-intent-4outcome]]`.
-- **Rebase P10 - range-diff + dup-guard verify.** After the integration worktree is built, `odoo-git-rebase` dispatches this agent (sonnet) to read the range-diff dump and assert that every P4 intent survives in the replayed range with no duplicate definition.
-- **Upgrade P2 - per-module core-absorption comparison.** `odoo-modules-upgrade` dispatches this agent (sonnet) once per custom module. The agent compares the custom module's features against the new-version core and proposes a DELETE-absorbed / KEEP / REWRITE(api) / REWRITE(model) / MERGE / SPLIT classification with evidence for each feature. The skill decides the final call; the comparator only evidences.
-- **NOT a batch sweep without dispatch.** This agent does NOT self-trigger or scan all modules speculatively. It is always dispatched for a specific diff range or module with explicit inputs from the orchestrator.
+- **Rebase P3 - cluster behavior comparison.** `odoo-git-rebase` (after P2 intent extraction) dispatches this agent (opus for cluster) with the three-dot diff of the feature branch vs the new base HEAD and the `intents/*.md` directory. Compare which intents the new base already satisfies, which symbols it renamed/moved, which override points it refactored - one row per commit, each with a proposed absorption failure mode from `[[rb-intent-4outcome]]`.
+- **Rebase P10 - range-diff + dup-guard verify.** After the integration worktree is built, `odoo-git-rebase` dispatches this agent (sonnet) to read the range-diff dump and assert every P4 intent survives in the replayed range with no duplicate definition.
+- **Upgrade P2 - per-module core-absorption comparison.** `odoo-modules-upgrade` dispatches this agent (sonnet) once per custom module; compare the module's features against new-version core and propose a DELETE-absorbed / KEEP / REWRITE(api) / REWRITE(model) / MERGE / SPLIT classification with evidence per feature. The skill decides the final call; the comparator only evidences.
+- **NOT a batch sweep without dispatch.** Never self-trigger or scan all modules speculatively - always dispatched for a specific diff range or module with explicit orchestrator inputs.
 
 ---
 

@@ -17,13 +17,7 @@ with no fixed tool list.
 
 ## Report language
 
-If the dispatch brief states the end user's language (`USER LANGUAGE: <language>`),
-write the human-facing parts of your final report - the `summary` field and any
-prose meant for the user's eyes - in that language. This applies to CHAT-FACING
-prose only: all code, comments, docstrings, identifiers, file paths, commit
-messages, and tool names stay in English regardless of the user's language.
-Without that brief field, report in English and the orchestrator will translate
-when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
+If the dispatch brief sets `USER LANGUAGE: <language>`, write human-facing prose (the `summary` field, user-facing text) in it; all code, comments, docstrings, identifiers, file paths, commit messages, and tool names stay English. Without it, report in English and the orchestrator translates when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
 
 ---
 
@@ -101,17 +95,14 @@ Read the FULL traceback bottom-up - the last line is the real exception; the lin
 
 **Test discovery (add to the parallel batch when the bug involves a model/field):**
 
-- `tests_covering(model='<model>', odoo_version='<version>')` - returns the existing test
-  coverage graph for the affected model (and optionally a specific field or method via the
-  optional `field` / `method` parameters). Use when diagnosing a runtime bug on a specific
-  model: knowing which tests already cover the area (a) identifies the reproduction vehicle
-  (run the covering test red to confirm root cause) and (b) informs the regression test
-  field of the Output Contract (avoid reinventing a test that already exists). **Caveat:**
-  method-narrow (`method=`) and field-narrow (`field=`) calls frequently return zero edges
-  even for well-tested models, because COVERS_METHOD / COVERS_FIELD edges are sparse in the
-  index (indirect coverage is common but not indexed). Prefer the model-level call first;
-  use method-narrow as corroborating evidence only, not as definitive proof of no coverage.
-  Example: `tests_covering(model='account.move', odoo_version='17.0')`.
+- `tests_covering(model='<model>', odoo_version='<version>')` - existing test-coverage graph
+  for the model (optionally narrow with `field=`/`method=`). Use when diagnosing a model-specific
+  bug: it (a) identifies the reproduction vehicle (run the covering test red to confirm root
+  cause) and (b) informs the Output Contract's regression-test field (avoid reinventing a test).
+  **Caveat:** method-/field-narrow calls frequently return zero edges even for well-tested models
+  (COVERS_METHOD/COVERS_FIELD edges are sparse; indirect coverage is common but not indexed) -
+  prefer the model-level call; treat a narrow zero as corroborating evidence only, not proof of
+  no coverage. Example: `tests_covering(model='account.move', odoo_version='17.0')`.
 
 - `find_test_examples(query='<symptom or ORM pattern>', model='<model>', odoo_version='<version>')` -
   searches the indexed test corpus for existing tests matching a symptom pattern or ORM
@@ -267,4 +258,4 @@ Symptom: `AccessError: You are not allowed to access 'Sale Order' records.`
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive output for the run-driver - it does not change anything produced above.
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).

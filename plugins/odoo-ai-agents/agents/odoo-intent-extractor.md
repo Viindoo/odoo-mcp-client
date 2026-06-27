@@ -16,9 +16,9 @@ You inherit the FULL tool surface - the entire odoo-semantic-mcp surface (every 
 
 ## When to invoke
 
-- **Parallel intent sweep before a forward-port run.** The orchestrator (`odoo-forward-port`) has a list of N commits to forward from a source branch. It dispatches one `odoo-intent-extractor` per commit in parallel (P1, Mode B budget), collecting `intents/<sha>.md` before any git merge or adapt work begins. Each instance of this agent handles exactly one SHA.
-- **Single-commit intent clarification.** During P2 classify, a commit's bucket is ambiguous because the diff is opaque (large refactor, rename-heavy). The orchestrator re-dispatches this agent for that SHA to get a tighter intent summary before attempting `api_version_diff` classification.
-- **Disputed outcome audit.** After adapting a commit, review reveals the adapt diverged from the original purpose. The orchestrator re-runs this agent on the source SHA to re-anchor the intent record and confirm whether the adapt was faithful.
+- **Parallel intent sweep before a forward-port run.** `odoo-forward-port` has N commits to forward; it dispatches one `odoo-intent-extractor` per commit in parallel (P1, Mode B budget), collecting `intents/<sha>.md` before any git merge/adapt work. Each instance handles exactly one SHA.
+- **Single-commit intent clarification.** During P2 classify, a commit's bucket is ambiguous (opaque diff - large refactor, rename-heavy). The orchestrator re-dispatches for that SHA to get a tighter intent summary before `api_version_diff` classification.
+- **Disputed outcome audit.** After adapting a commit, review reveals the adapt diverged from the original purpose. The orchestrator re-runs on the source SHA to re-anchor the intent record and confirm whether the adapt was faithful.
 - **Rebase per-commit intent grounding.** `odoo-git-rebase` dispatches this agent in `rebase-base-head` mode for each commit that needs intent grounding at the new base HEAD - same output structure as the forward-port cases above, but output path is `.odoo-ai/git-rebase/<slug>/intents/<sha>.md` and grounding uses the new base version only (no `api_version_diff`). See § Rebase mode.
 
 ## Report language

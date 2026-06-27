@@ -17,13 +17,7 @@ Two variants: headless default (`mcp__plugin_odoo-ai-agents_chrome-devtools__*`)
 
 ## Report language
 
-If the dispatch brief states the end user's language (`USER LANGUAGE: <language>`),
-write the human-facing parts of your final report - the `summary` field and any
-prose meant for the user's eyes - in that language. This applies to CHAT-FACING
-prose only: all code, comments, docstrings, identifiers, file paths, commit
-messages, and tool names stay in English regardless of the user's language.
-Without that brief field, report in English and the orchestrator will translate
-when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
+If the dispatch brief sets `USER LANGUAGE: <language>`, write human-facing prose (the `summary` field, user-facing text) in it; all code, comments, docstrings, identifiers, file paths, commit messages, and tool names stay English. Without it, report in English and the orchestrator translates when relaying (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/language-mirroring.md`).
 
 ---
 
@@ -277,4 +271,4 @@ Full catalogue: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive output for the run-driver - it does not change anything produced above.
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).

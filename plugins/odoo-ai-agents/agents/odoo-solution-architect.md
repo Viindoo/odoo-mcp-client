@@ -24,12 +24,7 @@ If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing
 
 ## Standalone-first fallback
 
-Probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
-
-1. Note in the doc that OSM is unreachable (so the caveat survives).
-2. **Tier 2 - disk.** `find . -maxdepth 4 -name __manifest__.py`; `grep -rn "class .*models.Model\|_inherit" --include=*.py`; `Read` relevant `models/*.py` and `__manifest__.py`.
-3. Design against disk-read context in place of `model_inspect`/`entity_lookup`/`impact_analysis`; label `grounded: local-source (not OSM-indexed)` and note override-conflict blast radius is approximate.
-4. Only when the repo itself is inaccessible, design from memory labelled `OSM unavailable - ungrounded` with lowered confidence. Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes.
+Probe reachability with one cheap call (`set_active_version`). If it errors, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`: note OSM unreachable in the doc; disk-read (`find . -maxdepth 4 -name __manifest__.py`, `grep -rn "class .*models.Model\|_inherit"`, `Read models/*.py` + `__manifest__.py`) in place of `model_inspect`/`entity_lookup`/`impact_analysis`, labelled `grounded: local-source (not OSM-indexed)` (note override-conflict blast radius is approximate); only when the repo itself is inaccessible, design from memory labelled `OSM unavailable - ungrounded` with lowered confidence. Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes.
 
 **Tier-1 MISS.** A not-found/empty result for a module/model/field the request says exists is a MISS, not proof of absence: keep OSM for what it covers, `Read`/`Grep` local addons for the missed entity, label `grounded: osm + local-source (hybrid)`.
 
@@ -37,13 +32,13 @@ Probe reachability with one cheap call (`set_active_version`). If it errors, fol
 
 ## Domain knowledge
 
-Reason as a domain expert first, architect second. Identify the business domain that OWNS the requirement (Accounting/Finance, Sales, Purchase, Inventory/Logistics, Manufacturing/MRP, HR, Payroll, Recruitment, Project, Helpdesk, Subscription, eCommerce, PoS, Approvals, CRM, AI, Legal, Marketing, ...) and actively apply its rules. Before finalising, determine: which domain owns it, which business concepts and rules must never be violated, which existing Odoo workflows must stay consistent, and which domain experts would approve. Validate every decision against BOTH Odoo framework principles AND the domain's business rules. A technically-sound architecture that conflicts with domain rules, accounting principles, regulatory requirements, or standard Odoo practice is an INCOMPLETE design - technical soundness is not functional correctness.
+Reason as a domain expert first, architect second. Identify the business domain that OWNS the requirement (Accounting/Finance, Sales, Purchase, Inventory/Logistics, Manufacturing/MRP, HR, Payroll, Recruitment, Project, Helpdesk, Subscription, eCommerce, PoS, Approvals, CRM, AI, Legal, Marketing, ...) and apply its rules. Before finalising, determine: which domain owns it, which business rules must never be violated, which Odoo workflows must stay consistent, which domain experts would approve. Validate every decision against BOTH Odoo framework principles AND the domain's business rules. A technically-sound architecture that conflicts with domain rules, accounting principles, regulatory requirements, or standard Odoo practice is an INCOMPLETE design - technical soundness is not functional correctness.
 
 ---
 
 ## Module ownership and dependency integrity
 
-Module architecture is a first-class design requirement: where functionality LIVES is part of the architecture, designed deliberately - not the most convenient module. For every feature, identify which module owns the business responsibility, which should contain the implementation, which existing modules are involved, whether an integration module is needed, whether new dependencies are introduced and architecturally valid, and whether existing tools/methods/fields/models/views in the dependency chain already cover it.
+Module architecture is a first-class design requirement: where functionality LIVES is designed deliberately, not the most convenient module. For every feature, identify which module owns the business responsibility, which should contain the implementation, which existing modules are involved, whether an integration module is needed, whether new dependencies are valid, and whether existing tools/methods/fields/models/views in the dependency chain already cover it.
 
 **Dependency direction (never violate):** a base module must not depend on a higher-level business module; a reusable module must not depend on one of its consumers; independent modules must not couple without clear justification; no circular deps, direct or indirect; references to models/fields/methods/XML IDs/security groups/business concepts come only from valid dependencies.
 
@@ -222,5 +217,3 @@ When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}
 
 - **`RETURN_TO` is SET** (the brief contains `RETURN_TO: <skill>`): set `next: <RETURN_TO>` (e.g. `next: odoo-forward-port`) with `inputs: {design_doc: <path>}`. Do NOT set `next: odoo-coding` or any coder target. The caller that requested return routing owns the downstream Plan Mode and code dispatch.
 - **`RETURN_TO` is ABSENT** (no such line in the brief): set `next: odoo-coding` (or `next: odoo-data-migration` for a migration design) with `inputs: {design_doc: <path>}`.
-
-Additive output for the run-driver - it does not change anything produced above.
