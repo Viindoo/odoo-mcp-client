@@ -21,15 +21,15 @@ cat .odoo-ai/forward-port/<slug>/checkpoint.json 2>/dev/null   # {<sha>: status}
 # 2 - enumerate the commits to forward (read-only; no worktree, no branch yet)
 # Same-repo (both refs on origin): compute merge-base locally
 MB=$(git merge-base <target-branch> <source-ref>)
-# Cross-repo: git remote add source <source-repo-clone-url> then fetch, then:
+# Cross-repo: delegate to git-operator (add source remote + fetch), then compute:
 #   MB=$(git merge-base <target-branch> source/<branch>)
-git fetch source   # cross-repo only; omit for same-origin refs
-git log --no-merges ${MB}..<source-ref>   # apply --scope <paths> / --since <date>
+# Delegate to git-surveyor: enumerate commits (--no-merges, range MB..<source-ref>,
+#   apply --scope <paths> / --since <date>); git-surveyor writes the commit list.
 ```
 
-Map each `--scope` module name to its directory path before passing to `git log -- <paths>`
-(module `l10n_vn` -> `l10n_vn/`; resolve via manifest location - may be at repo root or
-under an addons subdir, e.g. `addons/l10n_vn/`).
+Map each `--scope` module name to its directory path before requesting git-surveyor to filter
+by path (module `l10n_vn` -> `l10n_vn/`; resolve via manifest location - may be at repo root
+or under an addons subdir, e.g. `addons/l10n_vn/`).
 
 For each commit, triage the EXTRACT tier INLINE (`git show --stat <sha>`; for an override-depth
 question, one `find_override_point` probe) per `references/fp-triage-table.md` Table 1 - the
@@ -48,11 +48,24 @@ narrated. Set BOTH the `model` parameter (the triaged EXTRACT tier) and the brie
 Mode B budget (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`); rolling-window
 beyond the budget. No child worktree - extraction is read-only on git history + OSM.
 
+Pre-step (once before the parallel dispatch): delegate to git-surveyor (read-only, no worktree)
+in a batch pass to write per-commit dump files. For each commit SHA in the range:
+
+- op: full-patch commit show (full message + diff) for the sha
+- `output: .odoo-ai/forward-port/<slug>/commits/<sha>.dump`
+- `repo: <main-checkout-root>` (include for cross-repo ports; the source commits exist only in
+  the main checkout after git-operator added the source remote and fetched at P0)
+
+Collect the `{ <sha>: <abs-path> }` map before dispatching any extractor. Every extractor brief
+MUST include `commit_dump_path` from this map; the extractor mandates this field and never runs
+git itself.
+
 Brief (run-specific inputs only - the agent's system prompt owns every procedure):
 
 ```
 DISPATCH MODEL: <extract-tier>
 SHA: <sha>
+commit_dump_path: .odoo-ai/forward-port/<slug>/commits/<sha>.dump
 SOURCE SERIES: <e.g. 16.0>
 SLUG: <slug>
 TASK: Extract the business intent + behavioral contract of this one commit. Read commit
@@ -94,20 +107,35 @@ OSM returned `installable:True` at the target AND the module manifest was NOT to
 cherry-pick range, OR OSM was unreachable. Do NOT blanket-sweep every module: OSM already grounds
 categories 1-2, so a probe there is wasted.
 
+Pre-step before dispatch: delegate to git-surveyor (read-only) to write two files. Include
+`repo: <main-checkout-root>` in the git-surveyor dispatch for cross-repo ports (the source
+commits exist only in the main checkout after P0 bootstrap):
+
+- `manifest_path`: read `<module>/__manifest__.py` at `target_ref` and write to
+  `.odoo-ai/forward-port/<slug>/installable/<module>/manifest.py`
+- `history_dump_path`: run a log-with-patch of manifest modifications (--follow --diff-filter=M
+  on `<module>/__manifest__.py`) against `source_ref` and write to
+  `.odoo-ai/forward-port/<slug>/installable/<module>/history.diff`
+
+Assign the resulting absolute paths before launching the prober; the prober mandates both fields
+and never runs git itself.
+
 Dispatcher inputs (CANONICAL CONTRACT - pass exactly these keys):
 
 ```
-{ module, repo_root, source_ref, target_ref, target_version }
+{ module, repo_root, source_ref, target_ref, target_version, manifest_path, history_dump_path }
 ```
 
 - `repo_root` is the MAIN checkout root where git runs. The integration worktree does NOT exist
   at P2 (it is created at P4) - never reference it here. For a same-repo forward-port `repo_root`
   is the main clone of the repo holding both refs; for a cross-repo port it is the main clone that
-  has the source remote added + fetched in the P0 bootstrap step (`git remote add source <url>` +
-  fetch). The dispatcher populates `repo_root` deterministically from the P0-recorded checkout
+  has the source remote added + fetched in the P0 bootstrap step (git-operator delegates: add
+  source remote + fetch). The dispatcher populates `repo_root` deterministically from the P0-recorded checkout
   root before launching the prober.
 - `source_ref` / `target_ref` are the source / target git refs (the same refs P0 enumerated).
 - `target_version` is the concrete target series for OSM grounding.
+- `manifest_path` / `history_dump_path` are absolute paths to the surveyor-written files (see
+  pre-step above).
 
 The prober consumes those and returns BOTH:
 
@@ -180,11 +208,13 @@ Procedure:
 Red flags: a text-gate "approve" is NOT Plan Mode approval (two separate steps); `EnterPlanMode`
 MUST come before any branch, worktree, or file touch.
 
-After Plan Mode approval, create the JOB-tier integration worktree branched FROM B (Hard rule 1 -
-no branch before this point):
+After Plan Mode approval, delegate to git-operator: create the JOB-tier integration worktree
+branched FROM B (Hard rule 1 - no branch before this point). Brief:
 
-```bash
-git worktree add -b fp/<slug> <path>/fp-integration <target-branch>
+```
+op: create integration worktree
+scope: branch fp/<slug>, base <target-branch>
+worktree: <path>/fp-integration
 ```
 
 THEN write `.odoo-ai/forward-port/<slug>/plan.md` as the resume RECORD (not the gate - the gate
@@ -206,14 +236,19 @@ Fable rows (if any): <m> - <why> (~2x opus). (confirmed in Plan Mode)
 
 ---
 
-## P5 - Git merge --no-commit (critical section)
+## P5 - Merge --no-commit (critical section)
 
-```bash
+Delegate to git-operator. Dispatch contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+For semantic conflicts use the stateless-resume recipe in that snippet.
+
+```
 # continuous - keep the source SHA
-git merge --no-ff --no-commit <src-SHA>
+op: merge --no-ff --no-commit <src-SHA>
+worktree: <path>/fp-integration
 
 # one-shot only (source frozen)
-git cherry-pick -n <src-SHA>
+op: cherry-pick -n <src-SHA>
+worktree: <path>/fp-integration
 ```
 
 Only one merge in flight (shared git index). Do NOT commit - the working tree is the absorption
@@ -226,10 +261,13 @@ zone through P9. Full protocol incl. absorption window order: `[[fp-merge-absorp
 ```bash
 # files with conflict markers
 git diff --check ; grep -rn '^<<<<<<<' .
-
-# merge-clean-but-source-touched files (autosilent-break candidates)
-git log --name-only --format="" <merge-base>..<src-SHA> | sort -u | grep -v '^$'
 ```
+
+Delegate to git-surveyor: list files changed in range `<merge-base>..<src-SHA>` (--name-only;
+git-surveyor writes the file list, filtered to non-empty entries - these are the
+merge-clean-but-source-touched autosilent-break candidates). Include `repo: <main-checkout-root>`
+in the dispatch for cross-repo ports (the source commits exist only in the main checkout after
+git-operator added the source remote and fetched at P0).
 
 For every Odoo symbol in those files (field / method / model / view ref / external-id /
 manifest depend / ORM chain), confirm existence + type at the TARGET version:
@@ -273,13 +311,16 @@ fail.
 
 **Enumerate scope - two lanes:**
 
-```bash
-# Lane 1: ALL merged-touched .py (production AND tests/) - for compile + pyflakes + ORM dict-key
-git log --name-only --format="" <merge-base>..<src-SHA> | sort -u | grep '\.py$'
+Delegate to git-surveyor: list files changed in range `<merge-base>..<src-SHA>` (--name-only;
+git-surveyor writes the file list). Include `repo: <main-checkout-root>` in the dispatch for
+cross-repo ports. From that list:
 
-# Lane 2: tests/ only - for collection ACCEPTANCE GATE and the test-specific classes (a)(b)(c)(f)
-git log --name-only --format="" <merge-base>..<src-SHA> | sort -u | grep '\.py$' \
-  | grep 'tests/'
+```bash
+# Lane 1 (from git-surveyor result): ALL merged-touched .py (production AND tests/)
+#   - filter the file list to *.py entries
+
+# Lane 2 (from git-surveyor result): tests/ only
+#   - from Lane 1, filter entries whose path contains tests/
 ```
 
 For Lane 1 files apply classes (d) + (e) (`py_compile` + `pyflakes`) AND (g) (ORM create/write
@@ -312,30 +353,45 @@ before entering the P8 adapt loop.
 
 ## P8 - Adapt (test-first; serial per-module within a commit; WORK-tier worktree per module for filesystem isolation)
 
-For each touched module/WI, create a child worktree off integration and dispatch the adapt unit
-(serially - complete one module before starting the next within the same commit):
+For each touched module/WI, delegate to git-operator to create a child worktree off integration
+and dispatch the adapt unit (serially - complete one module before starting the next within the
+same commit):
 
-```bash
-git worktree add -b fp/<slug>-<module> <path>/wt-<module> fp/<slug>
+```
+op: create per-module child worktree from fp/<slug>
+scope: branch fp/<slug>-<module>, path <path>/wt-<module>
+worktree: <path>/wt-<module>
 ```
 
-**Per-commit vs absorb-all worktree.** The child-worktree-per-module command above applies
-when each source commit is committed on integration before the next is merged (one-shot
-`cherry-pick -n`, or continuous merging one SHA at a time) - the child forks from a committed tree
-and sees no in-flight conflicts. For an absorb-all run that merges every commit in ONE
-`git merge --no-commit`, the conflicts live in the integration worktree's WORKING TREE
-(uncommitted); a child worktree forked off the uncommitted integration HEAD CANNOT see them. In
-that case do NOT run `git worktree add` for conflict resolution - resolve conflicts serially, per
-module, directly in the integration worktree, and only resume child-worktree isolation once the
-absorbed merge is committed. Picking the wrong mode here yields child worktrees with a clean tree
-and an unresolved (invisible) conflict still sitting in integration.
+**Open-merge window (CRITICAL constraint).** During the open P5 merge window of the CURRENT
+source commit - after git-operator ran `--no-commit` and before git-operator runs the P10
+`commit` - `MERGE_HEAD` is live in the integration worktree. Git will reject any second merge
+operation in that worktree until the first is committed or aborted (error: `MERGE_HEAD exists`).
+Therefore: child worktrees CANNOT converge back into integration during this window. Adapt all
+modules SERIALLY DIRECTLY in the integration worktree for the current commit's adapt pass - do
+NOT fan out child worktrees. SSOT for the in-window adapt protocol: `[[fp-merge-absorption]]`
+§Absorption-window.
+
+**Per-commit vs absorb-all worktree.** Child-worktree fan-out is ONLY valid when the integration
+HEAD is already committed - i.e. when processing a SUBSEQUENT source commit after the previous P10
+commit has closed the prior merge. At that point `MERGE_HEAD` is gone, a child forks from a clean
+committed tree, and converging back via merge works correctly. For an absorb-all run that merges
+every commit in ONE no-commit merge, `MERGE_HEAD` is live throughout; do NOT fan out child
+worktrees at all - resolve conflicts serially, per module, directly in the integration worktree,
+and only resume child-worktree isolation once the absorbed merge is committed. Picking the wrong
+mode yields child worktrees with a clean tree and an unresolved (invisible) conflict still sitting
+in integration.
 
 **8a - forward the test FIRST** (the test is the oracle; independence keeps it honest). Dispatch
 `odoo-test-writing` in mode `adapt`:
 
 ```
 TEST ADAPT MODE: forward this source test to the target platform.
-SOURCE TEST: <path(s) in the merged tree>
+SOURCE TEST (READ-FROM): <absolute-path-in-integration-worktree>/<module>/tests/<test_file>
+  (merged working-tree content in the integration worktree; read the file from this path)
+WRITE-TO: <absolute-child-worktree-path>/<module>/tests/<test_file>
+  (write the adapted result here; for bucket (b) start from the READ-FROM content which
+   may have conflict markers or auto-merged text - resolve it and write to WRITE-TO)
 INTENT: <one-liner from intents/<sha>.md>   BUCKET: <a|b|c|d>
 ODOO VERSION: <target>
 BASE CLASS (target): <signature from test_base_classes(odoo_version='<target>') for the source
@@ -372,7 +428,10 @@ INTENT RECORD: .odoo-ai/forward-port/<slug>/intents/<sha>.md   (the why - build 
 BUCKET: <a skip-code | b 3-way+adapt | c re-implement on target idiom | d skip-code>
 FAILING TEST (RED, written by the test-author above): <paths> - implement until GREEN; do NOT edit them.
 NEW MODULE: <yes - apply installable:False checklist [[fp-installable-false]] | no>
-MODULE SCOPE: <name> @ <child-worktree path> - write ONLY within this module.
+MODULE SCOPE: <name>
+  READ-FROM: <absolute-path-in-integration-worktree>/<module>/ (merged content; for bucket
+    (b) 3-way+adapt start from these files - they hold the auto-merged or conflict-marked state)
+  WRITE-TO: <absolute-child-worktree-path>/<module>/ (your child worktree; write ALL output here)
 ODOO VERSION: <target>
 WORKLOG: <slug> - read, then append.
 USER LANGUAGE: <lang | omit when English>
@@ -400,7 +459,7 @@ when the gate `installed < parse(dir) <= current` holds (else the script lands i
 The rename is idempotent (re-run safe). See `odoo-data-migration` for the script body. After the
 rename, sweep the migration body for log strings / hardcoded series literals still naming the
 SOURCE series (a `_logger.info("... 17.0 ...")` or a version string left from the source) - they
-survive `git mv` unchanged and mislead the operator:
+survive the rename unchanged and mislead the operator:
 
 ```bash
 grep -rn '<src-series>' migrations/<tgt-series>/   # e.g. grep -rn '17\.0' migrations/18.0/
@@ -425,8 +484,9 @@ TARGET LANGUAGES: <language codes inferred from the source .po filenames, e.g. v
 `odoo-i18n` owns the non-destructive `.pot`/`.po` recipe and the isolated-DB export; this pipeline
 forwards only the INTENT (which strings, which modules), never the export itself.
 
-Converge each child worktree back to integration (serialized, keep SHA), then
-`git worktree remove <path>`. Mark `status=adapted`.
+Converge each child worktree back to integration (serialized, keep SHA), then delegate to
+git-operator to remove the child worktree at `<path>` (only after that module's P9 cycle
+confirms GREEN - see SKILL.md P8 for the Tier-A worktree-persist rule). Mark `status=adapted`.
 
 ---
 
@@ -548,10 +608,13 @@ Full per-batch + allocator protocol: `[[fp-merge-absorption]]`. Mark `status=ver
 
 ## P10 - Gate merge (STOP, per batch)
 
-Present `merge-log.md` and wait for human-confirm. On confirm:
+Present `merge-log.md` and wait for human-confirm. On confirm, delegate to git-operator:
 
-```bash
-git commit -m "fp: absorb <src-SHA> - <one-line summary> [bucket <x>]"
+```
+op: commit
+message: "fp: absorb <src-SHA> - <one-line summary> [bucket <x>]"
+worktree: <path>/fp-integration
+confirmed: yes - human approved at P10 gate
 ```
 
 Buckets (a)/(d) STILL commit (keeps SHA, advances merge-base - Hard rule 7); the message records
@@ -565,9 +628,24 @@ straight to P8, which would absorb it without a merge or a symbol/drift check).
 
 ## P11 - PR + review
 
-```bash
-git push origin fp/<slug>                          # push integration, NOT B
-gh pr create --base <target-branch> --head fp/<slug> --title "..." --body "..."
+Delegate the push to git-operator (resolve origin URL via `git remote get-url origin`):
+
+```
+op: push fp/<slug> to origin (NOT B)
+scope: branch fp/<slug>
+worktree: <path>/fp-integration
+remote: resolve via `git remote get-url origin`
+```
+
+Delegate PR creation to github-operator:
+
+```
+op: create PR
+base: <target-branch>
+head: fp/<slug>
+title: "..."
+body: "..."
+remote: resolve from `git remote get-url origin`
 ```
 
 Run `odoo-code-review` inline (via the Skill tool, from the orchestrating context) for the
@@ -577,11 +655,8 @@ the PR adds only the merge commits. Present the PR URL and wait for the human to
 
 **Attribute every finding to the FP diff before rating it.** A reviewer rating the whole
 file blames the forward-port for code it never touched. Before rating any finding, confirm the
-line is actually in the forward-port delta:
-
-```bash
-git diff origin/<target-branch>...fp/<slug> -- <file>   # three-dot: only what the FP added
-```
+line is actually in the forward-port delta. Delegate to git-surveyor: three-dot diff
+(`origin/<target-branch>...fp/<slug> -- <file>`, only what the FP added to `<file>`).
 
 A finding on a line NOT in this diff is pre-existing - note it separately, do not block the PR on
 it (flag it, do not gate the forward-port on it).
@@ -610,10 +685,16 @@ target. Mark such findings out-of-scope for this forward-port.
 
 ## Cleanup (after human merge)
 
+Delegate to git-operator: remove integration worktree and delete the integration branch.
+
 ```bash
-git worktree remove <path>/fp-integration
+# Delegate to git-operator:
+#   op: worktree remove <path>/fp-integration
+#   confirmed: yes - forward-port is merged
 git worktree list          # confirm no dangling fp/<slug>-* child worktrees
-git branch -d fp/<slug>
+# Delegate to git-operator:
+#   op: branch delete fp/<slug>
+#   confirmed: yes - forward-port is merged
 ```
 
 Leave `.odoo-ai/forward-port/<slug>/` for the next continuous run's resume (it is gitignored and

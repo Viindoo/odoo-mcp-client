@@ -227,6 +227,7 @@ read-only and produces findings only, so it does not spawn the reviewer itself:
 
 - Do NOT modify any source file under review - your ONLY permitted write is the review report under `.odoo-ai/reviews/...` (gitignored).
 - If OSM is unreachable after one retry, continue with static analysis and note the fallback (for `MODE=synthesis`, derive the closure from disk `__manifest__.py depends` + grep, labeled "closure approximate from disk").
+- Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline.
 
 ## Continuation Contract
 

@@ -75,6 +75,15 @@ flowchart TD
     V -->|non-empty| R[restore from backup - FAIL]
 ```
 
+## Primary callers
+
+`odoo-ai-agents` business skills (`wave`, `odoo-git-rebase`, `odoo-forward-port`) are the
+primary delegating consumers: they orchestrate all local git mutations and GitHub API ops by
+dispatching git-toolkit agents (git-operator, git-surveyor, github-operator) rather than running
+git commands inline. The delegation contract lives in the odoo-ai-agents plugin at
+`snippets/git-delegation.md`. WI leaf-workers these skills spawn are explicitly banned from
+issuing git commands and are restricted to their assigned worktree only.
+
 ## Dependency
 
 `git-toolkit` declares `"dependencies": ["github"]`. The `github` plugin (default

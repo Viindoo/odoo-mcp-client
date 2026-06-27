@@ -203,16 +203,12 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
 
    For each repo in the confirmed set:
    - **MATCHED** → record the local absolute path; show it to the user.
-   - **MISSING** → print the SSH clone command:
-     ```
-     git clone -b <branch> --no-single-branch git@github.com:<Org>/<repo>.git odoo<major>
-     ```
-     (OSM already returns SSH URLs; `<Org>/<repo>` is the placeholder - the
-     actual value comes from OSM at runtime.) Then print the optional dev fork
-     step:
-     ```
-     gh repo fork --remote --remote-name fork
-     ```
+   - **MISSING** → compose and print for the user (the agent does NOT run these):
+     - A clone command: git clone with -b BRANCH, --no-single-branch, SSH_URL,
+       into a local directory named `odoo<major>` - where BRANCH and SSH_URL come
+       from OSM at runtime (`<Org>/<repo>` is the runtime placeholder).
+     - An optional fork-remote step: gh repo fork with --remote and
+       --remote-name fork, run inside the cloned directory.
      Do **NOT** auto-clone. Print the commands and ask the user to run them
      first, then re-run this step - or confirm they want to skip that repo.
 

@@ -46,13 +46,25 @@ For a sibling git worktree (e.g. the wave/forward-port integration tree), the or
 
 ## Phase 0 - Scope the review (git targets only)
 
+**Pre-resolution for `TARGET=pr` (do before dispatching the scoper):**
+
+For `TARGET=pr:<N>`, the skill MUST resolve the PR to an isolated worktree via git-toolkit agents before the scoper is dispatched:
+1. Dispatch **github-operator** to fetch PR metadata and the changed file list. Collect `pr_meta = {number, title, head, base, repo}` and `pr_changed_files = [<path>, ...]`.
+2. Dispatch **git-operator** to create an isolated worktree (path `/tmp/pr-review-<N>`, S9 contract - never the main checkout) with the PR branch checked out. Receive back `review_root`.
+
+Then pass `review_root`, `pr_meta`, and `pr_changed_files` into the scoper brief. The scoper no longer fetches PR metadata or creates the worktree itself.
+
+Git delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`
+
+---
+
 Dispatch agent `odoo-review-scoper` (sonnet) per the SCOPER I/O CONTRACT (full SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Pass it:
-- `TARGET:` - `local` | `worktree:<abs-path>` | `pr:<number-or-url>` (the scoper resolves diffs, PR smart-reuse, and worktree detection)
+- `TARGET:` - `local` | `worktree:<abs-path>` | `pr:<number-or-url>` (for `pr`, also pass `review_root`, `pr_meta`, and `pr_changed_files` from the pre-resolution step above; the scoper no longer resolves these itself)
 - `BASE:` - default `master`
 - `odoo_version:` - target series
 - `USER LANGUAGE:` - language for the scoper's own output
 
-The scoper writes a compact scope file at `.odoo-ai/reviews/<slug>-<date>/_scope.md` and returns the scope result directly. Main receives the compact output only (keeps main context clean - do NOT run `git diff`, `__manifest__.py` mapping, or `test_coverage_audit` in main context; the scoper handles all of this).
+The scoper writes a compact scope file at `.odoo-ai/reviews/<slug>-<date>/_scope.md` and returns the scope result directly. Main receives the compact output only (keeps main context clean - do NOT run git diff inline, map `__manifest__.py`, or call `test_coverage_audit` in main context; the scoper handles all of this).
 
 Scope output fields used by main:
 - `slug` - used to name the review dir
@@ -121,7 +133,7 @@ All output under `.odoo-ai/reviews/<slug>-<YYYY-MM-DD>/` (gitignored). Slug come
 - `domain-<d>.md` - per-domain synthesis (large sets only, Phase B domain-partition); the final `_synthesis.md` is built from these
 - `index.md` - short map: modules reviewed, dependency closure, per-module severity counts, overall verdict + score, highest-severity findings linking to detail files
 
-Report is presented as an artifact in chat by default. Post to PR ONLY when user explicitly requests it (keyword `post`): use PR number from `pr.number` in the scope result; `gh pr comment` posts a flat comment; `gh pr review` with `--comment` and `--body` supports per-finding inline comments - prefer inline for actionable findings.
+Report is presented as an artifact in chat by default. Post to PR ONLY when user explicitly requests it (keyword `post`): delegate to **github-operator** (via Agent tool) with the PR number from `pr.number` in the scope result and the review body; github-operator posts via the PR comment API (flat) or PR review API (per-finding inline) - prefer inline for actionable findings.
 
 Emit paths in the Continuation Contract `produced[]`; later steps reference these instead of re-reviewing.
 

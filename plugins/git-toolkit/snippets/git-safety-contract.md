@@ -91,6 +91,28 @@ git fsck --unreachable | grep commit   # find an orphaned (dropped-stash) commit
 Reflog is LOCAL only and expires (90d reachable / 30d unreachable). The S1 backup branch is the
 durable anchor; reflog is the safety net for ops where a backup was somehow missed.
 
+## S9 - Worktree-always / principal-checkout-lock
+
+Any op that mutates the working tree or moves a branch ref (checkout/switch, commit, rebase,
+merge, cherry-pick, reset, tag-move, push-from, etc.) MUST run in a dedicated worktree - never
+in the primary/shared checkout, and NEVER by switching the primary checkout off its principal
+branch. The primary checkout stays on its principal branch at all times.
+
+Pure bounded reads (`git status`, `git log -n<N>`, `git diff --stat`) may run anywhere; they do
+not mutate and cannot corrupt the shared checkout's branch state.
+
+If a brief asks git-operator to operate in-place on the primary checkout or to switch it off its
+principal branch, that is an ERROR: git-operator creates/uses a dedicated worktree instead and
+reports its path in the result block, or returns BLOCKED asking for a worktree path if it cannot
+safely create one. The `worktree-isolated?` brief parameter is deprecated - worktree isolation is
+ALWAYS required for mutations, never optional.
+
+```bash
+git worktree add ../worktree-<branch>-$(date +%Y%m%d%H%M%S) <ref>   # create; run mutation here
+git worktree list                                                      # confirm isolation
+git worktree remove ../worktree-<branch>-<ts>                         # clean up after verify
+```
+
 ## S8 - filter-repo requires a FRESH clone
 
 `git filter-repo` refuses to run in-place and rewrites EVERY commit SHA permanently. Run it only on
@@ -130,3 +152,17 @@ BEFORE execution - never auto-run, even when asked to "just do it":
 
 A leaf operator that reaches a gated op WITHOUT human confirmation in its brief STOPS and returns
 BLOCKED with the gate list - it does not self-authorize.
+
+### Re-dispatch after BLOCKED
+
+When git-operator returns BLOCKED at the destructive gate, the CALLER must:
+
+1. Present the gate to the human with full context: which op was attempted, which backup branch
+   was created (S1), and what is irreversible.
+2. Obtain explicit human confirmation - not implied, not inferred.
+3. Cold-spawn a FRESH git-operator with the SAME op brief PLUS an explicit
+   `confirmed: <"verbatim human approval text">` field. The new instance reads this field and
+   proceeds past the gate.
+
+The git state and any S1 backup branch persist on disk between the two dispatches - nothing
+is lost while the caller waits. Never self-authorize and never pass a fabricated confirmation.

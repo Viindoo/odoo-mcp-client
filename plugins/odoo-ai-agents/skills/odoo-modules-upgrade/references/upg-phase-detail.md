@@ -452,20 +452,26 @@ After `ExitPlanMode` and user approval: write `plan.md` as the RECORD SSOT for P
 
 ### Integration worktree creation
 
-```bash
-git worktree add -b upg/<src>-<tgt>-<cluster> <path>/upg-integration <work-base>
-```
+Delegate to git-operator (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
+- op: worktree add
+- branch: `upg/<src>-<tgt>-<cluster>`
+- worktree: `<path>/upg-integration`
+- base: `<work-base>`
 
 ### Child worktree per module (WORK tier)
 
-```bash
-git worktree add -b upg/<src>-<tgt>-<cluster>-<module> <path>/upg-<module> upg/<src>-<tgt>-<cluster>
-# ... dispatch coder to <path>/upg-<module> ...
-# converge back:
-cd <path>/upg-integration && git merge --no-ff upg/<src>-<tgt>-<cluster>-<module>
-git worktree remove <path>/upg-<module>
-git branch -d upg/<src>-<tgt>-<cluster>-<module>
-```
+For each module, delegate all mutations to git-operator (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
+
+1. Create child worktree - dispatch git-operator: op worktree add, branch
+   `upg/<src>-<tgt>-<cluster>-<module>`, worktree `<path>/upg-<module>`,
+   base `upg/<src>-<tgt>-<cluster>`.
+
+2. Dispatch coder to `<path>/upg-<module>`.
+
+3. Converge back - dispatch git-operator (single brief): merge branch
+   `upg/<src>-<tgt>-<cluster>-<module>` into `upg/<src>-<tgt>-<cluster>` no-ff in
+   worktree `<path>/upg-integration`; then remove worktree `<path>/upg-<module>`;
+   then delete branch `upg/<src>-<tgt>-<cluster>-<module>`.
 
 ### odoo-coding dispatch brief (via Skill tool, per module)
 
@@ -488,7 +494,7 @@ ADAPT TIER: <haiku | sonnet | opus | fable> (from upg-triage-table.md)
 
 INSTRUCTIONS:
 If ACTION=DELETE-absorbed or ACTION=OBSOLETE:
-  DANGLING-REFERENCE SWEEP (MANDATORY before git rm):
+  DANGLING-REFERENCE SWEEP (MANDATORY before directory removal):
   Grep the entire repo for references to the module's models, XML IDs, security groups,
   and env.ref targets that will become dangling after deletion:
     grep -rn "<module_model_names>" . --include="*.py" --include="*.xml" --include="*.csv"
@@ -502,15 +508,19 @@ If ACTION=DELETE-absorbed or ACTION=OBSOLETE:
   reference found: either rehome it to the absorbing core module/feature OR remove it.
   Document the rehoming decisions in the commit message or a `# upg: rehomed` comment.
 
-  After the sweep:
-  git rm -r <path>
+  After the sweep, report findings to the orchestrator. The orchestrator then dispatches
+  git-operator (in this child worktree) to remove the module directory, stage the
+  deletion, and commit -s (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
+  Git-operator brief fields:
+    - op: rm -r module dir + stage deletion + commit -s
+    - confirmed: yes - user confirmed DELETE <module> at P3 Plan Mode gate
+    - commit_message (absorbed): `upg: delete <module> - absorbed by core <absorbing_core_feature> in <target_version> (no custom delta remains)`
+    - commit_message (obsolete): `upg: delete <module> - obsolete at <target_version> (<one-line reason why the need evaporated>)`
   dependers: <list of modules pre-populated by the orchestrator from graph.md that list
   '<module>' in their depends - the orchestrator resolves this BEFORE dispatching the
   brief so the coder does not need to re-discover them>
   For each module in dependers[], remove '<module>' from that module's
   __manifest__.py `depends` list.
-  Commit message (absorbed): "upg: delete <module> - absorbed by core <absorbing_core_feature> in <target_version> (no custom delta remains)"
-  Commit message (obsolete): "upg: delete <module> - obsolete at <target_version> (<one-line reason why the need evaporated>)"
 
 If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
   0. PREEMPTIVE FIX LIST (apply FIRST): for every blocker attributed to this module in
@@ -689,23 +699,26 @@ Output: `i18n-reconcile.md` (per-module: residual count, translated count, skipp
 "No cluster-squash" means: NEVER collapse the whole cluster into ONE opaque commit - the
 per-module commit messages ARE the upgrade record. It does NOT forbid consolidating a single
 module's WIP/fixup commits into ONE clean commit per module. Per-module consolidation is ALLOWED
-and preferred when a module accumulated fixups during P4/P4b:
+and preferred when a module accumulated fixups during P4/P4b.
 
-```bash
-# from the integration worktree. <base> = <work-base>, or the commit BEFORE this module's first commit.
-git branch upg-backup HEAD                 # safety ref for the tree-identity check
-git reset --mixed <base>                    # unstage back to <base>, keep the working tree intact
-git add <module>/                           # re-stage ONLY this module's tree
-git commit -s -m "upg: <module> <src>-><tgt> - <ACTION> <summary>"
-# repeat per module, in dependency order (leaves first)
+Delegate the entire consolidation sequence to git-operator for each module in dependency order
+(see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
+- op: consolidate module commits in integration worktree
+- worktree: `<path>/upg-integration`
+- scope: `<module>/` subtree only (do NOT stage other modules)
+- base: `<work-base>`, or the commit immediately before this module's first upg commit
+- commit_message: `upg: <module> <src>-><tgt> - <ACTION> <summary>` (signed)
+- confirmed: yes - Plan Mode approved at P3 (consolidation listed in commit plan; backup ref created by git-operator)
+- Steps git-operator performs: safety backup ref at HEAD -> reset-mixed to base ->
+  stage `<module>/` only -> commit -s -> tree-identity verify (`git diff --quiet`
+  backup vs HEAD; must be TREE-IDENTICAL) -> delete backup ref.
+- tree-identity verify is git-operator S6; on S6 failure git-operator returns BLOCKED
+  (gate_hit: S6 tree-identity mismatch). Recovery: dispatch git-operator to restore
+  from the backup ref (hard-reset to backup-ref) and escalate BLOCKED per ETHOS #7
+  listing the differing trees.
 
-# Verify the consolidated tree byte-matches the pre-consolidation tree (must be identical):
-git diff --quiet upg-backup HEAD && echo "TREE-IDENTICAL" || echo "TREE-DIVERGED - investigate"
-git branch -D upg-backup
-```
-
-Non-interactive autosquash is also available in this environment (no TTY for an editor is NOT a
-block): `EDITOR=true GIT_SEQUENCE_EDITOR=true git -c commit.gpgsign=false rebase --autosquash <base>`.
+Autosquash alternative: delegate to git-operator with autosquash enabled;
+git-operator handles the non-TTY environment natively.
 Keep exactly ONE commit per module; never one commit per cluster.
 
 ---
@@ -723,16 +736,12 @@ these three passes before opening the PR, each cross-referencing its owning snip
   `_read_group`.
 - i18n: P5.7 ran, or was correctly auto-SKIPPED with the recorded reason.
 
-```bash
-# Artifact base dir (absolute)
-ARTIFACT_DIR=".odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>"
-INSTALL_TEST_MD="${ARTIFACT_DIR}/install-test.md"
+**PR body construction (pre-render from structured artifacts - not grep of plan.md prose):**
+The orchestrator constructs adapted-modules and deleted-modules lists from the structured
+verdict data it holds at this point (not by grepping plan.md prose, which risks false-positives).
+PR body template:
 
-# Pre-render PR body from structured artifacts (not free-text grep of plan.md).
-# The orchestrator constructs these lists from the structured verdict data it holds
-# at this point (not by grepping plan.md prose which may contain keyword false-positives).
-PR_BODY_FILE="$(mktemp /tmp/pr-body-XXXXXX.md)"
-cat > "${PR_BODY_FILE}" <<EOF
+```markdown
 ## Cluster upgrade: <src> -> <tgt>
 
 ### Modules adapted
@@ -744,23 +753,19 @@ cat > "${PR_BODY_FILE}" <<EOF
  reasons - sourced from the structured verdict list, not grep of plan.md prose>
 
 ### Test result
-See ${ARTIFACT_DIR}/install-test.md - all waves green, all modules passed.
+See .odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/install-test.md - all waves green.
 
 ### Review request
 Please review modules in dependency order (leaves first):
 <topo_order from graph.md>
-EOF
-
-git push davidtranhp upg/<src>-<tgt>-<cluster>
-gh pr create \
-  -R Viindoo/<repo> \
-  --base <work-base> \
-  --head davidtranhp:upg/<src>-<tgt>-<cluster> \
-  --title "upg: <cluster> <src>-><tgt> - cluster upgrade" \
-  --body-file "${PR_BODY_FILE}"
-rm -f "${PR_BODY_FILE}"
 ```
-Note: resolve `<repo>` from `git remote get-url origin` (parse the repository name from the URL).
+
+**Push and open PR - delegate in sequence (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):**
+1. Push branch - dispatch git-operator: op push `upg/<src>-<tgt>-<cluster>` to the fork remote
+   (resolve fork remote URL from `git remote get-url origin` or a dedicated fork remote).
+2. Open PR - dispatch github-operator: op create PR; upstream org/repo and base branch resolved
+   from `git remote get-url origin`; head `upg/<src>-<tgt>-<cluster>`; title
+   `upg: <cluster> <src>-><tgt> - cluster upgrade`; body from the PR body template above.
 
 Review delegation brief:
 ```

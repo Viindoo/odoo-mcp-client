@@ -35,11 +35,7 @@ principal branch.
 > These rules are load-bearing safety contracts. Deleting or softening any one of them
 > is a breaking change and must be caught by `tests/test_wave_hardrules.py`.
 
-1. **Principal-branch-lock** - NEVER run `git checkout`, `git switch`, `git commit`,
-   `git rebase`, `git merge`, `git pull`, or `git reset --hard` on the principal branch
-   (the branch active at skill invocation). All WI branches and the integration branch
-   live in separate worktrees. Read-only ops (`git log`, `git diff`, `git status`) on
-   the principal are allowed.
+1. **Principal-branch-lock** - Never run checkout, commit, switch, rebase, merge, pull, or reset on the principal branch (the branch active at skill invocation); all such mutations are delegated to git-toolkit agents per the S9 invariant (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`). All WI branches and the integration branch live in separate worktrees. Bounded reads on the principal are allowed per the allowlist in git-delegation.md.
 
 2. **Git-authority stays with the orchestrator** - This skill (wave) runs in the
    orchestrating context that holds git authority for the run. It dispatches WI subagents
@@ -171,11 +167,11 @@ Do NOT create any branch or worktree before the user approves.
 
 After plan approval:
 
-1. Create the integration branch:
-   `git worktree add -b wave/integration-<slug> <path>/integration <principal>`
+1. Delegate to **git-operator**: create the integration branch and worktree.
+   Brief: op=create-worktree, branch=wave/integration-<slug>, from=<principal>, worktree=<path>/integration.
 
-2. Create a worktree for each WI:
-   `git worktree add -b wave/wi-<slug>-<id> <path>/wi-<id> wave/integration-<slug>`
+2. Delegate to **git-operator**: create a worktree for each root WI.
+   Brief: op=create-worktree, branch=wave/wi-<slug>-<id>, from=wave/integration-<slug>, worktree=<path>/wi-<id>.
    - **Root WIs** (no `depends_on`): create up front here.
    - **Dependent WIs**: create **lazily** in Phase 2, only after their deps have been
      cherry-picked onto integration (so the worktree forks from an up-to-date integration
@@ -268,9 +264,10 @@ Hard rules:
   - Worker brief (full text: ${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md): you ARE the
     specialist - write/review the code yourself, grounding every Odoo claim with the OSM MCP
     tools (an MCP tool call is never a spawn, so it is always allowed); follow the
-    odoo-coder / odoo-frontend-coder / odoo-code-reviewer conventions. Do NOT git
-    branch/cherry-pick/merge/push; stay in your assigned worktree. Only
-    Read/Grep/Glob/Edit/Write/Bash.
+    odoo-coder / odoo-frontend-coder / odoo-code-reviewer conventions. You MAY stage and
+    commit your own work in your assigned worktree (S9 satisfied - own worktree, own branch).
+    Do NOT run integration ops: branch/checkout/switch/cherry-pick/merge/rebase/reset/tag/
+    push/force-push. Only Read/Grep/Glob/Edit/Write/Bash.
   - **cd-on-resume (HARD RULE - Tier-A):** On resume via SendMessage, immediately `cd` to the
     Worktree path listed above before running any Bash command. Shell cwd is NOT guaranteed to be
     restored across a SendMessage-resume; the explicit `cd` makes Tier-A safe regardless of
@@ -328,21 +325,29 @@ invoke genuinely non-spawning (leaf) skills via the Skill tool for read-only loo
 
 For each WI in topology order:
 
-1. Cherry-pick onto the integration branch:
-   `git cherry-pick <sha>` (from within the integration worktree)
+1. Delegate cherry-pick to **git-operator**: op=cherry-pick, scope=<sha>, worktree=<path>/integration.
+   For semantic conflicts: see conflict stateless-resume recipe in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 
 2. Run the verify command immediately after each cherry-pick.
 
 3. **On conflict**: dispatch a brief Sonnet resolver subagent with:
    - The conflicting diff and the two WI briefs whose files overlap
-   - Worker brief (verbatim, mandatory - SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md):
-     "You ARE the specialist - resolve and verify directly, grounding any Odoo claim with the OSM
-     MCP tools (an MCP tool call is never a spawn). Do NOT git branch/cherry-pick/merge/push; stay
-     in your assigned worktree. Only Read/Grep/Glob/Edit/Write/Bash."
+   - Worker brief (SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md):
+     "Resolve the semantic conflict by editing the conflicting files in the worktree. Ground
+     any Odoo claim via OSM MCP tools (never a spawn). Do NOT run any git op - no stage,
+     no commit, no cherry-pick continue, no integration ops (branch/checkout/cherry-pick/
+     merge/rebase/reset/push). Edit the conflicting files and return; the orchestrator runs
+     git add + cherry-pick --continue after you return. Only Read/Grep/Glob/Edit/Write/Bash."
    - Also hand the OSM-First Grounding Contract
      (${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md) when the conflict touches Odoo code.
 
-4. Record the cherry-pick SHA and verify result in the plan artifact.
+4. **After the resolver returns** (conflict markers removed from files): re-dispatch a FRESH
+   **git-operator** with op=cherry-pick-continue, worktree=<path>/integration, listing the
+   resolved files (git add <resolved-files> + cherry-pick --continue in the integration
+   worktree). Cherry-pick state persists on disk across cold-spawns - git-operator resumes
+   exactly where the original cherry-pick stopped.
+
+5. Record the cherry-pick SHA and verify result in the plan artifact.
 
 After all WIs are cherry-picked, run the verify command one final time on the full integration state.
 
@@ -358,7 +363,7 @@ Measure: `git diff <principal>...HEAD --shortstat` (changed lines) and WI count 
   to **opus inline review** and note the downgrade.
 - **Otherwise** (common case): **opus inline review** in this context.
 
-Review the full diff (`git diff <principal>...HEAD`) for:
+Delegate the full diff to **git-surveyor** (scope=<principal>...HEAD) and review the result for:
 - Plan adherence, correctness, simplicity, self-containment, confidentiality
 - **Coverage lens** (apply when any WI touches test files or adds behavior that should be tested):
   for each changed model/module, verify via `tests_covering(model='<model>', odoo_version='<version>')`
@@ -383,67 +388,55 @@ Re-run verify after any fix regardless of which tier was used.
 
 After the Opus review and fixes, invoke the `odoo-code-review` skill (via the Skill tool)
 on the integration branch. Pass `TARGET: worktree:<path>/integration` (the integration worktree
-created in Phase 2 step 1 - `<path>` is the same base path used in `git worktree add`) so the
+created in Phase 1 step 1 - `<path>` is the worktree path delegated to git-operator in Phase 1) so the
 skill reviews the integration tree, not the principal tree. Address its findings before Phase 5.
 
 ## Phase 5 - PR + Squash + Tree Identity
 
 **5.1 - PR creation**:
 
-Push the integration branch and open a PR against the principal branch.
+Delegate initial push to **git-operator**: push wave/integration-<slug> to origin.
+Then delegate PR creation to **github-operator**: open PR against the principal branch.
 PR title follows the repo commit convention. PR body includes: summary of all WIs,
 verify command result, link to plan artifact (if >=4-WI wave).
 
-**5.2 - Squash + tree-identity gate**:
+After the PR is open, proceed immediately to Phase 6 to present it to the user and await
+explicit human confirmation before squashing. Do NOT squash or force-push before the Phase 6
+human-confirm gate.
 
-Before squashing, run the stale-base guard:
-```
-git fetch origin <principal>
-git merge-base --is-ancestor origin/<principal> HEAD
-```
-If the ancestry check fails, the principal has moved since integration was cut.
-ABORT: rebase integration onto `origin/<principal>` first, re-run verify, then return here.
-Skipping this guard can silently revert commits that landed on the principal after the
-integration branch was created - the tree-identity check does NOT catch this.
-
-After the guard passes:
-`git tag wave-backup-<slug> HEAD`
-`git reset --soft origin/<principal>`
-`git commit -m "<conventional message>"`
-`git diff --quiet wave-backup-<slug>` (exit 0 = trees match; exit non-zero = ABORT)
-
-On abort: restore from backup ref, report the mismatch, do not force-push.
-Full recipe with comments: `reference/wave-templates.md` §Squash Tree-Identity Recipe.
-
-**5.3 - Force-with-lease push**:
-
-`git push --force-with-lease origin wave/integration-<slug>`
-
-## Phase 6 - Human-Confirm Merge + Cleanup
+## Phase 6 - Human-Confirm + Squash + Merge + Cleanup
 
 **Stop here. Present the PR URL and wait for explicit user confirmation.**
 
 ```
-Wave complete - integration branch is ready for merge.
+Wave complete - integration branch is ready for review.
 PR URL : <url>
 Verify : <last verify result - PASS>
-Squash : tree-identity confirmed (wave-backup-<slug>)
 
-To merge: confirm here (type "merge" or "yes") or merge directly via the PR URL.
+Review the unsquashed commits via the PR URL above.
+On confirm, the wave will: squash all WI commits into one clean commit
+(tree-identity verified) -> force-push to origin -> merge the PR.
+
+Type "merge" or "yes" to confirm squash + force-push + merge.
 Waiting for your confirmation before proceeding.
 ```
 
-**Only after explicit confirmation:**
+**Only after explicit confirmation** (capture the user's exact words as `<approval-text>`):
 
-1. Merge the PR (or note the user merged it directly via the URL).
+1. Delegate squash + force-push to **git-operator** using the full `wave-squash-push` recipe
+   from `reference/wave-templates.md` §Squash Tree-Identity Recipe (stale-base guard ->
+   tag backup -> squash -> tree-identity gate -> force-with-lease push, all in ONE dispatch).
+   Pass `confirmed: yes - <approval-text>` in the brief. This MUST be the user's verbatim
+   approval words - do NOT substitute a machine-generated justification.
 
-2. Cleanup (full checklist: `reference/wave-templates.md` §Cleanup Checklist):
-   - `git worktree remove <path>` for all WI and integration worktrees
-   - `git branch -d wave/wi-<slug>-*` and `wave/integration-<slug>`
-   - `git tag -d wave-backup-<slug>`
-   - `rm -rf .odoo-ai/wave/<slug>/`
+2. Delegate PR merge to **github-operator** (or note the user merged directly via the URL).
+   Pass `confirmed: yes - <approval-text>` in the brief (same verbatim approval covers the merge).
 
-3. Report: final commit SHA on principal, files changed, verify result.
+3. Delegate cleanup to **git-operator** (full checklist: `reference/wave-templates.md` §Cleanup Checklist):
+   remove all WI and integration worktrees, delete WI and integration branches, delete wave-backup-<slug> tag.
+   Local: `rm -rf .odoo-ai/wave/<slug>/`
+
+4. Report: final commit SHA on principal, files changed, verify result.
 
 ## Scaling Rule
 
@@ -484,7 +477,9 @@ Options: (a) move changes to one WI, (b) split into a WI-0 prerequisite.
 restore from backup, report differing files, do NOT force-push.
 
 **Example 5 - Conflict resolver:** Cherry-pick of WI-B fails. Dispatch Sonnet resolver subagent
-with diff + both WI briefs. Resolver commits fix. Re-run verify. Continue.
+with diff + both WI briefs. Resolver edits the conflicting files (removes conflict markers).
+Wave re-dispatches a fresh git-operator (cherry-pick --continue) to complete the cherry-pick.
+Re-run verify. Continue.
 
 ## Continuation Contract
 

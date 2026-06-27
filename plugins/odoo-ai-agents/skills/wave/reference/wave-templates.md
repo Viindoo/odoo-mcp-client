@@ -22,7 +22,7 @@ Notes:
 - Discover `verify` from Makefile targets, CI config, or README. If multiple commands
   are required, chain them with `&&`.
 - `confidential: restricted` triggers the 8-group ban check on every artifact.
-- `worktree_root` should be outside the repo tree to avoid accidental `git add .` inclusion.
+- `worktree_root` should be outside the repo tree to avoid accidental staging of wave files by git.
 
 ---
 
@@ -171,73 +171,68 @@ Status  : <open | merged | closed>
 
 Run after Phase 6 human-confirm merge:
 
+Delegate to **git-operator** in one brief (op=wave-cleanup):
+
 ```
-[ ] git worktree remove <path>/wi-a    (and all other WI worktrees)
-[ ] git worktree remove <path>/integration
-[ ] git branch -d wave/wi-<slug>-a     (and all other WI branches)
-[ ] git branch -d wave/integration-<slug>   (after merge confirmed on remote)
-[ ] git tag -d wave-backup-<slug>
-[ ] rm -rf .odoo-ai/wave/<slug>/        (gitignored; safe to delete)
-[ ] git worktree prune                  (clean stale worktree refs)
+[ ] remove worktree <path>/wi-a        (and all other WI worktrees)
+[ ] remove worktree <path>/integration
+[ ] delete branch wave/wi-<slug>-a     (and all other WI branches)
+[ ] delete branch wave/integration-<slug>   (after merge confirmed on remote)
+[ ] delete tag wave-backup-<slug>
+[ ] worktree-prune                     (clean stale worktree refs)
 ```
 
-Verify after cleanup:
+Local (run inline): `rm -rf .odoo-ai/wave/<slug>/` (gitignored; safe to delete)
+
+Verify after cleanup (bounded reads inline):
 `git worktree list` should show only the principal worktree.
-`git branch --list "wave/*"` should be empty.
+Confirm wave branches are gone (git-operator reports deletion success).
 
 ---
 
-## Squash Tree-Identity Recipe
+## Squash Tree-Identity Recipe (git-operator delegation)
 
-This is the load-bearing safe-squash procedure. Follow it exactly.
+All mutation steps are delegated to **git-operator**
+(see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
 
-```bash
-# Step 0: Stale-base guard - MUST run before squashing
-# Fetch the latest principal branch tip from the remote.
-git fetch origin <principal-branch-name>
+**Brief to git-operator - squash-push operation:**
 
-# Check whether the principal has moved since integration was cut.
-# If this check fails (exit non-zero), the principal received new commits
-# AFTER the integration branch was branched off.  Squashing onto the local
-# <principal-branch-name> would silently revert those intervening commits
-# because git reset --soft moves HEAD to that (now-stale) tip.
-# ABORT: rebase integration onto origin/<principal-branch-name> first,
-# re-run the full verify command, then return to Step 1.
-git merge-base --is-ancestor origin/<principal-branch-name> HEAD \
-  || { echo "ABORT: principal has moved - rebase integration first"; exit 1; }
-
-# Step 1: Create a backup ref BEFORE squashing
-git tag wave-backup-<slug> HEAD
-
-# Step 2: Squash all integration commits into one
-# (from the integration worktree, not the principal)
-# Use origin/<principal-branch-name> - guaranteed fresh after Step 0 fetch.
-git reset --soft origin/<principal-branch-name>
-git commit -m "<conventional commit message>"
-
-# Step 3: Verify tree identity
-# Exit 0 = trees are identical (safe to push)
-# Exit non-zero = mismatch (ABORT, do not push)
-git diff --quiet wave-backup-<slug>
-
-# Step 4a: On success - force-with-lease push
-git push --force-with-lease origin wave/integration-<slug>
-
-# Step 4b: On failure - abort and restore
-# DO NOT push. Report the mismatch to the user.
-# To restore: git reset --hard wave-backup-<slug>
-# Investigate with: git diff wave-backup-<slug>
+```
+op           : wave-squash-push
+worktree     : <path>/integration
+principal    : <principal-branch-name>
+slug         : <slug>
+commit-msg   : <conventional commit message>
+steps:
+  0a  fetch origin/<principal-branch-name>      # stale-base guard - MUST run first
+  0b  ancestry-check: origin/<principal-branch-name> is ancestor of HEAD?
+      no -> ABORT: rebase integration onto origin/<principal-branch-name>,
+            re-run verify command, then retry from step 0a
+  1   tag wave-backup-<slug> at HEAD            # create backup BEFORE squash
+  2   reset-soft to origin/<principal-branch-name>
+  3   commit with <conventional commit message>
+  4a  tree-identity: diff --quiet wave-backup-<slug>
+      exit 0 -> tree matches, proceed to step 5
+      exit non-zero -> ABORT: restore from wave-backup-<slug>, report mismatch, do NOT push
+  5   push --force-with-lease origin wave/integration-<slug>
+confirmed    : yes - <human approval text from Phase 6 gate>
 ```
 
-**Stale-base hazard**: `git reset --soft <principal>` silently squashes onto wherever
-the local ref points. If commits landed on the principal AFTER integration was branched,
-the local ref is stale and those commits are reverted even though the tree-identity check
-passes (tree matches backup but commit graph is wrong). The Step 0 fetch + ancestry check
-is the only guard against this failure mode.
+After git-operator returns, confirm tree-identity passed inline:
+`git diff --quiet wave-backup-<slug>` must have exited 0 (git-operator reports this).
+
+**Stale-base hazard**: The reset-soft operation silently squashes onto wherever the local
+ref points. If commits landed on the principal AFTER integration was branched, the local
+ref is stale and those commits are reverted even though the tree-identity check passes
+(tree matches backup but commit graph is wrong). The Step 0a fetch + Step 0b ancestry
+check (`git merge-base --is-ancestor origin/<principal-branch-name> HEAD`) is the only guard.
 
 **Empty-tree SHA note**: When checking if a tree is completely empty (rare edge case),
-the empty tree SHA is `da39a3ee5e6b4b0d3255bfef95601890afd80709`. This is only relevant
-if debugging a squash that produces an unexpected empty commit.
+the git empty-tree SHA is `4b825dc642cb6eb9a060e54bf8d69288fbee4904` (this is the SHA of
+the empty tree object, not the empty string). Prefer `git diff --quiet <backup-ref>` exit
+code over SHA comparison for tree-identity checks - it is the canonical method used in step
+4a above. This SHA is only relevant if debugging a squash that produces an unexpected empty
+commit.
 
 **Why `git diff --quiet` not `--exit-code`**: Both work for tree comparison but `--quiet`
 suppresses all output, which is what we want in the gate check. The exit code is the signal.
@@ -311,8 +306,8 @@ const runWI = async (wi) => {
 
   // lazy worktree: create the dependent's worktree NOW, after the gate, so it forks
   // from an up-to-date integration that already holds the dep commits (root WIs were
-  // created in Phase 1). git worktree add -b wave/wi-<slug>-<id> <path> wave/integration-<slug>
-  ensureWorktree(wi);
+  // created in Phase 1 via git-operator: branch=wave/wi-<slug>-<id>, from=wave/integration-<slug>).
+  ensureWorktree(wi);   // delegate to git-operator (worktree-add)
 
   const w = WEIGHT[wi.model];
   await acquire(w);                       // wait for weight budget (rolling window)
@@ -329,7 +324,7 @@ const runWI = async (wi) => {
   // cherry-pick: serialized in the orchestrating context, topology order enforced by the dep gate above.
   await cherryPickSerial(async () => {
     for (const sha of workerResult.committed_shas) {
-      cherryPick(sha);                    // git cherry-pick <sha> in the INTEGRATION worktree
+      cherryPick(sha);                    // delegate cherry-pick of <sha> to git-operator in the INTEGRATION worktree
       runVerify();                        // Repo Capability Card verify after each pick (Phase 3)
       // on conflict -> dispatch the Phase 3 Sonnet resolver subagent (unchanged) and re-verify
     }
@@ -374,4 +369,6 @@ proceeding." Report the differing files.
 **Example 5 - Conflict resolver path:**
 WI-A and WI-B unexpectedly both touch `__init__.py` (missed in Phase 0 audit):
 Cherry-pick of WI-B fails with conflict. Dispatch Sonnet resolver subagent with the conflict
-diff + both WI briefs. Resolver commits the fix. Re-run verify. Continue.
+diff + both WI briefs. Resolver edits the conflicting files (conflict markers removed). Wave
+re-dispatches a fresh git-operator (cherry-pick --continue) to complete the cherry-pick.
+Re-run verify. Continue.

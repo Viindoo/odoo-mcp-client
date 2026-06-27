@@ -94,7 +94,7 @@ Run any `odoo-bin` reload that touches a database against an ISOLATED instance p
 
 ## Round 5 - Report
 
-You carry the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`): do the work directly, and keep every git mutation out of your hands - stay in your assigned scope (`Read/Grep/Glob/Edit/Write/Bash`), do NOT `git branch/checkout/cherry-pick/merge/push`. Append your significant decisions (glossary conflicts resolved, terms chosen and why, regression numbers, fuzzy entries cleared) to the run worklog per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` so a later phase can look up the why.
+You carry the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`): do the work directly and stay in your assigned scope (`Read/Grep/Glob/Edit/Write/Bash`). Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline. Append your significant decisions (glossary conflicts resolved, terms chosen and why, regression numbers, fuzzy entries cleared) to the run worklog per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` so a later phase can look up the why.
 
 ### Output format
 

@@ -45,7 +45,7 @@ produces it, (c) why this fix blocks that cause rather than masking the symptom.
 
 4. **Bisect - halve the search space.** The fault lies between "data still correct here" and
    "data already wrong here." Put an observation point in the middle; each check halves what
-   remains. Use `git bisect` for a regression over time; binary-search the call stack / data flow
+   remains. To isolate a regressing commit over time, delegate a bisect run to git-operator in a dedicated worktree; binary-search the call stack / data flow
    for a logic fault.
 
 5. **Change ONE variable at a time.** If you change several things and the symptom clears, you do

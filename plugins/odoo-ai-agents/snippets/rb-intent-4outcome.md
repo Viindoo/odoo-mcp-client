@@ -16,7 +16,7 @@ not a merge decision. Get it wrong here and every downstream step is wasted or d
 
 | # | Name | Signal | Action |
 |---|---|---|---|
-| (a) | **Already satisfied** | Base HEAD already ships the behavior; re-applying would duplicate it | Skip the commit - `git rebase --skip`; record reason in `rebase-log.md` |
+| (a) | **Already satisfied** | Base HEAD already ships the behavior; re-applying would duplicate it | Skip the commit - delegate "rebase --skip" to git-operator; record reason in `rebase-log.md` |
 | (b) | **Adapt and apply** | Intent survives; base renamed, moved, or refactored the symbols the commit touches | Replay intent on the new base idiom; do NOT copy-paste the old diff verbatim |
 | (c) | **Re-implement** | Base evolution made the original diff irrelevant or unsafe; intent is still needed | Rebuild from scratch using current base idioms; oracle = forwarded source test |
 | (d) | **Drop as irrelevant** | Base design superseded the need entirely; the original problem no longer exists | Drop the commit; record reason + evidence in `rebase-log.md` |
@@ -65,13 +65,14 @@ runtime or test-run.
 
 ## Duplicate-behavior guard
 
-After replaying a commit (outcome (b) or (c)), run this check before `git add`:
+After replaying a commit (outcome (b) or (c)), run this check before staging the files with git-operator:
 
 1. **OSM inheritance-chain count (AUTHORITATIVE - HARD FAIL if >1):**
    `entity_lookup(name='<identifier>', kind='<field-or-method>', odoo_version='<series>')` - count definitions
    ACROSS THE FULL INHERITANCE CHAIN (all modules). If the count is >1 the commit hit
    outcome (a) silently: the rebase re-added a behavior that base already ships, potentially
-   in a DIFFERENT module (classic core-absorption). This is a BLOCKER - do NOT `git add`.
+   in a DIFFERENT module (classic core-absorption). This is a BLOCKER - do NOT stage the
+   files; tell git-operator to abort this apply step instead.
    A single-module grep cannot catch this case because the duplicate definition may live in
    a different module that the inheritance chain resolves at runtime.
 

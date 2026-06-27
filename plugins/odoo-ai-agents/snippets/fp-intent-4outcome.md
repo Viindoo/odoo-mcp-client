@@ -65,7 +65,7 @@ probe until you have a citation.
 
 ## Cross-references
 
-- [[fp-symbol-survival-check]] - per-symbol existence check after `git merge --no-commit`
+- [[fp-symbol-survival-check]] - per-symbol existence check after the no-commit merge absorption step (see [[fp-merge-absorption]])
   (catches autosilent field breaks that git does not flag as conflicts)
 - [[fp-merge-absorption]] - why outcome (a) and (d) still generate a merge commit
 - [[osm-first-contract]] - full grounding protocol (Tier 1/2/3 fallback when OSM is down)

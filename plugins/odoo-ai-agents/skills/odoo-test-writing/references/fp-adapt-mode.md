@@ -89,7 +89,7 @@ OSM-ground every API reference for `tgt_version`:
 The translated test MUST fail on the target version BEFORE the adapted production code
 exists. This is the FP-delta proof.
 
-- If the forward-port is in the absorption window (`git merge --no-commit`): run the
+- If the forward-port is in the no-commit merge absorption window (see [[fp-merge-absorption]]): run the
   test suite for the target module with the current working tree (where the source code
   was merged but NOT yet platform-adapted). The test must fail because the target platform
   does not yet have the adapted behavior. State the failing assertion as RED evidence.

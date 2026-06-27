@@ -256,6 +256,7 @@ naming: <pattern or "default"> | bilingual: <yes/no> | asset_dir: <path>
 - NEVER run concurrently with another browser-driving agent (odoo-ui-reviewer, odoo-visual-regression, odoo-demo-recording).
 - NEVER skip reading `__manifest__.py` before editing it (read-before-write invariant).
 - NEVER document a module whose UI has not been deployed - if the module is not installed in the live instance, stop with `BLOCKED(module not installed)` and route to odoo-instance to install it first.
+- Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline.
 
 ## Continuation Contract
 
