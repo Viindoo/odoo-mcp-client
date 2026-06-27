@@ -201,10 +201,8 @@ For DELETE-absorbed and OBSOLETE modules: dispatch `odoo-coder` to run the dangl
 sweep first (grep repo for model names, XML IDs, group xmlids, env.ref targets), then
 delegate the directory removal, staging, and commit to git-operator in the child worktree
 (op: rm -r module dir + stage deletion + commit -s; confirmed: yes - user confirmed DELETE
-at P3 Plan Mode gate; commit message: absorbed: `upg: delete <module> - absorbed by core
-<core-module/feature> in <tgt> (no custom delta remains)`, obsolete: `upg: delete
-<module> - obsolete at <tgt> (<reason>)`); drop it from every depender's `depends`
-in their manifests.
+at P3 Plan Mode gate; commit message per § Git / PR conventions absorbed/obsolete-delete form);
+drop it from every depender's `depends` in their manifests.
 For KEEP/REWRITE/MERGE/SPLIT: prepend this module's `blockers[]` from P1d
 `transitive-symbol-survey.md` as a PREEMPTIVE FIX LIST, apply the breaking-change catalog from
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`,
@@ -283,10 +281,7 @@ review modules in dependency order). Wait for human merge.
    into one opaque commit - the per-module commit messages are the upgrade record. Consolidating
    a single module's WIP/fixup commits into ONE clean commit per module IS allowed (capability:
    `references/upg-phase-detail.md` § Commit consolidation - delegate to git-operator;
-   tree-identity verified via `git diff --quiet`). Commit message format: `upg: <module> <src>-><tgt> -
-   <KEEP|REWRITE|MERGE|SPLIT> <summary>` for adapts; `upg: delete <module> - absorbed by
-   core <core-module/feature> in <tgt> (no custom delta remains)` for absorbed deletes;
-   `upg: delete <module> - obsolete at <tgt> (<reason>)` for obsolete deletes.
+   tree-identity verified via `git diff --quiet`). Commit message formats: § Git / PR conventions.
 4. **ONE PR per cluster.** All modules in one PR, reviewed in dep order.
 5. **Code-level only; migration scripts NEVER inline; BLOCKED on data-at-risk.** The workflow is
    CODE-LEVEL only. This skill NEVER writes migration scripts - inline, as a P4 step, or otherwise.

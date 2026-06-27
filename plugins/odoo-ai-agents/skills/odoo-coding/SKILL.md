@@ -296,9 +296,8 @@ plan.md MUST record, per work-item: module, stack, wave, the model tier chosen
 (and frontendModel when split), the dispatch path (subagent launch), the per-module
 result status, and the `agentId` (when CHP Tier A is in effect - plan.md is the agentId
 registry per `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`; omit when Tier C).
-A later review / fix / resume step re-dispatches the BLOCKED modules at the SAME recorded tier
-unless the human changes it: under Tier A, resume the recorded `agentId` by `SendMessage` when it
-is still addressable; otherwise (Tier C, the always-correct fallback) make a fresh Agent call.
+A later review / fix / resume step re-dispatches BLOCKED modules at the SAME recorded tier
+(unless the human changes it) via the Tier-A/Tier-C rule in § Dispatch loop step 4.
 
 ## Standalone-first fallback
 

@@ -121,15 +121,12 @@ Phase-3 coverage-gap trigger - without seeding, that trigger never fires.
   intent's sub-questions and marks each `RESOLVED` / `UNRESOLVED`.
 
   On top of the trace, each worker applies the **Phase-2 lenses** in
-  `references/survey-lenses.md` (the orchestrator inlines the lens block into the brief), recording
-  each as a labelled subsection: **L3 data-flow** (`A -> B -> C -> stored field X`,
-  `resolve_orm_chain` + `find_override_point`), **L4 layer labels** (`[LAYER: ...]`), **L5
-  side-effects** (mail/attachment/redirect/stock/cron/bus), **L6 cross-cutting** (`groups=` /
-  `sudo()` / `@api.constrains` - FLAG existence only, no overlap with `odoo-security-audit`),
-  **L7 prior art** (`find_examples` + `suggest_pattern` + `entity_lookup` - existing
-  override/pattern/test the downstream agent ADAPTS instead of reinventing; a MISS is a recorded
-  result), and **L8 tech-debt** (N+1 / `find_deprecated_usage` / missing `@api.model` -
-  FLAG-only, never fix).
+  `references/survey-lenses.md` (the orchestrator inlines the full lens block into the brief),
+  recording each as a labelled subsection: **L3 data-flow**, **L4 layer labels** (`[LAYER: ...]`),
+  **L5 side-effects**, **L6 cross-cutting** (FLAG existence only, no overlap with
+  `odoo-security-audit`), **L7 prior art** (existing override/pattern/test the downstream agent
+  ADAPTS instead of reinventing; a MISS is a recorded result), and **L8 tech-debt** (FLAG-only,
+  never fix). Full lens definitions + per-lens OSM tools: `references/survey-lenses.md`.
 
   Each worker also runs the **dependency-closure drill** (`references/survey-lenses.md` §
   Dependency-closure): walk the hot-spot's `depends` graph DOWN from the nearest owner toward

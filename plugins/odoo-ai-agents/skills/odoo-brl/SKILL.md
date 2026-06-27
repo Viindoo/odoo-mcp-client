@@ -69,15 +69,10 @@ The BRL engine is the core consulting deliverable for Odoo project scoping. Clas
 - `Available-in-Viindoo` - NOT in odoo profile, IS in `standard_viindoo_<version>` (or OEEL-1 license notice)
 - `Custom` - not in either profile; effort_tier sub-tiers: Extension-M/L (inherit point exists) or Custom-XL (new build)
 
-**OEEL-1 license notice (load-bearing):** When `check_module_exists` returns a license notice
-for OEEL-1-restricted modules, treat as `Available-in-Viindoo`, set `notes="OEEL-1 restricted detail"`,
-`evidence_field=null`. Do NOT retry, do NOT fabricate field detail.
-
-**Cost is deterministic:** All cost numbers come from `cost-config.json` lookup - no LLM-generated figures.
-This is essential for auditability when defending quotes to clients.
-
-**Public-repo safety:** Use abstract customer labels (Customer-A, etc.). Never write real company names,
-VND figures, or internal pricing into any committed file. `.odoo-ai/brl/` is gitignored.
+Three rules govern this engine (full statements in § Hard rules): OEEL-1 no-retry (Hard rule 5; A3
+sets `notes="OEEL-1 restricted detail"`, `evidence_field=null`, never fabricates field detail),
+deterministic cost from `cost-config.json` only (Hard rule 4 - auditability when defending quotes),
+and public-repo safety / abstract customer labels (Hard rule 3).
 
 ## Instructions
 

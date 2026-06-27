@@ -57,14 +57,13 @@ mandatory Output Contract). Odoo symptom catalog:
 - `tests_covering` - List test methods that have COVERS_MODEL/COVERS_FIELD/COVERS_METHOD edges to the target model or field (static reference coverage, not runtime executed coverage).
 <!-- END GENERATED TOOLS -->
 
-The orchestrator stays light on tools - it pins the version and does a quick classification, then
-delegates the heavy OSM work to the specialist agents (whose tool allowlists are richer). Pin the
-version once with `set_active_version(odoo_version=<concrete>)` as the reachability probe, and
-pass that CONCRETE version to every dispatched agent in its brief - the agents pass it on every
-OSM call themselves (the pin is per-API-key and racy under concurrency, see
+The orchestrator stays light on tools: pin the version once with
+`set_active_version(odoo_version=<concrete>)` (reachability probe) and pass that CONCRETE version
+to every dispatched agent in its brief - agents pass it on every OSM call themselves (the pin is
+per-API-key and racy under concurrency, see
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Use `entity_lookup` /
-`model_inspect` / `check_module_exists` only for the Phase 1 layer classification when needed.
-All deep localization happens inside the dispatched agents.
+`model_inspect` / `check_module_exists` only for Phase 1 layer classification when needed; all
+deep localization happens inside the dispatched agents.
 
 ## Browser concurrency - HARD design rule
 

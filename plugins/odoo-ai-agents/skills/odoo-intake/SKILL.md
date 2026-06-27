@@ -126,9 +126,7 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 - `output_mode = writes-files` → **Plan Mode REQUIRED** before dispatch. **Exceptions that SKIP Plan Mode:**
   - `odoo-deep-survey` (dispatched via the `deep-survey` gate keyword) - the opt-in keyword is the human gate.
   - `odoo-code-review` and `odoo-debug` - a **review** intent (routing row 13) or **debug** intent (routing row 29) fast-paths straight to the skill once Phase 0 intent gate is closed: emit the one-line § Pro fast-path gate, on `yes` invoke via Skill tool - NO Proposed-Plan blocks, NO Plan Mode. These two then drive their own autonomous fix loop.
-  - `odoo-forward-port` - owns its own Plan Mode at its P4 plan gate (EnterPlanMode / ExitPlanMode called internally, per-commit plan presented to the user before any branch or merge). Intake MUST NOT call EnterPlanMode for it; dispatch directly after the § Soft plan gate "stronger gate" one-liner is acknowledged.
-  - `odoo-git-rebase` - owns its own Plan Mode at its P6 plan gate (per-batch plan presented before any branch touch or adapt step). Intake MUST NOT call EnterPlanMode for it; dispatch directly after the § Soft plan gate "stronger gate" one-liner is acknowledged.
-  - `odoo-modules-upgrade` - owns its own Plan Mode at its P3 plan gate (per-module batch plan presented before any adapt step). Intake MUST NOT call EnterPlanMode for it; dispatch directly after the § Soft plan gate "stronger gate" one-liner is acknowledged.
+  - `odoo-forward-port` (P4 gate), `odoo-git-rebase` (P6 gate), `odoo-modules-upgrade` (P3 gate) - each owns its own Plan Mode (EnterPlanMode/ExitPlanMode called internally; plan presented before any branch/worktree/merge/adapt). Intake MUST NOT call EnterPlanMode for these; dispatch directly after the § Soft plan gate "stronger gate" one-liner is acknowledged.
 - `output_mode = chat-only` → **SKIP Plan Mode**; intake ends its turn and the specialist fires via the Skill tool on the next turn.
 
 **When it applies**: after user approves the Proposed Plan AND the next step is an execute-skill that will **write or modify files** - specifically `odoo-coding`, `wave`, `odoo-brl`, `workflow-chaining`, or any skill whose output column is NOT "chat only".
@@ -222,17 +220,15 @@ Only runs in the **vague branch** (Tier-4 miss or explicit "I'm not sure").
 
 Universal gate emitted by intake at the end of every brainstorm or fast-path turn:
 
-**Exception - skills that own a stronger gate.** When the routed skill itself opens with a STOP plan
-gate richer than this one (e.g. `odoo-forward-port` presents its plan in harness Plan Mode at its P4
-plan gate, after intent extract + classify + design; `odoo-git-rebase` at its P6 plan gate, after
-intent extract + classify + triage; `odoo-modules-upgrade` at its P3 plan gate, after module list +
-classify), do NOT emit the full `## Proposed Plan` block; instead launch it directly with a single
-acknowledgment one-liner: "Launching `odoo-forward-port` - it will present its own per-commit plan
-and stop for your approval before any branch or merge." (Substitute the actual skill name.) Two
-consecutive approval gates for one action is friction, and the skill's own gate is the authoritative
-one. Phase P does NOT engage for these skills either - a self-gating + self-resuming skill (Plan Mode
-gate + checkpoint.json resume) owns its own run-DAG; intake dispatches it once and the skill drives
-itself.
+**Exception - skills that own a stronger gate.** When the routed skill opens with its own richer STOP
+plan gate (`odoo-forward-port` P4, `odoo-git-rebase` P6, `odoo-modules-upgrade` P3 - each in harness
+Plan Mode after its own intent-extract/classify/design), do NOT emit the full `## Proposed Plan`
+block; launch directly with a single acknowledgment one-liner: "Launching `odoo-forward-port` - it
+will present its own per-commit plan and stop for your approval before any branch or merge."
+(Substitute the actual skill name.) Two approval gates for one action is friction; the skill's own
+gate is authoritative. Phase P does NOT engage for these skills either - a self-gating + self-resuming
+skill (Plan Mode gate + checkpoint.json resume) owns its own run-DAG; intake dispatches it once and
+the skill drives itself.
 
 ```
 ## Proposed Plan
