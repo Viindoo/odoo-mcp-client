@@ -21,7 +21,11 @@ Integration worktree: `<path>/upg-integration` (JOB tier, created at P4 post-gat
 Child worktrees: `<path>/upg-<module>` per module (WORK tier, created + removed in P4)
 Progress ledger: `.odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/checkpoint.json`
   Schema: `{"<module>": "pending|absorbed|designed|adapted|reviewed|installed|done"}`
-  Written after each module completes a phase. On resume, P2-P5 skip `done` modules.
+  Written after each module completes a phase. Per-phase skip rules on resume:
+  P2 skips {absorbed, designed, adapted, reviewed, installed, done};
+  P4 skips {adapted, reviewed, installed, done};
+  P4b skips {reviewed, installed, done};
+  P5 skips {installed, done} at the wave level.
 
 ---
 
@@ -278,9 +282,16 @@ STEPS:
         simplify the custom impl -> route to P2b design (never a silent KEEP)
       - MERGE: this module + another cluster module are now best combined
       - SPLIT: this module has grown to warrant splitting
-3b. NEW-FEATURE SWEEP (RECONCILE detection) - run ONLY for features classified KEEP or
-   REWRITE(api)/REWRITE(model), AND only when the api_version_diff result from step 3.b above
-   contains a `new` section - REUSE that same per-feature result; do NOT call api_version_diff a second time for the same feature.
+3b. NEW-FEATURE SWEEP (RECONCILE detection) - run for EVERY feature classified KEEP or
+   REWRITE(api)/REWRITE(model).
+   (a) API-endpoint sweep: if the api_version_diff result from step 3.b above contains a `new`
+   section, inspect those new items for mechanisms that replace or simplify the feature - REUSE
+   that same result; do NOT call api_version_diff again for the same feature.
+   (b) UNCONDITIONAL domain sweep: run `suggest_pattern` / `find_examples` for EVERY KEEP
+   feature regardless of the api_version_diff result. This catches new parallel core mechanisms
+   (new model on the same domain, new mixin, new action) that do NOT appear in an
+   endpoint-scoped api_version_diff but can replace the custom logic. A new parallel core
+   mechanism on the same domain forces RECONCILE even when the feature's own API is stable.
    For each surviving custom feature, judge whether a NEW target-core mechanism/API can replace
    or materially simplify it AND still cover the feature's acceptance criteria. Evidence: the
    api_version_diff `new` items + `suggest_pattern` / `find_examples` / `describe_module`.
@@ -358,15 +369,8 @@ comparator's behavioral-equivalence proof (signal #5), not on a "Standard" gap-a
 
 ## P2b - Hard-call design (conditional route-out)
 
-Fires when a module's P2 verdict matches the design-trigger table in SKILL.md § P2b -
-ALWAYS for MERGE / SPLIT / REWRITE(model with a field-type change) / RECONCILE (data-divergence
-or new-feature wire-in - the SSOT/wire-in choice is architectural) / MIXED (the whole module is
-routed to design to resolve the mixed per-feature verdicts) / DELETE-absorbed (with risk); AND
-for REWRITE(api) or KEEP when the adaptation is NON-TRIVIAL (changes the module's public model
-surface, OR touches > 5 call sites, OR spans >= 2 modules, OR meets the solution-design
-non-trivial criterion). A trivial localized fix (<= 5 call sites, 1 module, no public-surface
-change) skips design. DELETE-absorbed (no risk) and OBSOLETE never route - the module is removed,
-not adapted.
+Fires per the full design-trigger table in SKILL.md § P2b (SSOT; do not replicate the
+condition list here).
 
 Reuse the non-trivial criterion from `${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/SKILL.md`
 § "When to invoke - and the non-trivial threshold" - do NOT invent a third definition.
@@ -549,6 +553,7 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
      renaming with existing data), write it inline under migrations/<target_version>/
      as a standard Odoo migration script. This is the EXCEPTION, not the default.
   6. Write or adapt tests: test the adapted behavior, not the old source text. RED first.
+  Always commit with `git commit -s` (DCO sign-off required by CONTRIBUTING.md).
   Commit message: "upg: <module> <source_version>-><target_version> - <ACTION> <one-line summary>"
 
 AUTONOMOUS FIX: if the P5 install+test run returns a failure for this module, you will
@@ -706,7 +711,11 @@ Delegate the entire consolidation sequence to git-operator for each module in de
 - op: consolidate module commits in integration worktree
 - worktree: `<path>/upg-integration`
 - scope: `<module>/` subtree only (do NOT stage other modules)
-- base: `<work-base>`, or the commit immediately before this module's first upg commit
+- base: the first commit SHA recorded by the orchestrator for this module (see note below)
+  NOTE: The orchestrator MUST record each module's first commit SHA returned by the
+  git-operator converge step and pass it as `base` in this brief. Do not re-discover
+  the base from the log - when modules' commits interleave, log-based discovery is
+  ambiguous. Fallback when no recorded SHA: `<work-base>`.
 - commit_message: `upg: <module> <src>-><tgt> - <ACTION> <summary>` (signed)
 - confirmed: yes - Plan Mode approved at P3 (consolidation listed in commit plan; backup ref created by git-operator)
 - Steps git-operator performs: safety backup ref at HEAD -> reset-mixed to base ->
