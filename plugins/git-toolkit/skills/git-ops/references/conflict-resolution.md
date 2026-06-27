@@ -29,6 +29,10 @@ git pull --rebase origin <branch>
 git rebase --continue | --skip | --abort
 ```
 
+Drive the `--continue` vs `--skip` decision by the S10 conflict continue-driver (canonical) in
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`: NEVER `--skip` on "no unmerged files"; only
+`--skip` when `--continue` reports an empty patch.
+
 ## Cherry-pick (single + range)
 
 ```bash

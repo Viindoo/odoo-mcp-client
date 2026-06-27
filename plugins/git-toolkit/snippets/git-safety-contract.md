@@ -62,6 +62,37 @@ git cherry-pick --abort
 git am --abort
 ```
 
+## S10 - Conflict continue-driver (canonical)
+
+The ONE correct way to drive a `rebase`/`cherry-pick` through conflicts. The fatal bug this prevents:
+treating "no unmerged files" as "empty patch" and running `--skip`, which SILENTLY DROPS a commit a
+resolver just staged - a resolved-and-staged commit ALSO has zero unmerged files; it is waiting for
+`--continue`, not `--skip`.
+
+At the START of any op that may replay cached resolutions, set autoupdate so rerere-replayed hunks are
+auto-staged (leave `rerere.enabled` as-is):
+
+```bash
+git config --local rerere.autoupdate true
+```
+
+Loop until `git status` reports the rebase/pick finished:
+
+1. **continue-vs-skip rule (non-negotiable).** NEVER run `git rebase --skip` just because there are no
+   unmerged files. Run `--skip` ONLY when `git rebase --continue` itself reports the patch became
+   empty (`No changes - did you forget to use 'git add'?` / `patch is empty`).
+2. **Resolve each unmerged path by type** (`git status --porcelain` / `git diff --name-only --diff-filter=U`):
+   - `UD` (modified/deleted) or `DD` (both deleted) -> `git rm <path>` (honor the deletion the branch intends).
+   - static/binary add/add (`static/description/*.gif`, images, generated assets) -> take the
+     NON-EMPTY side; never leave a zero-byte file.
+   - text file still containing conflict markers (`<<<<<<<`) -> STOP, hand to a coder to resolve to
+     intent; do NOT auto-pick a side.
+   - unmerged but NO markers (a rerere-replayed resolution) -> verify it matches intent, then `git add <path>`.
+3. All paths staged and no markers remain -> `git rebase --continue`.
+4. `--continue` reports an empty patch -> `git rebase --skip`.
+5. **Escalation.** 3 consecutive BLOCKED commits -> `git rebase --abort` and surface state (the rerere
+   cache survives the abort).
+
 ## S6 - Tree-identity verify after rewrite
 
 A history rewrite must change STRUCTURE, never CONTENT. Prove content survived:
