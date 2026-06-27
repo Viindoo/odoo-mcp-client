@@ -1,17 +1,18 @@
 ---
 name: git-ops
 description: >-
-  Universal front door for ALL git and GitHub work, run in a delegated context so the caller stays
-  clean and code is never lost. Fires on: status/log/diff/blame/bisect, branch/tag/worktree,
-  fetch/pull/merge/cherry-pick, rebase, forward-port/backport, conflict resolution, history rewrite
+  Universal front door for ALL git and GitHub work, run in a delegated context. Fires on:
+  status/log/diff/blame/bisect, branch/tag/worktree, fetch/pull/merge/cherry-pick, rebase,
+  forward-port/backport, conflict resolution, history rewrite
   (rebase -i/squash/split/amend/reset/filter-repo), force-push, recovery (reflog/ORIG_HEAD/stash),
-  large-diff analysis at scale, AND GitHub PR/issue/review/release/CI/fork. Vietnamese: "rebase
-  nhánh", "gộp commit", "sửa lịch sử git", "giải quyết xung đột", "xoá commit", "khôi phục", "mở/
-  review/merge PR", "tạo release". Routes to inline (bounded reads) or cold-spawns git-surveyor /
-  git-operator / github-operator, or git-pipeline-lead for large changes. DO NOT trigger for
-  non-git file edits or writing app code -> use a coding skill. DO NOT trigger for an Odoo-specific
-  rebase/forward-port pipeline -> use odoo-git-rebase / odoo-forward-port. DO NOT trigger for
-  upgrading an Odoo module cluster -> use odoo-modules-upgrade.
+  large-diff analysis at scale, AND GitHub PR/issue/review/release/CI/fork, OR a pasted GitHub
+  PR/issue URL (diff/CI/metadata, merge, compare). Vietnamese: "rebase nhánh", "gộp commit",
+  "sửa lịch sử git", "giải quyết xung đột", "xóa commit", "khôi phục", "mở/review/merge PR",
+  "tạo release", "dán link PR/issue". DO NOT trigger for non-git file edits or writing app code
+  -> use a coding skill. DO NOT trigger for an Odoo-specific rebase/forward-port pipeline -> use
+  odoo-git-rebase / odoo-forward-port. DO NOT trigger for upgrading an Odoo module cluster -> use
+  odoo-modules-upgrade. DO NOT trigger for code-quality review (bugs/conventions/security) of a
+  PR -> use a code-review skill.
 ---
 
 # git-ops - the universal git/github front door
@@ -84,6 +85,7 @@ required.
 | An Odoo-specific same-series rebase pipeline | `odoo-git-rebase` |
 | Porting Odoo code ACROSS major versions | `odoo-forward-port` |
 | Upgrading an Odoo module cluster to a new major | `odoo-modules-upgrade` |
+| Reviewing the CODE QUALITY of a PR (bugs / conventions / security) | a code-review skill (e.g. `odoo-code-review`) |
 
 ## Detailed recipes (references)
 
