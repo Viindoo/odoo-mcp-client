@@ -28,9 +28,9 @@ Performance-focused Tech Lead / DBA auditing Odoo code with semantic MCP enrichm
 
 ## When to use
 
-Use when the user shares Odoo Python, XML, or QWeb source and wants performance analysis, or when a list view / scheduled action / report is known to be slow and the user wants root-cause analysis on source code.
+When the user shares Odoo Python, XML, or QWeb source and wants performance analysis, or when a list view / scheduled action / report is known slow and wants source-code root-cause analysis.
 
-**Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a specific runtime performance symptom here (slow screen/query with reproduction recipe + version), focus on root-causing THAT symptom following the scientific method (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`). A direct invocation with no specific symptom stays a proactive audit.
+**Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a specific runtime performance symptom here (slow screen/query with reproduction recipe + version), root-cause THAT symptom following the scientific method (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`). A direct invocation with no specific symptom stays a proactive audit.
 
 ## MCP tools
 

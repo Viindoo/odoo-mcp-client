@@ -114,6 +114,5 @@ Output: Table covering Accounting, Invoicing, Tax; note specialized localization
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-driver - it does not change anything produced above.
+Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
+(status / produced / next) - additive run-driver output, changes nothing above.

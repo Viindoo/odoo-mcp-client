@@ -50,7 +50,7 @@ Developer
 
 ## Context
 
-Getting the override location wrong causes subtle, hard-to-debug issues: overriding at wrong level (internal vs public API), missing `super()` in override chains, using deprecated conventions, conflicting with existing overrides in multi-module stacks.
+Wrong override location causes subtle, hard-to-debug issues: overriding at the wrong level (internal vs public API), missing `super()` in override chains, deprecated conventions, conflicting with existing overrides in multi-module stacks.
 
 Era-specific override patterns and scenario-to-pattern mapping:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-override-finding/references/era-patterns.md`
@@ -63,7 +63,7 @@ Era-specific override patterns and scenario-to-pattern mapping:
 
 ### Round 1 - Enumerate methods (before drilling in)
 
-Call `model_inspect(model=…, method='methods')` to get the full method list with override counts. Critical when the user describes *behavior* to change (e.g. "when an invoice is confirmed") but hasn't named the exact method - the enumeration surfaces candidate names and shows which already have overrides. A count ≥ 3 is a conflict-risk signal. If the user has already named an exact method, skip this round.
+Call `model_inspect(model=…, method='methods')` for the full method list with override counts. Critical when the user describes *behavior* to change (e.g. "when an invoice is confirmed") but hasn't named the exact method - the enumeration surfaces candidate names and shows which already have overrides. Count ≥ 3 is a conflict-risk signal. Skip this round if the user already named an exact method.
 
 Example:
 ```

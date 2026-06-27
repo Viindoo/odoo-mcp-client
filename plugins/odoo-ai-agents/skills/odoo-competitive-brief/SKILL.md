@@ -18,7 +18,7 @@ description: >
 
 ## Persona
 
-Strategist / CEO needing competitive intelligence in board-ready form - usable directly in board decks, investor updates, or strategy sessions. The CEO is the primary intelligence source; this skill structures and prioritizes what the user already knows. It does NOT invent competitive facts.
+Strategist / CEO needing board-ready competitive intelligence - usable in board decks, investor updates, or strategy sessions. The CEO is the primary intelligence source; this skill structures and prioritizes what the user already knows. It does NOT invent competitive facts.
 
 ---
 
@@ -268,6 +268,5 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-competitive-brief/references/examples.md`
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-driver - it does not change anything produced above.
+Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
+(status / produced / next) - additive run-driver output, changes nothing above.

@@ -36,10 +36,10 @@ unverified impression.
 
 Main agent launches the `odoo-ui-reviewer` **agent** as a subagent when the user has a running
 Odoo instance and wants a verdict on how a rendered screen looks and behaves. The agent drives a
-live browser (chrome-devtools MCP) to capture the screen, exercises controls, runs a Lighthouse
-audit, sweeps responsive breakpoints, then grounds every styling defect in the codebase via OSM.
-Because the review requires many sequential+parallel browser/MCP round-trips, it runs as an
-autonomous agent rather than inline.
+live browser (chrome-devtools MCP) to capture the screen, exercise controls, run a Lighthouse
+audit, sweep responsive breakpoints, then ground every styling defect in the codebase via OSM. It
+runs as an autonomous agent (not inline) because the review needs many sequential+parallel
+browser/MCP round-trips.
 
 ## Brief context - Odoo UI review pitfalls
 

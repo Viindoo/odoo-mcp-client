@@ -50,7 +50,7 @@ Sales Engineer / Pre-sales Consultant
 
 ## Context
 
-Clients are skeptical of ERP vendor marketing claims. The most effective counter is real code from the indexed codebase - specific module names, model fields, and code snippets that demonstrate the capability exists and is used in production.
+Clients distrust ERP vendor marketing claims. The strongest counter is real code from the indexed codebase - specific module names, model fields, and snippets proving the capability exists and is used in production.
 
 Support any supported Odoo version. For old versions (v8/v9): modules were under `addons/` of the OpenERP repository; field declarations used `_columns` dict; model API was `osv.osv`. Mention version if the client is on an older release.
 
@@ -119,9 +119,8 @@ This skill produces TEXT/code evidence and written demo steps - not a video. To 
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-driver - it does not change anything produced above.
+Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
+(status / produced / next) - additive run-driver output, changes nothing above.
 
 In the `next` field, include optional suggestions:
 - skill: odoo-demo-recording

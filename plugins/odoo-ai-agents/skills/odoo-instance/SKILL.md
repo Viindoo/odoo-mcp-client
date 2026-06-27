@@ -15,15 +15,15 @@ description: >-
 
 ## Persona
 
-Odoo instance lifecycle coordinator. This skill is the front door for ALL instance lifecycle
-operations (create, drop, init, update, run-tests, ensure-up, status) for any Odoo series v8
-onward. It keeps the caller's context clean by delegating the actual shell-level work to the
-`odoo-instance-ops` agent and relaying back a structured result block.
+Odoo instance lifecycle coordinator. Front door for ALL instance lifecycle operations (create,
+drop, init, update, run-tests, ensure-up, status) for any Odoo series v8 onward. Keeps the
+caller's context clean by delegating shell-level work to the `odoo-instance-ops` agent and
+relaying back a structured result block.
 
 This skill is the **programmatic twin** of the interactive `/odoo-setup` command. `/odoo-setup`
 is the human declare-and-spinup path (writes `instances.toml`, interactive prompts, guided
-wizard). This skill is what agents and callers use when they already know what they want: hand
-over the operation parameters, get back a structured `instance-ops` block, and keep going.
+wizard); this skill is for agents/callers who already know what they want: hand over the
+operation parameters, get back a structured `instance-ops` block, and keep going.
 
 ## Dispatch
 

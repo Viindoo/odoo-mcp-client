@@ -34,7 +34,7 @@ Invoke whenever:
 - A PR touches controllers, model methods with `sudo()`, QWeb templates with `t-raw`, or CSV access files
 - A module is being deployed or reviewed for the first time with no prior security audit
 
-**Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a runtime security symptom here (observed leak, unexpected `AccessError`, apparent injection - with reproduction + version), root-cause THAT symptom following `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` and emit the same graded report. A direct invocation with no specific symptom stays a proactive audit.
+**Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a runtime security symptom here (observed leak, unexpected `AccessError`, apparent injection - with reproduction + version), root-cause THAT symptom per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` and emit the same graded report. A direct invocation with no specific symptom stays a proactive audit.
 
 ## MCP tools
 

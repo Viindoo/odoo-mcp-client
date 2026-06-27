@@ -53,7 +53,7 @@ Two audiences: **Developers** (file paths, method signatures, migration instruct
 
 Historical breaking points: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-version-diff/references/breaking-points-history.md`
 
-Use training knowledge for era-level historical context (Python 2→3, `@api.multi` removal, OWL timeline) but never assert specific API changes without MCP confirmation. `api_version_diff` results are ground truth. Always flag when the diff spans an **era boundary** - these require significantly more migration work.
+Use training knowledge for era-level historical context (Python 2→3, `@api.multi` removal, OWL timeline), but never assert specific API changes without MCP confirmation. `api_version_diff` results are ground truth. Always flag when the diff spans an **era boundary** - it requires significantly more migration work.
 
 ## Instructions
 
@@ -78,10 +78,10 @@ Categorize findings by impact: **Module developer** changes vs **End-user functi
 
 ## Forward-port mode (4-outcome mapping)
 
-When `odoo-version-diff` is invoked inside a forward-port pipeline (i.e., the caller
-is `odoo-forward-port` or any agent classifying a commit before touching the git
-index), supplement the standard Added/Removed/Deprecated/Changed tables with a
-**4-outcome bucket suggestion** for every Removed or Changed symbol.
+When invoked inside a forward-port pipeline (caller is `odoo-forward-port` or any agent
+classifying a commit before touching the git index), supplement the standard
+Added/Removed/Deprecated/Changed tables with a **4-outcome bucket suggestion** for every
+Removed or Changed symbol.
 
 For each Removed or Changed entry, append a `FP bucket` column:
 

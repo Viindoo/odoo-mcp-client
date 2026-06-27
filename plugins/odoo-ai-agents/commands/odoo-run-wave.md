@@ -9,9 +9,9 @@ Thin dispatcher for the `wave` skill. Accepts an optional `$ARGUMENTS` token des
 the set of work items to parallelize. All orchestration logic lives in the skill body -
 this command is a recipe shim only, following the 1-orchestration-SSOT rule.
 
-> Named `odoo-run-wave` (not `wave`) because a command name must stay disjoint from the
-> skill name `wave`. Describe a wave to intake, or run this command, to start the wave
-> skill - one orchestration mechanism, two entry points.
+> Named `odoo-run-wave` (not `wave`) so the command name stays disjoint from the skill name.
+> Describe a wave to intake, or run this command, to start the `wave` skill - one
+> orchestration mechanism, two entry points.
 
 ## When to use
 
@@ -57,10 +57,9 @@ tree-identity -> human-confirm merge + cleanup).
 
 ## Standalone fallback
 
-If git or worktree ops are unavailable in the current environment, the skill
-degrades to producing the plan artifact and ownership map only - no branches are created.
-The plan can be executed manually or in a separate session. See skill body
-`## Standalone fallback` section.
+If git or worktree ops are unavailable, the skill degrades to producing the plan artifact
+and ownership map only - no branches are created. The plan can be executed manually or in a
+separate session. See skill body `## Standalone fallback` section.
 
 ## Examples
 

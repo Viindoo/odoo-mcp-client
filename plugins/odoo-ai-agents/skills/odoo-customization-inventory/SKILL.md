@@ -51,7 +51,7 @@ CEO / CTO / Project Manager
 
 ## Context
 
-Executives need to understand the scope of their Odoo investment before strategic decisions (upgrades, migrations, vendor changes, compliance audits). Output is business language, not technical jargon.
+Executives need the scope of their Odoo investment before strategic decisions (upgrades, migrations, vendor changes, compliance audits). Output in business language, not technical jargon.
 
 Key distinctions: Standard Odoo (exclude from inventory), Distribution-maintained (e.g. `viin_*` prefix), True custom (client IT / system integrator). In v8/v9, `__openerp__.py` was used instead of `__manifest__.py` - note OpenERP-era origin if present.
 
@@ -113,6 +113,5 @@ Examples: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-customization-inventory/references/
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-driver - it does not change anything produced above.
+Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
+(status / produced / next) - additive run-driver output, changes nothing above.
