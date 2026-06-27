@@ -14,8 +14,8 @@ title, or PR body.
 The subject states the BUSINESS problem or outcome the commit solves (WHAT / WHY), NOT the
 implementation (HOW).
 
-- Self-test: "Can a reader grasp the business impact WITHOUT reading the diff?" If they must read
-  the code to know what changed - rewrite the subject.
+- Self-test: "Can a reader grasp the business impact WITHOUT reading the diff?" If not, rewrite the
+  subject.
 - BAD (HOW): `fix: remove null check in user service`.
   GOOD (WHAT/WHY): `fix: prevent crash when user has no email address`.
 - Imperative mood ("Add"/"Fix"/"Prevent", not "Added"/"Fixes"): the subject completes "If applied,

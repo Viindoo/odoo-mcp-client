@@ -64,10 +64,9 @@ git range-diff <old-base>..<old-tip> <new-base>..<new-tip>   # per-commit surviv
 git rev-parse HEAD^{tree}                      # compare to pre-op tree SHA
 ```
 
-For rewrites that INTENTIONALLY change content (drop/edit a commit), the survival check is
-`git range-diff` (every intended commit present, none unintentionally dropped), NOT the empty-diff
-invariant; empty `git diff backup..HEAD` applies to pure-structure rewrites
-(squash/reorder/split/autosquash).
+For rewrites that INTENTIONALLY change content (drop/edit a commit), apply the S6 survival rule -
+`git range-diff` (every intended commit present, none unintentionally dropped), not the empty-diff
+invariant - per `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md` S6.
 
 Write `verify.md` with PASS/FAIL. FAIL -> the lead does NOT report DONE: restore from backup,
 re-plan or escalate BLOCKED.

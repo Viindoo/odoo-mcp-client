@@ -38,12 +38,9 @@ Breaking change: append `!` after type/scope OR add a `BREAKING CHANGE:` footer 
 
 ## Subject rules
 
-- Imperative mood: "Add"/"Fix"/"Prevent", not "Added"/"Fixes" - completes "If applied, this commit
-  will ___".
-- Capitalize the first word of the description; no trailing period.
-- Subject soft 50 / HARD 72 chars. Body wraps at 72. Blank line between subject and body required.
-- WHAT/WHY not HOW: `fix: prevent crash when user has no email address`, not
-  `fix: remove null check in user service`.
+Imperative mood, capitalized, no trailing period, business-subject (WHAT/WHY not HOW), subject soft
+50 / HARD 72, body wraps at 72, blank line before body - all per C1/C2 of
+`${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md`.
 
 ## Body
 

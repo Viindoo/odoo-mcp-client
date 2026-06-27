@@ -5,9 +5,9 @@
 
 # Git Delegation Decision (SSOT)
 
-When git/github work arrives, route it to exactly ONE of three execution modes. The choice is
-driven by OUTPUT SIZE and RISK, never by step count. The goal: keep the caller's context clean by
-delegating anything heavy, while not over-spawning for one-liners.
+When git/github work arrives, route it to exactly ONE of three execution modes, by OUTPUT SIZE and
+RISK, never step count. Goal: keep the caller's context clean by delegating anything heavy, without
+over-spawning for one-liners.
 
 ## The three modes
 
@@ -24,8 +24,8 @@ an unbounded body -> that is DELEGATE, not inline.
 
 ### 2. SINGLE-DELEGATE - one medium op
 
-Cold-spawn ONE leaf agent at the right model, with a self-contained brief; it works in its own
-context, writes a findings file, and returns a 5-line summary + path. Use for one medium op:
+Cold-spawn ONE leaf at the right model with a self-contained brief; it works in its own context,
+writes a findings file, and returns a 5-line summary + path. Use for one medium op:
 
 - a rebase, a cherry-pick range, resolving one diff/conflict, ANALYZING a diff, a PR review, a PR
   create, issue triage, a release.
