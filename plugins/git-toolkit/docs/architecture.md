@@ -1,10 +1,9 @@
 # git-toolkit architecture
 
-`git-toolkit` is a routing + orchestration layer made of Markdown: one front-door skill that
-classifies a git/github request and runs it in a delegated (or inline-bounded) context, so the
-CALLER'S context stays clean and code is never lost. There is no application logic - the skill and
-agents are prose with YAML frontmatter; the actual work is `git`/`gh`/GitHub-MCP commands the agents
-issue at runtime.
+`git-toolkit` is a routing + orchestration layer made of Markdown: one front-door skill classifies a
+git/github request and runs it in a delegated (or inline-bounded) context, so the CALLER'S context
+stays clean and code is never lost. No application logic - the skill and agents are prose with YAML
+frontmatter; the actual work is `git`/`gh`/GitHub-MCP commands the agents issue at runtime.
 
 ## Components
 
@@ -56,10 +55,9 @@ flowchart LR
     G -. cannot spawn .-> X
 ```
 
-Only `git-pipeline-lead` holds the subagent-spawning tool; the three leaves declare a `tools:`
-allowlist that excludes it. Nesting is hard-capped at two levels (lead -> leaf). All nesting is
-COLD-SPAWN (stateless brief in, findings file out), so it is robust at any caller depth and needs no
-team lead.
+Only `git-pipeline-lead` holds the spawn tool; the three leaves declare a `tools:` allowlist that
+excludes it, hard-capping nesting at two levels (lead -> leaf). All nesting is COLD-SPAWN (stateless
+brief in, findings file out) - robust at any caller depth, no team lead needed.
 
 ## Safety gate (destructive ops)
 

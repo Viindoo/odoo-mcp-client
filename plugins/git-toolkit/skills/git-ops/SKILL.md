@@ -35,12 +35,11 @@ OUTPUT SIZE and RISK (never step count):
 
 1. **INLINE** - bounded-output, low-risk single op (`git status`, `git log -n`, `git show --stat`,
    ref/branch existence, `git diff --stat`/`--name-only`): run the safe command directly. NEVER
-   inline unbounded output (a full PR body, file contents, a full diff). "Read one PR" is DELEGATE.
-2. **SINGLE-DELEGATE** - one medium op (a rebase, a cherry-pick range, analyze one diff, a PR
-   review/create, issue triage): cold-spawn ONE leaf at the right model:
-   - READ cognition -> `git-surveyor` (read-only).
-   - local mutation, reversible OR destructive -> `git-operator` (carries the safety contract).
-   - GitHub API -> `github-operator` (MCP-first / gh-fallback).
+   inline unbounded output (full PR body, file contents, a full diff) - "read one PR" is DELEGATE.
+2. **SINGLE-DELEGATE** - one medium op (rebase, cherry-pick range, analyze one diff, PR
+   review/create, issue triage): cold-spawn ONE leaf at the right model - READ cognition ->
+   `git-surveyor` (read-only); local mutation (reversible OR destructive) -> `git-operator` (carries
+   the safety contract); GitHub API -> `github-operator` (MCP-first / gh-fallback).
 3. **PHASED-PIPELINE** - large/complex (>500 files OR >10k LOC OR multi-commit rewrite OR
    thousand-file backport, per `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md` M2):
    cold-spawn `git-pipeline-lead` (opus). It runs P1 map -> P2 evaluate -> P3 strategy +

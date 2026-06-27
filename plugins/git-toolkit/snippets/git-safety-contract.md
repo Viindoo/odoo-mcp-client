@@ -88,8 +88,8 @@ git checkout -b recovered HEAD@{N}     # rescue a lost tip onto a new branch
 git fsck --unreachable | grep commit   # find an orphaned (dropped-stash) commit
 ```
 
-Reflog is LOCAL only and expires (90d reachable / 30d unreachable). The S1 backup branch is the
-durable anchor; reflog is the safety net for ops where a backup was somehow missed.
+Reflog is LOCAL and expires (90d reachable / 30d unreachable); the S1 backup branch is the durable
+anchor, reflog only the net for an op where a backup was missed.
 
 ## S9 - Worktree-always / principal-checkout-lock
 
@@ -164,5 +164,5 @@ When git-operator returns BLOCKED at the destructive gate, the CALLER must:
    `confirmed: <"verbatim human approval text">` field. The new instance reads this field and
    proceeds past the gate.
 
-The git state and any S1 backup branch persist on disk between the two dispatches - nothing
-is lost while the caller waits. Never self-authorize and never pass a fabricated confirmation.
+The git state and any S1 backup branch persist on disk between dispatches - nothing is lost while
+the caller waits. Never self-authorize or pass a fabricated confirmation.

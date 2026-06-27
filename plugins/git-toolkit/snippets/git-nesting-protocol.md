@@ -11,10 +11,10 @@ spawn tool is unavailable.
 
 ## N1 - Cold-spawn handoff (the only handoff mode here)
 
-Every dispatch is a stateless COLD spawn via the Agent tool: a self-contained brief in, a compact
-summary + a findings-file path out. The worker reconstructs its mental model from the brief plus the
-findings files on disk - there is no warm team-resume. This is robust at ANY caller depth and needs
-no team lead, so it works whether the caller is the main agent or itself a subagent.
+Every dispatch is a stateless COLD spawn via the Agent tool: self-contained brief in, compact
+summary + findings-file path out. The worker reconstructs its model from the brief plus the findings
+files on disk - no warm team-resume. Robust at ANY caller depth and needs no team lead, so it works
+whether the caller is the main agent or itself a subagent.
 
 - A brief carries: the exact intent, the safety contract pointer
   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`), the scale pointer
@@ -55,6 +55,6 @@ silently:
 2. INLINE-with-contract: run the SAFE, BOUNDED-OUTPUT command directly, applying the safety
    contract inline, and keep the scale protocol (never read a huge diff inline).
 
-Never substitute "always-delegate" for a missing spawn - every nested op here is a fresh cold spawn,
-so there is no warm-resume to fall back to. Note the degraded tier in the return if it changed the
+Never substitute "always-delegate" for a missing spawn - every nested op is a fresh cold spawn, so
+there is no warm-resume to fall back to. Note the degraded tier in the return if it changed the
 outcome.

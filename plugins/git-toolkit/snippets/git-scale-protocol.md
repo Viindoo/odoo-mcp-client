@@ -5,9 +5,9 @@
 
 # Git Scale Protocol (SSOT)
 
-The whole point of this toolkit is that git churn happens in a delegated context so the caller
-stays clean. The fastest way to defeat that is to pipe a 50k-line diff into a context window. Read
-SUMMARIES first, cluster, then delegate per cluster - never the raw whole.
+Git churn must happen in a delegated context so the caller stays clean; the fastest way to defeat
+that is piping a 50k-line diff into a context window. Read SUMMARIES first, cluster, then delegate
+per cluster - never the raw whole.
 
 ## M1 - Never read a huge diff into context
 

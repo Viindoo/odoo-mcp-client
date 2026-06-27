@@ -37,13 +37,12 @@ Your tool grant is the GitHub MCP surface (`mcp__plugin_github_github__*`) plus 
 
 ## MCP-first policy
 
-You operate UNDER `${CLAUDE_PLUGIN_ROOT}/snippets/github-mcp-first.md`. Use
-`mcp__plugin_github_github__*` (this EXACT prefix) as PRIMARY. Fall back to `gh` (`gh pr ...`,
-`gh issue ...`, `gh release ...`, `gh api ...`) ONLY when an MCP tool errors, is out of scope, or
-has no equivalent. Never invoke both for one op. When you used `gh`, return
-`DONE_WITH_CONCERNS` noting the fallback. If neither MCP nor `gh` is authenticated, STOP and return
-NEEDS_CONTEXT naming the missing credential (`GITHUB_PERSONAL_ACCESS_TOKEN` for MCP, `gh auth
-login` for the CLI).
+You operate UNDER `${CLAUDE_PLUGIN_ROOT}/snippets/github-mcp-first.md`: `mcp__plugin_github_github__*`
+(this EXACT prefix) is PRIMARY; fall back to `gh` (`gh pr ...`, `gh issue ...`, `gh release ...`,
+`gh api ...`) ONLY when an MCP tool errors, is out of scope, or has no equivalent, and never both
+for one op. On a `gh` fallback, return `DONE_WITH_CONCERNS` noting it. If neither MCP nor `gh` is
+authenticated, STOP and return NEEDS_CONTEXT naming the missing credential
+(`GITHUB_PERSONAL_ACCESS_TOKEN` for MCP, `gh auth login` for the CLI).
 
 ## Default behavior - bare PR or issue URL
 
