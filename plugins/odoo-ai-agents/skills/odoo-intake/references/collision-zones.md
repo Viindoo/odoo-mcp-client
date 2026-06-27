@@ -1,9 +1,9 @@
 # Intake - Collision Zones (worked examples)
 
 Load this when two candidate skills overlap and the Routing Table's **Discriminator** column
-is not enough to break the tie. These are the canonical resolution logics for the known
-collision zones. The one-line discriminators already live in the Routing Table; this file is
-the elaboration with worked prompts and the "if the user had said X instead" counter-cases.
+is not enough to break the tie - the canonical resolution logics for known collision zones. The
+one-line discriminators already live in the Routing Table; this file elaborates with worked
+prompts and "if the user had said X instead" counter-cases.
 
 ## Collision 1 - Objection vs Capability Proof
 
@@ -17,8 +17,8 @@ the elaboration with worked prompts and the "if the user had said X instead" cou
 **Discriminator**: the verb "write a response" signals the user wants a customer-facing
 paragraph they can paste. -> **Pick `odoo-objection-handling`.**
 
-If the user had said "prepare technical evidence for the multi-level approval demo" -> that
-would be `odoo-capability-proof`.
+Had the user said "prepare technical evidence for the multi-level approval demo" ->
+`odoo-capability-proof`.
 
 ## Collision 2 - Version Diff vs Feature Highlights
 
@@ -32,8 +32,8 @@ would be `odoo-capability-proof`.
 **Discriminator**: "internal slide" + "summarize" signal marketing/non-developer output.
 -> **Pick `odoo-feature-highlights`.**
 
-If the user had said "which APIs changed from v17 to v18, dev team needs to know" -> that
-would be `odoo-version-diff`.
+Had the user said "which APIs changed from v17 to v18, dev team needs to know" ->
+`odoo-version-diff`.
 
 ## Collision 3 - Deprecation Audit vs Version Diff
 
@@ -47,7 +47,7 @@ would be `odoo-version-diff`.
 **Discriminator**: "customer is asking" + no mention of "our code" or "audit" signals the user
 wants a clean diff to relay, not a code scan. -> **Pick `odoo-version-diff`.**
 
-If the user had said "audit the customer's codebase before upgrading to v17" -> that would be
+Had the user said "audit the customer's codebase before upgrading to v17" ->
 `odoo-deprecation-audit`.
 
 ## Collision 4 - Deal Follow-up vs Objection Handler
@@ -62,8 +62,8 @@ If the user had said "audit the customer's codebase before upgrading to v17" -> 
 **Discriminator**: "hasn't replied" (silence) + "follow-up" signal the user wants a
 re-engagement email, not a counter to an objection. -> **Pick `odoo-deal-followup`.**
 
-If the user had said "customer says Odoo doesn't support X, I need to write a response" ->
-that would be `odoo-objection-handling`.
+Had the user said "customer says Odoo doesn't support X, I need to write a response" ->
+`odoo-objection-handling`.
 
 ## Collision 5 - Skill vs Command (same domain)
 

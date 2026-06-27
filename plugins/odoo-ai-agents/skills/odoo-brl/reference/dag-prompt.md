@@ -8,10 +8,10 @@
 
 ## Overview
 
-Phase D runs once, after every chunk has completed Phase A+B+C (all requirements classified
-and costed in `results.jsonl`). It is a **bolt-on**: it reads the finished `results.jsonl`,
-produces `dag.json` + `dag.mermaid`, and back-fills `dependencies` + `impl_phase` on each row.
-It never re-runs classification or cost.
+Phase D runs once, after every chunk completed Phase A+B+C (all requirements classified and
+costed in `results.jsonl`). It is a **bolt-on**: it reads the finished `results.jsonl`, produces
+`dag.json` + `dag.mermaid`, and back-fills `dependencies` + `impl_phase` on each row. It never
+re-runs classification or cost.
 
 It produces three kinds of dependency edge:
 

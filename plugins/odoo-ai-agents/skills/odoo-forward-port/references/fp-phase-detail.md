@@ -7,8 +7,7 @@
 All paths are under the integration worktree unless noted. `<slug>` derives from the
 source/target series (`<source-series>-to-<target-series>`). Artifacts live under
 `.odoo-ai/forward-port/<slug>/` (gitignored). Every Odoo Semantic call passes a concrete
-`odoo_version=` - never omit it, never rely on a default; the version pin is per-API-key state
-that any concurrent agent can overwrite.
+`odoo_version=` (never a default; the pin is per-API-key state any concurrent agent can overwrite).
 
 ---
 
@@ -53,8 +52,8 @@ in a batch pass to write per-commit dump files. For each commit SHA in the range
 
 - op: full-patch commit show (full message + diff) for the sha
 - `output: .odoo-ai/forward-port/<slug>/commits/<sha>.dump`
-- `repo: <main-checkout-root>` (include for cross-repo ports; the source commits exist only in
-  the main checkout after git-operator added the source remote and fetched at P0)
+- `repo: <main-checkout-root>` (cross-repo ports only; source commits live only in the main
+  checkout after the P0 source-remote add+fetch)
 
 Collect the `{ <sha>: <abs-path> }` map before dispatching any extractor. Every extractor brief
 MUST include `commit_dump_path` from this map; the extractor mandates this field and never runs
@@ -108,9 +107,9 @@ OSM returned `installable:True` at the target AND the module manifest was NOT to
 cherry-pick range, OR OSM was unreachable. Do NOT blanket-sweep every module: OSM already grounds
 categories 1-2, so a probe there is wasted.
 
-Pre-step before dispatch: delegate to git-surveyor (read-only) to write two files. Include
-`repo: <main-checkout-root>` in the git-surveyor dispatch for cross-repo ports (the source
-commits exist only in the main checkout after P0 bootstrap):
+Pre-step before dispatch: delegate to git-surveyor (read-only) to write two files. For
+cross-repo ports include `repo: <main-checkout-root>` (source commits live only in the main
+checkout after P0 bootstrap):
 
 - `manifest_path`: read `<module>/__manifest__.py` at `target_ref` and write to
   `.odoo-ai/forward-port/<slug>/installable/<module>/manifest.py`
@@ -176,10 +175,9 @@ inputs:
   classification: <bucket-(c) summary>
 ```
 
-`<slug>` is the forward-port run slug (`<source-series>-to-<target-series>`); `<sha>` is the
-short SHA of the routed commit. Together `design_slug_hint` gives the design agent a
-deterministic path for the output design doc (`<slug>-fp-<sha>`), ensuring the forward-port
-re-entry can locate it without scanning.
+`<slug>` is the run slug (`<source-series>-to-<target-series>`); `<sha>` the short SHA of the
+routed commit. Together `design_slug_hint` gives the design agent a deterministic output path
+(`<slug>-fp-<sha>`), so forward-port re-entry locates it without scanning.
 
 `odoo-solution-design` under `return_to` runs its own design + design-approval gate, then emits
 `next: odoo-forward-port` with `design_doc: <path>`; it does NOT enter a code Plan Mode and does
@@ -266,9 +264,9 @@ git diff --check ; grep -rn '^<<<<<<<' .
 
 Delegate to git-surveyor: list files changed in range `<merge-base>..<src-SHA>` (--name-only;
 git-surveyor writes the file list, filtered to non-empty entries - these are the
-merge-clean-but-source-touched autosilent-break candidates). Include `repo: <main-checkout-root>`
-in the dispatch for cross-repo ports (the source commits exist only in the main checkout after
-git-operator added the source remote and fetched at P0).
+merge-clean-but-source-touched autosilent-break candidates). For cross-repo ports include
+`repo: <main-checkout-root>` (source commits live only in the main checkout after the P0
+source-remote add+fetch).
 
 For every Odoo symbol in those files (field / method / model / view ref / external-id /
 manifest depend / ORM chain), confirm existence + type at the TARGET version:
@@ -365,23 +363,21 @@ worktree: <path>/wt-<module>
 ```
 
 **Open-merge window (CRITICAL constraint).** During the open P5 merge window of the CURRENT
-source commit - after git-operator ran `--no-commit` and before git-operator runs the P10
-`commit` - `MERGE_HEAD` is live in the integration worktree. Git will reject any second merge
-operation in that worktree until the first is committed or aborted (error: `MERGE_HEAD exists`).
-Therefore: child worktrees CANNOT converge back into integration during this window. Adapt all
-modules SERIALLY DIRECTLY in the integration worktree for the current commit's adapt pass - do
-NOT fan out child worktrees. SSOT for the in-window adapt protocol: `[[fp-merge-absorption]]`
+source commit - after git-operator ran `--no-commit`, before the P10 `commit` - `MERGE_HEAD` is
+live in the integration worktree. Git rejects any second merge in that worktree until the first
+is committed or aborted (error: `MERGE_HEAD exists`). So child worktrees CANNOT converge back
+into integration during this window: adapt all modules SERIALLY, DIRECTLY in the integration
+worktree for the current commit's adapt pass - do NOT fan out child worktrees. SSOT: `[[fp-merge-absorption]]`
 §Absorption-window.
 
-**Per-commit vs absorb-all worktree.** Child-worktree fan-out is ONLY valid when the integration
-HEAD is already committed - i.e. when processing a SUBSEQUENT source commit after the previous P10
-commit has closed the prior merge. At that point `MERGE_HEAD` is gone, a child forks from a clean
-committed tree, and converging back via merge works correctly. For an absorb-all run that merges
-every commit in ONE no-commit merge, `MERGE_HEAD` is live throughout; do NOT fan out child
-worktrees at all - resolve conflicts serially, per module, directly in the integration worktree,
-and only resume child-worktree isolation once the absorbed merge is committed. Picking the wrong
-mode yields child worktrees with a clean tree and an unresolved (invisible) conflict still sitting
-in integration.
+**Per-commit vs absorb-all worktree.** Child-worktree fan-out is ONLY valid when integration
+HEAD is already committed - i.e. processing a SUBSEQUENT source commit after the previous P10
+commit closed the prior merge. Then `MERGE_HEAD` is gone, a child forks from a clean committed
+tree, and converging back via merge works. For an absorb-all run merging every commit in ONE
+no-commit merge, `MERGE_HEAD` is live throughout; do NOT fan out child worktrees at all - resolve
+conflicts serially, per module, directly in integration, and resume child-worktree isolation only
+once the absorbed merge is committed. The wrong mode yields child worktrees with a clean tree and
+an unresolved (invisible) conflict still sitting in integration.
 
 **8a - forward the test FIRST** (the test is the oracle; independence keeps it honest). Dispatch
 `odoo-test-writing` in mode `adapt`:
