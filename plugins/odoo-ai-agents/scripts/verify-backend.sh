@@ -2,7 +2,7 @@
 # verify-backend.sh - pylint-odoo code-quality gate for Odoo backend Python.
 #
 # The backend sibling of verify-frontend.sh: a fast, no-DB, pre-push static gate
-# that reproduces the OCA `pylint-odoo` half of the Odoo code-quality CI gate
+# that reproduces the `pylint-odoo` half of the Odoo code-quality CI gate
 # LOCALLY, so backend lint failures are caught before push instead of in CI.
 #
 # WHAT IT DOES
@@ -288,13 +288,13 @@ else
             # B2 fail-closed: a quality module exists but its whitelist could NOT be
             # derived and there is no pylintrc to fall back on. NEVER run an empty
             # whitelist (that would --disable=all and pass with zero checks = false
-            # GREEN). Run the full shipped OCA config and flag the gap LOUDLY below.
+            # GREEN). Run the full shipped fallback config and flag the gap LOUDLY below.
             DERIVE_FAILED=1
             RCFILE="$FALLBACK_PYLINTRC"
             RC_SRC="shipped fallback (could NOT derive whitelist from quality module)"
         else
             RCFILE="$FALLBACK_PYLINTRC"
-            RC_SRC="shipped fallback odoo-pylintrc (OCA defaults)"
+            RC_SRC="shipped fallback odoo-pylintrc"
         fi
     fi
 fi
@@ -322,7 +322,7 @@ _info "pylint   : $PYLINT_BIN"
 _info "config   : $RC_SRC"
 [[ -n "$ENABLE_FROM_MODULE" ]] && _info "enable   : ${ENABLE_FROM_MODULE}"
 if [[ -n "$DERIVE_FAILED" ]]; then
-    _warn "could not derive the deployment whitelist from its quality module - running the FULL shipped OCA config instead (fail-closed); this gate is NOT a silent pass. Fix the quality module's ENABLED_CODES or set ODOO_PYLINTRC."
+    _warn "could not derive the deployment whitelist from its quality module - running the FULL shipped fallback config instead (fail-closed); this gate is NOT a silent pass. Fix the quality module's ENABLED_CODES or set ODOO_PYLINTRC."
 fi
 
 if [[ ${#PY_FILES[@]} -eq 0 ]]; then
@@ -339,7 +339,7 @@ PYLINT_ARGS=(--rcfile="$RCFILE" --load-plugins=pylint_odoo
              --score=no --reports=no
              --msg-template='{path}:{line}: [{msg_id}({symbol})] {msg}')
 # When the enabled codes come from the deployment's own whitelist, --disable=all
-# FIRST so ONLY that whitelist runs - otherwise the rcfile's broad OCA defaults
+# FIRST so ONLY that whitelist runs - otherwise the rcfile's broad defaults
 # stack on top and the gate reports findings the deployment's CI never enforces.
 # Order matters: --disable=all THEN --enable=<whitelist>.
 [[ -n "$ENABLE_FROM_MODULE" ]] && PYLINT_ARGS+=(--disable=all --enable="$ENABLE_FROM_MODULE")

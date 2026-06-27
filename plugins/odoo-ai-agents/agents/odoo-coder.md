@@ -76,6 +76,8 @@ Also READ the cross-agent decision log (`.odoo-ai/worklog/<run-or-slug>/`) to in
 
 If the active profile is Viindoo Standard or Internal (check `.odoo-ai/context.md` field `viindoo_profile`, or `profile_inspect` via OSM), also read `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` for Viindoo-specific upgrade conventions (version short-form/no-bump-on-port, old_technical_name rename rule); also read `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` for Viindoo variable naming conventions (l/O/i ban is universal; meaningful names + for-r-in-self are Viindoo-gated); do NOT restate their content in your output. (Always-invisible field XML comment and `hr.employee`-field groups rule are CORE Odoo - reachable for ALL profiles via the By-task table in the version index, not Viindoo-gated.)
 
+**Forward-port adapt (your brief references `[[fp-merge-absorption]]`).** On a `__manifest__.py` `version` conflict keep the TARGET file's value - never invent or merge-pick a bump (C1). Retarget a forwarded `migrations/<src-series>.a.b.c/` dir to the target series (C2). If you spot a defect that pre-exists at the source series and is NOT security/safety, carry it FAITHFULLY forward and report it (do not inline-fix); fix only FP-delta defects here (C3). Full rules: `[[fp-merge-absorption]]`.
+
 ## Round 2 - Gather context (fire in parallel)
 
 **Impact pre-flight first.** Map blast radius BOTH directions - upstream (`module_inspect` deps) and downstream (`impact_analysis` reverse dependents), direct and indirect - and record affected entities + mitigation in the worklog (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`).
@@ -158,9 +160,9 @@ odoo-bin scaffold <new_module_name> </path/to/addons-dir>
 
 Then fill in the scaffolded models/views/security/`depends` per Rounds 2-4. Hand-create files only if `odoo-bin` is genuinely unavailable (note it in the checklist). Extending an EXISTING module needs no scaffold.
 
-After scaffold, fill in only the keys the task requires and **keep all commented placeholder keys** that `odoo-bin scaffold` emits (e.g. `# 'category': 'Uncategorized',`, `# 'depends': [],`, `# 'data': [],`, `# 'demo': [],`) - do NOT delete or uncomment them unless the task needs them. Manifest `version`: keep the short form `odoo-bin scaffold` emits (e.g. `0.1` - 2 or 3 numeric parts, NOT series-prefixed); if hand-creating without scaffold, match a sibling `__manifest__.py` in the same addons-dir. NEVER rewrite it to the series-prefixed `<series>.x.y.z` form (e.g. `17.0.1.0.0`) - that is the module-upgrade / OCA per-series convention only. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md`.
+After scaffold, fill in only the keys the task requires and **keep all commented placeholder keys** that `odoo-bin scaffold` emits (e.g. `# 'category': 'Uncategorized',`, `# 'depends': [],`, `# 'data': [],`, `# 'demo': [],`) - do NOT delete or uncomment them unless the task needs them. Manifest `version`: keep the short form `odoo-bin scaffold` emits (e.g. `0.1` - 2 or 3 numeric parts, NOT series-prefixed); if hand-creating without scaffold, match a sibling `__manifest__.py` in the same addons-dir. NEVER rewrite it to the series-prefixed `<series>.x.y.z` form (e.g. `17.0.1.0.0`) - that is the module-upgrade convention only. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md`.
 
-**Renaming an EXISTING module (profile-gated - Viindoo Standard/Internal via OSM only).** When the task renames a module (changes its technical name / directory), follow `${CLAUDE_PLUGIN_ROOT}/snippets/module-rename.md`. The key rule: add `'old_technical_name': '<previous technical name>'` to the renamed module's `__manifest__.py`. This applies ONLY when OSM is reachable AND the active profile is Viindoo Standard or Internal (profiles of the form `standard_viindoo_<series>` or `viindoo_internal_<series>`); do NOT apply it for Odoo CE/EE upstream, OCA, or any other non-Viindoo distribution.
+**Renaming an EXISTING module (profile-gated - Viindoo Standard/Internal via OSM only).** When the task renames a module (changes its technical name / directory), follow `[[upg-conventions]]`. The key rule: add `'old_technical_name': '<previous technical name>'` to the renamed module's `__manifest__.py`. This applies ONLY when OSM is reachable AND the active profile is Viindoo Standard or Internal (profiles of the form `standard_viindoo_<series>` or `viindoo_internal_<series>`); do NOT apply it for Odoo CE/EE upstream or any other non-Viindoo distribution.
 
 ## Running odoo-bin (isolated, concurrency-safe)
 
@@ -227,7 +229,7 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
       dep closure (direct access), `'field' in record._fields` + documented soft-dep, or amended `depends`
 - [ ] (New module only) Manifest `version` matches sibling manifests / `odoo-bin scaffold` default (short form, 2-3 numeric parts, e.g. `0.1`), NOT the series-prefixed `<series>.x.y.z` upgrade form
 - [ ] (New module only) Scaffolded via `odoo-bin scaffold`; commented placeholder keys in `__manifest__.py` preserved (only needed keys edited, comments not deleted)
-- [ ] (Module rename only, Viindoo profile via OSM) Renamed module's `__manifest__.py` carries `old_technical_name`; see `snippets/module-rename.md`
+- [ ] (Module rename only, Viindoo profile via OSM) Renamed module's `__manifest__.py` carries `old_technical_name`; see `[[upg-conventions]]`
 - [ ] Implementation meets the TDD's intent, expected outcomes, and business purpose
 ```
 

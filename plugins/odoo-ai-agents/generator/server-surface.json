@@ -346,7 +346,6 @@
       "routing_keywords": [
         "lint check",
         "coding standards",
-        "OCA style violations",
         "Odoo conventions check",
         "code quality",
         "lint_check"

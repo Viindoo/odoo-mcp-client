@@ -53,7 +53,7 @@ run the gate:
    ```
    Confirm the exact module/tag name for the target version via `cli_help` / the addons path
    (it may differ by series); never assume it exists unchecked.
-2. **`pylint-odoo`** - the OCA pylint plugin half (`consider-merging-classes-inherited`,
+2. **`pylint-odoo`** - the Odoo pylint quality plugin (`consider-merging-classes-inherited`,
    `sql-injection`, `print-used`, …). This is **not** a test-suite module; reproduce it with the
    fast, no-DB inner-loop gate **before** the test run:
    ```

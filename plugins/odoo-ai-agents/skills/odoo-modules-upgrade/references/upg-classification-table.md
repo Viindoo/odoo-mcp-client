@@ -107,10 +107,11 @@ indicative and frozen at v18; new pivots live ONLY in
 
 | Break | Affected versions | Fix |
 |-------|------------------|-----|
-| `version` field at source series | any | **Profile-gated** (`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` + F0 `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`): Viindoo Standard/Internal profile -> SHORT form, no series prefix, and for a code-level upgrade with no data change do NOT bump at all (cross-ref `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md` §3). OCA/upstream/non-Viindoo -> replace source series prefix with target series prefix (`<src>.X.Y.Z` -> `<tgt>.X.Y.Z`, e.g. `16.0.1.0.0` -> `17.0.1.0.0`) |
+| `version` field at source series | any | **Do NOT bump** (Rule A - upgrade keeps the existing short form `x.y.z` unchanged; see `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`) |
 | `depends` listing a module removed at target | any | Remove or replace with the new core module; flag in plan.md |
-| `installable: False` carried from source | any | Set to `True` in the P4 manifest bump (after all other P4 fixes are applied), BEFORE P5 is run; P5 confirms the module installs - do NOT leave `installable: False` going into P5 |
-| `auto_install: True` with condition that no longer holds | any | Review trigger condition against target module list |
+| `installable: False` carried from source | any | Set to `True` in the P4 manifest edit (after all other P4 fixes are applied), BEFORE P5 is run; P5 confirms the module installs - do NOT leave `installable: False` going into P5 |
+| `auto_install: True` with condition that no longer holds | any | Restore only if a `# TODO: Uncomment when upgrading` breadcrumb (left by forward-port) explicitly directs it; do NOT auto-detect |
+| `application: True` commented out by forward-port | any | Restore only if a `# TODO: Uncomment when upgrading` breadcrumb explicitly directs it; same guard as `auto_install` |
 
 ---
 
@@ -126,7 +127,8 @@ Run in P5 after `odoo-instance` completes, before P6 human sign-off.
 - [ ] No `Field <field> is not valid for model <model>` (field reference to removed field)
 - [ ] No `External ID not found in the system: <xmlid>` in data XML
 - [ ] `installable: True` in every adapted module's manifest
-- [ ] Manifest `version` field matches the profile convention (Viindoo Standard/Internal: short form, no series prefix, per `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`; OCA/upstream: target series prefix)
+- [ ] Scanned each `__manifest__.py` for `# TODO: Uncomment when upgrading` breadcrumb and honored it (restored `auto_install`/`application` only when the breadcrumb directed)
+- [ ] Manifest `version` uses short form, no series prefix, and is NOT bumped from the source value (per `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`)
 
 ### Test verification
 

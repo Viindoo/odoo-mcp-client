@@ -440,6 +440,9 @@ RULE: Resolve to the INTENT expressed in INTENT_FILE, using the idiom of the new
       If OUTCOME=(a): do not resolve - caller will instruct git-operator to skip that commit.
       If OUTCOME=(d): do not resolve - caller will instruct git-operator to skip that commit.
       Never leave a line referencing a symbol that was renamed/moved at the new base.
+      On a `__manifest__.py` `version` conflict, keep the new-base ref's `version` field unchanged -
+      a same-series replay never bumps it. (Same-series analogue only; do NOT import the cross-series
+      forward-port C1/C2 migration logic.)
       If rerere auto-resolved any file: verify each auto-resolved hunk against INTENT_FILE
       before staging - rerere replays text, not intent.
       After resolving: emit a "RESOLVED" status listing the resolved files.

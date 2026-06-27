@@ -11,7 +11,6 @@
 # Roles (guessed from directory name heuristics):
 #   core       - The Odoo core repo (has odoo-bin + odoo/release.py)
 #   enterprise - Odoo Enterprise addons (dir name contains "enterprise")
-#   oca        - OCA community addons (dir name contains oca/server-tools etc.)
 #   theme      - Theming / branding addons (dir name contains theme/branding)
 #   custom     - Everything else (first in addons-path priority)
 #
@@ -83,12 +82,6 @@ _classify_role() {
     # Patterns checked in priority order; first match wins
     if [[ "$dir_name" == *enterprise* ]]; then
         echo "enterprise"
-    elif [[ "$dir_name" == *oca* ]] \
-      || [[ "$dir_name" == *server-tools* ]] \
-      || [[ "$dir_name" == *server-ux* ]] \
-      || [[ "$dir_name" == *web-* ]] \
-      || [[ "$dir_name" == *addons-web* ]]; then
-        echo "oca"
     elif [[ "$dir_name" == *theme* ]] || [[ "$dir_name" == *branding* ]]; then
         echo "theme"
     else
@@ -210,13 +203,13 @@ done < <(find "$BASE_DIR" -maxdepth 4 -name "__manifest__.py" 2>/dev/null)
 # ---------------------------------------------------------------------------
 # Recommended addons-path order: custom first (highest priority), core last
 echo "# Discovered Odoo repos (heuristic role; verify before using)"
-echo "# Recommended addons-path order: custom -> theme -> oca -> enterprise -> core"
+echo "# Recommended addons-path order: custom -> theme -> enterprise -> core"
 echo "# Columns: role<TAB>version<TAB>path<TAB>has_manifest"
 echo "# role is 'guessed' from directory name - review before committing to config"
 
 # Emit in role-priority order so caller sees them already sorted for addons-path.
 # Iterate the parallel arrays by index (bash 3.2 safe).
-for priority_role in custom theme oca enterprise core; do
+for priority_role in custom theme enterprise core; do
     i=0
     while [[ $i -lt ${#REPO_PATHS[@]} ]]; do
         if [[ "${REPO_ROLES[$i]}" == "$priority_role" ]]; then

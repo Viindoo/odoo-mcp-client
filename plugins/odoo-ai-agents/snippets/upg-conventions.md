@@ -12,8 +12,8 @@
 >    the currently active profile.
 >
 > If OSM is unavailable, OR the active profile is not a Viindoo Standard/Internal distribution
-> (e.g. Odoo CE/EE upstream, OCA, or any other non-Viindoo distribution) - DO NOT apply these
-> rules. For OCA/upstream: series-prefix version bump (e.g. `17.0.1.0.0`) still applies on upgrade.
+> (e.g. Odoo CE/EE upstream or any other non-Viindoo distribution) - DO NOT apply these
+> rules.
 
 > Conv-3 and Conv-4 are CORE Odoo rules (not Viindoo-specific); they appear here for upgrade context only and are reachable for ALL profiles via the version INDEX By-task table.
 
@@ -31,20 +31,29 @@ migration, no behavior contract change visible to end users), do **not** bump `v
 - Version-specific guidance: see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`
   section "Viindoo-distribution conventions".
 
-**Else-branch (non-Viindoo):** OCA and upstream modules use the series-prefixed form
-(e.g. `17.0.1.0.0`) when porting to a new series. Apply that form when the gating conditions
-above are NOT met.
+> **Forward-port note:** In forward-port the no-bump rule is STRONGER - on a `__manifest__.py`
+> conflict keep the TARGET's value; never merge-pick or invent. See `[[fp-merge-absorption]]`.
+> Convention 1 applies to upgrade commits only.
 
 ---
 
-## Convention 2 - No migration script for no-data module rename
+## Convention 2 - Module rename via `old_technical_name` (no migration script)
 
-When a Viindoo module with `installable: False` (or a module that carries no user data) is
-renamed, use `old_technical_name` in `__manifest__.py` only. Do NOT write a pre-migration SQL
-script for this case.
+When a Viindoo module with `installable: False` (or no user data) is renamed, add to the renamed
+module's `__manifest__.py`:
 
-See `${CLAUDE_PLUGIN_ROOT}/snippets/module-rename.md` for the full `old_technical_name` protocol
-(key syntax, Viindoo tooling read, relationship to OpenUpgrade path). Do not restate it here.
+    'old_technical_name': '<previous technical name>',
+
+- Viindoo metadata key only - the core loader ignores it (not in `_DEFAULT_MANIFEST`). NOT a core Odoo
+  convention.
+- Viindoo tooling reads it to map old->new technical name (upgrade scaffolding, dep resolution, registry).
+- Additive - the standard Odoo rename path (OpenUpgrade `apriori.renamed_modules` +
+  `openupgrade.update_module_names`) still handles the DB-level rename independently.
+- Do NOT write a pre-migration SQL script for a no-data rename.
+
+> **C2 note:** This convention is about not writing NEW migration scripts. It does NOT exempt an
+> existing forwarded `migrations/` dir from the C2 retarget - see `[[fp-merge-absorption]]`.
+<!-- Future rules (data-file migration notes, ir.module.module record handling, alias wiring) append here. -->
 
 ---
 

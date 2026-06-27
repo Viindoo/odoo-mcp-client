@@ -26,7 +26,7 @@ regardless of distribution, profile, or Odoo version.
 >    Check `.odoo-ai/context.md` (`viindoo_profile`), or via OSM `profile_inspect` /
 >    `list_available_profiles`.
 >
-> Do NOT apply these rules for Odoo CE/EE upstream, OCA, or any other non-Viindoo
+> Do NOT apply these rules for Odoo CE/EE upstream or any other non-Viindoo
 > distribution.
 
 **Rule B - Use meaningful names, avoid arbitrary single-letter abbreviations.**

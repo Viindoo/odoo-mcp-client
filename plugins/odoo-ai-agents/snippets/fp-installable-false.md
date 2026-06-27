@@ -41,6 +41,29 @@ This covers all three categories: a new module is absent at target; a dormant
 module is `installable: False` at target; a category-3 first-enabled module is
 absent or `installable: False` at target because it was never upgraded there.
 
+### Category 2/3 - manifest reset after merge (upgraded-then-forwarded)
+
+When a pre-existing dormant module (category 2) or first-enabled-at-source module (category 3)
+has `installable:False` at the TARGET CLEAN-TIP but the merge carries in `installable:True`
+(from a source-series upgrade commit), the agent MUST reset the manifest immediately after the
+merge - before any lint or content work:
+
+1. Re-set `'installable': False` in `__manifest__.py`.
+2. Re-comment `'auto_install': True` if present - add
+   `# TODO: Uncomment when upgrading module to production-ready status`.
+3. Re-comment `'application': True` if present - same TODO note.
+
+These are the same actions as for a new-module landing (see "Manifest flags" below). The
+trigger is different: for a new module the manifest arrives absent; for category 2/3 the
+manifest already exists at target with `installable:False` but the merge overwrites it to True.
+The result must be the same: `installable:False` with breadcrumb comments so
+`odoo-modules-upgrade` reads them at Y+1 upgrade time.
+
+Recognition: determine the target module's `installable` at the target clean-tip before merging
+(delegate the read to `git-surveyor`, or capture it during P0/scope); if clean-tip =
+`installable:False` and the merged manifest shows `installable:True`, the reset is required.
+Do NOT diff git history to decide - the clean-tip state is the unambiguous signal.
+
 ### Delegated source-history confirmation (category 3 ambiguity)
 
 When it is unclear whether a module falls under category 3 (recently flipped
@@ -115,18 +138,12 @@ ESLint / Prettier / ruff rules:
 
 ---
 
-## A2 - Version-bump gate
+## A2 - No manifest version bump (forward-port)
 
-Bump the manifest `version` field ONLY when the absorbed diff touches at least
-one of: a `.js` file, a `.scss` file, a `.xml` file, or a file under
-`migrations/`. Check via:
-
-```
-git diff --name-only <merge-base> | grep -qE '\.(js|scss|xml)$|/migrations/' \
-  && echo BUMP || echo SKIP
-```
-
-Pure-Python changes (`*.py` only) do NOT require a version bump.
+Forward-port NEVER auto-bumps the manifest. The forward-port merge (`--no-ff`) carries the source manifest as-is; on a
+`__manifest__.py` `version` conflict keep the **TARGET** file's value. The single exception is the C2
+migration-threshold bump (when `S <= M`). Both rules: `[[fp-merge-absorption]]` (C1 + C2). There is no
+"bump when the diff touches `.js/.scss/.xml/migrations/`" rule - that gate is removed.
 
 ---
 
@@ -158,7 +175,11 @@ the module from re-appearing in every subsequent port cycle.
 - [ ] For new modules: `'auto_install': True` is commented with TODO note
 - [ ] For new modules: `'application': True` is commented with TODO note
 - [ ] Lint is green; no refactoring beyond lint fix
-- [ ] A2: version-bump applied only when `.js`/`.scss`/`.xml`/`migrations/` diff present
+- [ ] Manifest version NOT bumped on conflict (kept TARGET); migration dirs handled per C2 - [[fp-merge-absorption]]
+- [ ] For pre-existing dormant / category-3: if merge carried `installable:True`, re-set to False
+      + re-comment `auto_install`/`application` with TODO breadcrumb (same as new-module landing)
+- [ ] Breadcrumb note: `# TODO: Uncomment when upgrading module to production-ready status` is the
+      signal `odoo-modules-upgrade` reads at Y+1 upgrade time to restore the flags
 - [ ] B2: deferral mode (CARRY/DISCARD) recorded in merge-log if module deferred
 
 ## When new-module flags re-open
@@ -169,6 +190,8 @@ All three commented flags re-open together during the actual module upgrade:
   the two conditional flags.
 - This separation keeps forward-port commits focused on intent/behavior, upgrade
   commits focused on production-readiness.
+- The `# TODO: Uncomment when upgrading module to production-ready status` comment IS the breadcrumb
+  `odoo-modules-upgrade` reads to restore these flags.
 
 ---
 

@@ -76,7 +76,7 @@ map to load only the snippets that apply to your task.
 | `field-presence-resolution.md` | Writing or reviewing any field/method access | CORE - all distributions |
 | `xml-view-conventions.md` | Writing/reviewing XML views in v18+ (always-invisible comment, `<chatter/>`) | CORE - all distributions |
 | `odoo-version-pivots.md` | Any cross-version migration, or code touching a version-sensitive API | CORE + Viindoo addendum |
-| `module-rename.md` | Renaming a module technical name/directory | VIINDOO-gated (Standard/Internal) |
+| `upg-conventions.md` | Renaming a module technical name/directory | VIINDOO-gated (Standard/Internal) |
 | `upg-conventions.md` | Upgrading a Viindoo module to a new Odoo series | VIINDOO-gated (Standard/Internal) |
 | `new-module-manifest.md` | Creating a new module `__manifest__.py` | CORE + Viindoo short-form note |
 | `orm-performance.md` | Stored compute aggregating a relation on a high-volume model | CORE - all distributions |

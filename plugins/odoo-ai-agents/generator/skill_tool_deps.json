@@ -989,7 +989,7 @@
       "spawns": [
         "odoo-intent-extractor (read-only per-commit; model per complexity)",
         "odoo-installable-prober (read-only per-module installable-state probe in P2; model per complexity / sonnet)",
-        "odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt; serial per commit via work-tier worktrees)",
+        "odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first; serial per commit via work-tier worktrees)",
         "git-operator (cherry-pick, merge, branch/worktree ops - all local git mutations delegated to git-toolkit)",
         "git-surveyor (read-only diff/range map + P5 verify - delegated to git-toolkit)",
         "github-operator (PR create + review - delegated to git-toolkit)"

@@ -38,6 +38,11 @@ working tree is the absorption zone. All work happens here - in this order:
 1. Symbol-survival check - see [[fp-symbol-survival-check]] BEFORE touching any file.
 2. Resolve conflict markers in source-touched files (3-way merge, platform-adapt per bucket,
    see [[fp-intent-4outcome]]).
+2a. **Manifest version (C1) - never invent a bump.** `--no-ff` already carries whatever the source
+    commit did to `__manifest__.py`. Do NOT add, derive, or increment a `version` bump on the target
+    side. On a `__manifest__.py` `version` CONFLICT, keep the **TARGET** file's `version` field as-is -
+    never merge-pick the higher number, never bump "to be safe". (The only bump permitted anywhere in
+    forward-port is the C2 case below, and it is a migration-threshold bump, not a conflict decision.)
 3. Forward tests - translate API to target, strip implementation-coupled assertions
    (see [[test-behavior-contract]]).
 4. Fix any lint/eslint/prettier errors introduced by the merge.
@@ -46,6 +51,54 @@ working tree is the absorption zone. All work happens here - in this order:
 
 Do NOT ask git-operator to commit until verify is green (P9, below). Do NOT open a second
 no-commit merge while one is in progress (git index is shared; git-operator enforces this).
+
+## Migration dir retarget (C2) - distinct from C1
+
+C1 ("keep target / no manual bump") does NOT license leaving a migration dir on the source series.
+A v17 commit adds `migrations/17.0.a.b.c/`. Let `S` = `a.b.c` (source). Let `M` = the target module's
+manifest `version` BEFORE this forward-port (the version deployed target DBs have already reached).
+A migration runs only on UPGRADE and only when `installed < dir_version <= manifest`.
+
+Decision criterion: **does the fix need to apply to native-target-series data?**
+
+1. **Default (yes - applies on the target series):** RETARGET the prefix to the target series and pick
+   `V` so the dir fires on a deployed target DB sitting at `M`:
+   - `S > M`: `V = S` (the merge already bumped the manifest M->S; just name the dir `<tgt>.S`, no extra bump).
+     (Exception: if C1 fired on this commit - the merge had a `version` conflict and TARGET's value was kept,
+     leaving manifest at M not S - treat as the `S <= M` case below; bump manifest to S so `dir <= manifest` holds.)
+   - `S <= M`: `V` = `M`'s last component +1 (next patch); **bump the manifest to V** - keeping `a.b.c=S`
+     would leave `dir <= installed` and it would NEVER run. Set **manifest version == dir version == V**.
+   - Dir named FULL `<tgt-series>.V`. Invariant: the retargeted dir version MUST be `<= the final manifest version` (guarantees `M < V <= manifest`; if this would be violated, use the `S <= M` bump path).
+2. **Exception (legacy source-origin-only data fix, irrelevant to native-target data):** KEEP the dir as
+   `<src-series>.a.b.c`, do NOT bump. It still fires for src->tgt jumpers below `a.b.c`; it can never fire
+   on a native-target DB (17 < 18), which is correct.
+3. **C1 vs C2 de-confliction:** a manifest bump is FORBIDDEN for ordinary code commits and for conflict
+   resolution (keep target). It is REQUIRED **only** in case 1 when `S <= M`; the bump target is the
+   **current target manifest's next patch**, not `S`.
+4. Dir name is always FULL `<tgt-series>.x.y.z` (Viindoo convention; FULL compare lets a target-series dir
+   exceed a native-target DB's installed version). Migrations must be idempotent: a fully-updated source DB
+   jumping the major re-runs a retargeted tip migration.
+5. Module that is `installable:False` at target = lint-only lane ([[fp-installable-false]]) - do NOT
+   retarget; its migrations are never run.
+
+### WHY (verified against Odoo source - module.py + migration.py, byte-identical v17/v18)
+
+`adapt_version()` at `odoo/modules/module.py` - the series-prefixing role of `adapt_version` (the same
+function also enforces the v17 version-string regex - see [[odoo-version-pivots]]) prefixes a short
+manifest `a.b.c` to `<series>.a.b.c` and stores it as the module's `installed_version`.
+`MigrationManager.migrate_module` (`odoo/modules/migration.py`) runs a dir only when
+`installed_version < dir <= <series>.<manifest>`. So a dir left at `<src-series>.a.b.c` SILENTLY SKIPS
+every DB already at the source-series state when it upgrades to the target series. Migrations run on
+UPGRADE only (never fresh install).
+
+Worked: M=0.1.2, S=0.1.2 (M==S) -> bump to 0.1.3, dir `18.0.0.1.3` (keeping 0.1.2: `18.0.0.1.2 <
+18.0.0.1.2` false -> never runs). M=0.1.1, S=0.1.2 (M<S) -> dir `18.0.0.1.2`, no extra bump.
+M=0.1.4, S=0.1.2 (M>S) -> S<=M applies -> bump to 0.1.5, dir `18.0.0.1.5`, manifest bumped to 0.1.5
+(naming dir `18.0.0.1.2` would never run: 0.1.4 < 0.1.2 is false).
+Legacy-only `17.0.a.b.c` -> kept, fires for v17 jumpers, inert on native v18 (correct).
+
+After the rename, sweep the body for source-series literals (log strings, version constants) - they
+survive the rename and mislead operators.
 
 ## Skip-code-but-still-merge rule
 
@@ -120,6 +173,23 @@ When a test is red after the batch install:
 
 Never widen or relax an assertion to make a pre-existing failure green - that violates
 [[test-behavior-contract]].
+
+### C3 - fix old version first (provenance)
+
+The same FP-delta / pre-existing discriminator above governs WHERE a bug is fixed - reactively at P9
+(a red test) AND proactively at P8 (a coder who SPOTS a defect while adapting, before tests run):
+
+- **Pre-existing** (also red on the clean target tip / pre-dates the port): carry it FAITHFULLY forward -
+  do NOT inline-fix on the destination. Surface it to the SOURCE series so the source is fixed too and the
+  fix forward-ports up naturally. The orchestrator delegates to **github-operator** to open a source-series
+  issue, **conditional on a resolvable source remote** (mirror P11's `git remote get-url origin`); if none,
+  record the deferred bug in `merge-log.md` and the Continuation Contract instead of opening an issue.
+- **FP-delta** (green on source, red after adapt): fix it here, now (already the rule above).
+- **Security/safety EXCEPTION:** fix on the destination IMMEDIATELY, then still open a source-series issue.
+
+Canonical merge-log record: `<sha> | C3 | source issue <ref|DEFERRED> | <evidence one-liner>`.
+Reviewer backstop (P11): flag any FP-delta diff that inline-fixes a pre-existing source bug (not
+security/safety); an inherited bug carried faithfully + routed upstream is correct.
 
 ## Allocator footgun - CREATEDB role
 

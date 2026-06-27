@@ -62,11 +62,11 @@ defining characteristic is that it is short and does NOT carry the Odoo series p
    Adopt the first sibling match.
 3. No sibling found - default to `0.1` (scaffold default).
 
-### Series-prefixed form (upgrade / OCA per-series only)
+### Series-prefixed form (upgrade / non-Viindoo distributions only)
 
 The form `<series>.x.y.z` (e.g. `17.0.1.0.0`, `16.0.2.3.0`) is reserved for **bumping
-an EXISTING module across a new Odoo series** - used by the upgrade workflow and by OCA
-per-series publishing. See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/` for when
+an EXISTING module across a new Odoo series** - used by the upgrade workflow for
+non-Viindoo distributions. See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/` for when
 and how to apply it.
 
 **Only apply the series-prefixed form when ALL of the following hold:**
@@ -85,9 +85,10 @@ and how to apply it.
 |---|---|---|
 | New module via `odoo-bin scaffold` | Scaffold default (short) | `0.1` |
 | New module hand-created | Match sibling manifest (short) | `1.0.0` |
-| Existing module - upgrade to new series (OCA / upstream) | Series-prefixed | `17.0.1.0.0` |
+| Existing module - upgrade to new series (non-Viindoo / upstream) | Series-prefixed | `17.0.1.0.0` |
 | Existing module - upgrade to new series (Viindoo Standard/Internal profile, code-level only) | Short form - keep unchanged | `0.1` (unchanged) - see `upg-conventions.md §1` |
 | Existing module - patch/feature in same series | Keep current value | unchanged |
+| Forward-port `__manifest__.py` conflict | Keep TARGET file's `version` (never invent a bump) | see `[[fp-merge-absorption]]` (C1) |
 
 ---
 
