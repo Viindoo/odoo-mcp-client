@@ -105,11 +105,29 @@
     {
       "id": 12,
       "category": "output-format",
-      "prompt": "Generate acceptance tests for the Odoo HR leave management module and triage these 2 bugs: (1) Leave balance goes negative after approval, (2) Leave form does not save when start date equals end date",
+      "prompt": "Generate test cases for the Odoo HR leave management module and triage these 2 bugs: (1) Leave balance goes negative after approval, (2) Leave form does not save when start date equals end date",
       "expected_routed_to": "odoo-qa-suite",
       "expected_behavior": "Phase 1 produces test table saved to .odoo-ai/qa/<slug>-test-cases.md. Phase 2 dispatches checklist. Phase 3 triages both bugs: bug 1 = High or Critical (financial/data integrity - leave balance corrupted), bug 2 = Medium (form save failure with specific edge case, workaround exists). All three output files written to .odoo-ai/qa/. Final summary at .odoo-ai/qa/<slug>-qa-summary.md.",
       "must_not": "Write output to any directory other than .odoo-ai/qa/. Mix both bugs into a single unstructured paragraph instead of separate triage entries.",
       "tags": ["output-format", "output-dir", "multi-bug-triage", "severity-rules"]
+    },
+    {
+      "id": 13,
+      "category": "dispatch-boundary",
+      "prompt": "Run the acceptance tests for real on the live UI across every module affected by my custom_loyalty field change, and tell me pass/fail with evidence",
+      "expected_routed_to": "odoo-acceptance",
+      "expected_behavior": "Execute-and-adjudicate intent on a live instance/UI across the blast-radius cluster. odoo-qa-suite does NOT fire (it only writes a static test-plan/checklist, nothing executed). Routes to odoo-acceptance.",
+      "must_not": "Fire odoo-qa-suite for an execute-on-live-UI acceptance request, or produce a static test-plan doc instead of running the oracle.",
+      "tags": ["dispatch", "should-not-fire", "boundary", "acceptance-vs-qa-suite"]
+    },
+    {
+      "id": 14,
+      "category": "dispatch-boundary",
+      "prompt": "Write acceptance scenarios then run them on a live Odoo 17 instance and adjudicate the affected cluster",
+      "expected_routed_to": "odoo-acceptance",
+      "expected_behavior": "Plan-then-execute oracle on a live instance with adjudication. odoo-qa-suite does NOT fire - it neither runs scenarios nor adjudicates. Routes to odoo-acceptance.",
+      "must_not": "Launch the static qa-suite pipeline for a write-scenarios-then-run-and-adjudicate request.",
+      "tags": ["dispatch", "should-not-fire", "boundary", "acceptance-vs-qa-suite"]
     }
   ]
 }

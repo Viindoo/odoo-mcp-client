@@ -255,8 +255,9 @@ frontend-design sources, key failure modes prevented):
 ### Test strategy grounding (§7) - when to use which test tool
 
 Section §7 "Test strategy outline" is the highest-leverage output of the TDD: every downstream
-agent (odoo-test-writing, odoo-qa-suite, odoo-coder) inherits the base classes and behavior list
-it specifies. The architect uses four test tools - already visible in `## MCP tools` below - at
+agent (odoo-test-writing, odoo-qa-planner, odoo-coder) inherits the base classes and behavior list
+it specifies (odoo-qa-planner turns it into the independent acceptance oracle under odoo-acceptance;
+odoo-qa-suite reuses it only as a static release test-plan, never to execute or adjudicate). The architect uses four test tools - already visible in `## MCP tools` below - at
 specific moments in the design rounds:
 
 | Tool | When in the rounds | Why |

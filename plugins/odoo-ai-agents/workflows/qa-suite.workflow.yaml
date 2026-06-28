@@ -2,13 +2,12 @@ name: qa-suite
 domain: qa
 team_pattern: Pipeline
 description: |
-  End-to-end QA pipeline for an Odoo feature or module: generate structured test cases
-  (business-rule-first, happy path + edge + error + permission), gate on a pre-deploy
-  safety checklist across 8 domains, and triage open bugs with severity classification,
-  reproduction steps, and suspected module assignment.
-  Trigger: "full QA suite", "test cases and checklist", "QA pipeline for this change",
-  "generate tests and triage bugs", "acceptance tests plus deploy gate",
-  "write test plan and check deploy readiness", "qa this module before release"
+  Static release QA pipeline for an Odoo feature or module: generate a structured
+  release TEST-PLAN (non-executing), gate on a pre-deploy safety checklist across
+  8 domains, and triage user-reported bugs with severity classification, reproduction
+  steps, and suspected module assignment.
+  Trigger: "full QA suite", "test cases and checklist", "generate tests and triage bugs",
+  "write test plan and check deploy readiness", "release test plan and checklist"
 output_dir: .odoo-ai/qa
 inputs:
   - feature_or_module

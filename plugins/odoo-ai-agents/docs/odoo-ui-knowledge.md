@@ -29,7 +29,111 @@ the login page and produces misleading screenshots.
 | Control panel | `.o_control_panel` | Breadcrumb + view switcher + search. |
 
 These class names are stable across recent versions; the *mount path* (`/odoo` vs `/web`) is the
-version-dependent part.
+version-dependent part. The view-type and form-internal selectors below were confirmed against the
+indexed Odoo source; the web client occasionally renames a class across a major, so confirm the
+live class names with a DOM snapshot for the version under review before relying on one.
+
+## Grounding a screen's structure before checking its render
+
+OSM is the PRIMARY source for what a screen *should* contain: `set_active_version(odoo_version=<concrete>)`
+to pin the version, then `module_inspect(name=<module>, method='views', odoo_version=<version>)` for the view arch a module ships and
+**which view types its action exposes**, `find_examples` for how a given view type is typically structured, and
+`model_inspect(model=<model>, method='summary', odoo_version=<version>)` for the backing model - whether it inherits `mail.thread` /
+`mail.activity.mixin` (so a chatter / activity view is expected) and whether it declares date fields (so a
+calendar is viable). OSM is indexed, cross-version, inheritance-resolved, and checkout-free; reading the view
+XML or SCSS on disk is the FALLBACK, used only when OSM is missing the entity. OSM is STATIC (no live records) -
+it tells you what to *expect*, never what actually rendered, so always confirm the real render in the browser
+(`take_snapshot` for the live DOM/a11y tree).
+
+## Break-signal taxonomy (what a render defect looks like)
+
+Map every render failure to one of these classes so a finding is precise and locatable. The per-view tables
+below cite these tags.
+
+| Tag | Break class | What it looks like on the rendered screen |
+|-----|-------------|-------------------------------------------|
+| G1 | xpath-inherit broken | the view fails to load (ParseError) or an inherited field / button / page is silently absent |
+| G2 | duplicate / hidden field | a field renders twice, or a `required`/`readonly` modifier stops firing because a duplicate node overrode it |
+| G3 | modifier wrong | a field that should be editable is frozen `readonly`, or an element that should toggle is always-invisible / always-visible |
+| G4 | menu / action mis-point | a menu, smart button, or action opens an empty / wrong list, a 404, or the wrong domain / context |
+| G5 | OWL white-screen | a blank content area with NO Python traceback - only a browser-console JS error reveals it |
+| G6 | view load-fail (kanban / search / pivot / graph / calendar) | the view does not render because its template or a search / group-by / measure / date field references a removed field |
+| G7 | ACL block | an AccessError, an empty list, or a hidden field / button for the logged-in role (invisible when the screen is reviewed as admin) |
+
+Scope note: G7 (role-dependent) and any CRUD / state-transition coverage need MULTIPLE roles and write
+operations - that is the acceptance tester's scope (`odoo-qa-tester`). A rendered-UI review observes G1-G6
+plus whatever G7 effect is visible for the single role it is logged in as, on one screen, without mutating data.
+
+## View-type render checks
+
+Switch to each view the action exposes via the control-panel view switcher (read-only navigation) and confirm
+it mounts. The selector proves the view rendered; the success signal proves it is functional; the break column
+points at the likely class above.
+
+### Search view (control panel)
+
+| Element | Selector | Render-success signal | Typical break |
+|---------|----------|-----------------------|---------------|
+| Search box | `.o_searchview`, input `.o_searchview_input` | the bar is visible in the control panel; typing offers an autocomplete dropdown | G6 (a search field references a removed field) |
+| Applied facets | `.o_searchview_facet` (`.o_facet_values`) | each active filter / group-by shows as a removable chip | G4 (a default filter targets a wrong / removed field -> empty result) |
+| Filters menu | `.o_filter_menu` | "Filters" opens; lists predefined filters + "Add Custom Filter" | G1 (an inherited filter entry is missing) |
+| Group By menu | `.o_group_by_menu` | "Group By" opens; choosing a field regroups the records with no console error | G6 (group-by on a removed field) |
+| Favorites menu | `.o_favorite_menu` | "Favorites" opens; "Save current search" is present | - |
+| Search panel (sidebar) | `.o_search_panel` (`.o_search_panel_category` / `.o_search_panel_filter`) | the left category / filter sidebar renders for views that declare it | G6 / G1 (a panel field was removed) |
+
+Opening these dropdowns and applying a filter is read-only (it only re-queries) - a reviewer may do it to confirm
+the controls mount and populate; exhaustive filter / group-by combinations and result-correctness assertions are
+the tester's matrix.
+
+### Pivot view
+
+| Element | Selector | Render-success signal | Typical break |
+|---------|----------|-----------------------|---------------|
+| Container | `.o_pivot` | a table of measure cells renders | G5 (blank), G6 (a measure / group field was removed) |
+| Header cells | `.o_pivot_header_cell_closed` / `.o_pivot_header_cell_opened` | clicking +/- expands / collapses a dimension | G5 |
+| Measure values | `.o_pivot_cell_value` | numeric values populate; row / column totals reconcile | G6 |
+
+### Graph view
+
+| Element | Selector | Render-success signal | Typical break |
+|---------|----------|-----------------------|---------------|
+| Renderer | `.o_graph_renderer` containing a `<canvas>` | a chart paints (bar / line / pie) | G5 (empty canvas / JS error) |
+| Mode switch | control-panel chart-type buttons | switching bar / line / pie re-renders the canvas | G5 |
+| Series | legend / axis labels | the legend reflects the group-by; axes are labelled | G6 (a measure field was removed) |
+
+### Calendar view
+
+| Element | Selector | Render-success signal | Typical break |
+|---------|----------|-----------------------|---------------|
+| Container | `.o_calendar_view` / `.o_calendar_renderer` (FullCalendar `.fc`) | a day / week / month grid renders with scale toggles | G5 (FullCalendar JS error -> blank) |
+| Events | `.fc-event` | records appear as event blocks on their dates | G6 (a `date_start` / `date_stop`-style field was removed -> view fails) |
+| Sidebar | `.o_calendar_sidebar` | the mini-calendar + filters render | G1 |
+
+### Activity view
+
+| Element | Selector | Render-success signal | Typical break |
+|---------|----------|-----------------------|---------------|
+| Container | `.o_activity_view` (table `.o_activity_view_table`) | a grid of records (rows) x activity types (columns) renders | G5, G6 (the model has no `mail.activity` support) |
+| Type columns | `.o_activity_type_cell` | one column per activity type, with counters / badges | G6 |
+| Schedule cells | `.o_activity_summary_cell` (`.o-mail-ActivityCell-counter`) | per-record activity cells render | G7 (record ACL hides rows) |
+
+## Form internals
+
+On a form view (`.o_form_view`), confirm each internal region mounts. Opening a notebook tab, clicking a smart
+button to follow its action, and reading the chatter are read-only navigation; creating / editing / saving
+records and firing state-changing statusbar action buttons are NOT - leave those to `odoo-qa-tester`.
+
+| Region | Selector | Render-success signal | Typical break |
+|--------|----------|-----------------------|---------------|
+| Notebook (tabs) | `.o_notebook`; headers `.o_notebook_headers .nav-link`; pages `.tab-pane` / `.o_notebook_page` | tabs render; clicking a tab switches the active page and its fields render | G1 (an inherited page xpath broke -> page absent / ParseError), G3 (a page `invisible` modifier is wrong), G5 |
+| Button-box / smart buttons | `.oe_button_box`; each `.oe_stat_button` with `.o_stat_value` / `.o_stat_info` (count) + `.o_stat_text` (label) | each smart button shows an icon, a non-placeholder count, and opens an action when clicked | G4 (the action was removed -> opens empty / wrong), G2 (a duplicate compute -> wrong count), G5 |
+| Chatter | OWL `.o-mail-Chatter` (`.o-mail-ChatterContainer`); legacy `.o_mail_thread` / `.o_chatter`; messages `.o-mail-Message`; composer `.o-mail-Composer`; followers `.o-mail-Followers` | the chatter panel mounts beside / below the form; Send message / Log note / Activities / Followers controls present; existing messages render | G5 (an OWL mail render error -> blank chatter, common after an upgrade), G1 (`mail.thread` inherit / `<chatter/>` not injected), G7 (follower / message ACL) |
+| Statusbar | `.o_statusbar_status` (the clickable stage / state pipeline) + `.o_statusbar_buttons` (header action buttons) | the current state is highlighted; reachable states are shown; header buttons render for the current state | G3 (a modifier is wrong -> a button is always / never visible), G4 (a button calls a removed method) |
+
+The chatter DOM moved from the legacy thread widget to the OWL mail store in newer majors - confirm the live
+class names with a DOM snapshot rather than assuming. On small screens in newer majors, form header buttons fold
+into the gear / Cog menu, so an EMPTY mobile statusbar-button area is EXPECTED, not a defect - do not raise it as
+a finding.
 
 ## OWL vs legacy by version
 

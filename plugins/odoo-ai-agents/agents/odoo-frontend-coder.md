@@ -201,7 +201,11 @@ Once green, APPEND your significant decisions to the run worklog - approach take
 
 ## Running a live Odoo for JS tests / tours (isolated)
 
-When a check needs a RUNNING server (browser tours, live hoot/QUnit against a served bundle), do NOT reuse the declared db/port - a concurrent agent or session may hold it. Acquire an isolated instance per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate:
+When a check needs a RUNNING server (browser tours, live hoot/QUnit against a served bundle), you are the code WRITER, not the suite EXECUTOR - keep the server lifecycle and heavy output out of this context (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`):
+
+- **INSTANCE_HANDLE precedence.** If the brief carries an `INSTANCE_HANDLE`, USE IT - run the tour/hoot against that handed-in server; do NOT `odoo-bin -i` and start your own server (a provided handle always wins; self-starting collides on the HTTP port under concurrency).
+- **A full JS suite delegates.** A full tour/hoot/QUnit suite (the server must stay alive across the run, `--http-port` required) is the executor's job: emit `NEEDS_NEXT: odoo-instance` (Continuation Contract, `operation: run-tests`) instead of starting a server here.
+- **No handle, quick smoke only** -> you MAY fall back to an isolated allocator instance for a single quick check. Never reuse the declared db/port - a concurrent agent or session may hold it. Acquire per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate:
 
 ```bash
 eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py acquire --series <version> --mode ephemeral --ports 1)"

@@ -419,16 +419,22 @@ through the whole cycle. Remove a module's child worktree only AFTER that module
 confirmed done (P9 GREEN for that module's batch); a worktree removed before P9 verify would leave
 a Tier-A re-adapt worker `cd`-ing into a deleted path.
 
-**P9 - Verify by behavior [PER-BATCH, in integration].** Resolve odoo-bin flags for the
-TARGET series via `cli_help` before invoking (the allocator returns version-agnostic ports;
-flags differ per series, e.g. v19 namespace bootstrap). Acquire ONE ephemeral instance per
-batch via the allocator (reserves DB name + ports; the `-i` run performs Odoo create-on-init
-and builds the DB; the allocator drops it through Odoo on release), install the N affected modules
-ONCE, run the target suite: RED-then-GREEN for the whole module + confirm-by-toggle for FP-delta
-tests only. Triage each red test as FP-delta vs pre-existing (run it on clean target tip). Never
-relax an assertion to hide a pre-existing failure. Full per-batch + allocator + CREATEDB-role
-protocol (CREATEDB still required - Odoo create-on-init needs the same privilege): `[[fp-merge-absorption]]`.
-Instance lifecycle and test invocation conventions:
+**P9 - Verify by behavior [PER-BATCH, in integration].** DELEGATE the run - do NOT allocate a DB +
+port and run the full suite inline. A full per-batch suite is exactly the case the test-execution
+handoff contract reserves for the executor: its output is large (test log, tracebacks) and would flood
+this orchestrator's context, and running it here folds the executor role into the conductor. SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`. Dispatch `odoo-instance` (via the Skill tool;
+L2 human gate applies) - the same delegation `odoo-modules-upgrade` P5 and `odoo-git-rebase` P10 use:
+provision the cluster ONCE, then per batch dispatch init for the N affected modules followed by
+run-tests of the target suite, relaying the returned `INSTANCE_HANDLE` so later batches reuse the same
+instance instead of self-provisioning (`odoo-instance-ops` resolves odoo-bin flags per series via
+`cli_help`, performs Odoo create-on-init, and drops the DB through Odoo on release). The executor
+returns a structured result block (per-test pass/fail + the instance log path), NOT the raw firehose.
+From that block THIS skill stays the adjudicator of FP intent: RED-then-GREEN for the whole module +
+confirm-by-toggle for FP-delta tests only, triaging each red test as FP-delta vs pre-existing (re-run it
+on clean target tip via the same executor). Never relax an assertion to hide a pre-existing failure.
+Full per-batch + CREATEDB-role protocol (CREATEDB still required - Odoo create-on-init needs the same
+privilege): `[[fp-merge-absorption]]`. Instance lifecycle and test invocation conventions:
 `docs/reference/INSTANCE-LIFECYCLE.md` and `docs/reference/ODOO-TESTING.md`.
 
 **P10 - Gate merge [STOP, per batch].** Emit `merge-log.md`, present it, wait for human-confirm.
@@ -527,8 +533,10 @@ commit may be haiku to EXTRACT but opus to ADAPT if the target re-implementation
 recorded `design_doc`, so a crash between design-approval and re-entry resumes correctly). A
 crash mid-batch is recovered by re-reading the checkpoint + the on-disk `intents/`, `plan.md`,
 and `merge-log.md` (file existence is the source of truth, the JSON is the fast index). Child
-worktrees left dangling by a crash are removed and recreated from integration. Cache any held
-allocator lease token in the batch worklog so a crash can release the DB instead of orphaning it.
+worktrees left dangling by a crash are removed and recreated from integration. Record the executor's
+`INSTANCE_HANDLE` (and its instance log path) in the batch worklog so a resumed run reuses the same
+instance or asks `odoo-instance` to release it instead of orphaning the DB - since P9 delegates the run,
+the instance lifecycle is owned by `odoo-instance-ops`, not held as an allocator lease in this skill.
 
 ## Frontend / i18n / data-XML caveats
 

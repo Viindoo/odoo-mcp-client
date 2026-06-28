@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.33.0] - 2026-06-28
+
+### Added
+
+- New skill `odoo-acceptance`: end-to-end acceptance orchestrator (spawner-agent, instance-touching, L2 gate) that closes a change AND its blast-radius - maps the affected cluster (reverse `impact_analysis` closure -> risk-ranked verify-scope manifest), plans an INDEPENDENT oracle, EXECUTES it on a real running instance/UI across the cluster (CRUD + at least two roles + state transitions + search), and adjudicates PASS/FAIL/UNVERIFIED with evidence. Dispatches `odoo-qa-planner` (oracle) + `odoo-qa-tester` (live execute), runs a durable tour/HttpCase channel via `odoo-test-writing` + `odoo-instance`, and drives a bounded fix-loop via `odoo-debug` / `odoo-coding`.
+- New agent `odoo-qa-planner`: independent acceptance-oracle author - turns a requirement/intent into an immutable `scenarios.md` (GWT, equivalence/boundary, negative paths, role/CRUD/state/search matrices, risk tier per scenario) and STRICTLY never reads the implementation to decide expected values.
+- New agent `odoo-qa-tester`: live acceptance executor - drives the real Odoo UI across the affected cluster and rules each scenario PASS/FAIL/UNVERIFIED with screenshot / console / network evidence; browser-exclusive (serial), reads the oracle read-only, fixes nothing.
+- New snippets: `acceptance-oracle-contract.md` (three-different-contexts anti-bias invariant: oracle author != code author != adjudicator), `acceptance-scope.md` (the blast-radius verify-scope manifest: reverse-closure -> risk rank -> `install_set`/`test_set`/`render_check_set`), and `test-execution-handoff.md` (writer != executor delegation, `INSTANCE_HANDLE` precedence, output-volume contract).
+
+### Changed
+
+- `odoo-qa-suite` re-scoped to STATIC-only release QA - a non-executing release test-plan, a pre-deploy checklist, and bug triage; the independent oracle and live execution/adjudication now route to `odoo-acceptance` (the `qa-suite` workflow, its evals, and the README row marked static/non-executing to match).
+- `odoo-ui-review` / `odoo-ui-reviewer` expanded to ground a screen's structure before checking its render: `module_inspect(method='views')` now also surfaces WHICH view types an action exposes (form/list/kanban/pivot/graph/calendar/activity), and the render-check scope is widened to dependents (blast-radius) per `acceptance-scope.md`. Declares the previously-undeclared `impact_analysis` (Step 1b template/asset-bundle blast radius) and `find_examples` (view-type shape); `docs/odoo-ui-knowledge.md` gains a "grounding a screen's structure" section.
+- `odoo-test-writing` expanded for tour/HttpCase + per-module JS-framework grounding: declares `test_base_classes` (base-class menu + `cr.commit()`-forbidden contract, incl. HttpCase), `find_test_examples` (test-only chunks, no production contamination), and `js_test_inspect` (QUnit vs Hoot mix + suite paths + tour registry). Server floor raised 0.13.1 -> 0.15.0 to cover the test-surface tools.
+- Test-execution delegation retrofit (writer != executor; SSOT `snippets/test-execution-handoff.md`): `odoo-coder`, `odoo-frontend-coder`, and `odoo-code-reviewer` now reuse a passed `INSTANCE_HANDLE` for bounded lint-only runs and delegate any full module / cross-module suite (and browser tours / served-bundle JS) to `odoo-instance` instead of running heavy suites inline.
+- Acceptance wired as an opt-in, L2 (human-gated) next step: `odoo-code-review` and `wave` emit `next: odoo-acceptance` when a change's `render_check_set` reaches beyond the changed modules (dependents bind a changed symbol) or the UI dimension is left `DONE_WITH_CONCERNS`; the `odoo-implement-feature` workflow tail (DESIGN -> CODE -> REVIEW -> ACCEPTANCE) and `odoo-solution-design` route the gate through `run-driver`. Never auto-runs, auto-blocks, or auto-merges.
+- `odoo-intake` routing updated: rows 34 / 47 and disambiguation row 13 distinguish `odoo-acceptance` (execute + adjudicate an oracle on a live instance/UI) from `qa-suite` (static test-plan/checklist doc, nothing run), `odoo-ui-review` (rate one rendered screen), and `odoo-code-review` (static source review).
+- README artifact tables reconciled to the real surface (48 skills + 17 agents): added rows for `odoo-acceptance`, `odoo-qa-planner`, and `odoo-qa-tester`, plus the pre-existing-missing `odoo-forward-port` skill row and `odoo-gap-analyzer` agent row so the counts match `plugin.json`.
+
 ## [3.32.0] - 2026-06-28
 
 ### Added

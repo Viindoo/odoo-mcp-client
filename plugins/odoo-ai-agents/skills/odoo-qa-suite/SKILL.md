@@ -1,19 +1,17 @@
 ---
 name: odoo-qa-suite
 description: >
-  Orchestrate a full QA cycle for an Odoo feature or module in one pass: generate
-  structured test cases from a feature description, produce a pre-deploy QA checklist,
-  and triage open bugs with severity, repro steps, and suspected module. Delegates
-  phases via the Skill tool (odoo-deploy-checklist for checklist; odoo-debug for
-  runtime triage), handles test-gen and bug-triage inline. Trigger on: "write test
-  cases for this feature", "QA checklist before release", "triage this bug", "QA
-  pipeline for this change", "full QA suite", "test plan for this release",
-  "acceptance tests for this module". Also fires on Vietnamese: "viết test case", "checklist
+  Produce a static release QA package for an Odoo feature or module in one pass: generate
+  a structured release TEST-PLAN (test-case table, non-executing), gate on a pre-deploy
+  safety checklist, and triage user-reported bugs with severity, repro steps, and suspected
+  module. Delegates phases via the Skill tool (odoo-deploy-checklist for checklist; odoo-debug
+  for runtime triage), handles test-gen and bug-triage inline. Trigger on: "write test cases
+  for this feature", "QA checklist before release", "triage this bug", "full QA suite",
+  "test plan for this release". Also fires on Vietnamese: "viết test case", "checklist
   QA trước release", "triage bug / phân loại lỗi", "kế hoạch test cho bản phát hành". Do NOT
-  trigger for: pure code review (route to
-  odoo-code-review); a UI rendering defect needing live browser inspection with no
-  triage output (route to odoo-debug directly); pre-deploy mechanical safety gate
-  alone (route to odoo-deploy-checklist directly)
+  trigger for: executing or adjudicating acceptance on a live instance or cluster (route to
+  odoo-acceptance); pure code review (route to odoo-code-review); pre-deploy gate alone
+  (route to odoo-deploy-checklist directly)
 ---
 
 ## Persona
@@ -33,6 +31,7 @@ via the Skill tool to leaf skills; handle work inline only when no leaf skill co
 
 | Topic | Route instead |
 |---|---|
+| Executing or adjudicating acceptance / running tests on a live instance or cluster / behavioral blast-radius cluster verification | `odoo-acceptance` |
 | Pure code review / patch review | `odoo-code-review` |
 | Live UI rendering / layout defect investigation (no triage output needed) | `odoo-debug` (direct) |
 | Pre-deploy gate only (no test-case gen, no bug triage) | `odoo-deploy-checklist` (direct) |
@@ -81,7 +80,18 @@ by existing tests unless the existing test has a known gap flagged by
 
 ---
 
-## Phase 1 - Test-case generation (inline)
+## Phase 1 - Release TEST-PLAN (static, non-executing, inline)
+
+Generate a structured release test-plan table for planning and review. This is a
+STATIC document: the Pass/Fail column is left blank; no tests are executed here. It is
+derived from code structure and coverage gaps - NOT from requirement oracle.
+
+For behavioral acceptance oracle + live execution across the blast-radius cluster,
+dispatch `odoo-acceptance` instead. That skill delegates oracle authoring to
+`odoo-qa-planner`, which derives expected outcomes solely from REQUIREMENT (keeping
+oracle-author separate from code-author per ETHOS #8). The two artifacts are
+complementary: qa-suite Phase 1 = release planning table; qa-planner = immutable
+execution oracle. Do NOT duplicate scenario steps from the oracle into this table.
 
 Generate a structured test suite table:
 

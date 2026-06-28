@@ -1,0 +1,79 @@
+{
+  "skill_name": "odoo-acceptance",
+  "schema_version": "1",
+  "notes": "Evals cover: (1) dispatch - acceptance / execute-on-live-UI / verify-blast-radius intent routes to odoo-acceptance (EN + VI); (2) the anti-collision boundary vs qa-suite (static doc), odoo-ui-review (rate one screen), odoo-code-review (static source); (3) the anti-bias invariant (independent oracle authored from the requirement BEFORE execution; oracle author != code author != adjudicator, ETHOS#8); (4) the evidence-or-UNVERIFIED contract; (5) the live-instance requirement (no live instance + browser -> still produce scope + oracle, then NEEDS_NEXT to odoo-instance, never report ACCEPTED). Each case has a precise expected_behavior so it can fail for the right reason.",
+  "evals": [
+    {
+      "id": 1,
+      "category": "dispatch",
+      "prompt": "Run acceptance for real on the live UI across every module affected by my account.move field change and tell me pass/fail with evidence",
+      "expected_routed_to": "odoo-acceptance",
+      "expected_behavior": "Skill fires. Phase 0 maps the blast-radius cluster (impact_analysis reverse-closure), Phase 1 plans an independent oracle, Phase 2 provisions + executes on a live instance, Phase 3 adjudicates PASS/FAIL with evidence.",
+      "must_not": "Route to qa-suite (static doc) or odoo-code-review (no run).",
+      "tags": ["dispatch", "should-fire-direct", "execute-adjudicate"]
+    },
+    {
+      "id": 2,
+      "category": "dispatch",
+      "prompt": "Nghiem thu cum module bi anh huong sau khi toi sua field, chay that tren UI roi doi chieu ket qua",
+      "expected_routed_to": "odoo-acceptance",
+      "expected_behavior": "Vietnamese execute-and-adjudicate intent (nghiem thu / chay that tren UI). Skill fires; maps blast-radius, plans the oracle, executes on the live UI, adjudicates with evidence.",
+      "must_not": "Route to qa-suite or odoo-ui-review for a cluster execute-and-adjudicate request.",
+      "tags": ["dispatch", "should-fire-direct", "vietnamese"]
+    },
+    {
+      "id": 3,
+      "category": "dispatch",
+      "prompt": "Write acceptance scenarios then run them and verify the blast-radius end-to-end before release",
+      "expected_routed_to": "odoo-acceptance",
+      "expected_behavior": "Plan-then-execute oracle. Skill fires; the planner authors the immutable oracle BEFORE the tester executes it across the affected cluster.",
+      "must_not": "Generate a static test-plan doc without executing it (that is qa-suite).",
+      "tags": ["dispatch", "should-fire-direct", "plan-then-run"]
+    },
+    {
+      "id": 4,
+      "category": "dispatch-boundary",
+      "prompt": "Generate a release test plan and a deploy checklist for the sale module before go-live",
+      "expected_routed_to": "qa-suite",
+      "expected_behavior": "Static release artifacts only (test-plan doc + checklist), nothing executed. odoo-acceptance does NOT fire. Routes to the qa-suite workflow.",
+      "must_not": "Launch the live acceptance loop (provision an instance, drive the UI) for a static-doc request.",
+      "tags": ["dispatch", "should-not-fire", "boundary", "qa-suite-vs-acceptance"]
+    },
+    {
+      "id": 5,
+      "category": "dispatch-boundary",
+      "prompt": "Rate how this rendered invoice form looks - aesthetics and accessibility",
+      "expected_routed_to": "odoo-ui-review",
+      "expected_behavior": "Single-screen quality verdict (read-only). odoo-acceptance does NOT fire - there is no cluster execution or adjudication against an oracle.",
+      "must_not": "Spin up the acceptance cluster loop for a one-screen quality rating.",
+      "tags": ["dispatch", "should-not-fire", "boundary", "ui-review-vs-acceptance"]
+    },
+    {
+      "id": 6,
+      "category": "anti-bias-contract",
+      "prompt": "Acceptance-test my refactor of the discount computation across the affected modules",
+      "expected_routed_to": "odoo-acceptance",
+      "expected_behavior": "The oracle (odoo-qa-planner) derives every expected value from the requirement, computing the discount by hand from the business rule - it does NOT read the implementation to decide expected. The tester (odoo-qa-tester) adjudicates against that immutable oracle in a separate context. Author != coder != adjudicator.",
+      "must_not": "Let the oracle read the implementation and call the code's output 'expected'. Let the tester edit the oracle to match actual.",
+      "tags": ["anti-bias", "ethos-8", "independent-oracle"]
+    },
+    {
+      "id": 7,
+      "category": "evidence-contract",
+      "prompt": "Run acceptance on the leave-approval flow and report each scenario verdict",
+      "expected_routed_to": "odoo-acceptance",
+      "expected_behavior": "A scenario is PASS only when every required-evidence item (screenshot/console/network/record state) is captured and matches the oracle. Missing or unobtainable evidence yields UNVERIFIED, never a default PASS; a UNVERIFIED on a High-tier scenario blocks ACCEPTED.",
+      "must_not": "Mark a scenario PASS without captured evidence, or roll up to ACCEPTED while a High-tier scenario is UNVERIFIED.",
+      "tags": ["evidence", "unverified-not-pass"]
+    },
+    {
+      "id": 8,
+      "category": "standalone-fallback",
+      "prompt": "Acceptance-test the affected cluster - but there is no running instance or browser available",
+      "expected_routed_to": "odoo-acceptance",
+      "expected_behavior": "Skill still produces the Phase 0 scope manifest and the Phase 1 oracle, then emits NEEDS_NEXT -> odoo-instance to provision a live instance + browser; it does NOT report ACCEPTED without live evidence, and only BLOCKS when provisioning is impossible.",
+      "must_not": "Report ACCEPTED with no live execution, or fail entirely instead of emitting the scope + oracle and the NEEDS_NEXT handoff.",
+      "tags": ["standalone-fallback", "needs-next", "no-instance"]
+    }
+  ]
+}

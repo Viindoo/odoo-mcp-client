@@ -17,7 +17,7 @@ flowchart TD
     subgraph client["odoo-mcp-client (MIT)"]
         intake["odoo-intake<br/>front door"]
         wfrunner["workflow-chaining<br/>YAML executor"]
-        skills["odoo-ai-agents<br/>47 skills / 14 agents / 9 commands"]
+        skills["odoo-ai-agents<br/>48 skills / 17 agents / 9 commands"]
         fp["odoo-forward-port<br/>forward-port pipeline"]
         mcp["odoo-semantic-mcp<br/>MCP connection"]
         intake --> wfrunner --> skills
@@ -46,7 +46,7 @@ detailed README - start there for usage, install, and reference:
 
 | Plugin | What it is | README |
 |--------|-----------|--------|
-| **[`odoo-ai-agents`](plugins/odoo-ai-agents/)** | The full Odoo AI workforce toolkit: **47 skills + 14 agents + 9 commands** across 9 personas, plus **12 declarative workflows** and the drive-to-done orchestration harness. Includes instance lifecycle ops (create/drop/init/update/run-tests for any Odoo series v8+). Depends on `odoo-semantic-mcp` (auto-installed). | [README](plugins/odoo-ai-agents/README.md) |
+| **[`odoo-ai-agents`](plugins/odoo-ai-agents/)** | The full Odoo AI workforce toolkit: **48 skills + 17 agents + 9 commands** across 9 personas, plus **12 declarative workflows** and the drive-to-done orchestration harness. Includes instance lifecycle ops (create/drop/init/update/run-tests for any Odoo series v8+). Depends on `odoo-semantic-mcp` (auto-installed). | [README](plugins/odoo-ai-agents/README.md) |
 | **[`odoo-semantic-mcp`](plugins/odoo-semantic-mcp/)** | The thin MCP connection layer: registers the `odoo-semantic` server (**25 tools / 7 resources**) and ships the `/odoo-semantic-mcp:connect` command. Install this alone for raw MCP tools only. | [README](plugins/odoo-semantic-mcp/README.md) |
 | **[`git-toolkit`](plugins/git-toolkit/)** | A domain-agnostic, **Apache-2.0** git + GitHub toolkit for AI agents: one front-door skill (`git-ops`) + 4 agents that run git/github work safely in a delegated context - never losing code, scaling to thousands of files. Depends on the `github` plugin (auto-installed). No Odoo dependency. | [README](plugins/git-toolkit/README.md) |
 

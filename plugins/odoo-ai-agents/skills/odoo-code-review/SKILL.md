@@ -95,11 +95,26 @@ Dispatch one `odoo-code-reviewer` agent per module in `modules[]` from the scope
 
 ### Phase A.5 - Rendered-UI review (conditional, per module)
 
-For each module with `needs_ui_review` (`true` or `candidate`):
+**Widen the render-check scope to dependents first (blast-radius).** Before dispatching, do not bind the render check to the changed modules alone - a changed field/method/view/component also ripples into DEPENDENT modules that `super()`/`xpath`/`inherit` it. Derive the widened set per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (reverse-closure -> risk rank -> affected screens): the `render_check_set` it emits is every screen that binds a changed symbol across the changed modules AND their dependents, each tagged a risk tier (High = deep, Low = smoke). This is still a STATIC code-review pass - it only widens which screens the conditional ui-reviewer covers; it does not itself execute CRUD/role flows. OSM is PRIMARY for the closure; fall back to disk and label it approximate when OSM is unreachable.
+
+For each module with `needs_ui_review` (`true` or `candidate`), plus each dependent module the `render_check_set` flags:
 - **For a `candidate` module**, first read its `<module>.md` and check `ui_review_required`; skip the ui-reviewer dispatch when it is `false` or absent (the reviewer already resolved the Python change is not view-bound).
 - **Resolve an instance.** Read `instance_base_url` from `.odoo-ai/context.md`, else `~/.odoo-ai/instances.toml` (project `./.odoo-ai/instances.toml` is a transitional fallback; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`), and confirm a browser MCP is reachable.
-- **Instance reachable** → dispatch one `odoo-ui-reviewer` (sonnet) scoped to that module's `affected_screens`, briefing `ARTIFACT_DIR: .odoo-ai/reviews/<slug>-<date>/` and `ARTIFACT_FILE: ui-review-<module>.md` (brief template in `references/agent-prompts.md`). These run in parallel; each `ui-review-<module>.md` feeds Phase B synthesis.
-- **No instance / browser unreachable** → do NOT block. Write `ui-review-<module>.md` holding `UI review REQUIRED - no running instance (affected_screens: [...])`, and mark the run `DONE_WITH_CONCERNS` for the UI dimension - surface to the user that an instance is needed to finish the rendered-UI review.
+- **Instance reachable** → dispatch one `odoo-ui-reviewer` (sonnet) scoped to that module's screens from the `render_check_set` (changed-module `affected_screens` plus the dependent screens that bind a changed symbol), briefing `ARTIFACT_DIR: .odoo-ai/reviews/<slug>-<date>/` and `ARTIFACT_FILE: ui-review-<module>.md` (brief template in `references/agent-prompts.md`). These run in parallel; each `ui-review-<module>.md` feeds Phase B synthesis.
+- **No instance / browser unreachable** → do NOT block, and do NOT let the UI dimension drift silently. Write `ui-review-<module>.md` holding `UI review REQUIRED - no running instance (render_check_set: [...])`, mark the run `DONE_WITH_CONCERNS` for the UI dimension, AND emit `next: odoo-acceptance` (see below) so the dependent cluster is verified opt-in rather than skipped.
+
+**Emit the acceptance hand-off (L2, opt-in).** Whenever the `render_check_set` reaches beyond the changed modules (dependents bind a changed symbol) OR the rendered-UI dimension is left `DONE_WITH_CONCERNS` (no instance), add a `next` entry to this skill's Continuation Contract (the same contract carrying `produced[]`):
+
+```
+next:
+  - skill: odoo-acceptance
+    reason: change touches a UI/behavior surface with dependents (render_check_set beyond the changed modules); run blast-radius acceptance over the affected cluster
+    inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: ".odoo-ai/qa/<slug>-scope.md", odoo_version: "<version>"}
+    confidence: 0.7
+    gate_tier: L2
+```
+
+This is opt-in: it surfaces the verdict + the recommended acceptance pass to the run-driver for an L2 (human) gate - it never auto-blocks the review and never auto-runs acceptance. The `scope_hint` is advisory - odoo-acceptance Phase 0 regenerates the verify-scope manifest from the changed set, so the consumer never assumes the file already exists.
 
 ### Phase B - Integration synthesis (OPUS)
 
