@@ -426,9 +426,9 @@ Waiting for your confirmation before proceeding.
 
 **Only after explicit confirmation** (capture the user's exact words as `<approval-text>`):
 
-1. Delegate squash + force-push to **git-operator** using the full `wave-squash-push` recipe
-   from `reference/wave-templates.md` §Squash Tree-Identity Recipe (stale-base guard ->
-   tag backup -> squash -> tree-identity gate -> force-with-lease push, all in ONE dispatch).
+1. Delegate squash + force-push to **git-operator** with `op=squash-push`
+   (full brief schema: `reference/wave-templates.md` §Squash Tree-Identity Recipe; git-toolkit
+   owns the step enumeration - wave passes parameters only, all in ONE dispatch).
    Pass `confirmed: yes - <approval-text>` in the brief. This MUST be the user's verbatim
    approval words - do NOT substitute a machine-generated justification.
 
