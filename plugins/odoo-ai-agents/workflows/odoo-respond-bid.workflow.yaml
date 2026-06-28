@@ -57,12 +57,21 @@ phases:
     skill: odoo-gap-analysis
     nl_trigger: >
       Analyze the gap between the customer's requirements and standard Odoo capabilities
-      using the profile from the discovery-synthesis phase. For each pain point and
-      success criterion, classify as: Standard / Config / Extension / Custom. Estimate
-      effort: S (<3 days) / M (3-10 days) / L (10-30 days) / XL (>30 days). Flag Custom
-      items as "to be quoted separately". Output as a Markdown table with totals row.
+      using the profile from the discovery-synthesis phase. Classify each pain point and
+      success criterion (Standard / Config / Extension / Custom) and estimate effort
+      (S / M / L / XL) per the skill's own classification and effort-tier band definitions.
+      Flag Custom items as "to be quoted separately". Write the locked artifact set and
+      report the run directory path so downstream phases can read it by file path.
     model_tier: sonnet
     gate: "yes / edit / cancel"
+    # Artifact output (locked file-handoff contract; written by odoo-gap-analysis, READ by
+    # capability-proof + objection-preempt + assemble-proposal instead of re-deriving from chat):
+    #   .odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl  - one JSON object per requirement
+    #     {req_id, requirement, coverage, classification, effort_tier, module, grounded, notes}
+    #   .odoo-ai/gap-analysis/<slug>-<date>/gap-report.md     - human matrix + effort totals
+    #   .odoo-ai/gap-analysis/<slug>-<date>/gap-continuation-contract.json - meta.effort_days{min,max}
+    # Downstream phases resolve the path via the run dir reported here, or by globbing the
+    # newest match: .odoo-ai/gap-analysis/*/gap-matrix.jsonl
 
   # ------------------------------------------------------------------
   # Phase 3 - Capability proof
@@ -70,12 +79,15 @@ phases:
   - id: capability-proof
     skill: odoo-capability-proof
     nl_trigger: >
-      For each Standard or Config item in the gap matrix from the gap-analysis phase,
-      provide concrete Odoo capability evidence: module name, relevant model/field,
-      and concrete demo steps (max 3 per item). Batch all Standard/Config items in one
-      consolidated proof list. For Extension items, note that code evidence is available
-      on request. Custom items: list them with the note "to be quoted separately in
-      commercial proposal". Odoo version: use .odoo-ai/context.md if available, else ask.
+      Read the gap matrix produced by the gap-analysis phase from its
+      .odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl artifact (the run dir reported by
+      that phase, or the newest .odoo-ai/gap-analysis/*/gap-matrix.jsonl) and cite the path.
+      For each row whose classification is Standard or Config, provide concrete Odoo
+      capability evidence: module name, relevant model/field, and concrete demo steps (max 3
+      per item). Batch all Standard/Config items in one consolidated proof list. For
+      Extension rows, note that code evidence is available on request. Custom rows: list them
+      with the note "to be quoted separately in commercial proposal". Odoo version: use
+      .odoo-ai/context.md if available, else ask.
     model_tier: sonnet
     gate: "yes / iterate / cancel"
 
@@ -85,11 +97,14 @@ phases:
   - id: objection-preempt
     skill: odoo-objection-handling
     nl_trigger: >
-      Based on the raw prospect input and gap matrix, anticipate 2-3 likely objections
-      from the prospect. For each objection: acknowledge the concern, provide concrete
-      Odoo evidence, propose a de-risk next step. Tone calibrated to: {contact_role}.
-      Common archetypes to consider: missing enterprise feature, data residency/compliance,
-      TCO vs current solution, data migration risk, local support availability.
+      Based on the raw prospect input and the gap matrix at
+      .odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl (the run dir reported by the
+      gap-analysis phase, or the newest .odoo-ai/gap-analysis/*/gap-matrix.jsonl; cite the
+      path), anticipate 2-3 likely objections from the prospect. For each objection:
+      acknowledge the concern, provide concrete Odoo evidence, propose a de-risk next step.
+      Tone calibrated to: {contact_role}. Common archetypes to consider: missing enterprise
+      feature, data residency/compliance, TCO vs current solution, data migration risk, local
+      support availability.
     model_tier: sonnet
     gate: "yes / edit / cancel"
 
@@ -103,10 +118,11 @@ phases:
     # Structure:
     #   1. Cover letter (1 paragraph, addressed to contact_role)
     #   2. Executive summary (pain points + proposed solution)
-    #   3. Gap matrix table (Phase 2 output, Markdown)
+    #   3. Gap matrix table - read from the gap-analysis run dir gap-report.md
+    #      (.odoo-ai/gap-analysis/<slug>-<date>/gap-report.md), not from chat
     #   4. Capability evidence list (Phase 3 output, grouped by module)
     #   5. Anticipated objection responses (Phase 4 playbook, inline)
-    #   6. Roadmap and cost tier (S/M/L weeks from gap matrix; NO currency figures)
+    #   6. Roadmap and cost tier (S/M/L effort_tier from gap-matrix.jsonl; NO currency figures)
     #   7. Next steps (CTA: book demo / technical workshop / commercial proposal)
     # Extension/Custom items: "Custom development items will be quoted separately
     # after technical scope confirmation."

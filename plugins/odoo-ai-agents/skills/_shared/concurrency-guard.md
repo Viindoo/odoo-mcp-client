@@ -29,6 +29,28 @@ Used by: odoo-coding (subagent weighted batches), wave.
 If an OOM recurs under Mode B, lower BUDGET to 6 here (one place) - do not patch
 individual skills.
 
+## Model-tier selection - complexity drives the tier (SSOT)
+
+Mode B caps how many run at once; THIS decides which tier each work-item gets.
+Every skill/agent that dispatches a subagent sets the launch `model` from the
+dispatched work's complexity - the agent's frontmatter `model:` is only a default
+that the dispatcher overrides per launch. Pick by the REASONING DEPTH the work
+needs, never by wall-clock time.
+
+| tier | pick when the work is | examples |
+|------|-----------------------|----------|
+| **haiku** | mechanical, low-reasoning, fully bounded - a recipe with no judgement | one field/label/CSV row; copy a known pattern; collect/format already-known facts; a single small file |
+| **sonnet** (default) | medium reasoning, balanced - and the ambiguous-case default | normal computed/onchange/constraint; one override; a bounded analysis cluster; anything you cannot confidently place |
+| **opus** | heavy reasoning OR large scope - cross-cutting judgement, wide blast radius | core create/write/unlink override; cross-model / multi-company logic; large or high-dependency target; cross-cluster synthesis |
+| **fable** | ultra-complex, design-first - rare top band (~2x opus); ALWAYS needs explicit human confirmation | Custom-XL whole-subsystem build; change an inheritance axis across modules |
+
+Principle: haiku is fast but only earns its speed on mechanical work; opus is
+strong but slow and expensive on small work; sonnet balances the two and is the
+default when unsure; fable is never a default. Between two tiers, pick the lower
+unless the work needs cross-context reasoning - then pick the higher. A skill MAY
+add a domain-specific tier table that refines these rows (e.g. `odoo-coding`
+§ Phase 0) but MUST NOT restate the principle - reference this section.
+
 ## OSM version-pin race
 
 `set_active_version` is server-side state scoped to the API KEY, not to the

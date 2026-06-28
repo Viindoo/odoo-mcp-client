@@ -331,6 +331,21 @@ A request spanning backend **and** frontend (e.g. "add a `priority` field **and*
 
 A coding request (`odoo-coding`) is NOT automatically the first step. When the change is **non-trivial** (Extension-L/Custom-XL, new module/model, a core ORM-hook override or ≥3-override-chain method, a multi-strategy migration, a cross-model/multi-company computed chain, a full-stack feature, or any refactor), plan `odoo-solution-design` BEFORE the coder: `odoo-solution-design → odoo-coding → odoo-code-review` (exactly the `odoo-implement-feature` workflow - prefer it for the full chain, driven by Phase P). Design is a planning step (writes only `.odoo-ai/designs/`), human-approved FIRST, then Plan Mode wraps the code step. **Trivial** work (a single field, boilerplate, a one-approach localized fix) skips design and routes straight to `odoo-coding`.
 
+## Scope-first rule - establish scope/effort before designing
+
+`odoo-solution-design` designs HOW to build a KNOWN scope; it is NOT the first step when scope or
+effort is unestablished. When the user asks to DESIGN / architect a solution but no scope exists yet
+(no prior gap/BRL run, an open-ended or unclassified requirement set, "design a solution for these
+requirements"), route `odoo-gap-analysis` FIRST - or `odoo-brl` at hundreds-of-items / cost+DAG scale -
+then design: `odoo-gap-analysis → odoo-solution-design → odoo-coding → odoo-code-review`. The gap run
+classifies each requirement + effort tier and emits `gap-continuation-contract.json`
+(`meta.has_nontrivial`), which decides whether a design step is even needed.
+
+**Reuse a prior gap run.** In Phase 0 / Phase R, glob `.odoo-ai/gap-analysis/*/gap-matrix.jsonl`. If a
+run exists, surface it in the Proposed Plan (path + date) and offer to REUSE it: skip a fresh gap run
+and feed that artifact straight to `odoo-solution-design` (it reads either a gap-matrix or a BRL RTM).
+Re-run gap-analysis only if the requirements changed since.
+
 ## Collision zones - when the Routing Table tie is close
 
 The Routing Table's **Discriminator** column resolves most ties inline. **When the candidate is one of the pairs below and the inline discriminator is not decisive, read `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/collision-zones.md`** for the canonical resolution logic.

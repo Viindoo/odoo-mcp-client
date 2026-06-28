@@ -168,6 +168,8 @@ EE license is required>
 
 **Effort legend (for via-Extension and No rows):** S = <1d - M = 1-3d - L = 3-10d - XL = >10d
 
+**Effort source:** When a costed gap matrix already exists, read effort per requirement from `.odoo-ai/gap-analysis/*/gap-matrix.jsonl` (the `effort_tier` keyed by `req_id`, produced by `odoo-gap-analysis`) and cite the path, rather than re-deriving day-counts from chat.
+
 **Worked examples:** `${CLAUDE_PLUGIN_ROOT}/skills/odoo-rfp-response/references/examples.md`
 
 ## Continuation Contract

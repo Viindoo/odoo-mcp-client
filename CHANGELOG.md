@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.32.0] - 2026-06-28
+
+### Added
+
+- New agent `odoo-gap-analyzer`: the leaf worker that runs heavy gap analysis for one requirement cluster in its own context (keeping the main / team-leader context clean). OSM-first -> local-checkout 2-tier grounding (training-only grounding banned; rows that cannot be grounded are marked `grounded:unknown` / `BLOCKED`), and it writes a machine-readable findings file per cluster.
+- SSOT for complexity -> model-tier selection added to `skills/_shared/concurrency-guard.md` (the haiku / sonnet / opus / fable principle); the gap-analysis agent, skill, and callers reference it instead of hardcoding a model.
+
+### Changed
+
+- `odoo-gap-analysis` upgraded from an inline leaf into a spawner-agent orchestrator: it clusters requirements by functional area, fans out `odoo-gap-analyzer` workers (rolling-window, model chosen per cluster complexity), synthesizes and de-duplicates findings from disk, and emits a locked file-handoff artifact set under `.odoo-ai/gap-analysis/<slug>-<date>/` (`gap-report.md`, `gap-matrix.jsonl`, `gap-continuation-contract.json`).
+- Wired the gap-analysis file-handoff into its downstream consumers: `odoo-solution-design` and `odoo-solution-architect` (new `GAP_MATRIX` input port), `odoo-pricing-proposal` and `odoo-rfp-response` (effort read from `gap-matrix.jsonl`), the `odoo-respond-bid` and `odoo-implement-feature` workflows (explicit file-path chaining), `odoo-brl` (seed / cross-check from `gap-matrix`), and `odoo-intake` (scope-first routing: gap before design).
+
 ## [3.31.2] - 2026-06-28
 
 ### Changed

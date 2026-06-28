@@ -25,25 +25,27 @@ phases:
   - id: scope
     skill: odoo-gap-analysis
     nl_trigger: >
-      Classify the requirement into Standard / Config / Extension / Custom with an effort
-      estimate (S/M/L/XL) per item, grounded via OSM. Then surface a single boolean key
-      `has_nontrivial` in your output: true if ANY item is Extension-L or Custom-XL (or a new
-      module, a core create/write/unlink override, a schema migration, a cross-model computed
-      chain, a full-stack feature, or a refactor); false if every item is a one-approach
-      Standard/Config/Extension-M change.
+      Classify the requirement(s) into Standard / Configuration / Extension / Custom with an
+      S/M/L/XL effort tier per item, grounded via OSM, and emit the locked gap-analysis artifacts
+      under .odoo-ai/gap-analysis/<slug>-<date>/: gap-matrix.jsonl (machine SSOT), gap-report.md
+      (human deliverable), and gap-continuation-contract.json. The downstream branch reads
+      `meta.has_nontrivial` from gap-continuation-contract.json - true if ANY item is extension or
+      custom (a new module, a core create/write/unlink override, a schema migration, a cross-model
+      computed chain, a full-stack feature, or a refactor); false if every item is a one-approach
+      standard/config change.
     model_tier: sonnet
     gate: "approve / refine: [feedback] / cancel"
 
 on_complete:
-  - when: "has_nontrivial == true"
+  - when: "meta.has_nontrivial == true"
     next: odoo-solution-design
-    reason: "non-trivial items need a designed-and-approved solution (approach / data model / override strategy / module structure) before any code is written; design then chains to coding and review via the run-driver"
-    inputs: {scope: "${output_dir}/implement-scope.md"}
+    reason: "non-trivial items (extension/custom) need a designed-and-approved solution (approach / data model / override strategy / module structure) before any code is written; design then chains to coding and review via the run-driver"
+    inputs: {gap_matrix: ".odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl", gap_report: ".odoo-ai/gap-analysis/<slug>-<date>/gap-report.md"}
     gate_tier: L1
-  - when: "has_nontrivial == false"
+  - when: "meta.has_nontrivial == false"
     next: odoo-coding
-    reason: "all items are one-approach trivial changes; skip the design step and code directly, then review"
-    inputs: {scope: "${output_dir}/implement-scope.md"}
+    reason: "all items are one-approach trivial (standard/config) changes; skip the design step and code directly, then review"
+    inputs: {gap_matrix: ".odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl", gap_report: ".odoo-ai/gap-analysis/<slug>-<date>/gap-report.md"}
     gate_tier: L1
 
 resume: true
