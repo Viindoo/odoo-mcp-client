@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **47 skills + 14 agents + 9 commands**, grouped into **9 persona
+> The Odoo AI workforce toolkit: **48 skills + 17 agents + 9 commands**, grouped into **9 persona
 > buckets**, plus **12 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, instance provisioning, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
@@ -44,7 +44,7 @@ code carry-over), merge-keep-SHA strategy, symbol-survival checking, pre-adapt d
 adaptive test forwarding, and verify-by-behavior per batch. It runs alongside coding, code
 review, and upgrade planning as a core engineering capability.
 
-> **Counts at a glance:** this plugin ships **47 skills + 14 agents + 9 commands**, grouped into
+> **Counts at a glance:** this plugin ships **48 skills + 17 agents + 9 commands**, grouped into
 > **9 persona buckets** for navigation, plus **12 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
@@ -252,7 +252,7 @@ that up and chains the next step across workflows automatically.
 | `odoo-plan-upgrade` | Comprehensive upgrade plan | `.odoo-ai/upgrade-plans/` |
 | `odoo-position-feature` | Positioning copy for marketing and sales | `.odoo-ai/positioning/` |
 | `discovery-pipeline` | Synthesize and structure discovery notes | `.odoo-ai/discovery/` |
-| `qa-suite` | Generate test cases, QA checklist, bug triage | `.odoo-ai/qa/` |
+| `qa-suite` | Static release test-plan + QA checklist + bug triage (non-executing; live acceptance/oracle -> `odoo-acceptance`) | `.odoo-ai/qa/` |
 | `support-triage` | Classify + root-cause + draft resolution for a support ticket | `.odoo-ai/support/` |
 | `video-produce` | Multi-scene Odoo demo video (storyboard -> record -> assemble) | `.odoo-ai/video/` |
 | `sales-closing-cycle` | Late-stage sales cycle: objection handling + closing steps | `.odoo-ai/sales/` |
@@ -605,7 +605,7 @@ Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression
 
 ### Frequently asked questions
 
-**I only need one skill - do I have to know all 47?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `odoo-intake` acts as a brainstorm partner when you are not sure which skill to use.
+**I only need one skill - do I have to know all 48?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `odoo-intake` acts as a brainstorm partner when you are not sure which skill to use.
 
 **What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by reading your local codebase and `.odoo-ai/context.md` directly (Read/Grep/WebFetch, three-tier grounding) instead of asking you to paste data; if a browser is genuinely unreachable a visual skill returns BLOCKED rather than requesting screenshots. The plugin does not break when OSM is offline.
 
@@ -695,7 +695,7 @@ There are two distinct loading mechanisms for shared context:
 | `snippets/upg-conventions.md` | Viindoo upgrade + module-rename conventions (Viindoo Standard/Internal profile, OSM-gated): keeping the manifest `version` unchanged on a code-level upgrade; a renamed module's `__manifest__.py` must carry `old_technical_name` so Viindoo tooling can map the old name to the new one; does not replace OpenUpgrade DB-level rename (consumed by `odoo-coder`, `odoo-code-reviewer`) |
 | `skills/_shared/odoo-module-graph.md` | The Odoo module DAG (from each `__manifest__.py` `depends`), shared by `odoo-coding` and `wave` so both dispatch in dependency order and respect module boundaries |
 
-### Skills (47)
+### Skills (48)
 
 Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 
@@ -715,6 +715,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-perf-audit` | Engineer | Audit for N+1 queries, missing prefetch, unindexed domains, compute thrash, with fixes |
 | `odoo-git-rebase` | Engineer | Rebase a feature branch onto another branch of the SAME Odoo series, absorbing intent (not code text) via whole-range `git rebase --onto`. |
 | `odoo-modules-upgrade` | Engineer | Upgrade a custom module cluster from a lower Odoo major to a higher one (code-level): drop what core now provides, adapt the rest, 1 PR per cluster. |
+| `odoo-forward-port` | Engineer | Forward-port fixes/features from a lower Odoo series up to a higher one as an intent-first pipeline (parallel intent sweep -> 4-outcome classify -> installable probe -> SHA-preserving merge -> symbol-survival check -> test-first adapt -> verify-by-behavior -> PR); two human STOP-gates bound the automation |
 | `odoo-solution-design` | Architect / Coder | Design the technical solution (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding - the analysis-and-design step between requirement scoping and code; supports master-child decomposition for large multi-module scope (slim, paired with agent bundle) |
 | `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, assigns a deterministic model tier per module (haiku/sonnet/opus/fable, sonnet default), and dispatches the `odoo-coder` + `odoo-frontend-coder` agents as subagents in model-weighted batches (per-module backend->frontend, model-weighted concurrency budget); orders modules by the shared module DAG, orchestrates red-first test authorship before each non-trivial module's code, and feeds the `code -> review+test -> code` loop (slim, paired with agent bundle) |
 | `odoo-frontend-design` | Architect / Coder / Visual | Knowledge-only design-quality expertise for Odoo UI/UX (view-type choice, form hierarchy, density, semantic tokens, website/portal theming); loaded by `odoo-solution-design` and `odoo-coding`, and the bar `odoo-ui-review` rates against (no agent spawn) |
@@ -743,12 +744,13 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-visual-regression` | Coder / Visual | Screenshot baseline + diff between two Odoo states (before/after upgrade, module install, theme change) with blast-radius assessment |
 | `odoo-demo-recording` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
 | `odoo-doc-illustration` | Marketer / Visual | Thin spawner - captures live Odoo screenshots into `static/description/` or a cluster docs dir; MODE module|cluster, DOC LAYER appstore|userguide|both, multi-locale, convention-detect; dispatches `odoo-doc-illustrator` |
-| `odoo-qa-suite` | Coder / Visual | Full QA pipeline - generate structured test cases, produce a pre-deploy checklist, and triage bugs with severity classification and reproduction steps |
+| `odoo-qa-suite` | Coder / Visual | Static release QA - produce a non-executing release test-plan, a pre-deploy checklist, and bug triage with severity + reproduction steps; the independent acceptance oracle and live execution/adjudication route to `odoo-acceptance` |
+| `odoo-acceptance` | Coder / QA | End-to-end acceptance on a change AND its blast-radius - map the affected cluster, plan an INDEPENDENT oracle, then EXECUTE it on a real running instance/UI and adjudicate PASS/FAIL with evidence; dispatches `odoo-qa-planner` (oracle) + `odoo-qa-tester` (live execute) and chains tours/HttpCase via `odoo-instance` (needs a live instance + browser MCP) |
 | `workflow-chaining` | Internal (harness) | Generic declarative workflow executor - reads `*.workflow.yaml` and runs gated phase sequences; invoked by odoo-intake via NL-dispatch, not directly by users |
 | `run-driver` | Internal (harness) | Orchestrating drive-to-done loop - walks the `run-<id>.json` plan, dispatches each work-item, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent |
 | `wave` | Internal (orchestration) | Git-wave orchestration (orchestrating context) - integration branch + WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate + human-confirm merge; computes the Odoo module DAG at Phase 0 to auto-infer work-item `depends_on` and warn on module-boundary-crossing WIs; self-spawning, principal-branch-locked |
 
-### Agents (14)
+### Agents (17)
 
 | Agent | Model (default) | Role |
 |-------|-----------------|------|
@@ -766,6 +768,9 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-instance-ops` | Sonnet | Instance lifecycle specialist dispatched by the `odoo-instance` skill - provisions, drives, and tears down Odoo instances for any series (v8+); learns each version's CLI at runtime via OSM `cli_help`; prefers creating and dropping databases through Odoo (`odoo_db.py` / `odoo-bin db drop`) over raw `createdb`/`dropdb`; returns structured metadata (db name, log path, ports, lease token) so callers keep clean context |
 | `odoo-doc-illustrator` | Sonnet | Browser-driven visual documentation specialist dispatched by `odoo-doc-illustration` - navigates live Odoo, captures screenshots, writes illustrated module docs (`static/description/` or cluster docs dir); multi-locale; reads `doc_image_naming`/`doc_languages`/`doc_static_dir` from context.md |
 | `odoo-diff-comparator` | Sonnet | Read-only: reads a git-diff range and emits a structured business-intent / expected-outcome / acceptance-criteria comparison (rebase: branch vs base; upgrade: custom vs core). |
+| `odoo-gap-analyzer` | Sonnet | Gap-analysis leaf dispatched by `odoo-gap-analysis` (one per requirement cluster) - classifies each requirement against standard Odoo (coverage full/partial/none, classification standard/config/extension/custom, effort tier S/M/L/XL) grounded in OSM first and the local checkout as fallback, then writes a machine-readable findings file; read-only on source, does not design or write code |
+| `odoo-qa-planner` | Sonnet | Independent acceptance-oracle author dispatched by `odoo-acceptance` (P1) and `odoo-coding` (P0 pre-code TDD) - turns a requirement/intent into an immutable `scenarios.md` (GWT, equivalence/boundary, negative paths, role/CRUD/state/search matrices, risk tier per scenario) WITHOUT reading the implementation to decide expected values; read-only, does not run or adjudicate |
+| `odoo-qa-tester` | Sonnet | Live acceptance executor dispatched by `odoo-acceptance` (P2b) - drives the real Odoo UI across the affected cluster (CRUD, two-plus roles, state transitions, search) and rules each scenario PASS/FAIL/UNVERIFIED with screenshot/console/network evidence; browser-exclusive (serial), reads the oracle read-only, does not modify it or fix code |
 
 ## Requirements
 

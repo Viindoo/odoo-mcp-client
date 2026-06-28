@@ -335,11 +335,13 @@
         "suggest_pattern",
         "lint_check",
         "set_active_version",
-        "api_version_diff"
+        "api_version_diff",
+        "find_examples",
+        "impact_analysis"
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Rendered-UI review (aesthetics/functional/stability/a11y/performance). Browser MCP (chrome-devtools) captures the live screen; OSM grounds findings in code. Tool list synced to companion agent agents/odoo-ui-reviewer.md."
+      "notes": "Rendered-UI review (aesthetics/functional/stability/a11y/performance). Browser MCP (chrome-devtools) captures the live screen; OSM grounds findings in code. find_examples shows how a given view type is typically structured (Step 1b screen-shape recon); impact_analysis maps the template/asset-bundle inheritance blast radius so a finding names what a fix could break elsewhere. Tool list synced to companion agent agents/odoo-ui-reviewer.md. find_examples (v0.1.0) + impact_analysis (v0.1.0) are core tools below the 0.7.0 stylesheet floor, so the floor is unchanged."
     },
     "odoo-version-diff": {
       "mcp_tools": [
@@ -394,11 +396,14 @@
         "set_active_version",
         "model_inspect",
         "find_examples",
-        "lookup_core_api"
+        "lookup_core_api",
+        "test_base_classes",
+        "find_test_examples",
+        "js_test_inspect"
       ],
-      "min_server_version": "0.13.1",
+      "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Writes executable Odoo test files (TransactionCase/Form or Hoot/QUnit per version); tests protect business behavior, not current code."
+      "notes": "Writes executable Odoo test files (TransactionCase/Form or Hoot/QUnit per version); tests protect business behavior, not current code. test_base_classes resolves the correct base class + cr.commit()-forbidden contract per version (incl. HttpCase for tour/url_open); find_test_examples returns test-only chunks (no production contamination) for the grounded pattern; js_test_inspect confirms the per-module JS framework mix (QUnit vs Hoot) + suite paths + tour registry before any JS/tour test is emitted. min_server 0.15.0 for the test-surface tools."
     },
     "odoo-security-audit": {
       "mcp_tools": [
@@ -543,6 +548,15 @@
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
       "notes": "Cross-major cluster upgrade orchestrator (full delegation; CODE-LEVEL, no data migration): validate_depends + module_inspect(dependencies) build the topo DAG; subagents compare custom-vs-core and adapt; reuses odoo-deprecation-audit + odoo-version-diff (recon), odoo-gap-analysis (core-absorption), odoo-coding (adapt), odoo-instance (install/test), and the plugin review capability (PR). Module wholly absorbed -> delete + record reason. cli_help grounds per-target odoo-bin flags. min_server 0.15.0."
+    },
+    "odoo-acceptance": {
+      "mcp_tools": [
+        "set_active_version",
+        "impact_analysis"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Acceptance orchestrator (spawner-agent) - stays light on tools: set_active_version pins the series once (also a reachability probe) and impact_analysis grounds the Phase 0 verify-scope manifest via reverse-closure blast radius. Deep structural grounding happens inside the dispatched agents (odoo-qa-planner / odoo-qa-tester), not here; live execution runs against a real instance + browser MCP (not OSM). min_server 0.6.0 for set_active_version (impact_analysis is version_added 0.1.0 in the surface)."
     }
   },
   "agents": {
@@ -605,6 +619,27 @@
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": "Instance lifecycle leaf agent: learns per-version odoo-bin CLI flags at runtime via cli_help; set_active_version pins the target series; list_available_versions used for version resolution when target is vague. Does NOT call OSM for code-structure queries - only for CLI surface discovery."
+    },
+    "odoo-qa-planner": {
+      "mcp_tools": [
+        "set_active_version",
+        "model_inspect",
+        "entity_lookup",
+        "module_inspect"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Acceptance oracle author (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup / module_inspect confirm that the fields, views, labels, state values, and role groups its scenarios reference actually EXIST for the version. OSM is STATIC - used only to keep the oracle well-formed, NEVER to infer the business expected (that comes from the requirement). min_server 0.6.0 for set_active_version."
+    },
+    "odoo-qa-tester": {
+      "mcp_tools": [
+        "set_active_version",
+        "model_inspect",
+        "entity_lookup"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Live acceptance executor (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup confirm a screen's real fields/views/labels/state values before driving it. OSM is STATIC structural grounding only; live record values come from the running instance + browser MCP (and a live Odoo MCP exposing read_record/search_records), not OSM. min_server 0.6.0 for set_active_version."
     }
   },
   "orchestration": {
@@ -1071,6 +1106,21 @@
         "github-operator (P7 PR review + creation - delegated to git-toolkit)"
       ],
       "stack": "fullstack",
+      "instance_touching": true,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L2"
+    },
+    "odoo-acceptance": {
+      "spawn_class": "spawner-agent",
+      "spawns": [
+        "odoo-qa-planner (P1 independent-oracle author)",
+        "odoo-qa-tester (P2b live execute + adjudicate; browser-serial, one at a time)",
+        "odoo-ui-reviewer (optional per-screen quality verdict in the P2b serial slot)",
+        "odoo-test-writing (P2a durable tour/HttpCase channel, via Skill tool)",
+        "odoo-instance (P2 provision the co-installed cluster + run durable tests, via Skill tool)",
+        "odoo-debug / odoo-coding (P3 fix-loop on FAIL, via Skill tool)"
+      ],
+      "stack": "none",
       "instance_touching": true,
       "output_mode": "writes-files",
       "default_gate_tier": "L2"

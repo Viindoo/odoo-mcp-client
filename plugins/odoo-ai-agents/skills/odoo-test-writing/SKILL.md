@@ -7,11 +7,11 @@ description: >
   across major Odoo versions (adapt mode): strips implementation-coupled assertions, maps
   renamed APIs via OSM, confirms RED on target before production code is adapted. Grounds
   every test via OSM MCP calls. Fire on: test coverage, CI protection, behavioral
-  documentation, or forward-port test translation. Vietnamese: "viết test cho model", "test
+  documentation, forward-port test translation, or tour/HttpCase. Vietnamese: "viết test cho model", "test
   unit cho computed field", "bao phủ ràng buộc bằng test", "test hành vi nghiệp vụ Odoo",
-  "dịch test sang version mới", "forward test khi forward-port", "viết test JS Hoot".
-  Scope: new test files + adapt existing tests for forward-port; static review use
-  odoo-code-review; runtime errors use odoo-debug
+  "dịch test sang version mới", "forward test khi forward-port", "viết test JS Hoot",
+  "viết tour Odoo", "viết HttpCase". Scope: new test files + adapt existing tests for
+  forward-port; static review use odoo-code-review; runtime errors use odoo-debug
 model: inherit
 ---
 
@@ -26,18 +26,20 @@ QA Engineer / backend developer writing automated tests for Odoo, all supported 
 - **Debugging a test that fails at runtime on a live instance** - use `odoo-debug`
 - **Upgrade-safety audit** - use `odoo-deprecation-audit`
 - **Performance / load tests** - out of scope for this skill
+- **Running the test suite (including tour/HttpCase)** - execution is delegated via NEEDS_NEXT to `odoo-instance`; authoring (Rounds 0-4) is always in scope regardless of instance availability
 
 > Translating existing tests across major versions (adapt mode) IS in scope - see "Adapt mode" below.
 
 ## When to use
 
-Three modes, all governed by the red-before-green contract (`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`):
+Four modes, all governed by the red-before-green contract (`${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`):
 
 - **Test-first (before the code).** Inside the `odoo-coding` loop, a non-trivial module's failing test is authored HERE first - independent from the coder - so the test specifies intended behavior and the coder implements to green. This is the primary, highest-value mode.
 - **Coverage (after the code).** Backfill behavior-protecting tests for existing code - the `odoo-code-review` test-coverage gate routes here when a CRITICAL/HIGH change ships with no protecting test.
 - **Adapt (forward-port test translation).** Translate an existing test file from a source Odoo version to a target version: strip implementation-coupled assertions, map renamed/removed APIs via OSM, confirm the translated test is RED on the target before production code is adapted. Invoked by the forward-port pipeline (P4a of `odoo-forward-port`) or directly by the user with a source test file + version pair.
+- **Tour/HttpCase (full-stack UI acceptance).** Write a JS tour registered in `web_tour.tours` (or the version-appropriate registry) driven by a Python `HttpCase.start_tour(...)`. Decorate with `@tagged('post_install', '-at_install')`. Use when: requirement-level acceptance flows span multiple real browser steps requiring an actual HTTP server; oracle scenarios from `odoo-qa-planner` call for browser-level state verification. When NOT to use: if no browser interaction is needed, use `TransactionCase`/`Form` (faster, no HTTP server required); if testing a JS unit with mocked models, use Hoot (Hoot does not start a server and cannot drive a real browser session). Tour/HttpCase authoring (Rounds 0-4) proceeds without a live instance; execution requires `--http-port` and MUST be delegated per `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 
-Use when the user wants: test coverage for a model/computed field/constraint/onchange/wizard; a test guarding a named business rule; JS Hoot or QUnit tests for an OWL component; a test file droppable into `tests/` and runnable with `odoo-bin -i <module> --test-enable`; the failing test a coder will implement to green; or a source test translated to a target version for forward-port.
+Use when the user wants: test coverage for a model/computed field/constraint/onchange/wizard; a test guarding a named business rule; JS Hoot or QUnit tests for an OWL component; a test file droppable into `tests/` and runnable with `odoo-bin -i <module> --test-enable`; the failing test a coder will implement to green; a source test translated to a target version for forward-port; or a JS tour + HttpCase file for full-stack UI acceptance.
 
 ## Method
 
@@ -47,13 +49,15 @@ Call `set_active_version('<version>')`. Resolve from `.odoo-ai/context.md` first
 
 ### Round 1 - framework selection (OSM-grounded)
 
-- **Python (all versions):** `TransactionCase` (rolls back after each test); `Form` helper (v13+) for UI-level interactions. Tag with `@tagged('post_install', '-at_install')` or `@tagged('at_install')`. Call `test_base_classes(odoo_version='<version>')` FIRST - this tool always surfaces the full base class menu (TransactionCase, SavepointCase, HttpCase, Form, SingleTransactionCase) with their PP3 contract: **`cr.commit()` FORBIDDEN - isolation is savepoint rollback**. Drill into the chosen class with `test_base_classes(odoo_version='<version>', name='TransactionCase')` for its setUp behavior (savepoint per method) and home module if more detail is needed - do NOT use `lookup_core_api` for test base classes; it indexes core ORM/API symbols only and returns not-found for them (the import is the standard `from odoo.tests import TransactionCase`).
+- **Python (all versions):** `TransactionCase` (rolls back after each test); `Form` helper (v13+) for UI-level interactions. Tag with `@tagged('post_install', '-at_install')` or `@tagged('at_install')`. Call `test_base_classes(odoo_version='<version>')` FIRST - this tool always surfaces the full base class menu (TransactionCase, SavepointCase, HttpCase, Form, SingleTransactionCase) with their PP3 contract: **`cr.commit()` FORBIDDEN - isolation is savepoint rollback**. Drill into the chosen class with `test_base_classes(odoo_version='<version>', name='TransactionCase')` for its setUp behavior (savepoint per method) and home module if more detail is needed - do NOT use `lookup_core_api` for test base classes; it indexes core ORM/API symbols only and returns not-found for them (the import is the standard `from odoo.tests import TransactionCase`). For **`HttpCase`** specifically: call `test_base_classes(odoo_version='<version>', name='HttpCase')` to confirm its contract on the target version - it extends `TransactionCase` and adds a threaded HTTP server plus `start_tour(tour_name, login='admin', ...)`. The `cr.commit()` FORBIDDEN rule still applies; the HTTP layer is separate from ORM savepoint isolation. Use `HttpCase` ONLY when the test exercises a tour or `url_open` endpoint - never for pure model/field/constraint logic. Running `HttpCase` requires `--http-port`; delegate execution per `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 - **JS (all versions) - procedure (state once):** ALWAYS call `js_test_inspect(module='<module>', odoo_version='<version>')` FIRST to confirm the exact framework mix, suite paths, describe blocks, and mock_models convention (framework varies per module/version), THEN call `find_test_examples(...)` for concrete test-only examples matching the confirmed framework. Per-version framework + example query:
   - **JS v16 and earlier:** QUnit / `odoo.define`; `find_test_examples(query='QUnit test odoo.define', odoo_version='<version>')`.
   - **JS v17:** QUnit dominant (some modules hybrid); same QUnit query.
   - **JS v18+:** Hoot dominant (`import { describe, test, expect } from "@odoo/hoot"`), QUnit legacy in some modules; `find_test_examples(query='Hoot describe test expect', kind='js', odoo_version='<version>')`. Do NOT use `lookup_core_api` for JS frameworks like Hoot; it indexes Python core API only and returns not-found.
 
 Never assume same JS import paths between major versions - always call OSM. Never assume JS framework without calling `js_test_inspect` first: the framework mix varies by module and version (QUnit dominant v16-v17; Hoot dominant v18+, QUnit legacy still present). Do NOT hardcode "v17=Hoot" - `js_test_inspect` is the authoritative source per module.
+
+- **JS tour (all versions):** Tours live in `static/tours/<name>.js` and register via `registry.category('web_tour.tours').add(...)` (v16+; earlier series used different registry paths - always ground). ALWAYS call `js_test_inspect(module='web_tour', odoo_version='<version>')` FIRST to confirm the exact registry path, step object shape, and whether `run` accepts a string action or a function for the target version. Then call `find_test_examples(query='web_tour start_tour tour steps trigger run', kind='js', odoo_version='<version>')` for grounded step examples - do NOT write tour steps from memory, especially the `run` field syntax and the `odoo.loader.modules.get` vs `require` call form (v17 uses `odoo.loader.modules.get('@web_tour/...')` not `require`). Step anatomy: `{ trigger: '<CSS selector>', run: '<string action or function>' }`. Tour steps are implicit oracles: each `trigger` asserts the UI reached that state before proceeding. Additionally, add explicit Python assertions in the `HttpCase` body AFTER `start_tour` completes to assert observable business outcomes (state change, record count, computed value) - do not rely solely on tour completion as evidence of correctness.
 
 ### Round 2 - model / field grounding
 
@@ -103,6 +107,8 @@ Backend code-quality gate: append `/test_lint` (and `/test_pylint` on v16+ Viind
 
 If you are working on version 17.0 or later, you MUST add `--skip-auto-install` to the `odoo-bin -i <module> --test-enable` to avoid noise from auto installed modules
 
+**Tour/HttpCase execution boundary:** `HttpCase` + `start_tour` tests require a live HTTP server (`--http-port`). Do NOT run tour suites inline in the authoring context - the executor's job and the log volume are both large. Three roles are distinct: Author (this skill, Rounds 0-4) writes the tour file and the `HttpCase` wrapper; Execute (`odoo-instance` -> `odoo-instance-ops`) provisions the server and runs the suite; Adjudicate (caller or `odoo-qa-tester`) compares actual vs oracle. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`. When emitting NEEDS_NEXT (below), add `http_port: true` to `inputs` if the module contains tour/HttpCase tests.
+
 ## Adapt mode (forward-port test translation)
 
 Adapt mode forwards the INTENT of tests from `src_version` to `tgt_version` - it does NOT
@@ -137,10 +143,11 @@ copy the text. Full protocol: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/re
 
 ## Output format
 
-Files written directly to the addon's `tests/` (or `static/tests/`) directory:
+Files written directly to the addon's `tests/` (or `static/`) directory:
 - `<addon>/tests/__init__.py` - ensure new test module is imported (append if exists)
-- `<addon>/tests/test_<feature>.py` - the test file
-- `<addon>/static/tests/test_<feature>.js` - JS test file (only when JS tests requested)
+- `<addon>/tests/test_<feature>.py` - the test file (TransactionCase / HttpCase)
+- `<addon>/static/tests/test_<feature>.js` - JS test file (Hoot/QUnit; only when JS unit tests requested)
+- `<addon>/static/tours/<feature>_tour.js` - JS tour file (only when tour/HttpCase requested; tours live under `static/tours/`, not `static/tests/`)
 
 Report format: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/references/output-format.md`
 
@@ -157,12 +164,12 @@ When no live Odoo instance is reachable to run `odoo-bin -i <module> --test-enab
 ```
 next:
   - skill: odoo-instance
-    reason: provision the Odoo instance needed to execute the test suite and confirm RED
-    inputs: {operation: run-tests, series: "<series from context>", modules: ["<module under test>"]}
+    reason: provision the live instance needed to run the suite and confirm RED; add http_port: true if the module has tour/HttpCase tests requiring --http-port
+    inputs: {operation: run-tests, series: "<series from context>", modules: ["<module under test>"], http_port: "<true if tour/HttpCase present, else omit>"}
     confidence: 0.9
     risk_level: L2
 ```
-so the run-driver provisions one; fall back to `BLOCKED` only if provisioning is itself impossible. Test file authoring (Rounds 0-4) proceeds regardless.
+so the run-driver provisions one; fall back to `BLOCKED` only if provisioning is itself impossible. Test file authoring (Rounds 0-4) proceeds regardless. This is the canonical NEEDS_NEXT pattern referenced by `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 
 ## Continuation Contract
 

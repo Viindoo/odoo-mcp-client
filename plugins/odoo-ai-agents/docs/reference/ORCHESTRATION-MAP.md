@@ -5,6 +5,7 @@
 
 | Skill | spawn_class | handoff | stack | instance | spawns |
 |-------|-------------|---------|-------|----------|--------|
+| `odoo-acceptance` | spawner-agent | fresh | none | yes | odoo-qa-planner (P1 independent-oracle author), odoo-qa-tester (P2b live execute + adjudicate; browser-serial, one at a time), odoo-ui-reviewer (optional per-screen quality verdict in the P2b serial slot), odoo-test-writing (P2a durable tour/HttpCase channel, via Skill tool), odoo-instance (P2 provision the co-installed cluster + run durable tests, via Skill tool), odoo-debug / odoo-coding (P3 fix-loop on FAIL, via Skill tool) |
 | `odoo-addon-diff` | leaf | fresh | none | - | - |
 | `odoo-brl` | spawner-agent | fork | none | - | (conditional DAG workers when >10 large clusters) |
 | `odoo-campaign-plan` | leaf | fresh | none | - | - |

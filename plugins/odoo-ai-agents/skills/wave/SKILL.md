@@ -373,6 +373,13 @@ Delegate the full diff to **git-surveyor** (scope=<principal>...HEAD) and review
   that the WI did not introduce untested behavior paths, and via `test_coverage_audit(module='<module>',
   odoo_version='<version>')` that the module coverage gap did not widen after the change.
   Flag any behavior-change WI that has no corresponding test addition as a finding.
+- **Blast-radius render-check (widen to dependents)** (apply when any WI changes a field/method/view/
+  OWL component/template that dependents bind): do not bind the render-check to the WI's own modules -
+  derive the widened scope per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (reverse-closure ->
+  risk rank -> affected screens). The `render_check_set` it emits is every screen across the changed
+  modules AND their dependents that binds a changed symbol, each risk-tiered. This stays a STATIC review
+  lens here (it widens what the integrated review reasons about and what acceptance is offered for); it
+  does not execute CRUD/role flows in this context.
 
 Fix findings inline or via a targeted subagent. For each finding:
 
@@ -393,6 +400,23 @@ After the Opus review and fixes, invoke the `odoo-code-review` skill (via the Sk
 on the integration branch. Pass `TARGET: worktree:<path>/integration` (the integration worktree
 created in Phase 1 step 1 - `<path>` is the worktree path delegated to git-operator in Phase 1) so the
 skill reviews the integration tree, not the principal tree. Address its findings before Phase 5.
+
+**4.3 - Acceptance hand-off (opt-in, L2).** When the `render_check_set` (4.1 blast-radius lens) reaches
+beyond the WI's own modules - the wave changed a UI/behavior surface that dependents bind - surface a
+recommended acceptance pass over the affected cluster instead of letting the dependent UI go unverified.
+Do NOT auto-run acceptance and do NOT auto-merge or auto-block on it: add a `next` entry to this skill's
+Continuation Contract for the run-driver to gate at L2 (human):
+
+```
+next:
+  - skill: odoo-acceptance
+    reason: wave changed a UI/behavior surface with dependents (render_check_set beyond the changed modules); run blast-radius acceptance over the affected cluster before merge
+    inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: ".odoo-ai/qa/<slug>-scope.md", odoo_version: "<version>"}
+    confidence: 0.7
+    gate_tier: L2
+```
+
+The terminal human-confirm gate (Phase 6) is unchanged; this only offers acceptance as an opt-in next step.
 
 ## Phase 5 - PR + Squash + Tree Identity
 
