@@ -37,9 +37,12 @@ OUTPUT SIZE and RISK (never step count):
    ref/branch existence, `git diff --stat`/`--name-only`): run the safe command directly. NEVER
    inline unbounded output (full PR body, file contents, a full diff) - "read one PR" is DELEGATE.
 2. **SINGLE-DELEGATE** - one medium op (rebase, cherry-pick range, analyze one diff, PR
-   review/create, issue triage): cold-spawn ONE leaf at the right model - READ cognition ->
+   review/create, issue triage): cold-spawn ONE leaf - READ cognition ->
    `git-surveyor` (read-only); local mutation (reversible OR destructive) -> `git-operator` (carries
-   the safety contract); GitHub API -> `github-operator` (MCP-first / gh-fallback).
+   the safety contract); GitHub API -> `github-operator` (MCP-first / gh-fallback). Resolve the
+   model tier from `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md` (single-delegate op-class
+   table, first-match-wins); pass it as the Agent-tool `model` param AND put
+   `DISPATCH MODEL: <tier>` as the first line of the brief.
 3. **PHASED-PIPELINE** - large/complex (>500 files OR >10k LOC OR multi-commit rewrite OR
    thousand-file backport, per `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md` M2):
    cold-spawn `git-pipeline-lead` (opus). It runs P1 map -> P2 evaluate -> P3 strategy +

@@ -23,7 +23,7 @@ description: |
   assistant: "Dispatching git-operator; it gates on human-confirm before force-with-lease push."
   <commentary>Destructive op requires S1 backup + human-confirm gate in git-operator.</commentary>
   </example>
-model: inherit
+model: sonnet
 color: yellow
 tools: ["Read", "Grep", "Glob", "Edit", "Write", "Bash"]
 ---
@@ -66,6 +66,14 @@ the gate item hit and what confirmation is needed - never self-authorize.
   plan to that cluster only - always worktree-isolated (S9), back up and verify per batch, and
   return the result. The lead - not you - owns the cross-cluster strategy and the human-confirm
   gate.
+
+## Named ops
+
+Pass `op=<name>` in the brief to invoke a deterministic recipe:
+
+- `op=squash-push` - squash all commits above `origin/<principal>` to one commit, run S6
+  tree-identity gate, then force-with-lease push to the integration branch. Full recipe:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/git-squash-push.md`.
 
 ## Will NOT do
 

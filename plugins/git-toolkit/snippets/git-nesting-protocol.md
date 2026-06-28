@@ -44,6 +44,8 @@ The lead is opus. It assigns each phase its own model by cognitive load:
 | P4 EXECUTE | `git-operator` per cluster | sonnet, opus for complex rewrite | apply with backup + per-batch verify |
 | P5 VERIFY | `git-surveyor` | sonnet | tree-identity + range-diff + no-loss proof |
 
+Tier vocabulary and the single-delegate op-class table: `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md`.
+
 P3 strategy AND the human-confirm gate for destructive plans are the LEAD's job, never a leaf's.
 
 ## N4 - Agent-unavailable fallback
