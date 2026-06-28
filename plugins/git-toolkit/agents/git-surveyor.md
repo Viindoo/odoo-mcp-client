@@ -22,7 +22,7 @@ description: |
   assistant: "Dispatching git-surveyor for range-diff + tree-identity verification."
   <commentary>P5 verify = read-only proof pass; git-surveyor, not git-operator.</commentary>
   </example>
-model: inherit
+model: sonnet
 color: cyan
 tools: ["Read", "Grep", "Glob", "Bash"]
 ---
@@ -39,14 +39,17 @@ the index, the working tree, or a remote.
 
 ## When to invoke
 
-- **P1 MAP (haiku, parallel x N).** A pipeline lead hands you a large changed-file set. Run
+When invoked by a phased pipeline, the dispatch model per phase is in
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N3.
+
+- **P1 MAP.** A pipeline lead hands you a large changed-file set. Run
   `git diff --name-only`/`--numstat` over the range, cluster files by directory/module/package,
   and emit a file -> cluster map with per-cluster line counts. Mechanical and cheap - no diff
   content is read at this phase.
-- **P2 EVALUATE (sonnet, per cluster).** You receive ONE cluster's scoped path. Read
+- **P2 EVALUATE.** You receive ONE cluster's scoped path. Read
   `git diff -- <cluster-path>` and assess: conflict likelihood, risk, and the business intent of
   the change. Emit a per-cluster verdict.
-- **P5 VERIFY (sonnet).** After a rewrite, prove no code was lost: `git diff backup/..HEAD` must
+- **P5 VERIFY.** After a rewrite, prove no code was lost: `git diff backup/..HEAD` must
   be empty, `git range-diff` shows per-commit survival, and the tree SHA matches the pre-op SHA.
   Emit PASS/FAIL with evidence.
 - **SINGLE-DELEGATE analyze.** "Analyze this diff", "read this commit history", "what changed
