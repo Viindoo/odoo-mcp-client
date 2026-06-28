@@ -198,44 +198,18 @@ All mutation steps are delegated to **git-operator**
 **Brief to git-operator - squash-push operation:**
 
 ```
-op           : wave-squash-push
-worktree     : <path>/integration
-principal    : <principal-branch-name>
-slug         : <slug>
-commit-msg   : <conventional commit message>
-steps:
-  0a  fetch origin/<principal-branch-name>      # stale-base guard - MUST run first
-  0b  ancestry-check: origin/<principal-branch-name> is ancestor of HEAD?
-      no -> ABORT: rebase integration onto origin/<principal-branch-name>,
-            re-run verify command, then retry from step 0a
-  1   tag wave-backup-<slug> at HEAD            # create backup BEFORE squash
-  2   reset-soft to origin/<principal-branch-name>
-  3   commit with <conventional commit message>
-  4a  tree-identity: diff --quiet wave-backup-<slug>
-      exit 0 -> tree matches, proceed to step 5
-      exit non-zero -> ABORT: restore from wave-backup-<slug>, report mismatch, do NOT push
-  5   push --force-with-lease origin wave/integration-<slug>
-confirmed    : yes - <human approval text from Phase 6 gate>
+op                 : squash-push
+worktree           : <path>/integration
+principal          : <principal-branch-name>
+backup-ref         : wave-backup-<slug>
+commit-msg         : <conventional commit message>
+integration-branch : wave/integration-<slug>
+confirmed          : yes - <human approval text from Phase 6 gate>
 ```
 
-After git-operator returns, confirm tree-identity passed inline:
-`git diff --quiet wave-backup-<slug>` must have exited 0 (git-operator reports this).
+git-operator executes the `squash-push` recipe (stale-base guard -> S1 backup -> reset-soft squash-to-one -> S6 tree-identity gate -> S2 force-with-lease), owned by git-toolkit per its git-safety-contract S1/S6/S2.
 
-**Stale-base hazard**: The reset-soft operation silently squashes onto wherever the local
-ref points. If commits landed on the principal AFTER integration was branched, the local
-ref is stale and those commits are reverted even though the tree-identity check passes
-(tree matches backup but commit graph is wrong). The Step 0a fetch + Step 0b ancestry
-check (`git merge-base --is-ancestor origin/<principal-branch-name> HEAD`) is the only guard.
-
-**Empty-tree SHA note**: When checking if a tree is completely empty (rare edge case),
-the git empty-tree SHA is `4b825dc642cb6eb9a060e54bf8d69288fbee4904` (this is the SHA of
-the empty tree object, not the empty string). Prefer `git diff --quiet <backup-ref>` exit
-code over SHA comparison for tree-identity checks - it is the canonical method used in step
-4a above. This SHA is only relevant if debugging a squash that produces an unexpected empty
-commit.
-
-**Why `git diff --quiet` not `--exit-code`**: Both work for tree comparison but `--quiet`
-suppresses all output, which is what we want in the gate check. The exit code is the signal.
+After git-operator returns, confirm its reported tree-identity exit code is 0 before proceeding to the merge gate.
 
 ---
 
