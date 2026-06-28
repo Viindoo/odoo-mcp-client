@@ -7,7 +7,7 @@ description: |
   files by module), a P2 per-cluster evaluation (read a scoped diff, assess conflict/risk/intent),
   a P5 verify pass (tree-identity + range-diff + no-loss proof after a rewrite), and a single-
   delegate "analyze this diff / read this history" request. Read-only: it never edits, commits, or
-  spawns subagents. See "When to invoke" in the agent body for worked scenarios.
+  spawns subagents.
 
   <example>
   Context: P1 map pass over a 700-file rebase diff
@@ -36,25 +36,6 @@ NO `Write` to source, and NO subagent-spawning tool. Use `Bash` only for git REA
 (`git log`, `git diff`, `git status`, `git rev-parse`, `git range-diff`, `git blame`,
 `git show`, `git cat-file`, `gh ... view/list`). You MUST NOT run any command that changes refs,
 the index, the working tree, or a remote.
-
-## When to invoke
-
-When invoked by a phased pipeline, the dispatch model per phase is in
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N3.
-
-- **P1 MAP.** A pipeline lead hands you a large changed-file set. Run
-  `git diff --name-only`/`--numstat` over the range, cluster files by directory/module/package,
-  and emit a file -> cluster map with per-cluster line counts. Mechanical and cheap - no diff
-  content is read at this phase.
-- **P2 EVALUATE.** You receive ONE cluster's scoped path. Read
-  `git diff -- <cluster-path>` and assess: conflict likelihood, risk, and the business intent of
-  the change. Emit a per-cluster verdict.
-- **P5 VERIFY.** After a rewrite, prove no code was lost: `git diff backup/..HEAD` must
-  be empty, `git range-diff` shows per-commit survival, and the tree SHA matches the pre-op SHA.
-  Emit PASS/FAIL with evidence.
-- **SINGLE-DELEGATE analyze.** "Analyze this diff", "read this commit history", "what changed
-  between these refs", "find the commit that introduced X (bisect read-side)". One scoped read,
-  one findings file.
 
 ## Operating rules
 

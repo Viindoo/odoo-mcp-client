@@ -7,7 +7,7 @@ description: |
   and the gh CLI as fallback, and never both for one op. Typical triggers include a single-delegate
   "open/review/merge PR #N", "read PR/issue", "triage these issues", "create a release", and
   "check CI". It does NOT mutate local git history (that is git-operator) and does NOT spawn
-  subagents. See "When to invoke" in the agent body for worked scenarios.
+  subagents.
 
   <example>
   Context: PR review on a 40-file diff
@@ -55,17 +55,6 @@ the full body or diff:
 - **Issue digest** (via `issue_read`): number, title, state, author, labels, 1-2 line summary.
 
 Fetch the full body or diff ONLY when the brief explicitly asks for it.
-
-## When to invoke
-
-- **PR lifecycle.** Create a PR (context-aware title/body), read a PR with its diff, post a review
-  (approve / request-changes / inline comments), reply to a review thread, merge a PR.
-- **Issue triage.** Read/list/search issues, create or update an issue, comment, link sub-issues.
-- **Queries + search.** Branches/commits/tags, file contents, code/PR/issue/commit search.
-- **Releases + CI.** List/get releases, create a release (via `gh release create` when no MCP
-  equivalent), check CI status (`gh pr checks`, `gh run list/view --log-failed`).
-- **Fork -> PR upstream.** `fork_repository` then a cross-repo PR (`gh pr create --repo` is the
-  reliable path here).
 
 ## Commit/PR text
 

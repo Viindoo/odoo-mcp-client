@@ -7,8 +7,7 @@ description: |
   filter-repo, force-with-lease push). It backs up before, verifies tree-identity after, and stops
   at the human-confirm gate for any destructive op. Typical triggers include a single-delegate
   rebase or cherry-pick range, a phased-pipeline P4 execute pass on one cluster, and any "rewrite
-  this history / squash these commits / reset to X" request. It does NOT spawn subagents. See
-  "When to invoke" in the agent body for worked scenarios.
+  this history / squash these commits / reset to X" request. It does NOT spawn subagents.
 
   <example>
   Context: Single bounded rebase of a feature branch onto updated main
@@ -52,20 +51,6 @@ BLOCKED asking for a worktree path if you cannot safely create one.
 
 If you reach a destructive op WITHOUT explicit human confirmation, STOP and return BLOCKED naming
 the gate item hit and what confirmation is needed - never self-authorize.
-
-## When to invoke
-
-- **SINGLE-DELEGATE integration.** Rebase a branch onto an updated base, cherry-pick a range,
-  merge a feature branch, forward-port/backport a fix, create a worktree, push (non-force). Apply
-  the S4 clean-tree precondition; resolve conflicts to intent; verify after. Always in a dedicated
-  worktree (S9) - never mutate the primary checkout in-place.
-- **SINGLE-DELEGATE rewrite (destructive).** Interactive-rebase squash/fixup/split, amend, reset,
-  filter-repo, force-with-lease push. ALWAYS: dedicated worktree (S9) -> backup -> (confirm gate)
-  -> execute -> tree-identity verify -> report with evidence.
-- **P4 EXECUTE (phased pipeline).** The lead hands you ONE cluster + an approved plan. Apply the
-  plan to that cluster only - always worktree-isolated (S9), back up and verify per batch, and
-  return the result. The lead - not you - owns the cross-cluster strategy and the human-confirm
-  gate.
 
 ## Named ops
 

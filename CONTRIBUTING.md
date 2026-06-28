@@ -197,6 +197,32 @@ shape), `tests/test_skill_description_budget.py` (the 1024-char cap), and
 `tests/test_odoo_intake_quote_sync.py` (every skill/workflow the `odoo-intake` router points at must
 exist).
 
+### Agent format
+
+Each `plugins/*/agents/<name>.md` is **YAML frontmatter + a Markdown body**, and the two halves
+have distinct readers - keep their content separate:
+
+- **Frontmatter** carries `name`, `description`, `model` (and optional `color` / `tools`). The
+  `description` is **routing metadata**: it tells the orchestrator *when to delegate* to this
+  agent (triggers, `<example>` scenarios, "use this agent when …"). It is read at routing time,
+  by the caller deciding whether to dispatch - not by the running agent.
+- **Body** is the agent's **system prompt**: role + operating procedure + constraints + output
+  contract, written in the second person ("You are …"). It is read by the running agent at
+  startup, so it must contain only what the agent needs to *do the work* - never how a caller
+  decides to pick it.
+
+Do **not** add a `## When to invoke` / "when to use me" routing section to the body: it
+duplicates the `description` and pollutes the system prompt with text the running agent cannot
+act on. Genuine runtime constraints (read-only, one SHA per instance, never spawn subagents)
+belong in the role intro or a dedicated constraints section of the body, not in a routing
+heading. Worked "when to dispatch" scenarios belong in the `description` (inline or as
+`<example>` blocks). Guard: `tests/test_agent_body_convention.py`.
+
+This mirrors Anthropic's subagent contract - the frontmatter `description` is the selection
+signal and the body is the system prompt: see
+[Subagents](https://code.claude.com/docs/en/sub-agents) and the Agent SDK
+[Subagents](https://docs.claude.com/en/api/agent-sdk/subagents) reference.
+
 ### Naming convention: skill vs agent vs command (morphology)
 
 Names encode **role**, so an AI router (and a human) can tell the three layers apart even
