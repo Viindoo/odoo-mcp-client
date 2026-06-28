@@ -124,6 +124,30 @@ and public-repo safety / abstract customer labels (Hard rule 3).
 
    Do NOT proceed to Phase A until the user sends `approve` (or equivalent positive confirmation).
 
+### Seed + cross-check from a prior gap-analysis (optional)
+
+At Phase 0 (before GATE 0), glob `.odoo-ai/gap-analysis/*/gap-matrix.jsonl` (newest dir wins). If one
+exists, BRL MAY consume it as a PRIOR - never ground truth - to seed and cross-check the fit-gap of
+its RTM. BRL does NOT delegate to the gap-analyzer; it stays the standalone classifier and only reads
+the artifact:
+
+- **Seed (cuts MCP calls):** match each BRL `req_id` / requirement text to a gap-matrix row; prefill
+  the candidate `module` (warm `cache.json`) and map the gap row's `classification`
+  (`standard|config|extension|custom`) onto BRL's `effort_tier` family
+  (Standard / Config / Extension-M|L / Custom-XL). A gap row's `module` / `coverage` is a candidate,
+  not a verdict.
+- **Cross-check (OSM-first still wins):** Phase A re-grounds every seeded item per the § OSM-First
+  Grounding Contract. The double-profile `check_module_exists` (A2) always resolves BRL's 4-way
+  edition split (Available-in-Odoo-CE / -EE / -Viindoo / Custom) - the gap-matrix cannot carry it. On
+  a divergence, BRL's OSM-grounded verdict wins; record it in `notes`
+  (`gap-matrix said <x>; OSM confirms <y>`). A `grounded: unknown` gap row is treated as unseeded.
+
+**Stay format-compatible (downstream design reads EITHER source).** `odoo-solution-design` accepts a
+gap-matrix OR a BRL results dir (`.odoo-ai/brl/<job-id>/`). Keep BRL's per-req rows carrying the same
+recognizable keys (`req_id`, `requirement`, `module`, an effort axis, `notes`) and keep the
+§ Continuation Contract handoff to `odoo-solution-design` in the same shape as a gap-analysis handoff
+(`{<deliverable path>, items: [REQ-…], risk_level}`), so the architect reads either interchangeably.
+
 ### Phase A - CLASSIFY (outer sequential per chunk, inner <=3 parallel MCP)
 
 > **OSM-First Grounding Contract** (${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md):

@@ -27,6 +27,26 @@ design (architect writes the TDD)  →  HUMAN approves the design  →  Plan Mod
 The approved TDD is the plan the code Plan Mode executes. Do not flip this order. (The design
 step is the planning-artifact exception to "writes-files runs only after Plan Mode".)
 
+## Input port - gap-analysis artifact (read before designing)
+
+Before the Phase 0 preview, look for a gap-analysis artifact on disk - the per-requirement
+classification/effort is the design PRECONDITION, read it; do NOT re-derive the tier from
+conversational text:
+
+- **Glob** `.odoo-ai/gap-analysis/*/gap-matrix.jsonl` (newest dir wins); the consultant path
+  may instead carry BRL output under `.odoo-ai/brl/*/` - accept either source.
+- **Found:** READ it. Each `gap-matrix.jsonl` line is one requirement with keys `req_id` ·
+  `requirement` · `coverage` (full|partial|none) · `classification`
+  (standard|config|extension|custom) · `effort_tier` (S|M|L|XL) · `module` · `grounded` ·
+  `notes`. Use `classification` + `effort_tier` per requirement to decide WHICH requirements
+  need a TDD and at what depth (extension/custom + L/XL drive the design; standard/config with
+  a single obvious approach route straight to `odoo-coding`). Cite the artifact path in the
+  Phase 0 preview and pass it to the architect (`GAP_MATRIX:` line in the P1 template). When
+  the artifact exists it is authoritative - do NOT re-derive tiers from memory.
+- **Not found AND the change is non-trivial:** recommend running `odoo-gap-analysis` first to
+  classify/cost the requirements rather than guessing the tier. (Trivial single-approach
+  change: proceed without it.)
+
 ## Phase 0 - Design intent gate (1-turn gate)
 
 **Exception: when `return_to` is set**, SKIP this Phase 0 scope-preview gate entirely. The
@@ -268,8 +288,14 @@ DISPATCH MODEL: <opus|fable>
 You are the odoo-solution-architect agent. Produce an Odoo Technical Design Document (NOT
 production code) for the following change:
 
-REQUEST: [full requirement/goal, with target model(s), Odoo version, any constraints, and the
-classification/effort tier if it came from odoo-brl/odoo-gap-analysis]
+REQUEST: [full requirement/goal, with target model(s), Odoo version, any constraints. For the
+classification/effort tier, prefer the GAP_MATRIX file below over a pasted tier string - the
+architect reads it per requirement]
+
+GAP_MATRIX: [omit this line entirely when absent; otherwise the gap artifact path found by the
+Input port - .odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl, or the BRL results dir
+.odoo-ai/brl/<job-id>/. The architect READS this for the authoritative per-requirement
+classification/effort_tier - do NOT also flatten the tier into REQUEST as free text]
 
 RETURN_TO: [omit this line entirely when absent; set to the caller skill name (e.g.
 odoo-forward-port) when the caller requests return routing after design approval]

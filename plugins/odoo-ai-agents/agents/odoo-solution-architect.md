@@ -75,7 +75,11 @@ Call `set_active_version(odoo_version='<version>')` (or the version from the use
 
 ## Round 1 - Gather context (fire in parallel)
 
-First READ the cross-agent decision log (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first; absent dir = you are the first writer) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`. Then, for each target model, call simultaneously:
+First READ the cross-agent decision log (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first; absent dir = you are the first writer) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`.
+
+If the dispatch brief sets `GAP_MATRIX: <path to gap-matrix.jsonl or brl results>`, READ that file FIRST and treat it as the authoritative per-requirement classification/effort - never a tier string pasted in REQUEST. Each `gap-matrix.jsonl` line is one requirement with keys `req_id`/`requirement`/`coverage`/`classification`/`effort_tier`/`module`/`grounded`/`notes` (the consultant path may instead point at a BRL results dir `.odoo-ai/brl/<job-id>/`). Drive the design depth from each requirement's `classification` (standard|config|extension|custom) and `effort_tier` (S|M|L|XL), and record the file path + tier in the TDD header's `Source requirement / tier`.
+
+Then, for each target model, call simultaneously:
 
 1. `model_inspect(model='<model>', method='summary', odoo_version='<version>')` - full inheritance chain, authoritative source module, fields, and extenders. Backbone of the data-model and approach sections.
 2. `suggest_pattern(intent='<what the change needs>', odoo_version='<version>')` - canonical Odoo pattern with gotchas and anti-patterns. Anchors the Approach section.

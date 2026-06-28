@@ -570,6 +570,23 @@
       "deprecated_tools_used": [],
       "notes": "Browser-driven visual documentation agent: captures screenshots into module static/description or cluster docs. OSM tools ground module/model structure before capture."
     },
+    "odoo-gap-analyzer": {
+      "mcp_tools": [
+        "check_module_exists",
+        "describe_module",
+        "find_examples",
+        "lookup_core_api",
+        "model_inspect",
+        "module_inspect",
+        "profile_inspect",
+        "suggest_pattern",
+        "set_active_profile",
+        "set_active_version"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Gap-analysis leaf worker: dispatched by the odoo-gap-analysis skill (one per requirement cluster) to classify Configuration vs Extension and ground coverage in OSM; mirrors the skill's tool set. min_server 0.13.1 for profile_inspect."
+    },
     "odoo-installable-prober": {
       "mcp_tools": [
         "module_inspect",
@@ -772,8 +789,11 @@
       "default_gate_tier": "L0"
     },
     "odoo-gap-analysis": {
-      "spawn_class": "leaf",
-      "spawns": [],
+      "spawn_class": "spawner-agent",
+      "handoff": "fork",
+      "spawns": [
+        "odoo-gap-analyzer (one per requirement cluster; model per complexity per concurrency-guard Model-tier selection)"
+      ],
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
