@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - New agent `odoo-gap-analyzer`: the leaf worker that runs heavy gap analysis for one requirement cluster in its own context (keeping the main / team-leader context clean). OSM-first -> local-checkout 2-tier grounding (training-only grounding banned; rows that cannot be grounded are marked `grounded:unknown` / `BLOCKED`), and it writes a machine-readable findings file per cluster.
 - SSOT for complexity -> model-tier selection added to `skills/_shared/concurrency-guard.md` (the haiku / sonnet / opus / fable principle); the gap-analysis agent, skill, and callers reference it instead of hardcoding a model.
+- `docs/authoring-skills-and-agents.md` - in-repo skill/agent authoring guide (Anthropic conventions + repo rules); referenced from CLAUDE.md.
 
 ### Changed
 

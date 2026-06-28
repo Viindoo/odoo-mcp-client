@@ -189,8 +189,10 @@ SSOT in [Viindoo/odoo-semantic-server](https://github.com/Viindoo/odoo-semantic-
 
 Each `plugins/odoo-ai-agents/skills/<name>/SKILL.md` must start with YAML frontmatter containing at least a
 `name` and a `description`. The description is what drives routing - keep it specific and
-trigger-rich, but **under 1024 characters**: Claude truncates longer descriptions out of the
-skill listing, which silently degrades triggering. Trim duplicate trigger phrases and
+trigger-rich, but **under 1024 characters** - Anthropic's documented max length for a skill
+`description` field (a real authoring limit, enforced here by tests). A separate mechanism truncates
+the skill listing - combined description + when_to_use - at 1536 chars, so staying under 1024 clears
+that too. Trim duplicate trigger phrases and
 illustrative examples before cutting any `route to …` / `DO NOT trigger → …` disambiguation
 clause. `make test` enforces all of this via `tests/test_skill_format.py` (frontmatter
 shape), `tests/test_skill_description_budget.py` (the 1024-char cap), and

@@ -86,10 +86,17 @@ A skill and the agent it dispatches must have **different** names (capability vs
 Odoo-specific names carry the `odoo-` prefix; `wave` and `workflow-chaining` are the only
 unprefixed (domain-agnostic) names. Enforced by `tests/test_naming_consistency.py`.
 
+**Before creating or modifying any skill or agent, read `docs/authoring-skills-and-agents.md`** -
+the in-repo authoring guide (frontmatter, required body sections, naming morphology, the generated
+tools block, model-tier selection, and the pre-commit gates), grounded in Anthropic's official
+docs and this repo's stricter, test-enforced conventions.
+
 ### Skill descriptions drive routing - and are budget-capped
 
-A skill's `description` frontmatter is what makes it trigger. Keep it **under 1024 characters**
-(Claude truncates longer ones out of the listing, silently breaking routing). When trimming, cut
+A skill's `description` frontmatter is what makes it trigger. Keep it **under 1024 characters** -
+Anthropic's documented max length for a skill `description` field, enforced here by tests. (A
+separate mechanism truncates the skill listing - combined description + when_to_use - at 1536 chars,
+so staying under 1024 clears that too.) When trimming, cut
 duplicate trigger phrases and examples first; preserve the `route to ...` / `DO NOT trigger` clauses.
 Enforced by `test_skill_format.py` + `test_skill_description_budget.py`. Every skill/workflow the
 `odoo-intake` router references must exist (`test_odoo_intake_quote_sync.py`).
