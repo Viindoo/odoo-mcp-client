@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - `odoo-gap-analysis` upgraded from an inline leaf into a spawner-agent orchestrator: it clusters requirements by functional area, fans out `odoo-gap-analyzer` workers (rolling-window, model chosen per cluster complexity), synthesizes and de-duplicates findings from disk, and emits a locked file-handoff artifact set under `.odoo-ai/gap-analysis/<slug>-<date>/` (`gap-report.md`, `gap-matrix.jsonl`, `gap-continuation-contract.json`).
 - Wired the gap-analysis file-handoff into its downstream consumers: `odoo-solution-design` and `odoo-solution-architect` (new `GAP_MATRIX` input port), `odoo-pricing-proposal` and `odoo-rfp-response` (effort read from `gap-matrix.jsonl`), the `odoo-respond-bid` and `odoo-implement-feature` workflows (explicit file-path chaining), `odoo-brl` (seed / cross-check from `gap-matrix`), and `odoo-intake` (scope-first routing: gap before design).
+- `odoo-ai-agents`: moved agent routing ("when to invoke") out of the 7 agent bodies into their `description` frontmatter, per Anthropic's subagent convention (the body is the agent's system prompt only); added a guard test (`tests/test_agent_body_convention.py`) and a CONTRIBUTING "Agent format" section so the split does not regress.
+- `git-toolkit`: same agent-body convention applied to its 4 agents (`git-operator`, `git-surveyor`, `github-operator`, `git-pipeline-lead`) - routing now lives in `description`, the body is the system prompt. (`git-toolkit` 0.2.0 -> 0.2.1.)
 
 ## [3.31.2] - 2026-06-28
 
