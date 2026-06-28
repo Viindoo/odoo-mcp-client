@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.31.2] - 2026-06-28
+
+### Changed
+
+- `git-toolkit` single-delegate model assignment: the three leaf agents (`git-surveyor`, `git-operator`, `github-operator`) now default to `model: sonnet` instead of `inherit`, so a single-delegate spawn no longer inherits the caller's model (often opus) for trivial git/github ops. New SSOT `snippets/git-model-tiers.md` maps each single-delegate op-class to a tier (haiku for mechanical reads, sonnet default, opus for destructive rewrites); the `git-ops` SINGLE-DELEGATE route now passes the Agent-tool `model` param + a `DISPATCH MODEL:` brief line and no longer relies on `inherit`. Inert inline model tokens stripped from `git-surveyor`'s phase descriptions (an agent's own model is fixed at spawn; body prose cannot set it). (`git-toolkit` 0.1.2 -> 0.2.0.)
+- `git-toolkit` `op=squash-push`: the squash-to-one + tree-identity + force-with-lease recipe is promoted into `snippets/git-squash-push.md` (composing the `git-safety-contract` S1/S6/S2 primitives), and `wave` now delegates to that named op instead of re-spelling the primitives in `wave/reference/wave-templates.md` - removing an SSOT duplication.
+
 ## [3.31.1] - 2026-06-28
 
 ### Fixed
