@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.31.1] - 2026-06-28
+
+### Fixed
+
+- `odoo-git-rebase` orchestration gaps (#115): P8 conflict resolution and review now dispatch the `odoo-coding` / `odoo-code-review` skills via the Skill tool instead of raw agents; reference the new `git-toolkit` S10 `rebase --continue` continue-driver; slug sanitization pinned; `rerere.autoupdate` set; a conflict-type taxonomy added; P8b symbol-survival + collection gate delegated (Explore / git-surveyor) with an explicit PASS/FAIL verdict; explicit pyflakes import-resolvability gate; `installable=False` guard; a shared `INSTANCE_HANDLE` (new `snippets/instance-handle-contract.md`) provisioned once via `odoo-instance` and forwarded downstream; run-tests verdict contract.
+- `git-toolkit` conflict continue-driver (#115): new S10 step in `git-safety-contract` - never `--skip` on "no unmerged files" (only on an empty `--continue` patch); per-path resolution (UD/DD -> `git rm`, static add/add -> non-empty side, marker -> coder, rerere-resolved -> `git add`); `rerere.autoupdate` enabled. `git-operator` and the `conflict-resolution` reference cite S10 inline. (`git-toolkit` 0.1.1 -> 0.1.2.)
+- Capability/gap pipeline guardrails (#121, client-side only): module-slug -> provider inference forbidden; per-claim provenance tags `[OSM-index]` / `[inferred]` with wording downgrade; absence-in-index transparency; new `snippets/ssot-extraction-contract.md` (verbatim extraction for SSOT source docs); recon-no-file-write guard in `odoo-intake`. Live-MCP cross-check intentionally out of scope (kept per PR #42).
+
 ## [3.31.0] - 2026-06-28
 
 ### Added
