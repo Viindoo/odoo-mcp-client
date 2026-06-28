@@ -9,8 +9,9 @@ description: >
   odoo-qa-planner (oracle) + odoo-qa-tester (live execute), and chains tours/HttpCase via odoo-instance.
   Routing: a STATIC release test-plan doc / deploy checklist -> route to odoo-qa-suite; rating ONE
   rendered screen -> route to odoo-ui-review; static code or PR review with no run -> route to
-  odoo-code-review; writing the fix -> route to odoo-coding. DO NOT trigger without a live instance +
-  browser MCP (Odoo Semantic is static, no live data)
+  odoo-code-review; writing the fix -> route to odoo-coding. EXECUTION needs a live instance + browser
+  MCP (Odoo Semantic is static, no live data); with none up it still scopes + plans the oracle, then
+  emits NEEDS_NEXT to provision one
 ---
 
 ## Persona
@@ -49,6 +50,8 @@ Semantic is a STATIC index and is never the source of live data.
 
 **Primary tools:**
 - `impact_analysis` - Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
+- `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 <!-- END GENERATED TOOLS -->
 
 The orchestrator stays light on tools: pin the version once with

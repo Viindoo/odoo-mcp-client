@@ -114,7 +114,7 @@ next:
     gate_tier: L2
 ```
 
-This is opt-in: it surfaces the verdict + the recommended acceptance pass to the run-driver for an L2 (human) gate - it never auto-blocks the review and never auto-runs acceptance.
+This is opt-in: it surfaces the verdict + the recommended acceptance pass to the run-driver for an L2 (human) gate - it never auto-blocks the review and never auto-runs acceptance. The `scope_hint` is advisory - odoo-acceptance Phase 0 regenerates the verify-scope manifest from the changed set, so the consumer never assumes the file already exists.
 
 ### Phase B - Integration synthesis (OPUS)
 

@@ -399,11 +399,18 @@
         "lookup_core_api",
         "test_base_classes",
         "find_test_examples",
-        "js_test_inspect"
+        "js_test_inspect",
+        "tests_covering",
+        "test_coverage_audit",
+        "test_class_inspect",
+        "api_version_diff",
+        "resolve_orm_chain",
+        "validate_relation",
+        "validate_depends"
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Writes executable Odoo test files (TransactionCase/Form or Hoot/QUnit per version); tests protect business behavior, not current code. test_base_classes resolves the correct base class + cr.commit()-forbidden contract per version (incl. HttpCase for tour/url_open); find_test_examples returns test-only chunks (no production contamination) for the grounded pattern; js_test_inspect confirms the per-module JS framework mix (QUnit vs Hoot) + suite paths + tour registry before any JS/tour test is emitted. min_server 0.15.0 for the test-surface tools."
+      "notes": "Writes executable Odoo test files (TransactionCase/Form or Hoot/QUnit per version); tests protect business behavior, not current code. test_base_classes resolves the correct base class + cr.commit()-forbidden contract per version (incl. HttpCase for tour/url_open); test_class_inspect resolves an extended test-helper's base chain + cursor contract (Round 2); find_test_examples returns test-only chunks (no production contamination) for the grounded pattern; js_test_inspect confirms the per-module JS framework mix (QUnit vs Hoot) + suite paths + tour registry before any JS/tour test is emitted. tests_covering + test_coverage_audit establish the anti-reinvention coverage baseline (Round 2.5); model_inspect/resolve_orm_chain/validate_relation/validate_depends ground field names + relational chains + @api.depends paths (Rounds 2/5); api_version_diff grounds the adapt-mode (forward-port) renamed/removed-API mapping. min_server 0.15.0 for the test-surface tools (tests_covering/test_coverage_audit/test_class_inspect)."
     },
     "odoo-security-audit": {
       "mcp_tools": [
@@ -552,11 +559,13 @@
     "odoo-acceptance": {
       "mcp_tools": [
         "set_active_version",
-        "impact_analysis"
+        "impact_analysis",
+        "module_inspect",
+        "model_inspect"
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Acceptance orchestrator (spawner-agent) - stays light on tools: set_active_version pins the series once (also a reachability probe) and impact_analysis grounds the Phase 0 verify-scope manifest via reverse-closure blast radius. Deep structural grounding happens inside the dispatched agents (odoo-qa-planner / odoo-qa-tester), not here; live execution runs against a real instance + browser MCP (not OSM). min_server 0.6.0 for set_active_version (impact_analysis is version_added 0.1.0 in the surface)."
+      "notes": "Acceptance orchestrator (spawner-agent) - stays light on tools: set_active_version pins the series once (also a reachability probe) and impact_analysis grounds the Phase 0 verify-scope manifest via reverse-closure blast radius. Phase 0 also calls module_inspect(dependencies) + model_inspect(views) (via acceptance-scope.md) to enumerate the affected screens before the planner runs. Deep structural grounding happens inside the dispatched agents (odoo-qa-planner / odoo-qa-tester), not here; live execution runs against a real instance + browser MCP (not OSM). min_server 0.6.0 for set_active_version (impact_analysis 0.1.0, module_inspect/model_inspect 0.5.0 in the surface)."
     }
   },
   "agents": {

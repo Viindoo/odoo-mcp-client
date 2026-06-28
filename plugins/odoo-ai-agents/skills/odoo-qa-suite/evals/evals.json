@@ -105,7 +105,7 @@
     {
       "id": 12,
       "category": "output-format",
-      "prompt": "Generate acceptance tests for the Odoo HR leave management module and triage these 2 bugs: (1) Leave balance goes negative after approval, (2) Leave form does not save when start date equals end date",
+      "prompt": "Generate test cases for the Odoo HR leave management module and triage these 2 bugs: (1) Leave balance goes negative after approval, (2) Leave form does not save when start date equals end date",
       "expected_routed_to": "odoo-qa-suite",
       "expected_behavior": "Phase 1 produces test table saved to .odoo-ai/qa/<slug>-test-cases.md. Phase 2 dispatches checklist. Phase 3 triages both bugs: bug 1 = High or Critical (financial/data integrity - leave balance corrupted), bug 2 = Medium (form save failure with specific edge case, workaround exists). All three output files written to .odoo-ai/qa/. Final summary at .odoo-ai/qa/<slug>-qa-summary.md.",
       "must_not": "Write output to any directory other than .odoo-ai/qa/. Mix both bugs into a single unstructured paragraph instead of separate triage entries.",

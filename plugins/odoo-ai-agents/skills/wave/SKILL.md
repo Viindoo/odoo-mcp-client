@@ -416,7 +416,7 @@ next:
     gate_tier: L2
 ```
 
-The terminal human-confirm gate (Phase 6) is unchanged; this only offers acceptance as an opt-in next step.
+The terminal human-confirm gate (Phase 6) is unchanged; this only offers acceptance as an opt-in next step. The `scope_hint` is advisory - odoo-acceptance Phase 0 regenerates the verify-scope manifest from the changed set, so the consumer never assumes the file already exists.
 
 ## Phase 5 - PR + Squash + Tree Identity
 

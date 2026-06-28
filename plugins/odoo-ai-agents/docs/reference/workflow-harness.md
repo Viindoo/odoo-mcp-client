@@ -103,7 +103,7 @@ artifacts are written here; nothing under `.odoo-ai/` is committed to the repo.
 | Brainstorm design doc | `.odoo-ai/brainstorm/<slug>-<date>.md` | `odoo-intake` (approval turn) |
 | BRL job artifacts | `.odoo-ai/brl/<job-id>/` | `odoo-brl` skill |
 | Workflow phase state | `<output_dir>/<slug>-state.json` (output_dir is the full `.odoo-ai/...` path) | `workflow-chaining` |
-| QA artifacts | `.odoo-ai/qa/` | `qa-suite` workflow |
+| QA artifacts | `.odoo-ai/qa/` | `qa-suite` workflow (static test-plan / checklist / triage); `odoo-acceptance` skill (scope manifest + immutable oracle + live acceptance report) |
 | Wave plan artifact | `.odoo-ai/wave/<slug>/` | `wave` skill (orchestrating context) |
 | Design doc (single mode) | `.odoo-ai/designs/<slug>-<date>.md` | `odoo-solution-architect` (one module or simple scope) |
 | Design artifacts (master-child) | `.odoo-ai/designs/<master-slug>/` - `index.yaml` (routing SSOT) + `_master-<date>.md` + `<module>-<date>.md` per module; full schema: `snippets/master-child-design-contract.md` | `odoo-solution-architect` (multi-module or large scope) |
@@ -732,7 +732,7 @@ orchestrating context, it is itself launched via the **Skill tool** (by the main
 or by an orchestrator like `run-driver`), never by Agent-tool'ing its name and never
 by reading-and-imitating its SKILL.md. Examples: `odoo-code-review` (→ `odoo-code-reviewer`),
 `odoo-coding` (→ `odoo-coder` / `odoo-frontend-coder`), `odoo-debug`, `odoo-solution-design`,
-`odoo-ui-review`.
+`odoo-ui-review`, `odoo-acceptance` (→ `odoo-qa-planner` / `odoo-qa-tester`).
 
 A **spawn/orchestrator skill** orchestrates other skills or forks workers via `context: fork`.
 Examples: `odoo-brl` (forks DAG cluster workers), `wave` (worktree fan-out), `odoo-intake` /
@@ -1055,7 +1055,14 @@ code for non-trivial modules, SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-co
 `next: odoo-code-review`; that skill reviews AND checks test coverage, emitting `next: odoo-coding`
 on a CRITICAL/HIGH fix or `next: odoo-test-writing` on an uncovered behavior. The driver advances
 this loop via the Continuation Contract (a subagent never re-dispatches itself) and bounds it to 3
-iterations before escalating - same bounded-iteration safety as every other chain here.
+iterations before escalating - same bounded-iteration safety as every other chain here. When the
+reviewed change touches a UI/behavior surface whose blast-radius reaches DEPENDENT modules (the
+`render_check_set` widened per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` extends beyond the
+changed modules) - or the rendered-UI dimension is left `DONE_WITH_CONCERNS` because no instance was
+reachable - `odoo-code-review` (and `wave` Phase 4.3) additionally emit `next: odoo-acceptance` at
+**L2 (opt-in, human-gated)**. It never auto-runs and never auto-blocks the review; the driver surfaces
+it as the terminal acceptance gate, and `odoo-acceptance` then drives the independent oracle
+(`odoo-qa-planner`) + live execution (`odoo-qa-tester`) over the affected cluster.
 
 ### 8.4 Gate-tier policy
 
