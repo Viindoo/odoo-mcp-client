@@ -39,7 +39,7 @@ Four modes, all governed by the red-before-green contract (`${CLAUDE_PLUGIN_ROOT
 - **Adapt (forward-port test translation).** Translate an existing test file from a source Odoo version to a target version: strip implementation-coupled assertions, map renamed/removed APIs via OSM, confirm the translated test is RED on the target before production code is adapted. Invoked by the forward-port pipeline (P4a of `odoo-forward-port`) or directly by the user with a source test file + version pair.
 - **Tour/HttpCase (full-stack UI acceptance).** Write a JS tour registered in `web_tour.tours` (or the version-appropriate registry) driven by a Python `HttpCase.start_tour(...)`. Decorate with `@tagged('post_install', '-at_install')`. Use when: requirement-level acceptance flows span multiple real browser steps requiring an actual HTTP server; oracle scenarios from `odoo-qa-planner` call for browser-level state verification. When NOT to use: if no browser interaction is needed, use `TransactionCase`/`Form` (faster, no HTTP server required); if testing a JS unit with mocked models, use Hoot (Hoot does not start a server and cannot drive a real browser session). Tour/HttpCase authoring (Rounds 0-4) proceeds without a live instance; execution requires `--http-port` and MUST be delegated per `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 
-Use when the user wants: test coverage for a model/computed field/constraint/onchange/wizard; a test guarding a named business rule; JS Hoot or QUnit tests for an OWL component; a test file droppable into `tests/` and runnable with `odoo-bin -i <module> --test-enable`; the failing test a coder will implement to green; a source test translated to a target version for forward-port; or a JS tour + HttpCase file for full-stack UI acceptance.
+Use when the user wants: test coverage for a model/computed field/constraint/onchange/wizard; a test guarding a named business rule; JS Hoot or QUnit tests for an OWL component; a test file droppable into `tests/` and runnable under `--test-enable` (a fresh DB installs with `-i <module>`; a re-run on an already-installed DB uses `-u <module>`); the failing test a coder will implement to green; a source test translated to a target version for forward-port; or a JS tour + HttpCase file for full-stack UI acceptance.
 
 ## Method
 
@@ -103,9 +103,9 @@ Write `tests/test_<feature>.py` (or `static/tests/test_<feature>.js` for JS). Ap
 - `@api.depends` paths used in `Form` interactions pass `validate_depends`
 - Field names in `env['<model>'].create({...})` match `model_inspect` output
 
-Backend code-quality gate: append `/test_lint` (and `/test_pylint` on v16+ Viindoo profiles) to `--test-tags` when running tests (see `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`). Test method local variables must follow `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md`: Rule A (no `l`/`O`/`i`) applies universally (pylint C0104 blocks the gate); Rules B/C (meaningful names, `for r in self`) apply when the active profile is Viindoo Standard or Internal. When these tests are later executed via `odoo-bin -i <module> --test-enable`, resolve the interpreter (the matching instance's `python` field) per `snippets/venv-resolution.md`, not system `python3`.
+Backend code-quality gate: append `/test_lint` (and `/test_pylint` on v16+ Viindoo profiles) to `--test-tags` when running tests (see `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`). Test method local variables must follow `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md`: Rule A (no `l`/`O`/`i`) applies universally (pylint C0104 blocks the gate); Rules B/C (meaningful names, `for r in self`) apply when the active profile is Viindoo Standard or Internal. When these tests are later executed under `--test-enable` - a FRESH DB installs them with `-i <module>`, a DB where the module is ALREADY installed re-runs them with `-u <module>` (`-i` on an installed module is a no-op; confirm the flags via `cli_help`; full rule `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`) - resolve the interpreter (the matching instance's `python` field) per `snippets/venv-resolution.md`, not system `python3`.
 
-If you are working on version 17.0 or later, you MUST add `--skip-auto-install` to the `odoo-bin -i <module> --test-enable` to avoid noise from auto installed modules
+On newer series (17.0+ is illustrative - confirm via `cli_help`) you MUST add `--skip-auto-install` to the install/init run (`-i <module> --test-enable`, or `-u <module>` on an already-installed DB) to avoid noise from auto-installed modules.
 
 **Tour/HttpCase execution boundary:** `HttpCase` + `start_tour` tests require a live HTTP server (`--http-port`). Do NOT run tour suites inline in the authoring context - the executor's job and the log volume are both large. Three roles are distinct: Author (this skill, Rounds 0-4) writes the tour file and the `HttpCase` wrapper; Execute (`odoo-instance` -> `odoo-instance-ops`) provisions the server and runs the suite; Adjudicate (caller or `odoo-qa-tester`) compares actual vs oracle. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`. When emitting NEEDS_NEXT (below), add `http_port: true` to `inputs` if the module contains tour/HttpCase tests.
 
@@ -160,12 +160,12 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 - **Copy-pasteable-only mode** (last resort): emit standalone blocks only when the repo itself is unreachable. Label `grounded: local-source (not OSM-indexed)` when built from disk; `OSM unavailable - ungrounded` only when neither OSM nor local source is available.
 - Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes - never ask a human to paste field lists, model definitions, or manifests.
 
-When no live Odoo instance is reachable to run `odoo-bin -i <module> --test-enable` in Round 5: emit `status: NEEDS_NEXT` with:
+When no live Odoo instance is reachable to run the suite under `--test-enable` (FRESH DB: `-i <module>`; already-installed DB: `-u <module>`) in Round 5: emit `status: NEEDS_NEXT` with:
 ```
 next:
   - skill: odoo-instance
-    reason: provision the live instance needed to run the suite and confirm RED; add http_port: true if the module has tour/HttpCase tests requiring --http-port
-    inputs: {operation: run-tests, series: "<series from context>", modules: ["<module under test>"], http_port: "<true if tour/HttpCase present, else omit>"}
+    reason: provision the live instance needed to run the suite and confirm RED; pass mode (fresh|reuse) and log_mode through when known; add http_port: true if the module has tour/HttpCase tests requiring --http-port
+    inputs: {operation: run-tests, series: "<series from context>", modules: ["<module under test>"], mode: "<fresh|reuse - fresh installs with -i, reuse re-runs with -u; omit to let the executor decide>", log_mode: "<warn|info|debug|sql verbosity - optional>", http_port: "<true if tour/HttpCase present, else omit>"}
     confidence: 0.9
     risk_level: L2
 ```

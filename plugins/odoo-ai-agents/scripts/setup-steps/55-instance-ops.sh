@@ -22,9 +22,18 @@
 #             [--extra "<resolved flags>"]
 #             Same as init but with -u instead of -i.
 #   test    --db <db> --python <venv_py> --addons <path> --modules <a,b>
-#             [--test-tags <tags>] [--extra "<resolved flags>"]
-#             Run with -i <modules> --test-enable [--test-tags <tags>]
-#             --stop-after-init. Parses result and emits TEST_RESULT=passed|failed.
+#             [--test-tags <tags>] [--mode fresh|reuse] [--log-mode warn|info|debug|sql]
+#             [--extra "<resolved flags>"]
+#             Run with <-i|-u> <modules> --test-enable [--test-tags <tags>]
+#             --stop-after-init. --mode fresh (default) -> -i (new DB / modules not yet
+#             installed; init+test in one pass); --mode reuse -> -u (DB already has the
+#             modules; re-running tests, where -i would be a no-op). --log-mode maps to
+#             the odoo log flag (warn/info/debug -> --log-level=<v>, sql ->
+#             --log-handler=odoo.sql_db:DEBUG); omitted keeps --log-level=test. The log
+#             flag is placed before --extra so --extra can still override it.
+#             Parses result and emits TEST_RESULT=passed|failed plus the TEST_FAILED/
+#             TEST_ERROR/TEST_WARNING counts and FINDINGS_PATH (a file holding the
+#             failing-test names + traceback heads and the warning lines).
 #   drop    --db <db> --python <venv_py> [--db-host H] [--db-user U]
 #             Invoke scripts/lib/odoo_db.py drop <db> via the instance venv python.
 #             Exit 10 from odoo_db.py -> clear venv-unavailable error (NOT a raw dropdb).
@@ -38,6 +47,11 @@
 #
 # STATUS line:  STATUS=ok|error        (parseable; always emitted)
 # TEST_RESULT:  TEST_RESULT=passed|failed  (parseable; only for `test` verb)
+# TEST counts:  TEST_FAILED=<n> TEST_ERROR=<n> TEST_WARNING=<n>
+#               (parseable; `test` verb only; best-effort from the log)
+# FINDINGS_PATH: FINDINGS_PATH=<path>  (`test` verb only; a file written next to the log
+#               holding the FAIL/ERROR test names + traceback heads and the WARNING lines,
+#               with in-scope warnings - mentioning a --modules name - listed separately)
 #
 # odoo-bin location:
 #   Env ODOO_BIN wins; else scan addons entries one-level-up for odoo-bin.
@@ -100,10 +114,70 @@ _open_log() {
 }
 
 # ---------------------------------------------------------------------------
-# _parse_test_result - read $logf + $1 (exit code) -> emit TEST_RESULT=
+# _parse_test_result - read $logf + $1 (exit code) -> emit TEST_RESULT= plus the
+#   TEST_FAILED/TEST_ERROR/TEST_WARNING counts and a FINDINGS_PATH file.
+#   Reads $logf and (best-effort) $arg_modules from the caller's scope (bash
+#   dynamic scope) to mark in-scope warnings.
 # ---------------------------------------------------------------------------
 _parse_test_result() {
     local exit_code="$1"
+
+    # --- Counts + findings file (always; independent of the pass/fail verdict) ---
+    # Odoo logs each failing test as a "FAIL:" line and each errored test as an
+    # "ERROR:" line (the message body, distinct from the " ERROR " log level);
+    # warning log lines carry the " WARNING " level token. These markers are the
+    # most version-stable signal, so counts are derived from them best-effort.
+    local n_fail n_error n_warn
+    n_fail="$(grep -cE '(^|[[:space:]])FAIL:' "$logf" 2>/dev/null || true)"
+    n_error="$(grep -cE '(^|[[:space:]])ERROR:' "$logf" 2>/dev/null || true)"
+    n_warn="$(grep -cE '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null || true)"
+    n_fail="${n_fail:-0}"; n_error="${n_error:-0}"; n_warn="${n_warn:-0}"
+
+    # Per-volume contract: the DETAIL goes to a file next to the log; stdout
+    # carries only the counts + the pointer.
+    local findings="${logf%.log}.findings.md"
+    local tb_head=20 warn_cap=50
+    local mod_regex=""
+    [[ -n "${arg_modules:-}" ]] && mod_regex="${arg_modules//,/|}"
+
+    {
+        echo "# Test findings"
+        echo
+        echo "Log: $logf"
+        echo "Counts: failed=$n_fail error=$n_error warning=$n_warn"
+        echo
+        echo "## Failures and errors (marker line + first $tb_head lines)"
+        echo
+        if [[ "$n_fail" -gt 0 || "$n_error" -gt 0 ]]; then
+            echo '```'
+            grep -E -A "$tb_head" '(^|[[:space:]])(FAIL|ERROR):' "$logf" 2>/dev/null || true
+            echo '```'
+        else
+            echo "_No failing or errored tests detected in the log._"
+        fi
+        echo
+        echo "## In-scope warnings (mention a --modules name, capped at $warn_cap)"
+        echo
+        echo '```'
+        if [[ -n "$mod_regex" ]]; then
+            grep -E '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null \
+                | grep -E "$mod_regex" 2>/dev/null | head -n "$warn_cap" || true
+        fi
+        echo '```'
+        echo
+        echo "## All warnings (capped at $warn_cap)"
+        echo
+        echo '```'
+        grep -E '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null | head -n "$warn_cap" || true
+        echo '```'
+    } >"$findings" 2>/dev/null || true
+
+    echo "TEST_FAILED=$n_fail"
+    echo "TEST_ERROR=$n_error"
+    echo "TEST_WARNING=$n_warn"
+    echo "FINDINGS_PATH=$findings"
+
+    # --- Pass/fail verdict (unchanged decision logic) ---
     if [[ "$exit_code" -ne 0 ]]; then
         echo "TEST_RESULT=failed"
         return
@@ -131,8 +205,11 @@ _parse_test_result() {
 }
 
 # ---------------------------------------------------------------------------
-# _parse_common_args - parse --db/--python/--addons/--modules/--extra
-# Sets: arg_db, arg_python, arg_addons, arg_modules, arg_extra
+# _parse_common_args - parse --db/--python/--addons/--modules/--extra plus the
+#   optional --test-tags/--mode/--log-mode flags.
+# Sets: arg_db, arg_python, arg_addons, arg_modules, arg_extra, arg_test_tags,
+#       arg_mode (default 'fresh'), arg_log_mode (default '').
+#   --mode and --log-mode are optional (NOT added to the required-args check).
 # ---------------------------------------------------------------------------
 _parse_common_args() {
     arg_db=""
@@ -140,6 +217,8 @@ _parse_common_args() {
     arg_addons=""
     arg_modules=""
     arg_extra=""
+    arg_mode="fresh"
+    arg_log_mode=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -161,6 +240,20 @@ _parse_common_args() {
             --test-tags)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --test-tags requires a value" >&2; exit 2; }
                 arg_test_tags="$2"; shift 2 ;;
+            --mode)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --mode requires a value" >&2; exit 2; }
+                case "$2" in
+                    fresh|reuse) arg_mode="$2" ;;
+                    *) echo "$(basename "$0"): --mode must be 'fresh' or 'reuse' (got '$2')" >&2; exit 2 ;;
+                esac
+                shift 2 ;;
+            --log-mode)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --log-mode requires a value" >&2; exit 2; }
+                case "$2" in
+                    warn|info|debug|sql) arg_log_mode="$2" ;;
+                    *) echo "$(basename "$0"): --log-mode must be one of warn|info|debug|sql (got '$2')" >&2; exit 2 ;;
+                esac
+                shift 2 ;;
             *)
                 echo "$(basename "$0"): unknown argument: $1" >&2; exit 2 ;;
         esac
@@ -176,7 +269,7 @@ _parse_common_args() {
 # cmd_init - install modules (-i)
 # ---------------------------------------------------------------------------
 cmd_init() {
-    local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags
+    local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode
     _parse_common_args "$@"
 
     local odoo_bin
@@ -218,7 +311,7 @@ cmd_init() {
 # cmd_update - update modules (-u)
 # ---------------------------------------------------------------------------
 cmd_update() {
-    local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags
+    local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode
     _parse_common_args "$@"
 
     local odoo_bin
@@ -258,7 +351,7 @@ cmd_update() {
 # cmd_test - run tests (-i + --test-enable [--test-tags ...] --stop-after-init)
 # ---------------------------------------------------------------------------
 cmd_test() {
-    local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags=""
+    local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags="" arg_mode arg_log_mode
     _parse_common_args "$@"
 
     local odoo_bin
@@ -280,15 +373,33 @@ cmd_test() {
     addons_csv="${addons_csv//,  /,}"
     addons_csv="${addons_csv//,  /,}"
 
+    # mode: fresh (default) -> -i (new DB / modules not yet installed; init+test in
+    # one pass); reuse -> -u (DB already has the modules; re-running tests, where -i
+    # would be a no-op). Confirm -i/-u semantics via OSM cli_help.
+    local mode_flag="-i"
+    [[ "${arg_mode:-fresh}" == "reuse" ]] && mode_flag="-u"
+
+    # Resolve the log verbosity flag. Omitted -> --log-level=test (default). Placed
+    # before ${arg_extra} so a --log-level/--log-handler in --extra still overrides.
+    local log_flag_args=()
+    case "${arg_log_mode:-}" in
+        warn)  log_flag_args=("--log-level=warn") ;;
+        info)  log_flag_args=("--log-level=info") ;;
+        debug) log_flag_args=("--log-level=debug") ;;
+        sql)   log_flag_args=("--log-handler=odoo.sql_db:DEBUG") ;;
+        *)     log_flag_args=("--log-level=test") ;;
+    esac
+
     local rc=0
     # shellcheck disable=SC2086
     "$arg_python" "$odoo_bin" \
         -d "$arg_db" \
-        -i "$arg_modules" \
+        "$mode_flag" "$arg_modules" \
         --addons-path "$addons_csv" \
         --test-enable \
         "${test_tags_args[@]}" \
         --stop-after-init \
+        "${log_flag_args[@]}" \
         ${arg_extra} \
         >"$logf" 2>&1 || rc=$?
 
@@ -308,7 +419,7 @@ cmd_test() {
 # cmd_drop - drop a database through Odoo (odoo_db.py); never raw dropdb
 # ---------------------------------------------------------------------------
 cmd_drop() {
-    local arg_db="" arg_python="" arg_db_host="" arg_db_user="" arg_addons="" arg_modules="" arg_extra="" arg_test_tags=""
+    local arg_db="" arg_python="" arg_db_host="" arg_db_user="" arg_addons="" arg_modules="" arg_extra="" arg_test_tags="" arg_mode="" arg_log_mode=""
 
     # Parse drop-specific args (subset of common + optional db-host/db-user).
     while [[ $# -gt 0 ]]; do

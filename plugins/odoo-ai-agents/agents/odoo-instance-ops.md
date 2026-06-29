@@ -183,11 +183,13 @@ Emits `LOG_PATH=<path>` and `STATUS=ok|error`. Pass the version-correct no-HTTP 
 
 ### 5. run-tests
 
-Run the Odoo test suite for one or more modules against an isolated ephemeral database.
+Run the Odoo test suite for one or more modules - either against a fresh ephemeral database (init+test in one pass) or by re-running on an existing database that already has the modules installed.
 
-**Inputs:** series, modules, test tags (optional), addons_path override (optional).
+**Inputs:** series, modules, test tags (optional), `mode` (`fresh` | `reuse`, default `fresh`), `log_mode` (`warn` | `info` | `debug` | `sql`, optional), addons_path override (optional).
 
-**Mechanism:** Run Steps A-D (mode `ephemeral`, `--ports 0`). Delegate to `scripts/setup-steps/55-instance-ops.sh test`:
+**Pick the mode (auto rule).** If the brief carries an `INSTANCE_HANDLE` whose DB already has the scope modules installed, re-running tests there MUST use `reuse`. If you acquired a fresh ephemeral DB for this run (the DB is created by the `-i` pass), use `fresh`. Behaviour rule: re-running tests on a DB where the modules are already installed must use `-u`; `-i` on an already-installed module is a no-op, so it does NOT re-exercise the install path. `fresh` -> `-i`, `reuse` -> `-u`; the script maps `--mode` to the right flag - confirm the `-i`/`-u` semantics for the series via `cli_help(command='server', odoo_version='<series>')`.
+
+**Mechanism:** `fresh` -> run Steps A-D with mode `ephemeral`, `--ports 0` (reserves a throwaway DB, created on the `-i` pass). `reuse` -> target the `INSTANCE_HANDLE` DB under an `exclusive` lease, `--ports 0` (no new DB created). Delegate to `scripts/setup-steps/55-instance-ops.sh test`:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh" test \
@@ -195,15 +197,20 @@ Run the Odoo test suite for one or more modules against an isolated ephemeral da
   --python "$ALLOC_PYTHON" \
   --addons "$ALLOC_ADDONS_PATH" \
   --modules "<modules>" \
+  --mode <fresh|reuse> \
   [--test-tags "<tags>"] \
+  [--log-mode <warn|info|debug|sql>] \
   [--extra "<version-correct flags from cli_help>"]
 ```
 
-(Pass `--test-tags` only when test tags are provided. Version-correct flags such as `--skip-auto-install` (v17+) go in `--extra`; confirm availability via `cli_help(command='server', odoo_version='<series>')`.)
+(Pass `--mode` per the auto rule above. Pass `--test-tags` only when test tags are provided, and `--log-mode` only when a non-default log level is wanted - omitted, the script keeps `--log-level=test`. Version-correct flags - e.g. a skip-auto-install flag on series that support it - go in `--extra`; confirm availability via `cli_help(command='server', odoo_version='<series>')`. The script places the resolved log flag before `--extra`, so a `--log-level`/`--log-handler` in `--extra` still overrides it.)
 
-The script writes a persistent log, emits `LOG_PATH=<path>`, `TEST_RESULT=passed|failed`, and `STATUS=ok|error` on stdout. Capture all three lines. Report `TEST_RESULT` as the pass/fail summary. Release the lease when done. On `TEST_RESULT=failed`, preserve the log path and forward it in the output block so the caller can route to `odoo-debug`.
+The script writes a persistent log and emits, on stdout: `LOG_PATH=<path>`, `TEST_RESULT=passed|failed`, the `TEST_FAILED=<n>` / `TEST_ERROR=<n>` / `TEST_WARNING=<n>` counts, `FINDINGS_PATH=<path>`, and `STATUS=ok|error`. Capture all of them. `FINDINGS_PATH` is a file written next to the log holding the failing-test names + traceback heads and the warning lines (in-scope warnings - mentioning a `--modules` name - listed separately); forward the POINTER, not the file body. Release the lease when done. On any failure OR warning, preserve `log_path` and `findings_path` and forward them in the output block.
 
-**Verdict contract (BLOCKING gate).** `TEST_RESULT=failed` (equivalently `status: tests-failed`) is a BLOCKING gate: the caller MUST halt - do NOT proceed to merge or the next phase - and surface `log_path` (route to `odoo-debug`). `TEST_RESULT=passed` is the only verdict that allows the caller to proceed.
+**Verdict contract.** Derive `status` from the counts:
+- `failed + errors > 0` -> `status: tests-failed` (equivalently `TEST_RESULT=failed`): a BLOCKING gate. The caller MUST halt - do NOT proceed to merge or the next phase - and route `findings_path` + `log_path` to `odoo-debug`.
+- `warnings > 0` with `failed + errors = 0` -> `status: tests-passed-with-warnings` (DONE_WITH_CONCERNS): the suite passed but warnings ARE findings that must be fixed, so you MUST surface `findings_path` to the caller rather than swallow it.
+- clean (`failed + errors = 0` and `warnings = 0`) -> `status: tests-passed`: the only verdict that lets the caller proceed with nothing to address.
 
 ### 6. ensure-up / status
 
@@ -250,8 +257,12 @@ demo: true | false
 venv_python: <path>
 addons_path: <colon-separated path>
 log_path: <captured verbatim from LOG_PATH= line emitted by the script>
+failed: <n or null>          # run-tests only; from TEST_FAILED=
+errors: <n or null>          # run-tests only; from TEST_ERROR=
+warnings: <n or null>        # run-tests only; from TEST_WARNING=
+findings_path: <path or null># run-tests only; from FINDINGS_PATH= (failures + warnings file)
 lease_token: <token or null>
-status: up | down | created | dropped | tests-passed | tests-failed | error
+status: up | down | created | dropped | tests-passed | tests-passed-with-warnings | tests-failed | error
 notes: <one-line summary of any non-obvious decision or error>
 ```
 ````
@@ -270,6 +281,7 @@ The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verb
 - [ ] allocator lease acquired; token in output block
 - [ ] DB created/dropped THROUGH Odoo (odoo_db.py / Odoo create-on-init), never raw createdb/dropdb
 - [ ] log_path captured verbatim from LOG_PATH= script stdout and forwarded in the output block
+- [ ] run-tests: TEST_FAILED/TEST_ERROR/TEST_WARNING + FINDINGS_PATH captured; mode picked per the auto fresh-vs-reuse rule; warnings>0 with no fail/error reported as tests-passed-with-warnings (findings_path surfaced, not swallowed)
 - [ ] lease released (or token forwarded to caller for later release)
 - [ ] worklog appended with decisions
 - [ ] OSM caveat preserved if grounding was local-source or ungrounded

@@ -563,7 +563,10 @@ records the verdict only and never reads the diff or log inline:
 # Odoo test collection (replace with pytest --collect-only for non-Odoo test runners)
 # Must show zero collection errors - a setUpClass crash means tests never ran.
 python -m pytest --collect-only <feature-touched test files>
-# OR via odoo-bin for TransactionCase/HttpCase tests:
+# OR via odoo-bin for TransactionCase/HttpCase tests. Pick the flag by DB freshness:
+#   -i <modules> on a FRESH <db> (modules not yet installed - the usual collection-gate case);
+#   -u <modules> on a REUSED/already-installed <db> (-i on an installed module is a no-op).
+#   Confirm flags via cli_help; see ${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md
 odoo-bin -d <db> --test-enable --stop-after-init -i <modules> 2>&1 | grep -E "ERROR|error"
 ```
 

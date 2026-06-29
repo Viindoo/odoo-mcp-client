@@ -36,7 +36,9 @@
 - `-u <module>` = update: re-run schema sync, reload **non-noupdate** data, run scripts in
   `migrations/`, recompute stored fields. `-u all` updates every installed module (slow).
 - Neither is needed for pure-Python logic changes - a **server restart** picks those up.
-- `-i` on an already-installed module is a no-op; to truly reset, uninstall or drop the DB.
+- `-i` on an already-installed module is a no-op; to truly reset, uninstall or drop the DB. To
+  RE-RUN tests on a DB that already has the module installed, use `-u <module> --test-enable` (see
+  `ODOO-TESTING.md` § Core test invocation).
 
 ## Traps to always check
 
