@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.34.0] - 2026-06-29
+
+### Changed
+
+- `odoo-instance` run-tests runner gains a `--mode fresh|reuse` flag (default `fresh` -> `-i`; `reuse` -> `-u`) so re-running tests against a database that already has the modules installed updates them instead of no-op'ing on `-i`, and a `--log-mode warn|info|debug|sql` flag to control Odoo log verbosity. The runner now returns structured findings - `TEST_FAILED` / `TEST_ERROR` / `TEST_WARNING` counts plus a `FINDINGS_PATH` file (failing-test names + traceback heads, with in-scope warnings listed separately) - so a caller can triage without re-parsing the raw log.
+- SSOT (`scripts/setup-steps/55-instance-ops.sh`, `agents/odoo-instance-ops.md`, `skills/odoo-instance/SKILL.md`, `docs/reference/ODOO-TESTING.md`, `docs/reference/INSTANCE-LIFECYCLE.md`) and consumers (`snippets/test-execution-handoff.md`, `skills/odoo-test-writing`, `agents/odoo-coder`, `agents/odoo-code-reviewer`, and the `odoo-git-rebase` / `odoo-forward-port` / `odoo-modules-upgrade` run-tests references) updated to pass `mode` / `log_mode` and consume the findings.
+
 ## [3.33.1] - 2026-06-29
 
 ### Changed

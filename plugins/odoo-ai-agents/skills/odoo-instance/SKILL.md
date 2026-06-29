@@ -36,6 +36,8 @@ When invoked, gather the following from the caller's request:
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests` |
 | `demo` | `on` / `off` (default `off`) |
 | `test_tags` | e.g. `/module.ClassName.method_name` for `run-tests` |
+| `mode` | `fresh` / `reuse` (default `fresh`; `run-tests` only) - auto `reuse` when reusing an INSTANCE_HANDLE whose DB already has the modules installed, else `fresh`; `fresh` -> `-i` (init+test on a new DB), `reuse` -> `-u` (re-run where `-i` would be a no-op) |
+| `log_mode` | `warn` / `info` / `debug` / `sql` (optional; `run-tests` only) - sets the odoo log verbosity; omitted keeps `--log-level=test` |
 | `fresh_venv` | `true` / `false` (default `false` - reuse existing venv when present) |
 
 Anything the caller omits that is strictly required for the operation: ask ONE clarifying
@@ -56,6 +58,8 @@ SERIES: <series or 'unspecified'>
 MODULES: <comma-separated list or 'none'>
 DEMO: <on|off>
 TEST_TAGS: <tags or 'none'>
+MODE: <fresh|reuse>           # run-tests only; auto reuse when reusing an INSTANCE_HANDLE whose DB has the modules, else fresh
+LOG_MODE: <warn|info|debug|sql or 'default'>   # run-tests only; 'default' keeps --log-level=test
 FRESH_VENV: <true|false>
 INSTANCE_RESOLUTION: follow ${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md
 ALLOCATOR: acquire --mode ephemeral for mutations (create/init/update/run-tests);
@@ -80,8 +84,12 @@ demo: <true|false>
 venv_python: <path>
 addons_path: <colon-separated path>
 log_path: <log file path>
+failed: <n or null>            # run-tests only; from TEST_FAILED=
+errors: <n or null>           # run-tests only; from TEST_ERROR=
+warnings: <n or null>         # run-tests only; from TEST_WARNING=
+findings_path: <path or null> # run-tests only; from FINDINGS_PATH= (failures + warnings file)
 lease_token: <token or null>
-status: <created|dropped|up|down|started|tests_passed|tests_failed|BLOCKED|NEEDS_CONTEXT>
+status: <created|dropped|up|down|started|tests-passed|tests-passed-with-warnings|tests-failed|BLOCKED|NEEDS_CONTEXT>
 notes: <short human-readable summary or error>
 ```
 

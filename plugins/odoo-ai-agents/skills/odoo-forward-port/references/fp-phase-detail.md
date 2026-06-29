@@ -559,7 +559,10 @@ odoo-bin -d $ALLOC_DB_NAME -i mod_a,mod_b --test-enable --stop-after-init \
 # hide that. Default: no --test-tags (run full closure); narrow only when the untagged
 # run is prohibitively large, and record the tag used in merge-log.md.
 # subsequent same-batch commits touching a subset: -u <changed_mod> (skip full -i),
-# keep --skip-auto-install --http-port=$ALLOC_HTTP_PORT
+# keep --skip-auto-install --http-port=$ALLOC_HTTP_PORT.
+#   Behavior rule: once a module is installed in this DB, re-running its tests MUST use -u;
+#   -i on an already-installed module is a no-op (illustrative - confirm flags via cli_help).
+#   Full rule: ${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md
 
 python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN
 ```

@@ -134,6 +134,11 @@ odoo-bin -i <module> --test-enable --stop-after-init <db-options>
 odoo-bin -i <module> --with-demo --test-enable --stop-after-init <db-options>
 ```
 
+> The `-i` here reproduces the Runbot FRESH-init scenario (module just flipped installable, clean
+> DB). Re-running this gate against a DB where the module is ALREADY installed uses `-u <module>`
+> instead - `-i` on an installed module is a no-op. Confirm the flags via `cli_help`; see
+> `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
+
 Additionally run `base.TestInvisibleField` and (for `hr.*` modules) `hr.TestSelfAccessProfile`:
 
 ```bash

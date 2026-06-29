@@ -19,6 +19,15 @@
 odoo-bin -d <DB> -i <module> --test-enable --test-tags /<module> --stop-after-init --log-level=test
 ```
 
+**Fresh DB vs re-run - `-i` vs `-u`.** The example above is the **fresh-DB** case: `-i` installs
+the not-yet-installed module and runs its `at_install` tests in one pass. To RE-RUN the suite on a
+DB where the module is **already installed**, use `-u <module> --test-enable` instead - `-i` on an
+already-installed module is a no-op, so the install-time tests silently do **not** re-run. So: a
+fresh DB / not-yet-installed module uses `-i ... --test-enable` (init + test in one pass); an
+already-installed DB uses `-u ... --test-enable`. Confirm the exact flag semantics via `cli_help`
+for the target version. (This is the runner's `mode` = `fresh` vs `reuse`; see
+`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.)
+
 > **Under concurrency, `<DB>` must be an ISOLATED database, never the shared declared one** - a
 > parallel agent or another Claude Code session may be testing against it. Acquire a throwaway:
 > `python3 scripts/lib/allocator.py acquire --mode ephemeral --ports 0` (reserves a unique DB name;
@@ -39,6 +48,34 @@ odoo-bin -d <DB> -i <module> --test-enable --test-tags /<module> --stop-after-in
 
 > Older versions may lack `--test-tags` entirely (then use `--test-enable` alone). **Always
 > confirm with `cli_help` for the target version** rather than assuming the syntax exists.
+
+> **`--test-tags` only FILTERS - it never ADDS framework tests.** Narrowing tags to just
+> `/<cluster>` SKIPS framework `post_install` validation classes (e.g. Odoo `base` view-arch
+> tests, hr self-access tests) that are not tagged with your module - so a tag-restricted run can
+> stay green while a framework check the change actually broke never runs. To catch them, let the
+> suite run the full `post_install` set (do not narrow the tag to the cluster) or name the
+> framework class explicitly in `--test-tags`. The class names here are illustrative - confirm via
+> OSM / `cli_help`.
+
+## Log verbosity modes (the runner's `log_mode` param)
+
+The `odoo-instance` run-tests runner exposes a `log_mode` param that maps to Odoo log flags. Pick
+the lowest verbosity that still surfaces the findings you need - higher levels flood the caller's
+context.
+
+| `log_mode` | Odoo flag(s) | Use when |
+|---|---|---|
+| (omitted) | `--log-level=test` | default - test-progress + the `N failed, N error` summary |
+| `warn` | `--log-level=warn` | WARNING+ only (quietest; still shows FAIL/ERROR) |
+| `info` | `--log-level=info` | per-test progress + module-load lines |
+| `debug` | `--log-level=debug` | full framework debug trace |
+| `sql` | `--log-handler=odoo.sql_db:DEBUG` | dump executed SQL (query-count / N+1 probing) |
+
+When `log_mode` is omitted the runner keeps `--log-level=test` (it does NOT default to `warn`); pass
+a row above only to override. `sql` raises only the SQL logger, not the whole framework. **Confirm the exact log-level values and
+the sql-debug handler for the target version via `cli_help`** (`--log-level` / `--log-handler`) -
+the handler name above is illustrative. A run's WARNINGs are findings to fix (not noise) - the
+warnings-are-findings contract lives in `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 
 ## Quality gate / lint tests - always include (the part that slips to CI)
 
