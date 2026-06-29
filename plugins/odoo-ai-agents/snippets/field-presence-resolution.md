@@ -35,6 +35,12 @@ documented soft-dependency (class 3 optional-by-design); used anywhere else it i
 or class-2 smell. Run the OSM walk first, classify, then choose the branch - do not assign severity
 or pick a fix from the syntactic pattern alone.
 
+Inversion case (class 3, base model): a **base** model must not sniff `self._fields` for a field a
+**downstream** module injects - the base cannot hard-depend on the downstream, so the probe is the
+wrong direction. Have the base expose an **overridable hook** (a method returning a default, e.g.
+`def _get_<x>(self): return <default>`) and let the downstream module override it to read the
+injected field. The base stays dependency-clean; the downstream owns the field it added.
+
 ## Worked example 1 - wrong ORM path (class 2)
 
 ```python

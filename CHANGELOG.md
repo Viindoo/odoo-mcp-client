@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.33.1] - 2026-06-29
+
+### Changed
+
+- `odoo-code-review`: add `'field' in self._fields` to the runtime-presence-probing idiom list (pitfall #8), and add base-expose-overridable-hook guidance for the inversion case (a base model must not sniff `_fields` for a downstream-injected field) to the `field-presence-resolution` snippet.
+
 ## [3.33.0] - 2026-06-28
 
 ### Added
