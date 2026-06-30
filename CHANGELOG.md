@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Agent Team mode completion-reporting (issue #139) - teammates push a structured completion report via `SendMessage` to the lead and to dependents when Agent Team mode is on, and the lead tracks teammates via the native task board (new snippet `snippets/agent-team-protocol.md`); silent fallback to cold-spawn behavior when off.
+
+### Changed
+
+- Git delegation in `odoo-ai-agents` now routes through the `git-toolkit:git-ops` skill: consumers invoke `git-ops` via the Skill tool instead of cold-spawning `git-operator` / `git-surveyor` / `github-operator`; the guard test (`tests/test_git_delegation_boundary.py`) enforces the new seam.
+- `git-toolkit` 0.2.2 -> 0.2.3 - the 3 leaf agents can push a completion report in Agent Team mode (new snippet `snippets/agent-team-reporting.md`); still cannot fan out.
+
 ## [4.0.0] - 2026-06-29
 
 ### Added

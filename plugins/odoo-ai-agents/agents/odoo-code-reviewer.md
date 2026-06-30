@@ -251,3 +251,7 @@ read-only and produces findings only, so it does not spawn the reviewer itself:
 Before finishing, APPEND your significant findings to the run worklog - CRITICAL/HIGH findings, design-principle deviations, blast-radius ripples, unmet TDD acceptance criteria, and any missing-test gap - so later phases inherit them (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the artifact written. If CRITICAL/HIGH issues (including an unmet TDD acceptance criterion or a code-vs-intent divergence) need a fix, emit `next: odoo-coding` carrying the report path (and the `DESIGN_DOC` path when present); if a CRITICAL/HIGH behavior change lacks a protecting test, also emit `next: odoo-test-writing`.
+
+## Agent Team mode
+
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your review report and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).

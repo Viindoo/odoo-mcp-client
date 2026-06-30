@@ -125,6 +125,8 @@ Route each suspected layer to its specialist, choosing the model **explicitly** 
 
 Parallelism: the OSM-only legs (backend debugger + reactive audits) run in parallel (<=3 - Mode A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). The browser leg (odoo-ui-debugger) runs as its OWN exclusive step and MAY overlap the OSM legs - just never run two browser-driving agents at once.
 
+When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect as today.
+
 **Agent dispatch - prompt template (use verbatim, fill the brackets):**
 
 ```

@@ -746,8 +746,7 @@
       "spawns": [
         "odoo-code-reviewer",
         "odoo-review-scoper",
-        "github-operator (PR read + inline comment via GitHub MCP - delegated to git-toolkit)",
-        "git-operator (local diff/branch read before review - delegated to git-toolkit)"
+        "git-ops (PR worktree checkout + diff/branch read + inline-comment posting on the PR - via git-ops skill - git-toolkit)"
       ],
       "stack": "fullstack",
       "instance_touching": false,
@@ -872,9 +871,7 @@
         "odoo-code-review skill (via Skill tool: P9b in-pipeline review + P12 final PR review)",
         "odoo-test-writing (mode adapt, RED-first)",
         "odoo-instance skill (CONDITIONAL at P10: provisions ONE instance when range touches DB-stateful behavior; its INSTANCE_HANDLE is forwarded to every downstream verify/coder brief - downstream never self-provisions)",
-        "git-operator (all local git mutations: cherry-pick, branch, squash, force-with-lease - delegated to git-toolkit)",
-        "git-surveyor (read-only diff/range analysis + tree-identity verify - delegated to git-toolkit)",
-        "github-operator (PR create + review - delegated to git-toolkit)"
+        "git-ops (all local git mutations - cherry-pick, branch, squash, force-with-lease - plus read-only diff/range analysis + tree-identity verify and PR create/review - via git-ops skill - git-toolkit)"
       ],
       "stack": "fullstack",
       "instance_touching": true,
@@ -930,8 +927,7 @@
     "odoo-pr-monitoring": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "github-operator (read PR CI status + review state, then MERGE at the L2-merge-gate - delegated to git-toolkit)",
-        "git-operator (re-push of an approved D3 fix + post-merge cleanup of worktrees/branches/tag - delegated to git-toolkit)",
+        "git-ops (read PR CI status + review state, MERGE at the L2-merge-gate, re-push of an approved D3 fix + post-merge cleanup of worktrees/branches/tag - via git-ops skill - git-toolkit)",
         "odoo-debug (D3: route ANY CI warning/error/fail for root-cause first, via Skill tool)",
         "odoo-coding (author the fix odoo-debug located, via Skill tool; the re-push stays human-gated X2)"
       ],
@@ -1006,9 +1002,7 @@
       "handoff": "fresh",
       "spawns": [
         "odoo-coding (INVOKED per WI via the Skill tool from the orchestrating context; odoo-coding owns coder count + model)",
-        "git-operator (worktree add, cherry-pick onto integration in module-DAG order, squash, force-with-lease - all git ops delegated to git-toolkit)",
-        "git-surveyor (read-only diff + tree-identity verify - delegated to git-toolkit)",
-        "github-operator (open PR integration->principal - delegated to git-toolkit; merge owned by odoo-pr-monitoring)"
+        "git-ops (worktree add, cherry-pick onto integration in module-DAG order, squash, force-with-lease, read-only diff + tree-identity verify, open PR integration->principal; merge owned by odoo-pr-monitoring - via git-ops skill - git-toolkit)"
       ],
       "stack": "none",
       "instance_touching": true,
@@ -1113,9 +1107,7 @@
         "odoo-intent-extractor (read-only per-commit; model per complexity)",
         "odoo-installable-prober (read-only per-module installable-state probe in P2; model per complexity / sonnet)",
         "odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first; serial per commit via work-tier worktrees)",
-        "git-operator (cherry-pick, merge, branch/worktree ops - all local git mutations delegated to git-toolkit)",
-        "git-surveyor (read-only diff/range map + P5 verify - delegated to git-toolkit)",
-        "github-operator (PR create + review - delegated to git-toolkit)"
+        "git-ops (cherry-pick, merge, branch/worktree ops - all local git mutations - plus read-only diff/range map + P5 verify and PR create/review - via git-ops skill - git-toolkit)"
       ],
       "stack": "fullstack",
       "instance_touching": true,
@@ -1153,9 +1145,7 @@
         "odoo-solution-architect (conditional hard-call design)",
         "odoo-coder / odoo-frontend-coder (P4 adapt, dep order, per-module worktrees)",
         "odoo-instance-ops (P5 install/test) + odoo-backend-debugger / odoo-ui-debugger (failure diagnose)",
-        "git-operator (branch, worktree, cherry-pick, squash - all git mutations delegated to git-toolkit)",
-        "git-surveyor (read-only diff scope + verify - delegated to git-toolkit)",
-        "github-operator (P7 PR review + creation - delegated to git-toolkit)"
+        "git-ops (branch, worktree, cherry-pick, squash - all git mutations - plus read-only diff scope + verify and P7 PR review/creation - via git-ops skill - git-toolkit)"
       ],
       "stack": "fullstack",
       "instance_touching": true,

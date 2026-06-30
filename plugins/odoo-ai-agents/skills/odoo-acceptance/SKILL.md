@@ -59,6 +59,12 @@ The orchestrator stays light on tools: pin the version once with
 version into every dispatched agent brief; deep grounding happens inside the agents. Fan-out and
 model-tier policy: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`.
 
+When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched
+work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief,
+poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER
+from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When
+off, dispatch + collect as today.
+
 ## Inputs
 
 A change reference (changed modules / diff / design doc), the `odoo_version`, and a way to reach a

@@ -238,3 +238,7 @@ When you finish (single mode), append a Continuation Contract block per `${CLAUD
 
 - **`RETURN_TO` is SET** (the brief contains `RETURN_TO: <skill>`): set `next: <RETURN_TO>` (e.g. `next: odoo-forward-port`) with `inputs: {design_doc: <path>}`. Do NOT set `next: odoo-coding` or any coder target. The caller that requested return routing owns the downstream Plan Mode and code dispatch.
 - **`RETURN_TO` is ABSENT** (no such line in the brief): set `next: odoo-planning` (the planner turns the approved design into the wave-batched execution plan before any code; or `next: odoo-data-migration` for a migration design) with `inputs: {design_doc: <path>}`. Single-module non-trivial work still goes through planning - do NOT point at a coder here. The orchestrating skill's own Continuation Contract (`odoo-solution-design` § Continuation Contract, default `next: odoo-planning`) is authoritative and supersedes this subagent CC.
+
+## Agent Team mode
+
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your TDD and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).

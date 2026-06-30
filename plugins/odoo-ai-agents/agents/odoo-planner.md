@@ -186,3 +186,7 @@ When you finish, append a Continuation Contract block per
   strand every execution node (it reports `NEEDS_CONTEXT` when no run file exists). Phase P is the
   single serialization point (per ADR §7a); walking is run-harness's. You only EMIT this; you never
   dispatch the next step yourself.
+
+## Agent Team mode
+
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your plan artifact to a file as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).

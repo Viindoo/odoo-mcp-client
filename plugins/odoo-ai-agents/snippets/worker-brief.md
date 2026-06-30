@@ -23,3 +23,19 @@ stay out of the worker's hands (own-worktree add/commit/stash are allowed - see 
   git-toolkit; if you need one of these, return BLOCKED with the reason so the
   orchestrator can delegate. Full policy:
   `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Stay in your assigned worktree.
+
+## Agent Team mode keys (present only when team mode is on)
+
+When the orchestrator dispatches you as a named TEAMMATE (Agent Team mode), the brief carries these
+keys; absent keys mean team mode is off and you behave as today (final message + Continuation
+Contract):
+
+```
+TASK_ID: <id>          # the task-board id for your work-item; TaskUpdate it in_progress -> completed|blocked.
+REPLY_TO: main         # who to SendMessage your completion report to (the team lead).
+NOTIFY: <names>        # peer teammate names that depend on your output; SendMessage each too. `none` if no dependents.
+```
+
+End your turn with a `SendMessage` completion report to `REPLY_TO` (and each `NOTIFY` peer) per
+`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` - never end on a bare tool call or
+plain-text-only output.

@@ -42,10 +42,10 @@ never squash or cherry-pick in continuous mode.
   USER-facing choice; it plans the wave-batched delivery for the internal `odoo-wave` executor,
   which re-bases by cherry-pick - whereas forward-port keeps SHA by merge: a different git contract)
 
-> **Route in (not bare git-ops):** an Odoo forward-port routes HERE - this skill wraps
-> git-toolkit's generic `git-ops` front door with the Odoo intent-forwarding pipeline (intent
-> sweep, symbol-survival, verify-by-behavior). Do NOT invoke `git-ops` directly for an Odoo
-> forward-port.
+> **Route in (Odoo forward-port lands HERE, not bare git-ops):** an Odoo forward-port routes to
+> this skill - it wraps git-toolkit's generic `git-ops` front door with the Odoo intent-forwarding
+> pipeline (intent sweep, symbol-survival, verify-by-behavior). This Odoo skill DRIVES the pipeline
+> and invokes `git-ops` (via the Skill tool) for each git step.
 
 ## Invocation
 
@@ -106,14 +106,14 @@ Prompts for source-ref and target-branch, then the same flow.
 1. **Target-branch-lock** - NEVER checkout, switch, commit, merge, rebase, reset, or push the
    target branch B directly. Another session may hold B's working tree. All integration happens
    in a dedicated integration worktree branched FROM B (the JOB tier below). Read-only ops on
-   B are allowed. Delegate every mutation on the integration worktree to git-operator
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`). The integration-loop saga (record the
+   B are allowed. Delegate every mutation on the integration worktree to git-toolkit via the
+   `git-ops` skill (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`). The integration-loop saga (record the
    pre-loop SHA, checkpoint after each integrated commit, clean-abort or resume on failure - never
    leave a half-built integration branch) follows the shared SSOT
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`.
 
 2. **Keep the source SHA (continuous)** - continuous forward-port uses a no-ff no-commit
-   merge (delegated to git-operator; see `[[fp-merge-absorption]]`) so the source commit
+   merge (delegated to git-toolkit via `git-ops`; see `[[fp-merge-absorption]]`) so the source commit
    enters the target DAG with its SHA intact and the merge-base advances. NEVER squash or cherry-pick for
    continuous mode - both mint a fresh SHA, leave the merge-base behind, and force
    re-resolving the same conflict every future run. Cherry-pick is the one-shot-only
@@ -149,13 +149,13 @@ Prompts for source-ref and target-branch, then the same flow.
 Forward-port never touches B directly and parallelizes through worktree isolation.
 
 **JOB tier (always):** create `fp/<slug>` integration branch via dedicated worktree (delegated
-to git-operator) from B's HEAD. All absorption, adapt, and verify happen inside this integration
+to git-toolkit via `git-ops`) from B's HEAD. All absorption, adapt, and verify happen inside this integration
 worktree. The target branch B is read-only for the whole run; the only thing that ever lands on
 B is the final PR merge (P11), human-confirmed.
 
 **WORK tier (when a phase fans out):** from the integration worktree, each parallel unit
 (one module or work-item in P8 adapt) gets its OWN dedicated child worktree (delegated to
-git-operator) + branch off integration. Each adapt subagent works in its child worktree (a
+git-toolkit via `git-ops`) + branch off integration. Each adapt subagent works in its child worktree (a
 private git index -> safe parallelism, no `index.lock` race). When a child finishes, the
 orchestrator brings it back into integration by merge (keeping SHA), then removes the child
 worktree. The next phase recreates child worktrees from the updated integration. LOOP until
@@ -188,10 +188,10 @@ single brief message before any read or git op. Read any existing worklog
 (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`) and `checkpoint.json` (resume per the
 Checkpoint section: skip ONLY `status=done`; do NOT re-run design for a `status=designed` commit -
 resume it at the P4 plan gate with its recorded `design_doc`; a `status=extracted` commit resumes
-at P2; a `status=adapted` commit resumes at P9). Delegate commit enumeration to git-surveyor
-(range `<merge-base>..<source-ref>`, --no-merges; read-only, no worktree or branch yet);
-apply `--scope` / `--since` filters to the returned list. Map each `--scope` module name to
-its directory path before requesting git-surveyor to filter by path (module `l10n_vn` ->
+at P2; a `status=adapted` commit resumes at P9). Invoke the `git-toolkit:git-ops` skill (via the
+Skill tool) to enumerate commits (range `<merge-base>..<source-ref>`, --no-merges; read-only, no
+worktree or branch yet); apply `--scope` / `--since` filters to the returned list. Map each
+`--scope` module name to its directory path before requesting git-ops to filter by path (module `l10n_vn` ->
 `l10n_vn/`; resolve via manifest location, may be at repo root or under an addons subdir).
 TRIAGE each commit to an EXTRACT model tier INLINE (`git show --stat` + one `find_override_point` probe - the orchestrator
 triages the tier itself; never dispatch an agent to decide a dispatch). This is recon only:
@@ -200,10 +200,10 @@ design. Triage tier table: `references/fp-triage-table.md`.
 
 **P1 - Intent extract [PARALLEL, READ-ONLY].** Runs BEFORE the plan gate so the plan is built
 on extracted intent, not a guess. This is the only true parallel speed-up - and it is honored
-fully. Pre-step: dispatch git-surveyor (read-only, no worktree) in a single batch pass to write
-per-commit dump files - for each commit in the range, a full-patch commit dump (message + diff)
-written to `.odoo-ai/forward-port/<slug>/commits/<sha>.dump`; collect the `{ <sha>: <abs-path> }`
-map. Include `repo: <main-checkout-root>` in the git-surveyor dispatch for cross-repo ports. Each
+fully. Pre-step: invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only, no worktree)
+in a single batch pass to write per-commit dump files - for each commit in the range, a full-patch
+commit dump (message + diff) written to `.odoo-ai/forward-port/<slug>/commits/<sha>.dump`; collect
+the `{ <sha>: <abs-path> }` map. Include `repo: <main-checkout-root>` in the git-ops dispatch for cross-repo ports. Each
 extractor brief MUST include `commit_dump_path: <that path>` (the extractor mandates this field
 and never runs git itself).
 Dispatch one `odoo-intent-extractor` agent per commit using CHP Tier-B `subagent_type:
@@ -236,12 +236,12 @@ CLEAN-TIP rule (read the module's `installable` at the target BEFORE the merge, 
 post-merge). DISPATCH the read-only sonnet leaf `odoo-installable-prober` ONLY when category-3 is
 AMBIGUOUS - OSM returned `installable:True` at the target AND the module manifest was NOT touched
 by the cherry-pick range, OR OSM was unreachable. Do NOT blanket-sweep every module: OSM already
-grounds categories 1-2, so a probe there is wasted. Pre-step before dispatch: delegate to
-git-surveyor (read-only) to write two files - the clean-tip manifest (`<module>/__manifest__.py`
+grounds categories 1-2, so a probe there is wasted. Pre-step before dispatch: invoke the
+`git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files - the clean-tip manifest (`<module>/__manifest__.py`
 at `target_ref`) to `manifest_path = .odoo-ai/forward-port/<slug>/installable/<module>/manifest.py`,
 and the patched manifest history (log-with-patch of manifest modifications against `source_ref`) to
 `history_dump_path = .odoo-ai/forward-port/<slug>/installable/<module>/history.diff`. Include
-`repo: <main-checkout-root>` in the git-surveyor dispatch for cross-repo ports. Dispatcher inputs
+`repo: <main-checkout-root>` in the git-ops dispatch for cross-repo ports. Dispatcher inputs
 (canonical contract, pass exactly):
 `{ module, repo_root, source_ref, target_ref, target_version, manifest_path, history_dump_path }`.
 `repo_root` is the MAIN checkout root where git runs - the integration worktree does NOT exist at
@@ -283,8 +283,8 @@ installable routing per module; design-doc link for any commit P3 designed; merg
 Plan Mode approval - they are two separate steps; `EnterPlanMode` MUST come before any branch,
 worktree, or file touch.
 
-After Plan Mode approval, delegate to git-operator: create the JOB-tier integration worktree
-branched from B (Hard rule 1; dispatch contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
+After Plan Mode approval, invoke the `git-toolkit:git-ops` skill (via the Skill tool) to create the
+JOB-tier integration worktree branched from B (Hard rule 1; dispatch contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
 Supply the branch name `fp/<slug>`, path `<path>/fp-integration`, and base `<target-branch>` in the
 brief. No branch is created before this point - everything up to and including the plan gate is read-only.
 
@@ -293,8 +293,8 @@ installable routing + design-doc links + merge batches) as the resume RECORD - t
 that later phases and the checkpoint/continuation read. plan.md is now a RECORD, not the gate;
 the gate is Plan Mode above. plan.md template: `references/fp-phase-detail.md` P4.
 
-**P5 - Merge --no-commit [critical section, in integration].** Delegate to git-operator.
-Continuous: no-ff no-commit merge of `<src-SHA>`. One-shot: no-commit cherry-pick of
+**P5 - Merge --no-commit [critical section, in integration].** Invoke the `git-toolkit:git-ops`
+skill (via the Skill tool). Continuous: no-ff no-commit merge of `<src-SHA>`. One-shot: no-commit cherry-pick of
 `<src-SHA>`. For semantic conflicts, use the stateless-resume recipe in
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Only one merge in flight at a time
 (shared git index). Do NOT commit yet - the working tree is now the absorption zone
@@ -346,7 +346,7 @@ Full commands: `references/fp-phase-detail.md` P7.
 spawn an adapt unit in its own child worktree off integration (worktree per module for filesystem isolation).
 
 **CRITICAL - open merge window:** During the open P5 merge window of the CURRENT source commit -
-after git-operator ran `--no-commit` and before git-operator runs the P10 `commit` - `MERGE_HEAD`
+after git-ops ran `--no-commit` and before git-ops runs the P10 `commit` - `MERGE_HEAD`
 is live in the integration worktree. Git will reject any second merge in that worktree until
 the first is committed or aborted. Therefore: adapt all modules SERIALLY DIRECTLY in the
 integration worktree during this window - do NOT create child worktrees. Child-worktree fan-out
@@ -358,6 +358,11 @@ closed the prior merge. SSOT for the in-window adapt protocol: `[[fp-merge-absor
 Run the CHP capability probe once (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`
 - Capability probe) before the first P8 adapt dispatch, and cache the result for every P8 dispatch
 in this run - this tells the orchestrator up front whether Tier-A is available at all.
+When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched
+work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief,
+poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER
+from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When
+off, dispatch + collect as today.
 
 CHP Tier-A (SendMessage-resume) applies to the P8 adapt worker / P9 verify cycle: after the
 adapt worker finishes 8a+8b and the merge back to integration, P9 may reveal a failing test.
@@ -447,17 +452,17 @@ privilege): `[[fp-merge-absorption]]`. Instance lifecycle and test invocation co
 `docs/reference/INSTANCE-LIFECYCLE.md` and `docs/reference/ODOO-TESTING.md`.
 
 **P10 - Gate merge [STOP, per batch].** Emit `merge-log.md`, present it, wait for human-confirm.
-On confirm: delegate to git-operator to commit the merge (buckets a/d still commit - Hard rule 7), update
+On confirm: invoke the `git-toolkit:git-ops` skill (via the Skill tool) to commit the merge (buckets a/d still commit - Hard rule 7), update
 `checkpoint.json` `{<sha>: done}`. More commits/batches remain -> LOOP to P5: each subsequent
 commit re-runs the full per-commit cycle P5 merge -> P6 symbol-survival -> P7 drift -> P8 adapt
 (recreating WORK-tier worktrees from integration), with P9 verifying the adapted batch and P10
 gating it. Never loop straight to P8 - that would absorb the next commit without a merge or a
 symbol/drift check.
 
-**P11 - PR + review.** Push `fp/<slug>` (delegate to git-operator; resolve origin URL via
-`git remote get-url origin`), then open PR (delegate to github-operator). Run `odoo-code-review`
+**P11 - PR + review.** Push `fp/<slug>` (invoke `git-toolkit:git-ops`; resolve origin URL via
+`git remote get-url origin`), then open PR (invoke `git-toolkit:git-ops`). Run `odoo-code-review`
 inline (via the Skill tool, from this orchestrating context) passing `TARGET: worktree:<path>/fp-integration` (the
-JOB-tier integration worktree created at P4 - `<path>` is the base path passed to git-operator at P4)
+JOB-tier integration worktree created at P4 - `<path>` is the base path passed to git-ops at P4)
 so the skill reviews the fp integration tree, not the principal tree. It is OPTIONAL for a trivial port
 (docstring/string/comment-only buckets), but
 **MANDATORY whenever the batch grafts a new engine or mechanism** (a shared report engine, a
@@ -474,7 +479,7 @@ a clean merge of one path proves nothing about the others. For a mandatory revie
    (CI linter / review bot) comments and resolve or consciously waive each - a bot comment on a
    forward-ported line is signal that an auto-merged construct did not survive the target.
 3. **Attribution diff before rating any finding.** A finding only belongs to THIS port if
-   it sits on a line this port changed. Delegate to git-surveyor a three-dot diff
+   it sits on a line this port changed. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for a three-dot diff
    (`origin/<target-branch>...fp/<slug>`) and attribute each finding to either a
    forward-ported line (in scope, fix now) or a pre-existing target line (out of scope, do not
    re-rate the target's own debt as a port regression). Rate findings only after this attribution.
@@ -530,7 +535,7 @@ commit may be haiku to EXTRACT but opus to ADAPT if the target re-implementation
   advances; `checkpoint.json` makes the next run skip done commits and never re-resolve a past
   conflict.
 - **One-shot (`--one-shot`).** Port one frozen batch once; repeated-resolution footgun does not
-  apply. A no-commit cherry-pick (delegated to git-operator) is the accepted op; everything else (intent -> classify ->
+  apply. A no-commit cherry-pick (delegated to git-toolkit via `git-ops`) is the accepted op; everything else (intent -> classify ->
   design -> plan gate -> merge -> symbol-survival -> adapt -> verify -> gate) is identical.
 
 ## Checkpoint / resume
@@ -568,7 +573,7 @@ Forward-port adds platform-drift classes a pure-Python port misses - flag and ro
 Three more cross-cutting checks apply per batch:
 
 - **Multi-repo env bootstrap.** When source and target live in different repos/clones, bring
-  the source ref into reach (delegate to git-operator: add source remote + fetch) BEFORE computing
+  the source ref into reach (invoke `git-toolkit:git-ops`: add source remote + fetch) BEFORE computing
   the merge-base or merging; a forward-port across repos that skips this silently merges against a
   stale local ref. Detail: `references/fp-phase-detail.md`.
 - **Manifest version & migration dir.** Forward-port carries the source manifest AS-IS and NEVER

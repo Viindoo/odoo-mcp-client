@@ -24,6 +24,7 @@ GENERATOR = PLUGIN / "generator"
 DOCS_REF = PLUGIN / "docs" / "reference"
 
 CHP_SNIPPET = SNIPPETS / "context-handoff-protocol.md"
+AGENT_TEAM_PROTOCOL = SNIPPETS / "agent-team-protocol.md"
 SKILL_TOOL_DEPS = GENERATOR / "skill_tool_deps.json"
 ORCHESTRATION_MAP = DOCS_REF / "ORCHESTRATION-MAP.md"
 
@@ -48,6 +49,23 @@ def _read(p: Path) -> str:
 def test_chp_snippet_exists():
     """The context-handoff-protocol.md SSOT snippet must exist."""
     assert CHP_SNIPPET.is_file(), f"missing SSOT snippet {CHP_SNIPPET}"
+
+
+def test_agent_team_protocol_exists():
+    """The agent-team-protocol.md SSOT snippet must exist and carry its anchor tokens.
+
+    This is the worker->lead half of the Agent Team contract (CHP owns lead->worker). The
+    anchors guard its two load-bearing asks (the teammate completion-report push 'Ask 1' and
+    the low-context task board 'Ask 2') plus the two tool surfaces they ride on (`SendMessage`
+    for the report push, `TaskCreate` for the board). Dropping any one silently breaks the
+    protocol, so each is asserted here (mirrors test_chp_snippet_exists for the CHP SSOT).
+    """
+    assert AGENT_TEAM_PROTOCOL.is_file(), f"missing SSOT snippet {AGENT_TEAM_PROTOCOL}"
+    body = _read(AGENT_TEAM_PROTOCOL)
+    for token in ("Ask 1", "Ask 2", "SendMessage", "TaskCreate"):
+        assert token in body, (
+            f"agent-team-protocol.md: missing anchor token '{token}'"
+        )
 
 
 # ---------------------------------------------------------------------------

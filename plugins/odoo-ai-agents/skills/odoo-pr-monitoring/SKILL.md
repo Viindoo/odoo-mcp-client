@@ -3,11 +3,11 @@ name: odoo-pr-monitoring
 description: >
   Owns the PR lifecycle AFTER odoo-wave opens the PR and stops at the L2-squash-gate. A POLLER,
   not a blocking DAG node: it watches the PR CI status + review state via /loop (in-session) or
-  /schedule (cron), reading through git-toolkit's github-operator. On ANY CI warning/error/fail it
+  /schedule (cron), reading through git-toolkit's git-ops skill. On ANY CI warning/error/fail it
   routes to odoo-debug (root-cause first; fixes authored by odoo-coding) - the fix re-push is ALWAYS
   human-gated (X2), never an autonomous push from the unattended poller; a max_review_rounds cap
   stops review ping-pong (exhaustion -> BLOCKED for a human). On green + approved it presents the
-  L2-merge-gate, merges via github-operator, then runs post-merge cleanup. Fire on: "watch PR #N",
+  L2-merge-gate, merges via git-ops, then runs post-merge cleanup. Fire on: "watch PR #N",
   "babysit this PR", "drive the PR to merge", "poll CI until it goes green". Vietnamese:
   "theo doi PR", "canh PR den khi merge". Route opening + squashing the PR to odoo-wave; writing a
   fix to odoo-coding; diagnosing the failure to odoo-debug. DO NOT trigger
@@ -32,13 +32,13 @@ odoo-wave  ->  open PR + squash (tree-identity)  ->  STOP at L2-squash-gate
 odoo-pr-monitoring  (poll via /loop in-session | /schedule cron)
    -> any CI warning/error/fail  ->  odoo-debug (D3: root-cause)  ->  odoo-coding (fix)
         -> proposed re-push is HUMAN-GATED (X2); max_review_rounds cap; exhaustion -> BLOCKED
-   -> green + approved  ->  present L2-merge-gate  ->  merge (github-operator)
-        -> post-merge cleanup (worktrees/branches/tag via git-operator)
+   -> green + approved  ->  present L2-merge-gate  ->  merge (git-ops)
+        -> post-merge cleanup (worktrees/branches/tag via git-ops)
 ```
 
 It makes no domain/code decision and performs no git/GitHub op itself: it reads PR state and merges
-through git-toolkit's `github-operator`, cleans up through `git-operator`, and routes diagnosis to
-`odoo-debug` and fixes to `odoo-coding` - each via its named delegate. The repo is PUBLIC and every
+through the `git-toolkit:git-ops` skill (which it also uses for cleanup), and routes diagnosis to
+`odoo-debug` and fixes to `odoo-coding` - each via its delegate. The repo is PUBLIC and every
 git mutation is human-gated + worktree-only; this skill never relaxes that, least of all from an
 unattended cron poll.
 
@@ -83,14 +83,14 @@ guess a PR or open a new one.
 
 ## Phase 2 - Poll PR CI + review state (read-only)
 
-Each poll tick, dispatch git-toolkit's `github-operator` (cold-spawn via the Agent tool, per
+Each poll tick, invoke the `git-toolkit:git-ops` skill (via the Skill tool, per
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`) to READ - never to mutate - the PR's:
 
 - CI / checks conclusion (success / failure / error / pending / neutral / cancelled), per check run;
 - review decision (approved / changes-requested / review-required) and unresolved review threads;
 - mergeable state (clean / blocked / behind / conflicting).
 
-Reading PR/CI/review state is a GitHub-API read - it is delegated to `github-operator`, never run
+Reading PR/CI/review state is a GitHub-API read - it is delegated to `git-ops`, never run
 inline (no `gh`, no GitHub MCP call, no inline git in this skill - the delegation boundary, guarded
 by `tests/test_git_delegation_boundary.py`). The poller classifies the returned state into exactly
 one of three branches:
@@ -122,7 +122,7 @@ NEVER pushed autonomously.
 4. **Re-push is HUMAN-GATED (X2).** The poller PREPARES the fix in the worktree and SURFACES it -
    it NEVER pushes from the unattended poll. Present the proposed change (what failed, the proven
    root cause, the fix diff summary, the target branch) and WAIT for explicit human approval. Only
-   after approval is the push delegated to `git-operator` (a human-confirm-gated destructive op;
+   after approval is the push delegated to `git-ops` (a human-confirm-gated destructive op;
    git-toolkit enforces the confirm gate as a backstop). An unattended `/schedule` poll that hits a
    failure does NOT push - it parks the proposal and waits for a human at the next attended turn.
 5. **Out-of-plan fix -> re-plan, do not silently expand scope (CG-2).** If the fix needs a
@@ -138,11 +138,11 @@ NEVER pushed autonomously.
    #5). Present a tight summary - PR URL, CI green, review approved, squashed SHA + tree-identity
    result from `odoo-wave` - and WAIT for human approval. Write the gate in the USER'S LANGUAGE
    (translate labels/prose; keep PR URL, branch, SHA, and module names verbatim).
-2. **Merge.** On approval, delegate the merge to `github-operator` (pass the human approval through
+2. **Merge.** On approval, invoke `git-ops` to merge (pass the human approval through
    as `confirmed: yes - <quote>`). This is the only place this skill triggers the merge; there is no
    auto-merge and no CI-triggered merge.
-3. **Post-merge cleanup.** After the merge is confirmed on the remote, delegate cleanup to
-   `git-operator` in one brief (the checklist `odoo-wave` reserved for this owner:
+3. **Post-merge cleanup.** After the merge is confirmed on the remote, invoke `git-ops` to run the
+   cleanup in one brief (the checklist `odoo-wave` reserved for this owner:
    `${CLAUDE_PLUGIN_ROOT}/skills/odoo-wave/reference/wave-templates.md` Cleanup Checklist): remove
    the per-WI worktrees and the integration worktree, delete the WI + integration branches, delete
    the wave-backup tag, and prune stale worktree refs. The gitignored `.odoo-ai/wave/<slug>/` and
@@ -171,7 +171,7 @@ NEVER pushed autonomously.
 > is the FALLBACK, only when OSM is incomplete or unreachable. OSM is STATIC (no live records). This
 > skill barely touches OSM: it pins the run's target Odoo series once at attach (which doubles as the
 > OSM reachability probe) so the version-pinned context travels with any D3 hand-off to `odoo-debug`
-> and into the merge report. All PR/CI/review reads are GitHub-API ops delegated to `github-operator`
+> and into the merge report. All PR/CI/review reads are GitHub-API ops delegated to `git-ops`
 > (not OSM), and any deep source grounding happens INSIDE `odoo-debug` / `odoo-coding`, not here.
 
 ## Concurrency + handoff
@@ -179,8 +179,8 @@ NEVER pushed autonomously.
 This skill dispatches strictly SERIALLY - one poll, then at most one route (`odoo-debug` then
 `odoo-coding`) or one merge per tick. It runs no fan-out, so the Mode-A/Mode-B budgets in
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` are never exercised; that SSOT still
-governs any subagent it cold-spawns. Every delegate (`github-operator`, `git-operator`,
-`odoo-debug`, `odoo-coding`) is a fresh cold-spawn each turn (Tier-C, the always-correct baseline),
+governs any subagent it cold-spawns. Every delegate (the `git-ops` skill, `odoo-debug`,
+`odoo-coding`) is invoked fresh each turn (Tier-C, the always-correct baseline),
 so the watch resumes correctly after any session boundary by re-reading `run-<id>.json` and the
 poll-state note.
 
@@ -190,9 +190,9 @@ poll-state note.
   skill starts after.
 - **Writing a fix** -> `odoo-coding` (backend + frontend); **diagnosing a failure** -> `odoo-debug`
   (root-cause first). This skill only ROUTES to them and gates the re-push.
-- **Any inline git / GitHub-API op** -> delegated to git-toolkit (`github-operator` for PR read +
-  merge; `git-operator` for the re-push and post-merge cleanup). This skill never runs `gh`, a
-  GitHub MCP call, or an inline git mutation.
+- **Any inline git / GitHub-API op** -> delegated to git-toolkit via the `git-ops` skill (PR read +
+  merge, the re-push, and post-merge cleanup; git-ops routes each to the right leaf). This skill
+  never runs `gh`, a GitHub MCP call, or an inline git mutation.
 - **Re-planning scope** -> `odoo-planning` (when a fix needs a module/wave outside the approved
   plan, CG-2). This skill never silently expands scope.
 - **Autonomous merge or autonomous re-push** -> both are L2 and human-gated; an unattended poll
@@ -203,7 +203,7 @@ poll-state note.
 Two start modes: (a) inside a run - re-attach via the PR URL in `run-<id>.json`; (b) standalone -
 a user names "watch PR #N" directly and the watch runs on that PR with no run file. OSM is optional:
 when the odoo-semantic-mcp server is unreachable the watch still runs (PR/CI reads go through
-`github-operator`, which needs no OSM), and any D3 hand-off degrades to `odoo-debug`'s own disk
+`git-ops`, which needs no OSM), and any D3 hand-off degrades to `odoo-debug`'s own disk
 fallback (`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`). If the PR handle itself
 cannot be resolved, STOP and report `NEEDS_CONTEXT` - never fabricate a PR.
 

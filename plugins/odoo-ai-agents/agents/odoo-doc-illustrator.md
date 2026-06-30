@@ -254,3 +254,7 @@ naming: <pattern or "default"> | bilingual: <yes/no> | asset_dir: <path>
 Before finishing, APPEND significant decisions (mode chosen, DOC LAYER, languages resolved, convention detected, screens selected, fallbacks triggered) to the run worklog (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced listing real artifact paths / next).
+
+## Agent Team mode
+
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your image and doc artifacts and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).

@@ -224,3 +224,7 @@ Also state explicitly: `_scope.md written to: <abs-path-to-scope-file>`.
 - The ONLY file write permitted is `_scope.md` under `.odoo-ai/reviews/<slug>-<date>/`.
 - If `changed_files` is empty after Step 1, return immediately: `BLOCKED - no changed files found between <BASE> and HEAD; confirm the BASE ref and that commits exist on this branch.`
 - If the module map produces zero modules (all changed files are outside any `__manifest__.py` subtree), state: `NEEDS_CONTEXT - no Odoo modules found in the changed files; changed paths: <list>`.
+
+## Agent Team mode
+
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your `_scope.md` file as usual. If `SendMessage` is absent, behave as today (final scope summary block).

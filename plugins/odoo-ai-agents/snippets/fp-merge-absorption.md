@@ -9,12 +9,12 @@
 
 **Continuous forward-port** (recurring, source repo keeps evolving):
 
-Delegate to **git-operator** (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
+Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool; see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
 - `op: merge --no-ff --no-commit <src-SHA>` (request worktree isolation)
 
-On return from git-operator, the working tree is the absorption zone. All adapt work
-(steps 1-4 in "Absorption window" below) happens there. When adapt is complete, delegate
-to **git-operator** again:
+On return from git-ops, the working tree is the absorption zone. All adapt work
+(steps 1-4 in "Absorption window" below) happens there. When adapt is complete, invoke
+**`git-toolkit:git-ops`** again:
 - `op: commit`, `message: "fp: absorb <src-SHA> - <one-line summary>"`
 
 `--no-ff` forces a true merge commit so the source SHA enters the DAG of the target branch.
@@ -25,14 +25,14 @@ The merge-base advances to `<src-SHA>` after the commit. Next run, the scoped lo
 the target: merge-base does not move, and tomorrow's run encounters the same conflict again,
 permanently.
 
-**One-shot mode** (port once, source is frozen): delegate to **git-operator** with
+**One-shot mode** (port once, source is frozen): invoke **`git-toolkit:git-ops`** with
 `op: cherry-pick -n <src-SHA>` (the -n / no-commit flag keeps the tree open for absorption;
 request this explicitly in the brief) as a SHOULD fallback - the repeated-resolution footgun
 does not apply when the source will never advance.
 
 ## Absorption window (inside the no-commit merge)
 
-Between the no-commit merge opened by git-operator and the subsequent commit step, the
+Between the no-commit merge opened by git-ops and the subsequent commit step, the
 working tree is the absorption zone. All work happens here - in this order:
 
 1. Symbol-survival check - see [[fp-symbol-survival-check]] BEFORE touching any file.
@@ -46,11 +46,11 @@ working tree is the absorption zone. All work happens here - in this order:
 3. Forward tests - translate API to target, strip implementation-coupled assertions
    (see [[test-behavior-contract]]).
 4. Fix any lint/eslint/prettier errors introduced by the merge.
-5. Delegate the commit to git-operator - the merge commit encapsulates the entire
+5. Invoke `git-toolkit:git-ops` to commit - the merge commit encapsulates the entire
    translation cost.
 
-Do NOT ask git-operator to commit until verify is green (P9, below). Do NOT open a second
-no-commit merge while one is in progress (git index is shared; git-operator enforces this).
+Do NOT ask git-ops to commit until verify is green (P9, below). Do NOT open a second
+no-commit merge while one is in progress (git index is shared; git-toolkit enforces this).
 
 ## Migration dir retarget (C2) - distinct from C1
 
@@ -181,7 +181,7 @@ The same FP-delta / pre-existing discriminator above governs WHERE a bug is fixe
 
 - **Pre-existing** (also red on the clean target tip / pre-dates the port): carry it FAITHFULLY forward -
   do NOT inline-fix on the destination. Surface it to the SOURCE series so the source is fixed too and the
-  fix forward-ports up naturally. The orchestrator delegates to **github-operator** to open a source-series
+  fix forward-ports up naturally. The orchestrator invokes **`git-toolkit:git-ops`** to open a source-series
   issue, **conditional on a resolvable source remote** (mirror P11's `git remote get-url origin`); if none,
   record the deferred bug in `merge-log.md` and the Continuation Contract instead of opening an issue.
 - **FP-delta** (green on source, red after adapt): fix it here, now (already the rule above).
@@ -222,9 +222,9 @@ the PR; integration NEVER fast-forwards into B directly (target-branch-lock, Har
 The only thing that lands on B is the human-confirmed PR merge. This isolation guarantees
 the target branch stays consistent even if one WI worktree is abandoned mid-flight.
 
-**git-operator owns the worktree lifecycle** (S9 invariant - SSOT in git-toolkit
+**git-toolkit owns the worktree lifecycle** (S9 invariant - SSOT in git-toolkit
 `snippets/git-safety-contract.md`). All worktree creation, removal, and
-topology changes must be delegated to git-operator. This skill may read topology state (e.g.
+topology changes must be delegated to git-toolkit via the `git-ops` skill. This skill may read topology state (e.g.
 via `git worktree list`) but never mutates it directly.
 
 Full topology: see the forward-port orchestrator skill (`skills/odoo-forward-port/SKILL.md`).

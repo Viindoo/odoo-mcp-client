@@ -259,7 +259,11 @@ the UI leg). Resolve ONE Odoo version for the whole run; carry the design-doc pa
    the `agentId` the Agent launch returns and record it per work-item in plan.md (the coder never
    self-IDs). When Tier A is NOT available, proceed exactly as today (Tier C: fresh Agent calls,
    worklog for context). Tier C is always correct; Tier A is an optional optimization that degrades
-   silently to Tier C.
+   silently to Tier C. When the CHP capability probe is positive (Agent Team mode on), TaskCreate
+   one task per dispatched work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names>
+   into each teammate brief, poll TaskList/TaskGet for status, and read each result from the
+   teammate's SendMessage push (NEVER from the .output transcript) - per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect as today.
 1. Order modules so every module appears after its in-set dependencies (the wave column already
    encodes this).
 2. Greedily pack the next batch: take modules in order whose dependencies are all done (done = BOTH

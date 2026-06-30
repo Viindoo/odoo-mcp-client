@@ -292,3 +292,7 @@ The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verb
 ## Continuation Contract
 
 When you finish (or BLOCK on a missing instance / venv / lease), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced` lists the log file path and any artifact written; a missing venv or unreachable postgres is `status: NEEDS_CONTEXT` with the requirement as `blocked_reason`.
+
+## Agent Team mode
+
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your instance log and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).

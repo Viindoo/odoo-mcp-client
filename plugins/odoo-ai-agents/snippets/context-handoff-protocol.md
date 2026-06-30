@@ -42,6 +42,16 @@ The resumed worker keeps its full prior context - it is the mind that wrote the 
 reader. `SendMessage` returns immediately and parks the worker in the background (see async
 park-and-be-resumed below); it is NOT a synchronous reply.
 
+## Completion-report complement
+
+CHP owns the LEAD->WORKER direction: dispatch (Tier C), reuse-dispatch (Tier A resume / Tier B
+fork), and the capability probe + confidentiality guard those share. The WORKER->LEAD direction -
+the teammate's completion-report push (`SendMessage` to `main`) and the low-context task board
+(`TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet`) for tracking - lives in
+`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. It reuses this snippet's probe and
+confidentiality guard (it does not restate them). The two are non-overlapping SSOTs: do not document
+the completion-report or task board here.
+
 ## Tier B - fork (read-heavy fan-outs)
 
 For read-only fan-outs (survey passes, per-commit intent extraction, cluster classification), spawn
@@ -143,10 +153,11 @@ aggregation point, not only at the end.
 
 ## Tier-A workers in a git worktree - cd on resume
 
-Worktree lifecycle (creation, removal, topology changes) is owned exclusively by **git-operator**
+Worktree lifecycle (creation, removal, topology changes) is owned exclusively by **git-toolkit**
 (S9 invariant - SSOT in git-toolkit `snippets/git-safety-contract.md`). Tier-A workers do NOT
 create or tear down their own worktree - they receive a pre-created worktree path from the
-orchestrator, which delegates any worktree mutation to git-operator before dispatching the worker.
+orchestrator, which invokes the `git-toolkit:git-ops` skill (via the Skill tool) for any worktree
+mutation before dispatching the worker.
 
 However, the shell cwd is NOT guaranteed to be restored across a Tier-A resume. On resume,
 immediately `cd` to the assigned worktree path before any Bash command. Put this instruction in
