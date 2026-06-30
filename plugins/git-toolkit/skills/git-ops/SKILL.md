@@ -9,10 +9,10 @@ description: >-
   PR/issue URL (diff/CI/metadata, merge, compare). Vietnamese: "rebase nhánh", "gộp commit",
   "sửa lịch sử git", "giải quyết xung đột", "xóa commit", "khôi phục", "mở/review/merge PR",
   "tạo release", "dán link PR/issue". DO NOT trigger for non-git file edits or writing app code
-  -> use a coding skill. DO NOT trigger for an Odoo-specific rebase/forward-port pipeline -> use
-  odoo-git-rebase / odoo-forward-port. DO NOT trigger for upgrading an Odoo module cluster -> use
-  odoo-modules-upgrade. DO NOT trigger for code-quality review (bugs/conventions/security) of a
-  PR -> use a code-review skill.
+  -> use a coding skill. DO NOT trigger for code-quality review (bugs/conventions/security) of a
+  PR -> use a code-review skill. For a domain-specific flow (a framework's
+  rebase/forward-port/cluster-upgrade orchestrator) a domain front-door may wrap this toolkit ->
+  defer to it when installed
 ---
 
 # git-ops - the universal git/github front door
@@ -84,10 +84,10 @@ required.
 | Situation | Route to |
 |---|---|
 | Non-git file edits / writing application code | a coding skill (not git) |
-| An Odoo-specific same-series rebase pipeline | `odoo-git-rebase` |
-| Porting Odoo code ACROSS major versions | `odoo-forward-port` |
-| Upgrading an Odoo module cluster to a new major | `odoo-modules-upgrade` |
-| Reviewing the CODE QUALITY of a PR (bugs / conventions / security) | a code-review skill (e.g. `odoo-code-review`) |
+| A domain-specific same-series rebase pipeline | that domain's rebase front-door |
+| Porting code ACROSS major versions as a domain pipeline | that domain's forward-port front-door |
+| Upgrading a module cluster to a new major series | that domain's upgrade front-door |
+| Reviewing the CODE QUALITY of a PR (bugs / conventions / security) | a code-review skill |
 
 ## Detailed recipes (references)
 

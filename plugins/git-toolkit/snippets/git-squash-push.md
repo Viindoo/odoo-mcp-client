@@ -20,7 +20,7 @@ checkout).
 | `principal` | Branch name tracked at `origin/<principal>` (e.g. `master`, `main`) |
 | `backup-ref` | Tag name for the S1 backup (e.g. `backup/squash-YYYYMMDDHHMMSS`) |
 | `commit-msg` | Full commit message for the squashed commit |
-| `integration-branch` | Local and remote branch name to push (e.g. `integration/wave-42`) |
+| `integration-branch` | Local and remote branch name to push (e.g. `integration/feature-batch`) |
 | `confirmed` | Verbatim human approval text (required before step 5; see S2 gate) |
 
 ## Steps

@@ -73,14 +73,26 @@ flowchart TD
     V -->|non-empty| R[restore from backup - FAIL]
 ```
 
-## Primary callers
+## Consuming this toolkit
 
-`odoo-ai-agents` business skills (`wave`, `odoo-git-rebase`, `odoo-forward-port`) are the
-primary delegating consumers: they orchestrate all local git mutations and GitHub API ops by
-dispatching git-toolkit agents (git-operator, git-surveyor, github-operator) rather than running
-git commands inline. The delegation contract lives in the odoo-ai-agents plugin at
-`snippets/git-delegation.md`. WI leaf-workers these skills spawn are explicitly banned from
-issuing git commands and are restricted to their assigned worktree only.
+`git-toolkit` is a provider library; it does not know its consumers by name. An orchestrating
+CALLER - any skill, agent, or pipeline that needs git/GitHub work done - delegates every local
+git mutation and GitHub API op to these agents (dispatching `git-operator`, `git-surveyor`, or
+`github-operator` via the Agent tool) rather than running git inline. The caller is responsible
+for:
+
+- Worktree isolation per mutation - never operate on the primary/shared checkout (S9 in
+  `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`).
+- Human-confirm for destructive ops - obtain confirmation and pass it through to the operator
+  (the destructive gate in the same snippet).
+- Compact returns - ingest the worker's summary + findings path, never the raw diff
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation-decision.md`).
+
+Leaf-workers the caller spawns into a worktree are restricted to that worktree and must not issue
+git commands themselves; all integration and history mutation flows through git-toolkit's agents.
+
+How a specific consumer adopts this contract belongs in that consumer's own documentation and is
+intentionally out of scope here.
 
 ## Dependency
 
