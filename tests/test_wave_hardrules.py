@@ -1,8 +1,8 @@
-"""Behavioral guard for skills/wave/SKILL.md hard rules.
+"""Behavioral guard for skills/odoo-wave/SKILL.md hard rules.
 
-These tests protect the BEHAVIOR contracts of the wave skill (ETHOS#11):
+These tests protect the BEHAVIOR contracts of the odoo-wave (git-executor) skill (ETHOS#11):
 - Each assertion fails for exactly one reason: the corresponding rule was removed.
-- Tests protect the business contract ("no merge without human confirm",
+- Tests protect the business contract ("never auto-merge - stop at the L2-squash-gate",
   "never touch principal branch"), NOT the code structure.
 
 Run with: python3.11 -m pytest tests/test_wave_hardrules.py -v
@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-WAVE_SKILL = ROOT / "plugins" / "odoo-ai-agents" / "skills" / "wave" / "SKILL.md"
+WAVE_SKILL = ROOT / "plugins" / "odoo-ai-agents" / "skills" / "odoo-wave" / "SKILL.md"
 
 
 def _body(text: str) -> str:
@@ -24,7 +24,7 @@ def _body(text: str) -> str:
 
 
 def _skill_body() -> str:
-    assert WAVE_SKILL.exists(), f"skills/wave/SKILL.md not found at {WAVE_SKILL}"
+    assert WAVE_SKILL.exists(), f"skills/odoo-wave/SKILL.md not found at {WAVE_SKILL}"
     return _body(WAVE_SKILL.read_text(encoding="utf-8"))
 
 
@@ -51,7 +51,7 @@ def test_principal_branch_lock_present():
     """
     body = _skill_body()
     assert _PRINCIPAL_LOCK_RE.search(body), (
-        "skills/wave/SKILL.md: principal-branch-lock rule missing. "
+        "skills/odoo-wave/SKILL.md: principal-branch-lock rule missing. "
         "The body must contain text matching: principal...never/must not/do not...checkout/commit/switch/rebase/merge/push/reset. "
         "This rule prevents wave subagents from committing directly to the principal branch."
     )
@@ -80,7 +80,7 @@ def test_human_confirm_merge_present():
     """
     body = _skill_body()
     assert _HUMAN_CONFIRM_RE.search(body), (
-        "skills/wave/SKILL.md: human-confirm-merge rule missing. "
+        "skills/odoo-wave/SKILL.md: human-confirm-merge rule missing. "
         "The body must contain text matching one of: "
         "'human-confirm', 'no auto-merge', 'never auto-merge', "
         "'wait for user confirmation', 'explicit confirmation'. "

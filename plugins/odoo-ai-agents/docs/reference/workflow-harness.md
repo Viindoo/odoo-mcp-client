@@ -23,7 +23,7 @@
 5. [Composition contract](#5-composition-contract)
 6. [Skill delegation rule](#6-skill-delegation-rule)
 7. [Git-wave orchestration (orchestrating context)](#7-git-wave-orchestration-orchestrating-context)
-8. [Drive-to-done orchestration (Continuation Contract + run-driver)](8-drive-to-done-orchestration-continuation-contract--run-driver)
+8. [Drive-to-done orchestration (Continuation Contract + run-harness)](8-drive-to-done-orchestration-continuation-contract--run-harness)
    - [8.1 North Star diagram](81-north-star-diagram)
    - [8.2 Continuation Contract](82-continuation-contract)
    - [8.3 run-<id>.json blackboard](83-run-idjson-blackboard)
@@ -80,9 +80,9 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
   agents (e.g. `odoo-coder`, `odoo-code-reviewer`) MAY spawn their own subagents;
   the platform enforces a depth cap of 5. Resources are platform-managed.
 - **No Claude Code Workflow (JS) tool**: this plugin orchestrates entirely through the
-  Skill tool, the Agent tool, and the `run-driver` loop - it deliberately does NOT emit
+  Skill tool, the Agent tool, and the `run-harness` loop - it deliberately does NOT emit
   Claude Code Workflow (JS) scripts (the `Workflow` tool with `args` + `agent()`) for
-  codegen or orchestration. Dispatch fan-out (e.g. `odoo-coding`, `wave`) is real
+  codegen or orchestration. Dispatch fan-out (e.g. `odoo-coding`, `odoo-wave`) is real
   Agent-tool calls in model-weighted batches (SSOT `skills/_shared/concurrency-guard.md`
   Mode B). Never hand-roll a JS Workflow script to parallelize plugin work: passing the
   plan through the tool's `args` channel is the args-undefined footgun this design avoids.
@@ -104,7 +104,8 @@ artifacts are written here; nothing under `.odoo-ai/` is committed to the repo.
 | BRL job artifacts | `.odoo-ai/brl/<job-id>/` | `odoo-brl` skill |
 | Workflow phase state | `<output_dir>/<slug>-state.json` (output_dir is the full `.odoo-ai/...` path) | `workflow-chaining` |
 | QA artifacts | `.odoo-ai/qa/` | `qa-suite` workflow (static test-plan / checklist / triage); `odoo-acceptance` skill (scope manifest + immutable oracle + live acceptance report) |
-| Wave plan artifact | `.odoo-ai/wave/<slug>/` | `wave` skill (orchestrating context) |
+| Wave execution log | `.odoo-ai/wave/<slug>/` | `odoo-wave` skill (orchestrating context) |
+| Execution plan (3-block) | `.odoo-ai/plans/<slug>-<date>.md` | `odoo-planner` (via `odoo-planning`) - the wave-batched module-DAG + integration cadence + lifecycle plan |
 | Design doc (single mode) | `.odoo-ai/designs/<slug>-<date>.md` | `odoo-solution-architect` (one module or simple scope) |
 | Design artifacts (master-child) | `.odoo-ai/designs/<master-slug>/` - `index.yaml` (routing SSOT) + `_master-<date>.md` + `<module>-<date>.md` per module; full schema: `snippets/master-child-design-contract.md` | `odoo-solution-architect` (multi-module or large scope) |
 
@@ -486,99 +487,29 @@ before `odoo-coding` writes the override.
 
 ### 4.6 Plan Mode Content Schema
 
-When `output_mode = writes-files` (see decision tree in §4.1), the implementation
-plan written inside Plan Mode (step 3 of the EnterPlanMode procedure) MUST contain
-three blocks. None is optional.
+> **SSOT: `skills/odoo-intake/references/plan-mode-schema.md`** (the human-readable 3-block plan).
+> Restated here only as a labeled pointer (the §8 "restated to avoid drift" pattern) - the full
+> block schemas, worked examples, and rejection flow live in that one file. For a NON-TRIVIAL
+> multi-module change the 3-block plan is AUTHORED by the `odoo-planning` skill (via its
+> `odoo-planner` agent); for a trivial single-WI change `odoo-intake` writes the inline
+> micro-plan. Either way the plan CONFORMS to the SSOT above - never a second format.
 
-#### Block 1 - Workitem list
+When `output_mode = writes-files` (decision tree §4.1) the plan written inside Plan Mode (step 3
+of the EnterPlanMode procedure) MUST contain three blocks, none optional:
 
-Borrow the WI-Brief shape from `skills/wave/SKILL.md` (~lines 174-219) and/or the
-requirement shape in `odoo-brl/reference/schema.md` (~lines 116-197). Each WI carries:
-
-- `id` - short identifier (WI-A, WI-B, …)
-- one-line description of what changes
-- `files-in-scope` - the set of files this WI owns
-
-**File-ownership invariant**: the `files-in-scope` sets across all WIs MUST be
-**disjoint**. No two WIs may claim the same file. For multi-WI deliveries also note:
-worktree name, branch name, and verify command (from the Repo Capability Card).
-
-**Shared-file case (e.g. a form-view XML that a backend WI adds a `<field>` to and a frontend
-WI adds a `widget=` attribute to):** do NOT split one file across two WIs - that breaks the
-invariant. Resolve one of two ways: (a) collapse the XML edit into the backend WI (it adds both
-the field and the `widget=`), leaving the frontend WI to own only the JS/OWL/SCSS files; or
-(b) keep it one WI if the change is small. Disjointness is per-file, never per-node-within-a-file.
-
-**Workflow-as-node:** a WI whose approach is a workflow-command is **one WI**, with
-`files-in-scope` = the workflow's `output_dir/`. Do NOT expand the workflow's internal phases
-into separate WIs (they are SSOT in the `.workflow.yaml` and share the output_dir, which would
-break disjointness), and do NOT redraw the workflow's internal phase-sequence in Block 2 - the
-workflow is a single node that may carry edges to OTHER WIs.
-
-#### Block 2 - Dependency graph
-
-For deliveries with a small number of WIs, pick **one of the four topologies** from
-`wave/reference/wave-templates.md` (~lines 29-92):
-
-| Topology | When to use |
-|----------|-------------|
-| `independent` | WIs have no ordering constraint; can run in parallel |
-| `linear` | Each WI depends on the previous (strict chain) |
-| `mixed` | Some WIs parallel, some sequential |
-| `diamond` | Two parallel WIs converge into a final WI |
-
-For deliveries with many WIs, use the full **DAG schema** from
-`odoo-brl/reference/schema.md` (~lines 316-385): `nodes` + `edges` where each edge
-carries:
-
-```json
-{
-  "from": "WI-A",
-  "to": "WI-B",
-  "type": "technical | business-logic | data-flow",
-  "reason": "one-line rationale"
-}
-```
-
-Also include: `topological_order` (Kahn's algorithm), `critical_path`, and `cycles`
-(must be empty `[]` for a valid DAG - a cycle is reported, never silently dropped).
-A mermaid diagram is encouraged.
-
-#### Block 3 - Assignment
-
-One line per WI:
-
-```
-WI-X → <skill | command | agent>  (model: <from frontmatter>, effort: <S|M|L|XL>)
-```
-
-Also include per-WI:
-- **acceptance criteria** - observable signal that the WI is done
-- **verify command** - runnable command from the Repo Capability Card
-
-`model` is read from the candidate's `SKILL.md` or `agents/*.md` frontmatter
-(`model:` field) - never guessed or hard-coded in the plan. Exception: skills
-with an explicit per-dispatch tier table (`odoo-coding`, `odoo-debug`,
-`odoo-solution-design`) DO record the chosen dispatch `model`
-(haiku/sonnet/opus/fable) in their gate table and plan.md - there the
-frontmatter is only the default the dispatch parameter overrides. `effort`
-follows the gap-analysis legend: **S = <1 day · M = 1-3 days · L = 3-10 days ·
-XL = >10 days**.
-
-#### Short examples
-
-```
-# Full-stack feature (1 WI - odoo-coding sequences both stacks internally)
-WI-A → odoo-coding (sonnet, M)        adds backend field + ORM method, THEN renders OWL widget
-  (odoo-coding runs the backend agent first so the field exists before the widget binds)
-Verify: ./run_tests.sh sale_order
-
-# Three disjoint fixes (independent, candidate for wave)
-WI-A → odoo-coding (sonnet, S)        bug fix in account_move
-WI-B → odoo-coding (sonnet, S)        unit test for WI-A
-WI-C → (inline edit) (sonnet, S)     docs update (sonnet: docs update is a write phase)
-DAG: independent (no edges) → hand to `wave` for parallel delivery
-```
+- **Block 1 - Workitem list** - one entry per WI: `id`, a one-line description, and disjoint
+  `files-in-scope` (no two WIs claim the same file; disjointness is per-file, never
+  per-node-within-a-file). Multi-WI deliveries also note worktree + branch + verify command per
+  WI. A workflow-command is ONE WI (its `output_dir/`), never expanded into its internal phases.
+- **Block 2 - Dependency graph** - a typed-edge DAG (`type: technical | business-logic |
+  data-flow` + `reason`, plus `topological_order`, `critical_path`, `cycles: []`); for a few WIs
+  pick one of the four `odoo-wave/reference/wave-templates.md` topologies
+  (`independent | linear | mixed | diamond`). A mermaid diagram is encouraged.
+- **Block 3 - Assignment** - one line per WI: `WI -> skill | command | agent`, plus per-WI
+  acceptance criteria + a verify command. Estimates ONLY: `effort` (S/M/L/XL) and, for a spawner
+  node, `est_agents`. Both are ADVISORY / du kien - the dispatched specialist skill owns the
+  actual per-agent model + fan-out count at runtime (Decision X). The plan binds WHICH skill; it
+  never binds a model or a count.
 
 ---
 
@@ -599,9 +530,10 @@ Do NOT copy fields between sources - duplication creates drift.
 
 - `model_tier` lives in frontmatter and MUST NOT be copied into any registry or plan
   as a constant. Read it fresh at plan time from the candidate's own SKILL.md.
-  (Per-dispatch tier-table skills - `odoo-coding`, `odoo-debug`,
-  `odoo-solution-design` - are the exception above: their plans record the
-  dispatch tier per work-item.)
+  Skills that dispatch per-work-item at varying tiers (`odoo-coding`, `odoo-debug`,
+  `odoo-solution-design`) resolve and record the dispatch tier in their OWN runtime
+  dispatch/gate-table at execution time - never in the planning artifact (Decision X:
+  the plan binds WHICH skill, it never binds a model or a count).
 - `effort` is per-task, not per-skill. Two invocations of the same skill can have
   different effort tiers depending on scope.
 - `output_mode` is the only attribute whose SSOT is the registry - the explicit
@@ -712,7 +644,7 @@ Wired into `make validate`.
 ## 6. Skill delegation rule
 
 ```
-orchestrating context (main agent / run-driver / odoo-intake)
+orchestrating context (main agent / run-harness / odoo-intake)
   └── dispatched-specialist (workflow skill / spawner-agent skill)
         └── leaf-worker (context: fork worker)                ← hard-rules line; no spawner-skill dispatch
         └── named interior agent (odoo-coder, odoo-code-reviewer, …)
@@ -729,14 +661,15 @@ leaf specialists.
 A **spawner-agent skill** (`spawn_class: spawner-agent`) runs in the orchestrating
 context and dispatches a named agent via the **Agent tool**. Because it requires the
 orchestrating context, it is itself launched via the **Skill tool** (by the main agent
-or by an orchestrator like `run-driver`), never by Agent-tool'ing its name and never
+or by an orchestrator like `run-harness`), never by Agent-tool'ing its name and never
 by reading-and-imitating its SKILL.md. Examples: `odoo-code-review` (→ `odoo-code-reviewer`),
 `odoo-coding` (→ `odoo-coder` / `odoo-frontend-coder`), `odoo-debug`, `odoo-solution-design`,
 `odoo-ui-review`, `odoo-acceptance` (→ `odoo-qa-planner` / `odoo-qa-tester`).
 
 A **spawn/orchestrator skill** orchestrates other skills or forks workers via `context: fork`.
-Examples: `odoo-brl` (forks DAG cluster workers), `wave` (worktree fan-out), `odoo-intake` /
-`run-driver` / `workflow-chaining` (orchestrators that dispatch specialists).
+Examples: `odoo-brl` (forks DAG cluster workers), `odoo-wave` (worktree fan-out + invokes
+`odoo-coding` per WI), `odoo-intake` / `run-harness` / `workflow-chaining` (orchestrators that
+dispatch specialists).
 
 ### Mandatory hard-rules line
 
@@ -755,7 +688,7 @@ genuine leaf skill (no agent dispatch) is fine and adds no depth.
 ### Dispatch method
 
 The **orchestrating context** (main agent and orchestrators like `odoo-intake`,
-`run-driver`) dispatches a target skill via the **Skill tool** - the canonical, deterministic
+`run-harness`) dispatches a target skill via the **Skill tool** - the canonical, deterministic
 mechanism, and what lets a spawner skill (`odoo-code-review`, `odoo-coding`, …) actually RUN
 its own orchestration in the main context. **NL description-match** (a prompt matching the
 target skill's `description`) is the soft fallback.
@@ -808,93 +741,91 @@ referencing skills via the marker-block or direct reference.*
 
 ### 7.1 What it is
 
-The `wave` skill is a **git orchestrator** that lands multiple related work-item (WI)
-changes as one reviewed, squashed PR without ever touching the principal branch
-directly.
+The `odoo-wave` skill is the **git-executor**: an INTERNAL, consume-only
+(`user-invocable: false`) skill that `run-harness` dispatches per coding wave-layer of an APPROVED
+plan. It lands multiple related work-item (WI) changes as one reviewed, squashed PR without ever
+touching the principal branch directly. It does NOT choose agent/model and does NOT self-derive a
+plan - it INVOKES `odoo-coding` per WI (which owns count+model) and consumes the plan's WI list +
+wave-batched module-DAG + topology.
 
 ```
 principal branch (untouched throughout)
   |
-  └── integration branch  (wave/integration-<slug>)
+  +-- integration branch  (wave/integration-<slug>)
         |
-        ├── WI-A worktree  (wave/wi-<slug>-a)  ← Sonnet subagent, leaf-worker
-        ├── WI-B worktree  (wave/wi-<slug>-b)  ← Sonnet subagent, leaf-worker
-        └── WI-C worktree  (wave/wi-<slug>-c)  ← Sonnet subagent, leaf-worker
+        +-- WI-A worktree  (wave/wi-<slug>-a)  <- INVOKE odoo-coding (owns its own coder count+model)
+        +-- WI-B worktree  (wave/wi-<slug>-b)  <- INVOKE odoo-coding
+        +-- WI-C worktree  (wave/wi-<slug>-c)  <- INVOKE odoo-coding
               |
-              (cherry-pick A → B → C onto integration)
+              (per WI, sequentially: cherry-pick A -> B -> C onto integration, verify + checkpoint)
               |
-        end-of-wave Opus review  (inline, orchestrating context)
+        end-of-wave cross-cutting review  (inline, orchestrating context)
               |
         odoo-code-review invoked inline from main context
               |
-        1 PR  (integration → principal)
+        1 PR  (integration -> principal)
               |
         squash + tree-identity verify  (backup ref + git diff --quiet)
               |
-        HUMAN-CONFIRM MERGE  (mandatory stop - never auto-merge)
+        STOP at the L2-squash-gate  (odoo-wave never merges)
               |
-        cleanup: worktrees + branches + wave dir removed
+        merge + post-merge cleanup owned by odoo-pr-monitoring (L2-merge-gate)
 ```
 
-### 7.2 Why wave is NOT a workflow-chaining team-pattern
+### 7.2 Why odoo-wave is NOT a workflow-chaining team-pattern
 
-This is the **authoritative decision record** for why git-wave is an orchestrating-context
+This is the **authoritative decision record** for why the git-executor is an orchestrating-context
 skill, not a `team_pattern` inside the declarative workflow system.
 
-| Axis | workflow-chaining (dispatched-specialist) | wave skill (orchestrating context) |
+| Axis | workflow-chaining (dispatched-specialist) | odoo-wave skill (orchestrating context) |
 |------|------------------------------------------|-------------------------------------|
 | Git authority | None - runner does NL-dispatch only; no git ops | Delegates all git/github to git-toolkit: git-operator (worktree/cherry-pick/squash/force-with-lease), github-operator (PR), git-surveyor (review diff) |
 | odoo-code-review legality | Cannot call odoo-code-review (self-spawn only legal from the orchestrating context) | Calls odoo-code-review inline from main context - the only legal call site |
-| State machine | Declarative phases in `.workflow.yaml`; runner executes them | Imperative phases (0-6) encoded in the skill body; git refs/worktrees ARE the state |
+| Per-WI work | n/a | INVOKES `odoo-coding` per WI via the Skill tool from the orchestrating context (legal - the spawner ban is leaf-only); odoo-coding owns count+model |
+| State machine | Declarative phases in `.workflow.yaml`; runner executes them | Imperative phases encoded in the skill body; git refs/worktrees ARE the state |
 | Coupling | Coupled to workflow schema; adding GitWave would require new `team_pattern: GitWave` + new runner branch + new yaml keys | Self-contained; no schema changes to existing runner or yaml format |
-| Nesting risk | Injecting git orchestration into the workflow runner would push WI workers one depth level deeper (depth cap 5 platform-wide), leaving less headroom for any interior spawns needed by WI workers | Wave sits at the orchestrating layer (depth 1-2), keeping WI workers well inside the depth budget |
+| Nesting risk | Injecting git orchestration into the workflow runner would push workers one depth level deeper (depth cap 5 platform-wide), leaving less headroom for interior spawns | odoo-wave sits at the orchestrating layer (depth 1-2); main -> odoo-wave -> odoo-coding -> coder stays within the depth cap |
 
-**Decision**: git-wave is an orchestrating-context actor that sits alongside `odoo-intake`
-at the top layer, not below `workflow-chaining`. This is final and must not be revisited
-without updating this section.
+**Decision**: the git-executor (`odoo-wave`) is an orchestrating-context actor dispatched by
+`run-harness` per coding wave-layer, not a `team_pattern` below `workflow-chaining`. This is final
+and must not be revisited without updating this section.
 
 ### 7.3 Phase sequence (summary)
 
 | Phase | Action | Actor |
 |-------|--------|-------|
-| 0 - Discovery + plan gate | Read repo capability, draft WI ownership map, emit plan gate | wave (orchestrating context) |
-| 1 - Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration | git-operator via wave (orchestrating context) |
-| 2 - Dispatch WI subagents | Parallel Sonnet subagents; each carries Phase-4 brief + worker-brief line | WI workers (leaf-workers) |
-| 3 - Cherry-pick + resolver | Cherry-pick A → B → C onto integration; Sonnet resolver if conflict | git-operator via wave (orchestrating context) |
-| 4 - End-of-wave review | Inline Opus review (4.1) for plan-adherence + correctness, then `odoo-code-review` invoked inline from main context (4.2) | wave (orchestrating context) |
-| 5 - PR + squash + tree-identity | Create 1 PR (integration → principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup | github-operator (PR) + git-operator (squash/verify) via wave (orchestrating context) |
-| 6 - Human-confirm merge + cleanup | STOP and wait for explicit user approval before merge; remove worktrees/branches/wave dir after | human + wave (orchestrating context) |
+| 0 - Safety verify (consume) | Consume the plan's WI list + module-DAG + topology; run the disjoint file-ownership safety audit; plan-staleness check. No plan-gate (approval is upstream at the driver L2 gate) | odoo-wave (orchestrating context) |
+| 1 - Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration (dependents lazily) | git-operator via odoo-wave |
+| 2 - Per-WI: INVOKE odoo-coding | Per WI, sequentially INVOKE `odoo-coding` via the Skill tool (owns count+model); odoo-coding authors+commits in the provided worktree and returns SHA(s) | odoo-wave (Skill tool) -> odoo-coding |
+| 3 - Cherry-pick + resolver (saga) | Cherry-pick A -> B -> C onto integration (serialized, verify + checkpoint after each); Sonnet resolver on conflict; saga rollback on unrecoverable failure | git-operator via odoo-wave |
+| 4 - End-of-wave review | Inline cross-cutting review (4.1) over the INTEGRATED tree, then `odoo-code-review` inline from main context (4.2) | odoo-wave (orchestrating context) |
+| 5 - PR + squash + tree-identity -> STOP | Create 1 PR (integration -> principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup; STOP at the L2-squash-gate | github-operator (PR) + git-operator (squash/verify) via odoo-wave |
+| (merge) | Merge + post-merge cleanup at the L2-merge-gate | `odoo-pr-monitoring` (NOT odoo-wave) |
 
-### 7.4 WI-brief for WI subagents (leaf-workers)
+### 7.4 The spawner ban is leaf-only - odoo-wave legally invokes odoo-coding
 
-Every WI subagent brief MUST contain the following line verbatim:
+The spawner/orchestrator ban (a worker must not invoke a spawner skill or spawn a sub-agent) applies
+to **LEAF workers only** - a leaf runs at the bottom of the depth budget and must not fan a fresh
+pipeline out from under itself. `odoo-wave` is NOT a leaf: it runs in the orchestrating context that
+holds git authority, so it **legally INVOKES `odoo-coding` per WI via the Skill tool** (and invokes
+`odoo-code-review` inline in Phase 4). The leaves are `odoo-coding`'s own coders (`odoo-coder` /
+`odoo-frontend-coder`), and THEY carry the ban - their system prompts forbid invoking a spawner skill
+and forbid integration git ops; they author + commit inside their assigned worktree only
+(`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). A Phase-3 conflict resolver subagent is likewise a
+leaf that edits files in the worktree and runs no git op.
 
-```
-You are a leaf worker. You ARE the specialist - write/review the code yourself,
-grounding every Odoo claim with the OSM MCP tools (an MCP tool call is never a spawn, so it is
-always allowed); follow the odoo-coding / odoo-code-review conventions
-but do NOT invoke those bundles. Do NOT invoke any spawner skill (odoo-coding,
-odoo-code-review, odoo-ui-review, wave, odoo-intake, odoo-brl,
-workflow-chaining) - they dispatch a fresh agent and must
-be launched from the orchestrating context only. You MAY NL-dispatch a genuinely
-non-spawning (leaf) skill (e.g. odoo-feature-check, odoo-override-finding) for a
-read-only lookup. Do NOT invoke spawner skills via the Skill tool or NL-dispatch. Do NOT spawn a
-sub-agent. Do NOT git branch/cherry-pick/merge/push; stay in your assigned worktree.
-Only Read/Grep/Glob/Edit/Write/Bash.
-```
+This leaf-only boundary is what keeps the nesting chain (main -> odoo-wave -> odoo-coding -> coder)
+within the platform depth cap. Removing it from the coder agents' system prompts is a hard-rules
+violation.
 
-This line is the boundary that prevents nesting violations. Omitting it is a
-hard-rules violation in the wave skill.
+### 7.5 Scaling + concurrency
 
-### 7.5 Scaling rule
-
-| WI count | Action |
-|----------|--------|
-| 1 WI | Minimal - skip integration branch; dispatch single worktree; squash still applies |
-| 2-3 WI | Standard - use integration branch + plan gate before dispatch |
-| >=4 WI | Full plan artifact required: `.odoo-ai/wave/<slug>/plan.md` (topology + DAG + model-tier per WI) before any worktree is created |
-
-Maximum 3 concurrent WI subagents (OOM ceiling).
+odoo-wave is consume-only: the WI count and wave-batching are decided UPSTREAM by `odoo-planning`
+(the canonical producer) and consumed here - odoo-wave makes no scaling decision and writes only a
+run-local execution log to `.odoo-ai/wave/<slug>/`. Concurrency (the coder fan-out + the Mode-B OOM
+budget) is owned INSIDE each `odoo-coding` invocation
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`, Mode B); odoo-wave invokes odoo-coding
+per WI sequentially from its single orchestrating context and never sets a coder count or model.
 
 ### 7.6 Artifact location
 
@@ -904,10 +835,10 @@ The directory is cleaned up after a successful human-confirm merge.
 
 ---
 
-## 8. Drive-to-done orchestration (Continuation Contract + run-driver)
+## 8. Drive-to-done orchestration (Continuation Contract + run-harness)
 
 The harness turns a one-shot `/odoo-intake "<NL>"` into a self-advancing run: intake plans a DAG,
-`run-driver` (an orchestrating skill) walks it, each step emits a machine-readable **Continuation
+`run-harness` (an orchestrating skill) walks it, each step emits a machine-readable **Continuation
 Contract**, and the driver advances until DONE/BLOCKED/NEEDS_CONTEXT. This section is the SSOT
 for that mechanism. **It is additive** - every existing skill/agent/workflow keeps its current
 semantics; the only required change is appending a Continuation Contract block to each step's
@@ -931,7 +862,7 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
 │     └─ Odoo intent ─► Phase R recon (≤2 read-only) ─► Phase P emit RUN-DAG             │
 │  present DAG ONCE ─► [Plan Mode gate if any writes-files node] ─► write run-<id>.json  │
 │        │                                                                               │
-│        ▼  run-driver (orchestrating skill) - DRIVER LOOP                               │
+│        ▼  run-harness (orchestrating skill) - DRIVER LOOP                               │
 │   while RUN.status == NEEDS_NEXT and within budget:                                    │
 │     node = pick_ready(DAG ∪ dynamic_nodes)         # topo-order; tie → confidence desc │
 │     tier = resolve_gate(node)                      # --step raises floor, --auto lowers L1│
@@ -949,7 +880,7 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
                  (block applies ONLY to subagents as a quality gate, never to main)
    • Stop        drive-continuation → main ends turn while RUN==NEEDS_NEXT ⇒ systemMessage
                  advisory (continue=true, never block) - main keeps the right to stop
-  blackboard .odoo-ai/run-<id>.json = SINGLE SOURCE (only run-driver writes); state on disk ⇒
+  blackboard .odoo-ai/run-<id>.json = SINGLE SOURCE (only run-harness writes); state on disk ⇒
   main context does not grow with run length.
 ```
 
@@ -985,12 +916,12 @@ blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
   `next: [{skill, reason, confidence: 0.5, risk_level: L0}]` with `status: NEEDS_NEXT`. This
   lets the rollout be gradual - an un-migrated skill still drives at low confidence.
 - **Nesting safety:** a subagent only *emits* a contract; it never dispatches. Advancing is the
-  run-driver's job. fanout/WI leaf-workers emit contracts that bubble up to their
+  run-harness's job. fanout/WI leaf-workers emit contracts that bubble up to their
   dispatching orchestrator, never self-fire.
 
 ### 8.3 run-`<id>`.json blackboard
 
-Single source of truth for one run, under `.odoo-ai/` (gitignored). **Only `run-driver`
+Single source of truth for one run, under `.odoo-ai/` (gitignored). **Only `run-harness`
 writes it** (hooks never write - avoids a write race). Resume mirrors the BRL checkpoint
 contract (§3.3): re-entry reads the file, skips `DONE` nodes, resumes at the first `READY`
 node in topo-order.
@@ -1004,10 +935,10 @@ engaged. A workflow-command is ONE node (its phases are SSOT in the `.workflow.y
 expanded into WIs - see §4.6).
 
 **Invariant - `on_complete` workflows are driver-required.** A workflow that declares
-`on_complete` only *emits* `next[]`; only a `run-driver` dispatches it. Therefore such a
+`on_complete` only *emits* `next[]`; only a `run-harness` dispatches it. Therefore such a
 workflow MUST be entered through a driver: intake Phase P engages one automatically (trigger 3
 above). A slash command whose workflow declares `on_complete` must likewise engage the driver
-(write a 1-node `run-<id>.json` + invoke `run-driver`) instead of dispatching `workflow-chaining`
+(write a 1-node `run-<id>.json` + invoke `run-harness`) instead of dispatching `workflow-chaining`
 directly - otherwise the chain degrades to a human suggestion (workflow-chaining states this
 when it detects no driver above it). `generator/check_workflows.py` WARNs if a command
 references a driver-required workflow directly.
@@ -1034,8 +965,8 @@ references a driver-required workflow directly.
 ```
 
 **Worklog vs. blackboard (two different things, no overlap).** The blackboard above is the
-driver-only *state machine* (only `run-driver` writes it). The **worklog** is an append-only
-*decision journal* every participant (architect, test-author, coder, reviewer, debugger, wave WI
+driver-only *state machine* (only `run-harness` writes it). The **worklog** is an append-only
+*decision journal* every participant (architect, test-author, coder, reviewer, debugger, odoo-wave WI
 worker) reads before starting and writes when finishing, SSOT
 `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`. It answers "*why* did the prior phase do
 this" so a later phase builds on intent instead of re-deriving it. It is **one file per writer**
@@ -1045,7 +976,7 @@ the worklog dir so all nodes resolve the same path; standalone, a skill derives 
 slug. Blackboard = machine state, worklog = decision rationale; neither duplicates the other.
 
 **Context-Handoff Protocol (CHP) - 3-tier agent dispatch.** Orchestrator skills that dispatch
-worker agents (odoo-coding, odoo-code-review, wave, odoo-forward-port, odoo-deep-survey,
+worker agents (odoo-coding, odoo-code-review, odoo-wave, odoo-forward-port, odoo-deep-survey,
 odoo-brl) use the CHP (§6) to cut cold-start cost. Tier C (fresh spawn + worklog) is the SSOT
 baseline; Tier A/B are optimizations that degrade silently to C. CHP is an optimization layer,
 never a dependency. SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`.
@@ -1059,7 +990,7 @@ iterations before escalating - same bounded-iteration safety as every other chai
 reviewed change touches a UI/behavior surface whose blast-radius reaches DEPENDENT modules (the
 `render_check_set` widened per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` extends beyond the
 changed modules) - or the rendered-UI dimension is left `DONE_WITH_CONCERNS` because no instance was
-reachable - `odoo-code-review` (and `wave` Phase 4.3) additionally emit `next: odoo-acceptance` at
+reachable - `odoo-code-review` (and `odoo-wave` Phase 4.3) additionally emit `next: odoo-acceptance` at
 **L2 (opt-in, human-gated)**. It never auto-runs and never auto-blocks the review; the driver surfaces
 it as the terminal acceptance gate, and `odoo-acceptance` then drives the independent oracle
 (`odoo-qa-planner`) + live execution (`odoo-qa-tester`) over the affected cluster.

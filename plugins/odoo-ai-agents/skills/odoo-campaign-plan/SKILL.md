@@ -274,4 +274,4 @@ read them when you need a concrete plan shape to anchor against.
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive run-driver output, changes nothing above.
+(status / produced / next) - additive run-harness output, changes nothing above.

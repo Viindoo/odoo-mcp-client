@@ -5,7 +5,7 @@ Codex / Gemini) when it designs, codes, reviews, or debugs Odoo - NOT a snapshot
 of any wording. Each assertion guards one wiring that, if silently dropped, would
 take a guarantee with it: cross-agent decision logging, the three Odoo platform
 design principles, bidirectional impact analysis, dynamic demo data, the
-red-before-green test loop, and module-aware wave dispatch.
+red-before-green test loop, and the consume-only git-executor (odoo-wave) module-DAG contract.
 
 Red-before-green: deleting the corresponding reference makes exactly the matching
 assertion fail. stdlib only.
@@ -113,23 +113,32 @@ def test_architect_and_backend_coder_wire_demo_data():
         )
 
 
-def test_module_graph_is_shared_by_coding_and_wave():
+def test_module_graph_is_shared_by_coding_and_odoo_wave():
     """The module DAG is one SSOT, referenced by both dispatchers (no dup)."""
     mg = "odoo-module-graph.md"
     assert mg in _read(SKILLS / "odoo-coding" / "SKILL.md"), (
         "odoo-coding must reference the module-graph SSOT"
     )
-    assert mg in _read(SKILLS / "wave" / "SKILL.md"), (
-        "wave must reference the module-graph SSOT"
+    assert mg in _read(SKILLS / "odoo-wave" / "SKILL.md"), (
+        "odoo-wave must reference the module-graph SSOT"
     )
 
 
-def test_wave_respects_module_boundaries():
-    """wave computes the Odoo module DAG and auto-infers WI dependencies."""
-    body = _read(SKILLS / "wave" / "SKILL.md")
-    assert "Odoo module DAG" in body, "wave Phase 0 must compute the Odoo module DAG"
-    assert "depends_on" in body and "auto-infer" in body.lower(), (
-        "wave must auto-infer WI depends_on from module dependencies"
+def test_odoo_wave_consumes_module_dag_and_audits_ownership():
+    """NEW contract (ADR-001 D2): the git-executor `odoo-wave` is consume-only - it CONSUMES the
+    plan's wave-batched module-DAG (it no longer self-auto-infers WI dependencies) AND still runs the
+    disjoint file-ownership audit as a trust-but-verify safety check. Protects the behavior, not the
+    old auto-infer wording."""
+    body = _read(SKILLS / "odoo-wave" / "SKILL.md")
+    lower = body.lower()
+    # (a) consumes the plan's module-DAG (no self-derive)
+    assert "module-dag" in lower and "consume" in lower, (
+        "odoo-wave Phase 0 must CONSUME the plan's module-DAG (consume-only, no self-derive)"
+    )
+    assert "depends_on" in body, "odoo-wave must consume the plan's depends_on edges as cherry-pick order"
+    # (b) the disjoint file-ownership safety audit still runs (trust-but-verify)
+    assert "disjoint" in lower and ("ownership audit" in lower or "file-ownership" in lower), (
+        "odoo-wave must still run the disjoint file-ownership safety audit (trust-but-verify)"
     )
 
 

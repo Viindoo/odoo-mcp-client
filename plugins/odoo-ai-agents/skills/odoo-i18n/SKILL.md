@@ -182,5 +182,5 @@ All under `.odoo-ai/i18n/<slug>-<date>/`:
 When the run finishes (or pauses at the P0 gate or an instance BLOCK), append a Continuation
 Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced /
 next). `produced` lists the artifacts above; a missing instance is `status: NEEDS_CONTEXT` with the
-instance requirement as `blocked_reason`. Additive output for the run-driver - it does not change
+instance requirement as `blocked_reason`. Additive output for the run-harness - it does not change
 anything produced above.

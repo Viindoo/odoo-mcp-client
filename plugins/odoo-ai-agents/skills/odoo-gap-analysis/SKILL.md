@@ -80,8 +80,8 @@ main / team-leader context clean.
 fan-out:
 - **Small scope** (one cohesive area, or a short list) -> **ONE** `odoo-gap-analyzer` worker
   (the fast path - see § Instructions). It still writes the full artifact set.
-- **Larger scope** -> **one worker per cluster**, dispatched in a **rolling window** (fill the
-  budget, drain, dispatch the next) exactly as `wave` and `odoo-deep-survey` do.
+- **Larger scope** -> **one worker per cluster**, dispatched in a **rolling concurrency window**
+  (fill the budget, drain, dispatch the next) - the same pattern `odoo-deep-survey` uses.
 
 **Concurrency budget:** follow **Mode B (model-weighted budget)** in
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` - do not restate the weights or the

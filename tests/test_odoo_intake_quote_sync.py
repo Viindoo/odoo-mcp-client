@@ -29,13 +29,22 @@ def _valid_targets():
     # spawner skill fans out (e.g. `odoo-code-review` runs `odoo-code-reviewer`).
     # Validate them as real referents too so a typo'd agent name still fails.
     agents = {p.stem for p in (PLUGIN / "agents").glob("*.md")}
-    extra = {"odoo-intake", "wave", "workflow-chaining"}
+    # `odoo-wave` is now a real skill dir (the internal git-executor, user-invocable: false),
+    # so it is covered by `skills`; the bare `wave` skill no longer exists and intake no longer
+    # names it. `odoo-intake`/`workflow-chaining`/`run-harness` are also real skill dirs - kept
+    # here only as belt-and-suspenders for the router's self-references.
+    extra = {"odoo-intake", "workflow-chaining", "run-harness"}
     return skills | workflows | command_slugs | agents | extra
 
 
 # A backticked token is treated as a routing target only if it looks like a
 # skill/workflow slug - i.e. an odoo-* slug or one of the known orchestrators.
 # This avoids false positives on backticked paths, tool names, or file globs.
+# `wave` is kept in the alternation on purpose: it is a single-word token that the
+# hyphenated general pattern would not catch, so without it a stray `` `wave` `` reference
+# (the old skill, now removed and renamed `odoo-wave`, user-invocable: false) would go
+# unseen. It is intentionally NOT in `_valid_targets()`, so any such reference FAILS -
+# guarding against intake routing users back to the dead skill.
 TARGET_RE = re.compile(r"`/?([a-z][a-z0-9]*(?:-[a-z0-9]+)+|odoo-intake|wave)`")
 KNOWN_NON_TARGETS = {
     # backticked tokens that look slug-ish but are not routing targets
@@ -66,6 +75,7 @@ def test_odoo_intake_targets_exist():
         if tok in KNOWN_NON_TARGETS:
             continue
         if tok.startswith("odoo-") or tok in {"odoo-intake", "wave", "workflow-chaining",
+                                              "run-harness",
                                               "support-triage", "video-produce",
                                               "content-production", "discovery-quick",
                                               "bid-respond", "feature-positioning",

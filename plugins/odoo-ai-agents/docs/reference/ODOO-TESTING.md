@@ -6,7 +6,7 @@
 > then `cli_help("server", "--test-tags", odoo_version='<version>')` (and friends). The running instance is the final
 > arbiter - a test command that the version doesn't support will error.
 >
-> Consumed by: `odoo-qa-suite`, `odoo-deploy-checklist`, `wave` (when running tests), the
+> Consumed by: `odoo-qa-suite`, `odoo-deploy-checklist`, `odoo-wave` (when running tests), the
 > upgrade command chain.
 >
 > **Programmatic front door:** the `odoo-instance` skill and the `odoo-instance-ops` agent are the

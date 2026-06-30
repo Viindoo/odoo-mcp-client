@@ -40,6 +40,8 @@
 | `odoo-onboarding` | leaf | fresh | none | - | - |
 | `odoo-override-finding` | leaf | fresh | backend | - | - |
 | `odoo-perf-audit` | leaf | fresh | backend | - | - |
+| `odoo-planning` | spawner-agent | fresh | none | - | odoo-planner, (dispatch: single planner by default; for very large scope fan out one planner per module cluster following concurrency-guard.md Mode B, then reconcile - handoff fresh) |
+| `odoo-pr-monitoring` | spawner-agent | fresh | none | - | github-operator (read PR CI status + review state, then MERGE at the L2-merge-gate - delegated to git-toolkit), git-operator (re-push of an approved D3 fix + post-merge cleanup of worktrees/branches/tag - delegated to git-toolkit), odoo-debug (D3: route ANY CI warning/error/fail for root-cause first, via Skill tool), odoo-coding (author the fix odoo-debug located, via Skill tool; the re-push stays human-gated X2) |
 | `odoo-pricing-proposal` | leaf | fresh | none | - | - |
 | `odoo-qa-suite` | orchestrator-nl | fresh | none | yes | - |
 | `odoo-review-scoper` | leaf | fresh | none | - | - |
@@ -52,8 +54,8 @@
 | `odoo-ui-review` | spawner-agent | fresh | frontend | - | odoo-ui-reviewer |
 | `odoo-version-diff` | leaf | fresh | backend | - | - |
 | `odoo-visual-regression` | leaf | fresh | frontend | - | - |
-| `run-driver` | orchestrator-nl | fresh | none | - | - |
-| `wave` | spawner-wave | send-message | none | yes | (per-WI leaf workers over worktrees), git-operator (worktree add, cherry-pick A->B->C onto integration, squash, force-with-lease - all git ops delegated to git-toolkit), git-surveyor (read-only diff + tree-identity verify - delegated to git-toolkit), github-operator (PR integration->principal + review - delegated to git-toolkit) |
+| `odoo-wave` | spawner-wave | fresh | none | yes | odoo-coding (INVOKED per WI via the Skill tool from the orchestrating context; odoo-coding owns coder count + model), git-operator (worktree add, cherry-pick onto integration in module-DAG order, squash, force-with-lease - all git ops delegated to git-toolkit), git-surveyor (read-only diff + tree-identity verify - delegated to git-toolkit), github-operator (open PR integration->principal - delegated to git-toolkit; merge owned by odoo-pr-monitoring) |
+| `run-harness` | orchestrator-nl | fresh | none | - | - |
 | `workflow-chaining` | orchestrator-nl | fresh | none | - | - |
 
 ## Legend

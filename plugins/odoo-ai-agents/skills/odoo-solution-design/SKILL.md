@@ -149,7 +149,7 @@ On `approve-all`, write `status: approved` for all modules in `index.yaml`.
 
 ```yaml
 status: NEEDS_NEXT
-next: <return_to or odoo-coding>
+next: <return_to or odoo-planning>
 inputs:
   design_index: .odoo-ai/designs/<master-slug>/index.yaml
   master_design_doc: .odoo-ai/designs/<master-slug>/_master-<date>.md
@@ -161,8 +161,9 @@ inputs:
 Do NOT emit bare `design_doc:` (single-mode only). Do NOT put `design_index` /
 `master_design_doc` / `design_docs` as bare top-level keys - they belong under `inputs:`.
 `next:` same rule as single mode: `return_to` SET → `next: <return_to>`; UNSET →
-`next: odoo-coding` (per module in `dag_layer` order, each with `DESIGN_DOC: <child-path>` and
-`MASTER_DESIGN_DOC: <master-path>`).
+`next: odoo-planning` (the planner consumes `index.yaml` `dag_layers` and batches the modules into
+a wave-batched execution plan before any code is written - it is the first consumer of the design
+DAG; the coders later follow the plan's module/wave order rather than `dag_layers` directly).
 
 ---
 
@@ -383,8 +384,10 @@ Approve design? (approve / refine: [feedback] / cancel)
 
 - `refine: [feedback]` → re-dispatch the architect with the feedback; rewrite the same doc.
 - `approve` → ONLY NOW does the chain move on. Two branches:
-  - **`return_to` is UNSET (default standalone flow):** enter Plan Mode for the code and
-    dispatch the coder (`odoo-coding`) to build to the approved doc.
+  - **`return_to` is UNSET (default standalone flow):** hand off to `odoo-planning` to turn the
+    approved design into the execution plan (module order + integration cadence + lifecycle
+    wiring); `odoo-planning` owns the code Plan Mode and the plan wires `odoo-coding` / `odoo-wave`
+    (the git-executor, dispatched by run-harness) per its plan. (A migration design routes straight to `odoo-data-migration` / `odoo-coding`.)
   - **`return_to` is SET (caller-return flow):** do NOT enter a code Plan Mode and do NOT
     dispatch any coder. Emit the Continuation Contract (see below) with `next: <return_to>`
     and hand control back to the caller. The caller (e.g. `odoo-forward-port`) owns the
@@ -408,11 +411,12 @@ the design is approved. Choose `next` as follows:
   doc path needs to cross the boundary. The caller resumes with the approved design doc and
   runs its own Plan Mode.
 - **`return_to` is UNSET (default):** for a backend, frontend, or full-stack design emit
-  `next: odoo-coding`; for a migration design emit `next: odoo-data-migration` (or
-  `odoo-coding` for the migration script). Each carries `design_doc: <path>` so the coder
-  builds to the approved design.
+  `next: odoo-planning` (the planner turns the approved design into the wave-batched execution
+  plan before any code is written); for a migration design emit `next: odoo-data-migration` (or
+  `odoo-coding` for the migration script). Each carries `design_doc: <path>` so the next step
+  builds on the approved design.
 
 - **Master-child mode (`approve-master-child` path):** see Decompose branch § f above. Emit
   `design_index` / `master_design_doc` / `design_docs` - NOT bare `design_doc:` (single-mode only).
 
-Additive output for the run-driver - it does not change anything produced above.
+Additive output for the run-harness - it does not change anything produced above.

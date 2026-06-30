@@ -1,0 +1,88 @@
+{
+  "skill_name": "odoo-wave",
+  "schema_version": "1",
+  "notes": "odoo-wave is the INTERNAL git-executor: user-invocable=false, consume-only, dispatched by run-harness per coding wave-layer with an APPROVED plan. Evals cover: (1) NOT a user front door - a user prompt routes through odoo-intake -> odoo-planning, not directly into odoo-wave; (2) consume-only - no plan-gate, no self-derive of module-DAG/topology; (3) safety verify - the disjoint file-ownership audit still runs (trust-but-verify) and catches a bad plan; (4) B1 dispatch topology - INVOKES odoo-coding per WI from the orchestrating context and never chooses agent/model (Decision X); (5) saga rollback on mid-wave failure; (6) gate split (B2) - opens PR + squash + STOPS at the L2-squash-gate and NEVER merges (merge owned by odoo-pr-monitoring); (7) squash tree-identity abort; (8) conflict-resolver path. Each case has a precise expected_behavior so it fails for the right reason (ETHOS#11).",
+  "evals": [
+    {
+      "id": 1,
+      "category": "front-door-boundary",
+      "prompt": "Do this as a wave: parallelize these 3 changes and land them without touching main.",
+      "expected_routed_to": "odoo-intake",
+      "expected_behavior": "odoo-wave is user-invocable=false and does NOT fire from a user prompt. The request routes to odoo-intake -> odoo-planning (which produces the plan); run-harness later dispatches odoo-wave per coding wave-layer.",
+      "must_not": "Trigger odoo-wave directly from the user prompt, or create any branch/worktree before an approved plan exists.",
+      "tags": ["routing", "not-a-front-door", "consume-only"]
+    },
+    {
+      "id": 2,
+      "category": "consume-only",
+      "prompt": "Context: run-harness dispatches odoo-wave for a coding wave-layer with the plan's WI list, wave-batched module-DAG, and `independent` topology already provided.",
+      "expected_routed_to": "odoo-wave",
+      "expected_behavior": "odoo-wave CONSUMES the plan's module-DAG + topology verbatim - it does NOT recompute them, does NOT emit a plan gate, and does NOT scale by WI count. Phase 0 runs the safety audit, then Phase 1 creates the integration branch + worktrees.",
+      "must_not": "Re-derive the module-DAG/topology, emit a human plan-gate, or run a standalone fallback path.",
+      "tags": ["consume-only", "no-self-derive", "no-plan-gate"]
+    },
+    {
+      "id": 3,
+      "category": "safety-verify",
+      "prompt": "Context: the dispatched plan maps models.py to both WI-A and WI-B (file-ownership overlap).",
+      "expected_routed_to": "odoo-wave",
+      "expected_behavior": "Phase 0.2 disjoint file-ownership audit runs even though the plan supplied the map (trust-but-verify). It finds models.py in both scopes -> STOP BLOCKED, report the overlap, route back to odoo-planning to re-partition. No worktree is created.",
+      "must_not": "Skip the ownership audit because the plan provided the map, or create worktrees with an overlapping file map.",
+      "tags": ["safety", "disjoint-ownership-audit", "trust-but-verify"]
+    },
+    {
+      "id": 4,
+      "category": "dispatch-topology",
+      "prompt": "Context: odoo-wave is executing a 3-WI wave-layer; each WI must be implemented.",
+      "expected_routed_to": "odoo-wave",
+      "expected_behavior": "Per WI, odoo-wave INVOKES the odoo-coding skill via the Skill tool from its orchestrating context (B1), passing the WI's worktree path + module set + DAG slice + design pointer. odoo-coding owns the coder count + model; odoo-wave never resolves a model tier itself (Decision X). odoo-coding returns the commit SHA(s); odoo-wave cherry-picks.",
+      "must_not": "Dispatch anonymous WI workers with a 'you ARE the specialist' brief, choose a model tier per WI, or set a coder count.",
+      "tags": ["dispatch", "invoke-odoo-coding", "no-model-choice"]
+    },
+    {
+      "id": 5,
+      "category": "dependency-order",
+      "prompt": "Context: the plan's module-DAG declares WI-B depends_on WI-A.",
+      "expected_routed_to": "odoo-wave",
+      "expected_behavior": "odoo-wave cherry-picks A onto integration first, then lazily forks WI-B's worktree from the updated integration, invokes odoo-coding for B, and cherry-picks B. The depends_on edge is consumed from the plan, never recomputed.",
+      "must_not": "Recompute the dependency edge, or fork WI-B's worktree before WI-A is cherry-picked onto integration.",
+      "tags": ["dependency", "lazy-worktree", "consume-dag"]
+    },
+    {
+      "id": 6,
+      "category": "saga-rollback",
+      "prompt": "Context: a cherry-pick's post-pick verify cannot be made green within the loop's bound.",
+      "expected_routed_to": "odoo-wave",
+      "expected_behavior": "odoo-wave applies the integration-loop.md saga: either clean-abort (reset-hard to the pre-wave SHA) or resume from the last passing checkpoint, never leaving a half-built integration branch. Reports the failing WI.",
+      "must_not": "Leave a half-built integration branch (an applied-but-unverified cherry-pick or conflict markers in the tree), or continue past an unrecoverable failure.",
+      "tags": ["saga", "rollback", "checkpoint"]
+    },
+    {
+      "id": 7,
+      "category": "gate-split",
+      "prompt": "Context: all WIs are cherry-picked, reviewed, and the integration branch is green.",
+      "expected_routed_to": "odoo-wave",
+      "expected_behavior": "odoo-wave opens 1 PR, squashes with tree-identity verification, and STOPS at the L2-squash-gate. It does NOT merge. The merge is owned by odoo-pr-monitoring at the L2-merge-gate; odoo-wave records the PR URL + squashed SHA + tree-identity result and emits next: odoo-pr-monitoring.",
+      "must_not": "Merge the PR, auto-squash-and-merge, or perform post-merge cleanup (those belong to odoo-pr-monitoring).",
+      "tags": ["gate-split", "squash-gate-stop", "no-merge"]
+    },
+    {
+      "id": 8,
+      "category": "behavioral-contract",
+      "prompt": "Context: squash step on a 3-WI integration branch. git diff --quiet wave-backup-<slug> exits with code 1.",
+      "expected_routed_to": "odoo-wave",
+      "expected_behavior": "Squash tree-identity FAILED. odoo-wave aborts: reports the mismatch, restores from the backup tag, and does NOT force-push. Reports which files differ.",
+      "must_not": "Force-push when the tree-identity check fails, or silently continue after a failed squash verification.",
+      "tags": ["behavioral", "squash-mismatch-abort", "tree-identity"]
+    },
+    {
+      "id": 9,
+      "category": "conflict-resolver-path",
+      "prompt": "Context: WI-A and WI-B both unexpectedly modified __init__.py (missed by the plan). Cherry-pick of WI-B fails with a merge conflict.",
+      "expected_routed_to": "odoo-wave",
+      "expected_behavior": "Phase 3: odoo-wave dispatches a brief Sonnet resolver subagent (worker-brief.md) with the conflicting diff and both WI briefs. The resolver edits the files (markers removed) and returns; odoo-wave re-dispatches a fresh git-operator to run cherry-pick --continue, then re-runs verify and checkpoints.",
+      "must_not": "Let the resolver run any git op (stage/commit/cherry-pick continue), silently skip the conflict, or skip re-running verify after resolution.",
+      "tags": ["behavioral", "conflict-resolver", "cherry-pick-fail"]
+    }
+  ]
+}

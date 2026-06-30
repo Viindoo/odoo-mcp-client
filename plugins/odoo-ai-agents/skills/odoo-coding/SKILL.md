@@ -55,6 +55,48 @@ Otherwise (normal invocation), First READ any existing worklog for this run
 phase (e.g. `odoo-solution-design`) already recorded instead of re-deriving them. Then do six
 things, then stop for the user's reply.
 
+**Plan-provided fast-path - CONSUME the plan, do NOT re-derive (inter-module layer).** When the
+caller hands you a PLAN's already-computed inter-module results - via the Continuation-Contract
+`inputs` on a `run-harness`, `odoo-planning`, or `odoo-wave` handoff (`odoo-wave` is the git-executor
+that INVOKES this skill per WI from its orchestrating context, passing one WI's slice + that WI's
+worktree path - see WORKTREE_PATH below): the **target module set**, the **wave-batched module-DAG**,
+the **wave / topology**, and the **design pointers** (`design_index` / `design_doc` / `design_docs`,
+carrying the per-module stack split + effort) - CONSUME them verbatim
+and SKIP the self-derivation steps that would recompute them: the design-gate (step 1), the design
+detection / glob below, the module-set step (2), and the dependency-order +
+wave derivation (step 4). **Stack tag (step 3) - consume, else infer (never silently skip):** take
+each module's stack from the WI brief's `STACK` field (or the design pointers' per-module stack
+split) when provided; when the plan carries `DESIGN_DOC: none` and no `STACK` (e.g. an `odoo-wave` WI
+with no design doc), the stack is not yet known - retain step 3's file-based inference (`models/` /
+`views/` / `security/` / `*.csv` => backend; `static/src` JS/SCSS/QWeb => frontend; both =>
+fullstack) rather than skipping it. The plan is the SSOT for the inter-module layer
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`: `odoo-planning` is the canonical
+producer of the wave-batched module-DAG; `odoo-coding` runs the module-graph algorithm itself ONLY
+when standalone). You STILL run the intra-skill steps this skill owns at runtime - **step 5**
+(model tier per module) and **step 6** (test-first per module) - plus the backend-first dispatch
+ordering; the plan binds WHICH modules build in WHAT order, never how many agents or which model
+(the plan's `est_agents` / `effort` is ADVISORY - this skill decides the actual count + tier at
+runtime). Trust-but-verify: if a fed module / DAG node cannot be resolved on disk, STOP and report
+BLOCKED - never silently self-derive a different graph. When dispatched under an active run-harness
+(a named `run-<id>`) OR with a `WORKTREE_PATH` (the pre-approved git-executor / `odoo-wave` path -
+see WORKTREE_PATH below) the upstream approval (`odoo-planning` ExitPlanMode / the driver L2 gate)
+already stands, so do not re-emit the Phase-0 confirmation gate - a per-WI gate here would stall
+`odoo-wave`'s sequential loop; otherwise (a plan fed to a standalone invocation with no worktree)
+proceed to the gate below.
+
+**WORKTREE_PATH (git-executor invocations only).** When the caller is `odoo-wave`, the brief ALSO
+carries a per-WI `WORKTREE_PATH` (an absolute isolated worktree on a WI branch). Treat it as the
+working root: the coders author + commit ALL their work INSIDE that worktree (`cd` to it before any
+Bash; own-worktree `git add`/`git commit` are allowed per
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) and must NOT touch the principal checkout or run any
+integration op (cherry-pick/merge/rebase/push) - `odoo-wave` integrates. Return the commit SHA(s) on
+the WI branch so `odoo-wave` can cherry-pick them. When no `WORKTREE_PATH` is provided (run-harness /
+odoo-planning / standalone), author in the current checkout exactly as today.
+
+**No plan provided (standalone invocation) - self-derive exactly as below.** The design-gate,
+design detection, module set, stack tags, and dependency order are all computed here; the
+standalone fallback is unchanged.
+
 **1. Design-gate first (safety net).** Judge whether the change is **non-trivial** - the set
 `odoo-solution-design` defines: Extension-L/Custom-XL, a new module/model or restructuring, a
 core `create`/`write`/`unlink` override or a ≥3-override-chain method, a >1-strategy migration, a
@@ -64,7 +106,7 @@ a recommendation, not a hard block, so the user may still say "code it directly"
 (a single field, boilerplate, a one-approach fix) skips design.
 
 **Design detection - index-first, backward-compat.** Resolve before step 2.
-When a `design_doc` is already provided by the caller (via Continuation Contract `inputs.design_doc` / `inputs.design_docs`, e.g. a `return_to` or run-driver handoff), use it directly as `DESIGN_DOC` and build to it - skip steps 1-3 below. Otherwise:
+When a `design_doc` is already provided by the caller (via Continuation Contract `inputs.design_doc` / `inputs.design_docs`, e.g. a `return_to` or run-harness handoff), use it directly as `DESIGN_DOC` and build to it - skip steps 1-3 below. Otherwise:
 1. **Master-child (priority):** glob `.odoo-ai/designs/*/index.yaml`. If found, read the matching
    `index.yaml` per `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` - routing SSOT.
    When glob returns >1 file, apply the tie-break in `§Index selection` of that snippet (largest
@@ -92,7 +134,7 @@ design doc when it already splits the work; otherwise infer: touching `models/` 
 
 **4. Compute the dependency order (OSM is ground truth).** Follow
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` - the SSOT for the module DAG, shared
-with `wave` so both order work the same way. In short: call
+with `odoo-wave` so both order work the same way. In short: call
 `module_inspect(name=<m>, method='dependencies', odoo_version='[resolved version]')` per target
 module (concrete version - the pin is per-API-key and racy, see
 `skills/_shared/concurrency-guard.md` "OSM version-pin race"), build the sub-graph restricted to the
@@ -257,6 +299,7 @@ Coder (`agentType: odoo-coder` for a backend leg / `odoo-frontend-coder` for a f
 DISPATCH MODEL: <tier>
 REQUEST: <the change for this module: target model + constraints; for a frontend leg use the module's frontendRequest, falling back to its request>
 MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest__.py / static assets).
+WORKTREE_PATH: <absolute worktree path | none> - when set (git-executor / `odoo-wave` path): `cd` here and author ALL work in this worktree; `git add` + `git commit` your work; RETURN the commit SHA(s) on the WI branch (do NOT cherry-pick/merge/push - `odoo-wave` integrates). `none` -> author in the current checkout as usual, no commit.
 NEW MODULE: <yes - ALWAYS scaffold with `odoo-bin scaffold` first; edit only needed keys and KEEP scaffold's commented placeholders; keep its short version default, do NOT rewrite to `<series>.x.y.z` | no>
 ODOO VERSION: <version>
 INSTANCE_HANDLE: <the run's provisioned instance handle from a prior odoo-instance step, when present - db_name/http_port/addons_path/venv/lease_token; omit when the run provisioned none>
@@ -305,7 +348,11 @@ with_user() not sudo(); never seed the terminal state with create({state:...})):
 behavior not internals; ONE intent per test; confirm each goes RED.
 
 Each agent locates files via Read/Grep, writes its output, and reports the files written plus
-`__manifest__.py` changes.
+`__manifest__.py` changes. **When `WORKTREE_PATH` was provided (git-executor / `odoo-wave` path), the
+coder MUST ALSO `git add` + `git commit` its work inside that worktree and return the commit SHA(s)
+on the WI branch so `odoo-wave` can cherry-pick them - a DONE with no SHA in the git-executor path is
+a failed contract.** Without `WORKTREE_PATH` (standalone / run-harness / `odoo-planning`) no commit is
+made.
 
 ## Artifacts - persist the coding plan
 
@@ -344,11 +391,11 @@ separately-authored failing test), the **code -> review+test -> code** round-tri
 `odoo-code-review` reviews AND checks the tests cover the behavior, looping back on a CRITICAL/HIGH
 issue or a red/missing test.
 
-**Drive it yourself when there is no run-driver (mandatory).** The Skill tool is available here.
+**Drive it yourself when there is no run-harness (mandatory).** The Skill tool is available here.
 After writing, **IMMEDIATELY invoke `odoo-code-review` via the Skill tool yourself** - a
-passive `next: odoo-code-review` is not advanced without an active run-driver (the common case: direct
+passive `next: odoo-code-review` is not advanced without an active run-harness (the common case: direct
 invocation, intake fast-path, autonomous fix), so verification would silently never happen. ONLY
-exception: dispatched by an active run-driver (a `run-<id>` is named) - then emit
+exception: dispatched by an active run-harness (a `run-<id>` is named) - then emit
 `next: odoo-code-review` and let it advance, do not double-dispatch. Emit the Continuation Contract either way.
 
 Bound the loop to **3 iterations** per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`; still
@@ -365,4 +412,4 @@ reviewed (that skill now scales to the same multi-module set). Additionally, whe
 run is new (`NEW MODULE: yes`) OR the change introduces user-facing translatable strings
 (`_("...")` / `string=` field attr), also add `SUGGESTED_NEXT: odoo-i18n` so the module's
 `.pot` / `.po` files are generated and translated via the dedicated i18n skill. Additive output for the
-run-driver - it does not change anything produced above.
+run-harness - it does not change anything produced above.

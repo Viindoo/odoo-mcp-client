@@ -70,7 +70,7 @@ before acting). If the dir is absent, you are the first writer - create it.
 
 ## Relation to the blackboard
 
-`run-<id>.json` is the driver-only state machine (only `run-driver` writes it). The worklog is the
+`run-<id>.json` is the driver-only state machine (only `run-harness` writes it). The worklog is the
 **human- and agent-readable narrative** every participant writes. When a run is active, the driver
 stores the worklog dir path in the blackboard so all nodes resolve the same dir; standalone, the
 skill derives it from its own slug. The two never duplicate: blackboard = machine state, worklog =

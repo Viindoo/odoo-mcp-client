@@ -134,12 +134,13 @@ Names encode role so a router can tell the layers apart even when a name appears
 
 - **Skill = capability noun** - a noun phrase (`-review`, `-analysis`, `-audit`, `-diff`,
   `-overview`) or gerund (`-coding`, `-handling`). Never an actor suffix; never a bare imperative.
-- **Agent = actor noun** with an `-er` / `-or` / `-ist` suffix (`odoo-coder`,
-  `odoo-code-reviewer`).
+- **Agent = actor noun** - typically with an `-er` / `-or` / `-ist` suffix (`odoo-coder`,
+  `odoo-code-reviewer`), or an actor noun without one (e.g. `odoo-instance-ops`,
+  `odoo-solution-architect`).
 - **Command = imperative verb-object** (`odoo-run-brl`, `odoo-plan-upgrade`); frontmatter `name`
   **must equal the filename**.
 - **Prefix `odoo-`** on every Odoo-specific skill/agent/command. The only unprefixed
-  (domain-agnostic) names are `wave` and `workflow-chaining`.
+  (domain-agnostic) names are `run-harness` and `workflow-chaining`.
 - A skill and the agent it dispatches **must have different names** (capability vs actor) - e.g.
   skill `odoo-code-review` dispatches agent `odoo-code-reviewer`.
 

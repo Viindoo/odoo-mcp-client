@@ -1,24 +1,34 @@
 # odoo-implement-feature.workflow.yaml
 # Declarative SSOT for the end-to-end "requirement -> shipped code" engineering pipeline.
-# The DESIGN -> CODE -> REVIEW -> ACCEPTANCE tail is driven by the run-driver via Continuation
-# Contracts (those are spawner skills requiring the orchestrating context and CANNOT be
-# workflow-chaining phases - see ORCHESTRATION-MAP.md). This workflow therefore does the
+# The DESIGN -> PLAN -> CODE -> REVIEW -> ACCEPTANCE tail is driven by the run-harness via
+# Continuation Contracts (those are spawner skills requiring the orchestrating context and CANNOT
+# be workflow-chaining phases - see ORCHESTRATION-MAP.md). This workflow therefore does the
 # leaf SCOPING phase
 # here, then EMITs the first spawner (odoo-solution-design for non-trivial work, else straight
-# to odoo-coding) via on_complete for run-driver to chain - exactly the qa-suite shape.
+# to odoo-coding) via on_complete for run-harness to chain - exactly the qa-suite shape.
+# For non-trivial work the chain runs gap -> solution-design -> odoo-planning -> coding/odoo-wave ->
+# review: odoo-solution-design emits `next: odoo-planning` (a spawner-agent that authors the
+# wave-batched execution plan), which wires `odoo-coding` / `odoo-wave`. odoo-planning runs under
+# intake's Plan Mode and produces the approved 3-block plan; it then hands that plan to intake
+# Phase P (`next: odoo-intake`), which serializes `.odoo-ai/run-<id>.json`, and the run-harness
+# walks THAT execution DAG. odoo-planning never emits `next: run-harness` and the run-harness never
+# loops back to itself via odoo-planning - run-harness walks an EXISTING run-<id>.json (serialized
+# by Phase P) and cannot ingest a plan `.md`. odoo-planning is not a static phase here. The trivial
+# branch stays direct (straight to odoo-coding, no design/plan step).
 # Terminal acceptance gate (opt-in, L2): the tail ends when odoo-code-review emits
 # `next: odoo-acceptance` for a change that touches a UI/behavior surface AND has a reachable
 # live instance (see skills/odoo-code-review/SKILL.md Phase A.5). odoo-acceptance is itself a
-# spawner-agent, so - like odoo-coding - it is chained dynamically by the run-driver and
+# spawner-agent, so - like odoo-coding - it is chained dynamically by the run-harness and
 # materialized as the terminal node; it is never a static phase here.
 name: odoo-implement-feature
 domain: engineering
 team_pattern: Pipeline
 description: |
-  Take an Odoo feature/requirement from scope to shipped code with a designed-and-approved
-  step in the middle: classify + effort-scope the requirement, then hand off to the
-  design -> code -> review chain (driven by the run-driver). Non-trivial work is designed via
-  odoo-solution-design before any code is written; trivial work goes straight to coding.
+  Take an Odoo feature/requirement from scope to shipped code with designed-and-approved and
+  planned steps in the middle: classify + effort-scope the requirement, then hand off to the
+  design -> plan -> code -> review chain (driven by the run-harness). Non-trivial work is designed
+  via odoo-solution-design and planned via odoo-planning before any code is written; trivial work
+  goes straight to coding.
   Trigger: "implement this feature end-to-end", "from requirement to working code",
   "design then build then review", "scope to design to code to review", "build this feature
   properly with a design step"
@@ -44,12 +54,12 @@ phases:
 on_complete:
   - when: "meta.has_nontrivial == true"
     next: odoo-solution-design
-    reason: "non-trivial items (extension/custom) need a designed-and-approved solution (approach / data model / override strategy / module structure) before any code is written; design then chains to coding, review, and the opt-in L2 acceptance gate (odoo-acceptance, emitted by code-review when a UI/behavior surface changed and an instance is reachable) via the run-driver"
+    reason: "non-trivial items (extension/custom) need a designed-and-approved solution (approach / data model / override strategy / module structure) before any code is written; design then chains to odoo-planning (the wave-batched execution plan: module/integration order + lifecycle wiring), then coding, review, and the opt-in L2 acceptance gate (odoo-acceptance, emitted by code-review when a UI/behavior surface changed and an instance is reachable) via the run-harness"
     inputs: {gap_matrix: ".odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl", gap_report: ".odoo-ai/gap-analysis/<slug>-<date>/gap-report.md"}
     gate_tier: L1
   - when: "meta.has_nontrivial == false"
     next: odoo-coding
-    reason: "all items are one-approach trivial (standard/config) changes; skip the design step and code directly, then review and - when the change touches a UI/behavior surface and an instance is reachable - the opt-in L2 acceptance gate (odoo-acceptance) the run-driver chains from code-review"
+    reason: "all items are one-approach trivial (standard/config) changes; skip the design step and code directly, then review and - when the change touches a UI/behavior surface and an instance is reachable - the opt-in L2 acceptance gate (odoo-acceptance) the run-harness chains from code-review"
     inputs: {gap_matrix: ".odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl", gap_report: ".odoo-ai/gap-analysis/<slug>-<date>/gap-report.md"}
     gate_tier: L1
 

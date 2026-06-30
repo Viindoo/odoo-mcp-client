@@ -27,7 +27,7 @@ snippets / docs). Branch `chore/compress-plugin-docs`. Token estimate = words / 
    once + cross-ref; odoo-intake's three "owns own Plan Mode" bullets merged.
 3. **Inline-copy -> existing pointer** - restatements of already-pointer-cited SSOT shortened:
    "Report language" -> `snippets/language-mirroring.md`; standalone-fallback -> `snippets/disk-fallback-protocol.md`;
-   git-delegation sentence -> `snippets/git-delegation.md`; run-driver continuation tails -> `snippets/continuation-contract.md`.
+   git-delegation sentence -> `snippets/git-delegation.md`; run-harness continuation tails -> `snippets/continuation-contract.md`.
 
 No new reference files created (the codebase is already progressively disclosed; forcing pushdown
 would risk dangling links). Snippets kept self-contained (intra-file trim only).

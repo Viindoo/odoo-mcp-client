@@ -4,7 +4,7 @@ Load this when the approved Approach has `output_mode = writes-files` and you ar
 implementation plan inside Plan Mode (step 3 of the Plan Mode procedure in SKILL.md). The plan
 MUST contain three blocks. None is optional for a `writes-files` Approach.
 
-**Block 1 - Workitem list.** Borrow the WI-Brief shape from `skills/wave/SKILL.md`
+**Block 1 - Workitem list.** Borrow the WI-Brief shape from `skills/odoo-wave/SKILL.md`
 (~lines 174-219) and/or the requirement shape in `odoo-brl/reference/schema.md` (~lines
 116-197). Each WI carries: `id`, a one-line description, and `files-in-scope` (the file sets
 across WIs MUST be **disjoint**). For a multi-WI delivery also note worktree + branch + verify
@@ -15,14 +15,17 @@ command per WI (Repo Capability Card).
 `technical | business-logic | data-flow` and a `reason`; a `topological_order` (Kahn's
 algorithm), a `critical_path`, and `cycles` (empty `[]` for a valid DAG - a cycle is reported,
 never silently dropped). For only a few WIs, instead pick one of the four topologies in
-`wave/reference/wave-templates.md` (~lines 29-92): **independent | linear | mixed | diamond**.
+`odoo-wave/reference/wave-templates.md` (~lines 29-92): **independent | linear | mixed | diamond**.
 A mermaid diagram is encouraged.
 
 **Block 3 - Assignment.** One line per WI:
-`WI → skill | command | agent  (model from frontmatter, effort by legend) → which skill that agent uses`.
-Add per-WI **acceptance criteria** + a **verify command** (Repo Capability Card). `model` is read
-from the candidate's `SKILL.md`/`agents/*.md` frontmatter; `effort` follows the gap-analysis
-legend (S/M/L/XL).
+`WI → skill | command | agent  (effort + est_agents ESTIMATE; model + count owned by the dispatched skill at runtime - ADVISORY / du kien, non-binding) → which skill that agent uses`.
+Add per-WI **acceptance criteria** + a **verify command** (Repo Capability Card). `effort` follows
+the gap-analysis legend (S/M/L/XL); `est_agents` is a rough advisory count. The plan binds WHICH
+skill, never a per-agent `model` or fan-out `count` - the dispatched specialist skill owns those at
+runtime (Decision X). For a NON-TRIVIAL multi-module change this 3-block plan is AUTHORED by
+`odoo-planning` (its `odoo-planner` agent); for a trivial single-WI change `odoo-intake` writes it
+inline. Either path CONFORMS to this same schema - never a second format.
 
 **Workflow-as-node in the schema (G-B):** when a WI's approach is a workflow-command, it is
 **one WI** - `files-in-scope` = the workflow's `output_dir/` (one box). Do NOT expand the
@@ -37,7 +40,7 @@ workflow-chaining (model per-phase in YAML, effort = total) → verify: artifact
   AND renders the OWL widget, sequencing them internally (backend agent first, then frontend
   agent, so the field exists before the widget binds to it). No cross-WI edge needed.
 - Three disjoint fixes (bug + test + docs) → `WI-A odoo-coding`, `WI-B odoo-coding`,
-  `WI-C` docs edit; DAG: **independent** (no edges) → hand to `wave` for parallel delivery.
+  `WI-C` docs edit; DAG: **independent** (no edges) → the internal `odoo-wave` executor delivers them in parallel (run-harness dispatches it from the approved plan; the user never invokes it).
 
 ## Rejection flow
 

@@ -235,8 +235,9 @@ or in the model's own reasoning. The rule:
   `-audit`, `-proof`, `-overview`) or a gerund (`-coding`, `-recording`, `-handling`). It names
   *what competence is offered*. **Never** an agent suffix (`-er/-or/-ist/-finder/-handler`) and
   **never** a bare imperative verb (`summarize`, `onboard`).
-- **Agent** = an **agent-of-action noun** with an actor suffix (`-er/-or/-ist`): `odoo-coder`,
-  `odoo-code-reviewer`. It names *the executor that does the work*.
+- **Agent** = an **actor noun** - typically with an actor suffix (`-er/-or/-ist`): `odoo-coder`,
+  `odoo-code-reviewer`, or an actor noun without one (e.g. `odoo-instance-ops`,
+  `odoo-solution-architect`). It names *the executor that does the work*.
 - **Command** = an **imperative verb-object** phrase: `odoo-run-brl`, `odoo-plan-upgrade`,
   `odoo-draft-followup`. Lead with the verb; keep an object so it never collides with the
   verb-space a skill uses to trigger. The frontmatter `name` **must equal the filename** (that
@@ -244,7 +245,7 @@ or in the model's own reasoning. The rule:
 - **Prefix `odoo-`** on every Odoo-specific skill/agent/command. `odoo-intake` follows this
   convention like every other skill; the bare `intake` namespace is reserved for a future
   domain-agnostic front door (one that may invoke `odoo-intake` when it detects Odoo intent).
-  The two remaining unprefixed names are the domain-agnostic mechanisms: `wave`,
+  The two remaining unprefixed names are the domain-agnostic mechanisms: `run-harness`,
   `workflow-chaining`.
 
 A skill that dispatches an agent pairs a capability with an actor: skill `odoo-code-review`

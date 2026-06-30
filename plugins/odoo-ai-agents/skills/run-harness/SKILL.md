@@ -1,5 +1,5 @@
 ---
-name: run-driver
+name: run-harness
 user-invocable: false
 description: >
   Drive-to-done loop. Walks the RUN-DAG in `.odoo-ai/run-<id>.json` that intake's
@@ -12,7 +12,7 @@ description: >
 model: inherit
 ---
 
-# run-driver - Drive-to-done loop
+# run-harness - Drive-to-done loop
 
 ## Persona
 
@@ -25,7 +25,11 @@ contract.
 ## Out of Scope
 
 - **Authoring business artifacts** → dispatches the specialist; only writes `run-<id>.json`.
-- **Planning the DAG** → intake's Phase P; the driver only *walks* an existing DAG.
+- **Planning / serializing the DAG** → intake's Phase P. The driver only *walks* an EXISTING
+  `run-<id>.json`; it does NOT ingest a plan `.md` and expand it into nodes. A skill that produces a
+  plan (e.g. `odoo-planning`) must route its approved plan to intake Phase P (`next: odoo-intake`),
+  NEVER emit `next: run-harness` with only a plan pointer - run-harness is dispatched BY Phase P
+  after the run file exists; reaching it before serialization just yields `NEEDS_CONTEXT`.
 - **Coercing the main agent** → advisory nudges only (Hard rule #2).
 - **Crossing the Odoo↔general boundary** → intake's routing decision.
 
@@ -37,7 +41,7 @@ contract.
    human + main agent may stop at any time. The Stop/PreToolUse hooks only *nudge* (advisory);
    they never deny a tool call or block a turn-end. (Quality-gate `block` is only ever for a
    subagent, e.g. `enforce-grounding`.)
-3. **Only run-driver writes `run-<id>.json`.** Hooks never write it (no write race).
+3. **Only run-harness writes `run-<id>.json`.** Hooks never write it (no write race).
 4. **You dispatch; subagents do not.** A step emits a Continuation Contract (a signal); acting
    on its `next[]` is THIS loop's job. Respect the worker-brief contract (`snippets/worker-brief.md`).
 5. **L2 is always a human gate.** The autonomy dial can lower L1→auto-pass but can NEVER lower
@@ -45,7 +49,8 @@ contract.
 
 ## Inputs
 
-- An active `.odoo-ai/run-<id>.json` (produced by intake Phase P, schema in harness §8.3).
+- An active `.odoo-ai/run-<id>.json` (serialized by intake Phase P from the approved plan, schema in
+  harness §8.3) - run-harness is dispatched only after this file exists; it never receives a raw plan `.md`.
 - `autonomy` ∈ {auto (default), step, plan} read from that file.
 
 ## The loop

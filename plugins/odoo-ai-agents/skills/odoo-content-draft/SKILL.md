@@ -145,7 +145,7 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/examples.md` for
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive run-driver output, changes nothing above.
+(status / produced / next) - additive run-harness output, changes nothing above.
 
 If the produced draft contains one or more `[Image: ...]` placeholders (image slots emitted in Round 3), set `status: NEEDS_NEXT` and include in the `next` field:
 - skill: odoo-doc-illustration

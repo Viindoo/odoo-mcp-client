@@ -184,7 +184,7 @@ Nếu bạn dùng **Claude Code** với plugin Odoo AI Agent Team:
 | `odoo-data-migration` | Viết script migration pre/post + kế hoạch xác minh (không thực thi trên một instance) |
 | `odoo-git-rebase` | Rebase một feature branch lên một branch khác cùng Odoo series, hấp thụ intent (không phải text code) qua `git rebase --onto` toàn bộ range |
 | `odoo-modules-upgrade` | Nâng cấp một cluster module tuỳ chỉnh từ Odoo major thấp lên major cao hơn (cấp độ code): loại bỏ những gì core đã cung cấp, adapt phần còn lại, 1 PR mỗi cluster |
-| `/odoo-ai-agents:odoo-run-wave` | Điều phối git-wave: integration branch + WI worktree + cherry-pick + Opus review cuối wave + 1 PR + squash + tree-identity gate + human-confirm merge. Dùng khi land N thay đổi WI song song một cách an toàn mà không đụng vào principal branch. |
+| `odoo-planning` | Biến một thiết kế đã duyệt thành KẾ HOẠCH THỰC HIỆN để ship nó - một module-DAG chia theo wave, nối mỗi module/stage tới một skill xuyên suốt vòng đời (code -> review -> doc -> PR -> monitor -> merge). Sau đó sequencer `run-harness` điều phối nó, land từng coding wave-layer qua git-executor nội bộ `odoo-wave` (một PR squash mỗi wave) và poller bất đồng bộ `odoo-pr-monitoring` để merge. |
 
 ---
 

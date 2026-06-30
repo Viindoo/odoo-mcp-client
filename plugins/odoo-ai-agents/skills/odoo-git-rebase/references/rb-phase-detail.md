@@ -292,7 +292,7 @@ inputs:
   classification: "<outcome bucket (c or b)> - <one-line reason>"
 ```
 
-On re-entry (run-driver returns with `design_doc`): read `design_doc` path from returned
+On re-entry (run-harness returns with `design_doc`): read `design_doc` path from returned
 contract inputs; record it against the commit; set `checkpoint.json` `<sha>: designed`;
 proceed to P6 with the design linked. If `design_doc` is absent, set commit back to
 `status=extracted` and re-enter P5 next run.
