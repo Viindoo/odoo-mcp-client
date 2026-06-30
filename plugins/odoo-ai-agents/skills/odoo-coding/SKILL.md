@@ -92,6 +92,7 @@ Bash; own-worktree `git add`/`git commit` are allowed per
 integration op (cherry-pick/merge/rebase/push) - `odoo-wave` integrates. Return the commit SHA(s) on
 the WI branch so `odoo-wave` can cherry-pick them. When no `WORKTREE_PATH` is provided (run-harness /
 odoo-planning / standalone), author in the current checkout exactly as today.
+Git-mutation safety (S9): commit ONLY inside the provided worktree; never write to, commit on, or switch the principal checkout. See `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` (S9).
 
 **No plan provided (standalone invocation) - self-derive exactly as below.** The design-gate,
 design detection, module set, stack tags, and dependency order are all computed here; the
