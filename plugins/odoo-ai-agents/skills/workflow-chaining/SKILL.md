@@ -1,5 +1,6 @@
 ---
 name: workflow-chaining
+argument-hint: "[workflow name/file]"
 user-invocable: false
 description: >
   Generic declarative workflow runner - reads one `workflows/<name>.workflow.yaml` file and

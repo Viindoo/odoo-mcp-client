@@ -1,5 +1,6 @@
 ---
 name: odoo-pricing-proposal
+argument-hint: "[customer/deal context]"
 description: >
   Build a customer-facing pricing proposal for an Odoo deal - license tier recommendation
   (CE vs EE), implementation cost breakdown, support/maintenance tier, payment terms, optional

@@ -1,5 +1,6 @@
 ---
 name: odoo-planning
+argument-hint: "[approved design / scope]"
 description: >
   Turn an APPROVED Odoo technical design into the EXECUTION PLAN that ships it - the step between
   solution-design (the design = HOW to build) and code (odoo-coding / odoo-wave). Dispatches the

@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SKILLS_PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
 SKILL_FILES = sorted((SKILLS_PLUGIN / "skills").glob("*/SKILL.md"))
 AGENT_FILES = sorted((SKILLS_PLUGIN / "agents").glob("*.md"))
+COMMAND_FILES = sorted((SKILLS_PLUGIN / "commands").glob("*.md"))
 
 
 def _frontmatter(text):
@@ -173,3 +174,46 @@ def test_agent_description_no_trailing_punctuation(agent):
         f"{agent.stem}: description must not end with '.', '!', or '?' "
         f"(found: ...{desc[-40:]!r})"
     )
+
+
+# ---------------------------------------------------------------------------
+# argument-hint guard (skills + commands)
+# ---------------------------------------------------------------------------
+
+
+def _assert_argument_hint(raw, label):
+    """Assert a frontmatter argument-hint value is a non-empty, double-quoted ASCII hint.
+
+    ``_frontmatter`` is line-based and keeps the source quotes, so ``raw`` is the
+    literal value text (e.g. ``'"[module] [target-series]"'``). We require it to be
+    wrapped in double quotes because an unquoted ``argument-hint: [foo]`` parses as a
+    YAML *list* at runtime (Claude Code uses a real YAML parser), not the string the
+    autocomplete hint must be. The hint shows in ``/<name>`` autocomplete.
+    """
+    assert raw, f"{label}: missing 'argument-hint' frontmatter"
+    assert len(raw) >= 2 and raw.startswith('"') and raw.endswith('"'), (
+        f"{label}: argument-hint must be a double-quoted string - an unquoted "
+        f"'[...]' parses as a YAML list at runtime (found: {raw!r})"
+    )
+    inner = raw[1:-1].strip()
+    assert inner, f"{label}: argument-hint is empty"
+    assert "[" in inner, (
+        f"{label}: argument-hint should use the [token] form (found: {inner!r})"
+    )
+    assert inner.isascii(), (
+        f"{label}: argument-hint must be ASCII only - no en/em dashes (found: {inner!r})"
+    )
+
+
+@pytest.mark.parametrize("skill", SKILL_FILES, ids=lambda p: p.parent.name)
+def test_skill_argument_hint(skill):
+    """Every skill advertises its arguments via a double-quoted argument-hint."""
+    raw = _frontmatter(skill.read_text(encoding="utf-8")).get("argument-hint")
+    _assert_argument_hint(raw, skill.parent.name)
+
+
+@pytest.mark.parametrize("command", COMMAND_FILES, ids=lambda p: p.stem)
+def test_command_argument_hint(command):
+    """Every command advertises its arguments via a double-quoted argument-hint."""
+    raw = _frontmatter(command.read_text(encoding="utf-8")).get("argument-hint")
+    _assert_argument_hint(raw, command.stem)

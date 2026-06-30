@@ -1,5 +1,6 @@
 ---
 name: odoo-setup
+argument-hint: "[optional: focus area]"
 description: One-shot, idempotent setup for the Odoo visual workflow - wire the 3 browser MCP servers across Claude/Codex/Gemini, install browser dependencies, auto-allow tool permissions, and declare + spin up local Odoo instances
 ---
 # /odoo-ai-agents:odoo-setup

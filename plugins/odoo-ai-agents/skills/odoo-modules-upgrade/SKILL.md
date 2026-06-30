@@ -1,5 +1,6 @@
 ---
 name: odoo-modules-upgrade
+argument-hint: "[module-cluster] [target-series]"
 description: >-
   Full-delegation orchestrator that upgrades a custom module cluster from a LOWER Odoo
   major series to a HIGHER one in ONE PR - makes modules installable + working on the

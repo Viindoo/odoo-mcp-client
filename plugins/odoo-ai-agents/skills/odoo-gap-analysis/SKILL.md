@@ -1,5 +1,6 @@
 ---
 name: odoo-gap-analysis
+argument-hint: "[requirement list / RFP scope]"
 description: >
   Gap analysis turning a list of client requirements into a costed effort matrix (Standard /
   Configuration / Extension / Custom + S/M/L/XL). Now an ORCHESTRATOR - it clusters requirements

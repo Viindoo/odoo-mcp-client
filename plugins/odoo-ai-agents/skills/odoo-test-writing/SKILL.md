@@ -1,5 +1,6 @@
 ---
 name: odoo-test-writing
+argument-hint: "[model/module to test]"
 description: >
   Write executable Odoo test files that protect business behavior - not just cover code.
   Produces Python `test_*.py` (TransactionCase / Form helper / `@tagged`) and JS Hoot /

@@ -1,5 +1,6 @@
 ---
 name: odoo-objection-handling
+argument-hint: "[objection / concern]"
 description: >
   Craft evidence-based responses to client objections about Odoo's capabilities - using the
   ACA framework (Acknowledge / Counter / Affirm) backed by indexed-codebase evidence rather

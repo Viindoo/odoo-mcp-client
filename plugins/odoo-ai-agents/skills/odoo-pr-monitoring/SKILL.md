@@ -1,5 +1,6 @@
 ---
 name: odoo-pr-monitoring
+argument-hint: "[PR# / branch]"
 description: >
   Owns the PR lifecycle AFTER odoo-wave opens the PR and stops at the L2-squash-gate. A POLLER,
   not a blocking DAG node: it watches the PR CI status + review state via /loop (in-session) or

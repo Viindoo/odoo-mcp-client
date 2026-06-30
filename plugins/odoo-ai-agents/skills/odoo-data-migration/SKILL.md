@@ -1,5 +1,6 @@
 ---
 name: odoo-data-migration
+argument-hint: "[source] [target] [model/data]"
 description: >
   Write Odoo migration scripts (`migrations/<version>/pre-migrate.py` and/or `post-migrate.py`)
   for schema or data changes - field rename, type change, model split/merge, data backfill, or

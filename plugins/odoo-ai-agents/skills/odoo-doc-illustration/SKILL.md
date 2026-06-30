@@ -1,5 +1,6 @@
 ---
 name: odoo-doc-illustration
+argument-hint: "[module] [doc target]"
 description: >
   Produce illustrated documentation for an Odoo module or cluster: drives a live browser to
   capture screenshots of rendered screens then embeds them into static/description/ (UC1) or

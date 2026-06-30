@@ -1,5 +1,6 @@
 ---
 name: odoo-rfp-response
+argument-hint: "[RFP file/scope]"
 description: >
   Rate Odoo compliance per RFP requirement and produce a response matrix - columns: Requirement |
   Odoo path (module/model/feature) | Compliance (Yes / Partial / Roadmap / No / via-Extension) |

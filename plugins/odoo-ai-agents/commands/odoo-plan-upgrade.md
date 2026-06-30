@@ -1,5 +1,6 @@
 ---
 name: odoo-plan-upgrade
+argument-hint: "[version-range]"
 description: |
   Generate a comprehensive Odoo upgrade plan from source version to target version. Chains executive risk overview -> deprecation audit -> API/feature version diff -> synthesis with action ordering and effort estimate. Replaces the legacy odoo-upgrade-planner agent
 ---

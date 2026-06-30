@@ -1,5 +1,6 @@
 ---
 name: odoo-i18n
+argument-hint: "[module(s)] [target-lang e.g. vi_VN]"
 description: >-
   This skill should be used when the user asks to translate one or more Odoo modules into any
   target language (default vi_VN), export .pot/.po, update translations, sync terminology, or

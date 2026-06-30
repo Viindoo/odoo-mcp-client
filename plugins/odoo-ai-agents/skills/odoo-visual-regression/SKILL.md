@@ -1,5 +1,6 @@
 ---
 name: odoo-visual-regression
+argument-hint: "[baseline] [candidate]"
 description: >
   Catch visual regressions by capturing a screenshot baseline of one Odoo state/build and
   diffing it against another - before vs after an upgrade, module install, theme change, or

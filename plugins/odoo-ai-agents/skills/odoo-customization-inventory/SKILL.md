@@ -1,5 +1,6 @@
 ---
 name: odoo-customization-inventory
+argument-hint: "[module/path scope]"
 description: >
   Generate a structured executive-level inventory of all custom + distribution modules in an
   Odoo deployment - classifying each as Standard / Distribution-maintained / True custom,

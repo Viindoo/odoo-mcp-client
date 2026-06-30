@@ -1,5 +1,6 @@
 ---
 name: odoo-summarize-discovery
+argument-hint: "[customer-label] [notes-file]"
 description: |
   Quick slash-command wrapper for the odoo-discovery-summary skill. Type `/odoo-summarize-discovery` when you want to explicitly synthesize raw meeting or discovery notes into a structured customer profile, bypassing the router to directly invoke the skill
 ---

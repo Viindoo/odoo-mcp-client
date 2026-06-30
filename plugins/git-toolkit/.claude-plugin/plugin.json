@@ -1,7 +1,7 @@
 {
   "name": "git-toolkit",
   "displayName": "Git Toolkit",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Safe, scale-aware git + GitHub toolkit for AI agents - one front-door skill that runs git/github work in a delegated context so the caller stays clean and code is never lost. 1 skill + 4 agents (read-only surveyor, write operator, GitHub operator, pipeline lead). Backup-before/verify-after on destructive ops, never-read-huge-diff scale protocol, MCP-first GitHub via the auto-installed github plugin, and convention-aware commit messages.",
   "keywords": ["git", "github", "version-control", "rebase", "merge", "cherry-pick", "history-rewrite", "pull-request", "code-review", "backport", "forward-port", "ai-agents", "safety", "commit-convention"],
   "author": {

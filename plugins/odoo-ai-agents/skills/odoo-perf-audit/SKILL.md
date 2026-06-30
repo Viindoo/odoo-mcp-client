@@ -1,5 +1,6 @@
 ---
 name: odoo-perf-audit
+argument-hint: "[module/path scope]"
 description: >
   Audit Odoo Python/XML/QWeb code for performance problems - findings report with file:line,
   estimated impact, and remediation steps. Does NOT rewrite code. Covers: N+1 queries

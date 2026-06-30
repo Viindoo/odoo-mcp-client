@@ -1,6 +1,6 @@
 {
   "name": "odoo-semantic-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server connection for Odoo Semantic - semantic code intelligence (inheritance chains, field impact, model inspect, ORM validation) over HTTP. Set API key + server URL via /odoo-semantic-mcp:connect.",
   "keywords": ["odoo", "erp", "mcp", "odoo-semantic", "semantic-search", "code-analysis", "orm"],
   "author": {

@@ -1,5 +1,6 @@
 ---
 name: odoo-campaign-plan
+argument-hint: "[campaign goal / product]"
 description: >
   Plan a multi-week, multi-channel marketing campaign for an Odoo vertical or geography push
   - blueprint with timeline, channel mix matrix, asset inventory, KPIs, and owner map

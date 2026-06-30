@@ -1,5 +1,6 @@
 ---
 name: odoo-coding
+argument-hint: "[what to build or change]"
 description: >
   Write complete, production-ready Odoo code end-to-end - Python/XML backend AND
   JavaScript/OWL/QWeb/SCSS frontend - from a single computed field up to a multi-module

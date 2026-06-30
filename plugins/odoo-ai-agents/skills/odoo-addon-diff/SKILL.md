@@ -1,5 +1,6 @@
 ---
 name: odoo-addon-diff
+argument-hint: "[business domain] [version]"
 description: >
   Produce a CE vs EE vs custom-distribution comparison for a business domain - feature table,
   EE-only business-value notes, and an upgrade recommendation ready for a proposal.

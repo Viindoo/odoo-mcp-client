@@ -1,5 +1,6 @@
 ---
 name: odoo-intake
+argument-hint: "[your goal in plain words]"
 description: |
   Universal front door for ALL work across 9 personas (CEO/strategist, consultant,
   sales AE, pre-sales, marketer, developer, QA, customer-success) - brainstorms WHEN intent

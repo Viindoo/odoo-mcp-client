@@ -1,5 +1,6 @@
 ---
 name: odoo-debug
+argument-hint: "[error / symptom / traceback]"
 description: >
   Front-door for ALL Odoo debugging - the moment something is broken, erroring, or behaving wrong,
   use this BEFORE writing any fix. Runs the scientific method (reproduce -> falsifiable hypothesis

@@ -1,5 +1,6 @@
 ---
 name: odoo-wave
+argument-hint: "[plan / run-id]"
 description: >
   INTERNAL git-executor (consume-only; NOT a user front door). The integration-loop step
   run-harness dispatches per coding wave-layer of an APPROVED plan. Given the plan's already
