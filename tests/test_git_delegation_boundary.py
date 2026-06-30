@@ -319,7 +319,10 @@ _COLDSPAWN_TOKEN_RE = re.compile(r"subagent_type|Agent\s+tool|cold-?spawn", re.I
 # dispatch) does not match.
 _DIRECT_DISPATCH_RE = re.compile(
     r"\b(?:re-?)?(?:dispatch|spawn)(?:es|ing|ed|s)?\s+"
-    r"(?:(?:a|an|the|one|fresh|new|git-toolkit'?s?)\s+|[*`\"'(]+)*"
+    # ReDoS-safe: a single decoration char per outer `*` iteration (no inner `+`
+    # nested inside the outer `*`), so no exponential backtracking. Matches the
+    # same strings - a run of N decoration chars is consumed as N outer iterations.
+    r"(?:(?:a|an|the|one|fresh|new|git-toolkit'?s?)\s+|[*`\"'(])*"
     r"(?:git-operator|git-surveyor|github-operator|git-pipeline-lead)\b",
     re.IGNORECASE,
 )
@@ -338,7 +341,10 @@ _DELEGATION_DISPATCH_RE = re.compile(
     r"\b(?:re-?)?(?:delegat(?:e|es|ed|ing)|rout(?:e|es|ed|ing)|defer(?:s|red|ring)?"
     r"|hand(?:s|ed|ing)?\s+off)\b"
     r"[^.;\n]*?\bto\s+"
-    r"(?:(?:a|an|the|one|fresh|new|git-toolkit'?s?)\s+|[*`\"'(]+)*"
+    # ReDoS-safe: a single decoration char per outer `*` iteration (no inner `+`
+    # nested inside the outer `*`), so no exponential backtracking. Matches the
+    # same strings - a run of N decoration chars is consumed as N outer iterations.
+    r"(?:(?:a|an|the|one|fresh|new|git-toolkit'?s?)\s+|[*`\"'(])*"
     r"(?:git-operator|git-surveyor|github-operator|git-pipeline-lead)\b",
     re.IGNORECASE,
 )
