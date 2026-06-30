@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-06-30
+
+### Added
+
+- Module packaging & documentation suite: 3 skills (`odoo-icon-design`, `odoo-doc-feature-map`, `odoo-doc-walkthrough`), 4 agents (`odoo-icon-designer`, `odoo-feature-cataloger`, `odoo-doc-scoper`, `odoo-doc-scenarist`), and the `module-packaging` workflow - an end-to-end pipeline from feature catalog and usage walkthroughs to module icon, per-locale App-Store landing copy, scenario-driven screenshot capture, and manifest audit. Includes the `app-store-template.md` reference (sanitizer-safe Bootstrap-5 fragment, section map, image specs, manifest store-keys) for `odoo-doc-illustration`.
+
 ## [4.0.2] - 2026-06-30
 
 ### Fixed
