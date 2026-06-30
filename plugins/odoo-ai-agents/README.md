@@ -5,8 +5,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **50 skills + 18 agents + 8 commands**, grouped into **9 persona
-> buckets**, plus **12 declarative workflows** - covering engineering, coding, code review, visual
+> The Odoo AI workforce toolkit: **53 skills + 22 agents + 8 commands**, grouped into **9 persona
+> buckets**, plus **13 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, instance provisioning, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
 > dependency), so all knowledge is grounded through the OSM MCP server. This repo is a thin
@@ -44,8 +44,8 @@ code carry-over), merge-keep-SHA strategy, symbol-survival checking, pre-adapt d
 adaptive test forwarding, and verify-by-behavior per batch. It runs alongside coding, code
 review, and upgrade planning as a core engineering capability.
 
-> **Counts at a glance:** this plugin ships **50 skills + 18 agents + 8 commands**, grouped into
-> **9 persona buckets** for navigation, plus **12 declarative workflows** driven by
+> **Counts at a glance:** this plugin ships **53 skills + 22 agents + 8 commands**, grouped into
+> **9 persona buckets** for navigation, plus **13 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
 
@@ -262,7 +262,7 @@ flowchart TD
 
 ## Workflows
 
-The plugin ships 12 declarative workflows in `workflows/*.workflow.yaml`. Each workflow is
+The plugin ships 13 declarative workflows in `workflows/*.workflow.yaml`. Each workflow is
 executed by the generic `workflow-chaining` skill, which reads the YAML and runs the declared
 phase sequence with approval gates between phases. Adding a new workflow is a single YAML
 file drop - no orchestration code required. A workflow may also declare an `on_complete`

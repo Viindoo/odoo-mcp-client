@@ -6,7 +6,7 @@ description: >
   solution-design (the design = HOW to build) and code (odoo-coding / odoo-wave). Dispatches the
   odoo-planner agent to produce a gate-able 3-block plan: a wave-batched module-DAG, the
   integration cadence, each module/stage wired to a SKILL, and the full lifecycle
-  (code -> review -> doc -> PR -> monitor -> merge). Estimates only (effort + est_agents,
+  (code -> review -> doc + package -> PR -> monitor -> merge). Estimates only (effort + est_agents,
   ADVISORY); the dispatched skill owns the actual model + count at runtime. Fire on:
   "plan the implementation / execution plan", "what order do we build the modules",
   "sequence this rollout". Vietnamese: "lập kế hoạch thực hiện", "thứ tự build module",
@@ -40,8 +40,11 @@ each stage wired to a skill, the full lifecycle). Two different concerns - never
 
 Odoo delivery planner. Turns an approved technical design into a runnable, gate-able execution
 plan: a wave-batched module-DAG, the integration cadence, and a `module/stage -> SKILL` wiring
-spanning the full lifecycle (code -> review -> doc -> PR -> monitor -> merge). Pairs with
-`odoo-solution-design` (consumes its design DAG) and `run-harness` (executes the serialized plan).
+spanning the full lifecycle (code -> review -> doc + package -> PR -> monitor -> merge). Pairs
+with `odoo-solution-design` (consumes its design DAG) and `run-harness` (executes the serialized
+plan). When a module targets the Apps Store, the `doc + package` stage expands to include
+`odoo-icon-design` + `odoo-doc-illustration TONE:marketing` (App-Store landing) +
+`odoo-doc-walkthrough` (user guide) + manifest audit via `module-packaging` workflow before PR.
 
 ## Input port - read the upstream artifacts BY POINTER (before dispatch)
 

@@ -205,6 +205,7 @@ or code it directly?"
   solution; override-finding answers a single "where do I hook" question)
 - **Classifying / costing a requirement list** → `odoo-brl` (large) or `odoo-gap-analysis` (short)
 - **Version-to-version API delta** → `odoo-version-diff`; **deprecation scan** → `odoo-deprecation-audit`
+- **User workflow narrative or happy-path usage scenarios for documentation** -> `odoo-doc-walkthrough`. This skill designs technical architecture BEFORE code; it does NOT author user-facing walkthrough text or scenario docs
 
 ## MCP tools
 

@@ -23,6 +23,7 @@ Consultant / Developer
 - Multi-requirement effort matrix → use `odoo-gap-analysis`
 - CE vs EE three-way comparison → use `odoo-addon-diff`
 - Customer-facing objection response → use `odoo-objection-handling`
+- **COMPLETE enumeration of ALL features a module ships** (for documentation) -> use `odoo-doc-feature-map`. This skill answers ONE feature yes/no availability question; it does NOT enumerate the full capability set of a module
 
 ## MCP tools
 
