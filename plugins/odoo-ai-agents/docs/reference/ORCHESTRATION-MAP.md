@@ -23,7 +23,6 @@
 | `odoo-demo-recording` | leaf | fresh | none | - | - |
 | `odoo-deploy-checklist` | leaf | fresh | none | yes | - |
 | `odoo-deprecation-audit` | leaf | fresh | backend | - | - |
-| `odoo-diff-comparator` | leaf | fresh | none | - | - |
 | `odoo-discovery-summary` | leaf | fresh | none | - | - |
 | `odoo-doc-illustration` | spawner-agent | fresh | frontend | - | odoo-doc-illustrator |
 | `odoo-feature-check` | leaf | fresh | none | - | - |
@@ -44,7 +43,6 @@
 | `odoo-pr-monitoring` | spawner-agent | fresh | none | - | git-ops (read PR CI status + review state, MERGE at the L2-merge-gate, re-push of an approved D3 fix + post-merge cleanup of worktrees/branches/tag - via git-ops skill - git-toolkit), odoo-debug (D3: route ANY CI warning/error/fail for root-cause first, via Skill tool), odoo-coding (author the fix odoo-debug located, via Skill tool; the re-push stays human-gated X2) |
 | `odoo-pricing-proposal` | leaf | fresh | none | - | - |
 | `odoo-qa-suite` | orchestrator-nl | fresh | none | yes | - |
-| `odoo-review-scoper` | leaf | fresh | none | - | - |
 | `odoo-rfp-response` | leaf | fresh | none | - | - |
 | `odoo-risk-overview` | leaf | fresh | none | - | - |
 | `odoo-security-audit` | leaf | fresh | backend | - | - |

@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.0.2] - 2026-06-30
+
+### Fixed
+
+- Removed 2 stray agent entries (odoo-diff-comparator, odoo-review-scoper) from the orchestration SSOT (skill_tool_deps.json) - they are agents dispatched BY skills, not orchestrating skills; drops 2 misleading rows from ORCHESTRATION-MAP.md and clears the orchestration-check coverage findings (ORCH_STRICT now passes).
+
 ## [4.0.1] - 2026-06-30
 
 ### Added

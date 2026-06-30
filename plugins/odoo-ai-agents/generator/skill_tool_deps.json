@@ -809,14 +809,6 @@
       "output_mode": "chat-only",
       "default_gate_tier": "L0"
     },
-    "odoo-diff-comparator": {
-      "spawn_class": "leaf",
-      "spawns": [],
-      "stack": "none",
-      "instance_touching": false,
-      "output_mode": "writes-files",
-      "default_gate_tier": "L1"
-    },
     "odoo-discovery-summary": {
       "spawn_class": "leaf",
       "spawns": [],
@@ -1058,14 +1050,6 @@
       "default_gate_tier": "L0"
     },
     "odoo-pricing-proposal": {
-      "spawn_class": "leaf",
-      "spawns": [],
-      "stack": "none",
-      "instance_touching": false,
-      "output_mode": "chat-only",
-      "default_gate_tier": "L0"
-    },
-    "odoo-review-scoper": {
       "spawn_class": "leaf",
       "spawns": [],
       "stack": "none",
