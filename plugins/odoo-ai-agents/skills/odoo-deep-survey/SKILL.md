@@ -74,7 +74,7 @@ correct; the worklog is always written regardless of tier.
 Concurrency follows **Mode B (model-weighted budget)** in
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` - SSOT for the weight table and
 in-flight cap. Do **not** restate the weights here. When scope exceeds the budget, use a rolling
-window (dispatch up to the budget, drain, dispatch the next) exactly as `wave` does.
+concurrency window (dispatch up to the budget, drain, dispatch the next).
 
 ## Bootstrap - decompose the intent (before Phase 1)
 

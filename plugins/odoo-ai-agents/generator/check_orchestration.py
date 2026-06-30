@@ -6,7 +6,7 @@ Validates that orchestration metadata (generator/skill_tool_deps.json -> "orches
 is complete and that skills thread the shared contracts they are required to:
 
   1. Coverage     - every skills/<dir> has an orchestration entry, and vice versa.
-  2. OSM-first    - skills that spawn/fan-out workers writing Odoo (wave, workflow-chaining,
+  2. OSM-first    - skills that spawn/fan-out workers writing Odoo (odoo-wave, workflow-chaining,
                     odoo-brl) reference snippets/osm-first-contract.md.
   3. Design-sys   - skills with stack in {frontend, fullstack} reference
                     skills/_shared/odoo-frontend-fidelity.md.
@@ -45,7 +45,7 @@ CODING_GUIDELINES_ROOT = "skills/_shared/coding_guidelines"
 CODING_GUIDELINES_VERSIONS = ("14.0", "15.0", "16.0", "17.0", "18.0", "19.0")
 
 # Skills that fan-out / spawn workers which may write Odoo code → must carry OSM-first.
-OSM_REQUIRED = {"wave", "workflow-chaining", "odoo-brl"}
+OSM_REQUIRED = {"odoo-wave", "workflow-chaining", "odoo-brl"}
 
 # Allowed enum values for the orchestration SSOT. A typo (e.g. "spawner_agent") must be a
 # loud finding, not a silent drop from the generated digest - otherwise the planner is told
@@ -53,7 +53,7 @@ OSM_REQUIRED = {"wave", "workflow-chaining", "odoo-brl"}
 # the skill is a safe non-spawner).
 VALID_SPAWN_CLASS = {"leaf", "orchestrator-nl", "spawner-agent", "spawner-wave"}
 VALID_STACK = {"backend", "frontend", "fullstack", "none"}
-# output_mode drives the Plan-Mode decision; default_gate_tier drives the run-driver gate
+# output_mode drives the Plan-Mode decision; default_gate_tier drives the run-harness gate
 # policy. Both are SSOT here (replacing the hardcoded chat-only lists). output_mode is read
 # per-skill from the SKILL.md Output field (a backend-stack skill can be read-only/chat-only,
 # so it is NOT derived from stack). default_gate_tier IS derived once output_mode is known.
@@ -65,10 +65,14 @@ VALID_GATE_TIER = {"L0", "L1", "L2"}
 VALID_HANDOFF = {"send-message", "fork", "fresh"}
 
 
-def _derive_gate_tier(spawn_class: str, instance_touching: bool, output_mode: str) -> str:
-    """L2 = irreversible/outward (instance or worktree-wave) → ALWAYS human gate.
-    L1 = writes internal files. L0 = read-only/chat. Dial can never lower L2."""
-    if instance_touching or spawn_class == "spawner-wave":
+def _derive_gate_tier(spawn_class: str, instance_touching: bool, output_mode: str,
+                      outward: bool = False) -> str:
+    """L2 = irreversible/outward → ALWAYS human gate. Three irreversible triggers:
+    instance_touching (mutates a live Odoo), spawner-wave (worktree fan-out onto a
+    branch), and `outward` (an outward git merge/push - e.g. odoo-pr-monitoring's
+    merge-to-principal). L1 = writes internal files. L0 = read-only/chat. The dial
+    can never lower L2."""
+    if instance_touching or spawn_class == "spawner-wave" or outward:
         return "L2"
     if output_mode == "writes-files":
         return "L1"
@@ -173,7 +177,7 @@ def main(argv: list[str]) -> int:
         if gate_tier not in VALID_GATE_TIER:
             findings.append(f"[enum] '{name}' has missing/invalid default_gate_tier '{gate_tier}' (not in {sorted(VALID_GATE_TIER)})")
         if output_mode in VALID_OUTPUT_MODE:
-            expected_tier = _derive_gate_tier(spawn_class, bool(e.get("instance_touching")), output_mode)
+            expected_tier = _derive_gate_tier(spawn_class, bool(e.get("instance_touching")), output_mode, bool(e.get("outward")))
             if gate_tier != expected_tier:
                 findings.append(
                     f"[gate-tier] '{name}' default_gate_tier={gate_tier} but derivation says {expected_tier} "

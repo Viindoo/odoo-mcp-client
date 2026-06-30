@@ -193,4 +193,4 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-customer-health/references/examples.md` f
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive run-driver output, changes nothing above.
+(status / produced / next) - additive run-harness output, changes nothing above.

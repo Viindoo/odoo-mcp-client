@@ -202,10 +202,10 @@ next:
     confidence: 0.9
     risk_level: L2
 ```
-so the run-driver provisions the instance; the caller (or next DAG node) then re-invokes this skill to continue Phase 3. Fall back to `BLOCKED` only if provisioning is itself impossible.
+so the run-harness provisions the instance; the caller (or next DAG node) then re-invokes this skill to continue Phase 3. Fall back to `BLOCKED` only if provisioning is itself impossible.
 
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-driver - it does not change anything produced above.
+output for the run-harness - it does not change anything produced above.

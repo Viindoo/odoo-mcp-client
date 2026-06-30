@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-06-29
+
+### Added
+
+- New skill `odoo-planning` + agent `odoo-planner`: the EXECUTION-PLAN step between solution-design (HOW to build) and code (HOW to ship). The planner turns an approved technical design into a gate-able 3-block plan - a wave-batched module-DAG, the integration cadence, each module/stage wired to a SKILL, and the full lifecycle (code -> review -> doc -> PR -> monitor -> merge) - emitting effort / `est_agents` ESTIMATES only (the dispatched specialist skill owns the real model + count at runtime). This splits PLANNING out of the former monolithic wave so design, planning, and execution are three distinct gated concerns.
+- New skill `odoo-pr-monitoring`: the post-PR lifecycle owner (a poller, NOT a blocking DAG node) - watches an opened PR's CI + review state and MERGES at the L2-merge-gate, routing ANY CI warning/error/fail through `odoo-debug` (root-cause first) then `odoo-coding` (the re-push stays human-gated). PR/CI reads, the merge, and post-merge cleanup are delegated to git-toolkit's `github-operator` / `git-operator`.
+- Real naming-morphology enforcement (`tests/test_naming_consistency.py`): the three-layer name rules (skill = capability noun; agent = actor noun; `odoo-` prefix unless allowlisted) were previously only CLAIMED in prose with no test behind them - which is how a `run-driver`-class offender (unprefixed AND actor-morphology used as a skill) slipped in. The rules are now test-enforced, with a red-before-green classifier self-check.
+
+### Changed
+
+- Orchestration split (planning separated from execution): the former `wave` skill is renamed `odoo-wave` and demoted to an INTERNAL, consume-only git-executor (`user-invocable: false`, not a user front door) that `run-harness` dispatches once per coding wave-layer of an approved plan; it never chooses agent/model, never self-derives a plan, and never merges (merge is owned by `odoo-pr-monitoring`). The sequencer skill `run-driver` is renamed `run-harness` (the drive-to-done loop over the run-DAG).
+- `check_orchestration.py` gate-tier derivation: a new `outward` flag (declared on `odoo-pr-monitoring` in `generator/skill_tool_deps.json`) makes an outward git merge/push a third L2 trigger alongside `instance_touching` and `spawner-wave`, so an outward-merging poller's correct `default_gate_tier=L2` no longer mis-warns as "should be L1".
+- `git-toolkit` dependency-direction fix: genericized so the domain-agnostic provider library never names its consumer `odoo-ai-agents` (skills/agents/commands), with a new guard test `tests/test_git_toolkit_independence.py` that scans ONLY `plugins/git-toolkit/**` (the exact inverse of `test_git_delegation_boundary.py`; together a non-overlapping bidirectional guard). (`git-toolkit` 0.2.1 -> 0.2.2.)
+
+### Removed
+
+- **BREAKING:** the `/odoo-run-wave` slash command is removed. Wave execution is no longer user-invoked; it is an internal step (`odoo-wave`) driven by `run-harness` after a plan is approved. This is the breaking change behind the major version bump.
+
 ## [3.34.0] - 2026-06-29
 
 ### Changed

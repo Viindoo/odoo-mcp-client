@@ -25,7 +25,7 @@ FANOUT_SKILLS = [
     "odoo-coding",
     "odoo-debug",
     "odoo-code-review",
-    "wave",
+    "odoo-wave",
     "workflow-chaining",
     "odoo-brl",
 ]

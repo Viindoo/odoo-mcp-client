@@ -2,7 +2,7 @@
 
 Business contract being protected:
 - A command that references a driver-required workflow (one declaring on_complete)
-  and has NO engages-run-driver sentinel MUST trigger a warning.
+  and has NO engages-run-harness sentinel MUST trigger a warning.
 - A command that carries the sentinel MUST suppress the warning for that command.
 - The real odoo-plan-upgrade command MUST carry the sentinel (regression guard
   for issue #93: the command previously dispatched workflow-chaining directly,
@@ -63,7 +63,7 @@ _CMD_WITH_SENTINEL = textwrap.dedent("""\
     ---
     # /fake-command
 
-    <!-- engages-run-driver: routes via /odoo-intake Phase P -->
+    <!-- engages-run-harness: routes via /odoo-intake Phase P -->
 
     Dispatch to fake-driver-wf to do something.
 """)
@@ -86,12 +86,12 @@ def test_on_complete_command_without_sentinel_warns(tmp_path, monkeypatch):
     warnings = mod._driver_required_warnings()
     assert len(warnings) >= 1, (
         "Expected at least one driver-required warning for a command that references "
-        "a driver-required workflow but carries no engages-run-driver sentinel; got none."
+        "a driver-required workflow but carries no engages-run-harness sentinel; got none."
     )
 
 
 def test_sentinel_clears_driver_required_warning(tmp_path, monkeypatch):
-    """A command that carries the engages-run-driver sentinel must produce zero warnings."""
+    """A command that carries the engages-run-harness sentinel must produce zero warnings."""
     wf_dir = tmp_path / "workflows"
     wf_dir.mkdir()
     (wf_dir / "fake-driver-wf.workflow.yaml").write_text(_FAKE_WF, encoding="utf-8")
@@ -107,7 +107,7 @@ def test_sentinel_clears_driver_required_warning(tmp_path, monkeypatch):
     warnings = mod._driver_required_warnings()
     assert warnings == [], (
         "Expected zero driver-required warnings when the command carries the "
-        f"engages-run-driver sentinel; got: {warnings}"
+        f"engages-run-harness sentinel; got: {warnings}"
     )
 
 
@@ -122,12 +122,12 @@ def test_no_driver_required_warnings_on_real_repo():
     Regression guard for issue #93: odoo-plan-upgrade previously dispatched
     workflow-chaining directly, causing the on_complete design handoff to
     degrade to a human suggestion. The fix routes via /odoo-intake and adds
-    the engages-run-driver sentinel so this check passes.
+    the engages-run-harness sentinel so this check passes.
     """
     mod = _load()
     warnings = mod._driver_required_warnings()
     assert warnings == [], (
         "driver-required warnings found on real repo - at least one command "
-        "references a workflow with on_complete but lacks the engages-run-driver "
+        "references a workflow with on_complete but lacks the engages-run-harness "
         f"sentinel:\n" + "\n".join(warnings)
     )

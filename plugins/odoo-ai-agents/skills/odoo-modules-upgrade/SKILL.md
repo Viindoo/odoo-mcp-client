@@ -48,6 +48,11 @@ and stops for human confirm.
 | Diff two versions' APIs only | `odoo-version-diff` | detection only; upgrade calls it in recon |
 | Write fresh upgrade-safe code, no module to carry | `odoo-coding` | nothing to upgrade |
 
+> **Route in (not bare git-ops):** an Odoo module/cluster major-version upgrade routes HERE - this
+> skill wraps git-toolkit's generic `git-ops` front door with the Odoo upgrade pipeline
+> (core-absorption, dep-order adapt, install+test gate). Do NOT invoke `git-ops` directly for an
+> Odoo module upgrade.
+
 ## Invocation - free natural language
 
 The user speaks in free natural language (EN or VI). `/odoo-modules-upgrade <free text>`
@@ -63,7 +68,11 @@ rather than guessing it.
 `<cluster>` = the scope slug (the `cluster_slug` field resolved in P0 intake). Artifacts under
 `.odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/`. `<path>` = the upgrade-worktree base, a
 `.upg-worktrees/` directory SIBLING to the principal checkout (never inside it, so principal
-`git status` stays clean). `<work-base>` = the base ref the integration branch forks from: HEAD
+`git status` stays clean). The integration-loop saga/rollback + checkpoint contract this pipeline
+runs (record the pre-loop SHA, checkpoint each integrated wave, clean-abort or resume on failure -
+never leave a half-built integration branch) is the shared SSOT
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; `checkpoint.json` (§ below) is this
+skill's realization of it. `<work-base>` = the base ref the integration branch forks from: HEAD
 of the target-series branch when one exists, else the merge-base of the cluster against the
 target series. ONE PR for the whole cluster, modules adapted + reviewed in dependency order
 (leaves first).
@@ -405,7 +414,7 @@ When the run finishes (or pauses at a gate), append a Continuation Contract bloc
 `transitive-symbol-survey.md`, `absorption/*.md`, `plan.md`, `install-test.md`,
 `checkpoint.json`, and the PR URL.
 When P2b routes a module out to design, `next: odoo-solution-design` with the Continuation
-Contract payload and the run YIELDS. Additive output for the run-driver - does not change
+Contract payload and the run YIELDS. Additive output for the run-harness - does not change
 anything produced above.
 Note: this workflow has TWO review points - the P4b in-pipeline code-review loop (per module,
 dep order, fix-until-clean, findings folded into the module rows of `install-test.md`) and the

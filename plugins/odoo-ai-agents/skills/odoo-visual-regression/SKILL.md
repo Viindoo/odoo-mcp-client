@@ -123,7 +123,7 @@ higher-priority surprise.
       confidence: 0.9
       risk_level: L2
   ```
-  so the run-driver provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots for regression diff)` only if provisioning is itself impossible. Do NOT ask the user to paste screenshots or URLs. Prefix (if pre-captured pairs used) with `⚠ Instance unreachable - diff limited to pre-captured screenshots`.
+  so the run-harness provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots for regression diff)` only if provisioning is itself impossible. Do NOT ask the user to paste screenshots or URLs. Prefix (if pre-captured pairs used) with `⚠ Instance unreachable - diff limited to pre-captured screenshots`.
 
 ## Output format
 
@@ -159,4 +159,4 @@ Examples (two worked scenarios - upgrade regression + SCSS change drift):
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-driver - it does not change anything produced above.
+output for the run-harness - it does not change anything produced above.

@@ -180,7 +180,7 @@ root cause, exact fix location, regression test, and the literal line **"AUTONOM
 to verify"**. If a design index exists at `.odoo-ai/designs/*/index.yaml` with an entry for the module under fix, resolve `DESIGN_DOC` (child path) and `MASTER_DESIGN_DOC` (master path) per `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` §Handoff fields and include both in the `odoo-coding` brief so the fix stays aligned with the design; if no index exists, omit both. `odoo-coding` fixes, then `odoo-code-review` verifies; bound the loop to 3 iterations,
 then STOP and escalate. Still emit the Continuation Contract / `SUGGESTED_NEXT` block as the record.
 (For a wider sweep instead of a point fix, route to the relevant audit skill.) The ONLY exception:
-if dispatched by an active run-driver (a `run-<id>` is named), emit `next`/`SUGGESTED_NEXT` and
+if dispatched by an active run-harness (a `run-<id>` is named), emit `next`/`SUGGESTED_NEXT` and
 let the driver advance.
 
 ## Model selection (explicit per phase - do not use the default)
@@ -218,7 +218,7 @@ the Phase 2 tier; do not silently fall back to the inherited default.
       confidence: 0.9
       risk_level: L2
   ```
-  so the run-driver provisions one; fall back to `BLOCKED` for that leg only if
+  so the run-harness provisions one; fall back to `BLOCKED` for that leg only if
   provisioning is itself impossible. Never ask the user to paste console output or screenshots -
   those are evidence the browser agent captures.
 - **Orchestrator.** Dispatches specialist debug agents (subagents) and audit skills (Skill tool). Does NOT accept re-invocation from inside a subagent: a spawned agent that needs this exact diagnosis should inline `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` directly rather than calling this skill.
@@ -239,4 +239,4 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-debug/references/examples.md` for worked 
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-driver - it does not change anything produced above.
+output for the run-harness - it does not change anything produced above.

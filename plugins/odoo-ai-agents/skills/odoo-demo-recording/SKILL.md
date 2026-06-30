@@ -125,7 +125,7 @@ path, duration, and step list so the take is re-runnable.
       confidence: 0.9
       risk_level: L2
   ```
-  so the run-driver provisions one; fall back to `BLOCKED(instance unreachable - tried <url>)` only if provisioning is itself impossible. Do NOT ask the user for a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.
+  so the run-harness provisions one; fall back to `BLOCKED(instance unreachable - tried <url>)` only if provisioning is itself impossible. Do NOT ask the user for a screen-capture of the flow. Prefix with `⚠ Recorder unreachable - produced frame sequence / GIF only`.
 
 ## Output format
 
@@ -155,4 +155,4 @@ Examples (sales order MP4 + portal GIF with recorder unavailable):
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive run-driver output, changes nothing above.
+(status / produced / next) - additive run-harness output, changes nothing above.

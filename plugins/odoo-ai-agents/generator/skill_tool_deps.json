@@ -297,6 +297,24 @@
       "deprecated_tools_used": [],
       "notes": "Slim SKILL.md for the design bundle - companion to the odoo-solution-architect agent. Designs the technical solution (approach / data model / override strategy / module structure) before any code is written. impact_analysis grounds blast-radius in Risks; find_override_point grounds super() position; validate_* verify the proposed ORM chains so the coder inherits a verified design. test_base_classes/find_test_examples/tests_covering/test_coverage_audit ground test outline in real test surface (PR #323, v0.15.0). min_server 0.15.0 for test tools."
     },
+    "odoo-planning": {
+      "mcp_tools": [
+        "set_active_version",
+        "module_inspect",
+        "check_module_exists"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Slim SKILL.md for the planning bundle - companion to the odoo-planner agent. Turns an APPROVED design DAG into the 3-block EXECUTION PLAN (wave-batched module-DAG + integration cadence + module/stage->skill wiring + full lifecycle), conforming to plan-mode-schema.md; it does NOT serialize run-<id>.json (intake Phase P owns that). Stays LIGHT on tools: set_active_version pins the series (also a reachability probe); module_inspect(dependencies) + check_module_exists trust-but-verify that the modules the design DAG names exist and their dependency edges hold before batching into waves - the planner CONSUMES the design DAG by pointer, it does not re-derive it. min_server 0.6.0."
+    },
+    "odoo-pr-monitoring": {
+      "mcp_tools": [
+        "set_active_version"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Post-PR lifecycle owner (poller; NOT a blocking DAG node). Stays LIGHT on tools - it makes essentially no OSM calls: all PR/CI/review reads + the merge are GitHub-API ops delegated to git-toolkit's github-operator, post-merge cleanup is delegated to git-operator, and deep source grounding happens INSIDE the odoo-debug / odoo-coding it routes to. set_active_version pins the run's target Odoo series once at attach (doubling as the OSM reachability probe) so the version-pinned context travels with any D3 hand-off to odoo-debug and into the merge report. Writes only its own poll-state under .odoo-ai/pr-monitoring/ (gitignored); the PR URL lives in run-<id>.json (run-harness owns that write) so a fresh session can re-attach to the watch. min_server 0.6.0 for set_active_version."
+    },
     "odoo-risk-overview": {
       "mcp_tools": [
         "check_module_exists",
@@ -318,11 +336,11 @@
       "deprecated_tools_used": [],
       "notes": "Pure text routing and brainstorm - no MCP tool calls. Tool names mentioned in routing table discriminators are references to OTHER skills' tools, not invocations by intake itself."
     },
-    "wave": {
+    "odoo-wave": {
       "mcp_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
-      "notes": "Git-wave orchestration skill - no MCP tools; spawns WI subagents over worktrees + cherry-pick + odoo-code-review + squash. Outputs to .odoo-ai/wave/ (gitignored)."
+      "notes": "Internal git-executor (consume-only; user-invocable=false) - no MCP tools of its own; INVOKES odoo-coding per WI over per-WI worktrees + cherry-pick + end-of-wave odoo-code-review + squash, then STOPS at the L2-squash-gate (merge owned by odoo-pr-monitoring). Outputs to .odoo-ai/wave/ (gitignored)."
     },
     "odoo-ui-review": {
       "mcp_tools": [
@@ -385,7 +403,7 @@
       "deprecated_tools_used": [],
       "notes": "Phase 1 grounds test mechanics (test class, tag syntax, --test-enable/--test-tags) via OSM set_active_version + cli_help for the target version; Phase 2 NL-dispatches to odoo-deploy-checklist. Outputs to .odoo-ai/qa/."
     },
-    "run-driver": {
+    "run-harness": {
       "mcp_tools": [],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
@@ -898,6 +916,31 @@
       "output_mode": "writes-files",
       "default_gate_tier": "L1"
     },
+    "odoo-planning": {
+      "spawn_class": "spawner-agent",
+      "spawns": [
+        "odoo-planner",
+        "(dispatch: single planner by default; for very large scope fan out one planner per module cluster following concurrency-guard.md Mode B, then reconcile - handoff fresh)"
+      ],
+      "stack": "none",
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
+    },
+    "odoo-pr-monitoring": {
+      "spawn_class": "spawner-agent",
+      "spawns": [
+        "github-operator (read PR CI status + review state, then MERGE at the L2-merge-gate - delegated to git-toolkit)",
+        "git-operator (re-push of an approved D3 fix + post-merge cleanup of worktrees/branches/tag - delegated to git-toolkit)",
+        "odoo-debug (D3: route ANY CI warning/error/fail for root-cause first, via Skill tool)",
+        "odoo-coding (author the fix odoo-debug located, via Skill tool; the re-push stays human-gated X2)"
+      ],
+      "stack": "none",
+      "instance_touching": false,
+      "outward": true,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L2"
+    },
     "odoo-qa-suite": {
       "spawn_class": "orchestrator-nl",
       "spawns": [],
@@ -958,14 +1001,14 @@
       "output_mode": "writes-files",
       "default_gate_tier": "L1"
     },
-    "wave": {
+    "odoo-wave": {
       "spawn_class": "spawner-wave",
-      "handoff": "send-message",
+      "handoff": "fresh",
       "spawns": [
-        "(per-WI leaf workers over worktrees)",
-        "git-operator (worktree add, cherry-pick A->B->C onto integration, squash, force-with-lease - all git ops delegated to git-toolkit)",
+        "odoo-coding (INVOKED per WI via the Skill tool from the orchestrating context; odoo-coding owns coder count + model)",
+        "git-operator (worktree add, cherry-pick onto integration in module-DAG order, squash, force-with-lease - all git ops delegated to git-toolkit)",
         "git-surveyor (read-only diff + tree-identity verify - delegated to git-toolkit)",
-        "github-operator (PR integration->principal + review - delegated to git-toolkit)"
+        "github-operator (open PR integration->principal - delegated to git-toolkit; merge owned by odoo-pr-monitoring)"
       ],
       "stack": "none",
       "instance_touching": true,
@@ -980,7 +1023,7 @@
       "output_mode": "writes-files",
       "default_gate_tier": "L1"
     },
-    "run-driver": {
+    "run-harness": {
       "spawn_class": "orchestrator-nl",
       "spawns": [],
       "stack": "none",

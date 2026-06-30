@@ -109,9 +109,9 @@ and warn rather than dispatch on a headless host.
       confidence: 0.9
       risk_level: L2
   ```
-  so the run-driver provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots)` only if provisioning is itself impossible.
+  so the run-harness provisions one; fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots)` only if provisioning is itself impossible.
 
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
-(status / produced / next) - additive run-driver output, changes nothing above.
+(status / produced / next) - additive run-harness output, changes nothing above.

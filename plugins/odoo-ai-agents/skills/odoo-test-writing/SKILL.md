@@ -169,8 +169,8 @@ next:
     confidence: 0.9
     risk_level: L2
 ```
-so the run-driver provisions one; fall back to `BLOCKED` only if provisioning is itself impossible. Test file authoring (Rounds 0-4) proceeds regardless. This is the canonical NEEDS_NEXT pattern referenced by `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
+so the run-harness provisions one; fall back to `BLOCKED` only if provisioning is itself impossible. Test file authoring (Rounds 0-4) proceeds regardless. This is the canonical NEEDS_NEXT pattern referenced by `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the test file paths you wrote, and state the **RED confirmation** (test-first mode: "RED - production code not yet written"; coverage mode: "RED-on-rule-removal verified"). A coder consuming these tests implements to green and must not edit them. Additive output for the run-driver - it does not change anything produced above.
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the test file paths you wrote, and state the **RED confirmation** (test-first mode: "RED - production code not yet written"; coverage mode: "RED-on-rule-removal verified"). A coder consuming these tests implements to green and must not edit them. Additive output for the run-harness - it does not change anything produced above.

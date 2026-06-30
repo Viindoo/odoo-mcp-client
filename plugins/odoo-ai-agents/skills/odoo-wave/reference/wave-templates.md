@@ -1,7 +1,12 @@
 # Wave Orchestration - Reference Templates
 
-On-demand reference for `skills/wave/SKILL.md`. Load this file when you need the full
-template text for any of the structures below. Do not load it on every invocation.
+On-demand reference for `skills/odoo-wave/SKILL.md` (the git-executor). Load this file when you need
+the full template text for any of the structures below. Do not load it on every invocation.
+
+> "wave" in this file is the integration-topology CONCEPT (wave-batch, wave-templates), not a
+> user-invocable skill. The executor `odoo-wave` is consume-only: it CONSUMES the plan's WI list +
+> wave-batched module-DAG + topology and INVOKES `odoo-coding` per WI; it never self-derives a plan
+> and never chooses agent/model.
 
 ---
 
@@ -93,9 +98,12 @@ principal ───────────────────────�
 
 ---
 
-## Plan Artifact Full Template (>=4 WI)
+## Execution-log Template
 
-Write to `.odoo-ai/wave/<slug>/plan.md` (gitignored). This is the SSOT for the wave.
+odoo-wave does NOT author the plan - it CONSUMES the approved plan (`odoo-planning` is the producer).
+This template is the run-local EXECUTION LOG odoo-wave writes to `.odoo-ai/wave/<slug>/plan.md`
+(gitignored): the consumed topology + WI map, the cherry-pick / saga-checkpoint log, the review log,
+and the PR/squash result. It records what odoo-wave did, not what to do.
 
 ```markdown
 # Wave Plan: <slug>
@@ -169,7 +177,9 @@ Status  : <open | merged | closed>
 
 ## Cleanup Checklist
 
-Run after Phase 6 human-confirm merge:
+Post-merge cleanup is owned by `odoo-pr-monitoring` (it runs AFTER the `L2-merge-gate` merge);
+odoo-wave itself stops at the `L2-squash-gate` and never merges or cleans up the integration branch.
+This checklist is the one the post-merge owner runs.
 
 Delegate to **git-operator** in one brief (op=wave-cleanup):
 
@@ -204,12 +214,14 @@ principal          : <principal-branch-name>
 backup-ref         : wave-backup-<slug>
 commit-msg         : <conventional commit message>
 integration-branch : wave/integration-<slug>
-confirmed          : yes - <human approval text from Phase 6 gate>
+confirmed          : yes - <human approval covering the L2-squash-gate force-push (run-harness L2 + git-toolkit confirm backstop)>
 ```
 
 git-operator executes the `squash-push` recipe (stale-base guard -> S1 backup -> reset-soft squash-to-one -> S6 tree-identity gate -> S2 force-with-lease), owned by git-toolkit per its git-safety-contract S1/S6/S2.
 
-After git-operator returns, confirm its reported tree-identity exit code is 0 before proceeding to the merge gate.
+After git-operator returns, confirm its reported tree-identity exit code is 0. This is odoo-wave's
+terminal step (the L2-squash-gate) - it STOPS here and does NOT merge; the merge is owned by
+`odoo-pr-monitoring` at the L2-merge-gate.
 
 ---
 
@@ -236,113 +248,97 @@ paths, no personal info. Groups 1-3 and 5-8 still apply to avoid accidental leak
 
 ---
 
-## Mode B Dispatch Loop (Pseudocode)
+## Per-WI Integration Loop (Pseudocode)
 
-Full JS pseudocode for the Phase 2 rolling-window orchestration. Referenced from SKILL.md Phase 2.
+Pseudocode for the Phase 2/3 integration loop. Referenced from SKILL.md Phase 2. Key shift from the
+legacy design: odoo-wave does NOT dispatch anonymous WI workers and owns no weighted budget - it
+INVOKES the `odoo-coding` SKILL per WI (which owns its own coder count + Mode-B budget), then
+cherry-picks the returned SHA(s). Because a Skill invocation loads in the single orchestrating
+context, WIs are processed SEQUENTIALLY in module-DAG order; the parallel fan-out lives INSIDE each
+`odoo-coding` invocation.
 
-```js
-// Phase 2 - Mode B rolling-window dispatch + cherry-pick serialized in the orchestrating context.
-const WEIGHT = { haiku: 1, sonnet: 2, opus: 4, fable: 8 };
-const BUDGET = 8; // SSOT: skills/_shared/concurrency-guard.md (Mode B) - do not restate
+```text
+# Phase 2/3 - per-WI: ensure worktree -> INVOKE odoo-coding -> cherry-pick (saga). Sequential.
+# SSOT for the saga/rollback + checkpoint contract: skills/_shared/integration-loop.md (do not restate).
+# SSOT for the coder fan-out + Mode-B OOM budget: odoo-coding + skills/_shared/concurrency-guard.md.
 
-// validate tiers up front: a typo'd/missing tier must fail the whole run at t=0,
-// before any worker or worktree exists, not silently book the wrong weight
-for (const wi of wis) {
-  if (!WEIGHT[wi.model]) throw new Error(`WI ${wi.id}: unknown model tier '${wi.model}'`);
-}
+pre_wave_sha = tip(integration)            # saga anchor (integration-loop.md step 1)
+cherry_picked = {}                          # WI id -> True once ON integration + verified
 
-// weighted semaphore (plain JS - no per-model runtime knob). release() admits
-// strictly FIFO so a heavy (fable/opus) waiter is never starved by lighter waiters.
-let used = 0; const waiters = [];
-const acquire = (w) => new Promise((res) => {
-  const attempt = () => (used + w <= BUDGET ? ((used += w), res(), true) : false);
-  if (!attempt()) waiters.push(attempt);
-});
-const release = (w) => { used -= w; while (waiters.length && waiters[0]()) waiters.shift(); };
+for wi in topological_order(wis):           # module-DAG / wave order; dependents after deps
+    if any(not cherry_picked.get(d) for d in wi.depends_on):
+        record(wi, "upstream blocked"); apply_saga_rollback(); return  # terminate the WHOLE wave
 
-// CRITICAL SECTION for cherry-pick: one in-flight at a time, in the orchestrator only.
-// The promise chain serializes every cherry-pick onto integration -> no branch race.
-let cpChain = Promise.resolve();
-const cherryPickSerial = (fn) => (cpChain = cpChain.then(fn, fn));
+    ensure_worktree(wi)                     # git-operator worktree-add (lazy for dependents,
+                                            # forking an up-to-date integration that holds dep commits)
 
-// per-WI CHERRY-PICKED promise (NOT merely committed). Dependents fork from
-// integration, so a dependent must wait until its deps are ON integration.
-const cpResolvers = {}; const cherry_picked = {};
-for (const wi of wis) cherry_picked[wi.id] = new Promise((r) => { cpResolvers[wi.id] = r; });
+    # INVOKE odoo-coding via the Skill tool from THIS orchestrating context (legal: spawner ban is
+    # leaf-only). Pass inputs only so odoo-coding's Plan-provided fast-path consumes them. odoo-coding
+    # owns count+model and authors+commits INSIDE wi.worktree; it returns the commit SHA(s). NO cherry-pick.
+    result = Skill("odoo-coding", wi_invocation_brief(wi))   # synchronous, in-context
+    if result.status != "DONE" or not result.shas:
+        record(wi, result); apply_saga_rollback(); return    # DONE with no SHA = failed contract
 
-const runWI = async (wi) => {
-  // gate on deps being CHERRY-PICKED (not merely committed in their own worktree).
-  // any dep that resolved false (blocked upstream) blocks this WI too.
-  const depsOk = (await Promise.all(
-    (wi.depends_on || []).map((d) => cherry_picked[d] ?? Promise.resolve(true))
-  )).every(Boolean);
-  if (!depsOk) { cpResolvers[wi.id](false); return { id: wi.id, upstreamBlocked: true }; }
+    # cherry-pick: orchestrator-side CRITICAL SECTION, one at a time, topology order.
+    wi_failed = False
+    for sha in result.shas:
+        cherry_pick(sha, into=integration)  # delegate to git-operator in the INTEGRATION worktree
+        if conflict: resolve_conflict(wi)   # Phase 3 Sonnet resolver (worker-brief.md) + cherry-pick --continue
+        if not run_verify():                # Repo Capability Card verify after each pick
+            wi_failed = True; break          # stop picking THIS WI's commits (inner loop only)
 
-  // lazy worktree: create the dependent's worktree NOW, after the gate, so it forks
-  // from an up-to-date integration that already holds the dep commits (root WIs were
-  // created in Phase 1 via git-operator: branch=wave/wi-<slug>-<id>, from=wave/integration-<slug>).
-  ensureWorktree(wi);   // delegate to git-operator (worktree-add)
+    if wi_failed:                           # verify failed mid-WI -> terminate the WHOLE wave:
+        record(wi, "verify failed")          #   do NOT checkpoint and do NOT mark this WI cherry-picked
+        apply_saga_rollback(); return        #   clean-abort/resume; never build on a rolled-back branch
 
-  const w = WEIGHT[wi.model];
-  await acquire(w);                       // wait for weight budget (rolling window)
-  let workerResult;
-  try {
-    // WI worker: write + commit in its OWN worktree, return SHA(s). NO cherry-pick.
-    workerResult = await agent(wiBrief(wi), {
-      label: wi.id, phase: 'implement', model: wi.model, schema: WI_RESULT_SCHEMA,
-    });
-  } finally { release(w); }               // free weight as soon as the worker returns
+    checkpoint(wi, tip(integration), "PASS")  # integration-loop.md step 2 (ONLY on full WI success)
+    cherry_picked[wi] = True                  # unblock dependents ONLY after cherry-picked + verified
 
-  if (!ok(workerResult)) { cpResolvers[wi.id](false); return { id: wi.id, result: workerResult }; }
-
-  // cherry-pick: serialized in the orchestrating context, topology order enforced by the dep gate above.
-  await cherryPickSerial(async () => {
-    for (const sha of workerResult.committed_shas) {
-      cherryPick(sha);                    // delegate cherry-pick of <sha> to git-operator in the INTEGRATION worktree
-      runVerify();                        // Repo Capability Card verify after each pick (Phase 3)
-      // on conflict -> dispatch the Phase 3 Sonnet resolver subagent (unchanged) and re-verify
-    }
-  });
-  cpResolvers[wi.id](true);               // unblock dependents ONLY after cherry-picked + verified
-  return { id: wi.id, result: workerResult };
-};
-
-await Promise.all(wis.map(runWI));        // rolling window; deps enforced per-WI, no batch barrier
+# apply_saga_rollback(): clean-abort (reset-hard to pre_wave_sha) OR resume from last passing
+# checkpoint; never leave a half-built integration branch. Full contract: integration-loop.md.
+# `return` ends the wave loop entirely (matches integration-loop.md clean-abort): a failed/blocked WI
+# is never recorded PASS and the loop never continues onto a rolled-back integration branch.
 ```
 
 ---
 
 ## Examples
 
-**Example 1 - Standard 3-WI wave:**
-Prompt: "Parallelize these 3 changes: add computed field to sale.order, add OWL widget, update unit tests. Land them safely without touching main."
-Action: Phase 0 discovers disjoint files, selects independent topology. Gate shows ownership
-map. On approve: integration branch + 3 worktrees. Dispatch the 3 Sonnet WI subagents under the
-Mode B rolling window (3 x sonnet = weight 6, within BUDGET=8, so all three run at once).
-Serialize each cherry-pick in the orchestrating context as its worker returns. Opus review + odoo-code-review. 1 PR.
-Squash + tree-identity. Wait for human-confirm.
+> odoo-wave is consume-only and `user-invocable: false` - it is dispatched by run-harness with an
+> APPROVED plan, never by a user prompt. These examples start from the dispatch, not a user phrase.
 
-**Example 2 - 1-WI edge case:**
-Prompt: "Do this as a wave: fix the typo in account.move description."
-Action: Phase 0 sees 1 WI. Standalone-first fallback: "This is a single-file fix -
-wave overhead is not needed. Run odoo-coding directly? Or confirm you want a wave."
+**Example 1 - Standard 3-WI wave-layer:**
+Dispatch: run-harness dispatches odoo-wave with 3 independent WIs (computed field on sale.order, an
+OWL widget, a unit-test update) + their module-DAG + `independent` topology.
+Action: Phase 0 verifies disjoint ownership (safety audit) and consumes the DAG/topology. Phase 1
+creates the integration branch + 3 worktrees. Phase 2 INVOKES `odoo-coding` per WI sequentially
+(each odoo-coding owns its own coder count/model). Phase 3 serializes each cherry-pick onto
+integration, verifying + checkpointing after each. Phase 4 opus cross-cutting review + odoo-code-review
+inline. Phase 5 opens 1 PR, squashes (tree-identity verified), STOPS at the L2-squash-gate. No merge.
 
-**Example 3 - Ownership conflict detected:**
-Prompt: "Parallelize WI-A (edits models.py + tests.py) and WI-B (edits models.py + views.py)."
-Action: Phase 0 ownership audit finds models.py in both scopes. STOP: "models.py appears
-in both WI-A and WI-B. Resolve the overlap before I can create worktrees. Options:
-(a) move models.py changes to one WI, (b) split the models.py change into a WI-0 prerequisite."
+**Example 2 - Dependency edge consumed (linear):**
+Dispatch: plan's module-DAG has WI-B `depends_on` WI-A.
+Action: cherry-pick A first; then lazily fork WI-B's worktree from the updated integration; INVOKE
+`odoo-coding` for B; cherry-pick B. odoo-wave never recomputes the edge - it consumes it from the plan.
+
+**Example 3 - Ownership conflict (safety audit catches a bad plan):**
+Dispatch: the plan maps models.py to both WI-A and WI-B.
+Action: Phase 0.2 disjoint-ownership audit finds models.py in both scopes. STOP BLOCKED: report the
+overlap and route back to `odoo-planning` to re-partition. No worktree is created.
 
 **Example 4 - Squash mismatch abort:**
-Prompt context: squash step on 4-WI integration branch.
-Action: `git diff --quiet wave-backup-<slug>` exits 1 (tree mismatch). Abort:
-"Squash tree-identity FAILED - the squashed commit does not match the pre-squash tree.
-Restoring from wave-backup-<slug>. Do NOT force-push. Investigate the mismatch before
-proceeding." Report the differing files.
+Context: squash step on a 4-WI integration branch.
+Action: `git diff --quiet wave-backup-<slug>` exits 1 (tree mismatch). Abort: "Squash tree-identity
+FAILED - the squashed commit does not match the pre-squash tree. Restoring from wave-backup-<slug>.
+Do NOT force-push." Report the differing files.
 
 **Example 5 - Conflict resolver path:**
-WI-A and WI-B unexpectedly both touch `__init__.py` (missed in Phase 0 audit):
-Cherry-pick of WI-B fails with conflict. Dispatch Sonnet resolver subagent with the conflict
-diff + both WI briefs. Resolver edits the conflicting files (conflict markers removed). Wave
-re-dispatches a fresh git-operator (cherry-pick --continue) to complete the cherry-pick.
-Re-run verify. Continue.
+WI-A and WI-B unexpectedly both touch `__init__.py` (missed by the plan; caught at cherry-pick):
+Cherry-pick of WI-B fails with conflict. Dispatch a Sonnet resolver subagent (worker-brief.md) with
+the conflict diff + both WI briefs. Resolver edits the conflicting files (markers removed). odoo-wave
+re-dispatches a fresh git-operator (cherry-pick --continue). Re-run verify, checkpoint, continue.
+
+**Example 6 - Mid-wave failure (saga rollback):**
+A cherry-pick verify cannot be made green within the loop's bound. Apply the
+`integration-loop.md` saga: clean-abort (reset-hard to the pre-wave SHA) or resume from the last
+passing checkpoint; report the failing WI. Never leave a half-built integration branch.

@@ -3,8 +3,8 @@ name: odoo-git-rebase
 description: >-
   Orchestrates a same-series Odoo git rebase - replaying a feature or fix branch onto an
   updated base of the SAME Odoo major version - forwarding INTENT, not diff text. Pipeline:
-  NL-intake, intent sweep, behavior comparison, per-commit outcome classification, design
-  route-out, Plan Mode gate, rebase-onto replay (delegated to git-operator), conflict-resolution loop,
+  NL-intake, intent sweep, behavior comparison, outcome classification, design
+  route-out, Plan Mode gate, rebase-onto replay, conflict-resolution loop,
   range-diff + dup-guard verify, human-confirm gate, and PR. Use when asked to
   "rebase my branch onto the updated 17.0" or "rebase PR #N onto the new base";
   "rebase nhánh lên base mới cùng phiên bản" hoặc "cập nhật base cho nhánh feature".
@@ -12,7 +12,8 @@ description: >-
   cluster to a new major (use odoo-modules-upgrade), to write one isolated change
   (use odoo-coding), to diff only (use odoo-version-diff), to review a PR without rebasing
   (use odoo-code-review), or to parallelize N disjoint work-items with cherry-pick + squash
-  (use wave - rebase replays one branch range without squashing)
+  (use odoo-planning - it plans the wave-batched delivery; rebase replays one branch range
+  without squashing)
 model: opus
 ---
 
@@ -40,7 +41,11 @@ diff or judges business behavior inline; those always go to subagents.
 | A version-to-version API delta only | `odoo-version-diff` | pure diff, no git op |
 | Review an existing PR/diff without rebasing | `odoo-code-review` | static review, no replay |
 | STANDALONE design, no commits to rebase | `odoo-solution-design` | a bucket-(c) re-implement INSIDE a rebase run uses the P5 route-out (in scope) |
-| Parallelize N disjoint changes + squash | `wave` | wave cherry-picks + squashes disjoint WIs; rebase replays one branch range, never squashes |
+| Parallelize N disjoint changes + squash | `odoo-planning` | `odoo-planning` is the USER-facing choice - it plans the wave-batched delivery (the internal `odoo-wave` executor cherry-picks + squashes disjoint WIs); rebase replays one branch range, never squashes |
+
+> **Route in (not bare git-ops):** an Odoo same-series rebase routes HERE - this skill wraps
+> git-toolkit's generic `git-ops` front door with the Odoo intent-forwarding pipeline (intent
+> sweep, symbol-survival, behavior verify). Do NOT invoke `git-ops` directly for an Odoo rebase.
 
 ## Invocation - free natural language (NOT rigid parameters)
 
@@ -63,6 +68,11 @@ command; everything that reads diff CONTENT is delegated). Full git commands, di
 format templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-git-rebase/references/rb-phase-detail.md`.
 
 ## Checkpoint / resume
+
+The integration-loop saga/rollback + checkpoint contract this section implements is the shared SSOT
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md` (record the pre-loop SHA, checkpoint each
+applied commit, clean-abort or resume on failure - never leave a half-built branch); the per-commit
+state file below is this skill's concrete realization of it.
 
 `.odoo-ai/git-rebase/<slug>/checkpoint.json` maps per-commit status and run state:
 
@@ -342,7 +352,7 @@ When the run finishes or pauses at a gate, append a Continuation Contract block 
 `produced` lists `intake.md`, `recon.md`, `intents/<sha>.md`, `comparison.md`,
 `rebase-log.md`, `plan.md`, `verify.md`, and the PR URL. `next` is the human-confirm gate
 (P11) or human merge (P12). When P5 routes a commit out to design, `next: odoo-solution-design`
-with canonical payload and the run YIELDS; the run-driver advances the hop and re-enters
+with canonical payload and the run YIELDS; the run-harness advances the hop and re-enters
 odoo-git-rebase with the returned `design_doc`. In-pipeline review findings (P9b) are folded
 into `rebase-log.md`; a resume after a crash mid-loop re-reads them from there. This workflow
 has TWO review points: P9b (in-pipeline, fix-until-clean, before verify) and P12 (final PR

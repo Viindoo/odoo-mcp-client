@@ -12,8 +12,8 @@ stay out of the worker's hands (own-worktree add/commit/stash are allowed - see 
 - **You ARE the specialist - do the work directly.** Write or review the Python, XML, JS,
   OWL, or SCSS yourself, grounding every Odoo claim with the OSM MCP tools
   (`set_active_version`, `model_inspect`, `find_examples`, `validate_*`, `resolve_stylesheet`,
-  …). An MCP tool call is never a subagent spawn, so it is always allowed. Follow the same
-  conventions the `odoo-coder` / `odoo-frontend-coder` / `odoo-code-reviewer` agents use.
+  …). An MCP tool call is never a subagent spawn, so it is always allowed. Follow your own
+  agent conventions.
 - **Git in your worktree - narrow allowance.** You may run `git add` and `git commit`
   to stage and commit your OWN work in your assigned worktree, then return the commit SHA
   to the orchestrator. You may also `git stash` if you need to park in-progress work.

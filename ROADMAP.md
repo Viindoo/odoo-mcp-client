@@ -16,10 +16,20 @@ Items are directional, not commitments, and reflect publicly announced milestone
 
 ## Recently shipped
 
-- **Git-wave orchestration** (v2.3.0) - `wave` skill + `/odoo-ai-agents:odoo-run-wave` command
-  for depth-0 multi-subagent git-wave: integration branch + WI worktrees + cherry-pick +
-  end-of-wave Opus review + `/code-review` inline + 1 PR + squash + tree-identity gate +
-  human-confirm merge. Self-spawning, principal-branch-locked, auto-merge never allowed.
+- **4-tier orchestration: planning split from execution** (v4.0.0) - a dedicated
+  `odoo-planning` skill (with the `odoo-planner` agent) now authors the full-lifecycle
+  EXECUTION plan after solution-design: a wave-batched module-DAG, the integration cadence,
+  each module/stage wired to a skill, and the lifecycle code -> review -> doc -> PR -> monitor ->
+  merge. `run-harness` (the sequencer, renamed from `run-driver`) walks it; the internal
+  `odoo-wave` git-executor lands each coding wave-layer; and the new `odoo-pr-monitoring` skill
+  watches the opened PR to merge (CI/review poller, CI failures route to `odoo-debug`, the
+  L2-merge-gate). The standalone `/odoo-run-wave` slash command was removed in this major.
+- **Git-wave execution** (v2.3.0; re-architected v4.0.0) - the git-executor that lands multiple
+  work-items as one reviewed, squashed PR without touching the principal branch: integration
+  branch + per-WI worktrees + cherry-pick + end-of-wave review + 1 PR + squash + tree-identity
+  gate. In v4.0.0 it became the internal, consume-only `odoo-wave` skill driven by `run-harness`;
+  it invokes `odoo-coding` per work-item and stops at the L2-squash-gate, with merge owned by
+  `odoo-pr-monitoring`. Principal-branch-locked; auto-merge never allowed.
 - **Workflow harness + `odoo-intake` front door** (v2.2.0) - three-layer architecture (Entry/Intake,
   Workflow, Execution). `odoo-intake` replaces `odoo-router` as the universal front door: brainstorms
   when vague, fast-paths when clear, always gates with a Proposed Plan before dispatching. The

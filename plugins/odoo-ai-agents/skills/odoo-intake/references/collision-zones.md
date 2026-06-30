@@ -124,28 +124,33 @@ from scratch ("create a color picker widget"), there is no runtime to debug ->
 - "50 requirements but we also need the RTM and cost table" → `odoo-brl` (explicit RTM + cost signals override small count)
 - "Classify these requirements" (no count stated) → ask: "How many requirements? If tens or more with cost/traceability needs, odoo-brl; short ad-hoc list → gap-analysis."
 
-## Collision 9 - Wave (git orchestration) vs BRL (requirement classification) vs Coding (single change)
+## Collision 9 - Parallel multi-WI delivery (odoo-planning) vs BRL (requirement classification) vs Coding (single change)
 
 **Prompt**: "I have 5 changes to make across 3 files - parallelize them and land as a single reviewed PR"
 
-- `wave`: handles "parallelize these changes", "multi-WI PR with review + squash" ->
-  git-wave orchestrator: creates an integration branch, dispatches parallel WI subagents,
-  cherry-picks, runs end-of-wave review, creates 1 PR, squashes, and waits for human-confirm merge.
+- `odoo-planning`: handles the USER-facing "parallelize these changes", "multi-WI PR with review +
+  squash" intent -> it produces the wave-batched EXECUTION PLAN. The git orchestration itself
+  (integration branch, parallel WI worktrees, cherry-pick, end-of-wave review, 1 PR, squash, then
+  STOP at the L2-squash-gate) is the INTERNAL `odoo-wave` executor, which `run-harness` dispatches
+  from the approved plan; `odoo-wave` never merges - the merge is owned by the subsequent
+  `odoo-pr-monitoring` at the L2-merge-gate. `odoo-wave` is `user-invocable: false` - never route a
+  user prompt to it.
 - `odoo-brl`: handles "classify changes", "requirements" -> classifies and costs a
   list of BUSINESS REQUIREMENTS - produces an RTM/cost/DAG but writes NO code and does NOT touch git.
 - `odoo-coding`: handles "implement feature", "write code" -> writes code for a SINGLE
   change (backend and/or frontend) in the current working directory; no git orchestration, no worktrees.
 
 **Discriminator**:
-- "parallelize" + "N changes" + "PR" + "squash" signal the user wants git-wave orchestration ->
-  **Pick `wave`.**
+- "parallelize" + "N changes" + "PR" + "squash" signal parallel multi-WI delivery ->
+  **Pick `odoo-planning`** (it plans it; `run-harness` then drives the internal `odoo-wave` executor).
 - "classify/cost requirements" or "RTM/DAG" with no code-generation intent -> **Pick `odoo-brl`.**
 - Single change, single feature, no git coordination needed -> **Pick `odoo-coding`.**
 
 If the user said "write a computed field for sale.order" -> `odoo-coding` (single, no orchestration).
 If the user said "classify 200 requirements from the RFP" -> `odoo-brl` (no code, no git).
 If the user said "we have a bug fix, a test addition, and a docs update - land them as one reviewed PR"
--> `wave` (multiple disjoint changes, git coordination, end-of-wave review required).
+-> `odoo-planning` (multiple disjoint changes; it plans the wave-batched delivery for the internal
+`odoo-wave` executor).
 
 ## Collision 10 - Doc Illustration (static screenshots) vs Demo Recording (real video)
 
@@ -165,7 +170,7 @@ When the user says "demo" with no further qualifier, ask: "static screenshot doc
 **Tie-breaker rule**: deliverable is a DOCUMENT (text + still images) -> `odoo-doc-illustration`;
 deliverable is a PLAYABLE RECORDING (mp4/GIF) -> `odoo-demo-recording`.
 
-## Collision 11 - Rebase vs Forward-Port vs Wave
+## Collision 11 - Rebase vs Forward-Port vs Parallel multi-WI delivery
 
 **Prompt**: "I need to rebase my feature branch onto the updated 17.0 base - there are about 12
 commits to replay and a few conflicts to resolve."
@@ -175,19 +180,23 @@ commits to replay and a few conflicts to resolve."
   conflicts in-flight; SAME Odoo major throughout.
 - `odoo-forward-port`: handles "port a commit/PR to a HIGHER major version" -> single-commit
   cherry-pick + adapt across a version boundary (e.g. 16.0 -> 17.0).
-- `wave`: handles "parallelize N disjoint work items into one squashed PR" -> cherry-pick + squash
-  N independent changes that do NOT share a continuous range; git coordination for multi-item
-  landing, not replaying one branch's history.
+- `odoo-planning`: handles "parallelize N disjoint work items into one squashed PR" -> it produces
+  the wave-batched plan; the cherry-pick + squash of N independent changes that do NOT share a
+  continuous range is performed by the INTERNAL `odoo-wave` executor (dispatched by `run-harness`
+  from the approved plan), not by the user. `odoo-wave` STOPS at the L2-squash-gate and never
+  merges - the merge is owned by the subsequent `odoo-pr-monitoring` at the L2-merge-gate.
 
 **Discriminator**: same Odoo series + one branch's whole commit range to replay ->
 **Pick `odoo-git-rebase`**. Cross-major single commit/PR to port -> `odoo-forward-port`. Many
-disjoint changes to land together -> `wave`.
+disjoint changes to land together -> **Pick `odoo-planning`** (it plans the delivery; the internal
+`odoo-wave` executor performs the cherry-pick + squash and STOPS at the L2-squash-gate, the merge
+owned by `odoo-pr-monitoring`).
 
 If the user said "rebase my 17.0-custom onto origin/17.0" -> `odoo-git-rebase` (same series,
 whole range).
 If the user said "port this 16.0 fix to 17.0" -> `odoo-forward-port` (cross-major, single commit).
 If the user said "land the bugfix, the new field, and the docs update as one reviewed PR" ->
-`wave` (disjoint WIs, no range replay).
+`odoo-planning` (disjoint WIs, no range replay; planned for the internal `odoo-wave` executor).
 
 ## Collision 12 - Modules-Upgrade vs Forward-Port vs Plan-Upgrade vs Deprecation-Audit vs Version-Diff
 

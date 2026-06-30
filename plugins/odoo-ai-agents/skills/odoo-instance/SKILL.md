@@ -44,10 +44,10 @@ Anything the caller omits that is strictly required for the operation: ask ONE c
 question covering all missing required parameters before dispatching.
 
 **Human gate (instance_touching = L2):** Instance lifecycle is `instance_touching`. The
-run-driver treats this as an **L2 human gate** - a human approval checkpoint applies before
-any mutation (create, drop, init, update, run-tests). If an active run-driver is present in
+run-harness treats this as an **L2 human gate** - a human approval checkpoint applies before
+any mutation (create, drop, init, update, run-tests). If an active run-harness is present in
 the brief, do NOT bypass this gate; let the driver surface it. For a direct invocation (no
-run-driver), confirm the mutation with the human before launching the agent.
+run-harness), confirm the mutation with the human before launching the agent.
 
 **Brief shape:** Launch the `odoo-instance-ops` agent as a subagent with a worker
 brief that follows `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. The brief must include:

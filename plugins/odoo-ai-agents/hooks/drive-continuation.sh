@@ -37,6 +37,6 @@ shopt -u nullglob
 # 0 → no active run; >1 → ambiguous which to name, stay silent (degrade-safe). Only nudge on exactly one.
 [[ "$cnt" -eq 1 ]] || _pass
 
-jq -cn --arg m "Run '$run_id' is still NEEDS_NEXT (next node: $cursor). If you intend to keep going, advance it via run-driver (read .odoo-ai/run-*.json). To stop, say so - this is only a reminder, not a block." \
+jq -cn --arg m "Run '$run_id' is still NEEDS_NEXT (next node: $cursor). If you intend to keep going, advance it via run-harness (read .odoo-ai/run-*.json). To stop, say so - this is only a reminder, not a block." \
   '{continue:true, systemMessage:$m}'
 exit 0

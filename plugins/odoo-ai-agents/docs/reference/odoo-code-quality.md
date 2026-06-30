@@ -1,7 +1,7 @@
 # Odoo code-quality gate - local reproduction (multi-version aware)
 
 > **What this is.** A local, pre-push gate for the Odoo CI code-quality checks, so the
-> `odoo-coding` / `odoo-code-review` / `odoo-qa-suite` / `odoo-deploy-checklist` / `wave` personas
+> `odoo-coding` / `odoo-code-review` / `odoo-qa-suite` / `odoo-deploy-checklist` / `odoo-wave` personas
 > catch lint failures **before** push - not in CI. Not a CI replacement; a fast inner-loop mirror.
 >
 > Consumed by: `agents/odoo-coder.md`, `agents/odoo-code-reviewer.md`,

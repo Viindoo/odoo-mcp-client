@@ -256,7 +256,7 @@ Full catalogue: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`
   - Registry key: `grep -rn "registry.category.*add.*<key>" --include="*.js"`
   - QWeb template: `grep -rn 't-name="<template>"' --include="*.xml"`
   - Prefix findings: `⚠ OSM unreachable - cause localized from disk grep, verify against the live module`
-- **Browser MCP or instance unreachable:** use pre-captured evidence (console log, network entries, DOM snapshot, screenshot) from context if available; prefix `⚠ Instance unreachable - diagnosis from pre-captured evidence only`. If NO pre-captured evidence exists, emit `status: NEEDS_NEXT` with `next: - skill: odoo-instance` (reason: provision the Odoo instance under test; inputs: `{operation: ensure-up, series: <series>, modules: <modules>}`; confidence: 0.9; risk_level: L2) so the run-driver provisions one; fall back to `BLOCKED(Browser MCP/instance unavailable - cannot capture runtime evidence)` only if provisioning is itself impossible. **Do NOT ask the user to paste console output or screenshots.**
+- **Browser MCP or instance unreachable:** use pre-captured evidence (console log, network entries, DOM snapshot, screenshot) from context if available; prefix `⚠ Instance unreachable - diagnosis from pre-captured evidence only`. If NO pre-captured evidence exists, emit `status: NEEDS_NEXT` with `next: - skill: odoo-instance` (reason: provision the Odoo instance under test; inputs: `{operation: ensure-up, series: <series>, modules: <modules>}`; confidence: 0.9; risk_level: L2) so the run-harness provisions one; fall back to `BLOCKED(Browser MCP/instance unavailable - cannot capture runtime evidence)` only if provisioning is itself impossible. **Do NOT ask the user to paste console output or screenshots.**
 
 ---
 

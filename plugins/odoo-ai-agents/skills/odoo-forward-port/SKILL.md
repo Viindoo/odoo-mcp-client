@@ -38,8 +38,14 @@ never squash or cherry-pick in continuous mode.
   A bucket-(c) commit INSIDE a forward-port run that requires non-trivial design is handled by
   the P3 conditional route-out (which delegates to odoo-solution-design and returns) - that is
   IN scope of this skill, not a hand-off boundary
-- Single-WI parallelism with cherry-pick + squash semantics -> use `wave` (forward-port
-  keeps SHA by merge; `wave` re-bases by cherry-pick - different git contract)
+- Parallelizing N disjoint WIs with cherry-pick + squash semantics -> use `odoo-planning` (the
+  USER-facing choice; it plans the wave-batched delivery for the internal `odoo-wave` executor,
+  which re-bases by cherry-pick - whereas forward-port keeps SHA by merge: a different git contract)
+
+> **Route in (not bare git-ops):** an Odoo forward-port routes HERE - this skill wraps
+> git-toolkit's generic `git-ops` front door with the Odoo intent-forwarding pipeline (intent
+> sweep, symbol-survival, verify-by-behavior). Do NOT invoke `git-ops` directly for an Odoo
+> forward-port.
 
 ## Invocation
 
@@ -101,7 +107,10 @@ Prompts for source-ref and target-branch, then the same flow.
    target branch B directly. Another session may hold B's working tree. All integration happens
    in a dedicated integration worktree branched FROM B (the JOB tier below). Read-only ops on
    B are allowed. Delegate every mutation on the integration worktree to git-operator
-   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`). The integration-loop saga (record the
+   pre-loop SHA, checkpoint after each integrated commit, clean-abort or resume on failure - never
+   leave a half-built integration branch) follows the shared SSOT
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`.
 
 2. **Keep the source SHA (continuous)** - continuous forward-port uses a no-ff no-commit
    merge (delegated to git-operator; see `[[fp-merge-absorption]]`) so the source commit
@@ -250,7 +259,7 @@ lane unchanged. Do not restate the rule here - SSOT: `[[fp-installable-false]]`.
 module (reuse the non-trivial criterion from `skills/odoo-solution-design/SKILL.md` § When to
 invoke - do NOT invent a third definition), route OUT to `odoo-solution-design` instead of
 adapting blind. A deferred or `installable:False` module needs no design - skip it. Mechanism:
-emit the Continuation Contract and YIELD - forward-port only EMITS the next hop; the run-driver
+emit the Continuation Contract and YIELD - forward-port only EMITS the next hop; the run-harness
 advances it. Canonical payload (match exactly):
 `next: odoo-solution-design`, `inputs: { return_to: odoo-forward-port,
 design_slug_hint: <slug>-fp-<sha>, target_version: <series>, modules: [<names>],
@@ -622,5 +631,5 @@ URL; `next` is the human-confirm gate (P10 or P11 merge). When P3 routes a commi
 `next: odoo-solution-design` with canonical payload
 `{ return_to: odoo-forward-port, design_slug_hint: <slug>-fp-<sha>, target_version: <series>,
 modules: [<names>], intent_records: [<paths>], classification: <bucket-(c) summary> }` and the
-run YIELDS - the run-driver advances the hop and re-enters forward-port with the returned
-`design_doc`. Additive output for the run-driver - it does not change anything produced above.
+run YIELDS - the run-harness advances the hop and re-enters forward-port with the returned
+`design_doc`. Additive output for the run-harness - it does not change anything produced above.

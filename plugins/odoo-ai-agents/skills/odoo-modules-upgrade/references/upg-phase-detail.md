@@ -393,13 +393,13 @@ inputs:
 `next: odoo-modules-upgrade` with `design_doc`; it does NOT enter a code Plan Mode and does NOT
 dispatch a coder (P3 Plan Mode + P4 coder are owned by THIS skill).
 
-On re-entry (run-driver returns with `design_doc`): read the `design_doc` path from the returned
+On re-entry (run-harness returns with `design_doc`): read the `design_doc` path from the returned
 contract `inputs`; record it against the module; set `checkpoint.json` `<module>: designed`;
 proceed to P3 with the design linked - do NOT re-run design. If `design_doc` is ABSENT from the
 returned inputs (design crashed before producing it), set the module back to `<module>: absorbed`
 and re-enter P2b next run rather than advancing to P3 with no design.
 
-Multiple modules may trigger P2b in one cluster. Route them one at a time (the run-driver advances
+Multiple modules may trigger P2b in one cluster. Route them one at a time (the run-harness advances
 one design hop per yield); a module whose status is already `designed` is skipped on the next P2b
 pass. P3 Plan Mode is entered only after EVERY P2b-triggered module in the cluster has a recorded
 `design_doc`.

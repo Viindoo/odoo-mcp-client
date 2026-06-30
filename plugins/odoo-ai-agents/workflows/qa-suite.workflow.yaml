@@ -57,7 +57,7 @@ resume: true
 fallback: standalone
 
 # Cross-workflow transition (G2): when triage finds code-level bugs, emit a chain to the
-# backend fix bundle. The runner only EMITs this to run-driver's next[]; it never self-dispatches.
+# backend fix bundle. The runner only EMITs this to run-harness's next[]; it never self-dispatches.
 on_complete:
   - when: "code_bugs_found == true"
     next: odoo-coding

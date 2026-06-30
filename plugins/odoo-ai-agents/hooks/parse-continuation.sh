@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # parse-continuation.sh - SubagentStop ADVISORY nudge: when a subagent ends having emitted a
-# Continuation Contract with status NEEDS_NEXT, remind the run-driver to advance.
+# Continuation Contract with status NEEDS_NEXT, remind the run-harness to advance.
 #
 # Additive sibling of enforce-grounding.sh in the SubagentStop array - it does NOT modify or
 # depend on that hook (the grounding invariants stay exactly as they were). This one only reads
@@ -48,5 +48,5 @@ fi
 
 [[ "$STATUS" == "NEEDS_NEXT" ]] || _pass    # only nudge when more work is signalled
 
-jq -cn '{continue:true, systemMessage:"A subagent emitted a Continuation Contract with status=NEEDS_NEXT. run-driver: read the active .odoo-ai/run-*.json, record this result, and advance the next[] node(s). (Advisory - you decide; not a block.)"}'
+jq -cn '{continue:true, systemMessage:"A subagent emitted a Continuation Contract with status=NEEDS_NEXT. run-harness: read the active .odoo-ai/run-*.json, record this result, and advance the next[] node(s). (Advisory - you decide; not a block.)"}'
 exit 0

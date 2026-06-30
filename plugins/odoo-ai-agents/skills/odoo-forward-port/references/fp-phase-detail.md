@@ -161,7 +161,7 @@ A bucket-(c) "do now" commit that touches a NON-TRIVIAL module routes OUT to
 `skills/odoo-solution-design/SKILL.md` § When to invoke - do NOT invent a third definition. A
 deferred or `installable:False` module needs no design - skip it.
 
-Emit the Continuation Contract and YIELD (forward-port only EMITS the next hop; the run-driver
+Emit the Continuation Contract and YIELD (forward-port only EMITS the next hop; the run-harness
 advances it):
 
 ```
