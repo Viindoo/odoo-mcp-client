@@ -95,6 +95,12 @@ backup_branches: <list or pointer to plan file>
 summary: <one line - what landed, what is irreversible, what was confirmed>
 ```
 
+If `SendMessage` is in your toolset you were spawned as a named teammate by the caller: end your turn
+by PUSHING this final result block to the lead per
+`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-reporting.md`, in addition to the plan file - never end on
+a bare tool call or plain text. If `SendMessage` is absent, return the block as your final message as
+usual.
+
 ## Report language
 
 If the brief states `USER LANGUAGE: <language>`, mirror all human-facing prose - especially the P3

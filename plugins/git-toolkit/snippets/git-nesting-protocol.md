@@ -9,18 +9,30 @@ The phased pipeline runs BELOW the caller so the caller's context stays pristine
 thousand-file ops. This snippet defines how the nesting stays bounded and how it degrades when the
 spawn tool is unavailable.
 
-## N1 - Cold-spawn handoff (the only handoff mode here)
+## N1 - Cold-spawn handoff (the default handoff mode)
 
 Every dispatch is a stateless COLD spawn via the Agent tool: self-contained brief in, compact
 summary + findings-file path out. The worker reconstructs its model from the brief plus the findings
-files on disk - no warm team-resume. Robust at ANY caller depth and needs no team lead, so it works
-whether the caller is the main agent or itself a subagent.
+files on disk - no warm team-resume. This is the DEFAULT and always-correct baseline: robust at ANY
+caller depth and needing no team lead, so it works whether the caller is the main agent or itself a
+subagent.
 
 - A brief carries: the exact intent, the safety contract pointer
   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`), the scale pointer
   (`${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md`), the scoped target (paths/range/refs),
   and the chosen model.
 - A return carries: a 5-line summary + the absolute findings-file path. Nothing else.
+
+A caller MAY instead spawn the agent as a NAMED TEAMMATE (Agent Team mode), where the agent persists
+in the background and the lead waits on a message from it. That does NOT replace cold-spawn - it adds
+one obligation on top: the agent additionally pushes a completion report to the lead as its terminal
+action, per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-reporting.md`. The cold-spawn guarantee
+stands; team mode only changes how the worker's turn ENDS.
+
+`git-pipeline-lead` ALWAYS cold-spawns its leaves and never spawns one as a named teammate, because
+it is itself a subagent - a separate context, not the `main`-context lead - so a leaf's `to: "main"`
+completion report would misdeliver to the top-level main context, past the pipeline lead, leaving it
+stranded.
 
 ## N2 - Depth guard (anti-runaway)
 

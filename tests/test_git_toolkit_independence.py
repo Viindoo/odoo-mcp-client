@@ -49,6 +49,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 AGENTS_PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 TOOLKIT = REPO_ROOT / "plugins" / "git-toolkit"
 
+# git-toolkit's OWN, provider-agnostic team-mode reporting snippet. It is the inverse-direction
+# counterpart of odoo-ai-agents' agent-team-protocol.md: it tells a git-toolkit agent spawned as a
+# named teammate how to end its turn (push a report), naming NO consumer. Guarded for existence +
+# anchors here; the independence scan below additionally proves it names no odoo-ai-agents artifact.
+AGENT_TEAM_REPORTING = TOOLKIT / "snippets" / "agent-team-reporting.md"
+
 # The consumer-side delegation snippet filename. Distinct from the provider's own
 # ``git-delegation-decision.md`` - forbidding this token must NOT flag that file
 # (see FP-guard #2: the token is dot-anchored).
@@ -167,6 +173,24 @@ def test_denylist_is_populated():
     assert "odoo-coding" in names, "expected odoo-coding skill in the data-driven denylist"
     assert SIBLING_PLUGIN in names and DELEGATION_SNIPPET in names
     assert "_shared" not in names, "private/shared dirs must be excluded"
+
+
+def test_agent_team_reporting_snippet_exists():
+    """git-toolkit's team-mode reporting SSOT snippet must exist and carry its anchor tokens.
+
+    The snippet's contract: a git-toolkit agent spawned as a NAMED TEAMMATE must end its turn with
+    a report PUSH to the lead (`SendMessage`), as opposed to a cold-spawned agent that returns its
+    result as the final message. The anchors guard that report-contract language. This complements
+    the independence scan: that test proves the snippet names no consumer, this one proves the
+    snippet still says what it must (the two together stop it from being silently emptied OR
+    quietly re-coupled to a consumer).
+    """
+    assert AGENT_TEAM_REPORTING.is_file(), f"missing SSOT snippet {AGENT_TEAM_REPORTING}"
+    body = AGENT_TEAM_REPORTING.read_text(encoding="utf-8")
+    for token in ("SendMessage", "completion report", "report push", 'to: "main"'):
+        assert token in body, (
+            f"agent-team-reporting.md: missing anchor token '{token}'"
+        )
 
 
 # ---------------------------------------------------------------------------

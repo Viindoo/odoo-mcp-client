@@ -17,9 +17,10 @@ frontmatter; the actual work is `git`/`gh`/GitHub-MCP commands the agents issue 
     No spawn tool.
   - `github-operator` - GitHub API, MCP-first / gh-fallback. No spawn tool.
   - `git-pipeline-lead` - the BRAIN + ORCHESTRATOR for large changes; the ONLY agent that spawns.
-- **7 snippets (SSOT).** safety-contract, scale-protocol, nesting-protocol, delegation-decision,
-  github-mcp-first, commit-convention, language-mirroring. Each rule is declared ONCE; the skill and
-  agents POINT at it via `${CLAUDE_PLUGIN_ROOT}/snippets/...`, never duplicate it.
+- **8 snippets (SSOT).** safety-contract, scale-protocol, nesting-protocol, delegation-decision,
+  github-mcp-first, commit-convention, language-mirroring, agent-team-reporting. Each rule is
+  declared ONCE; the skill and agents POINT at it via `${CLAUDE_PLUGIN_ROOT}/snippets/...`, never
+  duplicate it.
 - **6 references.** large-change-pipeline, history-rewrite, conflict-resolution, github-pipeline,
   and the two commit-convention standards (general, odoo) - deterministic recipes loaded on demand.
 
@@ -56,8 +57,13 @@ flowchart LR
 ```
 
 Only `git-pipeline-lead` holds the spawn tool; the three leaves declare a `tools:` allowlist that
-excludes it, hard-capping nesting at two levels (lead -> leaf). All nesting is COLD-SPAWN (stateless
-brief in, findings file out) - robust at any caller depth, no team lead needed.
+excludes it, hard-capping nesting at two levels (lead -> leaf). Cold-spawn (stateless brief in,
+findings file out) is the DEFAULT and always-correct baseline - robust at any caller depth, no team
+lead needed. WHEN a caller instead spawns an agent as a named teammate (Agent Team mode), the agent
+additionally pushes a completion report to the lead per
+`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-reporting.md`; this complements cold-spawn, it does not
+replace it. The leaves' allowlists add `SendMessage` + `TaskUpdate` (for that report) but still
+exclude the spawn tool, so they can report yet still cannot fan out.
 
 ## Safety gate (destructive ops)
 
