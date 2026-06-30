@@ -584,6 +584,40 @@
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": "Acceptance orchestrator (spawner-agent) - stays light on tools: set_active_version pins the series once (also a reachability probe) and impact_analysis grounds the Phase 0 verify-scope manifest via reverse-closure blast radius. Phase 0 also calls module_inspect(dependencies) + model_inspect(views) (via acceptance-scope.md) to enumerate the affected screens before the planner runs. Deep structural grounding happens inside the dispatched agents (odoo-qa-planner / odoo-qa-tester), not here; live execution runs against a real instance + browser MCP (not OSM). min_server 0.6.0 for set_active_version (impact_analysis 0.1.0, module_inspect/model_inspect 0.5.0 in the surface)."
+    },
+    "odoo-icon-design": {
+      "mcp_tools": [
+        "set_active_version",
+        "check_module_exists",
+        "describe_module",
+        "module_inspect"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Spawner: dispatches odoo-icon-designer to design and generate the module identity icon (icon.png / icon.svg on v19). Standalone-first; OSM optional for category/version grounding. Browser-free; no live instance required. min_server 0.13.1 for describe_module."
+    },
+    "odoo-doc-feature-map": {
+      "mcp_tools": [
+        "set_active_version",
+        "check_module_exists",
+        "describe_module",
+        "module_inspect",
+        "model_inspect"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Spawner: dispatches odoo-feature-cataloger to enumerate all features/capabilities a module ships for documentation purposes. Standalone-first; browser-free. OSM for module capability enumeration (describe_module + module_inspect + model_inspect). min_server 0.13.1 for describe_module."
+    },
+    "odoo-doc-walkthrough": {
+      "mcp_tools": [
+        "set_active_version",
+        "describe_module",
+        "module_inspect",
+        "model_inspect"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Spawner: dispatches odoo-doc-scenarist to author happy-path usage scenarios for module documentation. Standalone-first; browser-free (scenarios authored without a live instance). OSM for grounding scenario steps in real UI labels/views. min_server 0.6.0 for set_active_version."
     }
   },
   "agents": {
@@ -667,6 +701,51 @@
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
       "notes": "Live acceptance executor (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup confirm a screen's real fields/views/labels/state values before driving it. OSM is STATIC structural grounding only; live record values come from the running instance + browser MCP (and a live Odoo MCP exposing read_record/search_records), not OSM. min_server 0.6.0 for set_active_version."
+    },
+    "odoo-icon-designer": {
+      "mcp_tools": [
+        "set_active_version",
+        "check_module_exists",
+        "describe_module",
+        "module_inspect"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Icon design leaf agent: generates module identity icon as SVG then rasterizes to PNG; version-gated emit (PNG-only v8-v18; +icon.svg+manifest key on v19); style-era-aware (skeuo v8-v10, flat v11-v16, flat-shadow v17-v19); standalone-first, browser-free. OSM optional for category/version grounding. min_server 0.13.1 for describe_module."
+    },
+    "odoo-feature-cataloger": {
+      "mcp_tools": [
+        "set_active_version",
+        "check_module_exists",
+        "describe_module",
+        "module_inspect",
+        "model_inspect"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Feature-inventory leaf agent: enumerates all capabilities a module ships for documentation. Browser-free; standalone-first. OSM-primary (describe_module + module_inspect + model_inspect); disk fallback for ACL/security. Produces feature-catalog.jsonl + feature-catalog.md. min_server 0.13.1 for describe_module."
+    },
+    "odoo-doc-scenarist": {
+      "mcp_tools": [
+        "set_active_version",
+        "describe_module",
+        "module_inspect",
+        "model_inspect"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Doc-scenario leaf agent: authors happy-path usage scenarios (narrative + structured steps[]) for module documentation. Browser-free; standalone-first; NOT bound by acceptance-oracle-contract.md. OSM for grounding scenario steps in real UI labels/views. Produces walkthrough.jsonl + walkthrough.md. min_server 0.6.0."
+    },
+    "odoo-doc-scoper": {
+      "mcp_tools": [
+        "set_active_version",
+        "check_module_exists",
+        "describe_module",
+        "module_inspect"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Multi-module scope mapper (mirrors odoo-review-scoper pattern): walks manifests under TARGET, enumerates modules, resolves languages (D6 6-tier + disk-union), detects doc_layer capability, records has_demo. Emits a scope block + modules[] list. Read-only on source; writes only scope block file. min_server 0.13.1 for describe_module."
     }
   },
   "orchestration": {
@@ -956,7 +1035,8 @@
     "odoo-doc-illustration": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-doc-illustrator"
+        "odoo-doc-illustrator",
+        "odoo-doc-scoper (pre-flight multi-module scope mapper - dispatched before illustrator when TARGET covers >1 module)"
       ],
       "stack": "frontend",
       "instance_touching": false,
@@ -1150,6 +1230,36 @@
       "instance_touching": true,
       "output_mode": "writes-files",
       "default_gate_tier": "L2"
+    },
+    "odoo-icon-design": {
+      "spawn_class": "spawner-agent",
+      "spawns": [
+        "odoo-icon-designer"
+      ],
+      "stack": "frontend",
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
+    },
+    "odoo-doc-feature-map": {
+      "spawn_class": "spawner-agent",
+      "spawns": [
+        "odoo-feature-cataloger"
+      ],
+      "stack": "backend",
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
+    },
+    "odoo-doc-walkthrough": {
+      "spawn_class": "spawner-agent",
+      "spawns": [
+        "odoo-doc-scenarist"
+      ],
+      "stack": "backend",
+      "instance_touching": false,
+      "output_mode": "writes-files",
+      "default_gate_tier": "L1"
     }
   }
 }

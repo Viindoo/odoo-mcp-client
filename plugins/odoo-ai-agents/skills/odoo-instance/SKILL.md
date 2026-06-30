@@ -1,15 +1,15 @@
 ---
 name: odoo-instance
-argument-hint: "[create|drop|init|update|test] [version|db]"
+argument-hint: "[create|drop|init|update|test|load-language] [version|db]"
 description: >-
   Build, drop, or drive a live Odoo instance for any series from v8 onward - create a database
   through Odoo, init or update modules, run tests, ensure an instance is up, or report status.
   Front door for ALL Odoo instance lifecycle operations; dispatches the odoo-instance-ops agent.
   Fire on "create an Odoo instance", "spin up v17", "init these modules", "drop the test DB",
-  "run tests on this instance", "is the instance up", "rebuild from scratch", or any ask that
-  needs a live Odoo process to be provisioned, updated, or destroyed. Also fires on Vietnamese:
-  "dựng instance Odoo", "cài module chạy test", "tạo DB Odoo mới", "xoá instance", "khởi động
-  lại server Odoo". Route code authoring to odoo-coding, code review to odoo-code-review,
+  "run tests on this instance", "is the instance up", "rebuild from scratch",
+  "activate a language", or any ask that needs a live Odoo process to be provisioned, updated,
+  or destroyed. Also fires on Vietnamese: "dựng instance Odoo", "cài module chạy test",
+  "tạo DB Odoo mới", "xoá instance", "khởi động lại server Odoo", "nạp ngôn ngữ". Route code authoring to odoo-coding, code review to odoo-code-review,
   runtime diagnosis to odoo-debug, solution design to odoo-solution-design - this skill only
   provisions and operates the instance those skills run against
 ---
@@ -17,7 +17,7 @@ description: >-
 ## Persona
 
 Odoo instance lifecycle coordinator. Front door for ALL instance lifecycle operations (create,
-drop, init, update, run-tests, ensure-up, status) for any Odoo series v8 onward. Keeps the
+drop, init, update, run-tests, ensure-up, status, load-language) for any Odoo series v8 onward. Keeps the
 caller's context clean by delegating shell-level work to the `odoo-instance-ops` agent and
 relaying back a structured result block.
 
@@ -32,7 +32,7 @@ When invoked, gather the following from the caller's request:
 
 | Parameter | Values / notes |
 |-----------|----------------|
-| `operation` | `create` / `drop` / `init` / `update` / `run-tests` / `ensure-up` / `status` |
+| `operation` | `create` / `drop` / `init` / `update` / `run-tests` / `ensure-up` / `status` / `load-language` |
 | `series` | e.g. `17.0`, `18.0` - required for create/init/update/run-tests; optional for status |
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests` |
 | `demo` | `on` / `off` (default `off`) |
@@ -40,6 +40,9 @@ When invoked, gather the following from the caller's request:
 | `mode` | `fresh` / `reuse` (default `fresh`; `run-tests` only) - auto `reuse` when reusing an INSTANCE_HANDLE whose DB already has the modules installed, else `fresh`; `fresh` -> `-i` (init+test on a new DB), `reuse` -> `-u` (re-run where `-i` would be a no-op) |
 | `log_mode` | `warn` / `info` / `debug` / `sql` (optional; `run-tests` only) - sets the odoo log verbosity; omitted keeps `--log-level=test` |
 | `fresh_venv` | `true` / `false` (default `false` - reuse existing venv when present) |
+| `languages` | csv locale codes (e.g. `vi_VN,fr_FR`); required for `load-language`; optional for `create` / `init` to activate locales in the same run |
+| `skip_auto_install` | `true` / `false` (default `false`; forced `true` when `context=doc`) - adds `--skip-auto-install` so `auto_install` modules do not install alongside the target |
+| `context` | `doc` / `default` (default `default`; `doc` auto-sets `demo=on` + `skip_auto_install=true` for a clean documentation instance) |
 
 Anything the caller omits that is strictly required for the operation: ask ONE clarifying
 question covering all missing required parameters before dispatching.
@@ -69,6 +72,9 @@ OSM_GROUNDING: call cli_help(command='server', odoo_version='<series>') to disco
                call set_active_version(odoo_version='<series>') before other OSM calls;
                fall back to odoo-bin --help on the live binary when cli_help is silent
 HUMAN_GATE: instance_touching - L2 gate applies to all mutations
+LANGUAGES: <csv locales or 'none'>
+SKIP_AUTO_INSTALL: <true|false>
+CONTEXT: <doc|default>
 ```
 
 **Relay the result:** After the agent finishes, relay its structured output block verbatim
@@ -82,6 +88,7 @@ http_port: <port or null>
 gevent_port: <port or null (omit if not bound)>
 modules_installed: [<list or null>]
 demo: <true|false>
+languages_loaded: [<list or null>]      # load-language: locales verified active in res.lang
 venv_python: <path>
 addons_path: <colon-separated path>
 log_path: <log file path>
@@ -102,6 +109,19 @@ instead of self-provisioning a DB / port / addons_path. Contract:
 
 If the agent returns `status: NEEDS_CONTEXT`, surface its `blocked_reason` to the caller
 and stop - do not retry without the missing information.
+
+### Multi-instance parallel provisioning
+
+The allocator issues each concurrent caller an independent ephemeral lease (distinct `dbname`
+plus port pool). Safe cap is approximately 3 simultaneous ephemeral instances before RAM and
+port-pool pressure increases; the allocator enforces port uniqueness but does not impose a count
+ceiling - the orchestrator manages the budget. Use `CONTEXT: doc` to provision clean
+documentation instances (demo on + skip-auto-install; target module only, no auto_install
+noise). For browser-bound capture workers, cap at W workers equal to the number of distinct
+browser server families available (2 headless; optionally +2 headed when DISPLAY is present);
+state-mutating scenario drives stay <= 2 simultaneous. Browser-free provisioning phases
+(feature-map, icon, copy) can fan out wider. Never create or drop databases with raw
+`createdb`/`dropdb` - always through Odoo and the allocator.
 
 ## Out of Scope
 
@@ -127,6 +147,11 @@ When no instance or venv exists on the machine, the agent builds one from scratc
 When no `instances.toml` is found and no allocator is reachable, the agent surfaces a single
 `status: needs-context` block listing exactly what is missing (addons path, DB host, series
 binary location) rather than guessing.
+
+For `load-language` specifically: when OSM is unreachable, the agent reads the per-version
+language-loading flag directly from `odoo-bin --help` on the live binary and proceeds; the
+`res.lang` active verification step (which requires the live Odoo MCP) is skipped and flagged
+`grounded: log-signal (not live-verified)` in the output block notes.
 
 ## MCP tools
 

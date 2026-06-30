@@ -223,3 +223,91 @@ versions" -> `odoo-version-diff`.
 If the user said "tell me what risks I face upgrading to v17 but don't touch the code yet" ->
 `odoo-plan-upgrade` (plan only).
 If the user said "make our modules actually run on v17" -> `odoo-modules-upgrade` (execute).
+
+## Collision 13 - feature-check vs doc-feature-map vs feature-highlights
+
+**Prompt**: "list all the features of the purchase module" or "what can this module do?"
+
+- `odoo-feature-check`: answers ONE specific feature availability question with a yes/no verdict
+  ready for a client email (e.g. "does purchase have landed costs?"). Single-feature, evidence-backed.
+- `odoo-doc-feature-map`: produces a FULL enumeration of all capabilities a module ships for
+  documentation purposes - iterates over every feature group, model, view type, and workflow.
+- `odoo-feature-highlights`: marketing-framed "what's new in version X" summary - version delta
+  with business audience framing, not a complete capability catalogue.
+
+**Discriminator**: single yes/no availability question -> **`odoo-feature-check`**. Enumerate
+ALL features for docs -> **`odoo-doc-feature-map`**. "What's new in Odoo 17 for this module" /
+marketing framing -> `odoo-feature-highlights`.
+
+If the user said "does purchase support multi-currency?" -> `odoo-feature-check` (one feature).
+If the user said "list every feature purchase ships so I can write the module docs" ->
+`odoo-doc-feature-map` (full inventory for documentation).
+If the user said "what's improved in purchase in v17 for our release blog" ->
+`odoo-feature-highlights` (version-delta marketing).
+
+## Collision 14 - customization-inventory vs doc-feature-map
+
+**Prompt**: "inventory what this module does" or "map all the capabilities of sale_custom".
+
+- `odoo-customization-inventory`: executive summary of CUSTOM code in a CLIENT'S instance -
+  what Viindoo (or the partner) has built on top of Odoo standard, for an engagement deliverable.
+- `odoo-doc-feature-map`: enumerates STANDARD module capabilities from source for documentation
+  purposes - browser-free, OSM-primary, produces a feature-catalog artifact.
+
+**Discriminator**: custom/bespoke code in a client instance -> **`odoo-customization-inventory`**.
+Standard Odoo source capabilities for docs -> **`odoo-doc-feature-map`**.
+
+If the user said "give me an inventory of all the custom code we've built on top of Odoo" ->
+`odoo-customization-inventory` (engagement artifact).
+If the user said "enumerate all features that stock module ships for the docs" ->
+`odoo-doc-feature-map` (standard source for documentation).
+
+## Collision 15 - doc-walkthrough vs acceptance vs content-draft vs solution-design
+
+**Prompt**: "write scenarios", "create walkthroughs", "document how to use this module".
+
+- `odoo-doc-walkthrough`: authors happy-path TEXT scenarios for USER DOCUMENTATION - narrative
+  prose + structured steps[], browser-free, no execution, not bound by acceptance oracle contract.
+- `odoo-acceptance`: drives a LIVE Odoo instance/UI to execute an independent oracle and
+  adjudicate PASS/FAIL/UNVERIFIED with evidence. Requires a live instance + browser MCP.
+- `odoo-content-draft`: marketing copy (landing page / email sequence / social / blog) with
+  `[Image:]` markers for illustrators; audience is external prospects, not end-users.
+- `odoo-solution-design`: technical architecture DOCUMENT (data model / override strategy /
+  module structure) produced BEFORE implementation is written; no user-facing narrative.
+
+**Discriminator**: documentation narrative, no execution -> **`odoo-doc-walkthrough`**.
+Live drive + PASS/FAIL verdict -> `odoo-acceptance`. Marketing copy + channels ->
+`odoo-content-draft`. Technical architecture pre-code -> `odoo-solution-design`.
+
+If the user said "write a step-by-step guide for users on how to use the purchase flow" ->
+`odoo-doc-walkthrough` (text docs, no browser).
+If the user said "run the purchase flow on the real instance and tell me if it passes" ->
+`odoo-acceptance` (live execution + verdict).
+If the user said "write blog post copy explaining the purchase module for prospects" ->
+`odoo-content-draft` (marketing copy).
+If the user said "design the architecture for the new purchase approval flow before we code it" ->
+`odoo-solution-design` (technical architecture).
+
+## Collision 16 - icon-design vs screenshot-crop vs in-UI glyph
+
+**Prompt**: "icon", "image for the module", "glyph", "create the module icon".
+
+- `odoo-icon-design`: DESIGN and GENERATE the module's `icon.png` (256x256 App Store de-facto)
+  via SVG code-gen + rasterizer; brand-aware, version-gated (PNG-only v8-v18; +icon.svg +
+  manifest key on v19); standalone-first, browser-free.
+- `odoo-doc-illustration` (screenshot crop): captures a live Odoo screen at a viewport crop -
+  used as a fallback illustration in docs, NOT a designed icon; output is a screenshot, not
+  an SVG-derived asset file.
+- In-UI glyph: a Font Awesome class name used in a `<button>` or field `widget` declaration
+  in views or buttons - it is NOT a file asset; route to `odoo-coding`.
+
+**Discriminator**: design/generate the `icon.png` asset file -> **`odoo-icon-design`**.
+Capture a live screen crop for docs -> `odoo-doc-illustration`. Font Awesome class name in
+a view -> `odoo-coding`.
+
+If the user said "create the icon.png for our new purchase_custom module" ->
+`odoo-icon-design` (design + generate asset).
+If the user said "take a screenshot of the purchase list view for the module docs" ->
+`odoo-doc-illustration` (live screen crop).
+If the user said "add a shopping-cart icon to the Purchase button in the form view" ->
+`odoo-coding` (Font Awesome class in XML view).

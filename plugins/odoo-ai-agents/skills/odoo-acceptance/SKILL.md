@@ -33,6 +33,7 @@ Semantic is a STATIC index and is never the source of live data.
 - **Writing or fixing the code** -> `odoo-coding`; **finding root cause of one symptom** -> `odoo-debug`
 - **Writing a standalone durable test** (a tour/HttpCase with no live acceptance loop) -> `odoo-test-writing`
 - **Authoring the oracle alone** (no execution wanted) -> dispatch `odoo-qa-planner` directly
+- **Writing walkthrough TEXT or usage scenarios for documentation** (no execution required) -> `odoo-doc-walkthrough`. This skill drives live UI and yields a PASS/FAIL verdict; it does NOT produce text-only scenario docs
 
 ## MCP tools
 

@@ -78,6 +78,7 @@ ALWAYS reconfirm live via `cli_help` - this table is a PRIOR only and MUST NOT b
 | Demo data off | `--without-demo=all` | `--without-demo=all` (exists v8-v19; demo ON is default v8-v18 so this flag is how you disable it) | `--without-demo=all` still valid; v19 demo is OFF by default so this flag is usually unnecessary |
 | Demo data on | default on (no flag) | default on v11-v18 (no flag needed; `--with-demo` does NOT exist v8-v18 - `--without-demo=False` is INVALID) | default OFF from v19; use `--with-demo` to enable - always reconfirm via `cli_help` |
 | Skip auto-install | not available | `--skip-auto-install` (v17+) | `--skip-auto-install` |
+| Language activation (ACTIVATE; NOT `-l`/`--language`) | `--load-language=<csv>` combined with `-i base --stop-after-init`; CRITICAL: `-l`/`--language` ONLY selects export file, does NOT activate locale in DB - never substitute | same: `--load-language=<csv>` combined with `-i base --stop-after-init` | `odoo-bin i18n loadlang -d <db> -l <lang>` (dedicated subcommand, one locale per call); confirm via `cli_help(command='i18n', odoo_version='<series>')`; combined `--load-language` removed in v19 |
 | DB drop subcommand | `exp_drop` via odoo_db.py | `exp_drop` via odoo_db.py | `odoo-bin db drop` subcommand (confirm via cli_help) |
 
 **v19 DROPS the legacy aliases entirely** (`--xmlrpc-port`, `--no-xmlrpc`, `--longpolling-port`). They are not merely deprecated in v19 - they do not exist, so a stale prior will cause a fatal error. Reconfirm every flag via `cli_help` before building any command.
@@ -90,7 +91,7 @@ Source-fallback trigger: when `cli_help` for the db subcommand reports no usable
 
 ---
 
-## Six operations
+## Seven operations
 
 ### 1. create-instance
 
@@ -233,6 +234,111 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh apply --version 
 
 `50-instance-spinup.sh apply` handles allocator shared-lease registration internally, polls `/web/login` until HTTP 200, and emits `LOG_PATH=<path>` to stdout. Capture `LOG_PATH=` verbatim. Do NOT run Steps C-D (no separate ephemeral acquire for an ensure-up - the spinup script registers the shared lease itself). For status-only (no spinup requested), return the status in the output block with `status: down`.
 
+### 7. load-language
+
+Activate one or more locales in an existing Odoo database so the UI renders in those languages
+(prerequisite for per-locale screenshot capture in the doc pipeline).
+
+**Inputs:** series, db name, languages (csv locale codes, e.g. `vi_VN,fr_FR`).
+
+**Version-aware mechanism (reconfirm every flag via `cli_help` - never assume from memory):**
+
+- **v8-v18:** Combine `--load-language=<csv>` with `-i base --stop-after-init`. Using the
+  pre-installed `base` module as the `-i` target loads the locale without installing new modules:
+  ```bash
+  odoo-bin -d <db> -i base --load-language=<csv> --stop-after-init
+  ```
+  CRITICAL KT1 distinction: `--load-language` ACTIVATES translation in the DB (makes the locale
+  selectable in the UI and active in `res.lang`). `-l`/`--language` ONLY selects which .po file
+  to export - it does NOT activate anything in the DB. Never substitute one for the other.
+
+- **v19+:** Use the dedicated subcommand (one locale per call):
+  ```bash
+  odoo-bin i18n loadlang -d <db> -l <lang>
+  ```
+  Confirm this subcommand via `cli_help(command='i18n', odoo_version='<series>')` first. If
+  absent (early v19 build), fall back to the v8-v18 combined mechanism and flag the fallback
+  in the output block notes.
+
+**Mechanism:** Run Steps A-B (resolve series, pin OSM, ground CLI flags). For an existing DB,
+use `exclusive` lease and `--ports 0` (no HTTP port needed). Construct the per-version command
+entirely from `cli_help` output. Run via the venv python, capture `LOG_PATH=` from stdout.
+
+**Verify activation:** After loading each locale, confirm it is active via
+`mcp__odoo__search_records` on model `res.lang` with domain
+`[('code', '=', '<lang>'), ('active', '=', True)]`. If the live Odoo MCP is unavailable, grep
+the log for `Loaded <lang>` as a weaker signal and flag
+`grounded: log-signal (not live-verified)` in the output notes.
+
+**Per-locale degradation:** If a locale fails to activate, emit
+`DONE_WITH_CONCERNS(locale <x>: load failed - log: <log_path>)` and continue loading remaining
+locales. Never abort the entire run for one failing locale.
+
+**Output block:** include `languages_loaded: [<locales confirmed active>]`; include
+`languages_failed: [<locales that did not activate>]` when non-empty.
+
+### Doc-context provision (composite: --with-demo + --load-language + --skip-auto-install)
+
+When provisioning for documentation capture (`CONTEXT: doc` in the brief), combine all three
+flags in the SAME `odoo-bin` init call to produce a clean instance - target module and its
+direct `depends[]` only, no auto_install noise:
+
+```bash
+odoo-bin -d <db> -i <target_module> \
+  --with-demo=all \               # v19+ only; v8-v18 demo is ON by default, omit this flag
+  --load-language=<csv_locales> \ # v8-v18: all resolved locales in one csv; v19: see below
+  --skip-auto-install \           # v17+: prevent auto_install modules from installing
+  --stop-after-init
+```
+
+For v19+: run the init WITHOUT `--load-language` first, then load each locale via
+`odoo-bin i18n loadlang` separately (see operation 7 above).
+
+Resolve every flag name via `cli_help(command='server', odoo_version='<series>')` before
+building the command. The names above are illustrative, not authoritative.
+
+**Why skip-auto-install matters:** `auto_install` modules (e.g. `sale_management` may pull in
+`sale_stock`, `account_sale`) add menus and views from OTHER modules into the UI, causing
+screenshots to capture features outside the target module's scope. Documentation instances must
+render ONLY the target module. Use `--skip-auto-install` unconditionally for `CONTEXT: doc`.
+
+**Exception - auto-install bridge required:** If `--skip-auto-install` causes the target module
+to fail installation (missing dependency error), capture the error and flag
+`NEEDS_CONTEXT: auto-install bridge <name> required - install selectively?`. Do NOT re-provision
+without `--skip-auto-install`. If confirmed by the caller, add ONLY the bridge module explicitly
+to the `-i` list without removing `--skip-auto-install`. Record the bridge in the output block
+notes field.
+
+---
+
+## Multi-instance parallel provisioning
+
+The allocator can issue concurrent ephemeral leases - each with a distinct `db_name` and port
+pool - so multiple doc-capture workers provision independent instances in parallel on the same
+host.
+
+**Safe cap:** approximately 3 simultaneous ephemeral instances before RAM and port-pool pressure
+increases materially. The allocator enforces port uniqueness (no two leases share a port) but
+does NOT impose a hard count ceiling - the orchestrator manages the budget. For browser-bound
+capture phases, cap at W workers equal to the number of distinct browser server families
+available (2 headless; optionally +2 headed when DISPLAY is present); state-mutating
+(CRUD-heavy) scenario drives stay <= 2 simultaneous. Browser-free phases (feature-map, copy,
+icon) need no instance at all and can fan out without this constraint.
+
+**Provisioning N instances in parallel:**
+
+1. Call `allocator.py acquire --mode ephemeral --series <series> --ports 0` N times (each
+   returns a unique `ALLOC_DB_NAME` + `ALLOC_TOKEN`).
+2. Run the doc-context init in parallel per lease (each with `--with-demo`, `--load-language`,
+   `--skip-auto-install` as needed for `CONTEXT: doc`).
+3. Forward each resulting `instance-ops` block as a separate `INSTANCE_HANDLE` to the
+   corresponding downstream capture worker.
+4. Release each lease (`allocator.py release <token>`) when its capture worker is done.
+
+**Instance isolation is mandatory:** each ephemeral DB is fully independent. NEVER share a
+mutable DB across concurrent capture workers - parallel scenario drives would corrupt each
+other's state. NEVER use raw `createdb`/`dropdb`; always through Odoo and the allocator.
+
 ---
 
 ## Worklog
@@ -285,6 +391,9 @@ The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verb
 - [ ] lease released (or token forwarded to caller for later release)
 - [ ] worklog appended with decisions
 - [ ] OSM caveat preserved if grounding was local-source or ungrounded
+- [ ] load-language: correct mechanism per series (--load-language combined with -i base for v8-v18; i18n loadlang subcommand for v19+); res.lang verified active or flagged log-signal/unverified; per-locale degradation emitted rather than hard abort
+- [ ] doc-context (CONTEXT=doc): --with-demo + --load-language + --skip-auto-install combined in one init call (v8-v18) or sequenced (v19+); each flag resolved from cli_help for the target series; skip-auto-install exception handled with selective bridge install, not global removal
+- [ ] multi-instance parallel: each ephemeral lease holds a unique db_name + port; count <= ~3 unless orchestrator explicitly budgets higher; no mutable DB shared across concurrent workers
 ```
 
 ---

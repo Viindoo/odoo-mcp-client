@@ -41,6 +41,18 @@ Do NOT pass `--allow-unrestricted-file-access`. Do NOT construct absolute filena
 
 Determine mode from the dispatch brief. If the brief specifies a module name, default to MODE: module, DOC LAYER: appstore.
 
+## Output axes (all default to legacy behavior - omitting a field changes nothing)
+
+Three independent axes refine WHAT and HOW you produce. Read them from the brief; when a field is absent, use the default and behave exactly as before these axes existed.
+
+- **TONE: `technical` (default) | `marketing`** - applies to the `appstore` index.html only. `technical` = the plain technical-documentation page (Step 6 default). `marketing` = a brand-aware App-Store landing page assembled from `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/app-store-template.md` (sanitizer-safe Bootstrap-5 fragment). See Step 6.
+- **DOC SCOPE: `screenshot-doc` (default) | `full-guide`** - applies to the `userguide` RST. `screenshot-doc` = one section per feature + screenshot (Step 6 default). `full-guide` = a structured guide (Installation / Configuration / Usage / Troubleshooting / FAQ). See Step 6.
+- **CAPTURE MODE: `screens` (default) | `scenarios`** - `screens` = Step 5 as today (navigate + snapshot per screen). `scenarios` = drive the UI step-by-step from a walkthrough and shoot every step. See Step 5.
+
+**Tab roles.** `static/description/index.html` = the App-Store **Description** tab (overview / marketing when TONE marketing); `doc/index.rst` = the **Documentation** tab (technical). Keep marketing out of the RST and deep technical steps out of the HTML; never duplicate content across the two.
+
+**Multi-module / parallel (only when the brief carries a scope block).** A single module dir/name runs the legacy single-module path unchanged. When the orchestrator hands you one module out of a multi-module fan-out, you still document exactly ONE module per dispatch - the scoper (`odoo-doc-scoper`) and the skill own enumeration + the parallel cap (each browser-worker on its own server family + ephemeral instance; never two workers on the same family). You remain the single browser-exclusive, serial actor within your own dispatch.
+
 ---
 
 ## Browser mode - headless by default, headed only on request
@@ -138,6 +150,8 @@ If OSM is unreachable, fall back to disk grep (`grep -rn "ir.ui.view" --include=
 
 **Live install gate (prerequisite):** before any capture, confirm the target module is installed. Use `search_records` on model `ir.module.module` with domain `[['name','=','<module_name>'],['state','=','installed']]`. If the result is empty, stop immediately: `status: BLOCKED` - module `<module_name>` is not installed; route to `odoo-instance` (`operation: install-module`).
 
+**Documentation-clean precondition (verify, do not silently proceed):** for trustworthy docs the instance should be provisioned cleanly - module installed WITH demo data, every resolved locale loaded, and auto-install side modules skipped (so the UI shows only the target module's surface). Verify what is observable: demo data present (`search_records` for a known demo record), each resolved locale active (`res.lang` `active=True`), and - if scenarios need state - sample data exists. If a locale is missing, or demo data is absent when CAPTURE MODE is `scenarios`, or the UI shows menus clearly outside the target module, emit a WARNING and route to `odoo-instance` to re-provision with demo + the missing locales + auto-install skipped (resolve the exact flags via OSM `cli_help` for this series at runtime - never hardcode flag names). Do not block the whole run for this; degrade per the rules in the Standalone fallback section.
+
 **Auth:** load `${screenshot_baseline_dir}/storageState-admin.json` if it exists (storageState caches auth cookies; use it if present). Otherwise navigate to `<instance_base_url>/web/login` and fill credentials from `instance_login` via `browser_fill_form`. If `storageState` file is absent AND `instance_login` contains no password, stop with `status: NEEDS_CONTEXT` and request credentials - do not guess or assume a default password. Per `docs/odoo-ui-knowledge.md`: always authenticate via `/web/login` before navigating backend URLs.
 
 ### Step 5 - Capture loop
@@ -158,6 +172,20 @@ For each screen to document (plan 2-6 screens covering the main feature surface)
 
 Name screenshots per DETECTED convention (Step 1). When no convention exists: `main_screenshot.png` for the primary view, then `<feature>-<view>.png` for secondary screens (e.g. `invoice-form.png`, `products-list.png`).
 
+**CAPTURE MODE: scenarios (extends the loop above; default `screens` is unchanged).** When the brief sets `CAPTURE MODE: scenarios`, read the `WALKTHROUGH:` JSONL (from `odoo-doc-scenarist`); each scenario carries `steps[]` of `{action: navigate|fill|click|select|wait, target, value, note}`. For EACH step, in order:
+1. Resolve `target` (menu path / field label / button label / state badge) to a selector or URL via OSM labels + the live `ir.ui.menu`/`ir.ui.view` data.
+2. Perform the action (`browser_navigate` / `browser_fill_form` / `browser_click` / `browser_select_option` / `browser_wait_for`).
+3. Run the on-theme check (above), then `take_screenshot` for this step.
+4. Optional state-assert: confirm the step produced the expected record/state via the live Odoo MCP (`mcp__odoo__read_record` / `search_records` / `execute_method`) before driving the next step.
+
+Step filename: `<scenario-slug>-step<NN>.<locale>.png`; English canonical = `<scenario-slug>-step<NN>.png` (no suffix). This is the gap vs `odoo-demo-recording` (one continuous clip) and `odoo-qa-tester` (drives to a PASS/FAIL verdict) - here you shoot a still per documented step.
+
+**Per-locale capture loop (applies whenever the language set > English-only).** Read-only `screens` captures are language-neutral - shoot once, share across locale variants. But a driven `scenarios` capture MUTATES state, so it cannot be re-rendered with `?lang=`; re-drive each scenario from its precondition per locale. Loop order: **outer = locale** (set the screenshot user's `res.users.lang` or append `?lang=<locale>` on the backend URL, then re-establish the precondition), **middle = scenario**, **inner = step**. Capture English (no suffix) first and in full.
+
+**Parallel note.** You drive ONE browser, serially, within your own dispatch. When the orchestrator runs multiple capture workers in parallel (multi-module / multi-locale), each worker is on a DISTINCT browser MCP server family and a DISTINCT ephemeral instance - never share a server family. State-mutating scenario captures stay at <=2 simultaneous workers. The skill computes the cap W; you do not self-parallelize.
+
+**No silent cap (See-Something-Say-Something).** Emit a capture-coverage line per `(scenario, locale, step)` marking it captured / downgraded-to-screen / skipped + the reason, so the caller sees exactly what was trimmed.
+
 ### Step 6 - Assemble artifact
 
 **DOC LAYER: appstore (default) - compose `static/description/index.html`:**
@@ -176,8 +204,23 @@ Write a self-contained HTML file directly (no content-draft, no markers) at `<mo
 </html>
 ```
 
+**TONE: marketing (appstore index.html only) - compose an App-Store landing page.** When the brief sets `TONE: marketing`, do NOT write the plain page above; instead assemble the landing per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/app-store-template.md` (that reference is the SSOT for the section map, the Bootstrap-5 fragment skeleton, the image specs, and the manifest store-keys table):
+- **Sanitizer-safe fragment**: start at `<section>` - NO `<!DOCTYPE>/<html>/<head>/<body>`; NO `<script>` or inline JS; NO `<link>`/CDN/Google-Fonts (the store pre-loads Bootstrap 5 - use its classes); Bootstrap-5 utility classes instead of inline flexbox/`gap`; hex colors only (no `rgba()`/gradient); HTML entities (`&rarr;`, `&mdash;`) not raw glyphs; all `<img src>` relative to `static/description/`.
+- **Copy**: delegate prose to `odoo-content-draft` (hero tagline = manifest `summary`; outcome-first) and resolve its `[Image: <slug>]` markers to the captured files, exactly as the MODE cluster marketing path already does below.
+- **Key Features grid**: source titles + one-line `value` from `feature-catalog.jsonl` when `FEATURE CATALOG:` is supplied; otherwise from the OSM feature summary.
+- **Brand**: pull palette/fonts from `.odoo-ai/context.md` brand tokens or the brief; default to the Odoo palette in the reference. Never hardcode a vendor brand.
+- **On-disk convention wins**: if the module already uses legacy `oe_*` classes, stay consistent; otherwise default to the Bootstrap-5 sanitizer-safe template. Per-locale -> `index_<locale>.html`, each referencing its own locale images.
+
 **DOC LAYER: userguide - compose `doc/index.rst`:**
 Write RST directly (no content-draft, no markers) at `<module-abs>/doc/index.rst` (primary language) and `doc/index_<locale>.rst` for each additional language. Tone: technical/imperative. Use `.. image::` directives with `:alt:` captions grounded in OSM field labels. Ground every field/menu reference in OSM data. Do NOT add annotation overlays.
+
+**DOC SCOPE switch (userguide structure).** `screenshot-doc` (default) = the per-feature section layout above (one heading + field text + screenshot). `full-guide` = a structured guide with these top-level sections, in order:
+1. `Installation` - numbered steps (Apps -> search `<module>` -> Install), plus required dependencies from the manifest.
+2. `Configuration` - settings and access-rights to set before use, with OSM-grounded field labels.
+3. `Usage` - step-by-step per feature flow. When a `WALKTHROUGH:` / `FEATURE CATALOG:` is supplied, generate this section FROM the walkthrough scenarios (one sub-section per scenario, `.. image::` per step using the per-step files from Step 5); otherwise derive it from OSM as today.
+4. `Troubleshooting` - common errors + resolutions.
+5. `FAQ` - short question/answer pairs.
+Optionally an `Instruction video` link (canonical YouTube embed) when the brief supplies one. Keep i18n + `doc/index_<locale>.rst` per locale. The RST structure itself is version-agnostic; field labels stay OSM-grounded per version.
 
 **RST image path rule (critical):** the correct relative path in `doc/index.rst` depends on where the image file lives:
 - When images are in `static/description/` (the case for `both` layer and the default asset-dir): use `.. image:: ../static/description/<screen-slug>.png` (one level up from `doc/` into the module root, then down to `static/description/`).
@@ -195,11 +238,17 @@ If tone is marketing (brief says so): delegate to odoo-content-draft with the OS
 
 Read `<module-abs>/__manifest__.py`. If `'images'` key is absent or does not include the primary screenshot path, add or extend it. Read the full manifest first (Read tool), then apply a targeted Edit that merges `'images': ['<doc_static_dir>/<primary-screenshot-filename>']` where `<doc_static_dir>` is the DETECTED asset dir and `<primary-screenshot-filename>` is the DETECTED primary screenshot filename (per the convention detection in Step 1 - do NOT hardcode `main_screenshot.png`; use the actual filename of the primary screenshot captured). Do NOT rewrite the manifest from scratch.
 
+**App-Store store-keys audit (TONE: marketing).** When assembling a marketing landing, also audit the manifest store keys against `references/app-store-template.md` § Manifest Store Keys: `name`, `summary`, `description`, `images`, `license`, `application`, `category`, `maintainer`, `website`, `version`. Merge values that are derivable from the source (e.g. `images[0]` = the captured cover) with a read-before-edit targeted Edit. For commercial/instance-specific keys (`price`, `currency`, `support`, `live_test_url`) SUGGEST in the output what is missing - never fabricate a value; leave the key absent if the user has not supplied it. Report the store-readiness gaps (missing `icon.png`, missing cover, missing `license`, RST-only description) as a checklist; the icon itself is produced by `odoo-icon-design`, not here.
+
 ---
 
 ## Standalone fallback
 
 **Browser or instance unreachable:** After one retry, emit `status: NEEDS_NEXT` routing to skill `odoo-instance` (`operation: ensure-up`). Fall back to `BLOCKED` only if provisioning is impossible.
+
+**Per-locale degradation (never block the whole run for one locale):** if a locale fails to load or switch, reuse the English screenshots for that locale's doc, mark each affected image with an `[Image: <slug>]` note, and report `status: DONE_WITH_CONCERNS(locale <x>: English screenshots used)`. The other locales proceed normally.
+
+**Global degraded assembly (TONE marketing / DOC SCOPE full-guide):** with no instance/browser at all, still write the index.html / RST STRUCTURE plus the content-draft copy with `[Image: <slug>]` placeholders at every illustration point, then emit the `NEEDS_NEXT -> odoo-instance` routing so a later pass fills the captures. This replaces a hard `BLOCKED` whenever the structure + copy can be written; `BLOCKED` only when even that is impossible.
 
 **OSM unreachable:** Disk-grep the module XML for view names and menu ids; use manifest `description` for prose. Prefix: `⚠ OSM unreachable - screens and text from disk source`.
 
@@ -216,8 +265,11 @@ module | cluster
 ### DOC LAYER
 appstore | userguide | both
 
+### Axes
+TONE: technical | marketing  ·  DOC SCOPE: screenshot-doc | full-guide  ·  CAPTURE MODE: screens | scenarios
+
 ### Languages
-<resolved list, e.g. ["vi_VN","en_US"]>
+<resolved list, English-first when marketing/full-guide, e.g. ["en_US","vi_VN"]>
 
 ### Convention detected
 naming: <pattern or "default"> | bilingual: <yes/no> | asset_dir: <path>
@@ -235,6 +287,15 @@ naming: <pattern or "default"> | bilingual: <yes/no> | asset_dir: <path>
 ### OSM grounding
 - Views used: <list from module_inspect>
 - Fields referenced in text: <list from model_inspect>
+
+### Capture coverage (only when CAPTURE MODE: scenarios)
+| Scenario | Locale | Step | Result | Note |
+|----------|--------|------|--------|------|
+| <id> | <locale> | <NN> | captured / downgraded-to-screen / skipped | <reason / bound> |
+
+### Store-readiness (only when TONE: marketing)
+- icon.png: present/missing (-> odoo-icon-design) · cover image: present/missing · license: set/missing · description: HTML/RST-only
+- commercial keys to confirm (never fabricated): price, currency, support, live_test_url
 ```
 
 ---
