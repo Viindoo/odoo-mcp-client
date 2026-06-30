@@ -8,9 +8,7 @@ description: >-
   large-diff analysis at scale, AND GitHub PR/issue/review/release/CI/fork, OR a pasted GitHub
   PR/issue URL (diff/CI/metadata, merge, compare). Vietnamese: "rebase nhánh", "gộp commit",
   "sửa lịch sử git", "giải quyết xung đột", "xóa commit", "khôi phục", "mở/review/merge PR",
-  "tạo release", "dán link PR/issue". DO NOT trigger for non-git file edits or writing app code
-  -> use a coding skill. DO NOT trigger for code-quality review (bugs/conventions/security) of a
-  PR -> use a code-review skill. For a domain-specific flow (a framework's
+  "tạo release", "dán link PR/issue". For a domain-specific flow (a framework's
   rebase/forward-port/cluster-upgrade orchestrator) a domain front-door may wrap this toolkit ->
   defer to it when installed
 ---
@@ -83,11 +81,9 @@ required.
 
 | Situation | Route to |
 |---|---|
-| Non-git file edits / writing application code | a coding skill (not git) |
 | A domain-specific same-series rebase pipeline | that domain's rebase front-door |
 | Porting code ACROSS major versions as a domain pipeline | that domain's forward-port front-door |
 | Upgrading a module cluster to a new major series | that domain's upgrade front-door |
-| Reviewing the CODE QUALITY of a PR (bugs / conventions / security) | a code-review skill |
 
 ## Detailed recipes (references)
 
