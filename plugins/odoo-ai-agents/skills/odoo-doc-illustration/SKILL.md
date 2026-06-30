@@ -4,15 +4,15 @@ argument-hint: "[module] [doc target]"
 description: >
   Produce illustrated documentation for an Odoo module or cluster: drives a live browser to
   capture screenshots then assembles static/description/index.html (App Store listing) and/or
-  doc/index.rst (user guide). Dispatched as agent odoo-doc-illustrator. Axes (defaults preserve
-  current behavior): TONE technical|marketing (marketing = brand-aware App-Store landing); DOC
-  SCOPE screenshot-doc|full-guide (full-guide = Install/Config/Usage/Troubleshooting/FAQ);
-  CAPTURE MODE screens|scenarios (scenarios drives the UI step-by-step, shoots every step).
-  Fire on: "document an Odoo module with screenshots", "tạo tài liệu có ảnh cho module",
-  "làm landing App Store cho module", "create RST user guide for module", "viết doc/index.rst
-  cho module". Routing: record a video -> odoo-demo-recording; audit a screen -> odoo-ui-review;
-  pure text -> odoo-content-draft; design an app icon -> odoo-icon-design; spec before code ->
-  odoo-solution-design; compare builds -> odoo-visual-regression; write frontend code -> odoo-coding
+  doc/index.rst (user guide). Dispatched as agent odoo-doc-illustrator. Axes: DOC LAYER
+  appstore(default - writes index.html)|userguide(writes doc/index.rst)|both; TONE
+  technical|marketing (marketing = brand-aware App-Store landing); DOC SCOPE
+  screenshot-doc|full-guide (full-guide = Install/Config/Usage/Troubleshooting/FAQ); CAPTURE
+  MODE screens|scenarios (scenarios drives the UI step-by-step, shoots every step). Fire on:
+  "document an Odoo module with screenshots", "tạo tài liệu có ảnh cho module", "làm landing
+  App Store cho module", "create RST user guide for module", "viết doc/index.rst cho module".
+  Routing: record a video -> odoo-demo-recording; audit a screen -> odoo-ui-review; pure text
+  -> odoo-content-draft; icon -> odoo-icon-design; write frontend code -> odoo-coding
 ---
 
 ## Persona
@@ -43,7 +43,7 @@ MODE: module | cluster
 TARGET: <absolute path to module dir (UC1) | doc_output_dir (UC2)>
 SCREENS: <ordered list of menus / views / flows to capture, e.g. "Sales > Orders list, form view of draft order, Confirm button result">
 BROWSER MODE: headless | headed
-DOC LAYER: appstore | userguide | both
+DOC LAYER: appstore | userguide | both       # default appstore - writes static/description/index.html
 TONE: technical | marketing                  # default technical; marketing builds an App-Store landing index.html
 DOC SCOPE: screenshot-doc | full-guide       # default screenshot-doc; full-guide writes the structured user guide
 CAPTURE MODE: screens | scenarios            # default screens; scenarios drives the UI step-by-step
@@ -54,7 +54,7 @@ LANGUAGES: <resolved language list - see i18n resolution below>
 
 If `addons_path` is not yet known, TARGET may be just a module name; the agent resolves the absolute path from `context.md` or by scanning disk.
 
-**New axes default to today's behavior** (single-module screenshot-doc, technical tone, screens capture). A dispatch that omits TONE / DOC SCOPE / CAPTURE MODE behaves exactly as before this skill grew them - existing runs and tests are unaffected.
+**Axis defaults** (omitting any field preserves today's behavior): DOC LAYER `appstore` (writes `static/description/index.html`); TONE `technical`; DOC SCOPE `screenshot-doc`; CAPTURE MODE `screens`. A dispatch that omits these fields behaves exactly as before - existing runs and tests are unaffected.
 
 **DOC LAYER.** Controls which output files are produced:
 - `appstore` - writes `static/description/index.html` (App Store listing page)
