@@ -39,8 +39,3 @@ Status: 5 compressed, 9 light, 5 skipped.
 
 git-toolkit is a thin prose routing layer where ~40-50% of weight is non-compressible by contract
 (frontmatter triggers, tools array, bash, tables, mermaid). Realized 1.49% is small but verified-safe.
-
-## Pre-existing issues flagged (NOT fixed - out of scope)
-
-- `docs/architecture.md` references `snippets/git-delegation.md`, but this plugin's snippet is named
-  `snippets/git-delegation-decision.md` (likely a pre-existing broken link in `master`).
