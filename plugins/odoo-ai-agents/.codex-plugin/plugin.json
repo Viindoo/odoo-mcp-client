@@ -11,7 +11,7 @@
   "mcpServers": "./mcp.json",
   "interface": {
     "displayName": "Odoo AI Agent Team",
-    "shortDescription": "45-skill AI workforce for Odoo ERP - engineering, sales, marketing & strategy.",
+    "shortDescription": "53-skill AI workforce for Odoo ERP - engineering, sales, marketing & strategy.",
     "longDescription": "A comprehensive AI workforce plugin for Odoo ERP practitioners. Provides 53 skills covering Odoo development (solution design, frontend design, coding, code review, frontend, testing, i18n translation, instance operations, visual documentation), consulting (gap analysis, upgrade planning, risk overview), sales/pre-sales (bid response, competitive briefs, deal follow-up), marketing (content drafting, campaign planning, feature highlights), and strategy (discovery, onboarding, deployment checklists). Pairs with the odoo-semantic-mcp server for indexed-codebase grounding. Includes 22 specialist agents: browser-automation agents for Odoo UI review, visual regression testing, automated setup, and visual documentation capture; forward-port pre-analysis agents for intent extraction and installable-state probing; and the odoo-instance-ops agent for end-to-end instance lifecycle management (create, drop, init, update, test) across Odoo v8+. Also bundles browser MCP servers (Chrome DevTools, Playwright, Pagecast) for rich UI interaction across Codex CLI and Gemini CLI.",
     "developerName": "Viindoo",
     "category": "Productivity",
