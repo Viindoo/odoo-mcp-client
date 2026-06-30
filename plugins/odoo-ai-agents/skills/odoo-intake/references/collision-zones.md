@@ -311,3 +311,35 @@ If the user said "take a screenshot of the purchase list view for the module doc
 `odoo-doc-illustration` (live screen crop).
 If the user said "add a shopping-cart icon to the Purchase button in the form view" ->
 `odoo-coding` (Font Awesome class in XML view).
+
+## Collision 17 - userguide vs appstore vs both vs module-packaging (within the doc suite)
+
+**Prompt**: "viết tài liệu cho module" (could mean App Store HTML, RST user guide, both, or a full submission bundle).
+
+- `odoo-doc-illustration DOC LAYER:appstore` (default when DOC LAYER omitted): writes ONLY
+  `static/description/index.html` - the App Store Description tab listing.
+- `odoo-doc-illustration DOC LAYER:userguide`: writes ONLY `doc/index.rst` - the RST
+  technical user guide (Documentation tab). TONE:technical, DOC SCOPE:full-guide for a
+  structured Installation/Configuration/Usage/Troubleshooting/FAQ guide.
+- `odoo-doc-illustration DOC LAYER:both`: writes BOTH `static/description/index.html` AND
+  `doc/index.rst` with shared screenshots in ONE run - pure documentation artifacts, NO
+  icon.png generated, NO manifest-audit, NOT a store submission.
+- `module-packaging` (workflow): full App Store submission bundle = icon-design +
+  doc-illustration marketing landing + user-guide + manifest-audit BEFORE submission.
+  Requires explicit icon.png or "đăng store / marketplace submission" intent.
+
+**Discriminator**:
+- "hướng dẫn sử dụng / user guide / viết RST / doc/index.rst" -> `DOC LAYER:userguide TONE:technical DOC SCOPE:full-guide`
+- "landing App Store / marketing / static/description/index.html" (no user guide) -> `DOC LAYER:appstore TONE:marketing`
+- DOC LAYER omitted -> default `appstore` (writes `static/description/index.html`)
+- "cả hướng dẫn và landing / both user guide and store page / full doc cả 2 file" AND no mention of icon/submission -> `DOC LAYER:both TONE:marketing DOC SCOPE:full-guide` (row 54)
+- "đăng module lên Apps Store / store submission / chuẩn bị lên marketplace" OR explicit icon + manifest-audit need -> `module-packaging` (workflow, row 53)
+
+If the user said "viết hướng dẫn sử dụng cho module purchase" ->
+`odoo-doc-illustration DOC LAYER:userguide TONE:technical DOC SCOPE:full-guide` (RST guide only).
+If the user said "làm App Store landing page cho module" ->
+`odoo-doc-illustration DOC LAYER:appstore TONE:marketing` (HTML listing only).
+If the user said "viết cả hướng dẫn sử dụng và App Store description cho module, không cần icon" ->
+`odoo-doc-illustration DOC LAYER:both` (row 54 - both RST + HTML, no icon/manifest audit).
+If the user said "đóng gói đăng Apps Store kèm icon và manifest" ->
+`module-packaging` (workflow, row 53 - full submission bundle).
