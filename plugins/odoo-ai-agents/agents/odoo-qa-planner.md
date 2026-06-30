@@ -94,3 +94,7 @@ and the `SCENARIOS_PATH` - not the full file.
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
 (`status: DONE`, `produced: [<SCENARIOS_PATH>]`). The oracle is now ready for `odoo-test-writing`
 (durable channel) and `odoo-qa-tester` (live channel) to consume; you do not dispatch them.
+
+## Agent Team mode
+
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your oracle file (`scenarios.md`) as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).

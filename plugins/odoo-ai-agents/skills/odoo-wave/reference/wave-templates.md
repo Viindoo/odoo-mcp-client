@@ -181,7 +181,7 @@ Post-merge cleanup is owned by `odoo-pr-monitoring` (it runs AFTER the `L2-merge
 odoo-wave itself stops at the `L2-squash-gate` and never merges or cleans up the integration branch.
 This checklist is the one the post-merge owner runs.
 
-Delegate to **git-operator** in one brief (op=wave-cleanup):
+Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) in one request (op=wave-cleanup):
 
 ```
 [ ] remove worktree <path>/wi-a        (and all other WI worktrees)
@@ -196,16 +196,16 @@ Local (run inline): `rm -rf .odoo-ai/wave/<slug>/` (gitignored; safe to delete)
 
 Verify after cleanup (bounded reads inline):
 `git worktree list` should show only the principal worktree.
-Confirm wave branches are gone (git-operator reports deletion success).
+Confirm wave branches are gone (git-ops reports deletion success).
 
 ---
 
-## Squash Tree-Identity Recipe (git-operator delegation)
+## Squash Tree-Identity Recipe (git-ops delegation)
 
-All mutation steps are delegated to **git-operator**
+All mutation steps are delegated to git-toolkit via the **`git-ops`** skill
 (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
 
-**Brief to git-operator - squash-push operation:**
+**git-ops request - squash-push operation:**
 
 ```
 op                 : squash-push
@@ -217,9 +217,9 @@ integration-branch : wave/integration-<slug>
 confirmed          : yes - <human approval covering the L2-squash-gate force-push (run-harness L2 + git-toolkit confirm backstop)>
 ```
 
-git-operator executes the `squash-push` recipe (stale-base guard -> S1 backup -> reset-soft squash-to-one -> S6 tree-identity gate -> S2 force-with-lease), owned by git-toolkit per its git-safety-contract S1/S6/S2.
+git-ops executes the `squash-push` recipe (stale-base guard -> S1 backup -> reset-soft squash-to-one -> S6 tree-identity gate -> S2 force-with-lease), owned by git-toolkit per its git-safety-contract S1/S6/S2.
 
-After git-operator returns, confirm its reported tree-identity exit code is 0. This is odoo-wave's
+After git-ops returns, confirm its reported tree-identity exit code is 0. This is odoo-wave's
 terminal step (the L2-squash-gate) - it STOPS here and does NOT merge; the merge is owned by
 `odoo-pr-monitoring` at the L2-merge-gate.
 
@@ -269,7 +269,7 @@ for wi in topological_order(wis):           # module-DAG / wave order; dependent
     if any(not cherry_picked.get(d) for d in wi.depends_on):
         record(wi, "upstream blocked"); apply_saga_rollback(); return  # terminate the WHOLE wave
 
-    ensure_worktree(wi)                     # git-operator worktree-add (lazy for dependents,
+    ensure_worktree(wi)                     # git-ops worktree-add (lazy for dependents,
                                             # forking an up-to-date integration that holds dep commits)
 
     # INVOKE odoo-coding via the Skill tool from THIS orchestrating context (legal: spawner ban is
@@ -282,7 +282,7 @@ for wi in topological_order(wis):           # module-DAG / wave order; dependent
     # cherry-pick: orchestrator-side CRITICAL SECTION, one at a time, topology order.
     wi_failed = False
     for sha in result.shas:
-        cherry_pick(sha, into=integration)  # delegate to git-operator in the INTEGRATION worktree
+        cherry_pick(sha, into=integration)  # invoke git-ops in the INTEGRATION worktree
         if conflict: resolve_conflict(wi)   # Phase 3 Sonnet resolver (worker-brief.md) + cherry-pick --continue
         if not run_verify():                # Repo Capability Card verify after each pick
             wi_failed = True; break          # stop picking THIS WI's commits (inner loop only)
@@ -336,7 +336,7 @@ Do NOT force-push." Report the differing files.
 WI-A and WI-B unexpectedly both touch `__init__.py` (missed by the plan; caught at cherry-pick):
 Cherry-pick of WI-B fails with conflict. Dispatch a Sonnet resolver subagent (worker-brief.md) with
 the conflict diff + both WI briefs. Resolver edits the conflicting files (markers removed). odoo-wave
-re-dispatches a fresh git-operator (cherry-pick --continue). Re-run verify, checkpoint, continue.
+re-invokes git-ops (cherry-pick --continue). Re-run verify, checkpoint, continue.
 
 **Example 6 - Mid-wave failure (saga rollback):**
 A cherry-pick verify cannot be made green within the loop's bound. Apply the

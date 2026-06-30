@@ -15,7 +15,7 @@ any concurrent agent can overwrite).
 
 NEVER checkout, switch, or hard-reset the principal (main) working-tree off its current branch -
 it must stay on its branch for the entire run. Any branch needed locally (`<new-base>`, the
-feature branch, or a PR HEAD) is materialized by delegating a worktree-add to git-operator -
+feature branch, or a PR HEAD) is materialized by delegating a worktree-add to git-ops -
 never by switching the principal.
 
 ---
@@ -50,7 +50,7 @@ NL REQUEST: <verbatim user prompt>
 STEPS:
   1. Identify the feature ref (local branch name OR a PR number/URL).
      If a PR URL/number is given: report it in pr_resolved_from; the orchestrator will
-     resolve the branch details via github-operator after you return.
+     resolve the branch details via git-ops after you return.
   2. Identify the new-base ref (branch of the SAME Odoo series as the feature).
   3. Verify same_series_ok: both refs must share the same Odoo major version (e.g. both 17.0).
   4. Determine local presence:
@@ -60,7 +60,7 @@ STEPS:
      - If new-base is NOT present locally as a branch or worktree:
          add it to branches_to_materialize (format: <remote>/<new-base>).
          Do NOT create any worktree or switch any branch yourself.
-     The orchestrator delegates worktree creation to git-operator after you return.
+     The orchestrator delegates worktree creation to git-ops after you return.
   5. Emit open_questions[] for anything ambiguous - do NOT guess. One item per ambiguity.
 EMIT: intake.md at .odoo-ai/git-rebase/<slug>/intake.md
 FORMAT:
@@ -75,9 +75,9 @@ FORMAT:
 ```
 
 Orchestrator asks the user only the `open_questions` in one message, then re-dispatches P0
-with the answers. After P0 returns: if `pr_resolved_from` is set, dispatch github-operator to
-get the headRefName and headRepository; for each `branches_to_materialize` entry, dispatch
-git-operator to create a dedicated worktree (principal-checkout-lock enforced by git-operator).
+with the answers. After P0 returns: if `pr_resolved_from` is set, invoke git-ops to
+get the headRefName and headRepository; for each `branches_to_materialize` entry, invoke
+git-ops to create a dedicated worktree (principal-checkout-lock enforced by git-toolkit).
 
 ---
 
@@ -107,7 +107,7 @@ git log --oneline --graph ${OLD_BASE}..<feature-ref>
 git log --cherry-pick --no-merges --right-only --oneline ${new-base}...<feature-ref>
 
 # Cross-check (patch-id is fragile under context drift - use cherry -v as a second signal):
-# Delegate to git-surveyor: run cherry -v <new-base> <feature-ref>
+# Invoke git-ops to run cherry -v <new-base> <feature-ref>
 # minus prefix = unique to feature (kept); plus or absent = absorbed candidate.
 
 # NOTE: patch-id pre-filter is a CHEAP HINT ONLY. A commit absorbed by base with shifted
@@ -119,7 +119,7 @@ git log --cherry-pick --no-merges --right-only --oneline ${new-base}...<feature-
 git show --stat <sha>
 ```
 
-Dispatch git-surveyor (haiku if <=5 commits, sonnet for larger ranges) with brief:
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the recon enumerate-triage (read-only); brief:
 
 ```
 TASK: Enumerate and triage the commit range for the rebase pipeline.
@@ -154,9 +154,9 @@ FORMAT (one row per commit):
 
 ## P2 - Intent extract (parallel, rebase MODE)
 
-### P2 pre-step: git-surveyor commit dump
+### P2 pre-step: git-ops commit dump
 
-Before dispatching intent-extractors, dispatch git-surveyor to write the full commit content
+Before dispatching intent-extractors, invoke git-ops to write the full commit content
 for each non-(a) commit:
 
 ```
@@ -167,7 +167,7 @@ output_format: full commit content (message + diff) for each SHA written to <out
 worktree: <any local worktree where the commits are accessible (e.g. feature worktree or principal)>
 ```
 
-git-surveyor returns a `{ <sha>: <abs-path> }` map. Pass the appropriate `commit_dump_path`
+git-ops returns a `{ <sha>: <abs-path> }` map. Pass the appropriate `commit_dump_path`
 in each extractor brief below.
 
 ### P2 dispatch: odoo-intent-extractor
@@ -199,9 +199,9 @@ Mark each `status=extracted` in a lightweight `checkpoint.json` for crash-resume
 
 ## P3 - Cluster behavior comparison
 
-### P3 pre-step: git-surveyor three-dot diff
+### P3 pre-step: git-ops three-dot diff
 
-Before dispatching odoo-diff-comparator, dispatch git-surveyor to produce the three-dot diff:
+Before dispatching odoo-diff-comparator, invoke git-ops to produce the three-dot diff:
 
 ```
 TASK: produce three-dot diff for rebase behavior comparison
@@ -210,7 +210,7 @@ output: .odoo-ai/git-rebase/<slug>/three-dot-diff.txt
 worktree: <any local worktree where both refs are accessible>
 ```
 
-git-surveyor writes the diff to the output file and returns the path.
+git-ops writes the diff to the output file and returns the path.
 
 ### P3 dispatch: odoo-diff-comparator
 
@@ -261,7 +261,7 @@ resolved silently.
 **Late extraction (commit dump provisioning for reclassified commits):** if any commit has
 `already_on_base: true` in `recon.md` but `comparison.md` assigns it a non-(a) outcome,
 that commit was skipped by the P2 pre-step and has no dump file or intent file. Before
-proceeding to P5/P6: dispatch git-surveyor to write its dump to
+proceeding to P5/P6: invoke git-ops to write its dump to
 `.odoo-ai/git-rebase/<slug>/commits/<sha>.dump` (same brief as P2 pre-step for a single SHA);
 then dispatch a late `odoo-intent-extractor` (rebase MODE, same brief as P2 dispatch with
 `commit_dump_path:` set). Record `<sha>: extracted` in `checkpoint.json`. The deep
@@ -314,7 +314,7 @@ before ExitPlanMode + user approval. plan.md template:
 - Series: <e.g. 17.0>
 - Commit count: <N> (<M> non-(a))
 
-## The single rebase invocation (delegated to git-operator at P7)
+## The single rebase invocation (delegated to git-ops at P7)
 Integration worktree: <WT_ROOT>/rb-integration, branch rb/<slug>, start ref: <feature-ref> (feature tip).
 Two-arg onto form: target <new-base>, upstream <old-base>. Avoids 'already used by worktree'.
 
@@ -329,7 +329,7 @@ Two-arg onto form: target <new-base>, upstream <old-base>. Avoids 'already used 
 Resolve each stopped commit to INTENT on the new-base idiom via the `odoo-coding` skill
 (dispatched through the Skill tool; it owns the backend/frontend coder fan-out and synthesis).
 Review is the `odoo-code-review` skill (P9b in-pipeline + P12 final PR review).
-outcome-(a) stops -> git-operator skips that commit (--skip).
+outcome-(a) stops -> git-ops skips that commit (--skip).
 Never leave a line referencing a renamed/moved symbol.
 
 ## Instance verify (B3 decision)
@@ -350,7 +350,7 @@ After `ExitPlanMode` + user approval, write `plan.md` as the resume record.
 
 ## P7 - Create integration worktree + start rebase
 
-Dispatch git-operator with the following brief:
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool), describing the op:
 
 ```
 op: create integration worktree at feature tip and start the onto-rebase
@@ -372,7 +372,7 @@ conflict_resolution_policy:
 confirmed: yes (Plan Mode approval obtained at P6)
 ```
 
-git-operator returns `DONE` (proceed to P8b) or `BLOCKED-CONFLICT` with
+git-ops returns `DONE` (proceed to P8b) or `BLOCKED-CONFLICT` with
 `conflicted_files: [<paths>]` and `stopped_commit: <sha>` (proceed to P8).
 
 ---
@@ -381,15 +381,15 @@ git-operator returns `DONE` (proceed to P8b) or `BLOCKED-CONFLICT` with
 
 ### Conflict-class handling (policy passed upfront in P7 dispatch brief)
 
-The `conflict_resolution_policy` in the P7 brief instructs git-operator to resolve all
+The `conflict_resolution_policy` in the P7 brief instructs git-ops to resolve all
 mechanical conflict classes autonomously before stopping on Odoo-semantic (text-hunk) conflicts.
 The table below defines the policy rules (already encoded in the P7 brief) and coder routing
 for text hunks:
 
 | File type | Policy |
 |---|---|
-| `.po` / `.pot` | Take feature side (--theirs; note rebase inverts merge ours/theirs: --ours=base, --theirs=feature); git-operator resolves autonomously per `po_policy` in P7 brief; then re-run `odoo-i18n` after the full rebase completes; do NOT hand-merge gettext diffs |
-| Binary (PNG, ODS, PDF, etc.) | Prefer feature per project convention per `binary_policy` in P7 brief; git-operator applies the chosen side; choice is flagged in `rebase-log.md` for human review |
+| `.po` / `.pot` | Take feature side (--theirs; note rebase inverts merge ours/theirs: --ours=base, --theirs=feature); git-ops resolves autonomously per `po_policy` in P7 brief; then re-run `odoo-i18n` after the full rebase completes; do NOT hand-merge gettext diffs |
+| Binary (PNG, ODS, PDF, etc.) | Prefer feature per project convention per `binary_policy` in P7 brief; git-ops applies the chosen side; choice is flagged in `rebase-log.md` for human review |
 | Generated assets (compiled JS, minified CSS, etc.) | Regenerate from source after the rebase completes per `generated_policy` in P7 brief; do NOT hand-merge generated content |
 | Text hunk (Python/XML/JS/SCSS/CSV) | Route to the `odoo-coding` skill per ADAPT tier as described below |
 
@@ -402,7 +402,7 @@ module/file renames on the new base - resolve these per type:
   assets duplicated under both the old and renamed module path) -> take the NON-EMPTY side; never
   leave a zero-byte file.
 - **modify/delete of a renamed-away module** (the new base deleted/relocated a file the feature
-  still edits) -> honor the base's removal of the path (the git-operator S10 continue-driver runs
+  still edits) -> honor the base's removal of the path (the git-toolkit S10 continue-driver runs
   the deletion), then re-home the intent into the renamed module via the `odoo-coding` skill.
 - **rename/rename** (both sides renamed the same file differently) -> keep the new-base name; the
   `odoo-coding` skill ports the feature hunk onto it.
@@ -420,13 +420,13 @@ of the repo. Assume a single rebase run per repo at a time - concurrent runs wil
 cross-contaminate cached resolutions. After rerere auto-resolves a conflict, the adapt
 subagent MUST still verify the auto-resolved hunk against the commit's intent file: rerere
 replays TEXT, not INTENT - a past wrong resolution propagates silently to every identical
-conflict marker. Never let git-operator invoke --continue on a rerere-autoresolved file without
+conflict marker. Never let git-ops invoke --continue on a rerere-autoresolved file without
 a symbol check against `intents/<sha>.md`.
 
 ### Abort path (ETHOS #7 fail-3-times escalation)
 
 If 3 consecutive --continue attempts fail (coder cannot resolve, or the resolution
-reintroduces a conflict), do NOT keep retrying. Dispatch git-operator to abort the rebase
+reintroduces a conflict), do NOT keep retrying. Invoke git-ops to abort the rebase
 (restores <WT_ROOT>/rb-integration to its pre-rebase state = feature tip). Restore state from
 `checkpoint.json` (the `rb/<slug>` branch is at the feature tip again; all
 `designed`/`extracted` intents are still on disk). Escalate per ETHOS #7 with a clear
@@ -434,22 +434,22 @@ description of which commit SHA blocked the loop and why.
 
 ### Per-conflict dispatch
 
-For each `BLOCKED-CONFLICT` return from git-operator, consume the canonical output fields:
+For each `BLOCKED-CONFLICT` return from git-ops, consume the canonical output fields:
 - `conflicted_files: [<paths>]` - the text-hunk files that need semantic resolution (mechanical
-  types already resolved by git-operator per the P7 `conflict_resolution_policy`).
+  types already resolved by git-ops per the P7 `conflict_resolution_policy`).
 - `stopped_commit: <sha>` - the SHA the rebase stopped on; use for intent file lookup.
 
 Verify inline if needed (allowlisted bounded reads):
 
 ```bash
-# Inline verification (allowlisted; canonical fields from git-operator return are primary)
+# Inline verification (allowlisted; canonical fields from git-ops return are primary)
 git diff --check
 git status
 ```
 
 **Fast-path fallback (missing intent file):** if no `intents/<sha>.md` exists for
-`stopped_commit` (e.g., the small-scale fast-path was taken and P2 was skipped): dispatch
-git-surveyor to write the commit dump to `.odoo-ai/git-rebase/<slug>/commits/<sha>.dump`,
+`stopped_commit` (e.g., the small-scale fast-path was taken and P2 was skipped): invoke
+git-ops to write the commit dump to `.odoo-ai/git-rebase/<slug>/commits/<sha>.dump`,
 then dispatch `odoo-intent-extractor` (rebase MODE, P2 brief with `commit_dump_path:` set)
 to create the intent file before proceeding to the coder.
 
@@ -468,8 +468,8 @@ FAILURE_MODE: <from comparison.md>
 CONFLICTED_FILES: <list from git diff --check - text hunks only; .po/binary/generated handled above>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
 RULE: Resolve to the INTENT expressed in INTENT_FILE, using the idiom of the new base.
-      If OUTCOME=(a): do not resolve - caller will instruct git-operator to skip that commit.
-      If OUTCOME=(d): do not resolve - caller will instruct git-operator to skip that commit.
+      If OUTCOME=(a): do not resolve - caller will instruct git-ops to skip that commit.
+      If OUTCOME=(d): do not resolve - caller will instruct git-ops to skip that commit.
       Never leave a line referencing a symbol that was renamed/moved at the new base.
       On a `__manifest__.py` `version` conflict, keep the new-base ref's `version` field unchanged -
       a same-series replay never bumps it. (Same-series analogue only; do NOT import the cross-series
@@ -477,19 +477,19 @@ RULE: Resolve to the INTENT expressed in INTENT_FILE, using the idiom of the new
       If rerere auto-resolved any file: verify each auto-resolved hunk against INTENT_FILE
       before staging - rerere replays text, not intent.
       After resolving: emit a "RESOLVED" status listing the resolved files.
-      Caller will dispatch git-operator to stage and continue per the stateless-resume recipe.
+      Caller will invoke git-ops to stage and continue per the stateless-resume recipe.
       `odoo-coding` routes OWL/QWeb/SCSS legs to `odoo-frontend-coder`, grounded against
       `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` so the adapted UI stays
       on-theme and design-system-correct for the target series.
 ```
 
-After `odoo-coding` returns RESOLVED: dispatch git-operator to drive continue/skip per the
+After `odoo-coding` returns RESOLVED: invoke git-ops to drive continue/skip per the
 canonical continue-driver (git-toolkit S10, cited in the Conflict-TYPE taxonomy above) and the
 stateless-resume recipe in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`:
-- outcome=(a) or (d): instruct git-operator to skip that commit (--skip)
-- outcome=(b)/(c): instruct git-operator to stage the resolved files and invoke --continue
+- outcome=(a) or (d): instruct git-ops to skip that commit (--skip)
+- outcome=(b)/(c): instruct git-ops to stage the resolved files and invoke --continue
 
-Loop until git-operator returns `DONE` (rebase complete - proceed to P8b). `BLOCKED-CONFLICT`
+Loop until git-ops returns `DONE` (rebase complete - proceed to P8b). `BLOCKED-CONFLICT`
 continues the loop with the next stopped commit from `stopped_commit`; on 3 consecutive
 `BLOCKED-CONFLICT` returns for the same `stopped_commit` without resolution progress, invoke
 the abort path above. A plain `BLOCKED` return (non-conflict human-confirm gate) escalates
@@ -501,7 +501,7 @@ immediately per the stateless-resume recipe in git-delegation.md.
 
 **MUST run before P9. No test-forward without this gate passing.**
 
-After the rebase loop finishes (git-operator returns `DONE`), run symbol-survival analysis over
+After the rebase loop finishes (git-ops returns `DONE`), run symbol-survival analysis over
 every file touched by the replayed range - both conflicted (already handled by P8) AND
 merge-clean-but-feature-touched files (the silent-break risk: no conflict marker, but base
 may have renamed/moved/removed the symbol).
@@ -546,16 +546,16 @@ This is the same check as `[[fp-symbol-survival-check]]`
 applies to SAME-SERIES rebases too: an import valid at the old base can have been removed within
 the series at the new base (e.g. `from odoo.tools import relativedelta`, valid in 17.0, removed in
 18.0 - the same class of within-series removal occurs between two same-series bases). Dispatch this
-as a read-only delegate (git-surveyor / Explore running `pyflakes`); the orchestrator records the
+as a read-only delegate (git-ops / Explore running `pyflakes`); the orchestrator records the
 PASS/FAIL verdict only.
 
 ```bash
 pyflakes <every-feature-touched-.py-from-the-Explore-list>   # any F821 = blocker
 ```
 
-### Collection acceptance gate (delegated to git-surveyor)
+### Collection acceptance gate (delegated to git-ops)
 
-After all symbol-survival + import-resolvability blockers are resolved, dispatch git-surveyor
+After all symbol-survival + import-resolvability blockers are resolved, invoke git-ops
 (read-only) to run the test-collection gate and return a compact PASS/FAIL; the orchestrator
 records the verdict only and never reads the diff or log inline:
 
@@ -640,9 +640,9 @@ The gate is automated (fix-until-clean), not a human STOP - human STOP-gates sta
 
 ### range-diff + dup-guard (always)
 
-#### P10 pre-step: git-surveyor range-diff
+#### P10 pre-step: git-ops range-diff
 
-Dispatch git-surveyor to produce the range-diff before odoo-diff-comparator:
+Invoke git-ops to produce the range-diff before odoo-diff-comparator:
 
 ```
 TASK: produce range-diff for rebase outcome verification
@@ -651,7 +651,7 @@ output: .odoo-ai/git-rebase/<slug>/range-diff.txt
 worktree: <WT_ROOT>/rb-integration (rb/<slug> and feature-ref-tip accessible from here)
 ```
 
-git-surveyor writes the range-diff output to the file and returns the path.
+git-ops writes the range-diff output to the file and returns the path.
 
 #### P10 dispatch: odoo-diff-comparator
 
@@ -664,7 +664,7 @@ diff_path: .odoo-ai/git-rebase/<slug>/range-diff.txt
 INTENT_FILES: .odoo-ai/git-rebase/<slug>/intents/*.md
 PLAN: .odoo-ai/git-rebase/<slug>/plan.md
 STEPS:
-  1. Read the file at diff_path (the range-diff output produced by the git-surveyor pre-step above).
+  1. Read the file at diff_path (the range-diff output produced by the git-ops pre-step above).
   2. For each P4 intent: confirm it is present and semantically unchanged in the rb branch.
   3. Duplicate-behavior guard - for each feature's key identifier (field name, model name,
      method name, xmlid):
@@ -725,7 +725,7 @@ P9 for test failures) before re-presenting.
 Resolve the fork remote name and upstream org/repo from `git remote get-url origin` (bounded
 read, inline). Never hardcode the fork remote or upstream repo.
 
-Dispatch git-operator to push rb/<slug> to the fork remote:
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push rb/<slug> to the fork remote:
 
 ```
 op: push rebase branch to fork (never to the upstream directly)
@@ -735,7 +735,7 @@ remote: <fork-remote-name>  # resolved from git remote get-url origin
 confirmed: yes - human approved at P11
 ```
 
-Dispatch github-operator to open the PR:
+Invoke git-ops to open the PR:
 
 ```
 op: create PR for rebase result

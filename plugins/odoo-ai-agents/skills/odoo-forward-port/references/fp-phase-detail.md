@@ -20,13 +20,13 @@ cat .odoo-ai/forward-port/<slug>/checkpoint.json 2>/dev/null   # {<sha>: status}
 # 2 - enumerate the commits to forward (read-only; no worktree, no branch yet)
 # Same-repo (both refs on origin): compute merge-base locally
 MB=$(git merge-base <target-branch> <source-ref>)
-# Cross-repo: delegate to git-operator (add source remote + fetch), then compute:
+# Cross-repo: invoke git-ops (add source remote + fetch), then compute:
 #   MB=$(git merge-base <target-branch> source/<branch>)
-# Delegate to git-surveyor: enumerate commits (--no-merges, range MB..<source-ref>,
-#   apply --scope <paths> / --since <date>); git-surveyor writes the commit list.
+# Invoke git-ops: enumerate commits (--no-merges, range MB..<source-ref>,
+#   apply --scope <paths> / --since <date>); git-ops writes the commit list.
 ```
 
-Map each `--scope` module name to its directory path before requesting git-surveyor to filter
+Map each `--scope` module name to its directory path before requesting git-ops to filter
 by path (module `l10n_vn` -> `l10n_vn/`; resolve via manifest location - may be at repo root
 or under an addons subdir, e.g. `addons/l10n_vn/`).
 
@@ -47,7 +47,7 @@ narrated. Set BOTH the `model` parameter (the triaged EXTRACT tier) and the brie
 Mode B budget (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`); rolling-window
 beyond the budget. No child worktree - extraction is read-only on git history + OSM.
 
-Pre-step (once before the parallel dispatch): delegate to git-surveyor (read-only, no worktree)
+Pre-step (once before the parallel dispatch): invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only, no worktree)
 in a batch pass to write per-commit dump files. For each commit SHA in the range:
 
 - op: full-patch commit show (full message + diff) for the sha
@@ -107,7 +107,7 @@ OSM returned `installable:True` at the target AND the module manifest was NOT to
 cherry-pick range, OR OSM was unreachable. Do NOT blanket-sweep every module: OSM already grounds
 categories 1-2, so a probe there is wasted.
 
-Pre-step before dispatch: delegate to git-surveyor (read-only) to write two files. For
+Pre-step before dispatch: invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files. For
 cross-repo ports include `repo: <main-checkout-root>` (source commits live only in the main
 checkout after P0 bootstrap):
 
@@ -129,8 +129,8 @@ Dispatcher inputs (CANONICAL CONTRACT - pass exactly these keys):
 - `repo_root` is the MAIN checkout root where git runs. The integration worktree does NOT exist
   at P2 (it is created at P4) - never reference it here. For a same-repo forward-port `repo_root`
   is the main clone of the repo holding both refs; for a cross-repo port it is the main clone that
-  has the source remote added + fetched in the P0 bootstrap step (git-operator delegates: add
-  source remote + fetch). The dispatcher populates `repo_root` deterministically from the P0-recorded checkout
+  has the source remote added + fetched in the P0 bootstrap step (git-ops adds the source remote
+  + fetches). The dispatcher populates `repo_root` deterministically from the P0-recorded checkout
   root before launching the prober.
 - `source_ref` / `target_ref` are the source / target git refs (the same refs P0 enumerated).
 - `target_version` is the concrete target series for OSM grounding.
@@ -207,8 +207,8 @@ Procedure:
 Red flags: a text-gate "approve" is NOT Plan Mode approval (two separate steps); `EnterPlanMode`
 MUST come before any branch, worktree, or file touch.
 
-After Plan Mode approval, delegate to git-operator: create the JOB-tier integration worktree
-branched FROM B (Hard rule 1 - no branch before this point). Brief:
+After Plan Mode approval, invoke the `git-toolkit:git-ops` skill (via the Skill tool) to create the
+JOB-tier integration worktree branched FROM B (Hard rule 1 - no branch before this point). Describe the op:
 
 ```
 op: create integration worktree
@@ -237,7 +237,7 @@ Fable rows (if any): <m> - <why> (~2x opus). (confirmed in Plan Mode)
 
 ## P5 - Merge --no-commit (critical section)
 
-Delegate to git-operator. Dispatch contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool). Dispatch contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 For semantic conflicts use the stateless-resume recipe in that snippet.
 
 ```
@@ -262,8 +262,8 @@ zone through P9. Full protocol incl. absorption window order: `[[fp-merge-absorp
 git diff --check ; grep -rn '^<<<<<<<' .
 ```
 
-Delegate to git-surveyor: list files changed in range `<merge-base>..<src-SHA>` (--name-only;
-git-surveyor writes the file list, filtered to non-empty entries - these are the
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to list files changed in range `<merge-base>..<src-SHA>` (--name-only;
+git-ops writes the file list, filtered to non-empty entries - these are the
 merge-clean-but-source-touched autosilent-break candidates). For cross-repo ports include
 `repo: <main-checkout-root>` (source commits live only in the main checkout after the P0
 source-remote add+fetch).
@@ -310,15 +310,15 @@ fail.
 
 **Enumerate scope - two lanes:**
 
-Delegate to git-surveyor: list files changed in range `<merge-base>..<src-SHA>` (--name-only;
-git-surveyor writes the file list). Include `repo: <main-checkout-root>` in the dispatch for
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to list files changed in range `<merge-base>..<src-SHA>` (--name-only;
+git-ops writes the file list). Include `repo: <main-checkout-root>` in the dispatch for
 cross-repo ports. From that list:
 
 ```bash
-# Lane 1 (from git-surveyor result): ALL merged-touched .py (production AND tests/)
+# Lane 1 (from git-ops result): ALL merged-touched .py (production AND tests/)
 #   - filter the file list to *.py entries
 
-# Lane 2 (from git-surveyor result): tests/ only
+# Lane 2 (from git-ops result): tests/ only
 #   - from Lane 1, filter entries whose path contains tests/
 ```
 
@@ -352,7 +352,7 @@ before entering the P8 adapt loop.
 
 ## P8 - Adapt (test-first; serial per-module within a commit; WORK-tier worktree per module for filesystem isolation)
 
-For each touched module/WI, delegate to git-operator to create a child worktree off integration
+For each touched module/WI, invoke the `git-toolkit:git-ops` skill (via the Skill tool) to create a child worktree off integration
 and dispatch the adapt unit (serially - complete one module before starting the next within the
 same commit):
 
@@ -363,7 +363,7 @@ worktree: <path>/wt-<module>
 ```
 
 **Open-merge window (CRITICAL constraint).** During the open P5 merge window of the CURRENT
-source commit - after git-operator ran `--no-commit`, before the P10 `commit` - `MERGE_HEAD` is
+source commit - after git-ops ran `--no-commit`, before the P10 `commit` - `MERGE_HEAD` is
 live in the integration worktree. Git rejects any second merge in that worktree until the first
 is committed or aborted (error: `MERGE_HEAD exists`). So child worktrees CANNOT converge back
 into integration during this window: adapt all modules SERIALLY, DIRECTLY in the integration
@@ -492,8 +492,8 @@ TARGET LANGUAGES: <language codes inferred from the source .po filenames, e.g. v
 `odoo-i18n` owns the non-destructive `.pot`/`.po` recipe and the isolated-DB export; this pipeline
 forwards only the INTENT (which strings, which modules), never the export itself.
 
-Converge each child worktree back to integration (serialized, keep SHA), then delegate to
-git-operator to remove the child worktree at `<path>` (only after that module's P9 cycle
+Converge each child worktree back to integration (serialized, keep SHA), then invoke git-ops
+to remove the child worktree at `<path>` (only after that module's P9 cycle
 confirms GREEN - see SKILL.md P8 for the Tier-A worktree-persist rule). Mark `status=adapted`.
 
 ---
@@ -621,7 +621,7 @@ Full per-batch + allocator protocol: `[[fp-merge-absorption]]`. Mark `status=ver
 
 ## P10 - Gate merge (STOP, per batch)
 
-Present `merge-log.md` and wait for human-confirm. On confirm, delegate to git-operator:
+Present `merge-log.md` and wait for human-confirm. On confirm, invoke the `git-toolkit:git-ops` skill (via the Skill tool):
 
 ```
 op: commit
@@ -641,7 +641,7 @@ straight to P8, which would absorb it without a merge or a symbol/drift check).
 
 ## P11 - PR + review
 
-Delegate the push to git-operator (resolve origin URL via `git remote get-url origin`):
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push (resolve origin URL via `git remote get-url origin`):
 
 ```
 op: push fp/<slug> to origin (NOT B)
@@ -650,7 +650,7 @@ worktree: <path>/fp-integration
 remote: resolve via `git remote get-url origin`
 ```
 
-Delegate PR creation to github-operator:
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to create the PR:
 
 ```
 op: create PR
@@ -668,7 +668,7 @@ the PR adds only the merge commits. Present the PR URL and wait for the human to
 
 **Attribute every finding to the FP diff before rating it.** A reviewer rating the whole
 file blames the forward-port for code it never touched. Before rating any finding, confirm the
-line is actually in the forward-port delta. Delegate to git-surveyor: three-dot diff
+line is actually in the forward-port delta. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) for a three-dot diff
 (`origin/<target-branch>...fp/<slug> -- <file>`, only what the FP added to `<file>`).
 
 A finding on a line NOT in this diff is pre-existing - note it separately, do not block the PR on
@@ -676,7 +676,7 @@ it (flag it, do not gate the forward-port on it).
 
 **Per finding, apply C3 (fix old version first).** Check whether the same defect exists at the source
 series. If it does, it is a **pre-existing source bug** (inherited - forwarded faithfully, not introduced
-by this port): route the fix UPSTREAM via a source-series issue (delegate to github-operator when a source
+by this port): route the fix UPSTREAM via a source-series issue (invoke git-ops when a source
 remote resolves via `git remote get-url`, else record it in `merge-log.md` + the Continuation Contract);
 do NOT patch it inside the FP. Record `<sha> | C3 | source issue <ref|DEFERRED> | <evidence>` in
 `merge-log.md` and carry it faithfully forward. EXCEPTION: a serious security/safety bug is fixed on the
@@ -699,14 +699,14 @@ target. Mark such findings out-of-scope for this forward-port.
 
 ## Cleanup (after human merge)
 
-Delegate to git-operator: remove integration worktree and delete the integration branch.
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to remove the integration worktree and delete the integration branch.
 
 ```bash
-# Delegate to git-operator:
+# Invoke git-ops:
 #   op: worktree remove <path>/fp-integration
 #   confirmed: yes - forward-port is merged
 git worktree list          # confirm no dangling fp/<slug>-* child worktrees
-# Delegate to git-operator:
+# Invoke git-ops:
 #   op: branch delete fp/<slug>
 #   confirmed: yes - forward-port is merged
 ```

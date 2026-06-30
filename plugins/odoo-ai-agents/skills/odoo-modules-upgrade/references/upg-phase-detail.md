@@ -456,7 +456,7 @@ After `ExitPlanMode` and user approval: write `plan.md` as the RECORD SSOT for P
 
 ### Integration worktree creation
 
-Delegate to git-operator (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
+Invoke the `git-toolkit:git-ops` skill (via the Skill tool; see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`) to add a worktree:
 - op: worktree add
 - branch: `upg/<src>-<tgt>-<cluster>`
 - worktree: `<path>/upg-integration`
@@ -464,15 +464,15 @@ Delegate to git-operator (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`
 
 ### Child worktree per module (WORK tier)
 
-For each module, delegate all mutations to git-operator (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
+For each module, delegate all mutations to git-toolkit via the `git-ops` skill (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
 
-1. Create child worktree - dispatch git-operator: op worktree add, branch
+1. Create child worktree - invoke `git-toolkit:git-ops` to add a worktree (branch
    `upg/<src>-<tgt>-<cluster>-<module>`, worktree `<path>/upg-<module>`,
-   base `upg/<src>-<tgt>-<cluster>`.
+   base `upg/<src>-<tgt>-<cluster>`).
 
 2. Dispatch coder to `<path>/upg-<module>`.
 
-3. Converge back - dispatch git-operator (single brief): merge branch
+3. Converge back - invoke `git-toolkit:git-ops` (single request): merge branch
    `upg/<src>-<tgt>-<cluster>-<module>` into `upg/<src>-<tgt>-<cluster>` no-ff in
    worktree `<path>/upg-integration`; then remove worktree `<path>/upg-<module>`;
    then delete branch `upg/<src>-<tgt>-<cluster>-<module>`.
@@ -512,10 +512,10 @@ If ACTION=DELETE-absorbed or ACTION=OBSOLETE:
   reference found: either rehome it to the absorbing core module/feature OR remove it.
   Document the rehoming decisions in the commit message or a `# upg: rehomed` comment.
 
-  After the sweep, report findings to the orchestrator. The orchestrator then dispatches
-  git-operator (in this child worktree) to remove the module directory, stage the
+  After the sweep, report findings to the orchestrator. The orchestrator then invokes
+  the `git-toolkit:git-ops` skill (in this child worktree) to remove the module directory, stage the
   deletion, and commit -s (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
-  Git-operator brief fields:
+  git-ops request fields:
     - op: rm -r module dir + stage deletion + commit -s
     - confirmed: yes - user confirmed DELETE <module> at P3 Plan Mode gate
     - commit_message (absorbed): `upg: delete <module> - absorbed by core <absorbing_core_feature> in <target_version> (no custom delta remains)`
@@ -701,28 +701,28 @@ per-module commit messages ARE the upgrade record. It does NOT forbid consolidat
 module's WIP/fixup commits into ONE clean commit per module. Per-module consolidation is ALLOWED
 and preferred when a module accumulated fixups during P4/P4b.
 
-Delegate the entire consolidation sequence to git-operator for each module in dependency order
+Delegate the entire consolidation sequence to git-toolkit via the `git-ops` skill for each module in dependency order
 (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
 - op: consolidate module commits in integration worktree
 - worktree: `<path>/upg-integration`
 - scope: `<module>/` subtree only (do NOT stage other modules)
 - base: the first commit SHA recorded by the orchestrator for this module (see note below)
   NOTE: The orchestrator MUST record each module's first commit SHA returned by the
-  git-operator converge step and pass it as `base` in this brief. Do not re-discover
+  git-ops converge step and pass it as `base` in this request. Do not re-discover
   the base from the log - when modules' commits interleave, log-based discovery is
   ambiguous. Fallback when no recorded SHA: `<work-base>`.
 - commit_message: `upg: <module> <src>-><tgt> - <ACTION> <summary>` (signed)
-- confirmed: yes - Plan Mode approved at P3 (consolidation listed in commit plan; backup ref created by git-operator)
-- Steps git-operator performs: safety backup ref at HEAD -> reset-mixed to base ->
+- confirmed: yes - Plan Mode approved at P3 (consolidation listed in commit plan; backup ref created by git-ops)
+- Steps git-ops performs: safety backup ref at HEAD -> reset-mixed to base ->
   stage `<module>/` only -> commit -s -> tree-identity verify (`git diff --quiet`
   backup vs HEAD; must be TREE-IDENTICAL) -> delete backup ref.
-- tree-identity verify is git-operator S6; on S6 failure git-operator returns BLOCKED
-  (gate_hit: S6 tree-identity mismatch). Recovery: dispatch git-operator to restore
+- tree-identity verify is the git-toolkit S6 step; on S6 failure git-ops returns BLOCKED
+  (gate_hit: S6 tree-identity mismatch). Recovery: invoke `git-toolkit:git-ops` to restore
   from the backup ref (hard-reset to backup-ref) and escalate BLOCKED per ETHOS #7
   listing the differing trees.
 
-Autosquash alternative: delegate to git-operator with autosquash enabled;
-git-operator handles the non-TTY environment natively.
+Autosquash alternative: invoke `git-toolkit:git-ops` with autosquash enabled;
+git-ops handles the non-TTY environment natively.
 Keep exactly ONE commit per module; never one commit per cluster.
 
 ---
@@ -764,10 +764,10 @@ Please review modules in dependency order (leaves first):
 <topo_order from graph.md>
 ```
 
-**Push and open PR - delegate in sequence (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):**
-1. Push branch - dispatch git-operator: op push `upg/<src>-<tgt>-<cluster>` to the fork remote
+**Push and open PR - invoke `git-toolkit:git-ops` in sequence (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):**
+1. Push branch - invoke `git-toolkit:git-ops` to push `upg/<src>-<tgt>-<cluster>` to the fork remote
    (resolve fork remote URL from `git remote get-url origin` or a dedicated fork remote).
-2. Open PR - dispatch github-operator: op create PR; upstream org/repo and base branch resolved
+2. Open PR - invoke `git-toolkit:git-ops` to create the PR: upstream org/repo and base branch resolved
    from `git remote get-url origin`; head `upg/<src>-<tgt>-<cluster>`; title
    `upg: <cluster> <src>-><tgt> - cluster upgrade`; body from the PR body template above.
 

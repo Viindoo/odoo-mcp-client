@@ -48,10 +48,10 @@ and stops for human confirm.
 | Diff two versions' APIs only | `odoo-version-diff` | detection only; upgrade calls it in recon |
 | Write fresh upgrade-safe code, no module to carry | `odoo-coding` | nothing to upgrade |
 
-> **Route in (not bare git-ops):** an Odoo module/cluster major-version upgrade routes HERE - this
-> skill wraps git-toolkit's generic `git-ops` front door with the Odoo upgrade pipeline
-> (core-absorption, dep-order adapt, install+test gate). Do NOT invoke `git-ops` directly for an
-> Odoo module upgrade.
+> **Route in (Odoo cluster upgrade lands HERE, not bare git-ops):** an Odoo module/cluster
+> major-version upgrade routes to this skill - it wraps git-toolkit's generic `git-ops` front door
+> with the Odoo upgrade pipeline (core-absorption, dep-order adapt, install+test gate). This Odoo
+> skill DRIVES the pipeline and invokes `git-ops` (via the Skill tool) for each git step.
 
 ## Invocation - free natural language
 
@@ -145,6 +145,11 @@ Per module in dep order (topo order from graph.md): dispatch 1x `odoo-diff-compa
 parallel. Modules at the SAME DAG depth (same wave) may be dispatched in parallel; a module
 is NOT dispatched until its in-cluster dependencies have finished P2. Dispatch concurrency
 follows `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` Mode B.
+When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched
+work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief,
+poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER
+from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When
+off, dispatch + collect as today.
 Comparator brief: "compare the module's nghiệp vụ / ý đồ / expected outcomes /
 acceptance criteria against target-version CORE (`<target>`). Classify each feature per
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`;
@@ -200,15 +205,15 @@ any branch, worktree, code write, or file deletion.
 
 **P4 - Adapt [per module, dep order, child worktrees].**
 Goal: make each module installable + working at the target series.
-Create the JOB-tier integration worktree: delegate to git-operator (op: worktree add,
-branch `upg/<src>-<tgt>-<cluster>`, worktree `<path>/upg-integration`, base `<work-base>`).
+Create the JOB-tier integration worktree: invoke the `git-toolkit:git-ops` skill (via the Skill
+tool) to add a worktree (branch `upg/<src>-<tgt>-<cluster>`, worktree `<path>/upg-integration`, base `<work-base>`).
 Per module in dep order: dispatch `odoo-coding`
 (via Skill tool) -> `odoo-coder` / `odoo-frontend-coder` (ADAPT tier per
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-triage-table.md`)
 in a child worktree off integration. When `odoo-frontend-coder` is dispatched, ported OWL/QWeb/SCSS is grounded against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.
 For DELETE-absorbed and OBSOLETE modules: dispatch `odoo-coder` to run the dangling-reference
 sweep first (grep repo for model names, XML IDs, group xmlids, env.ref targets), then
-delegate the directory removal, staging, and commit to git-operator in the child worktree
+invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the directory removal, staging, and commit in the child worktree
 (op: rm -r module dir + stage deletion + commit -s; confirmed: yes - user confirmed DELETE
 at P3 Plan Mode gate; commit message per § Git / PR conventions absorbed/obsolete-delete form);
 drop it from every depender's `depends` in their manifests.
@@ -220,7 +225,7 @@ manifest `version` (keep the existing short form); set `auto_install`/`applicati
 manifest-comment breadcrumb directs (NO auto-detect of "bridge").
 Converge each child worktree back to integration (serialized); remove child worktree.
 **Principal-checkout-lock: NEVER check out or switch the principal checkout yourself.**
-Materialize any needed branch by delegating a worktree add to git-operator.
+Materialize any needed branch by invoking the `git-toolkit:git-ops` skill to add a worktree.
 
 **P4b - Code-review loop [odoo-code-review -> odoo-code-reviewer; fix via odoo-coding; cap 3].**
 After P4 adapts the cluster into the integration worktree, dispatch `odoo-code-review` (via the
@@ -273,8 +278,8 @@ add a convention-compliance pass (manifest version-form + always-invisible XML c
 via `old_technical_name` - per `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`), a perf-lens
 pass (no per-record `mapped()` aggregate on a high-volume model - use grouped `_read_group`), and
 an i18n pass (P5.7 ran or was correctly auto-SKIPPED).
-Push branch and open PR: delegate push to git-operator, then delegate PR creation to
-github-operator - resolve upstream org/repo and base from `git remote get-url origin`.
+Push branch and open PR: invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push the
+branch, then to create the PR - resolve upstream org/repo and base from `git remote get-url origin`.
 No cluster-squash (per-module consolidation is allowed - see `references/upg-phase-detail.md` § Commit consolidation).
 Delegate a dep-order code review of the integration worktree before human merge (via the
 plugin's review capability, passing `worktree:<path>/upg-integration` and asking it to
@@ -283,13 +288,13 @@ review modules in dependency order). Wait for human merge.
 ## Hard rules
 
 1. **Principal-checkout-lock.** NEVER check out or switch the principal (main)
-   checkout off its branch. Materialize any needed branch by delegating a worktree add to git-operator.
+   checkout off its branch. Materialize any needed branch by invoking the `git-toolkit:git-ops` skill to add a worktree.
 2. **Plan Mode before any delete or code write.** P3 Plan Mode gate covers the irreversible
    DELETE decisions; no directory removal, no code changes, no worktree branch until P4 post-gate.
 3. **No cluster-squash; per-module consolidation allowed.** Never collapse the whole cluster
    into one opaque commit - the per-module commit messages are the upgrade record. Consolidating
    a single module's WIP/fixup commits into ONE clean commit per module IS allowed (capability:
-   `references/upg-phase-detail.md` § Commit consolidation - delegate to git-operator;
+   `references/upg-phase-detail.md` § Commit consolidation - invoke `git-toolkit:git-ops`;
    tree-identity verified via `git diff --quiet`). Commit message formats: § Git / PR conventions.
 4. **ONE PR per cluster.** All modules in one PR, reviewed in dep order.
 5. **Code-level only; migration scripts NEVER inline; BLOCKED on data-at-risk.** The workflow is
@@ -356,14 +361,14 @@ P5 per-wave records green in the ledger so re-runs do not re-install proven wave
 Git delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 
 - Branch: `upg/<src>-<tgt>-<cluster>` (e.g. `upg/16.0-17.0-l10n_vn`).
-- Integration worktree: delegate to git-operator (op: worktree add, branch
+- Integration worktree: invoke `git-toolkit:git-ops` to add a worktree (branch
   `upg/<src>-<tgt>-<cluster>`, worktree `<path>/upg-integration`, base `<work-base>`).
 - Commit messages (adapt): `upg: <module> <src>-><tgt> - <KEEP|REWRITE|MERGE|SPLIT> <summary>`.
 - Commit messages (absorbed delete): `upg: delete <module> - absorbed by core <core-module/feature> in <tgt> (no custom delta remains)`.
 - Commit messages (obsolete delete): `upg: delete <module> - obsolete at <tgt> (<one-line reason>)`.
-- Push to fork: delegate to git-operator (op: push branch `upg/<src>-<tgt>-<cluster>` to the fork
-  remote; resolve fork remote URL from `git remote get-url origin` or a dedicated fork remote).
-- PR: delegate to github-operator (op: create PR; resolve upstream org/repo and base from
+- Push to fork: invoke `git-toolkit:git-ops` to push branch `upg/<src>-<tgt>-<cluster>` to the fork
+  remote (resolve fork remote URL from `git remote get-url origin` or a dedicated fork remote).
+- PR: invoke `git-toolkit:git-ops` to create the PR (resolve upstream org/repo and base from
   `git remote get-url origin`; no cluster-squash - per-module consolidation allowed -
   see `references/upg-phase-detail.md` § Commit consolidation).
 

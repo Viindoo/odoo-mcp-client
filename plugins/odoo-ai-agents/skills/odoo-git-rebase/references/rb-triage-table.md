@@ -3,9 +3,9 @@
 
 # Git-Rebase Model Triage - full tables
 
-This table is a REFERENCE used BY the P1 git-surveyor subagent (Recon phase). That subagent
+This table is a REFERENCE used BY the P1 recon step (git-ops, read-only). That recon pass
 reads the stat for each commit (bounded `git show --stat`) per commit and emits `extract_tier`
-in `recon.md`. The orchestrator ONLY records the subagent's tier verdicts - it does NOT read
+in `recon.md`. The orchestrator ONLY records the recon tier verdicts - it does NOT read
 diffs or full commit content inline. Resolve a tier by walking the relevant table TOP-DOWN and stopping at the FIRST
 match. Record the chosen tier in `plan.md`; the tier is part of the approved plan, not a
 runtime improvisation.
@@ -47,7 +47,7 @@ Constraints:
 ## Table 2 - ADAPT tier (P8 conflict resolution)
 
 > **SHORT-CIRCUIT (check FIRST):**
-> If the commit's outcome is (a) -> git-operator skips that commit (--skip); no adapt, no test-forward.
+> If the commit's outcome is (a) -> git-ops skips that commit (--skip); no adapt, no test-forward.
 > ADAPT tier for outcome-(a) is recorded as "skip" in `plan.md`.
 >
 > If the commit's outcome is (d) -> no adapt code; test-forward only at haiku.

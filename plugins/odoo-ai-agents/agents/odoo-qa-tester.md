@@ -104,3 +104,7 @@ Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continu
 Set `produced: [<REPORT_PATH>]`. On any FAIL, set `status: NEEDS_NEXT` routing to `odoo-debug`
 (carry the bug report path so it gets root cause, then `odoo-coding` fixes); on a clean run set
 `status: DONE`. You emit the contract - you never dispatch the next step yourself.
+
+## Agent Team mode
+
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your acceptance report and captured evidence to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).

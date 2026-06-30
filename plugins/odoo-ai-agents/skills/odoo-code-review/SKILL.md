@@ -48,9 +48,9 @@ For a sibling git worktree (e.g. the wave/forward-port integration tree), the or
 
 **Pre-resolution for `TARGET=pr` (do before dispatching the scoper):**
 
-For `TARGET=pr:<N>`, the skill MUST resolve the PR to an isolated worktree via git-toolkit agents before the scoper is dispatched:
-1. Dispatch **github-operator** to fetch PR metadata and the changed file list. Collect `pr_meta = {number, title, head, base, repo}` and `pr_changed_files = [<path>, ...]`.
-2. Dispatch **git-operator** to create an isolated worktree (path `/tmp/pr-review-<N>`, S9 contract - never the main checkout) with the PR branch checked out. Receive back `review_root`.
+For `TARGET=pr:<N>`, the skill MUST resolve the PR to an isolated worktree via the `git-toolkit:git-ops` skill before the scoper is dispatched:
+1. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to fetch PR metadata and the changed file list. Collect `pr_meta = {number, title, head, base, repo}` and `pr_changed_files = [<path>, ...]`.
+2. Invoke `git-toolkit:git-ops` (via the Skill tool) to create an isolated worktree (path `/tmp/pr-review-<N>`, S9 contract - never the main checkout) with the PR branch checked out. Receive back `review_root`.
 
 Then pass `review_root`, `pr_meta`, and `pr_changed_files` into the scoper brief. The scoper no longer fetches PR metadata or creates the worktree itself.
 
@@ -86,6 +86,8 @@ Dispatch ONE `odoo-code-reviewer` agent (sonnet). It writes its report to `.odoo
 ### Phase A - Per-module fan-out (parallel sonnet)
 
 Dispatch one `odoo-code-reviewer` agent per module in `modules[]` from the scoper output, all in one batch. Fan-out is one reviewer per module; concurrency is bounded by the harness automatically - do NOT set a manual wave-cap. For the project-level concurrency policy and any overrides, see the SSOT at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`. Each agent is scoped to ONLY its module; it reads files at `review_root` (from scoper). Each agent writes `<module>.md` to `.odoo-ai/reviews/<slug>-<date>/` and returns a short summary + path.
+
+When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect as today.
 
 **When `module.needs_ui_review` is `true` or `candidate`**, add `UI_REVIEW=delegated` to that module's reviewer brief. Under that flag the reviewer still reviews everything NON-rendered - Python/ORM/security/perf/data AND the SOURCE correctness of the view layer (XPath targets resolve, view `arch` well-formed, no dead JS module import, SCSS compiles + reuses real tokens) - but does NOT grade rendered appearance, UX, accessibility, or runtime; that rendered-UI verdict is delegated to Phase A.5's `odoo-ui-reviewer`, so the two passes never overlap. The reviewer still writes `<module>.md` (and, for a `candidate`, resolves view-binding via OSM and records `ui_review_required` there).
 
@@ -146,7 +148,7 @@ All output under `.odoo-ai/reviews/<slug>-<YYYY-MM-DD>/` (gitignored). Slug come
 - `domain-<d>.md` - per-domain synthesis (large sets only, Phase B domain-partition); the final `_synthesis.md` is built from these
 - `index.md` - short map: modules reviewed, dependency closure, per-module severity counts, overall verdict + score, highest-severity findings linking to detail files
 
-Report is presented as an artifact in chat by default. Post to PR ONLY when user explicitly requests it (keyword `post`): delegate to **github-operator** (via Agent tool) with the PR number from `pr.number` in the scope result and the review body; github-operator posts via the PR comment API (flat) or PR review API (per-finding inline) - prefer inline for actionable findings.
+Report is presented as an artifact in chat by default. Post to PR ONLY when user explicitly requests it (keyword `post`): invoke the `git-toolkit:git-ops` skill (via the Skill tool) with the PR number from `pr.number` in the scope result and the review body; git-ops posts via the PR comment API (flat) or PR review API (per-finding inline) - prefer inline for actionable findings.
 
 Emit paths in the Continuation Contract `produced[]`; later steps reference these instead of re-reviewing.
 

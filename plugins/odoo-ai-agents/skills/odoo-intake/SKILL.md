@@ -104,7 +104,7 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 **When**: AFTER Phase 0 closes the intent gate, BEFORE the Proposed Plan. Recon turns a generic plan into a context-aware one.
 
 **What it does** - survey, never mutate:
-- Launch **≤1-2 READ-ONLY recon subagents** (`Explore`, or an anonymous recon agent) to map code/modules relevant to the stated intent; a read-only leaf skill (e.g. `odoo-feature-check`) is instead invoked via the Skill tool. These agents do not write files and do not spawn.
+- Launch **≤1-2 READ-ONLY recon subagents** (`Explore`, or an anonymous recon agent) to map code/modules relevant to the stated intent; a read-only leaf skill (e.g. `odoo-feature-check`) is instead invoked via the Skill tool. These agents do not write files and do not spawn. When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect as today.
 - Call read-only OSM tools as needed: `model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`.
 - When recon reads a document that IS the requirement SSOT (RFP / contract / spec / requirement list), extract it faithfully per `${CLAUDE_PLUGIN_ROOT}/snippets/ssot-extraction-contract.md` - verbatim/structured, never an interpretive summary that invents specifics.
 

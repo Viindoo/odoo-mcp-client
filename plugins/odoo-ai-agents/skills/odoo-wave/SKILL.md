@@ -22,9 +22,9 @@ model: opus
 Release-train conductor / git-executor. Consume-only and `user-invocable: false`: it owns the git
 topology and the integration loop for one coding wave-layer of an APPROVED plan, nothing more. It
 makes zero domain/code/model decisions - it INVOKES `odoo-coding` per WI (and `odoo-coding` owns
-agent count + model), delegates every git/github mutation to git-toolkit agents, and never touches
-the principal branch. It is dispatched by `run-harness` (or a peer orchestrator), never by a user
-prompt.
+agent count + model), delegates every git/github mutation to git-toolkit via the `git-ops` skill, and
+never touches the principal branch. It is dispatched by `run-harness` (or a peer orchestrator), never
+by a user prompt.
 
 ## Out of Scope
 
@@ -39,7 +39,7 @@ prompt.
 > These rules are load-bearing safety contracts. Deleting or softening any one of them
 > is a breaking change and must be caught by `tests/test_wave_hardrules.py`.
 
-1. **Principal-branch-lock** - Never run checkout, commit, switch, rebase, merge, pull, or reset on the principal branch (the branch active at dispatch); all such mutations are delegated to git-toolkit agents per the S9 invariant (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`). All WI branches and the integration branch live in separate worktrees. Bounded reads on the principal are allowed per the allowlist in git-delegation.md.
+1. **Principal-branch-lock** - Never run checkout, commit, switch, rebase, merge, pull, or reset on the principal branch (the branch active at dispatch); all such mutations are delegated to git-toolkit via the `git-ops` skill per the S9 invariant (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`). All WI branches and the integration branch live in separate worktrees. Bounded reads on the principal are allowed per the allowlist in git-delegation.md.
 
 2. **Git-authority + no model/count choice** - odoo-wave runs in the orchestrating context that holds git authority for this wave-layer. It does NOT choose agent or model: the coder fan-out count and the Mode-B OOM budget are owned by `odoo-coding` (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`, Mode B). The cherry-pick step is an orchestrator-side critical section serialized to one in-flight at a time (Phase 3), never pushed down to a worker.
 
@@ -100,11 +100,11 @@ plan. Contract: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md` and A
 
 ## Phase 1 - Integration branch + worktrees
 
-1. Delegate to **git-operator**: create the integration branch and worktree.
-   Brief: op=create-worktree, branch=wave/integration-<slug>, from=<principal>, worktree=<path>/integration.
+1. Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) to create the integration branch and worktree.
+   Request: op=create-worktree, branch=wave/integration-<slug>, from=<principal>, worktree=<path>/integration.
 
-2. Delegate to **git-operator**: create a worktree for each ROOT WI (no `depends_on`).
-   Brief: op=create-worktree, branch=wave/wi-<slug>-<id>, from=wave/integration-<slug>, worktree=<path>/wi-<id>.
+2. Invoke **`git-toolkit:git-ops`** (via the Skill tool) to create a worktree for each ROOT WI (no `depends_on`).
+   Request: op=create-worktree, branch=wave/wi-<slug>-<id>, from=wave/integration-<slug>, worktree=<path>/wi-<id>.
    - **Dependent WIs**: create **lazily** in Phase 2, only after their deps have been cherry-picked
      onto integration (so the worktree forks from an up-to-date integration that already contains the dep's code).
 
@@ -139,7 +139,12 @@ integrates. `odoo-coding` returns the commit SHA(s) on the WI branch.
 
 **CHP.** Any fresh subagent odoo-wave itself dispatches (a Phase-3 conflict resolver, a Phase-4
 review fix) follows `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`; Tier-C (fresh spawn
-per turn) is the always-correct baseline. [chp-tier-c-fallback]
+per turn) is the always-correct baseline. [chp-tier-c-fallback] When the CHP capability probe is
+positive (Agent Team mode on), TaskCreate one task per dispatched work-item, inject TASK_ID +
+REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet for
+status, and read each result from the teammate's SendMessage push (NEVER from the .output
+transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch +
+collect as today.
 
 **MANDATORY**: make a real Skill-tool invocation of `odoo-coding` per WI - do NOT narrate the
 invocation in prose instead of calling the tool.
@@ -187,7 +192,7 @@ git-mutation-safety contract is the SSOT `${CLAUDE_PLUGIN_ROOT}/skills/_shared/i
 
 For each WI in topology order:
 
-1. Delegate cherry-pick to **git-operator**: op=cherry-pick, scope=<sha>, worktree=<path>/integration.
+1. Invoke **`git-toolkit:git-ops`** (via the Skill tool) to cherry-pick: op=cherry-pick, scope=<sha>, worktree=<path>/integration.
    For semantic conflicts: see the conflict stateless-resume recipe in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 
 2. Run the verify command immediately after each cherry-pick. Record the checkpoint (WI id, resulting
@@ -205,9 +210,9 @@ For each WI in topology order:
    Also hand the OSM-First Grounding Contract (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`)
    when the conflict touches Odoo code.
 
-4. **After the resolver returns** (conflict markers removed): re-dispatch a FRESH **git-operator** with
-   op=cherry-pick-continue, worktree=<path>/integration, listing the resolved files. Cherry-pick state
-   persists on disk across cold-spawns - git-operator resumes exactly where it stopped.
+4. **After the resolver returns** (conflict markers removed): re-invoke **`git-toolkit:git-ops`** (a fresh
+   invocation) with op=cherry-pick-continue, worktree=<path>/integration, listing the resolved files. Cherry-pick state
+   persists on disk across cold-spawns - git-ops resumes exactly where it stopped.
 
 5. Record the cherry-pick SHA and verify result in the worklog / plan artifact.
 
@@ -227,7 +232,7 @@ Measure: `git diff <principal>...HEAD --shortstat` (changed lines) and WI count 
   **opus inline review** and note the downgrade.
 - **Otherwise** (common case): **opus inline review** in this context.
 
-Delegate the full diff to **git-surveyor** (scope=<principal>...HEAD) and review for:
+Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) to produce the full diff (scope=<principal>...HEAD) and review for:
 - Plan adherence, correctness, simplicity, self-containment, confidentiality.
 - **Coverage lens** (when any WI touches tests or adds behavior that should be tested): for each
   changed model/module, verify via `tests_covering(model='<model>', odoo_version='<version>')` that the
@@ -268,15 +273,15 @@ the changed set.
 
 ## Phase 5 - PR + Squash + Tree Identity -> STOP at the L2-squash-gate
 
-**5.1 - PR creation.** Delegate initial push to **git-operator** (push wave/integration-<slug> to
-origin), then delegate PR creation to **github-operator** (open PR against the principal branch). PR
+**5.1 - PR creation.** Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) to push
+wave/integration-<slug> to origin, then to create the PR (open PR against the principal branch). PR
 title follows the repo commit convention; PR body includes: summary of all WIs, verify command
 result, link to the plan / worklog.
 
-**5.2 - Squash + tree-identity (L2-squash-gate, terminal).** Delegate squash + force-push to
-**git-operator** with `op=squash-push` (full brief schema: `reference/wave-templates.md` §Squash
+**5.2 - Squash + tree-identity (L2-squash-gate, terminal).** Invoke **`git-toolkit:git-ops`** (via the
+Skill tool) for the squash + force-push with `op=squash-push` (full brief schema: `reference/wave-templates.md` §Squash
 Tree-Identity Recipe; git-toolkit owns the step enumeration - odoo-wave passes parameters only, all in
-ONE dispatch). The squash is proven byte-identical (Hard Rule 6 / git-safety-contract S6) and the
+ONE request). The squash is proven byte-identical (Hard Rule 6 / git-safety-contract S6) and the
 force-push is a human-confirm-gated destructive op (git-toolkit enforces the confirm-gate backstop;
 the wave node's human gate is presented by run-harness at L2).
 

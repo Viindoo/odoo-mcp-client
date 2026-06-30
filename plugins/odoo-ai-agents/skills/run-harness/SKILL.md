@@ -85,7 +85,16 @@ while RUN.status == "NEEDS_NEXT":
         - inline            → do the small synth step yourself
     # turn typically ends here for any subagent/agent dispatch; SubagentStop hook nudges resume
 
-    contract = read_continuation_contract(node)              # from inline output, or the subagent transcript
+    contract = read_continuation_contract(node)              # SPAWNER node (a skill invoked in the `main` context): read the
+                                                             # spawner's in-context AGGREGATE result inline - it ran in `main`,
+                                                             # not as a teammate, so there is no raw teammate push to read. LEAF
+                                                             # teammate dispatched directly + Agent Team mode (CHP probe
+                                                             # positive): the teammate PUSHES its Continuation Contract to `main`
+                                                             # via SendMessage and reports status via TaskGet - read the contract
+                                                             # from that push, NOT the transcript. Reading the `.output` subagent
+                                                             # transcript is the Tier-C fallback ONLY (team mode off). Never sit
+                                                             # idle on a content-less idle_notification - poll TaskGet / read the
+                                                             # push. Per snippets/agent-team-protocol.md.
     node.contract = contract
     node.produced = contract.produced
     node.status   = map(contract.status)                     # DONE | (FAILED→retry<3 else BLOCKED) | BLOCKED | NEEDS_CONTEXT
@@ -104,6 +113,19 @@ while RUN.status == "NEEDS_NEXT":
 finalize: RUN.completion = {status, evidence: flatten(all produced), summary}
 emit terminal report (DONE | BLOCKED | NEEDS_CONTEXT), one evidence pointer per claim
 ```
+
+When the CHP capability probe is positive (Agent Team mode on), run-harness `TaskCreate`s one task
+per DAG NODE it dispatches (title = node id) and tracks node status via `TaskList`/`TaskGet`.
+run-harness does NOT itself spawn named teammate agents - it dispatches each node via Skill-tool
+inline, a spawner skill (Skill tool), or workflow-chaining. When the node is a spawner skill (e.g.
+odoo-coding), THAT skill runs in the same `main` context and is the team lead for its OWN teammates:
+it injects their briefs (TASK_ID + REPLY_TO: main + NOTIFY) and consumes their SendMessage pushes
+one frame down; run-harness then reads the spawner's in-context aggregate result for the node and
+does NOT create or track the spawner's teammate tasks (single main context - no double-tracking, no
+second task board). When run-harness dispatches a LEAF teammate directly, it injects that
+teammate's brief and reads the result from the teammate's SendMessage push (NEVER the `.output`
+transcript). Per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch +
+collect as today.
 
 ## Gate-tier resolution
 

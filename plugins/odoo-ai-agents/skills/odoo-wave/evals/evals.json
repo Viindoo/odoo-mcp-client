@@ -80,7 +80,7 @@
       "category": "conflict-resolver-path",
       "prompt": "Context: WI-A and WI-B both unexpectedly modified __init__.py (missed by the plan). Cherry-pick of WI-B fails with a merge conflict.",
       "expected_routed_to": "odoo-wave",
-      "expected_behavior": "Phase 3: odoo-wave dispatches a brief Sonnet resolver subagent (worker-brief.md) with the conflicting diff and both WI briefs. The resolver edits the files (markers removed) and returns; odoo-wave re-dispatches a fresh git-operator to run cherry-pick --continue, then re-runs verify and checkpoints.",
+      "expected_behavior": "Phase 3: odoo-wave dispatches a brief Sonnet resolver subagent (worker-brief.md) with the conflicting diff and both WI briefs. The resolver edits the files (markers removed) and returns; odoo-wave invokes the git-toolkit:git-ops skill to run cherry-pick --continue, then re-runs verify and checkpoints.",
       "must_not": "Let the resolver run any git op (stage/commit/cherry-pick continue), silently skip the conflict, or skip re-running verify after resolution.",
       "tags": ["behavioral", "conflict-resolver", "cherry-pick-fail"]
     }

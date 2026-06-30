@@ -60,7 +60,7 @@ The result must be the same: `installable:False` with breadcrumb comments so
 `odoo-modules-upgrade` reads them at Y+1 upgrade time.
 
 Recognition: determine the target module's `installable` at the target clean-tip before merging
-(delegate the read to `git-surveyor`, or capture it during P0/scope); if clean-tip =
+(invoke the `git-toolkit:git-ops` skill for the read, or capture it during P0/scope); if clean-tip =
 `installable:False` and the merged manifest shows `installable:True`, the reset is required.
 Do NOT diff git history to decide - the clean-tip state is the unambiguous signal.
 

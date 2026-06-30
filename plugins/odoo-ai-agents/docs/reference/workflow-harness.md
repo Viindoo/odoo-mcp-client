@@ -718,6 +718,15 @@ without error. SSOT for all probe conditions, fallback rules, and async semantic
 The `handoff` field in `generator/skill_tool_deps.json` records the preferred tier per skill
 (`send-message | fork | fresh`) and is surfaced as a column in `docs/reference/ORCHESTRATION-MAP.md`.
 
+**Agent Team mode (send-message tier).** When the capability probe is positive (Tier A available),
+the `send-message` tier now carries two extra obligations on top of resume-to-cut-cold-start: a
+teammate-side completion-report obligation (each teammate PUSHES its result/Continuation Contract
+to the lead via `SendMessage` to `main`, rather than the lead scraping it from the `.output`
+transcript) and a lead-side task board (the lead TaskCreates one task per dispatched work-item,
+injects `TASK_ID` + `REPLY_TO: main` + `NOTIFY: <dependent names>` into each teammate brief, and
+polls `TaskList`/`TaskGet` for live status). The board carries low-context status; the push carries
+result content. SSOT for both halves: `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`.
+
 ### Model-tier assignment
 
 | Tier | When to use |
@@ -779,7 +788,7 @@ skill, not a `team_pattern` inside the declarative workflow system.
 
 | Axis | workflow-chaining (dispatched-specialist) | odoo-wave skill (orchestrating context) |
 |------|------------------------------------------|-------------------------------------|
-| Git authority | None - runner does NL-dispatch only; no git ops | Delegates all git/github to git-toolkit: git-operator (worktree/cherry-pick/squash/force-with-lease), github-operator (PR), git-surveyor (review diff) |
+| Git authority | None - runner does NL-dispatch only; no git ops | Delegates all git/github via the git-toolkit:git-ops skill (git-ops resolves to git-operator/git-surveyor/github-operator/git-pipeline-lead - worktree/cherry-pick/squash/force-with-lease, PR, review diff) |
 | odoo-code-review legality | Cannot call odoo-code-review (self-spawn only legal from the orchestrating context) | Calls odoo-code-review inline from main context - the only legal call site |
 | Per-WI work | n/a | INVOKES `odoo-coding` per WI via the Skill tool from the orchestrating context (legal - the spawner ban is leaf-only); odoo-coding owns count+model |
 | State machine | Declarative phases in `.workflow.yaml`; runner executes them | Imperative phases encoded in the skill body; git refs/worktrees ARE the state |
@@ -795,11 +804,11 @@ and must not be revisited without updating this section.
 | Phase | Action | Actor |
 |-------|--------|-------|
 | 0 - Safety verify (consume) | Consume the plan's WI list + module-DAG + topology; run the disjoint file-ownership safety audit; plan-staleness check. No plan-gate (approval is upstream at the driver L2 gate) | odoo-wave (orchestrating context) |
-| 1 - Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration (dependents lazily) | git-operator via odoo-wave |
+| 1 - Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration (dependents lazily) | git-toolkit:git-ops skill via odoo-wave |
 | 2 - Per-WI: INVOKE odoo-coding | Per WI, sequentially INVOKE `odoo-coding` via the Skill tool (owns count+model); odoo-coding authors+commits in the provided worktree and returns SHA(s) | odoo-wave (Skill tool) -> odoo-coding |
-| 3 - Cherry-pick + resolver (saga) | Cherry-pick A -> B -> C onto integration (serialized, verify + checkpoint after each); Sonnet resolver on conflict; saga rollback on unrecoverable failure | git-operator via odoo-wave |
+| 3 - Cherry-pick + resolver (saga) | Cherry-pick A -> B -> C onto integration (serialized, verify + checkpoint after each); Sonnet resolver on conflict; saga rollback on unrecoverable failure | git-toolkit:git-ops skill via odoo-wave |
 | 4 - End-of-wave review | Inline cross-cutting review (4.1) over the INTEGRATED tree, then `odoo-code-review` inline from main context (4.2) | odoo-wave (orchestrating context) |
-| 5 - PR + squash + tree-identity -> STOP | Create 1 PR (integration -> principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup; STOP at the L2-squash-gate | github-operator (PR) + git-operator (squash/verify) via odoo-wave |
+| 5 - PR + squash + tree-identity -> STOP | Create 1 PR (integration -> principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup; STOP at the L2-squash-gate | git-toolkit:git-ops skill via odoo-wave (PR + squash/verify) |
 | (merge) | Merge + post-merge cleanup at the L2-merge-gate | `odoo-pr-monitoring` (NOT odoo-wave) |
 
 ### 7.4 The spawner ban is leaf-only - odoo-wave legally invokes odoo-coding
@@ -964,16 +973,21 @@ references a driver-required workflow directly.
 }
 ```
 
-**Worklog vs. blackboard (two different things, no overlap).** The blackboard above is the
-driver-only *state machine* (only `run-harness` writes it). The **worklog** is an append-only
-*decision journal* every participant (architect, test-author, coder, reviewer, debugger, odoo-wave WI
-worker) reads before starting and writes when finishing, SSOT
+**Three coordination surfaces (no overlap).** A run coordinates over three distinct surfaces,
+each answering a different question. (1) The **blackboard** above is the driver-only *DAG state
+machine* (only `run-harness` writes it). (2) The **worklog** is an append-only *decision journal*
+every participant (architect, test-author, coder, reviewer, debugger, odoo-wave WI worker) reads
+before starting and writes when finishing, SSOT
 `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`. It answers "*why* did the prior phase do
 this" so a later phase builds on intent instead of re-deriving it. It is **one file per writer**
 under `.odoo-ai/worklog/<run-or-slug>/<NNN>-<agent>.md` (per-writer files make parallel appends
 race-free; the single blackboard only the driver touches). When a run is active the driver records
 the worklog dir so all nodes resolve the same path; standalone, a skill derives it from its own
-slug. Blackboard = machine state, worklog = decision rationale; neither duplicates the other.
+slug. (3) The **native task board** (`TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet`) is the
+*live teammate-status* surface, present only in Agent Team mode (CHP Tier A): the lead opens one
+task per dispatched work-item and polls it for low-context progress instead of reading each
+teammate's `.output` transcript, SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`.
+The three never duplicate: **task board = live status, worklog = why, blackboard = DAG.**
 
 **Context-Handoff Protocol (CHP) - 3-tier agent dispatch.** Orchestrator skills that dispatch
 worker agents (odoo-coding, odoo-code-review, odoo-wave, odoo-forward-port, odoo-deep-survey,

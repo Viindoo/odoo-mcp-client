@@ -259,3 +259,7 @@ Symptom: `AccessError: You are not allowed to access 'Sale Order' records.`
 ## Continuation Contract
 
 When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
+
+## Agent Team mode
+
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your diagnosis output and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).
