@@ -1,5 +1,6 @@
 ---
 name: odoo-frontend-design
+argument-hint: "[UI/screen to design]"
 description: >
   Design-quality expertise for ANY Odoo UI/UX work - the senior-frontend-designer brain other
   skills and agents LOAD to make Odoo interfaces look and feel RIGHT. Knowledge-only: teaches

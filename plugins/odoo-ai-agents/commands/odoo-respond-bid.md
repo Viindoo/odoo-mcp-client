@@ -1,5 +1,6 @@
 ---
 name: odoo-respond-bid
+argument-hint: "[customer-label]"
 description: |
   Generate a complete Odoo bid response package from raw prospect input. Chains discovery synthesis → gap analysis → capability proof → objection pre-empt → proposal draft. Invoke when responding to an RFP, proposal request, or post-discovery synthesis needs
 ---

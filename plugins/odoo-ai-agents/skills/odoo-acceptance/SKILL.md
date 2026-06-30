@@ -1,5 +1,6 @@
 ---
 name: odoo-acceptance
+argument-hint: "[module/cluster to accept]"
 description: >
   Run end-to-end Odoo acceptance on a change AND its blast-radius: map the affected cluster, plan an
   INDEPENDENT oracle, then EXECUTE it on a real running instance/UI and adjudicate PASS/FAIL with

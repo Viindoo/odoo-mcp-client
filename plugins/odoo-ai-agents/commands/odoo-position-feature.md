@@ -1,5 +1,6 @@
 ---
 name: odoo-position-feature
+argument-hint: "[feature] [competitor/segment]"
 description: |
   Generate positioning copy for a specific Odoo feature or capability. Chains feature-check
   (does it exist?) -> addon-diff (which edition?) -> competitive-brief (vs competitor, optional)

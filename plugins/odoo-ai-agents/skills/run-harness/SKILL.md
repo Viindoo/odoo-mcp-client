@@ -1,5 +1,6 @@
 ---
 name: run-harness
+argument-hint: "[run-id]"
 user-invocable: false
 description: >
   Drive-to-done loop. Walks the RUN-DAG in `.odoo-ai/run-<id>.json` that intake's

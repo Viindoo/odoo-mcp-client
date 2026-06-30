@@ -1,5 +1,6 @@
 ---
 name: odoo-risk-overview
+argument-hint: "[module/upgrade scope]"
 description: >
   Produce an executive-level Odoo risk dashboard - quantifying upgrade risk (deprecated API
   counts), change blast radius (how widely a field/method is depended on), and dependency

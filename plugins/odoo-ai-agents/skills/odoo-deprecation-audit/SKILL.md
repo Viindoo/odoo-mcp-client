@@ -1,5 +1,6 @@
 ---
 name: odoo-deprecation-audit
+argument-hint: "[module] [target-series]"
 description: >
   Systematic audit of deprecated Odoo API usage in a codebase before a version upgrade -
   finds `@api.multi`, `osv.osv`, `_columns`, `web.Widget`, `fields.Html` and other

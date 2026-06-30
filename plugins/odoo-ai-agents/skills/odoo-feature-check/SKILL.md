@@ -1,5 +1,6 @@
 ---
 name: odoo-feature-check
+argument-hint: "[feature/requirement]"
 description: >
   Answer "does standard Odoo already do this?" with evidence - module name, edition (CE / EE),
   key fields/models, and a one-line verdict ready for a client email. Version-aware: uses MCP

@@ -1,5 +1,6 @@
 ---
 name: odoo-instance
+argument-hint: "[create|drop|init|update|test] [version|db]"
 description: >-
   Build, drop, or drive a live Odoo instance for any series from v8 onward - create a database
   through Odoo, init or update modules, run tests, ensure an instance is up, or report status.

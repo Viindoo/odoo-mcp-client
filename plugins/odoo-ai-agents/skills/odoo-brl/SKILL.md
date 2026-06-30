@@ -1,5 +1,6 @@
 ---
 name: odoo-brl
+argument-hint: "[requirements list / RFP]"
 description: >
   Process a business requirement list (BRL) of any size - tens to thousands of items -
   into a classified, costed, dependency-ordered implementation plan. For each requirement:

@@ -1,5 +1,6 @@
 ---
 name: odoo-customer-health
+argument-hint: "[customer/account]"
 description: >
   Assess an existing Odoo customer's health for customer-success and retention decisions. Given
   a customer profile (industry, modules in use, go-live date, team size) plus optional usage

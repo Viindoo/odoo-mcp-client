@@ -1,5 +1,6 @@
 ---
 name: odoo-git-rebase
+argument-hint: "[branch] [onto base]"
 description: >-
   Orchestrates a same-series Odoo git rebase - replaying a feature or fix branch onto an
   updated base of the SAME Odoo major version - forwarding INTENT, not diff text. Pipeline:

@@ -1,5 +1,6 @@
 ---
 name: git-ops
+argument-hint: "[git/github task]"
 description: >-
   Universal front door for ALL git and GitHub work, run in a delegated context. Fires on:
   status/log/diff/blame/bisect, branch/tag/worktree, fetch/pull/merge/cherry-pick, rebase,

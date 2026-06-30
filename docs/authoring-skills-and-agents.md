@@ -60,6 +60,13 @@ disclosure).
   the routing/disambiguation clauses.
 - The description must **not end in `.`, `!`, or `?`** (`tests/test_skill_format.py`,
   marketplace style).
+- `argument-hint` is **required here** (repo convention, `tests/test_skill_format.py`) - a short,
+  **double-quoted** string shown in `/skill-name` autocomplete to advertise the arguments a user
+  passes, e.g. `argument-hint: "[PR#|local|worktree:<path>]"`. Derive it from the skill's real
+  input contract (read the `description` triggers and any `$ARGUMENTS` use in the body); use the
+  `[token]` form, a single space between multiple args, `|` for alternatives, ASCII only. **Always
+  double-quote the value** - an unquoted `argument-hint: [foo]` parses as a YAML *list* at runtime,
+  not a string. The same field applies to commands (`plugins/*/commands/*.md`).
 
 **Required body sections** (`tests/test_skill_format.py` asserts all three exist):
 
@@ -201,7 +208,8 @@ fields.
 
 1. Scaffold/iterate with the `skill-creator` plugin / `skill-development` skill.
 2. `name` = directory name; `description` trigger-rich and **<= 1024 chars**, no trailing
-   `.`/`!`/`?`, with `route to ...` / `DO NOT trigger` clauses.
+   `.`/`!`/`?`, with `route to ...` / `DO NOT trigger` clauses; `argument-hint` = a double-quoted
+   `[token]` hint of the args (e.g. `"[module] [target-series]"`).
 3. Body has `## Persona`, `## Out of Scope`, and `## Standalone-first fallback`. Keep `SKILL.md`
    concise; push detail to `references/`.
 4. Tool surface: edit `generator/skill_tool_deps.json` (+ `server-surface.json`), then `make gen`.

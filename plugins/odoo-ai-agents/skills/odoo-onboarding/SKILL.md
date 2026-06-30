@@ -1,5 +1,6 @@
 ---
 name: odoo-onboarding
+argument-hint: "[project path]"
 description: |
   Bootstrap Odoo project context on first use - probe the Odoo environment (version, custom modules, active profile, naming conventions) and persist findings to `.odoo-ai/context.md` at project root (gitignored), so every later `odoo-*` skill reads it as Round -1 and skips setup.
 

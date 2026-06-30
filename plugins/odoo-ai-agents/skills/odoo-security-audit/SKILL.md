@@ -1,5 +1,6 @@
 ---
 name: odoo-security-audit
+argument-hint: "[module/path scope]"
 description: >
   Audit Odoo Python, JavaScript, XML, and QWeb code for security vulnerabilities - severity-graded
   findings report with file/line, exploit path, and concrete fix. Reporting only - does NOT write

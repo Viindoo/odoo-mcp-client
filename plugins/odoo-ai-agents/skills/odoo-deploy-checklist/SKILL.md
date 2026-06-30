@@ -1,5 +1,6 @@
 ---
 name: odoo-deploy-checklist
+argument-hint: "[module/release scope]"
 description: >
   Generate a pre-deployment safety checklist for an Odoo upgrade or new-module go-live -
   auto-fills 8 domains (pre-flight, backup, data migration, downtime, deploy mechanics,

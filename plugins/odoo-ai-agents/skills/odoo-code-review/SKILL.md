@@ -1,5 +1,6 @@
 ---
 name: odoo-code-review
+argument-hint: "[PR#|local|worktree:<path>]"
 description: >
   Review Odoo code (Python, JavaScript, XML, OWL) for bugs, convention violations, security,
   and performance - severity-graded findings, suggested fixes, corrected version. Dispatches

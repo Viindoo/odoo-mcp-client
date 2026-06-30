@@ -1,5 +1,6 @@
 ---
 name: odoo-deep-survey
+argument-hint: "[scope/codebase path]"
 description: >-
   Multi-phase opt-in deep survey of an Odoo codebase or scope for the EXECUTE-AGENT
   consumer: a broad haiku sweep, then narrow sonnet dives, then an optional opus pass,

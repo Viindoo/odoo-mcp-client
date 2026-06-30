@@ -1,5 +1,6 @@
 ---
 name: odoo-feature-highlights
+argument-hint: "[version/distribution]"
 description: >
   Generate marketing-friendly feature highlights for a specific Odoo version or distribution
   - for sales decks, blog posts, announcements, or release notes. Output: business-language

@@ -1,5 +1,6 @@
 ---
 name: odoo-override-finding
+argument-hint: "[model.method to hook]"
 description: >
   Find the correct override point and pattern to extend Odoo behavior safely - exact method
   name, module/file location, ready-to-apply `super()` template, existing override chain, and

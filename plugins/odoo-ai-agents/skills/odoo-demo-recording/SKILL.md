@@ -1,5 +1,6 @@
 ---
 name: odoo-demo-recording
+argument-hint: "[flow/feature to record]"
 description: >
   Record a screen-capture video (MP4/GIF) of one Odoo workflow for a demo, sales walkthrough,
   or marketing clip - driving the live instance through a scripted click path and saving the

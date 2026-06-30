@@ -1,5 +1,6 @@
 ---
 name: odoo-support-triage
+argument-hint: "[ticket / issue]"
 description: >
   Parse an Odoo support ticket and produce a structured triage: (1) classify it as
   config / bug / feature-request / training, (2) generate a root-cause hint from runtime

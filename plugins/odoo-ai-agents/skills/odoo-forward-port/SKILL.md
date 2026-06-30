@@ -1,5 +1,6 @@
 ---
 name: odoo-forward-port
+argument-hint: "[from-series] [to-series] [module/range]"
 description: >-
   This skill orchestrates a continuous or one-shot Odoo forward-port - porting fixes
   and features from a lower-series source repo or branch up to a higher-series target -

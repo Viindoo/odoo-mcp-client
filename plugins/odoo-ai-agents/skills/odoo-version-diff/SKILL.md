@@ -1,5 +1,6 @@
 ---
 name: odoo-version-diff
+argument-hint: "[from-version] [to-version] [model/api]"
 description: >
   Version-aware diff of API + feature changes between two Odoo versions, split into a
   developer track (added/removed/deprecated/changed signatures + migration notes) and a

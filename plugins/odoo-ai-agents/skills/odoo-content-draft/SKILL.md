@@ -1,5 +1,6 @@
 ---
 name: odoo-content-draft
+argument-hint: "[content topic / asset type]"
 description: >
   Draft ready-to-publish marketing content for Odoo or your distribution - LinkedIn post,
   blog article, YouTube script, email sequence, landing page copy, or social caption.

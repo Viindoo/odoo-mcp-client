@@ -1,5 +1,6 @@
 ---
 name: odoo-solution-design
+argument-hint: "[feature/requirement to design]"
 description: >
   Design the technical solution for a non-trivial Odoo change BEFORE code is written - the
   analysis-and-design step between requirement analysis (odoo-brl / odoo-gap-analysis) and code

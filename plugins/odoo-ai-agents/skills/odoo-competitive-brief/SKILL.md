@@ -1,5 +1,6 @@
 ---
 name: odoo-competitive-brief
+argument-hint: "[competitor name]"
 description: >
   Produce a competitive intelligence brief for a Strategist / CEO - board-ready capability
   matrix vs Odoo, GTM moves (user-provided only), threat assessment, and recommended response.

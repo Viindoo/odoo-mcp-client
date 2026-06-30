@@ -1,5 +1,6 @@
 ---
 name: odoo-discovery-summary
+argument-hint: "[discovery notes/source]"
 description: >
   Transform raw discovery meeting notes (pasted or free-form) into a structured customer
   profile for proposal drafting - industry, current ERP, verbatim pain quotes, budget signal,

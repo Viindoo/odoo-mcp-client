@@ -1,5 +1,6 @@
 ---
 name: odoo-deal-followup
+argument-hint: "[deal/customer]"
 description: >
   Analyze deal health for Odoo or a custom distribution and generate next actions for a Sales
   AE or small-team founder running go-to-market solo. Accepts deal context (label, last

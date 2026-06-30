@@ -1,5 +1,6 @@
 ---
 name: odoo-capability-proof
+argument-hint: "[capability/feature to prove]"
 description: >
   Assemble an evidence-backed proof package that Odoo can fulfill a specific client
   requirement - citing real module names, model fields, and code snippets from the indexed

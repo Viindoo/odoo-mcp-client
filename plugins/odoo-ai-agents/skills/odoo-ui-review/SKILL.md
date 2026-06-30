@@ -1,5 +1,6 @@
 ---
 name: odoo-ui-review
+argument-hint: "[screen/view to review]"
 description: >
   Review a rendered Odoo UI in a live browser across six lenses - aesthetics (layout, spacing,
   brand), functional correctness (buttons, forms, nav), runtime stability (no console errors),

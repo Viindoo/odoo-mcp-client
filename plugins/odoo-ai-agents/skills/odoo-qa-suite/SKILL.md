@@ -1,5 +1,6 @@
 ---
 name: odoo-qa-suite
+argument-hint: "[module/cluster to test]"
 description: >
   Produce a static release QA package for an Odoo feature or module in one pass: generate
   a structured release TEST-PLAN (test-case table, non-executing), gate on a pre-deploy
