@@ -43,6 +43,7 @@ When invoked, gather the following from the caller's request:
 | `languages` | csv locale codes (e.g. `vi_VN,fr_FR`); required for `load-language`; optional for `create` / `init` to activate locales in the same run |
 | `skip_auto_install` | `true` / `false` (default `false`; forced `true` when `context=doc`) - adds `--skip-auto-install` so `auto_install` modules do not install alongside the target |
 | `context` | `doc` / `default` (default `default`; `doc` auto-sets `demo=on` + `skip_auto_install=true` for a clean documentation instance) |
+| `mode_hint` | `path-incremental` / `default` (default `default`; `path-incremental` signals the agent to keep the EXCLUSIVE lease alive across a sequential delta-install loop on ONE DB - do not release between steps; set by `odoo-doc-planner` / `module-packaging` workflow for dependency-cluster doc; do not set manually unless acting as a doc-planner) |
 
 Anything the caller omits that is strictly required for the operation: ask ONE clarifying
 question covering all missing required parameters before dispatching.
@@ -75,6 +76,7 @@ HUMAN_GATE: instance_touching - L2 gate applies to all mutations
 LANGUAGES: <csv locales or 'none'>
 SKIP_AUTO_INSTALL: <true|false>
 CONTEXT: <doc|default>
+MODE_HINT: <path-incremental|default>
 ```
 
 **Relay the result:** After the agent finishes, relay its structured output block verbatim

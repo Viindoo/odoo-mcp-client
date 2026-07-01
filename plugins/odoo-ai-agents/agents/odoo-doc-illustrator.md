@@ -148,6 +148,8 @@ If OSM is unreachable, fall back to disk grep (`grep -rn "ir.ui.view" --include=
 
 ### Step 4 - Live install check + Auth
 
+**Path-incremental cluster mode (INSTANCE_HANDLE, D13.5).** When the brief carries `INSTANCE_HANDLE: <db>:<port>` (forwarded by `odoo-instance-ops` `MODE: path-incremental`), the instance is already provisioned, running, and contains the current module installed as a cumulative delta - the orchestrator owns the lease. In this mode: skip the live install gate and skip any self-provisioning step below; use the DB name and port from `INSTANCE_HANDLE` directly for all browser navigation and live Odoo MCP calls. Still run the documentation-clean precondition check (demo data present, locales active) and emit WARNING if not met, but do NOT route to `odoo-instance` to re-provision. After all artifact writes (Steps 5-7) and the worklog entry, emit the path-incremental completion block (Step 8) before the Continuation Contract - that is the signal for the orchestrator to verify+commit and install the next module delta. When `INSTANCE_HANDLE` is absent (standalone dispatch), behave exactly as today - the gate and auth below are unchanged.
+
 **Live install gate (prerequisite):** before any capture, confirm the target module is installed. Use `search_records` on model `ir.module.module` with domain `[['name','=','<module_name>'],['state','=','installed']]`. If the result is empty, stop immediately: `status: BLOCKED` - module `<module_name>` is not installed; route to `odoo-instance` (`operation: install-module`).
 
 **Documentation-clean precondition (verify, do not silently proceed):** for trustworthy docs the instance should be provisioned cleanly - module installed WITH demo data, every resolved locale loaded, and auto-install side modules skipped (so the UI shows only the target module's surface). Verify what is observable: demo data present (`search_records` for a known demo record), each resolved locale active (`res.lang` `active=True`), and - if scenarios need state - sample data exists. If a locale is missing, or demo data is absent when CAPTURE MODE is `scenarios`, or the UI shows menus clearly outside the target module, emit a WARNING and route to `odoo-instance` to re-provision with demo + the missing locales + auto-install skipped (resolve the exact flags via OSM `cli_help` for this series at runtime - never hardcode flag names). Do not block the whole run for this; degrade per the rules in the Standalone fallback section.
@@ -230,6 +232,8 @@ Never use a bare filename for images that live in `static/description/` - the RS
 **DOC LAYER: both:**
 Produce both index.html (appstore rules) and doc/index.rst (userguide rules) directly - no content-draft, no markers. Reuse the same screenshot files for both artifacts. DOC LAYER both + N languages = 2N files total (N html in `<asset-dir>/`, N rst in `doc/`).
 
+**Cross-reference hint (extends_in_scope, D13.7).** When the brief carries `extends_in_scope: [<base>, ...]` (non-empty list of in-scope base module names), insert one cross-reference line per base into the assembled docs. Apply to these outputs only: (a) `index.html` when TONE is `marketing` - add `<p class="text-muted small">Extends <code>&lt;base&gt;</code> - <a href="../../&lt;base&gt;/static/description/index.html">see its documentation</a>.</p>` immediately after the hero section, before the features grid; (b) `doc/index.rst` for any DOC SCOPE when DOC LAYER is `userguide` or `both` - add `.. note:: Extends ``<base>`` - see its documentation.` immediately after the top-level RST title. Use the relative path (`../../<base>/static/description/index.html` / `../../<base>/doc/index.rst`) only when the base module resolves to a sibling directory under the same addons path; if uncertain, write the prose form without a hyperlink. When `extends_in_scope` is absent or empty, add nothing.
+
 **MODE: cluster - compose RST or delegate:**
 If tone is technical-doc: write RST at `<doc_output_dir>/<slug>.rst` with `.. image:: <file>.png` directives and OSM-grounded captions.
 If tone is marketing (brief says so): delegate to odoo-content-draft with the OSM feature summary, the captured screenshot slugs list, and an explicit instruction to place a marker `[Image: <screen-slug>]` (using the EXACT slugs provided) at each illustration point. When prose is returned, resolve markers: match `[Image: <slug>]` to a file; if slug text does not match a filename exactly, normalize text to slug (lowercase, spaces to `-`) as fallback. Replace each marker with `.. image:: <screen-slug>.png` (RST) or `<img src="./<screen-slug>.png">` (HTML). If the returned prose is missing any expected marker, insert the image ref immediately after the heading of the feature it illustrates.
@@ -239,6 +243,25 @@ If tone is marketing (brief says so): delegate to odoo-content-draft with the OS
 Read `<module-abs>/__manifest__.py`. If `'images'` key is absent or does not include the primary screenshot path, add or extend it. Read the full manifest first (Read tool), then apply a targeted Edit that merges `'images': ['<doc_static_dir>/<primary-screenshot-filename>']` where `<doc_static_dir>` is the DETECTED asset dir and `<primary-screenshot-filename>` is the DETECTED primary screenshot filename (per the convention detection in Step 1 - do NOT hardcode `main_screenshot.png`; use the actual filename of the primary screenshot captured). Do NOT rewrite the manifest from scratch.
 
 **App-Store store-keys audit (TONE: marketing).** When assembling a marketing landing, also audit the manifest store keys against `references/app-store-template.md` § Manifest Store Keys: `name`, `summary`, `description`, `images`, `license`, `application`, `category`, `maintainer`, `website`, `version`. Merge values that are derivable from the source (e.g. `images[0]` = the captured cover) with a read-before-edit targeted Edit. For commercial/instance-specific keys (`price`, `currency`, `support`, `live_test_url`) SUGGEST in the output what is missing - never fabricate a value; leave the key absent if the user has not supplied it. Report the store-readiness gaps (missing `icon.png`, missing cover, missing `license`, RST-only description) as a checklist; the icon itself is produced by `odoo-icon-design`, not here.
+
+### Step 8 - Path-incremental completion report (only when INSTANCE_HANDLE was used)
+
+After completing Steps 5-7 and appending your worklog entry, emit a structured completion block as the FINAL output before the Continuation Contract. Do NOT proceed if `INSTANCE_HANDLE` was absent - skip this step entirely for standalone dispatches.
+
+```
+### Path-incremental completion
+instance_handle: <INSTANCE_HANDLE value from brief>
+module: <module name>
+status: doc-complete
+artifacts:
+  - <abs path to index.html, if produced>
+  - <abs path to index_<locale>.html, for each additional locale produced>
+  - <abs path to doc/index.rst, if produced>
+  - <abs path to doc/index_<locale>.rst, for each additional locale produced>
+  - <abs path to each screenshot written to the module dir>
+```
+
+This block signals the `module-packaging` Phase-5 orchestrator (or the `odoo-doc-planner` per-instance loop) that doc + verify + commit may now proceed for this module. Do NOT drop or release the instance lease - the orchestrator owns the lease for the next delta install. Do NOT install the next module yourself.
 
 ---
 
@@ -292,6 +315,14 @@ naming: <pattern or "default"> | bilingual: <yes/no> | asset_dir: <path>
 | Scenario | Locale | Step | Result | Note |
 |----------|--------|------|--------|------|
 | <id> | <locale> | <NN> | captured / downgraded-to-screen / skipped | <reason / bound> |
+
+### Instance mode
+standalone | path-incremental (INSTANCE_HANDLE: <value>)
+
+### Cross-references (only when extends_in_scope non-empty)
+| Base module | HTML pointer | RST pointer |
+|-------------|-------------|-------------|
+| <base>      | added at hero section | added after title |
 
 ### Store-readiness (only when TONE: marketing)
 - icon.png: present/missing (-> odoo-icon-design) · cover image: present/missing · license: set/missing · description: HTML/RST-only

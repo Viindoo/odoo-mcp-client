@@ -25,7 +25,7 @@
 | `odoo-deprecation-audit` | leaf | fresh | backend | - | - |
 | `odoo-discovery-summary` | leaf | fresh | none | - | - |
 | `odoo-doc-feature-map` | spawner-agent | fresh | backend | - | odoo-feature-cataloger |
-| `odoo-doc-illustration` | spawner-agent | fresh | frontend | - | odoo-doc-illustrator, odoo-doc-scoper (pre-flight multi-module scope mapper - dispatched before illustrator when TARGET covers >1 module) |
+| `odoo-doc-illustration` | spawner-agent | fresh | frontend | - | odoo-doc-illustrator, odoo-doc-scoper (pre-flight multi-module scope mapper - dispatched before illustrator when TARGET covers >1 module), odoo-doc-planner (dependency-aware doc scheduler - dispatched after the scoper on the multi-module path to emit doc-plan.yaml; one whole-plan gate; then the branch-aware per-instance incremental loop) |
 | `odoo-doc-walkthrough` | spawner-agent | fresh | backend | - | odoo-doc-scenarist |
 | `odoo-feature-check` | leaf | fresh | none | - | - |
 | `odoo-feature-highlights` | leaf | fresh | none | - | - |
@@ -42,7 +42,7 @@
 | `odoo-onboarding` | leaf | fresh | none | - | - |
 | `odoo-override-finding` | leaf | fresh | backend | - | - |
 | `odoo-perf-audit` | leaf | fresh | backend | - | - |
-| `odoo-planning` | spawner-agent | fresh | none | - | odoo-planner, (dispatch: single planner by default; for very large scope fan out one planner per module cluster following concurrency-guard.md Mode B, then reconcile - handoff fresh) |
+| `odoo-planning` | spawner-agent | fresh | none | - | odoo-planner, odoo-doc-planner, (dispatch: single planner by default; for very large scope fan out one planner per module cluster following concurrency-guard.md Mode B, then reconcile - handoff fresh) |
 | `odoo-pr-monitoring` | spawner-agent | fresh | none | - | git-ops (read PR CI status + review state, MERGE at the L2-merge-gate, re-push of an approved D3 fix + post-merge cleanup of worktrees/branches/tag - via git-ops skill - git-toolkit), odoo-debug (D3: route ANY CI warning/error/fail for root-cause first, via Skill tool), odoo-coding (author the fix odoo-debug located, via Skill tool; the re-push stays human-gated X2) |
 | `odoo-pricing-proposal` | leaf | fresh | none | - | - |
 | `odoo-qa-suite` | orchestrator-nl | fresh | none | yes | - |

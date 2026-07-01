@@ -1,7 +1,7 @@
 ---
 name: odoo-doc-scoper
 description: |
-  Use this agent when the doc pipeline needs to resolve the documentation target, map it to Odoo modules, and produce a compact scope block before dispatching doc-illustrator. Typical triggers include the odoo-doc-illustration skill receiving a `TARGET=repo:<abs-path>` instruction for a multi-module scan, a `TARGET=worktree:<abs-path>` or `TARGET=local` instruction to scope the current branch diff, and any caller that needs a per-module `{name, path, languages, doc_layer, has_demo, version}` block before fan-out. The module-packaging workflow's inline scope phase does NOT dispatch this agent - it REUSES this agent's I/O contract as the SSOT for the D6 language resolver, doc_layer detection, version inference, and has_demo flag. This agent scopes only - it does NOT illustrate, write docs, review code, or spawn subagents
+  Use this agent when the doc pipeline needs to resolve the documentation target, map it to Odoo modules, and produce a compact scope block before dispatching doc-illustrator. Typical triggers include the odoo-doc-illustration skill receiving a `TARGET=repo:<abs-path>` instruction for a multi-module scan, a `TARGET=worktree:<abs-path>` or `TARGET=local` instruction to scope the current branch diff, and any caller that needs a per-module `{name, path, languages, doc_layer, has_demo, has_ondisk_doc, depends_in_scope, version}` block before fan-out. The module-packaging workflow's inline scope phase does NOT dispatch this agent - it REUSES this agent's I/O contract as the SSOT for the D6 language resolver, doc_layer detection, version inference, has_demo flag, has_ondisk_doc flag, and depends_in_scope edges. This agent scopes only - it does NOT illustrate, write docs, review code, cluster, order, or spawn subagents
 model: sonnet
 color: cyan
 ---
@@ -72,7 +72,9 @@ Each manifest-bearing directory found in Step 1 is a candidate module. Deduplica
 
 **Installable filter (all modes):** Read each `__manifest__.py` and check the `'installable'` key. If explicitly `False`, skip that module. If absent or `True`, include it.
 
-The result is `modules`: a list of `{name, abs_path}` objects.
+**`depends_in_scope` (computed after the full module list is known):** For each module, take its `__manifest__['depends']` list (already in memory from the installable check above) and intersect it with `{m.name for m in modules}`. Record the result as `depends_in_scope: [<module names>]` - the subset of direct manifest dependencies that are also present in scope. An empty list means no in-scope dependencies. Optionally verify the edges via OSM `module_inspect(name=..., method='dependencies', odoo_version=...)` when available (trust-but-verify; the disk manifest is the primary source). Do NOT cluster, order, or schedule - those are the planner's responsibilities.
+
+The result is `modules`: a list of `{name, abs_path, depends_in_scope}` objects.
 
 Set `fanout`:
 - `single` if `len(modules) == 1`
@@ -134,6 +136,12 @@ ls <module-abs>/demo/*.xml 2>/dev/null | head -1
 ```
 Also check `__manifest__.py` for a non-empty `'demo': [...]` key. If either is present: `has_demo = true`. Else: `has_demo = false`.
 
+**has_ondisk_doc** - check whether the module already has documentation written on disk (used by the planner for cross-run dedup):
+- `has_ondisk_doc = true` if `<module-abs>/static/description/index.html` exists OR `<module-abs>/doc/index.rst` exists.
+- `has_ondisk_doc = false` otherwise.
+
+Note: the `doc_layer` detection above already stat-checks these exact paths; reuse those results - do not re-stat.
+
 ---
 
 ## Step 6 - Generate slug and write _scope.md
@@ -146,7 +154,7 @@ Generate date: `YYYY-MM-DD` format.
 
 Create directory `.odoo-ai/documentation/<slug>-<date>/` under `doc_root` if it does not exist.
 
-Write `_scope.md` to that path with the full per-module attributes plus `target_kind`, `doc_root`, `base_ref`, `slug`, `fanout`, and any resolver-tier notes.
+Write `_scope.md` to that path with the full per-module attributes (including `depends_in_scope[]` and `has_ondisk_doc`) plus `target_kind`, `doc_root`, `base_ref`, `slug`, `fanout`, and any resolver-tier notes.
 
 ---
 
@@ -164,9 +172,9 @@ Return this exact structure to the orchestrator (SSOT for the orchestrator's par
 - fanout: <single|multi>
 
 ### Modules
-| name | abs_path | version | doc_layer | has_demo | languages |
-|------|----------|---------|-----------|----------|-----------|
-| <name> | <abs_path> | <version> | <appstore|userguide|both> | <true|false> | <comma-list> |
+| name | abs_path | version | doc_layer | has_demo | has_ondisk_doc | depends_in_scope | languages |
+|------|----------|---------|-----------|----------|----------------|------------------|-----------|
+| <name> | <abs_path> | <version> | <appstore|userguide|both> | <true|false> | <true|false> | <comma-list or empty> | <comma-list> |
 
 ### Language resolver notes
 (one line per module where tier > 1 or English was force-added or disk locales were merged)
