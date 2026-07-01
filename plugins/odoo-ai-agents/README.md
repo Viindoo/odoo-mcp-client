@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../../LICENSE)
 [![Backend: AGPL-3.0](https://img.shields.io/badge/backend-AGPL--3.0-blue.svg)](https://odoo-semantic.viindoo.com/)
 
-> The Odoo AI workforce toolkit: **53 skills + 22 agents + 8 commands**, grouped into **9 persona
+> The Odoo AI workforce toolkit: **53 skills + 23 agents + 8 commands**, grouped into **9 persona
 > buckets**, plus **13 declarative workflows** - covering engineering, coding, code review, visual
 > UI testing, instance provisioning, pre-sales, sales, marketing, strategy, onboarding, and cross-version forward-porting. Installing this plugin pulls
 > in the companion [`odoo-semantic-mcp`](../odoo-semantic-mcp/) plugin automatically (declared
@@ -44,7 +44,7 @@ code carry-over), merge-keep-SHA strategy, symbol-survival checking, pre-adapt d
 adaptive test forwarding, and verify-by-behavior per batch. It runs alongside coding, code
 review, and upgrade planning as a core engineering capability.
 
-> **Counts at a glance:** this plugin ships **53 skills + 22 agents + 8 commands**, grouped into
+> **Counts at a glance:** this plugin ships **53 skills + 23 agents + 8 commands**, grouped into
 > **9 persona buckets** for navigation, plus **13 declarative workflows** driven by
 > `workflows/*.workflow.yaml`. A further slash command, `/odoo-semantic-mcp:connect`, belongs to
 > the companion `odoo-semantic-mcp` plugin and is pulled in automatically when you install this one.
@@ -136,7 +136,7 @@ flowchart TD
     G -->|"Multi-step"| GA["odoo-gap-analysis<br/>(optional)"]
 
     GA --> SD["odoo-solution-design<br/>(odoo-solution-architect)"]
-    SD --> PLN["TIER 2 - odoo-planning -> odoo-planner<br/>EXECUTION PLAN: wave-batched<br/>module-DAG + skill wiring + lifecycle"]
+    SD --> PLN["TIER 2 - odoo-planning<br/>-> odoo-planner (code) + odoo-doc-planner (doc)<br/>1 gate: ONE lifecycle code -> QA -> doc -> PR -> merge"]
     PLN -->|"approve -> ExitPlanMode<br/>-> serialize the run file"| RUN["TIER 3 - run-harness<br/>(sequencer)"]
 
     SPEC -->|"CRITICAL/HIGH"| FIX["Fix loop:<br/>review -> coding -> review (max 3)"]
@@ -284,7 +284,7 @@ that up and chains the next step across workflows automatically.
 | `ui-debug-session` | Resumable multi-turn UI debug with browser evidence | `.odoo-ai/debug/` |
 | `content-production` | Multi-asset content from a positioning brief | `.odoo-ai/content/` |
 | `research-multiphase` | Flexible-phase research: broad survey -> deep dives -> synthesis, a different model tier per phase | `.odoo-ai/research/` |
-| `module-packaging` | End-to-end: scope -> feature-map/walkthrough/icon/copy fan-out (browser-free Mode B, parallel) -> provision -> capture+assemble (browser-serial) -> manifest-audit; output `.odoo-ai/packaging/` | `.odoo-ai/packaging/` |
+| `module-packaging` | End-to-end: scope -> doc-plan (branch-aware, 1 gate) -> feature-map/walkthrough/icon/copy fan-out (browser-free, parallel) -> provision-capture per instance-path (incremental, branch-aware) -> manifest-audit; output `.odoo-ai/packaging/` | `.odoo-ai/packaging/` |
 
 Commands come in two shapes: multi-phase orchestrators that chain several skills in a
 gated sequence, and single-step wrappers that run one skill and offer a save step.
@@ -535,17 +535,14 @@ PR review** (pre-merge). This is intentionally more rigorous than forward-port (
 
 ### Module-packaging workflow (`module-packaging`)
 
-End-to-end pipeline that packages a module for the Odoo Apps Store: scope inline, browser-free
-content prep in parallel, optional provision, then a single browser-serial assemble pass, and a
-final manifest audit. P1-P4 run fully in parallel; P3 (icon) writes directly to
-`static/description/` without waiting for P5; P5 (provision) also runs in parallel with P1-P4;
-P6 is the sole browser-serial sync point that waits for all prior phases; P7 audits inline; P8
-aggregates output under `.odoo-ai/packaging/`.
+End-to-end pipeline that packages a module for the Odoo Apps Store: scope inline, doc-plan (branch-aware, single whole-plan gate), browser-free content prep in parallel, then branch-aware per-instance-path provision-capture (incremental install -> doc -> commit), and a final manifest audit. P0.5 (`odoo-doc-planner`) clusters modules and allocates instances; after the gate, P1-P4 run fully in parallel; P3 (icon) writes directly to `static/description/` without waiting for P5; P5 (`provision-capture`, fused) runs per instance-path - parallel across paths, sequential within - incremental install leaf-first then doc then git commit; P6 audits inline; P7 aggregates output under `.odoo-ai/packaging/`.
 
 ```mermaid
 flowchart TD
     PKG_START(["module-packaging"])
     PKG_START --> PKG_P0["P0 - Scope inline<br/>resolve module, read manifest,<br/>detect existing assets"]
+
+    PKG_P0 --> PKG_P05["P0.5 - doc-plan (odoo-doc-planner)<br/>cluster modules, allocate instances branch-aware<br/>emit doc-plan.yaml + ONE whole-plan gate"]
 
     subgraph PKG_FANOUT["P1-P4: browser-free Mode B (parallel)"]
         PKG_P1["P1 - odoo-doc-feature-map<br/>(feature-catalog.jsonl)"]
@@ -554,37 +551,35 @@ flowchart TD
         PKG_P4["P4 - odoo-content-draft<br/>(Apps Store copy + description)"]
     end
 
-    PKG_P0 --> PKG_P1
-    PKG_P0 --> PKG_P2
-    PKG_P0 --> PKG_P3
-    PKG_P0 --> PKG_P4
-    PKG_P0 --> PKG_P5["P5 - odoo-instance<br/>(--with-demo + --load-language<br/>+ --skip-auto-install)<br/>parallel with P1-P4"]
+    PKG_P05 --> PKG_P1
+    PKG_P05 --> PKG_P2
+    PKG_P05 --> PKG_P3
+    PKG_P05 --> PKG_P4
 
-    PKG_P1 --> PKG_P6["P6 - Assemble BROWSER-SERIAL opus<br/>odoo-doc-illustration captures screenshots<br/>index.html + index per locale + doc/index.rst<br/>waits for P1/P2/P4/P5 - sole browser sync point"]
-    PKG_P2 --> PKG_P6
-    PKG_P4 --> PKG_P6
-    PKG_P5 --> PKG_P6
-    PKG_P3 -. "icon written directly; no P6 dep" .-> PKG_ICON["icon.png + icon.svg<br/>in static/description/"]
+    PKG_P1 --> PKG_P5["P5 - provision-capture (per instance-path)<br/>odoo-instance + odoo-doc-illustration + git-ops<br/>parallel ACROSS paths (<=W); sequential WITHIN<br/>incremental: install leaf-first -> doc -> commit"]
+    PKG_P2 --> PKG_P5
+    PKG_P4 --> PKG_P5
+    PKG_P3 -. "icon written directly; no P5 dep" .-> PKG_ICON["icon.png + icon.svg<br/>in static/description/"]
 
-    PKG_P6 --> PKG_P7["P7 - Manifest audit inline<br/>check __manifest__.py summary/website/<br/>category vs catalog; flag drift"]
+    PKG_P5 --> PKG_P6["P6 - Manifest audit inline<br/>check __manifest__.py summary/website/<br/>category vs catalog; flag drift"]
 
-    PKG_P7 --> PKG_P8["P8 - Aggregate<br/>.odoo-ai/packaging/ index<br/>asset manifest + diff summary"]
+    PKG_P6 --> PKG_P7["P7 - Aggregate<br/>.odoo-ai/packaging/ index<br/>asset manifest + diff summary"]
 
-    PKG_P8 --> PKG_DONE(["DONE - .odoo-ai/packaging/"])
+    PKG_P7 --> PKG_DONE(["DONE - .odoo-ai/packaging/"])
     PKG_ICON --> PKG_DONE
 ```
 
 | Phase | Description | Parallel? | Browser? |
 |-------|-------------|-----------|----------|
 | P0 Scope | Resolve module, read manifest, detect existing assets | - | - |
+| P0.5 doc-plan | `odoo-doc-planner` -> cluster modules, allocate instances branch-aware, emit doc-plan.yaml; ONE whole-plan gate | - | - |
 | P1 Feature-map | `odoo-doc-feature-map` -> feature-catalog.jsonl | Part of P1-P4 fanout | - |
 | P2 Walkthrough | `odoo-doc-walkthrough` -> happy-path walkthroughs | Part of P1-P4 fanout | optional |
 | P3 Icon | `odoo-icon-design` -> icon.png 256x256 + icon.svg, written directly to static/description/ | Part of P1-P4 fanout (independent) | - |
 | P4 Copy | `odoo-content-draft` -> Apps Store copy + description | Part of P1-P4 fanout | - |
-| P5 Provision | `odoo-instance` --with-demo + --load-language + --skip-auto-install | Parallel with P1-P4 | - |
-| P6 Assemble | `odoo-doc-illustration` (browser-serial, opus) - captures screenshots, assembles index.html + per-locale index + doc/index.rst; SOLE browser-serial sync point | Waits for P1/P2/P4/P5 | YES (serial) |
-| P7 Manifest audit | Inline: audit __manifest__.py summary/website/category vs catalog; flag drift | - | - |
-| P8 Aggregate | Write .odoo-ai/packaging/ index, asset manifest, diff summary | - | - |
+| P5 provision-capture (FUSED) | `odoo-instance` + `odoo-doc-illustration` + `git-ops` per instance-path; incremental install leaf-first -> doc -> commit per module | Parallel ACROSS paths (<=W); sequential WITHIN | YES (per-path serial) |
+| P6 Manifest audit | Inline: audit __manifest__.py summary/website/category vs catalog; flag drift | - | - |
+| P7 Aggregate | Write .odoo-ai/packaging/ index, asset manifest, diff summary | - | - |
 
 ### Available commands
 
@@ -803,7 +798,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-modules-upgrade` | Engineer | Upgrade a custom module cluster from a lower Odoo major to a higher one (code-level): drop what core now provides, adapt the rest, 1 PR per cluster. |
 | `odoo-forward-port` | Engineer | Forward-port fixes/features from a lower Odoo series up to a higher one as an intent-first pipeline (parallel intent sweep -> 4-outcome classify -> installable probe -> SHA-preserving merge -> symbol-survival check -> test-first adapt -> verify-by-behavior -> PR); two human STOP-gates bound the automation |
 | `odoo-solution-design` | Architect / Coder | Design the technical solution (approach / data model / override strategy / module structure) into a gate-able design doc BEFORE coding - the analysis-and-design step between requirement scoping and code; supports master-child decomposition for large multi-module scope (slim, paired with agent bundle) |
-| `odoo-planning` | Architect / Coder | Turn an APPROVED design into the EXECUTION plan that ships it - a gate-able 3-block plan (wave-batched module-DAG + integration cadence + each module/stage wired to a SKILL + full lifecycle: code -> review -> doc -> PR -> monitor -> merge); dispatches the `odoo-planner` agent and emits estimates only (effort + `est_agents`, ADVISORY - the dispatched skill owns the runtime model + count). Runs after `odoo-solution-design`, before `odoo-coding` (slim, paired with agent bundle) |
+| `odoo-planning` | Architect / Coder | Turn an APPROVED design into the EXECUTION plan that ships it - a gate-able ONE-lifecycle plan (wave-batched module-DAG + integration cadence + each module/stage wired to a SKILL + full lifecycle: code -> review -> QA -> doc -> PR -> monitor -> merge); dispatches BOTH `odoo-planner` (code plan, reuses design DAG) AND `odoo-doc-planner` (doc plan, branch-aware instance allocation) and stitches them into ONE plan with a single approval gate; emits estimates only (effort + `est_agents`, ADVISORY). Runs after `odoo-solution-design`, before `odoo-coding` (slim, paired with agent bundle) |
 | `odoo-coding` | Coder | The single coding front door - writes backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS); scopes the change, assigns a deterministic model tier per module (haiku/sonnet/opus/fable, sonnet default), and dispatches the `odoo-coder` + `odoo-frontend-coder` agents as subagents in model-weighted batches (per-module backend->frontend, model-weighted concurrency budget); orders modules by the shared module DAG, orchestrates red-first test authorship before each non-trivial module's code, and feeds the `code -> review+test -> code` loop (slim, paired with agent bundle) |
 | `odoo-frontend-design` | Architect / Coder / Visual | Knowledge-only design-quality expertise for Odoo UI/UX (view-type choice, form hierarchy, density, semantic tokens, website/portal theming); loaded by `odoo-solution-design` and `odoo-coding`, and the bar `odoo-ui-review` rates against (no agent spawn) |
 | `odoo-code-review` | Code-Reviewer | Review Odoo patches for ORM/inheritance/security pitfalls plus bidirectional module impact, platform-design-principle violations, and missing behavior tests; accepts `TARGET: local \| worktree:<path> \| pr:<number-or-url>` - Phase 0 dispatches `odoo-review-scoper` to resolve diffs and map modules, then `odoo-code-reviewer` agents for analysis; emits a VERDICT (APPROVE/REQUEST_CHANGES) with SCORE 0-100 and findings grouped by severity; on a CRITICAL/HIGH finding drives the fix autonomously through `odoo-coding` and re-reviews to verify (bounded to 3 iterations, then escalates), and loops uncovered behavior back to `odoo-test-writing` (slim, paired with agent bundle) |
@@ -841,7 +836,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `run-harness` | Internal (harness) | Orchestrating drive-to-done loop - walks the `run-<id>.json` plan, dispatches each work-item, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent |
 | `odoo-wave` | Internal (orchestration) | INTERNAL git-executor (`user-invocable: false`, consume-only) that `run-harness` dispatches per coding wave-layer of an APPROVED plan - integration branch + per-WI worktrees + cherry-pick in module-DAG order + end-of-wave cross-cutting review + `odoo-code-review` inline + 1 PR + squash + tree-identity verify, then STOPS at the L2-squash-gate. INVOKES `odoo-coding` per WI (which owns agent count + model); never chooses agent/model, never self-derives a plan, and never merges (merge is owned by `odoo-pr-monitoring` at the L2-merge-gate) |
 
-### Agents (22)
+### Agents (23)
 
 | Agent | Model (default) | Role |
 |-------|-----------------|------|
@@ -867,6 +862,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-gap-analyzer` | Sonnet | Gap-analysis leaf dispatched by `odoo-gap-analysis` (one per requirement cluster) - classifies each requirement against standard Odoo (coverage full/partial/none, classification standard/config/extension/custom, effort tier S/M/L/XL) grounded in OSM first and the local checkout as fallback, then writes a machine-readable findings file; read-only on source, does not design or write code |
 | `odoo-qa-planner` | Sonnet | Independent acceptance-oracle author dispatched by `odoo-acceptance` (P1) and `odoo-coding` (P0 pre-code TDD) - turns a requirement/intent into an immutable `scenarios.md` (GWT, equivalence/boundary, negative paths, role/CRUD/state/search matrices, risk tier per scenario) WITHOUT reading the implementation to decide expected values; read-only, does not run or adjudicate |
 | `odoo-qa-tester` | Sonnet | Live acceptance executor dispatched by `odoo-acceptance` (P2b) - drives the real Odoo UI across the affected cluster (CRUD, two-plus roles, state transitions, search) and rules each scenario PASS/FAIL/UNVERIFIED with screenshot/console/network evidence; browser-exclusive (serial), reads the oracle read-only, does not modify it or fix code |
+| `odoo-doc-planner` | Sonnet | Dependency-aware doc-package planner dispatched by `odoo-planning` (full-lifecycle, plan_source design-dag) or `module-packaging`/`odoo-doc-illustration` (standalone, plan_source scope) - clusters modules, branch-aware instance allocation, leaf-first install order, dedup; writes doc-plan.yaml; read-only, no subagents |
 
 ## Requirements
 

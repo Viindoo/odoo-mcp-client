@@ -746,6 +746,17 @@
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
       "notes": "Multi-module scope mapper (mirrors odoo-review-scoper pattern): walks manifests under TARGET, enumerates modules, resolves languages (D6 6-tier + disk-union), detects doc_layer capability, records has_demo. Emits a scope block + modules[] list. Read-only on source; writes only scope block file. min_server 0.13.1 for describe_module."
+    },
+    "odoo-doc-planner": {
+      "mcp_tools": [
+        "set_active_version",
+        "module_inspect",
+        "describe_module",
+        "check_module_exists"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "reuses _shared/doc-cluster-plan.md; standalone-first, OSM optional; writes doc-plan.yaml"
     }
   },
   "orchestration": {
@@ -988,6 +999,7 @@
       "spawn_class": "spawner-agent",
       "spawns": [
         "odoo-planner",
+        "odoo-doc-planner",
         "(dispatch: single planner by default; for very large scope fan out one planner per module cluster following concurrency-guard.md Mode B, then reconcile - handoff fresh)"
       ],
       "stack": "none",
@@ -1036,7 +1048,8 @@
       "spawn_class": "spawner-agent",
       "spawns": [
         "odoo-doc-illustrator",
-        "odoo-doc-scoper (pre-flight multi-module scope mapper - dispatched before illustrator when TARGET covers >1 module)"
+        "odoo-doc-scoper (pre-flight multi-module scope mapper - dispatched before illustrator when TARGET covers >1 module)",
+        "odoo-doc-planner (dependency-aware doc scheduler - dispatched after the scoper on the multi-module path to emit doc-plan.yaml; one whole-plan gate; then the branch-aware per-instance incremental loop)"
       ],
       "stack": "frontend",
       "instance_touching": false,
