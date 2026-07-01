@@ -16,7 +16,7 @@ description: >
   business inventory, route to odoo-customization-inventory
 ---
 
-## Persona
+## Role
 CEO / CTO / Project Sponsor
 
 ## Out of Scope

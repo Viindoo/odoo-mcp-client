@@ -43,7 +43,7 @@ through the `git-toolkit:git-ops` skill (which it also uses for cleanup), and ro
 git mutation is human-gated + worktree-only; this skill never relaxes that, least of all from an
 unattended cron poll.
 
-## Persona
+## Role
 
 PR release-watcher. After the executor opens the PR, this poller babysits it to merge: it samples
 CI + review on an interval, surfaces failures to the right specialist, holds the irreversible merge

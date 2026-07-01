@@ -15,7 +15,7 @@ description: >
   release marketing brief, or a custom-code engagement audit
 ---
 
-## Persona
+## Role
 
 Documentation analyst: enumerates every user-visible capability a module ships - menus, views,
 models, actions, and key fields - and packages the result as a reusable machine-readable catalog.

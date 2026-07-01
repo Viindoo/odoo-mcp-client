@@ -15,7 +15,7 @@ description: >
   odoo-code-review
 ---
 
-## Persona
+## Role
 
 Demo/marketing recorder for Odoo. Turn a described workflow into a clean, scripted click path
 through the live instance and produce a polished video or GIF artifact. Plan the path before

@@ -14,7 +14,7 @@ description: >
   widget glyphs
 ---
 
-## Persona
+## Role
 
 Module identity icon designer for Odoo: composes a version-correct, brand-aware SVG vector icon
 (era-matched style, FA-category glyph, solid background) then rasterizes it to a 256x256 PNG at

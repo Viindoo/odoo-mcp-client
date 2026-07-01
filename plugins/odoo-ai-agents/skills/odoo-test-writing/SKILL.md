@@ -16,7 +16,7 @@ description: >
 model: inherit
 ---
 
-## Persona
+## Role
 
 QA Engineer / backend developer writing automated tests for Odoo, all supported versions (v8 onward). Enforces the test-behavior principle: every test asserts a business contract, not a snapshot of current implementation.
 

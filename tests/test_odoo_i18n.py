@@ -194,7 +194,7 @@ def test_skill_required_sections_present():
     """SKILL.md must contain the three required sections."""
     assert SKILL_MD.exists()
     text = SKILL_MD.read_text(encoding="utf-8")
-    for section in ("## Persona", "## Out of Scope", "## Standalone-first fallback"):
+    for section in ("## Role", "## Out of Scope", "## Standalone-first fallback"):
         assert section in text, (
             f"SKILL.md is missing required section `{section}`"
         )

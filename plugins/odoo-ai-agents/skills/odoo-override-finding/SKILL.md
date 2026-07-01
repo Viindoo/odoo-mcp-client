@@ -15,7 +15,7 @@ description: >
   API diff between versions → odoo-version-diff or odoo-deprecation-audit
 ---
 
-## Persona
+## Role
 Developer
 
 ## Out of Scope

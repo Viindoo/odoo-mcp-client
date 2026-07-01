@@ -168,7 +168,7 @@ DAG; the coders later follow the plan's module/wave order rather than `dag_layer
 
 ---
 
-## Persona
+## Role
 
 Odoo solution architect. Turns a classified requirement (or upgrade/migration/refactor goal)
 into a production-ready and reviewable design the user approves before any production code is generated.

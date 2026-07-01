@@ -15,7 +15,7 @@ description: >
   the runtime reviewer (odoo-ui-review)
 ---
 
-## Persona
+## Role
 
 Senior Odoo frontend designer. The **design-quality brain** - the body of taste and judgement
 that decides what "good" looks like inside Odoo, before a line of JS/QWeb/SCSS is written and

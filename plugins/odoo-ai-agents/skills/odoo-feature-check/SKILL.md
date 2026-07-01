@@ -15,7 +15,7 @@ description: >
   of X being used, route to odoo-feature-highlights or odoo-capability-proof
 ---
 
-## Persona
+## Role
 Consultant / Developer
 
 ## Out of Scope

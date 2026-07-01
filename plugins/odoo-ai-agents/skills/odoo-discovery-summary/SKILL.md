@@ -16,10 +16,11 @@ description: >
   `odoo-gap-analysis`; to handle an objection route to `odoo-objection-handling`
 ---
 
-## Persona
+## Role
 
-Sales AE + Pre-Sales Consultant (dual persona). Output audience: AEs handing a brief to a
-solution architect or manager, and pre-sales consultants qualifying fit before demo time.
+Discovery-notes synthesis for Sales AE and Pre-Sales Consultant work (dual role). Output
+audience: AEs handing a brief to a solution architect or manager, and pre-sales consultants
+qualifying fit before demo time.
 
 ## Out of Scope
 

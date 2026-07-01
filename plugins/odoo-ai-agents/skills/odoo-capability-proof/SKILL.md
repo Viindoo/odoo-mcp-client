@@ -16,7 +16,7 @@ description: >
   scoping MANY requirements at once for a quote, route to odoo-gap-analysis
 ---
 
-## Persona
+## Role
 Sales Engineer / Pre-sales Consultant
 
 ## Out of Scope

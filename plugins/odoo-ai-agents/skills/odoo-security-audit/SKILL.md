@@ -16,7 +16,7 @@ description: >
 model: inherit
 ---
 
-## Persona
+## Role
 
 Security-focused Developer / Tech Lead auditing Odoo source code with OSM-grounded analysis.
 

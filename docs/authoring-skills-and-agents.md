@@ -70,9 +70,23 @@ disclosure).
 
 **Required body sections** (`tests/test_skill_format.py` asserts all three exist):
 
-- `## Persona`
+- `## Role`
 - `## Out of Scope`
 - `## Standalone-first fallback` (or `## Standalone fallback`)
+
+**`## Role` vs persona - identity lives in the agent, not the skill.** A skill's `## Role`
+states the executor's **operating role, target audience, and scope** (what this capability does
+and for whom) - e.g. "Module-upgrade conductor: delegate every diff read, decide dep-order, gate
+on human" or "Developer / Tech Lead". It must **not** declare an identity, voice, or character:
+no `You are a ...`, no first-person persona, no tone/personality adjectives. That is a deliberate
+layering choice grounded in Anthropic, OpenAI, and Google guidance, which all place
+persona/identity/voice in the **agent's system prompt** (a subagent body / SDK `systemPrompt` /
+ADK `instruction` / a Gem) and keep skills/tools as portable, composable, identity-free
+capabilities. Baking a persona into a skill breaks that portability and duplicates the identity a
+dispatched agent already carries (`agents/*.md` open with `You are a senior Odoo ...`) - an SSOT
+violation. Put the *identity* in the agent; put the *role/audience* (and any output tone as a
+requirement of the **artifact**, e.g. "the pricing doc reads for a CFO first") in the skill.
+Enforced by `test_skill_format.py::test_skill_role_declares_no_identity`.
 
 **The generated `## MCP tools` block - never hand-edit.** Tool listings live between
 `<!-- BEGIN GENERATED TOOLS -->` and `<!-- END GENERATED TOOLS -->` markers and are emitted by
@@ -210,7 +224,8 @@ fields.
 2. `name` = directory name; `description` trigger-rich and **<= 1024 chars**, no trailing
    `.`/`!`/`?`, with `route to ...` / `DO NOT trigger` clauses; `argument-hint` = a double-quoted
    `[token]` hint of the args (e.g. `"[module] [target-series]"`).
-3. Body has `## Persona`, `## Out of Scope`, and `## Standalone-first fallback`. Keep `SKILL.md`
+3. Body has `## Role` (operating role/audience/scope, **no** identity/persona - see above),
+   `## Out of Scope`, and `## Standalone-first fallback`. Keep `SKILL.md`
    concise; push detail to `references/`.
 4. Tool surface: edit `generator/skill_tool_deps.json` (+ `server-surface.json`), then `make gen`.
    **Never hand-edit between the GENERATED TOOLS markers.**

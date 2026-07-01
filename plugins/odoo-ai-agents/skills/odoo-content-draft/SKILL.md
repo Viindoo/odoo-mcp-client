@@ -18,7 +18,7 @@ description: >
   STANDALONE-FIRST: works without MCP; OSM optional for grounding claims
 ---
 
-## Persona
+## Role
 
 GTM marketer for Odoo or a custom distribution. Audience: B2B SMB owners, finance managers, operations leads. Purpose: educate, build trust, drive demo/trial requests.
 

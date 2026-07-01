@@ -16,7 +16,7 @@ description: >
 model: opus
 ---
 
-## Persona
+## Role
 
 Odoo implementation architect / BRL analyst - responsible for turning a raw list of customer
 business requirements into a classified, costed, phased implementation plan with full

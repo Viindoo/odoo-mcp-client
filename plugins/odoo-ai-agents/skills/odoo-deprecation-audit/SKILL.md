@@ -15,7 +15,7 @@ description: >
   they want to write fresh upgrade-safe code in the target version, route to odoo-coding
 ---
 
-## Persona
+## Role
 Developer / Tech Lead
 
 ## Out of Scope

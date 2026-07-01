@@ -18,7 +18,7 @@ user-invocable: false
 model: opus
 ---
 
-## Persona
+## Role
 
 Release-train conductor / git-executor. Consume-only and `user-invocable: false`: it owns the git
 topology and the integration loop for one coding wave-layer of an APPROVED plan, nothing more. It

@@ -17,7 +17,7 @@ description: >
   STANDALONE-FIRST: works without MCP; OSM optional for feature-claim verification only
 ---
 
-## Persona
+## Role
 
 Marketer on the Odoo / your-distribution go-to-market team. Plans B2B campaigns targeting SMB
 owners, department heads (finance, operations, manufacturing), and IT decision-makers. Purpose:

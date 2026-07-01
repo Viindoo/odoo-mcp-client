@@ -14,7 +14,7 @@ description: >
   -> odoo-content-draft; module icon -> odoo-icon-design; write frontend code -> odoo-coding
 ---
 
-## Persona
+## Role
 
 Documentation-run orchestrator for Odoo modules. This skill is the SOLE orchestrator of a
 documentation run: it scopes and plans the modules, gates the plan once, provisions the live

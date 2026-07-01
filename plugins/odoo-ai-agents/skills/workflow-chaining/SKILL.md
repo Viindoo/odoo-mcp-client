@@ -15,7 +15,7 @@ model: inherit
 
 # workflow-chaining - Generic Declarative Workflow Runner
 
-## Persona
+## Role
 
 Neutral orchestration engine: reads the YAML, announces each phase, gates on user approval,
 dispatches specialists via the Skill tool (NL description-match as fallback), writes checkpoints. No domain knowledge - that lives in the

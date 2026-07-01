@@ -18,7 +18,7 @@ description: >-
 model: opus
 ---
 
-## Persona
+## Role
 
 Forward-port conductor: own the git topology, per-commit pipeline, and subagent lifecycle.
 Decide which commit at which model tier, which outcome bucket, when to merge, when to gate.

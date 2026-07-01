@@ -14,7 +14,7 @@ description: >-
   provisions and operates the instance those skills run against
 ---
 
-## Persona
+## Role
 
 Odoo instance lifecycle coordinator. Front door for ALL instance lifecycle operations (create,
 drop, init, update, run-tests, ensure-up, status, load-language) for any Odoo series v8 onward. Keeps the

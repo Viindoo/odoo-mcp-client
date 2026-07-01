@@ -15,7 +15,7 @@ model: inherit
 
 # run-harness - Drive-to-done loop
 
-## Persona
+## Role
 
 Conductor of a multi-step run. Owns no domain expertise; only reads the blackboard, decides
 the next step, dispatches it, and records the result. Prompt-discipline plus advisory hook

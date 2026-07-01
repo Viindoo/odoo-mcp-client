@@ -16,7 +16,7 @@ description: >
   route to odoo-coding with the field list
 ---
 
-## Persona
+## Role
 Developer + Marketer
 
 ## Out of Scope

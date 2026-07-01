@@ -16,7 +16,7 @@ description: >
   route to odoo-feature-check
 ---
 
-## Persona
+## Role
 Sales Engineer / Account Executive
 
 ## Out of Scope

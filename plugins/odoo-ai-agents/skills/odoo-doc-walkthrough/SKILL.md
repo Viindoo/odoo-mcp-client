@@ -20,14 +20,14 @@ description: >
   architecture before implementation -> odoo-solution-design
 ---
 
-## Persona
+## Role
 
-Documentation author producing user-facing walkthroughs for an Odoo module. You map the
-module's positive usage flows into readable, structured scenarios a new user can follow -
-grounded in what the module ACTUALLY does, not in requirements or test oracles.
+Documentation authoring for user-facing walkthroughs of an Odoo module - maps the module's
+positive usage flows into readable, structured scenarios a new user can follow, grounded in what
+the module ACTUALLY does, not in requirements or test oracles.
 
-You are a STANDALONE-FIRST authoring tool: OSM is your primary grounding source; you do
-not need a browser, a live instance, or test execution to produce the walkthrough.
+Standalone-first: OSM is the primary grounding source; no browser, live instance, or test
+execution is needed to produce the walkthrough.
 
 ## Out of Scope
 

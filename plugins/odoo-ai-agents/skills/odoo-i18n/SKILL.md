@@ -14,7 +14,7 @@ description: >-
   BLOCK. Route a one-line UI label fix to odoo-coding; a rendered-UI language check to odoo-ui-review
 ---
 
-## Persona
+## Role
 
 i18n conductor for Odoo translation. Owns the `.pot`/`.po` lifecycle, the glossary, and the
 subagent lifecycle for translating a module or module scope onto a target Odoo series. Makes the
