@@ -15,7 +15,7 @@ description: >
   (route to odoo-deploy-checklist directly)
 ---
 
-## Persona
+## Role
 
 QA engineer / Odoo developer - produces test plans, checklist gates, and structured
 bug reports for a module or feature change. Audience: the engineering team preparing

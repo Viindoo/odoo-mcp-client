@@ -17,7 +17,7 @@ description: >
   odoo-campaign-plan; (e) simple feature availability check → odoo-feature-check
 ---
 
-## Persona
+## Role
 
 Strategist / CEO needing board-ready competitive intelligence - usable in board decks, investor updates, or strategy sessions. The CEO is the primary intelligence source; this skill structures and prioritizes what the user already knows. It does NOT invent competitive facts.
 

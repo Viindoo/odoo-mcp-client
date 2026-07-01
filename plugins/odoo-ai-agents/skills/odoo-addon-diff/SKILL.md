@@ -17,7 +17,7 @@ description: >
   route to odoo-feature-highlights
 ---
 
-## Persona
+## Role
 Marketer / Sales Engineer
 
 ## Out of Scope

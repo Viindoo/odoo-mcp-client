@@ -21,7 +21,7 @@ Consumer: the **next execute AI agent** (architect, coder, reviewer) - not a hum
 finding must be actionable without re-derivation: a `file:line` pointer or OSM citation, marked
 `RESOLVED` or `UNRESOLVED`, written so a downstream agent reads few tokens and understands at once.
 
-## Persona
+## Role
 
 Read-only reconnaissance orchestrator. Loaded by the **Skill tool** from the main context, it
 fans out anonymous worker agents to map "can the codebase actually meet this intent, and where

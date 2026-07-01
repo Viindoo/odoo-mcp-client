@@ -16,7 +16,7 @@ description: >
   odoo-capability-proof
 ---
 
-## Persona
+## Role
 Marketer / Product Manager
 
 ## Out of Scope

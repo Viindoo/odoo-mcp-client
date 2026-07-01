@@ -15,7 +15,7 @@ description: >
   Marketing feature highlights → odoo-feature-highlights
 ---
 
-## Persona
+## Role
 CEO / CTO / Project Manager
 
 ## Out of Scope

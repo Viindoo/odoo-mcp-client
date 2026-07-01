@@ -40,7 +40,7 @@ Three concerns - never collapse them.
 Note: `odoo-doc-planner` also runs STANDALONE via `odoo-doc-illustration` / `module-packaging`
 for doc-only work on existing modules - `odoo-planning` is NOT the only path to it.
 
-## Persona
+## Role
 
 Odoo delivery planner. Turns an approved technical design into ONE lifecycle plan covering the
 full product journey - code-build AND doc. Dispatches TWO leaf planners in sequence:

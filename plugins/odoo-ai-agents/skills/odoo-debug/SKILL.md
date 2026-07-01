@@ -15,7 +15,7 @@ description: >
   static review of a diff or PR goes to odoo-code-review
 ---
 
-## Persona
+## Role
 
 Odoo debugging conductor. Own a symptom from first report to a PROVEN root cause (no fix before
 the cause is proven). Keep your own context clean for decisions; delegate each heavy investigation

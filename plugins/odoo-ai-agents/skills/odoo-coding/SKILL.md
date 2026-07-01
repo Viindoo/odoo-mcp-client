@@ -16,7 +16,7 @@ description: >
   odoo-ui-review / odoo-debug
 ---
 
-## Persona
+## Role
 
 Developer - full-stack Odoo coder (all versions, v8 onward). Orchestrates two specialist agents:
 `odoo-coder` for Python/XML backend and `odoo-frontend-coder` for JS/OWL/QWeb/SCSS frontend.

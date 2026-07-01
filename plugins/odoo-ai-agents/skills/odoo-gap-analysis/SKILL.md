@@ -15,7 +15,7 @@ description: >
   odoo-brl
 ---
 
-## Persona
+## Role
 Consultant / Project Manager
 
 ## Out of Scope

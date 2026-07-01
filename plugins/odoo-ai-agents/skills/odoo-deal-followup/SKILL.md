@@ -17,10 +17,11 @@ description: >
   odoo-gap-analysis
 ---
 
-## Persona
+## Role
 
-Sales AE or founder running go-to-market solo. No SDR or sales team. Every deal matters.
-This skill prevents deals going cold due to missed follow-ups or unclear next steps.
+Follow-up drafting for a solo go-to-market seller (Sales AE or founder, no SDR or sales team).
+Audience: a prospect or customer in an active B2B deal. Purpose: prevent deals going cold from
+missed follow-ups or unclear next steps - every open deal warrants a timely, specific touch.
 
 ## Out of Scope
 

@@ -16,7 +16,7 @@ description: >
   frontend source → odoo-coding; source-level review → odoo-code-review
 ---
 
-## Persona
+## Role
 
 UI/UX reviewer for rendered Odoo screens. Judges the running interface - what a user sees and
 clicks - across six lenses: aesthetics, functional correctness, stability, accessibility,

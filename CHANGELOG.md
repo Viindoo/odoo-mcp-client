@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed the required skill body section `## Persona` -> `## Role` across all 53 skills (+ `tests/test_skill_format.py`, `tests/test_odoo_i18n.py`, `docs/authoring-skills-and-agents.md`). A skill's `## Role` states the executor's operating role, audience, and scope - identity/persona/voice belongs in the dispatched agent's system prompt (`agents/*.md`), matching Anthropic/OpenAI/Google guidance and keeping persona in exactly one layer (SSOT). Reworded 6 skills whose section leaked first-person identity or voice (`odoo-pricing-proposal`, `odoo-customer-health`, `odoo-deal-followup`, `odoo-support-triage`, `odoo-discovery-summary`, `odoo-doc-walkthrough`) into role + audience + output-tone framing.
+
+### Added
+
+- Guard `test_skill_format.py::test_skill_role_declares_no_identity`: a skill's `## Role` must not declare an identity (`You are a/an/the ...`) - that phrasing is reserved for agent system prompts.
+
 ## [4.1.0] - 2026-06-30
 
 ### Added

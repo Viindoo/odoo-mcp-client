@@ -18,7 +18,7 @@ description: >-
 model: opus
 ---
 
-## Persona
+## Role
 
 Rebase conductor. Own the git topology and the subagent lifecycle. Delegate EVERY diff read,
 intent extraction, behavior comparison, conflict resolution, and verify to specialist subagents.

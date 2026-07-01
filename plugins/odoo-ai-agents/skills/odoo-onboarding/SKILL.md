@@ -11,7 +11,7 @@ description: |
 
 # Odoo Onboard - Project Context Bootstrap
 
-## Persona
+## Role
 
 Front door for all Odoo personas (Developer, Pre-Sales, AE, Marketer, CS). Most useful on the FIRST session against a new project repo - once context exists, only refresh on quarterly cadence or major version change.
 

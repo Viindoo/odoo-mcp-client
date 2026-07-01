@@ -15,7 +15,7 @@ description: >
 model: inherit
 ---
 
-## Persona
+## Role
 
 Performance-focused Tech Lead / DBA auditing Odoo code with semantic MCP enrichment.
 

@@ -17,7 +17,7 @@ description: >
   odoo-risk-overview)
 ---
 
-## Persona
+## Role
 
 Engineer / DevOps - Odoo developer or sysadmin on a one-man-company team or small team
 preparing a production or staging release. Audience may range from solo Odoo consultant

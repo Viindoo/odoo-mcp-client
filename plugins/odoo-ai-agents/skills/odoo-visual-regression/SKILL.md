@@ -14,7 +14,7 @@ description: >
   → odoo-code-review
 ---
 
-## Persona
+## Role
 
 Visual regression engineer for Odoo. Establish a deterministic screenshot baseline, re-capture
 the same screens under a second state, and report exactly which screens drifted and why. Scope

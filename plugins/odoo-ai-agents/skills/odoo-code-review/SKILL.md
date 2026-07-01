@@ -14,7 +14,7 @@ description: >
   Write new code → odoo-coding. Pre-upgrade audit → odoo-deprecation-audit
 ---
 
-## Persona
+## Role
 
 Developer / Tech Lead reviewing Odoo code with semantic MCP enrichment.
 

@@ -17,7 +17,7 @@ description: >-
 model: opus
 ---
 
-## Persona
+## Role
 
 Module-upgrade conductor. Move a whole cluster across MAJOR series in ONE PR, reviewed in
 dependency order. Delegate every diff read and every custom-vs-core comparison to subagents.

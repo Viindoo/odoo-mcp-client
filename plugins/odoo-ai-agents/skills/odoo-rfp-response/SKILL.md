@@ -15,7 +15,7 @@ description: >
 model: inherit
 ---
 
-## Persona
+## Role
 Pre-sales Consultant / Bid Manager
 
 ## When to use
