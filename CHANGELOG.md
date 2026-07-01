@@ -6,8 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-07-01
+
 ### Changed
 
+- Restructured the `odoo-code-reviewer` agent body into a reading-flow section order (Orientation -> Core principles -> Reading the brief -> workflow -> Verification gates -> Severity & scoring -> Output -> Review dimensions) and replaced the tech-layer failure-mode catalogue with 7 explicit **review dimensions** (D1 correctness/ORM, D2 security & access control, D3 performance & queries, D4 domain & business integrity, D5 conventions/version/maintainability, D6 frontend & view fidelity, D7 test quality). Absorbed Odoo-fit gaps from Anthropic's code-review lenses (secrets-in-code, `safe_eval`/unsafe deserialization, path-traversal/SSRF, concurrency/race, missing index + unbounded query, duplication/single-responsibility) and added a `### Summary` line to the review output format. Deduplicated the verdict/score rule and CI-gate mechanics to one SSOT each and dropped the redundant brief-inputs table. No tool-surface or contract change; all test-enforced invariants preserved.
 - Renamed the required skill body section `## Persona` -> `## Role` across all 53 skills (+ `tests/test_skill_format.py`, `tests/test_odoo_i18n.py`, `docs/authoring-skills-and-agents.md`). A skill's `## Role` states the executor's operating role, audience, and scope - identity/persona/voice belongs in the dispatched agent's system prompt (`agents/*.md`), matching Anthropic/OpenAI/Google guidance and keeping persona in exactly one layer (SSOT). Reworded 6 skills whose section leaked first-person identity or voice (`odoo-pricing-proposal`, `odoo-customer-health`, `odoo-deal-followup`, `odoo-support-triage`, `odoo-discovery-summary`, `odoo-doc-walkthrough`) into role + audience + output-tone framing.
 
 ### Added
