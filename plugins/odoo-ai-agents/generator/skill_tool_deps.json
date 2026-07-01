@@ -543,7 +543,7 @@
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Spawner: dispatches odoo-doc-illustrator to capture screenshots + assemble module/cluster docs."
+      "notes": "Spawner: dispatches odoo-user-doc-writer (userguide RST) and odoo-marketing-writer (App-Store landing HTML) per DOC LAYER; pre-fetches copy from odoo-content-draft on the marketing path; scoped via odoo-doc-scoper; scheduled via odoo-doc-planner."
     },
     "odoo-instance": {
       "mcp_tools": [
@@ -634,7 +634,7 @@
       "deprecated_tools_used": [],
       "notes": "Read-only diff-range comparator: reads a whole-cluster or per-module git diff and emits a structured nghiệp vụ / intent / expected-outcome / acceptance-criteria comparison between two branches (rebase) or between a custom module and new-version core (upgrade). Writes only its findings file; no further spawn. Reused by odoo-git-rebase (P3 cluster comparison + P10 verify) and odoo-modules-upgrade (P2 core-absorption)."
     },
-    "odoo-doc-illustrator": {
+    "odoo-user-doc-writer": {
       "mcp_tools": [
         "check_module_exists",
         "model_inspect",
@@ -643,7 +643,19 @@
       ],
       "min_server_version": "0.7.0",
       "deprecated_tools_used": [],
-      "notes": "Browser-driven visual documentation agent: captures screenshots into module static/description or cluster docs. OSM tools ground module/model structure before capture."
+      "notes": "End-user guide writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures userguide screenshots + assembles doc/index.rst (and per-locale variants); audience = end user, task-guidance tone; never spawns. OSM grounds UI labels via model_inspect."
+    },
+    "odoo-marketing-writer": {
+      "mcp_tools": [
+        "check_module_exists",
+        "describe_module",
+        "model_inspect",
+        "module_inspect",
+        "set_active_version"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "App-Store landing writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures hero/feature-grid screenshots + assembles static/description/index.html (and per-locale variants) from supplied marketing copy + feature-catalog.jsonl + app-store-template.md; wires manifest images + store-keys audit; never spawns. describe_module for manifest summary. min_server 0.13.1."
     },
     "odoo-gap-analyzer": {
       "mcp_tools": [
@@ -1047,9 +1059,11 @@
     "odoo-doc-illustration": {
       "spawn_class": "spawner-agent",
       "spawns": [
-        "odoo-doc-illustrator",
-        "odoo-doc-scoper (pre-flight multi-module scope mapper - dispatched before illustrator when TARGET covers >1 module)",
-        "odoo-doc-planner (dependency-aware doc scheduler - dispatched after the scoper on the multi-module path to emit doc-plan.yaml; one whole-plan gate; then the branch-aware per-instance incremental loop)"
+        "odoo-doc-scoper (pre-flight multi-module scope mapper; dispatched first on multi-module TARGET)",
+        "odoo-doc-planner (dependency-aware doc scheduler; dispatched after scoper; emits doc-plan.yaml; one whole-plan gate; branch-aware per-instance incremental loop)",
+        "odoo-user-doc-writer (browser-exclusive leaf; end-user guide doc/index.rst; dispatched per module per DOC LAYER userguide|both)",
+        "odoo-marketing-writer (browser-exclusive leaf; App-Store landing static/description/index.html; dispatched per module per DOC LAYER appstore|both)",
+        "odoo-content-draft (Skill tool - marketing copy pre-fetch on marketing path when copy not supplied)"
       ],
       "stack": "frontend",
       "instance_touching": false,

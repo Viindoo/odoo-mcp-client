@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Module packaging & documentation suite: 3 skills (`odoo-icon-design`, `odoo-doc-feature-map`, `odoo-doc-walkthrough`), 4 agents (`odoo-icon-designer`, `odoo-feature-cataloger`, `odoo-doc-scoper`, `odoo-doc-scenarist`), and the `module-packaging` workflow - an end-to-end pipeline from feature catalog and usage walkthroughs to module icon, per-locale App-Store landing copy, scenario-driven screenshot capture, and manifest audit. Includes the `app-store-template.md` reference (sanitizer-safe Bootstrap-5 fragment, section map, image specs, manifest store-keys) for `odoo-doc-illustration`.
 - Dependency-aware multi-module doc planning: `odoo-doc-planner` agent (branch-aware instance allocation, leaf-first incremental install, cross-cluster dedup); `odoo-planning` full-lifecycle 2-agent dispatch (code + doc/marketing); `module-packaging` per-cluster incremental provision-capture.
 
+### Changed
+
+- Split `odoo-doc-illustrator` into audience-pure agents `odoo-user-doc-writer` (end-user guide: walkthroughs, RST, i18n) and `odoo-marketing-writer` (landing copy: App Store index.html, sanitizer-safe Bootstrap-5); `odoo-doc-illustration` skill is the sole orchestrator (picks writer model, pre-fetches marketing copy, routes DOC LAYER); `odoo-instance-ops` reduced to a pure operator (provisions and drives the instance, no doc authoring).
+
 ## [4.0.2] - 2026-06-30
 
 ### Fixed
