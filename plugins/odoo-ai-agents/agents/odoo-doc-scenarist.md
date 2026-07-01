@@ -4,7 +4,7 @@ description: |
   Use this agent when the odoo-doc-walkthrough skill (or another caller) needs happy-path
   usage scenarios authored for an Odoo module - structured walkthroughs (role, precondition,
   step list, expected outcome) grounded in the module's ACTUAL behavior via OSM, ready to
-  drive odoo-doc-illustrator CAPTURE MODE: scenarios. Standalone-first: works from OSM +
+  drive the odoo-doc-illustration skill CAPTURE MODE: scenarios. Standalone-first: works from OSM +
   an optional feature catalog with no browser or live instance. Does NOT produce executable
   tests, does NOT adjudicate PASS/FAIL, and does NOT spawn subagents
 model: sonnet
@@ -135,8 +135,8 @@ Also write `<OUTPUT_DIR>/walkthrough.jsonl` (one JSON object per scenario):
 ```json
 {"scenario_id":"WS1","goal":"...","persona":"...","features":["..."],"precondition":"...","steps":[{"action":"...","target":"...","value":"...","note":"..."}],"expected_outcome":"...","grounded":"osm|hybrid|local-source|unknown"}
 ```
-The `steps[]` array is the machine-readable contract consumed by `odoo-doc-illustrator`
-when running in `CAPTURE MODE: scenarios`.
+The `steps[]` array is the machine-readable contract consumed by the `odoo-doc-illustration`
+skill when running in `CAPTURE MODE: scenarios`.
 
 Create `OUTPUT_DIR` if it does not exist.
 
@@ -152,7 +152,7 @@ Return a compact summary to the orchestrator:
 Then append a Continuation Contract per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
 (`status: DONE`, `produced: [walkthrough_path, jsonl_path]`,
-`next: odoo-doc-illustrator CAPTURE MODE: scenarios` when a live instance is available).
+`next: odoo-doc-illustration CAPTURE MODE: scenarios` when a live instance is available).
 
 ## Agent Team mode
 

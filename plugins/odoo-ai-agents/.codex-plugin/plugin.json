@@ -1,7 +1,7 @@
 {
   "name": "odoo-ai-agents",
   "version": "4.1.0",
-  "description": "Odoo AI workforce toolkit - 53 skills + 23 specialist agents + 8 workflow commands across engineering, sales, marketing, strategy, onboarding, visual UI testing, and git-wave orchestration. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed). Includes browser-automation agents for Odoo UI review and automated setup.",
+  "description": "Odoo AI workforce toolkit - 53 skills + 24 specialist agents + 8 workflow commands across engineering, sales, marketing, strategy, onboarding, visual UI testing, and git-wave orchestration. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed). Includes browser-automation agents for Odoo UI review and automated setup.",
   "author": {
     "name": "Viindoo",
     "url": "https://github.com/Viindoo"
@@ -12,7 +12,7 @@
   "interface": {
     "displayName": "Odoo AI Agent Team",
     "shortDescription": "53-skill AI workforce for Odoo ERP - engineering, sales, marketing & strategy.",
-    "longDescription": "A comprehensive AI workforce plugin for Odoo ERP practitioners. Provides 53 skills covering Odoo development (solution design, frontend design, coding, code review, frontend, testing, i18n translation, instance operations, visual documentation), consulting (gap analysis, upgrade planning, risk overview), sales/pre-sales (bid response, competitive briefs, deal follow-up), marketing (content drafting, campaign planning, feature highlights), and strategy (discovery, onboarding, deployment checklists). Pairs with the odoo-semantic-mcp server for indexed-codebase grounding. Includes 23 specialist agents: browser-automation agents for Odoo UI review, visual regression testing, automated setup, and visual documentation capture; forward-port pre-analysis agents for intent extraction and installable-state probing; the odoo-instance-ops agent for end-to-end instance lifecycle management (create, drop, init, update, test) across Odoo v8+; and the odoo-doc-planner agent for dependency-aware doc-package scheduling. Also bundles browser MCP servers (Chrome DevTools, Playwright, Pagecast) for rich UI interaction across Codex CLI and Gemini CLI.",
+    "longDescription": "A comprehensive AI workforce plugin for Odoo ERP practitioners. Provides 53 skills covering Odoo development (solution design, frontend design, coding, code review, frontend, testing, i18n translation, instance operations, visual documentation), consulting (gap analysis, upgrade planning, risk overview), sales/pre-sales (bid response, competitive briefs, deal follow-up), marketing (content drafting, campaign planning, feature highlights), and strategy (discovery, onboarding, deployment checklists). Pairs with the odoo-semantic-mcp server for indexed-codebase grounding. Includes 24 specialist agents: browser-automation agents for Odoo UI review, visual regression testing, automated setup, and visual documentation capture; forward-port pre-analysis agents for intent extraction and installable-state probing; the odoo-instance-ops agent for end-to-end instance lifecycle management (create, drop, init, update, test) across Odoo v8+; and the odoo-doc-planner agent for dependency-aware doc-package scheduling. Also bundles browser MCP servers (Chrome DevTools, Playwright, Pagecast) for rich UI interaction across Codex CLI and Gemini CLI.",
     "developerName": "Viindoo",
     "category": "Productivity",
     "websiteURL": "https://odoo-semantic.viindoo.com",

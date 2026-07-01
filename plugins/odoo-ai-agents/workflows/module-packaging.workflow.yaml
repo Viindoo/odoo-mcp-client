@@ -4,10 +4,10 @@
 # Phase 0 scope + Phase 0.5 doc-plan are browser-free planning (ONE whole-plan gate).
 # Content phases 1-4 (feature-map / walkthrough / icon / copy) fan out per module (Mode B)
 #   but process ONLY doc:true modules (dedup skips modules installed only as a dependency).
-# Phase 5 provision-capture is the FUSED, branch-aware, per-instance INCREMENTAL phase - the
-#   ONLY browser-bound + instance-touching phase: SEQUENTIAL within a dependency-path
-#   (install -> doc -> verify -> commit, leaf-dep-first), PARALLEL across independent
-#   instance-paths up to W. Browser families are exclusive-serial per family.
+# Phase 5 provision-capture is the ONLY browser-bound + instance-touching phase - it delegates
+#   to skill odoo-doc-illustration (the branch-aware per-instance incremental loop SSOT):
+#   SEQUENTIAL within a dependency-path, PARALLEL across independent instance-paths up to W.
+#   Browser families are exclusive-serial per family.
 name: module-packaging
 domain: content
 team_pattern: Pipeline
@@ -208,70 +208,29 @@ phases:
     gate: "approve / refine: [feedback] / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 5 - Provision + capture (FUSED, per instance-path, branch-aware INCREMENTAL)
-  # The ONLY instance-touching + browser-bound phase. The workflow-chaining runner is the
-  # orchestrating context here - it is the only context holding BOTH instance authority and git
-  # authority, so it drives the per-instance loop inline, dispatching odoo-instance (provision +
-  # path-incremental), odoo-doc-illustration (capture + assemble), and git-ops (per-module commit).
+  # Phase 5 - Provision + capture (delegated to skill odoo-doc-illustration)
+  # The ONLY instance-touching + browser-bound phase. Delegates entirely to the
+  # odoo-doc-illustration skill, which is the branch-aware per-instance incremental loop SSOT
+  # (D14.2/D14.3): provision via odoo-instance, capture via the skill's two writers (one per
+  # audience, SEQUENTIAL on the same instance handle), verify, commit via git-ops, advance
+  # next-delta. The workflow does NOT restate the loop mechanics here.
+  # Phase 4 pre-fetched per-module per-locale marketing copy; the skill does NOT re-fetch on
+  # this workflow path (Phase 4 copy artifacts are forwarded directly to the skill).
   # SEQUENTIAL within a dependency-path; PARALLEL across independent instance-paths up to W.
-  # Requires: P2 (walkthrough), P4 (copy) for doc:true modules, and P0.5 (doc-plan.yaml).
+  # Requires: P1 (feature-catalog.jsonl), P2 (walkthrough.jsonl), P4 (copy) for doc:true
+  # modules, and P0.5 (doc-plan.yaml).
   # ------------------------------------------------------------------
   - id: provision-capture
-    inline: true
-    model_tier: opus
+    skill: odoo-doc-illustration
+    nl_trigger: >
+      Delegate to the odoo-doc-illustration skill, which owns the per-instance incremental
+      provision-capture loop (see SKILL.md). Forward: doc-plan at
+      .odoo-ai/packaging/<run>/doc-plan.yaml, scope at .odoo-ai/packaging/<run>/scope.yaml,
+      and per-module Phase 1-4 artifacts under .odoo-ai/packaging/<run>/<module>/
+      (feature-catalog.jsonl from Phase 1, walkthrough.jsonl from Phase 2, marketing copy
+      per locale from Phase 4 - do NOT re-fetch; pass directly to the skill).
+    model_tier: sonnet
     gate: "approve / refine: [feedback] / cancel"
-    # Read .odoo-ai/packaging/<run>/doc-plan.yaml: clusters[], each with instances[]
-    # (install_doc_sequence[]) + convergence[], and parallelism.schedule (batches of instances that
-    # run concurrently, inter_instance_max = W) + provision_cadence.
-    #
-    # PARALLELISM. Run independent instance-paths (independent branches + independent clusters) in
-    # PARALLEL, up to W = min(#independent instance-paths, browser-family pool, ephemeral instance
-    # cap) - the fan-out + browser-family + instance-lease envelope is the concurrency-guard.md SSOT
-    # (do not restate the numbers). BROWSER-SERIAL CONSTRAINT: each browser family is
-    # exclusive-serial - never two capture workers on one family; the headless pool (2) and the
-    # DISPLAY pool (4) are separate families, and no two instance-paths may share a family or an
-    # instance. A convergence node runs only AFTER its reused branch's own modules are doc'd
-    # (schedule dependency). When W=1 all paths serialize -> report DONE_WITH_CONCERNS(W=1: serialized).
-    #
-    # PER-INSTANCE LOOP (SEQUENTIAL within the path; one instance = one browser family = the single
-    # browser-exclusive serial actor):
-    #   1. Provision the instance ONCE at its leaf via odoo-instance / odoo-instance-ops with
-    #      CONTEXT: doc, MODE: path-incremental: -i <leaf> --skip-auto-install --with-demo
-    #      --load-language=<csv of all resolved locales> (exact flag spelling per cli_help; v19+
-    #      i18n loadlang), on an EXCLUSIVE lease that PERSISTS across the whole loop (never dropped
-    #      mid-loop), --ports 1 so the browser can drive. Verify each locale active in res.lang.
-    #   2. Loop over the instance's install_doc_sequence[] (each module M, leaf-dep-first topo order):
-    #      - if M.doc == true: dispatch odoo-doc-illustration with CAPTURE MODE: scenarios,
-    #        DOC LAYER: both, TONE: marketing, DOC SCOPE: full-guide, forwarding the live
-    #        INSTANCE_HANDLE + WALKTHROUGH (.../<M>/walkthrough.jsonl) + FEATURE CATALOG
-    #        (.../<M>/feature-catalog.jsonl) + the copy artifacts. At this instant the DB = {M + its
-    #        deps} and NO module that extends M is installed yet -> PURE, extension-free doc (the
-    #        core invariant). Capture scenario-driven, per-step, per-locale
-    #        (<scenario-slug>-step<NN>.<locale>.png; English canonical has no locale suffix), fill
-    #        [Image:] markers, assemble <M>/static/description/index.html (Description tab) +
-    #        <M>/doc/index.rst (Documentation tab) + per-locale index_<locale>.html / index_<locale>.rst.
-    #        When M.extends_in_scope[] is non-empty, add the "Extends <base> - see its documentation"
-    #        cross-reference hint (D13.7). VERIFY the assembled artifact, then COMMIT M's doc
-    #        artifacts via git-ops / git-operator (per-module commit; one-way git - NEVER raw git).
-    #      - if M.doc == false (dedup dep): SKIP doc, still install it.
-    #      - INSTALL THE NEXT DELTA (M+1) on the SAME live DB via odoo-instance init-modules
-    #        (-i <delta> --skip-auto-install, no-HTTP flag, --stop-after-init), then ensure-up to
-    #        restart the HTTP server against the grown DB before the next capture. The DB grows
-    #        monotonically - base reused, only the delta added.
-    #   3. CONVERGENCE (branching clusters): after a reused branch instance finishes its own modules,
-    #      install convergence.install_fill (the other branches' modules + the convergence node) in
-    #      ONE init-modules call (only the still-missing modules), ensure-up, doc the convergence node
-    #      on the now-complete {all-branches + node} DB, verify, commit. Non-reused branch instances
-    #      are released after their last doc.
-    #
-    # PER-LOCALE + DEGRADATION (preserved from D6/D7): per-locale re-drive from a fresh precondition
-    # (outer=locale, middle=scenario, inner=step); a locale that fails to load/switch falls back to
-    # English step images -> status: DONE_WITH_CONCERNS(locale <x>: English screenshots used) - never
-    # hard-block one locale. No instance/browser at all -> degraded path: assemble structure + copy +
-    # [Image:] placeholders. Emit a capture-coverage report enumerating each (module, scenario, locale,
-    # step) as captured / downgraded / skipped + the reason.
-    # GATE (phase completion, NOT per-cluster): review the captured + assembled + committed artifacts
-    # across all instance-paths before manifest-audit.
 
   # ------------------------------------------------------------------
   # Phase 6 - Manifest audit (inline, per doc:true module)

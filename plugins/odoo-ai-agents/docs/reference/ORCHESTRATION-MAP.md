@@ -25,7 +25,7 @@
 | `odoo-deprecation-audit` | leaf | fresh | backend | - | - |
 | `odoo-discovery-summary` | leaf | fresh | none | - | - |
 | `odoo-doc-feature-map` | spawner-agent | fresh | backend | - | odoo-feature-cataloger |
-| `odoo-doc-illustration` | spawner-agent | fresh | frontend | - | odoo-doc-illustrator, odoo-doc-scoper (pre-flight multi-module scope mapper - dispatched before illustrator when TARGET covers >1 module), odoo-doc-planner (dependency-aware doc scheduler - dispatched after the scoper on the multi-module path to emit doc-plan.yaml; one whole-plan gate; then the branch-aware per-instance incremental loop) |
+| `odoo-doc-illustration` | spawner-agent | fresh | frontend | - | odoo-doc-scoper (pre-flight multi-module scope mapper; dispatched first on multi-module TARGET), odoo-doc-planner (dependency-aware doc scheduler; dispatched after scoper; emits doc-plan.yaml; one whole-plan gate; branch-aware per-instance incremental loop), odoo-user-doc-writer (browser-exclusive leaf; end-user guide doc/index.rst; dispatched per module per DOC LAYER userguide|both), odoo-marketing-writer (browser-exclusive leaf; App-Store landing static/description/index.html; dispatched per module per DOC LAYER appstore|both), odoo-content-draft (Skill tool - marketing copy pre-fetch on marketing path when copy not supplied) |
 | `odoo-doc-walkthrough` | spawner-agent | fresh | backend | - | odoo-doc-scenarist |
 | `odoo-feature-check` | leaf | fresh | none | - | - |
 | `odoo-feature-highlights` | leaf | fresh | none | - | - |

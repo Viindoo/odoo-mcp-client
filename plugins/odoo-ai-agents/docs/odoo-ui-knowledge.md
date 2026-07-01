@@ -192,14 +192,14 @@ optional brand/mockup keys simply disable their checks when absent.
 
 ## Documentation screenshots (static/description)
 
-Convention for `odoo-doc-illustrator` when writing module visual documentation into
-`<module>/static/description/`. All paths below are relative to the module root.
+Convention for the doc writers when writing
+module visual documentation into `<module>/static/description/`. All paths below are relative to the module root.
 
 ### Layout
 
 | Asset | Path | Spec |
 |-------|------|------|
-| App icon | `static/description/icon.png` | PNG 256x256 (App Store de-facto; legacy 100x100 or 128x128 accepted). Use `odoo-icon-design` to DESIGN/GENERATE a new icon (SVG code-gen + rasterize, brand-aware, version-gated: PNG-only v8-v18; +icon.svg+manifest key on v19). `odoo-doc-illustrator` captures a LIVE 128x128 viewport crop as fallback only - it is NOT a designed icon |
+| App icon | `static/description/icon.png` | PNG 256x256 (App Store de-facto; legacy 100x100 or 128x128 accepted). Use `odoo-icon-design` to DESIGN/GENERATE a new icon (SVG code-gen + rasterize, brand-aware, version-gated: PNG-only v8-v18; +icon.svg+manifest key on v19). The `odoo-doc-illustration` skill captures a LIVE 128x128 viewport crop as fallback only - it is NOT a designed icon |
 | Store listing HTML | `static/description/index.html` | Pure HTML; image refs use `<img src="./file">` (relative) |
 | Banner screenshot | `static/description/main_screenshot.png` | 1280x600 |
 | Localised banner GIF | `static/description/main_screenshot.<locale>.gif` | 1280x600; one file per locale |
@@ -210,8 +210,8 @@ Manifest key: `'images': ['static/description/main_screenshot.png']`.
 ### Writing screenshots from the agent
 
 SSOT for the screenshot write mechanism (allowed-roots constraint + 2-tier relative-filename ->
-`.playwright-mcp` -> Bash cp staging): see `agents/odoo-doc-illustrator.md` (Critical path
-constraint section). Do not duplicate that mechanism here - follow the agent SSOT.
+`.playwright-mcp` -> Bash cp staging): see `skills/odoo-doc-illustration/references/capture-mechanics.md`
+(shared browser mechanics reference). Do not duplicate that mechanism here - follow the skill SSOT.
 
 ### UC2 - cluster / docs-repo output
 

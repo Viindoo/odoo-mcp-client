@@ -271,7 +271,7 @@ If the user said "enumerate all features that stock module ships for the docs" -
 - `odoo-acceptance`: drives a LIVE Odoo instance/UI to execute an independent oracle and
   adjudicate PASS/FAIL/UNVERIFIED with evidence. Requires a live instance + browser MCP.
 - `odoo-content-draft`: marketing copy (landing page / email sequence / social / blog) with
-  `[Image:]` markers for illustrators; audience is external prospects, not end-users.
+  `[Image:]` markers for the doc writers; audience is external prospects, not end-users.
 - `odoo-solution-design`: technical architecture DOCUMENT (data model / override strategy /
   module structure) produced BEFORE implementation is written; no user-facing narrative.
 

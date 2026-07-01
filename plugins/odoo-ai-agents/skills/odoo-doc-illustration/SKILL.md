@@ -2,27 +2,28 @@
 name: odoo-doc-illustration
 argument-hint: "[module] [doc target]"
 description: >
-  Produce illustrated documentation for an Odoo module or cluster: drives a live browser to
-  capture screenshots then assembles static/description/index.html (App Store listing) and/or
-  doc/index.rst (user guide). Dispatched as agent odoo-doc-illustrator. Axes: DOC LAYER
-  appstore(default - writes index.html)|userguide(writes doc/index.rst)|both; TONE
-  technical|marketing (marketing = brand-aware App-Store landing); DOC SCOPE
-  screenshot-doc|full-guide (full-guide = Install/Config/Usage/Troubleshooting/FAQ); CAPTURE
-  MODE screens|scenarios (scenarios drives the UI step-by-step, shoots every step). Fire on:
-  "document an Odoo module with screenshots", "tạo tài liệu có ảnh cho module", "làm landing
-  App Store cho module", "create RST user guide for module", "viết doc/index.rst cho module".
-  Routing: record a video -> odoo-demo-recording; audit a screen -> odoo-ui-review; pure text
-  -> odoo-content-draft; icon -> odoo-icon-design; write frontend code -> odoo-coding
+  Produce and orchestrate illustrated documentation for an Odoo module or cluster - the SOLE
+  orchestrator that dispatches odoo-doc-scoper then odoo-doc-planner, gates the whole plan ONCE,
+  then runs a branch-aware per-instance incremental loop that launches odoo-user-doc-writer
+  (end-user doc/index.rst) and/or odoo-marketing-writer (App-Store static/description/index.html)
+  per DOC LAYER and commits per module via git-ops. Axes: DOC LAYER appstore(default)|userguide|both;
+  TONE technical|marketing; DOC SCOPE screenshot-doc|full-guide; CAPTURE MODE screens|scenarios. Fire
+  on: "document an Odoo module with screenshots", "tạo tài liệu có ảnh cho module", "làm landing App
+  Store cho module", "create RST user guide for module", "viết doc/index.rst cho module". Routing:
+  record a video -> odoo-demo-recording; audit a screen -> odoo-ui-review; pure marketing copy only
+  -> odoo-content-draft; module icon -> odoo-icon-design; write frontend code -> odoo-coding
 ---
 
 ## Persona
 
-Visual documentation producer for Odoo: drives a live browser to capture fully-rendered
-screenshots then embeds them into durable module documentation. NOT for auditing/rating a
-rendered screen (-> odoo-ui-review); this skill captures screenshots to EMBED into
-documentation artifacts. Captured images are copied into the module's `static/description/`
-(or the cluster doc dir), so they survive across working sessions and git commits instead of
-being lost to an ephemeral temp dir.
+Documentation-run orchestrator for Odoo modules. This skill is the SOLE orchestrator of a
+documentation run: it scopes and plans the modules, gates the plan once, provisions the live
+instance(s), then per module launches two INTERNAL browser-driving writer agents that capture
+fully-rendered screenshots and embed them into durable module documentation -
+`odoo-user-doc-writer` (end-user `doc/index.rst`) and `odoo-marketing-writer` (App-Store
+`static/description/index.html`). Captured images land in the module's `static/description/` so
+they survive across sessions and git commits. NOT for auditing/rating a rendered screen
+(-> `odoo-ui-review`) - this skill captures screenshots to EMBED into documentation.
 
 ## Out of Scope
 
@@ -34,122 +35,239 @@ being lost to an ephemeral temp dir.
 - **Write or fix frontend source code** -> `odoo-coding`
 - **Module not yet installed/deployed on a live instance** -> install first via `odoo-instance`, then invoke this skill
 
-## When to invoke / Agent invocation
+## Sole orchestrator (scoper -> planner -> ONE gate -> per-instance loop)
 
-Main launches `odoo-doc-illustrator` as a subagent with a DISPATCH BRIEF:
+This skill owns the ENTIRE run: scoping, planning, the plan gate, instance-provisioning authority,
+the per-instance loop, verify, per-module commit, and model selection for the writers. The two
+writer agents are INTERNAL leaf executors - only this skill launches them; no consumer reaches past
+the skill into a writer. The writers NEVER spawn, call the Skill tool, call
+`odoo-content-draft`/`-scoper`/`-planner`, or run a loop - ALL orchestration lives here.
 
+**Single module.** A single module dir/name keeps the legacy single-module path with no
+scoper/planner hop: provision (or receive an `INSTANCE_HANDLE`), then run the loop body ONCE
+against that module - behavior unchanged.
+
+**Multi-module** (TARGET is `local`, `worktree:<abs-path>`, or `repo:<abs-path>` with >1 module):
+1. **Scope** - dispatch `odoo-doc-scoper` FIRST to enumerate `modules[]` with per-module
+   `{path, languages, doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc}`.
+2. **Plan** - dispatch `odoo-doc-planner` (`plan_source: scope`) to emit `doc-plan.yaml` -
+   dependency clusters + branch-aware instance allocation + per-instance topological
+   `install_doc_sequence` + dedup + parallelism schedule. Algorithm SSOT:
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md` - do not re-derive it here.
+3. **Gate (ONE whole-plan).** Present the ENTIRE plan (clusters + instance allocation + install/doc
+   order + dedup + schedule) for a SINGLE `approve / refine: [feedback] / cancel` - NOT a gate per
+   cluster. `refine` re-runs the planner with the feedback; `cancel` aborts before any instance is
+   provisioned.
+4. **Loop** - run the per-instance incremental loop below over `doc-plan.yaml`.
+
+**Per-instance incremental loop (the loop body).** Per instance-path (SEQUENTIAL within a path;
+PARALLEL across independent instance-paths up to
+`W = min(#paths, browser-family pool 2 headless / 4 headed, ephemeral-instance cap ~3)`; HARD
+GUARD: never run two paths on the same browser family or the same instance):
+
+1. **Provision once at the leaf.** Dispatch `odoo-instance` (`odoo-instance-ops`,
+   `CONTEXT: doc, MODE: path-incremental`, `--skip-auto-install --with-demo --load-language=<csv>`,
+   EXCLUSIVE lease, `--ports 1`). THIS SKILL (not instance-ops) reads back
+   `INSTANCE_HANDLE = <db>:<port>` from the returned instance-ops block.
+2. **Walk `install_doc_sequence[]`** (each module M, leaf-dependency-first). For `M.doc == true`:
+   1. **Marketing copy pre-fetch (TONE: marketing only).** If copy is not already supplied (the
+      `module-packaging` workflow Phase 4 supplies it; a standalone run does not): first GUARANTEE
+      `feature-catalog.jsonl` exists - use the caller/plan catalog, else dispatch
+      `odoo-doc-feature-map` (which runs `odoo-feature-cataloger`) - then dispatch
+      `odoo-content-draft` (landing-page-copy channel, grounded in that catalog) to produce the
+      sectioned `<!-- HERO -->` ... copy with `[Image: <slug>]` markers. The writers NEVER call
+      content-draft; the skill owns this pre-fetch.
+   2. **Launch the writer(s) per DOC LAYER, SERIAL on this instance** (browser-exclusive - NEVER two
+      writers concurrent on ONE instance): `userguide` -> `odoo-user-doc-writer`; `appstore` ->
+      `odoo-marketing-writer`; `both` -> BOTH, one after the other on the same `INSTANCE_HANDLE`
+      (two audience-pure capture passes - the marketing hero/feature-grid shots and the userguide
+      per-step shots are DIFFERENT sets). Fan-out is free across MODULES/INSTANCES (each on its own
+      family/instance), never within one instance.
+      **Model selection (skill-owned).** The skill picks EACH writer's model at dispatch - default
+      `sonnet`, override up/down per job complexity, scope, and module count (spawn-time resolution:
+      env > Agent-param > frontmatter > inherit). The writer frontmatter carries only the default;
+      no consumer sets a writer's model - model authority stays with this orchestrator.
+   3. **Verify then commit.** Verify each writer's returned artifacts against its path-incremental
+      completion block (files exist at the reported paths), then COMMIT M's docs via git-toolkit
+      `git-ops` (per-module commit, one-way git; the skill never runs raw git mutations).
+   For `M.doc == false` (dedup dependency): SKIP capture, still let instance-ops install it.
+3. **Advance.** Tell `odoo-instance` to install the next delta (`init-delta` on the SAME DB) +
+   `ensure-up`, then repeat step 2 for M+1. Convergence reuse+fill per `doc-plan.yaml`. THE SKILL
+   decides WHEN to advance and WHEN to release the lease; instance-ops only executes each atomic op
+   and returns its block.
+
+Order per module: **install -> pre-fetch copy (marketing) -> capture + assemble (writer(s), serial)
+-> verify -> commit -> next-delta.** Emit one aggregate index per run
+(`doc-run-<timestamp>/index.jsonl`) listing every output path.
+
+## Writer dispatch briefs
+
+The skill launches each writer with a self-contained brief. `MODULE PATH` may be a bare module name
+when `addons_path` is unknown - the writer resolves the absolute path from `context.md` or by
+scanning disk. Omitting an axis field preserves today's behavior (see Documentation axes). The
+shared browser-capture mechanics (2-tier write, headless/headed, on-theme check, per-locale loop,
+`CAPTURE MODE` step-drive) live in `references/capture-mechanics.md` - the skill does not restate them.
+
+**`odoo-user-doc-writer`** (DOC LAYER `userguide`, or the userguide half of `both`):
 ```
-MODE: module | cluster
-TARGET: <absolute path to module dir (UC1) | doc_output_dir (UC2)>
-SCREENS: <ordered list of menus / views / flows to capture, e.g. "Sales > Orders list, form view of draft order, Confirm button result">
+MODULE PATH: <abs path to module dir | module name>
+INSTANCE_HANDLE: <db>:<port>          # from provision-once; absent = writer self-checks install
+WALKTHROUGH: <abs path to walkthrough.jsonl from odoo-doc-scenarist>   # required for CAPTURE MODE: scenarios
+FEATURE CATALOG: <abs path to feature-catalog.jsonl>                   # optional; feeds Usage + feature list
+LANGUAGES: <resolved locale list, English-first>
+DOC SCOPE: screenshot-doc | full-guide
+CAPTURE MODE: screens | scenarios
+extends_in_scope: [<base_module>, ...]
 BROWSER MODE: headless | headed
-DOC LAYER: appstore | userguide | both       # default appstore - writes static/description/index.html
-TONE: technical | marketing                  # default technical; marketing builds an App-Store landing index.html
-DOC SCOPE: screenshot-doc | full-guide       # default screenshot-doc; full-guide writes the structured user guide
-CAPTURE MODE: screens | scenarios            # default screens; scenarios drives the UI step-by-step
-WALKTHROUGH: <abs path to walkthrough.jsonl from odoo-doc-scenarist>   # required when CAPTURE MODE: scenarios
-FEATURE CATALOG: <abs path to feature-catalog.jsonl from odoo-feature-cataloger>   # optional; feeds full-guide Usage + marketing Key Features
-LANGUAGES: <resolved language list - see i18n resolution below>
-INSTANCE_HANDLE: <db>:<port>                 # optional; path-incremental cluster (MODE:path-incremental from odoo-instance-ops) - use this instance, skip self-provision; absent = self-provision as today
-extends_in_scope: [<base_module_names>]      # optional; from doc-planner/doc-scoper - when non-empty, insert cross-ref line in index.html (TONE:marketing) + doc/index.rst (any DOC SCOPE)
 ```
 
-If `addons_path` is not yet known, TARGET may be just a module name; the agent resolves the absolute path from `context.md` or by scanning disk.
+**`odoo-marketing-writer`** (DOC LAYER `appstore`, or the appstore half of `both`):
+```
+MODULE PATH: <abs path to module dir | module name>
+INSTANCE_HANDLE: <db>:<port>
+MARKETING COPY: <abs path or inline sectioned copy from odoo-content-draft>   # REQUIRED - skill pre-fetches it
+FEATURE CATALOG: <abs path to feature-catalog.jsonl>                          # REQUIRED - absent -> writer BLOCKS
+LANGUAGES: <resolved locale list, English-first>
+CAPTURE MODE: screens | scenarios
+extends_in_scope: [<base_module>, ...]
+BROWSER MODE: headless | headed
+```
 
-**Axis defaults** (omitting any field preserves today's behavior): DOC LAYER `appstore` (writes `static/description/index.html`); TONE `technical`; DOC SCOPE `screenshot-doc`; CAPTURE MODE `screens`. A dispatch that omits these fields behaves exactly as before - existing runs and tests are unaffected.
+## Documentation axes
 
-**DOC LAYER.** Controls which output files are produced:
-- `appstore` - writes `static/description/index.html` (App Store listing page)
-- `userguide` - writes `doc/index.rst` (user guide / RST documentation)
-- `both` (MODE module) - agent writes both files directly (no markers, no content-draft); agent embeds `<img>` / `.. image::` tags after capture
-- `both` (MODE cluster hybrid) - agent uses `[Image: <screen-slug>]` markers in the prose skeleton so standalone `odoo-content-draft` can fill prose; the doc-illustrator agent itself replaces markers with `<img>`/`.. image::` after capture (content-draft does NOT resolve markers)
+**Axis defaults** (omitting any field preserves today's behavior): DOC LAYER `appstore` (writes
+`static/description/index.html`); TONE `technical`; DOC SCOPE `screenshot-doc`; CAPTURE MODE
+`screens`. A dispatch that omits these fields behaves exactly as before - existing runs and tests
+are unaffected.
 
-**Tab roles (App Store).** `static/description/index.html` = the **Description** tab (marketing / overview); `doc/index.rst` = the **Documentation** tab (technical guide). Keep marketing out of the RST and deep technical steps out of the HTML - do not duplicate content across the two.
+**DOC LAYER** - which output files are produced and which writer runs:
+- `appstore` -> `odoo-marketing-writer` writes `static/description/index.html` (App Store listing).
+- `userguide` -> `odoo-user-doc-writer` writes `doc/index.rst` (user guide / RST documentation).
+- `both` -> the skill launches BOTH writers serially on the same instance; each captures the shots
+  it needs and writes its own file. No single agent writes both.
 
-**TONE (appstore index.html tone).** `technical` (default) = today's behavior: a plain technical-documentation `index.html` (one `<h2>` per feature, OSM-grounded prose, screenshots). `marketing` = assemble a brand-aware **App-Store landing page** per `references/app-store-template.md` (sanitizer-safe fragment - no `<html>/<head>/<body>`, no JS, no external CDN/Google-Fonts link; Bootstrap-5 utility classes; hex colors only; HTML entities; relative image paths). Copy is drafted by `odoo-content-draft` (its `[Image: <slug>]` markers are resolved by this agent after capture); the Key Features grid is sourced from the feature catalog when one is supplied. Brand palette/fonts are read from `.odoo-ai/context.md` brand tokens or the brief - never hardcode a vendor brand.
+**Tab roles (App Store).** `static/description/index.html` = the **Description** tab (marketing /
+overview); `doc/index.rst` = the **Documentation** tab (technical guide). Keep marketing out of the
+RST and deep technical steps out of the HTML - do not duplicate content across the two.
 
-**DOC SCOPE (userguide structure).** `screenshot-doc` (default) = today's behavior: one section per feature with field text + a screenshot. `full-guide` = a structured guide with `Installation`, `Configuration`, `Usage`, `Troubleshooting`, and `FAQ` sections. When a feature catalog / walkthrough is supplied, the `Usage` section is generated from the walkthrough scenarios and a Key-Features summary from `feature-catalog.jsonl`; otherwise the agent derives the structure from OSM grounding as today.
+**TONE (appstore index.html tone).** `technical` (default) = a plain technical-documentation
+`index.html` (one `<h2>` per feature, OSM-grounded prose, screenshots). `marketing` =
+`odoo-marketing-writer` assembles a brand-aware **App-Store landing page** per
+`references/app-store-template.md` (sanitizer-safe fragment - no `<html>/<head>/<body>`, no JS, no
+external CDN/Google-Fonts link; Bootstrap-5 utility classes; hex colors only; HTML entities;
+relative image paths). The skill pre-fetches the copy from `odoo-content-draft`; the writer resolves
+its `[Image: <slug>]` markers after capture and sources the Key Features grid from the feature
+catalog. Brand palette/fonts come from `.odoo-ai/context.md` brand tokens or the brief - never
+hardcode a vendor brand.
 
-**CAPTURE MODE (how screenshots are taken).** `screens` (default) = today's behavior: navigate to each screen and snapshot. `scenarios` = consume the walkthrough `steps[]` (`{action: navigate|fill|click|select|wait, target, value}`) and, for EACH step, perform the action then shoot that step (`<scenario-slug>-step<NN>.<locale>.png`), with an optional state-assert via the live Odoo MCP between steps. Requires a live, seeded instance and a `WALKTHROUGH:` path.
+**DOC SCOPE (userguide structure).** `screenshot-doc` (default) = one section per feature with field
+text + a screenshot. `full-guide` = `odoo-user-doc-writer` writes a structured guide with
+`Installation`, `Configuration`, `Usage`, `Troubleshooting`, and `FAQ` sections. When a feature
+catalog / walkthrough is supplied, the `Usage` section is generated from the walkthrough scenarios
+and a Key-Features summary from `feature-catalog.jsonl`; otherwise the writer derives the structure
+from OSM grounding.
 
-**Multi-module (Phase 0 scoping + dependency-aware planning).** A single module dir/name keeps the **legacy single-module path** with no scoper/planner hop - behavior unchanged. When TARGET is `local`, `worktree:<abs-path>`, or `repo:<abs-path>` (>1 module), run the dependency-aware path:
-1. **Scope** - dispatch `odoo-doc-scoper` FIRST to enumerate `modules[]` with per-module `{path, languages, doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc}`.
-2. **Plan** - dispatch `odoo-doc-planner` (`plan_source: scope`) to consume that scope block and emit `doc-plan.yaml` - dependency clusters + branch-aware instance allocation + per-instance topological install-doc order + dedup + parallelism schedule. Do NOT re-derive the schedule here; the algorithm SSOT is `${CLAUDE_PLUGIN_ROOT}/skills/_shared/doc-cluster-plan.md`.
-3. **Gate (ONE whole-plan).** Present the ENTIRE plan (all clusters + instance allocation + install/doc order + dedup + schedule) for a SINGLE `approve / refine: [feedback] / cancel` - NOT a gate per cluster. `refine` re-runs the planner with the feedback; `cancel` aborts before any instance is provisioned.
-4. **Branch-aware incremental loop.** Drive per instance-path from `doc-plan.yaml`: provision via `odoo-instance` (`odoo-instance-ops` `MODE: path-incremental`, receiving the live `INSTANCE_HANDLE: <db>:<port>`), then walk each instance's `install_doc_sequence` leaf-dependency-first - install the delta -> capture + assemble THIS module's doc (this skill; DOC LAYER / TONE / DOC SCOPE per the brief; do NOT force an icon or manifest store-keys here) -> verify -> commit that module via git-toolkit `git-ops` -> advance to the next delta on the SAME live DB (convergence reuse+fill per the plan). Run independent instance-paths in PARALLEL up to W; SEQUENTIAL within a path. The loop mechanics are the SSOT reference above - do not restate the algorithm.
+**CAPTURE MODE (how screenshots are taken).** `screens` (default) = navigate to each screen and
+snapshot. `scenarios` = consume the walkthrough `steps[]` (`{action: navigate|fill|click|select|wait,
+target, value}`) and, for EACH step, perform the action then shoot that step
+(`<scenario-slug>-step<NN>.<locale>.png`), with an optional state-assert via the live Odoo MCP
+between steps. Requires a live, seeded instance and a `WALKTHROUGH:` path. Both writers honour it via
+`references/capture-mechanics.md`.
 
-Emit one aggregate index per run (`doc-run-<timestamp>/index.jsonl`) listing every output path.
+**Image anchor markers.** `[Image: <slug>]` (slug only, no spaces - NOT `[[IMG:]]`) is the
+placeholder that `odoo-content-draft` EMITS in the marketing copy; `odoo-marketing-writer` RESOLVES
+each marker to a captured file after capture. `odoo-user-doc-writer` writes RST directly (no markers,
+no content-draft). A marker that survives into a shipped artifact means the capture was degraded (see
+Degraded paths).
 
-**Precondition provisioning (route to `odoo-instance`).** Before any capture, the instance must be provisioned cleanly for documentation: module installed `--with-demo` (so scenarios have sample data), every resolved locale loaded (so the UI renders per-locale), and auto-install side modules skipped (so the docs show only the target module's surface, not whatever Odoo pulls in). Resolve the exact flags via OSM `cli_help` at runtime (version-aware - never hardcode flag names). The agent VERIFIES this precondition and, if the instance was not provisioned this way, routes to `odoo-instance` (provision) and emits a WARNING rather than documenting a polluted UI.
+## Provisioning, parallel cap, degraded paths
 
-**Parallel capture (cap W + server-family isolation).** Browser-free waves (scoper, feature-map, walkthrough, icon, copy, index-assemble) fan out wide (Mode B). The browser-bound capture wave is bounded: each browser-worker uses ONE browser MCP server family (`playwright` / `chrome-devtools`, plus the headed families when `DISPLAY` is present) AND one ephemeral instance. HARD GUARD: never assign two workers to the same server family (shared server = race). `W = min(#(module x locale) browser-bound units, 2 headless / 4 with display, ~3 ephemeral instances)`; work beyond W is batched serially. State-mutating (CRUD-heavy) scenario captures cap at <=2 simultaneous.
+**Precondition provisioning (route to `odoo-instance`).** Before any capture the instance must be
+provisioned cleanly for documentation: module installed `--with-demo` (so scenarios have sample
+data), every resolved locale loaded (so the UI renders per-locale), and auto-install side modules
+skipped (so the docs show only the target module's surface, not whatever Odoo pulls in). Resolve the
+exact flags via OSM `cli_help` at runtime (version-aware - never hardcode flag names). The skill
+VERIFIES this precondition and, if the instance was not provisioned this way, routes to
+`odoo-instance` (provision) and emits a WARNING rather than documenting a polluted UI.
 
-**Degraded paths (never hard-block the whole run).** Per-locale: if one locale fails to load/switch, reuse the English screenshots for that locale's doc with an `[Image: <slug>]` note and report `status: DONE_WITH_CONCERNS(locale <x>: English screenshots used)` - other locales proceed. Global: with no instance/browser at all, still assemble the structure + copy with `[Image: <slug>]` placeholders and route to `odoo-instance` to fill captures later, instead of `BLOCKED`.
+**Parallel capture (cap W + server-family isolation).** Browser-free waves (scoper, feature-map,
+walkthrough, icon, copy) fan out wide. The browser-bound capture wave is bounded: each writer uses
+ONE browser MCP server family (`playwright` / `chrome-devtools`, plus the headed families when
+`DISPLAY` is present) AND one ephemeral instance. HARD GUARD: never assign two writers to the same
+server family (shared server = race). `W = min(#(module x locale) browser-bound units, 2 headless /
+4 with display, ~3 ephemeral instances)`; work beyond W is batched serially. State-mutating
+(CRUD-heavy) scenario captures cap at <=2 simultaneous.
 
-**Language resolution (6-tier + disk-UNION, extends `skills/odoo-i18n/SKILL.md` P0 with one extra tier).**
-Resolve the documentation language list in this order - first tier that yields a value wins:
-1. Explicit `LANGUAGES:` value in the dispatch brief
-2. `context.md` field `doc_languages` - written by onboarding as a comma-string (e.g. `en_US,vi_VN`); split on `,` and trim whitespace
+**Degraded paths (never hard-block the whole run).** Per-locale: if one locale fails to load/switch,
+the writer reuses the English screenshots for that locale's doc with an `[Image: <slug>]` note and
+reports `status: DONE_WITH_CONCERNS(locale <x>: English screenshots used)` - other locales proceed.
+Global: with no instance/browser at all, the writer still assembles the structure + supplied copy
+with `[Image: <slug>]` placeholders and routes to `odoo-instance` to fill captures later, instead of
+`BLOCKED`.
+
+**Headless/headed.** The skill defaults `BROWSER MODE: headless` - the only safe choice on a
+no-display or CI host. Pass `headed` only when the user explicitly asks to watch the browser, and
+only after confirming a display is plausibly available; warn rather than dispatch headed on a
+headless host.
+
+## Language resolution (6-tier + disk-UNION)
+
+Resolve the documentation language list the skill passes as each writer's `LANGUAGES:` in this order
+- first tier that yields a value wins (extends `skills/odoo-i18n/SKILL.md` P0 with one extra tier):
+1. Explicit `LANGUAGES:` value already in the run / plan
+2. `context.md` field `doc_languages` - a comma-string (e.g. `en_US,vi_VN`); split on `,` and trim
 3. `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` field `default_languages`
 4. Module `i18n/*.po` locales already present
 5. `res.lang` active languages on the live instance
 6. Fallback `["vi_VN"]`
 
-**UNION with existing on-disk doc locales (mandatory, applied after tier resolution):** Before dispatching, scan `static/description/` for `index.html` (primary doc already present) and `index_<locale>.html` files; also scan `doc/` for `index.rst` and `index_<locale>.rst` when DOC LAYER is `userguide` or `both`. Collect all as `disk_doc_locales`. Final language list = `tier_resolved_list` ∪ `disk_doc_locales`. Existing on-disk doc locales are ALWAYS included - never pass a `LANGUAGES:` field that omits a locale already documented on disk. This prevents the agent from silently dropping existing translations.
+**UNION with existing on-disk doc locales (mandatory, after tier resolution).** Scan
+`static/description/` for `index.html` and `index_<locale>.html`; also scan `doc/` for `index.rst`
+and `index_<locale>.rst` when DOC LAYER is `userguide` or `both`. Collect these as
+`disk_doc_locales`. Final list = `tier_resolved_list` ∪ `disk_doc_locales`. Existing on-disk doc
+locales are ALWAYS included - never pass a `LANGUAGES:` field that omits a locale already documented
+on disk. This prevents silently dropping existing translations. Tiers 3-6 here = odoo-i18n P0 tiers
+2-5; tier 2 (`context.md doc_languages`) is added in this stack only.
 
-Example: viin_approval has `index.html` (primary/EN) + `index_vi_VN.html`; i18n.json -> `["vi_VN"]`; disk_doc_locales = `{primary, vi_VN}`; dispatch LANGUAGES = `[primary, vi_VN]` -> agent updates all 4 files (2 HTML + 2 RST for DOC LAYER both).
+**English-mandatory canonical (marketing / full-guide branch).** When TONE is `marketing` or DOC
+SCOPE is `full-guide`, the final language set = `{en_US}` ∪ resolved-set. English is the canonical,
+suffix-less doc (`index.html`, `doc/index.rst`) and is force-included even if the registry omits it;
+every other locale gets `index_<locale>.html` / `doc/index_<locale>.rst`. This is applied on top of
+the shared resolver - it does NOT change the resolver's tier-6 hard fallback (`["vi_VN"]`) used by
+the legacy screenshot-doc/technical path.
 
-Tiers 3-6 here = odoo-i18n P0 tiers 2-5; P0 tier 1 (explicit) maps to our tiers 1-2. Tier 2 (context.md `doc_languages`) is added here and sits above P0 in the odoo-doc-illustration stack only.
+**Per-locale capture (CAPTURE MODE: scenarios).** Read-only screens stay language-neutral (capture
+once, shared). A driven scenario MUTATES state, so it cannot be re-rendered with `?lang=`; the writer
+re-drives each scenario from its precondition per locale (outer = locale, middle = scenario, inner =
+step; English first and in full) - see `references/capture-mechanics.md`.
 
-For each resolved language produce a separate output: `index.html` + `index_<locale>.html` (appstore), or locale-suffixed RST (userguide).
+## INSTANCE_HANDLE + cross-reference
 
-**English-mandatory canonical (marketing / full-guide branch).** When TONE is `marketing` or DOC SCOPE is `full-guide`, the final language set = `{en_US}` ∪ resolved-set. English is the canonical, suffix-less doc (`index.html`, `doc/index.rst`) and is force-included even if the registry omits it; every other locale gets `index_<locale>.html` / `doc/index_<locale>.rst`. This is applied on top of the shared resolver - it does NOT change the resolver's tier-6 hard fallback (`["vi_VN"]`) used by the legacy screenshot-doc/technical path.
+**INSTANCE_HANDLE (path-incremental).** In the per-instance loop the skill provisions the instance
+once, reads back `INSTANCE_HANDLE = <db>:<port>` from the instance-ops block, and passes it to each
+writer. A writer with `INSTANCE_HANDLE` uses that DB/port directly and does NOT self-provision; after
+its writes it emits a path-incremental completion block so the skill can verify, commit, and advance
+to the next module delta on the same live DB. A writer with NO `INSTANCE_HANDLE` (standalone dispatch)
+self-checks that the module is installed and behaves as today.
 
-**Per-locale capture (CAPTURE MODE: scenarios).** Read-only screens stay language-neutral (capture once, shared). But a driven scenario MUTATES state, so it cannot be re-rendered with `?lang=`; re-drive each scenario from its precondition per locale. Loop order: outer = locale, middle = scenario, inner = step. English is captured first and in full.
-
-**INSTANCE_HANDLE - path-incremental cluster mode (D13.5).** Optional. When `INSTANCE_HANDLE: <db>:<port>` is present in the dispatch brief, the instance has already been provisioned by `odoo-instance-ops` `MODE: path-incremental` with this module installed as a cumulative delta - the agent uses the designated DB and port directly and does NOT self-provision. After all artifacts are written (screenshots + index.html/RST + manifest), the agent emits a path-incremental completion block so the orchestrator can verify, commit, and advance the per-instance loop to the next module delta on the same live DB. When absent, the agent self-provisions and behaves exactly as today - standalone behavior unchanged.
-
-**extends_in_scope - cross-reference hint (D13.7).** Optional. A list of in-scope base module names whose docs are cross-referenced from this extension's output. Sourced from the `odoo-doc-planner` / `odoo-doc-scoper` `depends_in_scope ∩ doc:true` set; passed in the dispatch brief as `extends_in_scope: [<base>, ...]`. When non-empty, the agent inserts one cross-reference line per base - "Extends `<base>` - see its documentation" with a relative link when the base is in the same addons path - into: (a) `index.html` (TONE: `marketing` only, after the hero section); (b) `doc/index.rst` (any DOC SCOPE, after the top-level title). When absent or empty, nothing is added - default behavior preserved.
-
-**Image anchor markers in hybrid drafts.** In MODE cluster with `DOC LAYER: both`, use `[Image: <screen-slug>]` as the placeholder (slug only, no spaces) - NOT `[[IMG:]]`. The `odoo-doc-illustrator` agent itself replaces these markers with `<img>` tags (HTML) or `.. image::` directives (RST) after capture. `odoo-content-draft` only EMITS markers when invoked standalone for cluster prose; it does not resolve them.
-
-**Browser exclusivity.** The doc-illustrator drives the browser (playwright by default) sequentially - do NOT
-dispatch it in parallel with odoo-ui-reviewer, odoo-visual-regression, or odoo-demo-recording
-on the same instance, as concurrent browser sessions collide. If another browser-driving agent
-is already running: queue this skill to start after it completes; if queuing is not possible,
-report `BLOCKED(browser in use by <agent>)`.
-
-**Image write - 2-tier mechanism.** (agent-internal: 2-tier write via staging + Bash cp; no brief field)
-
-**UC2 text.** For cluster/marketing docs the agent delegates prose to `odoo-content-draft`
-(skill invocation or subagent as appropriate), then slots the captured screenshots into the
-returned document at the agreed anchor points. When `doc_output_dir` is not specified in the
-brief or `.odoo-ai/context.md`, the agent falls back to `.odoo-ai/visual/doc/`.
-
-**Convention-detect.** Before capturing, the agent reads `.odoo-ai/context.md` fields `doc_image_naming`, `doc_languages`, and `doc_static_dir`; also `ls` the module's `static/description/` to infer existing naming patterns. Detected convention wins over brief defaults. Screenshots are cropped by default; highlight overlays are added only when the brief explicitly requests them.
-
-Image quality: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` *(agent-internal)* - agent verifies on-theme render before capturing.
-
-**Headless/headed decision.** The agent defaults to headless - the only safe choice on a
-no-display or CI host. Main adds `BROWSER MODE: headed` to the brief only when the user
-explicitly asks to watch the browser; before doing so, confirm a display is plausibly available
-and warn rather than dispatch on a headless host.
+**extends_in_scope (cross-reference hint).** An optional list of in-scope base module names (from the
+planner/scoper `depends_in_scope ∩ doc:true` set). When non-empty, the writer inserts one
+cross-reference per base - "Extends `<base>` - see its documentation" (a relative link when the base
+is in the same addons path) - into `doc/index.rst` (`odoo-user-doc-writer`, any DOC SCOPE) and/or
+`static/description/index.html` (`odoo-marketing-writer`, after the hero). Absent/empty -> nothing is
+added; default behavior preserved.
 
 ## Standalone fallback
 
-- **OSM unreachable:** agent skips source-grounding steps and greps the repo on disk for
-  module views and menu ids to confirm which screens exist. Prefix output with
+- **OSM unreachable:** the writers skip source-grounding and grep the repo on disk for module views
+  and menu ids to confirm which screens exist, prefixing output with
   `WARNING: OSM unreachable - screen list inferred from disk grep, verify against live instance`.
-- **Browser MCP or instance unreachable:** emit `status: NEEDS_NEXT` with:
-  ```
-  next:
-    - skill: odoo-instance
-      reason: provision the Odoo instance needed for live screenshot capture
-      inputs: {operation: ensure-up, series: "<series from context>", modules: ["<modules to install>"]}
-      confidence: 0.9
-      risk_level: L2
-  ```
-  so the run-harness provisions one. For TONE `marketing` or DOC SCOPE `full-guide`, do the **degraded assembly** first: write the index.html / RST structure + content-draft copy with `[Image: <slug>]` placeholders, then emit the `NEEDS_NEXT` above to fill captures later. Fall back to `BLOCKED(Browser MCP unavailable - cannot capture screenshots)` only when even the degraded structure cannot be written.
+- **Browser MCP or instance unreachable:** for TONE `marketing` or DOC SCOPE `full-guide`, the writer
+  does the **degraded assembly** first (structure + supplied copy with `[Image: <slug>]`
+  placeholders) then emits `status: NEEDS_NEXT` routing to `odoo-instance` (`operation: ensure-up`)
+  so the run-harness provisions one and a later pass fills the captures. Fall back to
+  `BLOCKED(Browser MCP unavailable - cannot capture screenshots)` only when even the degraded
+  structure cannot be written.
 
 ## Continuation Contract
 

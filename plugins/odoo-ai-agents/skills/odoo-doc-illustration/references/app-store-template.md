@@ -364,7 +364,8 @@ Default palette when no brand tokens: primary `#714B67`, accent `#714B67`, bg-li
 `NN-slug.<ext>` and `main_screenshot.<ext>`; every non-English locale appends `.<locale>` -
 `NN-slug.<locale>.<ext>` and `main_screenshot.<locale>.<ext>`. `NN` is a 2-digit sequence
 (`01`, `02`, ...), `slug` is a kebab-case task description, and `<locale>` is a full locale code
-(`vi_VN`, `fr_FR`, etc.). This matches the step-capture naming in `agents/odoo-doc-illustrator.md`
+(`vi_VN`, `fr_FR`, etc.). This matches the step-capture naming in
+`skills/odoo-doc-illustration/references/capture-mechanics.md`
 (English step files carry no suffix).
 
 All paths in `index.html` must be relative to `static/description/` (i.e. start with `./`).

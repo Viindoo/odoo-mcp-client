@@ -309,81 +309,77 @@ without `--skip-auto-install`. If confirmed by the caller, add ONLY the bridge m
 to the `-i` list without removing `--skip-auto-install`. Record the bridge in the output block
 notes field.
 
-### Path-incremental keep-alive (CONTEXT: doc, MODE: path-incremental)
+### Path-incremental keep-alive operations (CONTEXT: doc, MODE: path-incremental)
 
-When the brief carries `CONTEXT: doc` AND `MODE: path-incremental`, the lease is a
-**keep-alive** for the entire install sequence: one EXCLUSIVE lease on one DB persists across
-all delta installs and is NEVER released mid-loop. This mode is driven by `odoo-doc-planner`
-and the `module-packaging` workflow Phase 5 when documenting a dependency cluster - each module
-must be captured on a DB containing ONLY that module plus its already-installed deps (no
-reverse-dependents yet = pure doc).
+When the brief carries `CONTEXT: doc` AND `MODE: path-incremental`, this agent exposes atomic
+operations for a keep-alive EXCLUSIVE lease. The CALLER (e.g. `odoo-doc-illustration` skill)
+drives the sequence - deciding which module is next, when to capture, and when to release. The
+agent executes ONE atomic operation per invocation and returns the output block; it does NOT
+loop, schedule, forward to other actors, or wait for doc/verify/commit.
 
-**Session structure:**
+**Atomic operations (invoked one per call per caller instruction):**
 
-1. **Provision once (at the leaf dependency).** Use the doc-context provision above: `-i
-   <leaf_module>` with `--skip-auto-install`, `--with-demo` (version-aware, omit flag for
-   v8-v18 where demo is on by default), `--load-language=<csv>` (v8-v18; v19+ see operation 7),
-   EXCLUSIVE lease, `--ports 1` (HTTP for browser). Confirm every flag via
-   `cli_help(command='server', odoo_version='<series>')`. Capture and HOLD `ALLOC_TOKEN`,
-   `ALLOC_DB_NAME`, `ALLOC_PORTS`.
+**A. Provision-once (base DB for the path)**
 
-2. **Install-doc loop** (each module M in the planner's `install_doc_sequence`, topological
-   order, leaf-dep-first):
-   - `M.doc == true` (doc target): emit an `instance-ops` block with `op: init-modules,
-     status: ready-for-doc`; mint the live handle explicitly as
-     `INSTANCE_HANDLE = <ALLOC_DB_NAME>:<ALLOC_PORTS>` (i.e. the output block's `dbname` : its
-     `http_port`) and forward it to `odoo-doc-illustrator` in that exact `<db>:<port>` format so
-     the illustrator uses this DB/port directly and does NOT self-provision. Wait for
-     doc+verify+commit to complete before advancing to the next delta.
-   - `M.doc == false` (dedup dep - already doc'd on another instance per planner dedup): skip
-     doc, advance directly to the delta install.
-   - **Install next delta** on the SAME DB (existing-DB path, operation 3 `init-modules`):
-     ```bash
-     "${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh" init \
-       --db "$ALLOC_DB_NAME" \
-       --python "$ALLOC_PYTHON" \
-       --addons "$ALLOC_ADDONS_PATH" \
-       --modules "<next_module>" \
-       --extra "<--skip-auto-install from cli_help> <no-HTTP flag from cli_help> --stop-after-init"
-     ```
-     `--skip-auto-install` MUST be present on every delta install call, not only the first.
-     The no-HTTP flag (`--no-http` v11+, `--no-xmlrpc` v8-v10 - confirm via `cli_help`) and
-     `--stop-after-init` together ensure the delta run does not bind a port and exits cleanly.
-   - **Restart HTTP** via `ensure-up` (operation 6) after every delta install so the browser
-     can drive the now-grown DB before the next capture:
-     ```bash
-     "${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh" apply --version <series>
-     ```
+Provision the leaf-dependency DB at path start using doc-context provision flags: `-i
+<leaf_module>` with `--skip-auto-install`, `--with-demo` (version-aware, omit flag for
+v8-v18 where demo is on by default), `--load-language=<csv>` (v8-v18; v19+ see operation 7),
+EXCLUSIVE lease, `--ports 1` (HTTP for browser). Confirm every flag via
+`cli_help(command='server', odoo_version='<series>')`. Emit the output block with
+`status: ready-for-doc`; mint the live handle as
+`INSTANCE_HANDLE = <ALLOC_DB_NAME>:<ALLOC_PORTS>` (i.e. the output block's `dbname` : its
+`http_port`). Return `ALLOC_TOKEN`, `ALLOC_DB_NAME`, `ALLOC_PORTS` in the block so the caller
+passes them back on subsequent calls.
 
-3. **Convergence fill** (branching clusters only - D13.4b). After the reused branch instance
-   finishes its own `install_doc_sequence`, install the fill (the other branches' modules + the
-   convergence node itself) in ONE `init-modules` call - same `--skip-auto-install`, no-HTTP
-   flag, `--stop-after-init`; then `ensure-up`; then doc the convergence node. Install only the
-   still-MISSING modules (those not already on this instance - the branch's own modules are
-   already present).
+**B. Init-delta (install one module into the existing keep-alive DB)**
 
-4. **Release** the EXCLUSIVE lease after the last module in the path (or after the convergence
-   node when this instance is the reused branch). Drop the DB through the allocator:
-   ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN"
-   ```
-   Independent branch instances NOT reused as a convergence base are released immediately after
-   their own last doc step. Do NOT release any lease mid-loop.
+Install the next module onto the SAME running DB (operation 3 `init-modules`):
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh" init \
+  --db "$ALLOC_DB_NAME" \
+  --python "$ALLOC_PYTHON" \
+  --addons "$ALLOC_ADDONS_PATH" \
+  --modules "<next_module>" \
+  --extra "<--skip-auto-install from cli_help> <no-HTTP flag from cli_help> --stop-after-init"
+```
+`--skip-auto-install` MUST be present on every delta install call, not only the first.
+The no-HTTP flag (`--no-http` v11+, `--no-xmlrpc` v8-v10 - confirm via `cli_help`) and
+`--stop-after-init` together ensure the delta run does not bind a port and exits cleanly.
 
-**Key invariants:**
-- DB grows monotonically: leaf deps installed first; no reverse-dependent installed until its
-  turn in the sequence.
-- EXCLUSIVE lease is retained for the entire path; NEVER released mid-loop.
-- `--skip-auto-install` on EVERY delta install call.
-- No-HTTP flag + `--stop-after-init` during delta installs; `ensure-up` restores the HTTP
-  server before the next capture.
-- NEVER raw `createdb`/`dropdb`: DB is created via Odoo create-on-init at step 1 and released
-  through the allocator at step 4.
-- Instance-ops executes "install this delta onto this DB" + "ensure-up"; which modules belong
-  on which instance is entirely the planner's decision (from `doc-plan.yaml`
-  `install_doc_sequence` + `convergence.install_fill`).
-- A NEW branch instance (independent branch, D13.4b) follows the same step-1 path as
-  `create-instance` (`CONTEXT: doc`, EXCLUSIVE lease, `--ports 1`) on a freshly allocated DB.
+**C. Ensure-up (restart HTTP after a delta install)**
+
+Restart HTTP via operation 6 so the browser can access the now-grown DB:
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh" apply --version <series>
+```
+The caller invokes ensure-up when needed (e.g. before a capture); the agent does not decide
+when captures happen.
+
+**D. Convergence-fill (branching clusters only)**
+
+When the caller indicates this instance is the convergence base, install the still-MISSING
+modules listed in the brief (from the plan's `convergence.install_fill`) in ONE `init-modules`
+call - same `--skip-auto-install`, no-HTTP flag, `--stop-after-init`; then `ensure-up`.
+Which modules are missing is the CALLER's determination; the agent installs exactly what the
+brief lists.
+
+**E. Release-lease**
+
+Release the EXCLUSIVE lease when the caller signals path completion:
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN"
+```
+
+**Invariants this agent enforces:**
+- Operations B-E require the caller to supply the `ALLOC_TOKEN` from operation A; never
+  acquires a second keep-alive lease.
+- `--skip-auto-install` on every init-delta call (B).
+- No-HTTP flag + `--stop-after-init` during delta installs; ensure-up is a separate call (C).
+- NEVER raw `createdb`/`dropdb`: DB created via Odoo create-on-init at A, released through
+  the allocator at E.
+- Which modules to install and in what order is ENTIRELY the caller's decision.
+- A NEW branch instance (independent branch) is provisioned via operation A with
+  `CONTEXT: doc`, EXCLUSIVE lease, `--ports 1` on a freshly allocated DB.
 
 ---
 
@@ -401,15 +397,18 @@ available (2 headless; optionally +2 headed when DISPLAY is present); state-muta
 (CRUD-heavy) scenario drives stay <= 2 simultaneous. Browser-free phases (feature-map, copy,
 icon) need no instance at all and can fan out without this constraint.
 
-**Provisioning N instances in parallel:**
+**Per-instance provisioning (caller invokes per instance needed):**
 
-1. Call `allocator.py acquire --mode ephemeral --series <series> --ports 0` N times (each
-   returns a unique `ALLOC_DB_NAME` + `ALLOC_TOKEN`).
-2. Run the doc-context init in parallel per lease (each with `--with-demo`, `--load-language`,
-   `--skip-auto-install` as needed for `CONTEXT: doc`).
-3. Forward each resulting `instance-ops` block as a separate `INSTANCE_HANDLE` to the
-   corresponding downstream capture worker.
-4. Release each lease (`allocator.py release <token>`) when its capture worker is done.
+1. Call `allocator.py acquire --mode ephemeral --series <series> --ports 0` (returns a unique
+   `ALLOC_DB_NAME` + `ALLOC_TOKEN`).
+2. Run the doc-context init for this lease (with `--with-demo`, `--load-language`,
+   `--skip-auto-install` as needed for `CONTEXT: doc`). Emit the output block with
+   `INSTANCE_HANDLE = <ALLOC_DB_NAME>:<ALLOC_PORTS>`.
+
+The caller manages concurrency: how many instances to provision in parallel, when to forward
+each `INSTANCE_HANDLE` to a downstream worker, and when to release each lease. Release is via
+operation 2 (`drop-instance` / `allocator.py release <token>`), triggered by the caller, not
+this agent.
 
 **Instance isolation is mandatory:** each ephemeral DB is fully independent. NEVER share a
 mutable DB across concurrent capture workers - parallel scenario drives would corrupt each
@@ -469,8 +468,8 @@ The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verb
 - [ ] OSM caveat preserved if grounding was local-source or ungrounded
 - [ ] load-language: correct mechanism per series (--load-language combined with -i base for v8-v18; i18n loadlang subcommand for v19+); res.lang verified active or flagged log-signal/unverified; per-locale degradation emitted rather than hard abort
 - [ ] doc-context (CONTEXT=doc): --with-demo + --load-language + --skip-auto-install combined in one init call (v8-v18) or sequenced (v19+); each flag resolved from cli_help for the target series; skip-auto-install exception handled with selective bridge install, not global removal
-- [ ] path-incremental (MODE=path-incremental): EXCLUSIVE lease held for full path (never released mid-loop); --skip-auto-install on every delta install; no-HTTP flag + --stop-after-init during delta; ensure-up after every delta before capture; convergence fill in one init-modules call installing only still-missing modules; lease released only after the last module or convergence node; planner's install_doc_sequence + convergence.install_fill are the assignment SSOT
-- [ ] multi-instance parallel: each ephemeral lease holds a unique db_name + port; count <= ~3 unless orchestrator explicitly budgets higher; no mutable DB shared across concurrent workers
+- [ ] path-incremental (MODE=path-incremental): atomic op A returns ALLOC_TOKEN + INSTANCE_HANDLE for caller to supply on next call; --skip-auto-install on every init-delta call (B); no-HTTP flag + --stop-after-init during delta (B); ensure-up emitted as separate call (C); convergence fill installs only what caller brief lists (D); lease released only on explicit caller release signal (E); module ordering is ENTIRELY caller's decision
+- [ ] multi-instance parallel: each acquire (step 1) returns unique db_name + port; output block includes INSTANCE_HANDLE; caller manages concurrency, forwarding, and release; no mutable DB shared across concurrent workers
 ```
 
 ---
