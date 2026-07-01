@@ -1,7 +1,7 @@
 {
   "name": "odoo-ai-agents",
   "displayName": "Odoo AI Agent Team",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "description": "Odoo AI workforce toolkit - 53 skills + 24 specialist agents + 8 workflow commands across engineering, sales, marketing, strategy, onboarding, visual UI testing, and git-wave orchestration. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed). Includes browser-automation agents for Odoo UI review and automated setup.",
   "keywords": ["odoo", "erp", "ai-workforce", "odoo-semantic", "semantic-search", "workflow", "sales", "marketing", "strategy", "onboarding", "code-generation", "code-review", "upgrade", "visual-testing", "browser-automation", "ui-review", "setup", "ai-agents", "agent-team"],
   "author": {
