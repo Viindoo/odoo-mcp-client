@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.4.0] - 2026-07-02
+
+### Changed
+
+- `odoo-ai-agents` - applied the same optimize + sole-dispatcher + Sonnet-5-tier pass to the **i18n** and **instance** fronts.
+  - **`odoo-i18n`**: added an explicit **sole-dispatcher** contract for `odoo-translator` (it was already the only caller in practice - this formalizes it and prevents drift) and named the `odoo-instance` skill as the way to acquire the required live instance (never the raw `odoo-instance-ops` agent). Fixed the P5 consistency-audit tier: was flat `opus`, now **sonnet default; opus ONLY when the terminology is domain/legal/regulatory** (e.g. accounting circulars) - never for module or language count alone (Sonnet-5 policy; P1/P3 already followed it). Description gains the "ONLY dispatcher" framing (971/1024). Added `skills/odoo-i18n/evals/evals.json`.
+  - **`odoo-instance`**: added the durable `skills/odoo-instance/evals/evals.json` (the one item outstanding after the 4.3.0 pass, which had already added its sole-dispatcher contract, description clause, and orchestration SSOT fix). No model-tier table by design (instance-ops runs flat `sonnet`).
+  - No reroute was needed on either front: `odoo-translator` and `odoo-instance-ops` had zero direct-dispatch bypasses - every caller already routes through the owning skill.
+
 ## [4.3.0] - 2026-07-02
 
 ### Changed
