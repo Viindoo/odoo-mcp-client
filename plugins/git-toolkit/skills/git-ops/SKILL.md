@@ -2,16 +2,19 @@
 name: git-ops
 argument-hint: "[git/github task]"
 description: >-
-  Universal front door for ALL git and GitHub work, run in a delegated context. Fires on:
-  status/log/diff/blame/bisect, branch/tag/worktree, fetch/pull/merge/cherry-pick, rebase,
+  Universal front door for ALL git and GitHub work: it ROUTES the request and DISPATCHES a
+  specialist agent to execute it in a delegated context; it never runs the churn itself, so the
+  caller stays clean and code is never lost. Trigger whenever a request touches git or GitHub in
+  ANY way, even casual phrasing: commit/stage/push/pull/clone,
+  status/log/diff/blame/bisect, branch/tag/worktree/stash, fetch/merge/cherry-pick, rebase,
   forward-port/backport, conflict resolution, history rewrite
   (rebase -i/squash/split/amend/reset/filter-repo), force-push, recovery (reflog/ORIG_HEAD/stash),
   large-diff analysis at scale, AND GitHub PR/issue/review/release/CI/fork, OR a pasted GitHub
-  PR/issue URL (diff/CI/metadata, merge, compare). Vietnamese: "rebase nhánh", "gộp commit",
-  "sửa lịch sử git", "giải quyết xung đột", "xóa commit", "khôi phục", "mở/review/merge PR",
-  "tạo release", "dán link PR/issue". For a domain-specific flow (a framework's
-  rebase/forward-port/cluster-upgrade orchestrator) a domain front-door may wrap this toolkit ->
-  defer to it when installed
+  PR/issue URL. Vietnamese: "commit/đẩy code", "tạo nhánh", "rebase nhánh",
+  "gộp commit", "sửa lịch sử", "giải quyết xung đột",
+  "mở/review/merge PR", "dán link PR/issue". For a domain-specific flow (a
+  framework's rebase/forward-port/cluster-upgrade orchestrator) a domain front-door may wrap this
+  toolkit -> defer to it when installed
 ---
 
 # git-ops - the universal git/github front door
@@ -20,11 +23,20 @@ Any git or GitHub need routes through here. The contract: git churn happens in a
 inline-bounded context so the CALLER'S context stays clean, code is NEVER lost, and the work scales
 from a few lines to thousands of files. GitHub work prefers the GitHub MCP, falling back to `gh`.
 
+**Your job is to ROUTE and DISPATCH, not to execute.** You are a dispatcher: you classify the op,
+pick the mode, and hand the actual work to the specialist agent that owns the safety contract for
+it. Do NOT run rebases, merges, cherry-picks, resets, pushes, PR creates/merges, or read a full
+diff/PR body yourself in this context - a worker does that in its own context and returns a compact
+result. The ONE exception is a genuinely bounded, low-risk read on the INLINE allowlist below; when
+in doubt whether an op qualifies, it does not - delegate it. This is what keeps the caller's context
+clean and every mutation behind its backup/verify/confirm gate.
+
 ## Step 1 - classify the op
 
 Bucket the request into one of: READ (status/log/diff/blame/bisect-read), REVERSIBLE-WRITE
-(fetch/pull-rebase/merge/cherry-pick/branch/tag/worktree/non-force push/forward-port/backport),
-DESTRUCTIVE-REWRITE (rebase -i/squash/split/amend/reset/filter-repo/force-with-lease), or GITHUB
+(stage/commit/clone/init/stash, fetch/pull-rebase/merge/cherry-pick/branch/tag/worktree/non-force
+push/forward-port/backport), DESTRUCTIVE-REWRITE
+(rebase -i/squash/split/amend/reset/filter-repo/force-with-lease), or GITHUB
 (PR/issue/review/release/CI/fork).
 
 ## Step 2 - route by the delegation decision
