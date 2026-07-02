@@ -208,11 +208,13 @@ any branch, worktree, code write, or file deletion.
 Goal: make each module installable + working at the target series.
 Create the JOB-tier integration worktree: invoke the `git-toolkit:git-ops` skill (via the Skill
 tool) to add a worktree (branch `upg/<src>-<tgt>-<cluster>`, worktree `<path>/upg-integration`, base `<work-base>`).
-Per module in dep order: dispatch `odoo-coding`
-(via Skill tool) -> `odoo-coder` / `odoo-frontend-coder` (ADAPT tier per
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-triage-table.md`)
-in a child worktree off integration. When `odoo-frontend-coder` is dispatched, ported OWL/QWeb/SCSS is grounded against `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.
-For DELETE-absorbed and OBSOLETE modules: dispatch `odoo-coder` to run the dangling-reference
+Per module in dep order: invoke the `odoo-coding` skill (via the Skill tool) at the ADAPT tier
+(per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-triage-table.md`)
+in a child worktree off integration. `odoo-coding` owns the backend/frontend split, coder fan-out,
+and model, and grounds any ported OWL/QWeb/SCSS against
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (do NOT dispatch raw `odoo-coder` /
+`odoo-frontend-coder`).
+For DELETE-absorbed and OBSOLETE modules: invoke `odoo-coding` to run the dangling-reference
 sweep first (grep repo for model names, XML IDs, group xmlids, env.ref targets), then
 invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the directory removal, staging, and commit in the child worktree
 (op: rm -r module dir + stage deletion + commit -s; confirmed: yes - user confirmed DELETE

@@ -4,7 +4,7 @@ argument-hint: "[create|drop|init|update|test|load-language] [version|db]"
 description: >-
   Build, drop, or drive a live Odoo instance for any series from v8 onward - create a database
   through Odoo, init or update modules, run tests, ensure an instance is up, or report status.
-  Front door for ALL Odoo instance lifecycle operations; dispatches the odoo-instance-ops agent.
+  Front door for ALL Odoo instance lifecycle operations and the ONLY dispatcher of the odoo-instance-ops agent.
   Fire on "create an Odoo instance", "spin up v17", "init these modules", "drop the test DB",
   "run tests on this instance", "is the instance up", "rebuild from scratch",
   "activate a language", or any ask that needs a live Odoo process to be provisioned, updated,
@@ -25,6 +25,13 @@ This skill is the **programmatic twin** of the interactive `/odoo-setup` command
 is the human declare-and-spinup path (writes `instances.toml`, interactive prompts, guided
 wizard); this skill is for agents/callers who already know what they want: hand over the
 operation parameters, get back a structured `instance-ops` block, and keep going.
+
+**Sole dispatcher (single source of truth for instance fan-out).** This skill is the ONLY
+component that launches the `odoo-instance-ops` agent. Any other skill that needs a live instance -
+to provision, install/update modules, run tests, or tear one down - routes that work HERE via the
+Skill tool instead of spawning the agent itself, so the L2 human gate and the instance-allocation
+rules are enforced in one place. Instance-ops work does not vary by domain complexity, so it runs
+at a flat `sonnet` tier - there is deliberately NO per-operation model-tier table to keep or drift.
 
 ## Dispatch
 

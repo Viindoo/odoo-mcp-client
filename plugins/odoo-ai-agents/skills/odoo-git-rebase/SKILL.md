@@ -260,7 +260,7 @@ dispatches the read-only delegates (Explore to enumerate feature-touched files, 
 run the gates) and records only the PASS/FAIL verdict. Full brief incl. delegation contract +
 import gate: `references/rb-phase-detail.md` P8b.
 
-**P9 - Test forward (per touched module, conditional) [odoo-test-writing adapt + odoo-coder - no gate].**
+**P9 - Test forward (per touched module, conditional) [odoo-test-writing adapt + odoo-coding - no gate].**
 For modules whose behavior changed (driven by P8b symbol-survival findings + recon.md
 modules[], not a vague "behavior changed" heuristic), adapt the branch's own tests to the
 new-base idiom: RED first, then GREEN. P8b collection gate is a precondition. Brief template:

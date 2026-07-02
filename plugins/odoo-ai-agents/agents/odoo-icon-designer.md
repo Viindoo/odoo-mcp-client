@@ -7,7 +7,7 @@ description: |
   module", "generate icon.png for <module>", "create the app icon for this addon",
   "tạo icon cho module", "thiết kế icon module", "icon.png cho addon". Routing: screenshot
   capture for module docs -> odoo-doc-illustration; rate a live rendered screen ->
-  odoo-ui-reviewer; write module source code -> odoo-coder; record a demo video ->
+  odoo-ui-reviewer; write module source code -> odoo-coding; record a demo video ->
   odoo-demo-recording. Standalone-first; no browser required
 model: sonnet
 ---

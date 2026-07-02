@@ -7,7 +7,7 @@ description: |
   Context: A multi-module design is approved and the team needs the build order + integration cadence before any code is written.
   user: "The design is approved - what order do we build and ship these four modules?"
   assistant: "Dispatching odoo-planner to batch the approved design DAG into waves and wire each stage to a skill."
-  <commentary>Approved design + execution sequencing = odoo-planner, not odoo-solution-architect (which designs HOW) or odoo-coder (which writes code).</commentary>
+  <commentary>Approved design + execution sequencing = odoo-planner, not odoo-solution-architect (which designs HOW) or odoo-coding (which writes code).</commentary>
   </example>
 model: opus
 color: blue

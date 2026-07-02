@@ -6,8 +6,8 @@ description: >
   INDEPENDENT oracle, then EXECUTE it on a real running instance/UI and adjudicate PASS/FAIL with
   evidence. Fire on: acceptance test, QA the affected cluster, verify on the real UI, "write scenarios
   then run them", verify blast-radius, "works end-to-end before release". Also Vietnamese: "nghiệm thu
-  cụm module", "chạy thật trên UI", "kịch bản test rồi chạy", "kiểm thử chấp nhận". Dispatches
-  odoo-qa-planner (oracle) + odoo-qa-tester (live execute), and chains tours/HttpCase via odoo-instance.
+  cụm module", "chạy thật trên UI", "kịch bản test rồi chạy", "kiểm thử chấp nhận". Sole dispatcher of
+  odoo-qa-planner (oracle) + odoo-qa-tester (live run); chains tours/HttpCase via odoo-instance.
   Routing: a STATIC release test-plan doc / deploy checklist -> route to odoo-qa-suite; rating ONE
   rendered screen -> route to odoo-ui-review; static code or PR review with no run -> route to
   odoo-code-review; writing the fix -> route to odoo-coding. EXECUTION needs a live instance + browser
@@ -25,6 +25,14 @@ three different contexts (`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-cont
 EXECUTION needs a live Odoo instance (provisioned via `odoo-instance`) plus a browser MCP; Odoo
 Semantic is a STATIC index and is never the source of live data.
 
+**Sole dispatcher (single source of truth for acceptance fan-out).** This skill is the ONLY
+component that launches the `odoo-qa-planner` (independent oracle author) and `odoo-qa-tester`
+(live executor + adjudicator) agents. Any other skill that needs an independent oracle authored
+and/or executed-and-adjudicated routes that work HERE via the Skill tool instead of spawning those
+agents itself - centralizing the anti-bias three-context invariant and the browser-single-flight
+rule in one place. Live execution is provisioned by invoking the `odoo-instance` skill (never the
+raw `odoo-instance-ops` agent).
+
 ## Out of Scope
 
 - **A static release test-plan doc, deploy checklist, or user-level bug triage** (no execution) -> `odoo-qa-suite`
@@ -32,7 +40,7 @@ Semantic is a STATIC index and is never the source of live data.
 - **Static review of a diff / PR / pasted block** (no run) -> `odoo-code-review`
 - **Writing or fixing the code** -> `odoo-coding`; **finding root cause of one symptom** -> `odoo-debug`
 - **Writing a standalone durable test** (a tour/HttpCase with no live acceptance loop) -> `odoo-test-writing`
-- **Authoring the oracle alone** (no execution wanted) -> dispatch `odoo-qa-planner` directly
+- **Authoring the oracle alone** (no execution wanted) -> still THIS skill (run Phase 1 only) - it is the sole dispatcher of `odoo-qa-planner`; do NOT spawn the raw agent
 - **Writing walkthrough TEXT or usage scenarios for documentation** (no execution required) -> `odoo-doc-walkthrough`. This skill drives live UI and yields a PASS/FAIL verdict; it does NOT produce text-only scenario docs
 
 ## MCP tools
@@ -85,7 +93,7 @@ the scope every later phase obeys - depth on High tier, smoke on Low.
 
 ## Phase 1 - PLAN (independent oracle)
 
-Dispatch `odoo-qa-planner` (tier per the model-tier SSOT - heavier when the cluster is wide) with
+Dispatch `odoo-qa-planner` (tier per the model-tier SSOT - sonnet default; escalate ONLY when the requirement spans multiple hard business domains with heavy cross-module coupling, never for cluster width or scenario count alone) with
 `REQUIREMENT` (+ DESIGN_DOC §1/§9 when present), `odoo_version`, `CHANGED_SET`, the `SCOPE_MANIFEST`
 path, and
 `SCENARIOS_PATH: .odoo-ai/qa/<slug>-scenarios.md`. It returns the immutable oracle (GWT +
