@@ -579,8 +579,9 @@ before proceeding to P9. This gate is the same as forward-port P7 collection gat
 
 ## P9 - Test forward (per touched module)
 
-Dispatch `odoo-test-writing` (adapt mode) for each module whose behavior changed, then
-`odoo-coder` until GREEN. Brief:
+Dispatch `odoo-test-writing` (adapt mode) for each module whose behavior changed, then invoke
+the `odoo-coding` skill (via the Skill tool) until GREEN - `odoo-coding` owns the coder fan-out +
+model (do NOT dispatch raw `odoo-coder`). Test-adapt brief:
 
 ```
 DISPATCH MODEL: <adapt_tier>

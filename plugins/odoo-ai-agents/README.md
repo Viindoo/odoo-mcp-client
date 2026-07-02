@@ -211,9 +211,11 @@ watch every edit, `--plan` when you only want the map. You never type a skill na
 ### Coding dispatch and model tiers
 
 When a coding job spans several modules, `odoo-coding` assigns each module a **deterministic model
-tier** at its Phase 0 gate - `haiku` (trivial boilerplate), `sonnet` (default), `opus` (core
-override / cross-model / migration), or `fable` (rare Custom-XL, ~2x opus price, design-doc-first) -
-recorded in the gate table and `plan.md`. It then dispatches the `odoo-coder` (backend) and
+tier** at its Phase 0 gate - `haiku` (trivial boilerplate), `sonnet` (default, and the home of
+large-but-single-domain work: Sonnet's ~1M-token context holds a big module plus its surroundings),
+`opus` (reserved for multi-hard-domain changes entangled with many interacting modules - NOT chosen
+for size alone), or `fable` (rare Custom-XL cross-module inheritance change, ~2x opus price,
+design-doc-first) - recorded in the gate table and `plan.md`. It then dispatches the `odoo-coder` (backend) and
 `odoo-frontend-coder` (frontend) agents as **subagents** in **model-weighted batches**: per
 module the backend leg runs before the frontend leg, modules are ordered so each runs after its
 in-set dependencies, and each round packs work up to a single model-weighted budget (the OOM
@@ -426,7 +428,7 @@ flowchart TD
 
     subgraph P8_grp["P8 - Conflict-resolution loop (per stopped commit)"]
         P7 --> CR1["Explore reads conflict + intent"]
-        CR1 --> CR2["odoo-coder / odoo-frontend-coder<br/>resolve hunks to INTENT (ADAPT tier)"]
+        CR1 --> CR2["odoo-coding skill<br/>(owns coder fan-out)<br/>resolve hunks to INTENT (ADAPT tier)"]
         CR2 --> CR3["git rebase --continue / --skip"]
         CR3 -.->|"more stopped commits"| CR1
     end
@@ -460,7 +462,7 @@ more rigorous than forward-port (PR review only).
 | P5 Design | CONDITIONAL: route-out to odoo-solution-design when non-trivial (see design-trigger table); returns | Serial per commit | - |
 | P6 Plan Mode gate | EnterPlanMode / ExitPlanMode; decides adapt strategy BEFORE rebase starts | - | STOP - human approve |
 | P7 Create integration worktree + rebase | Create worktree; git rebase --onto (rebase starts here) | - | - |
-| P8 Conflict-resolution loop | Per stopped commit: explore conflict + intent; odoo-coder / odoo-frontend-coder resolve hunks to INTENT; git rebase --continue / --skip | Serial per commit | - |
+| P8 Conflict-resolution loop | Per stopped commit: explore conflict + intent; odoo-coding (owns the coder fan-out) resolves hunks to INTENT; git rebase --continue / --skip | Serial per commit | - |
 | P8b Symbol-survival + collection gate | MUST run; autosilent symbol-break catch before test forward | - | - |
 | P9 Test forward | Adapt branch tests RED then GREEN | - | - |
 | P9b Code-review loop | In-pipeline: odoo-code-review -> odoo-code-reviewer scoped to adapt diff; fix via odoo-coding on CRITICAL/HIGH; cap 3 iterations; automated fix-until-clean | - | - |
@@ -649,7 +651,7 @@ Customer D is running Odoo 15 with 12 custom modules and wants to move to v17 in
 You: "/odoo-plan-upgrade - Customer D, v15 to v17, 12 custom modules, deadline Q3"
 ```
 
-Chains `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis. Output: executive risk overview, code-level deprecation findings, API/feature diff, action ordering, S/M/L/XL effort estimate, and rollback plan. Saves to `.odoo-ai/upgrade-plans/customer-d-v15-v17-2026-MM-DD.md`. When you need actual code written, invoke the `odoo-coder` agent bundle (restricted-tool autonomy, OSM access).
+Chains `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis. Output: executive risk overview, code-level deprecation findings, API/feature diff, action ordering, S/M/L/XL effort estimate, and rollback plan. Saves to `.odoo-ai/upgrade-plans/customer-d-v15-v17-2026-MM-DD.md`. When you need actual code written, invoke the `odoo-coding` skill (it owns the coder fan-out + model tier; OSM access).
 
 ### Use case 6 - Marketer: launch a new feature campaign
 
@@ -694,7 +696,7 @@ Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression
 
 **Multi-runtime?** Skills and commands are written for Claude Code. Codex/Gemini parity is smoke-tested in `tests/smoke/runtime_parity.md` - 10 representative skills verified across all three runtimes.
 
-**Why did a coding task run on a bigger (or smaller) model?** `odoo-coding` assigns each module a model tier deterministically at its Phase 0 gate (haiku/sonnet/opus/fable, sonnet default) from the design-doc effort tier or file/LOC/override heuristics, and you approve it before any agent fires. The tier is recorded in `plan.md`; a fable (top-tier, ~2x opus) row only appears for Custom-XL work and is itself the cost gate you sign off.
+**Why did a coding task run on a bigger (or smaller) model?** `odoo-coding` assigns each module a model tier deterministically at its Phase 0 gate (haiku/sonnet/opus/fable, sonnet default) from the design-doc effort tier or the override/domain-complexity heuristics, and you approve it before any agent fires. Size alone does not escalate the tier - Sonnet's ~1M-token context handles large single-domain modules; opus is reserved for changes that reason across multiple hard business domains AND are entangled with many interacting modules. The tier is recorded in `plan.md`; a fable (top-tier, ~2x opus) row only appears for Custom-XL cross-module inheritance work and is itself the cost gate you sign off.
 
 **How do I add a new workflow?** Drop a `*.workflow.yaml` file in `workflows/` following the schema in `workflows/_schema.md`. The `workflow-chaining` auto-discovers it. No `plugin.json` edit needed.
 
@@ -861,7 +863,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-doc-scoper` | Sonnet | Dispatched by `odoo-doc-illustration` for multi-module MODE; read-only, resolves TARGET to modules[]; standalone-first, no browser. |
 | `odoo-diff-comparator` | Sonnet | Read-only: reads a git-diff range and emits a structured business-intent / expected-outcome / acceptance-criteria comparison (rebase: branch vs base; upgrade: custom vs core). |
 | `odoo-gap-analyzer` | Sonnet | Gap-analysis leaf dispatched by `odoo-gap-analysis` (one per requirement cluster) - classifies each requirement against standard Odoo (coverage full/partial/none, classification standard/config/extension/custom, effort tier S/M/L/XL) grounded in OSM first and the local checkout as fallback, then writes a machine-readable findings file; read-only on source, does not design or write code |
-| `odoo-qa-planner` | Sonnet | Independent acceptance-oracle author dispatched by `odoo-acceptance` (P1) and `odoo-coding` (P0 pre-code TDD) - turns a requirement/intent into an immutable `scenarios.md` (GWT, equivalence/boundary, negative paths, role/CRUD/state/search matrices, risk tier per scenario) WITHOUT reading the implementation to decide expected values; read-only, does not run or adjudicate |
+| `odoo-qa-planner` | Sonnet | Independent acceptance-oracle author dispatched by `odoo-acceptance` (P1) - turns a requirement/intent into an immutable `scenarios.md` (GWT, equivalence/boundary, negative paths, role/CRUD/state/search matrices, risk tier per scenario) WITHOUT reading the implementation to decide expected values; read-only, does not run or adjudicate |
 | `odoo-qa-tester` | Sonnet | Live acceptance executor dispatched by `odoo-acceptance` (P2b) - drives the real Odoo UI across the affected cluster (CRUD, two-plus roles, state transitions, search) and rules each scenario PASS/FAIL/UNVERIFIED with screenshot/console/network evidence; browser-exclusive (serial), reads the oracle read-only, does not modify it or fix code |
 | `odoo-doc-planner` | Sonnet | Dependency-aware doc-package planner dispatched by `odoo-planning` (full-lifecycle, plan_source design-dag) or `module-packaging`/`odoo-doc-illustration` (standalone, plan_source scope) - clusters modules, branch-aware instance allocation, leaf-first install order, dedup; writes doc-plan.yaml; read-only, no subagents |
 

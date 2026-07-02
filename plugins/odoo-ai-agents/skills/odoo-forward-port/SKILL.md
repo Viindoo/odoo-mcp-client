@@ -365,23 +365,25 @@ poll TaskList/TaskGet for status, and read each result from the teammate's SendM
 from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When
 off, dispatch + collect as today.
 
-CHP Tier-A (SendMessage-resume) applies to the P8 adapt worker / P9 verify cycle: after the
-adapt worker finishes 8a+8b and the merge back to integration, P9 may reveal a failing test.
-Instead of spawning a cold fresh worker for the re-adapt, resume the SAME adapt worker via
-`SendMessage` (see `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier A),
-sending it the P9 failure output. The worker keeps its full prior context (intent record, bucket,
-worktree path, partially adapted code) - far cheaper than rebuilding from a brief. Structure the
-exchange as async park-and-be-resumed: send the P9 failure output, end your turn, and wait to be
-resumed when the worker's re-adapt reply arrives. On resume the worker MUST immediately `cd` to
-its child worktree path before any Bash command (the shell cwd is NOT guaranteed to be restored
-across resume - see the CHP snippet "Tier-A workers in a git worktree - cd on resume"). Assign
-each adapt worker a stable `name` (e.g. `adapt-<slug>-<module>`) when spawning it and record the
-returned `agentId` in `plan.md` keyed by module, so `plan.md` becomes the agentId registry for
-re-adapt dispatches.
+CHP Tier-A (SendMessage-resume) applies to the P8a test-forward worker (`odoo-test-writing`) /
+P9 verify cycle: after 8a+8b and the merge back to integration, P9 may reveal a failing test.
+For the TEST worker, instead of spawning a cold fresh one for the re-adapt, resume the SAME
+`odoo-test-writing` worker via `SendMessage` (see
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier A), sending it the P9 failure
+output. The worker keeps its full prior context (intent record, bucket, worktree path) - far
+cheaper than rebuilding from a brief. Structure the exchange as async park-and-be-resumed: send
+the P9 failure output, end your turn, and wait to be resumed when the worker's reply arrives. On
+resume the worker MUST immediately `cd` to its child worktree path before any Bash command (the
+shell cwd is NOT guaranteed to be restored across resume - see the CHP snippet "Tier-A workers in
+a git worktree - cd on resume"). Assign each such worker a stable `name` (e.g.
+`adapt-<slug>-<module>`) when spawning it and record the returned `agentId` in `plan.md` keyed by
+module. The 8b CODE re-adapt is a fresh `odoo-coding` invocation (via the Skill tool) carrying the
+P9 failure output; `odoo-coding` owns the coder fan-out and any internal coder resume via its own
+context-handoff protocol - the forward-port orchestrator never resumes raw coders itself.
 Fallback (Tier C): if the capability probe is negative (env unset, `SendMessage` absent, or probe
-signals the orchestrator is not the team lead), spawn a fresh `odoo-coder` /
-`odoo-test-writing` agent with an explicit brief containing the P9 failure output. Tier C is
-always correct; the worklog is always written regardless of tier.
+signals the orchestrator is not the team lead), re-invoke the `odoo-coding` skill (code re-adapt)
+and/or spawn a fresh `odoo-test-writing` agent (test re-adapt) with an explicit brief containing
+the P9 failure output. Tier C is always correct; the worklog is always written regardless of tier.
 
 - **8a forward the test FIRST** via `odoo-test-writing` mode `adapt`. Adapt the MERGED SOURCE
   TEST to run on the target - translate API to the target idiom (base class, imports, helper
@@ -405,8 +407,10 @@ always correct; the worklog is always written regardless of tier.
   for JS tests - `kind='python'` is NOT valid) and attach the top examples as concrete templates;
   (iii) **broken test-symbol list** from P6 test-survival - adapt agent must rewrite or drop
   every test assertion referencing a symbol removed at target.
-- **8b adapt the code** per bucket via `odoo-coder` (backend) / `odoo-frontend-coder` (frontend),
-  dispatched with an FP-ENRICHED brief = the named **Child worktree path: `<absolute path>`** field
+- **8b adapt the code** per bucket by invoking the `odoo-coding` skill (via the Skill tool) -
+  `odoo-coding` owns the backend/frontend split, coder fan-out, model, and synthesis (do NOT
+  dispatch raw `odoo-coder` / `odoo-frontend-coder`) -
+  with an FP-ENRICHED brief = the named **Child worktree path: `<absolute path>`** field
   + the same **cd-on-resume (HARD RULE - Tier-A)** item as 8a + intent record + bucket + the failing
   test + the installable:False checklist + `MANIFEST/MIGRATION/PROVENANCE: apply C1 (keep TARGET
   version on conflict, never bump), C2 (migration-dir retarget), C3 (carry pre-existing source bugs
@@ -560,7 +564,7 @@ Forward-port adds platform-drift classes a pure-Python port misses - flag and ro
 - **Frontend (JS/OWL/SCSS).** Asset-bundle keys drift across series (e.g. `web.assets_backend`
   manifest entry shape) and OWL moved from the legacy `web.Widget` / `odoo.define()` era to
   OWL 2.x `patch()` / `useState` / `useService`. Route a frontend adapt commit to
-  `odoo-frontend-coder` (it owns both eras) - never hand-translate OWL from memory.
+  `odoo-coding` (its frontend leg owns both eras) - never hand-translate OWL from memory.
 - **i18n (.pot / .po).** Do NOT hand-port or re-export translation files in this pipeline. When a
   forwarded commit touches `.po`/`.pot` or adds translatable strings, DISPATCH the `odoo-i18n`
   skill after the code adapt - it owns the non-destructive `.pot`/`.po` recipe and validates the

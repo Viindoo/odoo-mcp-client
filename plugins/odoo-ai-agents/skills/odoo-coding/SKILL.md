@@ -3,17 +3,17 @@ name: odoo-coding
 argument-hint: "[what to build or change]"
 description: >
   Write complete, production-ready Odoo code end-to-end - Python/XML backend AND
-  JavaScript/OWL/QWeb/SCSS frontend - from a single computed field up to a multi-module
-  full-stack feature. The single front door for ALL coding: it works out which modules the
-  change touches and their dependency order, then dispatches the odoo-coder (backend) and
-  odoo-frontend-coder (frontend) agents in the right sequence. Fire ANY time someone asks to
-  build or change Odoo behavior, even with no technical words (e.g. "discount can never exceed
-  20% of unit price", "add a field and show it in a widget"). Also fires on Vietnamese:
-  "thêm trường / model", "computed field / ràng buộc / onchange", "override create/write",
-  "phân quyền đọc ghi", "viết migration", "viết widget OWL / sửa giao diện form", "sửa SCSS
-  theme". Review existing code → odoo-code-review. Find a hook point → odoo-override-finding.
-  Design before coding (non-trivial) → odoo-solution-design. Verify a rendered screen →
-  odoo-ui-review / odoo-debug
+  JavaScript/OWL/QWeb/SCSS frontend - from one computed field to a multi-module full-stack
+  feature. The single front door for ALL Odoo coding and the ONLY dispatcher of the
+  odoo-coder/odoo-frontend-coder agents: it scopes the touched modules, orders them by
+  dependency, and sequences backend before frontend. Fire ANY time someone asks to build or
+  change Odoo behavior, even with no technical words (e.g. "discount can never exceed 20% of
+  unit price", "add a field and show it in a widget"). Covers new model/field,
+  computed/related/constraint/onchange, create/write/unlink override, access rights, migrations,
+  OWL/JS widgets, SCSS/theme. Also Vietnamese: "thêm trường / model", "override create/write",
+  "phân quyền đọc ghi", "widget OWL / sửa form". DO NOT trigger for non-Odoo code. Review →
+  odoo-code-review. Hook point → odoo-override-finding. Design first → odoo-solution-design.
+  Rendered screen → odoo-ui-review / odoo-debug
 ---
 
 ## Role
@@ -21,6 +21,12 @@ description: >
 Developer - full-stack Odoo coder (all versions, v8 onward). Orchestrates two specialist agents:
 `odoo-coder` for Python/XML backend and `odoo-frontend-coder` for JS/OWL/QWeb/SCSS frontend.
 Pair-works with `odoo-code-review` for review.
+
+**Sole dispatcher (single source of truth for coding fan-out).** This skill is the ONLY component
+that computes the model tier and launches `odoo-coder` / `odoo-frontend-coder`. Any other skill
+that needs Odoo code written routes its coding work HERE via the Skill tool (passing its context
+in the brief) instead of spawning the coder agents itself. Centralizing the tier logic and the
+backend-before-frontend sequencing in one place keeps them consistent and prevents drift.
 
 ## Out of Scope
 
@@ -150,16 +156,26 @@ Every dispatch in this skill passes an explicit `model`. Resolve the tier for ea
 module's work-item by walking this table TOP-DOWN and stopping at the FIRST match.
 When a design doc is present, its effort tier takes precedence over the heuristics.
 
+**Why the bar for opus is DOMAIN complexity, not size.** Sonnet (5.x) carries a ~1M-token
+context, so it holds a large module plus its surrounding codebase in a single pass and codes it
+correctly. Raw size - high LOC, many files, a wide method surface - no longer forces a heavier
+tier: a big but single-domain module is Sonnet work. Opus is reserved for the genuinely hard case,
+a change that reasons across MULTIPLE difficult business domains AND is entangled with many
+interacting modules (wide cross-module ripple, or a deep inheritance chain) - where getting the
+interplay right, not the line count, is what strains the model.
+
 | # | Condition (first match wins) | Tier |
 |---|---|---|
-| 1 | Design doc grades it Custom-XL; OR the work-item spans >=3 modules of the set AND is full-stack AND estimated >800 LOC; OR it changes an inheritance axis across modules | **fable** |
-| 2 | Design doc grades it Extension-L; OR it overrides core `create`/`write`/`unlink`; OR the override chain has >=3 entries (`find_override_point`); OR cross-model computed chain / multi-company logic; OR a migration with >1 viable strategy; OR full-stack module with >5 intended files; OR the work-item is LARGE by size or surrounding-codebase load - net-new-or-changed >=~200 LOC, OR >=~5 intended files, OR a large / high-blast-radius target module (many existing methods or downstream dependents to hold in context, e.g. `impact_analysis`/`model_inspect` shows a wide method surface or ripple) even when the change is single-stack | **opus** |
+| 1 | Design doc grades it Custom-XL AND the change alters an inheritance axis across multiple modules - the apex of domain + structural complexity | **fable** |
+| 2 | The work-item reasons across MULTIPLE hard business domains AND is coupled to many interacting modules (both together - not size alone). Qualifying signals: design doc Extension-L / Custom-XL with high cross-module coupling; a core `create`/`write`/`unlink` override whose correctness spans many dependents (`find_override_point` >=3-entry chain, OR `impact_analysis` shows a wide downstream ripple); a cross-model computed chain plus multi-company logic spanning modules; a migration with >1 viable strategy touching many modules | **opus** |
 | 3 | Design doc grades it Standard or Config; OR (single-stack AND <=2 intended files AND ~<=50 LOC AND no method override): one field/attr, boilerplate XML view shell, label/string change, security CSV row | **haiku** |
-| 4 | Everything else - Extension-M, normal computed/onchange/constraint, single-method override, standard OWL widget, mid-size single-stack module BELOW the Row-2 size/scope thresholds (<~200 LOC AND <5 files AND not a large/high-blast-radius module) - and ANY genuinely ambiguous case you cannot classify confidently | **sonnet** (default) |
+| 4 | Everything else - and the RIGHT default for large-but-tractable work: a big single-domain module, high LOC or many files, a normal computed/onchange/constraint, a single-method override, a standard OWL widget, a full-stack module, even a large / high-blast-radius module that stays within one business domain - plus ANY genuinely ambiguous case you cannot classify confidently. Size, file count, and blast radius alone never escalate past sonnet; only Row-2 multi-domain + heavy-dependency complexity does | **sonnet** (default) |
 
 Constraints on the table:
-- **sonnet is the ambiguous-case default.** If two rows seem to apply, the higher
-  row (smaller #) wins; if NO row clearly applies, use sonnet.
+- **sonnet is the ambiguous-case default and the home of LARGE work.** If two rows
+  seem to apply, the higher row (smaller #) wins; if NO row clearly applies, use
+  sonnet. Do NOT escalate to opus for size, file count, or blast radius alone -
+  Row 2 requires multi-domain difficulty AND cross-module entanglement together.
 - **fable is never a default and ALWAYS needs explicit human confirmation.** It is
   the rare top band (~2x opus price). When any row resolves to fable, the gate
   message must call it out on its own line - tier, cost, and a one-line why

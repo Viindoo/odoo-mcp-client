@@ -415,8 +415,10 @@ find_test_examples(query='double-post guard on account.move', odoo_version='18.0
 finding) whose `<file>` is this test file - copy those rows in verbatim; omit the line when the
 list is empty for this file.
 
-**8b - adapt the code** per bucket. Dispatch `odoo-coder` (backend) / `odoo-frontend-coder`
-(frontend) with the FP-ENRICHED brief - the extra context a generic coder brief lacks:
+**8b - adapt the code** per bucket. Invoke the `odoo-coding` skill (via the Skill tool) with the
+FP-ENRICHED brief - `odoo-coding` owns the backend/frontend split, coder fan-out, model, and
+synthesis (do NOT dispatch raw `odoo-coder` / `odoo-frontend-coder`). The extra context a generic
+coder brief lacks:
 
 ```
 DISPATCH MODEL: <adapt-tier>

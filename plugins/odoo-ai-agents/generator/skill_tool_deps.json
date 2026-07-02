@@ -1197,7 +1197,7 @@
       "spawns": [
         "odoo-intent-extractor (read-only per-commit; model per complexity)",
         "odoo-installable-prober (read-only per-module installable-state probe in P2; model per complexity / sonnet)",
-        "odoo-coder / odoo-frontend-coder (FP-enriched adapter prompt carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first; serial per commit via work-tier worktrees)",
+        "odoo-coding (P8 adapt via the Skill tool; owns the backend/frontend odoo-coder/odoo-frontend-coder fan-out + model; FP-enriched brief carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first; serial per commit via work-tier worktrees)",
         "git-ops (cherry-pick, merge, branch/worktree ops - all local git mutations - plus read-only diff/range map + P5 verify and PR create/review - via git-ops skill - git-toolkit)"
       ],
       "stack": "fullstack",
@@ -1234,8 +1234,8 @@
         "odoo-diff-comparator (per-module core-absorption comparison)",
         "odoo-gap-analysis (core-feature coverage)",
         "odoo-solution-architect (conditional hard-call design)",
-        "odoo-coder / odoo-frontend-coder (P4 adapt, dep order, per-module worktrees)",
-        "odoo-instance-ops (P5 install/test) + odoo-backend-debugger / odoo-ui-debugger (failure diagnose)",
+        "odoo-coding (P4 adapt via the Skill tool; owns the odoo-coder/odoo-frontend-coder fan-out + model; dep order, per-module worktrees)",
+        "odoo-instance skill (P5 install/test via the Skill tool; owns the odoo-instance-ops fan-out) + odoo-backend-debugger / odoo-ui-debugger (failure diagnose)",
         "git-ops (branch, worktree, cherry-pick, squash - all git mutations - plus read-only diff scope + verify and P7 PR review/creation - via git-ops skill - git-toolkit)"
       ],
       "stack": "fullstack",

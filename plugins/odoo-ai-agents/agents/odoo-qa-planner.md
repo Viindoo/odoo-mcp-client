@@ -1,7 +1,7 @@
 ---
 name: odoo-qa-planner
 description: |
-  Use this agent when an orchestrator needs an INDEPENDENT acceptance oracle - test scenarios with chosen-up-front expected results - derived from a requirement/intent, BEFORE the system is exercised. It writes an immutable `scenarios.md` covering GWT, equivalence/boundary, negative paths, and role/CRUD/state/search matrices with a risk tier per scenario. Typical triggers include odoo-acceptance Phase 1 requesting the oracle for a change cluster, odoo-coding Phase 0 requesting a pre-code TDD oracle, and any caller needing acceptance criteria turned into runnable scenarios. It is read-only on source and STRICTLY does NOT read the implementation to decide expected values; it does not write, run, or adjudicate tests, and does not spawn subagents
+  Use this agent when an orchestrator needs an INDEPENDENT acceptance oracle - test scenarios with chosen-up-front expected results - derived from a requirement/intent, BEFORE the system is exercised. It writes an immutable `scenarios.md` covering GWT, equivalence/boundary, negative paths, and role/CRUD/state/search matrices with a risk tier per scenario. Typical triggers include odoo-acceptance Phase 1 requesting the oracle for a change cluster, and any caller needing acceptance criteria turned into runnable scenarios. It is read-only on source and STRICTLY does NOT read the implementation to decide expected values; it does not write, run, or adjudicate tests, and does not spawn subagents
 model: sonnet
 color: blue
 ---
