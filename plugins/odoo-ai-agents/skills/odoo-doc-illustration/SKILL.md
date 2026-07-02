@@ -2,16 +2,17 @@
 name: odoo-doc-illustration
 argument-hint: "[module] [doc target]"
 description: >
-  Produce and orchestrate illustrated documentation for an Odoo module or cluster - the SOLE
-  orchestrator that dispatches odoo-doc-scoper then odoo-doc-planner, gates the whole plan ONCE,
-  then runs a branch-aware per-instance incremental loop that launches odoo-user-doc-writer
-  (end-user doc/index.rst) and/or odoo-marketing-writer (App-Store static/description/index.html)
-  per DOC LAYER and commits per module via git-ops. Axes: DOC LAYER appstore(default)|userguide|both;
-  TONE technical|marketing; DOC SCOPE screenshot-doc|full-guide; CAPTURE MODE screens|scenarios. Fire
-  on: "document an Odoo module with screenshots", "tạo tài liệu có ảnh cho module", "làm landing App
-  Store cho module", "create RST user guide for module", "viết doc/index.rst cho module". Routing:
-  record a video -> odoo-demo-recording; audit a screen -> odoo-ui-review; pure marketing copy only
-  -> odoo-content-draft; module icon -> odoo-icon-design; write frontend code -> odoo-coding
+  Produce and orchestrate illustrated documentation for an Odoo module or cluster - SOLE orchestrator:
+  dispatches odoo-doc-scoper + odoo-doc-planner, gates the plan ONCE, then a branch-aware per-instance loop
+  launching odoo-user-doc-writer (end-user doc/index.rst) and/or odoo-marketing-writer (App-Store
+  index.html) per DOC LAYER. Axes: DOC LAYER appstore(default)|userguide|both; TONE technical|marketing; DOC
+  SCOPE screenshot-doc|full-guide; CAPTURE MODE screens|scenarios. Fire on: "document an Odoo module with
+  screenshots", "tạo tài liệu có ảnh cho module", "hướng dẫn sử dụng có ảnh cho module", "làm landing App
+  Store cho module", "create RST user guide for module", "viết doc/index.rst cho module". Routing: text
+  usage scenarios only, no screenshots -> odoo-doc-walkthrough; feature inventory/catalog ->
+  odoo-doc-feature-map; record a video -> odoo-demo-recording; audit a screen -> odoo-ui-review; pure
+  marketing copy only -> odoo-content-draft; module icon -> odoo-icon-design; write frontend code ->
+  odoo-coding
 ---
 
 ## Role

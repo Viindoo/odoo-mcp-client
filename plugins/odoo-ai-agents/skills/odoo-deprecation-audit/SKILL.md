@@ -2,17 +2,16 @@
 name: odoo-deprecation-audit
 argument-hint: "[module] [target-series]"
 description: >
-  Systematic audit of deprecated Odoo API usage in a codebase before a version upgrade -
-  finds `@api.multi`, `osv.osv`, `_columns`, `web.Widget`, `fields.Html` and other
-  era-specific APIs that break or warn in the target version, grouped by file with the exact
-  replacement and urgency (BREAKING / WARN / STYLE). Resolve the target version from context;
-  if unstated, confirm it. Pushy trigger: "upgrade", "migration", "is our code ready for vN",
-  "what will break when we move from X to Y", "audit before upgrade", deprecated-symbol
-  mentions ("we still have @api.multi everywhere", "ir.values is still used", "OWL migration
-  needed"). Also fires on Vietnamese: "rà API lỗi thời trước khi nâng cấp", "code chạy được
-  trên vN không", "cái gì sẽ vỡ khi nâng cấp". Trigger even without the word "deprecation". When the user asks ONLY what changed
-  between two versions (without auditing their code), route to odoo-version-diff instead. When
-  they want to write fresh upgrade-safe code in the target version, route to odoo-coding
+  Systematic audit of deprecated Odoo API usage in a codebase before a version upgrade - finds `@api.multi`,
+  `osv.osv`, `_columns`, `web.Widget`, `fields.Html` and other era-specific APIs that break or warn in the
+  target version, grouped by file with the exact replacement and urgency (BREAKING / WARN / STYLE). Resolve
+  the target version from context; if unstated, confirm it. Pushy trigger: "upgrade", "migration", "is our
+  code ready for vN", "what will break when we move from X to Y", "audit before upgrade", deprecated-symbol
+  mentions ("we still have @api.multi everywhere", "OWL migration needed"). Also fires on Vietnamese: "rà
+  API lỗi thời trước khi nâng cấp", "code chạy được trên vN không", "cái gì sẽ vỡ khi nâng cấp". Trigger
+  even without the word "deprecation". STATIC audit only: what CHANGED between two versions ->
+  odoo-version-diff; rewriting a module cluster to the new series -> odoo-modules-upgrade; a data/schema
+  migration script -> odoo-data-migration; writing fresh upgrade-safe code -> odoo-coding
 ---
 
 ## Role

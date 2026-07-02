@@ -2,16 +2,15 @@
 name: odoo-rfp-response
 argument-hint: "[RFP file/scope]"
 description: >
-  Rate Odoo compliance per RFP requirement and produce a response matrix - columns: Requirement |
-  Odoo path (module/model/feature) | Compliance (Yes / Partial / Roadmap / No / via-Extension) |
-  Evidence | Notes/effort - plus an executive summary (overall fit %, key strengths, gaps needing
-  custom work). Use ANY time someone hands you a list of RFP requirements and needs a formal
-  compliance response. Fire on: "respond to this RFP", "compliance matrix for these requirements",
-  "rate these requirements against Odoo", "fill in this RFP response table", "score this tender
-  spec against Odoo". Vietnamese triggers: "ma tran dap ung RFP", "danh gia yeu cau RFP voi
-  Odoo", "lap bang compliance cho ho so thau". Route to odoo-gap-analysis for effort/quote matrix;
-  odoo-capability-proof for deep code evidence on a single requirement; odoo-feature-check for a
-  single yes/no availability question outside RFP context
+  Rate Odoo compliance per RFP requirement and produce a response matrix - columns: Requirement | Odoo path
+  (module/model/feature) | Compliance (Yes / Partial / Roadmap / No / via-Extension) | Evidence |
+  Notes/effort - plus an executive summary (overall fit %, key strengths, gaps needing custom work). Use ANY
+  time someone hands you a list of RFP requirements and needs a formal compliance response. Fire on:
+  "respond to this RFP", "compliance matrix for these requirements", "rate these requirements against Odoo",
+  "fill in this RFP response table", "score this tender spec against Odoo". Vietnamese triggers: "ma trận
+  đáp ứng RFP", "đánh giá yêu cầu RFP với Odoo", "lập bảng compliance cho hồ sơ thầu", "phản hồi hồ sơ
+  thầu". Route to odoo-gap-analysis for effort/quote matrix; odoo-capability-proof for deep code evidence on
+  a single requirement; odoo-feature-check for a single yes/no availability question outside RFP context
 model: inherit
 ---
 
