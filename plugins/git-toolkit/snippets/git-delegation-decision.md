@@ -27,8 +27,8 @@ an unbounded body -> that is DELEGATE, not inline.
 Cold-spawn ONE leaf at the right model with a self-contained brief; it works in its own context,
 writes a findings file, and returns a 5-line summary + path. Use for one medium op:
 
-- a rebase, a cherry-pick range, resolving one diff/conflict, ANALYZING a diff, a PR review, a PR
-  create, issue triage, a release.
+- staging + a commit, a rebase, a cherry-pick range, resolving one diff/conflict, ANALYZING a diff,
+  a PR review, a PR create, issue triage, a release.
 - pick the leaf: read-only cognition -> `git-surveyor`; local mutation (reversible or destructive,
   with the safety contract) -> `git-operator`; GitHub API -> `github-operator`.
 

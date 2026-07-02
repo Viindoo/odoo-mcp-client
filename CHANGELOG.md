@@ -6,7 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [4.2.0] - 2026-07-01
+### Changed
+
+- `git-toolkit` 0.2.4 -> 0.3.0 - optimized the `git-ops` skill for **triggering coverage** and **delegation discipline**. The `description` now leads with the dispatcher contract ("it ROUTES and DISPATCHES ... it never runs the churn itself") and broadens the trigger surface to the common phrasings that were missing - `commit`/`stage`/`push`/`pull`/`clone`/`stash` - so plain "commit and push" reliably reaches the skill; kept under the 1024-char description budget. Added a **"Your job is to ROUTE and DISPATCH, not to execute"** directive to the skill body (INLINE bounded reads remain the sole exception; when in doubt, delegate) and listed `stage/commit/clone/init/stash` in the Step-1 REVERSIBLE-WRITE bucket + the SSOT `git-delegation-decision.md` SINGLE-DELEGATE examples so routing matches the broadened triggers. Behavior eval (5 routing scenarios x with/without the change) held at 100% correct dispatch with no over-delegation of trivial reads.
 
 ### Changed
 
