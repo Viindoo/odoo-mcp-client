@@ -7,8 +7,8 @@ description: >-
   audit cross-module term consistency. Fire on "translate this module", "export .pot / .po",
   "update the translation", "sync terminology", "đồng bộ thuật ngữ", "dịch module Odoo",
   "xuất .pot/.po", "cập nhật bản dịch", or any i18n / terminology-consistency ask for Odoo.
-  Front door for ALL Odoo translation work and the i18n step other workflows dispatch into
-  (forward-port, new module, bugfix). Non-destructive contract is load-bearing: re-exporting a
+  Front door for ALL Odoo translation work and the ONLY dispatcher of the odoo-translator agent;
+  also the i18n step other workflows dispatch into (forward-port, new module, bugfix). Non-destructive contract is load-bearing: re-exporting a
   .po from a fresh DB destroys 40-90% of existing msgstr, so translation MEMORY is always
   forwarded by merge, never regenerated. Requires a running Odoo instance; missing instance is a
   BLOCK. Route a one-line UI label fix to odoo-coding; a rendered-UI language check to odoo-ui-review
@@ -30,6 +30,13 @@ regression check plus an Odoo `-u` reload proves it. Full non-destructive recipe
 validation + glossary): `references/i18n-recipe.md` - the SSOT this skill and `odoo-forward-port`
 both point at.
 
+**Sole dispatcher (single source of truth for i18n fan-out).** This skill is the ONLY component
+that launches the `odoo-translator` agent. Any other skill that needs a module translated, a
+`.pot`/`.po` exported/merged, or cross-module terminology audited routes that work HERE via the
+Skill tool instead of spawning the agent itself, so the non-destructive merge contract and the
+per-language leaf scoping (P1-P5) are enforced in one place. A live instance is provisioned by
+invoking the `odoo-instance` skill (never the raw `odoo-instance-ops` agent).
+
 ## Out of Scope
 
 - A single user-facing label or `string=` added while writing code -> use `odoo-coding` (it
@@ -49,7 +56,8 @@ module's translatable terms the way Odoo's registry does, so every "translate wi
 path produces an INCOMPLETE or WRONG result and must be refused.
 
 When no instance is available, BLOCK with status `NEEDS_CONTEXT` (Continuation Contract
-`blocked_reason`); do not improvise a partial export. Acquire an instance per
+`blocked_reason`); do not improvise a partial export. Acquire an instance by invoking the `odoo-instance` skill
+(never the raw `odoo-instance-ops` agent) per
 `docs/reference/INSTANCE-LIFECYCLE.md` (allocator/lifecycle decision tree) and resume at P2.
 Ground the exact odoo-bin export/reload flags for the target series before invoking - the CLI
 surface differs per version (server flags v8-v18 vs the `i18n` subcommand v19+):
@@ -129,7 +137,7 @@ See `docs/reference/INSTANCE-LIFECYCLE.md` for the reload semantics. Each per-la
 via Odoo create-on-init, or `--mode exclusive` on a declared DB with the module pre-installed -
 never a fresh `ephemeral` lease (reserve-only = uncreated DB, `-u` will fail).
 
-**P5 - Consistency audit + report [opus, ADVISORY].** Audit terminology consistency across the
+**P5 - Consistency audit + report [sonnet default; opus ONLY when the in-scope terminology is domain/legal/regulatory (e.g. accounting circulars) - never for module or language count alone; ADVISORY].** Audit terminology consistency across the
 translated modules for EACH target language separately. This phase is **ADVISORY and NEVER
 blocking**: it surfaces inconsistencies for a human to decide on, but it does NOT auto-edit or
 auto-dedup. Critically, legally independent regimes (e.g. the Vietnam accounting circulars TT200 /
