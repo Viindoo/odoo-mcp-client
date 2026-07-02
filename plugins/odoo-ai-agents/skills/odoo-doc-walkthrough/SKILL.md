@@ -2,22 +2,15 @@
 name: odoo-doc-walkthrough
 argument-hint: "[module] [slug]"
 description: >
-  Author happy-path usage walkthroughs for an Odoo module: structured scenarios
-  (name, role, precondition, steps {action/target/value}, expected outcome)
-  grounded in the module's ACTUAL behavior via OSM. Dispatches odoo-doc-scenarist.
-  Fire on: "write walkthrough for module", "document how to use this feature",
-  "step-by-step user guide", "lập kịch bản sử dụng cho tính năng",
-  "user workflow cho module", "hướng dẫn từng bước cho luồng",
-  "walkthrough for module", "viết kịch bản dùng chức năng".
-  Standalone-first; OSM PRIMARY; no browser or instance needed.
-  route executable tests (tours/HttpCase) -> odoo-test-writing;
-  route live UI QA + PASS/FAIL verdict -> odoo-acceptance;
-  route marketing copy -> odoo-content-draft;
-  route pre-code architecture -> odoo-solution-design.
-  DO NOT trigger for: executable test code -> odoo-test-writing;
-  live acceptance + verdict -> odoo-acceptance;
-  marketing/landing copy -> odoo-content-draft;
-  architecture before implementation -> odoo-solution-design
+  Author happy-path usage walkthroughs for an Odoo module: structured scenarios (name, role, precondition,
+  steps {action/target/value}, expected outcome) grounded in the module's ACTUAL behavior via OSM.
+  Dispatches odoo-doc-scenarist. Fire on: "write walkthrough for module", "document how to use this
+  feature", "step-by-step user guide", "lập kịch bản sử dụng cho tính năng", "user workflow cho module",
+  "hướng dẫn từng bước cho luồng", "viết kịch bản dùng chức năng". Standalone-first; OSM PRIMARY; no browser
+  or instance needed; TEXT scenarios only. DO NOT trigger for: illustrated docs with screenshots or an RST
+  user guide -> odoo-doc-illustration; a feature/menu inventory catalog -> odoo-doc-feature-map; executable
+  test code (tours/HttpCase) -> odoo-test-writing; live UI QA + PASS/FAIL verdict -> odoo-acceptance;
+  marketing/landing copy -> odoo-content-draft; architecture before implementation -> odoo-solution-design
 ---
 
 ## Role

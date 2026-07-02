@@ -2,17 +2,16 @@
 name: odoo-test-writing
 argument-hint: "[model/module to test]"
 description: >
-  Write executable Odoo test files that protect business behavior - not just cover code.
-  Produces Python `test_*.py` (TransactionCase / Form helper / `@tagged`) and JS Hoot /
-  QUnit suites, selecting the correct framework per version. Also translates existing tests
-  across major Odoo versions (adapt mode): strips implementation-coupled assertions, maps
-  renamed APIs via OSM, confirms RED on target before production code is adapted. Grounds
-  every test via OSM MCP calls. Fire on: test coverage, CI protection, behavioral
-  documentation, forward-port test translation, or tour/HttpCase. Vietnamese: "viết test cho model", "test
-  unit cho computed field", "bao phủ ràng buộc bằng test", "test hành vi nghiệp vụ Odoo",
-  "dịch test sang version mới", "forward test khi forward-port", "viết test JS Hoot",
-  "viết tour Odoo", "viết HttpCase". Scope: new test files + adapt existing tests for
-  forward-port; static review use odoo-code-review; runtime errors use odoo-debug
+  Write executable Odoo test files that protect business behavior - not just cover code. Produces Python
+  `test_*.py` (TransactionCase / Form helper / `@tagged`) and JS Hoot / QUnit suites, selecting the correct
+  framework per version. Also translates existing tests across major Odoo versions (adapt mode): strips
+  implementation-coupled assertions, maps renamed APIs via OSM, confirms RED on target before production
+  code is adapted. Grounds every test via OSM MCP calls. Fire on: test coverage, CI protection, forward-port
+  test translation, or tour/HttpCase. Vietnamese: "viết test cho model", "bao phủ ràng buộc bằng test",
+  "test hành vi nghiệp vụ Odoo", "dịch test sang version mới", "viết test JS Hoot", "viết tour Odoo", "viết
+  HttpCase". Writes RUNNABLE files: a non-executing prose test-PLAN or test-case table -> odoo-qa-suite;
+  write scenarios then run live and adjudicate PASS/FAIL -> odoo-acceptance; static code review ->
+  odoo-code-review; runtime errors -> odoo-debug
 model: inherit
 ---
 

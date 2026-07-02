@@ -1,21 +1,16 @@
 ---
 name: odoo-intake
 argument-hint: "[your goal in plain words]"
-description: |
-  Universal front door for ALL work across 9 personas (CEO/strategist, consultant,
-  sales AE, pre-sales, marketer, developer, QA, customer-success) - brainstorms WHEN intent
-  is vague or open-ended, fast-paths WHEN intent is already clear, and always proposes a plan
-  + gate before execution.
-
-  Trigger AGGRESSIVELY on any of: open-ended "what can Odoo / you help me with", "I have an
-  idea but not sure where to start", a short Odoo/ERP prompt with no concrete verb, any
-  business outcome stated without a named skill ("I need to win this deal", "make our v17
-  upgrade safe"), "not sure which skill", implicit
-  ambiguity (short Odoo prompt, no intent keyword, or one mapping to >=2 skills). Also fires
-  on Vietnamese: "Odoo giúp được gì cho tôi", "chưa biết nên dùng skill nào".
-
-  DO NOT trigger when: the user types an explicit /slash command; intent matches exactly ONE
-  specialist clearly AND is single-step (let that skill fire directly); user is already
+description: >
+  Universal front door for ALL work across 9 personas (CEO/strategist, consultant, sales AE, pre-sales,
+  marketer, developer, QA, customer-success) - brainstorms WHEN intent is vague or open-ended, fast-paths
+  WHEN intent is already clear, and always proposes a plan + gate before execution. Trigger AGGRESSIVELY on
+  any of: open-ended "what can Odoo / you help me with", "I have an idea but not sure where to start", a
+  short Odoo/ERP prompt with no concrete verb, any business outcome stated without a named skill ("I need to
+  win this deal", "make our upgrade safe"), "not sure which skill", implicit ambiguity (one mapping to >=2
+  skills). Also fires on Vietnamese: "Odoo giúp được gì cho tôi", "chưa biết nên dùng skill nào", "tôi nên
+  bắt đầu từ đâu", "giúp tôi lên kế hoạch tổng thể". DO NOT trigger when: the user types an explicit /slash
+  command; intent matches exactly ONE specialist AND is single-step (let it fire directly); user is already
   mid-workflow inside another skill (already routed this session)
 model: inherit
 ---

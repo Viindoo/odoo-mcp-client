@@ -2,17 +2,16 @@
 name: odoo-pr-monitoring
 argument-hint: "[PR# / branch]"
 description: >
-  Owns the PR lifecycle AFTER odoo-wave opens the PR and stops at the L2-squash-gate. A POLLER,
-  not a blocking DAG node: it watches the PR CI status + review state via /loop (in-session) or
-  /schedule (cron), reading through git-toolkit's git-ops skill. On ANY CI warning/error/fail it
-  routes to odoo-debug (root-cause first; fixes authored by odoo-coding) - the fix re-push is ALWAYS
-  human-gated (X2), never an autonomous push from the unattended poller; a max_review_rounds cap
-  stops review ping-pong (exhaustion -> BLOCKED for a human). On green + approved it presents the
-  L2-merge-gate, merges via git-ops, then runs post-merge cleanup. Fire on: "watch PR #N",
-  "babysit this PR", "drive the PR to merge", "poll CI until it goes green". Vietnamese:
-  "theo doi PR", "canh PR den khi merge". Route opening + squashing the PR to odoo-wave; writing a
-  fix to odoo-coding; diagnosing the failure to odoo-debug. DO NOT trigger
-  to open a NEW PR, before any PR exists, or for a single-file code change (odoo-coding)
+  Owns the PR lifecycle AFTER odoo-wave opens the PR and stops at the L2-squash-gate. A POLLER, not a
+  blocking DAG node: it watches the PR CI status + review state via /loop (in-session) or /schedule (cron),
+  reading through git-toolkit's git-ops skill. On ANY CI warning/error/fail it routes to odoo-debug
+  (root-cause first; fixes authored by odoo-coding) - the fix re-push is ALWAYS human-gated (X2), never an
+  autonomous push from the unattended poller; a max_review_rounds cap stops review ping-pong (exhaustion ->
+  BLOCKED for a human). On green + approved it presents the L2-merge-gate, merges via git-ops, then runs
+  post-merge cleanup. Fire on: "watch PR #N", "babysit this PR", "drive the PR to merge", "poll CI until it
+  goes green". Vietnamese: "theo dõi PR", "canh PR đến khi merge". Route opening + squashing the PR to
+  odoo-wave; writing a fix to odoo-coding; diagnosing the failure to odoo-debug. DO NOT trigger to open a
+  NEW PR, before any PR exists, or for a single-file code change (odoo-coding)
 user-invocable: true
 model: inherit
 ---

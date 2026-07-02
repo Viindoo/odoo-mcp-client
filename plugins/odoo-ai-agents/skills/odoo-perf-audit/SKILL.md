@@ -2,16 +2,16 @@
 name: odoo-perf-audit
 argument-hint: "[module/path scope]"
 description: >
-  Audit Odoo Python/XML/QWeb code for performance problems - findings report with file:line,
-  estimated impact, and remediation steps. Does NOT rewrite code. Covers: N+1 queries
-  (search/browse/read/mapped inside Python loops), missing prefetch, unindexed fields in search
-  domains or ORDER BY, expensive stored computed fields with overly broad depends, read_group
-  misuse, ORM-in-loop, and heavy t-foreach in QWeb. Triggers on: "why is my Odoo slow", "N+1
-  in this model", "perf audit", "optimize this code", "list view takes forever", "computed field
-  is slow", "should I add index=True", "t-foreach performance", "batch this query". Vietnamese
-  triggers: "code này bị N+1 không", "audit hiệu năng Odoo", "tối ưu truy vấn", "field này có
-  nên index không", "vòng lặp ORM", "computed field chậm". Does not apply fixes - route to
-  odoo-coding after audit
+  Audit Odoo Python/XML/QWeb code for performance problems - findings report with file:line, estimated
+  impact, and remediation steps. Does NOT rewrite code. Covers: N+1 queries (search/browse/read/mapped
+  inside Python loops), missing prefetch, unindexed fields in search domains or ORDER BY, expensive stored
+  computed fields with overly broad depends, read_group misuse, ORM-in-loop, and heavy t-foreach in QWeb.
+  Triggers on: "why is my Odoo slow", "N+1 in this model", "perf audit", "optimize this code", "list view
+  takes forever", "computed field is slow", "should I add index=True", "t-foreach performance", "batch this
+  query". Vietnamese triggers: "code này bị N+1 không", "audit hiệu năng Odoo", "tối ưu truy vấn", "field
+  này có nên index không", "vòng lặp ORM", "computed field chậm". Static code audit, does not apply fixes -
+  route the fix to odoo-coding; a holistic multi-lens PR review to odoo-code-review; live "slow right now in
+  production" runtime diagnosis to odoo-debug
 model: inherit
 ---
 

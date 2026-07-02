@@ -2,17 +2,16 @@
 name: odoo-qa-suite
 argument-hint: "[module/cluster to test]"
 description: >
-  Produce a static release QA package for an Odoo feature or module in one pass: generate
-  a structured release TEST-PLAN (test-case table, non-executing), gate on a pre-deploy
-  safety checklist, and triage user-reported bugs with severity, repro steps, and suspected
-  module. Delegates phases via the Skill tool (odoo-deploy-checklist for checklist; odoo-debug
-  for runtime triage), handles test-gen and bug-triage inline. Trigger on: "write test cases
-  for this feature", "QA checklist before release", "triage this bug", "full QA suite",
-  "test plan for this release". Also fires on Vietnamese: "viết test case", "checklist
-  QA trước release", "triage bug / phân loại lỗi", "kế hoạch test cho bản phát hành". Do NOT
-  trigger for: executing or adjudicating acceptance on a live instance or cluster (route to
-  odoo-acceptance); pure code review (route to odoo-code-review); pre-deploy gate alone
-  (route to odoo-deploy-checklist directly)
+  Produce a static release QA package for an Odoo feature or module in one pass: generate a structured
+  release TEST-PLAN (test-case table, non-executing), gate on a pre-deploy safety checklist, and triage
+  user-reported bugs with severity, repro steps, and suspected module. Delegates phases via the Skill tool
+  (odoo-deploy-checklist for checklist; odoo-debug for runtime triage), handles test-gen and bug-triage
+  inline. Trigger on: "write test cases for this feature", "QA checklist before release", "triage this bug",
+  "full QA suite", "test plan for this release". Also fires on Vietnamese: "viết test case", "checklist QA
+  trước release", "triage bug / phân loại lỗi", "kế hoạch test cho bản phát hành". Do NOT trigger for:
+  executing or adjudicating acceptance on a live instance or cluster (route to odoo-acceptance); pure code
+  review (route to odoo-code-review); pre-deploy gate alone (route to odoo-deploy-checklist directly);
+  writing executable test files (test_*.py/Hoot/tours) route to odoo-test-writing
 ---
 
 ## Role

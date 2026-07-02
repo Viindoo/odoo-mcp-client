@@ -2,17 +2,16 @@
 name: odoo-brl
 argument-hint: "[requirements list / RFP]"
 description: >
-  Process a business requirement list (BRL) of any size - tens to thousands of items -
-  into a classified, costed, dependency-ordered implementation plan. For each requirement:
-  4-way classification (Available-in-Odoo-CE / Available-in-Odoo-EE / Available-in-Viindoo / Custom)
-  via double-profile odoo-semantic-mcp tool calls, a deterministic cost estimate (lookup
-  table, no fabrication), and a requirements traceability matrix (RTM) for consultant
-  export. Runs as a sequential-outer / parallel-inner chunked pipeline with
-  checkpoint/resume so an interrupted session can restart without losing work. Fire ANY
-  time someone pastes or points to a multi-item requirement list to scope end-to-end:
-  "classify these 400 requirements", "turn this RFP spreadsheet into an effort + cost plan".
-  For a SINGLE feature use odoo-feature-check; for a short ad-hoc gap matrix with no cost,
-  no chunked pipeline, and no scale requirement use odoo-gap-analysis
+  Process a business requirement list (BRL) of any size - tens to thousands of items - into a classified,
+  costed, dependency-ordered implementation plan. For each requirement: 4-way classification
+  (Available-in-Odoo-CE / Available-in-Odoo-EE / Available-in-Viindoo / Custom) via double-profile
+  odoo-semantic-mcp tool calls, a deterministic cost estimate (lookup table, no fabrication), and a
+  requirements traceability matrix (RTM) for consultant export. Runs as a chunked sequential-outer /
+  parallel-inner pipeline with checkpoint/resume after interruption. Fire ANY time someone pastes or points
+  to a multi-item requirement list to scope end-to-end: "classify these 400 requirements", "turn this RFP
+  spreadsheet into an effort + cost plan". Also fires on Vietnamese: "phân loại danh sách yêu cầu này",
+  "biến RFP thành kế hoạch chi phí + công". For a SINGLE feature use odoo-feature-check; for a short ad-hoc
+  gap matrix with no cost, no chunked pipeline, and no scale requirement use odoo-gap-analysis
 model: opus
 ---
 
