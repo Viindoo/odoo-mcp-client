@@ -2,7 +2,7 @@
 
 Each test protects one contract clause that would break the skill's correctness
 if removed.  Tests are read-only (file/JSON inspection only) - no odoo-bin or
-polib execution needed.
+PO-library execution needed.
 
 Run: python -m pytest tests/test_odoo_i18n.py -v
 """
@@ -23,19 +23,29 @@ AGENT_FILE = PLUGIN / "agents" / "odoo-translator.md"
 
 
 # ---------------------------------------------------------------------------
-# Invariant 1 - Recipe is non-destructive: polib + .merge + --skip-auto-install
-# + entry.msgstr count, + warns away from grep -c '^msgstr ""'
+# Invariant 1 - Recipe is non-destructive via load + re-export + git-ops
+# diff-review (NO polib); diff-review adjudication is the L2 core.
 # ---------------------------------------------------------------------------
 
-def test_recipe_non_destructive_polib_and_merge():
-    """Recipe SSOT must document polib TM-merge as the non-destructive L2 step."""
+def test_recipe_non_destructive_diff_review_no_polib():
+    """Recipe SSOT must use load + re-export + diff-review as the non-destructive core, NOT polib."""
     assert RECIPE.exists(), f"i18n-recipe.md not found at {RECIPE}"
     text = RECIPE.read_text(encoding="utf-8")
 
-    # L2 headline marker - names the non-destructive core
-    assert "polib" in text, "Recipe must mention `polib` as the TM-merge library"
-    # The merge call itself
-    assert ".merge(" in text, "Recipe must show `po.merge(pot)` TM-merge call"
+    # No polib USAGE (the merge/parse calls whose behavior is polib-version-dependent). The word
+    # "polib" may still appear in prose that says it is NOT used ("no polib") - only the code
+    # patterns are forbidden.
+    for pat in ("import polib", "polib.pofile", "po.merge(", ".merge(pot"):
+        assert pat not in text, (
+            f"Recipe must NOT use polib ({pat!r}) - the non-destructive core is now "
+            "load + re-export + git-ops diff-review"
+        )
+    assert "diff-review" in text.lower(), (
+        "Recipe L2 must name the diff-review reconcile as the non-destructive core"
+    )
+    assert "git-ops" in text and "adjudicat" in text.lower(), (
+        "Recipe must delegate the diff to git-ops and require adjudicating every removed/changed entry"
+    )
 
 
 def test_recipe_skip_auto_install():
@@ -48,29 +58,24 @@ def test_recipe_skip_auto_install():
     )
 
 
-def test_recipe_msgstr_count_via_polib_not_grep():
-    """Recipe must document polib entry.msgstr count AND warn against grep -c '^msgstr'."""
+def test_recipe_diff_review_loads_before_reexport():
+    """Recipe must load the existing .po into a fresh instance BEFORE re-export, then diff-review."""
     assert RECIPE.exists()
     text = RECIPE.read_text(encoding="utf-8")
 
-    # The polib-based non-empty-msgstr count pattern
-    assert "e.msgstr" in text, (
-        "Recipe must show `e.msgstr` (polib entry attribute) as the correct way to "
-        "count non-empty msgstr entries"
-    )
+    # git-ops owns the diff (the skill/agent never runs git itself)
+    assert "git-ops" in text, "Recipe must delegate the diff to git-toolkit:git-ops"
 
-    # Explicit prohibition of the grep shortcut
-    assert "grep -c" in text and "msgstr" in text, (
-        "Recipe must mention `grep -c` in the context of msgstr to warn it is wrong"
+    # The load-into-fresh-instance-before-re-export mechanism is what preserves translations
+    low = text.lower()
+    assert "re-export" in low and "load" in low and ("fresh instance" in low or "fresh db" in low), (
+        "Recipe must state the existing .po is loaded into a FRESH instance before the re-export, "
+        "so the re-export reproduces the human translation (the non-destructive mechanism)"
     )
-    # The warning must say it is wrong / do NOT use
-    grep_idx = text.find("grep -c")
-    surrounding = text[max(0, grep_idx - 200): grep_idx + 300]
-    negative_signals = ("Do NOT", "do NOT", "NOT measure", "not measure",
-                        "miscounts", "false", "wrong", "PROHIBITION")
-    assert any(sig in surrounding for sig in negative_signals), (
-        "Recipe must warn that `grep -c '^msgstr'` is incorrect for multi-line entries; "
-        f"no negative signal found near the grep mention: {surrounding!r}"
+    # Adjudication of losses replaces the old polib regression count
+    assert "correct" in low and "wrong" in low, (
+        "Recipe must require adjudicating every removed/changed entry as correct (term gone) or "
+        "wrong (accidental loss -> BLOCK)"
     )
 
 

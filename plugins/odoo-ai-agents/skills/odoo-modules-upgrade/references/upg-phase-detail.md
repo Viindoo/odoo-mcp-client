@@ -670,8 +670,9 @@ overall: green | red
 ## P5.7 - i18n reconcile (gated-on by default; auto-SKIP)
 
 Wires the EXISTING `odoo-i18n` skill as a post-install phase - no new i18n logic. Non-destructive
-is load-bearing: re-exporting a `.po` from a fresh DB destroys 40-90% of existing `msgstr`, so
-translation MEMORY is always forwarded by MERGE, never regenerated.
+is load-bearing: re-exporting a `.po` from a fresh DB with NO load step destroys 40-90% of existing
+`msgstr`, so translation MEMORY is always forwarded by loading the existing `.po` into a fresh
+instance before re-export, then diff-reviewed - never blind-regenerated.
 
 SKIP gate (evaluate first): SKIP this phase when the cluster changed NO translatable surface -
 no add/remove/rename of a translatable field, view label/string, selection value, help text, or
@@ -686,10 +687,10 @@ MODULES: <cluster adapted modules>
 TARGET_VERSION: <target_version>
 MODE: reconcile (non-destructive)
 STEPS (odoo-i18n owns the detail; do NOT replicate its protocol):
-  1. export .pot for each adapted module
-  2. polib-MERGE the new .pot into each existing <lang>.po (preserve every existing msgstr)
+  1. fresh instance with en_US + each existing <lang>.po loaded, then re-export each <lang>.po
+  2. git-ops diff-review each re-exported <lang>.po against its committed version; adjudicate every removed/changed msgid correct (term gone) or wrong (BLOCK) - preserves every existing msgstr except an adjudicated-correct loss
   3. hand-translate ONLY the residual untranslated entries
-  4. reload with `-u <module>` on the P5 instance and confirm the catalog loads
+  4. reload with `-u <module>` on the instance and confirm the catalog loads
 ```
 Output: `i18n-reconcile.md` (per-module: residual count, translated count, skipped?).
 

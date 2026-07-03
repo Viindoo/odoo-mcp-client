@@ -532,7 +532,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Spawner: dispatches odoo-translator for .pot/.po via odoo-bin+polib; OSM only for version flags. cli_help grounds the per-series CLI surface - the --i18n-export/--load-language/-u reload server flags (v8-v18) vs the odoo-bin i18n subcommand (loadlang/export/import, v19+); --load-language loads the language into the DB so an existing translation re-exports with msgstr (distinct from --language/-l which only selects the file). entity_lookup confirms a field's canonical string label for glossary alignment. There is no OSM i18n tool - export/merge/validate are shell odoo-bin + polib in the leaf agent."
+      "notes": "Spawner: dispatches odoo-translator for .pot/.po via odoo-bin (no polib); the diff-review + commit are git-ops. OSM only for version flags. cli_help grounds the per-series CLI surface - the --i18n-export/--load-language/-u reload server flags (v8-v18) vs the odoo-bin i18n subcommand (loadlang/export/import, v19+); --load-language loads the existing .po into the DB so the re-export reproduces its msgstr (distinct from --language/-l which only selects the file). entity_lookup confirms a field's canonical string label for glossary alignment. There is no OSM i18n tool - the leaf re-exports via shell odoo-bin; the skill delegates the diff-review + commit to git-toolkit:git-ops."
     },
     "odoo-doc-illustration": {
       "mcp_tools": [

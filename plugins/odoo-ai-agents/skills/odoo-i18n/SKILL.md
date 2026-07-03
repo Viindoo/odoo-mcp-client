@@ -22,11 +22,13 @@ orchestration decisions (phase model tier, when to stop for a human, when to dis
 translator) and delegates actual term translation to the `odoo-translator` agent.
 
 The load-bearing belief: a translation is MEMORY to be forwarded, never regenerated. Re-exporting a
-`.po` from a fresh database overwrites it with empty `msgstr`s and silently destroys 40-90% of the
-existing human translation with a clean exit code. Every phase below preserves the maintained
-`msgstr`s by polib MERGE and only refreshes the term inventory from a fresh `.pot` template. A clean
-export + a green install is NOT proof the translation survived; only a polib non-empty-msgstr
-regression check plus an Odoo `-u` reload proves it. Full non-destructive recipe (3-layer L1/L2/L3 +
+`.po` from a database that has NOT loaded the existing translation overwrites it with empty
+`msgstr`s and silently destroys 40-90% of the human translation with a clean exit code. The
+non-destructive method: build a FRESH instance, LOAD the existing `.po` into it, re-export (which
+then reproduces the translation), then RECONCILE by a git-ops diff-review - adjudicate every
+removed/changed entry as correct or wrong before commit (no `polib`). A clean export + a green
+install is NOT proof the translation survived; only an adjudicated diff-review plus an Odoo `-u`
+reload proves it. Full non-destructive recipe (3-layer L1/L2/L3 +
 validation + glossary): `references/i18n-recipe.md` - the SSOT this skill and `odoo-forward-port`
 both point at.
 
@@ -51,7 +53,7 @@ invoking the `odoo-instance` skill (never the raw `odoo-instance-ops` agent).
 
 i18n REQUIRES a running Odoo instance with the target module installed. Export (`--i18n-export`)
 walks the live registry to enumerate translatable terms, and validation reloads the module against a
-real DB - both need an instance. There is NO no-DB workaround: babel/polib alone cannot discover a
+real DB - both need an instance. There is NO no-DB workaround: babel or a raw PO parser alone cannot discover a
 module's translatable terms the way Odoo's registry does, so every "translate without an instance"
 path produces an INCOMPLETE or WRONG result and must be refused.
 
@@ -74,8 +76,8 @@ the instance requirement is absolute and never degrades to a no-DB path.
 
 Run phases in order. Each phase names its model tier; dispatch follows
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B) for any fan-out. Artifacts land
-under `.odoo-ai/i18n/<slug>-<date>/`. The full non-destructive recipe (every command, the polib
-merge, the validation gates, the glossary) lives in `references/i18n-recipe.md`.
+under `.odoo-ai/i18n/<slug>-<date>/`. The full non-destructive recipe (every command, the
+diff-review reconcile, the validation gates, the glossary) lives in `references/i18n-recipe.md`.
 
 **P0 - Scope gate [sonnet, STOP].** Resolve the target language list by precedence (highest first),
 then echo which source was used:
@@ -128,7 +130,7 @@ v8-v18, `command='i18n'` v19+).
 **P3 - Translate [dispatch `odoo-translator`].** Dispatch the `odoo-translator` agent as a
 subagent launch for EACH (module-cluster × language) pair - the Cartesian product of module
 clusters and target languages. Each leaf carries exactly ONE language; never bundle multiple
-languages in a single leaf. Each leaf runs the L2 polib TM-merge and L3 hand-translation of the
+languages in a single leaf. Each leaf runs the L2 re-export + diff-review reconcile and L3 hand-translation of the
 residual for its specific language. Loop order: see `## Multi-language loop order` in
 `references/i18n-recipe.md` (`.pot` exported once per module, `.po`/glossary/validate per-lang).
 See the dispatch contract below for the model and brief.
@@ -136,8 +138,8 @@ See the dispatch contract below for the model and brief.
 **P4 - Validate [haiku].** Run all validation gates (recipe § Validation) for EACH target language independently. P4 is the
 orchestrator-level gate run after all P3 leaves finish - a second, independent pass over each
 leaf's own Round 4 self-check, not a replacement for it. Per language:
-run the polib non-empty-msgstr regression on `<lang>.po` (BLOCK on a large drop - that means the
-merge was skipped and an overwrite slipped through), the placeholder-integrity check on `<lang>.po`,
+run the git-ops diff-review adjudication on `<lang>.po` (BLOCK on any un-adjudicated or WRONG-ruled
+loss - that means an overwrite slipped through without the load step), the per-entry placeholder-integrity check,
 and the Odoo `-u <module>` reload (NOT `msgfmt`). Pre-condition for each language's reload: the
 target language must be LOADED in the DB first (`--load-language=<lang>` v8-v18 / `i18n loadlang
 -l <lang>` v19+); an absent language makes the reload pass silently while translations stay inactive
@@ -172,9 +174,10 @@ line in the brief and as the Agent `model` parameter:
   circulars, statutory report labels) where a wrong term has compliance cost.
 
 The leaf carries the worker brief (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) and appends its
-decisions to the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). It does the polib
-merge and translation directly - there is no OSM i18n tool, so it uses shell `odoo-bin` + `polib`,
-and uses OSM only to confirm canonical field labels, e.g.:
+decisions to the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`). It does the
+re-export + translation directly - there is no OSM i18n tool, so it uses shell `odoo-bin` (the
+git-ops diff-review + commit stay with the skill, never the leaf), and uses OSM only to confirm
+canonical field labels, e.g.:
 
 ```
 entity_lookup(kind='field', model='account.move', field='amount_total', odoo_version='<target>')
@@ -184,8 +187,8 @@ entity_lookup(kind='field', model='account.move', field='amount_total', odoo_ver
 `.po` or `.pot` file MUST carry a `#. module: <technical_name>` extractor comment on the line
 immediately before the `#: <file>:<line>` location reference. A hand-written or hand-patched entry
 missing this comment causes `translate.py` to crash at module load and Runbot misattributes the
-failure to a later module. Odoo's `--i18n-export` generates this comment automatically; it must be
-preserved in polib merges and added manually when entries are written by hand.
+failure to a later module. Odoo's `--i18n-export` generates this comment automatically; the
+re-export preserves it, and it must be added manually when entries are written by hand.
 
 ## Artifacts
 
@@ -194,8 +197,8 @@ All under `.odoo-ai/i18n/<slug>-<date>/`:
 - `glossary-tm-<lang>.json` - assembled translation memory per target language (P1; one file per
   language; TM of one language is never shared with another)
 - `<module>.pot` - exported template(s) (P2; language-agnostic, shared across all target languages)
-- `translation-report-<lang>.json` - per-module non-empty `msgstr` count before/after the merge
-  for each language (the regression evidence; a drop is a BLOCK)
+- `translation-report-<lang>.json` - per-module diff-review adjudication log (removed/changed/added
+  msgids + correct/wrong rulings) for each language (an un-adjudicated or WRONG-ruled loss is a BLOCK)
 - `consistency-audit-<lang>.md` - the advisory P5 findings per language
 
 ## Continuation Contract
