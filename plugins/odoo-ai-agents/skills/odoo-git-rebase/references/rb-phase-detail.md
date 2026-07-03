@@ -408,7 +408,7 @@ module/file renames on the new base - resolve these per type:
   `odoo-coding` skill ports the feature hunk onto it.
 
 For the generic per-path mechanics (UD/DD -> honor the deletion; text file with markers -> hand to the
-`odoo-coding` skill; rerere-resolved-no-markers -> verify then `git add`; continue-vs-skip), do NOT
+`odoo-coding` skill; rerere-resolved-no-markers -> verify then stage via git-ops; continue-vs-skip), do NOT
 restate them - follow git-toolkit S10, the canonical continue-driver in git-toolkit
 `snippets/git-safety-contract.md` § "S10 - Conflict continue-driver (canonical)". INVARIANT: NEVER
 `--skip` on "no unmerged files"; only `--skip` when `--continue` itself reports an empty patch.

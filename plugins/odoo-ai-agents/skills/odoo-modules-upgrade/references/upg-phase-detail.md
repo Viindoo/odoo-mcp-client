@@ -548,7 +548,8 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
      forward-port skill. Restore `auto_install`/`application` ONLY when the breadcrumb explicitly
      directs it - do NOT auto-detect from module name or depends structure.
   5. Write or adapt tests: test the adapted behavior, not the old source text. RED first.
-  Always commit with `git commit -s` (DCO sign-off required by CONTRIBUTING.md).
+  The coders run NO git; after they write their files the orchestrating skill (odoo-coding) commits
+  via the git-toolkit:git-ops skill (DCO -s sign-off; per snippets/git-delegation.md).
   Commit message: "upg: <module> <source_version>-><target_version> - <ACTION> <one-line summary>"
 
 AUTONOMOUS FIX: if the P5 install+test run returns a failure for this module, you will

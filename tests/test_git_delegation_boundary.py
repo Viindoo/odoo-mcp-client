@@ -11,7 +11,8 @@ Two complementary boundaries are enforced here:
 
 A. NO INLINE EXECUTION (``test_no_git_delegation_bypass``) - a consumer must not run a git
    mutation, a ``gh`` call, or a GitHub MCP tool inline in a code span (only bounded reads
-   and own-worktree ``add``/``commit``/``stash`` may appear inline). Scanned in code spans.
+   may appear inline; even own-worktree add/commit/stash are forbidden - workers never run git,
+   the orchestrator commits via git-ops). Scanned in code spans.
 
 B. NO DIRECT AGENT DISPATCH (``test_no_direct_git_agent_dispatch``) - a consumer must not
    cold-spawn one of the git leaf agents as a ``subagent_type`` dispatch; it must invoke the
@@ -208,11 +209,8 @@ def _git_allowed(verb: str, line: str) -> bool:
       log (--oneline | -n<digits>)      - bounded output
       show --stat                       - header+stat only (not full patch)
 
-    Benign own-worktree writes (may appear inline - see "Benign local writes" in
-    snippets/git-delegation.md; only valid in a dedicated worker worktree):
-      add, commit, stash
-
-    Everything else is a violation requiring routing through git-toolkit:git-ops.
+    Everything else - including add / commit / stash (workers never run git; the orchestrator
+    commits via git-toolkit:git-ops) - is a violation requiring routing through git-toolkit:git-ops.
     """
     if verb in _ALWAYS_ALLOWED:
         return True
@@ -239,15 +237,12 @@ def _git_allowed(verb: str, line: str) -> bool:
         # `git show --stat` is bounded (header + stat only).
         # `git show <sha>` (full patch) is unbounded -> violation.
         return "--stat" in line
-    if verb in ("add", "commit", "stash"):
-        # Benign own-worktree writes - allowed per "Benign local writes" in
-        # git-delegation.md. Valid only when the agent is in its own dedicated
-        # worktree (S9-satisfied by construction); static analysis cannot enforce
-        # the worktree scoping so the policy is documented in prose.
-        return True
-    # All other verbs (push, fetch, pull, rebase, merge, cherry-pick, checkout,
-    # switch, reset, tag, apply, format-patch, range-diff,
-    # worktree-add, branch-delete, ...) are mutations or unbounded reads.
+    # add / commit / stash are NO LONGER allowed inline: workers never run git (they write
+    # files and return; the orchestrator commits via git-toolkit:git-ops). See the "No worker
+    # git" section in snippets/git-delegation.md.
+    # All other verbs (add, commit, stash, push, fetch, pull, rebase, merge, cherry-pick,
+    # checkout, switch, reset, tag, apply, format-patch, range-diff, worktree-add,
+    # branch-delete, ...) are mutations or unbounded reads -> route through git-ops.
     return False
 
 
@@ -395,7 +390,8 @@ def _scan_file_for_agent_dispatch(f: Path) -> list[str]:
 
 def test_no_git_delegation_bypass():
     """Boundary A: odoo-ai-agents must not EXECUTE git mutations / GitHub-API / unbounded
-    reads inline; only bounded reads + own-worktree add/commit/stash may appear in code spans.
+    reads inline; only bounded reads may appear in code spans (workers never run git - not even
+    add/commit/stash; the orchestrator commits via git-ops).
 
     Business rule: git-toolkit holds exclusive authority over git mutations and GitHub API
     ops. odoo-ai-agents skills/agents/commands/snippets must NEVER contain inline git mutations
@@ -406,12 +402,9 @@ def test_no_git_delegation_bypass():
       worktree list / diff --stat|--name-only|--shortstat|--quiet|--check /
       log --oneline|-n<digits> / show --stat
 
-    Allowed inline (own-worktree benign writes):
-      git add, git commit, git stash  (in a dedicated worker worktree only)
-
     Forbidden inline (must route through git-ops):
-      push, fetch, pull, rebase, merge, cherry-pick, checkout, switch, reset, tag, apply,
-      format-patch, range-diff, worktree add/remove, bare git diff <ref>, bare git log
+      add, commit, stash, push, fetch, pull, rebase, merge, cherry-pick, checkout, switch,
+      reset, tag, apply, format-patch, range-diff, worktree add/remove, bare git diff <ref>, bare git log
       <range>, git show <sha> (full patch), gh CLI calls, mcp__plugin_github_github__* tools.
     """
     all_violations: list[str] = []
@@ -527,23 +520,17 @@ def test_inline_git_detection_red_before_green(tmp_path, monkeypatch):
     here:
 
       - inline git MUTATIONS (push / cherry-pick / merge / rebase) are NEVER allowed;
-      - own-worktree benign writes (add / commit / stash) ARE allowed inline (S9 carve-out);
+      - own-worktree writes (add / commit / stash) are NO LONGER allowed inline (workers never run git);
       - the scanner FLAGS a fenced ``git push origin HEAD`` span and PASSES a bounded
         ``git diff --stat`` read.
 
     If the allowlist were widened to admit a mutation, or the scanner stopped flagging it, this
     test goes red.
     """
-    # --- allowlist: mutations rejected ---
-    for verb in ("push", "cherry-pick", "merge", "rebase"):
+    # --- allowlist: mutations rejected (incl. add/commit/stash - workers never run git) ---
+    for verb in ("push", "cherry-pick", "merge", "rebase", "add", "commit", "stash"):
         assert _git_allowed(verb, f"git {verb} origin HEAD") is False, (
-            f"boundary A allowlist must REJECT inline `git {verb}` (it is a mutation)"
-        )
-
-    # --- allowlist: own-worktree benign writes accepted ---
-    for verb in ("add", "commit", "stash"):
-        assert _git_allowed(verb, f"git {verb} .") is True, (
-            f"boundary A allowlist must ACCEPT own-worktree `git {verb}` (S9 carve-out)"
+            f"boundary A allowlist must REJECT inline `git {verb}` (workers never run git)"
         )
 
     # --- scanner: flag a known-bad fenced span, pass a bounded read ---

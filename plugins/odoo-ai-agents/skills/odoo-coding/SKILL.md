@@ -93,13 +93,17 @@ proceed to the gate below.
 
 **WORKTREE_PATH (git-executor invocations only).** When the caller is `odoo-wave`, the brief ALSO
 carries a per-WI `WORKTREE_PATH` (an absolute isolated worktree on a WI branch). Treat it as the
-working root: the coders author + commit ALL their work INSIDE that worktree (`cd` to it before any
-Bash; own-worktree `git add`/`git commit` are allowed per
-`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`) and must NOT touch the principal checkout or run any
-integration op (cherry-pick/merge/rebase/push) - `odoo-wave` integrates. Return the commit SHA(s) on
-the WI branch so `odoo-wave` can cherry-pick them. When no `WORKTREE_PATH` is provided (run-harness /
-odoo-planning / standalone), author in the current checkout exactly as today.
-Git-mutation safety (S9): commit ONLY inside the provided worktree; never write to, commit on, or switch the principal checkout. See `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` (S9).
+working root: the coders author ALL their work INSIDE that worktree (`cd` to it before any Bash) and
+RETURN the list of files they wrote - they do NOT run git (no git add / git commit / git stash;
+per `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). After the coders return, THIS skill invokes the
+`git-toolkit:git-ops` skill (via the Skill tool) to stage + commit their output INSIDE that worktree
+and obtain the commit SHA(s) on the WI branch, which it returns so `odoo-wave` can cherry-pick them;
+the coders never touch the principal checkout or run any integration op. When no `WORKTREE_PATH` is
+provided (run-harness / odoo-planning / standalone), author in the current checkout exactly as today
+and make no commit.
+Git-delegation safety (S9): ALL git is delegated to `git-toolkit:git-ops` and runs ONLY inside the
+provided worktree; never write to, commit on, or switch the principal checkout. See
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 
 **No plan provided (standalone invocation) - self-derive exactly as below.** The design-gate,
 design detection, module set, stack tags, and dependency order are all computed here; the
@@ -321,7 +325,7 @@ Coder (`agentType: odoo-coder` for a backend leg / `odoo-frontend-coder` for a f
 DISPATCH MODEL: <tier>
 REQUEST: <the change for this module: target model + constraints; for a frontend leg use the module's frontendRequest, falling back to its request>
 MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest__.py / static assets).
-WORKTREE_PATH: <absolute worktree path | none> - when set (git-executor / `odoo-wave` path): `cd` here and author ALL work in this worktree; `git add` + `git commit` your work; RETURN the commit SHA(s) on the WI branch (do NOT cherry-pick/merge/push - `odoo-wave` integrates). `none` -> author in the current checkout as usual, no commit.
+WORKTREE_PATH: <absolute worktree path | none> - when set (git-executor / `odoo-wave` path): `cd` here and write ALL your work in this worktree, then RETURN the list of files you wrote; do NOT stage, commit, or stash - `odoo-coding` commits your output via `git-toolkit:git-ops` and `odoo-wave` integrates. `none` -> author in the current checkout as usual, no git.
 NEW MODULE: <yes - ALWAYS scaffold with `odoo-bin scaffold` first; edit only needed keys and KEEP scaffold's commented placeholders; keep its short version default, do NOT rewrite to `<series>.x.y.z` | no>
 ODOO VERSION: <version>
 INSTANCE_HANDLE: <the run's provisioned instance handle from a prior odoo-instance step, when present - db_name/http_port/addons_path/venv/lease_token; omit when the run provisioned none>
@@ -370,11 +374,12 @@ with_user() not sudo(); never seed the terminal state with create({state:...})):
 behavior not internals; ONE intent per test; confirm each goes RED.
 
 Each agent locates files via Read/Grep, writes its output, and reports the files written plus
-`__manifest__.py` changes. **When `WORKTREE_PATH` was provided (git-executor / `odoo-wave` path), the
-coder MUST ALSO `git add` + `git commit` its work inside that worktree and return the commit SHA(s)
-on the WI branch so `odoo-wave` can cherry-pick them - a DONE with no SHA in the git-executor path is
-a failed contract.** Without `WORKTREE_PATH` (standalone / run-harness / `odoo-planning`) no commit is
-made.
+`__manifest__.py` changes - it does NOT run git. **When `WORKTREE_PATH` was provided (git-executor /
+`odoo-wave` path), THIS skill (not the coder) invokes the `git-toolkit:git-ops` skill to stage +
+commit each module's files inside that worktree and capture the commit SHA(s) on the WI branch, which
+it returns so `odoo-wave` can cherry-pick them - a DONE with no returned file list from the coder, or
+no SHA after odoo-coding's git-ops commit, is a failed contract.** Without `WORKTREE_PATH` (standalone
+/ run-harness / `odoo-planning`) no commit is made.
 
 ## Artifacts - persist the coding plan
 

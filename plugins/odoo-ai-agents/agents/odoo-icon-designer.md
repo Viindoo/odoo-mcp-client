@@ -230,8 +230,8 @@ Apply the following rules based on `odoo_version`:
 - This allows Odoo v19 to serve the SVG directly at higher resolution.
 
 **Git mutations:** if any manifest edit is required, delegate to git-toolkit (`git-ops` skill)
-per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Never run `git add`, `git commit`, or
-`gh` commands directly; bounded reads (`git status`, `git diff --stat`) may stay inline.
+per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Never run git add, git commit, or
+gh commands directly; bounded reads (`git status`, `git diff --stat`) may stay inline.
 
 ---
 

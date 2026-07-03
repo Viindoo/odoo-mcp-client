@@ -274,7 +274,8 @@ for wi in topological_order(wis):           # module-DAG / wave order; dependent
 
     # INVOKE odoo-coding via the Skill tool from THIS orchestrating context (legal: spawner ban is
     # leaf-only). Pass inputs only so odoo-coding's Plan-provided fast-path consumes them. odoo-coding
-    # owns count+model and authors+commits INSIDE wi.worktree; it returns the commit SHA(s). NO cherry-pick.
+    # owns count+model; its coders author files INSIDE wi.worktree (no raw git), odoo-coding commits
+    # them via git-toolkit:git-ops and returns the commit SHA(s). NO cherry-pick (odoo-wave integrates).
     result = Skill("odoo-coding", wi_invocation_brief(wi))   # synchronous, in-context
     if result.status != "DONE" or not result.shas:
         record(wi, result); apply_saga_rollback(); return    # DONE with no SHA = failed contract

@@ -29,14 +29,17 @@ These bounded, low-risk reads MAY run inline without routing through git-ops:
 
 Anything beyond this list (full diff content, unbounded log range, blame, large range) -> route through git-ops.
 
-## Benign local writes (own worktree only)
+## No worker git - the orchestrator delegates the commit
 
-A subagent MAY run `git add`, `git commit`, and `git stash` of ITS OWN work in ITS OWN
-dedicated worktree inline - these are NOT "mutations" under the hard rule (S9 is satisfied
-by construction: the worker is already isolated). A dispatched worker stages and commits its
-own changes and returns the resulting SHA to the orchestrator. DANGEROUS ops that still
-require routing through git-ops: branch, checkout, switch, cherry-pick, merge, rebase,
-reset, tag, push, force-push, fetch, pull, worktree add/remove, and all GitHub-API ops.
+A dispatched worker (`odoo-coder`, `odoo-frontend-coder`, or ANY domain subagent) does NOT run
+git - not even git add / git commit / git stash in its own worktree. Workers do not own the
+project's git/commit conventions, so git is never their job. A worker finishing work in a
+`WORKTREE_PATH` WRITES its files there and RETURNS the list of files it touched; it never stages,
+commits, or stashes. The ORCHESTRATOR that owns the worktree then INVOKES `git-toolkit:git-ops` to
+stage + commit the worker's output inside that worktree and obtain the SHA. Every git verb - `add`,
+`commit`, `stash`, `branch`, `checkout`, `switch`, `cherry-pick`, `merge`, `rebase`, `reset`, `tag`,
+`push`, `force-push`, `fetch`, `pull`, `worktree add/remove`, and all GitHub-API ops - is routed
+through git-ops. The ONLY git a worker may run inline is the bounded-read allowlist above.
 
 ## What git-ops resolves the op to (informational)
 
