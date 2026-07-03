@@ -5,11 +5,14 @@
 
 # Odoo i18n recipe - non-destructive .pot/.po (SSOT)
 
-Load-bearing belief: **re-exporting a `.po` from a fresh DB OVERWRITES it with empty `msgstr`s and
-silently destroys 40-90% of the existing translation** - a clean exit code on data loss. A fresh
-DB has no human translation, so `--i18n-export` emits a template (`msgid` + empty `msgstr`). Every
-step forwards the translation MEMORY, never regenerates it: export a `.pot` TEMPLATE, update the
-maintained `.po` by MERGE, never overwrite.
+Load-bearing belief: **re-exporting a `.po` from a DB that has NOT loaded the existing translation
+OVERWRITES it with empty `msgstr`s and silently destroys 40-90% of the human translation** - a clean
+exit code on data loss. The non-destructive method: build a FRESH instance, LOAD the existing
+`<lang>.po` into it (so its `msgstr`s populate the DB), re-export (the re-export then reproduces the
+existing translation, adds new-empty terms, and drops terms gone from code), then RECONCILE by
+DIFF-REVIEW - diff the re-export against the committed `.po` and adjudicate every removed/changed
+entry as correct (term genuinely gone) or wrong (accidental loss) before commit. No merge library
+(no `polib`): the diff is delegated to `git-toolkit:git-ops` and the agent adjudicates the result.
 
 REQUIRES a running Odoo instance with the target module installed - export and validate both need
 a live DB + registry. No no-DB workaround (babel/polib cannot walk the module's translatable terms
@@ -32,7 +35,7 @@ Examples below use `<lang>` as the target-language placeholder; the default lang
 
 Two distinct exports - pick the one you need:
 
-- **Template (`.pot`) for the L2 merge:** install the module (no language load needed), export the
+- **Template (`.pot`) for the L2 reconcile / seeding a new language:** install the module (no language load needed), export the
   term inventory with empty `msgstr`s. Common path.
 - **Translated (`.po`) re-export of existing translation:** the language must be LOADED into the
   DB FIRST or the export emits empty `msgstr`s (a template, not a translation).
@@ -51,11 +54,15 @@ base/source language; the export baseline and the `-u` reload resolve correctly 
 active. Loading ONLY the target language (e.g. `--load-language=vi_VN`) is the #1 operational
 failure mode - ALWAYS include `en_US` in the activation set: `--load-language=en_US,<lang>` (v8-v18),
 or a preceding `odoo-bin i18n loadlang -d <db> -l en_US` call (v19+). `en_US` is an ACTIVATION
-requirement only - it is NEVER a translation deliverable (Odoo ships no `en_US.po`; do not export or
-merge one).
+requirement only - it is NEVER a translation deliverable (Odoo ships no `en_US.po`; do not export
+one).
 
-Forward-port lifts `msgstr`s from the source `.po` via polib, so a bare template export is fine
-there; the general re-export-existing-translation case REQUIRES the load step.
+When dispatched from `odoo-forward-port`, copy each source-series `<lang>.po` into the target
+module's `i18n/<lang>.po` BEFORE L1 - that makes the source translation the "existing `.po`" L1
+loads, so the same fresh-instance -> load -> re-export -> diff-review path forwards it (no polib
+lift). L2's diff-review then adjudicates every difference the version gap introduced (a renamed
+label, a removed feature). The general re-export-existing-translation case likewise REQUIRES the
+load step.
 
 Export from a DB where ONLY the target module + its dependency closure is installed, so terms from
 auto-installed siblings do not leak into the `.pot`.
@@ -109,7 +116,7 @@ odoo-bin i18n loadlang -d <db> -l en_US
 odoo-bin i18n loadlang -d <db> -l <lang>
 # export (default -l pot = template .pot; pass <lang> to emit the translated .po):
 odoo-bin i18n export -d <db> -l <lang> -o <lang>.po <module>
-# import (e.g. after the polib merge, to reload the merged .po):
+# import (optional: test-import the finalized post-adjudication .po; the -u reload gate covers this):
 odoo-bin i18n import -d <db> -l <lang> -w <lang>.po
 ```
 
@@ -118,7 +125,7 @@ translatable terms, NOT a translation. Never commit a `.pot` over a `.po`.
 
 **Always re-export the `.pot` FRESH.** Regenerate `<module>.pot` from the currently-installed code
 on EVERY invocation - never reuse a committed or prior-run `.pot` already on disk. A stale template
-is missing the run's new/renamed `msgid`s, so the L2 merge silently under-populates and the new
+is missing the run's new/renamed `msgid`s, so the L2 reconcile silently under-populates and the new
 terms never reach the translators. This is once-per-module-per-run (a fresh export each run), NOT
 per-language - see the multi-language loop below.
 
@@ -131,9 +138,9 @@ When the resolved scope has more than one target language, run two nested loops:
 - Loop 1 (per module, language-agnostic): export the `.pot` template ONCE per module. The `.pot`
   is the untranslated catalog and does NOT depend on language - never re-export it per language.
 - Loop 2 (per language, module-inner): for each target `<lang>`, and for each module - build the
-  per-language glossary/TM (`glossary-tm-<lang>.json`), `--load-language=<lang>`, merge into
-  `<lang>.po` via polib (non-destructive), hand-translate the residual, then run the per-language
-  validation gates (msgstr-regression + placeholder-integrity on `<lang>.po`; `-u` reload with
+  per-language glossary/TM (`glossary-tm-<lang>.json`), `--load-language=<lang>`, reconcile into
+  `<lang>.po` by load + re-export + diff-review (non-destructive, no polib), hand-translate the residual, then run the per-language
+  validation gates (diff-review adjudication + placeholder-integrity; `-u` reload with
   `<lang>` loaded). Emit `translation-report-<lang>.json` per language. Each language's `-u`
   reload follows the reserve-only allocator guard (see gate-3 above): reuse the L1 install lease
   or use `--mode exclusive` on a declared DB - never a fresh ephemeral lease for reload-only.
@@ -143,76 +150,65 @@ Artifacts are per-language EXCEPT the shared `.pot`: `<module>.pot` (shared) vs
 
 ---
 
-## L2 - polib TM-merge (the non-destructive core)
+## L2 - Diff-review reconcile (the non-destructive core - no polib)
 
-Merge the fresh `.pot` template INTO the maintained `.po` with `polib`: keep every existing
-`msgstr` whose `msgid` survives, mark dropped entries obsolete, add new empty entries. Only the
-term inventory is refreshed; the translation memory survives.
+The fresh instance already has the existing `<lang>.po` loaded (L1: the committed file sits in the
+module's `i18n/` dir, so `--load-language` / `loadlang` staged its `msgstr`s into the DB). So the
+re-export REPRODUCES the human translation - it is NOT a blind fresh-DB export. Reconcile the
+re-exported file against the committed one by DIFF-REVIEW:
 
-```python
-import polib
+1. The committed `<lang>.po` is the diff baseline - it is still at git HEAD; the re-export lands in
+   the working tree, so no manual `.orig` copy is needed.
+2. Re-export `<module>` for `<lang>` (the L1 translated-re-export path) - this overwrites the
+   working-tree `i18n/<lang>.po`.
+3. **Diff-review (delegated - never run git yourself).** Invoke the `git-toolkit:git-ops` skill
+   (via the Skill tool) to diff the re-exported `i18n/<lang>.po` against its committed (HEAD) version
+   and report the changes back. Per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`, the git op is
+   delegated to git-ops and its result is read back - the skill/agent does not run git itself.
+4. **Adjudicate every removed/changed `msgstr`** in the reported diff:
+   - **CORRECT** - the `msgid` genuinely no longer appears in the module source (term removed /
+     renamed in code). Confirm by grepping the module source (or `entity_lookup`). Accept the loss.
+   - **WRONG** - the `msgid` still exists in source but its translation vanished/changed. That is an
+     accidental loss (language not loaded, wrong export scope, `auto_install` leakage). BLOCK: do NOT
+     commit; fix the cause (re-provision fresh, re-load the language, re-export) and re-review.
+   Adjudicate only `msgid`/`msgstr` changes; IGNORE header timestamps, `#:` reference-comment churn,
+   and entry reordering - those are export-format noise, not translation losses.
+5. Only after every removed/changed entry is ruled CORRECT does the re-exported `<lang>.po` become
+   the new committed file - and the commit is itself a `git-ops` call (never run by a leaf worker).
 
-po = polib.pofile('<lang>.po')           # the maintained translation (has human msgstrs)
-pot = polib.pofile('<module>.pot')        # the fresh template (msgstrs empty)
-
-before = len([e for e in po if e.msgstr])  # non-empty count BEFORE (regression baseline)
-
-po.merge(pot)                              # keep live msgstr, obsolete the dropped, add new-empty
-
-# drop obsolete entries (msgid gone from the module) so they stop shipping:
-po[:] = [e for e in po if not e.obsolete]
-
-po.save('<lang>.po')
-
-after = len([e for e in po if e.msgstr])
-```
-
-`po.merge(pot)` semantics (the forward-translation-memory contract): `msgid` in both -> keep the
-`.po`'s `msgstr`; in `.po` not `.pot` -> flag obsolete; in `.pot` not `.po` -> add with empty
-`msgstr`.
-
-**ABSOLUTE PROHIBITION:** never `odoo-bin --i18n-export=<lang>.po` from a fresh DB, and never
-overwrite a maintained `.po` with a freshly exported one - the fresh-DB export's empty `msgstr`s
-erase the human translation. Export ONLY to a `.pot` template, then merge.
+**ABSOLUTE PROHIBITION:** never blind-overwrite a committed `.po` with a fresh-DB export that had no
+load step, and never commit an un-adjudicated re-export. Load-first + diff-review + adjudication IS
+the non-destructive contract; skipping it erases the human translation.
 
 ---
 
 ## L3 - Hand-translate the residual
 
-After L2, the only empty/fuzzy entries are genuinely new or changed terms. Translate each residual
-`msgstr` by hand, applying the glossary (below). Clear each entry's `fuzzy` flag only after
-confirming or correcting its `msgstr` - a left-over `fuzzy` flag makes Odoo ignore the translation
-at load time.
+After L2, the residual to translate is the ADDED bucket (new-empty `msgstr` for terms new at this
+version) plus any entry a WRONG adjudication restored. Translate each residual `msgstr` by hand,
+applying the glossary (below). **Placeholder check per entry (no full-file polib scan):** as you
+write each `msgstr`, confirm its placeholder set matches the `msgid` - `%s` / `%d` / `%(name)s` /
+`{}` / `{name}` must be identical, else the translation raises or renders wrong at runtime. If
+Odoo's exporter left a `fuzzy` flag on an entry, clear it only after confirming or correcting the
+`msgstr`.
 
 ---
 
 ## Validation before commit (every gate is a hard BLOCK on failure)
 
-1. **Non-empty-msgstr regression (polib, NOT grep).** Compare the non-empty count before and
-   after the merge:
+1. **Diff-review adjudication (delegated to git-ops, NOT a raw local diff you run).** Invoke
+   `git-toolkit:git-ops` to diff the re-exported `<lang>.po` against its committed version; every
+   removed/changed `msgid` in the reported diff MUST be adjudicated CORRECT (term gone from source)
+   or WRONG. An un-adjudicated or WRONG-ruled entry is a hard BLOCK - it means the human translation
+   was lost by accident (usually the language was not loaded into the DB before the re-export).
+   Adjudicate only `msgid`/`msgstr` changes; ignore header/reference-comment/reordering noise. The
+   skill/agent never runs git itself - it delegates to git-ops and reads the result.
 
-   ```python
-   before = len([e for e in polib.pofile('<lang>.po.orig') if e.msgstr])
-   after  = len([e for e in polib.pofile('<lang>.po')      if e.msgstr])
-   assert after >= before, f"REGRESSION: {before} -> {after} non-empty msgstr - L2 merge skipped"
-   ```
-
-   A large drop means an overwrite slipped past L2 - BLOCK and re-run the merge. Do NOT measure
-   this with `grep -c '^msgstr ""'`: a `.po` `msgstr` can span multiple lines (`msgstr ""` header
-   line + continuation strings), so the grep miscounts multi-line entries and the file header -
-   false pass.
-
-2. **Placeholder integrity.** For each entry, the placeholder set in `msgstr` must equal the set
-   in `msgid`. Extract `%s`, `%d`, `%(name)s`, `{}` / `{name}` from both; differ -> the translation
-   raises or renders wrong at runtime - BLOCK:
-
-   ```python
-   import re
-   PH = re.compile(r'%\([^)]+\)[sd]|%[sd]|\{[^}]*\}')
-   for e in polib.pofile('<lang>.po'):
-       if e.msgstr and set(PH.findall(e.msgid)) != set(PH.findall(e.msgstr)):
-           raise SystemExit(f"PLACEHOLDER MISMATCH: {e.msgid!r} vs {e.msgstr!r}")
-   ```
+2. **Placeholder integrity (per entry, no polib).** For every entry translated in L3, the
+   placeholder set in `msgstr` must equal the set in `msgid` (`%s`, `%d`, `%(name)s`, `{}` /
+   `{name}`); a mismatch makes the translation raise or render wrong at runtime - BLOCK. Check each
+   entry as you write it (a `re`-based spot-check on that entry is fine); reproduced entries from the
+   diff baseline were already correct and need no full-file re-scan.
 
 3. **Load validation via Odoo, NOT msgfmt.** Reload the module: `odoo-bin -d <db> -u <module>
    --stop-after-init` (see `docs/reference/INSTANCE-LIFECYCLE.md`). `-u` re-imports the translation

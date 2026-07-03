@@ -268,8 +268,9 @@ Output: `install-test.md` - {per-wave + per-module install ok?, test result, roo
 Goal: keep translations intact across the upgrade WITHOUT regenerating them. Gated-on by
 default; AUTO-SKIP when the cluster changed no translatable surface (no add/remove/rename of
 a translatable field, label, view string, or selection). When it runs, wire the existing
-`odoo-i18n` skill (no new i18n logic) against the P5 instance: export `.pot` -> polib-MERGE
-into each existing `.po` (NEVER regenerate - a fresh export destroys existing msgstr) ->
+`odoo-i18n` skill (no new i18n logic) against a fresh instance with the existing `.po` loaded:
+re-export -> git-ops diff-review each `.po` against its committed version + adjudicate every loss
+(NEVER blind-regenerate - a fresh-DB export with no load step destroys existing msgstr) ->
 hand-translate only the residual untranslated entries -> reload with `-u`. Detail: phase-detail § P5.7.
 
 **P6 - Gate [STOP, human sign-off].**

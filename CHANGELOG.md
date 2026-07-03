@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [4.4.2] - 2026-07-03
 
+### Changed
+
+- `odoo-ai-agents` - **the i18n non-destructive core no longer uses `polib`.** `po.merge()` behavior varies by installed `polib` version (hard to control), so the merge-based reconcile is replaced by the "human" workflow: build a FRESH instance, LOAD `en_US` + the in-scope languages (so the existing `.po` populates the DB), RE-EXPORT (which reproduces the human translation), then RECONCILE by a **git-ops diff-review** - the skill delegates the diff of the re-export vs the committed `.po` to `git-toolkit:git-ops` (never runs git itself) and adjudicates every removed/changed `msgstr` as correct (term gone from source) or wrong (accidental loss -> BLOCK) before commit. Rewrote L2/L3 + validation gate 1 in the recipe SSOT, `odoo-translator` Round 2/4, `odoo-i18n` P3/P4, and the `odoo-modules-upgrade` P5.7 reconcile; the placeholder-integrity check is now per-entry (no full-file polib scan). Forward-port forwards translations by copying the source `.po` into the target `i18n/` before the load + re-export + diff-review (no polib lift). Trade-off noted in the recipe: the raw diff is export-format-noisy (header / reference-comment / reorder), so adjudication focuses on `msgid`/`msgstr` changes only.
+
 ### Fixed
 
 - `odoo-ai-agents` - **`en_US` is now always loaded, and the `.pot` is always re-exported fresh** - two operational failure modes in the i18n + instance-build flows.
