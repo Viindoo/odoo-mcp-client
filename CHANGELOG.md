@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.5.0] - 2026-07-03
+
 ### Added
 
 - `odoo-ai-agents` - new CORE snippet `snippets/access-groups-conventions.md`: the
