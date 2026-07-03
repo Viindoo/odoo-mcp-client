@@ -85,7 +85,15 @@ Requires a running instance + DB.
 
 Odoo ships its own lint test module that runs Odoo's custom AST checkers (`sql_injection`,
 `gettext`, `unlink_override`) plus manifest, eslint, pofile, and `__init__` consistency checks.
-This is **not** the third-party `pylint-odoo` package - it is Odoo's own module and is what Runbot runs.
+This is **not** the third-party `pylint-odoo` package - it is Odoo's own module and is what Runbot
+runs. (The `gettext` checker's actual rule - named placeholders required for multi-arg `_()`,
+lint-enforced from v18 - is `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §gettext
+placeholders`; this section only catalogs the checker.)
+
+**Illustrative only - the runtime probe is authoritative (see D4).** The table below is a rough
+era guide, kept for orientation; it is superseded by the `check_module_exists` probe below whenever
+they disagree. OSM shows `test_lint` present as early as v10 (not "renamed from `test_pylint` at
+v13" as the table implies) - never assume the table over a live probe.
 
 | Series | Tag(s) to append to `--test-tags` | Source |
 |---|---|---|
@@ -107,6 +115,25 @@ odoo-bin -d <DB> -u <module> --test-enable \
 `set_active_version(<version>)` then `check_module_exists("test_lint", odoo_version='<version>')` and
 `cli_help("server", "--test-tags", odoo_version='<version>')`. The table above is illustrative -
 never assume without checking.
+
+### Install the lint modules (not just tag them)
+
+Appending `/test_lint`/`/test_pylint` to `--test-tags` only SELECTS those tests IF the module is
+already installed in the target DB - it does not install it. For a **test-run build** (any build
+whose purpose is running `--test-enable`: `run-tests`, or a coder/reviewer inline lint-gate run),
+each lint module must be INSTALLED, not merely tagged:
+
+1. For each of `test_lint` and `test_pylint`, call `check_module_exists(name='<module>',
+   odoo_version='<version>', profile_name='<active profile>')`.
+2. For every module that is Indexed = Yes, UNION it into the `-i`/`-u` INSTALL list for that build
+   (exactly as `en_US` is unioned into the language activation set - see `agents/odoo-instance-ops.md`
+   "en_US - always loaded on every build (HARD RULE)"), AND append its tag to `--test-tags`.
+3. The install set and the tag set MUST come from the SAME probe. Never tag a module that was not
+   also installed - its tests will not load, and the run will report a false-clean pass.
+
+The operational HARD RULE unioning these into the install set lives in `agents/odoo-instance-ops.md`
+"Lint modules - installed for test-run builds (HARD RULE)" - this section is the test-invocation
+method; that section is the build-time enforcement point.
 
 > `test_lint` (Odoo CE) is distinct from the third-party `pylint-odoo` package
 > (`pip install pylint-odoo` / `pylint --load-plugins=pylint_odoo`). They are separate tools with

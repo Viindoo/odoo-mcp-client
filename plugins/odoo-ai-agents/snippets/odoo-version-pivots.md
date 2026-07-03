@@ -111,6 +111,37 @@ class HrEmployee(models.Model):
 
 ---
 
+## gettext placeholders (named required for multi-arg; E8505 lint failure v18+)
+
+CORE Odoo rule enforced by a core test. Applies to ALL distributions.
+
+In `_()` / `_lt()` translation calls that interpolate MORE THAN ONE variable, use NAMED
+placeholders `%(name)s` with keyword arguments - never multiple positional `%s`. A single
+positional `%s` is acceptable.
+
+```python
+# v14+ correct (named, lint-clean on v18+):
+raise UserError(_("Answer to %(field)s is not valid, expected %(kind)s.", field=name, kind="int"))
+
+# v18 E8505 FAILURE (two unnamed placeholders):
+raise UserError(_("Answer to %s is not valid, expected %s.", name, "int"))
+```
+
+- **Capability:** the multi-arg `_()` signature exists from **v14+** (verified v14, v16, v17, v18).
+  `GettextAlias.__call__` is `def __call__(self, source):` (single-arg, no `*args`/`**kwargs`) on
+  v12 AND v13 - passing extra positional/keyword args on v13 or earlier raises `TypeError`, it does
+  not lint-fail. Multi-var interpolation pre-v14 is done via `%` outside the call.
+- **v14-v17:** named placeholders are supported and preferred, but a positional multi-`%s` call
+  does NOT lint-fail.
+- **v18+:** this is a hard `test_lint` FAILURE, not a style nit - `test_lint`'s gettext AST checker
+  (`TestI18nChecks.test_gettext_placeholders`) rejects more than one unnamed placeholder: pylint
+  symbol `gettext-placeholders`, message code **E8505**. Escaped `%%s` and a single `%s` are still
+  OK. The check is NEW at v18 (absent at v16/v17).
+- Treat an E8505 finding as a BUILD FAILURE - fix by switching to named placeholders, never by
+  suppressing the lint check.
+
+---
+
 ## Viindoo-distribution conventions (profile-gated - see `upg-conventions.md`)
 
 These apply ONLY under the gating conditions in `snippets/upg-conventions.md`. NOT Odoo core or other distributions.

@@ -547,13 +547,16 @@
     },
     "odoo-instance": {
       "mcp_tools": [
+        "check_module_exists",
         "cli_help",
-        "set_active_version",
-        "list_available_versions"
+        "list_available_versions",
+        "profile_inspect",
+        "set_active_profile",
+        "set_active_version"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Spawner: dispatches odoo-instance-ops agent for instance lifecycle (create/drop/init/update/test). cli_help grounds per-version odoo-bin CLI flags; set_active_version pins the target series for OSM calls; list_available_versions lets the skill discover indexed versions when the user specifies a vague target."
+      "notes": "Spawner: dispatches odoo-instance-ops agent for instance lifecycle (create/drop/init/update/test). cli_help grounds per-version odoo-bin CLI flags; set_active_version pins the target series for OSM calls; list_available_versions lets the skill discover indexed versions when the user specifies a vague target. check_module_exists + set_active_profile + profile_inspect ground the dispatched agent's data-driven unions (Viindoo to_base into --load; test_lint/test_pylint into the test-run install set) against the active profile. min_server 0.13.1 for profile_inspect."
     },
     "odoo-modules-upgrade": {
       "mcp_tools": [
@@ -685,13 +688,16 @@
     },
     "odoo-instance-ops": {
       "mcp_tools": [
+        "check_module_exists",
         "cli_help",
-        "set_active_version",
-        "list_available_versions"
+        "list_available_versions",
+        "profile_inspect",
+        "set_active_profile",
+        "set_active_version"
       ],
-      "min_server_version": "0.6.0",
+      "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Instance lifecycle leaf agent: learns per-version odoo-bin CLI flags at runtime via cli_help; set_active_version pins the target series; list_available_versions used for version resolution when target is vague. Does NOT call OSM for code-structure queries - only for CLI surface discovery."
+      "notes": "Instance lifecycle leaf agent: learns per-version odoo-bin CLI flags at runtime via cli_help; set_active_version pins the target series; list_available_versions used for version resolution when target is vague. check_module_exists (+ set_active_profile / profile_inspect to pin and confirm the active profile) grounds two build-time HARD RULES: union Viindoo to_base into --load when present, and union present test_lint/test_pylint into the test-run install set. Does NOT call OSM for code-structure queries otherwise - only for CLI surface + module-presence discovery. min_server 0.13.1 for profile_inspect."
     },
     "odoo-qa-planner": {
       "mcp_tools": [

@@ -6,6 +6,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `odoo-ai-agents` - new CORE snippet `snippets/access-groups-conventions.md`: the
+  `ir.module.category` XML-id derivation algorithm (`base.module_category_<slug>` from the
+  manifest `category` string) and the `implied_ids` privilege-ladder pattern that renders a
+  permissions dropdown instead of orphan checkboxes (v8-v19, algorithmically stable). Wired into
+  the coding-guidelines INDEX "Security" row across all 6 indexed series (14.0-19.0) + the
+  top-level snippet catalog, `odoo-coder` (read-before-write list + a new self-review checklist
+  line), `odoo-code-reviewer` D2 (a new "Access group hierarchy" lens), and `odoo-security-audit`
+  (a new OSM round item).
+- `odoo-ai-agents` - new gettext-placeholders convention (`snippets/odoo-version-pivots.md`): a
+  multi-arg `_()`/`_lt()` call must use named `%(name)s` placeholders, never multiple positional
+  `%s` - a hard `test_lint` failure (`gettext-placeholders`, E8505) from v18+, previously only a
+  style preference on v14-v17. Wired into the coding-guidelines INDEX "Translations" row across
+  all 6 series, `odoo-coder` (pivot-read list + checklist item), `odoo-code-reviewer` D5, and
+  `odoo-backend-debugger` (a new diagnosis entry for the E8505 failure).
+- `odoo-ai-agents` - `docs/reference/INSTANCE-ALLOCATION.md` gains **§6.2 Config-file isolation**:
+  the agent-facing contract that every concurrent instance build is isolated by the allocator
+  (unique DB name + private port pool + create-through-Odoo), and that neither instance-build path
+  (`55-instance-ops.sh` CLI-flags-only, `50-instance-spinup.sh` unique-per-run temp `odoo.conf`)
+  ever reads or writes a shared/default config file.
+- `odoo-ai-agents` - `odoo-instance-ops` gains two data-driven HARD RULEs, both gated on a profile
+  resolved-and-pinned via `check_module_exists`/`set_active_profile`/`profile_inspect` (never
+  probed profile-less, to avoid falsely treating a vanilla-CE build as Viindoo): (1) union Viindoo
+  `to_base` into the server-wide `--load` module list (never as an ordinary `-i` module) when the
+  active profile carries it, with a local-source fallback for the v19 `cli_help` silent-default
+  gap; (2) for any test-run build, install (not merely tag) `test_lint`/`test_pylint` from the same
+  probe that appends their `--test-tags`. `skills/odoo-instance/SKILL.md` gains the `PROFILE`
+  brief param that threads the resolved `viindoo_profile` through to the agent.
+  `docs/reference/ODOO-TESTING.md` and `docs/reference/INSTANCE-LIFECYCLE.md` document the
+  invariant (SSOT stays in `odoo-instance-ops.md`); the static lint-module version table in
+  `ODOO-TESTING.md` is demoted to illustrative-only (the runtime probe is authoritative).
+- `odoo-ai-agents` - `generator/skill_tool_deps.json`: `odoo-instance` + `odoo-instance-ops` gain
+  `check_module_exists`, `profile_inspect`, and `set_active_profile` (min_server_version 0.6.0 ->
+  0.13.1) to ground the two new HARD RULEs above; regenerated `## MCP tools` blocks.
+
+### Fixed
+
+- `odoo-ai-agents` - `odoo-planning` gains a **Plan Mode guard** keyed on a new
+  `plan_mode_active` dispatch-brief flag (SSOT: `odoo-planning` § Plan Mode guard): when
+  `odoo-intake` delegates 3-block plan authoring to `odoo-planning` while its own Plan Mode is
+  still open, it now sets the flag so `odoo-planning` skips `EnterPlanMode` instead of
+  double-entering (a harness error); the flag is defined and read only by `odoo-planning`, never
+  inferred from `return_to`. Clarified that the on-the-fly execution task list is `run-harness`'s
+  alone, created only when Agent Team mode (CHP) is on.
+
 ## [4.4.2] - 2026-07-03
 
 ### Changed

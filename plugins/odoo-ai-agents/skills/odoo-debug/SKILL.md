@@ -117,7 +117,7 @@ Route each suspected layer to its specialist, choosing the model **explicitly** 
 
 | Layer / symptom | Dispatch to | Mechanism |
 |---|---|---|
-| Python/ORM, data-state, Expected singleton, AccessError, compute/onchange/constraint, traceback, module-load/migration/ParseError | `odoo-backend-debugger` agent | subagent launch (OSM, parallel-safe) |
+| Python/ORM, data-state, Expected singleton, AccessError, compute/onchange/constraint, traceback, module-load/migration/ParseError, `test_lint` failure (`gettext-placeholders`/E8505, v18+ - see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §gettext placeholders) | `odoo-backend-debugger` agent | subagent launch (OSM, parallel-safe) |
 | OWL/JS/QWeb/SCSS runtime, console/network/blank render | `odoo-ui-debugger` agent | subagent launch (BROWSER → serial, exclusive) |
 | "why is it slow" / N+1 happening now | `odoo-perf-audit` (reactive mode) | Skill tool |
 | security symptom at runtime (leak, unexpected AccessError, observed injection) | `odoo-security-audit` (reactive mode) | Skill tool |

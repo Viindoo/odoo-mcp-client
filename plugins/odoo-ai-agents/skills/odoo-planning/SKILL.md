@@ -196,6 +196,33 @@ read-only execution detail and output contract.
 
 ## Plan-approval gate (who approves: the human)
 
+### Plan Mode guard (enter iff not already active)
+
+Before presenting the gate below, Plan Mode MUST be active - this skill runs in the MAIN context
+(like `odoo-intake`), so it CAN call `EnterPlanMode`. The enter/skip decision keys on the
+`plan_mode_active` dispatch-brief flag - NEVER on `return_to` (`return_to` governs caller-return
+routing only; it does NOT carry whether Plan Mode is currently active):
+
+- **`plan_mode_active: true` in the dispatch brief** - a caller already opened Plan Mode before
+  dispatching this skill (e.g. `odoo-intake`: it calls `EnterPlanMode` at step 2 of its Plan Mode
+  procedure, then delegates 3-block plan authoring to this skill at step 3 while Plan Mode is still
+  open). Plan Mode is ALREADY active - do NOT call `EnterPlanMode` (a second enter while already in
+  Plan Mode is a harness error).
+- **`plan_mode_active` absent or false (default)** - Plan Mode is NOT yet active. This covers a
+  direct `/odoo-planning` invocation AND the `odoo-solution-design -> odoo-planning` handoff (where
+  solution-design hands off with Plan Mode still closed and this skill owns the code Plan Mode).
+  Call `EnterPlanMode` now, before presenting the gate below.
+
+`plan_mode_active` is a boolean dispatch-brief flag DEFINED HERE (SSOT for its meaning); a caller
+sets it to `true` only when it holds Plan Mode open across the dispatch to this skill, otherwise it
+is omitted. Two SSOTs justify the "already active" branch: (1) the capability -
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/workflow-harness.md` §4.1 (Plan mode and skills - the main
+context CAN call `EnterPlanMode`/`ExitPlanMode`, a subagent cannot); (2) the sequencing fact -
+`skills/odoo-intake/SKILL.md` "Authoring split (step 3)" (intake dispatches this skill while its
+Plan Mode is open, between its step-2 `EnterPlanMode` and step-4 `ExitPlanMode`). This guard
+decides only the ENTER side; the `ExitPlanMode` call on `approve` below (`return_to` unset) is
+unchanged.
+
 When BOTH planners return, **do NOT auto-chain to execution.** Present a tight combined summary,
 then gate. Write the gate in the USER'S LANGUAGE (translate labels and prose; keep file paths,
 module names, model identifiers, and skill names verbatim):
@@ -276,5 +303,10 @@ is **gated on the human plan-approval above**. Choose `next` as follows:
   ingest a plan `.md`, so handing the plan straight to it would strand every execution node (it
   reports `NEEDS_CONTEXT` when no run file exists). Serialization is Phase P's job; walking is
   run-harness's. Do NOT self-dispatch the executor.
+
+Note: the on-the-fly execution task list (`TaskCreate` per DAG node, tracked via
+`TaskList`/`TaskGet`) is owned by `run-harness`, NOT by this skill - and run-harness creates it
+only when the CHP capability probe is positive (Agent Team mode ON); otherwise it dispatches and
+collects per node with NO task board. See `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md`.
 
 Additive output for the Phase P -> run-harness handoff - it does not change anything produced above.

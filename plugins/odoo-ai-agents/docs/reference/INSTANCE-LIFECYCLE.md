@@ -83,3 +83,14 @@
     `skills/odoo-instance/SKILL.md`); `odoo-i18n` enforces the same invariant independently for the
     raw `odoo-bin` calls it issues outside this dispatch (recipe KT3:
     `skills/odoo-i18n/references/i18n-recipe.md`).
+11. **Viindoo `to_base` unioned into `--load` when the active profile carries it.** Server-wide
+    modules are resolved from a DATA-DRIVEN profile probe, never hardcoded, and `to_base` is
+    appended to the era default (never replacing it). Owned by `odoo-instance-ops` (SSOT:
+    `agents/odoo-instance-ops.md` § Server-wide modules (`--load`) - Viindoo `to_base` (HARD RULE));
+    the `odoo-instance` skill threads the resolved `PROFILE` through its dispatch brief.
+12. **Lint modules (`test_lint`/`test_pylint`) installed, not just tagged, on any test-run build.**
+    A `--test-enable` build must UNION the present lint module(s) into the `-i`/`-u` install list
+    from the same probe that appends their tag to `--test-tags`. Owned by `odoo-instance-ops`
+    (SSOT: `agents/odoo-instance-ops.md` § Lint modules - installed for test-run builds (HARD
+    RULE)); test-invocation detail in `ODOO-TESTING.md` § Install the lint modules (not just tag
+    them).

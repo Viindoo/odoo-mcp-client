@@ -41,6 +41,7 @@ When invoked, gather the following from the caller's request:
 |-----------|----------------|
 | `operation` | `create` / `drop` / `init` / `update` / `run-tests` / `ensure-up` / `status` / `load-language` |
 | `series` | e.g. `17.0`, `18.0` - required for create/init/update/run-tests; optional for status |
+| `PROFILE` | Viindoo tenant profile name, e.g. `viindoo_17`; this skill reads `viindoo_profile` from `.odoo-ai/context.md` and threads it through - the caller never sets this manually; omit from the brief when `.odoo-ai/context.md` has no `viindoo_profile` field. REQUIRED input for the agent's `to_base`/lint-module HARD RULEs below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests` |
 | `demo` | `on` / `off` (default `off`) |
 | `test_tags` | e.g. `/module.ClassName.method_name` for `run-tests` |
@@ -67,6 +68,30 @@ because it issues `--load-language` / `i18n loadlang` directly against `odoo-bin
 skill's dispatch (its `odoo-translator` re-export + `-u` reload) - a second, independent enforcement
 point for a path this skill does not mediate, not a duplicate of this one.
 
+**Agent-side unions this skill does not compute itself.** This skill resolves `PROFILE` (from
+`viindoo_profile` in `.odoo-ai/context.md`, omitted when absent) and threads it into the brief -
+see the Dispatch table and Brief shape above. The dispatched `odoo-instance-ops` agent then PINS
+that profile (`set_active_profile` plus explicit `profile_name=` on every probe - never
+profile-less) and performs two further DATA-DRIVEN unions before building the `odoo-bin` command,
+on top of the `en_US` union above - callers pass nothing extra for either:
+- **Viindoo `to_base` on `--load`.** The agent pins the resolved profile (brief `PROFILE`, or the
+  series' vanilla profile when `PROFILE` is absent, or `NEEDS_CONTEXT` when neither resolves) then
+  checks it for `to_base`; when the pinned profile carries `to_base`, the agent unions it into the
+  server-wide `--load` module list (never as an ordinary `-i` module) - see
+  `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Server-wide modules (`--load`) - Viindoo
+  `to_base` (HARD RULE)".
+- **Lint modules for `run-tests`.** For a test-run build, the agent reuses that same pinned
+  profile to probe for `test_lint`/`test_pylint` and unions every present one into BOTH the
+  `-i`/`-u` install list and `--test-tags` from the same probe - see
+  `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules - installed for test-run builds
+  (HARD RULE)" and `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` "Install the lint modules
+  (not just tag them)".
+
+**Config isolation.** No operation this skill dispatches writes to a shared or default config
+path - the CLI-flag path reads no config file at all, and the generated-conf path is a unique
+temp file per run; see `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md §Config-file
+isolation` for the full two-path contract.
+
 **Human gate (instance_touching = L2):** Instance lifecycle is `instance_touching`. The
 run-harness treats this as an **L2 human gate** - a human approval checkpoint applies before
 any mutation (create, drop, init, update, run-tests). If an active run-harness is present in
@@ -79,6 +104,7 @@ brief that follows `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. The brief m
 ```
 OPERATION: <operation>
 SERIES: <series or 'unspecified'>
+PROFILE: <viindoo_profile from .odoo-ai/context.md, or omit if absent>
 MODULES: <comma-separated list or 'none'>
 DEMO: <on|off>
 TEST_TAGS: <tags or 'none'>
@@ -187,9 +213,12 @@ language-loading flag directly from `odoo-bin --help` on the live binary and pro
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
+- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
+- `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
 - `cli_help` - Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags.
 - `list_available_versions` ☆ - Enumerate which Odoo versions the server has indexed.
+- `profile_inspect` - Profile-level introspection discriminator (ADR-0028): inspect a tenant profile's composition in one call.
 <!-- END GENERATED TOOLS -->
