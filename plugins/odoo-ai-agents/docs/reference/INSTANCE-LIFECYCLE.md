@@ -76,3 +76,10 @@
 8. **Version bump ≠ `-u`** - migrations go through the upgrade path.
 9. **Read-only verification** - confirm `-d` target and addons-path; never run Odoo just to
    "test a guess" - query OSM/source instead.
+10. **`en_US` always active on any first `-i` (create / init / fresh test-DB).** Odoo's base/source
+    language must be loaded in every DB this contract builds, regardless of whether translation is
+    in scope for the run - union `en_US` into any `--load-language` / `i18n loadlang` call and never
+    issue one that omits it. Owned by the `odoo-instance` skill / `odoo-instance-ops` agent (SSOT:
+    `skills/odoo-instance/SKILL.md`); `odoo-i18n` enforces the same invariant independently for the
+    raw `odoo-bin` calls it issues outside this dispatch (recipe KT3:
+    `skills/odoo-i18n/references/i18n-recipe.md`).

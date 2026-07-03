@@ -88,8 +88,15 @@ then echo which source was used:
 4. Query the confirmed instance: `res.lang` records with `active = True` (codes).
 5. Default `["vi_VN"]`.
 
-Echo the resolved language list AND the source tier that produced it in the scope summary, then
-STOP for approval before any export or DB op.
+**`en_US` is mandatory, independent of the tiers above.** After resolving the target languages, set
+`activation_languages = {"en_US"} union target_languages`. `en_US` (Odoo's base/source language) is
+ALWAYS loaded into the DB alongside every target language (recipe KT3) - none of the tiers above can
+produce it (Odoo ships no `en_US.po`), so it MUST be added here. This governs the DB-activation set
+passed to every `--load-language`/`loadlang` call ONLY; it does NOT add `en_US` as a translation
+deliverable (no `en_US.po` is exported or merged).
+
+Echo the resolved language list (target languages + the `activation_languages` set) AND the source
+tier that produced it in the scope summary, then STOP for approval before any export or DB op.
 
 Also in P0: confirm an instance is available (else BLOCK per `## Standalone-first fallback`).
 Resolve each module name to its directory and dependency closure. Emit a one-line scope summary
@@ -108,8 +115,11 @@ terminology; haiku for a plain module.
 **P2 - Export `.pot` template [sonnet].** Per L1 of the recipe: install the module, then export a
 `.pot` TEMPLATE on a clean per-module install in an isolated DB, in dependency order (a `.pot`
 template needs NO language load - the L1 load step applies only to a translated `.po` re-export).
-Never export over a maintained `.po`. The `.pot` is language-agnostic (shared
-across all target languages - one export per module, not per language). The per-version flags and
+Never export over a maintained `.po`. ALWAYS re-export the `.pot` FRESH from the
+currently-installed code on every invocation - never reuse a committed or prior-run `.pot` already
+on disk (a stale template misses the run's new/renamed terms and silently under-merges; recipe
+gate 5). The `.pot` is language-agnostic (shared
+across all target languages - one FRESH export per module per run, not per language). The per-version flags and
 their rationale - `--load-language` (activate in DB) vs `--language`/`-l` (select export file),
 `--skip-auto-install` v17-v18, one fresh DB per module v8-v16, the `odoo-bin i18n` subcommand
 v19+ - live in the recipe; ground the exact form via `cli_help` above (`command='i18n-export'`
@@ -123,7 +133,7 @@ residual for its specific language. Loop order: see `## Multi-language loop orde
 `references/i18n-recipe.md` (`.pot` exported once per module, `.po`/glossary/validate per-lang).
 See the dispatch contract below for the model and brief.
 
-**P4 - Validate [haiku].** Run all three gates for EACH target language independently. P4 is the
+**P4 - Validate [haiku].** Run all validation gates (recipe § Validation) for EACH target language independently. P4 is the
 orchestrator-level gate run after all P3 leaves finish - a second, independent pass over each
 leaf's own Round 4 self-check, not a replacement for it. Per language:
 run the polib non-empty-msgstr regression on `<lang>.po` (BLOCK on a large drop - that means the
@@ -131,7 +141,9 @@ merge was skipped and an overwrite slipped through), the placeholder-integrity c
 and the Odoo `-u <module>` reload (NOT `msgfmt`). Pre-condition for each language's reload: the
 target language must be LOADED in the DB first (`--load-language=<lang>` v8-v18 / `i18n loadlang
 -l <lang>` v19+); an absent language makes the reload pass silently while translations stay inactive
-- a false pass. A clean reload with no translation error in the log is the pass signal per language.
+- a false pass. `en_US` (the base language) MUST be active too (KT3) - confirm BOTH `en_US` and each
+`<lang>`, never the target language alone. Also verify the `.pot` consumed was re-exported THIS run
+(recipe gate 5), not a stale on-disk template. A clean reload with no translation error in the log is the pass signal per language.
 See `docs/reference/INSTANCE-LIFECYCLE.md` for the reload semantics. Each per-language `-u
 <module>` reload must run against the SAME lease as the P2/L1 `-i` install that created the DB
 via Odoo create-on-init, or `--mode exclusive` on a declared DB with the module pre-installed -
