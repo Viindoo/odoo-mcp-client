@@ -169,6 +169,33 @@ exist. Always: acquire -> `-i <modules>` (create-on-init) -> use DB -> release. 
 needing a pre-existing populated DB (translation reload `-u`, a server-start against existing
 data), use `--mode exclusive` on a declared DB instead.
 
+### 6.2 Config-file isolation (agent-facing contract)
+
+Every concurrent instance build MUST be isolated. Isolation is guaranteed by the ALLOCATOR, not by
+a shared environment config: the allocator reserves a UNIQUE database name (`<prefix>_t_<uuid8>`,
+§4.1) and a private port pool per caller (§6), and the DB itself is created THROUGH Odoo by that
+build's own `-i` run (§6.1) - never by a config file.
+
+Two distinct paths exist in the current implementation, and BOTH satisfy the isolation contract by
+construction:
+
+- **`55-instance-ops.sh`-backed operations** (create/init/update/run-tests - the primary
+  `odoo-instance-ops` path) pass ALL parameters as explicit CLI flags and read NO shared config
+  file at all: no `-c`/`--config` flag, no reliance on `$ODOO_RC`.
+- **`50-instance-spinup.sh`-backed operations** (the "stay-running" apply path, and `ensure-up`) DO
+  materialise an `odoo.conf` for the launched server. That file MUST be a fresh,
+  unique-per-invocation temp file (`mktemp`) - NEVER the environment's default `odoo.conf` /
+  `$ODOO_RC` - and MUST NOT mutate any project file.
+
+**Contract:** an agent MUST NOT introduce a build step that writes to a shared or default config
+path (`$ODOO_RC`, a project-committed `odoo.conf`, or any config file reused across concurrent
+callers). Every build either (a) passes flags with no config file at all, or (b) generates a
+unique-per-run temp file - there is no third path. This is a harness-level guarantee, not an
+Odoo-CLI fact, so it applies identically across all versions (v8-v19).
+
+Consumers point back here rather than restating the contract: `agents/odoo-instance-ops.md`
+("Through-Odoo DB lifecycle") and `skills/odoo-instance/SKILL.md`.
+
 ## 7. Crash / stale handling
 
 - Owner records `host`+`pid`+`session_id`+`started_at`. GC reclaims when, on the SAME host, the pid

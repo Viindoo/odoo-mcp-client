@@ -64,6 +64,8 @@ Use `--ports 0` for `--stop-after-init` runs that bind no HTTP port. Use `--port
 
 **Through-Odoo DB lifecycle.** The allocator RESERVES an ephemeral DB name and ports only; it does NOT run `createdb`. The database is created THROUGH Odoo by the very `odoo-bin -d <db> -i <modules> --stop-after-init` run (Odoo create-on-init). DROP goes through Odoo via `scripts/lib/odoo_db.py drop <db>`, which uses `odoo.service.db.exp_drop` (handles connection-pool teardown, filestore cleanup, registry teardown). `allocator.py release <token>` calls `odoo_db.py drop` internally for `ephemeral` leases that set `drop_on_release=true`. NEVER run raw `createdb` or `dropdb`.
 
+**Config isolation.** The CLI-flag path above (`55-instance-ops.sh`) reads no shared config file; the generated-conf path (`50-instance-spinup.sh`) is unique per run, never the default `odoo.conf`/`$ODOO_RC` - see `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md §Config-file isolation` for the full contract.
+
 ---
 
 ## Per-version CLI decision table
@@ -80,10 +82,16 @@ ALWAYS reconfirm live via `cli_help` - this table is a PRIOR only and MUST NOT b
 | Skip auto-install | not available | `--skip-auto-install` (v17+) | `--skip-auto-install` |
 | Language activation (ACTIVATE; NOT `-l`/`--language`) | `--load-language=<csv>` combined with `-i base --stop-after-init`; CRITICAL: `-l`/`--language` ONLY selects export file, does NOT activate locale in DB - never substitute | same: `--load-language=<csv>` combined with `-i base --stop-after-init` | `odoo-bin i18n loadlang -d <db> -l <lang>` (dedicated subcommand, one locale per call); confirm via `cli_help(command='i18n', odoo_version='<series>')`; combined `--load-language` removed in v19 |
 | DB drop subcommand | `exp_drop` via odoo_db.py | `exp_drop` via odoo_db.py | `odoo-bin db drop` subcommand (confirm via cli_help) |
+| Server-wide modules (`--load` / `server_wide_modules`) | default `web` (`cli_help` confirms) | default `base,web` (`cli_help` confirms) | default `base,web`, but `cli_help` returns NO `Default:` line at all on v19 (silent, not merely stale) - fall back to the local-source default below |
+| Lint modules for test-run builds (`-i`/`-u` + `--test-tags`) | data-driven probe - never hardcoded (see HARD RULE below) | data-driven probe - never hardcoded (see HARD RULE below) | data-driven probe - never hardcoded (see HARD RULE below) |
 
 **v19 DROPS the legacy aliases entirely** (`--xmlrpc-port`, `--no-xmlrpc`, `--longpolling-port`). They are not merely deprecated in v19 - they do not exist, so a stale prior will cause a fatal error. Reconfirm every flag via `cli_help` before building any command.
 
-**CLI flag ground truth:** `cli_help` reflects the indexed source and may be stale (known gap: v18 `--with-demo` was erroneously indexed; see OSM bug tracker). For demo and port flags, cross-check against the actual build's `odoo/tools/config.py` when the instance is available locally (`grep -n 'with.demo\|without.demo\|http.port' odoo/tools/config.py`). Structural facts (model/field existence) = OSM primary; runtime/CLI facts = live build is ground truth. Version-range SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`.
+**Server-wide modules on a Viindoo profile** (row above): when the active profile carries `to_base`, UNION it into `--load` regardless of the era default shown - see "Server-wide modules (`--load`) - Viindoo `to_base` (HARD RULE)" below. **Lint modules row**: which module(s) to union (`test_lint`, `test_pylint`) is never assumed from a version range - see "Lint modules - installed for test-run builds (HARD RULE)" below.
+
+**CLI flag ground truth:** `cli_help` reflects the indexed source and may be stale or silent (known gaps: v18 `--with-demo` was erroneously indexed - see OSM bug tracker; v19 `cli_help(command='server', flag='--load', odoo_version='19.0')` returns NO `Default:` line at all - live-verified). For demo, port, and server-wide-module flags, cross-check against the actual build's `odoo/tools/config.py` when the instance is available locally (`grep -n 'with.demo\|without.demo\|http.port\|server_wide_modules' odoo/tools/config.py`) - this is exactly how the v19 `--load` fallback below resolves. Structural facts (model/field existence) = OSM primary; runtime/CLI facts = live build is ground truth. Version-range SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md`.
+
+**v19 `--load` fallback (cli_help silent, HARD RULE):** when `cli_help` for `--load` on the target series returns no `Default:` line (currently only observed on v19), do NOT treat this as "no default modules load" - fall back to the known modern default `base,web` sourced from Odoo disk (`odoo/tools/config.py`'s `server_wide_modules` default) and flag `grounded: local-source` in the output block notes, exactly like the `--with-demo` stale-cli_help fallback above. Then union `to_base` into that fallback default per the HARD RULE below, same as any other era default.
 
 **Self-review checklist line:** every flag in the final command came from this series' `cli_help(command='server', odoo_version='<series>')` output, not the prior table.
 
@@ -105,6 +113,80 @@ flag from it:
 Even when `LANGUAGES` is `none`, still load `en_US` alone. Apply this defensively even though the
 dispatching `odoo-instance` skill also unions it - never emit a build command that omits `en_US`.
 Verify via `res.lang` that every code (including `en_US`) is active before reporting `status: ok`.
+
+## Server-wide modules (`--load`) - Viindoo `to_base` (HARD RULE)
+
+Before constructing the `odoo-bin` server command for **create-instance**, **init-modules**,
+**update-modules**, and **run-tests**, detect DATA-DRIVEN (never hardcoded) whether the active
+stack is Viindoo. Pin the series (`set_active_version(odoo_version='<series>')`, Step B above),
+then resolve and PIN the profile BEFORE any probe - never call `check_module_exists` profile-less:
+
+1. **Resolve.** Take the brief's `PROFILE:` field (the dispatching `odoo-instance` skill already
+   read it from `.odoo-ai/context.md`'s `viindoo_profile`). If `PROFILE:` is absent from the
+   brief, resolve the target series' VANILLA profile instead: call `list_available_profiles()`,
+   filter to profiles reporting `<series>`, and use `profile_inspect(method='summary',
+   name='<candidate>', odoo_version='<series>')` on each to find the one with an empty/root
+   ancestor chain (no parent profile layering repos on top) - that root profile is the vanilla
+   baseline; a Viindoo/customer profile for the same series is a child layer added on top of it.
+   If exactly one root candidate resolves this way, pin it. If the brief has no `PROFILE:` AND no
+   root profile resolves unambiguously (zero, or more than one, root candidate), STOP and return
+   `status: NEEDS_CONTEXT` with `blocked_reason: which profile to build against is unresolved for
+   <series>` - do NOT proceed to probe with no profile pinned (see "Unsafe degradation" below).
+2. **Pin.** Call `set_active_profile(profile_name='<resolved profile>')` once, AND pass
+   `profile_name='<resolved profile>'` explicitly on every `check_module_exists` call below - the
+   session-level pin is last-write-wins under concurrency (the same caveat that applies to the
+   version pin in Step B), so the explicit argument is the safety net that never relies on the
+   ambient pin alone.
+3. **Probe.** `check_module_exists(name='to_base', odoo_version='<series>',
+   profile_name='<resolved profile>')`.
+
+If Indexed = Yes, the build MUST load `to_base` server-wide: read the era default for `--load`
+(config key `server_wide_modules`) via `cli_help(command='server', odoo_version='<series>')` -
+falling back to local-source when `cli_help` is silent, per the v19 fallback above - and UNION
+`to_base` into it - e.g. a modern default `base,web` -> `--load base,web,to_base`; an older
+default `web` -> `--load web,to_base`. NEVER drop the era default; only APPEND `to_base`. If
+`to_base` is Indexed = No (the resolved profile - vanilla or Viindoo - has no `to_base` in scope),
+do NOT add `--load` at all - leave the series default untouched. Verify the final `--load` value
+against the current series' `cli_help` output like every other flag, then fold it into `--extra`.
+
+**Unsafe degradation (do not do this).** Live-verified: `check_module_exists(name='to_base',
+odoo_version='<series>')` called with NO `profile_name` can default to a Viindoo-inclusive
+cross-profile view and report Indexed = Yes even for a build that should be vanilla-CE, which
+would wrongly union `to_base` into `--load` and break the "vanilla Odoo -> no-op" guarantee this
+HARD RULE exists to provide (the identical failure mode applies to the lint-module probe below).
+NEVER omit `profile_name=` to "simplify" the call - resolve per step 1 and pin per step 2 first,
+every time, for both this probe and the lint-module probe below.
+
+**Rationale:** `to_base` patches base-level framework behavior, so it must be loaded before the
+registry builds (server-wide), which is exactly what `--load` / `server_wide_modules` is for -
+installing it as an ordinary `-i` module is NOT equivalent and misses the boot-time patch point.
+
+## Lint modules - installed for test-run builds (HARD RULE)
+
+For **run-tests**, and any `init-modules`/`update-modules` dispatch whose purpose is running
+automated tests (`--test-enable`), the lint test modules MUST be INSTALLED, not merely tagged.
+Resolve and PIN the profile exactly as steps 1-2 of the `to_base` HARD RULE above - brief
+`PROFILE:` first, else the resolved root/vanilla profile, else `NEEDS_CONTEXT` - never probe
+profile-less. Reuse the pin already established earlier in the same build (`to_base` HARD RULE
+runs first for create/init/update/run-tests); if this dispatch reaches the lint probe without
+having resolved a profile yet, run steps 1-2 here before probing. Then for each of `test_lint` and
+`test_pylint`, call `check_module_exists(name='<module>', odoo_version='<series>',
+profile_name='<resolved profile>')` - the explicit argument on every call, never relying on the
+ambient `set_active_profile` pin alone (same last-write-wins concurrency caveat as Step B). For
+every one that is Indexed = Yes:
+
+1. UNION it into the `-i` (or `-u`) module list for this build, exactly as `en_US` is unioned into
+   the language activation set above.
+2. Append its tag to `--test-tags` (`/test_lint`, `/test_pylint`).
+
+The install set and the tag set MUST derive from the SAME probe - never tag a module you did not
+install (its tests will not load, and a green run would be a false pass). This composes with, and
+does not replace, the `en_US` HARD RULE above and the `--test-tags` selection guidance in
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`. Do not hardcode which series carries which
+lint module - the runtime probe is authoritative (`ODOO-TESTING.md`'s version table is
+illustrative only). The same "vanilla -> no-op" guarantee from the `to_base` HARD RULE applies
+here: an unpinned probe would risk falsely reporting `test_lint`/`test_pylint` as present on a
+build that should be vanilla-CE, installing lint dependencies that do not belong there.
 
 ## Seven operations
 
@@ -486,6 +568,9 @@ The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verb
 - [ ] worklog appended with decisions
 - [ ] OSM caveat preserved if grounding was local-source or ungrounded
 - [ ] build ops (create-instance / init-modules / run-tests fresh): `en_US` unioned into the activation set and loaded (--load-language for v8-v18, i18n loadlang for v19+) EVEN when the brief LANGUAGES was 'none' - no build completes without `en_US` active
+- [ ] profile resolved and PINNED before any `to_base`/lint probe (brief `PROFILE:`, else the resolved root/vanilla profile via `list_available_profiles`/`profile_inspect`, else `NEEDS_CONTEXT`) via `set_active_profile` PLUS explicit `profile_name=` on every `check_module_exists` call - never probed profile-less
+- [ ] server-wide modules: `check_module_exists('to_base', ..., profile_name=<pinned>)` probed with the pinned profile before building `--load`; era default resolved via `cli_help` with local-source fallback (`base,web`, flagged `grounded: local-source`) when `cli_help` is silent (v19); `to_base` unioned into `--load` (never replacing the era default) when Indexed=Yes, left untouched when Indexed=No
+- [ ] test-run builds (run-tests, or any init/update whose purpose is `--test-enable`): `test_lint`/`test_pylint` probed with the same pinned `profile_name=`; every Indexed=Yes module unioned into BOTH the `-i`/`-u` install list AND `--test-tags` from the same probe - never tagged without being installed
 - [ ] load-language: correct mechanism per series (--load-language combined with -i base for v8-v18; i18n loadlang subcommand for v19+); res.lang verified active or flagged log-signal/unverified; per-locale degradation emitted rather than hard abort
 - [ ] doc-context (CONTEXT=doc): --with-demo + --load-language + --skip-auto-install combined in one init call (v8-v18) or sequenced (v19+); each flag resolved from cli_help for the target series; skip-auto-install exception handled with selective bridge install, not global removal
 - [ ] path-incremental (MODE=path-incremental): atomic op A returns ALLOC_TOKEN + INSTANCE_HANDLE for caller to supply on next call; --skip-auto-install on every init-delta call (B); no-HTTP flag + --stop-after-init during delta (B); ensure-up emitted as separate call (C); convergence fill installs only what caller brief lists (D); lease released only on explicit caller release signal (E); module ordering is ENTIRELY caller's decision

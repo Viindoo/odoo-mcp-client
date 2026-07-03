@@ -31,9 +31,9 @@ These guidelines apply to every new module and to all new development. Two warni
 | Setting up a new module's directory layout | module-structure.md, `${CLAUDE_PLUGIN_ROOT}/snippets/new-module-manifest.md` |
 | Writing or reviewing Python models | python.md, naming.md, model-ordering.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
 | ORM method / compute / constraint | python.md, naming.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
-| Security (groups, rules, access) | xml.md, module-structure.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §ACL`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §Core test-enforced authoring rules (hr.employee field groups, v16+)` |
+| Security (groups, rules, access) | xml.md, module-structure.md, security.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §ACL`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §Core test-enforced authoring rules (hr.employee field groups, v16+)`, `${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md` |
 | Propagating context, managing transactions, handling exceptions | python.md |
-| Translating static strings in code | python.md |
+| Translating static strings in code | python.md, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §gettext placeholders` |
 | Declaring records, views, actions, menus, security | xml.md, `${CLAUDE_PLUGIN_ROOT}/snippets/xml-view-conventions.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
 | Naming XML IDs and inheriting views | xml.md, `${CLAUDE_PLUGIN_ROOT}/snippets/xml-view-conventions.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
 | Organizing or writing web assets (JS) | javascript.md (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |

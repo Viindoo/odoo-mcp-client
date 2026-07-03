@@ -358,6 +358,12 @@ Content Schema) for UI review → receives user approval via `ExitPlanMode` → 
 dispatches the file-touching specialist. This is a first-class enforcement option, not
 a workaround.
 
+For a non-trivial multi-module change, intake does not author the plan content itself: per the
+authoring split (§4.6), it DELEGATES authoring to `odoo-planning` (Skill tool) while Plan Mode
+stays open across that dispatch, passing `plan_mode_active: true` in the brief so `odoo-planning`
+does not call `EnterPlanMode` a second time (a double-enter is a harness error). SSOT for the flag
+and the enter/skip decision it drives: `skills/odoo-planning/SKILL.md` § Plan Mode guard.
+
 There is **no platform write-block** behind the gate: `odoo-intake` does not declare
 `disallowed-tools: Write Edit`, and the coders (`odoo-coding`) DO write/apply code - that is
 their job. The gate is enforced by two behavioral mechanisms, Plan Mode being the strongest

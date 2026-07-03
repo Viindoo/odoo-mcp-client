@@ -219,6 +219,10 @@ Always distinguish `ir.model.access` vs `ir.rule` before hypothesizing (see Step
 
 `module_inspect(name='<module>', method='summary', odoo_version='<version>')` for the manifest, depends chain, and data file list. `api_version_diff` when the symptom appeared after an upgrade. The traceback bottom line names the file and line - `Read` it directly before hypothesizing.
 
+### `test_lint` failure - `gettext-placeholders` / E8505 (v18+)
+
+A `test_lint` failure naming `gettext-placeholders` (message code E8505) is a multi-arg `_()`/`_lt()` call using positional `%s` instead of named `%(name)s` placeholders - not a flaky test. Root cause + fix rule: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §gettext placeholders.
+
 ---
 
 ## Examples
