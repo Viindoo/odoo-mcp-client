@@ -131,9 +131,10 @@ count or model. Cherry-pick (Phase 3) is the orchestrator-side critical section,
 time, run after each WI's `odoo-coding` invocation returns.
 
 **Per-WI worktree (provided by odoo-wave).** odoo-wave provides the worktree; `odoo-coding`'s coders
-author + commit INSIDE it (they may `git add`/`git commit` their own work in their own worktree per
-`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`); they do NOT cherry-pick/merge/push - odoo-wave
-integrates. `odoo-coding` returns the commit SHA(s) on the WI branch.
+author their files INSIDE it but run NO git (per `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`).
+`odoo-coding` invokes the `git-toolkit:git-ops` skill to stage + commit that work inside the worktree,
+then returns the commit SHA(s) on the WI branch; neither the coders nor `odoo-coding` cherry-pick /
+merge / push - odoo-wave integrates (also via git-ops).
 
 **Lazy dependent worktrees** are created immediately before their WI is invoked (after the
 `cherry_picked[dep]` gate passes) so they fork from an up-to-date integration.
@@ -171,8 +172,9 @@ ODOO VERSION     : <one resolved version for the run>
 REQUEST          : <precise description of what this WI implements>
 Repo Capability Card: base=<principal> verify=<command> commit=<convention> confidential=<level>
 WORKLOG          : <runSlug> - read it, then append significant decisions
-Return: the commit SHA(s) on wave/wi-<slug>-<id> (REQUIRED - a DONE with no SHA is a failed contract)
-        so odoo-wave can cherry-pick them onto integration.
+Return: the commit SHA(s) on wave/wi-<slug>-<id> (REQUIRED - a DONE with no SHA is a failed contract;
+        odoo-coding obtains the SHA by committing the coders' files via git-toolkit:git-ops, NOT via a
+        raw coder commit) so odoo-wave can cherry-pick them onto integration.
 ```
 
 If `odoo-coding` returns BLOCKED, do not cherry-pick; record it and apply the saga rollback (Phase 3 /

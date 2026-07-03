@@ -6,6 +6,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.4.1] - 2026-07-03
+
+### Changed
+
+- `odoo-ai-agents` - **dispatched workers never run git, no exception.** Removed the
+  "own-worktree add/commit/stash" carve-out for domain workers. The coders (`odoo-coder` /
+  `odoo-frontend-coder`) and any other domain subagent now WRITE their files in the assigned
+  worktree and RETURN the file list; they run zero git. The orchestrator that owns the worktree
+  (`odoo-coding`, invoked per WI by `odoo-wave`) invokes the `git-toolkit:git-ops` skill to stage +
+  commit that output and capture the SHA. Rationale: workers do not know the project's git/commit
+  conventions, so git is delegated entirely to git-ops.
+  - SSOT tightened: `snippets/git-delegation.md` (dropped the "Benign local writes" section) and
+    `snippets/worker-brief.md` (no worker git at all - write files, return, orchestrator commits).
+  - `odoo-coder.md` / `odoo-frontend-coder.md`: removed the own-worktree-commit exception and the
+    blanket "git-ops for any git work" clause - the coder returns files, never commits.
+  - `odoo-coding` + `odoo-wave` (+ `wave-templates.md`, wave evals): the commit is now an
+    `odoo-coding` -> git-ops step after the coders return, not a raw coder commit; the WI-SHA
+    contract is preserved (odoo-coding obtains the SHA via git-ops).
+  - `odoo-modules-upgrade` P4 (KEEP/REWRITE brief) no longer instructs the coder to commit; the
+    commit is a git-ops step (matching the DELETE-absorbed branch). Scanner false-positives
+    de-fanged in `odoo-icon-designer.md` and `odoo-git-rebase` phase-detail.
+  - `tests/test_git_delegation_boundary.py`: `add` / `commit` / `stash` are no longer an inline
+    allowance - they fail the boundary scan like any other mutation (red-before-green self-check
+    flipped to match).
+
 ## [4.4.0] - 2026-07-02
 
 ### Changed

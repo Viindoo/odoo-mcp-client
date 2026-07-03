@@ -226,6 +226,8 @@ For KEEP/REWRITE/MERGE/SPLIT: prepend this module's `blockers[]` from P1d
 the per-module deprecation fix list from P1, flip `installable: False -> True`; do NOT bump the
 manifest `version` (keep the existing short form); set `auto_install`/`application` only when a
 manifest-comment breadcrumb directs (NO auto-detect of "bridge").
+The commit inside each child worktree is produced by `odoo-coding` via the `git-toolkit:git-ops`
+skill (its coders write files, never run git); message per § Git / PR conventions.
 Converge each child worktree back to integration (serialized); remove child worktree.
 **Principal-checkout-lock: NEVER check out or switch the principal checkout yourself.**
 Materialize any needed branch by invoking the `git-toolkit:git-ops` skill to add a worktree.

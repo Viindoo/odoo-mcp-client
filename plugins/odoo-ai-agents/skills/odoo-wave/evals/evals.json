@@ -35,7 +35,7 @@
       "category": "dispatch-topology",
       "prompt": "Context: odoo-wave is executing a 3-WI wave-layer; each WI must be implemented.",
       "expected_routed_to": "odoo-wave",
-      "expected_behavior": "Per WI, odoo-wave INVOKES the odoo-coding skill via the Skill tool from its orchestrating context (B1), passing the WI's worktree path + module set + DAG slice + design pointer. odoo-coding owns the coder count + model; odoo-wave never resolves a model tier itself (Decision X). odoo-coding returns the commit SHA(s); odoo-wave cherry-picks.",
+      "expected_behavior": "Per WI, odoo-wave INVOKES the odoo-coding skill via the Skill tool from its orchestrating context (B1), passing the WI's worktree path + module set + DAG slice + design pointer. odoo-coding owns the coder count + model; odoo-wave never resolves a model tier itself (Decision X). odoo-coding's coders write files (no raw git); odoo-coding commits them via git-toolkit:git-ops inside the WI worktree and returns the commit SHA(s); odoo-wave cherry-picks.",
       "must_not": "Dispatch anonymous WI workers with a 'you ARE the specialist' brief, choose a model tier per WI, or set a coder count.",
       "tags": ["dispatch", "invoke-odoo-coding", "no-model-choice"]
     },
