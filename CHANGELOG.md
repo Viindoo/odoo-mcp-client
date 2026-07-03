@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.4.2] - 2026-07-03
+
+### Fixed
+
+- `odoo-ai-agents` - **`en_US` is now always loaded, and the `.pot` is always re-exported fresh** - two operational failure modes in the i18n + instance-build flows.
+  - **`en_US` always active (i18n).** `odoo-i18n` P0 now unions `en_US` into the DB-activation set (`activation_languages = {"en_US"} union target_languages`) - none of its resolution tiers could produce it (Odoo ships no `en_US.po`), so a translation could run against a DB with only the target language loaded. The recipe SSOT gains **KT3** + `en_US` in every `--load-language` example; P4 + the `odoo-translator` reload precondition now require `en_US` too. Activation-only, never an `en_US.po` deliverable.
+  - **`.pot` always fresh.** `odoo-i18n` P2 + the recipe now mandate re-exporting the `.pot` from the current code on every run (**new recipe gate 5**); reusing a committed/stale on-disk `.pot` silently under-merged new/renamed terms.
+  - **Instance build guarantees `en_US`.** `odoo-instance` (`create` / `init` / `run-tests` fresh) now unions `en_US` into the activation set before dispatch, and `odoo-instance-ops` gains a HARD RULE to load it on every build even when the brief's `languages` is `none` (previously create/init never consumed `languages` at all). `INSTANCE-LIFECYCLE.md` documents the invariant. The two enforcement layers (instance build vs `odoo-i18n`'s own raw `odoo-bin` calls) are intentionally independent, not duplicates.
+  - Forward-port's `odoo-i18n` dispatch brief now notes `TARGET LANGUAGES` is deliverable-only (`en_US` is unioned by `odoo-i18n` itself). Added `tests/test_odoo_instance_en_us.py` + `en_US`/`.pot`-freshness assertions to `tests/test_odoo_i18n.py`.
+
 ## [4.4.1] - 2026-07-03
 
 ### Changed

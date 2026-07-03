@@ -488,7 +488,8 @@ ODOO VERSION: <target>
 SOURCE SERIES: <source-series>
 TARGET LANGUAGES: <language codes inferred from the source .po filenames, e.g. vi_VN fr_FR;
     list one code per file (<lang>.po -> <lang>); if forwarding only a subset, list that
-    subset explicitly>
+    subset explicitly. Deliverable languages ONLY - never includes en_US (Odoo ships no
+    en_US.po); odoo-i18n unions en_US into the DB-activation set itself per recipe KT3>
 ```
 
 `odoo-i18n` owns the non-destructive `.pot`/`.po` recipe and the isolated-DB export; this pipeline

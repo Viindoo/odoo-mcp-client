@@ -47,13 +47,25 @@ When invoked, gather the following from the caller's request:
 | `mode` | `fresh` / `reuse` (default `fresh`; `run-tests` only) - auto `reuse` when reusing an INSTANCE_HANDLE whose DB already has the modules installed, else `fresh`; `fresh` -> `-i` (init+test on a new DB), `reuse` -> `-u` (re-run where `-i` would be a no-op) |
 | `log_mode` | `warn` / `info` / `debug` / `sql` (optional; `run-tests` only) - sets the odoo log verbosity; omitted keeps `--log-level=test` |
 | `fresh_venv` | `true` / `false` (default `false` - reuse existing venv when present) |
-| `languages` | csv locale codes (e.g. `vi_VN,fr_FR`); required for `load-language`; optional for `create` / `init` to activate locales in the same run |
+| `languages` | csv locale codes (e.g. `vi_VN,fr_FR`); required for `load-language`; optional for `create` / `init` - this skill ALWAYS unions `en_US` into the activation set before dispatch (see "en_US is mandatory on every build" below), so the caller never needs to add it; omit / pass `none` to activate `en_US` alone |
 | `skip_auto_install` | `true` / `false` (default `false`; forced `true` when `context=doc`) - adds `--skip-auto-install` so `auto_install` modules do not install alongside the target |
 | `context` | `doc` / `default` (default `default`; `doc` auto-sets `demo=on` + `skip_auto_install=true` for a clean documentation instance) |
 | `mode_hint` | `path-incremental` / `default` (default `default`; `path-incremental` signals the agent to keep the EXCLUSIVE lease alive across a sequential delta-install loop on ONE DB - do not release between steps; set by `odoo-doc-planner` / `module-packaging` workflow for dependency-cluster doc; do not set manually unless acting as a doc-planner) |
 
 Anything the caller omits that is strictly required for the operation: ask ONE clarifying
 question covering all missing required parameters before dispatching.
+
+**`en_US` is mandatory on every build - independent of caller input.** `en_US` is Odoo's
+base/source language. Every `create`, `init`, and `run-tests` (`mode: fresh`) dispatch MUST activate
+it in the target DB, whether or not the caller's `languages` field mentions it. Before building the
+`odoo-instance-ops` brief, compute `activation_languages = {"en_US"} union languages` (an
+omitted / `none` `languages` field is the empty set) and pass that UNIONED csv as the brief's
+`LANGUAGES:` field. This is a BUILD-TIME guarantee owned entirely by this skill - no downstream
+consumer of an instance it provisions (translation, doc capture, QA, module reload) may ever find
+`en_US` missing. `odoo-i18n` additionally unions `en_US` into its own activation set (recipe KT3)
+because it issues `--load-language` / `i18n loadlang` directly against `odoo-bin` OUTSIDE this
+skill's dispatch (its `odoo-translator` re-export + `-u` reload) - a second, independent enforcement
+point for a path this skill does not mediate, not a duplicate of this one.
 
 **Human gate (instance_touching = L2):** Instance lifecycle is `instance_touching`. The
 run-harness treats this as an **L2 human gate** - a human approval checkpoint applies before
@@ -80,7 +92,7 @@ OSM_GROUNDING: call cli_help(command='server', odoo_version='<series>') to disco
                call set_active_version(odoo_version='<series>') before other OSM calls;
                fall back to odoo-bin --help on the live binary when cli_help is silent
 HUMAN_GATE: instance_touching - L2 gate applies to all mutations
-LANGUAGES: <csv locales or 'none'>
+LANGUAGES: <csv locales - ALWAYS unioned with en_US per the build rule above; 'none' -> en_US alone>
 SKIP_AUTO_INSTALL: <true|false>
 CONTEXT: <doc|default>
 MODE_HINT: <path-incremental|default>

@@ -272,3 +272,55 @@ def test_p0_documents_language_resolution():
         "SKILL.md must use per-language artifact naming `glossary-tm-<lang>.json` "
         "(D3 contract) - removing it breaks the multi-language dispatch contract"
     )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 6 - en_US is ALWAYS loaded (KT3), and the .pot is ALWAYS re-exported
+# fresh. Both are operational failure modes the maintainer hit in practice.
+# ---------------------------------------------------------------------------
+
+def test_recipe_kt3_en_us_always_loaded():
+    """Recipe must state en_US is ALWAYS loaded alongside every target language (KT3)."""
+    text = RECIPE.read_text(encoding="utf-8")
+    assert "KT3" in text, "Recipe must carry a named KT3 callout for the en_US-always rule"
+    assert "en_US" in text, "Recipe KT3 must name en_US as the base/source language"
+    assert "--load-language=en_US" in text, (
+        "Recipe L1 example commands must load en_US in the activation set "
+        "(e.g. --load-language=en_US,<lang>), not the target language alone"
+    )
+
+
+def test_recipe_pot_freshness_gate():
+    """Recipe must require a FRESH .pot re-export every run (never reuse a stale on-disk .pot)."""
+    text = RECIPE.read_text(encoding="utf-8")
+    assert "FRESH" in text and "stale" in text, (
+        "Recipe must document the always-re-export-fresh .pot rule and warn against a stale "
+        "on-disk template (the silent under-merge failure mode)"
+    )
+
+
+def test_p0_documents_en_us_mandatory_activation():
+    """SKILL.md P0 must union en_US into the activation set, independent of the target tiers."""
+    text = SKILL_MD.read_text(encoding="utf-8")
+    assert "activation_languages" in text, (
+        "P0 must define activation_languages (the DB-load set) distinct from the target languages"
+    )
+    assert 'union' in text and 'en_US' in text, (
+        "P0 must state activation_languages = {\"en_US\"} union target_languages so en_US is "
+        "ALWAYS loaded even though no resolution tier can produce it"
+    )
+
+
+def test_p4_gates_en_us_and_pot_freshness():
+    """SKILL.md P4 validate must check en_US active AND .pot freshness, not the target lang alone."""
+    text = SKILL_MD.read_text(encoding="utf-8")
+    start = text.find("**P4")
+    assert start != -1, "P4 section must be present"
+    end = text.find("**P5", start + 1)
+    p4 = text[start: end if end != -1 else len(text)]
+    assert "en_US" in p4, (
+        "P4 reload precondition must require en_US active too (KT3), not the target language alone"
+    )
+    assert "gate 5" in p4 or "re-exported THIS run" in p4, (
+        "P4 must verify the .pot consumed was freshly re-exported this run (recipe gate 5)"
+    )

@@ -91,13 +91,28 @@ Source-fallback trigger: when `cli_help` for the db subcommand reports no usable
 
 ---
 
+## en_US - always loaded on every build (HARD RULE)
+
+`en_US` is Odoo's base/source language. For **create-instance**, **init-modules**, **run-tests**
+(`mode: fresh` only - it builds a new DB via `-i`), and **load-language**, ALWAYS activate `en_US`,
+whether or not the brief's `LANGUAGES` field mentions it. Compute
+`activation_set = {"en_US"} union {brief LANGUAGES, or empty when 'none'}` and build the language
+flag from it:
+- v8-v18: fold `--load-language=<activation_set csv>` into that run's `--extra`.
+- v19+: after the install/init returns, run `odoo-bin i18n loadlang -d <db> -l <code>` once per code
+  in `activation_set` (the combined `--load-language` flag is gone).
+
+Even when `LANGUAGES` is `none`, still load `en_US` alone. Apply this defensively even though the
+dispatching `odoo-instance` skill also unions it - never emit a build command that omits `en_US`.
+Verify via `res.lang` that every code (including `en_US`) is active before reporting `status: ok`.
+
 ## Seven operations
 
 ### 1. create-instance
 
 Create a new Odoo database with a given module set for a target series.
 
-**Inputs:** series, modules (list), demo (bool, default false), addons_path override (optional).
+**Inputs:** series, modules (list), demo (bool, default false), languages (csv - ALWAYS unioned with `en_US` per the HARD RULE above), addons_path override (optional).
 
 **Mechanism:** Run Steps A-D (mode `ephemeral` or `exclusive` per brief; `--ports 0` for stop-after-init, `--ports 1` or `2` if the instance must remain running). Resolve the per-version flags via `cli_help(command='server', odoo_version='<series>')`. Pass them to the script via `--extra`. Delegate to `55-instance-ops.sh init`:
 
@@ -111,6 +126,7 @@ Create a new Odoo database with a given module set for a target series.
 ```
 
 The script locates `odoo-bin` automatically (via `ODOO_BIN` env or addons-path scan), runs Odoo create-on-init, writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init failed - preserve the log path and surface it to the caller.
+**Language activation (HARD RULE):** fold `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) into `--extra` for v8-v18; for v19+ run `odoo-bin i18n loadlang -d <db> -l <code>` per code in `activation_set` after this init returns. `en_US` is never omitted.
 
 If the brief requests the instance to stay running after init, instead of running the `init` verb above, delegate to the spinup script:
 
@@ -148,7 +164,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN"
 
 Install one or more modules into an existing Odoo database.
 
-**Inputs:** series, db name, modules (list), addons_path override (optional).
+**Inputs:** series, db name, modules (list), languages (csv - ALWAYS unioned with `en_US` per the HARD RULE above), addons_path override (optional).
 
 **Mechanism:** Run Steps A-D (mode `exclusive` on the target DB, `--ports 0`). Delegate to `scripts/setup-steps/55-instance-ops.sh init`:
 
@@ -162,6 +178,7 @@ Install one or more modules into an existing Odoo database.
 ```
 
 The script runs `odoo-bin -d <db> -i <modules> --stop-after-init`, writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init failed - preserve the log path and surface it to the caller.
+**Language activation (HARD RULE):** fold `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) into `--extra` for v8-v18; for v19+ run `odoo-bin i18n loadlang -d <db> -l <code>` per code in `activation_set` after this init returns. `en_US` is never omitted.
 
 ### 4. update-modules
 
@@ -204,7 +221,7 @@ Run the Odoo test suite for one or more modules - either against a fresh ephemer
   [--extra "<version-correct flags from cli_help>"]
 ```
 
-(Pass `--mode` per the auto rule above. Pass `--test-tags` only when test tags are provided, and `--log-mode` only when a non-default log level is wanted - omitted, the script keeps `--log-level=test`. Version-correct flags - e.g. a skip-auto-install flag on series that support it - go in `--extra`; confirm availability via `cli_help(command='server', odoo_version='<series>')`. The script places the resolved log flag before `--extra`, so a `--log-level`/`--log-handler` in `--extra` still overrides it.)
+(Pass `--mode` per the auto rule above. Pass `--test-tags` only when test tags are provided, and `--log-mode` only when a non-default log level is wanted - omitted, the script keeps `--log-level=test`. Version-correct flags - e.g. a skip-auto-install flag on series that support it - go in `--extra`; confirm availability via `cli_help(command='server', odoo_version='<series>')`. The script places the resolved log flag before `--extra`, so a `--log-level`/`--log-handler` in `--extra` still overrides it. For `fresh` mode (builds a new DB via `-i`), fold `--load-language=<activation_set>` (`en_US` unioned with any requested languages) into `--extra` per the `en_US` HARD RULE for v8-v18, or run a post-init `loadlang` per code for v19+; `reuse` needs none - its DB was built under the invariant.)
 
 The script writes a persistent log and emits, on stdout: `LOG_PATH=<path>`, `TEST_RESULT=passed|failed`, the `TEST_FAILED=<n>` / `TEST_ERROR=<n>` / `TEST_WARNING=<n>` counts, `FINDINGS_PATH=<path>`, and `STATUS=ok|error`. Capture all of them. `FINDINGS_PATH` is a file written next to the log holding the failing-test names + traceback heads and the warning lines (in-scope warnings - mentioning a `--modules` name - listed separately); forward the POINTER, not the file body. Release the lease when done. On any failure OR warning, preserve `log_path` and `findings_path` and forward them in the output block.
 
@@ -262,7 +279,8 @@ Activate one or more locales in an existing Odoo database so the UI renders in t
 
 **Mechanism:** Run Steps A-B (resolve series, pin OSM, ground CLI flags). For an existing DB,
 use `exclusive` lease and `--ports 0` (no HTTP port needed). Construct the per-version command
-entirely from `cli_help` output. Run via the venv python, capture `LOG_PATH=` from stdout.
+entirely from `cli_help` output. Union `en_US` into the locale set first (HARD RULE) - even if the
+caller's `languages` omits it. Run via the venv python, capture `LOG_PATH=` from stdout.
 
 **Verify activation:** After loading each locale, confirm it is active via
 `mcp__odoo__search_records` on model `res.lang` with domain
@@ -434,6 +452,7 @@ dbname: <db_name>
 http_port: <port or null>
 gevent_port: <port or null>
 modules_installed: [mod_a, mod_b]
+languages_loaded: [<active locales - ALWAYS includes en_US for create-instance / init-modules / run-tests(fresh) / load-language>]
 demo: true | false
 venv_python: <path>
 addons_path: <colon-separated path>
@@ -466,6 +485,7 @@ The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verb
 - [ ] lease released (or token forwarded to caller for later release)
 - [ ] worklog appended with decisions
 - [ ] OSM caveat preserved if grounding was local-source or ungrounded
+- [ ] build ops (create-instance / init-modules / run-tests fresh): `en_US` unioned into the activation set and loaded (--load-language for v8-v18, i18n loadlang for v19+) EVEN when the brief LANGUAGES was 'none' - no build completes without `en_US` active
 - [ ] load-language: correct mechanism per series (--load-language combined with -i base for v8-v18; i18n loadlang subcommand for v19+); res.lang verified active or flagged log-signal/unverified; per-locale degradation emitted rather than hard abort
 - [ ] doc-context (CONTEXT=doc): --with-demo + --load-language + --skip-auto-install combined in one init call (v8-v18) or sequenced (v19+); each flag resolved from cli_help for the target series; skip-auto-install exception handled with selective bridge install, not global removal
 - [ ] path-incremental (MODE=path-incremental): atomic op A returns ALLOC_TOKEN + INSTANCE_HANDLE for caller to supply on next call; --skip-auto-install on every init-delta call (B); no-HTTP flag + --stop-after-init during delta (B); ensure-up emitted as separate call (C); convergence fill installs only what caller brief lists (D); lease released only on explicit caller release signal (E); module ordering is ENTIRELY caller's decision

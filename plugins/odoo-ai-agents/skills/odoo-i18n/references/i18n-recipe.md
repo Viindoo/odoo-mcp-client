@@ -46,6 +46,14 @@ export file.** Two different flags, both needed for a translated export:
   language the export file targets. Does NOT load the translation; without the load step it emits
   an empty-`msgstr` file.
 
+**KT3 - `en_US` MUST ALWAYS be loaded/active alongside every target language.** `en_US` is Odoo's
+base/source language; the export baseline and the `-u` reload resolve correctly ONLY when it is
+active. Loading ONLY the target language (e.g. `--load-language=vi_VN`) is the #1 operational
+failure mode - ALWAYS include `en_US` in the activation set: `--load-language=en_US,<lang>` (v8-v18),
+or a preceding `odoo-bin i18n loadlang -d <db> -l en_US` call (v19+). `en_US` is an ACTIVATION
+requirement only - it is NEVER a translation deliverable (Odoo ships no `en_US.po`; do not export or
+merge one).
+
 Forward-port lifts `msgstr`s from the source `.po` via polib, so a bare template export is fine
 there; the general re-export-existing-translation case REQUIRES the load step.
 
@@ -58,8 +66,9 @@ One fresh DB per module, installed in dependency order, exported from a DB that 
 its children, so a parent's `.pot` carries only the parent's terms.
 
 ```bash
-# install + load the language into an isolated per-module DB (dependency order):
-odoo-bin -d <db> -i <module> --load-language=<lang> \
+# install + load en_US (base language, KT3 - ALWAYS) + the target language into an isolated
+# per-module DB (dependency order):
+odoo-bin -d <db> -i <module> --load-language=en_US,<lang> \
   --without-demo=all --stop-after-init
 # export the language file (.pot template, or .po once <lang> is loaded above):
 odoo-bin -d <db> --modules=<module> --i18n-export=<module>.pot \
@@ -72,8 +81,8 @@ odoo-bin -d <db> --modules=<module> --i18n-export=<module>.pot \
 registry - install just the module and its closure:
 
 ```bash
-# install + load the language, blocking auto_install siblings:
-odoo-bin -d <db> -i <module> --skip-auto-install --load-language=<lang> \
+# install + load en_US (base language, KT3 - ALWAYS) + the target language, blocking auto_install siblings:
+odoo-bin -d <db> -i <module> --skip-auto-install --load-language=en_US,<lang> \
   --stop-after-init
 # export the language file:
 odoo-bin -d <db> --modules=<module> --i18n-export=<module>.pot \
@@ -94,7 +103,9 @@ before invoking:
 ```bash
 # install the module (still a server-flag concern):
 odoo-bin -d <db> -i <module> --skip-auto-install --stop-after-init
-# load the language INTO the DB (KT1 - activates msgstr for a translated export):
+# load en_US (base language, KT3 - ALWAYS) + the target language INTO the DB
+# (KT1 - activates msgstr for a translated export):
+odoo-bin i18n loadlang -d <db> -l en_US
 odoo-bin i18n loadlang -d <db> -l <lang>
 # export (default -l pot = template .pot; pass <lang> to emit the translated .po):
 odoo-bin i18n export -d <db> -l <lang> -o <lang>.po <module>
@@ -104,6 +115,12 @@ odoo-bin i18n import -d <db> -l <lang> -w <lang>.po
 
 The `.pot` is a TEMPLATE: every `msgid` present, every `msgstr` empty - the inventory of current
 translatable terms, NOT a translation. Never commit a `.pot` over a `.po`.
+
+**Always re-export the `.pot` FRESH.** Regenerate `<module>.pot` from the currently-installed code
+on EVERY invocation - never reuse a committed or prior-run `.pot` already on disk. A stale template
+is missing the run's new/renamed `msgid`s, so the L2 merge silently under-populates and the new
+terms never reach the translators. This is once-per-module-per-run (a fresh export each run), NOT
+per-language - see the multi-language loop below.
 
 ---
 
@@ -207,6 +224,8 @@ at load time.
    target language is LOADED (Settings > Translations > Activate a language, or `--load-language=<lang>`
    on the install run for v8-v18 / `odoo-bin i18n loadlang -d <db> -l <lang>` for v19+ - see L1).
    Absent language -> reload succeeds silently but translations do not load at runtime - false pass.
+   **`en_US` must ALSO be active (KT3).** Confirm BOTH `en_US` (the base/source language) and each
+   `<lang>` are loaded before the reload - not the target language alone.
 
    **Reserve-only allocator guard.** Reuse the SAME instance and lease the L1 `-i` install used -
    the `-u` reload requires the DB to ALREADY EXIST with the module installed. Under the
@@ -219,6 +238,13 @@ at load time.
    forward-port run, the Odoo instance must run the POST-ADAPT code (PR branch or merged worktree),
    NOT the source/original branch. Exporting from pre-adapt code yields a `.pot` with the old term
    inventory, missing new/renamed strings introduced in the port.
+
+5. **`.pot` freshness (always re-export) + `en_US` active.** The `.pot` merged in L2 MUST be the one
+   this run exported from the currently-installed code - a committed or prior-run `<module>.pot` on
+   disk is never sufficient by itself; re-export unconditionally every invocation (once per module,
+   not per language). AND `en_US` must be in the activation set of every `--load-language` / `loadlang`
+   call (KT3), never the target language alone. Skipping either is a silent under-merge / false pass -
+   BLOCK.
 
 ---
 
