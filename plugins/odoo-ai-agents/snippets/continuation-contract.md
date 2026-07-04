@@ -16,7 +16,7 @@ produced: [<real artifact path>, ...]      # files you actually wrote; [] for ch
 next:                                       # [] unless status == NEEDS_NEXT
   - skill: <skill-or-workflow-name>
     reason: <why this is the next step>
-    inputs: {<key>: <value>}
+    inputs: {<key>: <value>}                 # odoo_version, viindoo_profile are RESERVED - see Rules
     confidence: 0.0..1.0                     # <0.5 ⇒ driver surfaces it as a suggestion, not auto-run
     risk_level: L0 | L1 | L2
 blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
@@ -36,3 +36,7 @@ Rules:
 - Outside an active run this block is harmless - it just documents suggested next steps.
 - Back-compat: a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line is still read by
   the driver as a low-confidence `NEEDS_NEXT`; prefer the fenced block going forward.
+- **Reserved `inputs` keys.** `inputs` stays free-form, but `odoo_version` (concrete series) and
+  `viindoo_profile` are RESERVED: any `next:` hop into a code/test/review skill (`odoo-coding`,
+  `odoo-code-review`, `odoo-test-writing`, `odoo-wave`) MUST carry `odoo_version` in `inputs` so
+  the version survives the handoff structurally, not by the next skill re-deriving it.

@@ -3,7 +3,7 @@
      Consumers: era-reference.md, upg-conventions.md, runbot-parity-checklist.md, upg-phase-detail.md.
      Last audited: 2026-06-26. Edit this file to correct a pivot; do not patch consumers. -->
 
-# Odoo Version Pivots — v8-v19 SSOT
+# Odoo Version Pivots - v8-v19 SSOT
 
 Compact canonical table. Row format: **change** | **new API / mechanism** | **from vMIN** | **old: removed or alias**.
 "alias" = old name still works but emits DeprecationWarning. "REMOVED vN" = raises AttributeError / ImportError / ValidationError at that version.

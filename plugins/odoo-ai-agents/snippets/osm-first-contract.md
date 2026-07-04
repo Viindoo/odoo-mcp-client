@@ -20,6 +20,13 @@ OSM call OR a direct source read - never asserted from memory:
 - `set_active_version` first (pin the target version), then
 - `model_inspect`, `entity_lookup`, `check_module_exists`, `lookup_core_api`,
   `module_inspect` - as appropriate to the claim.
+- **Existence is not currency.** Confirming a symbol is PRESENT (`model_inspect`/`entity_lookup`)
+  does NOT confirm it is still the RIGHT symbol at the pinned version - a symbol can be present
+  AND deprecated. Before you WRITE code that calls a core symbol (decorator, mixin/ORM helper,
+  base class, core method), or APPROVE a diff that calls one, confirm it is not
+  deprecated/removed at the pinned version via `lookup_core_api` (status + replacement). A
+  `not found` result is not proof of currency (the core-symbol table is partial) - cross-check,
+  do not hard-stop. Per-phase recipe + tiering: `${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md`.
 - When OSM is reachable but the SPECIFIC entity is not in the index (a customer-local
   custom module/model), `Read`/`Grep` the local source for that entity instead - a
   Tier-1 MISS per `disk-fallback-protocol.md` - and keep OSM for everything it does

@@ -66,6 +66,7 @@ scaling decision, and no standalone path (those are upstream: `odoo-intake` Plan
 - the **WI list** (each WI: `id`, `files-in-scope`, modules, per-WI design pointer, per-WI request);
 - the **wave-batched module-DAG** (`depends_on` edges) and the **topology** (independent / linear / mixed / diamond);
 - the **design index pointer** (`design_index` / `design_doc` / `design_docs`);
+- the run's resolved **ODOO VERSION** (concrete series) + optional profile;
 - the **Repo Capability Card** inputs (base, verify command, commit convention, confidential level).
 
 If any required input is missing, STOP and report BLOCKED - never silently self-derive a plan.
