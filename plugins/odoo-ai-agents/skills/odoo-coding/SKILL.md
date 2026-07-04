@@ -271,7 +271,10 @@ system prompt, so the brief never passes a shared db/port.
 The Phase 0 plan carries, per module: name, path on disk, stack, model (and `frontendModel` when
 split), the in-set dependency edges (the "(depends on ...)" in the gate table), whether it is a new
 module, the test-mode (`test-author | self`), and the per-module request (+ a frontendRequest for
-the UI leg). Resolve ONE Odoo version for the whole run; carry the design-doc path, the runSlug
+the UI leg). Resolve ONE concrete Odoo version for the whole run via
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` (read `.odoo-ai/context.md` -> manifest
+`version` -> ask the user) - NEVER a silent default; when a plan/design fed `odoo_version` in the
+Continuation-Contract `inputs`, consume it verbatim. Carry the design-doc path, the runSlug
 (scopes the shared worklog dir) and - when the user is not working in English - the userLanguage.
 
 0. Context-handoff probe (run ONCE per run, before the first batch fires). Follow
@@ -434,8 +437,10 @@ outcome goes in the worklog.
 When the bundle finishes, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set
 `produced` to the source + test files written, plus `.odoo-ai/coding/<slug>-<date>/plan.md` and the
-`.odoo-ai/worklog/<slug>/` entries, and emit `next: odoo-code-review` so the just-written code is
-reviewed (that skill now scales to the same multi-module set). Additionally, when any module in the
+`.odoo-ai/worklog/<slug>/` entries, and emit `next: odoo-code-review` with `inputs: {odoo_version:
+<the run's resolved version>}` (a reserved key - `continuation-contract.md` Rules) so the review
+runs against the same pinned version without re-deriving it (that skill now scales to the same
+multi-module set). Additionally, when any module in the
 run is new (`NEW MODULE: yes`) OR the change introduces user-facing translatable strings
 (`_("...")` / `string=` field attr), also add `SUGGESTED_NEXT: odoo-i18n` so the module's
 `.pot` / `.po` files are generated and translated via the dedicated i18n skill. Additive output for the

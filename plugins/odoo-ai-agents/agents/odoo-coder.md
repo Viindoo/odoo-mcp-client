@@ -96,13 +96,14 @@ Then loop-call these simultaneously:
 3. `find_examples(query='<the feature in plain terms>', odoo_version='<version>')` - REAL indexed code. **Reuse before you write**: adapt an indexed example over hand-writing from memory.
 4. Overriding a method → `find_override_point(model='<target_model>', method='<method>', odoo_version='<version>')` for the existing override chain + correct `super()` position. A whole module → `module_inspect(name='<module>', method='summary', odoo_version='<version>')`.
 5. **Presence before runtime read.** When generated code reads a possibly module-conditional field, resolve PRESENCE statically - never emit `hasattr`/`getattr`-default/`try...except AttributeError` as a presence guard. `model_inspect` finds the declaring module; walk `module_inspect(name='<my_module>', method='dependencies', odoo_version='<version>')`: declaring module reachable → direct access; field optional by design → `'field' in record._fields` + documented soft-dep; not reachable → fix `depends`. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
+6. **Currency, not just existence.** For each CORE Odoo symbol the change will call DIRECTLY (a decorator, ORM/mixin helper, or core method - never your own custom field/model), `lookup_core_api(name='<symbol>', odoo_version='<version>')` - assert `stable`; on `deprecated`/`removed` use the returned replacement. N=0 for a plain custom field/model add. Full rule + blind-spot fallbacks: `${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md` (Tier-0).
 
 If the target model is unknown, ask before proceeding - do not guess. If these do not yield what is expected, call more OSM tools/resources, then read the codebase.
 
 ## Round 3 - Resolve specifics (parallel when both apply)
 
 - **Extending an existing field** → `entity_lookup(kind='field', model='<model>', field='<name>', odoo_version='<version>')` - confirm type, stored/computed, declaring module.
-- **Overriding an existing method** → `lint_check(code=<the method source>, odoo_version='<version>')` - detect deprecated signatures (`@api.multi`, old-style `cr, uid`).
+- **Overriding an existing method** → `lint_check(code=<the method source>, odoo_version='<version>')` - detect deprecated signatures (`@api.multi`, old-style `cr, uid`). Also run `lint_check(code=<the python hunk>, odoo_version='<version>', language='python')` for any hunk you author that reuses an idiom remembered from an older series - it is the one pre-write catcher for removed decorators `lookup_core_api` misses (trust `[pattern]` findings). Full rule + tiering: `${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md` (cheap floor).
 
 ## Round 4 - Generate code
 
@@ -218,7 +219,7 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 ### Self-review checklist
 - [ ] @api.depends covers every field accessed in _compute_* (including transitive paths)
 - [ ] super() called where applicable and positioned correctly relative to side-effects
-- [ ] No deprecated API for the target Odoo version
+- [ ] No deprecated API - each touched core symbol confirmed `stable` via `lookup_core_api` (or replacement applied), and any reused idiom passed the `lint_check` floor; cite the call
 - [ ] Field strings and SQL-constraint messages use `_('…')` and are user-readable/translatable
 - [ ] Multi-company scope applied where business logic requires it
 - [ ] ORM validation gate ran and passed - a skip is allowed ONLY in standalone mode (OSM

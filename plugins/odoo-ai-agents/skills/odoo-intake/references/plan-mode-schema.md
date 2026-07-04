@@ -4,6 +4,15 @@ Load this when the approved Approach has `output_mode = writes-files` and you ar
 implementation plan inside Plan Mode (step 3 of the Plan Mode procedure in SKILL.md). The plan
 MUST contain three blocks. None is optional for a `writes-files` Approach.
 
+**Run header (required on every `writes-files` plan, ABOVE Block 1).**
+`odoo_version: <concrete series, e.g. 18.0>`; optional `viindoo_profile: <name|none>`,
+`grounding: osm | local-source | standalone`. Resolve `odoo_version` via
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` (`.odoo-ai/context.md` -> manifest
+`version` -> ask the user) - NEVER a silent default. `odoo-planner` already emits this as a
+prose header (`agents/odoo-planner.md:127`); this run header promotes it INTO the documented
+schema so `odoo-wave` / `odoo-coding` read it as a field, not a header line they must guess.
+Read-only/chat Approaches never load this schema and carry no such field.
+
 **Block 1 - Workitem list.** Borrow the WI-Brief shape from `skills/odoo-wave/SKILL.md`
 (~lines 174-219) and/or the requirement shape in `odoo-brl/reference/schema.md` (~lines
 116-197). Each WI carries: `id`, a one-line description, and `files-in-scope` (the file sets
