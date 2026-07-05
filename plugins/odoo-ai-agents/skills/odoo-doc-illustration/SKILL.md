@@ -106,8 +106,11 @@ Order per module: **install -> pre-fetch copy (marketing) -> capture + assemble 
 The skill launches each writer with a self-contained brief. `MODULE PATH` may be a bare module name
 when `addons_path` is unknown - the writer resolves the absolute path from `context.md` or by
 scanning disk. Omitting an axis field preserves today's behavior (see Documentation axes). The
-shared browser-capture mechanics (2-tier write, headless/headed, on-theme check, per-locale loop,
-`CAPTURE MODE` step-drive) live in `references/capture-mechanics.md` - the skill does not restate them.
+shared browser-capture mechanics (2-tier write, headless/headed, on-theme check per
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - a captured screen with an empty
+or self-referential token resolves off-theme and must be skipped, never embedded in shipped
+documentation - per-locale loop, `CAPTURE MODE` step-drive) live in `references/capture-mechanics.md`
+- the skill does not restate them.
 
 **`odoo-user-doc-writer`** (DOC LAYER `userguide`, or the userguide half of `both`):
 ```
