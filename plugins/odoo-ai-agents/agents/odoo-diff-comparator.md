@@ -82,6 +82,17 @@ find <repo_root>/<module> -name "*.py" -o -name "*.xml" -o -name "*.js" | head -
 
 Then `Read` the key files: `__manifest__.py`, models (`models/*.py`), views (`views/*.xml`), controllers, wizards. Build a feature inventory: each distinct business behavior the module provides (not each file or method - group by business concept).
 
+**Version-anchored deferred-work reconciliation (upgrade mode only, same read - no separate
+scan/dispatch).** While you already have this module's source open, also scan every in-scope
+file (`.py` incl. `__manifest__.py`, `tests/*.py`, `.xml`, `.js`, `.csv`, `.po`, README/doc files)
+for a case-insensitive marker set: `TODO`/`todo`/`Todo`/`ToDo`/`@todo`, `FIXME`, `XXX`, `HACK`.
+For each hit, try to parse a VERSION ANCHOR (an Odoo series/major named in the marker text, e.g.
+"17.0", "v17", "when we move to 17"). Classify against `target_version` (X): anchored to X or to
+an already-passed LOWER version -> DUE (execute now, this upgrade); anchored to a HIGHER future
+version -> DEFERRED (leave untouched); no parseable anchor -> UNANCHORED (record it with
+`needs_human: true` - never silently absorbed into DUE nor silently dropped). Report this as the
+`deferred_work` block below - never as raw grep output in your return message.
+
 ---
 
 ## Step 2 - OSM grounding at the relevant version
@@ -264,6 +275,20 @@ block and must be confirmed before any DELETE action proceeds. -->
 
 <List any stored non-computed fields or noupdate records that would be lost on deletion.>
 
+## Deferred work (version-anchored reconciliation)
+
+<!-- Version-anchored TODO/FIXME/XXX/HACK markers found during the SAME read above (upgrade
+mode only). One row per marker. Empty table if the module has none - record that fact, do not
+omit the section. DUE items feed P4 as real work-items (§ P4 step 0b); DEFERRED items are left
+untouched in source; UNANCHORED items are recorded and flagged for the human - never silently
+absorbed into DUE nor silently dropped. -->
+
+| File | Line | Marker | Anchored version | Classification | Work item (DUE only) |
+|---|---|---|---|---|---|
+| `<path>` | <n> | TODO/FIXME/XXX/HACK/@todo | `17.0` or `none` | DUE / DEFERRED / UNANCHORED | <one-line actionable description> |
+
+**due_count:** <n> **unanchored_count:** <n>
+
 ## Grounding notes
 
 <OSM misses or local-source fallbacks.>
@@ -325,6 +350,8 @@ proposed_classification:
 reuse_candidates: <count>  # new-feature wire-in candidates listed in absorption file (RECONCILE features)
 breaking_change_flags: <N>
 data_at_risk: true | false  # true if module is installable:True AND has stored non-computed fields or noupdate records
+deferred_work_due: <count>         # version-anchored TODO/FIXME/XXX/HACK markers DUE at target - feed P4 as real work-items
+deferred_work_unanchored: <count>  # markers with no parseable version anchor - flagged for human at P3/P6, never silently absorbed or dropped
 grounding: <osm | local-source | ungrounded>
 ```
 

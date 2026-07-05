@@ -157,7 +157,22 @@ acceptance criteria against target-version CORE (`<target>`). Classify each feat
 if the WHOLE module is provided by core, return verdict=DELETE-absorbed with the core
 module/feature that replaces it."
 Output per module: `absorption/<module>.md` - {per-feature classification, evidence
-(OSM citation), proposed action}.
+(OSM citation), proposed action, deferred_work items (below)}.
+
+**P2 also reconciles version-anchored deferred work [same delegated per-module read - no
+separate scan or dispatch].** The `odoo-diff-comparator` dispatch above already reads this
+module's FULL source in its own context; that SAME read additionally scans every in-scope file
+(`.py` incl. `__manifest__.py`, tests, `.xml`, `.js`, `.csv`, `.po`, README/docs) for a
+case-insensitive marker set - `TODO`/`todo`/`Todo`/`ToDo`/`@todo`, `FIXME`, `XXX`, `HACK` - and
+classifies each hit against the target series X (`<target_version>`): anchored to X or to an
+already-passed LOWER version -> **DUE** (execute NOW, in THIS upgrade); anchored to a HIGHER
+future version -> **DEFERRED** (leave it untouched); no parseable version anchor ->
+**UNANCHORED** - record it and flag it for the human, never silently absorbed into DUE nor
+silently dropped. The comparator returns this as a compact `deferred_work` block inside
+`absorption/<module>.md` (never raw grep output) - the orchestrator only CONSUMES that structured
+list; it never greps module source itself for this. For a module that survives (KEEP/REWRITE/
+MERGE/SPLIT), every DUE item becomes a REAL upgrade work-item: P4 folds it into that module's SAME
+implement -> P4b review -> P5 test path, not a side note (see § P4).
 
 **P2b - Hard-call design [mandatory route-out for specific verdicts].**
 Route to `odoo-solution-design` (`odoo-solution-architect` opus) when P2 returns ANY of
@@ -193,7 +208,10 @@ classification table (DELETE -> list the core feature that replaces each AND inl
 behavioral-equivalence summary from `absorption/<module>.md` - the proof that every
 override is equivalent or no-op; REWRITE/MERGE/SPLIT -> adapt tier + design link);
 topo-sorted adapt order (leaves first); manifest bumps required; design-doc links for
-any P2b module.
+any P2b module. For every surviving module (KEEP/REWRITE/MERGE/SPLIT), inline its DUE
+version-anchored deferred-work count and list every UNANCHORED marker from
+`absorption/<module>.md` `deferred_work` for human awareness (never silently absorbed or
+dropped).
 For EVERY module with a DELETE verdict, the plan table MUST inline:
 (a) the absorbing_core_feature or OBSOLETE reason,
 (b) the behavioral-equivalence proof summary (from signal #5 in `absorption/<module>.md`),
@@ -223,7 +241,10 @@ drop it from every depender's `depends` in their manifests.
 For KEEP/REWRITE/MERGE/SPLIT: prepend this module's `blockers[]` from P1d
 `transitive-symbol-survey.md` as a PREEMPTIVE FIX LIST, apply the breaking-change catalog from
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md`,
-the per-module deprecation fix list from P1, flip `installable: False -> True`; do NOT bump the
+the per-module deprecation fix list from P1, and this module's DUE version-anchored
+deferred-work items from P2's `absorption/<module>.md` `deferred_work` block (executed NOW as
+REAL work-items in the SAME implement -> P4b review -> P5 test path, not a side note; DEFERRED
+and UNANCHORED items stay untouched in source); flip `installable: False -> True`; do NOT bump the
 manifest `version` (keep the existing short form); set `auto_install`/`application` only when a
 manifest-comment breadcrumb directs (NO auto-detect of "bridge").
 The commit inside each child worktree is produced by `odoo-coding` via the `git-toolkit:git-ops`
