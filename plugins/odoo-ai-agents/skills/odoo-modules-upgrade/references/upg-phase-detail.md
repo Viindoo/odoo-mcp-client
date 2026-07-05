@@ -267,6 +267,23 @@ STEPS:
    If `data_at_risk: true` and the forthcoming verdict is REWRITE(model) or DELETE,
    report BLOCKED and escalate to the orchestrator for human decision - do NOT proceed
    to classify as code-only.
+2b. VERSION-ANCHORED DEFERRED-WORK SCAN (same read as step 2 - no separate dispatch): scan
+   every file already read, PLUS `tests/*.py`, `data/*.xml`, `data/*.csv`, `i18n/*.po`, and any
+   README/doc file (`README.rst`, `doc/*.rst`, `static/description/*.html`) present in the module,
+   for a case-insensitive marker set: `TODO`, `todo`, `Todo`, `ToDo`, `@todo`, `FIXME`, `XXX`,
+   `HACK`. For EACH hit, read the surrounding text and try to parse a VERSION ANCHOR - an Odoo
+   series/major named in the marker (e.g. "17.0", "v17", "version 17", "when we move to 17",
+   "upgrade to 17", "Odoo 17"). A bare number with no Odoo-version context ("fix by Q3",
+   "issue #123") is NOT a version anchor. Classify:
+   - DUE: anchored version == `<target_version>` (X) OR a series LOWER than X (already overdue -
+     it should have been done at an earlier upgrade and was not).
+   - DEFERRED: anchored version HIGHER than X - leave the marker untouched in source, not due yet.
+   - UNANCHORED: no parseable version anchor. Do NOT force it into DUE. Record it with
+     `needs_human: true` - never silently absorbed into DUE nor silently dropped.
+   Emit a one-line `work_item` (the actionable description of what the marker asks for) for every
+   DUE item only. This scan is part of the SAME delegated per-module read as step 2 - the
+   orchestrator never greps module source itself for this; it only consumes the returned
+   `deferred_work` block (see OUTPUT below).
 3. For each FEATURE the module provides:
    a. Use check_module_exists / module_inspect / model_inspect to determine whether
       the target-version core ALREADY provides this feature.
@@ -339,6 +356,20 @@ FORMAT:
   data_at_risk: true | false
     # true if: module is currently installable:True AND (defines stored non-computed fields
     # OR has noupdate="1" records). Flag before applying any REWRITE(model) or DELETE verdict.
+  deferred_work:
+    # Version-anchored TODO/FIXME/XXX/HACK reconciliation (step 2b). items: [] if none found -
+    # emit the key regardless, so an empty sweep is a recorded fact, not a silent omission.
+    items:
+      - file: <relative path>
+        line: <line number>
+        marker: "TODO" | "FIXME" | "XXX" | "HACK" | "@todo"
+        raw_text: "<verbatim comment text>"
+        anchored_version: "17.0" | null
+        classification: DUE | DEFERRED | UNANCHORED
+        work_item: "<one-line actionable description>"   # DUE only; omit otherwise
+        needs_human: true | false                          # true for every UNANCHORED item
+    due_count: <n>
+    unanchored_count: <n>
   behavioral_equivalence:
     # MANDATORY for DELETE-absorbed verdict. Omit for other verdicts.
     overrides_enumerated:
@@ -488,6 +519,8 @@ WORKTREE: <path>/upg-<module>
 
 INPUTS:
 - Absorption verdict: absorption/<module>.md
+- Version-anchored deferred work DUE this upgrade (this module only): absorption/<module>.md
+  `deferred_work` block, items with classification=DUE
 - Preemptive fix list (this module's blockers[] - apply FIRST): transitive-symbol-survey.md
 - Deprecation fix list (rows for this module only): deprecation.md
 - Breaking-change catalog: ${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md
@@ -531,6 +564,12 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
      transitive-symbol-survey.md (status RENAMED/REMOVED/TYPE_CHANGED), rewrite the call site
      to its `target_equivalent` per `fix_hint`. These are external/core symbols that auto-survive
      a clean port yet break at install/runtime - fix them before the catalog passes below.
+  0b. DUE VERSION-ANCHORED DEFERRED WORK: for every item in this module's absorption/<module>.md
+     `deferred_work` block with classification=DUE, implement its `work_item` NOW - this is REAL
+     upgrade work, not a side note, and goes through the SAME implement -> P4b review -> P5 test
+     path as every other change in this module. Leave DEFERRED items untouched in source (a future
+     upgrade will pick them up); an UNANCHORED item is NEVER silently resolved here - it stays
+     flagged for the P6 human gate.
   1. Apply all deprecation fix-list items for this module (from deprecation.md).
   2. Apply all breaking-change items that affect this module (from upg-classification-table.md).
   3. For REWRITE(model): update field references, compute methods, search/domain expressions,
@@ -546,7 +585,9 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
      runs - per the upg-classification-table.md manifest-break row. P5 confirms it installs.
   4c. Scan each `__manifest__.py` for `# TODO: Uncomment when upgrading` markers left by the
      forward-port skill. Restore `auto_install`/`application` ONLY when the breadcrumb explicitly
-     directs it - do NOT auto-detect from module name or depends structure.
+     directs it - do NOT auto-detect from module name or depends structure. (This breadcrumb is a
+     distinct, narrower convention from the general version-anchored deferred-work reconciliation
+     in step 0b above - it is auto_install/application-specific, not a due-vs-deferred marker.)
   5. Write or adapt tests: test the adapted behavior, not the old source text. RED first.
   The coders run NO git; after they write their files the orchestrating skill (odoo-coding) commits
   via the git-toolkit:git-ops skill (DCO -s sign-off; per snippets/git-delegation.md).
