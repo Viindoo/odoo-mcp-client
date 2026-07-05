@@ -264,7 +264,11 @@ leg, count/model) stays the specialist skill's.
 The integration cadence the plan reserves (per-wave cherry-pick + the saga rollback/resume the
 git-executor `odoo-wave` will run) follows the SSOT
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; planning references it so the plan
-reserves that behavior - it does NOT run the loop itself.
+reserves that behavior - it does NOT run the loop itself. The plan likewise reserves the per-wave
+cumulative close-verify (`odoo-wave` Phase 4.4) the planner surfaces as each coding-wave node's
+`cumulative_modules` scope, following the SSOT
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/cumulative-test-scope.md`; planning REFERENCES it, it does NOT
+run the suite.
 
 ## Out of Scope
 

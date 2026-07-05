@@ -49,7 +49,7 @@
 | `odoo-rfp-response` | leaf | fresh | none | - | - |
 | `odoo-risk-overview` | leaf | fresh | none | - | - |
 | `odoo-security-audit` | leaf | fresh | backend | - | - |
-| `odoo-solution-design` | spawner-agent | fresh | fullstack | - | odoo-solution-architect, (dispatch: single mode -> 1 architect call; master-child mode -> 1 master architect + N child architects in dag_layer order - see snippets/master-child-design-contract.md) |
+| `odoo-solution-design` | spawner-agent | fresh | fullstack | - | odoo-solution-architect, (dispatch: single mode -> 1 architect call; master-child mode -> 1 master architect + N child architects in dag_layer order - see snippets/master-child-design-contract.md) + optional MODE: review (independent design review, human-opt-in gate keyword) |
 | `odoo-support-triage` | orchestrator-nl | fresh | none | - | - |
 | `odoo-test-writing` | leaf | fresh | backend | - | - |
 | `odoo-ui-review` | spawner-agent | fresh | frontend | - | odoo-ui-reviewer |

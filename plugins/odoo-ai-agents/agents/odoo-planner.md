@@ -142,6 +142,11 @@ One line per node: WI/stage -> skill  (effort: <S|M|L|XL>, est_agents: <n> - ADV
 model + count owned by the dispatched skill at runtime) ; gate_tier: L0|L1|L2 ; acceptance: <...> ;
 verify: <command>. Cover the full lifecycle: code (wave -> odoo-coding) -> review (odoo-code-review)
 -> doc (odoo-doc-illustration) / i18n (odoo-i18n) -> PR -> monitor -> merge (terminal gates L2).
+Each coding-wave node ALSO emits `cumulative_modules: [<union of THIS wave's modules + ALL prior
+waves' modules>]` - the growing regression scope the git-executor (`odoo-wave` Phase 4.4) runs to
+close the wave. This is STRUCTURAL scope, like `depends_on` (WHICH modules must stay green), NOT a
+binding `model`/`count`, so it does not violate Decision X; it also surfaces the regression scope to
+the human at plan-approval time.
 
 ## Grounding evidence
 OSM calls made (set_active_version + the module-existence checks) + the design/gap/oracle pointers

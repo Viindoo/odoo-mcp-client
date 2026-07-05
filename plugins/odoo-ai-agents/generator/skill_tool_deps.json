@@ -778,7 +778,7 @@
     }
   },
   "orchestration": {
-    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no subagent spawn) | spawner-agent (dispatches a named subagent) | spawner-wave (worktree fan-out with parallel subagents). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes .odoo-ai/ internal, auto-pass under --auto) | L2 (irreversible/outward: instance_touching or spawner-wave - ALWAYS human gate; dial cannot lower). Per-node override lives in run-<id>.json, not here. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: lead resumes a named worker via SendMessage, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via Agent tool + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md.",
+    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no subagent spawn) | spawner-agent (dispatches a named subagent) | spawner-wave (worktree fan-out with parallel subagents). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes .odoo-ai/ internal, OR a STATIC spawner-wave advance whose instance touches are ephemeral and whose squash/merge are separately L2-gated - auto-pass under --auto) | L2 (irreversible/outward: an outward git merge/push, a shared instance_touching, or a DYNAMIC unplanned wave - ALWAYS human gate; dial cannot lower). Per-node override lives in run-<id>.json, not here. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: lead resumes a named worker via SendMessage, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via Agent tool + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md.",
     "odoo-intake": {
       "spawn_class": "spawner-agent",
       "spawns": [
@@ -1006,7 +1006,7 @@
       "spawn_class": "spawner-agent",
       "spawns": [
         "odoo-solution-architect",
-        "(dispatch: single mode -> 1 architect call; master-child mode -> 1 master architect + N child architects in dag_layer order - see snippets/master-child-design-contract.md)"
+        "(dispatch: single mode -> 1 architect call; master-child mode -> 1 master architect + N child architects in dag_layer order - see snippets/master-child-design-contract.md) + optional MODE: review (independent design review, human-opt-in gate keyword)"
       ],
       "stack": "fullstack",
       "instance_touching": false,
@@ -1112,7 +1112,7 @@
       "stack": "none",
       "instance_touching": true,
       "output_mode": "writes-files",
-      "default_gate_tier": "L2"
+      "default_gate_tier": "L1"
     },
     "workflow-chaining": {
       "spawn_class": "orchestrator-nl",

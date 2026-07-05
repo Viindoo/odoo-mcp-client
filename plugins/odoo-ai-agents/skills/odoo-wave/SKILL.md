@@ -46,7 +46,7 @@ by a user prompt.
 
 3. **odoo-code-review inline-only** - The `odoo-code-review` skill auto-spawns its own reviewer subagent and is therefore only legal in this skill's own orchestrating context (not inside a worker). Invoke it here in Phase 4 via the Skill tool. Findings are fixed inline or via a brief targeted subagent.
 
-4. **No auto-merge - STOP at the L2-squash-gate** - After opening the PR and squashing (tree-identity verified), odoo-wave STOPS; it NEVER merges. There is no auto-merge, no auto-squash-and-merge, no CI-triggered merge. The merge is owned by `odoo-pr-monitoring` at the `L2-merge-gate`. The squash/force-push itself is a human-confirm-gated destructive op delegated to git-toolkit (the human approval for the wave node is presented by run-harness at L2; git-toolkit enforces the confirm gate as a backstop).
+4. **No auto-merge - STOP at the L2-squash-gate** - After opening the PR and squashing (tree-identity verified), odoo-wave STOPS; it NEVER merges. There is no auto-merge, no auto-squash-and-merge, no CI-triggered merge. The merge is owned by `odoo-pr-monitoring` at the `L2-merge-gate`. The squash/force-push itself is a human-confirm-gated destructive op: odoo-wave PRESENTS the confirm IN-CONTEXT at Phase 5.2 and WAITS for an explicit human `yes` before delegating to git-toolkit (which enforces the confirm gate as a backstop). The wave node advances at L1 (drive-to-done), so the two remaining human L2 gates are this in-wave squash and the downstream merge; the PR opens only after the Phase 4.4 cumulative close-gate is green.
 
 5. **Confidentiality (public-repo - 8 banned groups)** - Artifacts and commit messages MUST NOT contain: CEO personal info, customer PII or contract details, internal pricing, competitor intelligence beyond public sources, product roadmap details, marketing-in-draft, OKR/targets, or internal-tooling paths. Use abstract labels (Customer-A, etc.). If a user prompt contains such data, acknowledge intent only - do not echo it into files. Full 8-group list: `reference/wave-templates.md` §Confidentiality Long-Form.
 
@@ -67,7 +67,11 @@ scaling decision, and no standalone path (those are upstream: `odoo-intake` Plan
 - the **wave-batched module-DAG** (`depends_on` edges) and the **topology** (independent / linear / mixed / diamond);
 - the **design index pointer** (`design_index` / `design_doc` / `design_docs`);
 - the run's resolved **ODOO VERSION** (concrete series) + optional profile;
-- the **Repo Capability Card** inputs (base, verify command, commit convention, confidential level).
+- the **Repo Capability Card** inputs (base, verify command, commit convention, confidential level);
+- the **`cumulative_modules`** list - the union of every module THIS wave touched AND every module
+  ALL PRIOR waves touched. It is INJECTED (the planner emits it per static coding-wave node;
+  run-harness injects it for a dynamic wave). odoo-wave CONSUMES it for the Phase 4.4 close-gate and
+  NEVER self-derives it: a wave receives only its own layer's data and cannot see the full run-DAG.
 
 If any required input is missing, STOP and report BLOCKED - never silently self-derive a plan.
 
@@ -153,7 +157,9 @@ collect as today.
 invocation in prose instead of calling the tool.
 
 Each WI is invoked with this brief (the `odoo-coding` Plan-provided fast-path consumes it; pass
-**inputs only** - `odoo-coding`'s body owns every procedure, so do not re-teach it):
+**inputs only** - `odoo-coding`'s body owns every procedure, so do not re-teach it). Because this
+per-WI call is never its own `run-harness` RUN-DAG node, `odoo-coding` DRIVES its per-WI
+`odoo-code-review` INLINE and fixes before returning - odoo-wave does NOT advance a per-WI `next`.
 
 ```
 ## WI-<ID> -> odoo-coding (Plan-provided fast-path: CONSUME, do not re-derive)
@@ -220,7 +226,9 @@ For each WI in topology order:
 
 5. Record the cherry-pick SHA and verify result in the worklog / plan artifact.
 
-After all WIs are cherry-picked, run the verify command one final time on the full integration state.
+The per-cherry-pick verify above is the incremental integration check. The single FINAL full-suite
+run over the integrated tree is NOT run here - it is the Phase 4.4 cumulative close-gate (run once,
+not twice). After the last WI is cherry-picked, proceed to Phase 4.
 
 ## Phase 4 - End-of-Wave Review
 
@@ -275,19 +283,65 @@ next:
 The `scope_hint` is advisory - `odoo-acceptance` Phase 0 regenerates the verify-scope manifest from
 the changed set.
 
+## Phase 4.4 - Cumulative close-gate (the wave closes only on green)
+
+The wave closes ONLY on a green cumulative test suite AND a clean independent review. This is the
+regression gate that lets the run drive between waves without a human stop; a red suite is BLOCKED
+and MUST NOT open a PR.
+
+**a. Reuse the independent review already run.** The independence machinery is Phase 4.1 (integrated
+cross-cutting review, in this skill's fresh context) + Phase 4.2 (`odoo-code-review`, its own reviewer
+subagent). Do NOT re-run or restate it here - this gate CONSUMES their verdict: the review is CLEAN
+when no CRITICAL and no HIGH finding remains open.
+
+**b. Compute the run-set.** Build the cumulative run-set from the injected `cumulative_modules` per
+the SSOT `${CLAUDE_PLUGIN_ROOT}/skills/_shared/cumulative-test-scope.md`: `C_N` (this wave + all prior
+waves, mandatory) UNION the bounded, in-repo-only `tests_covering` widening, capped at `K`, never
+re-running unchanged core. Pass a concrete `odoo_version` on every OSM call.
+
+**c. Run it INLINE (once).** Run the run-set inline via `odoo-bin ... --test-enable` - the SAME inline
+mechanism as the per-cherry-pick `verify` (Phase 3), widened to the cumulative `-u` set. This is the
+single final full-suite run (the Phase-3 final verify folds into here - run once, not twice). Lease an
+isolated ephemeral DB via the allocator (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+§ Odoo instance allocation) and reuse that one lease across the fix-retry loop below. Resolve the
+target version's real CLI via OSM `cli_help` first and follow
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` +
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` (do not narrow `--test-tags` below the
+cumulative set, or framework `post_install` checks silently skip) - never assume one version's flags.
+
+**d. Fix the union, bounded.** The fix set = the union of the review's open CRITICAL/HIGH findings AND
+the cumulative-suite test failures. Fix each inline or via a targeted subagent (Tier-C fresh spawn is
+always correct), or re-invoke `odoo-coding` for the affected WI with the AUTONOMOUS FIX
+(review-driven) sentinel + that WI's worktree path; re-run the cumulative suite after any fix. Bound
+the loop to 3 iterations; if it cannot go green in 3, apply the `integration-loop.md` saga
+(clean-abort or resume-from-checkpoint) and report BLOCKED. Record each iteration in the worklog.
+
+**e. Advance only on green + clean.** ONLY a green cumulative suite AND a clean review (no open
+CRITICAL/HIGH) advances to Phase 5. A red suite (or an unresolved CRITICAL/HIGH) is BLOCKED: do NOT
+open a PR, do NOT squash - report the failing modules/findings and stop. Record the green result +
+resolved run-set in the worklog and the Continuation Contract.
+
 ## Phase 5 - PR + Squash + Tree Identity -> STOP at the L2-squash-gate
 
-**5.1 - PR creation.** Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) to push
-wave/integration-<slug> to origin, then to create the PR (open PR against the principal branch). PR
-title follows the repo commit convention; PR body includes: summary of all WIs, verify command
+**5.1 - PR creation** (only after the Phase 4.4 cumulative close-gate is green). The wave opens a PR
+ONLY once Phase 4.4 reports a green cumulative suite AND a clean independent review; on a red gate this
+phase never runs (BLOCKED, no PR). Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) to
+push wave/integration-<slug> to origin, then to create the PR (open PR against the principal branch).
+PR title follows the repo commit convention; PR body includes: summary of all WIs, verify command
 result, link to the plan / worklog.
 
-**5.2 - Squash + tree-identity (L2-squash-gate, terminal).** Invoke **`git-toolkit:git-ops`** (via the
-Skill tool) for the squash + force-push with `op=squash-push` (full brief schema: `reference/wave-templates.md` §Squash
+**5.2 - Squash + tree-identity (L2-squash-gate, terminal).** This is the in-wave human gate. Because
+the wave node now advances at L1 (drive-to-done), odoo-wave PRESENTS the L2-squash-gate IN-CONTEXT here
+rather than relying on the driver: present a tight summary - the PR URL, the squashed commit SHA, and
+the tree-identity (`git diff --quiet <backup-ref>`) result - and WAIT for an explicit human `yes`
+before it may hand off. Write the gate in the USER'S LANGUAGE (translate labels/prose; keep the PR URL,
+branch, SHA, and module names verbatim). Only on an explicit `yes` invoke **`git-toolkit:git-ops`**
+(via the Skill tool) for the squash + force-push with `op=squash-push`, passing
+`confirmed: yes - <quote the human approval>` (full brief schema: `reference/wave-templates.md` §Squash
 Tree-Identity Recipe; git-toolkit owns the step enumeration - odoo-wave passes parameters only, all in
-ONE request). The squash is proven byte-identical (Hard Rule 6 / git-safety-contract S6) and the
-force-push is a human-confirm-gated destructive op (git-toolkit enforces the confirm-gate backstop;
-the wave node's human gate is presented by run-harness at L2).
+ONE request). The squash is proven byte-identical (Hard Rule 6 / git-safety-contract S6); the
+force-push is a human-confirm-gated destructive op and git-toolkit returns BLOCKED if `confirmed` is
+absent (the confirm-gate backstop per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
 
 **Then STOP.** odoo-wave does NOT merge. This is the `L2-squash-gate` - the terminal boundary of this
 skill. Record the PR URL, the squashed commit SHA, and the tree-identity result in the worklog and the
@@ -306,7 +360,10 @@ ever invoked with no plan inputs, STOP and report BLOCKED, routing the user to `
 odoo-semantic-mcp server) is unreachable, the git integration loop still runs (git ops do not need
 OSM); the per-WI `odoo-coding` invocations degrade to their own disk fallback
 (`${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`) and the Phase-4 coverage/blast-radius
-lenses degrade to a code-read review.
+lenses degrade to a code-read review. The Phase 4.4 cumulative close-gate still runs `C_N` in full
+(its members come from the injected `cumulative_modules` + on-disk `__manifest__.py` depends); only
+the `tests_covering` in-repo widening degrades - record that it was skipped, never narrow below `C_N`
+(SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/cumulative-test-scope.md` § Standalone / OSM-down degrade).
 
 ## Examples
 

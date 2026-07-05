@@ -68,8 +68,10 @@ while RUN.status == "NEEDS_NEXT":
         set RUN.status = "BLOCKED"; blocked_reason = "no ready node (dependency cycle?)"; break
 
     tier = rederive_floor(node)   # NOT raw node.gate_tier - re-assert the floor (see §Gate-tier
-                                  # resolution): instance_touching | spawner-wave | a DYNAMIC
-                                  # source-writing node ⇒ L2; else node.gate_tier / registry default.
+                                  # resolution): an `outward` merge | a non-wave instance_touching
+                                  # node | a DYNAMIC source-writing node ⇒ L2; a STATIC spawner-wave
+                                  # advance ⇒ L1 (ephemeral instance; self-gated squash + downstream
+                                  # merge); else node.gate_tier / registry default.
     if RUN.autonomy == "step": tier = max(tier, "L1")       # --step gates everything ≥ L1
     if tier == "L2":              # ALWAYS human - emit gate, end turn, resume after approve/skip/cancel
         emit_human_gate(node); wait                          # on cancel → mark SKIPPED/stop per user
@@ -141,14 +143,28 @@ binding gate. Spawner skills writing only `.odoo-ai/` (`odoo-code-review`, `odoo
 no extra driver gate beyond registry tier.
 
 - **Static node** (was in the Plan-Mode-approved DAG): Plan-Mode approval IS the human gate →
-  auto-pass under `--auto` is fine.
+  auto-pass under `--auto` is fine. A STATIC `spawner-wave` advance (the between-wave step) is L1
+  and DRIVES to done: the wave's squash/force-push is human-confirmed INSIDE the wave (odoo-wave
+  Phase 5.2) and the only irreversible landing is the downstream `outward` L2-merge-gate, so the
+  driver does not re-stop between waves. `--step` re-inserts the between-wave stop on demand: it
+  raises the floor to L1, and an L1 node under non-`auto` autonomy emits a human gate - the opt-in
+  per-wave checkpoint for an operator who wants one.
 - **Dynamic node** (materialized at runtime from `next[]` / `on_complete` - never in the
   approved plan): driver MUST emit a preview (`Proposed / Files / OSM / Proceed? (yes / refine /
   cancel)`) and **END ITS TURN** before dispatching. Treat as **L2**: `--auto` cannot auto-pass.
+  A DYNAMIC (unplanned) wave is a dynamic source-writing node, so it stays L2 (unchanged).
 
-**Defense-in-depth (M3):** re-derive each node's floor from registry truth before gating -
-`instance_touching` or `spawn_class == spawner-wave` ⇒ L2; dynamic source-writing node ⇒ L2.
-A hand-edited `run.json` cannot lower a mandatory gate.
+The spawner-wave L1 advance relies on the wave's instance touches being EPHEMERAL test DBs; a
+spawner-wave that mutated a SHARED (non-ephemeral) instance would need explicit L2 re-classification,
+and none exists today.
+
+**Defense-in-depth (M3):** re-derive each node's floor from registry truth before gating - an
+`outward` git merge/push ⇒ L2; a non-wave `instance_touching` node ⇒ L2; a DYNAMIC source-writing
+node (including an unplanned wave) ⇒ L2. A STATIC `spawn_class == spawner-wave` advance ⇒ L1: its
+instance touches are ephemeral test DBs, its squash/force-push is human-confirmed INSIDE the wave, and
+the only irreversible landing is the downstream `outward` merge (odoo-pr-monitoring's L2-merge-gate).
+A hand-edited `run.json` cannot lower a mandatory gate; a spawner-wave that mutated a SHARED
+(non-ephemeral) instance would need explicit L2 re-classification, and none exists today.
 
 ## Circuit-breakers (anti-runaway, anti-trap)
 

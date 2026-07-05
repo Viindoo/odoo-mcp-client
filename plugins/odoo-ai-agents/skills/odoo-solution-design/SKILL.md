@@ -117,21 +117,34 @@ integration-module decisions - NOT module internals) and `index.yaml` (per contr
 Use same prompt template as P1 below; add `MODE: master`.
 
 **b. Master gate (human, MANDATORY).** Present master TDD summary: §10 symbol count, dep order,
-top cross-module risks. Gate: `approve-master / refine: [feedback] / cancel`. No child dispatch
+top cross-module risks. Gate: `approve-master` (default) / `review-master` (opt-in - dispatch
+`odoo-solution-architect MODE: review` for a fresh-spawn adversarial pass over the master TDD,
+then re-present this gate with its FINDINGS) / `refine: [feedback]` / `cancel`. No child dispatch
 before this clears. The approved master §10 is the hard constraint for all children.
 
-**c. DAG fan-out (child TDDs).** After master gate:
-- Read `dag_layers` from `index.yaml` (topo order is encoded in list order).
-- Dispatch `odoo-solution-architect` `MODE: child` per module, following **Mode B**
-  (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Same-`dag_layer` modules
-  run in parallel. Dep-wait only when a child consumes an interface PROPOSED (not yet in master
-  §10) by a sibling; if already in §10, no wait needed.
+**c. DAG fan-out (child TDDs) - base-first by `dag_layer`.** After master gate:
+- Read `dag_layers` from `index.yaml` (topo order is encoded in list order). `dag_layer` is the
+  SHARED axis for both concurrency and dependency: same layer = parallel, different layer =
+  strict order. Dispatch `odoo-solution-architect` `MODE: child` per module, following **Mode B**
+  (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`) for the same-layer batch. ALL
+  children of layer `k` must reach `designed` (see checkpoint step below) before ANY child of
+  layer `k+1` is dispatched - never mix layers in one dispatch batch.
+- This changes DISPATCH ORDER only, not the §10 contract mechanism: the master §10 shared-symbol
+  registry still front-loads every cross-module contract up front (step a), so no child blocks on
+  a sibling for interface DISCOVERY. Base-first exists to reduce `MODE: consistency` rework -
+  validating §10 against a lower-layer module's concrete design before a higher-layer sibling
+  designs against it catches §10 gaps early and shrinks the seams the consistency pass must
+  reconcile later.
 - **Model floor: opus.** Scale toward fable for modules with a new inheritance axis (same
   fable-confirmation rule as single mode).
-- Child brief includes `MODE: child`, `CHILD_MODULE: <name>`, `MASTER_DESIGN_DOC: <abs path>`,
-  `ODOO_VERSION: <version>`. Child cites master §10 for every cross-module symbol it references.
+- Layer-0 child brief includes `MODE: child`, `CHILD_MODULE: <name>`, `MASTER_DESIGN_DOC: <abs
+  path>`, `ODOO_VERSION: <version>`. Every layer `k>=1` child brief additionally carries
+  `UPSTREAM_CHILD_DESIGNS: [<abs path to each already-authored lower-layer child TDD it
+  depends_on>]` ALONGSIDE `MASTER_DESIGN_DOC`. Child cites master §10 for every cross-module
+  symbol it references.
 - After each child subagent returns, YOU (the orchestrating main agent) write `status: designed`
-  for that module to `index.yaml` (checkpoint for resume on interruption).
+  for that module to `index.yaml` (checkpoint for resume on interruption) - confirm every module
+  in the current layer is `designed` before dispatching the next layer's batch.
 
 **d. Consistency pass (MANDATORY after all children `designed`).** Dispatch
 `odoo-solution-architect` `MODE: consistency`. Reads CONTRACT SUBSET of each child (§1 Intent,
@@ -140,9 +153,11 @@ updates §10 where needed, emits `conflict-list.md` at the artifact root.
 
 **e. Batch gate (human, single gate for all children).** Present conflict-list (MANDATORY - state
 explicitly if empty; do not skip) + per-child TDD summaries (approach, top risk, data-model delta).
-Gate: `approve-all / refine:<module>: [feedback] / cancel`. A `refine:<module>` re-dispatches that
-child only, re-runs consistency pass, then re-presents this gate. One batch gate total.
-On `approve-all`, write `status: approved` for all modules in `index.yaml`.
+Gate: `approve-all` (default) / `review-children` (opt-in - dispatch `odoo-solution-architect
+MODE: review` over the domain-close child clusters that sit on the same dependency chain, then
+re-present this gate with FINDINGS) / `refine:<module>: [feedback]` / `cancel`. A `refine:<module>`
+re-dispatches that child only, re-runs consistency pass, then re-presents this gate. One batch gate
+total. On `approve-all`, write `status: approved` for all modules in `index.yaml`.
 
 **f. Continuation Contract (master-child).** Emit per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. All paths are repo-root-relative;
@@ -396,9 +411,13 @@ Approve design? (approve / refine: [feedback] / cancel)
     downstream Plan Mode and code dispatch.
 - `cancel` → stop; the design doc remains on disk for later.
 
-Optional assist (does not replace human approval): for a high-risk design you MAY ask
-`odoo-code-review` for a read-only second opinion on the doc before presenting it - but the
-human still makes the call.
+Optional assist (does not replace human approval): for an independent opinion on DESIGN
+SOUNDNESS (not code-vs-design conformance), dispatch `odoo-solution-architect MODE: review` (see
+the Decompose branch's `review-master` / `review-children` gate keywords for master-child mode;
+for single mode, invoke it directly on the design doc) - a fresh-spawn adversarial pass that never
+authored this design. Do NOT use `odoo-code-review` for this: it checks that CODE conforms to the
+approved design, not whether the design itself is sound. The human still makes the approval call
+either way.
 
 ## Continuation Contract
 

@@ -421,12 +421,26 @@ separately-authored failing test), the **code -> review+test -> code** round-tri
 `odoo-code-review` reviews AND checks the tests cover the behavior, looping back on a CRITICAL/HIGH
 issue or a red/missing test.
 
-**Drive it yourself when there is no run-harness (mandatory).** The Skill tool is available here.
-After writing, **IMMEDIATELY invoke `odoo-code-review` via the Skill tool yourself** - a
-passive `next: odoo-code-review` is not advanced without an active run-harness (the common case: direct
-invocation, intake fast-path, autonomous fix), so verification would silently never happen. ONLY
-exception: dispatched by an active run-harness (a `run-<id>` is named) - then emit
-`next: odoo-code-review` and let it advance, do not double-dispatch. Emit the Continuation Contract either way.
+**Drive it yourself in the default case (mandatory).** The Skill tool is available here. After
+writing, **IMMEDIATELY invoke `odoo-code-review` via the Skill tool yourself** and fix within the
+bounded loop below before returning. A passive `next: odoo-code-review` is only ever advanced by
+`run-harness` itself, and only when `run-harness` scheduled THIS `odoo-coding` invocation as its
+own RUN-DAG node - in every other path nothing advances a per-WI `next`, so verification would
+silently never happen. The two branches, precisely:
+
+- **Direct run-harness RUN-DAG node (the only emit-next case).** `odoo-coding` is dispatched
+  DIRECTLY by `run-harness` and named as its own `run-<id>` node - `run-harness` owns the DAG and
+  WILL schedule the review node. Emit `next: odoo-code-review` and let it advance; do not
+  double-dispatch.
+- **Every other invocation (default - drive inline).** This is the default, and it explicitly
+  INCLUDES an `odoo-wave` dispatch (`odoo-wave` invokes this skill via the Skill tool per WI,
+  passing `WORKTREE_PATH` + `WORKLOG: <runSlug>` but no `run-<id>` RUN-DAG node for that WI - it
+  never schedules a per-WI `next`), plus direct invocation, intake fast-path, and autonomous fix. A
+  transitively-active run, or a bare `runSlug` / `WORKLOG` value, is NOT a run-harness RUN-DAG node
+  and must NOT be read as one - it does not trigger the emit-next branch. DRIVE
+  `odoo-code-review` inline yourself and fix in the bounded loop below before returning.
+
+Emit the Continuation Contract either way.
 
 Bound the loop to **3 iterations** per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`; still
 not green-and-clean after 3 -> STOP and escalate (bad work is worse than no work). Each iteration's
