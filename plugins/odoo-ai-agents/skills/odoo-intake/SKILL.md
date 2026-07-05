@@ -81,6 +81,7 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
 
 4. **Confidentiality (public repo - 8 banned groups).** Do not surface, quote, or transmit: CEO personal info, customer PII/contracts, internal pricing, competitor intelligence beyond public sources, product roadmap details, marketing-in-draft, OKR/targets, vault paths. If a user prompt contains such data, acknowledge intent only - do not echo it.
 5. **Main-context only.** This skill is the front door and orchestrator; it MUST NOT be called from inside a subagent. It owns the EnterPlanMode / ExitPlanMode gates and the initial routing decision.
+6. **Worktree isolation - universal git-safety default (no exceptions).** Before ANY dispatched skill/workflow writes to a git-tracked file (create, modify, delete) or commits, a dedicated worktree/branch MUST be provisioned via `git-toolkit:git-ops` and the write MUST happen there - never in the principal checkout. Why: other sessions may share the principal branch, and a direct mutation on it corrupts their working tree. This applies on EVERY path out of intake - Tier-1/3 pro fast-path, Tier-4 brainstorm, the trivial inline-micro-plan case, and the Plan-Mode-exempt `odoo-code-review`/`odoo-debug` fast-path (§ Plan Mode) - not only the named multi-WI specialists. It is a catch-all DEFAULT: if intake cannot yet classify the work but already knows it will touch git, it STILL provisions isolation before that work proceeds. **Exempt:** read-only work (recon, review of `TARGET=local`, brainstorming) and any deliverable confined to `.odoo-ai/` or `/tmp`. `odoo-wave`, `odoo-forward-port`, `odoo-git-rebase`, `odoo-modules-upgrade`, and `odoo-code-review` at `TARGET=pr` already self-provision internally - do not double-provision for those (see § Plan Mode for the per-Approach breakdown). For every other `writes-files` dispatch, intake provisions it per § Plan Mode Procedure step 6. Mechanics + invocation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` (SSOT - S9 worktree-always invariant; do not restate its mechanics here).
 
 ## Anti-rationalize gate
 
@@ -122,8 +123,8 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 **Decision tree (run first)**: read the chosen Approach's `output_mode` from `skill_tool_deps.json`.
 - `output_mode = writes-files` → **Plan Mode REQUIRED** before dispatch. **Exceptions that SKIP Plan Mode:**
   - `odoo-deep-survey` (dispatched via the `deep-survey` gate keyword) - the opt-in keyword is the human gate.
-  - `odoo-code-review` and `odoo-debug` - a **review** intent (routing row 13) or **debug** intent (routing row 29) fast-paths straight to the skill once Phase 0 intent gate is closed: emit the one-line § Pro fast-path gate, on `yes` invoke via Skill tool - NO Proposed-Plan blocks, NO Plan Mode. These two then drive their own autonomous fix loop.
-  - `odoo-forward-port` (P4 gate), `odoo-git-rebase` (P6 gate), `odoo-modules-upgrade` (P3 gate) - each owns its own Plan Mode (EnterPlanMode/ExitPlanMode called internally; plan presented before any branch/worktree/merge/adapt). Intake MUST NOT call EnterPlanMode for these; dispatch directly after the § Soft plan gate "stronger gate" one-liner is acknowledged.
+  - `odoo-code-review` and `odoo-debug` - a **review** intent (routing row 13) or **debug** intent (routing row 29) fast-paths straight to the skill once Phase 0 intent gate is closed: emit the one-line § Pro fast-path gate, on `yes` invoke via Skill tool - NO Proposed-Plan blocks, NO Plan Mode. These two then drive their own autonomous fix loop. Hard rule 6 (worktree isolation) still applies to any write these trigger - each owns it internally before touching a file (`git-delegation.md`); skipping intake's Plan Mode never means skipping worktree isolation.
+  - `odoo-forward-port` (P4 gate), `odoo-git-rebase` (P6 gate), `odoo-modules-upgrade` (P3 gate) - each owns its own Plan Mode (EnterPlanMode/ExitPlanMode called internally; plan presented before any branch/worktree/merge/adapt). Intake MUST NOT call EnterPlanMode for these; dispatch directly after the § Soft plan gate "stronger gate" one-liner is acknowledged. Each already satisfies Hard rule 6 internally (own worktree/branch per `git-delegation.md`) - intake does not double-provision.
 - `output_mode = chat-only` → **SKIP Plan Mode**; intake ends its turn and the specialist fires via the Skill tool on the next turn.
 
 **When it applies**: after user approves the Proposed Plan AND the next step is an execute-skill that will **write or modify files** - specifically `odoo-coding`, `odoo-brl`, `workflow-chaining`, or any skill whose output column is NOT "chat only".
@@ -138,12 +139,14 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 3. Main agent writes an implementation plan (files to be changed, approach, acceptance criteria) inside Plan Mode.
 4. Main agent calls **`ExitPlanMode`** tool → Plan Mode UI shown to user.
 5. User reviews and approves in the Plan Mode UI.
-6. ONLY after Plan Mode approval: main agent invokes the execute-skill via the **Skill tool** (a skill is not an agentType - Agent-tool'ing a skill name fails; see § Dispatch mechanism).
+6. **Worktree isolation (Hard rule 6, no exceptions).** If the Approach is one of the self-provisioning specialists (`odoo-wave`, `odoo-forward-port`, `odoo-git-rebase`, `odoo-modules-upgrade`, `odoo-code-review` at `TARGET=pr`), skip this step - it provisions its own worktree/branch internally. Otherwise, BEFORE dispatch, invoke `git-toolkit:git-ops` via the Skill tool to create a dedicated worktree/branch, and pass its path into the dispatched skill's brief as its working root (e.g. `WORKTREE_PATH` for `odoo-coding`, `TARGET: worktree:<path>` for skills that define that input). The principal checkout is NEVER the target of this dispatch. Mechanics + invocation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+7. ONLY after Plan Mode approval AND (per step 6) worktree provisioning: main agent invokes the execute-skill via the **Skill tool** (a skill is not an agentType - Agent-tool'ing a skill name fails; see § Dispatch mechanism).
 
 **Red flags for Plan Mode**:
 - "The user already said approve, I can skip EnterPlanMode" → NO. Text-gate approval and Plan Mode approval are two separate steps.
 - "I'll enter Plan Mode after I've already started editing" → BANNED. EnterPlanMode must come before any file touch.
 - "`odoo-deep-survey` writes files, so it needs Plan Mode" → NO. It is the one `writes-files` exception (analysis-only under `.odoo-ai/survey/`, gated by the `deep-survey` opt-in keyword).
+- "This is a trivial single-WI fix / an ambiguous case I couldn't fully classify, worktree isolation can wait" → NO. Hard rule 6 is a catch-all default: trivial and ambiguous work that touches git-tracked files is provisioned into a worktree exactly like any other, before dispatch.
 
 ### Plan Mode Content Schema
 
@@ -257,6 +260,7 @@ Enforcement stack:
 4. On `approve` → if the next step writes files, main agent MUST call EnterPlanMode before invoking the specialist. If chat-only/read-only, intake ends its turn and the specialist fires via the **Skill tool** on the next turn.
 5. On `refine: [feedback]` → loop back within brainstorm. On `cancel` → stop + brief report.
 6. On `deep-survey` → run the opt-in deep survey, then re-propose (see § Deep survey).
+7. Hard rule 6 (worktree isolation) → before the writes-files dispatch in step 4, provision a dedicated worktree/branch per § Plan Mode Procedure step 6; the principal checkout is never the target, on any path including the ambiguous/inline-micro-plan one.
 
 ### Deep survey (opt-in)
 
