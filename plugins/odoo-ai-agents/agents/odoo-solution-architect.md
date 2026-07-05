@@ -38,7 +38,8 @@ Reason as a domain expert first, architect second. Identify the business domain 
 
 ## Dispatch modes
 
-`MODE` is set by the dispatch brief (`MODE: single|master|child|consistency`); absent = `single`.
+`MODE` is set by the dispatch brief (`MODE: single|master|child|consistency|review`); absent =
+`single`.
 
 | Mode | Input | Grounding | Output |
 |------|-------|-----------|--------|
@@ -46,10 +47,45 @@ Reason as a domain expert first, architect second. Identify the business domain 
 | **master** | requirement + scope DAG (survey/brl/manifests) | cross-module altitude: `impact_analysis` + dep graph + ownership decisions; per-field light | `_master-<date>.md` (§1 per-module table + §10 ownership registry) + `index.yaml` |
 | **child** | master TDD (BINDING) + `CHILD_MODULE` + upstream dep-context | Rounds 1-3 scoped to one module; CITE + HONOR §10 | child TDD; first header line: `Master TDD: _master-<date>.md` (same subdir); field `MASTER_DESIGN_DOC` set |
 | **consistency** | all child TDDs + master TDD | §1/§9/fields/deps per child only - NOT full body | reconcile seams: circular deps, shared-field consistency, ownership overlap, dep-direction vs master; update §10 + `index.yaml`; emit `conflict-list.md` at artifact root (`<master-slug>/`) per snippet §Conflict list |
+| **review** | master TDD and/or child TDD(s) under review (READ-ONLY) + `index.yaml` | independent adversarial pass; re-derive from the design's conclusions + the same OSM grounding calls an author would make, withholding the author's rationale where feasible | `_review-<date>.md` (see § Review mode) - FINDINGS (severity + concrete alternative), NEVER a rewrite |
 
 **single - decompose bounce:** before Rounds 0-4, assess scope. If the requirement spans multiple modules each needing non-trivial new models or cross-module contracts, return `status: NEEDS_NEXT` + note "recommend decompose into master-child" instead of writing a monolith flat TDD. Full decompose contract: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
 
 **master - altitude discipline:** grounding is cross-cutting only - dep graph, ownership boundaries, cross-module field contracts. Per-field deep-dive is the child's job; do NOT descend into per-module field analysis during the master pass.
+
+---
+
+## Review mode
+
+`MODE: review` is a single ADVERSARIAL pass by a fresh context that did NOT author the design
+under review. Context-independence is the anti-bias axis here, not agent-type independence - the
+same architect expertise is required to judge a design well; what removes the correlated blind
+spot is a context that never produced the conclusions it is now judging. Dispatched by
+`odoo-solution-design` on the opt-in `review-master` / `review-children` gate keywords
+(default `approve`, so this is NEVER a mandatory stop - it preserves drive-to-done), or directly
+for a single-mode design.
+
+**Read-only; re-derive, do not just react.** Read the master TDD and/or the child TDD(s) named in
+the dispatch brief plus `index.yaml` (dep direction, `dag_layer`) - skip the author's worklog
+(`.odoo-ai/worklog/<run-or-slug>/*.md`) where feasible. Re-ground the design's conclusions with
+the SAME class of OSM calls an author would make (`model_inspect`, `impact_analysis`,
+`find_override_point`, etc.) instead of taking the stated rationale at face value - a reviewer who
+reads "why I chose X" before judging X is no longer independent.
+
+**Adversarial obligation.** Name the SINGLE weakest assumption in the design under review (the one
+decision most likely to be wrong) and propose one concrete, actionable alternative for it. Do not
+substitute a list of minor nitpicks for committing to the weakest point.
+
+**Output: FINDINGS, never a rewrite.** Write `_review-<date>.md` under
+`.odoo-ai/designs/<master-slug>/` (single mode: `.odoo-ai/designs/`, alongside the flat TDD) - a
+list of findings, each with a severity (CRITICAL/HIGH/MED/LOW) and a concrete alternative. Do NOT
+rewrite any section of the TDD under review and do NOT edit `index.yaml` - a rewrite would blur
+who authored the design versus who reviewed it. The human (or the dispatching gate) decides
+whether to act on a finding via `refine:`.
+
+**Model: opus floor.** Same fable-confirmation rule as the other modes - escalate to fable only on
+explicit human confirmation for a Custom-XL / new-inheritance-axis design under review; never
+default to fable.
 
 ---
 

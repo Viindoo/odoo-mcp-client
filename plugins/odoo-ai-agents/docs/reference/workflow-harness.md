@@ -809,7 +809,7 @@ and must not be revisited without updating this section.
 
 | Phase | Action | Actor |
 |-------|--------|-------|
-| 0 - Safety verify (consume) | Consume the plan's WI list + module-DAG + topology; run the disjoint file-ownership safety audit; plan-staleness check. No plan-gate (approval is upstream at the driver L2 gate) | odoo-wave (orchestrating context) |
+| 0 - Safety verify (consume) | Consume the plan's WI list + module-DAG + topology; run the disjoint file-ownership safety audit; plan-staleness check. No plan-gate (Plan-Mode approval upstream is the advance's human gate; the STATIC wave node advances at L1 / drive-to-done - the two human L2 gates are the in-wave squash (Phase 5.2) and the downstream merge) | odoo-wave (orchestrating context) |
 | 1 - Integration branch + worktrees | `git worktree add -b wave/wi-<slug>-X` from integration (dependents lazily) | git-toolkit:git-ops skill via odoo-wave |
 | 2 - Per-WI: INVOKE odoo-coding | Per WI, sequentially INVOKE `odoo-coding` via the Skill tool (owns count+model); odoo-coding authors+commits in the provided worktree and returns SHA(s) | odoo-wave (Skill tool) -> odoo-coding |
 | 3 - Cherry-pick + resolver (saga) | Cherry-pick A -> B -> C onto integration (serialized, verify + checkpoint after each); Sonnet resolver on conflict; saga rollback on unrecoverable failure | git-toolkit:git-ops skill via odoo-wave |
@@ -1029,10 +1029,17 @@ which also enforces the derivation below). They replace the hardcoded chat-only 
   - `writes-files` → persists a file artifact (`.odoo-ai/…` or source) → **Plan Mode required**.
   - `chat-only` → emits to chat only → skip Plan Mode.
 - **`default_gate_tier`** is derived deterministically from `(spawn_class, instance_touching,
-  output_mode)`:
-  - **L2** if `instance_touching` OR `spawn_class == spawner-wave` - irreversible / outward
-    (touches an instance, git push/merge, sends to a third party). **ALWAYS human gate; the
-    autonomy dial can never lower L2.**
+  output_mode, outward)`, checked in this order:
+  - **L2** if `outward` - an outward git merge/push (e.g. odoo-pr-monitoring's
+    merge-to-principal). **ALWAYS human gate; the autonomy dial can never lower L2.**
+  - **L1** else if `spawn_class == spawner-wave` - a STATIC wave advance DRIVES to done: a
+    spawner-wave is a worktree-isolated fan-out, so its instance touches are EPHEMERAL test DBs,
+    its squash/force-push is human-confirmed INSIDE the wave (odoo-wave Phase 5.2), and the only
+    irreversible landing is the downstream `outward` merge. Auto-pass under `--auto`; gated under
+    `--step`. A DYNAMIC (unplanned) wave is NOT a static plan node - it stays L2 via run-harness's
+    dynamic-source-write rule (§8.1 driver loop). This branch precedes `instance_touching` on
+    purpose: the wave's ephemeral instance touch does not make the advance irreversible.
+  - **L2** else if `instance_touching` - touches a shared live instance. **ALWAYS human gate.**
   - **L1** else if `output_mode == writes-files` - writes internal files. Auto-pass under
     `--auto` within budget; gated under `--step`.
   - **L0** else - read-only / chat. Auto-pass.

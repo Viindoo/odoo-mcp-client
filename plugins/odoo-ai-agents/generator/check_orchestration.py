@@ -67,12 +67,25 @@ VALID_HANDOFF = {"send-message", "fork", "fresh"}
 
 def _derive_gate_tier(spawn_class: str, instance_touching: bool, output_mode: str,
                       outward: bool = False) -> str:
-    """L2 = irreversible/outward → ALWAYS human gate. Three irreversible triggers:
-    instance_touching (mutates a live Odoo), spawner-wave (worktree fan-out onto a
-    branch), and `outward` (an outward git merge/push - e.g. odoo-pr-monitoring's
-    merge-to-principal). L1 = writes internal files. L0 = read-only/chat. The dial
-    can never lower L2."""
-    if instance_touching or spawn_class == "spawner-wave" or outward:
+    """Derive the run-harness gate tier. L2 = irreversible/outward → ALWAYS human gate
+    (the dial can never lower it). L1 = writes internal files. L0 = read-only/chat.
+
+    spawner-wave class invariant (why it short-circuits to L1 AHEAD of instance_touching):
+    a spawner-wave is a worktree-isolated fan-out, so its class contract entails - (a) every
+    instance it touches is an EPHEMERAL test DB, never a shared live instance; (b) its
+    squash/force-push is human-confirmed INSIDE the wave (a self-gated L2 presented in-context
+    at odoo-wave Phase 5.2); (c) the only irreversible landing is a DOWNSTREAM `outward` L2
+    node (odoo-pr-monitoring's merge-to-principal). So the DRIVER auto-advances a STATIC
+    spawner-wave node (L1); a DYNAMIC (unplanned) wave still trips L2 via run-harness's
+    dynamic-source-write rule. `outward` is checked first so a hypothetical outward
+    spawner-wave still derives L2 (defensive; a no-op for the sole spawner-wave odoo-wave,
+    which is not outward). A spawner-wave that mutated a SHARED (non-ephemeral) instance
+    would need explicit L2 re-classification; none exists today."""
+    if outward:
+        return "L2"
+    if spawn_class == "spawner-wave":
+        return "L1"
+    if instance_touching:
         return "L2"
     if output_mode == "writes-files":
         return "L1"

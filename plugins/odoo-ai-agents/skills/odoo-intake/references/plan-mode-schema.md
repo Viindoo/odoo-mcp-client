@@ -32,7 +32,12 @@ A mermaid diagram is encouraged.
 Add per-WI **acceptance criteria** + a **verify command** (Repo Capability Card). `effort` follows
 the gap-analysis legend (S/M/L/XL); `est_agents` is a rough advisory count. The plan binds WHICH
 skill, never a per-agent `model` or fan-out `count` - the dispatched specialist skill owns those at
-runtime (Decision X). For a NON-TRIVIAL multi-module change this 3-block plan is AUTHORED by
+runtime (Decision X). Each **coding-wave** node also carries **`cumulative_modules`** - the union of
+every module THIS wave touched AND every module ALL PRIOR waves touched. It is the growing regression
+scope the git-executor (`odoo-wave` Phase 4.4) runs GREEN to close the wave; it is STRUCTURAL scope
+like `depends_on` (WHICH modules must stay green), NOT a binding `model`/`count` (no Decision X
+conflict), and it surfaces the regression scope to the human at plan-approval time. For a NON-TRIVIAL
+multi-module change this 3-block plan is AUTHORED by
 `odoo-planning` (its `odoo-planner` agent); for a trivial single-WI change `odoo-intake` writes it
 inline. Either path CONFORMS to this same schema - never a second format.
 

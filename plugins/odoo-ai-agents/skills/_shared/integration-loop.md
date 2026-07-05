@@ -45,6 +45,11 @@ unrecoverable failure unwinds to a known-clean point:
    Never leave a half-built integration branch (a cherry-pick applied but unverified, or conflict
    markers in the tree). Always report which WI failed and which outcome (abort | resume) was taken.
 
+**Wave-closing verify = the CUMULATIVE suite.** The FINAL verify that closes a wave (before any PR)
+runs the cumulative run-set (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/cumulative-test-scope.md`),
+not just the touched module; a red cumulative suite is unrecoverable within the loop's bound ->
+clean-abort or resume-from-checkpoint, and NEVER open a PR on red.
+
 ## Git-mutation safety - POINT, do not restate (dependency direction)
 
 The reset-hard, the cherry-pick, the branch moves, and the closing squash/push are GIT MUTATIONS.

@@ -59,6 +59,17 @@ PLAN). When a plan exists, the coding phase and the git-executor consume that PL
 plan). Build order then follows the plan's wave order (standalone: it follows `dag_layers`
 top-to-bottom).
 
+**Child-design dispatch is base-first (distinct from `odoo-planning`'s later wave-batching
+above).** `odoo-solution-design` dispatches child architects using `dag_layer` as the ordering
+axis for the DESIGN step itself: same layer = parallel (Mode B budget), different layer = strict
+order - ALL layer-`k` children reach `status: designed` before ANY layer-`k+1` child is
+dispatched. A layer-`k+1` child brief carries `UPSTREAM_CHILD_DESIGNS: [...]` (the already-authored
+lower-layer child TDDs it `depends_on`) alongside `MASTER_DESIGN_DOC`. This changes DISPATCH ORDER
+only - the §10 registry below still front-loads the cross-module CONTRACT so no child blocks on a
+sibling for interface discovery; base-first instead reduces `MODE: consistency` rework by letting
+a higher-layer child design against an already-concrete lower-layer sibling instead of a
+still-shifting one.
+
 ## Index selection and path resolution
 
 **Locating the index**: consumers search all `.odoo-ai/designs/*/index.yaml` files under the repo
@@ -106,6 +117,18 @@ Three constraints enforced by this section:
    the Notes column.
 
 Cross-cluster sequencing (which `dag_layer` builds first) must match `dag_layers` in `index.yaml`.
+
+## Optional independent review (MODE: review)
+
+Both master-child gates (master gate, batch gate) offer an OPT-IN independent review via
+`odoo-solution-architect MODE: review` - gate keywords `review-master` / `review-children`,
+default `approve`, so review is NEVER a mandatory stop (preserves drive-to-done). Review is a
+single adversarial pass by a fresh context that did NOT author the design under review
+(context-independence is the anti-bias axis, not agent-type independence); it reads the master
+and/or child TDD(s) READ-ONLY, names the single weakest assumption plus a concrete alternative,
+and writes `_review-<date>.md` under `.odoo-ai/designs/<master-slug>/` as a FINDINGS list
+(severity + alternative) - it never rewrites the TDD or `index.yaml`. Full contract:
+`agents/odoo-solution-architect.md` § Review mode.
 
 ## Handoff fields (additive; backward-compat with single mode)
 
@@ -163,6 +186,16 @@ A caller that uses `return_to` to skip Phase 0 of the solution-design skill bypa
 decompose branch by construction - master-child output cannot reach `odoo-forward-port` or
 `odoo-modules-upgrade` P2b via that route. Skills that consume master-child output must read
 `design_index:` from the Continuation Contract, not `design_doc:` (singular).
+
+**Documented seam (deliberately deferred, not silently dropped).** `return_to` callers enter
+SINGLE mode (one flat TDD, no children), so base-first child ordering and the opt-in
+`review-master` / `review-children` gate keywords above are N/A by construction - there is no
+child batch to order or review. A shared design-review hook on the `return_to` path (letting
+`odoo-forward-port` / `odoo-modules-upgrade` opt a single-mode design into `MODE: review`) COULD be
+offered later; it is explicitly OUT OF SCOPE today because those callers already enforce their own
+dependency order downstream through their own integration loops
+(`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`). Flagged here so a future editor does
+not need to re-derive this decision.
 
 ## Worklog per child
 
