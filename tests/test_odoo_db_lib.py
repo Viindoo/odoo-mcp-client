@@ -14,10 +14,12 @@ contract without a real Odoo installation:
 Each test is red without the implementation and green with it per ETHOS #10.
 """
 
+import importlib.util
 import os
 import subprocess
 import sys
 import textwrap
+import types
 from pathlib import Path
 
 import pytest
@@ -383,3 +385,74 @@ def test_password_from_env_var(tmp_path):
         "ODOO_PG_PASSWORD must reach parse_config as --db_password with the correct value; "
         "marker content: {content!r}".format(content=content)
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 7: _import_odoo() binds .tools and .service.db even when a bare
+# `import odoo` does NOT (Odoo 19.0 behaviour). Regression guard for #154.
+# ---------------------------------------------------------------------------
+
+def test_import_odoo_binds_tools_and_service_db(tmp_path, monkeypatch):
+    """_import_odoo() must bind .tools and .service.db even when a bare import does NOT
+    (Odoo 19.0 behaviour: the base package's __init__ no longer re-exports submodules
+    transitively). Regression guard for #154.
+
+    Unlike ``_build_fake_odoo`` above (whose ``odoo/__init__.py`` does
+    ``from odoo import tools, service`` - a bare import that DOES bind them), this fixture's
+    fake ``odoo`` module is an in-memory package whose bare import binds NEITHER submodule.
+    Only ``.tools`` / ``.service`` live on disk (reachable via ``__path__``), so
+    ``importlib.import_module(pkg + ".tools")`` performs a genuine fresh load and lets
+    Python's own submodule-to-parent binding do the work - exactly what the fix in
+    ``_import_odoo()`` relies on. RED on current code (bare import leaves `.tools` unbound in
+    this fixture), GREEN after the fix.
+    """
+    pkg_dir = tmp_path / "fake_odoo_pkg_root"
+    tools_dir = pkg_dir / "tools"
+    service_dir = pkg_dir / "service"
+    tools_dir.mkdir(parents=True)
+    service_dir.mkdir()
+
+    (tools_dir / "__init__.py").write_text(
+        "class _Config(dict):\n    pass\n\nconfig = _Config()\n",
+        encoding="utf-8",
+    )
+    (service_dir / "__init__.py").write_text("", encoding="utf-8")
+    (service_dir / "db.py").write_text("# stand-in for odoo.service.db\n", encoding="utf-8")
+
+    # Fake 'odoo' package registered directly under sys.modules (not on disk) so a bare
+    # `import odoo` resolves to it via the import-cache without binding any submodule.
+    # __path__ points at the real .tools/.service dirs so importlib.import_module(pkg +
+    # ".tools") can find and load them fresh, targeting this fake.
+    fake_odoo = types.ModuleType("odoo")
+    fake_odoo.__path__ = [str(pkg_dir)]
+    monkeypatch.setitem(sys.modules, "odoo", fake_odoo)
+
+    # Confirm the fixture's own premise: bare import leaves both submodules unbound.
+    assert not hasattr(fake_odoo, "tools")
+    assert not hasattr(fake_odoo, "service")
+
+    try:
+        spec = importlib.util.spec_from_file_location("odoo_db_under_test", ODOO_DB_PY)
+        odoo_db_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(odoo_db_mod)
+
+        result = odoo_db_mod._import_odoo()
+
+        assert hasattr(result, "tools"), (
+            "_import_odoo() must bind .tools even when a bare import does not"
+        )
+        assert hasattr(result.tools, "config"), (
+            "the bound .tools must be the real fake odoo.tools module (with .config)"
+        )
+        assert hasattr(result, "service"), (
+            "_import_odoo() must bind .service even when a bare import does not"
+        )
+        assert hasattr(result.service, "db"), (
+            "the bound .service must expose .db (odoo.service.db)"
+        )
+    finally:
+        # Self-cleaning: importlib.import_module() adds 'odoo.tools' / 'odoo.service' /
+        # 'odoo.service.db' to sys.modules as a side effect of the fresh load; monkeypatch
+        # only reverts the 'odoo' key set explicitly above, so remove the rest ourselves.
+        for name in ("odoo.tools", "odoo.service", "odoo.service.db"):
+            sys.modules.pop(name, None)

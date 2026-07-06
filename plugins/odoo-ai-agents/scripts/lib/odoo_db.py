@@ -35,6 +35,8 @@ Namespace compatibility
   The guard ``config['list_db'] = True`` is set before calling ``exp_drop`` /
   ``exp_db_exist`` so the ``@check_db_management_enabled`` decorator (v10+) is a
   no-op. The flag is harmless on v8/v9 which have no such guard.
+  ``.tools`` and ``.service.db`` are imported explicitly (via ``importlib``) because
+  a bare base-package import no longer binds them as attributes on Odoo 19.0.
 
 NEVER calls raw ``dropdb`` / ``psql`` / ``createdb``. All DB destruction goes
 through ``odoo.service.db.exp_drop`` which handles connection-pool teardown,
@@ -79,20 +81,30 @@ def _parse(argv):
 # ---- Odoo import + config bootstrap ----
 
 def _import_odoo():
-    """Import the Odoo package (supports openerp v8/v9 namespace).
+    """Import the Odoo package (supports the openerp v8/v9 namespace) AND the
+    submodules this script dereferences.
 
-    Returns the odoo/openerp module, or raises ImportError if neither is present.
+    A bare ``import odoo`` does NOT guarantee ``odoo.tools`` / ``odoo.service``
+    are bound as attributes (Odoo 19.0 no longer binds them transitively), so we
+    import the submodules EXPLICITLY, via the RESOLVED package name so the
+    ``openerp`` (v8/v9) namespace is handled too. Returns the odoo/openerp
+    module, or raises ImportError if the base package is not present.
     """
     try:
-        import odoo  # noqa: F401 - confirm importability
-        return odoo
+        import odoo
     except ImportError:
-        pass
-    try:
-        import openerp as odoo  # v8/v9  # noqa: F401
-        return odoo
-    except ImportError:
-        raise ImportError("neither 'odoo' nor 'openerp' is importable")
+        try:
+            import openerp as odoo  # v8/v9
+        except ImportError:
+            raise ImportError("neither 'odoo' nor 'openerp' is importable")
+    # Base package resolved. Bind the submodules this script uses so
+    # ``odoo.tools.config`` (line ~104) and ``odoo.service.db`` (line ~131) are
+    # always available on every series v8-v19.
+    import importlib
+    pkg = odoo.__name__  # 'odoo' or 'openerp'
+    importlib.import_module(pkg + ".tools")       # ensures <pkg>.tools.config  (fixes #154)
+    importlib.import_module(pkg + ".service.db")  # hardens the sibling <pkg>.service.db deref
+    return odoo
 
 
 def _bootstrap_config(odoo, opts):
