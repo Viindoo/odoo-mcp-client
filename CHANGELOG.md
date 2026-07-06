@@ -6,6 +6,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.8.0] - 2026-07-06
+
+### Added
+
+- `odoo-ai-agents` + `git-toolkit` - universal git-ops delegation discipline. A Universal rule in
+  `snippets/git-delegation.md` (mirrored in `CLAUDE.md`, kept in lockstep) binds EVERY actor - the
+  main agent included - to route all git operations (stage, commit, push, branch, merge) through
+  the `git-toolkit:git-ops` skill, which applies the DCO sign-off; a dispatched leaf worker never
+  invokes git-ops (Nesting leaf-exclusion + `snippets/worker-brief.md` cross-reference). New
+  `tests/test_git_delegation_boundary.py` guard scans the agent-facing docs (`CLAUDE.md`,
+  `docs/authoring-skills-and-agents.md`) for a raw git command in a code span, with a carve-out for
+  the confidentiality-hook `git config core.hooksPath` install.
+- `odoo-ai-agents` - the coding path now always commits AND lands. `run-harness` Hard rule 6
+  provisions a dedicated worktree before dispatching any source-tree-writing node; `odoo-coding`
+  always commits via `git-toolkit:git-ops` and self-provisions a worktree when invoked standalone
+  (the old "no WORKTREE_PATH -> make no commit" branch is removed); the `odoo-intake` inline
+  micro-plan gains a terminal `integrate` land node (git-ops opens a PR -> `odoo-pr-monitoring`
+  merges at gate-tier L2 - the single land mechanism shared with `odoo-wave`). `integrate` added
+  to the `approach_kind` enum in `docs/reference/workflow-harness.md`. New
+  `tests/test_coding_commit_ownership.py` guard.
+- `odoo-ai-agents` - `odoo-icon-design` now verifies and commits its generated icon assets
+  (`icon.png` / `icon.svg` / the manifest `icon` key) via `git-toolkit:git-ops`, self-provisioning
+  a worktree when standalone (previously the assets were written but never committed);
+  `odoo-icon-designer` (leaf) returns the file paths for the skill to commit.
+
+### Fixed
+
+- `odoo-ai-agents` - `scripts/lib/odoo_db.py` `_import_odoo()` now imports `<pkg>.tools` and
+  `<pkg>.service.db` explicitly via the resolved package namespace, fixing an `AttributeError` on
+  Odoo 19.0 (a bare `import odoo` no longer binds `odoo.tools`) that broke every through-Odoo
+  database drop and left stale entries in `leases.json`; the fix also handles the v8/v9 `openerp`
+  namespace and is covered by a red-before-green regression test. (#154)
+
 ## [4.7.0] - 2026-07-05
 
 ## [4.6.0] - 2026-07-04
