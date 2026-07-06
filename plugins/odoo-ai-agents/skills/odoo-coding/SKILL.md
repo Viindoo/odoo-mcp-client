@@ -91,18 +91,19 @@ already stands, so do not re-emit the Phase-0 confirmation gate - a per-WI gate 
 `odoo-wave`'s sequential loop; otherwise (a plan fed to a standalone invocation with no worktree)
 proceed to the gate below.
 
-**WORKTREE_PATH (git-executor invocations only).** When the caller is `odoo-wave`, the brief ALSO
-carries a per-WI `WORKTREE_PATH` (an absolute isolated worktree on a WI branch). Treat it as the
-working root: the coders author ALL their work INSIDE that worktree (`cd` to it before any Bash) and
-RETURN the list of files they wrote - they do NOT run git (no git add / git commit / git stash;
-per `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). After the coders return, THIS skill invokes the
-`git-toolkit:git-ops` skill (via the Skill tool) to stage + commit their output INSIDE that worktree
-and obtain the commit SHA(s) on the WI branch, which it returns so `odoo-wave` can cherry-pick them;
-the coders never touch the principal checkout or run any integration op. When no `WORKTREE_PATH` is
-provided (run-harness / odoo-planning / standalone), author in the current checkout exactly as today
-and make no commit.
-Git-delegation safety (S9): ALL git is delegated to `git-toolkit:git-ops` and runs ONLY inside the
-provided worktree; never write to, commit on, or switch the principal checkout. See
+**Worktree + commit (caller-agnostic; triggered by the WORKTREE_PATH field, not caller identity).**
+`odoo-coding` ALWAYS authors inside an isolated worktree and ALWAYS commits via
+`git-toolkit:git-ops` - never an uncommitted diff, never a write to the principal checkout (S9). A
+`WORKTREE_PATH` reaches it from `odoo-wave` (per-WI) or the `odoo-intake -> Phase P -> run-harness`
+chain (run-harness Hard rule 6). Coders `cd` there, author, and RETURN the file list (no git, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`); THIS skill then invokes `git-toolkit:git-ops` to
+stage + commit inside the worktree and captures the SHA(s) it returns (so callers can integrate).
+If invoked standalone with NO `WORKTREE_PATH`, it FIRST invokes `git-toolkit:git-ops` to provision
+its own worktree/branch (never the principal checkout), then authors + commits there - this is a
+FALLBACK only and is deliberately NOT a member of `git-delegation.md` § Self-provisioning
+specialists, so an orchestrator dispatching `odoo-coding` SHOULD still provision the worktree first
+per `run-harness` Hard rule 6. S9: all git
+is delegated to `git-toolkit:git-ops` and runs ONLY inside the worktree. See
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 
 **No plan provided (standalone invocation) - self-derive exactly as below.** The design-gate,
@@ -377,12 +378,15 @@ with_user() not sudo(); never seed the terminal state with create({state:...})):
 behavior not internals; ONE intent per test; confirm each goes RED.
 
 Each agent locates files via Read/Grep, writes its output, and reports the files written plus
-`__manifest__.py` changes - it does NOT run git. **When `WORKTREE_PATH` was provided (git-executor /
-`odoo-wave` path), THIS skill (not the coder) invokes the `git-toolkit:git-ops` skill to stage +
-commit each module's files inside that worktree and capture the commit SHA(s) on the WI branch, which
-it returns so `odoo-wave` can cherry-pick them - a DONE with no returned file list from the coder, or
-no SHA after odoo-coding's git-ops commit, is a failed contract.** Without `WORKTREE_PATH` (standalone
-/ run-harness / `odoo-planning`) no commit is made.
+`__manifest__.py` changes - it does NOT run git. **THIS skill (not the coder) then invokes the
+`git-toolkit:git-ops` skill to stage + commit each module's files inside the worktree and capture the
+commit SHA(s) on the WI branch, which it returns so `odoo-wave` can cherry-pick them (or so any caller
+can integrate) - a DONE with no returned file list from the coder, or no SHA after odoo-coding's
+git-ops commit, is a failed contract.** `odoo-coding` NEVER completes with uncommitted output: if it
+was dispatched WITHOUT a `WORKTREE_PATH`, it self-provisions its own worktree/branch via
+`git-toolkit:git-ops` (never the principal checkout, S9) before committing - a FALLBACK only, NOT
+membership in `git-delegation.md` § Self-provisioning specialists; an orchestrator dispatching
+`odoo-coding` SHOULD still provision the worktree first per `run-harness` Hard rule 6.
 
 ## Artifacts - persist the coding plan
 

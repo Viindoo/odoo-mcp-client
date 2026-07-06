@@ -199,8 +199,10 @@ make workflows-check   # workflows/*.workflow.yaml vs schema
 make orchestration-check  # capability/contract lint (warn-first; ORCH_STRICT=1 to enforce)
 ```
 
-Then: **sign off every commit** (`git commit -s` - DCO required) and keep the PR to one logical
-change. Bump policy (CONTRIBUTING.md "Versioning"): a new skill/agent/command is a **minor**;
+Then commit via the `git-toolkit:git-ops` skill (it detects the convention and applies the DCO
+sign-off - never hand-run git; Universal rule: `plugins/odoo-ai-agents/snippets/git-delegation.md`)
+and keep the PR to one logical change. Bump policy (CONTRIBUTING.md "Versioning"): a new
+skill/agent/command is a **minor**;
 docs/fix/refactor is a **patch**. Prefer `make bump` (auto-classifies); never hand-edit version
 fields.
 
@@ -216,7 +218,8 @@ fields.
 5. Register it in the plugin's `plugin.json` `agents` array; if it dispatches via `fork`, wire the
    Tier-C fallback in the consuming skill.
 6. `make gen` (if you touched any SSOT) then run the section-8 gates.
-7. CHANGELOG `[Unreleased]` entry; `git commit -s`.
+7. Commit the CHANGELOG `[Unreleased]` entry + your changes via `git-toolkit:git-ops` (DCO sign-off
+   applied for you).
 
 ## 10. Checklist: adding or editing a skill
 
@@ -233,4 +236,5 @@ fields.
    `skills/_shared/concurrency-guard.md`; `fork`/`send-message` handoff references
    `snippets/context-handoff-protocol.md`.
 6. Capability-noun name (`odoo-` prefix), different from any agent it dispatches.
-7. Run the section-8 gates; CHANGELOG `[Unreleased]` entry; `git commit -s`.
+7. Run the section-8 gates; commit the CHANGELOG `[Unreleased]` entry + your changes via
+   `git-toolkit:git-ops` (DCO sign-off applied for you).

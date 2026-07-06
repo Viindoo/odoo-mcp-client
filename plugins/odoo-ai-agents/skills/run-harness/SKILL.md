@@ -47,6 +47,14 @@ contract.
    on its `next[]` is THIS loop's job. Respect the worker-brief contract (`snippets/worker-brief.md`).
 5. **L2 is always a human gate.** The autonomy dial can lower L1→auto-pass but can NEVER lower
    L2 (irreversible/outward: instance, git push/merge, send to a third party).
+6. **Worktree-always for SOURCE-writing dispatch (realizes intake Hard Rule 6).** Before
+   dispatching a node that writes the SOURCE tree (not `.odoo-ai/`; same test as Gate-tier
+   resolution), if it has no `WORKTREE_PATH`/`TARGET: worktree:<path>` and its approach is not a
+   self-provisioning specialist (SSOT list:
+   `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Self-provisioning specialists), INVOKE
+   `git-toolkit:git-ops` to create a dedicated worktree/branch, inject its path into the node's
+   `inputs`, and `write(RUN)`. NEVER dispatch a source-writing node against the principal checkout.
+   A `.odoo-ai/`-only node (e.g. `odoo-code-review` at `TARGET=local`) is NOT provisioned.
 
 ## Inputs
 
@@ -80,11 +88,15 @@ while RUN.status == "NEEDS_NEXT":
     # else (L0, or L1 under --auto within budget) → auto-pass; append to gate_log
 
     node.status = "RUNNING"; write(RUN)
+    provision_worktree_if_needed(node)   # Hard rule 6: SOURCE-writing + no worktree + not self-provisioning -> git-ops creates one; inject into node.inputs; write(RUN)
     dispatch(node):                                          # pick by approach_kind
         - skill (leaf)      → Skill tool inline; NL-dispatch is the fallback
         - skill (spawner)   → invoke the SKILL via Skill tool; the skill fans out its
                               own agent (e.g. odoo-code-reviewer) via launch subagent
         - workflow          → hand the YAML name to workflow-chaining
+        - integrate         → invoke git-toolkit:git-ops (push WI branch + open PR against
+                              principal) from main context, then materialize next ->
+                              odoo-pr-monitoring @ gate_tier L2 (single outward merge gate)
         - inline            → do the small synth step yourself
     # turn typically ends here for any subagent/agent dispatch; SubagentStop hook nudges resume
 
@@ -152,7 +164,9 @@ no extra driver gate beyond registry tier.
 - **Dynamic node** (materialized at runtime from `next[]` / `on_complete` - never in the
   approved plan): driver MUST emit a preview (`Proposed / Files / OSM / Proceed? (yes / refine /
   cancel)`) and **END ITS TURN** before dispatching. Treat as **L2**: `--auto` cannot auto-pass.
-  A DYNAMIC (unplanned) wave is a dynamic source-writing node, so it stays L2 (unchanged).
+  A DYNAMIC (unplanned) wave is a dynamic source-writing node, so it stays L2 (unchanged). A
+  dynamic source-writing node is provisioned by Hard rule 6 at its human-gated dispatch, so the
+  coder never authors on the principal checkout on the unplanned path either.
 
 The spawner-wave L1 advance relies on the wave's instance touches being EPHEMERAL test DBs; a
 spawner-wave that mutated a SHARED (non-ephemeral) instance would need explicit L2 re-classification,
@@ -165,6 +179,14 @@ instance touches are ephemeral test DBs, its squash/force-push is human-confirme
 the only irreversible landing is the downstream `outward` merge (odoo-pr-monitoring's L2-merge-gate).
 A hand-edited `run.json` cannot lower a mandatory gate; a spawner-wave that mutated a SHARED
 (non-ephemeral) instance would need explicit L2 re-classification, and none exists today.
+
+**`integrate` node dispatch (the land tail).** An `integrate` node's dispatch is: invoke
+`git-toolkit:git-ops` from the main context to push the WI branch and open a PR against the
+principal branch, then materialize `next -> odoo-pr-monitoring` at `gate_tier: L2` - the single
+outward merge gate (L2 never auto-passes, so the human still approves the merge even under
+`--auto`). `odoo-coding` itself never pushes or opens a PR; it returns the SHA on the WI branch
+exactly as under `odoo-wave`. This is the ONE land mechanism (git-ops open-PR ->
+`odoo-pr-monitoring` merge); there is no local merge into the principal checkout.
 
 ## Circuit-breakers (anti-runaway, anti-trap)
 

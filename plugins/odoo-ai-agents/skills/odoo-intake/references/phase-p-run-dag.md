@@ -43,6 +43,11 @@ open a RUN-DAG.
      agent count at runtime; the run-node never pins them.
 2. Tag each node's `gate_tier` from the registry `default_gate_tier`
    (`generator/skill_tool_deps.json`), raising it if the node writes outside `.odoo-ai/`.
+   - For each SOURCE-writing node (writes outside `.odoo-ai/`) that is NOT a self-provisioning
+     specialist (SSOT set: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Self-provisioning
+     specialists), set `inputs.needs_worktree: true`. `run-harness` provisions the actual
+     worktree/branch at dispatch (its Hard rule 6); Phase P only RECORDS the requirement - it does
+     not run git.
 3. Set `autonomy`, `budget` (`max_nodes` ≈ 2× node count), `status: NEEDS_NEXT`.
 4. If `--plan`: stop here (the DAG file is the deliverable). Otherwise NL-dispatch `run-harness`,
    which walks the DAG to DONE/BLOCKED/NEEDS_CONTEXT.

@@ -22,7 +22,9 @@ the worker writes files and returns them; the orchestrator commits via git-ops (
   The orchestrator commits your output for you by invoking `git-toolkit:git-ops`. You have no Agent
   tool and cannot delegate to git-toolkit yourself; just return your files (or BLOCKED with the
   reason) and let the orchestrator handle every git step. Full policy:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Stay in your assigned worktree.
+  `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Stay in your assigned worktree. This is the
+  leaf half of the Nesting rule in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` - a leaf never
+  invokes git-ops even via the Skill tool.
 
 ## Agent Team mode keys (present only when team mode is on)
 

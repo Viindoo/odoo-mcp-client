@@ -885,6 +885,7 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
 │     dispatch(node):  (3a) leaf skill INLINE (orchestrating context)                    │
 │                      (3b) spawner skill → Skill tool → skill launches subagent          │
 │                      (3c) workflow-chaining → fanout context:fork (leaf-workers)        │
+│                      (3d) integrate → git-toolkit:git-ops (land tail, SKILL.md §land)    │
 │     read Continuation Contract ; update run-<id>.json ; materialize next[] → dynamic   │
 │   stop ⇒ DONE | BLOCKED | NEEDS_CONTEXT  → report + evidence (Completion #8)           │
 └────────────────────────────────────────────────────────────────────────────────────────┘
@@ -968,7 +969,7 @@ references a driver-required workflow directly.
   "cursor": "<next READY node id the driver will pick>",
   "budget": {"max_nodes": 12, "nodes_run": 3, "max_gate_l1_autopass": 20},
   "nodes": [
-    {"id": "WI-A", "approach": "odoo-coding", "approach_kind": "skill|agent|workflow|inline",
+    {"id": "WI-A", "approach": "odoo-coding", "approach_kind": "skill|agent|workflow|inline|integrate",
      "inputs": {}, "depends_on": [], "gate_tier": "L1",
      "status": "PENDING|READY|RUNNING|DONE|FAILED|SKIPPED|BLOCKED",
      "produced": [], "contract": { /* last emitted continuation block */ }}
@@ -978,6 +979,13 @@ references a driver-required workflow directly.
   "completion": {"status": null, "evidence": [], "summary": null}
 }
 ```
+
+**`approach_kind: integrate`** is the terminal *land* node (the tail of every `writes-files`
+plan). Its dispatch is not a skill/agent/workflow call: `run-harness` invokes
+`git-toolkit:git-ops` to push the WI branch + open a PR against the principal branch, then
+materializes a dynamic `next` node -> `odoo-pr-monitoring` at `gate_tier: L2` (the single outward
+merge gate). Operational SSOT for this dispatch: `run-harness` SKILL.md § "`integrate` node
+dispatch (the land tail)".
 
 **Three coordination surfaces (no overlap).** A run coordinates over three distinct surfaces,
 each answering a different question. (1) The **blackboard** above is the driver-only *DAG state
@@ -1013,7 +1021,10 @@ changed modules) - or the rendered-UI dimension is left `DONE_WITH_CONCERNS` bec
 reachable - `odoo-code-review` (and `odoo-wave` Phase 4.3) additionally emit `next: odoo-acceptance` at
 **L2 (opt-in, human-gated)**. It never auto-runs and never auto-blocks the review; the driver surfaces
 it as the terminal acceptance gate, and `odoo-acceptance` then drives the independent oracle
-(`odoo-qa-planner`) + live execution (`odoo-qa-tester`) over the affected cluster.
+(`odoo-qa-planner`) + live execution (`odoo-qa-tester`) over the affected cluster. Once
+`odoo-code-review` comes back clean (no fix/test re-loop), the DAG's terminal `approach_kind:
+integrate` node lands the change - see the `integrate` dispatch note above and `run-harness`
+SKILL.md § "`integrate` node dispatch (the land tail)" for the mechanics.
 
 ### 8.4 Gate-tier policy
 

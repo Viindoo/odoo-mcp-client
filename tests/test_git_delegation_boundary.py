@@ -76,9 +76,12 @@ AGENTS_PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 # skills/** is recursive (includes references/, evals/, etc. subdirectories).
 # agents/commands/snippets are also scanned recursively to catch any nested
 # files, though in practice they are currently flat.
-# docs/ is intentionally OUT of scan scope (human-reference material; see F8
-# in the review - violations there do not constitute a runnable bypass since
-# the scanner guards author-facing prose, not documentation).
+# docs/ broadly and CONTRIBUTING.md are OUT of the boundary-A/B scan scope (human-reference
+# material; see F8 in the review - CONTRIBUTING.md keeps the manual `git commit -s` human path).
+# EXCEPTION: two root-level agent-facing docs that CLAUDE.md mandates agents read/obey - CLAUDE.md
+# itself and docs/authoring-skills-and-agents.md - ARE now scanned by
+# test_agent_facing_docs_route_git_through_git_ops (via _scan_agent_doc), which flags a raw
+# commit/push/gh/GitHub-MCP in a code span but carves out the confidentiality core.hooksPath install.
 # ---------------------------------------------------------------------------
 
 def _md_files() -> list[Path]:
@@ -551,3 +554,48 @@ def test_inline_git_detection_red_before_green(tmp_path, monkeypatch):
     assert good_hits == [], (
         f"scanner must PASS a bounded `git diff --stat` read; got {good_hits!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Boundary A extension: agent-facing repo docs (CLAUDE.md + docs/authoring)
+#
+# These root-level docs are NOT under plugins/odoo-ai-agents (so _md_files does
+# not reach them), but CLAUDE.md mandates agents read/obey them, so a raw commit
+# in one of their code spans is a real agent-facing bypass. Scan them with the
+# same boundary-A machinery plus a carve-out for the confidentiality-hook install.
+# ---------------------------------------------------------------------------
+
+# Agent-facing repo docs that CLAUDE.md mandates agents read/obey. (CONTRIBUTING.md is the HUMAN
+# guide and is intentionally OUT of scope - it keeps the manual `git commit -s` path.)
+AGENT_FACING_DOCS = [REPO_ROOT / "CLAUDE.md", REPO_ROOT / "docs" / "authoring-skills-and-agents.md"]
+
+
+def _scan_agent_doc(f: Path) -> list[str]:
+    """Boundary-A-style scan for an agent-facing doc, with ONE carve-out: the one-time
+    confidentiality-hook install `git config --local core.hooksPath .githooks/` is a legitimate
+    HUMAN setup command, not an agent commit op, and is not flagged."""
+    text = f.read_text(encoding="utf-8"); rel = str(f.relative_to(REPO_ROOT))
+    gen = _generated_line_ranges(text); out = []
+    for span_start, span in _code_spans(text):
+        base = text.count("\n", 0, span_start) + 1
+        for off, line in enumerate(span.splitlines()):
+            ln = base + off
+            if _in_generated(ln, gen):        continue
+            if "core.hooksPath" in line:      continue   # confidentiality-hook install carve-out
+            if _GH_RE.search(line):           out.append(f"{rel}:{ln}: gh CLI")
+            for m in _GITHUB_MCP_RE.finditer(line): out.append(f"{rel}:{ln}: GitHub MCP")
+            for m in _GIT_RE.finditer(line):
+                v = m.group(1)
+                if not _git_allowed(v, line):  out.append(f"{rel}:{ln}: git {v}  [{line.strip()[:80]!r}]")
+    return out
+
+
+def test_agent_facing_docs_route_git_through_git_ops():
+    """CLAUDE.md + docs/authoring are agent instructions; they must route git through
+    git-toolkit:git-ops, never a raw commit/push in a code span. The confidentiality-hook
+    `git config core.hooksPath` install is carved out. Guards the Problem-3 docs/root leak."""
+    v = []
+    for f in AGENT_FACING_DOCS:
+        if f.exists(): v.extend(_scan_agent_doc(f))
+    assert not v, ("agent-facing repo docs contain a raw git command in a code span; route through "
+                   "the git-toolkit:git-ops skill.\n" + "\n".join(v))

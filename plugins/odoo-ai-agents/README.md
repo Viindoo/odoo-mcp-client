@@ -107,10 +107,12 @@ context-aware, then (4) emits a **Proposed Plan** and waits for your approval. F
   and hands it to **`run-harness`** (the sequencer), which walks the
   work-items to `DONE` / `BLOCKED` / `NEEDS_CONTEXT`: pick the next ready node -> check its gate tier
   -> dispatch it (a leaf skill inline, a coding/review/UI **agent bundle**, a declarative **workflow**
-  via `workflow-chaining`, or - for a coding wave-layer - the internal git-executor **`odoo-wave`**,
-  which invokes `odoo-coding` per work-item, opens one squashed PR, and STOPS at the L2-squash-gate)
-  -> read the step's **Continuation Contract** -> advance. Once a PR is open the async poller
-  **`odoo-pr-monitoring`** drives it to merge (watches CI + review; any failure routes to
+  via `workflow-chaining`, a coding wave-layer via the internal git-executor **`odoo-wave`**
+  (invokes `odoo-coding` per work-item, opens one squashed PR, and STOPS at the L2-squash-gate), or
+  the terminal **`integrate`** land node that every `writes-files` plan ends on - `run-harness`
+  invokes `git-toolkit:git-ops` to push the work-item branch and open a PR against the principal
+  branch) -> read the step's **Continuation Contract** -> advance. Once a PR is open the async
+  poller **`odoo-pr-monitoring`** drives it to merge (watches CI + review; any failure routes to
   `odoo-debug` with the re-push human-gated; the L2-merge-gate). A step can chain the next one
   (including across workflows via `on_complete`), so the run keeps moving without re-prompting.
 
@@ -146,6 +148,7 @@ flowchart TD
     STOP -->|"approve"| PK
     PK -->|"leaf / agent bundle / workflow"| DISP["dispatch node"]
     PK -->|"coding wave-layer"| WAVE["TIER 4 - odoo-wave (git-executor, internal)<br/>per WI: worktree -> INVOKE odoo-coding<br/>-> cherry-pick -> end-of-wave review<br/>-> 1 PR + squash -> STOP at L2-squash-gate"]
+    PK -->|"terminal: integrate node<br/>(land tail, every writes-files plan)"| INT["run-harness invokes git-toolkit:git-ops<br/>push WI branch + open PR"]
     PK -->|"after coding waves"| DOCPREP["doc content prep (parallel, browser-free)<br/>odoo-doc-feature-map + odoo-doc-walkthrough<br/>+ odoo-icon-design"]
     DOCPREP --> DOC["odoo-doc-illustration (browser-serial)<br/>+ i18n (odoo-i18n)"]
 
@@ -154,10 +157,11 @@ flowchart TD
     DISP --> CC["Continuation Contract"]
     ACC -->|"ACCEPTED + evidence"| CC
     DOC --> CC
-    CC -->|"next / on_complete"| PK
-    CC -->|"all done"| DONE([DONE / BLOCKED])
+    CC -->|"next / on_complete<br/>(clean review -> integrate)"| PK
+    CC -->|"all done (no source write)"| DONE([DONE / BLOCKED])
 
     WAVE -. "ASYNC boundary - not a blocking node" .-> MON["odoo-pr-monitoring<br/>/loop | /schedule poller"]
+    INT -. "materializes next @ L2" .-> MON
     MON -->|"CI warn/error/fail = D3"| DBG["odoo-debug -> odoo-coding<br/>re-push human-gated (X2)"]
     DBG --> MON
     MON -->|"green + approved"| MG["L2-merge-gate -><br/>merge + post-merge cleanup"]
@@ -537,7 +541,7 @@ PR review** (pre-merge). This is intentionally more rigorous than forward-port (
 
 ### Module-packaging workflow (`module-packaging`)
 
-End-to-end pipeline that packages a module for the Odoo Apps Store: scope inline, doc-plan (branch-aware, single whole-plan gate), browser-free content prep in parallel, then branch-aware per-instance-path provision-capture (incremental install -> doc -> commit), and a final manifest audit. P0.5 (`odoo-doc-planner`) clusters modules and allocates instances; after the gate, P1-P4 run fully in parallel; P3 (icon) writes directly to `static/description/` without waiting for P5; P5 (`provision-capture`, fused) runs per instance-path - parallel across paths, sequential within - incremental install leaf-first then doc then git commit; P6 audits inline; P7 aggregates output under `.odoo-ai/packaging/`.
+End-to-end pipeline that packages a module for the Odoo Apps Store: scope inline, doc-plan (branch-aware, single whole-plan gate), browser-free content prep in parallel, then branch-aware per-instance-path provision-capture (incremental install -> doc -> commit), and a final manifest audit. P0.5 (`odoo-doc-planner`) clusters modules and allocates instances; after the gate, P1-P4 run fully in parallel; P3 (icon) writes directly to `static/description/` without waiting for P5, then commits via `git-toolkit:git-ops` per its Verify-then-commit step; P5 (`provision-capture`, fused) runs per instance-path - parallel across paths, sequential within - incremental install leaf-first then doc then git commit; P6 audits inline; P7 aggregates output under `.odoo-ai/packaging/`.
 
 ```mermaid
 flowchart TD
@@ -568,7 +572,7 @@ flowchart TD
     PKG_P6 --> PKG_P7["P7 - Aggregate<br/>.odoo-ai/packaging/ index<br/>asset manifest + diff summary"]
 
     PKG_P7 --> PKG_DONE(["DONE - .odoo-ai/packaging/"])
-    PKG_ICON --> PKG_DONE
+    PKG_ICON -- "commit via git-toolkit:git-ops" --> PKG_DONE
 ```
 
 | Phase | Description | Parallel? | Browser? |
@@ -577,7 +581,7 @@ flowchart TD
 | P0.5 doc-plan | `odoo-doc-planner` -> cluster modules, allocate instances branch-aware, emit doc-plan.yaml; ONE whole-plan gate | - | - |
 | P1 Feature-map | `odoo-doc-feature-map` -> feature-catalog.jsonl | Part of P1-P4 fanout | - |
 | P2 Walkthrough | `odoo-doc-walkthrough` -> happy-path walkthroughs | Part of P1-P4 fanout | optional |
-| P3 Icon | `odoo-icon-design` -> icon.png 256x256 + icon.svg, written directly to static/description/ | Part of P1-P4 fanout (independent) | - |
+| P3 Icon | `odoo-icon-design` -> icon.png 256x256 + icon.svg, written directly to static/description/, then committed via git-toolkit:git-ops | Part of P1-P4 fanout (independent) | - |
 | P4 Copy | `odoo-content-draft` -> Apps Store copy + description | Part of P1-P4 fanout | - |
 | P5 provision-capture (FUSED) | `odoo-instance` + `odoo-doc-illustration` + `git-ops` per instance-path; incremental install leaf-first -> doc -> commit per module | Parallel ACROSS paths (<=W); sequential WITHIN | YES (per-path serial) |
 | P6 Manifest audit | Inline: audit __manifest__.py summary/website/category vs catalog; flag drift | - | - |
@@ -828,12 +832,12 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-visual-regression` | Coder / Visual | Screenshot baseline + diff between two Odoo states (before/after upgrade, module install, theme change) with blast-radius assessment |
 | `odoo-demo-recording` | Coder / Visual | Record an MP4/GIF screen-capture of a scripted Odoo click-path for a demo, sales walkthrough, or marketing clip |
 | `odoo-doc-illustration` | Marketer / Visual | Sole orchestrator for module documentation - scopes (via `odoo-doc-scoper`), schedules (via `odoo-doc-planner`), pre-fetches marketing copy, then dispatches `odoo-user-doc-writer` (end-user guide `doc/index.rst`) and `odoo-marketing-writer` (App-Store landing `static/description/index.html`) per DOC LAYER; browser-serial, multi-locale |
-| `odoo-icon-design` | Marketer / Visual | Generates icon.png (256x256) and icon.svg for Odoo v19 modules; reads module manifest, picks fitting symbols, produces static/description/icon.png + icon.svg; dispatches `odoo-icon-designer`; standalone-first, no browser. |
+| `odoo-icon-design` | Marketer / Visual | Generates icon.png (256x256) and icon.svg for Odoo v19 modules; reads module manifest, picks fitting symbols, produces static/description/icon.png + icon.svg, then verifies and commits the assets via `git-toolkit:git-ops` (self-provisioning a worktree first if dispatched standalone); dispatches `odoo-icon-designer`; standalone-first, no browser. |
 | `odoo-doc-feature-map` | Marketer | Builds feature-catalog.jsonl SSOT from module source; catalogues technical features into user-facing capability rows; dispatches `odoo-feature-cataloger`; standalone-first. |
 | `odoo-doc-walkthrough` | Marketer | Produces happy-path usage walkthroughs for a module's key flows; dispatches `odoo-doc-scenarist`; standalone-first, browser capture optional. |
 | `odoo-qa-suite` | Coder / Visual | Static release QA - produce a non-executing release test-plan, a pre-deploy checklist, and bug triage with severity + reproduction steps; the independent acceptance oracle and live execution/adjudication route to `odoo-acceptance` |
 | `odoo-acceptance` | Coder / QA | End-to-end acceptance on a change AND its blast-radius - map the affected cluster, plan an INDEPENDENT oracle, then EXECUTE it on a real running instance/UI and adjudicate PASS/FAIL with evidence; dispatches `odoo-qa-planner` (oracle) + `odoo-qa-tester` (live execute) and chains tours/HttpCase via `odoo-instance` (needs a live instance + browser MCP) |
-| `odoo-pr-monitoring` | Coder / Engineer | Owns the PR lifecycle AFTER `odoo-wave` opens the PR and stops at the L2-squash-gate - a poller (via `/loop` or `/schedule` + git-toolkit's github-operator), not a blocking node: routes any CI warning/error/fail to `odoo-debug` (root-cause first; fix re-push always human-gated, X2), caps review ping-pong, and on green + approved presents the L2-merge-gate, merges, and runs post-merge cleanup |
+| `odoo-pr-monitoring` | Coder / Engineer | Owns the PR lifecycle AFTER a PR is open - either `odoo-wave` at its L2-squash-gate or `run-harness`'s terminal `integrate` land node (every other `writes-files` plan) - a poller (via `/loop` or `/schedule` + git-toolkit's github-operator), not a blocking node: routes any CI warning/error/fail to `odoo-debug` (root-cause first; fix re-push always human-gated, X2), caps review ping-pong, and on green + approved presents the L2-merge-gate, merges, and runs post-merge cleanup |
 | `workflow-chaining` | Internal (harness) | Generic declarative workflow executor - reads `*.workflow.yaml` and runs gated phase sequences; invoked by odoo-intake via NL-dispatch, not directly by users |
 | `run-harness` | Internal (harness) | Orchestrating drive-to-done loop - walks the `run-<id>.json` plan, dispatches each work-item, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent |
 | `odoo-wave` | Internal (orchestration) | INTERNAL git-executor (`user-invocable: false`, consume-only) that `run-harness` dispatches per coding wave-layer of an APPROVED plan - integration branch + per-WI worktrees + cherry-pick in module-DAG order + end-of-wave cross-cutting review + `odoo-code-review` inline + 1 PR + squash + tree-identity verify, then STOPS at the L2-squash-gate. INVOKES `odoo-coding` per WI (which owns agent count + model); never chooses agent/model, never self-derives a plan, and never merges (merge is owned by `odoo-pr-monitoring` at the L2-merge-gate) |

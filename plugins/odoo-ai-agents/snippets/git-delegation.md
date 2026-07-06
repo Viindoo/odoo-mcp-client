@@ -5,11 +5,17 @@
 
 # Git Delegation Contract
 
-## Hard rule
+## Universal rule
 
-Business skills, agents, and commands in odoo-ai-agents MUST NOT directly execute git
-mutations (rebase, cherry-pick, merge, reset, amend, push, branch force-delete, filter-repo),
-gh CLI calls, mcp__plugin_github_github__* tools, or unbounded git reads.
+**Universal rule (EVERY actor - the main/orchestrating agent included, not only dispatched
+skills/agents/commands).** No actor may directly execute git mutations (rebase, cherry-pick, merge,
+reset, amend, push, branch force-delete, filter-repo), gh CLI calls, GitHub-MCP tools, or unbounded
+git reads. If you CREATE or EDIT any git-tracked file - even a one-line change, even repo
+self-maintenance - you MUST commit it by invoking the `git-toolkit:git-ops` skill; never hand-run
+stage / commit / push yourself. git-ops detects the repo's commit convention and applies the DCO
+sign-off itself (convention + sign-off SSOT: `git-toolkit/snippets/commit-convention.md` C1-C4), so
+routing through git-ops SATISFIES DCO. The main agent is bound by the equivalent statement in the
+repo `CLAUDE.md`; keep the two in lockstep.
 
 To perform a git/GitHub operation, INVOKE the `git-toolkit:git-ops` skill via the Skill
 tool, describing the op (e.g. create a worktree, cherry-pick a range onto integration +
@@ -63,6 +69,12 @@ checkout. The primary/shared checkout must stay on its principal branch at all t
 This is the S9 invariant (Worktree-always / principal-checkout-lock) defined as SSOT in
 git-toolkit's `snippets/git-safety-contract.md`. Violating it is an ERROR, not an option.
 
+## Self-provisioning specialists
+
+These skills create their own worktree/branch internally, so an orchestrator/driver MUST NOT
+provision one for them: `odoo-wave`, `odoo-forward-port`, `odoo-git-rebase`,
+`odoo-modules-upgrade`, and `odoo-code-review` at `TARGET=pr`.
+
 ## Invocation contract
 
 Invoke `git-toolkit:git-ops` via the Skill tool. In the request, describe AT MINIMUM:
@@ -81,10 +93,19 @@ you route through git-ops instead of running git yourself.
 
 Invoking a SKILL via the Skill tool runs IN the caller's own context - it adds NO subagent
 depth. git-ops then cold-spawns exactly ONE git leaf agent to run the op - the same single
-leaf depth as the previous direct-dispatch design. So this is safe at ANY caller depth (main
-context, a wave work-item, a workflow pipeline): the git-ops invocation is inline, and only
+leaf depth as the previous direct-dispatch design. So this is safe at any SKILL/orchestrator
+caller depth (main context, a wave work-item, a workflow pipeline) - never for an
+Agent-tool-dispatched leaf (see below): the git-ops invocation is inline, and only
 one leaf is ever spawned beneath it. The git leaf agents cannot spawn further, so depth stays
 bounded. (Ref: git-toolkit `git-nesting-protocol` N1.)
+
+A dispatched LEAF worker (any Agent-tool subagent - `odoo-coder`, `odoo-frontend-coder`,
+`odoo-icon-designer`, ANY domain subagent) NEVER invokes git-ops, not even via the Skill tool: it
+has no Agent tool and returns files for the orchestrator to commit (SSOT: `worker-brief.md`). "Safe
+at ANY caller depth" means any SKILL/orchestrator context (main, a workflow phase, `odoo-wave`'s
+per-WI ORCHESTRATION loop - an inline skill call, not the coder it dispatches). Two-line test:
+"Skill/orchestrator running inline -> may invoke git-ops. Agent-spawned leaf -> return files, never
+git."
 
 ## Human-confirm pass-through
 

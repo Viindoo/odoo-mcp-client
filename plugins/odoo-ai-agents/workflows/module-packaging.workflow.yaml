@@ -177,6 +177,8 @@ phases:
       <module>/static/description/icon.png; on v19 also write icon.svg and merge the manifest
       'icon' key (read-before-edit). Brand-agnostic: pull palette from .odoo-ai/context.md
       brand tokens or use Odoo default (#714B67). Fan out one worker per doc:true module (Mode B).
+      Per its Verify-then-commit step, the odoo-icon-design skill commits icon.png/icon.svg/the
+      manifest 'icon' key via git-toolkit:git-ops - the icon assets are never left uncommitted.
     model_tier: sonnet
     fanout: true
     chunk_by: modules
