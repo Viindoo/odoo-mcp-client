@@ -116,6 +116,11 @@ Every commit must carry a `Signed-off-by:` trailer - see [DCO](#developer-certif
 below. Use `git commit -s` (the `-s` flag appends the trailer automatically). PRs without
 signed commits will be asked to amend before merge.
 
+AI agents (including the main agent) MUST NOT hand-run git in this repo - route commits through
+the `git-toolkit:git-ops` skill, which applies this sign-off automatically (see
+`plugins/odoo-ai-agents/snippets/git-delegation.md`). The manual `git commit -s` flow is for HUMAN
+contributors, not for agents.
+
 ## What lives where
 
 | Path | Contents |

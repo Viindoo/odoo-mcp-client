@@ -229,9 +229,10 @@ Apply the following rules based on `odoo_version`:
     Edit. Do NOT rewrite the entire file.
 - This allows Odoo v19 to serve the SVG directly at higher resolution.
 
-**Git mutations:** if any manifest edit is required, delegate to git-toolkit (`git-ops` skill)
-per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Never run git add, git commit, or
-gh commands directly; bounded reads (`git status`, `git diff --stat`) may stay inline.
+**Git mutations:** You do NOT run git and do NOT invoke git-ops (leaf worker - see
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). Make the `__manifest__.py` `icon` edit as an
+ordinary file Edit, write your assets, and RETURN the paths; the `odoo-icon-design` skill commits
+them via `git-toolkit:git-ops`. Bounded reads (`git status`, `git diff --stat`) may stay inline.
 
 ---
 
@@ -246,7 +247,8 @@ gh commands directly; bounded reads (`git status`, `git diff --stat`) may stay i
   the manifest exists.
 - **No `<i class>` in SVG:** glyph must be composed as a `<path>` element with FA vector path
   data, not as an HTML glyph element.
-- **Git mutations -> git-toolkit only** (see `snippets/git-delegation.md`).
+- **Git -> return files; the `odoo-icon-design` skill commits via `git-toolkit:git-ops`** (you
+  never invoke git-ops - leaf worker).
 
 ---
 

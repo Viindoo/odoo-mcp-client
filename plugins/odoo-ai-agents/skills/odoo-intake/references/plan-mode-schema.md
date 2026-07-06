@@ -41,6 +41,16 @@ multi-module change this 3-block plan is AUTHORED by
 `odoo-planning` (its `odoo-planner` agent); for a trivial single-WI change `odoo-intake` writes it
 inline. Either path CONFORMS to this same schema - never a second format.
 
+**Terminal `integrate` land node (every `writes-files` plan).** The plan does not end at `review`;
+it carries a terminal `integrate` node so the change is committed AND landed. A trivial single-WI
+inline micro-plan is therefore `[code, review, integrate]`. `integrate` is the SAME land tail the
+full lifecycle and `odoo-wave` use: after review is clean, `run-harness` invokes `git-toolkit:git-ops`
+to push the WI branch and open a PR against the principal branch, then emits a Continuation-Contract
+`next` -> `odoo-pr-monitoring` at `gate_tier: L2` (the single outward merge gate). No squash machinery
+is needed for one reviewed commit. This is the ONE land mechanism (git-ops open-PR ->
+`odoo-pr-monitoring` merge); there is no local merge to the principal. Block 3 line:
+`integrate -> run-harness invokes git-toolkit:git-ops (push + open PR) -> next: odoo-pr-monitoring @ L2`.
+
 **Workflow-as-node in the schema (G-B):** when a WI's approach is a workflow-command, it is
 **one WI** - `files-in-scope` = the workflow's `output_dir/` (one box). Do NOT expand the
 workflow's internal phases into separate WIs (that would duplicate the phase logic that is SSOT

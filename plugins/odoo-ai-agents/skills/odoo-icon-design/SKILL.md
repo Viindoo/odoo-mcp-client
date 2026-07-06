@@ -89,6 +89,16 @@ fills, not with design-system token references.
   agent writes `icon.svg` only, emits platform-specific install guidance, and sets
   `status: NEEDS_CONTEXT(no SVG rasterizer; icon.svg written, icon.png pending)`. Not a hard fail.
 
+## Verify then commit (git-delegation)
+
+**Verify then commit.** Verify the `odoo-icon-designer` agent's returned artifacts against its
+Output block (files exist at the reported paths - `icon.png`, plus `icon.svg` and the
+`__manifest__.py` `icon` key on v19), then COMMIT `icon.png`/`icon.svg`/the manifest `icon` key via
+git-toolkit `git-ops` (one-way git; the skill never runs raw git mutations). If dispatched
+standalone with no worktree in scope, FIRST invoke `git-toolkit:git-ops` to provision one - never
+the principal checkout (S9) - then author and commit inside it. Full contract:
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+
 ## Continuation Contract
 
 Append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
