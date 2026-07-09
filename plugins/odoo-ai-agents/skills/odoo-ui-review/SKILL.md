@@ -2,18 +2,16 @@
 name: odoo-ui-review
 argument-hint: "[screen/view to review]"
 description: >
-  Review a rendered Odoo UI in a live browser across six lenses - aesthetics (layout, spacing,
-  brand), functional correctness (buttons, forms, nav), runtime stability (no console errors),
-  accessibility (ARIA, contrast, keyboard), performance (Lighthouse), design-system/theme
-  fidelity (off-theme detection). Dispatched as a read-only
-  agent (odoo-semantic-mcp + chrome-devtools) when an instance is running and the user wants a
-  verdict on how a working screen looks and behaves, not its source. Pushy trigger: fire on
-  "review this Odoo screen", "is this page accessible", "run a Lighthouse audit on Odoo", "make
-  sure this looks right before the demo", "is it off-theme / sai theme Odoo", "đánh giá giao
-  diện Odoo", "kiểm tra UI đã render".
-  Routing: investigate WHY a screen is broken not rate a working one → odoo-debug; compare
-  two states for drift → odoo-visual-regression; record a video → odoo-demo-recording; change
-  frontend source → odoo-coding; source-level review → odoo-code-review
+  Review a rendered Odoo UI in a live browser across six lenses - aesthetics (layout, spacing, brand),
+  functional correctness (buttons, forms, nav), runtime stability (no console errors), accessibility
+  (ARIA, contrast, keyboard), performance (Lighthouse), design-system/theme fidelity (off-theme
+  detection). Dispatched as a read-only agent (odoo-semantic-mcp + chrome-devtools) when an instance is
+  running and the user wants a verdict on how a working screen looks and behaves, not its source. Pushy
+  trigger: fire on "review this Odoo screen", "is this page accessible", "run a Lighthouse audit on Odoo",
+  "is it off-theme / sai theme Odoo", "đánh giá giao diện Odoo". Routing: investigate WHY a screen is
+  broken not rate a working one → odoo-debug; compare two states for drift → odoo-visual-regression; run a
+  full workflow / cluster with a PASS/FAIL verdict → odoo-acceptance; record a video →
+  odoo-demo-recording; change frontend source → odoo-coding; source-level review → odoo-code-review
 ---
 
 ## Role
@@ -29,6 +27,7 @@ unverified impression.
 
 - **Investigating WHY a screen is broken / errors / blank render** → `odoo-debug`
 - **Comparing two states or builds for visual drift / regression** → `odoo-visual-regression`
+- **Executing a full workflow / QA-ing the affected cluster across roles with a PASS/FAIL verdict** → `odoo-acceptance` (this skill rates how ONE rendered screen looks/behaves; it does not drive CRUD/role flows or adjudicate an acceptance oracle)
 - **Recording a demo or marketing walkthrough video** → `odoo-demo-recording`
 - **Writing or changing Odoo frontend JS/OWL source** → `odoo-coding`
 - **Source-level code review (Python/JS/XML)** → `odoo-code-review`
