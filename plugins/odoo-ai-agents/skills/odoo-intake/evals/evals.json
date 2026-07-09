@@ -4,16 +4,16 @@
     {
       "id": 1,
       "prompt": "I have a customer asking about slow Odoo performance, not sure where to start",
-      "expected_output": "Intake asks clarifying question (performance is not directly in routing table; should escalate or route to odoo-deprecation-audit / odoo-customization-inventory based on user's follow-up)",
-      "expected_routed_to": "clarifying-question OR odoo-customization-inventory",
+      "expected_output": "Vague performance complaint. Now that odoo-perf-audit exists, a clear 'why slow / N+1' hits row 55 (odoo-perf-audit); a live 'slow in prod right now' -> odoo-debug. When neither the lens nor the target is decidable, Phase 0 clarifies with a short option menu. MUST NOT brainstorm a resolvable single-lens ask.",
+      "expected_routed_to": "clarify OR odoo-perf-audit",
       "category": "should-fire-vague",
       "files": []
     },
     {
       "id": 2,
       "prompt": "I want to check if Acme's Odoo system has any issues",
-      "expected_output": "Intake outputs collision-resolution template offering odoo-risk-overview vs odoo-customization-inventory (Example 3 case)",
-      "expected_routed_to": "ambiguous-resolution OR odoo-risk-overview",
+      "expected_output": "Vague 'has any issues' about a NAMED existing customer. Acceptable: odoo-customer-health (row 58, account-level health) OR a Phase 0 clarify offering health-check vs risk-overview vs a support ticket. MUST NOT silently brainstorm without narrowing.",
+      "expected_routed_to": "odoo-customer-health OR clarify OR odoo-risk-overview",
       "category": "should-fire-collision",
       "files": []
     },
@@ -36,7 +36,7 @@
     {
       "id": 5,
       "prompt": "Someone asked me if Odoo can handle multi-level approvals",
-      "expected_output": "Intake recommends odoo-feature-check (single-feature availability) or odoo-capability-proof if proof-package signal; row 6 vs row 10",
+      "expected_output": "A lone capability question in reported speech ('someone asked me if Odoo can handle X') is a Tier-3 row-6 hit to odoo-feature-check - NOT a brainstorm. Regression guard for over-brainstorming a single resolvable question.",
       "expected_routed_to": "odoo-feature-check",
       "category": "should-fire-vague",
       "files": []
@@ -84,24 +84,24 @@
     {
       "id": 11,
       "prompt": "Write a computed field calculating total_amount for sale.order",
-      "expected_output": "Intake does NOT fire - direct match to odoo-coding (row 12: write code)",
-      "expected_routed_to": "<NO-ROUTE - direct to odoo-coding>",
+      "expected_output": "Clear single-step Tier-1 match to odoo-coding. Canonical (see SKILL.md Pro fast-path): intake either DEFERS so odoo-coding fast-fires, or emits the one-line fast-path gate - both honor gate-before-execution. WRONG only if it brainstorms or picks another target. Never ungated execution.",
+      "expected_routed_to": "odoo-coding (defer OR one-line fast-path gate; NOT brainstorm)",
       "category": "should-not-fire",
       "files": []
     },
     {
       "id": 12,
       "prompt": "Customer asks about API differences between v16 and v17",
-      "expected_output": "Intake does NOT fire - direct match to odoo-version-diff (row 5: explicit API diff)",
-      "expected_routed_to": "<NO-ROUTE - direct to odoo-version-diff>",
+      "expected_output": "Clear single-step Tier-1 match to odoo-version-diff. Canonical (see SKILL.md Pro fast-path): intake either DEFERS so odoo-version-diff fast-fires, or emits the one-line fast-path gate - both honor gate-before-execution. WRONG only if it brainstorms or picks another target. Never ungated execution.",
+      "expected_routed_to": "odoo-version-diff (defer OR one-line fast-path gate; NOT brainstorm)",
       "category": "should-not-fire",
       "files": []
     },
     {
       "id": 13,
       "prompt": "Review this Python code (paste below)",
-      "expected_output": "Intake does NOT fire - direct match to odoo-code-review",
-      "expected_routed_to": "<NO-ROUTE - direct to odoo-code-review>",
+      "expected_output": "Clear single-step Tier-1 match to odoo-code-review. Canonical (see SKILL.md Pro fast-path): intake either DEFERS so odoo-code-review fast-fires, or emits the one-line fast-path gate - both honor gate-before-execution. WRONG only if it brainstorms or picks another target. Never ungated execution.",
+      "expected_routed_to": "odoo-code-review (defer OR one-line fast-path gate; NOT brainstorm)",
       "category": "should-not-fire",
       "files": []
     },
@@ -204,24 +204,24 @@
     {
       "id": 26,
       "prompt": "diff v16 v17",
-      "expected_output": "Intake does NOT fire - intent is clear, single-step, matches exactly one specialist (odoo-version-diff row 5). Fast-path fires directly without intake brainstorm.",
-      "expected_routed_to": "<NO-ROUTE - direct to odoo-version-diff>",
+      "expected_output": "Clear single-step Tier-1 match to odoo-version-diff. Canonical (see SKILL.md Pro fast-path): intake either DEFERS so odoo-version-diff fast-fires, or emits the one-line fast-path gate - both honor gate-before-execution. WRONG only if it brainstorms or picks another target. Never ungated execution.",
+      "expected_routed_to": "odoo-version-diff (defer OR one-line fast-path gate; NOT brainstorm)",
       "category": "clear-fast-path",
       "files": []
     },
     {
       "id": 27,
       "prompt": "write computed field _compute_amount_total on sale.order",
-      "expected_output": "Intake does NOT fire - intent is clear, single-step, explicit 'write computed field' = odoo-coding Tier-1 exact match. Direct fire.",
-      "expected_routed_to": "<NO-ROUTE - direct to odoo-coding>",
+      "expected_output": "Clear single-step Tier-1 match to odoo-coding. Canonical (see SKILL.md Pro fast-path): intake either DEFERS so odoo-coding fast-fires, or emits the one-line fast-path gate - both honor gate-before-execution. WRONG only if it brainstorms or picks another target. Never ungated execution.",
+      "expected_routed_to": "odoo-coding (defer OR one-line fast-path gate; NOT brainstorm)",
       "category": "clear-fast-path",
       "files": []
     },
     {
       "id": 28,
       "prompt": "review this PR #42",
-      "expected_output": "Intake does NOT fire - 'review this PR' is Tier-1 exact match to odoo-code-review. Direct fire.",
-      "expected_routed_to": "<NO-ROUTE - direct to odoo-code-review>",
+      "expected_output": "Clear single-step Tier-1 match to odoo-code-review. Canonical (see SKILL.md Pro fast-path): intake either DEFERS so odoo-code-review fast-fires, or emits the one-line fast-path gate - both honor gate-before-execution. WRONG only if it brainstorms or picks another target. Never ungated execution.",
+      "expected_routed_to": "odoo-code-review (defer OR one-line fast-path gate; NOT brainstorm)",
       "category": "clear-fast-path",
       "files": []
     },
@@ -316,8 +316,8 @@
     {
       "id": 40,
       "prompt": "I need to add a custom approval step to the sale order workflow - can you survey what already exists in our codebase before planning?",
-      "expected_output": "Phase 0 gate closes immediately (intent = add approval step, purpose = extend sale order workflow, expected outcome = code implementing the approval gate). Phase R (Recon) then dispatches ≤1-2 READ-ONLY agents (e.g. Explore or odoo-override-finding in read-only mode) or OSM tools (find_override_point, model_inspect) to map existing override points and current workflow code. Phase R agents MUST NOT write any file and MUST NOT spawn further sub-agents. After Recon, intake writes the Proposed Plan enriched with Recon findings (hook location, relevant method names). Plan Mode is required because the Approach is odoo-coding (writes-files). Fails correctly if Phase R writes a file or spawns a sub-agent.",
-      "expected_routed_to": "odoo-coding (after Phase R Recon)",
+      "expected_output": "Add a custom approval step to the sale order workflow, survey-first. Phase 0 gate closes, Phase R recon runs (read-only, no writes/spawn). Non-trivial change: odoo-coding directly OR (design-first) odoo-solution-design -> odoo-planning -> odoo-coding are both defensible; Plan Mode required because the execute step writes files. Fails if Phase R writes a file or spawns.",
+      "expected_routed_to": "odoo-coding OR odoo-solution-design (design-first)",
       "category": "phase-r-recon-dispatch",
       "files": []
     },
@@ -344,7 +344,95 @@
       "expected_routed_to": "odoo-feature-check (chat-only, Plan Mode skipped)",
       "category": "plan-mode-regression-chat-only",
       "files": []
+    },
+    {
+      "id": 44,
+      "prompt": "This sale.order list view takes forever and I think there's an N+1 in the _compute_totals loop - audit the code for performance problems.",
+      "expected_output": "Row 55 odoo-perf-audit: static PERFORMANCE audit (findings, no rewrite). MUST NOT route to odoo-code-review (holistic) or odoo-debug (live runtime).",
+      "expected_routed_to": "odoo-perf-audit",
+      "category": "coverage-new-row",
+      "files": []
+    },
+    {
+      "id": 45,
+      "prompt": "Before we ship this controller, check it for SQL injection and XSS - is it safe?",
+      "expected_output": "Row 56 odoo-security-audit: security-only vulnerability scan. MUST NOT route to odoo-code-review (general) when the ask is explicitly a security lens.",
+      "expected_routed_to": "odoo-security-audit",
+      "category": "coverage-new-row",
+      "files": []
+    },
+    {
+      "id": 46,
+      "prompt": "We renamed partner_ref to customer_ref on res.partner - write the pre/post migration script to move the data.",
+      "expected_output": "Row 57 odoo-data-migration: writes migrations/<ver>/pre|post-migrate.py + verification checklist. MUST NOT route to odoo-version-diff or odoo-plan-upgrade.",
+      "expected_routed_to": "odoo-data-migration",
+      "category": "coverage-new-row",
+      "files": []
+    },
+    {
+      "id": 47,
+      "prompt": "Acme has been live 8 months, their logins are dropping and they have 5 open tickets - are they a churn risk and what should we do?",
+      "expected_output": "Row 58 odoo-customer-health: Green/Amber/Red health + churn + upsell for an EXISTING customer. MUST NOT route to odoo-support-triage (one ticket) or odoo-discovery-summary (new prospect).",
+      "expected_routed_to": "odoo-customer-health",
+      "category": "coverage-new-row",
+      "files": []
+    },
+    {
+      "id": 48,
+      "prompt": "Translate the sale_custom module into French - export the .po and keep our existing terminology.",
+      "expected_output": "Row 59 odoo-i18n: instance-backed non-destructive .po merge. MUST NOT route to odoo-coding (that is only for a one-off UI label fix).",
+      "expected_routed_to": "odoo-i18n",
+      "category": "coverage-new-row",
+      "files": []
+    },
+    {
+      "id": 49,
+      "prompt": "Put together a pricing proposal for a 50-user mid-market deal: EE licenses + implementation + support.",
+      "expected_output": "Row 60 odoo-pricing-proposal: customer-facing price doc (tiers + impl cost + terms). MUST NOT route to odoo-gap-analysis (that is the effort estimate that FEEDS the price).",
+      "expected_routed_to": "odoo-pricing-proposal",
+      "category": "coverage-new-row",
+      "files": []
+    },
+    {
+      "id": 50,
+      "prompt": "Here's a 30-line tender spec - produce a compliance matrix rating each requirement against Odoo (Yes/Partial/No) with evidence.",
+      "expected_output": "Row 61 odoo-rfp-response: formal per-requirement COMPLIANCE matrix. MUST NOT route to odoo-gap-analysis (effort/cost) or /odoo-respond-bid (full multi-step bid).",
+      "expected_routed_to": "odoo-rfp-response",
+      "category": "coverage-new-row",
+      "files": []
+    },
+    {
+      "id": 51,
+      "prompt": "Write a TransactionCase test asserting the discount can never exceed 20% of unit price on sale.order.line.",
+      "expected_output": "Row 62 odoo-test-writing: writes a RUNNABLE test file (RED-first). MUST NOT route to odoo-qa-suite (prose test-plan) or odoo-acceptance (live run+adjudicate).",
+      "expected_routed_to": "odoo-test-writing",
+      "category": "coverage-new-row",
+      "files": []
+    },
+    {
+      "id": 52,
+      "prompt": "Spin up a fresh Odoo 17 instance and install sale_custom + stock so I can test.",
+      "expected_output": "Row 63 odoo-instance: live-instance lifecycle (create DB, init modules). MUST NOT route to odoo-coding or odoo-acceptance.",
+      "expected_routed_to": "odoo-instance",
+      "category": "coverage-new-row",
+      "files": []
+    },
+    {
+      "id": 53,
+      "prompt": "Take a look at this new model file and tell me if it's okay to ship - anything I should worry about?",
+      "expected_output": "Discriminator guard (Collision 18): a HOLISTIC 'okay to ship' with no single lens -> odoo-code-review, NOT odoo-security-audit / odoo-perf-audit (which need an explicit single lens).",
+      "expected_routed_to": "odoo-code-review",
+      "category": "coverage-discriminator",
+      "files": []
+    },
+    {
+      "id": 54,
+      "prompt": "The list view was fine yesterday and now it's timing out in production - figure out what's going on.",
+      "expected_output": "Discriminator guard (Collision 18): a LIVE runtime regression 'right now in production' -> odoo-debug (root-cause), NOT odoo-perf-audit (static code scan).",
+      "expected_routed_to": "odoo-debug",
+      "category": "coverage-discriminator",
+      "files": []
     }
   ],
-  "notes": "43 eval cases total: IDs 1-20 ported from the prior router skill (updated skill_name to 'odoo-intake'); IDs 21-31 are new cases covering vague->brainstorm (21-24, 31), clear->fast-path (26-28), slash->no-fire (29-30), BRL-handoff (25 updated); IDs 32-38 cover new routing rows 33-39: brl-handoff (32), qa-suite (33), support-triage (34), ui-debug-session (35), content-production (36), sales-closing-cycle (37), BRL-vs-gap-analysis collision (38). IDs 39-43 cover the 5-phase planner behavior added by WI-A: phase-0-gate-mandatory (39), phase-r-recon-dispatch (40), plan-mode-full-schema with workitem+DAG+assignment (41), plan-mode-rejection-flow (42), plan-mode-regression-chat-only-skip (43). Full Mode 5 trigger optimization scheduled for Phase D per AC-D6 of the v1.0.0 refinement plan. Phase A acceptance is verified via inline walkthrough by main agent (see report)."
+  "notes": "54 eval cases. IDs 1-43 as before, with these corrections applied during the v-optimize pass: (1) stale expectations refreshed for id 1 (odoo-perf-audit now exists), id 2 (odoo-customer-health acceptable), id 40 (design-first path acceptable); (2) id 5 hardened as the over-brainstorm regression guard (a lone reported-speech capability question -> odoo-feature-check); (3) the clear-single-step class (11,12,13,26,27,28) reconciled to the canonical fire/no-fire rule in SKILL.md Pro fast-path - defer OR one-line fast-path gate both acceptable, brainstorm/ungated-execution wrong (the prior 'silent NO-ROUTE' expectation contradicted gate-before-execution). IDs 44-52 are coverage guards for the 9 routing rows added so every user-facing front-door skill is reachable (perf-audit, security-audit, data-migration, customer-health, i18n, pricing-proposal, rfp-response, test-writing, instance); IDs 53-54 guard the code-analysis-family discriminators (Collision 18). Eval method: routing-classification (subagent applies SKILL.md + collision-zones.md to each prompt, graded vs expected_routed_to); baseline snapshot vs optimized. Grading accepts documented OR-alternatives."
 }

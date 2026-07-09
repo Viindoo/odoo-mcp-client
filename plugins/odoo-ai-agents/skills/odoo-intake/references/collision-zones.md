@@ -343,3 +343,65 @@ If the user said "viết cả hướng dẫn sử dụng và App Store descripti
 `odoo-doc-illustration DOC LAYER:both` (row 54 - both RST + HTML, no icon/manifest audit).
 If the user said "đóng gói đăng Apps Store kèm icon và manifest" ->
 `module-packaging` (workflow, row 53 - full submission bundle).
+
+## Collision 18 - the code-analysis family: code-review vs perf-audit vs security-audit vs debug
+
+**Prompt**: "take a look at this model / is this okay to ship?" (ambiguous - which lens?).
+
+- `odoo-code-review`: HOLISTIC multi-lens static review (bugs, convention, security, perf, N+1) of
+  shared/existing code - the general "review this" default.
+- `odoo-perf-audit`: PERFORMANCE-only deep scan (N+1, missing prefetch, unindexed domains, heavy
+  t-foreach) -> findings, no rewrite.
+- `odoo-security-audit`: SECURITY-only deep scan (SQLi, XSS/t-raw, ACL gaps, sudo bypass, secrets)
+  -> severity-graded findings, no fixes.
+- `odoo-debug`: a RUNTIME symptom ("slow in production right now", "traceback", "blank screen") that
+  needs root-cause on a live/reproduced failure, not a static read.
+
+**Discriminator**: a single explicit lens ("just the perf" / "just security") -> the dedicated audit;
+"review this / okay to ship / anything to worry about" with no single lens -> `odoo-code-review`
+(holistic); a live runtime symptom -> `odoo-debug`; write the fix -> `odoo-coding`.
+
+If the user said "any N+1 in this search loop?" -> `odoo-perf-audit`. "is this controller safe from
+SQL injection?" -> `odoo-security-audit`. "smell-test this PR before merge" -> `odoo-code-review`.
+"it's timing out on the live server" -> `odoo-debug`.
+
+## Collision 19 - RFP/requirement family: rfp-response vs gap-analysis vs capability-proof vs /odoo-respond-bid
+
+**Prompt**: "we got an RFP - here are the requirements" (which deliverable?).
+
+- `odoo-rfp-response`: formal per-requirement COMPLIANCE matrix (Yes/Partial/Roadmap/No/via-Extension
+  + evidence + fit %) - no cost.
+- `odoo-gap-analysis`: coverage + EFFORT/scope matrix (S/M/L/XL) that feeds a quote - short ad-hoc list.
+- `odoo-capability-proof`: deep code EVIDENCE package for ONE contested requirement.
+- `/odoo-respond-bid` (command): the full multi-step bid package (discovery -> gap -> proof ->
+  objection -> proposal), chained.
+
+**Discriminator**: "compliance matrix / rate against Odoo / tender scoring" -> `odoo-rfp-response`;
+"effort + cost estimate" -> `odoo-gap-analysis` (or `odoo-brl` at hundreds-of-items scale);
+"prove ONE requirement with code" -> `odoo-capability-proof`; "the whole bid response" ->
+`/odoo-respond-bid`.
+
+## Collision 20 - test family: test-writing vs qa-suite vs acceptance
+
+**Prompt**: "write tests for this module".
+
+- `odoo-test-writing`: writes RUNNABLE files (Python TransactionCase/Form/@tagged, JS Hoot/QUnit,
+  tours) that fail RED then protect behavior.
+- `odoo-qa-suite`: a non-executing prose test-PLAN table + pre-deploy checklist + bug triage - nothing runs.
+- `odoo-acceptance`: drives a LIVE instance/UI to execute an oracle and adjudicate PASS/FAIL/UNVERIFIED.
+
+**Discriminator**: "write test_*.py / a tour / Hoot" -> `odoo-test-writing`; "a test-PLAN doc / release
+QA checklist" -> `odoo-qa-suite`; "run it for real and tell me pass/fail" -> `odoo-acceptance`.
+
+## Collision 21 - customer-facing sales family: customer-health vs discovery-summary vs pricing-proposal vs deal-followup
+
+**Prompt**: "help me with this customer / account".
+
+- `odoo-customer-health`: Green/Amber/Red score + churn + upsell for an EXISTING customer (retention).
+- `odoo-discovery-summary`: structured profile from a NEW prospect's meeting notes (pre-proposal).
+- `odoo-pricing-proposal`: a customer-facing PRICE doc (tiers + impl cost + terms).
+- `odoo-deal-followup`: the re-engagement follow-up EMAIL for a stalled deal.
+
+**Discriminator**: existing customer at risk/renewal -> `odoo-customer-health`; new prospect notes ->
+`odoo-discovery-summary`; a quote/price -> `odoo-pricing-proposal`; "hasn't replied, write a
+follow-up" -> `odoo-deal-followup`.

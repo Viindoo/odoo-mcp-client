@@ -31,13 +31,17 @@ when changing intake's structure, the routing table, or the harness wiring.
   context so the Skill tool loads it there and lets it launch subagents (`odoo-code-reviewer`,
   `odoo-coder`, …). The main agent MAY call the Skill tool; the "never the Skill tool" rule binds
   subagents/fork-workers only (a subagent calling it on a spawner skill creates uncontrolled nesting).
-- Routing table currently lists 49 entries (rows 1-13 = Phase A/B core; rows 14-21 = Phase B
+- Routing table currently lists 63 entries (rows 1-13 = Phase A/B core; rows 14-21 = Phase B
   sales+marketing+engineering; rows 22-27 = Phase D commands; rows 28-32 = Phase E visual;
   rows 33-40 = Phase E+ BRL flagship + workflow domains + parallel-WI delivery (row 40 -> `odoo-planning`;
   the wave integration it plans for is internal to `run-harness`, never user-invoked); rows 41-49 =
   solution-design, implement-feature, frontend-design, doc-illustration, git-rebase, modules-upgrade,
-  acceptance, planning, pr-monitoring). Update both the table AND `references/collision-zones.md`
-  when adding entries.
+  acceptance, planning, pr-monitoring; rows 50-54 = icon-design, doc-feature-map, doc-walkthrough,
+  module-packaging, doc-illustration DOC LAYER:both; rows 55-63 = coverage rows so every user-facing
+  front-door skill is reachable - perf-audit, security-audit, data-migration, customer-health, i18n,
+  pricing-proposal, rfp-response, test-writing, instance). `odoo-deep-survey` stays out of the table
+  by design (opt-in only); `run-harness`/`workflow-chaining` are internal machinery, not routing targets.
+  Update both the table AND `references/collision-zones.md` when adding entries.
 - **Deep survey gate (opt-in)**: after the Proposed Plan, the gate offers `deep-survey` on
   *large* jobs - the heavy alternative to light Phase R recon. `odoo-deep-survey` (a `spawner-agent`,
   invoked via the Skill tool from the main context) fans out broad-haiku → narrow-sonnet →
