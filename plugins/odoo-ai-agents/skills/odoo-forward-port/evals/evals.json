@@ -1,0 +1,270 @@
+{
+  "skill_name": "odoo-forward-port",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "forward-port the bug fixes from origin/16.0 up to origin/17.0",
+      "expected_decision": "trigger-forward-port",
+      "expected_mode": "continuous",
+      "expected_note": "none",
+      "expected_output": "Port bug fixes 16.0->17.0, no one-shot flag -> default continuous SHA-preserving merge.",
+      "category": "trigger-continuous",
+      "assertions": [
+        {
+          "text": "decision == trigger-forward-port"
+        },
+        {
+          "text": "mode == continuous"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "port this single fix commit abc123 from 17.0 to 18.0 as a one-shot",
+      "expected_decision": "trigger-forward-port",
+      "expected_mode": "one-shot",
+      "expected_note": "none",
+      "expected_output": "Single named commit, explicit one-shot -> cherry-pick one-time port.",
+      "category": "trigger-oneshot",
+      "assertions": [
+        {
+          "text": "decision == trigger-forward-port"
+        },
+        {
+          "text": "mode == one-shot"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "run a continuous forward-port from 17.0 to 18.0, only the commits since sha def456",
+      "expected_decision": "trigger-forward-port",
+      "expected_mode": "continuous",
+      "expected_note": "none",
+      "expected_output": "Explicit continuous FP with --since sha -> recurring SHA-preserving merge.",
+      "category": "trigger-continuous-since",
+      "assertions": [
+        {
+          "text": "decision == trigger-forward-port"
+        },
+        {
+          "text": "mode == continuous"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "forward-port các fix từ nhánh 16.0 lên Odoo 18 giúp tôi",
+      "expected_decision": "trigger-forward-port",
+      "expected_mode": "continuous",
+      "expected_note": "none",
+      "expected_output": "Vietnamese port fixes 16.0->v18, no one-shot cue -> continuous.",
+      "category": "trigger-vi",
+      "assertions": [
+        {
+          "text": "decision == trigger-forward-port"
+        },
+        {
+          "text": "mode == continuous"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "merge the 16.0 fixes forward into 17.0 and keep the original SHAs in the history",
+      "expected_decision": "trigger-forward-port",
+      "expected_mode": "continuous",
+      "expected_note": "none",
+      "expected_output": "Merge fixes forward keeping original SHAs = continuous SHA-preserving merge mode.",
+      "category": "trigger-continuous-sha",
+      "assertions": [
+        {
+          "text": "decision == trigger-forward-port"
+        },
+        {
+          "text": "mode == continuous"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "port the last 8 commits from our v16 branch up to v17",
+      "expected_decision": "trigger-forward-port",
+      "expected_mode": "continuous",
+      "expected_note": "none",
+      "expected_output": "Port a specific commit range (last 8) v16->v17, no one-shot flag -> continuous.",
+      "category": "trigger-range",
+      "assertions": [
+        {
+          "text": "decision == trigger-forward-port"
+        },
+        {
+          "text": "mode == continuous"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "write a computed field total_weight on sale.order - there's no existing commit, just build it",
+      "expected_decision": "defer:odoo-coding",
+      "expected_mode": "n/a",
+      "expected_note": "none",
+      "expected_output": "One isolated new field, NO source commit to port -> odoo-coding.",
+      "category": "defer-coding",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-coding"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "what API changed in the account module between v17 and v18? just the delta, no porting",
+      "expected_decision": "defer:odoo-version-diff",
+      "expected_mode": "n/a",
+      "expected_note": "none",
+      "expected_output": "Version-to-version API delta only, explicitly no porting -> odoo-version-diff.",
+      "category": "defer-version-diff",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-version-diff"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "review PR #300 for bugs and convention issues before merge",
+      "expected_decision": "defer:odoo-code-review",
+      "expected_mode": "n/a",
+      "expected_note": "none",
+      "expected_output": "Review/audit an existing PR -> odoo-code-review, not porting commits.",
+      "category": "defer-code-review",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-code-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "scan our codebase for deprecated symbols before we plan the v18 upgrade",
+      "expected_decision": "defer:odoo-deprecation-audit",
+      "expected_mode": "n/a",
+      "expected_note": "none",
+      "expected_output": "Pre-upgrade deprecated-symbol sweep of one codebase -> odoo-deprecation-audit.",
+      "category": "defer-deprecation-audit",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-deprecation-audit"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "design the architecture for a brand-new approval workflow - nothing to port, we haven't built it yet",
+      "expected_decision": "defer:odoo-solution-design",
+      "expected_mode": "n/a",
+      "expected_note": "none",
+      "expected_output": "STANDALONE design, nothing built yet / no commits to port -> odoo-solution-design.",
+      "category": "defer-solution-design",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-solution-design"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "parallelize these 4 disjoint changes and land them as one squashed PR",
+      "expected_decision": "defer:odoo-planning",
+      "expected_mode": "n/a",
+      "expected_note": "none",
+      "expected_output": "Parallelize N disjoint WIs with cherry-pick+squash = different git contract -> odoo-planning.",
+      "category": "defer-planning",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "upgrade my whole custom module cluster from 16 to 17 - make everything installable and delete the ones core absorbed",
+      "expected_decision": "defer:odoo-modules-upgrade",
+      "expected_mode": "n/a",
+      "expected_note": "none",
+      "expected_output": "Whole custom cluster installable+working on a new MAJOR + delete core-absorbed = odoo-modules-upgrade, NOT porting specific commits.",
+      "category": "defer-modules-upgrade",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-modules-upgrade"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "rebase my 17.0-feature branch onto the updated origin/17.0",
+      "expected_decision": "defer:odoo-git-rebase",
+      "expected_mode": "n/a",
+      "expected_note": "none",
+      "expected_output": "Rebase a branch onto another branch on the SAME series -> odoo-git-rebase.",
+      "category": "defer-git-rebase",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-git-rebase"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 15,
+      "prompt": "nâng cấp cả cluster module custom lên v18 cho cài đặt và chạy được, xoá module core đã hấp thụ",
+      "expected_decision": "defer:odoo-modules-upgrade",
+      "expected_mode": "n/a",
+      "expected_note": "none",
+      "expected_output": "Vietnamese whole-cluster major upgrade (installable, delete core-absorbed) -> odoo-modules-upgrade.",
+      "category": "defer-modules-upgrade-vi",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-modules-upgrade"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 16,
+      "prompt": "forward-port these 20 commits from 16.0 to 18.0 - heads up, one module's change will need a non-trivial redesign to fit the new API",
+      "expected_decision": "trigger-forward-port",
+      "expected_mode": "continuous",
+      "expected_note": "bucket-c-in-scope",
+      "expected_output": "Port 20 commits 16.0->18.0; the one module needing non-trivial design is handled IN-RUN by the P3 route-out (delegates to solution-design and returns), NOT deferred.",
+      "category": "trigger-bucket-c",
+      "assertions": [
+        {
+          "text": "decision == trigger-forward-port"
+        },
+        {
+          "text": "mode == continuous"
+        },
+        {
+          "text": "note == bucket-c-in-scope"
+        }
+      ],
+      "files": []
+    }
+  ],
+  "notes": "16 forward-port-decision cases. Eval method: a subagent applies SKILL.md (Role, Out of Scope, Invocation) to each prompt and returns {fires, decision, mode, note}, graded vs expected. Covers trigger-vs-defer across eight neighbors (coding / version-diff / code-review / deprecation-audit / solution-design / planning, plus the two hardest near-misses: odoo-modules-upgrade = make a WHOLE cluster installable on a new major (ids 13,15) and odoo-git-rebase = same-series rebase (id 14)), mode detection (continuous SHA-preserving merge vs one-shot cherry-pick, id 2), and the bucket-c-in-scope subtlety (id 16: an in-run non-trivial design is handled by the P3 route-out to solution-design and returns - NOT deferred). Baseline (pre-optimize snapshot) scored 16/16; shipped as a decision-regression guard (the skill had none). No SKILL.md change: the Out-of-Scope table was already complete and the description is at 976/1024. The eval does NOT run a real port or grade adapted code."
+}
