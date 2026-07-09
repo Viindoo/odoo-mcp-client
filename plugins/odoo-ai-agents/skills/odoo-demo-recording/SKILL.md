@@ -55,19 +55,23 @@ OSM use is light here - only to plan the click path: `module_inspect(name=<modul
 
 ## Browser tools
 
-Chrome-devtools MCP tools drive and record the live instance. Each comes in a **headless default**
+Chrome-devtools MCP tools drive and record the live instance. Each has a **headless default**
 (`mcp__plugin_odoo-ai-agents_chrome-devtools__*`) and a **headed** (`...chrome-devtools-headed__*`)
 variant - default to headless (recording works headless; only safe choice on no-display hosts); use
 headed only when the human asks to watch. This skill runs INLINE (call tools yourself, no dispatch
-brief) - just call the `-headed` tool directly when needed:
+brief) - call the `-headed` tool directly when needed:
 
 - `navigate_page` - open each step's URL.
 - `click` / `fill` / `fill_form` / `hover` - perform the scripted click path on camera.
 - `take_screenshot` - capture key frames (poster image, GIF frames, or fallback when video unavailable).
 - `evaluate_script` - set up deterministic demo state (e.g. scroll position) between steps.
 
-> Video capture is performed by the recording-capable browser MCP (pagecast/Playwright video). If
-> only screenshot capture is available, fall back to a frame sequence assembled into a GIF.
+> Video capture is performed by the recording-capable browser MCP (pagecast/Playwright video).
+> **pagecast and playwright are OPT-IN** - only the headless `chrome-devtools` is eager (bundled
+> `.mcp.json`); the recorder families ship no longer eager and must be wired first via
+> `/odoo-ai-agents:odoo-setup browser` (step 12 for Claude, step 10 for Codex/Gemini). If the
+> recorder MCP is not wired (its tools are absent) or only screenshot capture is available, fall
+> back to a `chrome-devtools take_screenshot` frame sequence assembled into a GIF.
 
 ## Workflow
 
@@ -75,18 +79,18 @@ Work in rounds; fire independent calls in the same message within a round.
 
 ### Round 0 - Load context
 
-Read `.odoo-ai/context.md` (Markdown bullets, `- **key**: value` format). Extract:
-- `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir` (parent used for video output dir).
+Read `.odoo-ai/context.md` (Markdown bullets, `- **key**: value` format). Extract `odoo_version`,
+`instance_base_url`, `instance_login`, `screenshot_baseline_dir` (parent = video output dir).
 
-If absent or key missing, fall back to the machine-global `~/.odoo-ai/instances.toml` (project
+If a key is missing, fall back to the machine-global `~/.odoo-ai/instances.toml` (project
 `./.odoo-ai/instances.toml` is only a transitional fallback; see `snippets/instance-resolution.md`)
 for the instance URL. Ask the user only for what none of these resolve (plus the workflow to record,
-desired format MP4/GIF, and length) in a single message. Do not guess.
+format MP4/GIF, and length) in a single message. Do not guess.
 
 Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)` and
 pass that concrete version on every Round 1 OSM call - the pin is per-API-key and racy under
-concurrency; without explicit passing the click path may be planned against the wrong version's view
-names and URL scheme (`/odoo` vs `/web`, which differ by version).
+concurrency; without explicit passing the click path may target the wrong version's view names and
+URL scheme (`/odoo` vs `/web`, which differ by version).
 
 ### Round 1 - Plan the click path (parallel, OSM)
 

@@ -26,13 +26,12 @@ GEMINI_OUT = PLUGIN_ROOT / "gemini-extension.json"
 CODEX_PLUGIN_JSON = PLUGIN_ROOT / ".codex-plugin" / "plugin.json"
 CODEX_MCP_JSON = PLUGIN_ROOT / ".codex-plugin" / "mcp.json"
 
-# The 6 browser MCP server names bundled in the plugin: three backends, each
-# with a headless default and a `-headed` variant.
-EXPECTED_SERVERS = {
-    "chrome-devtools", "chrome-devtools-headed",
-    "playwright", "playwright-headed",
-    "pagecast", "pagecast-headed",
-}
+# The EAGER browser MCP server bundled in every runtime manifest. Only ONE family
+# is eager (the headless chrome-devtools); the other five are OPT-IN, wired on
+# demand by the odoo-setup steps and asserted in test_setup_wiring.py - they are
+# deliberately NOT in the derived Codex/Gemini bundles (which mirror the SSOT
+# .mcp.json), so a plain session never eager-loads six browser processes.
+EXPECTED_SERVERS = {"chrome-devtools"}
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +70,7 @@ def codex_mcp_data() -> dict:
 # ---------------------------------------------------------------------------
 
 def test_gemini_extension_is_valid_json_with_three_servers(gemini_data):
-    """gemini-extension.json must be parseable JSON containing all 3 browser MCP servers."""
+    """gemini-extension.json must be parseable JSON containing the eager browser MCP server."""
     servers = gemini_data.get("mcpServers", {})
     missing = EXPECTED_SERVERS - set(servers.keys())
     assert not missing, (
@@ -160,7 +159,7 @@ def test_codex_plugin_json_mcpservers_points_to_relative_path(codex_plugin_data)
 def test_codex_mcp_json_is_flat_with_three_servers(codex_mcp_data):
     """
     .codex-plugin/mcp.json must be flat (no top-level 'mcpServers' wrapper) and
-    contain all 3 browser MCP servers.
+    contain the eager browser MCP server.
     """
     assert "mcpServers" not in codex_mcp_data, (
         ".codex-plugin/mcp.json must be flat (no 'mcpServers' wrapper key); "

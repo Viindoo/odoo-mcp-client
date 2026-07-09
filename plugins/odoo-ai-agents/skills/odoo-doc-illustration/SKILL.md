@@ -17,14 +17,13 @@ description: >
 
 ## Role
 
-Documentation-run orchestrator for Odoo modules. This skill is the SOLE orchestrator of a
-documentation run: it scopes and plans the modules, gates the plan once, provisions the live
-instance(s), then per module launches two INTERNAL browser-driving writer agents that capture
-fully-rendered screenshots and embed them into durable module documentation -
-`odoo-user-doc-writer` (end-user `doc/index.rst`) and `odoo-marketing-writer` (App-Store
-`static/description/index.html`). Captured images land in the module's `static/description/` so
-they survive across sessions and git commits. NOT for auditing/rating a rendered screen
-(-> `odoo-ui-review`) - this skill captures screenshots to EMBED into documentation.
+Documentation-run orchestrator for Odoo modules and the SOLE orchestrator of a documentation run:
+scope and plan the modules, gate the plan once, provision the live instance(s), then per module
+launch two INTERNAL browser-driving writer agents that capture fully-rendered screenshots and embed
+them into durable module documentation - `odoo-user-doc-writer` (end-user `doc/index.rst`) and
+`odoo-marketing-writer` (App-Store `static/description/index.html`). Captured images land in the
+module's `static/description/` so they survive across sessions and git commits. NOT for
+auditing/rating a rendered screen (-> `odoo-ui-review`) - this skill captures to EMBED into docs.
 
 ## Out of Scope
 
@@ -39,10 +38,10 @@ they survive across sessions and git commits. NOT for auditing/rating a rendered
 ## Sole orchestrator (scoper -> planner -> ONE gate -> per-instance loop)
 
 This skill owns the ENTIRE run: scoping, planning, the plan gate, instance-provisioning authority,
-the per-instance loop, verify, per-module commit, and model selection for the writers. The two
-writer agents are INTERNAL leaf executors - only this skill launches them; no consumer reaches past
-the skill into a writer. The writers NEVER spawn, call the Skill tool, call
-`odoo-content-draft`/`-scoper`/`-planner`, or run a loop - ALL orchestration lives here.
+the per-instance loop, verify, per-module commit, and writer model selection. The two writer agents
+are INTERNAL leaf executors - only this skill launches them; no consumer reaches past the skill into
+a writer. The writers NEVER spawn, call the Skill tool, call `odoo-content-draft`/`-scoper`/
+`-planner`, or run a loop - ALL orchestration lives here.
 
 **Single module.** A single module dir/name keeps the legacy single-module path with no
 scoper/planner hop: provision (or receive an `INSTANCE_HANDLE`), then run the loop body ONCE
@@ -98,23 +97,39 @@ GUARD: never run two paths on the same browser family or the same instance):
    and returns its block.
 
 Order per module: **install -> pre-fetch copy (marketing) -> capture + assemble (writer(s), serial)
--> verify -> commit -> next-delta.** Emit one aggregate index per run
-(`doc-run-<timestamp>/index.jsonl`) listing every output path.
+-> verify -> commit -> next-delta.**
+
+**End-of-run staging cleanup (skill-owned).** After the LAST module is verified + committed and
+BEFORE emitting the aggregate index, delete this run's transient capture staging - scoped to
+`<run_id>` ONLY:
+```
+rm -rf .odoo-ai/visual/<run_id>/ .playwright-mcp/<run_id>/
+```
+HARD RULE: never `rm` another run's subtree (no bare `.odoo-ai/visual/` or `.playwright-mcp/`); the
+final committed images already live in each module's `static/description/` (or `doc/`), so removing
+the run-scoped staging loses nothing. Then emit one aggregate index per run
+(`doc-run-<run_id>/index.jsonl`) listing every output path.
 
 ## Writer dispatch briefs
 
 The skill launches each writer with a self-contained brief. `MODULE PATH` may be a bare module name
 when `addons_path` is unknown - the writer resolves the absolute path from `context.md` or by
-scanning disk. Omitting an axis field preserves today's behavior (see Documentation axes). The
-shared browser-capture mechanics (2-tier write, headless/headed, on-theme check per
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - a captured screen with an empty
-or self-referential token resolves off-theme and must be skipped, never embedded in shipped
-documentation - per-locale loop, `CAPTURE MODE` step-drive) live in `references/capture-mechanics.md`
-- the skill does not restate them.
+scanning disk. Omitting an axis field preserves today's behavior (see Documentation axes). Shared
+browser-capture mechanics (2-tier write, headless/headed, on-theme check per
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - a screen with an empty or
+self-referential token resolves off-theme and must be skipped, never embedded in shipped docs -
+per-locale loop, `CAPTURE MODE` step-drive) live in `references/capture-mechanics.md`; the skill
+does not restate them.
+
+Both briefs carry `RUN_ID: <run-or-slug>` - REUSE the run's worklog run-or-slug (the id used for
+`doc-run-<run_id>/index.jsonl`); do NOT mint a new id. The writers stage captures under
+`.odoo-ai/visual/<run_id>/<module>_staging/...` (per `references/capture-mechanics.md` section 3), so
+two modules or concurrent runs never clobber each other.
 
 **`odoo-user-doc-writer`** (DOC LAYER `userguide`, or the userguide half of `both`):
 ```
 MODULE PATH: <abs path to module dir | module name>
+RUN_ID: <run-or-slug>                 # reuse the worklog run-or-slug; scopes the staging dir
 INSTANCE_HANDLE: <db>:<port>          # from provision-once; absent = writer self-checks install
 WALKTHROUGH: <abs path to walkthrough.jsonl from odoo-doc-scenarist>   # required for CAPTURE MODE: scenarios
 FEATURE CATALOG: <abs path to feature-catalog.jsonl>                   # optional; feeds Usage + feature list
@@ -128,6 +143,7 @@ BROWSER MODE: headless | headed
 **`odoo-marketing-writer`** (DOC LAYER `appstore`, or the appstore half of `both`):
 ```
 MODULE PATH: <abs path to module dir | module name>
+RUN_ID: <run-or-slug>                 # reuse the worklog run-or-slug; scopes the staging dir
 INSTANCE_HANDLE: <db>:<port>
 MARKETING COPY: <abs path or inline sectioned copy from odoo-content-draft>   # REQUIRED - skill pre-fetches it
 FEATURE CATALOG: <abs path to feature-catalog.jsonl>                          # REQUIRED - absent -> writer BLOCKS
@@ -160,59 +176,56 @@ RST and deep technical steps out of the HTML - do not duplicate content across t
 `references/app-store-template.md` (sanitizer-safe fragment - no `<html>/<head>/<body>`, no JS, no
 external CDN/Google-Fonts link; Bootstrap-5 utility classes; hex colors only; HTML entities;
 relative image paths). The skill pre-fetches the copy from `odoo-content-draft`; the writer resolves
-its `[Image: <slug>]` markers after capture and sources the Key Features grid from the feature
-catalog. Brand palette/fonts come from `.odoo-ai/context.md` brand tokens or the brief - never
-hardcode a vendor brand.
+`[Image: <slug>]` markers after capture and sources the Key Features grid from the feature catalog.
+Brand palette/fonts come from `.odoo-ai/context.md` brand tokens or the brief - never hardcode a
+vendor brand.
 
 **DOC SCOPE (userguide structure).** `screenshot-doc` (default) = one section per feature with field
 text + a screenshot. `full-guide` = `odoo-user-doc-writer` writes a structured guide with
-`Installation`, `Configuration`, `Usage`, `Troubleshooting`, and `FAQ` sections. When a feature
-catalog / walkthrough is supplied, the `Usage` section is generated from the walkthrough scenarios
-and a Key-Features summary from `feature-catalog.jsonl`; otherwise the writer derives the structure
-from OSM grounding.
+`Installation`, `Configuration`, `Usage`, `Troubleshooting`, `FAQ`. With a feature catalog /
+walkthrough supplied, `Usage` is generated from the walkthrough scenarios and a Key-Features summary
+from `feature-catalog.jsonl`; otherwise the writer derives the structure from OSM grounding.
 
 **CAPTURE MODE (how screenshots are taken).** `screens` (default) = navigate to each screen and
 snapshot. `scenarios` = consume the walkthrough `steps[]` (`{action: navigate|fill|click|select|wait,
-target, value}`) and, for EACH step, perform the action then shoot that step
+target, value}`) and, for EACH step, perform the action then shoot it
 (`<scenario-slug>-step<NN>.<locale>.png`), with an optional state-assert via the live Odoo MCP
 between steps. Requires a live, seeded instance and a `WALKTHROUGH:` path. Both writers honour it via
 `references/capture-mechanics.md`.
 
 **Image anchor markers.** `[Image: <slug>]` (slug only, no spaces - NOT `[[IMG:]]`) is the
-placeholder that `odoo-content-draft` EMITS in the marketing copy; `odoo-marketing-writer` RESOLVES
-each marker to a captured file after capture. `odoo-user-doc-writer` writes RST directly (no markers,
-no content-draft). A marker that survives into a shipped artifact means the capture was degraded (see
+placeholder `odoo-content-draft` EMITS in the marketing copy; `odoo-marketing-writer` RESOLVES each
+to a captured file after capture. `odoo-user-doc-writer` writes RST directly (no markers, no
+content-draft). A marker surviving into a shipped artifact means the capture was degraded (see
 Degraded paths).
 
 ## Provisioning, parallel cap, degraded paths
 
 **Precondition provisioning (route to `odoo-instance`).** Before any capture the instance must be
-provisioned cleanly for documentation: module installed `--with-demo` (so scenarios have sample
-data), every resolved locale loaded (so the UI renders per-locale), and auto-install side modules
-skipped (so the docs show only the target module's surface, not whatever Odoo pulls in). Resolve the
-exact flags via OSM `cli_help` at runtime (version-aware - never hardcode flag names). The skill
-VERIFIES this precondition and, if the instance was not provisioned this way, routes to
-`odoo-instance` (provision) and emits a WARNING rather than documenting a polluted UI.
+provisioned cleanly: module installed `--with-demo` (sample data for scenarios), every resolved
+locale loaded (per-locale UI), and auto-install side modules skipped (docs show only the target
+module's surface). Resolve the exact flags via OSM `cli_help` at runtime (version-aware - never
+hardcode flag names). The skill VERIFIES this precondition; if not met, it routes to `odoo-instance`
+(provision) and emits a WARNING rather than documenting a polluted UI.
 
 **Parallel capture (cap W + server-family isolation).** Browser-free waves (scoper, feature-map,
-walkthrough, icon, copy) fan out wide. The browser-bound capture wave is bounded: each writer uses
-ONE browser MCP server family (`playwright` / `chrome-devtools`, plus the headed families when
-`DISPLAY` is present) AND one ephemeral instance. HARD GUARD: never assign two writers to the same
-server family (shared server = race). `W = min(#(module x locale) browser-bound units, 2 headless /
-4 with display, ~3 ephemeral instances)`; work beyond W is batched serially. State-mutating
+walkthrough, icon, copy) fan out wide. The browser-bound wave is bounded: each writer uses ONE
+browser MCP server family (`chrome-devtools` (default) / `playwright` (opt-in), plus headed families
+when `DISPLAY` is present) AND one ephemeral instance. HARD GUARD: never assign two writers to the
+same server family (shared server = race). `W = min(#(module x locale) browser-bound units, 2
+headless / 4 with display, ~3 ephemeral instances)`; work beyond W batches serially. State-mutating
 (CRUD-heavy) scenario captures cap at <=2 simultaneous.
 
-**Degraded paths (never hard-block the whole run).** Per-locale: if one locale fails to load/switch,
+**Degraded paths (never hard-block the whole run).** Per-locale: if a locale fails to load/switch,
 the writer reuses the English screenshots for that locale's doc with an `[Image: <slug>]` note and
 reports `status: DONE_WITH_CONCERNS(locale <x>: English screenshots used)` - other locales proceed.
-Global: with no instance/browser at all, the writer still assembles the structure + supplied copy
-with `[Image: <slug>]` placeholders and routes to `odoo-instance` to fill captures later, instead of
+Global: with no instance/browser, the writer still assembles the structure + supplied copy with
+`[Image: <slug>]` placeholders and routes to `odoo-instance` to fill captures later, instead of
 `BLOCKED`.
 
 **Headless/headed.** The skill defaults `BROWSER MODE: headless` - the only safe choice on a
-no-display or CI host. Pass `headed` only when the user explicitly asks to watch the browser, and
-only after confirming a display is plausibly available; warn rather than dispatch headed on a
-headless host.
+no-display / CI host. Pass `headed` only when the user explicitly asks to watch, and only after
+confirming a display is plausibly available; warn rather than dispatch headed on a headless host.
 
 ## Language resolution (6-tier + disk-UNION)
 
@@ -226,39 +239,39 @@ Resolve the documentation language list the skill passes as each writer's `LANGU
 6. Fallback `["vi_VN"]`
 
 **UNION with existing on-disk doc locales (mandatory, after tier resolution).** Scan
-`static/description/` for `index.html` and `index_<locale>.html`; also scan `doc/` for `index.rst`
-and `index_<locale>.rst` when DOC LAYER is `userguide` or `both`. Collect these as
-`disk_doc_locales`. Final list = `tier_resolved_list` ∪ `disk_doc_locales`. Existing on-disk doc
-locales are ALWAYS included - never pass a `LANGUAGES:` field that omits a locale already documented
-on disk. This prevents silently dropping existing translations. Tiers 3-6 here = odoo-i18n P0 tiers
-2-5; tier 2 (`context.md doc_languages`) is added in this stack only.
+`static/description/` for `index.html` / `index_<locale>.html`; also scan `doc/` for `index.rst` /
+`index_<locale>.rst` when DOC LAYER is `userguide` or `both`. Collect as `disk_doc_locales`. Final
+list = `tier_resolved_list` ∪ `disk_doc_locales`. On-disk doc locales are ALWAYS included - never
+pass a `LANGUAGES:` field that omits a locale already documented on disk (prevents silently dropping
+translations). Tiers 3-6 here = odoo-i18n P0 tiers 2-5; tier 2 (`context.md doc_languages`) is added
+in this stack only.
 
 **English-mandatory canonical (marketing / full-guide branch).** When TONE is `marketing` or DOC
-SCOPE is `full-guide`, the final language set = `{en_US}` ∪ resolved-set. English is the canonical,
-suffix-less doc (`index.html`, `doc/index.rst`) and is force-included even if the registry omits it;
-every other locale gets `index_<locale>.html` / `doc/index_<locale>.rst`. This is applied on top of
-the shared resolver - it does NOT change the resolver's tier-6 hard fallback (`["vi_VN"]`) used by
-the legacy screenshot-doc/technical path.
+SCOPE is `full-guide`, the final set = `{en_US}` ∪ resolved-set. English is the canonical,
+suffix-less doc (`index.html`, `doc/index.rst`), force-included even if the registry omits it; every
+other locale gets `index_<locale>.html` / `doc/index_<locale>.rst`. Applied on top of the shared
+resolver - it does NOT change the resolver's tier-6 hard fallback (`["vi_VN"]`) used by the legacy
+screenshot-doc/technical path.
 
 **Per-locale capture (CAPTURE MODE: scenarios).** Read-only screens stay language-neutral (capture
-once, shared). A driven scenario MUTATES state, so it cannot be re-rendered with `?lang=`; the writer
+once, shared). A driven scenario MUTATES state so it cannot be re-rendered with `?lang=`; the writer
 re-drives each scenario from its precondition per locale (outer = locale, middle = scenario, inner =
 step; English first and in full) - see `references/capture-mechanics.md`.
 
 ## INSTANCE_HANDLE + cross-reference
 
-**INSTANCE_HANDLE (path-incremental).** In the per-instance loop the skill provisions the instance
-once, reads back `INSTANCE_HANDLE = <db>:<port>` from the instance-ops block, and passes it to each
-writer. A writer with `INSTANCE_HANDLE` uses that DB/port directly and does NOT self-provision; after
-its writes it emits a path-incremental completion block so the skill can verify, commit, and advance
-to the next module delta on the same live DB. A writer with NO `INSTANCE_HANDLE` (standalone dispatch)
+**INSTANCE_HANDLE (path-incremental).** In the per-instance loop the skill provisions once, reads
+back `INSTANCE_HANDLE = <db>:<port>` from the instance-ops block, and passes it to each writer. A
+writer with `INSTANCE_HANDLE` uses that DB/port directly and does NOT self-provision; after its
+writes it emits a path-incremental completion block so the skill can verify, commit, and advance to
+the next module delta on the same live DB. A writer with NO `INSTANCE_HANDLE` (standalone dispatch)
 self-checks that the module is installed and behaves as today.
 
 **extends_in_scope (cross-reference hint).** An optional list of in-scope base module names (from the
 planner/scoper `depends_in_scope ∩ doc:true` set). When non-empty, the writer inserts one
 cross-reference per base - "Extends `<base>` - see its documentation" (a relative link when the base
-is in the same addons path) - into `doc/index.rst` (`odoo-user-doc-writer`, any DOC SCOPE) and/or
-`static/description/index.html` (`odoo-marketing-writer`, after the hero). Absent/empty -> nothing is
+shares the addons path) - into `doc/index.rst` (`odoo-user-doc-writer`, any DOC SCOPE) and/or
+`static/description/index.html` (`odoo-marketing-writer`, after the hero). Absent/empty -> nothing
 added; default behavior preserved.
 
 ## Standalone fallback
