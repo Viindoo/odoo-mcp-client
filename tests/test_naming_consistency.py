@@ -64,7 +64,8 @@ def test_no_bare_odoo_semantic_in_trigger_or_fallback_prose(doc):
 # ===========================================================================
 
 # The ONLY unprefixed (domain-agnostic) names allowed. `wave` left the list
-# when it became `odoo-wave`; `run-harness` (the renamed run-driver sequencer)
+# long ago (it became `odoo-wave`, since REMOVED - decision R; the between-wave integration is now
+# owned by `run-harness`); `run-harness` (the run-driver sequencer) is the domain-agnostic name that
 # joined it. Keep in lockstep with the three prose statements above.
 _NAMING_ALLOWLIST = {"workflow-chaining", "run-harness"}
 
@@ -144,7 +145,23 @@ def test_enumeration_is_non_empty():
     """Guard: a broken glob must not make the morphology tests vacuously pass."""
     assert _SKILL_NAMES and "odoo-coding" in _SKILL_NAMES
     assert _AGENT_NAMES and "odoo-coder" in _AGENT_NAMES
+    # The coder-coordinator restructure adds odoo-backend-coder alongside odoo-frontend-coder.
+    assert "odoo-backend-coder" in _AGENT_NAMES and "odoo-frontend-coder" in _AGENT_NAMES
     assert _COMMAND_NAMES and "odoo-run-brl" in _COMMAND_NAMES
+
+
+def test_coder_lead_and_worker_agents_are_actor_nouns_and_distinct_from_skill():
+    """The coding layer is a skill (capability noun) dispatching actor-noun agents; skill != agent.
+
+    odoo-coding (skill, `-ing` capability noun) launches the odoo-coder LEAD and the
+    odoo-backend-coder / odoo-frontend-coder workers (all actor nouns ending in `-er`). The skill and
+    each agent must be DISTINCT names (capability vs actor), per CLAUDE.md 'Three layers'.
+    """
+    assert "odoo-coding" in _SKILL_NAMES and not _skill_uses_actor_morphology("odoo-coding")
+    for agent in ("odoo-coder", "odoo-backend-coder", "odoo-frontend-coder"):
+        assert agent in _AGENT_NAMES, f"{agent} must be a registered agent"
+        assert _agent_is_actor_noun(agent), f"{agent} must be an actor noun (last segment 'coder')"
+        assert agent not in _SKILL_NAMES, f"{agent} must not collide with a skill name"
 
 
 @pytest.mark.parametrize("name", _ALL_NAMES)

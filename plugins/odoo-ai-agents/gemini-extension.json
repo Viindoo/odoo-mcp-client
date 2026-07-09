@@ -1,57 +1,15 @@
 {
   "name": "odoo-ai-agents",
-  "version": "4.8.0",
-  "description": "Odoo AI workforce toolkit - 53 skills + 24 specialist agents + 8 workflow commands across engineering, sales, marketing, strategy, onboarding, visual UI testing, and git-wave orchestration. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed). Includes browser-automation agents for Odoo UI review and automated setup.",
+  "version": "4.9.0",
+  "description": "Odoo AI workforce toolkit - 52 skills + 26 specialist agents + 8 workflow commands across engineering, sales, marketing, strategy, onboarding, visual UI testing, and git-wave orchestration. Pairs with the odoo-semantic-mcp server for indexed-codebase grounding (auto-installed). Includes browser-automation agents for Odoo UI review and automated setup.",
   "mcpServers": {
     "chrome-devtools": {
       "command": "npx",
       "args": [
         "-y",
-        "chrome-devtools-mcp@latest",
+        "chrome-devtools-mcp@1",
         "--headless",
         "--isolated"
-      ]
-    },
-    "chrome-devtools-headed": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "chrome-devtools-mcp@latest",
-        "--isolated"
-      ]
-    },
-    "playwright": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@playwright/mcp@latest",
-        "--caps=devtools",
-        "--headless",
-        "--isolated"
-      ]
-    },
-    "playwright-headed": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@playwright/mcp@latest",
-        "--caps=devtools",
-        "--isolated"
-      ]
-    },
-    "pagecast": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@mcpware/pagecast",
-        "--headless"
-      ]
-    },
-    "pagecast-headed": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@mcpware/pagecast"
       ]
     }
   }

@@ -28,9 +28,17 @@ These three steps are easy to confuse. Only the first is required:
 
 Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual-stack-browser-mcp-setup). Step 3 runs automatically the first time you invoke an `odoo-*` skill in a new repo.
 
+> **Version gate - Claude Code >= 2.1.172.** The coding workflow uses NESTED subagent dispatch:
+> `odoo-coding` launches an `odoo-coder` coordinator per module (every module, not just full-stack),
+> which itself launches its teammates - `odoo-test-writer` (RED test first), then `odoo-backend-coder`
+> and/or `odoo-frontend-coder` (one agent level deeper). Nested dispatch requires
+> Claude Code 2.1.172+ (the platform depth cap is 5). The `/odoo-ai-agents:odoo-setup` prereq check
+> (`05-prereq-check.sh`) probes `claude --version` and prints this gate. Coordinator<->worker
+> messaging (`SendMessage`) works WITHOUT any experimental agent-teams flag - do NOT set one.
+
 ### Plugin install (recommended)
 
-For Claude Code users, the plugin is the fastest path: it bundles the MCP server config, all 47 skills, and the setup command in one install.
+For Claude Code users, the plugin is the fastest path: it bundles the MCP server config, all 53 skills, and the setup command in one install.
 
 #### 1. Add the marketplace (one-time)
 
@@ -80,9 +88,9 @@ Expected: tree output with module names, `Defined in:`, field counts.
 
 #### Available persona skills
 
-After install, 47 skills activate automatically:
+After install, 53 skills activate automatically:
 
-> Persona labels are the navigation buckets defined in the [README skill table](../../../README.md#skills-47) - the single source of truth for the skill-to-persona mapping. The five role guides in [`personas/`](personas/) (Manager/CEO, Developer, Consultant, Marketer, Sales) group these buckets. This table is a curated subset; all 47 skills auto-activate on install.
+> Persona labels are the navigation buckets defined in the [README skill table](../../../README.md#skills-53) - the single source of truth for the skill-to-persona mapping. The five role guides in [`personas/`](personas/) (Manager/CEO, Developer, Consultant, Marketer, Sales) group these buckets. This table is a curated subset; all 53 skills auto-activate on install.
 
 | Skill | Persona | What it does |
 |-------|---------|-------------|
@@ -194,17 +202,41 @@ Manual snippet (for users who ran `claude mcp add` directly, without the plugin)
 
 The three `Visual` skills (`odoo-ui-review`, `odoo-visual-regression`,
 `odoo-demo-recording`) and the `odoo-ui-reviewer` agent drive a **rendered Odoo screen in a
-live browser**. They depend on three browser MCP servers - `chrome-devtools`, `playwright`,
-and `pagecast` (local stdio `npx` servers) - plus browser binaries and `ffmpeg`.
+live browser**. They depend on the browser MCP families - three backends (`chrome-devtools`,
+`playwright`, `pagecast`), each with a headless default and a `-headed` variant (local stdio
+`npx` servers) - plus browser binaries and `ffmpeg`.
+
+Only ONE family is **eager**: the headless `chrome-devtools`, bundled in the plugin's
+`.mcp.json` and auto-loaded. The other five are **opt-in** so a plain session never launches
+browser processes it does not need; `/odoo-ai-agents:odoo-setup browser` wires them on demand
+(step 10 for Codex/Gemini, step 12 for Claude at user scope). Package versions are pinned (no
+`@latest`).
+
+> **Opt-out (browser-free host).** To also stop the eager `chrome-devtools` from loading, add
+> `"disabledMcpjsonServers": ["chrome-devtools"]` to your Claude settings (`~/.claude/settings.json`)
+> and simply do not run the opt-in wiring (step 12).
+
+> **Install once (disk) vs register-to-run (RAM per open session).** These are two separate
+> setup steps with two separate cost profiles:
+> - **Install** (`/odoo-ai-agents:odoo-setup browser`, step 20) pre-installs the 3 pinned npm
+>   packages behind the 6 families - and the Playwright Chromium browser - **on disk only**.
+>   This warms npm's local cache so a later real spawn has zero download latency. It never
+>   launches a server and costs **disk, never RAM**; run it once per machine (idempotent - a
+>   package already cached is skipped).
+> - **Register** (steps 10/12, above) wires a family into your MCP client's config so it can be
+>   spawned. A registered server only actually runs - and only then costs RAM - while a session
+>   that uses it is open; closing the session frees that RAM. Registering does **not** by
+>   itself consume any RAM.
 
 ### Per-runtime native provisioning
 
-Each supported AI runtime ships the three browser MCP servers as part of the plugin
-bundle. For most users, install the plugin and the servers are wired automatically:
+Each supported AI runtime ships the EAGER `chrome-devtools` family as part of the plugin
+bundle; the five opt-in families are wired on demand. For most users, install the plugin and
+the eager server is wired automatically:
 
 | Runtime | Bundle file | Install command | Dedup behaviour |
 |---------|-------------|-----------------|-----------------|
-| **Claude Code** | `.mcp.json` (auto-loaded on plugin install) | `claude plugin install odoo-ai-agents@viindoo-plugins` | Claude deduplicates by command/endpoint: a same-command server already in your config simply wins; the bundled copy is skipped - normal, not an error. No extra step. |
+| **Claude Code** | `.mcp.json` (auto-loaded on plugin install; eager `chrome-devtools` only) | `claude plugin install odoo-ai-agents@viindoo-plugins` | Claude deduplicates by command/endpoint: a same-command server already in your config simply wins; the bundled copy is skipped - normal, not an error. No extra step. |
 | **Gemini CLI** | `gemini-extension.json` (in the plugin directory) | `gemini extensions install <your-clone>/plugins/odoo-ai-agents` (or `...link ...` for live dev) | Dedup is by server **name**: a same-named server already in `~/.gemini/settings.json` wins (no error). **Important:** Gemini cannot install an extension from a subdirectory of a git repo - use the local path after cloning, not a raw GitHub URL. The `trust` field is not permitted in the extension manifest. |
 | **Codex CLI** | `.codex-plugin/plugin.json` | `codex plugin marketplace add <marketplace>` then `codex plugin add odoo-ai-agents@<marketplace>` (marketplace.json is to be published as a separate distribution step; the manifest ships now) | Same dedup-by-name behaviour as Claude. |
 
@@ -224,10 +256,13 @@ It is **idempotent and extensible** - re-running only applies what is missing, a
 a registry of numbered step scripts (`scripts/setup-steps/`), so new capabilities are
 drop-in. What it does:
 
-1. **Browser MCP** - registers `chrome-devtools`, `playwright`, `pagecast` into Codex CLI
-   and Gemini CLI only. For Claude Code the bundled `.mcp.json` provides them, so step 10
-   never writes to `~/.claude.json`.
-2. **Browser deps** - checks Node >= 20, installs Playwright Chromium, checks `ffmpeg`.
+1. **Browser MCP** - wires the browser families on demand: step 10 registers them into Codex
+   CLI and Gemini CLI; step 12 registers Claude's five opt-in families at user scope. Claude's
+   eager `chrome-devtools` comes from the bundled `.mcp.json`, so neither step writes it to
+   `~/.claude.json`. Packages are pinned (no `@latest`).
+2. **Browser deps** - checks Node >= 20; pre-installs the 3 pinned browser MCP packages ON
+   DISK (npm cache warm - install only, never launched: disk cost, zero RAM cost, and strictly
+   separate from step 12's register/run); installs Playwright Chromium; checks `ffmpeg`.
 3. **Permissions** - auto-allows the browser MCP tools in Claude permissions.
 4. **Instance profile** - discovers local Odoo repos and writes the machine-global `~/.odoo-ai/instances.toml` (any agent on this host resolves instances regardless of working directory).
    Also seeds `~/.odoo-ai/i18n.json` (`{"default_languages":["vi_VN"]}`) - the machine-global
@@ -249,7 +284,7 @@ shape for each, merging idempotently into existing config:
 
 | Runtime | Config file | Schema | Note |
 |---------|-------------|--------|------|
-| Claude Code | - (none) | - | Not written by `/odoo-setup`. Served by the plugin's bundled `.mcp.json`; adding a duplicate to `~/.claude.json` is what causes the "skipped" notes. |
+| Claude Code | user-scope MCP registry (`claude mcp add --scope user`) | pinned `npx` stdio | Eager `chrome-devtools` comes from the bundled `.mcp.json` (never written to `~/.claude.json` - a duplicate is what causes the "skipped" notes). Step 12 registers ONLY the five opt-in families at user scope, on demand. |
 | Codex CLI | `~/.codex/config.toml` | TOML - `[mcp_servers.<name>]` with `command` / `args` | Written only when `~/.codex/config.toml` already exists (Codex is installed). |
 | Gemini CLI | `~/.gemini/settings.json` (key `mcpServers`) | JSON - per-server entry plus `"trust": true` to skip prompts | Written only when `~/.gemini/settings.json` already exists. |
 
@@ -536,7 +571,7 @@ After step 2, pass the concrete pinned version on every call, e.g. `model_inspec
 
 ## MCP Resources (`odoo://` URI scheme, v0.5+)
 
-In addition to the tool calls, the server exposes **7 MCP Resources** addressable via stable URIs - preferred when the caller already knows the entity ID and just wants the canonical record (read-only, bookmark-friendly, no parameters):
+In addition to the tool calls, the server exposes **9 MCP Resources** addressable via stable URIs - preferred when the caller already knows the entity ID and just wants the canonical record (read-only, bookmark-friendly, no parameters):
 
 | URI template | Returns |
 |--------------|---------|
@@ -547,6 +582,8 @@ In addition to the tool calls, the server exposes **7 MCP Resources** addressabl
 | `odoo://{version}/view/{xmlid}` | View record (xpath chain, inherit_id) |
 | `odoo://{version}/pattern/{name}` | Pattern catalogue entry (code snippet + gotchas) |
 | `odoo://{version}/stylesheet/{module}/{file_path*}` | Stylesheet record (selectors, imports, variables) |
+| `odoo://{version}/test/{module}/{class_name}` | Test class record (base chain, setUp fixtures, test methods) |
+| `odoo://{version}/testcoverage/{model}` | Test coverage record (static COVERS_* reference edges for a model) |
 
 **Example:**
 
@@ -560,12 +597,14 @@ Clients that implement the MCP `resources/list` and `resources/read` flows surfa
 
 ---
 
-## Superset Tools - server v0.13.1 Reference
+## Superset Tools Reference
 
-The server exposes **25 tools** at v0.13.1: four discriminator-routed supersets
+The server exposes **31 tools**: four discriminator-routed supersets
 (`model_inspect`, `module_inspect`, `entity_lookup`, `profile_inspect`), eleven base tools,
 four session-context tools, two stylesheet tools (`resolve_stylesheet`, `find_style_override`),
-and four ORM-validation tools. Use the supersets below for all model / module / entity queries -
+four ORM-validation tools, and six test-surface tools (`find_test_examples`, `tests_covering`,
+`test_class_inspect`, `test_base_classes`, `test_coverage_audit`, `js_test_inspect`; added
+v0.15.0). Use the supersets below for all model / module / entity queries -
 each folds several narrower lookups into one discriminator-routed call:
 
 | Superset tool | Use case | Valid `method` values |

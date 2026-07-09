@@ -1,14 +1,14 @@
 # Odoo Semantic - Developer Guide
 
-<!-- This persona intentionally enumerates the full 25-tool arsenal (server v0.13.1) instead of the "Most Useful Tools" template variant - devs need the full surface area, including the 4 superset tools, 4 session-context tools, 11 base tools, 2 stylesheet tools, and 4 ORM-validation tools. -->
+<!-- This persona intentionally enumerates the full 31-tool arsenal instead of the "Most Useful Tools" template variant - devs need the full surface area, including the 4 superset tools, 4 session-context tools, 11 base tools, 2 stylesheet tools, 4 ORM-validation tools, and 6 test-surface tools. -->
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-ai-agents@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
-The full **25-tool arsenal (server v0.13.1)**, optimized for development workflows - understanding inheritance, safely extending core methods, enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS/LESS stylesheet analysis, and static ORM validation. The 25 break into five groups, each enumerated with its version era in the sections below: four discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`, plus profile-level `profile_inspect`, v0.13+), four **session-context** tools (pin a version once, pass `odoo_version='auto'`), eleven **base tools**, two **stylesheet tools** (theme/branding), and four **ORM-validation tools** (catch hallucinated field-paths, operators, dependencies, relation targets before you ship a domain / `@api.depends` / relational field).
+The full **31-tool arsenal**, optimized for development workflows - understanding inheritance, safely extending core methods, enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS/LESS stylesheet analysis, static ORM validation, and test-surface discovery. The 31 break into six groups, each enumerated with its version era in the sections below: four discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`, plus profile-level `profile_inspect`, v0.13+), four **session-context** tools (pin a version once, pass `odoo_version='auto'`), eleven **base tools**, two **stylesheet tools** (theme/branding), four **ORM-validation tools** (catch hallucinated field-paths, operators, dependencies, relation targets before you ship a domain / `@api.depends` / relational field), and six **test-surface tools** (v0.15+ - discover existing tests, coverage, and base classes before writing new tests).
 
 ---
 
-## All Tools Available to Developers (server v0.13.1)
+## All Tools Available to Developers
 
 ### Supersets (v0.5+ - preferred over legacy siblings)
 
@@ -64,6 +64,19 @@ Static checks against the indexed graph. Run them **before** emitting a domain, 
 
 > Prefer these over `entity_lookup(kind='field', ...)` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) - they reason about the whole construct, not one field.
 
+### Test-surface tools (server v0.15.0+)
+
+Discover what is already tested before writing new tests - avoid reinventing covered cases and pick the right base class.
+
+| Tool | Use case |
+|------|----------|
+| `find_test_examples(query, odoo_version="auto")` | Semantic search over test code only (test methods, test classes, JS tests - never production code). Find existing tests before writing new ones. |
+| `tests_covering(model, odoo_version="auto")` | List test methods with static `COVERS_*` reference edges to a model or field, grouped by assert/setup/body. |
+| `test_class_inspect(name, odoo_version="auto")` | Inspect a TestClass/TestHelper: base chain, `setUpClass` cursor contract, test methods with assert counts, subclassed-by list. |
+| `test_base_classes(odoo_version="auto")` | Menu of official Odoo test framework base classes (TransactionCase, HttpCase, Form, ...) with `test_type` and cursor contract. |
+| `test_coverage_audit(module, odoo_version="auto")` | Audit a module for fields/methods with zero `COVERS_*` edges (never referenced by any test). |
+| `js_test_inspect(module, odoo_version="auto")` | List JS test suites in a module: framework mix (Hoot/QUnit/tour), file paths, suite sizes, tags. |
+
 ### Removed in v0.6
 
 The 10 flat tools (`resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches`) were deprecated in v0.5 and **removed in v0.6**. They no longer exist on the server. Use the supersets above.
@@ -72,7 +85,7 @@ See the server [CHANGELOG](https://odoo-semantic.viindoo.com/changelog) for side
 
 ### MCP Resources (`odoo://` URI scheme, v0.5+)
 
-Read-only handles for bookmark-stable access. Use these when you already know the entity ID and want the canonical record without a tool call: `odoo://{version}/{kind}/{id}` where `kind` is one of `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`. See the [MCP resources URI scheme docs](https://odoo-semantic.viindoo.com/docs/adr/0030-mcp-resources-uri-scheme).
+Read-only handles for bookmark-stable access. Use these when you already know the entity ID and want the canonical record without a tool call: `odoo://{version}/{kind}/{id}` where `kind` is one of `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`, `test`, `testcoverage`. See the [MCP resources URI scheme docs](https://odoo-semantic.viindoo.com/docs/adr/0030-mcp-resources-uri-scheme).
 
 ---
 
@@ -184,7 +197,7 @@ If you use **Claude Code** with the Odoo AI Agent Team plugin:
 | `odoo-data-migration` | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
 | `odoo-git-rebase` | Rebase a feature branch onto another branch of the same Odoo series, absorbing intent (not code text) via whole-range `git rebase --onto` |
 | `odoo-modules-upgrade` | Upgrade a custom module cluster from a lower Odoo major to a higher one (code-level): drop what core now provides, adapt the rest, 1 PR per cluster |
-| `odoo-planning` | Turn an approved design into the EXECUTION plan that ships it - a wave-batched module-DAG wiring each module/stage to a skill across the full lifecycle (code -> review -> doc -> PR -> monitor -> merge). The sequencer `run-harness` then drives it, landing each coding wave-layer through the internal `odoo-wave` git-executor (one squashed PR per wave) and the async `odoo-pr-monitoring` poller to merge. |
+| `odoo-planning` | Turn an approved design into the EXECUTION plan that ships it - a wave-batched module-DAG wiring each module/stage to a skill across the full lifecycle (code -> review -> doc -> PR -> monitor -> merge). The sequencer `run-harness` then drives it, landing each coding wave-layer through its own between-wave integration (one squashed PR per wave) and the async `odoo-pr-monitoring` poller to merge. |
 
 ---
 

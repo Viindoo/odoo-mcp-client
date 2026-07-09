@@ -59,20 +59,13 @@ traceability from requirement to evidence to budget line.
 
 ## Context
 
-The BRL engine is the core consulting deliverable for Odoo project scoping. Classification errors are costly:
-- Under-classifying (Custom -> Standard) = bloated budget, lost deal
-- Over-classifying (Standard -> Custom) = budget overrun, unhappy client
-
 **4-way classification:**
 - `Available-in-Odoo-CE` - exists in odoo profile, edition=CE, zero custom dev
 - `Available-in-Odoo-EE` - exists in odoo profile, edition=EE (license cost applies)
 - `Available-in-Viindoo` - NOT in odoo profile, IS in `standard_viindoo_<version>` (or OEEL-1 license notice)
 - `Custom` - not in either profile; effort_tier sub-tiers: Extension-M/L (inherit point exists) or Custom-XL (new build)
 
-Three rules govern this engine (full statements in § Hard rules): OEEL-1 no-retry (Hard rule 5; A3
-sets `notes="OEEL-1 restricted detail"`, `evidence_field=null`, never fabricates field detail),
-deterministic cost from `cost-config.json` only (Hard rule 4 - auditability when defending quotes),
-and public-repo safety / abstract customer labels (Hard rule 3).
+Governing rules (full statements in § Hard rules): OEEL-1 no-retry (5), deterministic cost from `cost-config.json` only (4), public-repo safety / abstract customer labels (3).
 
 ## Instructions
 
@@ -528,11 +521,18 @@ emit a partial order + dag.mermaid for the acyclic remainder.
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Additive
-output for the run-harness - it does not change anything produced above.
+output for the run-harness.
 
-**Hand off non-trivial items to design before coding.** If the classified set contains any
-Extension-L or Custom-XL item, set `status: NEEDS_NEXT` and emit `next: odoo-solution-design`
-so those items get a designed-and-approved solution before any code is written - pass the RTM/report
-path and the L/XL `req_id` list as inputs (`{rtm: <path>, items: [REQ-…]}`, `risk_level: L1`).
-Standard/Config/Extension-M items go straight to `odoo-coding`. All-small-items set -> BRL is terminal
-(`status: DONE`, `next: []`).
+**Hand off to planning/design before coding.** Set `status: NEEDS_NEXT`:
+- Any Extension-L or Custom-XL item → `next: odoo-solution-design` (designed + approved before code),
+  inputs `{rtm: <path>, items: [REQ-…]}`, `risk_level: L1`.
+- Standard/Config/Extension-M only (no L/XL) → route to `odoo-planning` instead of `odoo-coding`
+  directly - `next: odoo-planning`, inputs `{rtm: <path>, items: [REQ-…]}`.
+
+BRL is a front-door admission gate: it NEVER hands a requirement straight to an executor - it
+establishes the plan (`odoo-planning`, or `odoo-solution-design` first for L/XL) before any code.
+Planning is mandatory for all code-writing work, no size-based bypass
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule); even one
+small Standard/Config item gets the minimal `[code, review, integrate]` plan. BRL is terminal
+(`status: DONE`, `next: []`) ONLY when every item is fully covered with zero custom dev
+(Available-in-Odoo-CE / -EE / -Viindoo, no Extension/Custom item).

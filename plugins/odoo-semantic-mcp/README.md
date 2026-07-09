@@ -10,7 +10,7 @@
 
 ## What this plugin provides
 
-- An HTTP MCP server registration (`odoo-semantic`) exposing **25 tools** and **7 resource URI
+- An HTTP MCP server registration (`odoo-semantic`) exposing **31 tools** and **9 resource URI
   templates** for semantic Odoo code intelligence - inheritance chains, field impact, model
   inspection, ORM validation, and more - over indexed Odoo source (**v8.0 onward**).
 - A single slash command, `/odoo-semantic-mcp:connect`, to configure and verify the connection.
@@ -50,8 +50,9 @@ Full parameter details and the manual snippet for `permissions.allow` are in
 
 ## MCP tools and resources
 
-The server exposes **25 tools** and **7 resource URI templates** (`odoo://{version}/{kind}/{id}`,
-where `kind` is one of `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`).
+The server exposes **31 tools** and **9 resource URI templates** (`odoo://{version}/{kind}/{id}`,
+where `kind` is one of `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`,
+`test`, `testcoverage`).
 Full URI descriptions, parameter reference, and usage examples are in
 [`docs/setup.md`](../odoo-ai-agents/docs/setup.md#mcp-resources-odoo-uri-scheme-v05).
 
