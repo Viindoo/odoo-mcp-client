@@ -11,7 +11,9 @@ description: >-
   single-symbol lookup that Phase R recon already covers; it must be invoked via the Skill
   tool from the main context (not from inside a subagent). It is read-only - discovering
   scope, ranking hot-spots against the stated intent, mapping bidirectional impact, and
-  handing a synthesis back to odoo-intake to re-propose a sharper plan
+  handing a synthesis back to odoo-intake to re-propose a sharper plan. Applies a zero-trust
+  code stance (descriptions are claims, source is truth) and, when a sub-question is external,
+  a bounded conditional web-research pass
 model: opus
 ---
 
@@ -57,6 +59,16 @@ plan. It is heavy (many subagents, real tokens), which is why it is opt-in and n
    (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 4. **Escalate by evidence, not by vibe.** Phase 3 (opus) runs only when a measurable trigger fires
    (see § Phase 3). Default is to stop after Phase 2 and synthesize - opus is the expensive tier.
+5. **Zero-trust: descriptions are CLAIMS, source is TRUTH.** Docstrings, comments,
+   README/manifest long-description, commit messages, prior survey/audit reports, AND OSM's
+   DESCRIPTIVE fields (`describe_module` prose, `summary`, indexed docstrings, NL pattern notes)
+   are unverified CLAIMS - confirm each against the resolved structural/behavioral source before
+   marking a finding `RESOLVED`; if a description and the source disagree, source WINS and the
+   description is flagged stale. This does NOT invert OSM-first: OSM's STRUCTURE
+   (`model_inspect` / `entity_lookup` / `resolve_orm_chain` / `find_override_point` /
+   `impact_analysis` / `validate_*`) is still the trusted primary ground truth - only the
+   descriptive TEXT is demoted to a claim. Full rule (inlined into every worker brief):
+   `${CLAUDE_PLUGIN_ROOT}/snippets/zero-trust-code-survey.md`.
 
 ## Fan-out budget
 
@@ -84,6 +96,37 @@ answer (e.g. "where is the discount applied?", "does any report read this field?
 an `UNRESOLVED` worklog entry (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` format).
 Workers flip sub-questions to `RESOLVED`; anything still `UNRESOLVED` after Phase 2 IS the
 Phase-3 coverage-gap trigger - without seeding, that trigger never fires.
+
+While decomposing, TAG each sub-question as in-codebase or **external** - an external dimension
+is the trigger for Phase W (see below).
+
+## Phase W - web research (conditional + bounded)
+
+A LIGHT external-evidence pass, reusing the SAME fork-worker fan-out as Phases 1-3. Full
+procedure + source ladder: `references/web-research.md` (orchestrator inlines the relevant parts
+into each web worker's brief). It is reconnaissance, NOT the built-in `deep-research` skill - do
+**NOT** dispatch or depend on that heavy loop-until-dry / N-vote harness.
+
+- **Trigger (conditional-on-intent):** run Phase W **only if** the Bootstrap decomposition has
+  at least one sub-question with an EXTERNAL dimension - a third-party library/API, a
+  standard/regulation, an ecosystem/version-landscape question, or "how do others do X". For a
+  PURE in-codebase/OSM survey, **SKIP Phase W entirely** and say so.
+- **Bound (hard cap - state it):** at most ONE haiku `WebSearch` fork worker per external
+  sub-question (**<= 4 web workers per survey**), each doing `WebFetch` on at most the top 3
+  reputable sources. One broad -> targeted pass per sub-question, then stop. NO loop-until-dry,
+  NO N-vote adversarial harness, NO unbounded fan-out.
+- **Source-credibility ladder:** authoritative (`github.com/odoo/odoo`, odoo.com/documentation,
+  the OSM index, `github.com/OCA`, Odoo release notes/runbot, a named dependency's official
+  docs) > reputable (well-known Odoo blogs / Cybrosys / accepted Odoo-forum answers) > low-trust
+  (random forums / unattributed or AI-generated content - corroboration-only, never
+  load-bearing). Prefer >= 2 reputable-or-better sources; mark `UNVERIFIED` otherwise.
+- **Web is SUBORDINATE to OSM/source:** a web claim about Odoo behavior loses to OSM/source when
+  they disagree - drop it or keep it only as a flagged discrepancy. Web is load-bearing ONLY for
+  genuinely external facts OSM does not index. Every web finding carries source-tier + URL +
+  fetch-date and lands in the synthesis `web_findings` section.
+- **Persist:** `.odoo-ai/survey/<slug>-<date>/phaseW/<NN>-<subquestion>.md` + one worklog entry
+  per worker. Sequence Phase W with the broad sweep (it feeds Phase-2 deep dives that touch the
+  external dimension); if skipped, note "Phase W: skipped (no external sub-question)".
 
 ## Phase 1 - broad / shallow sweep (haiku)
 
@@ -201,6 +244,13 @@ orchestrator must **read referenced snippets and paste their content into the br
    haiku; Phase 2 lenses + the dependency-closure drill for sonnet). For a worker that runs the
    dependency-closure drill, ALSO inline `${CLAUDE_PLUGIN_ROOT}/snippets/fp-symbol-survival-check.md`
    § 2 + § 2.5. A leaf cannot resolve these paths - paste, do not cite-by-path-only.
+8. **Zero-trust stance** - inline the full text of
+   `${CLAUDE_PLUGIN_ROOT}/snippets/zero-trust-code-survey.md` into EVERY worker brief (same paste
+   mechanism as the worker brief + lens block): descriptions (docstrings, comments, manifest
+   prose, prior reports, OSM descriptive fields) are CLAIMS; only the resolved structural source
+   grounds a `RESOLVED` finding; source wins over a stale description; OSM STRUCTURE stays the
+   trusted primary. For a Phase W worker, ALSO inline `references/web-research.md` (the source
+   ladder + the web-subordinate-to-OSM rule).
 
 ## Synthesis + hand back to intake
 
@@ -223,6 +273,9 @@ carries `grounded: osm | hybrid | local-source`. Sections:
 
   Tier (iii) framework gates are `grounded: local-source` (OSM does not index them) - list them
   from the runbot-parity-checklist cross-ref in `references/survey-lenses.md`, each "verify live".
+- **web_findings** (external evidence, present ONLY when Phase W ran) - rows
+  `claim | source-tier | URL | corroborating-source | VERIFIED/UNVERIFIED`; subordinate to
+  OSM/source per § Phase W.
 - **essential_reading** - 5-10 files MAX to UNDERSTAND the scope (distinct from files-to-change),
   each + one-line "why" + `file:line`.
 - **open_questions** (`UNRESOLVED`), **recommended_approach_delta**, and **upgrade_symbol_gaps**
@@ -260,6 +313,7 @@ Every finding carries one grounding label - `grounded: osm | hybrid | local-sour
 ```
 .odoo-ai/survey/<slug>-<date>/
   state.json        # {slug, intent, phase_done: [...], next: <phase|synthesis>}
+  phaseW/<NN>-<subquestion>.md   # only if an external-dimension sub-question triggered Phase W
   phase1/<NN>-<area>.md
   phase2/<NN>-<hotspot>.md
   phase3/<NN>-<knot>.md      # only if escalated

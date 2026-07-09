@@ -6,6 +6,12 @@
 
 # Deep-Survey Analytical Lenses (worker mandates)
 
+**Zero-trust on every lens:** descriptions are CLAIMS, source is TRUTH - docstrings, comments,
+manifest prose, prior reports, and OSM DESCRIPTIVE text are unverified until confirmed against the
+resolved structural source; mark `RESOLVED` only when source-grounded, and if a description
+disagrees with source, source WINS. This does NOT invert OSM-first: OSM's STRUCTURE stays the
+trusted primary. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/zero-trust-code-survey.md`.
+
 OSM-first on every lens: name OSM tools by PRINCIPLE, pass a **concrete** `odoo_version` on
 every call, read raw source only when OSM is silent (then label the finding
 `grounded: local-source`). Each lens states what to PRODUCE so a later execute agent acts

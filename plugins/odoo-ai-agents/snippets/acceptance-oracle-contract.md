@@ -22,8 +22,15 @@ does and what the business needs. That gap is the bug. These rules make the orac
    implementation to decide what `expected` should be, and NEVER set `expected` to whatever the
    running system returned. Reading the implementation to learn what `expected` should be is the
    defect this contract exists to prevent.
+
+   `DESIGN_DOC` §9 Acceptance Criteria (when a design exists) is an explicitly ALLOWED source of
+   `expected` - consuming it does NOT violate this invariant, because the ban is on reading the
+   IMPLEMENTATION/code, and §9 is itself requirement-derived, never code/OSM-derived, enforced by
+   the design's own INDEPENDENCE GUARD (`agents/odoo-solution-architect.md` §9). Reading §9 is
+   reading the requirement one hop removed through the design doc, not reading the code.
 2. **Author != coder != adjudicator (three separate contexts).** The agent that writes the oracle
-   (`odoo-qa-planner`) is not the agent that wrote the code (`odoo-coder`), and neither is the
+   (`odoo-qa-planner`) is not the coding side that wrote the code (odoo-coding's coder agents - the
+   `odoo-coder` coordinator and its `odoo-backend-coder`/`odoo-frontend-coder` workers), and neither is the
    agent that compares system-vs-oracle and rules PASS/FAIL (`odoo-qa-tester`). Independence is
    structural - enforced by running each in its own context, not by good intentions.
 3. **Never edit `expected` to match `actual`.** When the system disagrees with the oracle, the
