@@ -20,6 +20,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (`--setting-sources project,local` to beat the installed plugin; precision is the high-confidence
   signal, recall is bare-env-depressed for a front-door orchestration skill).
 
+## [4.9.1] - 2026-07-09
+
+### Changed
+
+- `odoo-ai-agents` - `odoo-intake` optimization pass: reconciled the fire/no-fire contract (a clear
+  single-step match is deferred OR one-line-gated, never ungated - gate-before-execution has no
+  exception); broadened routing row 6 so a lone capability question (incl. reported speech) hits
+  `odoo-feature-check` instead of brainstorm; tightened the trigger description. Routing-classification
+  eval 42/43 -> 43/43.
+- `odoo-ai-agents` - `odoo-solution-design` optimization pass: description sharpened with the
+  design-vs-`odoo-planning` (build order) and design-vs-`odoo-doc-walkthrough` (usage scenarios)
+  near-misses; the `return_to` payload-mapping table moved to `references/return-to-payload.md`
+  (progressive disclosure; SKILL body 450 -> 432 lines). Design-decision eval held at 24/24.
+
+### Added
+
+- `odoo-ai-agents` - `odoo-intake` routing rows 55-63 so every user-facing front-door skill is
+  reachable (`odoo-perf-audit`, `odoo-security-audit`, `odoo-data-migration`, `odoo-customer-health`,
+  `odoo-i18n`, `odoo-pricing-proposal`, `odoo-rfp-response`, `odoo-test-writing`, `odoo-instance`) plus
+  collision-zones 18-21; refreshed the eval set 43 -> 54 with coverage + discriminator guards.
+- `odoo-ai-agents` - `odoo-solution-design` gains an `evals/evals.json` (24 design-decision cases incl.
+  adversarial) - the skill previously had none.
+
 ## [4.9.0] - 2026-07-08
 
 ### Added
