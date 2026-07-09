@@ -1,0 +1,312 @@
+{
+  "skill_name": "odoo-debug",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "clicking Confirm on a sale.order throws 'Expected singleton: sale.order(1, 2)' - here's the traceback. why?",
+      "expected_decision": "trigger-debug",
+      "expected_layer": "backend",
+      "expected_special": "none",
+      "expected_output": "Expected singleton traceback = Python/ORM runtime -> odoo-backend-debugger.",
+      "category": "trigger-backend",
+      "assertions": [
+        {
+          "text": "decision == trigger-debug"
+        },
+        {
+          "text": "Phase-2 layer == backend"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "the kanban board renders blank and the browser console shows an OWL error - what's going on?",
+      "expected_decision": "trigger-debug",
+      "expected_layer": "ui",
+      "expected_special": "none",
+      "expected_output": "Blank kanban + OWL console error = frontend runtime -> odoo-ui-debugger (serial browser).",
+      "category": "trigger-ui",
+      "assertions": [
+        {
+          "text": "decision == trigger-debug"
+        },
+        {
+          "text": "Phase-2 layer == ui"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "portal users get an AccessError when they open their own invoice - it worked last week. figure out why",
+      "expected_decision": "trigger-debug",
+      "expected_layer": "backend",
+      "expected_special": "none",
+      "expected_output": "AccessError on portal invoice = ACL/ir.rule backend runtime -> odoo-backend-debugger.",
+      "category": "trigger-backend-acl",
+      "assertions": [
+        {
+          "text": "decision == trigger-debug"
+        },
+        {
+          "text": "Phase-2 layer == backend"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "my module fails to install - ParseError in the view XML during -u. what's wrong?",
+      "expected_decision": "trigger-debug",
+      "expected_layer": "backend",
+      "expected_special": "none",
+      "expected_output": "ParseError during -u = module-load/XML parse -> odoo-backend-debugger.",
+      "category": "trigger-backend-moduleload",
+      "assertions": [
+        {
+          "text": "decision == trigger-debug"
+        },
+        {
+          "text": "Phase-2 layer == backend"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "the total_amount computed field isn't updating when I change the order lines - why is it stale?",
+      "expected_decision": "trigger-debug",
+      "expected_layer": "backend",
+      "expected_special": "none",
+      "expected_output": "Stale computed field = compute/@api.depends bug -> odoo-backend-debugger.",
+      "category": "trigger-backend-compute",
+      "assertions": [
+        {
+          "text": "decision == trigger-debug"
+        },
+        {
+          "text": "Phase-2 layer == backend"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "the sale order list view is timing out in production right now - it was fine yesterday. what's happening?",
+      "expected_decision": "trigger-debug",
+      "expected_layer": "perf-reactive",
+      "expected_special": "none",
+      "expected_output": "'Timing out right now in production' = acute reactive slow-now -> odoo-perf-audit reactive.",
+      "category": "trigger-perf-reactive",
+      "assertions": [
+        {
+          "text": "decision == trigger-debug"
+        },
+        {
+          "text": "Phase-2 layer == perf-reactive"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "tại sao view khách hàng bị trống và có lỗi console khi mở form?",
+      "expected_decision": "trigger-debug",
+      "expected_layer": "ui",
+      "expected_special": "none",
+      "expected_output": "Vietnamese: blank view + console error on form open = OWL/render runtime -> odoo-ui-debugger.",
+      "category": "trigger-ui-vi",
+      "assertions": [
+        {
+          "text": "decision == trigger-debug"
+        },
+        {
+          "text": "Phase-2 layer == ui"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "widget đánh giá sao không hiện trên form, console báo lỗi JS - tìm nguyên nhân",
+      "expected_decision": "trigger-debug",
+      "expected_layer": "ui",
+      "expected_special": "none",
+      "expected_output": "Vietnamese: widget not showing + JS console error = frontend runtime -> odoo-ui-debugger.",
+      "category": "trigger-ui-vi2",
+      "assertions": [
+        {
+          "text": "decision == trigger-debug"
+        },
+        {
+          "text": "Phase-2 layer == ui"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "I already know the cause - _compute_total forgets the tax line. just write the patch for me",
+      "expected_decision": "defer:odoo-coding",
+      "expected_layer": "n/a",
+      "expected_special": "none",
+      "expected_output": "Cause already known; user wants the patch written -> Out-of-Scope 'writing the fix' -> odoo-coding.",
+      "category": "defer-coding",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-coding"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "audit my whole sale_custom module for N+1 query patterns before we ship it - nothing's broken yet",
+      "expected_decision": "defer:odoo-perf-audit",
+      "expected_layer": "n/a",
+      "expected_special": "none",
+      "expected_output": "Proactive N+1 scan, nothing broken -> Out-of-Scope proactive scan -> odoo-perf-audit.",
+      "category": "defer-perf-audit-proactive",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-perf-audit"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "review this PR #204 for bugs and convention issues before I merge",
+      "expected_decision": "defer:odoo-code-review",
+      "expected_layer": "n/a",
+      "expected_special": "none",
+      "expected_output": "Static PR review before merge -> Out-of-Scope 'static review of a diff/PR' -> odoo-code-review.",
+      "category": "defer-code-review",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-code-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "does the invoice form look right and is it accessible before the demo? nothing's erroring, just want a verdict",
+      "expected_decision": "defer:odoo-ui-review",
+      "expected_layer": "n/a",
+      "expected_special": "none",
+      "expected_output": "Verdict on a WORKING non-erroring screen -> Out-of-Scope 'rating a working screen' -> odoo-ui-review.",
+      "category": "defer-ui-review",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-ui-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "compare the before/after screenshots of the kanban to check my CSS didn't cause drift",
+      "expected_decision": "defer:odoo-visual-regression",
+      "expected_layer": "n/a",
+      "expected_special": "none",
+      "expected_output": "Before/after screenshot drift comparison -> odoo-visual-regression, not a live symptom.",
+      "category": "defer-visual-regression",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-visual-regression"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "scan this controller for SQL injection and XSS before release - proactive security pass, no incident",
+      "expected_decision": "defer:odoo-security-audit",
+      "expected_layer": "n/a",
+      "expected_special": "none",
+      "expected_output": "Proactive pre-release security scan, no incident -> odoo-security-audit (proactive).",
+      "category": "defer-security-audit-proactive",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-security-audit"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 15,
+      "prompt": "the OWL widget is blank with a console error - but heads up, I don't have any Odoo instance running right now",
+      "expected_decision": "trigger-debug",
+      "expected_layer": "ui",
+      "expected_special": "needs-instance",
+      "expected_output": "UI symptom (blank OWL + console) but no instance -> fires, emits NEEDS_NEXT: odoo-instance (never asks user to paste console).",
+      "category": "trigger-ui-needs-instance",
+      "assertions": [
+        {
+          "text": "decision == trigger-debug"
+        },
+        {
+          "text": "Phase-2 layer == ui"
+        },
+        {
+          "text": "special == needs-instance"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 16,
+      "prompt": "my test run logs a WARNING 'access denied' from a deny-path check and it's failing my eye - is my code actually broken?",
+      "expected_decision": "trigger-debug",
+      "expected_layer": "*",
+      "expected_special": "expected-log",
+      "expected_output": "Deny-path WARNING in a test run = EXPECTED noise (Phase-1 expected-log triage): verify assertLogs/mute_logger, do NOT open a code investigation.",
+      "category": "trigger-expected-log",
+      "assertions": [
+        {
+          "text": "decision == trigger-debug"
+        },
+        {
+          "text": "special == expected-log"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 17,
+      "prompt": "after upgrading to v18 my custom module no longer shows up as installable in the Apps list - why?",
+      "expected_decision": "trigger-debug",
+      "expected_layer": "backend",
+      "expected_special": "none",
+      "expected_output": "Module not installable after v18 upgrade = module-load/migration symptom -> odoo-backend-debugger.",
+      "category": "trigger-backend-installable",
+      "assertions": [
+        {
+          "text": "decision == trigger-debug"
+        },
+        {
+          "text": "Phase-2 layer == backend"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 18,
+      "prompt": "a list view feels a bit slow - should I add index=True on the partner_id field? just advice, it's not on fire",
+      "expected_decision": "defer:odoo-perf-audit",
+      "expected_layer": "n/a",
+      "expected_special": "none",
+      "expected_output": "ADVISORY 'should I add index=True, not on fire' = proactive perf question -> odoo-perf-audit, NOT reactive debug (contrast id 6).",
+      "category": "defer-perf-audit-advisory",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-perf-audit"
+        }
+      ],
+      "files": []
+    }
+  ],
+  "notes": "18 debug-decision cases. Eval method: a subagent applies SKILL.md to each prompt and returns {fires, decision, layer, special}, graded vs expected. Covers trigger-vs-defer (defers to coding / perf-audit / security-audit / code-review / ui-review / visual-regression), Phase-2 layer routing (backend vs ui vs perf-reactive), and two special behaviors: needs-instance (UI symptom, no instance -> NEEDS_NEXT: odoo-instance, never ask the user to paste) and expected-log (a deny-path/guard/constraint WARNING in a test run is EXPECTED noise -> no code investigation). Key discriminator pair: id 6 (reactive 'slow right now' -> debug/perf-reactive) vs id 18 (advisory 'should I add index' -> proactive perf-audit). Baseline (pre-optimize snapshot) scored 18/18 - decision logic already robust; this eval is shipped as a decision-regression guard (the skill had none). It does NOT run a live diagnosis or grade a real root cause."
+}
