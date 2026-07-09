@@ -2,18 +2,16 @@
 name: odoo-solution-design
 argument-hint: "[feature/requirement to design]"
 description: >
-  Design the technical solution for a non-trivial Odoo change BEFORE code is written - the
-  analysis-and-design step between requirement analysis (odoo-brl / odoo-gap-analysis) and code
-  generation (odoo-coding). Dispatches the odoo-solution-architect
-  agent to produce a gate-able Technical Design Document (approach, data model, override strategy,
-  module structure, risks) grounded in OSM. Use it to decide HOW to build (inheritance axis,
-  stored vs computed, new module vs extend) - not just WHAT to build or to immediately WRITE code.
-  Fire on: "how should I architect/structure this", "design the solution / data model", "which
-  approach", "plan the refactor", "technical design".
-  Vietnamese: "thiết kế giải pháp", "phân tích thiết kế", "chọn cách tiếp cận nào", "lên kế hoạch
-  refactor". For ONE method's hook use odoo-override-finding; to WRITE code use odoo-coding;
-  to REVIEW use odoo-code-review; to classify a requirement LIST use
-  odoo-brl / odoo-gap-analysis
+  Design the technical solution for a non-trivial Odoo change BEFORE code is written - the design step
+  between requirement analysis (odoo-brl / odoo-gap-analysis) and coding (odoo-coding). Dispatches the
+  odoo-solution-architect agent to produce a gate-able Technical Design Document grounded in OSM. Use it
+  to decide HOW to build (inheritance axis, stored vs computed, new module vs extend) - not just WHAT to
+  build or to immediately WRITE code. Fire on: "how should I architect/structure this", "design the
+  solution / data model", "which approach", "plan the refactor", "technical design". Vietnamese: "thiết kế
+  giải pháp", "phân tích thiết kế", "chọn cách tiếp cận nào", "lên kế hoạch refactor". For ONE method's
+  hook use odoo-override-finding; to WRITE code use odoo-coding; to REVIEW use odoo-code-review; to
+  classify a requirement LIST use odoo-brl / odoo-gap-analysis; for the build ORDER of an approved design
+  use odoo-planning; for usage/walkthrough scenarios use odoo-doc-walkthrough
 ---
 
 ## Where this sits in the flow (design precedes the code Plan Mode)
@@ -345,29 +343,13 @@ subagents, invoke skills, or write production code.
 
 ### Payload mapping when `return_to` is set (caller-return flow)
 
-When this skill is invoked by a caller that supplied `return_to` in its inputs (e.g.
-`odoo-forward-port` routing a bucket-(c) module here), map the caller's payload onto the
-dispatch template as follows - do NOT improvise or drop any field:
-
-| Caller input | Architect template field | How to compose |
-|---|---|---|
-| `target_version` | `REQUEST` preamble + `set_active_version` | Write "Target Odoo version: <target_version>" as the first line of `REQUEST` |
-| `modules` | `REQUEST` preamble | Write "Modules: <names>" as the second line of `REQUEST` |
-| `classification` | `REQUEST` body | Paste the bucket-(c) summary verbatim as the core requirement description in `REQUEST` |
-| `intent_records` | `REQUEST` body | Write "Intent records (read these FIRST for the OSM-grounded behavioral contract): <paths>" as a dedicated line in `REQUEST`; the architect MUST Read each path before designing - this is the behavioral contract the forward-port must preserve |
-| `design_slug_hint` | `DESIGN_SLUG_HINT` line | Copy verbatim; the architect uses it as `<slug>` when naming `.odoo-ai/designs/<slug>-<date>.md` |
-| `return_to` | `RETURN_TO` line | Copy verbatim; routes the architect's Continuation Contract back to the caller |
-
-The assembled `REQUEST` therefore reads:
-```
-REQUEST: Target Odoo version: <target_version>
-Modules: <module names>
-Intent records (read these FIRST for the OSM-grounded behavioral contract): <intent_records paths>
-<classification - bucket-(c) summary>
-```
-
-Never flatten `intent_records` into the classification summary or omit it - it carries the
-behavioral contract the design must honour, distinct from the structural classification.
+When a caller (e.g. `odoo-forward-port`) supplies `return_to`, map its payload
+(`target_version` / `modules` / `classification` / `intent_records` / `design_slug_hint` /
+`return_to`) onto the P1 architect dispatch template per the field-by-field table in
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-solution-design/references/return-to-payload.md` - do NOT
+improvise or drop a field, and never flatten `intent_records` into the classification summary
+(it carries the behavioral contract the design must honour, distinct from the structural
+classification). The default (no `return_to`) path skips this entirely.
 
 ## Standalone-first fallback
 
