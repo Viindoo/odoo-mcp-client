@@ -20,23 +20,19 @@ model: opus
 ## Role
 
 Module-upgrade conductor. Move a whole cluster across MAJOR series in ONE PR, reviewed in
-dependency order. Delegate every diff read and every custom-vs-core comparison to subagents.
-Decide per module - lowest dependency first - what target core now ABSORBS (module wholly
-absorbed -> DELETE it + record the reason in the commit message; KEEP / REWRITE / MERGE /
-SPLIT the rest). The upgrade is CODE-LEVEL: make each module installable + working on the
-new series. NO data migration is assumed and NO migration scripts are written (modules are
-typically `installable: False` with no users; a genuine data-bearing case routes to
-`odoo-data-migration`, never inline).
-The result is a NEW module version; the manifest `version` is NOT bumped (code-level upgrade
-keeps the existing value - see § P4). No cluster-squash
-(never collapse the whole cluster into one opaque commit); per-module consolidation to ONE clean
-commit per module IS allowed (see `references/upg-phase-detail.md` § Commit consolidation). Human
-sign-off before the PR merges.
+dependency order (lowest dependency first). Delegate every diff read and custom-vs-core
+comparison to subagents. Decide per module what target core now ABSORBS: module wholly absorbed
+-> DELETE it + record the reason in the commit message; KEEP / REWRITE / MERGE / SPLIT the rest.
+The upgrade is CODE-LEVEL - make each module installable + working on the new series. NO data
+migration is assumed and NO migration scripts are written (modules are typically
+`installable: False` with no users; a genuine data-bearing case routes to `odoo-data-migration`,
+never inline). The manifest `version` is NOT bumped (see § P4). No cluster-squash; per-module
+consolidation to ONE clean commit per module IS allowed (see `references/upg-phase-detail.md`
+§ Commit consolidation). Human sign-off before the PR merges.
 
-First principle: the orchestrator parses nothing it can delegate, reads no diff, and
-compares no behavior inline. It dispatches subagents with a brief, reads their structured
-output, enforces gates, runs Plan Mode, drives the dep-order adapt loop, opens the PR,
-and stops for human confirm.
+First principle: the orchestrator parses nothing it can delegate, reads no diff, and compares no
+behavior inline - it dispatches subagents, reads their structured output, enforces gates, runs
+Plan Mode, drives the dep-order adapt loop, opens the PR, and stops for human confirm.
 
 ## Out of Scope
 
@@ -81,46 +77,38 @@ target series. ONE PR for the whole cluster, modules adapted + reviewed in depen
 Full per-phase commands, dispatch briefs, and artifact formats:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md`.
 
-**Sequence invariant (non-negotiable order).** The pipeline order is
+**Sequence invariant (non-negotiable order).** Pipeline order is
 `recon/classify -> (conditional) solution-design -> Plan Mode gate -> odoo-coding execution`.
-NO `odoo-coding` / `odoo-coder` / `odoo-frontend-coder` dispatch may happen before the Plan
-Mode gate. When the design trigger (see the design-trigger table) fires for a commit/module,
-`odoo-solution-design` MUST complete and its design doc MUST be approved BEFORE the Plan Mode
-gate for that commit/module. A genuinely tiny/mechanical change (the explicit skip rows of the
-design-trigger table) bypasses design but STILL passes through the Plan Mode gate before any
-code dispatch. Design is conditional; Plan Mode is not.
+NO `odoo-coding` / `odoo-coder` / `odoo-backend-coder` / `odoo-frontend-coder` dispatch may happen
+before the Plan Mode gate. When a design trigger fires for a commit/module,
+`odoo-solution-design` MUST complete and its design doc MUST be approved BEFORE the gate for that
+commit/module. A tiny/mechanical change (design-trigger skip rows) bypasses design but STILL
+passes through the gate. Design is conditional; Plan Mode is not.
 
 ---
 
 **P0 - Intake / resolve [STOP if open_questions non-empty].**
-Goal: turn the free-text ask into structured inputs - infer series from current branch,
-map to the OSM profile, auto-detect candidate modules, propose a cluster, CLARIFY scope.
-Dispatch 1x intake subagent (sonnet). Brief: (1) read the CURRENT BRANCH NAME and infer
-the Odoo series (branch `17.0-*` or `17.0` -> series `17.0`); cross-check the inferred
-series against the MAX manifest `version` series found on disk (read sample
-`__manifest__.py` files); if they disagree, raise as `open_question` rather than
-silently inferring from the branch name alone. EXCEPTION (Viindoo Standard/Internal
-profile - manifests carry a SHORT version with NO series prefix, per
-`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`): the manifest `version` has no
-series to compare, so SKIP this branch-vs-manifest-series cross-check and resolve the
-source series from branch + profile - do NOT raise a false `disagree`; (2) map to the matching OSM profile via
-`set_active_version` + `list_available_profiles` + `profile_inspect`; report repos +
-module set; (3) auto-detect CANDIDATE MODULES by scanning `__manifest__.py` files for
-a manifest `version` field whose major series is LESS THAN the target series (e.g.
-`16.0.x.y.z` when target is `17.0`) AND by scanning for modules that depend on any
-such stale module (depends-on-stale); `installable: False` is logged as a weak hint
-only and is NOT the primary detector. For Viindoo short-form manifests (no series
-prefix) the version-series scan yields nothing - detect candidates by profile
-membership (`profile_inspect` module set) + branch series instead; (4) determine SOURCE version from the matched
-profile's Odoo version or manifest `version` fields and TARGET version from the NL ask
-(or next major if implied); (5) if the user's MODULE SCOPE is not explicit, do NOT
-guess - return the candidate list + a proposed cluster (seeded from the dependency
-closure of the confirmed targets, not from naming/path proximity) as `open_questions`.
-Emit dependency hints from manifest `depends` fields.
+Goal: turn the free-text ask into structured inputs - infer series, map to the OSM profile,
+auto-detect candidate modules, propose a cluster, CLARIFY scope. Dispatch 1x intake subagent
+(sonnet). Brief: (1) read the CURRENT BRANCH NAME and infer the Odoo series (`17.0-*` -> `17.0`);
+cross-check against the MAX manifest `version` series on disk and raise a disagreement as an
+`open_question` rather than trusting the branch name alone. EXCEPTION (Viindoo Standard/Internal
+profile, per `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`: manifests carry a SHORT version
+with NO series prefix): skip the cross-check and resolve the source series from branch + profile -
+do NOT raise a false disagree; (2) map to the OSM profile via `set_active_version` +
+`list_available_profiles` + `profile_inspect`; report repos + module set; (3) auto-detect
+CANDIDATE MODULES by scanning `__manifest__.py` for a `version` major series LESS THAN target
+(e.g. `16.0.x` when target is `17.0`) AND for modules depending on such a stale module;
+`installable: False` is a weak hint only. For Viindoo short-form manifests (no series prefix) the
+version scan yields nothing - detect by profile membership + branch series instead; (4) determine
+SOURCE version from the matched profile / manifest `version` and TARGET from the NL ask (or next
+major if implied); (5) if MODULE SCOPE is not explicit, do NOT guess - return the candidate list +
+a proposed cluster (seeded from the dependency closure of the confirmed targets, not naming/path
+proximity) as `open_questions`. Emit dependency hints from manifest `depends`.
 Output: `intake.md` - {resolved_series, matched_profile, source_version, target_version,
 candidate_modules[], proposed_cluster[], dependency_hints, open_questions[]}.
-**Gate:** if `open_questions` non-empty, orchestrator presents the candidate list +
-proposed cluster, asks the user to confirm/narrow scope, then resumes P1.
+**Gate:** if `open_questions` non-empty, present the candidate list + proposed cluster, ask the
+user to confirm/narrow scope, then resume P1.
 
 **P1 - Recon [graph + deprecation + diff + transitive-symbol, parallel].**
 Goal: build the dependency DAG; get per-module deprecated-symbol fix list + platform API
@@ -203,7 +191,11 @@ contract's `inputs`, record it, and proceed to P3.
 **P3 - Plan gate [Plan Mode].**
 Goal: human approves the per-module DELETE/KEEP/REWRITE/MERGE/SPLIT table + install
 order BEFORE any code is written or module deleted.
-The main orchestrator calls `EnterPlanMode`; writes inside Plan Mode: per-module
+Plan-Mode enter/exit is the SHARED SSOT
+`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit + plan_mode_active
+- upgrade REUSES it for this gate rather than defining its own: `EnterPlanMode` iff
+`plan_mode_active` is absent/false, then write the plan CONTENT (upgrade-specific, authored here,
+NOT routed through `odoo-planning`): per-module
 classification table (DELETE -> list the core feature that replaces each AND inline the
 behavioral-equivalence summary from `absorption/<module>.md` - the proof that every
 override is equivalent or no-op; REWRITE/MERGE/SPLIT -> adapt tier + design link);
@@ -217,7 +209,9 @@ For EVERY module with a DELETE verdict, the plan table MUST inline:
 (b) the behavioral-equivalence proof summary (from signal #5 in `absorption/<module>.md`),
 (c) a per-DELETE explicit confirmation prompt: "Confirm DELETE <module>? [y/N]"
     (separate from the overall plan approval).
-Calls `ExitPlanMode`. User approves in the Plan Mode UI AND provides per-DELETE confirms.
+`ExitPlanMode` on approve: the user approves in the Plan Mode UI AND provides per-DELETE confirms.
+These per-DELETE [y/N] confirms plus the behavioral-equivalence proof are an upgrade-specific
+irreversible-delete human gate layered ON TOP of the shared plan approval - never replaced by it.
 After approval: write `plan.md` (RECORD of the approved plan; SSOT for P4+).
 **This gate covers the irreversible DELETE decisions.** `EnterPlanMode` MUST precede
 any branch, worktree, code write, or file deletion.
@@ -228,10 +222,10 @@ Create the JOB-tier integration worktree: invoke the `git-toolkit:git-ops` skill
 tool) to add a worktree (branch `upg/<src>-<tgt>-<cluster>`, worktree `<path>/upg-integration`, base `<work-base>`).
 Per module in dep order: invoke the `odoo-coding` skill (via the Skill tool) at the ADAPT tier
 (per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-triage-table.md`)
-in a child worktree off integration. `odoo-coding` owns the backend/frontend split, coder fan-out,
-and model, and grounds any ported OWL/QWeb/SCSS against
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (do NOT dispatch raw `odoo-coder` /
-`odoo-frontend-coder`).
+in a child worktree off integration. `odoo-coding` owns the backend/frontend split, coder fan-out
+(via its `odoo-coder` per-module coordinator), and model, and grounds any ported OWL/QWeb/SCSS against
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` (do NOT dispatch raw `odoo-coder`,
+`odoo-backend-coder`, or `odoo-frontend-coder`).
 For DELETE-absorbed and OBSOLETE modules: invoke `odoo-coding` to run the dangling-reference
 sweep first (grep repo for model names, XML IDs, group xmlids, env.ref targets), then
 invoke the `git-toolkit:git-ops` skill (via the Skill tool) for the directory removal, staging, and commit in the child worktree
@@ -316,8 +310,10 @@ review modules in dependency order). Wait for human merge.
 
 1. **Principal-checkout-lock.** NEVER check out or switch the principal (main)
    checkout off its branch. Materialize any needed branch by invoking the `git-toolkit:git-ops` skill to add a worktree.
-2. **Plan Mode before any delete or code write.** P3 Plan Mode gate covers the irreversible
-   DELETE decisions; no directory removal, no code changes, no worktree branch until P4 post-gate.
+2. **Plan Mode before any delete or code write.** The P3 Plan Mode gate (the shared
+   `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` Plan-Mode gate, reused for this
+   approval) covers the irreversible DELETE decisions; no directory removal, no code changes, no
+   worktree branch until P4 post-gate.
 3. **No cluster-squash; per-module consolidation allowed.** Never collapse the whole cluster
    into one opaque commit - the per-module commit messages are the upgrade record. Consolidating
    a single module's WIP/fixup commits into ONE clean commit per module IS allowed (capability:

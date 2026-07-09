@@ -40,7 +40,7 @@ never squash or cherry-pick in continuous mode.
   the P3 conditional route-out (which delegates to odoo-solution-design and returns) - that is
   IN scope of this skill, not a hand-off boundary
 - Parallelizing N disjoint WIs with cherry-pick + squash semantics -> use `odoo-planning` (the
-  USER-facing choice; it plans the wave-batched delivery for the internal `odoo-wave` executor,
+  USER-facing choice; it plans the wave-batched delivery for `run-harness`'s between-wave integration,
   which re-bases by cherry-pick - whereas forward-port keeps SHA by merge: a different git contract)
 
 > **Route in (Odoo forward-port lands HERE, not bare git-ops):** an Odoo forward-port routes to
@@ -68,39 +68,18 @@ a natural-language description match, or a Skill-tool call from an orchestrator 
 | `--since <sha>` | no | Only commits after this SHA (continuous or incremental FP) |
 | `--one-shot` | no | Cherry-pick mode for a single one-time port (default: merge mode) |
 
-Parse these from `$ARGUMENTS` in P0; if `source-ref` or `target-branch` is missing, ask
-once in a single brief message before any read or git op.
+Parsed from `$ARGUMENTS` in P0 (missing `source-ref`/`target-branch` -> ask once, one message,
+before any read or git op).
 
 ### When to use
 
 - **1-5 commits** - intent-extract + classify + Plan Mode gate + serial adapt + one merge commit.
-- **6+ commits** - full plan (commit topology, per-commit model tier, buckets) presented in
-  Plan Mode and recorded to `plan.md`, with a human-confirm gate per merge batch.
+- **6+ commits** - full plan (commit topology, per-commit tier, buckets) in Plan Mode, recorded
+  to `plan.md`, with a human-confirm gate per merge batch.
 - **Continuous mode (default)** - recurring; source keeps evolving; SHA preserved so the
   merge-base advances and past conflicts are never re-resolved.
 
 For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `/odoo-plan-upgrade`.
-
-### Examples
-
-```
-/odoo-forward-port origin/17.0 origin/18.0 --scope l10n_vn,l10n_vn_viin --since abc1234
-```
-Recon: 3 commits, scope 2 modules, Sonnet tier. Then 3 parallel read-only intent extractions
--> classify + installable-probe -> conditional design route-out -> Plan Mode gate (user
-approves) -> merge --no-commit -> symbol-survival check -> serial per-module adapt (worktree
-per module) -> verify-by-behavior (red-then-green) -> GATE MERGE -> merge commit -> checkpoint.
-
-```
-/odoo-forward-port origin/17.0 origin/18.0 --one-shot
-```
-One-shot cherry-pick for a single frozen batch; same intent-extract -> classify ->
-symbol-survival -> adapt -> verify -> gate flow, cherry-pick instead of merge.
-
-```
-/odoo-forward-port
-```
-Prompts for source-ref and target-branch, then the same flow.
 
 ## Hard rules
 
@@ -134,9 +113,10 @@ Prompts for source-ref and target-branch, then the same flow.
    at runtime. Resolve every broken symbol into a bucket before adapt starts. SSOT:
    `[[fp-symbol-survival-check]]`.
 
-6. **Human-confirm merge** - STOP at the P10 gate. The P4 plan gate runs in harness Plan Mode
-   (user approves in the Plan Mode UI). No automated commit of the integration into B, no
-   auto-merge of the PR. Present and wait.
+6. **Human-confirm merge** - STOP at the P10 gate. The P4 plan gate runs the shared Plan-Mode gate
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit; user approves
+   in the Plan Mode UI). No automated commit of the integration into B, no auto-merge of the PR.
+   Present and wait.
 
 7. **Outcome a/d still merge** - buckets (a) already-satisfied and (d) no-longer-relevant
    produce no adapt diff but STILL create the merge commit (keeps SHA, advances merge-base).
@@ -156,11 +136,9 @@ B is the final PR merge (P11), human-confirmed.
 
 **WORK tier (when a phase fans out):** from the integration worktree, each parallel unit
 (one module or work-item in P8 adapt) gets its OWN dedicated child worktree (delegated to
-git-toolkit via `git-ops`) + branch off integration. Each adapt subagent works in its child worktree (a
-private git index -> safe parallelism, no `index.lock` race). When a child finishes, the
-orchestrator brings it back into integration by merge (keeping SHA), then removes the child
-worktree. The next phase recreates child worktrees from the updated integration. LOOP until
-phases are done.
+git-toolkit via `git-ops`) + branch off integration - a private git index for safe parallelism,
+no `index.lock` race. When a child finishes, merge it back into integration (keeping SHA), then
+remove it. The next phase recreates child worktrees from the updated integration. LOOP until done.
 
 **Per-commit vs absorb-all.** The child-worktree fan-out above assumes integration HEAD
 is COMMITTED between units (per-commit continuous, or one-shot) so a child forks from a clean
@@ -171,8 +149,7 @@ worktrees for conflict resolution: resolve serially, per module, DIRECTLY in the
 worktree; child-worktree isolation resumes only once the absorbed merge is committed.
 
 The only serialized point is converging children into integration + writing the source-merge
-commit. Worktrees provide filesystem isolation, not a second agent-dispatch level - no nested
-agent dispatch.
+commit. Worktrees are filesystem isolation, not a second agent-dispatch level.
 
 ## The pipeline
 
@@ -276,13 +253,16 @@ rather than advancing to P4 with no design. SSOT for the full contract:
 
 **P4 - Plan gate [Plan Mode].** This is where the user approves - AFTER intent + classify +
 design, so the plan carries the REAL triaged tiers and REAL buckets, not guesses. Forward-port
-runs from the MAIN context, so it MAY call `EnterPlanMode` / `ExitPlanMode` (a subagent cannot).
-Procedure: the main agent calls `EnterPlanMode`; writes the implementation plan inside Plan Mode
-(commit topology; per-commit model tier [the real triaged tier]; bucket [the real classification];
-installable routing per module; design-doc link for any commit P3 designed; merge batches); calls
-`ExitPlanMode`; the user approves in the Plan Mode UI. Red flags: a text-gate "approve" is NOT
-Plan Mode approval - they are two separate steps; `EnterPlanMode` MUST come before any branch,
-worktree, or file touch.
+runs from the MAIN context, so it MAY drive Plan Mode (a subagent cannot). The enter/exit
+mechanics are the SHARED SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode
+enter/exit + plan_mode_active - forward-port REUSES them for its own approval gate rather than
+defining its own: `EnterPlanMode` iff `plan_mode_active` is absent/false (skip iff a caller already
+opened Plan Mode), present the plan, `ExitPlanMode` on approve so the user approves in the Plan Mode
+UI. The plan CONTENT is forward-port-specific and stays authored here - it is NOT routed through
+`odoo-planning`: commit topology; per-commit model tier [the real triaged tier]; bucket [the real
+classification]; installable routing per module; design-doc link for any commit P3 designed; merge
+batches. Red flags: a text-gate "approve" is NOT Plan Mode approval - they are two separate steps;
+`EnterPlanMode` MUST come before any branch, worktree, or file touch.
 
 After Plan Mode approval, invoke the `git-toolkit:git-ops` skill (via the Skill tool) to create the
 JOB-tier integration worktree branched from B (Hard rule 1; dispatch contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
@@ -308,24 +288,18 @@ line unchanged. This catches the autosilent field-break (no conflict marker, run
 SSOT: `[[fp-symbol-survival-check]]`.
 
 **P6 TEST-survival sub-check [MUST - after the production symbol check].**
-After production symbol check, also run test-coverage grounding to detect test code that
-references a field or model symbol removed at the target version (git auto-merge produces no
-conflict marker, so this break is autosilent at test time, not just at runtime). For each model
-or field touched by the commit, call `tests_covering(model='<model>', odoo_version='<target_version>')`
-(also accepts optional `field='<field>'` to narrow). If the tool returns test methods that
-reference a symbol NOT present in the target `model_inspect` output, those test methods
-reference a deleted symbol and MUST be triaged as part of the same bucket assignment - they
-cannot be forwarded verbatim. When a broader audit is needed (e.g. the commit touches an
-entire module), supplement with `test_coverage_audit(module='<module>', odoo_version='<target_version>')`
-to surface fields with zero COVERS edges at target (field-level only; method gaps are NOT
-reported by this tool - for per-method coverage use `tests_covering(model='<model>', method='<method>',
-odoo_version='<version>')`, which is sparse and may return 0 edges even for tested methods).
-After `tests_covering` returns a list of test methods referencing field X at target, CONFIRM X
-is absent at target before concluding those tests are broken candidates: call
-`model_inspect(model='<model>', method='fields', odoo_version='<target_version>')` - only if X
-is absent in that output are the test methods broken; `tests_covering` does not itself compare
-cross-version. Record all broken test-symbol references in the per-commit row of
-`merge-log.md` alongside the production symbols. The P8a adapt brief MUST include this list.
+Also ground test coverage to detect test code referencing a field/model symbol removed at target
+(git auto-merge leaves no conflict marker, so the break is autosilent at test time). For each
+model/field touched, call `tests_covering(model='<model>', odoo_version='<target_version>')`
+(optional `field='<field>'` narrows). For a whole-module commit, supplement with
+`test_coverage_audit(module='<module>', odoo_version='<target_version>')` (field-level only; for
+per-method coverage use `tests_covering(model='<model>', method='<method>', odoo_version='<version>')`,
+which is sparse). `tests_covering` does not compare cross-version - before concluding a test is
+broken, CONFIRM the symbol is absent at target via
+`model_inspect(model='<model>', method='fields', odoo_version='<target_version>')`. Test methods
+referencing a symbol absent at target MUST be triaged into the same bucket (not forwarded
+verbatim). Record every broken test-symbol reference in the `merge-log.md` per-commit row; the
+P8a adapt brief MUST include this list.
 
 **P7 - Pre-adapt drift scan [MUST, before the behavioral loop].** Distinct from P6:
 P6 catches OSM-indexed symbol-graph breaks (cross-version via index); P7 catches static
@@ -365,10 +339,10 @@ poll TaskList/TaskGet for status, and read each result from the teammate's SendM
 from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When
 off, dispatch + collect as today.
 
-CHP Tier-A (SendMessage-resume) applies to the P8a test-forward worker (`odoo-test-writing`) /
-P9 verify cycle: after 8a+8b and the merge back to integration, P9 may reveal a failing test.
-For the TEST worker, instead of spawning a cold fresh one for the re-adapt, resume the SAME
-`odoo-test-writing` worker via `SendMessage` (see
+CHP Tier-A (SendMessage-resume) applies to the P8a test-forward worker (`odoo-test-writer`, which
+authors by invoking the `odoo-test-writing` skill inline) / P9 verify cycle: after 8a+8b and the
+merge back to integration, P9 may reveal a failing test. For the TEST worker, instead of spawning a
+cold fresh one for the re-adapt, resume the SAME `odoo-test-writer` worker via `SendMessage` (see
 `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` - Tier A), sending it the P9 failure
 output. The worker keeps its full prior context (intent record, bucket, worktree path) - far
 cheaper than rebuilding from a brief. Structure the exchange as async park-and-be-resumed: send
@@ -382,10 +356,10 @@ P9 failure output; `odoo-coding` owns the coder fan-out and any internal coder r
 context-handoff protocol - the forward-port orchestrator never resumes raw coders itself.
 Fallback (Tier C): if the capability probe is negative (env unset, `SendMessage` absent, or probe
 signals the orchestrator is not the team lead), re-invoke the `odoo-coding` skill (code re-adapt)
-and/or spawn a fresh `odoo-test-writing` agent (test re-adapt) with an explicit brief containing
+and/or spawn a fresh `odoo-test-writer` agent (test re-adapt) with an explicit brief containing
 the P9 failure output. Tier C is always correct; the worklog is always written regardless of tier.
 
-- **8a forward the test FIRST** via `odoo-test-writing` mode `adapt`. Adapt the MERGED SOURCE
+- **8a forward the test FIRST** by launching the `odoo-test-writer` agent (adapt mode; it invokes the `odoo-test-writing` skill inline). Adapt the MERGED SOURCE
   TEST to run on the target - translate API to the target idiom (base class, imports, helper
   signatures per P7), strip implementation-coupled assertions, confirm it goes RED. Do NOT
   author a brand-new test from scratch: the forwarded source test IS the oracle; 8a adapts it
@@ -408,8 +382,9 @@ the P9 failure output. Tier C is always correct; the worklog is always written r
   (iii) **broken test-symbol list** from P6 test-survival - adapt agent must rewrite or drop
   every test assertion referencing a symbol removed at target.
 - **8b adapt the code** per bucket by invoking the `odoo-coding` skill (via the Skill tool) -
-  `odoo-coding` owns the backend/frontend split, coder fan-out, model, and synthesis (do NOT
-  dispatch raw `odoo-coder` / `odoo-frontend-coder`) -
+  `odoo-coding` owns the backend/frontend split, coder fan-out (via its `odoo-coder` per-module
+  coordinator), model, and synthesis (do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or
+  `odoo-frontend-coder`) -
   with an FP-ENRICHED brief = the named **Child worktree path: `<absolute path>`** field
   + the same **cd-on-resume (HARD RULE - Tier-A)** item as 8a + intent record + bucket + the failing
   test + the installable:False checklist + `MANIFEST/MIGRATION/PROVENANCE: apply C1 (keep TARGET
@@ -536,12 +511,10 @@ commit may be haiku to EXTRACT but opus to ADAPT if the target re-implementation
 
 ## Two modes
 
-- **Continuous (default).** Recurring; source keeps evolving. Merge keeps SHA; merge-base
-  advances; `checkpoint.json` makes the next run skip done commits and never re-resolve a past
-  conflict.
-- **One-shot (`--one-shot`).** Port one frozen batch once; repeated-resolution footgun does not
-  apply. A no-commit cherry-pick (delegated to git-toolkit via `git-ops`) is the accepted op; everything else (intent -> classify ->
-  design -> plan gate -> merge -> symbol-survival -> adapt -> verify -> gate) is identical.
+- **Continuous (default).** Recurring; merge keeps SHA; `checkpoint.json` skips done commits and
+  never re-resolves a past conflict.
+- **One-shot (`--one-shot`).** Port one frozen batch once via a no-commit cherry-pick (delegated
+  to git-toolkit via `git-ops`); every other phase is identical.
 
 ## Checkpoint / resume
 
@@ -561,10 +534,10 @@ the instance lifecycle is owned by `odoo-instance-ops`, not held as an allocator
 
 Forward-port adds platform-drift classes a pure-Python port misses - flag and route each:
 
-- **Frontend (JS/OWL/SCSS).** Asset-bundle keys drift across series (e.g. `web.assets_backend`
-  manifest entry shape) and OWL moved from the legacy `web.Widget` / `odoo.define()` era to
-  OWL 2.x `patch()` / `useState` / `useService`. Route a frontend adapt commit to
-  `odoo-coding` (its frontend leg owns both eras) - never hand-translate OWL from memory.
+- **Frontend (JS/OWL/SCSS).** Asset-bundle keys drift across series and OWL moved from the legacy
+  `web.Widget` / `odoo.define()` era to OWL 2.x `patch()` / `useState` / `useService`. Route a
+  frontend adapt commit to `odoo-coding` (its frontend leg owns both eras) - never hand-translate
+  OWL from memory.
 - **i18n (.pot / .po).** Do NOT hand-port or re-export translation files in this pipeline. When a
   forwarded commit touches `.po`/`.pot` or adds translatable strings, DISPATCH the `odoo-i18n`
   skill after the code adapt - it owns the non-destructive `.pot`/`.po` recipe and validates the

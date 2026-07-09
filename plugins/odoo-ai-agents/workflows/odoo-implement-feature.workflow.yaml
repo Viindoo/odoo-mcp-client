@@ -5,16 +5,23 @@
 # be workflow-chaining phases - see ORCHESTRATION-MAP.md). This workflow therefore does the
 # leaf SCOPING phase
 # here, then EMITs the first spawner (odoo-solution-design for non-trivial work, else straight
-# to odoo-coding) via on_complete for run-harness to chain - exactly the qa-suite shape.
-# For non-trivial work the chain runs gap -> solution-design -> odoo-planning -> coding/odoo-wave ->
+# to odoo-planning) via on_complete for run-harness to chain - exactly the qa-suite shape.
+# For non-trivial work the chain runs gap -> solution-design -> odoo-planning -> coding ->
 # review: odoo-solution-design emits `next: odoo-planning` (a spawner-agent that authors the
-# wave-batched execution plan), which wires `odoo-coding` / `odoo-wave`. odoo-planning runs under
+# wave-batched execution plan), which wires `odoo-coding` (each coding wave landed by run-harness's
+# between-wave integration). odoo-planning runs under
 # intake's Plan Mode and produces the approved 3-block plan; it then hands that plan to intake
 # Phase P (`next: odoo-intake`), which serializes `.odoo-ai/run-<id>.json`, and the run-harness
 # walks THAT execution DAG. odoo-planning never emits `next: run-harness` and the run-harness never
 # loops back to itself via odoo-planning - run-harness walks an EXISTING run-<id>.json (serialized
-# by Phase P) and cannot ingest a plan `.md`. odoo-planning is not a static phase here. The trivial
-# branch stays direct (straight to odoo-coding, no design/plan step).
+# by Phase P) and cannot ingest a plan `.md`. odoo-planning is not a static phase here. Planning is
+# mandatory for ALL work (see snippets/planning-gate-contract.md): BOTH branches route through
+# odoo-planning - the trivial branch skips the DESIGN step but still plans (odoo-planning emits the
+# minimal [code, review, integrate] plan). There is no trivial direct-to-coding bypass.
+# This workflow is a FRONT-DOOR admission gate: neither on_complete branch dispatches an executor
+# (odoo-coding, or run-harness's between-wave integration) until odoo-planning has established an approved plan; the executors
+# downstream TRUST that and never re-check for a plan (snippets/planning-gate-contract.md
+# owns this rule - the workflow points at it, does not restate it).
 # Terminal acceptance gate (opt-in, L2): the tail ends when odoo-code-review emits
 # `next: odoo-acceptance` for a change that touches a UI/behavior surface AND has a reachable
 # live instance (see skills/odoo-code-review/SKILL.md Phase A.5). odoo-acceptance is itself a
@@ -28,7 +35,8 @@ description: |
   planned steps in the middle: classify + effort-scope the requirement, then hand off to the
   design -> plan -> code -> review chain (driven by the run-harness). Non-trivial work is designed
   via odoo-solution-design and planned via odoo-planning before any code is written; trivial work
-  goes straight to coding.
+  skips design but still goes through odoo-planning (planning is mandatory - no direct-to-coding
+  bypass) before coding.
   Trigger: "implement this feature end-to-end", "from requirement to working code",
   "design then build then review", "scope to design to code to review", "build this feature
   properly with a design step"
@@ -58,8 +66,8 @@ on_complete:
     inputs: {gap_matrix: ".odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl", gap_report: ".odoo-ai/gap-analysis/<slug>-<date>/gap-report.md"}
     gate_tier: L1
   - when: "meta.has_nontrivial == false"
-    next: odoo-coding
-    reason: "all items are one-approach trivial (standard/config) changes; skip the design step and code directly, then review and - when the change touches a UI/behavior surface and an instance is reachable - the opt-in L2 acceptance gate (odoo-acceptance) the run-harness chains from code-review"
+    next: odoo-planning
+    reason: "all items are one-approach (standard/config) changes: skip the DESIGN step, but planning is mandatory for all work (snippets/planning-gate-contract.md) - odoo-planning emits the minimal [code, review, integrate] plan, intake Phase P serializes it, then coding, review and - when the change touches a UI/behavior surface and an instance is reachable - the opt-in L2 acceptance gate (odoo-acceptance) the run-harness chains from code-review"
     inputs: {gap_matrix: ".odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl", gap_report: ".odoo-ai/gap-analysis/<slug>-<date>/gap-report.md"}
     gate_tier: L1
 

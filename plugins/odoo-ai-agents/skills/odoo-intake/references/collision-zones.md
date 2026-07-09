@@ -131,10 +131,10 @@ from scratch ("create a color picker widget"), there is no runtime to debug ->
 - `odoo-planning`: handles the USER-facing "parallelize these changes", "multi-WI PR with review +
   squash" intent -> it produces the wave-batched EXECUTION PLAN. The git orchestration itself
   (integration branch, parallel WI worktrees, cherry-pick, end-of-wave review, 1 PR, squash, then
-  STOP at the L2-squash-gate) is the INTERNAL `odoo-wave` executor, which `run-harness` dispatches
-  from the approved plan; `odoo-wave` never merges - the merge is owned by the subsequent
-  `odoo-pr-monitoring` at the L2-merge-gate. `odoo-wave` is `user-invocable: false` - never route a
-  user prompt to it.
+  STOP at the L2-squash-gate) is `run-harness`'s INTERNAL between-wave integration, which it drives
+  from the approved plan (there is no separate git-executor skill); it never merges - the merge is
+  owned by the subsequent `odoo-pr-monitoring` at the L2-merge-gate. The between-wave integration is
+  internal to `run-harness` - never route a user prompt to an executor.
 - `odoo-brl`: handles "classify changes", "requirements" -> classifies and costs a
   list of BUSINESS REQUIREMENTS - produces an RTM/cost/DAG but writes NO code and does NOT touch git.
 - `odoo-coding`: handles "implement feature", "write code" -> writes code for a SINGLE
@@ -142,15 +142,15 @@ from scratch ("create a color picker widget"), there is no runtime to debug ->
 
 **Discriminator**:
 - "parallelize" + "N changes" + "PR" + "squash" signal parallel multi-WI delivery ->
-  **Pick `odoo-planning`** (it plans it; `run-harness` then drives the internal `odoo-wave` executor).
+  **Pick `odoo-planning`** (it plans it; `run-harness` then drives it via its internal between-wave integration).
 - "classify/cost requirements" or "RTM/DAG" with no code-generation intent -> **Pick `odoo-brl`.**
 - Single change, single feature, no git coordination needed -> **Pick `odoo-coding`.**
 
 If the user said "write a computed field for sale.order" -> `odoo-coding` (single, no orchestration).
 If the user said "classify 200 requirements from the RFP" -> `odoo-brl` (no code, no git).
 If the user said "we have a bug fix, a test addition, and a docs update - land them as one reviewed PR"
--> `odoo-planning` (multiple disjoint changes; it plans the wave-batched delivery for the internal
-`odoo-wave` executor).
+-> `odoo-planning` (multiple disjoint changes; it plans the wave-batched delivery for `run-harness`'s
+between-wave integration).
 
 ## Collision 10 - Doc Illustration (static screenshots) vs Demo Recording (real video)
 
@@ -182,21 +182,21 @@ commits to replay and a few conflicts to resolve."
   cherry-pick + adapt across a version boundary (e.g. 16.0 -> 17.0).
 - `odoo-planning`: handles "parallelize N disjoint work items into one squashed PR" -> it produces
   the wave-batched plan; the cherry-pick + squash of N independent changes that do NOT share a
-  continuous range is performed by the INTERNAL `odoo-wave` executor (dispatched by `run-harness`
-  from the approved plan), not by the user. `odoo-wave` STOPS at the L2-squash-gate and never
+  continuous range is performed by `run-harness`'s INTERNAL between-wave integration (driven
+  from the approved plan), not by the user. It STOPS at the L2-squash-gate and never
   merges - the merge is owned by the subsequent `odoo-pr-monitoring` at the L2-merge-gate.
 
 **Discriminator**: same Odoo series + one branch's whole commit range to replay ->
 **Pick `odoo-git-rebase`**. Cross-major single commit/PR to port -> `odoo-forward-port`. Many
-disjoint changes to land together -> **Pick `odoo-planning`** (it plans the delivery; the internal
-`odoo-wave` executor performs the cherry-pick + squash and STOPS at the L2-squash-gate, the merge
+disjoint changes to land together -> **Pick `odoo-planning`** (it plans the delivery; `run-harness`'s
+between-wave integration performs the cherry-pick + squash and STOPS at the L2-squash-gate, the merge
 owned by `odoo-pr-monitoring`).
 
 If the user said "rebase my 17.0-custom onto origin/17.0" -> `odoo-git-rebase` (same series,
 whole range).
 If the user said "port this 16.0 fix to 17.0" -> `odoo-forward-port` (cross-major, single commit).
 If the user said "land the bugfix, the new field, and the docs update as one reviewed PR" ->
-`odoo-planning` (disjoint WIs, no range replay; planned for the internal `odoo-wave` executor).
+`odoo-planning` (disjoint WIs, no range replay; planned for `run-harness`'s between-wave integration).
 
 ## Collision 12 - Modules-Upgrade vs Forward-Port vs Plan-Upgrade vs Deprecation-Audit vs Version-Diff
 

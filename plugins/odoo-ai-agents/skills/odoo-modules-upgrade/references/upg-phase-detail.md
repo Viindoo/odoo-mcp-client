@@ -439,7 +439,10 @@ pass. P3 Plan Mode is entered only after EVERY P2b-triggered module in the clust
 
 ## P3 - Plan Mode content template
 
-Write this inside Plan Mode (between `EnterPlanMode` and `ExitPlanMode`).
+Write this using the shared Plan-Mode gate
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit +
+plan_mode_active) - between the `EnterPlanMode` and `ExitPlanMode` calls that gate reuses; this
+skill does not define its own Plan-Mode mechanics.
 
 ```markdown
 ## Upgrade Plan: <src> -> <tgt> for cluster <cluster>

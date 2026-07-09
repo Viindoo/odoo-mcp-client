@@ -25,8 +25,7 @@ source. Correct order:
 design (architect writes the TDD)  →  HUMAN approves the design  →  Plan Mode for the code  →  code → review
 ```
 
-The approved TDD is the plan the code Plan Mode executes. Do not flip this order. (The design
-step is the planning-artifact exception to "writes-files runs only after Plan Mode".)
+The approved TDD is the plan the code Plan Mode executes; do not flip this order.
 
 ## Input port - gap-analysis artifact (read before designing)
 
@@ -41,7 +40,8 @@ conversational text:
   (standard|config|extension|custom) · `effort_tier` (S|M|L|XL) · `module` · `grounded` ·
   `notes`. Use `classification` + `effort_tier` per requirement to decide WHICH requirements
   need a TDD and at what depth (extension/custom + L/XL drive the design; standard/config with
-  a single obvious approach route straight to `odoo-coding`). Cite the artifact path in the
+  a single obvious approach skip DESIGN and route straight to `odoo-planning` instead - planning
+  is mandatory for all work, see "Skip DESIGN for trivial work" below). Cite the artifact path in the
   Phase 0 preview and pass it to the architect (`GAP_MATRIX:` line in the P1 template). When
   the artifact exists it is authoritative - do NOT re-derive tiers from memory.
 - **Not found AND the change is non-trivial:** recommend running `odoo-gap-analysis` first to
@@ -129,12 +129,10 @@ before this clears. The approved master §10 is the hard constraint for all chil
   (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`) for the same-layer batch. ALL
   children of layer `k` must reach `designed` (see checkpoint step below) before ANY child of
   layer `k+1` is dispatched - never mix layers in one dispatch batch.
-- This changes DISPATCH ORDER only, not the §10 contract mechanism: the master §10 shared-symbol
-  registry still front-loads every cross-module contract up front (step a), so no child blocks on
-  a sibling for interface DISCOVERY. Base-first exists to reduce `MODE: consistency` rework -
-  validating §10 against a lower-layer module's concrete design before a higher-layer sibling
-  designs against it catches §10 gaps early and shrinks the seams the consistency pass must
-  reconcile later.
+- Dispatch order only, not the §10 contract mechanism: the master §10 shared-symbol registry still
+  front-loads every cross-module contract (step a), so no child blocks on a sibling for interface
+  discovery. Base-first reduces `MODE: consistency` rework by catching §10 gaps against a concrete
+  lower-layer design early.
 - **Model floor: opus.** Scale toward fable for modules with a new inheritance axis (same
   fable-confirmation rule as single mode).
 - Layer-0 child brief includes `MODE: child`, `CHILD_MODULE: <name>`, `MASTER_DESIGN_DOC: <abs
@@ -148,7 +146,9 @@ before this clears. The approved master §10 is the hard constraint for all chil
 
 **d. Consistency pass (MANDATORY after all children `designed`).** Dispatch
 `odoo-solution-architect` `MODE: consistency`. Reads CONTRACT SUBSET of each child (§1 Intent,
-§9 Acceptance Criteria, cross-module fields/models/deps - NOT full body) + master §10. Reconciles seams,
+§9 Acceptance Criteria - confirming each child carries its own MANDATORY module-level AC block with
+the INDEPENDENCE GUARD honored (expected values requirement-derived, never code/OSM-derived) -
+cross-module fields/models/deps - NOT full body) + master §10. Reconciles seams,
 updates §10 where needed, emits `conflict-list.md` at the artifact root.
 
 **e. Batch gate (human, single gate for all children).** Present conflict-list (MANDATORY - state
@@ -207,10 +207,11 @@ Launch `odoo-solution-architect` as a subagent for **non-trivial** changes. Fire
 The architect surveys **bidirectional impact** and designs **dynamic demo data** for any new
 end-user behavior - see `agents/odoo-solution-architect.md` for the template.
 
-**Skip for trivial work:** a single Standard/Config field, boilerplate (one computed field, a
-view shell, a security CSV row), or a localized fix with exactly one obvious approach → route
-straight to `odoo-coding`. If unsure: "this looks like a one-approach change - design it first,
-or code it directly?"
+**Skip DESIGN for trivial work:** a single Standard/Config field, boilerplate (one computed field,
+a view shell, a security CSV row), or a localized fix with exactly one obvious approach - but still
+route to `odoo-planning`, because planning is mandatory for all work
+(`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Mandatory-planning rule). If unsure:
+"this looks like a one-approach change - design it first, or plan it directly?"
 
 ## Out of Scope
 
@@ -285,9 +286,12 @@ specific moments in the design rounds:
 | `tests_covering(model='<model>', odoo_version='<version>')` | Round 2, immediately after `impact_analysis` | Lists test methods that already COVER the target model/field/method. Zero model-level edges = unguarded behavior that §7 must add. Non-zero = existing protection (no need to duplicate). Edge count goes in the Impact matrix and §7 "Already covered?" column. **Caveat:** method-narrow (`method=`) and field-narrow (`field=`) calls frequently return zero edges even for well-tested code because COVERS_METHOD / COVERS_FIELD edges are sparse; prefer the model-level call as the primary signal and treat method-narrow zero as supporting evidence only. |
 | `test_coverage_audit(module='<module>', odoo_version='<version>')` | Round 4, first step before filling §7 rows | Audits the whole module for zero-coverage fields (field-level static-reference; method gaps are NOT reported - use `tests_covering` with `method=` to probe a specific method, but expect sparse results). Each field gap surfaced here that the design introduces or modifies MUST appear as a new test row in §7. |
 
-**Invariant:** §7 is only valid if all four tools were called during the design rounds. A §7
-written from memory (no `test_base_classes` call) is a design defect - the wrong base class in the
-TDD flows verbatim into test code.
+**Invariant:** §7 is only valid if all four tools were called during the design rounds AND - when
+the design covers more than one module - the table is PARTITIONED PER MODULE (a `### <module>`
+subheading per row of §1's per-module table, mandatory even in single-mode multi-module TDDs). A §7
+written from memory (no `test_base_classes` call) or pooled across modules with no per-module
+partition is a design defect - the wrong base class or an unowned behavior row in the TDD flows
+verbatim into test code.
 
 ## Agent invocation - prompt template (P1)
 
@@ -403,8 +407,8 @@ Approve design? (approve / refine: [feedback] / cancel)
 - `approve` → ONLY NOW does the chain move on. Two branches:
   - **`return_to` is UNSET (default standalone flow):** hand off to `odoo-planning` to turn the
     approved design into the execution plan (module order + integration cadence + lifecycle
-    wiring); `odoo-planning` owns the code Plan Mode and the plan wires `odoo-coding` / `odoo-wave`
-    (the git-executor, dispatched by run-harness) per its plan. (A migration design routes straight to `odoo-data-migration` / `odoo-coding`.)
+    wiring); `odoo-planning` owns the code Plan Mode and the plan wires `odoo-coding` (each coding
+    wave landed by `run-harness`'s between-wave integration) per its plan. (Migration carve-out: `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Migration carve-out - single-module scripts only; THIS skill owns that front-door routing decision, no executor re-validates it.)
   - **`return_to` is SET (caller-return flow):** do NOT enter a code Plan Mode and do NOT
     dispatch any coder. Emit the Continuation Contract (see below) with `next: <return_to>`
     and hand control back to the caller. The caller (e.g. `odoo-forward-port`) owns the
@@ -433,9 +437,12 @@ the design is approved. Choose `next` as follows:
   runs its own Plan Mode.
 - **`return_to` is UNSET (default):** for a backend, frontend, or full-stack design emit
   `next: odoo-planning` (the planner turns the approved design into the wave-batched execution
-  plan before any code is written); for a migration design emit `next: odoo-data-migration` (or
-  `odoo-coding` for the migration script). Each carries `design_doc: <path>` so the next step
-  builds on the approved design.
+  plan before any code is written); for a migration design that meets the Migration carve-out
+  (single-module script, single `dag_layer`) emit `next: odoo-data-migration` (or `odoo-coding`)
+  directly - a front-door routing decision THIS skill owns, per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Migration carve-out (no executor
+  re-validates on arrival); any richer (multi-module/multi-layer) design goes through `odoo-planning`.
+  Each carries `design_doc: <path>` so the next step builds on the approved design.
 
 - **Master-child mode (`approve-master-child` path):** see Decompose branch § f above. Emit
   `design_index` / `master_design_doc` / `design_docs` - NOT bare `design_doc:` (single-mode only).

@@ -12,7 +12,7 @@ description: >
   Vietnamese: "lập kế hoạch thực hiện", "thứ tự build module", "lên kế hoạch triển khai".
   Route the technical DESIGN (data model / override strategy) to odoo-solution-design; WRITING
   code to odoo-coding; costing requirements to odoo-gap-analysis. DO NOT trigger for pure design
-  (no execution sequencing) or a trivial one-WI change (intake writes the inline micro-plan)
+  (no execution sequencing)
 user-invocable: true
 ---
 
@@ -35,7 +35,6 @@ This skill does NOT compute either plan itself and does NOT write code - it disp
 planners (`odoo-planner` for code, `odoo-doc-planner` for doc) and owns the approve /
 ExitPlanMode handoff. `odoo-solution-design` decides HOW to build; `odoo-planning` decides HOW TO
 SHIP (module/wave build order, integration cadence, doc cluster schedule, full lifecycle).
-Three concerns - never collapse them.
 
 Note: `odoo-doc-planner` also runs STANDALONE via `odoo-doc-illustration` / `module-packaging`
 for doc-only work on existing modules - `odoo-planning` is NOT the only path to it.
@@ -46,8 +45,8 @@ Odoo delivery planner. Turns an approved technical design into ONE lifecycle pla
 full product journey - code-build AND doc. Dispatches TWO leaf planners in sequence:
 
 1. `odoo-planner` (code-build plan): wave-batched module-DAG, integration cadence,
-   git-executor cadence, each `module/stage -> SKILL` wiring. **AGENT UNCHANGED** - no doc-logic
-   is folded into it; it remains a pure code-build execution planner.
+   git-executor cadence, each `module/stage -> SKILL` wiring. Pure code-build planner - no
+   doc-logic.
 2. `odoo-doc-planner` (doc-package plan): dependency clusters, branch-aware instance allocation,
    per-instance incremental install-doc-verify-commit order, dedup, parallelism schedule; covers
    user-guide (`doc/index.rst`) AND marketing landing (`static/description/index.html`).
@@ -70,11 +69,18 @@ The plan is GROUNDED on three upstream artifacts; locate them and pass their pat
   it.
 - **Gap matrix** - `.odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl` (or a BRL RTM under
   `.odoo-ai/brl/<job-id>/`) for per-requirement effort tier - drives the `effort` estimate.
-- **QA oracle** - `.odoo-ai/qa/<slug>-scenarios.md` (the immutable acceptance oracle authored by
-  `odoo-qa-planner`), when present - the plan wires its review/acceptance stages to it.
+- **QA oracle (OPTIONAL - usually ABSENT at planning time)** - `.odoo-ai/qa/<slug>-scenarios.md`
+  (the immutable acceptance oracle authored by `odoo-qa-planner`). The oracle is normally authored
+  LATER, at `odoo-acceptance` Phase 1, after coding - do NOT treat it as a standard planning input.
+  When absent (the common case), the plan RESERVES the acceptance stage against the design's §9
+  Acceptance Criteria (already authored at design time); when present, the plan wires its
+  review/acceptance stages to it directly.
 
-If a design artifact is absent and the change is non-trivial, recommend running
-`odoo-solution-design` first rather than planning an ungrounded build order.
+If a design artifact is absent and the change is design-required, route to `odoo-solution-design`
+FIRST (design precedes planning) - do not plan an ungrounded build order. Planning itself is
+mandatory for ALL work (`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` §
+Mandatory-planning rule); it is the DESIGN gate that may be skipped for a one-approach change,
+never the plan.
 
 ## Phase 0 - Plan intent gate (1-turn gate)
 
@@ -121,7 +127,8 @@ You are the odoo-planner agent. Produce the 3-block EXECUTION PLAN (NOT code, NO
 REQUEST: [the change to ship, target Odoo version, any constraints]
 DESIGN_INDEX: [.odoo-ai/designs/<master-slug>/index.yaml, or the single-mode design doc path]
 GAP_MATRIX: [omit when absent; else the gap-matrix.jsonl / BRL RTM path]
-QA_ORACLE: [omit when absent; else the scenarios.md path]
+QA_ORACLE: [omit when absent - the common case at planning time, since the oracle is authored
+later at odoo-acceptance Phase 1; else the scenarios.md path]
 RETURN_TO: [omit when absent; set to the caller skill name when return routing is requested]
 
 Step 0 (ONLY if mcp__odoo-semantic__* tools are available): set_active_version('<version>'). Then
@@ -198,30 +205,12 @@ read-only execution detail and output contract.
 
 ### Plan Mode guard (enter iff not already active)
 
-Before presenting the gate below, Plan Mode MUST be active - this skill runs in the MAIN context
-(like `odoo-intake`), so it CAN call `EnterPlanMode`. The enter/skip decision keys on the
-`plan_mode_active` dispatch-brief flag - NEVER on `return_to` (`return_to` governs caller-return
-routing only; it does NOT carry whether Plan Mode is currently active):
-
-- **`plan_mode_active: true` in the dispatch brief** - a caller already opened Plan Mode before
-  dispatching this skill (e.g. `odoo-intake`: it calls `EnterPlanMode` at step 2 of its Plan Mode
-  procedure, then delegates 3-block plan authoring to this skill at step 3 while Plan Mode is still
-  open). Plan Mode is ALREADY active - do NOT call `EnterPlanMode` (a second enter while already in
-  Plan Mode is a harness error).
-- **`plan_mode_active` absent or false (default)** - Plan Mode is NOT yet active. This covers a
-  direct `/odoo-planning` invocation AND the `odoo-solution-design -> odoo-planning` handoff (where
-  solution-design hands off with Plan Mode still closed and this skill owns the code Plan Mode).
-  Call `EnterPlanMode` now, before presenting the gate below.
-
-`plan_mode_active` is a boolean dispatch-brief flag DEFINED HERE (SSOT for its meaning); a caller
-sets it to `true` only when it holds Plan Mode open across the dispatch to this skill, otherwise it
-is omitted. Two SSOTs justify the "already active" branch: (1) the capability -
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/workflow-harness.md` §4.1 (Plan mode and skills - the main
-context CAN call `EnterPlanMode`/`ExitPlanMode`, a subagent cannot); (2) the sequencing fact -
-`skills/odoo-intake/SKILL.md` "Authoring split (step 3)" (intake dispatches this skill while its
-Plan Mode is open, between its step-2 `EnterPlanMode` and step-4 `ExitPlanMode`). This guard
-decides only the ENTER side; the `ExitPlanMode` call on `approve` below (`return_to` unset) is
-unchanged.
+Enter iff `plan_mode_active` is absent/false; skip iff `plan_mode_active: true` (a caller - e.g.
+`odoo-intake` - already opened Plan Mode across the dispatch). This skill runs in the MAIN context
+so it CAN call `EnterPlanMode`. The enter/skip mechanics + the `plan_mode_active` definition are
+SSOT at `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit +
+plan_mode_active. This guard decides only the ENTER side; the `ExitPlanMode` call on `approve` below
+(`return_to` unset) is unchanged.
 
 When BOTH planners return, **do NOT auto-chain to execution.** Present a tight combined summary,
 then gate. Write the gate in the USER'S LANGUAGE (translate labels and prose; keep file paths,
@@ -261,11 +250,11 @@ reads a number as a directive. Planning is binding at the inter-module layer (wa
 module-DAG + integration cadence); intra-skill coordination (per-module dispatch, backend-first
 leg, count/model) stays the specialist skill's.
 
-The integration cadence the plan reserves (per-wave cherry-pick + the saga rollback/resume the
-git-executor `odoo-wave` will run) follows the SSOT
+The integration cadence the plan reserves (per-wave cherry-pick + the saga rollback/resume that
+`run-harness`'s between-wave integration will run) follows the SSOT
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; planning references it so the plan
 reserves that behavior - it does NOT run the loop itself. The plan likewise reserves the per-wave
-cumulative close-verify (`odoo-wave` Phase 4.4) the planner surfaces as each coding-wave node's
+cumulative close-verify (`run-harness`'s between-wave close-gate) the planner surfaces as each coding-wave node's
 `cumulative_modules` scope, following the SSOT
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/cumulative-test-scope.md`; planning REFERENCES it, it does NOT
 run the suite.
@@ -274,13 +263,15 @@ run the suite.
 
 - **Designing the technical solution** (approach / data model / override strategy / module
   structure) -> `odoo-solution-design` (the design = HOW to build; planning = HOW TO SHIP)
-- **Writing production code** -> `odoo-coding` (backend + frontend) / `odoo-wave` (git-orchestrated executor, dispatched by run-harness)
+- **Writing production code** -> `odoo-coding` (backend + frontend); git-orchestrated multi-module landing is `run-harness`'s between-wave integration (driven from the approved plan, not a separate skill)
 - **Classifying / costing a requirement list** -> `odoo-gap-analysis` (short) / `odoo-brl` (large)
 - **Serializing or walking the run-DAG** -> intake Phase P serializes `run-<id>.json`;
   `run-harness` walks it. The plan binds WHICH skill; never the model or count.
 - **A heavyweight self-driving orchestrator** (`odoo-forward-port` / `odoo-modules-upgrade` /
-  `odoo-git-rebase`) -> these are dispatched-once PEER front doors that own their own gate; route
-  such intent to them, do not embed them as plan nodes
+  `odoo-git-rebase`) -> these are dispatched-once PEER front doors that own their own gate via the
+  shared `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` Plan-Mode mechanics (their
+  specialized plan content stays authored in-skill); route such intent to them, do not embed them
+  as plan nodes
 
 ## Standalone-first fallback
 
@@ -303,10 +294,12 @@ is **gated on the human plan-approval above**. Choose `next` as follows:
   `inputs: {plan: <path>, doc_plan: <path>}` - intake's **Phase P** ingests the approved 3-block
   code plan by pointer, serializes it into `run-<id>.json`, and THEN dispatches `run-harness` to
   drive it to done. The doc plan (`doc-plan.yaml`) is consumed by the doc stage after code lands.
-  Do NOT emit `next: run-harness` here: `run-harness` walks an EXISTING `run-<id>.json` and cannot
-  ingest a plan `.md`, so handing the plan straight to it would strand every execution node (it
-  reports `NEEDS_CONTEXT` when no run file exists). Serialization is Phase P's job; walking is
-  run-harness's. Do NOT self-dispatch the executor.
+  **This is the SSOT rationale for "why `next: odoo-intake`, not `next: run-harness`"** (other sites
+  - `agents/odoo-planner.md`, `skills/odoo-intake/references/phase-p-run-dag.md` - point here, do
+  not restate it): Do NOT emit `next: run-harness` here: `run-harness` walks an EXISTING
+  `run-<id>.json` and cannot ingest a plan `.md`, so handing the plan straight to it would strand
+  every execution node (it reports `NEEDS_CONTEXT` when no run file exists). Serialization is Phase
+  P's job; walking is run-harness's. Do NOT self-dispatch the executor.
 
 Note: the on-the-fly execution task list (`TaskCreate` per DAG node, tracked via
 `TaskList`/`TaskGet`) is owned by `run-harness`, NOT by this skill - and run-harness creates it

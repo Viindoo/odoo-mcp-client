@@ -1,7 +1,7 @@
 """Guard: odoo-intake enforces worktree isolation as a UNIVERSAL git-safety default.
 
 Business rule this protects: `odoo-intake` is the universal front door, and the NAMED
-specialist workflows it routes to (`odoo-wave`, `odoo-forward-port`, `odoo-git-rebase`,
+specialist workflows it routes to (`odoo-forward-port`, `odoo-git-rebase`,
 `odoo-modules-upgrade`, PR-mode `odoo-code-review`) already provision their own dedicated
 worktree/branch before touching a git-tracked file - so they never switch the principal
 checkout off its branch. The gap this test guards: every OTHER path out of intake

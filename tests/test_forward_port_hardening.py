@@ -519,7 +519,9 @@ class TestProberWiredAndDesignedCheckpoint:
 
 FP_MERGE_ABSORPTION = PLUGIN / "snippets" / "fp-merge-absorption.md"
 CODE_REVIEWER = PLUGIN / "agents" / "odoo-code-reviewer.md"
-CODER = PLUGIN / "agents" / "odoo-coder.md"
+# The forward-port adapt block lives on the backend WRITER (odoo-backend-coder), not the
+# odoo-coder per-module full-stack LEAD (which forwards the FP brief to its workers, does not write).
+CODER = PLUGIN / "agents" / "odoo-backend-coder.md"
 UPG_SKILL = PLUGIN / "skills" / "odoo-modules-upgrade" / "SKILL.md"
 UPG_PHASE_DETAIL = PLUGIN / "skills" / "odoo-modules-upgrade" / "references" / "upg-phase-detail.md"
 RB_PHASE_DETAIL = PLUGIN / "skills" / "odoo-git-rebase" / "references" / "rb-phase-detail.md"
@@ -870,7 +872,7 @@ class TestConsumersFpMergeAbsorption:
 
     @pytest.mark.parametrize("path,label", [
         (CODE_REVIEWER, "odoo-code-reviewer.md"),
-        (CODER, "odoo-coder.md"),
+        (CODER, "odoo-backend-coder.md"),
     ])
     def test_agent_references_fp_merge_absorption(self, path, label):
         """Agent file must reference [[fp-merge-absorption]] for the FP C1/C2/C3 rules.
@@ -896,14 +898,14 @@ class TestConsumersFpMergeAbsorption:
         )
 
     def test_coder_has_fp_adapt_rule_block(self):
-        """odoo-coder.md must contain the 'Forward-port adapt' rule block.
+        """odoo-backend-coder.md must contain the 'Forward-port adapt' rule block.
 
-        Base commit: block absent. RED if removed.
+        The backend WRITER (not the odoo-coder lead) applies C1/C2/C3. RED if removed.
         """
         text = CODER.read_text(encoding="utf-8")
         assert "Forward-port adapt" in text, (
-            "odoo-coder.md must contain the 'Forward-port adapt' rule block "
-            "so the coder applies C1/C2/C3 when a FP brief references [[fp-merge-absorption]]"
+            "odoo-backend-coder.md must contain the 'Forward-port adapt' rule block "
+            "so the backend coder applies C1/C2/C3 when a FP brief references [[fp-merge-absorption]]"
         )
 
 
