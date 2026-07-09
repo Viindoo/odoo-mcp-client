@@ -231,7 +231,7 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
     lines.append("")
     lines.append("- **spawn_class** - `leaf` (runs inline) · `orchestrator-nl` (chains other skills via")
     lines.append("  natural-language dispatch, no subagent spawn) · `spawner-agent` (dispatches a named")
-    lines.append("  subagent) · `spawner-wave` (worktree fan-out with parallel subagents).")
+    lines.append("  subagent).")
     lines.append("- **handoff** - Context-Handoff Protocol (CHP) tier for resuming subagents across turns.")
     lines.append("  `send-message` (Tier-A: lead resumes a named worker via SendMessage, avoiding")
     lines.append("  cold-spawn overhead) · `fork` (Tier-B: subagent_type=fork fan-out inheriting parent")

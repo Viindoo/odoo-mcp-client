@@ -29,3 +29,29 @@ def test_coding_path_owns_a_commit():
     assert "always" in coding and "git-toolkit:git-ops" in coding
     assert "writes the source tree" in harness.lower() and "git-toolkit:git-ops" in harness
     assert "review, integrate]" in intake  # the [code, review, integrate] land node exists in the micro-plan schema
+
+
+def test_coder_coordinator_commits_module_and_coding_collects_sha():
+    """Worktree-graph refactor: the odoo-coder per-module COORDINATOR now COMMITS its module by
+    invoking git-toolkit:git-ops (its worktree is dependency-correct - forked from the integrated
+    state per Block 2W), then returns the SHA. odoo-coding no longer re-commits: it COLLECTS the
+    returned SHA and passes it up. This snapshots prose tokens, not behavior; re-pin if the wording
+    changes intentionally."""
+    coder = (AGENTS_PLUGIN / "agents/odoo-coder.md").read_text(encoding="utf-8")
+    low = coder.lower()
+    # The coordinator commits its module via git-ops and returns the SHA.
+    assert "git-toolkit:git-ops" in coder and "commit" in low, (
+        "odoo-coder coordinator must COMMIT its module via git-toolkit:git-ops"
+    )
+    assert "odoo-coding" in coder and "sha" in low, (
+        "odoo-coder coordinator must return the commit SHA to odoo-coding"
+    )
+    # odoo-coding collects the SHA and no longer re-commits the coordinator's output.
+    coding = (AGENTS_PLUGIN / "skills/odoo-coding/SKILL.md").read_text(encoding="utf-8")
+    clow = coding.lower()
+    assert "git-toolkit:git-ops" in coding and "coordinator" in clow, (
+        "odoo-coding must describe the coordinator's git-ops commit"
+    )
+    assert "collect" in clow and "sha" in clow, (
+        "odoo-coding must COLLECT the coordinator's returned SHA (it no longer re-commits)"
+    )

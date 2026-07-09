@@ -2,7 +2,7 @@
 name: odoo-pr-monitoring
 argument-hint: "[PR# / branch]"
 description: >
-  Owns the PR lifecycle AFTER odoo-wave opens the PR and stops at the L2-squash-gate. A POLLER, not a
+  Owns the PR lifecycle AFTER run-harness opens the PR and stops at the L2-squash-gate. A POLLER, not a
   blocking DAG node: it watches the PR CI status + review state via /loop (in-session) or /schedule (cron),
   reading through git-toolkit's git-ops skill. On ANY CI warning/error/fail it routes to odoo-debug
   (root-cause first; fixes authored by odoo-coding) - the fix re-push is ALWAYS human-gated (X2), never an
@@ -10,7 +10,7 @@ description: >
   BLOCKED for a human). On green + approved it presents the L2-merge-gate, merges via git-ops, then runs
   post-merge cleanup. Fire on: "watch PR #N", "babysit this PR", "drive the PR to merge", "poll CI until it
   goes green". Vietnamese: "theo dõi PR", "canh PR đến khi merge". Route opening + squashing the PR to
-  odoo-wave; writing a fix to odoo-coding; diagnosing the failure to odoo-debug. DO NOT trigger to open a
+  run-harness; writing a fix to odoo-coding; diagnosing the failure to odoo-debug. DO NOT trigger to open a
   NEW PR, before any PR exists, or for a single-file code change (odoo-coding)
 user-invocable: true
 model: inherit
@@ -20,14 +20,14 @@ model: inherit
 
 ## Where this sits in the flow (the async PR boundary)
 
-This skill begins exactly where `odoo-wave` ends. `odoo-wave` opens ONE PR (integration ->
-principal), squashes with tree-identity verified, and STOPS at the `L2-squash-gate` - it never
-merges. PR CI runs for minutes-to-hours and human review takes hours-to-days, so the watch CANNOT
-be a synchronous blocking node in the `run-harness` DAG. `odoo-pr-monitoring` is the ASYNC boundary:
-a poller that drives the open PR to a merged-and-cleaned state.
+Begins where `run-harness`'s between-wave integration stops at the `L2-squash-gate`: run-harness
+opens ONE PR (integration -> principal), squashes with tree-identity verified, and STOPS (never
+merges). CI runs minutes-to-hours and review takes hours-to-days, so the watch CANNOT be a
+synchronous blocking node in the `run-harness` DAG - this skill is the ASYNC boundary: a poller
+driving the open PR to merged-and-cleaned.
 
 ```
-odoo-wave  ->  open PR + squash (tree-identity)  ->  STOP at L2-squash-gate
+run-harness wave integration  ->  open PR + squash (tree-identity)  ->  STOP at L2-squash-gate
    --- ASYNC BOUNDARY (this skill; NOT a blocking DAG node) ---
 odoo-pr-monitoring  (poll via /loop in-session | /schedule cron)
    -> any CI warning/error/fail  ->  odoo-debug (D3: root-cause)  ->  odoo-coding (fix)
@@ -36,11 +36,10 @@ odoo-pr-monitoring  (poll via /loop in-session | /schedule cron)
         -> post-merge cleanup (worktrees/branches/tag via git-ops)
 ```
 
-It makes no domain/code decision and performs no git/GitHub op itself: it reads PR state and merges
-through the `git-toolkit:git-ops` skill (which it also uses for cleanup), and routes diagnosis to
-`odoo-debug` and fixes to `odoo-coding` - each via its delegate. The repo is PUBLIC and every
-git mutation is human-gated + worktree-only; this skill never relaxes that, least of all from an
-unattended cron poll.
+It makes no domain/code decision and runs no git/GitHub op itself: it reads PR state + merges via the
+`git-toolkit:git-ops` skill (also used for cleanup), routes diagnosis to `odoo-debug` and fixes to
+`odoo-coding`. Every git mutation stays human-gated + worktree-only, including from an unattended
+cron poll.
 
 ## Role
 
@@ -54,15 +53,13 @@ no code, no design, and no git authority of its own (all git/GitHub work is dele
 The watch is keyed on the PR produced upstream. On start, locate the PR by pointer (do NOT re-open
 or re-derive it):
 
-- **PR URL + branches** - from the active `.odoo-ai/run-<id>.json` (the run-DAG `odoo-wave` fed:
-  the squashing node's `produced` carries the PR URL, the integration branch, and the squashed SHA).
-  Recording the PR URL in `run-<id>.json` is what lets a FRESH session re-attach to an in-flight
-  watch: re-attach = read `run-<id>.json`, find the PR URL, resume polling. (`run-harness` owns
-  writing `run-<id>.json` - hard rule; this skill SURFACES the PR URL + poll state in its
-  Continuation Contract `produced`, and `run-harness` persists it. This skill writes only its own
-  poll-state notes under `.odoo-ai/pr-monitoring/<id>.md`.)
-- **Direct user invocation** - a user asking "watch PR #N" supplies the PR number/URL directly; no
-  run file is required for the standalone watch.
+- **PR URL + branches** - from the active `.odoo-ai/run-<id>.json` (run-harness's wave-integration squash step
+  `produced` carries the PR URL, integration branch, squashed SHA). A fresh session re-attaches by
+  reading `run-<id>.json` for the PR URL and resuming. (`run-harness` owns writing `run-<id>.json`;
+  this skill only SURFACES the PR URL + poll state in its Continuation Contract `produced`, and
+  writes its own poll-state notes under `.odoo-ai/pr-monitoring/<id>.md`.)
+- **Direct user invocation** - "watch PR #N" supplies the PR number/URL directly; no run file
+  required.
 
 If no PR handle can be resolved (no run file, no PR named), STOP and report `NEEDS_CONTEXT` - never
 guess a PR or open a new one.
@@ -136,15 +133,15 @@ NEVER pushed autonomously.
 1. **Present the L2-merge-gate (always human).** The merge is irreversible/outward (git merge to the
    principal branch), so it is L2 and the autonomy dial can NEVER lower it (`run-harness` hard rule
    #5). Present a tight summary - PR URL, CI green, review approved, squashed SHA + tree-identity
-   result from `odoo-wave` - and WAIT for human approval. Write the gate in the USER'S LANGUAGE
+   result from run-harness's wave integration - and WAIT for human approval. Write the gate in the USER'S LANGUAGE
    (translate labels/prose; keep PR URL, branch, SHA, and module names verbatim).
 2. **Merge.** On approval, invoke `git-ops` to merge (pass the human approval through
    as `confirmed: yes - <quote>`). This is the only place this skill triggers the merge; there is no
    auto-merge and no CI-triggered merge.
 3. **Post-merge cleanup.** After the merge is confirmed on the remote, invoke `git-ops` to run the
-   cleanup in one brief (the checklist `odoo-wave` reserved for this owner:
-   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-wave/reference/wave-templates.md` Cleanup Checklist): remove
-   the per-WI worktrees and the integration worktree, delete the WI + integration branches, delete
+   cleanup in one brief (the checklist run-harness's wave integration reserved for this owner:
+   `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` Cleanup Checklist): remove
+   the per-module worktrees and the integration worktree, delete the module + integration branches, delete
    the wave-backup tag, and prune stale worktree refs. The gitignored `.odoo-ai/wave/<slug>/` and
    this skill's own `.odoo-ai/pr-monitoring/<id>.md` may be removed inline. Optionally surface a
    version-bump/changelog follow-up (wrapping `make bump`) as a `next` entry for `run-harness` to
@@ -169,24 +166,23 @@ NEVER pushed autonomously.
 > **OSM-first precedence.** Odoo Semantic MCP (OSM) is the PRIMARY source for Odoo source/structure
 > (indexed, cross-version, inheritance-resolved, checkout-free); reading the codebase with Read/Grep
 > is the FALLBACK, only when OSM is incomplete or unreachable. OSM is STATIC (no live records). This
-> skill barely touches OSM: it pins the run's target Odoo series once at attach (which doubles as the
-> OSM reachability probe) so the version-pinned context travels with any D3 hand-off to `odoo-debug`
-> and into the merge report. All PR/CI/review reads are GitHub-API ops delegated to `git-ops`
-> (not OSM), and any deep source grounding happens INSIDE `odoo-debug` / `odoo-coding`, not here.
+> skill barely touches OSM: it pins the run's target Odoo series once at attach (doubling as the
+> reachability probe) so the version-pinned context travels with any D3 hand-off. All PR/CI/review
+> reads are GitHub-API ops delegated to `git-ops`; deep source grounding happens inside
+> `odoo-debug` / `odoo-coding`, not here.
 
 ## Concurrency + handoff
 
 This skill dispatches strictly SERIALLY - one poll, then at most one route (`odoo-debug` then
-`odoo-coding`) or one merge per tick. It runs no fan-out, so the Mode-A/Mode-B budgets in
+`odoo-coding`) or one merge per tick. It runs no fan-out (the Mode-A/Mode-B budgets in
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` are never exercised; that SSOT still
-governs any subagent it cold-spawns. Every delegate (the `git-ops` skill, `odoo-debug`,
-`odoo-coding`) is invoked fresh each turn (Tier-C, the always-correct baseline),
-so the watch resumes correctly after any session boundary by re-reading `run-<id>.json` and the
-poll-state note.
+governs any subagent it cold-spawns). Every delegate (`git-ops`, `odoo-debug`, `odoo-coding`) is
+invoked fresh each turn (Tier-C baseline), so the watch resumes correctly across a session boundary
+by re-reading `run-<id>.json` + the poll-state note.
 
 ## Out of Scope
 
-- **Opening or squashing the PR** -> `odoo-wave` owns that and STOPS at the `L2-squash-gate`; this
+- **Opening or squashing the PR** -> `run-harness`'s between-wave integration owns that and STOPS at the `L2-squash-gate`; this
   skill starts after.
 - **Writing a fix** -> `odoo-coding` (backend + frontend); **diagnosing a failure** -> `odoo-debug`
   (root-cause first). This skill only ROUTES to them and gates the re-push.

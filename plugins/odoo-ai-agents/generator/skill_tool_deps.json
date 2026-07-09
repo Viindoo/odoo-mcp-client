@@ -336,12 +336,6 @@
       "deprecated_tools_used": [],
       "notes": "Pure text routing and brainstorm - no MCP tool calls. Tool names mentioned in routing table discriminators are references to OTHER skills' tools, not invocations by intake itself."
     },
-    "odoo-wave": {
-      "mcp_tools": [],
-      "min_server_version": "0.1.0",
-      "deprecated_tools_used": [],
-      "notes": "Internal git-executor (consume-only; user-invocable=false) - no MCP tools of its own; INVOKES odoo-coding per WI over per-WI worktrees + cherry-pick + end-of-wave odoo-code-review + squash, then STOPS at the L2-squash-gate (merge owned by odoo-pr-monitoring). Outputs to .odoo-ai/wave/ (gitignored)."
-    },
     "odoo-ui-review": {
       "mcp_tools": [
         "resolve_stylesheet",
@@ -775,10 +769,31 @@
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
       "notes": "reuses _shared/doc-cluster-plan.md; standalone-first, OSM optional; writes doc-plan.yaml"
+    },
+    "odoo-test-writer": {
+      "mcp_tools": [
+        "set_active_version",
+        "model_inspect",
+        "find_examples",
+        "lookup_core_api",
+        "test_base_classes",
+        "find_test_examples",
+        "js_test_inspect",
+        "tests_covering",
+        "test_coverage_audit",
+        "test_class_inspect",
+        "api_version_diff",
+        "resolve_orm_chain",
+        "validate_relation",
+        "validate_depends"
+      ],
+      "min_server_version": "0.15.0",
+      "deprecated_tools_used": [],
+      "notes": "Context-isolated executor that AUTHORS Odoo automation tests by invoking the odoo-test-writing skill INLINE (Skill tool, +0 depth) - a HARD LEAF that spawns no agent. Same tool surface as odoo-test-writing (it delegates the grounded authoring to that skill): test_base_classes/test_class_inspect resolve base classes + cursor contract; find_test_examples returns test-only chunks; js_test_inspect confirms the per-module JS framework mix + tour registry; tests_covering + test_coverage_audit set the anti-reinvention coverage baseline; model_inspect/resolve_orm_chain/validate_relation/validate_depends ground fields + relational chains + @api.depends; api_version_diff grounds adapt-mode renamed/removed-API mapping. Launched by odoo-coder (test-first teammate), odoo-acceptance (P2a durable tour/HttpCase), odoo-qa-suite (Phase 1 runnable tests), odoo-code-review (coverage gate), odoo-forward-port / odoo-git-rebase (adapt-mode test translation). Returns the authored RED test file paths. min_server 0.15.0 for the test-surface tools."
     }
   },
   "orchestration": {
-    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no subagent spawn) | spawner-agent (dispatches a named subagent) | spawner-wave (worktree fan-out with parallel subagents). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes .odoo-ai/ internal, OR a STATIC spawner-wave advance whose instance touches are ephemeral and whose squash/merge are separately L2-gated - auto-pass under --auto) | L2 (irreversible/outward: an outward git merge/push, a shared instance_touching, or a DYNAMIC unplanned wave - ALWAYS human gate; dial cannot lower). Per-node override lives in run-<id>.json, not here. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: lead resumes a named worker via SendMessage, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via Agent tool + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md.",
+    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no subagent spawn) | spawner-agent (dispatches a named subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes .odoo-ai/ internal - auto-pass under --auto) | L2 (irreversible/outward: an outward git merge/push or a shared instance_touching - ALWAYS human gate; dial cannot lower). run-harness's OWN between-wave integration advance is L1 (autonomous drive-to-done: instance touches are ephemeral test DBs, the squash/force-push is the in-context L2-squash-gate, and the only irreversible landing is the downstream outward merge); a DYNAMIC unplanned source-writing wave stays L2 via run-harness's dynamic-source-write rule - neither is a registry default_gate_tier value (a run-harness node tier, not a skill field). Per-node override lives in run-<id>.json, not here. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: lead resumes a named worker via SendMessage, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via Agent tool + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md.",
     "odoo-intake": {
       "spawn_class": "spawner-agent",
       "spawns": [
@@ -839,9 +854,11 @@
       "spawn_class": "spawner-agent",
       "handoff": "send-message",
       "spawns": [
-        "odoo-coder",
-        "odoo-frontend-coder",
-        "(dispatch: model-weighted subagent batches, explicit model per work-item per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B)"
+        "odoo-coder (per-module COORDINATOR - launched for EVERY module; the sanctioned nested spawner that owns the module's INTERNAL work-item split, launches odoo-backend-coder / odoo-frontend-coder per WI, sequences backend-before-frontend, tests the integrated module via odoo-instance INLINE, and returns files for odoo-coding to commit - modeled like git-toolkit git-pipeline-lead)",
+        "odoo-test-writer (hard leaf - launched FIRST by the odoo-coder coordinator per WI to author the RED test, before the coder makes it green; authors by invoking the odoo-test-writing skill inline)",
+        "odoo-backend-coder (hard leaf - launched by the odoo-coder coordinator for a backend work-item)",
+        "odoo-frontend-coder (hard leaf - launched by the odoo-coder coordinator for a frontend work-item)",
+        "(dispatch: ONE odoo-coder per module; model-weighted subagent batches, explicit model per module per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B)"
       ],
       "stack": "fullstack",
       "instance_touching": false,
@@ -854,6 +871,7 @@
       "spawns": [
         "odoo-code-reviewer",
         "odoo-review-scoper",
+        "odoo-test-writer (coverage gate - authors the missing/adapt-mode protecting test when a CRITICAL/HIGH behavior change ships uncovered; agent launched for context isolation, invokes the odoo-test-writing skill inline)",
         "git-ops (PR worktree checkout + diff/branch read + inline-comment posting on the PR - via git-ops skill - git-toolkit)"
       ],
       "stack": "fullstack",
@@ -967,9 +985,9 @@
         "Explore (read-only range enumerate + diff read)",
         "odoo-intent-extractor (rebase MODE, per-commit, base-head grounding)",
         "odoo-diff-comparator (cluster behavior comparison + range-diff/dup-guard verify)",
-        "odoo-coding skill (via Skill tool: P8 conflict resolution + adapt; owns odoo-coder/odoo-frontend-coder fan-out and synthesis - the rebase does NOT dispatch raw coders for conflicts)",
+        "odoo-coding skill (via Skill tool: P8 conflict resolution + adapt; owns the coder fan-out (odoo-coder coordinator / odoo-backend-coder / odoo-frontend-coder) and synthesis - the rebase does NOT dispatch raw coders for conflicts)",
         "odoo-code-review skill (via Skill tool: P9b in-pipeline review + P12 final PR review)",
-        "odoo-test-writing (mode adapt, RED-first)",
+        "odoo-test-writer (adapt mode, RED-first - agent launched for context isolation; invokes the odoo-test-writing skill inline)",
         "odoo-instance skill (CONDITIONAL at P10: provisions ONE instance when range touches DB-stateful behavior; its INSTANCE_HANDLE is forwarded to every downstream verify/coder brief - downstream never self-provisions)",
         "git-ops (all local git mutations - cherry-pick, branch, squash, force-with-lease - plus read-only diff/range analysis + tree-identity verify and PR create/review - via git-ops skill - git-toolkit)"
       ],
@@ -1040,7 +1058,9 @@
     },
     "odoo-qa-suite": {
       "spawn_class": "orchestrator-nl",
-      "spawns": [],
+      "spawns": [
+        "odoo-test-writer (Phase 1 runnable test_*.py / Hoot / tour authoring - agent launched for context isolation; invokes the odoo-test-writing skill inline)"
+      ],
       "stack": "none",
       "instance_touching": true,
       "output_mode": "writes-files",
@@ -1102,18 +1122,6 @@
       "output_mode": "writes-files",
       "default_gate_tier": "L1"
     },
-    "odoo-wave": {
-      "spawn_class": "spawner-wave",
-      "handoff": "fresh",
-      "spawns": [
-        "odoo-coding (INVOKED per WI via the Skill tool from the orchestrating context; odoo-coding owns coder count + model)",
-        "git-ops (worktree add, cherry-pick onto integration in module-DAG order, squash, force-with-lease, read-only diff + tree-identity verify, open PR integration->principal; merge owned by odoo-pr-monitoring - via git-ops skill - git-toolkit)"
-      ],
-      "stack": "none",
-      "instance_touching": true,
-      "output_mode": "writes-files",
-      "default_gate_tier": "L1"
-    },
     "workflow-chaining": {
       "spawn_class": "orchestrator-nl",
       "spawns": [],
@@ -1124,7 +1132,10 @@
     },
     "run-harness": {
       "spawn_class": "orchestrator-nl",
-      "spawns": [],
+      "spawns": [
+        "odoo-coding (INVOKED per MODULE via the Skill tool during between-wave integration; odoo-coding owns coder count + model; the odoo-coder coordinator COMMITS its module and returns the SHA - the work-item is odoo-coder's INTERNAL unit, never a wave input)",
+        "git-ops (worktree add per Block 2W lineage, cherry-pick onto integration in module-DAG order, squash, force-with-lease, read-only diff + tree-identity verify, open PR integration->principal and STOP at the L2-squash-gate; merge owned by odoo-pr-monitoring - via git-ops skill - git-toolkit)"
+      ],
       "stack": "none",
       "instance_touching": false,
       "output_mode": "chat-only",
@@ -1203,7 +1214,8 @@
       "spawns": [
         "odoo-intent-extractor (read-only per-commit; model per complexity)",
         "odoo-installable-prober (read-only per-module installable-state probe in P2; model per complexity / sonnet)",
-        "odoo-coding (P8 adapt via the Skill tool; owns the backend/frontend odoo-coder/odoo-frontend-coder fan-out + model; FP-enriched brief carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first; serial per commit via work-tier worktrees)",
+        "odoo-test-writer (P8a test-forward adapt mode, RED-first - agent launched for context isolation; invokes the odoo-test-writing skill inline; SendMessage-resumable)",
+        "odoo-coding (P8 adapt via the Skill tool; owns the coder fan-out (odoo-coder coordinator / odoo-backend-coder / odoo-frontend-coder) + model; FP-enriched brief carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first; serial per commit via work-tier worktrees)",
         "git-ops (cherry-pick, merge, branch/worktree ops - all local git mutations - plus read-only diff/range map + P5 verify and PR create/review - via git-ops skill - git-toolkit)"
       ],
       "stack": "fullstack",
@@ -1240,7 +1252,7 @@
         "odoo-diff-comparator (per-module core-absorption comparison)",
         "odoo-gap-analysis (core-feature coverage)",
         "odoo-solution-architect (conditional hard-call design)",
-        "odoo-coding (P4 adapt via the Skill tool; owns the odoo-coder/odoo-frontend-coder fan-out + model; dep order, per-module worktrees)",
+        "odoo-coding (P4 adapt via the Skill tool; owns the coder fan-out (odoo-coder coordinator / odoo-backend-coder / odoo-frontend-coder) + model; dep order, per-module worktrees)",
         "odoo-instance skill (P5 install/test via the Skill tool; owns the odoo-instance-ops fan-out) + odoo-backend-debugger / odoo-ui-debugger (failure diagnose)",
         "git-ops (branch, worktree, cherry-pick, squash - all git mutations - plus read-only diff scope + verify and P7 PR review/creation - via git-ops skill - git-toolkit)"
       ],
@@ -1255,7 +1267,7 @@
         "odoo-qa-planner (P1 independent-oracle author)",
         "odoo-qa-tester (P2b live execute + adjudicate; browser-serial, one at a time)",
         "odoo-ui-reviewer (optional per-screen quality verdict in the P2b serial slot)",
-        "odoo-test-writing (P2a durable tour/HttpCase channel, via Skill tool)",
+        "odoo-test-writer (P2a durable tour/HttpCase authoring - agent launched for context isolation; invokes the odoo-test-writing skill inline)",
         "odoo-instance (P2 provision the co-installed cluster + run durable tests, via Skill tool)",
         "odoo-debug / odoo-coding (P3 fix-loop on FAIL, via Skill tool)"
       ],

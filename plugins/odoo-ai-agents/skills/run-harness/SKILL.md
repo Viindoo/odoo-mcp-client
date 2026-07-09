@@ -77,9 +77,9 @@ while RUN.status == "NEEDS_NEXT":
 
     tier = rederive_floor(node)   # NOT raw node.gate_tier - re-assert the floor (see §Gate-tier
                                   # resolution): an `outward` merge | a non-wave instance_touching
-                                  # node | a DYNAMIC source-writing node ⇒ L2; a STATIC spawner-wave
-                                  # advance ⇒ L1 (ephemeral instance; self-gated squash + downstream
-                                  # merge); else node.gate_tier / registry default.
+                                  # node | a DYNAMIC source-writing node ⇒ L2; a STATIC between-wave
+                                  # integration (wave) advance ⇒ L1 (ephemeral instance; the in-context
+                                  # L2-squash-gate + downstream merge); else node.gate_tier / registry default.
     if RUN.autonomy == "step": tier = max(tier, "L1")       # --step gates everything ≥ L1
     if tier == "L2":              # ALWAYS human - emit gate, end turn, resume after approve/skip/cancel
         emit_human_gate(node); wait                          # on cancel → mark SKIPPED/stop per user
@@ -94,22 +94,21 @@ while RUN.status == "NEEDS_NEXT":
         - skill (spawner)   → invoke the SKILL via Skill tool; the skill fans out its
                               own agent (e.g. odoo-code-reviewer) via launch subagent
         - workflow          → hand the YAML name to workflow-chaining
-        - integrate         → invoke git-toolkit:git-ops (push WI branch + open PR against
+        - wave              → drive the § Between-wave integration procedure for this coding wave
+                              node (consume Block 2W lineage; per module INVOKE odoo-coding; the
+                              odoo-coder coordinator commits + returns the SHA; cherry-pick + saga;
+                              integrated review + cumulative close-gate; ONE squashed PR; STOP at the
+                              L2-squash-gate). run-harness owns this directly - there is no git-executor skill.
+        - integrate         → invoke git-toolkit:git-ops (push the change's branch + open PR against
                               principal) from main context, then materialize next ->
                               odoo-pr-monitoring @ gate_tier L2 (single outward merge gate)
         - inline            → do the small synth step yourself
     # turn typically ends here for any subagent/agent dispatch; SubagentStop hook nudges resume
 
-    contract = read_continuation_contract(node)              # SPAWNER node (a skill invoked in the `main` context): read the
-                                                             # spawner's in-context AGGREGATE result inline - it ran in `main`,
-                                                             # not as a teammate, so there is no raw teammate push to read. LEAF
-                                                             # teammate dispatched directly + Agent Team mode (CHP probe
-                                                             # positive): the teammate PUSHES its Continuation Contract to `main`
-                                                             # via SendMessage and reports status via TaskGet - read the contract
-                                                             # from that push, NOT the transcript. Reading the `.output` subagent
-                                                             # transcript is the Tier-C fallback ONLY (team mode off). Never sit
-                                                             # idle on a content-less idle_notification - poll TaskGet / read the
-                                                             # push. Per snippets/agent-team-protocol.md.
+    contract = read_continuation_contract(node)              # SPAWNER node (skill invoked in `main`): read its in-context
+                                                             # AGGREGATE result inline. LEAF teammate + Agent Team mode: read the
+                                                             # contract from the teammate's SendMessage push, NOT the `.output`
+                                                             # transcript (Tier-C fallback only). See prose below + agent-team-protocol.md.
     node.contract = contract
     node.produced = contract.produced
     node.status   = map(contract.status)                     # DONE | (FAILED→retry<3 else BLOCKED) | BLOCKED | NEEDS_CONTEXT
@@ -130,17 +129,15 @@ emit terminal report (DONE | BLOCKED | NEEDS_CONTEXT), one evidence pointer per 
 ```
 
 When the CHP capability probe is positive (Agent Team mode on), run-harness `TaskCreate`s one task
-per DAG NODE it dispatches (title = node id) and tracks node status via `TaskList`/`TaskGet`.
-run-harness does NOT itself spawn named teammate agents - it dispatches each node via Skill-tool
-inline, a spawner skill (Skill tool), or workflow-chaining. When the node is a spawner skill (e.g.
-odoo-coding), THAT skill runs in the same `main` context and is the team lead for its OWN teammates:
-it injects their briefs (TASK_ID + REPLY_TO: main + NOTIFY) and consumes their SendMessage pushes
-one frame down; run-harness then reads the spawner's in-context aggregate result for the node and
-does NOT create or track the spawner's teammate tasks (single main context - no double-tracking, no
-second task board). When run-harness dispatches a LEAF teammate directly, it injects that
-teammate's brief and reads the result from the teammate's SendMessage push (NEVER the `.output`
-transcript). Per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch +
-collect as today.
+per DAG NODE it dispatches (title = node id) and tracks status via `TaskList`/`TaskGet`. It does NOT
+spawn named teammate agents - it dispatches each node via Skill-tool inline, a spawner skill (Skill
+tool), or workflow-chaining. A spawner-skill node (e.g. odoo-coding) runs in the same `main` context
+and is team lead for its OWN teammates (injects their briefs TASK_ID + REPLY_TO: main + NOTIFY,
+consumes their pushes); run-harness reads the spawner's in-context aggregate result and does NOT
+track the spawner's teammate tasks (single main context - no double-tracking). For a LEAF teammate
+dispatched directly, inject its brief and read the result from its SendMessage push (NEVER the
+`.output` transcript). Per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off,
+dispatch + collect as today.
 
 ## Gate-tier resolution
 
@@ -154,13 +151,19 @@ cannot pause for human input; the skill's internal Phase-0 gate is only a safety
 binding gate. Spawner skills writing only `.odoo-ai/` (`odoo-code-review`, `odoo-ui-review`) need
 no extra driver gate beyond registry tier.
 
-- **Static node** (was in the Plan-Mode-approved DAG): Plan-Mode approval IS the human gate →
-  auto-pass under `--auto` is fine. A STATIC `spawner-wave` advance (the between-wave step) is L1
-  and DRIVES to done: the wave's squash/force-push is human-confirmed INSIDE the wave (odoo-wave
-  Phase 5.2) and the only irreversible landing is the downstream `outward` L2-merge-gate, so the
-  driver does not re-stop between waves. `--step` re-inserts the between-wave stop on demand: it
-  raises the floor to L1, and an L1 node under non-`auto` autonomy emits a human gate - the opt-in
-  per-wave checkpoint for an operator who wants one.
+A coding wave node's `approach_kind` is `wave`: the node groups one wave's MODULES (with their
+module-DAG + topology + `cumulative_modules` + the Block-2W lineage slice) - the outer unit is the
+MODULE, not a work-item (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` § Two-tier
+decomposition axis). run-harness drives it via § Between-wave integration - it iterates the wave's
+modules and invokes `odoo-coding` per module; the work-item is `odoo-coder`'s INTERNAL intra-module
+unit and never appears in a run node.
+
+- **Static node** (in the Plan-Mode-approved DAG): Plan-Mode approval IS the human gate →
+  auto-pass under `--auto`. A STATIC `wave` (between-wave integration) advance is L1 and DRIVES to
+  done: the squash/force-push is the in-context L2-squash-gate (human-confirmed as the wave closes)
+  and the only irreversible landing is the downstream `outward` L2-merge-gate, so the driver does not
+  re-stop between waves. `--step` re-inserts the between-wave stop: it raises the floor to L1, and an
+  L1 node under non-`auto` autonomy emits a human gate.
 - **Dynamic node** (materialized at runtime from `next[]` / `on_complete` - never in the
   approved plan): driver MUST emit a preview (`Proposed / Files / OSM / Proceed? (yes / refine /
   cancel)`) and **END ITS TURN** before dispatching. Treat as **L2**: `--auto` cannot auto-pass.
@@ -168,25 +171,75 @@ no extra driver gate beyond registry tier.
   dynamic source-writing node is provisioned by Hard rule 6 at its human-gated dispatch, so the
   coder never authors on the principal checkout on the unplanned path either.
 
-The spawner-wave L1 advance relies on the wave's instance touches being EPHEMERAL test DBs; a
-spawner-wave that mutated a SHARED (non-ephemeral) instance would need explicit L2 re-classification,
-and none exists today.
-
 **Defense-in-depth (M3):** re-derive each node's floor from registry truth before gating - an
 `outward` git merge/push ⇒ L2; a non-wave `instance_touching` node ⇒ L2; a DYNAMIC source-writing
-node (including an unplanned wave) ⇒ L2. A STATIC `spawn_class == spawner-wave` advance ⇒ L1: its
-instance touches are ephemeral test DBs, its squash/force-push is human-confirmed INSIDE the wave, and
-the only irreversible landing is the downstream `outward` merge (odoo-pr-monitoring's L2-merge-gate).
-A hand-edited `run.json` cannot lower a mandatory gate; a spawner-wave that mutated a SHARED
-(non-ephemeral) instance would need explicit L2 re-classification, and none exists today.
+node (including an unplanned wave) ⇒ L2. A STATIC `approach_kind == wave` (between-wave integration)
+advance ⇒ L1: its instance touches are ephemeral test DBs, its squash/force-push is the in-context
+L2-squash-gate presented as the wave closes, and the only irreversible landing is the downstream
+`outward` merge (odoo-pr-monitoring's L2-merge-gate). A hand-edited `run.json` cannot lower a
+mandatory gate; a wave node that mutated a SHARED (non-ephemeral) instance would need explicit L2
+re-classification, and none exists today. This L1 is a run-harness NODE tier applied here by the
+driver - NOT a registry `default_gate_tier` value (`_derive_gate_tier` has no wave branch).
 
-**`integrate` node dispatch (the land tail).** An `integrate` node's dispatch is: invoke
-`git-toolkit:git-ops` from the main context to push the WI branch and open a PR against the
-principal branch, then materialize `next -> odoo-pr-monitoring` at `gate_tier: L2` - the single
-outward merge gate (L2 never auto-passes, so the human still approves the merge even under
-`--auto`). `odoo-coding` itself never pushes or opens a PR; it returns the SHA on the WI branch
-exactly as under `odoo-wave`. This is the ONE land mechanism (git-ops open-PR ->
-`odoo-pr-monitoring` merge); there is no local merge into the principal checkout.
+**`integrate` node dispatch (the land tail).** Invoke `git-toolkit:git-ops` from the main context to
+push the change's branch and open a PR against the principal branch, then materialize
+`next -> odoo-pr-monitoring` at `gate_tier: L2` - the single outward merge gate (L2 never
+auto-passes, so the human approves the merge even under `--auto`). `odoo-coding` never pushes or opens
+a PR; it returns the SHA on the change's branch exactly as in the between-wave integration. This is the ONE land
+mechanism (git-ops open-PR -> `odoo-pr-monitoring` merge); no local merge into the principal checkout.
+
+## Between-wave integration (consumes Block 2W)
+
+This is the per-wave INTEGRATION responsibility run-harness owns DIRECTLY as it walks the coding waves
+(there is no separate git-executor skill - run-harness is the sole owner). It CONSUMES the plan's
+wave-batched **module-DAG** (with `depends_on` edges as the cherry-pick order) + topology +
+`cumulative_modules` + the **Block 2W** worktree dependency graph (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 2W). It is
+consume-only: it never self-derives the module-DAG. Full templates (the four topologies, the saga
+pseudocode, the cleanup checklist, the execution-log + squash recipe):
+`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`. Per wave N, in module-DAG
+order:
+
+0. **Safety audit (trust-but-verify).** Run the disjoint file-ownership audit over the consumed
+   module-DAG (no source file owned by two module scopes) + a plan-staleness check before creating
+   any worktree. A file in two scopes ⇒ STOP BLOCKED and route back to `odoo-planning` to re-partition.
+1. **Fork-from-prior-integration.** Fork `integration@wave-(N+1)` from `integration@wave-N` (NOT
+   from `base`/principal) per the planned Block-2W lineage. Wave-1 integration forks `base`. This
+   threads each wave's integrated state forward so a dependent wave's worktrees already carry their
+   dependencies' committed code - the fork-from-integrated-parent loop that structurally removes the
+   intra-run cross-wave "dependency absent" BLOCKED path.
+2. **Cherry-pick + saga.** Cherry-pick each module's returned commit (the `odoo-coder` coordinator
+   committed it via `git-toolkit:git-ops`) into the wave integration, in module-DAG topo order, with
+   saga rollback / resume-from-checkpoint on failure (SSOT:
+   `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`). All git is invoked via
+   `git-toolkit:git-ops`.
+3. **Close the wave.** Run the integrated-tree cross-cutting review over the whole integration
+   worktree - SCALE-BASED, never a flat inline review regardless of wave size: a large wave
+   (`git diff <principal>...HEAD --shortstat` > ~1500 changed lines OR module count N >= 8)
+   escalates to a **fable** review subagent (cost ~2x opus - state tier + cost + a one-line why,
+   wait for an explicit human `yes`; on decline/unavailable fall back to opus inline and note the
+   downgrade); otherwise run an **opus inline** review in this context (full rule + coverage/
+   blast-radius review lenses: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
+   § Review Escalation). Then the **cumulative regression close-gate** - the growing
+   `cumulative_modules` suite run GREEN (never open a PR on red).
+4. **One squashed PR, then STOP.** Open ONE squashed PR for the wave and STOP at the L2-squash-gate;
+   the outward MERGE stays `odoo-pr-monitoring`'s (the single L2 merge gate). Then
+   `integration@wave-(N+1)` forks from this closed integration and the loop continues.
+5. **Acceptance hand-off (opt-in, L2).** If step 3's blast-radius render-check reached BEYOND the
+   wave's own modules (the `render_check_set` binds dependents), materialize an `odoo-acceptance`
+   node in the RUN-DAG at `gate_tier: L2` depending on the wave's PR, so the affected cluster is
+   verified before merge (never auto-run, never auto-block) - the SAME condition + shape
+   `odoo-code-review` emits its acceptance hand-off under (full `next` block + shared render_check_set
+   SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Review
+   Escalation).
+
+The invoked `odoo-coding` DRIVES its own per-module `odoo-code-review` inline and returns a SHA;
+run-harness does NOT advance a per-module `next` for that in-wave invocation (the review loop
+lives inside `odoo-coding`; run-harness just cherry-picks the returned SHA). The between-wave advance
+is L1 (autonomous drive-to-done); the squash/force-push + PR is the in-context L2-squash-gate; the
+downstream merge is `odoo-pr-monitoring`'s L2-merge-gate. This is the drive-to-done invariant: the
+wave may auto-advance between waves ONLY because each wave proves a GREEN cumulative close-gate before
+it opens a PR.
 
 ## Circuit-breakers (anti-runaway, anti-trap)
 
