@@ -1,8 +1,12 @@
 <!-- SSOT snippet. The boundary for RUNNING tests/instance work: who runs, when to keep it
      inline vs delegate, INSTANCE_HANDLE precedence, the NEEDS_NEXT escalation, and the
      output-volume rule that keeps the caller's context clean. Referenced (not copy-pasted) by
-     odoo-qa-tester, odoo-acceptance, odoo-forward-port, odoo-coder, odoo-code-reviewer, and
-     odoo-frontend-coder. Canonical NEEDS_NEXT example lives in odoo-test-writing Round 5.
+     odoo-qa-tester, odoo-acceptance, odoo-forward-port, odoo-code-reviewer, and the coding agents:
+     the odoo-coder per-module coordinator (launched for EVERY module) owns the INTEGRATED whole-module
+     instance test; odoo-backend-coder self-provisions its own bounded /test_lint gate; odoo-frontend-coder
+     is instance-free (static gate only; its live checks go to the coordinator or a delegated
+     odoo-instance run). Canonical NEEDS_NEXT
+     example lives in odoo-test-writing Round 5.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md. -->
 
 # Test-Execution Handoff Contract (who runs the suite, and where the output goes)
@@ -14,8 +18,9 @@ caller.
 
 ## Three roles, three contexts
 
-- **Author** - writes the test or the oracle (`odoo-test-writing`, `odoo-qa-planner`). Does NOT
-  decide PASS from a run it controls.
+- **Author** - writes the test or the oracle: the `odoo-test-writer` agent authors the test (it
+  invokes the `odoo-test-writing` skill inline, in its own context), and `odoo-qa-planner` authors
+  the oracle. Does NOT decide PASS from a run it controls.
 - **Execute** - provisions/operates the live instance and runs the suite (`odoo-instance` skill ->
   `odoo-instance-ops` agent). Returns structured results, not raw firehose.
 - **Adjudicate** - compares observed-vs-oracle and rules PASS/FAIL/UNVERIFIED (`odoo-qa-tester`,

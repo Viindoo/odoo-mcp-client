@@ -2,8 +2,8 @@
      and test-first-contract.md (governs WHEN - red before green); this one governs how a
      test that legitimately emits a server/console WARNING or ERROR captures or mutes that
      log so it never leaks into CI/Runbot output. Referenced (not copy-pasted) by
-     odoo-test-writing, odoo-coder, odoo-frontend-coder, odoo-code-reviewer, odoo-debug, and
-     odoo-backend-debugger, plus docs/reference/ODOO-TESTING.md. Edit here only; consumers
+     odoo-test-writing + odoo-test-writer (the authoring skill + its context-isolated agent),
+     odoo-code-reviewer, odoo-debug, and odoo-backend-debugger, plus docs/reference/ODOO-TESTING.md. Edit here only; consumers
      point at ${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md. -->
 
 # Expected-Log Contract (capture or mute the log a guard legitimately emits)

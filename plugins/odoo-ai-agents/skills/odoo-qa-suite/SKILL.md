@@ -16,14 +16,13 @@ description: >
 
 ## Role
 
-QA engineer / Odoo developer - produces test plans, checklist gates, and structured
-bug reports for a module or feature change. Audience: the engineering team preparing
-a release; output is operational and actionable, not executive-level. Three jobs in one
-pass: (1) generate test cases, (2) gate on a pre-deploy checklist, (3) triage bugs with
-severity and root-cause hints.
+QA engineer / Odoo developer producing test plans, checklist gates, and structured bug reports for a
+module or feature change. Audience: the engineering team preparing a release; output is operational
+and actionable, not executive-level. Three jobs in one pass: (1) generate test cases, (2) gate on a
+pre-deploy checklist, (3) triage bugs with severity and root-cause hints.
 
-This skill is a **composition orchestrator**: do not call MCP tools directly. Delegate phases
-via the Skill tool to leaf skills; handle work inline only when no leaf skill covers it.
+**Composition orchestrator:** delegate phases via the Skill tool to leaf skills; handle work inline
+only when no leaf skill covers it.
 
 ---
 
@@ -63,35 +62,31 @@ Output:         .odoo-ai/qa/
 Gate: approve / refine: [feedback] / cancel
 ```
 
-After gate approval, run the **test inventory** before entering Phase 1. Call
-`tests_covering` for the primary model(s) of the module to find which test
-methods already exercise those models, then call `test_coverage_audit` for the
-module to identify untested methods and coverage gaps. Example:
+After gate approval, run the **test inventory** before Phase 1: call `tests_covering` for the
+module's primary model(s) to find which test methods already exercise them, then `test_coverage_audit`
+for the module to identify untested methods and coverage gaps. Example:
 
 ```
 tests_covering(model='sale.order', odoo_version='17.0')
 test_coverage_audit(module='sale_management', odoo_version='17.0')
 ```
 
-Carry both results into Phase 1 so test-case generation focuses on **uncovered
-business rules** - do not generate test cases for behaviors already protected
-by existing tests unless the existing test has a known gap flagged by
-`test_coverage_audit`.
+Carry both into Phase 1 so test-case generation focuses on **uncovered business rules** - do not
+generate cases for behaviors already protected by existing tests unless `test_coverage_audit` flags a
+known gap.
 
 ---
 
 ## Phase 1 - Release TEST-PLAN (static, non-executing, inline)
 
-Generate a structured release test-plan table for planning and review. This is a
-STATIC document: the Pass/Fail column is left blank; no tests are executed here. It is
-derived from code structure and coverage gaps - NOT from requirement oracle.
+Generate a structured release test-plan table for planning and review. STATIC document: the Pass/Fail
+column is left blank; no tests execute here. Derived from code structure and coverage gaps, NOT from a
+requirement oracle.
 
-For behavioral acceptance oracle + live execution across the blast-radius cluster,
-dispatch `odoo-acceptance` instead. That skill delegates oracle authoring to
-`odoo-qa-planner`, which derives expected outcomes solely from REQUIREMENT (keeping
-oracle-author separate from code-author per ETHOS #8). The two artifacts are
-complementary: qa-suite Phase 1 = release planning table; qa-planner = immutable
-execution oracle. Do NOT duplicate scenario steps from the oracle into this table.
+For a behavioral acceptance oracle + live execution across the blast-radius cluster, dispatch
+`odoo-acceptance` instead (it delegates oracle authoring to `odoo-qa-planner`). The two artifacts are
+complementary: this Phase 1 = release planning table; qa-planner = immutable execution oracle. Do NOT
+duplicate the oracle's scenario steps into this table.
 
 Generate a structured test suite table:
 
@@ -104,9 +99,9 @@ Rules:
 - **Steps must drive the real workflow, not seed a state.** Name the actual `action_*` / `button_*` method (e.g. "call `action_confirm`"), build via `Form()` where an onchange is involved, run access checks as the real user (`with_user(...)`), never `sudo()` on the action under test - never write a step that injects terminal `state` with `create({'state': ...})` (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md`).
 - Cover at minimum: happy path, edge case (empty/zero/boundary), error path (invalid input), permission check (user without access gets rejected).
 - Separate unit tests (no DB, no UI) from integration tests (multi-model or multi-user).
-- Ground test mechanics in the TARGET version - test classes, tag syntax, and JS framework (QUnit vs Hoot) differ across Odoo versions. Resolve via OSM (`set_active_version` + `cli_help`) and follow `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`; never assume one version's command line applies to another.
-- **Python test class grounding:** call `test_base_classes` before specifying any TransactionCase/HttpCase in the generated test table. This tool always returns the `cr.commit() FORBIDDEN - isolation is savepoint rollback` contract alongside the authoritative base-class menu for the target version. Example: `test_base_classes(odoo_version='17.0')`. When dispatching Phase 1 test writing to `odoo-test-writing`, instruct that leaf skill to run `test_base_classes` first and to apply `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` for all test local variables (Rule A: no `l`/`O`/`i`; B/C when Viindoo profile).
-- **JS test framework grounding:** for any frontend module, call `js_test_inspect` to discover which framework (hoot/qunit/tour) the module already uses and what test suites exist. Example: `js_test_inspect(module='web', odoo_version='17.0')`. Never assume Hoot vs QUnit from version alone - some modules pin an older framework during a transitional release. When dispatching JS test writing to `odoo-test-writing`, forward the `js_test_inspect` result so the leaf skill writes tests in the correct framework.
+- Ground test mechanics in the TARGET version - test classes, tag syntax, and JS framework (QUnit vs Hoot) differ across versions. Resolve via OSM (`set_active_version` + `cli_help`) and follow `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`; never assume one version's command line applies to another.
+- **Python test class grounding:** call `test_base_classes` before specifying any TransactionCase/HttpCase in the table - it returns the `cr.commit() FORBIDDEN - isolation is savepoint rollback` contract plus the authoritative base-class menu (e.g. `test_base_classes(odoo_version='17.0')`). When authoring Phase 1 runnable tests, launch the `odoo-test-writer` agent (it authors by invoking the `odoo-test-writing` skill inline, in its own context); instruct it to run `test_base_classes` first and apply `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` for all test local variables (Rule A: no `l`/`O`/`i`; B/C when Viindoo profile).
+- **JS test framework grounding:** for any frontend module, call `js_test_inspect` (e.g. `js_test_inspect(module='web', odoo_version='17.0')`) to discover the framework (hoot/qunit/tour) and existing suites. Never assume Hoot vs QUnit from version alone - some modules pin an older framework during a transitional release. When authoring JS tests, launch the `odoo-test-writer` agent and forward the `js_test_inspect` result so it writes in the correct framework.
 - Output file: `.odoo-ai/qa/<slug>-test-cases.md`
 
 ---

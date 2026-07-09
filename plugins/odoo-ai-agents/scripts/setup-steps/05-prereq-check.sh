@@ -42,6 +42,25 @@ _node_major() {
     node --version 2>/dev/null | sed -E 's/^v?([0-9]+).*/\1/'
 }
 
+# Minimum Claude Code version for nested subagent dispatch (the odoo-coder per-module coordinator,
+# launched for EVERY module, launches odoo-backend-coder and/or odoo-frontend-coder one agent level
+# below odoo-coding; the platform enforces a depth cap of 5). This is NOT the experimental
+# agent-teams flag - SendMessage coordinator<->worker works without it.
+CC_MIN_VERSION="2.1.172"
+
+# Claude Code version (e.g. "2.1.172"), or empty if the CLI is absent.
+_cc_version() {
+    _have claude || return 0
+    claude --version 2>/dev/null | sed -E 's/.*([0-9]+\.[0-9]+\.[0-9]+).*/\1/' | head -1
+}
+
+# 0 = detected version >= CC_MIN_VERSION (dotted numeric compare via sort -V); non-zero otherwise.
+_cc_version_ok() {
+    local v; v="$(_cc_version)"
+    [[ -n "$v" ]] || return 1
+    [[ "$(printf '%s\n%s\n' "$CC_MIN_VERSION" "$v" | sort -V | head -1)" == "$CC_MIN_VERSION" ]]
+}
+
 # 0 = at least one Odoo repo (odoo-bin or __manifest__.py) under ODOO_GIT_BASE.
 _repos_present() {
     [[ -d "$ODOO_GIT_BASE" ]] || return 1
@@ -72,14 +91,20 @@ cmd_check() {
 _mark() { if "$@" >/dev/null 2>&1; then printf '[ok ]'; else printf '[ -- ]'; fi; }
 
 cmd_apply() {
-    local nm
+    local nm ccv
     nm="$(_node_major)"
+    ccv="$(_cc_version)"
     echo "============================================================"
     echo " Prerequisites for Odoo setup (filter: $SETUP_FILTER)"
     echo " setup never runs sudo and never installs system packages."
     echo "============================================================"
     echo
     echo "AUTO-DETECTED:"
+    # Claude Code version gate - required for the coder coordinator's nested subagent dispatch.
+    # Informational (never blocks `check`); an older CLI still runs everything else.
+    if _cc_version_ok; then printf '  [ok ]'; else printf '  [ -- ]'; fi
+    echo " Claude Code >= $CC_MIN_VERSION (nested subagent dispatch for the coder coordinator)  found: ${ccv:-none}"
+    echo "         fix: update Claude Code to >= $CC_MIN_VERSION (do NOT set any experimental agent-teams flag)"
     if _needs_browser; then
         if [[ -n "$nm" && "$nm" -ge 20 ]]; then printf '  [ok ]'; else printf '  [ -- ]'; fi
         echo " Node.js >= 20 (browser MCP servers)  found: ${nm:-none}"
