@@ -1,0 +1,414 @@
+{
+  "skill_name": "odoo-solution-design",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "We need a multi-level purchase approval workflow on purchase.order - approvers chosen by amount threshold, with escalation if not approved in 2 days. How should I architect this before we build it?",
+      "expected_decision": "design-single",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "Non-trivial single-module workflow (thresholds+escalation) -> design, gate, dispatch architect MODE:single.",
+      "category": "design-single",
+      "assertions": [
+        {
+          "text": "decision == design-single"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Design the data model for a new subscription billing module - recurring invoices, proration on mid-cycle upgrades, and dunning. New module from scratch.",
+      "expected_decision": "design-single",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "New module + data model is a non-trivial design trigger; single-module scope.",
+      "category": "design-single-newmodule",
+      "assertions": [
+        {
+          "text": "decision == design-single"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I have 4 new modules to build for a logistics suite: fleet tracking, route optimization, driver payroll, and a customer delivery portal - mostly independent domains sharing a couple of models. Design the whole thing before we start coding.",
+      "expected_decision": "design-master-child",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "4 orthogonal modules sharing a couple of models -> multi-module heuristic fires; offer approve-master-child.",
+      "category": "design-master-child",
+      "assertions": [
+        {
+          "text": "decision == design-master-child"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "Add a boolean field is_urgent to crm.lead and show it in the list view.",
+      "expected_decision": "skip-to-planning",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "Single boolean field + list view = trivial one-approach; skip DESIGN, planning still mandatory.",
+      "category": "trivial-skip",
+      "assertions": [
+        {
+          "text": "decision == skip-to-planning"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Just write a computed field total_weight on sale.order that sums the line weights - nothing fancy.",
+      "expected_decision": "defer:odoo-coding",
+      "expected_next_routing": "n/a",
+      "expected_output": "'Just write' a single computed field -> Out-of-Scope routes writing code to odoo-coding.",
+      "category": "defer-coding",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-coding"
+        },
+        {
+          "text": "no code/next dispatched (defer/skip/recommend)"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Where's the best place to override to change how invoice sequence numbers are generated?",
+      "expected_decision": "defer:odoo-override-finding",
+      "expected_next_routing": "n/a",
+      "expected_output": "ONE method's hook location -> odoo-override-finding, not a whole-solution design.",
+      "category": "defer-override-finding",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-override-finding"
+        },
+        {
+          "text": "no code/next dispatched (defer/skip/recommend)"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Review this PR that refactors the payment acquirer flow - anything wrong before we merge?",
+      "expected_decision": "defer:odoo-code-review",
+      "expected_next_routing": "n/a",
+      "expected_output": "Review existing PR -> odoo-code-review.",
+      "category": "defer-code-review",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-code-review"
+        },
+        {
+          "text": "no code/next dispatched (defer/skip/recommend)"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Here are 45 requirements from the client RFP - which does Odoo cover and what's the rough effort for each?",
+      "expected_decision": "defer:odoo-gap-analysis",
+      "expected_next_routing": "n/a",
+      "expected_output": "Classify/cost a 45-item RFP list -> odoo-gap-analysis (or odoo-brl at larger scale).",
+      "category": "defer-gap-analysis",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-gap-analysis"
+        },
+        {
+          "text": "no code/next dispatched (defer/skip/recommend)"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "What changed in the account module's Python API between Odoo 16 and 17?",
+      "expected_decision": "defer:odoo-version-diff",
+      "expected_next_routing": "n/a",
+      "expected_output": "Version-to-version API delta -> odoo-version-diff.",
+      "category": "defer-version-diff",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-version-diff"
+        },
+        {
+          "text": "no code/next dispatched (defer/skip/recommend)"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "Write the end-user walkthrough scenarios for the purchase module so we can put them in the docs.",
+      "expected_decision": "defer:odoo-doc-walkthrough",
+      "expected_next_routing": "n/a",
+      "expected_output": "End-user walkthrough scenarios for docs -> odoo-doc-walkthrough, not technical design.",
+      "category": "defer-doc-walkthrough",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-doc-walkthrough"
+        },
+        {
+          "text": "no code/next dispatched (defer/skip/recommend)"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "Design a solution for these requirements: warehouse zones, wave picking, barcode receiving, cycle counting, putaway rules, and cross-docking. We haven't scoped or costed anything yet.",
+      "expected_decision": "recommend-gap-first",
+      "expected_next_routing": "n/a",
+      "expected_output": "Non-trivial unscoped/uncosted requirement set, no gap artifact -> recommend odoo-gap-analysis first (scope-first).",
+      "category": "recommend-gap-first",
+      "assertions": [
+        {
+          "text": "decision == recommend-gap-first"
+        },
+        {
+          "text": "no code/next dispatched (defer/skip/recommend)"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "We're refactoring the big sale_custom module - extract a delivery-scheduling mixin and split it into two modules. Design the refactor before we touch code.",
+      "expected_decision": "design-single",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "Mixin extraction + module split is a refactor trigger; single mode default.",
+      "category": "design-single-refactor",
+      "assertions": [
+        {
+          "text": "decision == design-single"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "We need to migrate partner_ref on res.partner from a Char to a Many2one to a new res.partner.reference model, backfilling existing values. Design the migration approach - there are a couple of viable strategies.",
+      "expected_decision": "design-single",
+      "expected_next_routing": "odoo-data-migration",
+      "expected_output": "Schema migration with >1 viable strategy -> design; single-module migration hits the Migration carve-out (next: odoo-data-migration).",
+      "category": "design-single-migration",
+      "assertions": [
+        {
+          "text": "decision == design-single"
+        },
+        {
+          "text": "next_routing == odoo-data-migration"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "For the loyalty points feature, should I make the balance a stored computed field or a related field, and should it live in a new module or extend loyalty? Help me decide the approach.",
+      "expected_decision": "design-single",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "Stored-vs-related + new-module-vs-extend is exactly the HOW-to-build decision this skill owns.",
+      "category": "design-single-approach",
+      "assertions": [
+        {
+          "text": "decision == design-single"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 15,
+      "prompt": "[Programmatic invocation from odoo-forward-port] return_to=odoo-forward-port, target_version=18.0, modules=[account_reconcile_extra], intent_records=[.odoo-ai/forward-port/account_reconcile_extra/intent-<sha>.md], design_slug_hint=account-reconcile-extra-fp-18, classification=bucket-(c) module whose manifest was untouched by the cherry-pick range but OSM shows installable on 18.0. Design the adaptation.",
+      "expected_decision": "return_to-dispatch",
+      "expected_next_routing": "return_to:odoo-forward-port",
+      "expected_output": "Caller supplied return_to -> SKIP Phase 0 preview, dispatch architect, hand back to caller (no code Plan Mode, no coder).",
+      "category": "return_to-dispatch",
+      "assertions": [
+        {
+          "text": "decision == return_to-dispatch"
+        },
+        {
+          "text": "next_routing == return_to:odoo-forward-port"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 16,
+      "prompt": "Design the architecture for a new HR competency-management module AND its payroll-bonus integration AND a public website portal where employees self-assess - three sizable pieces in different domains.",
+      "expected_decision": "design-master-child",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "Three sizable modules in different domains -> multi-module master-child heuristic.",
+      "category": "design-master-child",
+      "assertions": [
+        {
+          "text": "decision == design-master-child"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 17,
+      "prompt": "Lên kế hoạch refactor lại module báo cáo tài chính của chúng ta - tách phần tính toán ra khỏi phần render, thiết kế cách tiếp cận trước khi code.",
+      "expected_decision": "design-single",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "Vietnamese refactor request (tách tính toán khỏi render) -> single-module design; language does not change routing.",
+      "category": "design-single-vietnamese",
+      "assertions": [
+        {
+          "text": "decision == design-single"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 18,
+      "prompt": "The design for the fleet suite is already approved - now plan the build order of the 4 modules, wire the integration cadence and the full lifecycle to skills.",
+      "expected_decision": "defer:odoo-planning",
+      "expected_next_routing": "n/a",
+      "expected_output": "Design already approved; build order + integration cadence + lifecycle wiring is odoo-planning's job, not design.",
+      "category": "defer-planning",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-planning"
+        },
+        {
+          "text": "no code/next dispatched (defer/skip/recommend)"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 19,
+      "prompt": "Override create() on sale.order so it auto-assigns a warehouse based on the customer's delivery region and logs an audit note.",
+      "expected_decision": "design-single",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "ADVERSARIAL: override of a core ORM hook (create) is an explicit non-trivial trigger -> design, NOT trivial-skip or defer:coding.",
+      "category": "ADVERSARIAL: core-hook override = design, not trivial",
+      "assertions": [
+        {
+          "text": "decision == design-single"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 20,
+      "prompt": "We already ran the gap analysis - it's at .odoo-ai/gap-analysis/warehouse-2026-07-01/gap-matrix.jsonl. Now design the warehouse zones + wave-picking solution.",
+      "expected_decision": "design-single",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "ADVERSARIAL: gap-matrix artifact FOUND on disk -> Input port reads it as precondition (do NOT recommend a fresh gap run); design proceeds.",
+      "category": "ADVERSARIAL: gap artifact FOUND -> read it, don't recommend gap",
+      "assertions": [
+        {
+          "text": "decision == design-single"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 21,
+      "prompt": "Design a fix across two tightly-coupled modules, sale_extra and sale_extra_report - the report module just renders what sale_extra computes, they share one model and always ship together.",
+      "expected_decision": "design-single",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "ADVERSARIAL: 2 tightly-coupled modules that always ship together are NOT orthogonal -> multi-module heuristic must NOT fire; single mode.",
+      "category": "ADVERSARIAL: 2 coupled modules -> single, NOT master-child",
+      "assertions": [
+        {
+          "text": "decision == design-single"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 22,
+      "prompt": "Should we build the new loyalty feature as its own module or just extend the existing loyalty module? That's really the main thing I need decided.",
+      "expected_decision": "design-single",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "ADVERSARIAL: new-module-vs-extend is a genuine architecture decision even at small scope -> design, not skip.",
+      "category": "ADVERSARIAL: small scope but a genuine architecture decision -> design",
+      "assertions": [
+        {
+          "text": "decision == design-single"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 23,
+      "prompt": "We need to break our monolithic account_custom module into 6 domain modules (invoicing, reconciliation, reporting, tax, budget, analytic) plus a shared base module - design this big cross-cutting split.",
+      "expected_decision": "design-master-child",
+      "expected_next_routing": "odoo-planning",
+      "expected_output": "ADVERSARIAL: 6-module split + shared base -> master-child heuristic.",
+      "category": "ADVERSARIAL: 6-module split + shared base -> master-child",
+      "assertions": [
+        {
+          "text": "decision == design-master-child"
+        },
+        {
+          "text": "next_routing == odoo-planning"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 24,
+      "prompt": "Just add an @api.constrains on stock.move.line that blocks a negative quantity.",
+      "expected_decision": "skip-to-planning",
+      "expected_next_routing": "n/a",
+      "expected_output": "ADVERSARIAL: single @api.constrains, one obvious approach -> trivial; skip DESIGN (defer:odoo-coding also acceptable).",
+      "category": "ADVERSARIAL: trivial single constraint -> skip-to-planning or defer:coding",
+      "assertions": [
+        {
+          "text": "decision == skip-to-planning"
+        },
+        {
+          "text": "no code/next dispatched (defer/skip/recommend)"
+        }
+      ],
+      "files": []
+    }
+  ],
+  "notes": "24 design-decision cases (18 core + 6 adversarial marked ADVERSARIAL). Eval method: each prompt is classified by a subagent applying SKILL.md + references, graded vs expected_decision (trigger-vs-defer / design-single vs master-child / trivial skip-to-planning / recommend-gap-first / return_to-dispatch / migration carve-out next-routing). Baseline (pre-optimize snapshot) scored 24/24; the eval guards against decision regressions - it does NOT execute the architect or grade TDD quality (that needs a live run). Adversarial cases probe: core-ORM-hook override = design (19), gap-artifact-found read as precondition (20), tightly-coupled 2-module NOT master-child (21), small-scope architecture decision still design (22), 6-module split = master-child (23), trivial @api.constrains = skip (24)."
+}
