@@ -1,0 +1,316 @@
+{
+  "skill_name": "odoo-code-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "review PR #418",
+      "expected_decision": "trigger-review",
+      "expected_entry": "scoper-first",
+      "expected_target": "pr:418",
+      "expected_topology": "scoper-decides",
+      "expected_output": "PR is a git target -> scoper-first, then fan-out by scoped module count.",
+      "category": "trigger-pr",
+      "assertions": [
+        {
+          "text": "decision == trigger-review"
+        },
+        {
+          "text": "entry == scoper-first"
+        },
+        {
+          "text": "target == pr:418"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "does this look right? \n\n    def create(self, vals):\n        rec = super().create(vals)\n        rec.partner_id.credit_limit = rec.amount_total\n        return rec",
+      "expected_decision": "trigger-review",
+      "expected_entry": "direct-reviewer",
+      "expected_target": "pasted-block",
+      "expected_topology": "single",
+      "expected_output": "Pasted block, not a git target -> ONE reviewer directly, skip scoper.",
+      "category": "trigger-pasted",
+      "assertions": [
+        {
+          "text": "decision == trigger-review"
+        },
+        {
+          "text": "entry == direct-reviewer"
+        },
+        {
+          "text": "target == pasted-block"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "review my working tree changes before I commit",
+      "expected_decision": "trigger-review",
+      "expected_entry": "scoper-first",
+      "expected_target": "local",
+      "expected_topology": "scoper-decides",
+      "expected_output": "Working-tree review -> TARGET local, scoper diffs cwd.",
+      "category": "trigger-local",
+      "assertions": [
+        {
+          "text": "decision == trigger-review"
+        },
+        {
+          "text": "entry == scoper-first"
+        },
+        {
+          "text": "target == local"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "review the changes in the worktree at /home/me/wt/feature-x",
+      "expected_decision": "trigger-review",
+      "expected_entry": "scoper-first",
+      "expected_target": "worktree:/home/me/wt/feature-x",
+      "expected_topology": "scoper-decides",
+      "expected_output": "Sibling worktree -> TARGET worktree:<abs-path> (else cwd-diff trap).",
+      "category": "trigger-worktree",
+      "assertions": [
+        {
+          "text": "decision == trigger-review"
+        },
+        {
+          "text": "entry == scoper-first"
+        },
+        {
+          "text": "target == worktree:/home/me/wt/feature-x"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "we changed 12 modules for the v17 migration - review the whole set before we open the PR",
+      "expected_decision": "trigger-review",
+      "expected_entry": "scoper-first",
+      "expected_target": "local",
+      "expected_topology": "domain-partition",
+      "expected_output": "12 modules > ~8 -> domain-partition synthesis; still scoper-first.",
+      "category": "trigger-multi-large",
+      "assertions": [
+        {
+          "text": "decision == trigger-review"
+        },
+        {
+          "text": "entry == scoper-first"
+        },
+        {
+          "text": "target == local"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "audit this single file models/sale_order.py for N+1 and convention issues",
+      "expected_decision": "trigger-review",
+      "expected_entry": "direct-reviewer",
+      "expected_target": "single-file",
+      "expected_topology": "single",
+      "expected_output": "Single non-git file_path -> direct reviewer on that file, skip scoper.",
+      "category": "trigger-single-file",
+      "assertions": [
+        {
+          "text": "decision == trigger-review"
+        },
+        {
+          "text": "entry == direct-reviewer"
+        },
+        {
+          "text": "target == single-file"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "review giúp đoạn code này trước khi merge:\n\n    for line in order.order_line:\n        line.price_subtotal = line.qty * line.price_unit",
+      "expected_decision": "trigger-review",
+      "expected_entry": "direct-reviewer",
+      "expected_target": "pasted-block",
+      "expected_topology": "single",
+      "expected_output": "Vietnamese pasted block -> direct reviewer; language does not change routing.",
+      "category": "trigger-pasted-vi",
+      "assertions": [
+        {
+          "text": "decision == trigger-review"
+        },
+        {
+          "text": "entry == direct-reviewer"
+        },
+        {
+          "text": "target == pasted-block"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "write a computed field total_weight on sale.order that sums the line weights",
+      "expected_decision": "defer:odoo-coding",
+      "expected_entry": "n/a",
+      "expected_target": "n/a",
+      "expected_topology": "n/a",
+      "expected_output": "Writing NEW code -> odoo-coding (Out of Scope).",
+      "category": "defer-coding",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-coding"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "my OWL widget renders blank and there's a console error - why is it not showing?",
+      "expected_decision": "defer:odoo-debug",
+      "expected_entry": "n/a",
+      "expected_target": "n/a",
+      "expected_topology": "n/a",
+      "expected_output": "Live render/console error at runtime -> odoo-debug, not static review.",
+      "category": "defer-debug",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-debug"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "audit our custom modules for deprecated API usage before we upgrade to v18",
+      "expected_decision": "defer:odoo-deprecation-audit",
+      "expected_entry": "n/a",
+      "expected_target": "n/a",
+      "expected_topology": "n/a",
+      "expected_output": "Module-level pre-upgrade deprecated-API audit -> odoo-deprecation-audit.",
+      "category": "defer-deprecation-audit",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-deprecation-audit"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "run a performance-only deep scan on this model - I only care about query efficiency, nothing else",
+      "expected_decision": "defer:odoo-perf-audit",
+      "expected_entry": "n/a",
+      "expected_target": "n/a",
+      "expected_topology": "n/a",
+      "expected_output": "A dedicated performance-ONLY deep scan -> odoo-perf-audit.",
+      "category": "defer-perf-audit",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-perf-audit"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "check this controller for SQL injection and XSS - security only, is it safe to ship?",
+      "expected_decision": "defer:odoo-security-audit",
+      "expected_entry": "n/a",
+      "expected_target": "n/a",
+      "expected_topology": "n/a",
+      "expected_output": "A security-ONLY scan -> odoo-security-audit.",
+      "category": "defer-security-audit",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-security-audit"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "where's the best place to override to change how invoice numbers are generated?",
+      "expected_decision": "defer:odoo-override-finding",
+      "expected_entry": "n/a",
+      "expected_target": "n/a",
+      "expected_topology": "n/a",
+      "expected_output": "ONE method's hook location -> odoo-override-finding.",
+      "category": "defer-override-finding",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-override-finding"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "rate how the sale order form looks in my Odoo 17 browser - is the layout and spacing right?",
+      "expected_decision": "defer:odoo-ui-review",
+      "expected_entry": "n/a",
+      "expected_target": "n/a",
+      "expected_topology": "n/a",
+      "expected_output": "Rating a RENDERED screen's look/UX -> odoo-ui-review, not static code review.",
+      "category": "defer-ui-review",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-ui-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 15,
+      "prompt": "review PR #90 and post the findings as inline comments on the PR",
+      "expected_decision": "trigger-review",
+      "expected_entry": "scoper-first",
+      "expected_target": "pr:90",
+      "expected_topology": "scoper-decides",
+      "expected_output": "PR git target -> scoper-first; also POST findings inline (git-ops) on explicit request.",
+      "category": "trigger-pr-post",
+      "assertions": [
+        {
+          "text": "decision == trigger-review"
+        },
+        {
+          "text": "entry == scoper-first"
+        },
+        {
+          "text": "target == pr:90"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 16,
+      "prompt": "review PR #77 and fix whatever's broken",
+      "expected_decision": "trigger-review",
+      "expected_entry": "scoper-first",
+      "expected_target": "pr:77",
+      "expected_topology": "scoper-decides",
+      "expected_output": "PR git target -> scoper-first; 'fix whatever's broken' drives the bounded autonomous fix loop via odoo-coding.",
+      "category": "trigger-pr-fixloop",
+      "assertions": [
+        {
+          "text": "decision == trigger-review"
+        },
+        {
+          "text": "entry == scoper-first"
+        },
+        {
+          "text": "target == pr:77"
+        }
+      ],
+      "files": []
+    }
+  ],
+  "notes": "16 review-decision cases. Eval method: a subagent applies SKILL.md + references to each prompt and returns {fires, decision, entry, target, topology}, graded vs expected. Covers trigger-vs-defer (defers to coding/debug/deprecation-audit/perf-audit/security-audit/override-finding/ui-review), entry path (pasted-block or single non-git file -> direct-reviewer skip-scoper; git target -> scoper-first), TARGET derivation (local/pr/worktree), and topology (single / multi / domain-partition at >~8 modules). id 14 guards the odoo-ui-review near-miss (a shared 'does this look correct?' trigger phrase); ids 15-16 guard the POST-to-PR and autonomous-fix-loop behaviors. Baseline (pre-optimize snapshot) scored 16/16; the eval guards against decision regressions, it does NOT execute reviewers or grade finding quality."
+}
