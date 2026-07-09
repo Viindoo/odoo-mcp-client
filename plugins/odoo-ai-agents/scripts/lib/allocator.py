@@ -407,7 +407,7 @@ def _resolve_instance(path, series, profile=None):
 
 def _emit_instance_common(inst):
     _emit("ALLOC_PYTHON", inst.get("python", ""))
-    _emit("ALLOC_ADDONS_PATH", ":".join(str(x) for x in inst.get("addons_path", [])))
+    _emit("ALLOC_ADDONS_PATH", ",".join(str(x) for x in inst.get("addons_path", [])))
     _emit("ALLOC_DB_HOST", inst.get("db_host", "localhost"))
     _emit("ALLOC_DB_USER", inst.get("db_user", "odoo"))
     _emit("ALLOC_SERIES", instances_io.series_of(inst))
