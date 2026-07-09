@@ -22,15 +22,14 @@ model: opus
 
 Rebase conductor. Own the git topology and the subagent lifecycle. Delegate EVERY diff read,
 intent extraction, behavior comparison, conflict resolution, and verify to specialist subagents.
-Core invariant: a rebase that absorbs intent is a SEMANTIC translation onto an updated
-SAME-version base, not a text-replay. A clean replay (zero conflict markers) does
-NOT prove the feature survived - the new base may already implement the feature (re-add =
-duplicate), have renamed or moved the symbols this branch edits (clean merge, runtime
-NameError), or refactored the override point away. The orchestrator issues only bounded-read
-git calls (`git merge-base`, `git log --oneline`, `git diff --stat`) inline; every mutation
-and unbounded read is delegated to git-toolkit via the `git-ops` skill per
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. It NEVER reads a
-diff or judges business behavior inline; those always go to subagents.
+Core invariant: an intent-absorbing rebase is a SEMANTIC translation onto an updated SAME-version
+base, not a text-replay. A clean replay (zero conflict markers) does NOT prove the feature
+survived - the new base may already implement it (re-add = duplicate), have renamed/moved the
+symbols this branch edits (clean merge, runtime NameError), or refactored the override point away.
+The orchestrator issues only bounded-read git calls (`git merge-base`, `git log --oneline`,
+`git diff --stat`) inline; every mutation and unbounded read is delegated to git-toolkit via the
+`git-ops` skill (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`). It NEVER reads a diff or
+judges business behavior inline.
 
 ## Out of Scope
 
@@ -42,7 +41,7 @@ diff or judges business behavior inline; those always go to subagents.
 | A version-to-version API delta only | `odoo-version-diff` | pure diff, no git op |
 | Review an existing PR/diff without rebasing | `odoo-code-review` | static review, no replay |
 | STANDALONE design, no commits to rebase | `odoo-solution-design` | a bucket-(c) re-implement INSIDE a rebase run uses the P5 route-out (in scope) |
-| Parallelize N disjoint changes + squash | `odoo-planning` | `odoo-planning` is the USER-facing choice - it plans the wave-batched delivery (the internal `odoo-wave` executor cherry-picks + squashes disjoint WIs); rebase replays one branch range, never squashes |
+| Parallelize N disjoint changes + squash | `odoo-planning` | `odoo-planning` is the USER-facing choice - it plans the wave-batched delivery (`run-harness`'s between-wave integration cherry-picks + squashes disjoint WIs); rebase replays one branch range, never squashes |
 
 > **Route in (Odoo rebase lands HERE, not bare git-ops):** an Odoo same-series rebase routes to
 > this skill - it wraps git-toolkit's generic `git-ops` front door with the Odoo intent-forwarding
@@ -128,18 +127,17 @@ git-ops to write the stopped commit's full output to
 MODE, brief: `references/rb-phase-detail.md` P2) with `commit_dump_path:` set to that path
 before dispatching the `odoo-coding` skill at P8.
 
-**Sequence invariant (non-negotiable order).** The pipeline order is
-`recon/classify -> (conditional) solution-design -> Plan Mode gate -> odoo-coding execution`.
-NO `odoo-coding` / `odoo-coder` / `odoo-frontend-coder` dispatch may happen before the Plan
-Mode gate. When the design trigger (see the design-trigger table) fires for a commit/module,
-`odoo-solution-design` MUST complete and its design doc MUST be approved BEFORE the Plan Mode
-gate for that commit/module. A genuinely tiny/mechanical change (the explicit skip rows of the
-design-trigger table) bypasses design but STILL passes through the Plan Mode gate before any
-code dispatch. Design is conditional; Plan Mode is not.
-
-Because the conflict-resolution coder runs DURING the rebase (P8, after the rebase starts at
-P7), the design (P5) and Plan Mode (P6) MUST decide the adapt strategy for every triggered
-commit BEFORE P7 creates the integration worktree and starts the onto-rebase.
+**Sequence invariant (non-negotiable order).** Pipeline order is
+`recon/classify -> (conditional) solution-design -> Plan Mode gate -> odoo-coding execution`. The
+Plan Mode gate is the shared `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` Plan-Mode
+gate (rebase reuses its enter/exit mechanics; see P6); solution-design is UPSTREAM and, when a
+design trigger fires (design-trigger table), its design doc MUST be approved BEFORE the gate for
+that commit/module. NO `odoo-coding` / `odoo-coder` / `odoo-backend-coder` / `odoo-frontend-coder`
+dispatch may happen before the gate. A tiny/mechanical change (design-trigger skip rows) bypasses
+design but STILL passes through the gate. Design is conditional; Plan Mode is not. Because the
+conflict-resolution coder runs DURING the rebase (P8, after P7 starts it), P5 design + P6 Plan
+Mode MUST decide the adapt strategy for every triggered commit BEFORE P7 creates the integration
+worktree.
 
 **P0 - Intake / resolve [sonnet subagent - clarify gate if open_questions non-empty].**
 Turn the free-text ask into structured inputs without guessing. Dispatch a sonnet intake
@@ -213,13 +211,17 @@ intent_records: [<paths>], classification: <outcome bucket + one-line reason> }`
 `status=designed`, and proceed to P6 - do not re-run design.
 
 **P6 - Plan gate (Plan Mode - own gate; EnterPlanMode MUST precede any branch or worktree).**
-The orchestrator calls `EnterPlanMode` and writes the plan: commit topology; per-commit outcome
-+ EXTRACT tier + ADAPT tier; design-doc links; the rebase invocation (worktree add at feature
-tip then two-arg rebase-onto on the integration worktree HEAD - delegated to git-ops at
-P7); conflict-resolution policy; B3 instance-verify decision.
-Calls `ExitPlanMode`. User approves in the Plan Mode UI. Write `plan.md` AFTER approval as the
-resume record. No branch or worktree is created before this point. `plan.md` template:
-`references/rb-phase-detail.md` P6.
+Plan-Mode enter/exit is the SHARED SSOT
+`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit + plan_mode_active
+- rebase REUSES it for this gate rather than defining its own: `EnterPlanMode` iff
+`plan_mode_active` is absent/false (skip iff a caller already opened Plan Mode), present the plan,
+`ExitPlanMode` on approve, user approves in the Plan Mode UI. The plan CONTENT authored here (NOT
+routed through `odoo-planning`) is rebase-specific: commit topology; per-commit outcome + EXTRACT
+tier + ADAPT tier; design-doc links; the rebase invocation (worktree add at feature tip then
+two-arg rebase-onto on the integration worktree HEAD - delegated to git-ops at P7);
+conflict-resolution policy; B3 instance-verify decision.
+Write `plan.md` AFTER approval as the resume record. No branch or worktree is created before this
+point (i.e. before `ExitPlanMode` + approval). `plan.md` template: `references/rb-phase-detail.md` P6.
 
 **P7 - Create integration worktree + start rebase [delegated to git-ops].**
 After Plan Mode approval: invoke git-ops to create the integration worktree AT THE
@@ -234,10 +236,11 @@ worktree, avoiding the `fatal: already used by worktree` abort. git-ops returns
 For each commit the rebase stops on: dispatch Explore to read conflicted files + the commit's
 `intents/<sha>.md` + P4 outcome; then dispatch the `odoo-coding` skill (via the Skill tool,
 mirroring §P9b) at the ADAPT tier to resolve hunks to INTENT on the new-base idiom. `odoo-coding`
-owns the backend/frontend split and the coder fan-out/synthesis - including `odoo-frontend-coder`
+owns the backend/frontend split and the coder fan-out/synthesis (via its `odoo-coder` per-module
+coordinator) - including `odoo-frontend-coder`
 for OWL/QWeb/SCSS legs, grounded against
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - so do NOT dispatch raw
-`odoo-coder` / `odoo-frontend-coder` agents for conflict resolution. If outcome=(a) or (d),
+`odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder` agents for conflict resolution. If outcome=(a) or (d),
 instruct git-ops to skip that commit. Never leave an auto-merged line referencing a
 renamed/moved symbol. After `odoo-coding` returns RESOLVED: re-invoke git-ops per the
 stateless-resume recipe in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` (mechanical batch ->
@@ -260,7 +263,7 @@ dispatches the read-only delegates (Explore to enumerate feature-touched files, 
 run the gates) and records only the PASS/FAIL verdict. Full brief incl. delegation contract +
 import gate: `references/rb-phase-detail.md` P8b.
 
-**P9 - Test forward (per touched module, conditional) [odoo-test-writing adapt + odoo-coding - no gate].**
+**P9 - Test forward (per touched module, conditional) [odoo-test-writer adapt + odoo-coding - no gate].**
 For modules whose behavior changed (driven by P8b symbol-survival findings + recon.md
 modules[], not a vague "behavior changed" heuristic), adapt the branch's own tests to the
 new-base idiom: RED first, then GREEN. P8b collection gate is a precondition. Brief template:

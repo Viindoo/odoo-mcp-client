@@ -193,16 +193,17 @@ advancing to P4 with no design.
 ## P4 - Plan gate (Plan Mode)
 
 The user approves here - AFTER intent + classify + design, so the plan carries the REAL triaged
-tiers and REAL buckets, never guesses. Forward-port runs from the MAIN context, so it MAY call
-`EnterPlanMode` / `ExitPlanMode` (a subagent cannot).
+tiers and REAL buckets, never guesses. Forward-port runs from the MAIN context, so it MAY drive
+Plan Mode (a subagent cannot).
 
-Procedure:
-1. Main agent calls `EnterPlanMode`.
-2. Main agent writes the implementation plan INSIDE Plan Mode: commit topology; per-commit model
-   tier (the real triaged EXTRACT + ADAPT tiers); bucket (the real classification); installable
-   routing per module; design-doc link for any commit P3 designed; merge batches.
-3. Main agent calls `ExitPlanMode` -> Plan Mode UI shown.
-4. User approves in the Plan Mode UI.
+Plan-Mode enter/exit is the SHARED SSOT
+`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit + plan_mode_active
+- forward-port REUSES it for this gate rather than defining its own: `EnterPlanMode` iff
+`plan_mode_active` is absent/false (skip iff a caller already opened Plan Mode), present the plan,
+`ExitPlanMode` on approve, user approves in the Plan Mode UI. The plan CONTENT authored here (NOT
+routed through `odoo-planning`) is forward-port-specific: commit topology; per-commit model tier
+(the real triaged EXTRACT + ADAPT tiers); bucket (the real classification); installable routing per
+module; design-doc link for any commit P3 designed; merge batches.
 
 Red flags: a text-gate "approve" is NOT Plan Mode approval (two separate steps); `EnterPlanMode`
 MUST come before any branch, worktree, or file touch.
@@ -379,8 +380,9 @@ conflicts serially, per module, directly in integration, and resume child-worktr
 once the absorbed merge is committed. The wrong mode yields child worktrees with a clean tree and
 an unresolved (invisible) conflict still sitting in integration.
 
-**8a - forward the test FIRST** (the test is the oracle; independence keeps it honest). Dispatch
-`odoo-test-writing` in mode `adapt`:
+**8a - forward the test FIRST** (the test is the oracle; independence keeps it honest). Launch the
+`odoo-test-writer` agent in adapt mode (it authors by invoking the `odoo-test-writing` skill inline,
+in its own context):
 
 ```
 TEST ADAPT MODE: forward this source test to the target platform.
@@ -416,8 +418,9 @@ finding) whose `<file>` is this test file - copy those rows in verbatim; omit th
 list is empty for this file.
 
 **8b - adapt the code** per bucket. Invoke the `odoo-coding` skill (via the Skill tool) with the
-FP-ENRICHED brief - `odoo-coding` owns the backend/frontend split, coder fan-out, model, and
-synthesis (do NOT dispatch raw `odoo-coder` / `odoo-frontend-coder`). The extra context a generic
+FP-ENRICHED brief - `odoo-coding` owns the backend/frontend split, coder fan-out (via its
+`odoo-coder` per-module coordinator), model, and synthesis (do NOT dispatch raw `odoo-coder`,
+`odoo-backend-coder`, or `odoo-frontend-coder`). The extra context a generic
 coder brief lacks:
 
 ```
@@ -425,7 +428,7 @@ DISPATCH MODEL: <adapt-tier>
 REQUEST: Adapt the forwarded intent to the target platform.
 INTENT RECORD: .odoo-ai/forward-port/<slug>/intents/<sha>.md   (the why - build to this, not the source diff)
 BUCKET: <a skip-code | b 3-way+adapt | c re-implement on target idiom | d skip-code>
-FAILING TEST (RED, written by the test-author above): <paths> - implement until GREEN; do NOT edit them.
+FAILING TEST (RED, written by the odoo-test-writer above): <paths> - implement until GREEN; do NOT edit them.
 NEW MODULE: <yes - apply installable:False checklist [[fp-installable-false]] | no>
 MODULE SCOPE: <name>
   READ-FROM: <absolute-path-in-integration-worktree>/<module>/ (merged content; for bucket

@@ -301,8 +301,11 @@ proceed to P6 with the design linked. If `design_doc` is absent, set commit back
 
 ## P6 - Plan gate (Plan Mode)
 
-The orchestrator calls `EnterPlanMode` and writes the plan. NO branch or worktree is created
-before ExitPlanMode + user approval. plan.md template:
+Plan-Mode enter/exit is the SHARED SSOT
+`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit + plan_mode_active
+- rebase REUSES it here rather than defining its own: `EnterPlanMode` iff `plan_mode_active` is
+absent/false, write the plan (template below), `ExitPlanMode` on approve. NO branch or worktree is
+created before `ExitPlanMode` + user approval. plan.md template:
 
 ```markdown
 # Rebase plan - <slug>
@@ -454,8 +457,9 @@ then dispatch `odoo-intent-extractor` (rebase MODE, P2 brief with `commit_dump_p
 to create the intent file before proceeding to the coder.
 
 Dispatch Explore first if context is needed, then the `odoo-coding` skill via the Skill tool
-(mirroring P9b - do NOT dispatch raw `odoo-coder` / `odoo-frontend-coder` agents; `odoo-coding`
-owns the backend/frontend split, coder fan-out, and synthesis):
+(mirroring P9b - do NOT dispatch raw `odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder`
+agents; `odoo-coding` owns the backend/frontend split, coder fan-out (via its `odoo-coder`
+per-module coordinator), and synthesis):
 
 ```
 SKILL: odoo-coding
@@ -579,9 +583,10 @@ before proceeding to P9. This gate is the same as forward-port P7 collection gat
 
 ## P9 - Test forward (per touched module)
 
-Dispatch `odoo-test-writing` (adapt mode) for each module whose behavior changed, then invoke
-the `odoo-coding` skill (via the Skill tool) until GREEN - `odoo-coding` owns the coder fan-out +
-model (do NOT dispatch raw `odoo-coder`). Test-adapt brief:
+Launch the `odoo-test-writer` agent (adapt mode; it authors by invoking the `odoo-test-writing`
+skill inline) for each module whose behavior changed, then invoke the `odoo-coding` skill (via the
+Skill tool) until GREEN - `odoo-coding` owns the coder fan-out + model (do NOT dispatch raw
+`odoo-coder`, `odoo-backend-coder`, or `odoo-frontend-coder`). Test-adapt brief:
 
 ```
 DISPATCH MODEL: <adapt_tier>
