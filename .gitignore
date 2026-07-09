@@ -27,3 +27,5 @@ node_modules/
 
 # Browser MCP screenshot/video staging (playwright/chrome-devtools output-dir) — transient capture artifacts
 .playwright-mcp/
+# Doc-capture staging (defense-in-depth: run/module-scoped staging lives under .odoo-ai/visual/ and .playwright-mcp/, but never commit a stray bare doc-staging/ either)
+doc-staging/

@@ -36,29 +36,16 @@ LIB="$SCRIPT_DIR/../lib/config_merge.py"
 CODEX_CONFIG="${CODEX_CONFIG:-$HOME/.codex/config.toml}"
 GEMINI_SETTINGS="${GEMINI_SETTINGS:-$HOME/.gemini/settings.json}"
 
-# Server name -> npx args mapping. These args follow `npx -y` and MUST stay
-# byte-for-byte in sync with the plugin's .mcp.json (the SSOT for the 6 browser
-# servers' command + args). Each entry prints one arg per line so packages and
-# flags (e.g. playwright's --caps=devtools) survive whitespace safely.
-#
-# Each browser server ships TWO variants: a headless default (no UI; safe for
-# no-display/CI hosts and concurrent sessions) and a `-headed` variant (visible
-# UI) the AI agent selects only when the human asks to see the browser. Browser
-# mode is fixed at launch, so the toggle is server-selection (NOT an env var /
-# on-disk config). chrome-devtools + playwright also pass --isolated so multiple
-# concurrent sessions get a private profile (pagecast isolates per-session).
-SERVERS=(chrome-devtools chrome-devtools-headed playwright playwright-headed pagecast pagecast-headed)
-_npx_args() {
-    case "$1" in
-        chrome-devtools)        printf '%s\n' "chrome-devtools-mcp@latest" "--headless" "--isolated" ;;
-        chrome-devtools-headed) printf '%s\n' "chrome-devtools-mcp@latest" "--isolated" ;;
-        playwright)             printf '%s\n' "@playwright/mcp@latest" "--caps=devtools" "--headless" "--isolated" ;;
-        playwright-headed)      printf '%s\n' "@playwright/mcp@latest" "--caps=devtools" "--isolated" ;;
-        pagecast)               printf '%s\n' "@mcpware/pagecast" "--headless" ;;
-        pagecast-headed)        printf '%s\n' "@mcpware/pagecast" ;;
-        *) return 1 ;;
-    esac
-}
+# Server name -> npx args mapping is the SSOT in browser-mcp-servers.sh (pinned
+# packages, headed/headless + --isolated flags for all six families). Codex and
+# Gemini get the full fleet on demand: their plugin bundle manifests eager-load
+# only chrome-devtools, so wiring all six here (chrome-devtools is a harmless
+# dedup) makes the visual/doc workflow available. Claude's five opt-in families
+# are wired separately by 12-browser-mcp-optin.sh (user scope).
+# shellcheck source=../lib/browser-mcp-servers.sh
+. "$SCRIPT_DIR/../lib/browser-mcp-servers.sh"
+SERVERS=("${BROWSER_MCP_ALL_SERVERS[@]}")
+_npx_args() { browser_mcp_npx_args "$1"; }
 
 # ---------------------------------------------------------------------------
 # describe

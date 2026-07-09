@@ -37,5 +37,10 @@ Three gated phases (Pipeline pattern):
 
 Output lands in `.odoo-ai/video/<project_label>-<YYYY-MM-DD>/`.
 
+> **pagecast is opt-in.** Recording (pagecast / Playwright video) is no longer an eager browser
+> MCP - only the headless `chrome-devtools` is eager. Wire the recorder family first via
+> `/odoo-ai-agents:odoo-setup browser` (step 12 for Claude, step 10 for Codex/Gemini). If it is
+> not wired, Phase 1 falls back to a `chrome-devtools` screenshot frame sequence assembled into a GIF.
+
 For full phase specifications, gate behavior, standalone fallback rules, hard rules,
 and examples - read `workflows/video-produce.workflow.yaml` directly.

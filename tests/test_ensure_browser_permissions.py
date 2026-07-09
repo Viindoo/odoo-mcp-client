@@ -15,6 +15,7 @@ Drives a throwaway settings.json via CLAUDE_SETTINGS so the real
 ~/.claude/settings.json is never touched. Stdlib-only (needs bash + python3,
 which the step script the hook delegates to also needs).
 """
+import importlib.util
 import json
 import os
 import re
@@ -39,18 +40,23 @@ def _plugin_name():
     return _normalize(data["name"])
 
 
-def _servers():
-    data = json.loads((PLUGIN / ".mcp.json").read_text(encoding="utf-8"))
-    return [_normalize(s) for s in data["mcpServers"]]
+def _static_servers():
+    """The permission SSOT = the STATIC full six-family list in browser_prefixes.py,
+    NOT the (now single-server) .mcp.json. Issue #156 decoupled permissions from
+    the eager set: the five opt-in families must get an allow-prefix even though
+    they left .mcp.json, so the hook stays useful the moment a user wires one."""
+    spec = importlib.util.spec_from_file_location(
+        "browser_prefixes", PLUGIN / "scripts" / "lib" / "browser_prefixes.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return [_normalize(s) for s in mod.STATIC_SERVERS]
 
 
-# Anti-drift: the own-prefixes set is DERIVED from .mcp.json (the SSOT for which
-# browser servers ship), not hard-coded - so adding/renaming a server (e.g. a new
-# `-headed` variant) is automatically covered, and a regression that stops adding
-# one is caught here. With the current .mcp.json this is the 6 plugin-namespaced
-# prefixes (chrome-devtools[-headed], playwright[-headed], pagecast[-headed]).
+# Anti-drift: derived from the static six-family SSOT so a regression that stops
+# adding any family (e.g. an opt-in `-headed` variant) is caught here.
 NAME = _plugin_name()
-SERVERS = _servers()
+SERVERS = _static_servers()
 OWN_PREFIXES = {f"mcp__plugin_{NAME}_{s}" for s in SERVERS}
 
 
@@ -93,10 +99,11 @@ def test_adds_own_prefixes(settings):
 
 
 def test_every_mcp_server_gets_a_prefix(settings):
-    # Anti-drift, per-server: for EVERY browser MCP server declared in .mcp.json
-    # - the `-headed` variants included (a different server name, NOT covered by
-    # the base server's boundary-matched prefix) - the corresponding
-    # `mcp__plugin_<name>_<server>` prefix must land in permissions.allow[].
+    # Anti-drift, per-family: for EVERY browser MCP family in the static SSOT -
+    # the eager chrome-devtools AND the five opt-in families that left .mcp.json,
+    # `-headed` variants included - the corresponding `mcp__plugin_<name>_<server>`
+    # prefix must land in permissions.allow[] (permissions decoupled from the
+    # eager set, per issue #156).
     r = _run(settings)
     assert r.returncode == 0, f"hook must exit 0; stderr={r.stderr}"
     allow = _allow(settings)

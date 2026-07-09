@@ -1,27 +1,44 @@
 #!/usr/bin/env bash
-# 20-browser-deps.sh - Ensure browser automation dependencies are present.
+# 20-browser-deps.sh - Ensure browser automation dependencies are present ON
+# DISK, without registering or launching anything.
 #
 # The browser MCP servers (chrome-devtools / playwright / pagecast) need:
-#   - Node.js >= 20            (npx runtime for all three servers)
+#   - Node.js >= 20            (npx/npm runtime for all three servers)
+#   - The 3 pinned npm packages, cached on disk (chrome-devtools-mcp,
+#     @playwright/mcp, @mcpware/pagecast - see below)
 #   - Playwright + Chromium    (browser driver + a real browser binary)
 #   - Chromium system libs     (libnss3 / libgbm / fonts / ... on Linux)
 #   - ffmpeg                   (video/GIF capture for pagecast recordings)
 #
-# Playwright is pinned via PLAYWRIGHT_PIN (default below). The default is the
-# first release that supports current Ubuntu while still running on older
-# Linux / macOS / Windows. The pagecast server resolves to the same Playwright
-# minor and therefore shares this Chromium build + system libs, so installing
-# them here covers pagecast as well.
+# INSTALL vs REGISTER/RUN - this step is INSTALL-ONLY. It warms npm's local
+# package cache (~/.npm/_cacache, shared with npx) and the Playwright browser
+# cache so a LATER real spawn has no download latency. It costs DISK, never
+# RAM, and it NEVER runs `claude mcp add` or spawns a long-lived server - that
+# registration/run job belongs exclusively to step 10 (Codex/Gemini) and step
+# 12 (Claude opt-in, user scope). Keeping the two strictly separate means a
+# machine can pre-install everything (e.g. in a base image) without ever
+# starting a browser process or paying any idle-RAM cost.
+#
+# The 3 npm packages are pinned via the `scripts/lib/browser-mcp-servers.sh`
+# SSOT (same pins steps 10/12 register) - never duplicated here. Playwright
+# itself is pinned via PLAYWRIGHT_PIN (default below): the first release that
+# supports current Ubuntu while still running on older Linux / macOS /
+# Windows. The pagecast server resolves to the same Playwright minor and
+# therefore shares this Chromium build + system libs, so installing them here
+# covers pagecast's browser needs as well.
 #
 # Subcommands:
 #   describe   One-line description.
-#   check      Exit 0 if node>=20 AND chromium installed AND (on apt-based
-#              Linux) chromium system libs present AND ffmpeg present;
-#              exit 1 if anything is missing.
-#   apply      Install the pinned Playwright Chromium browser, and on apt-based
-#              Linux also install its system libraries - automatically only when
-#              passwordless sudo is available, otherwise print the exact command
-#              to run. For ffmpeg ONLY print OS-specific guidance.
+#   check      Exit 0 if node>=20 AND all 3 MCP packages are cached on disk
+#              AND chromium installed AND (on apt-based Linux) chromium
+#              system libs present AND ffmpeg present; exit 1 if anything is
+#              missing.
+#   apply      Pre-install the 3 pinned MCP packages on disk (npm cache warm,
+#              never executed), install the pinned Playwright Chromium
+#              browser, and on apt-based Linux also install its system
+#              libraries - automatically only when passwordless sudo is
+#              available, otherwise print the exact command to run. For
+#              ffmpeg ONLY print OS-specific guidance.
 #
 # HARD RULES:
 #   - Never run sudo silently. System libs run via `playwright install-deps`
@@ -29,20 +46,37 @@
 #     exact command. ffmpeg is always advise-only.
 #   - `npx -y playwright@<pin> install chromium` is user-scoped (downloads to
 #     the per-user playwright cache) and is safe + idempotent.
+#   - Pre-installing an MCP package NEVER runs it: `npm install` only ever
+#     extracts a package (never executes its bin entry point - only
+#     `npx`/`npm exec` does that), and `--ignore-scripts` additionally skips
+#     any pre/postinstall lifecycle script. This step MUST NOT call
+#     `claude mcp add` (or any other registration command) - see step 12.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../lib/browser-mcp-servers.sh
+. "$SCRIPT_DIR/../lib/browser-mcp-servers.sh"
 
 # Pinned Playwright version (single source of truth, env-overridable so users
 # and CI can pick a different release without editing this script).
 PW_PIN="${PLAYWRIGHT_PIN:-1.61.0}"
 
+# The 3 backend packages this plugin's browser MCP families resolve to,
+# pinned by the shared SSOT (scripts/lib/browser-mcp-servers.sh) - never
+# re-pinned here. Pre-installing these 3 covers all 6 families (each
+# `-headed` variant shares its default's package).
+MCP_SERVER_PACKAGE_PINS=(
+    "$BROWSER_MCP_CHROME_PIN"
+    "$BROWSER_MCP_PLAYWRIGHT_PIN"
+    "$BROWSER_MCP_PAGECAST_PIN"
+)
+
 # ---------------------------------------------------------------------------
 # describe
 # ---------------------------------------------------------------------------
 cmd_describe() {
-    echo "Install browser deps (Node>=20, pinned Playwright Chromium + system libs on apt Linux) and verify ffmpeg"
+    echo "Pre-install on disk (no run): the 3 pinned browser MCP packages (npm cache warm) + pinned Playwright Chromium + system libs on apt Linux; verify ffmpeg"
 }
 
 # ---------------------------------------------------------------------------
@@ -57,6 +91,39 @@ _node_ok() {
     local maj
     maj="$(_node_major)"
     [[ "$maj" =~ ^[0-9]+$ ]] && (( maj >= 20 ))
+}
+
+_npm_ok() {
+    command -v npm >/dev/null 2>&1
+}
+
+# _pkg_cached <npm-spec> - true if the FULL dependency tree for <npm-spec> is
+# already in npm's local content-addressable cache (~/.npm/_cacache, the same
+# cache `npx`/`npm exec` reads from), so a later real spawn needs zero network
+# access. `--offline` makes a cache miss fail fast instead of silently
+# downloading (this is a read-only probe); `--dry-run` + a throwaway `--prefix`
+# mean nothing is written; `--ignore-scripts` means nothing is executed even in
+# the (never-taken) write path. This never runs the package - only a probe.
+_pkg_cached() {
+    _npm_ok || return 1
+    local tmp rc
+    tmp="$(mktemp -d 2>/dev/null)" || return 1
+    if npm install --offline --dry-run --no-save --ignore-scripts \
+        --prefix "$tmp" "$1" >/dev/null 2>&1; then
+        rc=0
+    else
+        rc=1
+    fi
+    rm -rf "$tmp" 2>/dev/null || true
+    return "$rc"
+}
+
+_mcp_packages_cached() {
+    local spec
+    for spec in "${MCP_SERVER_PACKAGE_PINS[@]}"; do
+        _pkg_cached "$spec" || return 1
+    done
+    return 0
 }
 
 _is_apt_linux() {
@@ -122,16 +189,57 @@ _ffmpeg_ok() {
 
 cmd_check() {
     local ok=0
-    _node_ok        || ok=1
-    _chromium_ok    || ok=1
-    _system_deps_ok || ok=1
-    _ffmpeg_ok      || ok=1
+    _node_ok             || ok=1
+    _mcp_packages_cached || ok=1
+    _chromium_ok         || ok=1
+    _system_deps_ok      || ok=1
+    _ffmpeg_ok           || ok=1
     return "$ok"
 }
 
 # ---------------------------------------------------------------------------
 # apply
 # ---------------------------------------------------------------------------
+# _install_mcp_package_ondisk <npm-spec> - warm the npm cache for one browser
+# MCP server package WITHOUT running it. `npm install` never executes a
+# package's bin entry point (only `npx`/`npm exec` does that), and
+# `--ignore-scripts` additionally skips any pre/postinstall lifecycle script
+# the package or its dependencies ship. The throwaway `--prefix` + `--no-save`
+# mean nothing is written into this plugin or any project - only npm's own
+# cache (`~/.npm/_cacache`, shared with npx) gains the downloaded tarballs, so
+# a later REAL spawn - by `claude mcp add` / `npx -y <spec>` at
+# registration/run time (step 10/12) - resolves entirely from disk with no
+# download latency. This function NEVER registers or launches an MCP server.
+_install_mcp_package_ondisk() {
+    local spec="$1"
+    if _pkg_cached "$spec"; then
+        echo "  ok $spec already cached on disk - skip"
+        return 0
+    fi
+    echo "  Pre-installing $spec on disk (npm cache warm - package is never launched)..."
+    local tmp
+    tmp="$(mktemp -d 2>/dev/null)" || {
+        echo "  x could not create a scratch dir to pre-install $spec" >&2
+        return 1
+    }
+    if npm install --no-save --ignore-scripts --prefix "$tmp" "$spec"; then
+        echo "  ok $spec cached on disk"
+        rm -rf "$tmp" 2>/dev/null || true
+        return 0
+    fi
+    echo "  x failed to pre-install $spec on disk (check network/registry access)" >&2
+    rm -rf "$tmp" 2>/dev/null || true
+    return 1
+}
+
+_install_mcp_packages() {
+    local spec rc=0
+    for spec in "${MCP_SERVER_PACKAGE_PINS[@]}"; do
+        _install_mcp_package_ondisk "$spec" || rc=1
+    done
+    return "$rc"
+}
+
 _install_chromium_binary() {
     if _chromium_ok; then
         echo "  ok Playwright Chromium already installed - skip"
@@ -214,6 +322,13 @@ cmd_apply() {
         return 1
     fi
 
+    if ! _npm_ok; then
+        echo "  x npm is REQUIRED (ships with Node) but not found on PATH." >&2
+        echo "    Cannot pre-install the browser MCP packages. Aborting this step." >&2
+        return 1
+    fi
+
+    _install_mcp_packages || return 1
     _install_chromium_binary
     _ensure_system_deps || return 1
 

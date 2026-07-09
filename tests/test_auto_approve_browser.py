@@ -13,9 +13,11 @@ not implementation):
   - a non-plugin tool (e.g. Bash) -> no allow on stdout (pass-through), exit 0;
   - ODOO_AI_NO_AUTO_PERMS=1 even for a browser tool -> pass-through, exit 0.
 
-The sample browser tool name is DERIVED from .mcp.json (a `-headed` server, the
-exact case the old prefix list missed) so the test can't drift from the shipped
-server set. Stdlib + subprocess only.
+The sample browser tool name is a `-headed` OPT-IN family (`chrome-devtools-headed`)
+that is NOT in .mcp.json - the exact case #156 must not regress: an opt-in family
+wired later must still be auto-approved because the hook's permission SSOT
+(browser_prefixes.py) covers all six families statically, decoupled from the
+eager .mcp.json set. Stdlib + subprocess only.
 """
 import json
 import re
@@ -40,25 +42,12 @@ def _plugin_name():
     return _normalize(data["name"])
 
 
-def _servers():
-    data = json.loads((PLUGIN / ".mcp.json").read_text(encoding="utf-8"))
-    return [_normalize(s) for s in data["mcpServers"]]
-
-
 NAME = _plugin_name()
-SERVERS = _servers()
-
-
-def _a_headed_server():
-    """Pick a `-headed` server from .mcp.json (the variant the base prefix
-    misses); fall back to the first server if none is named that way."""
-    for s in SERVERS:
-        if s.endswith("-headed"):
-            return s
-    return SERVERS[0]
-
-
-HEADED_TOOL = f"mcp__plugin_{NAME}_{_a_headed_server()}__navigate_page"
+# An OPT-IN `-headed` family, deliberately NOT in .mcp.json (only chrome-devtools
+# is eager). The hook must still allow it - proving permissions are decoupled
+# from the eager set.
+OPTIN_HEADED_SERVER = "chrome-devtools-headed"
+HEADED_TOOL = f"mcp__plugin_{NAME}_{_normalize(OPTIN_HEADED_SERVER)}__navigate_page"
 
 
 def _run(payload, env_extra=None):
