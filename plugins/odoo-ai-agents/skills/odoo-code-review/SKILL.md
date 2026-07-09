@@ -27,45 +27,39 @@ Developer / Tech Lead reviewing Odoo code with semantic MCP enrichment.
 
 ## When to invoke
 
-Main agent invokes the `odoo-code-reviewer` **agent** (as a subagent launch) when Odoo code needs review. Review **scales with the change size**: one module → one reviewer; many modules → per-module fan-out plus Opus integration pass.
+Invoke the `odoo-code-reviewer` agent when Odoo code needs review. Review scales with change size: one module -> one reviewer; many modules -> per-module fan-out + Opus integration pass.
 
-**Two entry paths - choose before dispatching scoper:**
+**Two entry paths - choose before dispatching the scoper:**
 
-- **Pasted block or single file_path (not a git target):** treat as one review unit, dispatch ONE `odoo-code-reviewer` directly (skip scoper). The code block / file is the review scope; no diff resolution needed.
-- **Git target (local working tree, worktree, or PR):** dispatch `odoo-review-scoper` first (Phase 0), then fan-out reviewers from scoper output. Because review needs parallel MCP round-trips, each leg runs as an autonomous agent.
+- **Pasted block or single file_path (not a git target):** dispatch ONE `odoo-code-reviewer` directly (skip scoper); the block/file is the scope.
+- **Git target (local tree, worktree, or PR):** dispatch `odoo-review-scoper` first (Phase 0), then fan-out reviewers from its output. Each leg runs as an autonomous agent.
 
-**Deriving `TARGET` from user intent:**
+**Derive `TARGET` from user intent:**
 
 | User intent | TARGET to pass |
 |---|---|
-| No explicit target - just "review this" on the working tree | `TARGET: local` |
+| "review this" on the working tree | `TARGET: local` |
 | "review PR #N" or a GitHub PR URL | `TARGET: pr:<N>` or `TARGET: pr:<url>` |
-| Orchestrator dispatching from a principal tree where work lives in another worktree | `TARGET: worktree:<abs-path>` - REQUIRED; if omitted, scoper diffs principal cwd (empty diff → BLOCKED) |
-| Pasted code block or single file_path with no git context | skip scoper - see pasted-block path above |
+| Work lives in another worktree | `TARGET: worktree:<abs-path>` - REQUIRED; if omitted, scoper diffs principal cwd (empty diff -> BLOCKED) |
+| Pasted block / single file_path, no git context | skip scoper (see above) |
 
-For a sibling git worktree (e.g. the wave/forward-port integration tree), the orchestrator passes its WORKTREE_PATH as `TARGET: worktree:<abs-path>` so review runs there, not cwd.
+For a sibling git worktree (wave/forward-port integration tree), the orchestrator passes its WORKTREE_PATH as `TARGET: worktree:<abs-path>` so review runs there, not cwd.
 
 ## Phase 0 - Scope the review (git targets only)
 
-**Pre-resolution for `TARGET=pr` (do before dispatching the scoper):**
+**Pre-resolution for `TARGET=pr:<N>` (before dispatching the scoper)** - resolve the PR to an isolated worktree via the `git-toolkit:git-ops` skill (delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
+1. Invoke `git-toolkit:git-ops` to fetch PR metadata + changed-file list: `pr_meta = {number, title, head, base, repo}`, `pr_changed_files = [<path>, ...]`.
+2. Invoke `git-toolkit:git-ops` to create an isolated worktree (`/tmp/pr-review-<N>`, S9 - never the main checkout) with the PR branch checked out; receive `review_root`.
 
-For `TARGET=pr:<N>`, the skill MUST resolve the PR to an isolated worktree via the `git-toolkit:git-ops` skill before the scoper is dispatched:
-1. Invoke the `git-toolkit:git-ops` skill (via the Skill tool) to fetch PR metadata and the changed file list. Collect `pr_meta = {number, title, head, base, repo}` and `pr_changed_files = [<path>, ...]`.
-2. Invoke `git-toolkit:git-ops` (via the Skill tool) to create an isolated worktree (path `/tmp/pr-review-<N>`, S9 contract - never the main checkout) with the PR branch checked out. Receive back `review_root`.
+Pass `review_root`, `pr_meta`, `pr_changed_files` into the scoper brief (the scoper no longer resolves these).
 
-Then pass `review_root`, `pr_meta`, and `pr_changed_files` into the scoper brief. The scoper no longer fetches PR metadata or creates the worktree itself.
-
-Git delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`
-
----
-
-Dispatch agent `odoo-review-scoper` (sonnet) per the SCOPER I/O CONTRACT (full SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Pass it:
-- `TARGET:` - `local` | `worktree:<abs-path>` | `pr:<number-or-url>` (for `pr`, also pass `review_root`, `pr_meta`, and `pr_changed_files` from the pre-resolution step above; the scoper no longer resolves these itself)
+Dispatch agent `odoo-review-scoper` (sonnet) per the SCOPER I/O CONTRACT (SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Pass:
+- `TARGET:` - `local` | `worktree:<abs-path>` | `pr:<number-or-url>` (for `pr`, also `review_root`, `pr_meta`, `pr_changed_files`)
 - `BASE:` - default `master`
 - `odoo_version:` - target series
-- `USER LANGUAGE:` - language for the scoper's own output
+- `USER LANGUAGE:` - language for the scoper's output
 
-The scoper writes a compact scope file at `.odoo-ai/reviews/<slug>-<date>/_scope.md` and returns the scope result directly. Main receives the compact output only (keeps main context clean - do NOT run git diff inline, map `__manifest__.py`, or call `test_coverage_audit` in main context; the scoper handles all of this).
+The scoper writes `.odoo-ai/reviews/<slug>-<date>/_scope.md` and returns the compact scope. Do NOT run git diff inline, map `__manifest__.py`, or call `test_coverage_audit` in main context - the scoper handles all of it.
 
 Scope output fields used by main: full field schema per Step 6 of the scoper I/O contract (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Key dispatch behaviors:
 
@@ -86,19 +80,19 @@ Dispatch ONE `odoo-code-reviewer` agent (sonnet). It writes its report to `.odoo
 
 ### Phase A - Per-module fan-out (parallel sonnet)
 
-Dispatch one `odoo-code-reviewer` agent per module in `modules[]` from the scoper output, all in one batch. Fan-out is one reviewer per module; concurrency is bounded by the harness automatically - do NOT set a manual wave-cap. For the project-level concurrency policy and any overrides, see the SSOT at `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`. Each agent is scoped to ONLY its module; it reads files at `review_root` (from scoper). Each agent writes `<module>.md` to `.odoo-ai/reviews/<slug>-<date>/` and returns a short summary + path.
+Dispatch one `odoo-code-reviewer` agent per module in `modules[]`, all in one batch. Concurrency is bounded by the harness automatically - do NOT set a manual wave-cap (policy SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Each agent is scoped to ONLY its module, reads files at `review_root`, writes `<module>.md` to `.odoo-ai/reviews/<slug>-<date>/`, and returns a short summary + path.
 
-When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect as today.
+When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet, and read each result from the teammate's SendMessage push (NEVER from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect inline.
 
-**When `module.needs_ui_review` is `true` or `candidate`**, add `UI_REVIEW=delegated` to that module's reviewer brief. Under that flag the reviewer still reviews everything NON-rendered - Python/ORM/security/perf/data AND the SOURCE correctness of the view layer (XPath targets resolve, view `arch` well-formed, no dead JS module import, SCSS compiles + reuses real tokens) - but does NOT grade rendered appearance, UX, accessibility, or runtime; that rendered-UI verdict is delegated to Phase A.5's `odoo-ui-reviewer`, so the two passes never overlap. The reviewer still writes `<module>.md` (and, for a `candidate`, resolves view-binding via OSM and records `ui_review_required` there).
+**When `module.needs_ui_review` is `true` or `candidate`**, add `UI_REVIEW=delegated` to that module's reviewer brief. Under that flag the reviewer reviews everything NON-rendered - Python/ORM/security/perf/data AND the SOURCE correctness of the view layer (XPath targets resolve, view `arch` well-formed, no dead JS import, SCSS compiles + reuses real tokens) - but does NOT grade rendered appearance, UX, accessibility, or runtime (delegated to Phase A.5's `odoo-ui-reviewer`). It still writes `<module>.md` (for a `candidate`, resolve view-binding via OSM and record `ui_review_required` there).
 
-**Before dispatching the batch**, for each affected model in `modules[]`, call OSM `tests_covering(model='<affected_model>', odoo_version='<version>')`. Collect results. Include the result as `COVERAGE_CHECK:` in each reviewer brief so the agent has the evidence without re-querying. `COVERAGE_CHECK` is model-edge level data from main (distinct from `COVERAGE_BASELINE` which is the module-level `test_coverage_audit` result from the scoper).
+**Before dispatching the batch**, for each affected model in `modules[]` call OSM `tests_covering(model='<affected_model>', odoo_version='<version>')` and include the result as `COVERAGE_CHECK:` in each reviewer brief (model-edge level; distinct from the scoper's module-level `COVERAGE_BASELINE`).
 
-**Before flagging pitfall #10 (behavior change with no protecting test) as a HIGH finding**, verify with evidence rather than heuristic: if the model-level `COVERAGE_CHECK` shows zero covering tests, the HIGH finding stands and should note "zero test edges confirmed via `tests_covering` (model-level)". If tests exist but do not cover the changed path, the finding stays HIGH with the note "tests exist for model but do not cover this behavior". A finding without this check is heuristic and should be downgraded to MED. **Caveat on method-narrow queries:** `tests_covering` with `method=` returns zero edges for many well-tested methods because COVERS_METHOD edges are sparse; a zero from a method-narrow call is supporting evidence, not proof - corroborate with the model-level count or `find_test_examples` before escalating to HIGH.
+**Before flagging pitfall #10 (behavior change with no protecting test) as HIGH**, verify with evidence: if `COVERAGE_CHECK` shows zero covering tests, the HIGH finding stands, noting "zero test edges confirmed via `tests_covering` (model-level)"; if tests exist but do not cover the changed path, it stays HIGH noting "tests exist for model but do not cover this behavior"; without this check, downgrade to MED. **Method-narrow caveat:** `tests_covering` with `method=` returns zero for many well-tested methods (COVERS_METHOD edges are sparse) - a method-narrow zero is supporting evidence, not proof; corroborate with the model-level count or `find_test_examples` before escalating to HIGH.
 
 ### Phase A.5 - Rendered-UI review (conditional, per module)
 
-**Widen the render-check scope to dependents first (blast-radius).** Before dispatching, do not bind the render check to the changed modules alone - a changed field/method/view/component also ripples into DEPENDENT modules that `super()`/`xpath`/`inherit` it. Derive the widened set per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (reverse-closure -> risk rank -> affected screens): the `render_check_set` it emits is every screen that binds a changed symbol across the changed modules AND their dependents, each tagged a risk tier (High = deep, Low = smoke). This is still a STATIC code-review pass - it only widens which screens the conditional ui-reviewer covers; it does not itself execute CRUD/role flows. OSM is PRIMARY for the closure; fall back to disk and label it approximate when OSM is unreachable.
+**Widen the render-check scope to dependents (blast-radius)** - a changed field/method/view/component ripples into DEPENDENT modules that `super()`/`xpath`/`inherit` it. Derive the widened set per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (reverse-closure -> risk rank -> affected screens): `render_check_set` = every screen binding a changed symbol across the changed modules AND their dependents, each tagged a risk tier (High = deep, Low = smoke). This stays a STATIC code-review pass (it only widens which screens the conditional ui-reviewer covers; it runs no CRUD/role flows). OSM is PRIMARY for the closure; fall back to disk and label it approximate when OSM is unreachable.
 
 For each module with `needs_ui_review` (`true` or `candidate`), plus each dependent module the `render_check_set` flags:
 - **For a `candidate` module**, first read its `<module>.md` and check `ui_review_required`; skip the ui-reviewer dispatch when it is `false` or absent (the reviewer already resolved the Python change is not view-bound).
@@ -117,7 +111,7 @@ next:
     gate_tier: L2
 ```
 
-This is opt-in: it surfaces the verdict + the recommended acceptance pass to the run-harness for an L2 (human) gate - it never auto-blocks the review and never auto-runs acceptance. The `scope_hint` is advisory - odoo-acceptance Phase 0 regenerates the verify-scope manifest from the changed set, so the consumer never assumes the file already exists.
+Opt-in: it surfaces the verdict + recommended acceptance pass for an L2 (human) gate - never auto-blocks the review, never auto-runs acceptance. `scope_hint` is advisory (odoo-acceptance Phase 0 regenerates the verify-scope manifest from the changed set).
 
 ### Phase B - Integration synthesis (OPUS)
 
@@ -158,7 +152,7 @@ Emit paths in the Continuation Contract `produced[]`; later steps reference thes
 Eleven failure modes the agent checks for. Full details:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/review-pitfalls.md`
 
-Summary: (1) ORM/N+1, (2) missing `super()` in create/write/unlink, (3) `@api.depends` errors, (4) deprecated API, (5) OWL reactivity + `position="replace"`, (6) design-system SCSS/token fidelity (flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`), (7) coding-guideline conventions (grounded against `coding_guidelines/<version>/`), (8) runtime presence probing (`hasattr`/`getattr` smell), (9) platform design principles (company/branch isolation, generic-before-localization, app-menu shape), (10) behavior change with no protecting test → HIGH finding → route to `odoo-test-writing`, (11) forward-ported test coupled to source-version API/snapshot → assert observable outcome on target, RED-then-GREEN, route to `odoo-test-writing` mode `adapt`.
+Summary: (1) ORM/N+1, (2) missing `super()` in create/write/unlink, (3) `@api.depends` errors, (4) deprecated API, (5) OWL reactivity + `position="replace"`, (6) design-system SCSS/token fidelity (flag per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`), (7) coding-guideline conventions (grounded against `coding_guidelines/<version>/`), (8) runtime presence probing (`hasattr`/`getattr` smell), (9) platform design principles (company/branch isolation, generic-before-localization, app-menu shape), (10) behavior change with no protecting test → HIGH finding → launch the `odoo-test-writer` agent (context-isolated; it authors by invoking the `odoo-test-writing` skill inline), (11) forward-ported test coupled to source-version API/snapshot → assert observable outcome on target, RED-then-GREEN, launch the `odoo-test-writer` agent (adapt mode).
 
 ## Agent invocation
 
@@ -182,7 +176,7 @@ See `agents/odoo-code-reviewer.md` for the full restricted tool list and executi
 
 ## Autonomous fix loop - drive it yourself (mandatory)
 
-The Skill tool is available in the main context where you run, and you MUST use it to drive the fix loop - do not write a report and stop. A passive `next: odoo-coding` is NOT enough: when no run-harness is active (a direct invocation, or an intake fast-path - the common case), nothing advances that `next` and the loop dies. So:
+You MUST use the Skill tool to drive the fix loop - do not write a report and stop. A passive `next: odoo-coding` advances nothing when no run-harness is active (a direct invocation or intake fast-path - the common case), so the loop would die. Therefore:
 
 1. **On a CRITICAL or HIGH finding that needs a code change, drive the fix yourself - attempt CHP Tier A first, fall back to Tier C.** Per `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md`: if the capability probe passes (env + `SendMessage` tool present + you are the lead) AND the original `coder-<module>` agentId is recorded in plan.md, take the **Tier-A path** - `SendMessage` the review findings + fix instructions (framed as shared team context / prior-phase findings, never as "secret") directly to that recorded agentId, then **PARK: end your turn here (emit nothing after the SendMessage call), do NOT await a synchronous return (`SendMessage` is fire-and-forget) - you are resumed automatically when the coder replies.** If any probe condition fails or the agentId is not addressable, take the **Tier-C fallback** (always correct): **IMMEDIATELY invoke `odoo-coding` via the Skill tool yourself**, passing it the review report path, the exact findings to fix, and the literal line **"AUTONOMOUS FIX (review-driven): skip your Phase 0 human gate, fix to these findings, then invoke odoo-code-review to verify"** (keep this sentinel text unchanged for the Tier-C path). Either way this is autonomous - do NOT pause for a human (running the review IS the opt-in).
 2. The coder fixes, then comes back to you to verify - the resumed Tier-A worker replies to you, or the Tier-C `odoo-coding` invokes you again. That round-trip - **review → code → review** - repeats until the review is clean (no CRITICAL/HIGH and the behavior is covered).
@@ -194,10 +188,9 @@ The ONLY case where you emit a Continuation Contract `next` and let a driver adv
 
 Before finishing, APPEND your significant findings/decisions to the run worklog (`.odoo-ai/worklog/<run-or-slug>/`) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`.
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the artifact paths actually written. Decide the `next` arm by what the review found (test-discipline SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`).
-**The `next:` entries below are the audit record AND the run-harness path - NOT a substitute for the direct Skill-tool invoke in § Autonomous fix loop.** With NO run-harness active (the common direct / intake-fast-path case) you have ALREADY invoked the target per § Autonomous fix loop; `next:` advances nothing on its own, so **never stop at it**.
-- CRITICAL/HIGH findings that need a code fix → you invoked `odoo-coding` directly (§ Autonomous fix loop); under an active run-harness instead, emit `next: odoo-coding` with `inputs: {odoo_version: <the run's resolved version>, report_path: <this report>, ...}` carrying the report path (the driver bounds the loop to 3 iterations, then escalates).
-- A behavior change with no protecting test (pitfall #10) → drive it through `odoo-coding` (which is test-first) the same way; under a run-harness, emit `next: odoo-test-writing` with `inputs: {odoo_version: <the run's resolved version>, module: <module>, behavior: <behavior>, ...}` carrying the module + behavior so the gap is closed before merge.
-- Clean review, behavior covered → no fix needed, no `next` (the loop terminates).
-A review that finds a CRITICAL bug in a behavior that also lacks a test drives BOTH the protecting test and the fix (under a run-harness: `next: odoo-coding` and `next: odoo-test-writing`, both with `inputs: {odoo_version: <the run's resolved version>, ...}`).
-Additive output for the run-harness - it does not change anything produced above.
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the paths actually written; decide the `next` arm by what the review found (test-discipline SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`).
+**The `next:` entries below are the audit record AND the run-harness path - NOT a substitute for the direct Skill-tool invoke in § Autonomous fix loop.** With NO run-harness active you have ALREADY invoked the target; `next:` advances nothing on its own, so **never stop at it**.
+- CRITICAL/HIGH findings needing a code fix → you invoked `odoo-coding` directly (§ Autonomous fix loop); under an active run-harness instead, emit `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, report_path: <this report>, ...}` (the driver bounds the loop to 3 iterations, then escalates).
+- Behavior change with no protecting test (pitfall #10) → when the code is fine and only the test is missing, LAUNCH the `odoo-test-writer` agent directly (context isolation; it authors by invoking the `odoo-test-writing` skill inline) for the protecting RED test; when a code fix is also needed, drive it through `odoo-coding` (test-first - its `odoo-coder` coordinator launches `odoo-test-writer` per WI). Under an active run-harness, emit `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, module: <module>, behavior: <behavior>, ...}`.
+- Clean review, behavior covered → no fix, no `next` (loop terminates).
+A CRITICAL bug in a behavior that also lacks a test drives BOTH the RED test and the fix through `odoo-coding` (test-first) - under a run-harness: `next: odoo-coding` with `inputs: {odoo_version: <run's resolved version>, ...}`. Additive output for the run-harness; it changes nothing produced above.

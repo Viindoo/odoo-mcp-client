@@ -87,7 +87,7 @@ fi
 
 # --- Invariant 2 (NON-BLOCKING note): backend code written, OSM reachable, validators skipped
 if [[ "$PY_WRITES" -gt 0 && "$OSM_CALLS" -gt 0 && "$VALIDATOR_CALLS" -eq 0 && "$CLAIMS_LOCAL" -eq 0 ]]; then
-    jq -cn --arg m "Quality-gate note: backend Python was written and OSM was reachable, but no ORM validators (validate_depends/validate_domain/resolve_orm_chain/validate_relation) ran in this subagent. Per agents/odoo-coder.md Round 4, run the ORM gate + the /test_lint backend lint gate before presenting, or label standalone-mode explicitly. Also confirm currency of touched core symbols via lookup_core_api (existence is not currency).${GUIDELINES_NOTE}" \
+    jq -cn --arg m "Quality-gate note: backend Python was written and OSM was reachable, but no ORM validators (validate_depends/validate_domain/resolve_orm_chain/validate_relation) ran in this subagent. Per agents/odoo-backend-coder.md Round 5, run the ORM gate + the /test_lint backend lint gate before presenting, or label standalone-mode explicitly. Also confirm currency of touched core symbols via lookup_core_api (existence is not currency).${GUIDELINES_NOTE}" \
         '{continue:true, systemMessage:$m}'
     exit 0
 fi

@@ -5,7 +5,7 @@ Codex / Gemini) when it designs, codes, reviews, or debugs Odoo - NOT a snapshot
 of any wording. Each assertion guards one wiring that, if silently dropped, would
 take a guarantee with it: cross-agent decision logging, the three Odoo platform
 design principles, bidirectional impact analysis, dynamic demo data, the
-red-before-green test loop, and the consume-only git-executor (odoo-wave) module-DAG contract.
+red-before-green test loop, and the consume-only between-wave integration (run-harness) module-DAG contract.
 
 Red-before-green: deleting the corresponding reference makes exactly the matching
 assertion fail. stdlib only.
@@ -33,10 +33,12 @@ NEW_SNIPPETS = [
     SNIPPETS / "context-handoff-protocol.md",
 ]
 
-# The seven agents that touch architecture / code / review / debug.
+# The agents that touch architecture / code / review / debug. The backend WRITER is
+# odoo-backend-coder (the odoo-coder per-module LEAD is a coordinator, not a code writer, so it is
+# NOT in this write-agent set - its spawner topology is guarded by test_coder_coordinator_topology).
 CORE_AGENTS = [
     "odoo-solution-architect",
-    "odoo-coder",
+    "odoo-backend-coder",
     "odoo-frontend-coder",
     "odoo-code-reviewer",
     "odoo-ui-reviewer",
@@ -98,55 +100,58 @@ def test_agent_wires_cross_cutting_snippets(agent):
 
 
 def test_coders_wire_test_first():
-    """Both coders implement against a red test (red-before-green)."""
-    for agent in ("odoo-coder", "odoo-frontend-coder"):
+    """Both writer coders implement against a red test (red-before-green)."""
+    for agent in ("odoo-backend-coder", "odoo-frontend-coder"):
         assert "test-first-contract.md" in _read(AGENTS / f"{agent}.md"), (
             f"{agent}: missing test-first-contract reference"
         )
 
 
 def test_architect_and_backend_coder_wire_demo_data():
-    """Demo data is designed by the architect and built by the backend coder."""
-    for agent in ("odoo-solution-architect", "odoo-coder"):
+    """Demo data is designed by the architect and built by the backend coder (odoo-backend-coder)."""
+    for agent in ("odoo-solution-architect", "odoo-backend-coder"):
         assert "demo-data-dynamic.md" in _read(AGENTS / f"{agent}.md"), (
             f"{agent}: missing demo-data-dynamic reference"
         )
 
 
-def test_module_graph_is_shared_by_coding_and_odoo_wave():
-    """The module DAG is one SSOT, referenced by both dispatchers (no dup)."""
+def test_module_graph_is_shared_by_coding_and_run_harness():
+    """The module DAG is one SSOT, referenced by both consumers (no dup). (odoo-wave was removed -
+    decision R; run-harness's between-wave integration is the wave-side consumer now.)"""
     mg = "odoo-module-graph.md"
     assert mg in _read(SKILLS / "odoo-coding" / "SKILL.md"), (
         "odoo-coding must reference the module-graph SSOT"
     )
-    assert mg in _read(SKILLS / "odoo-wave" / "SKILL.md"), (
-        "odoo-wave must reference the module-graph SSOT"
+    assert mg in _read(SKILLS / "run-harness" / "SKILL.md"), (
+        "run-harness (between-wave integration) must reference the module-graph SSOT"
     )
 
 
-def test_odoo_wave_consumes_module_dag_and_audits_ownership():
-    """NEW contract (ADR-001 D2): the git-executor `odoo-wave` is consume-only - it CONSUMES the
-    plan's wave-batched module-DAG (it no longer self-auto-infers WI dependencies) AND still runs the
-    disjoint file-ownership audit as a trust-but-verify safety check. Protects the behavior, not the
-    old auto-infer wording."""
-    body = _read(SKILLS / "odoo-wave" / "SKILL.md")
+def test_run_harness_between_wave_consumes_module_dag_and_audits_ownership():
+    """The between-wave integration (run-harness) is consume-only - it CONSUMES the plan's
+    wave-batched module-DAG (it does not self-auto-infer dependencies) AND still runs the disjoint
+    file-ownership audit as a trust-but-verify safety check. Protects the behavior, not the wording.
+    (Retargeted from the removed odoo-wave skill - decision R.)"""
+    body = _read(SKILLS / "run-harness" / "SKILL.md")
     lower = body.lower()
     # (a) consumes the plan's module-DAG (no self-derive)
     assert "module-dag" in lower and "consume" in lower, (
-        "odoo-wave Phase 0 must CONSUME the plan's module-DAG (consume-only, no self-derive)"
+        "run-harness between-wave integration must CONSUME the plan's module-DAG (consume-only, no self-derive)"
     )
-    assert "depends_on" in body, "odoo-wave must consume the plan's depends_on edges as cherry-pick order"
+    assert "depends_on" in body, "run-harness must consume the plan's depends_on edges as cherry-pick order"
     # (b) the disjoint file-ownership safety audit still runs (trust-but-verify)
     assert "disjoint" in lower and ("ownership audit" in lower or "file-ownership" in lower), (
-        "odoo-wave must still run the disjoint file-ownership safety audit (trust-but-verify)"
+        "run-harness must still run the disjoint file-ownership safety audit (trust-but-verify)"
     )
 
 
 def test_code_review_gates_test_coverage_and_loops():
-    """Review routes uncovered behavior to the test writer and keeps the loop."""
+    """Review routes uncovered behavior to the context-isolated test author (the odoo-test-writer
+    agent, launched for context isolation) and keeps the loop. The coverage gate no longer dispatches
+    the odoo-test-writing SKILL inline - authoring is delegated to the odoo-test-writer AGENT."""
     body = _read(SKILLS / "odoo-code-review" / "SKILL.md")
-    assert "next: odoo-test-writing" in body, (
-        "code-review must route an uncovered behavior change to odoo-test-writing"
+    assert "odoo-test-writer" in body, (
+        "code-review must launch the odoo-test-writer agent for an uncovered behavior change"
     )
     assert "next: odoo-coding" in body, (
         "code-review must keep the code->review->code loop for CRITICAL/HIGH fixes"
@@ -192,7 +197,7 @@ GUIDELINE_STRING = "coding_guidelines/<version>/INDEX.md"
 
 
 @pytest.mark.parametrize(
-    "agent", ["odoo-coder", "odoo-frontend-coder", "odoo-code-reviewer"]
+    "agent", ["odoo-backend-coder", "odoo-frontend-coder", "odoo-code-reviewer"]
 )
 def test_coders_and_reviewer_read_coding_guidelines(agent):
     """Each code-writing/reviewing agent names the version-pinned guideline index, so a
@@ -207,7 +212,7 @@ def test_read_before_write_snippet_wired_into_code_agents():
     """The read-before-write SSOT is referenced by the agents that write/review code."""
     snip = "read-before-write-contract.md"
     for agent in (
-        "odoo-coder",
+        "odoo-backend-coder",
         "odoo-frontend-coder",
         "odoo-code-reviewer",
         "odoo-solution-architect",
@@ -225,7 +230,7 @@ def test_coding_brief_defers_procedure_to_agent_system_prompt():
     (1) each coder agent body names the version-pinned guideline index, and (2) the odoo-coding
     brief defers procedure to the coder's own system prompt instead of re-teaching it."""
     guideline = "coding_guidelines/<version>/INDEX.md"
-    for agent in ("odoo-coder", "odoo-frontend-coder"):
+    for agent in ("odoo-backend-coder", "odoo-frontend-coder"):
         assert guideline in _read(AGENTS / f"{agent}.md"), (
             f"{agent}: agent body must name {guideline} (execution-time SSOT for read-before-write)"
         )
@@ -244,7 +249,8 @@ TEST_BEHAVIOR_SNIPPET = "test-behavior-contract.md"
 
 # Every file wired to the anti-shortcut contract (agents + skills).
 TEST_BEHAVIOR_WIRED = [
-    AGENTS / "odoo-coder.md",
+    AGENTS / "odoo-test-writer.md",
+    AGENTS / "odoo-backend-coder.md",
     AGENTS / "odoo-frontend-coder.md",
     AGENTS / "odoo-code-reviewer.md",
     AGENTS / "odoo-solution-architect.md",
@@ -301,7 +307,7 @@ VERSIONS = ["14.0", "15.0", "16.0", "17.0", "18.0", "19.0"]
 CODING_GUIDELINES = SHARED / "coding_guidelines"
 
 SECURITY_AGENTS = [
-    "odoo-coder",
+    "odoo-backend-coder",
     "odoo-frontend-coder",
     "odoo-code-reviewer",
     "odoo-solution-architect",
@@ -466,7 +472,7 @@ def test_code_review_phase0_handles_sibling_worktree():
 # These are the write/review/debug agents where skipping the guidelines causes wrong
 # code to reach PR - the cost of a miss is highest here.
 MANDATORY_HARD_RULE_AGENTS = [
-    "odoo-coder",
+    "odoo-backend-coder",
     "odoo-frontend-coder",
     "odoo-code-reviewer",
     "odoo-solution-architect",
@@ -478,7 +484,7 @@ MANDATORY_HARD_RULE_AGENTS = [
 # reviewer-verify contract). These are the code-producing agents where context
 # compaction most dangerously erases version-pivot rules like <tree>-><list> at v18.
 VERSION_RULES_APPLIED_AGENTS = [
-    "odoo-coder",
+    "odoo-backend-coder",
     "odoo-frontend-coder",
     "odoo-code-reviewer",
 ]
@@ -486,7 +492,7 @@ VERSION_RULES_APPLIED_AGENTS = [
 # Agents that must carry MANDATORY READ GATE (the per-file-type re-read trigger).
 # Same set: the agent that writes or reviews must explicitly re-read before emitting.
 MANDATORY_READ_GATE_AGENTS = [
-    "odoo-coder",
+    "odoo-backend-coder",
     "odoo-frontend-coder",
     "odoo-code-reviewer",
 ]

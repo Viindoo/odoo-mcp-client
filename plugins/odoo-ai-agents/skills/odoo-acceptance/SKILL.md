@@ -17,21 +17,19 @@ description: >
 
 ## Role
 
-Odoo acceptance conductor. You own the loop that closes a change: map blast-radius -> plan an
-independent oracle -> execute it on a live system across the affected cluster -> adjudicate against the
-oracle -> drive the fix. You keep your own context clean and delegate each heavy phase to a specialist,
-preserving the anti-bias invariant that the oracle author, the code author, and the adjudicator are
-three different contexts (`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`). Acceptance
-EXECUTION needs a live Odoo instance (provisioned via `odoo-instance`) plus a browser MCP; Odoo
-Semantic is a STATIC index and is never the source of live data.
+Odoo acceptance conductor: own the loop that closes a change - map blast-radius -> plan an
+independent oracle -> execute it live across the affected cluster -> adjudicate against the oracle ->
+drive the fix. Keep your context clean; delegate each heavy phase to a specialist. Preserve the
+anti-bias invariant: oracle author, code author, and adjudicator are three different contexts
+(`${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`). EXECUTION needs a live Odoo instance
+(via `odoo-instance`) plus a browser MCP; Odoo Semantic is STATIC and never a source of live data.
 
-**Sole dispatcher (single source of truth for acceptance fan-out).** This skill is the ONLY
-component that launches the `odoo-qa-planner` (independent oracle author) and `odoo-qa-tester`
-(live executor + adjudicator) agents. Any other skill that needs an independent oracle authored
-and/or executed-and-adjudicated routes that work HERE via the Skill tool instead of spawning those
-agents itself - centralizing the anti-bias three-context invariant and the browser-single-flight
-rule in one place. Live execution is provisioned by invoking the `odoo-instance` skill (never the
-raw `odoo-instance-ops` agent).
+**Sole dispatcher of acceptance fan-out.** This skill is the ONLY component that launches the
+`odoo-qa-planner` (independent oracle author) and `odoo-qa-tester` (live executor + adjudicator)
+agents. Any other skill needing an oracle authored and/or executed-and-adjudicated routes that work
+HERE via the Skill tool - centralizing the three-context invariant and the browser single-flight
+rule. Provision live execution by invoking the `odoo-instance` skill (never the raw
+`odoo-instance-ops` agent).
 
 ## Out of Scope
 
@@ -64,16 +62,16 @@ raw `odoo-instance-ops` agent).
 - `model_inspect` ★ - Superset inspection of an ORM model: enumerate or fully describe fields, methods, views, extenders, or a summary in one call.
 <!-- END GENERATED TOOLS -->
 
-The orchestrator stays light on tools: pin the version once with
-`set_active_version(odoo_version=<concrete>)` (also a reachability probe) and pass that CONCRETE
-version into every dispatched agent brief; deep grounding happens inside the agents. Fan-out and
-model-tier policy: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`.
+Stay light on tools: pin the version once with `set_active_version(odoo_version=<concrete>)` (also a
+reachability probe) and pass that CONCRETE version into every dispatched agent brief; deep grounding
+happens inside the agents. Fan-out and model-tier policy:
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`.
 
 When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched
 work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief,
-poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER
-from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When
-off, dispatch + collect as today.
+poll TaskList/TaskGet, and read each result from the teammate's SendMessage push (NEVER from the
+.output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch
++ collect as today.
 
 ## Inputs
 
@@ -103,22 +101,22 @@ the requirement only - it never reads the implementation to decide it.
 ## Phase 2 - provision the cluster (once)
 
 Provision the live instance via `odoo-instance` with the FULL `install_set` co-installed as ONE
-cluster (demo=on, `--http-port`) - co-installing surfaces the MRO / load-order breaks a single-module
-install hides. Capture the resulting `INSTANCE_HANDLE` once and forward it to every dispatch below
-(precedence: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`). Provisioning and the
-test-run lifecycle are NOT owned here - `odoo-instance` (the `odoo-instance-ops` agent) owns
-create/init/run-tests/drop and grounds per-series odoo-bin flags via `cli_help`; this skill stays the
-conductor/adjudicator. Lifecycle + test-invocation conventions:
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` and
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
+cluster (demo=on, `--http-port`) - co-installing surfaces MRO / load-order breaks a single-module
+install hides. Capture `INSTANCE_HANDLE` once and forward it to every dispatch below (precedence:
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`). Provisioning and the test-run lifecycle
+are NOT owned here - `odoo-instance` (the `odoo-instance-ops` agent) owns create/init/run-tests/drop
+and grounds per-series odoo-bin flags via `cli_help`; this skill stays conductor/adjudicator.
+Lifecycle + test-invocation conventions: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md`
+and `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 
 ## Phase 2a - DURABLE channel (parallelizable, no browser)
 
-For High- AND Med-tier modules in `test_set`, dispatch `odoo-test-writing` (mode tour/HttpCase) to
-realize the oracle's user-flow scenarios as durable regression, then have `odoo-instance` run them
-(headless `--test-enable`). This channel uses no browser, parallelizes across ephemeral DBs, and feeds
-CI; it MAY run concurrently with Phase 2b. Delegation boundary (writer != executor, INSTANCE_HANDLE
-precedence, output-volume): `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
+For High- AND Med-tier modules in `test_set`, launch the `odoo-test-writer` agent (mode tour/HttpCase;
+it authors by invoking the `odoo-test-writing` skill inline, in its own context) to realize the
+oracle's user-flow scenarios as durable regression, then have `odoo-instance` run them (headless
+`--test-enable`). This channel uses no browser, parallelizes across ephemeral DBs, feeds CI, and MAY
+run concurrently with Phase 2b. Delegation boundary (writer != executor, INSTANCE_HANDLE precedence,
+output-volume): `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 
 ## Phase 2b - LIVE channel (browser-exclusive, single-flight)
 
@@ -155,13 +153,13 @@ until evidence is obtained.
 
 ## Standalone-first fallback
 
-When Odoo Semantic (the odoo-semantic-mcp server) is unreachable, structural grounding falls back to
-the local checkout (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §4): derive the closure
-from disk (`__manifest__.py depends` + grep for `_inherit`) and label the manifest "closure
-approximate from disk". When NO live instance + browser MCP is reachable, acceptance EXECUTION cannot
-run: still produce Phase 0 scope and the Phase 1 oracle, then emit `NEEDS_NEXT -> odoo-instance` to
-provision one (`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`); fall back to `BLOCKED` only
-when provisioning is impossible. Never report ACCEPTED without the live evidence.
+When Odoo Semantic is unreachable, structural grounding falls back to the local checkout
+(`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` §4): derive the closure from disk
+(`__manifest__.py depends` + grep for `_inherit`) and label the manifest "closure approximate from
+disk". When NO live instance + browser MCP is reachable, EXECUTION cannot run: still produce Phase 0
+scope and the Phase 1 oracle, then emit `NEEDS_NEXT -> odoo-instance` to provision one
+(`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`); fall back to `BLOCKED` only when
+provisioning is impossible. Never report ACCEPTED without live evidence.
 
 ## Continuation Contract
 

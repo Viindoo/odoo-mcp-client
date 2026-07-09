@@ -1,7 +1,9 @@
 <!-- SSOT snippet. Referenced (not copy-pasted) by odoo-coding (orchestrates the loop),
-     odoo-coder / odoo-frontend-coder (implement to green), odoo-test-writing (authors the red
-     test), and odoo-code-review (gates coverage + loops back). Edit here only; consumers point
-     at ${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md. -->
+     odoo-coder (coordinator - launches the test-writer then the coders), odoo-backend-coder /
+     odoo-frontend-coder (implement to green), odoo-test-writer (the context-isolated executor that
+     AUTHORS the red test, by invoking the odoo-test-writing skill inline), and odoo-code-review
+     (gates coverage + loops back). Edit here only; consumers point at
+     ${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md. -->
 
 # Test-First Contract (red before green, behavior not snapshot)
 
@@ -27,13 +29,16 @@ false alarm. This contract makes the test a falsifiable specification of intent.
    *intent* was wrong - and say so explicitly. Banned: relaxing/deleting assertions, changing
    expected values to match actual output, `@skip`/comment-out to get a green pipeline.
 
-## Hybrid authorship (who writes the red test)
+## Authorship (who writes the red test)
 
-- **Non-trivial module** (per the design gate): a **separate** test-author writes the red test
-  first, so the author of the test is not the author of the code - independence keeps the test
-  honest. The code-author then implements to green and must not touch the test.
-- **Trivial module** (single field, boilerplate, one-approach fix): the coder writes the red test
-  itself, then the code - the round-trip of a separate author is not worth it at that size.
+Test authoring is UNIVERSAL and always independent: for EVERY module the RED test is authored by the
+dedicated **`odoo-test-writer` agent** (a context-isolated executor that invokes the
+`odoo-test-writing` skill inline), launched FIRST - so the author of the test is never the author of
+the code. The code-author (`odoo-backend-coder` / `odoo-frontend-coder`) then implements to green and
+must not touch the test. The coders never author tests; the coordinator (`odoo-coder`) launches the
+`odoo-test-writer` per work-item before the coder. (Callers outside the coding loop - odoo-acceptance,
+odoo-qa-suite, odoo-code-review, odoo-forward-port, odoo-git-rebase - likewise launch the
+`odoo-test-writer` agent for context isolation rather than authoring inline.)
 
 ## The loop, bounded
 

@@ -40,8 +40,9 @@ STATUS="$(printf '%s\n' "$NORM" | awk '
   END { print last }' 2>/dev/null || true)"
 
 # Back-compat: a legacy `SUGGESTED_NEXT:` line (no fenced block) is read as an implicit
-# NEEDS_NEXT. Some agents still emit only this (agents/odoo-coder.md etc.) - honour the
-# back-compat promised in snippets/continuation-contract.md so the chain is not silently dropped.
+# NEEDS_NEXT. Some agents still emit only this (agents/odoo-backend-coder.md,
+# agents/odoo-frontend-coder.md etc.) - honour the back-compat promised in
+# snippets/continuation-contract.md so the chain is not silently dropped.
 if [[ -z "$STATUS" ]] && printf '%s\n' "$NORM" | grep -qiE '^[[:space:]]*SUGGESTED_NEXT:'; then
   STATUS="NEEDS_NEXT"
 fi

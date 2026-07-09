@@ -206,6 +206,8 @@ _WIRED_FILES = [
     PLUGIN / "agents" / "odoo-code-reviewer.md",
     PLUGIN / "skills" / "odoo-coding" / "SKILL.md",
     PLUGIN / "agents" / "odoo-coder.md",
+    PLUGIN / "agents" / "odoo-test-writer.md",
+    PLUGIN / "agents" / "odoo-backend-coder.md",
     PLUGIN / "agents" / "odoo-frontend-coder.md",
     PLUGIN / "snippets" / "master-child-design-contract.md",
 ]

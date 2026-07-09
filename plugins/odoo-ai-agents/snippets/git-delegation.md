@@ -35,14 +35,21 @@ These bounded, low-risk reads MAY run inline without routing through git-ops:
 
 Anything beyond this list (full diff content, unbounded log range, blame, large range) -> route through git-ops.
 
-## No worker git - the orchestrator delegates the commit
+## No LEAF-worker git - the orchestrator (or a spawner coordinator) commits via git-ops
 
-A dispatched worker (`odoo-coder`, `odoo-frontend-coder`, or ANY domain subagent) does NOT run
-git - not even git add / git commit / git stash in its own worktree. Workers do not own the
-project's git/commit conventions, so git is never their job. A worker finishing work in a
-`WORKTREE_PATH` WRITES its files there and RETURNS the list of files it touched; it never stages,
-commits, or stashes. The ORCHESTRATOR that owns the worktree then INVOKES `git-toolkit:git-ops` to
-stage + commit the worker's output inside that worktree and obtain the SHA. Every git verb - `add`,
+A dispatched HARD-LEAF worker (`odoo-backend-coder`, `odoo-frontend-coder`, `odoo-test-writer`, or
+ANY leaf domain subagent) does NOT run git - not even git add / git commit / git stash in its own
+worktree. Leaf workers do not own the project's git/commit conventions, so git is never their job. A
+leaf finishing work in a `WORKTREE_PATH` WRITES its files there and RETURNS the list of files it
+touched; it never stages, commits, or stashes.
+
+The actor that COMMITS is the orchestrator OR a SPAWNER coordinator that owns the worktree, by
+INVOKING `git-toolkit:git-ops`. In particular the `odoo-coder` per-module COORDINATOR (a spawner -
+it holds the Agent tool and launches the leaf coders, so it is NOT a leaf) COMMITS its module by
+invoking `git-toolkit:git-ops` via the Skill tool once its integrated test is green, and returns the
+SHA to `odoo-coding` (which collects it, no longer re-committing). The coordinator only REQUESTS the
+commit (files + business outcome); it never runs raw git and never dispatches a git leaf agent
+itself. Every git verb - `add`,
 `commit`, `stash`, `branch`, `checkout`, `switch`, `cherry-pick`, `merge`, `rebase`, `reset`, `tag`,
 `push`, `force-push`, `fetch`, `pull`, `worktree add/remove`, and all GitHub-API ops - is routed
 through git-ops. The ONLY git a worker may run inline is the bounded-read allowlist above.
@@ -72,8 +79,10 @@ git-toolkit's `snippets/git-safety-contract.md`. Violating it is an ERROR, not a
 ## Self-provisioning specialists
 
 These skills create their own worktree/branch internally, so an orchestrator/driver MUST NOT
-provision one for them: `odoo-wave`, `odoo-forward-port`, `odoo-git-rebase`,
-`odoo-modules-upgrade`, and `odoo-code-review` at `TARGET=pr`.
+provision one for them: `odoo-forward-port`, `odoo-git-rebase`,
+`odoo-modules-upgrade`, and `odoo-code-review` at `TARGET=pr`. (The per-wave coding worktrees are
+provisioned by `run-harness`'s own between-wave integration per Block 2W, not by a dispatched
+specialist - see `run-harness` SKILL.md § Between-wave integration.)
 
 ## Invocation contract
 
@@ -99,13 +108,17 @@ Agent-tool-dispatched leaf (see below): the git-ops invocation is inline, and on
 one leaf is ever spawned beneath it. The git leaf agents cannot spawn further, so depth stays
 bounded. (Ref: git-toolkit `git-nesting-protocol` N1.)
 
-A dispatched LEAF worker (any Agent-tool subagent - `odoo-coder`, `odoo-frontend-coder`,
-`odoo-icon-designer`, ANY domain subagent) NEVER invokes git-ops, not even via the Skill tool: it
-has no Agent tool and returns files for the orchestrator to commit (SSOT: `worker-brief.md`). "Safe
-at ANY caller depth" means any SKILL/orchestrator context (main, a workflow phase, `odoo-wave`'s
-per-WI ORCHESTRATION loop - an inline skill call, not the coder it dispatches). Two-line test:
-"Skill/orchestrator running inline -> may invoke git-ops. Agent-spawned leaf -> return files, never
-git."
+A HARD-LEAF worker (`odoo-backend-coder`, `odoo-frontend-coder`, `odoo-test-writer`,
+`odoo-icon-designer`, ANY leaf domain subagent) NEVER invokes git-ops, not even via the Skill tool:
+it has NO Agent tool and returns files for its orchestrator/coordinator to commit (SSOT:
+`worker-brief.md`). A SPAWNER coordinator that HOLDS the Agent tool - notably the `odoo-coder`
+per-module coordinator, and any SKILL/orchestrator context (main, a workflow phase, `run-harness`'s
+between-wave integration loop) - MAY invoke git-ops via the Skill tool INLINE (+0 subagent depth);
+git-ops then cold-spawns exactly ONE git leaf below it, and that leaf cannot spawn further, so depth
+stays bounded. The discriminator is the Agent tool, not "was I Agent-spawned": `odoo-coder` is
+Agent-spawned yet is itself a spawner, so it commits. Two-line test: "Holds the Agent tool
+(orchestrator / spawner coordinator incl. `odoo-coder`) -> may invoke git-ops inline. Hard leaf (no
+Agent tool) -> return files, never git."
 
 ## Human-confirm pass-through
 

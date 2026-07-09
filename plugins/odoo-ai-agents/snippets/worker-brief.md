@@ -5,9 +5,19 @@
 
 # Worker Brief (OSM grounding + worktree isolation)
 
-A subagent dispatched into an isolated worktree carries this brief. It keeps two rails:
+A HARD-LEAF subagent dispatched into an isolated worktree carries this brief - the coding workers
+`odoo-backend-coder` and `odoo-frontend-coder`, plus the other leaf specialists. It keeps two rails:
 the work is done directly by the specialist, and ALL git stays out of the worker's hands -
-the worker writes files and returns them; the orchestrator commits via git-ops (see below).
+the worker writes files and returns them; the orchestrator commits via git-ops (see below). A hard
+leaf launches NO sub-agent and invokes NO spawner skill.
+
+**The `odoo-coder` per-module coordinator is NOT a leaf and does NOT carry this brief.** It is a
+sanctioned nested spawner (one agent level below `odoo-coding`, launched for EVERY module) that
+launches the two hard-leaf workers above, tests the integrated module via `Skill(odoo-instance)`
+inline, and - once the integrated test is green - COMMITS its module by invoking `git-toolkit:git-ops`
+via the Skill tool (it holds the Agent tool, so it is a spawner, not a leaf - the Nesting rule lets a
+spawner invoke git-ops inline), then returns the SHA to `odoo-coding` (which collects it and no longer
+re-commits). See `${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
 
 - **You ARE the specialist - do the work directly.** Write or review the Python, XML, JS,
   OWL, or SCSS yourself, grounding every Odoo claim with the OSM MCP tools
@@ -25,6 +35,18 @@ the worker writes files and returns them; the orchestrator commits via git-ops (
   `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Stay in your assigned worktree. This is the
   leaf half of the Nesting rule in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` - a leaf never
   invokes git-ops even via the Skill tool.
+- **Carve-out - self-provisioning an Odoo instance is permitted for the instance-touching leaves.**
+  Unlike git-ops, `odoo-backend-coder` (for its bounded `/test_lint` gate) and the other
+  instance-touching leaves MAY invoke `Skill(odoo-instance)` to self-provision a live Odoo instance
+  when handed NO `INSTANCE_HANDLE`. This is allowed because `odoo-instance` runs INLINE in the leaf's
+  own context (its inline leaf-mode does NOT spawn a subagent, so it adds no nesting depth) and it
+  carries the instance HARD RULES (`en_US` union, Viindoo `to_base`, lint-module install, per-version
+  `cli_help` grounding) - which a bare `scripts/lib/allocator.py` call would bypass. A provided
+  `INSTANCE_HANDLE` always wins: consume it, never re-provision.
+  `odoo-frontend-coder` is INSTANCE-FREE - it never self-provisions; its only gate is the static
+  `verify-frontend.sh`, and any live check is owned by the `odoo-coder` coordinator's integrated
+  test or a delegated `odoo-instance` run. Contract:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
 
 ## Agent Team mode keys (present only when team mode is on)
 
@@ -34,10 +56,11 @@ Contract):
 
 ```
 TASK_ID: <id>          # the task-board id for your work-item; TaskUpdate it in_progress -> completed|blocked.
-REPLY_TO: main         # who to SendMessage your completion report to (the team lead).
+REPLY_TO: <lead>       # who to SendMessage your completion report to. For a coding worker (odoo-backend-coder/odoo-frontend-coder) this is ALWAYS the `odoo-coder` coordinator that launched you - never `main`, since every module now routes through the coordinator. Other leaf specialists report to whichever orchestrator dispatched them (often `main`).
 NOTIFY: <names>        # peer teammate names that depend on your output; SendMessage each too. `none` if no dependents.
 ```
 
 End your turn with a `SendMessage` completion report to `REPLY_TO` (and each `NOTIFY` peer) per
 `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` - never end on a bare tool call or
-plain-text-only output.
+plain-text-only output. This coordinator<->worker completion report works WITHOUT any experimental
+agent-teams flag; when `SendMessage` is absent, return the report as your final message instead.
