@@ -1,0 +1,236 @@
+{
+  "skill_name": "odoo-modules-upgrade",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "upgrade my sale_custom + sale_discount cluster from Odoo 16 to 17 and make them installable and working on 17",
+      "expected_decision": "trigger-upgrade",
+      "expected_note": "none",
+      "expected_output": "Named 2-module cluster, explicit 16->17 major bump, installable+working goal.",
+      "category": "trigger",
+      "assertions": [
+        {
+          "text": "decision == trigger-upgrade"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "migrate our custom modules up to v18 - I think core now absorbs a couple of them, handle the deletions too",
+      "expected_decision": "trigger-upgrade",
+      "expected_note": "none",
+      "expected_output": "Cluster major upgrade to v18 incl. core-absorption deletions - core P2 handling.",
+      "category": "trigger-absorption",
+      "assertions": [
+        {
+          "text": "decision == trigger-upgrade"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "nâng cấp cluster module custom của chúng tôi lên Odoo 17, làm cho chạy được",
+      "expected_decision": "trigger-upgrade",
+      "expected_note": "none",
+      "expected_output": "Vietnamese cluster major upgrade to Odoo 17; language-agnostic trigger.",
+      "category": "trigger-vi",
+      "assertions": [
+        {
+          "text": "decision == trigger-upgrade"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "bring these 5 addons up to the next major series and land it as one reviewed PR",
+      "expected_decision": "trigger-upgrade",
+      "expected_note": "none",
+      "expected_output": "5-addon cluster, next major, one reviewed PR - matches the ONE-PR dep-order pipeline.",
+      "category": "trigger-cluster",
+      "assertions": [
+        {
+          "text": "decision == trigger-upgrade"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "this module is stuck on 16 - make it installable and working on Odoo 18",
+      "expected_decision": "trigger-upgrade",
+      "expected_note": "none",
+      "expected_output": "Single module (cluster of one), 16->18 major bump, installable+working.",
+      "category": "trigger-single",
+      "assertions": [
+        {
+          "text": "decision == trigger-upgrade"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "forward-port just this one commit from 16.0 to 17.0",
+      "expected_decision": "defer:odoo-forward-port",
+      "expected_note": "none",
+      "expected_output": "Transport ONE commit across majors -> odoo-forward-port, not a whole-cluster upgrade.",
+      "category": "defer-forward-port",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-forward-port"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "rebase my 17.0-feature branch onto the updated origin/17.0",
+      "expected_decision": "defer:odoo-git-rebase",
+      "expected_note": "none",
+      "expected_output": "Rebase onto updated origin/17.0 = SAME series, no major bump -> odoo-git-rebase.",
+      "category": "defer-git-rebase",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-git-rebase"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "give me a risk and deprecation plan for upgrading to v18 - don't touch the code yet, I just need scope",
+      "expected_decision": "defer:/odoo-plan-upgrade",
+      "expected_note": "none",
+      "expected_output": "Risk/deprecation PLAN only, no code touched -> /odoo-plan-upgrade (upgrade EXECUTES).",
+      "category": "defer-plan-upgrade",
+      "assertions": [
+        {
+          "text": "decision == defer:/odoo-plan-upgrade"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "scan my modules for deprecated API usage before we think about upgrading",
+      "expected_decision": "defer:odoo-deprecation-audit",
+      "expected_note": "none",
+      "expected_output": "Deprecated-symbol scan only, detection -> odoo-deprecation-audit.",
+      "category": "defer-deprecation-audit",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-deprecation-audit"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "what changed in the account module API between v16 and v17?",
+      "expected_decision": "defer:odoo-version-diff",
+      "expected_note": "none",
+      "expected_output": "API delta between two versions only -> odoo-version-diff.",
+      "category": "defer-version-diff",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-version-diff"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "write a fresh Odoo 18 module for gift-card management from scratch",
+      "expected_decision": "defer:odoo-coding",
+      "expected_note": "none",
+      "expected_output": "Fresh module from scratch - nothing to carry across a major -> odoo-coding.",
+      "category": "defer-coding",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-coding"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "our loyalty module needs to run on v17 AND it has real production customer data to preserve - handle the upgrade",
+      "expected_decision": "trigger-upgrade",
+      "expected_note": "data-carveout",
+      "expected_output": "Code-level upgrade fires, but real production data to preserve -> data-bearing part routes to odoo-data-migration (never inline).",
+      "category": "trigger-data-carveout",
+      "assertions": [
+        {
+          "text": "decision == trigger-upgrade"
+        },
+        {
+          "text": "note == data-carveout"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "we already ran /odoo-plan-upgrade and have the report at .odoo-ai/upgrade/plan.md - now actually execute the upgrade to v18 using it",
+      "expected_decision": "trigger-upgrade",
+      "expected_note": "takes-plan-input",
+      "expected_output": "Executes the v18 upgrade, consuming an existing /odoo-plan-upgrade report as optional --plan input.",
+      "category": "trigger-takes-plan",
+      "assertions": [
+        {
+          "text": "decision == trigger-upgrade"
+        },
+        {
+          "text": "note == takes-plan-input"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "chỉ cần audit các symbol deprecated thôi, chưa cần nâng cấp gì cả",
+      "expected_decision": "defer:odoo-deprecation-audit",
+      "expected_note": "none",
+      "expected_output": "Vietnamese deprecated-symbol audit only, no upgrade -> odoo-deprecation-audit.",
+      "category": "defer-deprecation-audit-vi",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-deprecation-audit"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 15,
+      "prompt": "we renamed partner_ref to customer_ref and need to backfill the existing rows in the database - write the migration",
+      "expected_decision": "defer:odoo-data-migration",
+      "expected_note": "none",
+      "expected_output": "Field rename + row backfill = real DATA transform, not a code-level module upgrade -> odoo-data-migration.",
+      "category": "defer-data-migration",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-data-migration"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 16,
+      "prompt": "take our whole 15.0 addons repo and get it running on 17.0 - installable, tests passing, one PR",
+      "expected_decision": "trigger-upgrade",
+      "expected_note": "none",
+      "expected_output": "Whole-repo cluster major upgrade 15.0->17.0, installable + tests green + one PR - full-delegation scope.",
+      "category": "trigger-repo",
+      "assertions": [
+        {
+          "text": "decision == trigger-upgrade"
+        }
+      ],
+      "files": []
+    }
+  ],
+  "notes": "16 upgrade-decision cases. Eval method: a subagent applies SKILL.md (esp. the Out-of-Scope discriminator table) to each prompt and returns {fires, decision, note}, graded vs expected. Covers trigger-vs-defer across all six neighbors (forward-port = one commit; git-rebase = same series; /odoo-plan-upgrade = plan-only; deprecation-audit / version-diff = detection-only; odoo-coding = fresh code; odoo-data-migration = real data transform) plus two special notes: data-carveout (code upgrade fires but data-bearing work routes to odoo-data-migration, never inline) and takes-plan-input (consumes a prior /odoo-plan-upgrade report). Baseline (pre-optimize snapshot) scored 16/16; shipped as a decision-regression guard (the skill had none). No SKILL.md change: the discriminator table was already complete and the description is at 997/1024, so no edit was warranted. The eval does NOT execute a real upgrade or grade adapted code."
+}
