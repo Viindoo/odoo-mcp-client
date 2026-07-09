@@ -2,18 +2,18 @@
 name: odoo-coding
 argument-hint: "[what to build or change]"
 description: >
-  Write complete, production-ready Odoo code end-to-end - Python/XML backend AND
-  JavaScript/OWL/QWeb/SCSS frontend - from one computed field to a multi-module full-stack
-  feature. The single front door for ALL Odoo coding and the ONLY dispatcher of the
-  odoo-coder coordinator (one per module): it scopes the touched modules and orders them by
-  dependency. Fire ANY time someone asks to build or
-  change Odoo behavior, even with no technical words (e.g. "discount can never exceed 20% of
-  unit price", "add a field and show it in a widget"). Covers new model/field,
-  computed/related/constraint/onchange, create/write/unlink override, access rights, migrations,
-  OWL/JS widgets, SCSS/theme. Also Vietnamese: "thêm trường / model", "override create/write",
-  "phân quyền đọc ghi", "widget OWL / sửa form". DO NOT trigger for non-Odoo code. Review →
+  Use when someone wants to build or change Odoo behavior and needs the code written - the
+  single front door for ALL Odoo coding and the ONLY dispatcher of the per-module odoo-coder
+  coordinator, scoping modules and ordering by dependency. Fire on ANY request to add or change
+  something in an Odoo module, even with no technical words (e.g. "discount can never exceed 20%
+  of unit price", "ticking urgent sets the deadline to tomorrow"): new model/field,
+  computed/related field, constraint, onchange/auto-fill, create/write/unlink override, access
+  rights, migration script, OWL/JS/QWeb/SCSS widget or form/list/kanban UI. Also Vietnamese:
+  "thêm trường / model", "override create/write", "ràng buộc", "onchange tự điền", "phân quyền
+  đọc ghi", "widget OWL / sửa form". DO NOT trigger for non-Odoo code. Review existing code →
   odoo-code-review. Hook point → odoo-override-finding. Design first → odoo-solution-design.
-  Rendered screen → odoo-ui-review / odoo-debug
+  Runtime/render bug → odoo-debug. Rate a screen → odoo-ui-review. Planning/estimate →
+  odoo-planning
 ---
 
 ## Role

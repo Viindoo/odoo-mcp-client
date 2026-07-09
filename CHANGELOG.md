@@ -6,6 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `odoo-ai-agents` - `odoo-coding` skill description optimized for triggering, measured against a
+  27-case trigger eval (14 should-fire / 13 should-not, EN + VI, with adjacent-skill near-misses).
+  The description now leads with the trigger condition ("Use when someone wants to build or change
+  Odoo behavior and needs the code written") instead of an output boast, and hardens the DO-NOT
+  routing with the two missing adjacent routes (`Planning/estimate -> odoo-planning`,
+  `Hook point -> odoo-override-finding`) while preserving the sole-front-door / per-module
+  `odoo-coder` dispatcher framing, the pushy "fire on ANY request even with no technical words"
+  language, the full coverage list, and the Vietnamese triggers (1009 chars, under the 1024 cap).
+  The checked-in trigger eval set grows 21 -> 27 cases and records the harness-isolation caveat
+  (`--setting-sources project,local` to beat the installed plugin; precision is the high-confidence
+  signal, recall is bare-env-depressed for a front-door orchestration skill).
+
 ## [4.9.0] - 2026-07-08
 
 ### Added
