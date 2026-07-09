@@ -33,7 +33,7 @@ negative on condition 3 alone -> use Tier C for that one worker only.
 
 ## Tier A - SendMessage-resume (preferred when the probe is positive)
 
-Spawn each worker ONCE with a stable `name` (e.g. `coder-<module-slug>`, `wi-<slug>-<id>-coder`).
+Spawn each worker ONCE with a stable `name` (e.g. `coder-<module-slug>`, `wi-<module>-<n>-coder`).
 As the LEAD, capture the returned `agentId` and store it in the skill's plan artifact
 (plan.md / plan.json) keyed by work-item, so the plan becomes the agentId registry. On the next
 iteration, resume that same worker by sending it the new instructions:
@@ -102,6 +102,19 @@ the lead supplies that address explicitly in the brief.
 roster. It does NOT stop a non-lead agent from cold-spawning its own subagents via the Agent tool. So
 a non-lead orchestrator can still dispatch fresh workers (Tier C) - it simply cannot grow the team
 roster for Tier-A resume, which is why probe condition 4 routes non-lead orchestrators to Tier C.
+
+## Sanctioned nested spawner - the `odoo-coder` per-module coordinator
+
+`odoo-coder` (the per-module COORDINATOR launched by `odoo-coding` for EVERY module) is the
+sanctioned nested spawner: although it is itself a subagent of `odoo-coding`, it LAUNCHES and coordinates its own two
+hard-leaf workers (`odoo-backend-coder`, `odoo-frontend-coder`). This is legal exactly because of the
+rule above - a non-lead may cold-spawn its own subagents. The lead<->worker CONTROL channel is
+DIRECT (launcher to the child it just launched), NOT a team-roster resume, so `SendMessage` on that
+channel works WITHOUT the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` flag and without the four-condition
+probe: the lead may `SendMessage` a worker it launched, and when `SendMessage` is unavailable it
+re-launches the worker fresh (Tier C, always correct). The flag-gated Tier-A roster-resume
+optimization above applies to the MAIN team lead only; the nested lead never needs it. The nested
+lead must not launch anything deeper than its two hard leaves (depth cap).
 
 ## Confidentiality guard
 

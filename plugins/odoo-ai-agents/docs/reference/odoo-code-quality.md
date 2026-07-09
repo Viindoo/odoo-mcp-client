@@ -1,12 +1,12 @@
 # Odoo code-quality gate - local reproduction (multi-version aware)
 
 > **What this is.** A local, pre-push gate for the Odoo CI code-quality checks, so the
-> `odoo-coding` / `odoo-code-review` / `odoo-qa-suite` / `odoo-deploy-checklist` / `odoo-wave` personas
+> `odoo-coding` / `odoo-code-review` / `odoo-qa-suite` / `odoo-deploy-checklist` / `run-harness` wave-integration personas
 > catch lint failures **before** push - not in CI. Not a CI replacement; a fast inner-loop mirror.
 >
-> Consumed by: `agents/odoo-coder.md`, `agents/odoo-code-reviewer.md`,
-> `skills/odoo-deploy-checklist`, and the test-run SSOT `ODOO-TESTING.md`. Brand-fidelity is a
-> sibling check (Section 4).
+> Consumed by: `agents/odoo-backend-coder.md`, `agents/odoo-frontend-coder.md`,
+> `agents/odoo-code-reviewer.md`, `skills/odoo-deploy-checklist`, and the test-run SSOT
+> `ODOO-TESTING.md`. Brand-fidelity is a sibling check (Section 4).
 
 ## Backend lint - Odoo's lint test module (SSOT: ODOO-TESTING.md)
 

@@ -125,6 +125,14 @@ worker NEVER self-addresses or guesses its own id; the lead is the address autho
 every reply-to (`REPLY_TO: main`) and peer name (`NOTIFY: ...`) explicitly in the brief. Full rule:
 `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "Lead is the address authority".
 
+**Nested coordinator exception (`odoo-coder`).** A worker launched by the `odoo-coder` per-module
+coordinator (every module) pushes its completion report to that COORDINATOR (its `REPLY_TO`), not
+to `main` - the coordinator then rolls the module result up to `odoo-coding`. This direct
+launcher<->child report channel works WITHOUT the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` flag (it
+is not a team-roster feature); when `SendMessage` is absent the worker returns its report as its
+final message and the coordinator reads it from the returned transcript. See
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "Sanctioned nested spawner".
+
 ## Fallback - team mode off
 
 When the capability probe is negative (any of: env unset, `SendMessage` absent, not addressable,

@@ -6,6 +6,208 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.9.0] - 2026-07-08
+
+### Added
+
+- `odoo-ai-agents` - `odoo-deep-survey` gains a conditional, BOUNDED web-research phase and a
+  zero-trust code-survey stance. Web research (Phase W) fires only when a decomposed sub-question has
+  an external dimension (a third-party library/API, a standard, an ecosystem/version-landscape
+  question) and is capped (at most a few haiku WebSearch fork workers + top reputable WebFetch each,
+  one broad-then-targeted pass) - no loop, no adversarial N-vote harness, no dependency on the heavy
+  built-in `deep-research` skill. Sources rank on an Odoo authority ladder (official source/docs/OSM/
+  OCA > reputable blogs/library docs > low-trust forums) and every web claim is subordinate to
+  OSM/source. A new `zero-trust-code-survey.md` snippet (scoped to deep-survey) makes descriptions
+  (docstrings, comments, READMEs, prior reports, and OSM descriptive fields) CLAIMS to verify against
+  the resolved source, never trusted as behavior - without inverting OSM-first (trust OSM structure,
+  verify behavior). `web_findings` added to the survey synthesis schema.
+- `odoo-ai-agents` - dedicated `odoo-test-writer` agent now OWNS all automation-test authoring
+  (invoking the `odoo-test-writing` skill as its SSOT capability, INLINE, in its own context as a
+  HARD LEAF). Every test-needing component LAUNCHES it for context isolation instead of invoking the
+  skill inline or using a bespoke coder test-author mode: in the coding path the `odoo-coder`
+  coordinator gains it as a THIRD teammate (`odoo-test-writer` + `odoo-backend-coder` +
+  `odoo-frontend-coder`, test-first - the RED test authored FIRST, then the coders make it green;
+  the coders no longer author tests), and `odoo-acceptance` (durable tour/HttpCase), `odoo-qa-suite`
+  (runnable tests), `odoo-code-review` (coverage gate), `odoo-forward-port` / `odoo-git-rebase`
+  (adapt-mode translation) launch it too. Tours are now reachable as a coding RED test (a full-stack
+  work-item's failing test may be a tour/HttpCase); performance/load test authoring gains an explicit
+  owner (`odoo-test-writing`, lightweight mode); and the false "`odoo-coding` does not route to
+  `odoo-test-writing`" claim is fixed. Agent count 25 -> 26.
+- `odoo-ai-agents` - module-primary decomposition (two-tier axis, SSOT reconciliation). The
+  decomposition model is now MODULE-primary at every OUTER layer: `odoo-planning` / `odoo-planner` /
+  plan-mode-schema / Phase P / `run-harness` plan, serialize, and iterate MODULES (the
+  plan's Block 1 is a MODULE list; a coding RUN-DAG node is a wave of MODULES with
+  `approach_kind: wave`; `run-harness` iterates the wave's modules and invokes `odoo-coding` per
+  module - there is no separate `odoo-wave` git-executor skill). The
+  WORK-ITEM is now an INTERNAL intra-module parallelization unit OWNED by `odoo-coder`: for its ONE
+  module the coordinator splits the changes into 1..N disjoint-file-set WIs, runs INDEPENDENT WIs in
+  PARALLEL and DEPENDENT WIs SEQUENTIALLY (backend before a frontend WI that binds it), and assigns
+  each WI to `odoo-backend-coder` / `odoo-frontend-coder`. `skills/_shared/odoo-module-graph.md` now
+  states this two-tier axis as SSOT. This closes the three latent WI-vs-module seams the prior
+  investigation found: same-module split (impossible - outer unit is the module, one owner per
+  module + worktree + integrated test + ledger entry), cross-wave WI cycle (impossible - a WI lives
+  within one module), and the undefined RUN-DAG coding-node model (resolved - modules grouped into a
+  RUN-DAG node with `approach_kind: wave`, preserving the Block 2 `Wave N` grouping run-harness
+  already assumes).
+- `odoo-ai-agents` - coder coordinator restructure (per-module coordinator). `odoo-coder` is
+  the per-module COORDINATOR that `odoo-coding` launches for EVERY module (backend-only, frontend-only,
+  or full-stack): it owns the module's internal WI breakdown, launches the new `agents/odoo-backend-coder`
+  (backend hard-leaf writer, a verbatim split-out of the old backend coder incl. its `/test_lint`
+  gate + dependency pre-flight) and `odoo-frontend-coder` (now instance-free: static
+  `verify-frontend.sh` gate only) per WI (backend before frontend), owns the INTEGRATED whole-module
+  instance test via `Skill(odoo-instance)` INLINE, and drives a bounded 3-iteration fix loop - then
+  COMMITS the module itself by invoking `git-toolkit:git-ops` (Skill tool) and returns the SHA to
+  the `odoo-coding` SKILL, which collects it and passes it up (`odoo-coding` no longer re-commits).
+  The coordinator may launch MULTIPLE workers in parallel (one per independent WI - siblings at the
+  same depth). Nested subagent dispatch (main -> odoo-coding -> odoo-coder coordinator ->
+  backend/frontend worker) stays within the platform depth cap of 5, and coordinator<->worker
+  `SendMessage` works without any experimental agent-teams
+  flag. New setup version gate: Claude Code >= 2.1.172 (probed by `05-prereq-check.sh`; no
+  experimental flag is set).
+- `odoo-ai-agents` - front-door planning gate (SSOT). New `snippets/planning-gate-contract.md` makes
+  the FRONT DOORS - `odoo-intake`, `odoo-brl`, and the `odoo-implement-feature` workflow - the single
+  admission gate: each establishes an approved plan (routing non-trivial work through `odoo-planning`)
+  BEFORE it dispatches any executor. Executors (`odoo-coding`, the `odoo-coder`/`odoo-frontend-coder`
+  agents) are trusted pipeline stages: they consume plan inputs when handed them and
+  never self-block for "no plan", which keeps them directly composable (e.g. review/debug autonomous
+  fix loops, hotfixes). The snippet also owns the single gated migration carve-out (a front-door
+  routing decision made by `odoo-solution-design`), the Plan-Mode enter/exit + `plan_mode_active`
+  mechanics, and the drift-adherence rule (an executor handed a plan stops and re-plans if reality
+  diverges). New guards: `tests/test_planning_ssot.py`, `tests/test_mandatory_plan_gate.py` (asserts
+  front-door enforcement + executor silence), `tests/test_migration_carveout.py`,
+  `tests/test_excision_no_duplication.py`.
+- `odoo-ai-agents` - the `odoo-planning` plan artifact now carries a REQUIRED, human-legible ASCII
+  module-dependency graph (`plan-mode-schema.md` Block 2): nodes marked `(NEW)`/`(existing)`, tagged
+  with the execute-skill that builds each, grouped by wave, with `depends` direction rendered - so a
+  human reviewing in Plan Mode sees build order + per-node skill at a glance. Data-derived from the
+  design `dag_layers` / topological order, never hand-drawn. Guard: `tests/test_plan_mode_dep_graph.py`.
+- `odoo-ai-agents` - cross-run / worktree module-coordination ledger. New
+  `snippets/module-coordination-ledger.md` defines a shared, `git --git-common-dir`-rooted ledger
+  (atomic `mkdir` claim, per-module status + heartbeat) so parallel runs and worktrees can tell an
+  in-progress dependency from a genuinely-missing one; `odoo-coding` is the sole writer, the leaf
+  coder stays ledger-unaware. Guards: `tests/test_dependency_preflight.py`,
+  `tests/test_module_coordination_ledger.py`.
+- `odoo-ai-agents` - `odoo-doc-illustration` now stages screenshots under a run/module-scoped path
+  (`.odoo-ai/visual/<run_id>/<module>_staging/...`) with a skill-owned end-of-run cleanup, ending the
+  cross-module screenshot clobber (GitHub #157). New `tests/test_doc_staging_scope.py`.
+- `odoo-ai-agents` - `snippets/rst-validity-contract.md` plus a MANDATORY docutils self-verify render
+  gate in `odoo-user-doc-writer` (renders each `doc/*.rst`, blocks on any docutils `system_message`),
+  ending the invalid-RST output (GitHub #158). New `tests/test_rst_validity_contract.py`.
+- `odoo-ai-agents` - opt-in browser-MCP wiring, with install separated from run. A new `odoo-setup`
+  step wires the five opt-in browser families (playwright, pagecast, and the headed variants) into
+  Claude at user scope on demand, with a documented `disabledMcpjsonServers` opt-out;
+  `scripts/lib/browser-mcp-servers.sh` holds the pinned npx SSOT. New `tests/test_setup_wiring.py`.
+- `odoo-ai-agents` - browser MCP packages are pre-installed on disk (not run). `odoo-setup`'s
+  `20-browser-deps` step now caches all three pinned MCP packages plus the Playwright Chromium binary
+  via `npm install --no-save --ignore-scripts` (disk cost only), so a later opt-in spawn has no
+  download latency and zero idle RAM - install (disk, once) is kept strictly separate from
+  register/run (RAM, only while a session using the server is open). Extended
+  `tests/test_browser_deps_setup.py`.
+- `odoo-ai-agents` - active build-monitoring so agents never idle-stall on a long build. The
+  `odoo-instance-ops` agent gains an "Active-wait on long builds" HARD RULE (cross-referenced from
+  create/init/update/run-tests): launch the `55-instance-ops.sh` build in the BACKGROUND, then poll
+  `LOG_PATH` in a bounded loop with an allocator heartbeat until a TERMINAL marker appears - success
+  (`Modules loaded.` / `Registry loaded` / exit 0 / `Initiating shutdown`) or failure (`Traceback`,
+  ` CRITICAL `, ` ERROR `, `Failed to load registry`, `psycopg2.`, `ParseError`) - with the process
+  exit code authoritative; on timeout it reports BLOCKED with the log preserved instead of hanging.
+  A new deterministic `55-instance-ops.sh wait-log` verb (+ `_scan_build_markers` helper) makes the
+  marker check reliable and testable; the running-server readiness probe stays on the HTTP-200 check
+  in `50-instance-spinup.sh`. The `odoo-instance` skill relays the short form. New
+  `tests/test_instance_ops_hardening.py`; extended `tests/test_instance_ops_script.py`.
+- `odoo-ai-agents` - subagents can self-provision an Odoo instance UNDER the HARD RULES. The
+  `odoo-instance` skill gains an INLINE LEAF-MODE: a dispatched leaf/subagent that lacks an
+  `INSTANCE_HANDLE` now self-provisions by invoking `Skill(odoo-instance)` inline-mode - which runs
+  the ops steps (allocator ephemeral lease + `en_US` union + Viindoo `to_base` + lint-module install
+  + per-version `cli_help` grounding) INLINE in the caller's own context (no subagent spawned, zero
+  added depth) - instead of a bare `scripts/lib/allocator.py` call that BYPASSED those HARD RULES.
+  The skill stays the single owner of instance fan-out with two modes (dispatch mode for
+  orchestrators; inline leaf-mode for leaves); HARD RULES stay single-sourced in the agent
+  (cross-referenced, not duplicated). Consumers updated: `odoo-qa-tester`, `odoo-coding`,
+  `snippets/instance-handle-contract.md`, `snippets/worker-brief.md` (leaf carve-out). A provided
+  handle always wins. Retargeted `skills/odoo-instance/evals/evals.json`.
+- `odoo-ai-agents` - closed a gap in the entry above: the `odoo-coder` / `odoo-frontend-coder`
+  CODER agents were missed by the inline-leaf-mode sweep. Their own no-handle self-provisioning
+  fallback (the backend lint gate's isolated instance; the frontend quick-smoke server) still
+  called `scripts/lib/allocator.py acquire` directly, BYPASSING the same HARD RULES their own
+  lint/smoke gate depends on - crucially the lint-module install union `/test_lint`+`/test_pylint`
+  need to be INSTALLED, not merely tagged. Both agents' "Running odoo-bin" sections now
+  self-provision via `Skill(odoo-instance)` inline-mode instead of the raw allocator call; the
+  `odoo-coder` path derives its lint-gate verdict directly from the skill's returned
+  `instance-ops` block. `snippets/instance-resolution.md` § Allocate now states up front that it
+  is the low-level mechanism the skill uses INTERNALLY, not a recipe agents call directly.
+  Extended `tests/test_instance_ops_hardening.py`.
+- `odoo-ai-agents` - per-module acceptance criteria and test scenarios are now cleanly owned at
+  DESIGN time, and `odoo-planner` no longer overclaims the independent QA oracle as a planning-time
+  input. `odoo-solution-architect` §9 Acceptance Criteria is now MANDATORY one module-level AC block
+  PER AFFECTED MODULE (one block per §1 per-module table row), with a new §9 INDEPENDENCE GUARD:
+  `expected` values MUST be requirement-derived (hand-computed), NEVER phrased from OSM/code
+  findings - mirroring the `odoo-qa-planner` code-read ban. §7 Test strategy's scenario table is now
+  PARTITIONED PER MODULE even in single-mode multi-module TDDs (master-child already got this via
+  per-module child TDDs). `odoo-planner` / `odoo-planning` now mark `QA_ORACLE` OPTIONAL and usually
+  ABSENT at planning time (the oracle is authored later, at `odoo-acceptance` Phase 1, after coding)
+  - at planning the plan only RESERVES the acceptance stage against the design's §9 Acceptance
+  Criteria and wires the real oracle in when/if one already exists.
+  `snippets/acceptance-oracle-contract.md` and `odoo-qa-planner` now cross-reference the §9
+  INDEPENDENCE GUARD to make explicit that consuming `DESIGN_DOC` §9 does not violate oracle
+  independence (the ban is on reading the implementation, not the requirement-derived design doc).
+- `odoo-ai-agents` - the `odoo-wave` git-executor skill is REMOVED (completing decision R). Its
+  per-wave integration (fork-from-prior-integration per Block 2W, cherry-pick in module-DAG order,
+  cross-cutting integrated review, cumulative regression close-gate, one squashed PR at the
+  L2-squash-gate, and the saga rollback/resume) is now owned DIRECTLY by `run-harness` as its
+  § Between-wave integration - there is no separate git-executor skill. A coding wave is a RUN-DAG
+  node with `approach_kind: wave` that `run-harness` drives (it iterates the wave's modules, invokes
+  `odoo-coding` per module - whose `odoo-coder` coordinator commits via `git-toolkit:git-ops` and
+  returns the SHA - then cherry-picks + reviews + closes the wave). The `spawner-wave` spawn_class is
+  removed from the generator SSOT (`skill_tool_deps.json` `_doc`, `check_orchestration.py`
+  `VALID_SPAWN_CLASS` + `_derive_gate_tier`, `gen_surface.py` legend); the between-wave advance is L1
+  (autonomous drive-to-done) while the squash/PR is the in-context L2-squash-gate and the downstream
+  merge stays `odoo-pr-monitoring`'s L2 - all expressed as a run-harness NODE tier, not a registry
+  field. The `wave-templates.md` knowledge (four topologies, saga/conflict-resolver pseudocode,
+  cleanup checklist, execution-log + squash recipe) moved to
+  `skills/run-harness/references/wave-integration.md`. Skill count 53 -> 52; the `test_wave_*` guards
+  were retargeted/renamed to `test_run_harness_wave_*` (behavior preserved: between-wave advance L1,
+  squash/merge human-gated, principal-branch-lock, cumulative close-gate anchor, per-module inline
+  review). User routing is unchanged - a parallel/multi-module request still goes to `odoo-planning`.
+
+### Changed
+
+- `odoo-ai-agents` - `55-instance-ops.sh` init/update now default to `--log-level=warn` (quieter than
+  Odoo's stock `info`), placed BEFORE `--extra` so a caller-supplied `--log-level` in `--extra` still
+  overrides it; a caller ESCALATES to `info`/`debug` for deep debugging. The `test` verb keeps its
+  `--log-level=test` default (the PASS/FAIL parser depends on it). Documented in the `odoo-instance`
+  skill + `odoo-instance-ops` agent; extended `tests/test_instance_ops_script.py`.
+
+- `odoo-ai-agents` - planning is now consolidated in `odoo-planning` as the single owner: the plan
+  schema is re-owned in place, and the duplicated plan-mode / trivial-vs-full / plan-schema prose
+  previously scattered across `odoo-intake`, its references, `odoo-planner`, `odoo-solution-design`,
+  and `workflow-harness.md` is excised down to one-line pointers (each fact stated once). Planning is
+  mandatory for all work - there is no trivial/inline bypass; the sole exception is the gated
+  single-module migration carve-out. `odoo-implement-feature.workflow.yaml`'s trivial branch now
+  routes `next: odoo-planning`.
+- `odoo-ai-agents` - the specialist pipelines `odoo-forward-port`, `odoo-git-rebase`, and
+  `odoo-modules-upgrade` now reuse the shared Plan-Mode gate (`snippets/planning-gate-contract.md`
+  § Plan-Mode enter/exit) for their human-approval step instead of bespoke `EnterPlanMode`/
+  `ExitPlanMode` prose; `odoo-intake` still routes to them by intent and does not double-gate. Their
+  specialized plan content stays authored in-skill (a git-history / cluster-upgrade plan is not a
+  module-build DAG, so it is NOT routed through `odoo-planning`), and the upgrade per-DELETE
+  confirmation gate is preserved. The contract also states the `odoo-solution-design` ->
+  `odoo-planning` ordering explicitly (planning is a downstream consumer of an approved design;
+  trivial work skips design but still flows through planning). Guard: `tests/test_planning_ssot.py`.
+- `odoo-ai-agents` - the build path is dependency-aware and crash-safe. `skills/_shared/odoo-module-graph.md`
+  gains a NEW-module case (a module resolving to neither OSM nor disk sources its `depends` from the
+  design `dag_layers`), and the `odoo-coder` agent runs a manifest-`depends` resolvability pre-flight
+  before `odoo-bin -i/-u`, returning a clean `BLOCKED` instead of crashing on an unresolved dependency;
+  the `odoo-coding` dispatch loop classifies in-progress-sibling vs genuinely-missing (consulting the
+  ledger). Standalone self-derivation stays a normal path (no planning self-block; the gate is at the
+  front door).
+- `odoo-ai-agents` - `.mcp.json` now eager-starts a single pinned browser server
+  (`chrome-devtools`, headless) instead of six `@latest` servers, cutting idle memory (GitHub #156);
+  `scripts/lib/browser_prefixes.py` derives tool-allow prefixes from the full-family static SSOT so
+  opt-in families keep their permissions. `odoo-doc-illustration` capture defaults to
+  `chrome-devtools`; `odoo-demo-recording` / `odoo-produce-video` note pagecast as opt-in.
+  `tests/test_browser_mcp.py` rewritten to protect the one-eager-server contract (the family
+  invariants relocated to `tests/test_setup_wiring.py`, not deleted).
+
 ## [4.8.0] - 2026-07-06
 
 ### Added

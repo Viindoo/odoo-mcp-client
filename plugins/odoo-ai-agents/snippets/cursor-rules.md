@@ -9,7 +9,7 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 ## Add to `.cursorrules`
 
 ```
-# Odoo Semantic MCP - Developer Rules (v0.13.1 tool surface)
+# Odoo Semantic MCP - Developer Rules (full OSM tool surface)
 # Auto-triggers for Odoo codebase intelligence via MCP
 
 ## Session bootstrap (run once per chat session)
@@ -137,7 +137,7 @@ When a Python file with `class .*(models\.Model)` is opened:
 For workspace-agnostic use, paste this shorter version into **Cursor → Settings → Rules for AI**:
 
 ```
-When working with Odoo Python or XML files, use the odoo-semantic MCP tools (v0.13.1 tool surface):
+When working with Odoo Python or XML files, use the odoo-semantic MCP tools:
 
 Session bootstrap (once per chat):
 - list_available_versions() / list_available_profiles()

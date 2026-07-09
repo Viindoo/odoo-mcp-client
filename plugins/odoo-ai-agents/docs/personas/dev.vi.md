@@ -1,14 +1,14 @@
 # Odoo Semantic - Hướng dẫn cho Lập trình viên
 
-<!-- Persona này cố ý liệt kê đầy đủ kho 25-tool arsenal (server v0.13.1) thay vì biến thể template "Most Useful Tools" - dev cần toàn bộ bề mặt công cụ, bao gồm 4 superset tools, 4 session-context tools, 11 base tools, 2 stylesheet tools, và 4 ORM-validation tools. -->
+<!-- Persona này cố ý liệt kê đầy đủ kho 31-tool arsenal thay vì biến thể template "Most Useful Tools" - dev cần toàn bộ bề mặt công cụ, bao gồm 4 superset tools, 4 session-context tools, 11 base tools, 2 stylesheet tools, 4 ORM-validation tools, và 6 test-surface tools. -->
 
 > **Bắt đầu (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-ai-agents@viindoo-plugins` (tự kéo theo `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. Với các công cụ AI khác, xem [client setup](../setup.md).
 
-Toàn bộ **25-tool arsenal (server v0.13.1)**, tối ưu cho các quy trình phát triển - hiểu inheritance, mở rộng an toàn các method lõi, liệt kê field/method/view và các artefact tầng UI (OWL, QWeb, JS patches), phân tích stylesheet CSS/SCSS/LESS, và static ORM validation. 25 tool chia thành năm nhóm, mỗi nhóm được liệt kê kèm version era ở các mục bên dưới: bốn **supersets** định tuyến theo discriminator (`model_inspect`, `module_inspect`, `entity_lookup`, cộng `profile_inspect` cấp profile, v0.13+), bốn **session-context** tools (pin một phiên bản một lần, truyền `odoo_version='auto'`), mười một **base tools**, hai **stylesheet tools** (theme/branding), và bốn **ORM-validation tools** (bắt field-path, operator, dependency, relation target bị ảo giác trước khi ship một domain / `@api.depends` / relational field).
+Toàn bộ **31-tool arsenal**, tối ưu cho các quy trình phát triển - hiểu inheritance, mở rộng an toàn các method lõi, liệt kê field/method/view và các artefact tầng UI (OWL, QWeb, JS patches), phân tích stylesheet CSS/SCSS/LESS, static ORM validation, và khám phá bề mặt test. 31 tool chia thành sáu nhóm, mỗi nhóm được liệt kê kèm version era ở các mục bên dưới: bốn **supersets** định tuyến theo discriminator (`model_inspect`, `module_inspect`, `entity_lookup`, cộng `profile_inspect` cấp profile, v0.13+), bốn **session-context** tools (pin một phiên bản một lần, truyền `odoo_version='auto'`), mười một **base tools**, hai **stylesheet tools** (theme/branding), bốn **ORM-validation tools** (bắt field-path, operator, dependency, relation target bị ảo giác trước khi ship một domain / `@api.depends` / relational field), và sáu **test-surface tools** (v0.15+ - khám phá test hiện có, độ phủ, và base class trước khi viết test mới).
 
 ---
 
-## Tất cả công cụ dành cho Lập trình viên (server v0.13.1)
+## Tất cả công cụ dành cho Lập trình viên
 
 ### Supersets (v0.5+ - ưu tiên hơn các sibling cũ)
 
@@ -64,6 +64,19 @@ Các kiểm tra tĩnh dựa trên graph đã index. Chạy chúng **trước khi
 
 > Ưu tiên những công cụ này hơn `entity_lookup(kind='field', ...)` khi bạn có một *path* (`resolve_orm_chain`), một *full domain* (`validate_domain`), một *declared depends* (`validate_depends`), hoặc một *comodel assertion* (`validate_relation`) - chúng suy luận về toàn bộ cấu trúc, không phải một field đơn lẻ.
 
+### Test-surface tools (server v0.15.0+)
+
+Khám phá những gì đã được test trước khi viết test mới - tránh làm lại các case đã phủ và chọn đúng base class.
+
+| Tool | Trường hợp dùng |
+|------|----------|
+| `find_test_examples(query, odoo_version="auto")` | Tìm kiếm ngữ nghĩa chỉ trên code test (test method, test class, JS test - không bao giờ trả về production code). Tìm test hiện có trước khi viết test mới. |
+| `tests_covering(model, odoo_version="auto")` | Liệt kê các test method có cạnh tham chiếu tĩnh `COVERS_*` tới một model hoặc field, nhóm theo assert/setup/body. |
+| `test_class_inspect(name, odoo_version="auto")` | Kiểm tra một TestClass/TestHelper: base chain, hợp đồng cursor `setUpClass`, các test method kèm số lượng assert, danh sách subclassed-by. |
+| `test_base_classes(odoo_version="auto")` | Menu các base class của framework test Odoo chính thức (TransactionCase, HttpCase, Form, ...) kèm `test_type` và hợp đồng cursor. |
+| `test_coverage_audit(module, odoo_version="auto")` | Rà soát một module tìm field/method có zero cạnh `COVERS_*` (chưa bao giờ được test nào tham chiếu). |
+| `js_test_inspect(module, odoo_version="auto")` | Liệt kê các test suite JS trong một module: mix framework (Hoot/QUnit/tour), đường dẫn file, kích thước suite, tag. |
+
 ### Removed in v0.6
 
 10 flat tool (`resolve_model`, `resolve_field`, `resolve_method`, `resolve_view`, `list_fields`, `list_methods`, `list_views`, `list_owl_components`, `list_qweb_templates`, `list_js_patches`) đã bị deprecated ở v0.5 và **removed in v0.6**. Chúng không còn tồn tại trên server. Hãy dùng các superset ở trên.
@@ -72,7 +85,7 @@ Xem server [CHANGELOG](https://odoo-semantic.viindoo.com/changelog) để có c�
 
 ### MCP Resources (`odoo://` URI scheme, v0.5+)
 
-Các handle chỉ-đọc cho truy cập ổn định kiểu bookmark. Dùng những cái này khi bạn đã biết entity ID và muốn lấy bản ghi chuẩn mực mà không cần một tool call: `odoo://{version}/{kind}/{id}` trong đó `kind` là một trong `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`. Xem [tài liệu MCP resources URI scheme](https://odoo-semantic.viindoo.com/docs/adr/0030-mcp-resources-uri-scheme).
+Các handle chỉ-đọc cho truy cập ổn định kiểu bookmark. Dùng những cái này khi bạn đã biết entity ID và muốn lấy bản ghi chuẩn mực mà không cần một tool call: `odoo://{version}/{kind}/{id}` trong đó `kind` là một trong `model`, `field`, `method`, `view`, `module`, `pattern`, `stylesheet`, `test`, `testcoverage`. Xem [tài liệu MCP resources URI scheme](https://odoo-semantic.viindoo.com/docs/adr/0030-mcp-resources-uri-scheme).
 
 ---
 
@@ -184,7 +197,7 @@ Nếu bạn dùng **Claude Code** với plugin Odoo AI Agent Team:
 | `odoo-data-migration` | Viết script migration pre/post + kế hoạch xác minh (không thực thi trên một instance) |
 | `odoo-git-rebase` | Rebase một feature branch lên một branch khác cùng Odoo series, hấp thụ intent (không phải text code) qua `git rebase --onto` toàn bộ range |
 | `odoo-modules-upgrade` | Nâng cấp một cluster module tuỳ chỉnh từ Odoo major thấp lên major cao hơn (cấp độ code): loại bỏ những gì core đã cung cấp, adapt phần còn lại, 1 PR mỗi cluster |
-| `odoo-planning` | Biến một thiết kế đã duyệt thành KẾ HOẠCH THỰC HIỆN để ship nó - một module-DAG chia theo wave, nối mỗi module/stage tới một skill xuyên suốt vòng đời (code -> review -> doc -> PR -> monitor -> merge). Sau đó sequencer `run-harness` điều phối nó, land từng coding wave-layer qua git-executor nội bộ `odoo-wave` (một PR squash mỗi wave) và poller bất đồng bộ `odoo-pr-monitoring` để merge. |
+| `odoo-planning` | Biến một thiết kế đã duyệt thành KẾ HOẠCH THỰC HIỆN để ship nó - một module-DAG chia theo wave, nối mỗi module/stage tới một skill xuyên suốt vòng đời (code -> review -> doc -> PR -> monitor -> merge). Sau đó sequencer `run-harness` điều phối nó, land từng coding wave-layer qua between-wave integration nội bộ của chính nó (một PR squash mỗi wave) và poller bất đồng bộ `odoo-pr-monitoring` để merge. |
 
 ---
 
