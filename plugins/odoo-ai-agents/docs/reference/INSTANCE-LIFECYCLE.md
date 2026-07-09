@@ -7,8 +7,8 @@
 > `cli_help(command, flag, odoo_version='<version>')` for CLI facts, and `api_version_diff` / `find_deprecated_usage`
 > / `module_inspect` for API/era facts. OSM + the running instance are the ground truth.
 >
-> Consumed by: `odoo-deploy-checklist`, `odoo-qa-suite`, `odoo-wave` (when building/refreshing an
-> instance), the upgrade command chain, and the `setup` scripts.
+> Consumed by: `odoo-deploy-checklist`, `odoo-qa-suite`, `run-harness`'s between-wave integration
+> (when building/refreshing an instance), the upgrade command chain, and the `setup` scripts.
 >
 > **Programmatic front door:** the `odoo-instance` skill and the `odoo-instance-ops` agent are the
 > high-level interface for build/drop/init/update/test operations on a local instance. Persistent

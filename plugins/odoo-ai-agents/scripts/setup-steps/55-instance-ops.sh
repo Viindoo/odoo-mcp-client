@@ -37,6 +37,16 @@
 #   drop    --db <db> --python <venv_py> [--db-host H] [--db-user U]
 #             Invoke scripts/lib/odoo_db.py drop <db> via the instance venv python.
 #             Exit 10 from odoo_db.py -> clear venv-unavailable error (NOT a raw dropdb).
+#   wait-log --log <logf> [--timeout <secs>] [--interval <secs>]
+#             Deterministic build-completion detector for a build launched in the
+#             BACKGROUND (Bash run_in_background). Polls <logf> for a TERMINAL marker
+#             so the caller (odoo-instance-ops agent) never idle-stalls on a long
+#             -i/-u/--test-enable build that would exceed the foreground tool timeout.
+#             Emits BUILD_RESULT=success|failure|timeout plus BUILD_MARKER=<line> and
+#             LOG_PATH=<logf>. Exit 0 (success), 1 (failure), 2 (timeout). The build's
+#             own exit code stays authoritative; this is a completion + diagnostics
+#             signal, NOT the running-server readiness probe (that is 50-instance-spinup.sh's
+#             HTTP-200 probe). Markers are version-stable v8-v19.
 #
 # LOG convention (mirrors 50-instance-spinup.sh):
 #   Dir:  ${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/
@@ -205,6 +215,92 @@ _parse_test_result() {
 }
 
 # ---------------------------------------------------------------------------
+# _scan_build_markers - single-pass terminal-marker scan of a build log.
+#   Echoes BUILD_MARKER=<matched line> (best-effort) and returns:
+#     0 -> a SUCCESS marker present and no FAILURE marker seen
+#     1 -> a FAILURE marker present (wins over success: a Traceback after
+#          "Registry loaded" is still a failed build)
+#     2 -> no terminal marker yet (build still in flight)
+#   Markers mirror what odoo-bin emits on every series v8-v19; the caller's own
+#   process exit code stays authoritative - this is the in-log completion signal.
+# ---------------------------------------------------------------------------
+_scan_build_markers() {
+    local logf="$1"
+    [[ -f "$logf" ]] || return 2
+
+    # FAILURE first - a failure marker anywhere means the build did not succeed,
+    # even if an earlier line looked like progress.
+    local fail_line
+    fail_line="$(grep -aE 'Traceback \(most recent call last\):|[[:space:]]CRITICAL[[:space:]]|[[:space:]]ERROR[[:space:]]|Failed to load registry|psycopg2\.|ParseError' "$logf" 2>/dev/null | head -n 1 || true)"
+    if [[ -n "$fail_line" ]]; then
+        echo "BUILD_MARKER=$fail_line"
+        return 1
+    fi
+
+    # SUCCESS - registry/module load completed, or a clean stop-after-init shutdown.
+    local ok_line
+    ok_line="$(grep -aE 'Modules loaded\.|Registry loaded|Initiating shutdown' "$logf" 2>/dev/null | head -n 1 || true)"
+    if [[ -n "$ok_line" ]]; then
+        echo "BUILD_MARKER=$ok_line"
+        return 0
+    fi
+
+    return 2
+}
+
+# ---------------------------------------------------------------------------
+# cmd_wait_log - bounded poll of a build log for a terminal marker.
+# ---------------------------------------------------------------------------
+cmd_wait_log() {
+    local logf="" timeout=600 interval=5
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --log)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --log requires a value" >&2; exit 2; }
+                logf="$2"; shift 2 ;;
+            --timeout)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --timeout requires a value" >&2; exit 2; }
+                timeout="$2"; shift 2 ;;
+            --interval)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --interval requires a value" >&2; exit 2; }
+                interval="$2"; shift 2 ;;
+            *)
+                echo "$(basename "$0"): unknown argument for wait-log: $1" >&2; exit 2 ;;
+        esac
+    done
+    [[ -n "$logf" ]] || { echo "$(basename "$0"): --log is required for wait-log" >&2; exit 2; }
+
+    echo "LOG_PATH=$logf"
+
+    local waited=0 rc=2 marker=""
+    while :; do
+        # _scan_build_markers returns non-zero for failure(1)/none(2); capture its
+        # status without tripping `set -e` on the command substitution.
+        set +e
+        marker="$(_scan_build_markers "$logf")"
+        rc=$?
+        set -e
+        if [[ "$rc" -ne 2 ]]; then
+            break
+        fi
+        if [[ "$waited" -ge "$timeout" ]]; then
+            rc=2
+            break
+        fi
+        sleep "$interval"
+        waited=$(( waited + interval ))
+    done
+
+    case "$rc" in
+        0) echo "${marker:-BUILD_MARKER=}"; echo "BUILD_RESULT=success" ;;
+        1) echo "${marker:-BUILD_MARKER=}"; echo "BUILD_RESULT=failure" ;;
+        *) echo "BUILD_MARKER="; echo "BUILD_RESULT=timeout"
+           echo "x wait-log timed out after ${timeout}s with no terminal marker; see $logf" >&2 ;;
+    esac
+    return "$rc"
+}
+
+# ---------------------------------------------------------------------------
 # _parse_common_args - parse --db/--python/--addons/--modules/--extra plus the
 #   optional --test-tags/--mode/--log-mode flags.
 # Sets: arg_db, arg_python, arg_addons, arg_modules, arg_extra, arg_test_tags,
@@ -288,6 +384,10 @@ cmd_init() {
     addons_csv="${addons_csv//,  /,}"
     addons_csv="${addons_csv//,  /,}"  # second pass for edge-case double spaces
 
+    # Default log verbosity for a build op: warn (Odoo defaults to the noisier
+    # `info`). `warn` is a stable flag v8-v19. Placed BEFORE ${arg_extra} so a
+    # caller-supplied --log-level/--log-handler in --extra still overrides it
+    # (Odoo's arg parser takes the last occurrence) - mirrors the `test` verb.
     local rc=0
     # shellcheck disable=SC2086
     "$arg_python" "$odoo_bin" \
@@ -295,6 +395,7 @@ cmd_init() {
         -i "$arg_modules" \
         --addons-path "$addons_csv" \
         --stop-after-init \
+        --log-level=warn \
         ${arg_extra} \
         >"$logf" 2>&1 || rc=$?
 
@@ -328,6 +429,8 @@ cmd_update() {
     addons_csv="${addons_csv//,  /,}"
     addons_csv="${addons_csv//,  /,}"
 
+    # Default log verbosity: warn (see cmd_init). Placed BEFORE ${arg_extra} so a
+    # caller-supplied --log-level in --extra still overrides it. `warn` is stable v8-v19.
     local rc=0
     # shellcheck disable=SC2086
     "$arg_python" "$odoo_bin" \
@@ -335,6 +438,7 @@ cmd_update() {
         -u "$arg_modules" \
         --addons-path "$addons_csv" \
         --stop-after-init \
+        --log-level=warn \
         ${arg_extra} \
         >"$logf" 2>&1 || rc=$?
 
@@ -483,8 +587,9 @@ case "$SUBCMD" in
     update)   cmd_update "$@" ;;
     test)     cmd_test "$@" ;;
     drop)     cmd_drop "$@" ;;
+    wait-log) cmd_wait_log "$@" ;;
     *)
-        echo "Usage: $(basename "$0") {describe|check|init|update|test|drop|apply} [args...]" >&2
+        echo "Usage: $(basename "$0") {describe|check|init|update|test|drop|wait-log|apply} [args...]" >&2
         exit 2
         ;;
 esac

@@ -49,6 +49,16 @@ guessing.
 
 ## Allocate, don't just resolve (concurrent mutation)
 
+**Agents: self-provision via `Skill(odoo-instance)`, not this recipe directly.** This section
+documents the low-level allocator mechanism the `odoo-instance` skill's inline leaf-mode (and any
+other in-plugin caller) uses INTERNALLY for the deterministic, concurrency-safe DB/port reservation.
+An agent that needs a live instance and was handed no `INSTANCE_HANDLE` should invoke
+`Skill(odoo-instance)` inline-mode - which performs the acquire below AND applies the instance HARD
+RULES (`en_US` union, Viindoo `to_base` union, lint-module install union, per-version `cli_help`
+grounding) - rather than calling `scripts/lib/allocator.py acquire` directly, which would skip those
+rules. The recipe below stays here for the skill's inline-mode (and any other genuinely low-level
+caller) that still needs the raw mechanism.
+
 The resolution above is correct for a **read-only** need (a URL to open / query a
 running server - many agents may share it). But the moment you MUTATE - run tests
 (`--test-enable`), `-i`/`-u`/a migration, or spin a throwaway server - reusing the

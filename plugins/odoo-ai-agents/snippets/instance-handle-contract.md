@@ -28,9 +28,12 @@ An agent that receives an `INSTANCE_HANDLE` MUST use it for every odoo-bin opera
 (confirm-by-toggle, `-i` / `-u`, `--test-enable`) and MUST NOT build its own `db_name`, port, or
 `addons_path`. Self-provisioning when a handle was already passed causes port `8069` / DB-name
 collisions when multiple agents run concurrently. When NO handle is passed (a run that never
-provisioned one), the agent falls back to acquiring its own isolated ephemeral instance per
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance allocation. A provided
-handle always wins.
+provisioned one), the agent self-provisions by invoking `Skill(odoo-instance)` inline-mode - which
+acquires its own isolated ephemeral instance UNDER the instance HARD RULES (`en_US` union, Viindoo
+`to_base`, lint-module install, per-version `cli_help` grounding) per
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance allocation - rather than
+a bare `allocator.py` call, which would bypass those rules. A provided handle always wins (consume,
+never re-provision).
 
 ## Lifecycle
 

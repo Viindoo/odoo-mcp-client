@@ -533,3 +533,214 @@ def test_init_forwards_extra_flags(tmp_path):
     assert "--skip-auto-install" in call_content, (
         f"Expected --skip-auto-install forwarded: {call_content}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Contract 5: build ops (init / update) default to --log-level=warn, overridable
+# via --extra. Business rule: a build op is quiet (warn) by default - quieter than
+# Odoo's stock `info` - but a caller escalates for deep debugging by passing a
+# louder --log-level in --extra, which must WIN (Odoo takes the last occurrence,
+# so warn must sit BEFORE --extra in the argv).
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_init_defaults_to_log_level_warn(tmp_path):
+    """init must inject --log-level=warn by default (quieter than Odoo's info)."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init", "--db", "warndb", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--log-level=warn" in call_content, (
+        f"Expected default --log-level=warn on init: {call_content}"
+    )
+
+
+@requires_bash
+def test_update_defaults_to_log_level_warn(tmp_path):
+    """update must inject --log-level=warn by default."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "update", "--db", "warndb2", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--log-level=warn" in call_content, (
+        f"Expected default --log-level=warn on update: {call_content}"
+    )
+
+
+@requires_bash
+def test_init_extra_log_level_overrides_warn_default(tmp_path):
+    """A caller-supplied --log-level=info in --extra must OVERRIDE the warn default.
+
+    Odoo takes the last occurrence of a repeated flag, so the default warn must
+    appear BEFORE the --extra value in the argv - assert both the presence and
+    the order.
+    """
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init", "--db", "escdb", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        "--extra", "--log-level=info",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--log-level=warn" in call_content and "--log-level=info" in call_content, (
+        f"Expected both warn default and info override present: {call_content}"
+    )
+    # Order: warn (default) must precede info (--extra override) so info wins.
+    assert call_content.index("--log-level=warn") < call_content.index("--log-level=info"), (
+        f"warn default must precede the --extra --log-level=info override: {call_content}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Contract 6: active-wait on long builds.
+#   (a) A build op still maps a success-marker + exit-0 run to STATUS=ok, and a
+#       failure-marker + non-zero run to STATUS=error with LOG_PATH preserved.
+#   (b) The `wait-log` verb deterministically classifies a build log by terminal
+#       marker: success markers -> BUILD_RESULT=success (exit 0); failure markers
+#       -> BUILD_RESULT=failure (exit 1); none within the bound -> timeout (exit 2).
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_init_success_marker_run_maps_to_status_ok(tmp_path):
+    """A build that emits a success marker and exits 0 -> STATUS=ok, log preserved."""
+    fake_bin = _make_fake_odoo_bin(
+        tmp_path, exit_code=0, extra_output='echo "Modules loaded."'
+    )
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init", "--db", "okmarker", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    assert "STATUS=ok" in res.stdout
+    log_line = [l for l in res.stdout.splitlines() if l.startswith("LOG_PATH=")]
+    assert len(log_line) == 1
+    log_path = Path(log_line[0].split("=", 1)[1])
+    assert log_path.exists() and "Modules loaded." in log_path.read_text(encoding="utf-8")
+
+
+@requires_bash
+def test_init_failure_marker_run_preserves_log(tmp_path):
+    """A build that emits a Traceback and exits non-zero -> STATUS=error, LOG_PATH preserved."""
+    fake_bin = _make_fake_odoo_bin(
+        tmp_path, exit_code=1,
+        extra_output='echo "Traceback (most recent call last):"'
+    )
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init", "--db", "failmarker", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode != 0, "Expected non-zero exit on a failed build."
+    assert "STATUS=error" in res.stdout
+    log_line = [l for l in res.stdout.splitlines() if l.startswith("LOG_PATH=")]
+    assert len(log_line) == 1, f"LOG_PATH must be preserved on failure: {res.stdout}"
+    log_path = Path(log_line[0].split("=", 1)[1])
+    assert log_path.exists(), "Log must persist on failure for diagnosis."
+
+
+def _write_log(tmp_path: Path, name: str, body: str) -> Path:
+    p = tmp_path / name
+    p.write_text(body, encoding="utf-8")
+    return p
+
+
+@requires_bash
+def test_wait_log_success_marker(tmp_path):
+    """wait-log on a log with a success marker -> BUILD_RESULT=success, exit 0, LOG_PATH echoed."""
+    logf = _write_log(tmp_path, "build.log", "Loading modules...\nModules loaded.\n")
+    res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
+               env=_base_env(tmp_path))
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    assert "BUILD_RESULT=success" in res.stdout
+    assert f"LOG_PATH={logf}" in res.stdout
+
+
+@requires_bash
+def test_wait_log_failure_marker_traceback(tmp_path):
+    """wait-log on a log with a Traceback -> BUILD_RESULT=failure, exit 1."""
+    logf = _write_log(tmp_path, "build.log",
+                      "Loading modules...\nTraceback (most recent call last):\n  File ...\n")
+    res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
+               env=_base_env(tmp_path))
+    assert res.returncode == 1, f"stdout={res.stdout}\nstderr={res.stderr}"
+    assert "BUILD_RESULT=failure" in res.stdout
+    assert f"LOG_PATH={logf}" in res.stdout
+
+
+@requires_bash
+def test_wait_log_failure_marker_critical(tmp_path):
+    """wait-log on a log with a CRITICAL log line -> BUILD_RESULT=failure, exit 1."""
+    logf = _write_log(tmp_path, "build.log",
+                      "2026-01-01 00:00:00 CRITICAL db odoo.modules: boot failed\n")
+    res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
+               env=_base_env(tmp_path))
+    assert res.returncode == 1, f"stdout={res.stdout}\nstderr={res.stderr}"
+    assert "BUILD_RESULT=failure" in res.stdout
+
+
+@requires_bash
+def test_wait_log_failure_wins_over_success_marker(tmp_path):
+    """A failure marker present alongside a success marker still classifies as failure."""
+    logf = _write_log(tmp_path, "build.log",
+                      "Registry loaded\nTraceback (most recent call last):\n")
+    res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
+               env=_base_env(tmp_path))
+    assert res.returncode == 1, f"stdout={res.stdout}\nstderr={res.stderr}"
+    assert "BUILD_RESULT=failure" in res.stdout
+
+
+@requires_bash
+def test_wait_log_timeout_when_no_marker(tmp_path):
+    """wait-log with no terminal marker within the bound -> BUILD_RESULT=timeout, exit 2."""
+    logf = _write_log(tmp_path, "build.log", "still starting up...\n")
+    res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
+               env=_base_env(tmp_path))
+    assert res.returncode == 2, f"stdout={res.stdout}\nstderr={res.stderr}"
+    assert "BUILD_RESULT=timeout" in res.stdout
+    assert f"LOG_PATH={logf}" in res.stdout

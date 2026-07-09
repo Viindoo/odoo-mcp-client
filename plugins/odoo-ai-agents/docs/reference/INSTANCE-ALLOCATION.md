@@ -227,15 +227,18 @@ Consumers point back here rather than restating the contract: `agents/odoo-insta
 - `scripts/setup-steps/50-instance-spinup.sh` - the spun-up server is the SHARED read-only render
   target for the visual stack, so it registers a `shared` (non-exclusive) lease with its actual port
   + server pid AFTER the server answers, NOT an exclusive lease (that would defeat the sharing).
-- `agents/odoo-coder.md` + `agents/odoo-frontend-coder.md` - the `odoo-bin` (scaffold / test) note
-  points at the allocator; this is also where `venv-resolution` belongs long-term (see the open
-  item the brief slim-down surfaced).
+- `agents/odoo-backend-coder.md` - the `odoo-bin` (scaffold / `/test_lint` gate) note points at the
+  allocator (self-provisions its bounded lint gate); `agents/odoo-coder.md` (the per-module
+  coordinator) - owns the INTEGRATED whole-module instance test (self-provisions it inline); `agents/odoo-frontend-coder.md`
+  is INSTANCE-FREE (static gate only - no allocator). This is also where `venv-resolution` belongs
+  long-term (see the open item the brief slim-down surfaced).
 - `skills/_shared/concurrency-guard.md` - add an "Odoo instance allocation" section (sibling to the
   OSM version-pin race) so the rule is discoverable where the other concurrency rules live.
 - `odoo-doctor` / setup - expose `allocator gc` + `allocator list`.
 
-**Wired:** the coder agents, `concurrency-guard.md`, `odoo-coding`, and `ODOO-TESTING.md` route
-DB-touching runs through `ephemeral`/`exclusive` leases; `50-instance-spinup.sh` registers the
+**Wired:** the coding agents that touch a DB (`odoo-backend-coder`'s lint gate + the `odoo-coder`
+coordinator's integrated module test; `odoo-frontend-coder` is instance-free), `concurrency-guard.md`,
+`odoo-coding`, and `ODOO-TESTING.md` route DB-touching runs through `ephemeral`/`exclusive` leases; `50-instance-spinup.sh` registers the
 shared render server as a `shared` lease (actual port + server pid) once it answers, and
 `instance-resolution.md` consults `allocator.py query` so every visual consumer discovers that live
 port across sessions with no per-consumer edits. A concurrent same-series start is benign: the

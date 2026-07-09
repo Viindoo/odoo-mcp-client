@@ -17,21 +17,28 @@ description: >-
 ## Role
 
 Odoo instance lifecycle coordinator. Front door for ALL instance lifecycle operations (create,
-drop, init, update, run-tests, ensure-up, status, load-language) for any Odoo series v8 onward. Keeps the
-caller's context clean by delegating shell-level work to the `odoo-instance-ops` agent and
-relaying back a structured result block.
+drop, init, update, run-tests, ensure-up, status, load-language) for any Odoo series v8 onward.
+Keeps the caller's context clean by delegating shell-level work and relaying a structured result
+block. Programmatic twin of the interactive `/odoo-setup` command (the human declare-and-spinup
+wizard that writes `instances.toml`): use this skill when the caller already knows the operation
+parameters - hand them over, get back a structured `instance-ops` block.
 
-This skill is the **programmatic twin** of the interactive `/odoo-setup` command. `/odoo-setup`
-is the human declare-and-spinup path (writes `instances.toml`, interactive prompts, guided
-wizard); this skill is for agents/callers who already know what they want: hand over the
-operation parameters, get back a structured `instance-ops` block, and keep going.
+**Single owner of instance fan-out (two modes).** This skill is the SINGLE PLACE that OWNS Odoo
+instance fan-out: any component needing a live instance routes here via the Skill tool instead of
+driving the lifecycle itself, so the L2 human gate, instance-allocation rules, and HARD RULES
+(`en_US` union, Viindoo `to_base`, lint-module install, per-version `cli_help` grounding) are
+enforced in one place. It picks mode by whether the caller's context can spawn a subagent:
 
-**Sole dispatcher (single source of truth for instance fan-out).** This skill is the ONLY
-component that launches the `odoo-instance-ops` agent. Any other skill that needs a live instance -
-to provision, install/update modules, run tests, or tear one down - routes that work HERE via the
-Skill tool instead of spawning the agent itself, so the L2 human gate and the instance-allocation
-rules are enforced in one place. Instance-ops work does not vary by domain complexity, so it runs
-at a flat `sonnet` tier - there is deliberately NO per-operation model-tier table to keep or drift.
+- **Dispatch mode (orchestrator caller).** When the caller CAN spawn a subagent, this skill is the
+  ONLY component that launches the `odoo-instance-ops` agent - dispatch it per "Brief shape" below.
+- **Inline leaf-mode (dispatched leaf / subagent caller).** When the caller must NOT spawn a
+  subagent (a dispatched leaf per `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`), run the ops
+  steps INLINE in the caller's context - it does NOT dispatch `odoo-instance-ops` (that would add
+  subagent depth a leaf may not add). See "Inline leaf-mode" below. Either mode honors the SAME
+  HARD RULES - the inline path is not a bypass.
+
+Instance-ops work does not vary by domain complexity: dispatch mode runs the agent at a flat
+`sonnet` tier - there is deliberately NO per-operation model-tier table to drift.
 
 ## Dispatch
 
@@ -56,50 +63,60 @@ When invoked, gather the following from the caller's request:
 Anything the caller omits that is strictly required for the operation: ask ONE clarifying
 question covering all missing required parameters before dispatching.
 
+**Log verbosity default.** `create` / `init` / `update` builds run at `--log-level=warn` by DEFAULT
+(quieter than Odoo's stock `info`); `run-tests` keeps `--log-level=test`. A caller may ESCALATE to
+`info` / `debug` - for `run-tests` via the `log_mode` field, for `create` / `init` / `update` via an
+extra flag threaded into the brief (overrides the `warn` default). The agent grounds `--log-level`
+via `cli_help` like any other flag.
+
+**Active-wait on long builds (relay).** A `create` / `init` / `update` / `run-tests` build can run
+longer than the foreground tool timeout. The dispatched `odoo-instance-ops` agent MUST launch the
+build in the background and poll `LOG_PATH` to a TERMINAL marker (success: `Modules loaded.` /
+`Registry loaded` / exit 0 / `Initiating shutdown`; failure: `Traceback` / ` CRITICAL ` / ` ERROR ` /
+`Failed to load registry`; run-tests reuses `TEST_RESULT=`), emitting a heartbeat between polls and
+treating the exit code as authoritative - never idle-stalling or returning before a terminal marker;
+on timeout it reports `BLOCKED` with `LOG_PATH` preserved. Full contract:
+`${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Active-wait on long builds".
+
 **`en_US` is mandatory on every build - independent of caller input.** `en_US` is Odoo's
 base/source language. Every `create`, `init`, and `run-tests` (`mode: fresh`) dispatch MUST activate
-it in the target DB, whether or not the caller's `languages` field mentions it. Before building the
-`odoo-instance-ops` brief, compute `activation_languages = {"en_US"} union languages` (an
-omitted / `none` `languages` field is the empty set) and pass that UNIONED csv as the brief's
-`LANGUAGES:` field. This is a BUILD-TIME guarantee owned entirely by this skill - no downstream
-consumer of an instance it provisions (translation, doc capture, QA, module reload) may ever find
-`en_US` missing. `odoo-i18n` additionally unions `en_US` into its own activation set (recipe KT3)
-because it issues `--load-language` / `i18n loadlang` directly against `odoo-bin` OUTSIDE this
-skill's dispatch (its `odoo-translator` re-export + `-u` reload) - a second, independent enforcement
-point for a path this skill does not mediate, not a duplicate of this one.
+it in the target DB. Before building the brief, compute
+`activation_languages = {"en_US"} union languages` (omitted / `none` = empty set) and pass that
+UNIONED csv as the brief's `LANGUAGES:` field. This BUILD-TIME guarantee is owned entirely by this skill - no downstream consumer
+(translation, doc capture, QA, module reload) may find `en_US` missing. `odoo-i18n` unions `en_US`
+into its own activation set too (recipe KT3) because it issues `--load-language` / `i18n loadlang`
+directly against `odoo-bin` OUTSIDE this skill's dispatch - a second, independent enforcement point,
+not a duplicate.
 
 **Agent-side unions this skill does not compute itself.** This skill resolves `PROFILE` (from
-`viindoo_profile` in `.odoo-ai/context.md`, omitted when absent) and threads it into the brief -
-see the Dispatch table and Brief shape above. The dispatched `odoo-instance-ops` agent then PINS
-that profile (`set_active_profile` plus explicit `profile_name=` on every probe - never
-profile-less) and performs two further DATA-DRIVEN unions before building the `odoo-bin` command,
-on top of the `en_US` union above - callers pass nothing extra for either:
+`viindoo_profile` in `.odoo-ai/context.md`, omitted when absent) and threads it into the brief. The
+dispatched `odoo-instance-ops` agent then PINS that profile (`set_active_profile` + explicit
+`profile_name=` on every probe - never profile-less) and performs two further DATA-DRIVEN unions
+before building the `odoo-bin` command, on top of the `en_US` union above - callers pass nothing
+extra for either:
 - **Viindoo `to_base` on `--load`.** The agent pins the resolved profile (brief `PROFILE`, or the
-  series' vanilla profile when `PROFILE` is absent, or `NEEDS_CONTEXT` when neither resolves) then
-  checks it for `to_base`; when the pinned profile carries `to_base`, the agent unions it into the
-  server-wide `--load` module list (never as an ordinary `-i` module) - see
+  series' vanilla profile when absent, or `NEEDS_CONTEXT`) then checks it for `to_base`; when
+  present, it unions `to_base` into the server-wide `--load` list (never as an ordinary `-i`) - see
   `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Server-wide modules (`--load`) - Viindoo
   `to_base` (HARD RULE)".
-- **Lint modules for `run-tests`.** For a test-run build, the agent reuses that same pinned
-  profile to probe for `test_lint`/`test_pylint` and unions every present one into BOTH the
-  `-i`/`-u` install list and `--test-tags` from the same probe - see
-  `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules - installed for test-run builds
-  (HARD RULE)" and `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` "Install the lint modules
-  (not just tag them)".
+- **Lint modules for `run-tests`.** For a test-run build, the agent reuses that pinned profile to
+  probe for `test_lint`/`test_pylint` and unions every present one into BOTH the `-i`/`-u` install
+  list and `--test-tags` - see `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Lint modules -
+  installed for test-run builds (HARD RULE)" and
+  `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` "Install the lint modules (not just tag them)".
 
-**Config isolation.** No operation this skill dispatches writes to a shared or default config
-path - the CLI-flag path reads no config file at all, and the generated-conf path is a unique
-temp file per run; see `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md §Config-file
-isolation` for the full two-path contract.
+**Config isolation.** No operation writes to a shared or default config path - the CLI-flag path
+reads no config file, the generated-conf path is a unique temp file per run; see
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md §Config-file isolation` for the full
+two-path contract.
 
-**Human gate (instance_touching = L2):** Instance lifecycle is `instance_touching`. The
-run-harness treats this as an **L2 human gate** - a human approval checkpoint applies before
-any mutation (create, drop, init, update, run-tests). If an active run-harness is present in
-the brief, do NOT bypass this gate; let the driver surface it. For a direct invocation (no
-run-harness), confirm the mutation with the human before launching the agent.
+**Human gate (instance_touching = L2):** Instance lifecycle is `instance_touching` - an L2 human
+gate applies before any mutation (create, drop, init, update, run-tests). If a run-harness is in the
+brief, do NOT bypass it; let the driver surface it. For a direct invocation, confirm the mutation
+with the human before launching the agent.
 
-**Brief shape:** Launch the `odoo-instance-ops` agent as a subagent with a worker
-brief that follows `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. The brief must include:
+**Brief shape:** Launch the `odoo-instance-ops` agent with a worker brief per
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. The brief must include:
 
 ```
 OPERATION: <operation>
@@ -124,8 +141,7 @@ CONTEXT: <doc|default>
 MODE_HINT: <path-incremental|default>
 ```
 
-**Relay the result:** After the agent finishes, relay its structured output block verbatim
-to the caller:
+**Relay the result:** Relay the agent's structured output block verbatim to the caller:
 
 ```instance-ops
 op: <create-instance|drop-instance|init-modules|update-modules|run-tests|ensure-up|status>
@@ -148,27 +164,60 @@ status: <created|dropped|up|down|started|tests-passed|tests-passed-with-warnings
 notes: <short human-readable summary or error>
 ```
 
-This `instance-ops` block IS the canonical `INSTANCE_HANDLE` for the run: the calling orchestrator
-forwards it (`dbname` / `http_port` / `addons_path` / `venv_python` / `lease_token`) as an
-`INSTANCE_HANDLE:` field into every downstream code / test brief, and downstream agents consume it
-instead of self-provisioning a DB / port / addons_path. Contract:
-`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
+This `instance-ops` block IS the canonical `INSTANCE_HANDLE` for the run: the orchestrator forwards
+it (`dbname` / `http_port` / `addons_path` / `venv_python` / `lease_token`) as an `INSTANCE_HANDLE:`
+field into every downstream code / test brief, and downstream agents consume it instead of
+self-provisioning. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
 
-If the agent returns `status: NEEDS_CONTEXT`, surface its `blocked_reason` to the caller
-and stop - do not retry without the missing information.
+On `status: NEEDS_CONTEXT`, surface its `blocked_reason` and stop - do not retry without the missing
+information.
+
+### Inline leaf-mode (dispatched leaf / subagent self-provision)
+
+When invoked from a dispatched leaf/subagent context that must not spawn a subagent (see "Single
+owner of instance fan-out" above and `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`), run the ops
+steps INLINE in the caller's context - do NOT launch the `odoo-instance-ops` agent. This lets a leaf
+lacking an `INSTANCE_HANDLE` self-provision an isolated ephemeral DB WITHOUT adding subagent depth,
+and - unlike a raw `allocator.py` call - still under the HARD RULES.
+
+A provided `INSTANCE_HANDLE` ALWAYS wins: if one is in the brief, consume it and do NOT provision
+(contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`). Only with NO handle does
+the leaf self-provision via inline-mode.
+
+Run these steps in order, honoring the SAME HARD RULES as the agent (single source: the
+cross-referenced sections in `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` - do NOT restate
+them here):
+
+1. **Acquire an isolated ephemeral lease** per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+   § "Odoo instance allocation" (`scripts/lib/allocator.py acquire --mode ephemeral` -> a unique
+   `ALLOC_DB_NAME` + ports; never reuse the single declared db/port for a mutation).
+2. **Pin series + ground CLI flags** - `set_active_version` then `cli_help` per the agent's "Common
+   preamble" Steps A-B (every flag from this series' `cli_help`, never from memory).
+3. **Apply the HARD RULES** as the agent does - `en_US` union
+   (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "en_US - always loaded on every build"),
+   Viindoo `to_base` union into `--load` (same file, "Server-wide modules (`--load`) - Viindoo
+   `to_base` (HARD RULE)"), and lint-module install for test-run builds (same file, "Lint modules -
+   installed for test-run builds (HARD RULE)"). Resolve + PIN the profile before any probe; never
+   probe profile-less.
+4. **Run the operation** via `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh`
+   (`init` / `update` / `test` / `drop`) with resolved flags in `--extra`, applying the active-wait
+   contract above (background launch + poll `LOG_PATH` to a terminal marker; never idle-stall).
+5. **Release** the lease when done (or forward `ALLOC_TOKEN` for later release), and emit the same
+   `instance-ops` block as dispatch mode so the caller consumes an identical handle either way.
+
+The L2 human gate still applies to any mutation in inline-mode (see "Human gate"): if a run-harness
+is present let the driver surface it, else confirm the mutation with the human first.
 
 ### Multi-instance parallel provisioning
 
-The allocator issues each concurrent caller an independent ephemeral lease (distinct `dbname`
-plus port pool). Safe cap is approximately 3 simultaneous ephemeral instances before RAM and
-port-pool pressure increases; the allocator enforces port uniqueness but does not impose a count
-ceiling - the orchestrator manages the budget. Use `CONTEXT: doc` to provision clean
-documentation instances (demo on + skip-auto-install; target module only, no auto_install
-noise). For browser-bound capture workers, cap at W workers equal to the number of distinct
-browser server families available (2 headless; optionally +2 headed when DISPLAY is present);
-state-mutating scenario drives stay <= 2 simultaneous. Browser-free provisioning phases
-(feature-map, icon, copy) can fan out wider. Never create or drop databases with raw
-`createdb`/`dropdb` - always through Odoo and the allocator.
+The allocator issues each concurrent caller an independent ephemeral lease (distinct `dbname` +
+port pool). Safe cap is ~3 simultaneous ephemeral instances before RAM / port-pool pressure; the
+allocator enforces port uniqueness but imposes no count ceiling - the orchestrator manages the
+budget. Use `CONTEXT: doc` for clean documentation instances (demo on + skip-auto-install; target
+module only). For browser-bound capture workers, cap W at the number of distinct browser server
+families available (2 headless; +2 headed when DISPLAY is present); state-mutating scenario drives
+stay <= 2 simultaneous. Browser-free phases (feature-map, icon, copy) fan out wider. Never
+`createdb`/`dropdb` raw - always through Odoo and the allocator.
 
 ## Out of Scope
 
@@ -181,24 +230,22 @@ state-mutating scenario drives stay <= 2 simultaneous. Browser-free provisioning
 
 ## Standalone-first fallback
 
-When OSM (the `odoo-semantic-mcp` server) is unreachable, the dispatched `odoo-instance-ops` agent falls
-back to reading per-version CLI flags directly from `odoo-bin --help` on the live binary.
-The instance provisioning work never degrades - only OSM-grounded CLI discovery degrades to
-a local fallback.
+When OSM (the `odoo-semantic-mcp` server) is unreachable, the dispatched `odoo-instance-ops` agent
+reads per-version CLI flags directly from `odoo-bin --help` on the live binary. Provisioning never
+degrades - only OSM-grounded CLI discovery falls back locally.
 
-When no instance or venv exists on the machine, the agent builds one from scratch:
-- Discovers or creates a Python venv for the target series
-- Builds a venv via `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/45-venv.sh create-venv --series <X.Y> [--profile <name>] --tool uv` (which installs requirements and validates `odoo-bin --version` - not a bare `import odoo`)
-- Runs `odoo-bin` with the appropriate flags for the requested operation
+When no instance or venv exists, the agent builds one from scratch: discover/create a Python venv
+for the target series via `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/45-venv.sh create-venv --series
+<X.Y> [--profile <name>] --tool uv` (installs requirements and validates `odoo-bin --version` - not
+a bare `import odoo`), then run `odoo-bin` with the operation's flags.
 
-When no `instances.toml` is found and no allocator is reachable, the agent surfaces a single
-`status: needs-context` block listing exactly what is missing (addons path, DB host, series
-binary location) rather than guessing.
+When no `instances.toml` and no allocator are reachable, the agent surfaces one
+`status: needs-context` block listing exactly what is missing (addons path, DB host, series binary
+location) rather than guessing.
 
-For `load-language` specifically: when OSM is unreachable, the agent reads the per-version
-language-loading flag directly from `odoo-bin --help` on the live binary and proceeds; the
-`res.lang` active verification step (which requires the live Odoo MCP) is skipped and flagged
-`grounded: log-signal (not live-verified)` in the output block notes.
+For `load-language`: when OSM is unreachable the agent reads the per-version language-loading flag
+from `odoo-bin --help` and proceeds; the `res.lang` active-verification step (needs the live Odoo
+MCP) is skipped and flagged `grounded: log-signal (not live-verified)` in the output notes.
 
 ## MCP tools
 

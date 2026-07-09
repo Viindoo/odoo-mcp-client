@@ -62,9 +62,25 @@ Mode per operation:
 
 Use `--ports 0` for `--stop-after-init` runs that bind no HTTP port. Use `--ports 1` (or `2` when gevent/longpolling is needed) when the server must listen.
 
-**Through-Odoo DB lifecycle.** The allocator RESERVES an ephemeral DB name and ports only; it does NOT run `createdb`. The database is created THROUGH Odoo by the very `odoo-bin -d <db> -i <modules> --stop-after-init` run (Odoo create-on-init). DROP goes through Odoo via `scripts/lib/odoo_db.py drop <db>`, which uses `odoo.service.db.exp_drop` (handles connection-pool teardown, filestore cleanup, registry teardown). `allocator.py release <token>` calls `odoo_db.py drop` internally for `ephemeral` leases that set `drop_on_release=true`. NEVER run raw `createdb` or `dropdb`.
+**Through-Odoo DB lifecycle.** The allocator RESERVES an ephemeral DB name and ports only; it does NOT run `createdb`. The database is created THROUGH Odoo by the `odoo-bin -d <db> -i <modules> --stop-after-init` run (Odoo create-on-init). DROP goes through Odoo via `scripts/lib/odoo_db.py drop <db>` (`odoo.service.db.exp_drop`). `allocator.py release <token>` calls `odoo_db.py drop` internally for `ephemeral` leases that set `drop_on_release=true`. NEVER run raw `createdb` or `dropdb`.
 
 **Config isolation.** The CLI-flag path above (`55-instance-ops.sh`) reads no shared config file; the generated-conf path (`50-instance-spinup.sh`) is unique per run, never the default `odoo.conf`/`$ODOO_RC` - see `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md §Config-file isolation` for the full contract.
+
+---
+
+## Active-wait on long builds (HARD RULE - never idle-stall)
+
+A long `-i`/`-u`/`--test-enable` build (run synchronously by `55-instance-ops.sh init`/`update`/`test`) can exceed the foreground Bash tool timeout (max 600s) and hand control back with the build still running - a silent stall. For **create-instance**, **init-modules**, **update-modules**, and **run-tests**, drive the build as an ACTIVE WAIT, not a single blocking call:
+
+1. **Launch in the background.** Run the `55-instance-ops.sh` verb via Bash with `run_in_background: true`. Capture the `LOG_PATH=` line it emits (the persistent log under `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/`) as soon as it appears.
+2. **Poll to a TERMINAL marker.** Wait in a bounded loop on `LOG_PATH` - prefer the deterministic helper `55-instance-ops.sh wait-log --log <LOG_PATH> [--timeout <secs>] [--interval <secs>]`, which scans for the markers below and emits `BUILD_RESULT=success|failure|timeout` + `BUILD_MARKER=<line>`. Between polls, emit a heartbeat so the run is never mistaken for dead: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py heartbeat <ALLOC_TOKEN>`.
+   - **SUCCESS markers:** `Modules loaded.`, `Registry loaded`, process exit 0, or `Initiating shutdown` after a `--stop-after-init` run.
+   - **FAILURE markers:** `Traceback (most recent call last):`, ` CRITICAL `, ` ERROR `, `Failed to load registry`, `psycopg2.`, `ParseError`.
+   - For the **run-tests** path, reuse the `test` verb's existing result markers (`TEST_RESULT=`, `FAIL:`/`ERROR:`, the `TEST_FAILED`/`TEST_ERROR`/`TEST_WARNING` counts) as the terminal signal; `_parse_test_result` already emits them.
+3. **Exit code is authoritative.** The in-log marker is the completion + diagnostics signal; the launched process's own exit code is the final word (0 -> `STATUS=ok`, non-zero -> `STATUS=error`). Marker wording can drift across series, so never let a marker override a non-zero exit.
+4. **NEVER idle-stall or return before a terminal marker.** On timeout (no terminal marker within the bound), report `status: BLOCKED` with the `LOG_PATH` preserved and forwarded - do NOT silently hang or claim done.
+
+Version nuance: this covers BUILD completion. The RUNNING-server readiness check stays on the existing HTTP-200 probe in `50-instance-spinup.sh` (more robust than a log grep across series).
 
 ---
 
@@ -157,9 +173,8 @@ HARD RULE exists to provide (the identical failure mode applies to the lint-modu
 NEVER omit `profile_name=` to "simplify" the call - resolve per step 1 and pin per step 2 first,
 every time, for both this probe and the lint-module probe below.
 
-**Rationale:** `to_base` patches base-level framework behavior, so it must be loaded before the
-registry builds (server-wide), which is exactly what `--load` / `server_wide_modules` is for -
-installing it as an ordinary `-i` module is NOT equivalent and misses the boot-time patch point.
+`to_base` must load server-wide (before the registry builds) via `--load` / `server_wide_modules`;
+installing it as an ordinary `-i` module is NOT equivalent - it misses the boot-time patch point.
 
 ## Lint modules - installed for test-run builds (HARD RULE)
 
@@ -208,6 +223,8 @@ Create a new Odoo database with a given module set for a target series.
 ```
 
 The script locates `odoo-bin` automatically (via `ODOO_BIN` env or addons-path scan), runs Odoo create-on-init, writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init failed - preserve the log path and surface it to the caller.
+**Active wait (HARD RULE):** this is a long build - launch it in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above; never block past the tool timeout or return before a terminal marker.
+**Log verbosity:** the script applies `--log-level=warn` by DEFAULT for a build op (quieter than Odoo's `info`); to ESCALATE for deep debugging pass a louder level (`--log-level=info`/`--log-level=debug`) via `--extra` - it overrides the default since the script places `warn` before `--extra`. Confirm `--log-level` for the series via `cli_help` like any other flag.
 **Language activation (HARD RULE):** fold `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) into `--extra` for v8-v18; for v19+ run `odoo-bin i18n loadlang -d <db> -l <code>` per code in `activation_set` after this init returns. `en_US` is never omitted.
 
 If the brief requests the instance to stay running after init, instead of running the `init` verb above, delegate to the spinup script:
@@ -260,6 +277,8 @@ Install one or more modules into an existing Odoo database.
 ```
 
 The script runs `odoo-bin -d <db> -i <modules> --stop-after-init`, writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init failed - preserve the log path and surface it to the caller.
+**Active wait (HARD RULE):** launch in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above; never idle-stall past the tool timeout.
+**Log verbosity:** the script defaults a build op to `--log-level=warn`; ESCALATE to `--log-level=info`/`--log-level=debug` for deep debugging via `--extra` (it overrides the `warn` default), confirming the flag via `cli_help`.
 **Language activation (HARD RULE):** fold `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) into `--extra` for v8-v18; for v19+ run `odoo-bin i18n loadlang -d <db> -l <code>` per code in `activation_set` after this init returns. `en_US` is never omitted.
 
 ### 4. update-modules
@@ -279,7 +298,7 @@ Update one or more already-installed modules (-u).
   [--extra "<version-correct no-HTTP flag + any extra flags from cli_help>"]
 ```
 
-Emits `LOG_PATH=<path>` and `STATUS=ok|error`. Pass the version-correct no-HTTP flag via `--extra` so the update run does not bind a port.
+Emits `LOG_PATH=<path>` and `STATUS=ok|error`. Pass the version-correct no-HTTP flag via `--extra` so the update run does not bind a port. **Active wait (HARD RULE):** launch in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above. **Log verbosity:** defaults to `--log-level=warn`; ESCALATE via `--extra` (`--log-level=info`/`debug`) when debugging an update.
 
 ### 5. run-tests
 
@@ -304,6 +323,8 @@ Run the Odoo test suite for one or more modules - either against a fresh ephemer
 ```
 
 (Pass `--mode` per the auto rule above. Pass `--test-tags` only when test tags are provided, and `--log-mode` only when a non-default log level is wanted - omitted, the script keeps `--log-level=test`. Version-correct flags - e.g. a skip-auto-install flag on series that support it - go in `--extra`; confirm availability via `cli_help(command='server', odoo_version='<series>')`. The script places the resolved log flag before `--extra`, so a `--log-level`/`--log-handler` in `--extra` still overrides it. For `fresh` mode (builds a new DB via `-i`), fold `--load-language=<activation_set>` (`en_US` unioned with any requested languages) into `--extra` per the `en_US` HARD RULE for v8-v18, or run a post-init `loadlang` per code for v19+; `reuse` needs none - its DB was built under the invariant.)
+
+**Active wait (HARD RULE):** a `--test-enable` build is long - launch it in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above, reusing the `test` verb's own result markers (`TEST_RESULT=`, `FAIL:`/`ERROR:`, the count lines) as the completion signal; never idle-stall past the tool timeout or return before the run terminates.
 
 The script writes a persistent log and emits, on stdout: `LOG_PATH=<path>`, `TEST_RESULT=passed|failed`, the `TEST_FAILED=<n>` / `TEST_ERROR=<n>` / `TEST_WARNING=<n>` counts, `FINDINGS_PATH=<path>`, and `STATUS=ok|error`. Capture all of them. `FINDINGS_PATH` is a file written next to the log holding the failing-test names + traceback heads and the warning lines (in-scope warnings - mentioning a `--modules` name - listed separately); forward the POINTER, not the file body. Release the lease when done. On any failure OR warning, preserve `log_path` and `findings_path` and forward them in the output block.
 
@@ -397,10 +418,8 @@ For v19+: run the init WITHOUT `--load-language` first, then load each locale vi
 Resolve every flag name via `cli_help(command='server', odoo_version='<series>')` before
 building the command. The names above are illustrative, not authoritative.
 
-**Why skip-auto-install matters:** `auto_install` modules (e.g. `sale_management` may pull in
-`sale_stock`, `account_sale`) add menus and views from OTHER modules into the UI, causing
-screenshots to capture features outside the target module's scope. Documentation instances must
-render ONLY the target module. Use `--skip-auto-install` unconditionally for `CONTEXT: doc`.
+Use `--skip-auto-install` unconditionally for `CONTEXT: doc`: documentation instances must render
+ONLY the target module, not menus/views pulled in by `auto_install` modules from OTHER modules.
 
 **Exception - auto-install bridge required:** If `--skip-auto-install` causes the target module
 to fail installation (missing dependency error), capture the error and flag
@@ -511,8 +530,8 @@ operation 2 (`drop-instance` / `allocator.py release <token>`), triggered by the
 this agent.
 
 **Instance isolation is mandatory:** each ephemeral DB is fully independent. NEVER share a
-mutable DB across concurrent capture workers - parallel scenario drives would corrupt each
-other's state. NEVER use raw `createdb`/`dropdb`; always through Odoo and the allocator.
+mutable DB across concurrent capture workers. NEVER use raw `createdb`/`dropdb`; always through
+Odoo and the allocator.
 
 ---
 
@@ -563,6 +582,8 @@ The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verb
 - [ ] allocator lease acquired; token in output block
 - [ ] DB created/dropped THROUGH Odoo (odoo_db.py / Odoo create-on-init), never raw createdb/dropdb
 - [ ] log_path captured verbatim from LOG_PATH= script stdout and forwarded in the output block
+- [ ] build ops (create/init/update/run-tests) launched in the BACKGROUND and actively waited to a TERMINAL marker (wait-log helper or test-verb markers) with an allocator heartbeat between polls - never idle-stalled past the tool timeout; on timeout reported BLOCKED with LOG_PATH preserved, exit code treated as authoritative
+- [ ] build ops ran at the default `--log-level=warn` unless the caller ESCALATED via --extra (--log-level=info/debug); the `test` verb kept `--log-level=test`
 - [ ] run-tests: TEST_FAILED/TEST_ERROR/TEST_WARNING + FINDINGS_PATH captured; mode picked per the auto fresh-vs-reuse rule; warnings>0 with no fail/error reported as tests-passed-with-warnings (findings_path surfaced, not swallowed)
 - [ ] lease released (or token forwarded to caller for later release)
 - [ ] worklog appended with decisions
