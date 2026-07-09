@@ -1,0 +1,267 @@
+{
+  "skill_name": "odoo-ui-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "review this sale order form in my Odoo 17 browser - does it look right and is it accessible before tomorrow's demo?",
+      "expected_decision": "trigger-ui-review",
+      "expected_special": "none",
+      "expected_output": "Live rendered screen; aesthetics + a11y verdict (two of the six lenses).",
+      "category": "trigger",
+      "assertions": [
+        {
+          "text": "decision == trigger-ui-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "run a Lighthouse audit on the website homepage of my running instance and tell me what's slow",
+      "expected_decision": "trigger-ui-review",
+      "expected_special": "none",
+      "expected_output": "Lighthouse audit = the performance lens; explicit pushy trigger.",
+      "category": "trigger-lighthouse",
+      "assertions": [
+        {
+          "text": "decision == trigger-ui-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "is this kanban board off-theme? the card colors and spacing look wrong compared to our mockup",
+      "expected_decision": "trigger-ui-review",
+      "expected_special": "none",
+      "expected_output": "Off-theme vs mockup = the design-system/theme fidelity lens.",
+      "category": "trigger-theme",
+      "assertions": [
+        {
+          "text": "decision == trigger-ui-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "đánh giá giao diện form khách hàng đã render trên instance của tôi",
+      "expected_decision": "trigger-ui-review",
+      "expected_special": "none",
+      "expected_output": "Vietnamese rendered-screen verdict request; language does not change routing.",
+      "category": "trigger-vi",
+      "assertions": [
+        {
+          "text": "decision == trigger-ui-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "check whether the customer portal page is accessible - ARIA labels, colour contrast, keyboard navigation",
+      "expected_decision": "trigger-ui-review",
+      "expected_special": "none",
+      "expected_output": "ARIA/contrast/keyboard = the accessibility lens verbatim.",
+      "category": "trigger-a11y",
+      "assertions": [
+        {
+          "text": "decision == trigger-ui-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "how does the new dashboard look and behave? I've got it open at localhost:8069",
+      "expected_decision": "trigger-ui-review",
+      "expected_special": "none",
+      "expected_output": "Look-and-behave on a running instance = aesthetics + functional lenses.",
+      "category": "trigger-general",
+      "assertions": [
+        {
+          "text": "decision == trigger-ui-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "the OWL widget renders blank and there's a console error - why is it not showing up?",
+      "expected_decision": "defer:odoo-debug",
+      "expected_special": "none",
+      "expected_output": "Investigating WHY a screen is broken/console error -> odoo-debug, not rating a working one.",
+      "category": "defer-debug",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-debug"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "compare the before/after screenshots of the kanban to see if my CSS change caused any visual drift",
+      "expected_decision": "defer:odoo-visual-regression",
+      "expected_special": "none",
+      "expected_output": "Before/after drift comparison -> odoo-visual-regression.",
+      "category": "defer-visual-regression",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-visual-regression"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "record a short demo video of the inventory app walkthrough on my live instance",
+      "expected_decision": "defer:odoo-demo-recording",
+      "expected_special": "none",
+      "expected_output": "Recording a walkthrough video -> odoo-demo-recording.",
+      "category": "defer-demo-recording",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-demo-recording"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "the form field spacing is wrong - go fix the SCSS so it matches the design",
+      "expected_decision": "defer:odoo-coding",
+      "expected_special": "none",
+      "expected_output": "Changing SCSS source -> odoo-coding (fixes are handed off, not made here).",
+      "category": "defer-coding",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-coding"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "review this XML view file for correctness before I commit it - here's the arch",
+      "expected_decision": "defer:odoo-code-review",
+      "expected_special": "none",
+      "expected_output": "Reviewing an XML view file's source pre-commit -> odoo-code-review (no browser).",
+      "category": "defer-code-review",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-code-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 12,
+      "prompt": "review this Python model for bugs and N+1 issues",
+      "expected_decision": "defer:odoo-code-review",
+      "expected_special": "none",
+      "expected_output": "Python model bugs/N+1 = source-level review -> odoo-code-review.",
+      "category": "defer-code-review",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-code-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 13,
+      "prompt": "review how the sale order form looks and behaves - but heads up, I don't have any Odoo instance running right now",
+      "expected_decision": "trigger-ui-review",
+      "expected_special": "needs-instance",
+      "expected_output": "UI-review intent but no instance -> emit NEEDS_NEXT: odoo-instance to provision (never a bare BLOCKED, never ask user to paste).",
+      "category": "trigger-needs-instance",
+      "assertions": [
+        {
+          "text": "decision == trigger-ui-review"
+        },
+        {
+          "text": "special behavior == needs-instance"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 14,
+      "prompt": "review the eCommerce checkout page's UX and let me watch the browser while you do it",
+      "expected_decision": "trigger-ui-review",
+      "expected_special": "headed",
+      "expected_output": "UI-review intent + user wants to watch -> brief carries BROWSER MODE: headed (after display sanity-check).",
+      "category": "trigger-headed",
+      "assertions": [
+        {
+          "text": "decision == trigger-ui-review"
+        },
+        {
+          "text": "special behavior == headed"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 15,
+      "prompt": "we just designed a new approval screen (the design doc is in .odoo-ai/designs/) - review how it actually renders against the acceptance criteria",
+      "expected_decision": "trigger-ui-review",
+      "expected_special": "design-doc-aware",
+      "expected_output": "Render-vs-acceptance-criteria + design doc present -> add DESIGN_DOC (or MASTER_DESIGN_DOC) to the brief.",
+      "category": "trigger-design-doc",
+      "assertions": [
+        {
+          "text": "decision == trigger-ui-review"
+        },
+        {
+          "text": "special behavior == design-doc-aware"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 16,
+      "prompt": "is the list view rendering correctly on mobile and the responsive breakpoints?",
+      "expected_decision": "trigger-ui-review",
+      "expected_special": "none",
+      "expected_output": "Responsive/breakpoint rendering check = aesthetics/functional lens, normal trigger.",
+      "category": "trigger-responsive",
+      "assertions": [
+        {
+          "text": "decision == trigger-ui-review"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 17,
+      "prompt": "run through the full checkout flow on the live instance across two user roles and tell me whether it passes end-to-end",
+      "expected_decision": "defer:odoo-acceptance",
+      "expected_special": "none",
+      "expected_output": "ADVERSARIAL: execute a multi-role workflow end-to-end with PASS/FAIL -> odoo-acceptance, not rating one screen.",
+      "category": "ADVERSARIAL: execute workflow + roles + PASS/FAIL -> odoo-acceptance, not ui-review",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-acceptance"
+        }
+      ],
+      "files": []
+    },
+    {
+      "id": 18,
+      "prompt": "QA the affected cluster after my change - drive the actual invoicing workflow with different roles on the running instance and give me a pass/fail verdict",
+      "expected_decision": "defer:odoo-acceptance",
+      "expected_special": "none",
+      "expected_output": "ADVERSARIAL: 'QA the affected cluster' + drive workflow across roles for a verdict -> odoo-acceptance.",
+      "category": "ADVERSARIAL: cluster acceptance run -> odoo-acceptance",
+      "assertions": [
+        {
+          "text": "decision == defer:odoo-acceptance"
+        }
+      ],
+      "files": []
+    }
+  ],
+  "notes": "18 UI-review-decision cases (16 core + 2 adversarial marked ADVERSARIAL). Eval method: a subagent applies SKILL.md to each prompt and returns {fires, decision, special}, graded vs expected. Covers trigger-vs-defer (defers to odoo-debug/visual-regression/demo-recording/coding/code-review/acceptance) and the three special fired-behaviors: needs-instance (no instance -> NEEDS_NEXT: odoo-instance, never a bare BLOCKED), headed (user wants to watch -> BROWSER MODE: headed), design-doc-aware (upstream design doc -> DESIGN_DOC/MASTER_DESIGN_DOC in the brief). Adversarial 17-18 guard the odoo-acceptance boundary (execute a workflow/cluster with PASS/FAIL is acceptance, not rating one rendered screen). Baseline (pre-optimize snapshot) scored 18/18; the eval guards decision regressions, it does NOT drive a live browser or grade a real screenshot review."
+}
