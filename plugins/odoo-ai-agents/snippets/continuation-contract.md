@@ -38,5 +38,5 @@ Rules:
   the driver as a low-confidence `NEEDS_NEXT`; prefer the fenced block going forward.
 - **Reserved `inputs` keys.** `inputs` stays free-form, but `odoo_version` (concrete series) and
   `viindoo_profile` are RESERVED: any `next:` hop into a code/test/review skill (`odoo-coding`,
-  `odoo-code-review`, `odoo-test-writing`, `odoo-wave`) MUST carry `odoo_version` in `inputs` so
+  `odoo-code-review`, `odoo-test-writing`) MUST carry `odoo_version` in `inputs` so
   the version survives the handoff structurally, not by the next skill re-deriving it.

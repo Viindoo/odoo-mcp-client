@@ -2,7 +2,7 @@
 
 Business rule (SCHEMA-2 / F4): a plan/design resolves ONE concrete Odoo version for a run: if a
 `next:` hand-off from one skill's Continuation Contract into a code/test/review skill
-(`odoo-coding`, `odoo-code-review`, `odoo-test-writing`, `odoo-wave`) drops `odoo_version` from its
+(`odoo-coding`, `odoo-code-review`, `odoo-test-writing`) drops `odoo_version` from its
 `inputs`, the next skill has to re-derive the version instead of trusting the one already resolved
 - silent re-derivation is exactly the drift SCHEMA-2 exists to prevent. `odoo_version` is therefore
 a RESERVED `inputs` key (`snippets/continuation-contract.md`), not a suggestion.
@@ -15,9 +15,9 @@ Two independent assertions:
 
 (b) Behavioral (scoped to real payload-bearing hops). Scanning is paragraph-based, not
     fenced-block-only: an earlier design assumed every coding-chain hop is emitted as a fenced
-    ```continuation block with `next: <skill>`, but a live read of the four skill files
-    (2026-07) found the opposite - the fenced `next:` blocks in `odoo-code-review/SKILL.md` and
-    `odoo-wave/SKILL.md` target `odoo-acceptance` (not a coding-chain skill), and the ONE hop that
+    ```continuation block with `next: <skill>`, but a live read of the three skill files
+    (2026-07) found the opposite - the fenced `next:` block in `odoo-code-review/SKILL.md`
+    targets `odoo-acceptance` (not a coding-chain skill), and the ONE hop that
     actually carries a payload into the coding chain (`odoo-coding/SKILL.md`'s
     "emit `next: odoo-code-review` with `inputs: {odoo_version: ...}`") is plain PROSE, not a
     fenced block. A fenced-only scan would therefore match zero hops and pass vacuously - it would
@@ -47,7 +47,8 @@ PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 CONTINUATION_CONTRACT = PLUGIN / "snippets" / "continuation-contract.md"
 
 # The coding-chain skills named by continuation-contract.md's own "Reserved `inputs` keys" rule.
-CODING_CHAIN_SKILLS = ("odoo-coding", "odoo-code-review", "odoo-test-writing", "odoo-wave")
+# (odoo-wave was removed - decision R; run-harness is the DRIVER, not a `next:` coding-chain target.)
+CODING_CHAIN_SKILLS = ("odoo-coding", "odoo-code-review", "odoo-test-writing")
 CODING_CHAIN_FILES = [PLUGIN / "skills" / s / "SKILL.md" for s in CODING_CHAIN_SKILLS]
 
 
@@ -114,7 +115,7 @@ def test_continuation_hop_into_coding_chain_carries_odoo_version():
                 )
     assert hits > 0, (
         "No paragraph in any coding-chain SKILL.md (odoo-coding/odoo-code-review/"
-        "odoo-test-writing/odoo-wave) matched a `next:` hop with an `inputs:` payload into a "
+        "odoo-test-writing) matched a `next:` hop with an `inputs:` payload into a "
         "coding-chain skill - this assertion has become vacuous (it would pass even if every such "
         "hop were deleted). The known site as of 2026-07 is odoo-coding/SKILL.md's "
         "'emit `next: odoo-code-review` with `inputs: {odoo_version: ...}`' paragraph; if it was "

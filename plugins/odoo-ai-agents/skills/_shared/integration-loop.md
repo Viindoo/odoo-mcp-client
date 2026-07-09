@@ -17,8 +17,12 @@ rolled back or resumed deterministically, never left in an ambiguous partial sta
 
 These owners run an integration loop and reference THIS file instead of restating it:
 
-- `odoo-wave` - the git-executor (consume-only; renamed from `wave`): the canonical per-wave
-  integration loop, run from its orchestrating context.
+- `run-harness` - the **canonical per-wave integration consumer** and SOLE owner (there is no
+  separate git-executor skill - the former `odoo-wave` was removed, decision R): it walks the coding
+  waves and, per wave, forks `integration@wave-(N+1)` from `integration@wave-N` (Block 2W lineage),
+  cherry-picks each module's commit in module-DAG order under this saga, runs the integrated
+  cross-cutting review + cumulative close-gate, and opens one squashed PR (see `run-harness/SKILL.md`
+  § Between-wave integration).
 - The PEER orchestrators, each owning its own loop plus a main-context human-confirm gate:
   `odoo-forward-port`, `odoo-modules-upgrade`, `odoo-git-rebase`.
 - `odoo-planning` - references this contract so the plan it emits reserves the rollback/resume

@@ -6,7 +6,7 @@ Validates that orchestration metadata (generator/skill_tool_deps.json -> "orches
 is complete and that skills thread the shared contracts they are required to:
 
   1. Coverage     - every skills/<dir> has an orchestration entry, and vice versa.
-  2. OSM-first    - skills that spawn/fan-out workers writing Odoo (odoo-wave, workflow-chaining,
+  2. OSM-first    - skills that spawn/fan-out workers writing Odoo (workflow-chaining,
                     odoo-brl) reference snippets/osm-first-contract.md.
   3. Design-sys   - skills with stack in {frontend, fullstack} reference
                     skills/_shared/odoo-frontend-fidelity.md.
@@ -45,13 +45,15 @@ CODING_GUIDELINES_ROOT = "skills/_shared/coding_guidelines"
 CODING_GUIDELINES_VERSIONS = ("14.0", "15.0", "16.0", "17.0", "18.0", "19.0")
 
 # Skills that fan-out / spawn workers which may write Odoo code → must carry OSM-first.
-OSM_REQUIRED = {"odoo-wave", "workflow-chaining", "odoo-brl"}
+# (run-harness is deliberately NOT here: it is the domain-agnostic driver - "No OSM dependency" -
+# and grounding is each dispatched specialist's concern, so it carries no osm-first contract.)
+OSM_REQUIRED = {"workflow-chaining", "odoo-brl"}
 
 # Allowed enum values for the orchestration SSOT. A typo (e.g. "spawner_agent") must be a
 # loud finding, not a silent drop from the generated digest - otherwise the planner is told
 # a real spawner is safe to forbid (typo enum lets the planner be deceived into thinking
 # the skill is a safe non-spawner).
-VALID_SPAWN_CLASS = {"leaf", "orchestrator-nl", "spawner-agent", "spawner-wave"}
+VALID_SPAWN_CLASS = {"leaf", "orchestrator-nl", "spawner-agent"}
 VALID_STACK = {"backend", "frontend", "fullstack", "none"}
 # output_mode drives the Plan-Mode decision; default_gate_tier drives the run-harness gate
 # policy. Both are SSOT here (replacing the hardcoded chat-only lists). output_mode is read
@@ -67,24 +69,19 @@ VALID_HANDOFF = {"send-message", "fork", "fresh"}
 
 def _derive_gate_tier(spawn_class: str, instance_touching: bool, output_mode: str,
                       outward: bool = False) -> str:
-    """Derive the run-harness gate tier. L2 = irreversible/outward → ALWAYS human gate
-    (the dial can never lower it). L1 = writes internal files. L0 = read-only/chat.
+    """Derive the registry default_gate_tier for a SKILL. L2 = irreversible/outward → ALWAYS
+    human gate (the dial can never lower it). L1 = writes internal files. L0 = read-only/chat.
 
-    spawner-wave class invariant (why it short-circuits to L1 AHEAD of instance_touching):
-    a spawner-wave is a worktree-isolated fan-out, so its class contract entails - (a) every
-    instance it touches is an EPHEMERAL test DB, never a shared live instance; (b) its
-    squash/force-push is human-confirmed INSIDE the wave (a self-gated L2 presented in-context
-    at odoo-wave Phase 5.2); (c) the only irreversible landing is a DOWNSTREAM `outward` L2
-    node (odoo-pr-monitoring's merge-to-principal). So the DRIVER auto-advances a STATIC
-    spawner-wave node (L1); a DYNAMIC (unplanned) wave still trips L2 via run-harness's
-    dynamic-source-write rule. `outward` is checked first so a hypothetical outward
-    spawner-wave still derives L2 (defensive; a no-op for the sole spawner-wave odoo-wave,
-    which is not outward). A spawner-wave that mutated a SHARED (non-ephemeral) instance
-    would need explicit L2 re-classification; none exists today."""
+    NOTE - there is no `spawner-wave` branch anymore. run-harness's OWN between-wave integration
+    advance is L1 (autonomous drive-to-done: its instance touches are EPHEMERAL test DBs, its
+    squash/force-push is the in-context L2-squash-gate, and the only irreversible landing is the
+    DOWNSTREAM outward merge - odoo-pr-monitoring's merge-to-principal). That L1 is a run-harness
+    NODE tier applied by the driver (see run-harness SKILL.md § Gate-tier resolution +
+    workflow-harness.md §8.4), NOT a value derived from any skill's registry fields, so it is not
+    computed here. A DYNAMIC (unplanned) source-writing wave stays L2 via run-harness's
+    dynamic-source-write rule. `outward` is checked first so an outward skill always derives L2."""
     if outward:
         return "L2"
-    if spawn_class == "spawner-wave":
-        return "L1"
     if instance_touching:
         return "L2"
     if output_mode == "writes-files":

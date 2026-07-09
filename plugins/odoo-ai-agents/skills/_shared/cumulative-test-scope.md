@@ -1,5 +1,5 @@
 <!-- SSOT snippet. The single home for the per-wave CUMULATIVE test-selection algorithm shared by
-     the wave close-gate (odoo-wave Phase 4.4) and any peer that closes a wave on a regression suite.
+     the wave close-gate (run-harness's between-wave integration close-gate) and any peer that closes a wave on a regression suite.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/skills/_shared/cumulative-test-scope.md.
      This selects WHICH suites run; the saga/rollback of the run itself is integration-loop.md;
      the OSM version-pin race + ephemeral-DB lease are concurrency-guard.md. -->
