@@ -30,10 +30,11 @@ for the target version. (This is the runner's `mode` = `fresh` vs `reuse`; see
 
 > **Under concurrency, `<DB>` must be an ISOLATED database, never the shared declared one** - a
 > parallel agent or another Claude Code session may be testing against it. Acquire a throwaway:
-> `python3 scripts/lib/allocator.py acquire --mode ephemeral --ports 0` (reserves a unique DB name;
-> the `-i <module>` run below performs Odoo create-on-init to build the DB; a `--stop-after-init`
-> run binds no port), use `$ALLOC_DB_NAME` / `$ALLOC_PYTHON`, then `allocator.py release $ALLOC_TOKEN`
-> (drops through Odoo via `scripts/lib/odoo_db.py`).
+> `python3 scripts/lib/allocator.py acquire --mode ephemeral --ports 0 --run-id <id>` (reserves a
+> unique DB name under that run's ownership; the `-i <module>` run below performs Odoo
+> create-on-init to build the DB; a `--stop-after-init` run binds no port), use `$ALLOC_DB_NAME` /
+> `$ALLOC_PYTHON` (and `$ALLOC_DB_PORT` when non-empty), then
+> `allocator.py release $ALLOC_TOKEN --run-id <id>` (drops through Odoo via `scripts/lib/odoo_db.py`).
 > See `snippets/instance-resolution.md` § Allocate and `docs/reference/INSTANCE-ALLOCATION.md`.
 
 - `--test-enable` - enable running tests at `-i`/`-u`.

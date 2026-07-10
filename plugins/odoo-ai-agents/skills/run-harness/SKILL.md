@@ -128,16 +128,26 @@ finalize: RUN.completion = {status, evidence: flatten(all produced), summary}
 emit terminal report (DONE | BLOCKED | NEEDS_CONTEXT), one evidence pointer per claim
 ```
 
-When the CHP capability probe is positive (Agent Team mode on), run-harness `TaskCreate`s one task
-per DAG NODE it dispatches (title = node id) and tracks status via `TaskList`/`TaskGet`. It does NOT
+Per `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md`, run-harness creates and keeps
+current a live task list of the RUN-DAG nodes it dispatches (one item per node, title = node id) -
+mirroring `RUN.nodes[].status` for human visibility, never redefining it; update both together on
+every status change. This fires whenever a task-list tool is available in run-harness's own
+toolset, INDEPENDENT of Agent Team mode / the CHP capability probe / `SendMessage` - it does not
+require the experimental `TaskCreate`/`TaskList`/`TaskGet` surface specifically; use whatever
+task-list primitive the runtime actually exposes.
+
+Separately, when the CHP capability probe is positive (Agent Team mode on), run-harness ALSO
+tracks OTHER named teammate agents via `TaskCreate`/`TaskList`/`TaskGet` per
+`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` Ask 2 - this teammate-status layer is
+distinct from the always-on node checklist above and stays CHP-gated. run-harness itself does NOT
 spawn named teammate agents - it dispatches each node via Skill-tool inline, a spawner skill (Skill
 tool), or workflow-chaining. A spawner-skill node (e.g. odoo-coding) runs in the same `main` context
 and is team lead for its OWN teammates (injects their briefs TASK_ID + REPLY_TO: main + NOTIFY,
 consumes their pushes); run-harness reads the spawner's in-context aggregate result and does NOT
 track the spawner's teammate tasks (single main context - no double-tracking). For a LEAF teammate
 dispatched directly, inject its brief and read the result from its SendMessage push (NEVER the
-`.output` transcript). Per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off,
-dispatch + collect as today.
+`.output` transcript). When the CHP probe is off, teammate tracking is skipped - the always-on node
+checklist above still applies regardless.
 
 ## Gate-tier resolution
 

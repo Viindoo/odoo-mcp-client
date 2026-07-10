@@ -513,10 +513,12 @@ Instance lifecycle protocol: `docs/reference/INSTANCE-LIFECYCLE.md`. Test invoca
 conventions: `docs/reference/ODOO-TESTING.md`.
 
 **Env-bootstrap (do this FIRST, before any odoo-bin call).** Read `.odoo-ai/context.md`
-`## Verify environment` FIRST: if `verify_python` / `addons_path` are present, use them and
-skip the instances.toml/venv archaeology below; fall back to the resolution chain
-(`snippets/venv-resolution.md`) only when the section is absent or a listed repo path no
-longer exists on disk. A multi-repo stack (e.g. Viindoo Standard spans 4 repos) needs EVERY
+`## Verify environment` FIRST: if `verify_python` / `addons_path` are present, treat
+`verify_python` as a non-authoritative HINT only - confirm it via `<verify_python> <odoo-bin>
+--version` before relying on it for any mutation, then use the confirmed interpreter and
+`addons_path`. Defer to the full resolution chain (`snippets/venv-resolution.md`) whenever the
+section is absent, a listed repo path no longer exists on disk, or the cached `verify_python`
+fails the `--version` check. A multi-repo stack (e.g. Viindoo Standard spans 4 repos) needs EVERY
 repo on disk and concatenated into `--addons-path` before verify - a module is invisible
 (silent ImportError / "module not found") if its repo is absent. Build the addons-path from
 all stack repos:
@@ -542,9 +544,10 @@ Union the closures of every directly-touched module and feed that whole set to `
 
 ```bash
 # one ephemeral DB per BATCH, not per commit
-python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral
-#   -> ALLOC_DB_NAME (unique reserved name) / ALLOC_PORTS / ALLOC_TOKEN
+python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral --run-id <run-id>
+#   -> ALLOC_DB_NAME (unique reserved name) / ALLOC_PORTS / ALLOC_DB_PORT / ALLOC_RUN_ID / ALLOC_TOKEN
 #   (cache TOKEN in the batch worklog)
+#   ALLOC_RUN_ID echoes the --run-id passed above - the lease's ownership key; forward it to release.
 #   ALLOC_PORTS includes a free HTTP port -> export it as ALLOC_HTTP_PORT
 #
 #   The allocator reserves the DB name + ports but does NOT create the DB.
@@ -570,7 +573,7 @@ odoo-bin -d $ALLOC_DB_NAME -i mod_a,mod_b --test-enable --stop-after-init \
 #   -i on an already-installed module is a no-op (illustrative - confirm flags via cli_help).
 #   Full rule: ${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md
 
-python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN
+python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN --run-id $ALLOC_RUN_ID
 ```
 
 **Confirm EACH module actually loaded; Odoo silent-skips, it does not error.** An
@@ -597,7 +600,7 @@ sibling batch), then release the lease so the allocator can reclaim the port:
 
 ```bash
 pkill -f "odoo-bin.*$ALLOC_DB_NAME"   # narrow match - never `pkill -f odoo-bin`
-python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN
+python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN --run-id $ALLOC_RUN_ID
 ```
 
 - **RED-then-GREEN (whole module):** target suite must be green.

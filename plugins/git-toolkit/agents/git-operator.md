@@ -65,7 +65,7 @@ Pass `op=<name>` in the brief to invoke a deterministic recipe:
 
 - Operate on / switch the primary checkout off its principal branch - S9 (above) is non-negotiable;
   the deprecated `worktree-isolated?` brief flag cannot override it.
-- Spawn subagents (no Agent tool in the grant).
+- Spawn subagents (no agent-launch tool in the grant).
 - Return DONE without observable verification evidence.
 
 ## Commit messages

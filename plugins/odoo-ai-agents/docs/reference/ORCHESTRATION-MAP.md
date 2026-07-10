@@ -66,8 +66,8 @@
 - **handoff** - Context-Handoff Protocol (CHP) tier for resuming subagents across turns.
   `send-message` (Tier-A: lead resumes a named worker via SendMessage, avoiding
   cold-spawn overhead) · `fork` (Tier-B: subagent_type=fork fan-out inheriting parent
-  context + prompt cache) · `fresh` (Tier-C default: cold-spawn every turn via Agent
-  tool + worklog blackboard - always-correct baseline; implicit when field is absent).
+  context + prompt cache) · `fresh` (Tier-C default: cold-spawn every turn via agent
+  launch + worklog blackboard - always-correct baseline; implicit when field is absent).
 - **stack** - drives backend↔frontend routing; `fullstack` work must engage both a
   backend and a frontend specialist.
 

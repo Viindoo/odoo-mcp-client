@@ -52,7 +52,7 @@ OUTPUT SIZE and RISK (never step count):
    `git-surveyor` (read-only); local mutation (reversible OR destructive) -> `git-operator` (carries
    the safety contract); GitHub API -> `github-operator` (MCP-first / gh-fallback). Resolve the
    model tier from `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md` (single-delegate op-class
-   table, first-match-wins); pass it as the Agent-tool `model` param AND put
+   table, first-match-wins); pass it as the launch's `model` param AND put
    `DISPATCH MODEL: <tier>` as the first line of the brief.
 3. **PHASED-PIPELINE** - large/complex (>500 files OR >10k LOC OR multi-commit rewrite OR
    thousand-file backport, per `${CLAUDE_PLUGIN_ROOT}/snippets/git-scale-protocol.md` M2):
@@ -60,7 +60,7 @@ OUTPUT SIZE and RISK (never step count):
    HUMAN-CONFIRM -> P4 execute -> P5 verify below the caller, and returns only the final result.
    P3 strategy and the human-confirm gate are the LEAD's job, not the surveyor's.
 
-Fallback: if THIS context cannot cold-spawn (no Agent tool), degrade SINGLE-DELEGATE ->
+Fallback: if THIS context cannot cold-spawn (no agent-launch capability), degrade SINGLE-DELEGATE ->
 INLINE-with-contract per `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N4 - never fail
 silently.
 

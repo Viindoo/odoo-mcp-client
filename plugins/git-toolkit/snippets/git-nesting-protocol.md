@@ -11,7 +11,7 @@ spawn tool is unavailable.
 
 ## N1 - Cold-spawn handoff (the default handoff mode)
 
-Every dispatch is a stateless COLD spawn via the Agent tool: self-contained brief in, compact
+Every dispatch is a stateless COLD spawn by launching an agent: self-contained brief in, compact
 summary + findings-file path out. The worker reconstructs its model from the brief plus the findings
 files on disk - no warm team-resume. This is the DEFAULT and always-correct baseline: robust at ANY
 caller depth and needing no team lead, so it works whether the caller is the main agent or itself a
@@ -36,7 +36,7 @@ stranded.
 
 ## N2 - Depth guard (anti-runaway)
 
-ONLY `git-pipeline-lead` holds the subagent-spawning tool (the Agent tool). The three leaf agents -
+ONLY `git-pipeline-lead` holds agent-launch capability. The three leaf agents -
 `git-surveyor`, `git-operator`, `github-operator` - declare a `tools:` allowlist that EXCLUDES it,
 so a leaf physically CANNOT spawn another agent. This caps nesting at two levels (lead -> leaf) and
 makes a runaway spawn-storm impossible by construction.
@@ -62,7 +62,7 @@ P3 strategy AND the human-confirm gate for destructive plans are the LEAD's job,
 
 ## N4 - Agent-unavailable fallback
 
-If the caller cannot cold-spawn (the Agent tool is absent in this context), DEGRADE - never fail
+If the caller cannot cold-spawn (agent-launch capability is absent in this context), DEGRADE - never fail
 silently:
 
 1. SINGLE-DELEGATE if a single leaf would suffice -> if no spawn, then

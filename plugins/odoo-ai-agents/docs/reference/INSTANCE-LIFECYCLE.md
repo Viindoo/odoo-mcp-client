@@ -26,7 +26,7 @@
 | XML / view / data record changed | `-u <module>` | **TRAP:** records in `<data noupdate="1">` (or a noupdate file) are written once at `-i` and **never** rewritten by `-u`. Editing them has no effect - flip noupdate, migrate, or delete the `ir_model_data` row |
 | `store=True` computed field added / formula changed | `-u <module>` | `-u` should recompute the stored column; if recompute is skipped, force it (shell `env … recompute`, or null the column + `-u`). Verify the column, don't assume |
 | Removed a model / field / changed an XML id | `-u <module>` + watch for orphans | may leave stale columns / `ir_model_data` orphans; hard cleanup → reinstall |
-| Renamed module, changed a model `_name`, data corruption, demo mismatch | **REINSTALL**: drop DB + create fresh + `-i` | |
+| Renamed module, changed a model `_name`, data corruption, demo mismatch | **REINSTALL**: drop DB + create fresh + `-i` | a leased (allocator-managed) DB is dropped by releasing its lease, never by bare name - see the ownership guard in `INSTANCE-ALLOCATION.md` §6.3 |
 | Cross-version bump (e.g. 16 → 17) | OpenUpgrade / the upgrade path - **NOT a plain `-u`** | a version bump is a migration job, not a module update |
 
 ## `-i` vs `-u` semantics (confirm exact flags via `cli_help` for the target version)

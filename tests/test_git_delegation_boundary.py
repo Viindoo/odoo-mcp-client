@@ -310,13 +310,13 @@ _LEAF_AGENT_RE = re.compile(
 # the worker" does NOT trip on the unrelated "dispatching".
 _COLDSPAWN_TOKEN_RE = re.compile(r"subagent_type|Agent\s+tool|cold-?spawn", re.IGNORECASE)
 
-# A dispatch/spawn verb taking a leaf agent as its DIRECT OBJECT. Allows optional
+# A dispatch/spawn/launch verb taking a leaf agent as its DIRECT OBJECT. Allows optional
 # "git-toolkit's", determiners ("a/the/one/fresh/new"), and markdown/quote wrappers
 # (``**name**``, `` `name` ``) between the verb and the agent name. Does NOT allow arbitrary
 # nouns, so "dispatch the worker via git-surveyor" (git-surveyor is object of "via", not the
 # dispatch) does not match.
 _DIRECT_DISPATCH_RE = re.compile(
-    r"\b(?:re-?)?(?:dispatch|spawn)(?:es|ing|ed|s)?\s+"
+    r"\b(?:re-?)?(?:dispatch|spawn|launch)(?:es|ing|ed|s)?\s+"
     # ReDoS-safe: a single decoration char per outer `*` iteration (no inner `+`
     # nested inside the outer `*`), so no exponential backtracking. Matches the
     # same strings - a run of N decoration chars is consumed as N outer iterations.
@@ -488,6 +488,9 @@ def test_agent_dispatch_detection_red_before_green():
         "Each poll tick, defer the PR read to github-operator.",
         # the same soft form that used to be in `allowed` - now a violation.
         "delegate a bisect run to git-operator in a dedicated worktree.",
+        # MAJOR-4: "launch" added to the dispatch-verb group (neutral "Agent tool" -> "agent
+        # launch" rename) - a leaf agent as its direct object is still an active dispatch.
+        "Launch git-operator to create the integration worktree.",
     ]
     for line in forbidden:
         assert _is_agent_dispatch(line), f"boundary B should FLAG but did not: {line!r}"
@@ -509,6 +512,11 @@ def test_agent_dispatch_detection_red_before_green():
         "delegate the conflict resolution to odoo-coder in the worktree.",
         # the fork handoff tier is not a git-agent cold-spawn
         'launch one Opus subagent per cluster using `subagent_type: "fork"`.',
+        # MAJOR-4: "launch" governing a GENERIC noun (no named leaf agent as direct object) is
+        # a capability statement, not a dispatch - must NOT false-positive now that "launch" is
+        # in the verb group.
+        "This context cannot launch agents directly; it must go through git-ops.",
+        "A hard-leaf agent has no agent-launch capability and returns files to its coordinator.",
     ]
     for line in allowed:
         assert not _is_agent_dispatch(line), f"boundary B should NOT flag but did: {line!r}"

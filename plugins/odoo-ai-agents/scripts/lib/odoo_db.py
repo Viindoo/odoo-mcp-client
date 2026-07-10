@@ -7,16 +7,20 @@ that ``import odoo`` resolves to the correct series.
 
 CLI contract
 ------------
-  python3 odoo_db.py drop   <db> [--db-host H] [--db-user U] [--db-password P]
+  python3 odoo_db.py drop   <db> [--db-host H] [--db-user U] [--db-port P] [--db-password P]
       Drop the database through ``odoo.service.db.exp_drop``.
+      Threads --db-port into parse_config as --db_port ONLY when non-empty (empty
+      -> omit; libpq/PGPORT resolves it - never fabricate 5432).
+      Emits an observability line to stderr on every drop naming the RESOLVED
+      host:port and whether the drop was performed or the DB was already-absent.
       Exit 0 on success OR if the DB is already absent (idempotent).
       Exit 1 on any Odoo-level failure (message on stderr).
-      Exit 2 on usage / argument error.
+      Exit 2 on usage / argument error (INCLUDING an unrecognized --flag).
       Exit 10 when the Odoo package cannot be imported (``odoo_db: cannot import
                odoo (no venv?)`` on stderr) - "venv unavailable" sentinel for
                callers (e.g. allocator.py) that want to apply their own fallback.
 
-  python3 odoo_db.py exists <db> [--db-host H] [--db-user U] [--db-password P]
+  python3 odoo_db.py exists <db> [--db-host H] [--db-user U] [--db-port P] [--db-password P]
       Print ``true`` or ``false`` (lowercase) to stdout.
       Exit 0 always (even when the DB does not exist).
       Exit 2 on usage error.
@@ -59,23 +63,33 @@ EXIT_NO_VENV = 10  # "venv unavailable" sentinel - callers may detect this
 _FLAG_KEYS = {
     "--db-host": "db_host",
     "--db-user": "db_user",
+    "--db-port": "db_port",
     "--db-password": "db_password",
 }
 
 
 def _parse(argv):
-    """Return (opts: dict, positional: list)."""
-    opts, pos = {}, []
+    """Return (opts: dict, positional: list, unknown: list).
+
+    An unrecognized ``--``-prefixed token is collected into ``unknown`` (the
+    caller turns that into a hard usage error) instead of being silently
+    swallowed as a positional - a database name never starts with ``--``, so no
+    legitimate positional is rejected.
+    """
+    opts, pos, unknown = {}, [], []
     i = 0
     while i < len(argv):
         a = argv[i]
         if a in _FLAG_KEYS:
             opts[_FLAG_KEYS[a]] = argv[i + 1] if i + 1 < len(argv) else ""
             i += 2
+        elif a.startswith("--"):
+            unknown.append(a)
+            i += 1
         else:
             pos.append(a)
             i += 1
-    return opts, pos
+    return opts, pos, unknown
 
 
 # ---- Odoo import + config bootstrap ----
@@ -122,6 +136,11 @@ def _bootstrap_config(odoo, opts):
         args += ["--db_host", opts["db_host"]]
     if opts.get("db_user"):
         args += ["--db_user", opts["db_user"]]
+    # Postgres port: thread through ONLY when declared. Empty -> omit the flag so
+    # libpq / PGPORT / the compiled default resolve it (Odoo's own default is
+    # "omit", not 5432 - fabricating 5432 would override a legit PGPORT setup).
+    if opts.get("db_port"):
+        args += ["--db_port", str(opts["db_port"])]
 
     # Password: CLI flag wins over env var
     pw = opts.get("db_password") or os.environ.get("ODOO_PG_PASSWORD")
@@ -164,9 +183,16 @@ def cmd_drop(db_name, opts):
 
     # exp_drop returns False when the DB is not in the list (already absent) -> idempotent.
     # Returns True on successful drop. Raises on actual failure (caught above).
-    if result is False:
-        # DB absent - treat as success (idempotent drop)
-        pass
+    # Emit an observability line on EVERY drop naming the RESOLVED connection so a
+    # no-op ("already-absent on the cluster we connected to") is distinguishable
+    # from a real drop, and so it is always clear which cluster the drop actually hit.
+    host = opts.get("db_host") or "libpq-default"
+    port = opts.get("db_port") or "libpq-default"
+    outcome = "performed" if result else "already-absent"
+    sys.stderr.write(
+        "odoo_db: drop {db!r} on {host}:{port} -> {outcome}\n".format(
+            db=db_name, host=host, port=port, outcome=outcome)
+    )
     return EXIT_OK
 
 
@@ -202,7 +228,17 @@ def main(argv):
 
     cmd = argv[0]
     rest = argv[1:]
-    opts, pos = _parse(rest)
+    opts, pos, unknown = _parse(rest)
+
+    if unknown:
+        sys.stderr.write(
+            "odoo_db: unrecognized flag(s): {flags}\n".format(flags=" ".join(unknown))
+        )
+        sys.stderr.write(
+            "Usage: odoo_db.py {cmd} <db> [--db-host H] [--db-user U] "
+            "[--db-port P] [--db-password P]\n".format(cmd=cmd)
+        )
+        return EXIT_USAGE
 
     if cmd == "drop":
         if not pos:

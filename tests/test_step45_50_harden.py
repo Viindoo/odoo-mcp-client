@@ -1477,3 +1477,94 @@ def test_step50_shared_lease_passes_profile_to_allocator(tmp_path):
     pid = lz.get("owner", {}).get("pid")
     if pid and _alive(pid):
         os.kill(int(pid), signal.SIGTERM)
+
+
+# ---------------------------------------------------------------------------
+# Problem 5: step 05 venv HARD gate for declared source-mode instances.
+#   python="" (or a broken venv) -> `check` FAILS with a remediation line.
+#   ODOO_AI_ALLOW_NO_VENV=1 downgrades the FAILED to a loud WARN (check passes).
+# ---------------------------------------------------------------------------
+STEP05 = (
+    ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "setup-steps" / "05-prereq-check.sh"
+)
+
+
+def _step05_env(tmp_path: Path, toml: Path, *, git_base: Path) -> dict:
+    """A `check` env where every OTHER instance prerequisite (python3/curl/pg/repos)
+    is satisfied via stubs, so the venv gate is the only differentiator."""
+    bind = tmp_path / "bin05"
+    bind.mkdir(exist_ok=True)
+    _write_stub(bind / "curl", 'echo "200"\n')
+    _write_stub(bind / "pg_isready", "exit 0\n")
+    env = dict(os.environ)
+    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
+    env["SETUP_FILTER"] = "instance"
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_GIT_BASE"] = str(git_base)
+    env.pop("ODOO_AI_ALLOW_NO_VENV", None)
+    return env
+
+
+def _source_instance_toml(tmp_path: Path, *, python: str, addons_path: str) -> Path:
+    toml = tmp_path / "instances.toml"
+    toml.write_text(
+        textwrap.dedent(f"""\
+            [[instance]]
+            series = "17.0"
+            python = "{python}"
+            run_mode = "source"
+            http_port = 8069
+            db_name = "odoo"
+            db_host = "localhost"
+            db_user = "odoo"
+            addons_path = "{addons_path}"
+        """),
+        encoding="utf-8",
+    )
+    return toml
+
+
+@requires_bash
+def test_step05_venv_gate_fails_when_source_instance_has_no_venv(tmp_path):
+    """A declared source instance with python="" must make `check` FAIL with a
+    remediation line pointing at 45-venv.sh (the hard gate)."""
+    core = _make_core_dir(tmp_path)  # provides odoo-bin + counts as a repo under git_base
+    toml = _source_instance_toml(tmp_path, python="", addons_path=str(core / "addons"))
+    env = _step05_env(tmp_path, toml, git_base=tmp_path)
+
+    res = subprocess.run(["bash", str(STEP05), "check"], capture_output=True, text=True, env=env)
+    out = res.stdout + res.stderr
+    assert res.returncode != 0, f"check must FAIL when a source instance has no venv.\n{out}"
+    assert "FAILED" in out, f"expected an explicit FAILED gate line.\n{out}"
+    assert "45-venv.sh" in out and "17.0" in out, (
+        f"expected remediation naming 45-venv.sh and the series.\n{out}"
+    )
+
+
+@requires_bash
+def test_step05_venv_gate_downgrades_to_warn_with_opt_out(tmp_path):
+    """ODOO_AI_ALLOW_NO_VENV=1 downgrades the FAILED gate to a loud WARN and check passes."""
+    core = _make_core_dir(tmp_path)
+    toml = _source_instance_toml(tmp_path, python="", addons_path=str(core / "addons"))
+    env = _step05_env(tmp_path, toml, git_base=tmp_path)
+    env["ODOO_AI_ALLOW_NO_VENV"] = "1"
+
+    res = subprocess.run(["bash", str(STEP05), "check"], capture_output=True, text=True, env=env)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, f"opt-out must let check PASS.\n{out}"
+    assert "WARN" in out, f"the opt-out must still be LOUD (WARN), never silent.\n{out}"
+
+
+@requires_bash
+def test_step05_venv_gate_passes_with_runnable_venv(tmp_path):
+    """A source instance whose python runs `<py> <odoo-bin> --version` passes the gate."""
+    core = _make_core_dir(tmp_path)
+    venv = _make_fake_venv(tmp_path, odoo_runnable=True)
+    toml = _source_instance_toml(
+        tmp_path, python=str(venv / "bin" / "python"), addons_path=str(core / "addons"))
+    env = _step05_env(tmp_path, toml, git_base=tmp_path)
+
+    res = subprocess.run(["bash", str(STEP05), "check"], capture_output=True, text=True, env=env)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, f"a working venv must PASS the gate.\n{out}"
+    assert "FAILED" not in out, f"a working venv must not emit a FAILED line.\n{out}"

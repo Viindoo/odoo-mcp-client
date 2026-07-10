@@ -25,7 +25,7 @@ a user approves a multi-step workflow plan at the soft-plan-gate.
 ## Hard rules
 
 1. **Prefer the Skill tool for phase dispatch.** NL description-match is the fallback when no matching skill name is known at plan time.
-2. **NEVER spawn a sub-agent directly** (no Agent tool, no `context: fork` - fan-out is the
+2. **NEVER spawn a sub-agent directly** (no direct agent launch, no `context: fork` - fan-out is the
    only exception, ≤3 concurrent workers with the mandatory worker-brief preamble).
 3. **No recursion.** Fork workers are leaf agents and carry:
    "Do NOT invoke spawner skills via the Skill tool. Do NOT spawn sub-agents. You MAY use the Skill tool for read-only leaf skills (e.g. odoo-feature-check, odoo-override-finding). Only Read/Grep/Glob/Write/Bash."
@@ -60,6 +60,15 @@ Gate: approve / refine: [feedback] / cancel
 ```
 
 Wait for user response before proceeding to Phase 1.
+
+## Live task list
+
+Per `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md`, create and keep current a
+live task list of this workflow's phases (one item per phase id) as execution proceeds - mark a
+phase in-progress when dispatched, done when its output is written, and add any phase inserted via
+`on_complete` or a dynamic transition as a new item. This mirrors `<slug>-state.json`'s
+`phases_done` / `last_completed_phase` for human visibility - it does not replace that checkpoint.
+Fires whenever a task-list tool is available, independent of Agent Team mode.
 
 ## Phase execution - pattern dispatch
 

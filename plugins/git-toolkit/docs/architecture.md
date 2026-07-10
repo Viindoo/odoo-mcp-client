@@ -48,9 +48,9 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    L[git-pipeline-lead<br/>HAS Agent tool] -->|cold-spawn| S[git-surveyor<br/>no Agent tool]
-    L -->|cold-spawn| O[git-operator<br/>no Agent tool]
-    L -->|cold-spawn| G[github-operator<br/>no Agent tool]
+    L[git-pipeline-lead<br/>CAN launch agents] -->|cold-spawn| S[git-surveyor<br/>cannot launch agents]
+    L -->|cold-spawn| O[git-operator<br/>cannot launch agents]
+    L -->|cold-spawn| G[github-operator<br/>cannot launch agents]
     S -. cannot spawn .-> X[ ]
     O -. cannot spawn .-> X
     G -. cannot spawn .-> X
@@ -84,7 +84,7 @@ flowchart TD
 `git-toolkit` is a provider library; it does not know its consumers by name. An orchestrating
 CALLER - any skill, agent, or pipeline that needs git/GitHub work done - delegates every local
 git mutation and GitHub API op to these agents (dispatching `git-operator`, `git-surveyor`, or
-`github-operator` via the Agent tool) rather than running git inline. The caller is responsible
+`github-operator` by launching them) rather than running git inline. The caller is responsible
 for:
 
 - Worktree isolation per mutation - never operate on the primary/shared checkout (S9 in

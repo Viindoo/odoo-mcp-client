@@ -274,8 +274,13 @@ cmd_apply() {
             local db_host="${INST_DB_HOST:-localhost}"
             local db_user="${INST_DB_USER:-odoo}"
             local db_name="${INST_DB_NAME:-odoo}"
+            local db_port="${INST_DB_PORT:-}"
+            # -p only when a non-default port is declared (empty-omit): let libpq /
+            # PGPORT resolve it otherwise, matching the drop/create surface.
+            local _pgr_port_args=()
+            [[ -n "$db_port" ]] && _pgr_port_args=(-p "$db_port")
             if command -v pg_isready >/dev/null 2>&1; then
-                if ! pg_isready -h "$db_host" -U "$db_user" -d "$db_name" -q 2>/dev/null; then
+                if ! pg_isready -h "$db_host" "${_pgr_port_args[@]}" -U "$db_user" -d "$db_name" -q 2>/dev/null; then
                     echo "" >&2
                     echo "x PREFLIGHT FAILED: PostgreSQL is not reachable." >&2
                     echo "  pg_isready -h $db_host -U $db_user -d $db_name reported failure." >&2
@@ -301,6 +306,11 @@ cmd_apply() {
                 echo "db_name = ${INST_DB_NAME:-odoo}"
                 echo "db_host = ${INST_DB_HOST:-localhost}"
                 echo "db_user = ${INST_DB_USER:-odoo}"
+                # db_port ONLY when a non-default port is declared (empty-omit) so
+                # libpq/PGPORT resolves it otherwise - never fabricate 5432.
+                if [[ -n "${INST_DB_PORT:-}" ]]; then
+                    echo "db_port = ${INST_DB_PORT}"
+                fi
                 # Password ONLY from env - never echoed from a stored file.
                 if [[ -n "${ODOO_PG_PASSWORD:-}" ]]; then
                     echo "db_password = ${ODOO_PG_PASSWORD}"

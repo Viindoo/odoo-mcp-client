@@ -1,7 +1,7 @@
 # Instance profile resolution (where `instances.toml` lives)
 
 `instances.toml` declares the local Odoo instances on THIS host - series,
-`http_port`, `db_host`/`db_user`/`db_name`, `addons_path`, and the venv `python`.
+`http_port`, `db_port`, `db_host`/`db_user`/`db_name`, `addons_path`, and the venv `python`.
 It is **machine-global**, not project-scoped: an execute-agent has no guaranteed
 working directory, so the instance profile must be findable from any cwd. (Every
 other `.odoo-ai/` artifact - `context.md`, `survey/`, `worklog/`, ... - stays
@@ -50,14 +50,14 @@ guessing.
 ## Allocate, don't just resolve (concurrent mutation)
 
 **Agents: self-provision via `Skill(odoo-instance)`, not this recipe directly.** This section
-documents the low-level allocator mechanism the `odoo-instance` skill's inline leaf-mode (and any
-other in-plugin caller) uses INTERNALLY for the deterministic, concurrency-safe DB/port reservation.
-An agent that needs a live instance and was handed no `INSTANCE_HANDLE` should invoke
-`Skill(odoo-instance)` inline-mode - which performs the acquire below AND applies the instance HARD
-RULES (`en_US` union, Viindoo `to_base` union, lint-module install union, per-version `cli_help`
-grounding) - rather than calling `scripts/lib/allocator.py acquire` directly, which would skip those
-rules. The recipe below stays here for the skill's inline-mode (and any other genuinely low-level
-caller) that still needs the raw mechanism.
+documents the low-level allocator mechanism `odoo-instance` (and any other in-plugin caller) uses
+INTERNALLY for the deterministic, concurrency-safe DB/port reservation. An agent that needs a live
+instance and was handed no `INSTANCE_HANDLE` should invoke `Skill(odoo-instance)` - which performs
+the acquire below AND applies the instance HARD RULES (`en_US` union, Viindoo `to_base` union,
+lint-module install union, per-version `cli_help` grounding) - rather than calling
+`scripts/lib/allocator.py acquire` directly, which would skip those rules. The recipe below stays
+here for `odoo-instance` (and any other genuinely low-level caller) that still needs the raw
+mechanism.
 
 The resolution above is correct for a **read-only** need (a URL to open / query a
 running server - many agents may share it). But the moment you MUTATE - run tests
@@ -68,10 +68,11 @@ another Claude Code session may be using the same database/port right now.
 For a mutation, acquire an isolated lease instead of reading the catalog directly:
 
 ```
-python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral [--profile <P>] [--ports N]
+python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral [--profile <P>] [--ports N] [--run-id <id>]
 # emits ALLOC_SERIES / ALLOC_PROFILE / ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_PYTHON /
-# ALLOC_ADDONS_PATH / ALLOC_DB_HOST / ALLOC_DB_USER / ALLOC_TOKEN
-# release with `allocator.py release <ALLOC_TOKEN>` when done.
+# ALLOC_ADDONS_PATH / ALLOC_DB_HOST / ALLOC_DB_USER / ALLOC_DB_PORT / ALLOC_RUN_ID / ALLOC_TOKEN
+# ALLOC_RUN_ID echoes the --run-id you passed (the lease's ownership key).
+# release with `allocator.py release <ALLOC_TOKEN> [--run-id <id>]` when done.
 ```
 
 `ephemeral` reserves a unique DB name and ports; the DB is created through Odoo by your

@@ -193,6 +193,45 @@ def test_cmd_read_emits_inst_profile_for_profiled_instance(tmp_path):
     )
 
 
+def test_cmd_read_emits_db_port_when_declared(tmp_path):
+    """A declared db_port must be surfaced as INST_DB_PORT (issue #163)."""
+    toml = _make_toml(tmp_path, textwrap.dedent("""\
+        [[instance]]
+        series = "17.0"
+        db_name = "odoo_17"
+        http_port = 8069
+        db_host = "localhost"
+        db_user = "odoo"
+        db_port = 5433
+        run_mode = "source"
+        addons_path = ["/fake/addons"]
+    """))
+    out = _run_read(toml, "17.0")
+    assert out.get("INST_DB_PORT") == "5433", (
+        f"INST_DB_PORT must equal the declared db_port; got {out.get('INST_DB_PORT')!r}"
+    )
+
+
+def test_cmd_read_db_port_empty_when_absent_not_5432(tmp_path):
+    """No declared db_port -> INST_DB_PORT is EMPTY (never a fabricated 5432)."""
+    toml = _make_toml(tmp_path, textwrap.dedent("""\
+        [[instance]]
+        series = "17.0"
+        db_name = "odoo_17"
+        http_port = 8069
+        db_host = "localhost"
+        db_user = "odoo"
+        run_mode = "source"
+        addons_path = ["/fake/addons"]
+    """))
+    out = _run_read(toml, "17.0")
+    assert "INST_DB_PORT" in out, "INST_DB_PORT must always be emitted"
+    assert out["INST_DB_PORT"] == "", (
+        f"INST_DB_PORT must be EMPTY when no db_port is declared; got {out['INST_DB_PORT']!r}"
+    )
+    assert out["INST_DB_PORT"] != "5432", "must NOT fabricate the libpq default 5432"
+
+
 def test_cmd_read_profile_arg_selects_correct_item_among_two(tmp_path):
     """With two [[instance]] blocks of the same series but different profile,
     the third CLI arg [profile] must select the right one."""

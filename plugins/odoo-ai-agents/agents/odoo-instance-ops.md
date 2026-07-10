@@ -39,7 +39,7 @@ cli_help(command='db', odoo_version='<series>')
 
 The OSM `set_active_version` pin is server-side state scoped to the API key. A concurrent agent can overwrite it. HARD RULE: pass the CONCRETE version on EVERY subsequent OSM call - never rely on the ambient pin.
 
-**Step C - Resolve venv.** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md`. If `ALLOC_PYTHON` is already in scope (from an allocator acquire), use it directly. If no suitable venv exists, build one first:
+**Step C - Resolve venv.** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md`. If `ALLOC_PYTHON` is already in scope AND non-empty (from an allocator acquire), use it directly - an empty `ALLOC_PYTHON` does NOT count as "in scope" and routes to the "build one first" branch below, never to a guessed system `python3`. If no suitable venv exists, build one first:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/45-venv.sh create-venv --series <X.Y> --profile <name> --tool uv
@@ -49,10 +49,18 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/45-venv.sh create-venv --series <X.Y> 
 
 ```bash
 eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py acquire \
-  --series <series> --mode <mode> --ports <N>)"
+  --series <series> --mode <mode> --ports <N> [--run-id <run-id>])"
 # -> $ALLOC_DB_NAME, $ALLOC_PYTHON, $ALLOC_ADDONS_PATH, $ALLOC_PORTS, $ALLOC_TOKEN
-# -> $ALLOC_DB_HOST, $ALLOC_DB_USER, $ALLOC_SERIES
+# -> $ALLOC_DB_HOST, $ALLOC_DB_USER, $ALLOC_SERIES, $ALLOC_DB_PORT, $ALLOC_RUN_ID
 ```
+
+Pass `--run-id <run-id>` whenever the dispatch brief or the run worklog slug identifies the calling
+run - it registers lease ownership and echoes back as `$ALLOC_RUN_ID`; forward that value into every
+later release/drop call so the rightful owner is never blocked from releasing its own lease. Omit it
+for a genuinely standalone one-off - the lease is then unowned and release degrades to today's
+token-possession behavior. `$ALLOC_DB_PORT` echoes the instance's declared port (empty when none is
+declared) - forward it into every create/init/update/test/drop call below so drop never targets a
+different Postgres cluster than create used.
 
 Mode per operation:
 - `ephemeral` - tests, one-shot init/update (RESERVES a unique throwaway DB name + ports; the DB is created through Odoo by the `-i` run (create-on-init) and dropped through Odoo on release; auto-degrades to `exclusive` when the role lacks CREATEDB).
@@ -218,6 +226,9 @@ Create a new Odoo database with a given module set for a target series.
   --db "$ALLOC_DB_NAME" \
   --python "$ALLOC_PYTHON" \
   --addons "$ALLOC_ADDONS_PATH" \
+  --db-host "$ALLOC_DB_HOST" \
+  --db-user "$ALLOC_DB_USER" \
+  [--db-port "$ALLOC_DB_PORT"] \
   --modules "<modules>" \
   --extra "<version-correct flags resolved from cli_help>"
 ```
@@ -241,23 +252,33 @@ Drop an existing Odoo database through Odoo (never raw dropdb).
 
 **Inputs:** db name (or lease token), series.
 
-**Mechanism:** If a lease token is known, release it - the allocator calls `odoo_db.py drop` internally for leases with `drop_on_release=true` (all `ephemeral` leases that performed create-on-init). Otherwise delegate to `scripts/setup-steps/55-instance-ops.sh drop`:
+**Mechanism.** A MANAGED (leased) DB MUST be dropped by releasing its lease - release is
+ownership-checked and race-free, so it is the only safe path once an allocator lease tracks the DB.
+If a lease token is known, release it (pass the run id so ownership is asserted, not just token
+possession) - the allocator calls `odoo_db.py drop` internally for leases with
+`drop_on_release=true` (all `ephemeral` leases that performed create-on-init):
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN" --run-id "$ALLOC_RUN_ID"
+```
+
+Only when NO lease token exists - the DB is genuinely unmanaged, nothing an allocator lease tracks -
+may you delegate to the bare `scripts/setup-steps/55-instance-ops.sh drop`. Always pass `--run-id`
+so the script can confirm via its own `assert-droppable` check that the DB is truly unmanaged before
+dropping it (it refuses on a fresh foreign lease, routing you back to `release`; `--force` overrides
+for an explicit foreign/stale reap):
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh" drop \
   --db "$DB_NAME" \
   --python "$ALLOC_PYTHON" \
+  --run-id "$ALLOC_RUN_ID" \
   [--db-host "$ALLOC_DB_HOST"] \
-  [--db-user "$ALLOC_DB_USER"]
+  [--db-user "$ALLOC_DB_USER"] \
+  [--db-port "$ALLOC_DB_PORT"]
 ```
 
 The script invokes `odoo_db.py drop` internally and emits `STATUS=ok` on success. Exit 10 from `odoo_db.py` means the venv cannot import odoo - rebuild the venv per Step C, then retry. The script never falls back to raw `dropdb`; that decision belongs to the allocator.
-
-Then release the allocator lease if one is held:
-
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN"
-```
 
 ### 3. init-modules
 
@@ -272,6 +293,9 @@ Install one or more modules into an existing Odoo database.
   --db "$ALLOC_DB_NAME" \
   --python "$ALLOC_PYTHON" \
   --addons "$ALLOC_ADDONS_PATH" \
+  --db-host "$ALLOC_DB_HOST" \
+  --db-user "$ALLOC_DB_USER" \
+  [--db-port "$ALLOC_DB_PORT"] \
   --modules "<modules>" \
   [--extra "<version-correct flags from cli_help>"]
 ```
@@ -294,6 +318,9 @@ Update one or more already-installed modules (-u).
   --db "$ALLOC_DB_NAME" \
   --python "$ALLOC_PYTHON" \
   --addons "$ALLOC_ADDONS_PATH" \
+  --db-host "$ALLOC_DB_HOST" \
+  --db-user "$ALLOC_DB_USER" \
+  [--db-port "$ALLOC_DB_PORT"] \
   --modules "<modules>" \
   [--extra "<version-correct no-HTTP flag + any extra flags from cli_help>"]
 ```
@@ -315,6 +342,9 @@ Run the Odoo test suite for one or more modules - either against a fresh ephemer
   --db "$ALLOC_DB_NAME" \
   --python "$ALLOC_PYTHON" \
   --addons "$ALLOC_ADDONS_PATH" \
+  --db-host "$ALLOC_DB_HOST" \
+  --db-user "$ALLOC_DB_USER" \
+  [--db-port "$ALLOC_DB_PORT"] \
   --modules "<modules>" \
   --mode <fresh|reuse> \
   [--test-tags "<tags>"] \
@@ -440,6 +470,9 @@ loop, schedule, forward to other actors, or wait for doc/verify/commit.
 
 **A. Provision-once (base DB for the path)**
 
+("Leaf" below means a module-dependency-graph leaf, NOT an agent-hierarchy leaf - this agent is not
+a hard leaf; it hands failures back via `SUGGESTED_NEXT`/`NEEDS_NEXT` rather than self-dispatching.)
+
 Provision the leaf-dependency DB at path start using doc-context provision flags: `-i
 <leaf_module>` with `--skip-auto-install`, `--with-demo` (version-aware, omit flag for
 v8-v18 where demo is on by default), `--load-language=<csv>` (v8-v18; v19+ see operation 7),
@@ -458,6 +491,9 @@ Install the next module onto the SAME running DB (operation 3 `init-modules`):
   --db "$ALLOC_DB_NAME" \
   --python "$ALLOC_PYTHON" \
   --addons "$ALLOC_ADDONS_PATH" \
+  --db-host "$ALLOC_DB_HOST" \
+  --db-user "$ALLOC_DB_USER" \
+  [--db-port "$ALLOC_DB_PORT"] \
   --modules "<next_module>" \
   --extra "<--skip-auto-install from cli_help> <no-HTTP flag from cli_help> --stop-after-init"
 ```
@@ -486,7 +522,7 @@ brief lists.
 
 Release the EXCLUSIVE lease when the caller signals path completion:
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN"
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN" --run-id "$ALLOC_RUN_ID"
 ```
 
 **Invariants this agent enforces:**
@@ -552,6 +588,8 @@ series: <X.Y>
 dbname: <db_name>
 http_port: <port or null>
 gevent_port: <port or null>
+db_port: <resolved port or empty>
+run_id: <owning run id or empty>
 modules_installed: [mod_a, mod_b]
 languages_loaded: [<active locales - ALWAYS includes en_US for create-instance / init-modules / run-tests(fresh) / load-language>]
 demo: true | false
@@ -570,6 +608,13 @@ notes: <one-line summary of any non-obvious decision or error>
 
 The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verbatim rather than reconstructing it - the script is the SSOT for the exact path. The convention the scripts follow is `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/<dbname>-<UTC-timestamp>.log` (e.g. `odoo_test_t_a1b2c3d4-20260620T153012Z.log`), but always forward what the script actually emits.
 
+The `db_port` and `run_id` fields: populate them from Step D's acquire result - `db_port` from
+`$ALLOC_DB_PORT` (empty when the lease carries none) and `run_id` from `$ALLOC_RUN_ID` (empty for
+an unowned standalone lease). These are the multi-turn ownership + port carrier the orchestrator
+reads back into `INSTANCE_HANDLE` (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`)
+so it can drop or release the right instance on the right Postgres port under the right owner on a
+later turn - forward them on EVERY operation, not only create-instance.
+
 ---
 
 ## Self-review checklist
@@ -582,6 +627,7 @@ The `log_path` field: capture the `LOG_PATH=` line from the script's stdout verb
 - [ ] allocator lease acquired; token in output block
 - [ ] DB created/dropped THROUGH Odoo (odoo_db.py / Odoo create-on-init), never raw createdb/dropdb
 - [ ] log_path captured verbatim from LOG_PATH= script stdout and forwarded in the output block
+- [ ] db_port and run_id populated from $ALLOC_DB_PORT / $ALLOC_RUN_ID (empty when unresolved/unowned) and forwarded in the output block on every operation
 - [ ] build ops (create/init/update/run-tests) launched in the BACKGROUND and actively waited to a TERMINAL marker (wait-log helper or test-verb markers) with an allocator heartbeat between polls - never idle-stalled past the tool timeout; on timeout reported BLOCKED with LOG_PATH preserved, exit code treated as authoritative
 - [ ] build ops ran at the default `--log-level=warn` unless the caller ESCALATED via --extra (--log-level=info/debug); the `test` verb kept `--log-level=test`
 - [ ] run-tests: TEST_FAILED/TEST_ERROR/TEST_WARNING + FINDINGS_PATH captured; mode picked per the auto fresh-vs-reuse rule; warnings>0 with no fail/error reported as tests-passed-with-warnings (findings_path surfaced, not swallowed)

@@ -23,9 +23,9 @@ when changing intake's structure, the routing table, or the harness wiring.
   `references/plan-mode-schema.md`.
 - See `docs/reference/workflow-harness.md` for the full design rationale of the harness and the
   schemas borrowed here (the wave-integration per-module brief, BRL DAG, wave-batch topologies, gap-analysis effort legend).
-- **Dispatch mechanism rationale** (why the Skill tool, not the Agent tool - § Dispatch mechanism
-  keeps only the rule + table): a skill is not an agentType, so Agent-tool'ing a skill *name* fails;
-  Agent-tool'ing the bare underlying agent launches it but **bypasses the skill's own orchestration**
+- **Dispatch mechanism rationale** (why the Skill tool, not a direct agent launch - § Dispatch mechanism
+  keeps only the rule + table): a skill is not an agentType, so launching an agent by a skill *name* fails;
+  launching the bare underlying agent directly launches it but **bypasses the skill's own orchestration**
   (topology, fan-out, synthesis - e.g. `odoo-code-review`'s module-count topology + fan-out +
   synthesis), forcing the read-and-imitate anti-pattern. A `spawner-agent` skill must run in the main
   context so the Skill tool loads it there and lets it launch subagents (`odoo-code-reviewer`,

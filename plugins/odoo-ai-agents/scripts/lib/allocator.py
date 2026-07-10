@@ -34,13 +34,20 @@ Modes:
 
 CLI:
     allocator.py acquire --series <X.Y> --mode <readonly|ephemeral|exclusive|shared>
-                 [--ports N] [--port P] [--ttl <s>] [--session <id>] [--db-name <name>]
+                 [--ports N] [--port P] [--ttl <s>] [--run-id <id>] [--db-name <name>]
                  [--pid <pid>] [--no-create] [--instances <path>]
+                 # --run-id is the canonical ownership key; --session is a back-compat
+                 # alias. acquire echoes ALLOC_RUN_ID + ALLOC_DB_PORT.
     allocator.py query --series <X.Y>     # the live shared render server for a series, if any
-    allocator.py release <token> [--instances <path>]
+    allocator.py release <token> [--run-id <id>] [--force] [--instances <path>]
+                 # refuses only when the caller's run differs from a non-empty
+                 # owner run (token-possession otherwise); --force overrides loudly.
+    allocator.py assert-droppable --db-name <db> [--run-id <id>]
+                 # read-only: non-zero if a FRESH lease on <db> is owned by a
+                 # DIFFERENT run (route that drop through `release`); 0 otherwise.
     allocator.py heartbeat <token>
     allocator.py gc [--instances <path>]
-    allocator.py list
+    allocator.py list [--show-tokens]     # tokens are fingerprinted unless --show-tokens
 
 All commands emit shell-eval-able KEY=VALUE lines (shlex.quote'd), mirroring
 instances_io.py's INST_* convention. acquire prints ALLOC_*.
@@ -138,6 +145,10 @@ def _read_registry():
 
 
 def _write_registry(reg):
+    # Stamp the current schema version on every write. Readers stay lenient (a
+    # missing schema_version is treated as v1), so this is explicitness for
+    # odoo-doctor / test anchoring, not a load-bearing gate.
+    reg["schema_version"] = 2
     path = _registry_path()
     tmp = f"{path}.tmp.{os.getpid()}"
     with open(tmp, "w", encoding="utf-8") as fh:
@@ -228,13 +239,18 @@ def _run(cmd, env=None):
         return 127, "", f"{cmd[0]}: not found"
 
 
-def _probe_createdb(host, user):
-    """True iff the connecting role has CREATEDB. False on any error (-> degrade)."""
-    rc, out, _ = _run(
-        ["psql", "-h", host, "-U", user, "-d", "postgres", "-tAc",
-         "SELECT rolcreatedb FROM pg_roles WHERE rolname = current_user"],
-        env=_pg_env(),
-    )
+def _probe_createdb(host, user, port=""):
+    """True iff the connecting role has CREATEDB. False on any error (-> degrade).
+
+    Threads -p <port> ONLY when a port is declared (same empty-omit rule as the
+    drop path) so the probe hits the SAME cluster create/drop will use.
+    """
+    cmd = ["psql", "-h", host, "-U", user]
+    if port:
+        cmd += ["-p", str(port)]
+    cmd += ["-d", "postgres", "-tAc",
+            "SELECT rolcreatedb FROM pg_roles WHERE rolname = current_user"]
+    rc, out, _ = _run(cmd, env=_pg_env())
     return rc == 0 and out.strip() == "t"
 
 
@@ -245,17 +261,23 @@ def _probe_createdb(host, user):
 # so if the role lacks it we degrade ephemeral -> exclusive (same invariant).
 
 
-def _dropdb(host, user, db):
-    """Terminate backends then drop, with retry (portable to PG10+)."""
+def _dropdb(host, user, db, port=""):
+    """Terminate backends then drop, with retry (portable to PG10+).
+
+    Threads -p <port> into BOTH the psql terminate-backend call and dropdb ONLY
+    when a port is declared (empty-omit) so the raw fallback hits the same cluster.
+    """
     env = _pg_env()
+    port_args = ["-p", str(port)] if port else []
     for _ in range(3):
         _run(
-            ["psql", "-h", host, "-U", user, "-d", "postgres", "-tAc",
+            ["psql", "-h", host, "-U", user] + port_args + ["-d", "postgres", "-tAc",
              "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
              f"WHERE datname = '{db}' AND pid <> pg_backend_pid()"],
             env=env,
         )
-        rc, _, err = _run(["dropdb", "-h", host, "-U", user, "--if-exists", db], env=env)
+        rc, _, err = _run(
+            ["dropdb", "-h", host, "-U", user] + port_args + ["--if-exists", db], env=env)
         if rc == 0:
             return True
         time.sleep(0.5)
@@ -305,10 +327,15 @@ def _drop_through_odoo(lease):
     pg = lease.get("_pg", {})
     host = lease.get("db_host") or pg.get("host", "localhost")
     user = lease.get("db_user") or pg.get("user", "odoo")
+    # Postgres port travels top-level with a _pg mirror for backward compat.
+    # Empty -> omit the flag (same empty-omit rule as the rest of the port surface).
+    port = lease.get("db_port") or pg.get("port", "")
     venv_python = lease.get("python", "")
 
     if venv_python and os.path.isfile(_ODOO_DB_PY):
         cmd = [venv_python, _ODOO_DB_PY, "drop", db, "--db-host", host, "--db-user", user]
+        if port:
+            cmd += ["--db-port", str(port)]
         pw = os.environ.get("ODOO_PG_PASSWORD")
         if pw:
             cmd += ["--db-password", pw]
@@ -323,7 +350,7 @@ def _drop_through_odoo(lease):
                 "dropped {db} via raw dropdb fallback\n".format(
                     python=venv_python, db=db)
             )
-            _dropdb(host, user, db)
+            _dropdb(host, user, db, port)
             _drop_filestore(db)
             return True
         else:
@@ -348,7 +375,7 @@ def _drop_through_odoo(lease):
             "dropped {db} via raw dropdb fallback\n".format(
                 path=_ODOO_DB_PY, db=db)
         )
-    _dropdb(host, user, db)
+    _dropdb(host, user, db, port)
     _drop_filestore(db)
     return True
 
@@ -410,6 +437,10 @@ def _emit_instance_common(inst):
     _emit("ALLOC_ADDONS_PATH", ",".join(str(x) for x in inst.get("addons_path", [])))
     _emit("ALLOC_DB_HOST", inst.get("db_host", "localhost"))
     _emit("ALLOC_DB_USER", inst.get("db_user", "odoo"))
+    # db_port is EMPTY when undeclared (never 5432); the handle forwards it so
+    # create and drop connect to the same resolved cluster port, so a drop against
+    # the wrong port never silently no-ops.
+    _emit("ALLOC_DB_PORT", inst.get("db_port", ""))
     _emit("ALLOC_SERIES", instances_io.series_of(inst))
     _emit("ALLOC_PROFILE", instances_io.profile_of(inst))
 
@@ -429,6 +460,12 @@ def cmd_acquire(opts):
     mode = opts.get("mode", "ephemeral")
     host = inst.get("db_host", "localhost")
     user = inst.get("db_user", "odoo")
+    # Postgres port (empty when undeclared -> omit everywhere).
+    db_port = inst.get("db_port", "")
+    # Canonical ownership key: --run-id (or the --session back-compat alias).
+    # Empty for a standalone one-off run -> the lease is unowned (ownership then
+    # degrades to token-possession, today's behavior).
+    run_id = opts.get("run_id") or opts.get("session", "")
 
     # readonly: lease-free; just surface the running instance's coordinates.
     if mode == "readonly":
@@ -436,6 +473,7 @@ def cmd_acquire(opts):
         _emit("ALLOC_MODE", "readonly")
         _emit("ALLOC_DB_NAME", inst.get("db_name", "odoo"))
         _emit("ALLOC_PORTS", [inst.get("http_port", 8069)])
+        _emit("ALLOC_RUN_ID", run_id)
         _emit_instance_common(inst)
         return 0
 
@@ -485,15 +523,18 @@ def cmd_acquire(opts):
                     # the declared DB must never be dropped by gc/release.
                     "drop_on_release": False,
                     "ports": ports,
+                    "db_port": db_port,
                     "owner": {
                         "host": _host(),
                         "pid": int(opts["pid"]) if opts.get("pid") else None,
-                        "session_id": opts.get("session", ""),
+                        # run_id is the CANONICAL ownership key; the dead
+                        # standalone session_id is no longer written on new leases.
+                        "run_id": run_id,
                         "started_at": now,
                     },
                     "ttl_s": int(opts.get("ttl", DEFAULT_TTL_S)),
                     "heartbeat_at": now,
-                    "_pg": {"host": host, "user": user},
+                    "_pg": {"host": host, "user": user, "port": db_port},
                 }
                 if profile:
                     new_lease["profile"] = profile
@@ -504,6 +545,7 @@ def cmd_acquire(opts):
         _emit("ALLOC_DB_NAME", db_name)
         _emit("ALLOC_PORTS", ports)
         _emit("ALLOC_ATTACHED", attached)
+        _emit("ALLOC_RUN_ID", run_id)
         _emit_instance_common(inst)
         return 0
 
@@ -522,7 +564,7 @@ def cmd_acquire(opts):
     # also requires the role to have that privilege; if it is absent, degrading to
     # the declared exclusive DB (which already exists) is still the right move.
     if mode == "ephemeral":
-        if not opts.get("no_create") and not _probe_createdb(host, user):
+        if not opts.get("no_create") and not _probe_createdb(host, user, db_port):
             sys.stderr.write(
                 "allocator: role lacks CREATEDB - degrading ephemeral -> exclusive "
                 "on the declared database.\n"
@@ -583,6 +625,8 @@ def cmd_acquire(opts):
             "addons_path": ":".join(str(x) for x in inst.get("addons_path", [])),
             "db_host": host,
             "db_user": user,
+            # db_port travels top-level beside db_host/db_user; empty when undeclared.
+            "db_port": db_port,
             "ports": ports,
             "owner": {
                 "host": _host(),
@@ -592,12 +636,15 @@ def cmd_acquire(opts):
                 # would let the next gc reclaim a lease whose DB is still in use).
                 # With no --pid, reclamation falls back to ttl_s + heartbeat.
                 "pid": int(opts["pid"]) if opts.get("pid") else None,
-                "session_id": opts.get("session", ""),
+                # run_id is the CANONICAL ownership key; the dead standalone
+                # session_id is no longer written on new leases (read as a
+                # compat fallback only, on pre-existing leases).
+                "run_id": run_id,
                 "started_at": now,
             },
             "ttl_s": ttl,
             "heartbeat_at": now,
-            "_pg": {"host": host, "user": user},
+            "_pg": {"host": host, "user": user, "port": db_port},
         })
         _write_registry(reg)
 
@@ -605,6 +652,7 @@ def cmd_acquire(opts):
     _emit("ALLOC_MODE", mode)
     _emit("ALLOC_DB_NAME", db_name)
     _emit("ALLOC_PORTS", ports)
+    _emit("ALLOC_RUN_ID", run_id)
     _emit_instance_common(inst)
     return 0
 
@@ -625,6 +673,33 @@ def cmd_release(opts):
         if found is None:
             sys.stderr.write(f"allocator: no lease with token {token!r} (already released?).\n")
             return 0
+
+        # Ownership guard - NOT self-blocking. REFUSE the release IFF
+        # the caller identifies as a DIFFERENT non-empty run than the owner. Every
+        # other case proceeds on token-possession:
+        #   - caller_run == ""  -> release site forwarded no run id -> token-possession
+        #   - owner_run  == ""  -> unowned / legacy lease            -> token-possession
+        #   - caller_run == owner_run -> owner releasing its own lease
+        # This never blocks the rightful owner just because the run id was not
+        # threaded to the release call. --force overrides with a loud line.
+        caller_run = opts.get("run_id") or opts.get("session", "")
+        owner = found.get("owner", {})
+        owner_run = owner.get("run_id") or owner.get("session_id", "")
+        force = opts.get("force")
+        if owner_run and caller_run and owner_run != caller_run:
+            if not force:
+                sys.stderr.write(
+                    "allocator: refusing to release the lease for db "
+                    f"{found.get('db_name')!r}: it is owned by run {owner_run!r}, "
+                    f"but the caller's run is {caller_run!r}. Pass --force to override "
+                    "(the DB is NOT dropped and the lease is kept).\n"
+                )
+                return 1
+            sys.stderr.write(
+                f"allocator: force-releasing run {owner_run!r}'s lease "
+                f"(caller run {caller_run!r}).\n"
+            )
+
         if found.get("drop_on_release") and found.get("db_name"):
             drop_ok = _drop_through_odoo(found)
             if not drop_ok:
@@ -690,7 +765,51 @@ def cmd_query(opts):
 
 def cmd_list(opts):
     reg = _read_registry()
+    # Redact each token to an 8-char fingerprint by default so a `list` scrape
+    # can no longer hand a full token to `release`. --show-tokens reveals them for
+    # debugging. This is an ACCIDENT-PREVENTION layer, not a security boundary
+    # (the possession model is unchanged), consistent with run_id being a
+    # semi-discoverable slug.
+    if not opts.get("show_tokens"):
+        for lease in reg.get("leases", []):
+            tok = lease.get("token")
+            if tok:
+                lease["token"] = tok[:8]
     print(json.dumps(reg, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_assert_droppable(opts):
+    """Read-only ownership probe (under flock). Exit non-zero + print the owning
+    run when a FRESH (non-stale) lease on --db-name is owned by a DIFFERENT
+    non-empty run than --run-id; else exit 0. A stale/absent/own lease is
+    droppable. Bounded TOCTOU: this and the actual drop are two processes, so a
+    lease minted in between is not covered - acceptable because MANAGED DBs are
+    dropped through the race-free `release` path, never via bare name."""
+    db = opts.get("db_name")
+    if not db:
+        sys.stderr.write(
+            "Usage: allocator.py assert-droppable --db-name <db> [--run-id <id>]\n"
+        )
+        return 2
+    caller_run = opts.get("run_id") or opts.get("session", "")
+    with _locked():
+        reg = _read_registry()
+        for lease in reg["leases"]:
+            if lease.get("db_name") != db:
+                continue
+            if _is_stale(lease):
+                continue
+            owner = lease.get("owner", {})
+            owner_run = owner.get("run_id") or owner.get("session_id", "")
+            if owner_run and owner_run != caller_run:
+                sys.stderr.write(
+                    f"allocator: database {db!r} is held by a FRESH lease owned by "
+                    f"run {owner_run!r}; route the drop through `release <token>` "
+                    "instead of a bare-name drop (or pass --force to reap it).\n"
+                )
+                _emit("ALLOC_OWNER_RUN", owner_run)
+                return 1
     return 0
 
 
@@ -699,10 +818,10 @@ def cmd_list(opts):
 # --------------------------------------------------------------------------- #
 _FLAG_KEYS = {
     "--series": "series", "--mode": "mode", "--ports": "ports", "--port": "port",
-    "--ttl": "ttl", "--session": "session", "--db-name": "db_name",
+    "--ttl": "ttl", "--run-id": "run_id", "--session": "session", "--db-name": "db_name",
     "--instances": "instances", "--pid": "pid", "--profile": "profile",
 }
-_BOOL_KEYS = {"--no-create": "no_create"}
+_BOOL_KEYS = {"--no-create": "no_create", "--force": "force", "--show-tokens": "show_tokens"}
 
 
 def _parse(argv):
@@ -742,8 +861,11 @@ def main(argv):
         return cmd_list(opts)
     if cmd == "query":
         return cmd_query(opts)
+    if cmd == "assert-droppable":
+        return cmd_assert_droppable(opts)
     sys.stderr.write(
-        f"Unknown subcommand: {cmd!r}. Use acquire|release|heartbeat|gc|list|query.\n"
+        f"Unknown subcommand: {cmd!r}. "
+        "Use acquire|release|heartbeat|gc|list|query|assert-droppable.\n"
     )
     return 2
 

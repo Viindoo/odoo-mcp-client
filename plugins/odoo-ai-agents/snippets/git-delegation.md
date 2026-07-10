@@ -23,7 +23,7 @@ squash, open/merge a PR, read a diff range) + the scope + the worktree path + wh
 L2 destructive op is human-confirmed. git-ops resolves the op to the right git agent
 (git-surveyor read / git-operator local mutation / github-operator GitHub / git-pipeline-lead
 for >500 files / >10k LOC / thousand-file jobs) and runs it under the safety contract.
-Consumers NO LONGER name or directly cold-spawn the git leaf agents via the Agent tool.
+Consumers NO LONGER name or directly cold-spawn the git leaf agents by launching them.
 
 ## Bounded-read allowlist (inline OK)
 
@@ -45,7 +45,7 @@ touched; it never stages, commits, or stashes.
 
 The actor that COMMITS is the orchestrator OR a SPAWNER coordinator that owns the worktree, by
 INVOKING `git-toolkit:git-ops`. In particular the `odoo-coder` per-module COORDINATOR (a spawner -
-it holds the Agent tool and launches the leaf coders, so it is NOT a leaf) COMMITS its module by
+it can launch agents and launches the leaf coders, so it is NOT a leaf) COMMITS its module by
 invoking `git-toolkit:git-ops` via the Skill tool once its integrated test is green, and returns the
 SHA to `odoo-coding` (which collects it, no longer re-committing). The coordinator only REQUESTS the
 commit (files + business outcome); it never runs raw git and never dispatches a git leaf agent
@@ -100,25 +100,24 @@ you route through git-ops instead of running git yourself.
 
 ## Nesting
 
-Invoking a SKILL via the Skill tool runs IN the caller's own context - it adds NO subagent
-depth. git-ops then cold-spawns exactly ONE git leaf agent to run the op - the same single
-leaf depth as the previous direct-dispatch design. So this is safe at any SKILL/orchestrator
-caller depth (main context, a wave work-item, a workflow pipeline) - never for an
-Agent-tool-dispatched leaf (see below): the git-ops invocation is inline, and only
-one leaf is ever spawned beneath it. The git leaf agents cannot spawn further, so depth stays
-bounded. (Ref: git-toolkit `git-nesting-protocol` N1.)
+Invoking a SKILL via the Skill tool runs IN the caller's own context - unlike launching an
+agent, which runs in a separate context. This makes it safe for any SKILL/orchestrator caller
+(main context, a wave work-item, a workflow pipeline) to invoke git-ops inline: git-ops then
+cold-spawns exactly ONE git leaf agent to run the op, and that leaf cannot launch anything
+further - it holds no agent-launch capability. This does not extend to an agent-launched leaf
+(see below), which never invokes git-ops itself. (Ref: git-toolkit `git-nesting-protocol` N1.)
 
 A HARD-LEAF worker (`odoo-backend-coder`, `odoo-frontend-coder`, `odoo-test-writer`,
 `odoo-icon-designer`, ANY leaf domain subagent) NEVER invokes git-ops, not even via the Skill tool:
-it has NO Agent tool and returns files for its orchestrator/coordinator to commit (SSOT:
-`worker-brief.md`). A SPAWNER coordinator that HOLDS the Agent tool - notably the `odoo-coder`
+it cannot launch agents and returns files for its orchestrator/coordinator to commit (SSOT:
+`worker-brief.md`). A SPAWNER coordinator that can launch agents - notably the `odoo-coder`
 per-module coordinator, and any SKILL/orchestrator context (main, a workflow phase, `run-harness`'s
-between-wave integration loop) - MAY invoke git-ops via the Skill tool INLINE (+0 subagent depth);
-git-ops then cold-spawns exactly ONE git leaf below it, and that leaf cannot spawn further, so depth
-stays bounded. The discriminator is the Agent tool, not "was I Agent-spawned": `odoo-coder` is
-Agent-spawned yet is itself a spawner, so it commits. Two-line test: "Holds the Agent tool
-(orchestrator / spawner coordinator incl. `odoo-coder`) -> may invoke git-ops inline. Hard leaf (no
-Agent tool) -> return files, never git."
+between-wave integration loop) - MAY invoke git-ops via the Skill tool, which runs INLINE in its
+own context; git-ops then cold-spawns exactly ONE git leaf below it, and that leaf cannot launch
+anything further either. The discriminator is agent-launch capability, not "was I launched by an agent":
+`odoo-coder` was launched by an agent yet is itself a spawner, so it commits. Two-line test: "Can
+launch agents (orchestrator / spawner coordinator incl. `odoo-coder`) -> may invoke git-ops inline.
+Hard leaf (cannot launch agents) -> return files, never git."
 
 ## Human-confirm pass-through
 

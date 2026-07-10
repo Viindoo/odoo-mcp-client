@@ -15,7 +15,7 @@ leaf launches NO sub-agent and invokes NO spawner skill.
 sanctioned nested spawner (one agent level below `odoo-coding`, launched for EVERY module) that
 launches the two hard-leaf workers above, tests the integrated module via `Skill(odoo-instance)`
 inline, and - once the integrated test is green - COMMITS its module by invoking `git-toolkit:git-ops`
-via the Skill tool (it holds the Agent tool, so it is a spawner, not a leaf - the Nesting rule lets a
+via the Skill tool (it can launch agents, so it is a spawner, not a leaf - the Nesting rule lets a
 spawner invoke git-ops inline), then returns the SHA to `odoo-coding` (which collects it and no longer
 re-commits). See `${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
 
@@ -29,19 +29,17 @@ re-commits). See `${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
   and edit your files directly in your assigned worktree (`WORKTREE_PATH`), then RETURN the list of
   files you touched to the orchestrator. Do NOT stage, commit, stash, branch, checkout, switch,
   cherry-pick, merge, rebase, reset, tag, push, force-push, fetch, pull, or add/remove worktrees.
-  The orchestrator commits your output for you by invoking `git-toolkit:git-ops`. You have no Agent
-  tool and cannot delegate to git-toolkit yourself; just return your files (or BLOCKED with the
+  The orchestrator commits your output for you by invoking `git-toolkit:git-ops`. You cannot launch
+  agents and cannot delegate to git-toolkit yourself; just return your files (or BLOCKED with the
   reason) and let the orchestrator handle every git step. Full policy:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Stay in your assigned worktree. This is the
-  leaf half of the Nesting rule in `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` - a leaf never
-  invokes git-ops even via the Skill tool.
+  `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. Stay in your assigned worktree. A leaf never
+  invokes git-ops even via the Skill tool - see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 - **Carve-out - self-provisioning an Odoo instance is permitted for the instance-touching leaves.**
   Unlike git-ops, `odoo-backend-coder` (for its bounded `/test_lint` gate) and the other
   instance-touching leaves MAY invoke `Skill(odoo-instance)` to self-provision a live Odoo instance
-  when handed NO `INSTANCE_HANDLE`. This is allowed because `odoo-instance` runs INLINE in the leaf's
-  own context (its inline leaf-mode does NOT spawn a subagent, so it adds no nesting depth) and it
-  carries the instance HARD RULES (`en_US` union, Viindoo `to_base`, lint-module install, per-version
-  `cli_help` grounding) - which a bare `scripts/lib/allocator.py` call would bypass. A provided
+  when handed NO `INSTANCE_HANDLE`. This is allowed because `odoo-instance` applies the instance
+  HARD RULES (`en_US` union, Viindoo `to_base`, lint-module install, per-version `cli_help`
+  grounding); do NOT call `scripts/lib/allocator.py` directly, which would bypass them. A provided
   `INSTANCE_HANDLE` always wins: consume it, never re-provision.
   `odoo-frontend-coder` is INSTANCE-FREE - it never self-provisions; its only gate is the static
   `verify-frontend.sh`, and any live check is owned by the `odoo-coder` coordinator's integrated

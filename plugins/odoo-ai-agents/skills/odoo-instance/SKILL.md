@@ -23,22 +23,20 @@ block. Programmatic twin of the interactive `/odoo-setup` command (the human dec
 wizard that writes `instances.toml`): use this skill when the caller already knows the operation
 parameters - hand them over, get back a structured `instance-ops` block.
 
-**Single owner of instance fan-out (two modes).** This skill is the SINGLE PLACE that OWNS Odoo
-instance fan-out: any component needing a live instance routes here via the Skill tool instead of
-driving the lifecycle itself, so the L2 human gate, instance-allocation rules, and HARD RULES
-(`en_US` union, Viindoo `to_base`, lint-module install, per-version `cli_help` grounding) are
-enforced in one place. It picks mode by whether the caller's context can spawn a subagent:
+**Single owner of instance provisioning.** This skill is the SINGLE PLACE that OWNS Odoo instance
+fan-out: any component needing a live instance routes here via the Skill tool instead of driving
+the lifecycle itself, so the L2 human gate, instance-allocation rules, and HARD RULES (`en_US`
+union, Viindoo `to_base`, lint-module install, per-version `cli_help` grounding) are enforced in
+one place. Provision the way that fits the caller's context - run the ops steps INLINE in the
+caller's own context (see "Inline leaf-mode" below), or launch the `odoo-instance-ops` agent per
+"Brief shape" below; this skill is the component that owns launching that agent. However the
+operation is carried out, the SAME HARD RULES apply - the inline path is not a bypass. A provided
+`INSTANCE_HANDLE` ALWAYS wins over self-provisioning either way (contract:
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`), and neither path ever calls
+`scripts/lib/allocator.py` directly - that would skip the HARD RULES this skill enforces.
 
-- **Dispatch mode (orchestrator caller).** When the caller CAN spawn a subagent, this skill is the
-  ONLY component that launches the `odoo-instance-ops` agent - dispatch it per "Brief shape" below.
-- **Inline leaf-mode (dispatched leaf / subagent caller).** When the caller must NOT spawn a
-  subagent (a dispatched leaf per `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`), run the ops
-  steps INLINE in the caller's context - it does NOT dispatch `odoo-instance-ops` (that would add
-  subagent depth a leaf may not add). See "Inline leaf-mode" below. Either mode honors the SAME
-  HARD RULES - the inline path is not a bypass.
-
-Instance-ops work does not vary by domain complexity: dispatch mode runs the agent at a flat
-`sonnet` tier - there is deliberately NO per-operation model-tier table to drift.
+Instance-ops work does not vary by domain complexity: the `odoo-instance-ops` agent runs at a flat
+`sonnet` tier when launched - there is deliberately NO per-operation model-tier table to drift.
 
 ## Dispatch
 
@@ -149,6 +147,8 @@ series: <X.Y>
 dbname: <db_name>
 http_port: <port or null>
 gevent_port: <port or null (omit if not bound)>
+db_port: <resolved port or empty>
+run_id: <owning run id or empty>
 modules_installed: [<list or null>]
 demo: <true|false>
 languages_loaded: [<list or null>]      # load-language: locales verified active in res.lang
@@ -165,24 +165,26 @@ notes: <short human-readable summary or error>
 ```
 
 This `instance-ops` block IS the canonical `INSTANCE_HANDLE` for the run: the orchestrator forwards
-it (`dbname` / `http_port` / `addons_path` / `venv_python` / `lease_token`) as an `INSTANCE_HANDLE:`
-field into every downstream code / test brief, and downstream agents consume it instead of
-self-provisioning. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
+it (`dbname` / `http_port` / `db_port` / `addons_path` / `venv_python` / `lease_token` / `run_id`) as
+an `INSTANCE_HANDLE:` field into every downstream code / test brief, and downstream agents consume
+it instead of self-provisioning. Forwarding `db_port` and `run_id` (not just `http_port` and
+`lease_token`) is what lets a later turn drop or release the right instance on the right Postgres
+port under the right owner. Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
 
 On `status: NEEDS_CONTEXT`, surface its `blocked_reason` and stop - do not retry without the missing
 information.
 
 ### Inline leaf-mode (dispatched leaf / subagent self-provision)
 
-When invoked from a dispatched leaf/subagent context that must not spawn a subagent (see "Single
-owner of instance fan-out" above and `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`), run the ops
-steps INLINE in the caller's context - do NOT launch the `odoo-instance-ops` agent. This lets a leaf
-lacking an `INSTANCE_HANDLE` self-provision an isolated ephemeral DB WITHOUT adding subagent depth,
-and - unlike a raw `allocator.py` call - still under the HARD RULES.
+Run the ops steps INLINE in the caller's own context - without launching the `odoo-instance-ops`
+agent - whenever that fits the caller's situation better than launching the agent (see "Single
+owner of instance provisioning" above and `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). This
+lets a caller lacking an `INSTANCE_HANDLE` self-provision an isolated ephemeral DB directly, and -
+unlike a raw `allocator.py` call - still under the HARD RULES.
 
 A provided `INSTANCE_HANDLE` ALWAYS wins: if one is in the brief, consume it and do NOT provision
 (contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`). Only with NO handle does
-the leaf self-provision via inline-mode.
+the caller self-provision via this inline path.
 
 Run these steps in order, honoring the SAME HARD RULES as the agent (single source: the
 cross-referenced sections in `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` - do NOT restate
@@ -203,9 +205,10 @@ them here):
    (`init` / `update` / `test` / `drop`) with resolved flags in `--extra`, applying the active-wait
    contract above (background launch + poll `LOG_PATH` to a terminal marker; never idle-stall).
 5. **Release** the lease when done (or forward `ALLOC_TOKEN` for later release), and emit the same
-   `instance-ops` block as dispatch mode so the caller consumes an identical handle either way.
+   `instance-ops` block used when the agent is launched instead, so the caller consumes an
+   identical handle either way.
 
-The L2 human gate still applies to any mutation in inline-mode (see "Human gate"): if a run-harness
+The L2 human gate still applies to any mutation via this path (see "Human gate"): if a run-harness
 is present let the driver surface it, else confirm the mutation with the human first.
 
 ### Multi-instance parallel provisioning
