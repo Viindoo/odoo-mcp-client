@@ -143,6 +143,15 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
      - `cancel` → stop, make no changes.
    - Any REQUIRED auto-detected item shown as missing (marked `[ -- ]`) must be
      fixed before `ready` - point the user at the suggested fix command.
+   - **Venv hard-gate.** For every DECLARED source-mode instance in `instances.toml`, the
+     checklist verifies the instance's `python` field is populated AND
+     `<python> <odoo-bin> --version` actually runs. A source-mode instance with no working venv
+     is a REQUIRED item shown missing: the gate reports FAILED with remediation
+     (`45-venv.sh create-venv --series <X.Y> --profile <name>`, or point the `python` field at
+     an existing venv) and setup does not proceed for that instance - it never silently carries
+     on with a broken interpreter. Setting `ODOO_AI_ALLOW_NO_VENV=1` downgrades this specific
+     check from FAILED to a loud WARN (still printed, never silent) for a conscious
+     "build the venv later" choice, without blocking the rest of setup.
 
 1. **List the plan.** Enumerate the step scripts and show the user what setup
    will cover, filtered by `$ARGUMENTS`:

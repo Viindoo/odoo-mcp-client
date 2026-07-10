@@ -80,10 +80,10 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
   agents (e.g. `odoo-coder`, `odoo-code-reviewer`) MAY spawn their own subagents;
   the platform enforces a depth cap of 5. Resources are platform-managed.
 - **No Claude Code Workflow (JS) tool**: this plugin orchestrates entirely through the
-  Skill tool, the Agent tool, and the `run-harness` loop - it deliberately does NOT emit
+  Skill tool, launching agents, and the `run-harness` loop - it deliberately does NOT emit
   Claude Code Workflow (JS) scripts (the `Workflow` tool with `args` + `agent()`) for
   codegen or orchestration. Dispatch fan-out (e.g. `odoo-coding`, `run-harness`'s between-wave integration) is real
-  Agent-tool calls in model-weighted batches (SSOT `skills/_shared/concurrency-guard.md`
+  agent-launch calls in model-weighted batches (SSOT `skills/_shared/concurrency-guard.md`
   Mode B). Never hand-roll a JS Workflow script to parallelize plugin work: passing the
   plan through the tool's `args` channel is the args-undefined footgun this design avoids.
 
@@ -616,9 +616,9 @@ fallback: standalone             # each phase documents OSM-down degradation inl
 | `phases[].id` | string | Phase identifier (used in state file and gate messages) |
 | `phases[].skill` | string | Specialist skill fired by NL dispatch |
 | `phases[].inline` | bool | Runner handles this phase itself (no separate skill) |
-| `phases[].agent` | string | Agent-tool bundle (e.g. `odoo-code-reviewer`) for read-only passes |
+| `phases[].agent` | string | Agent bundle to launch (e.g. `odoo-code-reviewer`) for read-only passes |
 | `phases[].nl_trigger` | string | NL prompt passed to NL-dispatch to fire the skill |
-| `phases[].model_tier` | enum | `haiku / sonnet / opus` - Sonnet is the floor for write phases. (Agent-tool dispatches outside YAML workflows additionally know the `fable` tier - see `skills/_shared/concurrency-guard.md` Mode B.) |
+| `phases[].model_tier` | enum | `haiku / sonnet / opus` - Sonnet is the floor for write phases. (Agent launches outside YAML workflows additionally know the `fable` tier - see `skills/_shared/concurrency-guard.md` Mode B.) |
 | `phases[].gate` | string | Gate options shown to user between phases |
 | `resume` | bool | Write `<slug>-state.json` after each phase for resume support |
 | `fallback` | string | Degradation policy when the odoo-semantic-mcp server is unreachable |
@@ -662,20 +662,21 @@ orchestrating context (main agent / run-harness / odoo-intake)
                     └── odoo-coder is the per-module COORDINATOR (launched for EVERY
                         module): it launches odoo-backend-coder and/or
                         odoo-frontend-coder (hard leaves) and tests the integrated
-                        module via Skill(odoo-instance) INLINE (+0)
+                        module via Skill(odoo-instance) - inline in its own context,
+                        or by launching odoo-instance-ops - whichever fits
 ```
 
 ### Leaf vs spawn
 
 A **leaf skill** (`spawn_class: leaf`) executes work directly using MCP tool calls and
-Read/Write/Bash operations. It does NOT use the Agent tool and does NOT spawn workers.
+Read/Write/Bash operations. It does NOT launch agents and does NOT spawn workers.
 Examples: `odoo-feature-check`, `odoo-gap-analysis`, `odoo-version-diff`, and the other
 leaf specialists.
 
 A **spawner-agent skill** (`spawn_class: spawner-agent`) runs in the orchestrating
-context and dispatches a named agent via the **Agent tool**. Because it requires the
+context and dispatches a named agent by launching it. Because it requires the
 orchestrating context, it is itself launched via the **Skill tool** (by the main agent
-or by an orchestrator like `run-harness`), never by Agent-tool'ing its name and never
+or by an orchestrator like `run-harness`), never by launching an agent with its name and never
 by reading-and-imitating its SKILL.md. Examples: `odoo-code-review` (→ `odoo-code-reviewer`),
 `odoo-coding` (→ **ONE `odoo-coder` COORDINATOR per module, for EVERY module** - backend-only,
 frontend-only, or full-stack - which itself launches `odoo-backend-coder` and/or
@@ -816,22 +817,18 @@ workflow system.
 - **Not a `workflow-chaining` team-pattern.** workflow-chaining is a dispatched-specialist runner with
   NO git authority (NL-dispatch only) and cannot legally call `odoo-code-review` (self-spawn is only
   legal from the orchestrating context). Injecting git orchestration into the workflow runner would
-  push workers one depth level deeper (depth cap 5 platform-wide) and require a new
-  `team_pattern: GitWave` + runner branch + yaml keys. run-harness already IS the orchestrating
+  require a new `team_pattern: GitWave` + runner branch + yaml keys just to reach authority
+  run-harness already has. run-harness already IS the orchestrating
   context that holds git authority and the legal `odoo-code-review` call site, so it owns the
   integration with no schema change.
 - **Not a separate git-executor skill.** The residual per-wave work after the worktree-graph refactor
   is a single coherent responsibility - cherry-pick-in-order + saga + integrated cross-cutting review
   + cumulative close-gate + one-squashed-PR + the in-context squash gate. A standalone skill for it
-  would merely rename run-harness's own loop and add a depth level (git-operator would sit at the
-  depth-5 cap). Folding it into the driver keeps the deepest coding chain one level shorter
-  (`main -> odoo-coding -> odoo-coder -> {workers | git-ops -> git-operator}`, git-operator at depth 4)
-  and keeps the between-wave regression guarantee (the cumulative close-gate) in the same context that
-  decides whether to auto-advance.
-- **Depth.** The deepest chain is `main·1 -> odoo-coding·2 -> odoo-coder·3 -> backend/frontend-coder·4`;
-  the commit chain is `odoo-coder·3 -> git-ops[inline] -> git-operator·4`. run-harness is an inline
-  orchestrating skill folded into `main·1` (Skill-tool invocations add no depth), so removing the
-  extra executor level buys one level of headroom vs the cap of 5.
+  would merely rename run-harness's own loop with no real separation of concerns. Folding it into the
+  driver keeps the coding chain shorter
+  (`main -> odoo-coding -> odoo-coder -> {workers | git-ops -> git-operator}`, git-ops running inline
+  so the commit path adds no further agent hop) and keeps the between-wave regression guarantee (the
+  cumulative close-gate) in the same context that decides whether to auto-advance.
 
 **Decision**: the per-wave integration is a `run-harness` responsibility driven from the orchestrating
 context via `approach_kind: wave`, not a standalone skill and not a `team_pattern` below
@@ -863,21 +860,17 @@ author inside their assigned worktree only and return the file list
 by `odoo-coding` for EVERY module) is NOT a leaf - it is a sanctioned nested spawner (one agent level
 below `odoo-coding`) that owns the module's INTERNAL work-item split, launches those hard leaves per
 WI (independent WIs in parallel - siblings at the SAME depth), tests the integrated module via
-`Skill(odoo-instance)` INLINE (never dispatch-mode), and COMMITS its module via `git-toolkit:git-ops`
+`Skill(odoo-instance)` (inline in its own context, or by launching `odoo-instance-ops` - whichever
+fits), and COMMITS its module via `git-toolkit:git-ops`
 (inline Skill; git-ops cold-spawns exactly ONE `git-operator` leaf below it). A conflict resolver
 subagent is likewise a leaf that edits files in the worktree and runs no git op.
 
-This leaf boundary + the coordinator's INLINE-only integrated test are what keep the deepest nesting
-chain (main -> odoo-coding -> odoo-coder coordinator -> odoo-backend-coder/odoo-frontend-coder)
-within the platform depth cap of 5: Skill-tool invocations run INLINE (add no depth), so only the
-two AGENT dispatches (odoo-coding -> odoo-coder coordinator -> worker) add depth; counting every node the
-deepest hard-leaf worker lands at depth 4 (run-harness is an inline orchestrating skill folded into
-main, and the former git-executor level is gone). The commit chain
-`odoo-coder -> git-ops[inline] -> git-operator` also lands git-operator at depth 4. The coordinator may
-launch MULTIPLE workers in parallel (one per independent WI), but they are siblings at the same leaf
-level and add NO further depth. Removing the leaf ban from the worker system prompts, or letting the
-coordinator dispatch odoo-instance-ops (instead of the inline Skill), is a hard-rules violation that
-erodes the headroom below the cap.
+run-harness is an inline orchestrating skill folded into main (the former git-executor level is
+gone), so the deepest nesting chain stays
+`main -> odoo-coding -> odoo-coder coordinator -> odoo-backend-coder/odoo-frontend-coder`; the
+commit chain is `odoo-coder -> git-ops[inline] -> git-operator`. The coordinator may launch
+MULTIPLE workers in parallel (one per independent WI), but they are siblings at the same leaf
+level and add NO further depth.
 
 ### 7.5 Scaling + concurrency
 
@@ -1043,11 +1036,17 @@ this" so a later phase builds on intent instead of re-deriving it. It is **one f
 under `.odoo-ai/worklog/<run-or-slug>/<NNN>-<agent>.md` (per-writer files make parallel appends
 race-free; the single blackboard only the driver touches). When a run is active the driver records
 the worklog dir so all nodes resolve the same path; standalone, a skill derives it from its own
-slug. (3) The **native task board** (`TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet`) is the
-*live teammate-status* surface, present only in Agent Team mode (CHP Tier A): the lead opens one
-task per dispatched work-item and polls it for low-context progress instead of reading each
-teammate's `.output` transcript, SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`.
-The three never duplicate: **task board = live status, worklog = why, blackboard = DAG.**
+slug. (3) The **native task board** (`TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet`) carries two
+distinct live-status layers. The **teammate-status** layer - the lead opens one task per
+dispatched work-item and polls it for low-context progress on OTHER named, SendMessage-addressable
+subagents instead of reading each teammate's `.output` transcript - is present only in Agent Team
+mode (CHP Tier A), SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. The
+**self-progress checklist** layer - an executor (run-harness over RUN-DAG nodes, workflow-chaining
+over phases, or any plan executor over its own waves/modules/work-items) keeping a live task list
+of ITS OWN sequential work - is always on: it fires whenever a task-list tool is available,
+INDEPENDENT of Agent Team mode, SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md`.
+The three surfaces never duplicate: **task board (either layer) = live status, worklog = why,
+blackboard = DAG.**
 
 **Context-Handoff Protocol (CHP) - 3-tier agent dispatch.** Orchestrator skills that dispatch
 worker agents (odoo-coding, odoo-code-review, odoo-forward-port, odoo-deep-survey,

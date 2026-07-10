@@ -49,7 +49,7 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
 2. **No `writes-files` specialist before Plan Mode is approved.** Three points, none optional:
    - (a) Never run `odoo-coding`, `odoo-brl`, `workflow-chaining`, or any `output_mode = writes-files` skill before approval - only describe it in the Proposed Plan. (Per-wave coding integration is owned by `run-harness`'s between-wave integration, driven from the approved plan - there is no user-invocable git-executor skill.)
    - (b) Phase R MAY launch a READ-ONLY recon subagent (`Explore` or an anonymous recon agent) to survey state; a read-only **leaf skill** (e.g. `odoo-feature-check`, `odoo-override-finding`) is invoked via the **Skill tool** instead (a skill name is not an agentType). The recon agent MUST NOT write a file or spawn further (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`); read-only agent types may lack the Write tool, so it returns findings in chat - if they must persist, the PARENT skill writes them to `.odoo-ai/<subdir>/<findings>.md` after the agent returns. Read-only OSM calls (`model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`) are allowed.
-   - (c) A `writes-files` specialist is dispatched ONLY after Plan Mode approval, by the main agent via the **Skill tool** (not Agent tool - see § Dispatch mechanism, § Plan Mode).
+   - (c) A `writes-files` specialist is dispatched ONLY after Plan Mode approval, by the main agent via the **Skill tool** (not a direct agent launch - see § Dispatch mechanism, § Plan Mode).
 3. **Phase 0 - Context, Detect & Clarify (mandatory).** Runs at the start of every invocation. Closes the **intent gate** before anything else proceeds.
 
    **3a. Read existing context / resume.**
@@ -139,7 +139,7 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 4. Main agent calls **`ExitPlanMode`** tool → Plan Mode UI shown to user.
 5. User reviews and approves in the Plan Mode UI.
 6. **Worktree isolation (Hard rule 6, no exceptions).** Self-provisioning specialists (SSOT set: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Self-provisioning specialists) provision internally - skip this step. On the common path a `writes-files` Approach engages Phase P and `run-harness` provisions at dispatch. Only in the non-Phase-P case, BEFORE dispatch, invoke `git-toolkit:git-ops` via the Skill tool to create a worktree/branch and pass its path into the brief (`WORKTREE_PATH` for `odoo-coding`, else `TARGET: worktree:<path>`). The principal checkout is NEVER the target. Mechanics: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
-7. ONLY after Plan Mode approval AND worktree provisioning, the dispatcher invokes the execute-skill via the **Skill tool** (`run-harness` in the common case, else the main agent directly; a skill is not an agentType, so Agent-tool'ing a skill name fails - see § Dispatch mechanism).
+7. ONLY after Plan Mode approval AND worktree provisioning, the dispatcher invokes the execute-skill via the **Skill tool** (`run-harness` in the common case, else the main agent directly; a skill is not an agentType, so launching an agent by a skill name fails - see § Dispatch mechanism).
 
 **Red flags for Plan Mode**:
 - "The user already said approve, I can skip EnterPlanMode" → NO. Text-gate approval and Plan Mode approval are two separate steps.
@@ -155,7 +155,7 @@ The minimal `writes-files` plan `odoo-planning` emits for a single-module change
 
 **Rejection flow (summary):** if the user refines/rejects in the Plan Mode UI, loop back to the soft-plan-gate (not execution); re-enter Plan Mode only after the revised plan is re-approved at the text gate. Full detail in the reference above.
 
-## Dispatch mechanism - Skill tool, not Agent tool
+## Dispatch mechanism - Skill tool, not a direct agent launch
 
 | Target | What it is | How the main agent dispatches it |
 |---|---|---|
@@ -210,7 +210,7 @@ A pro user types "yes" once. A novice can opt into brainstorm. This guarantees b
 
 Only runs in the **vague branch** (Tier-4 miss or explicit "I'm not sure").
 
-1. **Explore context (STATIC only)** - read `.odoo-ai/context.md`, list existing `.odoo-ai/` artifacts, infer domain and persona. STATIC = filesystem reads only (no Agent-tool dispatch, no OSM calls). Dynamic recon that dispatches agents + calls OSM is Phase R (not this step).
+1. **Explore context (STATIC only)** - read `.odoo-ai/context.md`, list existing `.odoo-ai/` artifacts, infer domain and persona. STATIC = filesystem reads only (no agent launch, no OSM calls). Dynamic recon that dispatches agents + calls OSM is Phase R (not this step).
 2. **Clarifying options** - present 2-3 **pre-structured options** (not open-ended questions), e.g. "Is this (a) sales/proposal, (b) engineering upgrade, (c) strategy?". **Multi-turn boundary:** if intent/purpose/outcomes are already clear, continue in the same turn; if not, emit options and **END THE TURN** - next turn resumes via Tier-2. Do not run Phase R until the intent gate is closed (Hard rule 3d).
 3. **Propose 2-3 approaches** - each with: one-line outcome + key trade-off + recommendation. Informed by Phase R findings.
 4. **Present Proposed Plan** (soft-plan-gate - see § Soft plan gate). This IS the gate.

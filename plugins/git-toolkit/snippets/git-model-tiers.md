@@ -37,15 +37,15 @@ First-match-wins. Read from the top; stop at the first row that matches the op.
 On a single-delegate dispatch, the CALLER (the git-ops skill or orchestrator) MUST:
 
 1. Match the op against the table above (first-match-wins) to get the tier.
-2. Pass the resolved tier as the Agent-tool `model` parameter.
+2. Pass the resolved tier as the launch's `model` parameter.
 3. Put `DISPATCH MODEL: <tier>` as the FIRST LINE of the brief (belt-and-braces guard so the
    agent can verify its own tier and the reviewer can audit the dispatch).
 
 Do NOT rely on the agent's frontmatter `model:` default or on `inherit` for the final tier - both
 can be overridden by environment or caller context.
 
-Precedence (highest to lowest): env `CLAUDE_CODE_SUBAGENT_MODEL` > Agent-tool `model` param >
-agent frontmatter `model:` > `inherit`. The Agent-tool `model` param is therefore the authoritative
+Precedence (highest to lowest): env `CLAUDE_CODE_SUBAGENT_MODEL` > agent-launch `model` param >
+agent frontmatter `model:` > `inherit`. The agent-launch `model` param is therefore the authoritative
 lever for single-delegate tier control.
 
 ## Phased-pipeline per-phase tiers

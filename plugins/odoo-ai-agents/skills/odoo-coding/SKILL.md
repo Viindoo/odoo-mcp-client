@@ -274,7 +274,7 @@ at once (keeps opus <=2 and fable exclusive while haiku/sonnet flow freely).
 Instance-allocation rule (SSOT: same `concurrency-guard.md` § Odoo instance allocation): a coder or
 `odoo-test-writer` that runs `odoo-bin` against a database (tests via `--test-enable`, `-i`/`-u`, or
 scaffolding into a DB) and was handed NO `INSTANCE_HANDLE` self-provisions an ISOLATED instance by
-invoking `Skill(odoo-instance)` inline-mode (a unique ephemeral DB acquired UNDER the HARD RULES),
+invoking `Skill(odoo-instance)` (a unique ephemeral DB acquired UNDER the HARD RULES),
 never a bare `scripts/lib/allocator.py` call that would bypass them - so the brief never passes a
 shared db/port. A provided handle always wins (consume, never re-provision).
 
@@ -398,7 +398,7 @@ GUIDELINES: Round 1 owns this - open `coding_guidelines/<version>/INDEX.md` firs
 
 - When an `INSTANCE_HANDLE` is present in the brief, the instance-touching agent MUST use it and
   MUST NOT self-provision a DB / port / addons_path. Absent a handle: the `odoo-backend-coder`
-  self-provisions its bounded lint gate via `Skill(odoo-instance)` inline-mode, and the `odoo-coder`
+  self-provisions its bounded lint gate via `Skill(odoo-instance)`, and the `odoo-coder`
   coordinator self-provisions the INTEGRATED module test the same way (never a bare `allocator.py` call -
   `skills/_shared/concurrency-guard.md` § Odoo instance allocation). The `odoo-frontend-coder` is
   INSTANCE-FREE: it never self-provisions; its live check is the coordinator's integrated module test.

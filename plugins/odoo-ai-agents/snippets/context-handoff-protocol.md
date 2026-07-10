@@ -22,9 +22,9 @@ result for the run; do not re-probe per work-item.
    turn; if absent or uncertain, treat as negative -> Tier C for the whole run)
 3. Is the target worker addressable (a stable name you spawned this run, or a captured `agentId`)?
 4. Is this orchestrator itself the team lead, NOT a non-lead subagent? (if you were launched by
-   another agent via the Agent tool and that spawner is still running, you are not the team lead ->
-   Tier C for the whole run; a non-lead can still cold-spawn workers via Agent but cannot grow the
-   team roster for Tier-A resume)
+   another agent and that spawner is still running, you are not the team lead -> Tier C for the
+   whole run; a non-lead can still cold-spawn workers but cannot grow the team roster for Tier-A
+   resume)
 
 If ALL four are positive -> Tier A is available for this run. Tier B (fork) is independent of these
 four conditions - it requires only that `subagent_type: "fork"` is accepted, not that env or
@@ -61,7 +61,7 @@ forks never share mutable state. Use Tier B only where workers do not mutate sha
 
 ## Tier C - fresh spawn + worklog (always-correct fallback)
 
-The baseline and current behavior: dispatch a fresh worker via the Agent tool with a written brief,
+The baseline and current behavior: dispatch a fresh worker by launching it with a written brief,
 and rely on the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`) for all cross-agent
 context. The fresh worker reconstructs its mental model from the worklog + the brief. This is always
 correct and always available; Tier A and Tier B only ever replace it as a speed optimization.
@@ -99,7 +99,7 @@ the lead supplies that address explicitly in the brief.
 ## No nested teams = roster only
 
 "No nested teams" constrains TEAM MEMBERSHIP only: only the lead adds or removes teammates from the
-roster. It does NOT stop a non-lead agent from cold-spawning its own subagents via the Agent tool. So
+roster. It does NOT stop a non-lead agent from cold-spawning its own subagents. So
 a non-lead orchestrator can still dispatch fresh workers (Tier C) - it simply cannot grow the team
 roster for Tier-A resume, which is why probe condition 4 routes non-lead orchestrators to Tier C.
 
@@ -114,7 +114,7 @@ channel works WITHOUT the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` flag and withou
 probe: the lead may `SendMessage` a worker it launched, and when `SendMessage` is unavailable it
 re-launches the worker fresh (Tier C, always correct). The flag-gated Tier-A roster-resume
 optimization above applies to the MAIN team lead only; the nested lead never needs it. The nested
-lead must not launch anything deeper than its two hard leaves (depth cap).
+lead must not launch anything deeper than its two hard-leaf workers.
 
 ## Confidentiality guard
 

@@ -14,7 +14,13 @@ truth for this project. Do this first, silently, every run:
    - `viindoo_profile` -> feeds `set_active_profile` (never hard-code `standard_viindoo_17`).
    - `modules` / addons path -> the module list; do not ask for it.
    - `instance_base_url` / `instance_login` -> for any live-instance or browser step.
-   - `verify_python` / `addons_path` (if `## Verify environment` present) -> defaults for any odoo-bin / test / migration run; still re-resolve from instances.toml when a listed repo path no longer exists on disk.
+   - `verify_python` (if `## Verify environment` present) -> a non-authoritative HINT for READ-ONLY
+     flows only. For ANY odoo-bin / test / migration / DB-mutation run, re-resolve the interpreter
+     per `snippets/venv-resolution.md` and confirm it with `<py> <odoo-bin> --version` before use -
+     never trust this cache alone for a mutation.
+   - `addons_path` (if `## Verify environment` present) -> default addons path for any odoo-bin /
+     test / migration run; still re-resolve from instances.toml when a listed repo path no longer
+     exists on disk.
    - `doc_output_dir` (optional) -> destination directory for cluster/website documentation produced by `odoo-doc-illustration` (MODE cluster); defaults to `.odoo-ai/visual/doc/` when absent.
 2. If `.odoo-ai/context.md` is absent, derive what you can from disk before asking:
    - version from `find . -maxdepth 4 -name __manifest__.py | head -1` -> `Read` -> `version`

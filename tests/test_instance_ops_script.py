@@ -14,9 +14,12 @@ Offline: no PostgreSQL, no real Odoo, no network. All odoo-bin / odoo_db.py
 calls go to stub scripts on a synthetic PATH / --python.
 """
 
+import json
 import os
+import socket
 import subprocess
 import textwrap
+import time
 from pathlib import Path
 from shutil import which
 
@@ -76,6 +79,10 @@ def _make_fake_python(tmp_path: Path, *, odoo_bin_path: Path | None = None,
     fake_py = fake_dir / "python"
     if odoo_bin_path is not None:
         body = textwrap.dedent(f"""\
+            # The `<py> <odoo-bin> --version` preflight gate always passes for this
+            # stub (a working venv); the real -i/-u/test run below uses the odoo-bin
+            # stub's own exit code. Mirrors the step-50 harness design.
+            if [[ "$2" == "--version" ]]; then echo "Odoo Server (preflight)"; exit 0; fi
             # If the first argument is the fake odoo-bin, exec it as a bash script.
             if [[ "$1" == "{odoo_bin_path}" ]]; then
                 shift
@@ -464,6 +471,122 @@ def test_drop_propagates_nonzero_exit_from_odoo_db(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Contract 3b: the assert-droppable ownership gate fires whenever NOT --force -
+# including for a bare (empty-run-id) drop, the caller most likely to be nuking
+# a DB it does not own. Regression guard for the MAJOR fix that dropped the
+# `-n "$arg_run_id"` precondition so an empty-run-id drop no longer skips the
+# ownership check exactly when it is needed.
+# ---------------------------------------------------------------------------
+
+def _seed_lease_registry(env: dict, leases: list) -> None:
+    """Seed the allocator lease registry the real allocator.py (invoked by the
+    drop gate) reads: ${ODOO_AI_HOME}/runtime/leases.json."""
+    runtime = Path(env["ODOO_AI_HOME"]) / "runtime"
+    runtime.mkdir(parents=True, exist_ok=True)
+    (runtime / "leases.json").write_text(
+        json.dumps({"schema_version": 2, "leases": leases}), encoding="utf-8"
+    )
+
+
+def _fresh_foreign_lease(db_name: str, owner_run: str) -> dict:
+    """A fresh (non-stale) exclusive lease on db_name owned by owner_run: pid=None
+    (no dead-pid staleness), heartbeat now, long TTL."""
+    now = int(time.time())
+    return {
+        "token": "ab" * 16, "mode": "exclusive", "db_name": db_name,
+        "drop_on_release": False,
+        "owner": {"host": socket.gethostname(), "pid": None,
+                  "run_id": owner_run, "started_at": now},
+        "ttl_s": 7200, "heartbeat_at": now,
+        "_pg": {"host": "localhost", "user": "odoo"},
+    }
+
+
+@requires_bash
+def test_bare_drop_of_unmanaged_db_still_succeeds(tmp_path):
+    """A bare drop (empty run-id, no --force) of an UNMANAGED DB (no lease) must
+    pass the ownership gate and proceed to drop. The gate must NOT block a drop
+    just because the caller has no run id."""
+    # Fake python that "succeeds" for the odoo_db.py drop call so a passing gate
+    # yields STATUS=ok (proving the gate did not block).
+    fake_py_dir = tmp_path / "ok-py-bin"
+    fake_py_dir.mkdir()
+    fake_py = fake_py_dir / "python"
+    _write_stub(fake_py, "exit 0\n")
+
+    env = _base_env(tmp_path)
+    _seed_lease_registry(env, [])  # no leases -> unmanaged
+
+    res = _run("drop", "--db", "unmanaged_db", "--python", str(fake_py), env=env)
+
+    assert res.returncode == 0, (
+        f"bare drop of an unmanaged DB must succeed (gate passes for empty run-id).\n"
+        f"stdout={res.stdout}\nstderr={res.stderr}"
+    )
+    assert "STATUS=ok" in res.stdout, (
+        f"Expected STATUS=ok (drop proceeded).\nstdout={res.stdout}\nstderr={res.stderr}"
+    )
+    assert "drop refused" not in res.stderr, (
+        f"the gate must not refuse an unmanaged DB.\nstderr={res.stderr}"
+    )
+
+
+@requires_bash
+def test_bare_drop_of_fresh_foreign_db_is_refused_without_force(tmp_path):
+    """A bare drop (empty run-id, no --force) of a DB held by a FRESH lease owned
+    by a DIFFERENT run must be REFUSED - this is exactly the case the empty-run-id
+    caller most needs protection from. odoo_db.py must never be reached."""
+    fake_py_dir = tmp_path / "ok-py-bin"
+    fake_py_dir.mkdir()
+    fake_py = fake_py_dir / "python"
+    _write_stub(fake_py, "exit 0\n")
+
+    env = _base_env(tmp_path)
+    _seed_lease_registry(env, [_fresh_foreign_lease("foreign_db", "run-owner")])
+
+    res = _run("drop", "--db", "foreign_db", "--python", str(fake_py), env=env)
+
+    assert res.returncode != 0, (
+        f"a bare drop of a fresh foreign-owned DB must be refused.\n"
+        f"stdout={res.stdout}\nstderr={res.stderr}"
+    )
+    assert "drop refused" in res.stderr, (
+        f"Expected a 'drop refused' message.\nstderr={res.stderr}"
+    )
+    assert "STATUS=ok" not in res.stdout, (
+        f"a refused drop must NOT report STATUS=ok (odoo_db.py must not run).\n"
+        f"stdout={res.stdout}"
+    )
+
+
+@requires_bash
+def test_force_overrides_gate_for_fresh_foreign_db(tmp_path):
+    """--force deliberately reaps a foreign lease: the ownership gate is skipped
+    and the drop proceeds even against a fresh foreign-owned DB."""
+    fake_py_dir = tmp_path / "ok-py-bin"
+    fake_py_dir.mkdir()
+    fake_py = fake_py_dir / "python"
+    _write_stub(fake_py, "exit 0\n")
+
+    env = _base_env(tmp_path)
+    _seed_lease_registry(env, [_fresh_foreign_lease("foreign_db", "run-owner")])
+
+    res = _run("drop", "--db", "foreign_db", "--python", str(fake_py),
+               "--force", env=env)
+
+    assert res.returncode == 0, (
+        f"--force must override the ownership gate.\n"
+        f"stdout={res.stdout}\nstderr={res.stderr}"
+    )
+    assert "STATUS=ok" in res.stdout, (
+        f"Expected STATUS=ok after a forced drop.\nstdout={res.stdout}\nstderr={res.stderr}"
+    )
+    assert "drop refused" not in res.stderr, (
+        f"--force must not be refused by the gate.\nstderr={res.stderr}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Contract 4: update - uses -u not -i
 # ---------------------------------------------------------------------------
 
@@ -744,3 +867,162 @@ def test_wait_log_timeout_when_no_marker(tmp_path):
     assert res.returncode == 2, f"stdout={res.stdout}\nstderr={res.stderr}"
     assert "BUILD_RESULT=timeout" in res.stdout
     assert f"LOG_PATH={logf}" in res.stdout
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER-3: create-side db-connection threading (--db-host/--db-user/--db-port)
+# so CREATE/INIT/UPDATE/TEST hit the SAME Postgres cluster the DROP path uses.
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_init_threads_db_conn_flags_when_declared(tmp_path):
+    """init must forward --db_host/--db_user/--db_port to odoo-bin when declared."""
+    fake_bin = _make_fake_odoo_bin(tmp_path)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init",
+        "--db", "mydb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "sale",
+        "--db-host", "pghost",
+        "--db-user", "pguser",
+        "--db-port", "5433",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--db_host pghost" in call_content, f"expected --db_host pghost: {call_content}"
+    assert "--db_user pguser" in call_content, f"expected --db_user pguser: {call_content}"
+    assert "--db_port 5433" in call_content, (
+        f"declared --db-port must reach odoo-bin as --db_port 5433 (BLOCKER-3): {call_content}"
+    )
+
+
+@requires_bash
+def test_init_omits_db_port_when_not_declared(tmp_path):
+    """No --db-port -> odoo-bin invocation must OMIT --db_port (empty-omit rule)."""
+    fake_bin = _make_fake_odoo_bin(tmp_path)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init", "--db", "mydb", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--db_port" not in call_content, (
+        f"--db_port must be OMITTED when not declared (ambient PG env preserved): {call_content}"
+    )
+
+
+@requires_bash
+def test_update_threads_db_port_when_declared(tmp_path):
+    fake_bin = _make_fake_odoo_bin(tmp_path)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "update", "--db", "mydb", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        "--db-port", "5433",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--db_port 5433" in call_content, f"update must thread --db_port: {call_content}"
+
+
+@requires_bash
+def test_test_threads_db_port_when_declared(tmp_path):
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test", "--db", "mydb", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        "--db-port", "5433",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--db_port 5433" in call_content, f"test must thread --db_port: {call_content}"
+
+
+@requires_bash
+def test_drop_threads_db_port_to_odoo_db_py(tmp_path):
+    """drop must forward --db-port to odoo_db.py (BLOCKER-3: drop hits the right cluster)."""
+    log = tmp_path / "odoo-db-argv.log"
+    py_dir = tmp_path / "logpy"
+    py_dir.mkdir()
+    fake_py = py_dir / "python"
+    _write_stub(fake_py, f'echo "$@" >> "{log}"\nexit 0\n')
+
+    env = _base_env(tmp_path)
+    res = _run(
+        "drop", "--db", "dropme", "--python", str(fake_py),
+        "--db-host", "pghost", "--db-port", "5433",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    argv = log.read_text(encoding="utf-8")
+    assert "drop dropme" in argv, f"drop must invoke odoo_db.py drop dropme: {argv}"
+    assert "--db-port" in argv and "5433" in argv, (
+        f"drop must thread --db-port 5433 to odoo_db.py: {argv}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Problem 5: --version preflight in init/update/test (fail loud, no run)
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_init_preflight_fails_loud_on_bad_python(tmp_path):
+    """A --python whose `<py> <odoo-bin> --version` fails must fail-loud BEFORE the
+    real run - mirroring 50-instance-spinup.sh's preflight gate."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    # Bad python: fails the --version gate; would exit 0 otherwise.
+    bad_dir = tmp_path / "badpy"
+    bad_dir.mkdir()
+    bad_py = bad_dir / "python"
+    _write_stub(bad_py, 'if [[ "$2" == "--version" ]]; then exit 1; fi\nexit 0\n')
+
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init", "--db", "x", "--python", str(bad_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode != 0, f"a broken venv must fail the preflight.\n{out}"
+    assert "PREFLIGHT FAILED" in out, f"expected a loud PREFLIGHT FAILED message.\n{out}"
+    # The real -i run must NOT have happened (only the --version probe, which the
+    # bad python handled itself without touching odoo-bin).
+    call_log = tmp_path / "odoo-bin-calls.log"
+    content = call_log.read_text(encoding="utf-8") if call_log.exists() else ""
+    assert " -i " not in content, f"init must NOT run odoo-bin -i after preflight failure: {content}"

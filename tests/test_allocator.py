@@ -16,8 +16,10 @@ only allowed when the venv python is absent from the lease.
 
 import json
 import os
+import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -85,8 +87,11 @@ def _parse_alloc(stdout: str) -> dict:
     return out
 
 
-def _leases(env) -> list:
-    p = _run(env, "list")
+def _leases(env, show_tokens: bool = True) -> list:
+    # Default to --show-tokens so assertions on the full lease token keep working
+    # after cmd_list started redacting tokens to an 8-char fingerprint by default.
+    args = ["list"] + (["--show-tokens"] if show_tokens else [])
+    p = _run(env, *args)
     return json.loads(p.stdout)["leases"]
 
 
@@ -826,3 +831,281 @@ def test_shared_acquire_with_newer_pid_upserts_in_place(fixt):
     leases = _leases(env)
     assert len(leases) == 1, "the upsert must not create a second row"
     assert leases[0]["owner"]["pid"] == os.getpid(), "the real server pid is recorded in place"
+
+
+# --------------------------------------------------------------------------- #
+# #163 db_port: threaded end-to-end (catalog -> lease -> drop/probe -> emit)
+# --------------------------------------------------------------------------- #
+INSTANCES_TOML_PORT = """\
+[[instance]]
+series = "17.0"
+addons_path = ["/srv/odoo/addons"]
+run_mode = "source"
+http_port = 8069
+http_port_base = 8170
+port_pool_size = 10
+db_name = "odoo_17_0"
+db_name_prefix = "odoo_17_0"
+db_host = "localhost"
+db_user = "odoo"
+db_port = 5433
+python = "/srv/venv/bin/python"
+"""
+
+
+def _env_with_toml(tmp_path, toml_text, home_name="home"):
+    home = tmp_path / home_name
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(toml_text, encoding="utf-8")
+    return _env(home, toml)
+
+
+def test_lease_stores_db_port_and_pg_port(tmp_path):
+    """A declared db_port must be persisted on the lease (top-level + _pg mirror)."""
+    env = _env_with_toml(tmp_path, INSTANCES_TOML_PORT)
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "exclusive", "--db-name", "x")
+    assert p.returncode == 0, p.stderr
+    lz = _leases(env)[0]
+    assert str(lz.get("db_port")) == "5433", "db_port must be stored top-level on the lease"
+    assert str(lz.get("_pg", {}).get("port")) == "5433", "db_port must mirror into _pg.port"
+
+
+def test_acquire_echoes_alloc_db_port_when_declared(tmp_path):
+    env = _env_with_toml(tmp_path, INSTANCES_TOML_PORT)
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "exclusive", "--db-name", "x")
+    a = _parse_alloc(p.stdout)
+    assert a.get("ALLOC_DB_PORT") == "5433", "acquire must echo ALLOC_DB_PORT so the handle round-trips it"
+
+
+def test_acquire_db_port_empty_when_absent_not_5432(fixt):
+    """The empty-omit rule: no declared db_port -> ALLOC_DB_PORT='' (NEVER a fabricated 5432)."""
+    env, _, _ = fixt
+    _, a = _acquire(env, "--mode", "exclusive", "--db-name", "x")
+    assert a.get("ALLOC_DB_PORT", "") == "", (
+        f"ALLOC_DB_PORT must be empty when no db_port is declared; got {a.get('ALLOC_DB_PORT')!r}"
+    )
+    assert a.get("ALLOC_DB_PORT", "") != "5432", "must not fabricate 5432"
+    lz = _leases(env)[0]
+    assert str(lz.get("db_port", "")) == "", "lease db_port must be empty when undeclared"
+
+
+def _make_drop_logger_env(tmp_path, toml_text):
+    """Return (env, log_path): a fake psql that passes the CREATEDB probe and a
+    fake venv python that LOGS the odoo_db.py argv (so we can assert the drop
+    command flags) and exits 0. CPU-only: no real Postgres, no real dropdb."""
+    bindir = tmp_path / "fakebin"
+    bindir.mkdir()
+    (bindir / "psql").write_text("#!/bin/sh\necho t\n", encoding="utf-8")
+    (bindir / "psql").chmod(0o755)
+    log = tmp_path / "odoo_db_argv.log"
+    fake_python = bindir / "fake_python"
+    fake_python.write_text(
+        '#!/bin/sh\n'
+        'if [ "$(basename "$1")" = "odoo_db.py" ]; then echo "$@" >> "%s"; exit 0; fi\n'
+        'exec %s "$@"\n' % (log, sys.executable),
+        encoding="utf-8",
+    )
+    fake_python.chmod(0o755)
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(toml_text.replace('python = "/srv/venv/bin/python"',
+                                      f'python = "{fake_python}"'), encoding="utf-8")
+    env = _env(home, toml)
+    env["PATH"] = f"{bindir}{os.pathsep}{env['PATH']}"
+    return env, log
+
+
+def test_drop_through_odoo_includes_db_port_when_set(tmp_path):
+    """_drop_through_odoo must thread --db-port to odoo_db.py when the lease has one."""
+    env, log = _make_drop_logger_env(tmp_path, INSTANCES_TOML_PORT)
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0
+    if a["ALLOC_MODE"] != "ephemeral":
+        pytest.skip("probe degraded to exclusive - drop path not exercised")
+    rel = _run(env, "release", a["ALLOC_TOKEN"])
+    assert rel.returncode == 0, rel.stderr
+    argv = log.read_text(encoding="utf-8")
+    assert "--db-port" in argv and "5433" in argv, (
+        f"drop command must include --db-port 5433 when the lease carries db_port; got {argv!r}"
+    )
+
+
+def test_drop_through_odoo_omits_db_port_when_empty(tmp_path):
+    """No declared db_port -> the drop command must NOT carry --db-port (empty-omit)."""
+    # INSTANCES_TOML has db_name_prefix but no db_port.
+    env, log = _make_drop_logger_env(tmp_path, INSTANCES_TOML)
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0")
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0
+    if a["ALLOC_MODE"] != "ephemeral":
+        pytest.skip("probe degraded to exclusive - drop path not exercised")
+    rel = _run(env, "release", a["ALLOC_TOKEN"])
+    assert rel.returncode == 0, rel.stderr
+    argv = log.read_text(encoding="utf-8")
+    assert "--db-port" not in argv, (
+        f"drop command must OMIT --db-port when no db_port is declared; got {argv!r}"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Ownership: run_id carrier + FIXED release predicate (BLOCKER-1)
+# --------------------------------------------------------------------------- #
+def test_acquire_run_id_stored_as_owner_run_id_and_echoed(fixt):
+    env, _, _ = fixt
+    _, a = _acquire(env, "--mode", "exclusive", "--db-name", "x",
+                    "--run-id", "add-priority-20260101-a3f1")
+    assert a.get("ALLOC_RUN_ID") == "add-priority-20260101-a3f1", "acquire must echo ALLOC_RUN_ID"
+    lz = _leases(env)[0]
+    assert lz["owner"].get("run_id") == "add-priority-20260101-a3f1", (
+        "the run id must be stored as owner.run_id (canonical ownership key)"
+    )
+    assert "session_id" not in lz["owner"], (
+        "new leases must STOP writing the standalone dead session_id field"
+    )
+
+
+def test_session_alias_still_populates_owner_run_id(fixt):
+    """--session stays a back-compat alias that lands in owner.run_id."""
+    env, _, _ = fixt
+    _, a = _acquire(env, "--mode", "exclusive", "--db-name", "x", "--session", "legacy-run")
+    assert a.get("ALLOC_RUN_ID") == "legacy-run"
+    assert _leases(env)[0]["owner"].get("run_id") == "legacy-run"
+
+
+def test_release_without_run_id_still_succeeds_on_owned_lease(fixt):
+    """BLOCKER-1: the rightful owner must NEVER be blocked from releasing its own
+    lease just because no run id was forwarded to the release call (token-possession)."""
+    env, _, _ = fixt
+    _, a = _acquire(env, "--mode", "exclusive", "--db-name", "x", "--run-id", "run-A")
+    rel = _run(env, "release", a["ALLOC_TOKEN"])  # NO --run-id forwarded
+    assert rel.returncode == 0, (
+        f"release with no forwarded run_id must succeed (token-possession); stderr={rel.stderr!r}"
+    )
+    assert _leases(env) == [], "the lease must be removed on a successful release"
+
+
+def test_release_matching_run_id_proceeds(fixt):
+    env, _, _ = fixt
+    _, a = _acquire(env, "--mode", "exclusive", "--db-name", "x", "--run-id", "run-A")
+    rel = _run(env, "release", a["ALLOC_TOKEN"], "--run-id", "run-A")
+    assert rel.returncode == 0, rel.stderr
+    assert _leases(env) == []
+
+
+def test_release_different_run_id_refused_and_db_not_dropped(tmp_path):
+    """A DIFFERENT non-empty caller run must be refused: non-zero, lease kept, DB NOT dropped."""
+    env, log = _make_drop_logger_env(tmp_path, INSTANCES_TOML_PORT)
+    p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral", "--ports", "0",
+             "--run-id", "run-A")
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0
+    if a["ALLOC_MODE"] != "ephemeral":
+        pytest.skip("probe degraded to exclusive - drop path not exercised")
+    rel = _run(env, "release", a["ALLOC_TOKEN"], "--run-id", "run-B")
+    assert rel.returncode != 0, "a foreign run must be refused"
+    assert "run-A" in rel.stderr, f"refusal must name the owner run; stderr={rel.stderr!r}"
+    assert len(_leases(env)) == 1, "a refused release must KEEP the lease"
+    assert not log.exists(), "a refused release must NOT invoke the drop (DB untouched)"
+
+
+def test_force_release_of_foreign_run_proceeds_and_logs(fixt):
+    env, _, _ = fixt
+    _, a = _acquire(env, "--mode", "exclusive", "--db-name", "x", "--run-id", "run-A")
+    rel = _run(env, "release", a["ALLOC_TOKEN"], "--run-id", "run-B", "--force")
+    assert rel.returncode == 0, rel.stderr
+    assert _leases(env) == [], "--force must proceed with the release"
+    assert "force" in rel.stderr.lower(), f"--force must log a loud line; stderr={rel.stderr!r}"
+
+
+def _seed_registry(env, leases):
+    home = Path(env["ODOO_AI_HOME"])
+    runtime = home / "runtime"
+    runtime.mkdir(parents=True, exist_ok=True)
+    (runtime / "leases.json").write_text(
+        json.dumps({"schema_version": 2, "leases": leases}), encoding="utf-8"
+    )
+
+
+def test_legacy_session_id_only_lease_releasable_by_token(fixt):
+    """A pre-existing lease that carries ONLY owner.session_id (no run_id) must be
+    releasable by token possession (owner_run resolves via the session_id fallback)."""
+    env, _, _ = fixt
+    token = "ab" * 16
+    now = int(time.time())
+    _seed_registry(env, [{
+        "token": token, "mode": "exclusive", "db_name": "legacy", "drop_on_release": False,
+        "owner": {"host": socket.gethostname(), "pid": None,
+                  "session_id": "old-run", "started_at": now},
+        "ttl_s": 7200, "heartbeat_at": now, "_pg": {"host": "localhost", "user": "odoo"},
+    }])
+    rel = _run(env, "release", token)  # no run id
+    assert rel.returncode == 0, f"legacy lease must be releasable by token; stderr={rel.stderr!r}"
+    assert _leases(env) == []
+
+
+# --------------------------------------------------------------------------- #
+# assert-droppable (read-only ownership probe under flock)
+# --------------------------------------------------------------------------- #
+def test_assert_droppable_refuses_fresh_foreign_lease(fixt):
+    env, _, _ = fixt
+    _acquire(env, "--mode", "exclusive", "--db-name", "mydb", "--run-id", "run-A")
+    r = _run(env, "assert-droppable", "--db-name", "mydb", "--run-id", "run-B")
+    assert r.returncode != 0, "a fresh lease owned by a different run must be non-droppable"
+    assert "run-A" in r.stderr, f"assert-droppable must name the owning run; stderr={r.stderr!r}"
+
+
+def test_assert_droppable_allows_own_run(fixt):
+    env, _, _ = fixt
+    _acquire(env, "--mode", "exclusive", "--db-name", "mydb", "--run-id", "run-A")
+    r = _run(env, "assert-droppable", "--db-name", "mydb", "--run-id", "run-A")
+    assert r.returncode == 0, f"the owning run may drop its own DB; stderr={r.stderr!r}"
+
+
+def test_assert_droppable_allows_unmanaged_db(fixt):
+    env, _, _ = fixt
+    r = _run(env, "assert-droppable", "--db-name", "no_such_lease", "--run-id", "run-B")
+    assert r.returncode == 0, "an unmanaged DB (no lease) is always droppable"
+
+
+def test_assert_droppable_allows_stale_foreign_lease(fixt):
+    env, _, _ = fixt
+    now = int(time.time())
+    _seed_registry(env, [{
+        "token": "cd" * 16, "mode": "exclusive", "db_name": "stalemydb", "drop_on_release": False,
+        "owner": {"host": socket.gethostname(), "pid": None,
+                  "run_id": "run-C", "started_at": now - 100000},
+        "ttl_s": 1, "heartbeat_at": now - 100000, "_pg": {"host": "localhost", "user": "odoo"},
+    }])
+    r = _run(env, "assert-droppable", "--db-name", "stalemydb", "--run-id", "run-B")
+    assert r.returncode == 0, (
+        f"a STALE foreign lease must not block a drop (gc would reap it); stderr={r.stderr!r}"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# cmd_list token redaction (accident-prevention layer)
+# --------------------------------------------------------------------------- #
+def test_list_redacts_tokens_by_default_full_with_show_tokens(fixt):
+    env, _, _ = fixt
+    _, a = _acquire(env, "--mode", "exclusive", "--db-name", "x")
+    full = a["ALLOC_TOKEN"]
+
+    default_reg = json.loads(_run(env, "list").stdout)["leases"][0]
+    assert default_reg["token"] != full, "list must NOT print the full token by default"
+    assert default_reg["token"] == full[:8], "the default token must be an 8-char fingerprint"
+
+    shown_reg = json.loads(_run(env, "list", "--show-tokens").stdout)["leases"][0]
+    assert shown_reg["token"] == full, "--show-tokens must reveal the full token"
+
+
+# --------------------------------------------------------------------------- #
+# registry schema_version stamp
+# --------------------------------------------------------------------------- #
+def test_registry_stamps_schema_version_2(fixt):
+    env, _, _ = fixt
+    _acquire(env, "--mode", "ephemeral", "--no-create")
+    reg = json.loads(_run(env, "list", "--show-tokens").stdout)
+    assert reg.get("schema_version") == 2, "a written registry must be stamped schema_version: 2"

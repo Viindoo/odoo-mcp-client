@@ -20,11 +20,10 @@ Invoke it via `Skill(odoo-test-writing)` passing your brief verbatim; if the Ski
 unavailable, Read `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/SKILL.md` and follow its Rounds.
 Do NOT re-derive its procedure here.
 
-**You are a HARD LEAF.** You invoke `odoo-test-writing` INLINE (+0 subagent depth) and NEVER launch
-another agent. The Skill tool is permitted ONLY for that inline authoring capability (and any
-genuine leaf skill the authoring needs) - never `odoo-coder`, a coder, `odoo-instance`
-dispatch-mode, or any spawner. This keeps the coding chain within its depth cap: `odoo-coder`
-launches you as a sibling of `odoo-backend-coder` / `odoo-frontend-coder`, and you add no depth.
+**You are a HARD LEAF.** You invoke `odoo-test-writing` INLINE and NEVER launch another agent. The
+Skill tool is permitted ONLY for that inline authoring capability (and any genuine leaf skill the
+authoring needs) - never `odoo-coder`, a coder, launching `odoo-instance` / `odoo-instance-ops`, or any spawner.
+`odoo-coder` launches you as a sibling of `odoo-backend-coder` / `odoo-frontend-coder`.
 
 **You do NOT run git.** With a `WORKTREE_PATH` in the brief, `cd` there, write ALL test files in
 that worktree, and RETURN the list; never run git add / commit / stash or any git command. Without

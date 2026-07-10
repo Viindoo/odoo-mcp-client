@@ -10,9 +10,13 @@ Protects the BEHAVIOR of the reconciled two-tier decomposition (not a wording sn
   and DEPENDENT WIs SEQUENTIALLY (backend before a frontend WI that binds it), and per WI launches
   THREE teammates - `odoo-test-writer` FIRST (authors the RED test, test-first), then
   `odoo-backend-coder` / `odoo-frontend-coder` (make it green; the coders no longer author tests) -
-  tests the integrated module via `odoo-instance` INLINE, then COMMITS its module by invoking
-  `Skill(git-toolkit:git-ops)` (request-only; no raw git, no direct git leaf agent) and returns the
-  SHA to `odoo-coding` (which collects it, no longer re-committing).
+  tests the integrated module via `Skill(odoo-instance)` (inline in its own context, or by launching
+  `odoo-instance-ops` - either way under the instance HARD RULES), then COMMITS its module by
+  invoking `Skill(git-toolkit:git-ops)` (request-only; no raw git, no direct git leaf agent) and
+  returns the SHA to `odoo-coding` (which collects it, no longer re-committing). It also reacts to a
+  WI worker's own pre-integration BLOCKED within its bounded loop (excluding the manifest-dependency
+  case, which still relays up unchanged) and, as the module LEAD, monitors its WI workers on a live
+  task list per `agent-team-protocol.md` Ask 2 / `execution-tasklist-contract.md`.
 - `odoo-test-writer`, `odoo-backend-coder`, and `odoo-frontend-coder` are HARD LEAVES - they launch nothing.
 - The WI is `odoo-coder`'s PRIVATE unit: it MUST NOT appear as an outer-layer unit in
   odoo-planning / plan-mode-schema / phase-p / run-harness.
@@ -131,15 +135,12 @@ def test_coordinator_owns_the_internal_wi_breakdown():
     )
 
 
-def test_coordinator_tests_integrated_module_via_instance_inline():
-    """The coordinator owns the integrated module test via Skill(odoo-instance) INLINE (never dispatch)."""
+def test_coordinator_tests_integrated_module_via_instance_skill():
+    """The coordinator owns the integrated module test, provisioned via Skill(odoo-instance) - either
+    inline in its own context or by launching odoo-instance-ops - either way under the HARD RULES."""
     body = _norm(LEAD)
     assert "Skill(odoo-instance)" in body, "the coordinator must run the integrated test via Skill(odoo-instance)"
-    assert "INLINE" in body.upper(), "the integrated test must be INLINE leaf-mode (+0 depth)"
     assert "integrated" in body.lower(), "the coordinator must own the INTEGRATED whole-module test"
-    assert "adding no subagent depth" in body, (
-        "the coordinator must justify the inline Skill(odoo-instance) call as adding no subagent depth"
-    )
 
 
 def test_coordinator_is_bounded_fix_loop():
@@ -150,6 +151,42 @@ def test_coordinator_is_bounded_fix_loop():
     assert "3 iteration" in body.lower() or "3 iterations" in body.lower(), (
         "the coordinator's fix loop must reuse the 3-iteration bound"
     )
+
+
+def test_coordinator_reacts_to_wi_level_blocked_excluding_manifest_dependency():
+    """A WI worker (odoo-test-writer / odoo-backend-coder / odoo-frontend-coder) can BLOCK on its OWN
+    before the integrated test ever runs (e.g. no RED test handed in, or the worker exhausted its own
+    attempts on an ambiguous WI). The coordinator must react within its bounded loop - never idle and
+    never silently drop the WI - EXCLUDING the manifest-dependency case, which still relays UP to
+    odoo-coding unchanged (ledger-unaware), per module-coordination-ledger.md."""
+    body = _norm(LEAD)
+    low = body.lower()
+    assert "blocked" in low, "the coordinator must address a WI worker's own BLOCKED result"
+    assert "never idle on a wi-level blocked" in low or (
+        "pre-integration blocked" in low and "never idle" in low
+    ), "the coordinator must not idle on a WI-level BLOCKED - it must actively react"
+    assert "manifest dependency" in low and "module-coordination-ledger" in body, (
+        "the manifest-dependency BLOCKED case must still be named and pointed at the ledger snippet"
+    )
+    assert "ledger-unaware" in low, (
+        "the coordinator must stay ledger-unaware even while reacting to a WI-level BLOCKED"
+    )
+    assert "relay" in low and "unchanged" in low, (
+        "the manifest-dependency BLOCKED must still relay up to odoo-coding unchanged"
+    )
+
+
+def test_coordinator_monitors_wi_workers_on_a_live_task_list():
+    """As the module's LEAD teammate, the coordinator applies Ask 2 of agent-team-protocol.md -
+    tracking its own dispatched WI workers on a live task list - not merely waiting on the Ask-1
+    SendMessage push as its only progress signal."""
+    body = _norm(LEAD)
+    assert "agent-team-protocol.md" in body, "the coordinator must cite agent-team-protocol.md"
+    assert "Ask 2" in body, "the coordinator must apply Ask 2 (team-lead tracking), not only Ask 1"
+    assert "execution-tasklist-contract.md" in body, (
+        "the coordinator must reference the live-task-list SSOT contract"
+    )
+    assert "task list" in body.lower(), "the coordinator must monitor WI workers on a live task list"
 
 
 def test_coordinator_commits_module_via_skill_git_ops_and_returns_sha():
@@ -176,14 +213,19 @@ def test_coordinator_commits_module_via_skill_git_ops_and_returns_sha():
 
 
 def test_workers_are_hard_leaves():
-    """All three teammates must declare themselves HARD LEAVES that launch nothing."""
+    """All three teammates must declare themselves HARD LEAVES - the invariant that a leaf launches
+    no sub-agent is independent of any depth-cap framing, so this checks the invariant under any of
+    its equivalent phrasings rather than pinning one exact wording."""
+    _LAUNCHES_NOTHING_PHRASES = (
+        "never launch", "launch no sub-agent", "launches no sub-agent", "launch nothing",
+    )
     for path in (TEST_WRITER, BACKEND, FRONTEND):
         body = _norm(path).lower()
         assert "hard leaf" in body or "hard leaves" in body, (
             f"{path.name} must declare it is a HARD LEAF"
         )
-        assert "never launch" in body or "launch no sub-agent" in body or "launch nothing" in body, (
-            f"{path.name} must state it launches no sub-agent"
+        assert any(phrase in body for phrase in _LAUNCHES_NOTHING_PHRASES), (
+            f"{path.name} must state it launches no sub-agent (any equivalent phrasing)"
         )
 
 

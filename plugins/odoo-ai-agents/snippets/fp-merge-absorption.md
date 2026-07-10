@@ -127,8 +127,8 @@ to exclusive (see "Allocator footgun" below).
    instance allocation) - this reserves the DB name and ports but does NOT create the DB:
 
    ```bash
-   python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral
-   # emits ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_TOKEN
+   python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral --run-id <id>
+   # emits ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_DB_PORT / ALLOC_RUN_ID / ALLOC_TOKEN
    ```
 
 3. Install the N affected modules ONCE on that DB (Odoo create-on-init creates the DB):

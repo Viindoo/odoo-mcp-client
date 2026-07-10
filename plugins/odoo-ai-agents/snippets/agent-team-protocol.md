@@ -96,6 +96,14 @@ conversation and overflows the lead's context window; `TaskOutput` is deprecated
 `TaskGet` return only the cheap status surface, so the lead can poll which teammates are
 done / blocked without loading any transcript, and pair that status with the pushed report content.
 
+**Two layers, do not conflate.** Ask 2 above is the *teammate-status* layer - tracking OTHER
+named, `SendMessage`-addressable subagents - and stays gated on the full CHP capability probe. An
+executor's OWN sequential progress through its plan (run-harness over RUN-DAG nodes,
+workflow-chaining over phases, or any spawner over its waves/modules/work-items) - whether or not
+any of those steps happen to be dispatched to a named teammate - is a SEPARATE, always-on layer:
+see `${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md`. That layer fires whenever a
+task-list tool is available, independent of this CHP gate; its content is not restated here.
+
 ## Real-time guarantee + the four-channel split
 
 The lead never blocks on a content-less `idle_notification`, because:

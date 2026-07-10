@@ -48,10 +48,10 @@ Run phases in order; each phase dispatches the worker + model from the per-phase
 
 - **P1 MAP - git-surveyor @ haiku, parallel x N.** Enumerate the changed-file set
   (`--name-only`/`--numstat`) and cluster by directory/module/package into a file -> cluster map; no
-  diff content read. Pass `model: haiku` in the Agent-tool call.
+  diff content read. Pass `model: haiku` in the agent-launch call.
 - **P2 EVALUATE - git-surveyor @ sonnet, parallel per cluster.** Each surveyor reads ONE cluster's
   scoped diff and returns conflict likelihood, risk, business intent. Collect verdicts. Pass
-  `model: sonnet` in each Agent-tool call.
+  `model: sonnet` in each agent-launch call.
 - **P3 STRATEGY - you (opus).** Synthesize the cluster verdicts into ONE safe execution plan
   (sequencing, conflict strategy, worktree isolation, backup points). Then run the HUMAN-CONFIRM
   gate for any destructive step (the 8-item list in

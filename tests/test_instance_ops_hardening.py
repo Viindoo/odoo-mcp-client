@@ -7,19 +7,22 @@ Three coherent contracts are locked in by these read-only prose assertions:
            it in the background and poll LOG_PATH to a TERMINAL marker (never
            idle-stall). The skill relays a short form of the same contract.
 
-  ITEM 2 - subagent self-provision via odoo-instance inline leaf-mode. A dispatched
-           leaf that lacks an INSTANCE_HANDLE self-provisions by invoking
-           Skill(odoo-instance) inline-mode (which carries the HARD RULES), NOT by a
-           bare allocator.py call and NOT by cold-spawning odoo-instance-ops. HARD
-           RULES stay single-sourced in the agent (cross-referenced, not duplicated).
+  ITEM 2 - subagent self-provision via Skill(odoo-instance). A dispatched leaf that
+           lacks an INSTANCE_HANDLE self-provisions by invoking Skill(odoo-instance)
+           (which carries the HARD RULES), NEVER by a bare allocator.py call - the
+           bypass that would skip those rules. (The depth-cap-motivated "never
+           launch odoo-instance-ops directly" coercion was removed in a later wave -
+           whichever path the caller's context uses to provision, the HARD RULES
+           apply either way.) HARD RULES stay single-sourced in the agent
+           (cross-referenced, not duplicated).
 
   ITEM 5 (gap fix) - the odoo-coder / odoo-frontend-coder CODER agents were missed by
            ITEM 2: their own no-handle self-provisioning fallback (the backend lint
            gate's isolated instance, the frontend quick-smoke server) still called
            `scripts/lib/allocator.py acquire` directly, bypassing the same HARD RULES
            the coders' own lint/smoke gate depends on (crucially the lint-module
-           install union). Fixed to route through Skill(odoo-instance) inline-mode,
-           like every other self-provisioning leaf.
+           install union). Fixed to route through Skill(odoo-instance), like every
+           other self-provisioning leaf.
 
 Prose is line-wrapped in the source, so every phrase assertion runs against a
 whitespace-normalized copy of the file.
@@ -123,26 +126,30 @@ def test_agent_self_review_covers_active_wait_and_log_level():
 # ITEM 2 - inline leaf-mode self-provision
 # ---------------------------------------------------------------------------
 
-def test_skill_has_two_modes_dispatch_and_inline():
-    """The skill relaxes sole-dispatcher into single-owner with dispatch + inline modes."""
+def test_skill_is_single_owner_with_inline_and_launch_paths():
+    """The skill is the single owner of instance provisioning and offers the caller EITHER path -
+    run the ops steps inline in its own context, or launch the odoo-instance-ops agent - with no
+    coercion toward one over the other (the old "sole launcher" / depth-cap framing was removed;
+    the skill still owns launching the agent when that path is chosen)."""
     text = _norm(SKILL_MD)
-    assert "Single owner of instance fan-out" in text, "skill must own instance fan-out (single owner)"
-    assert "Dispatch mode" in text and "Inline leaf-mode" in text, (
-        "skill must define both dispatch mode and inline leaf-mode"
+    assert "Single owner of instance provisioning" in text, (
+        "skill must state it is the single owner of instance provisioning"
     )
-    assert "ONLY component that launches the `odoo-instance-ops` agent" in text, (
-        "dispatch mode must remain the sole launcher of odoo-instance-ops"
+    assert "Inline leaf-mode" in text, "skill must define an inline leaf-mode provisioning path"
+    assert "launch the `odoo-instance-ops` agent" in text or "launching that agent" in text, (
+        "skill must still document launching odoo-instance-ops as a provisioning path"
+    )
+    assert "component that owns launching that agent" in text, (
+        "skill must own launching odoo-instance-ops when that path is chosen"
     )
 
 
-def test_skill_inline_mode_does_not_spawn_and_honors_hard_rules():
-    """Inline leaf-mode runs inline (no agent spawn) and honors the SAME HARD RULES."""
+def test_skill_inline_mode_honors_hard_rules():
+    """Inline leaf-mode is not a bypass - however the operation is carried out, it honors the SAME
+    HARD RULES as launching the agent."""
     text = _norm(SKILL_MD)
-    assert "does NOT dispatch `odoo-instance-ops`" in text or \
-           "do NOT launch the `odoo-instance-ops` agent" in text, (
-        "inline leaf-mode must NOT dispatch the ops agent"
-    )
     assert "SAME HARD RULES" in text, "inline leaf-mode must state it honors the same HARD RULES"
+    assert "not a bypass" in text.lower(), "the inline path must be stated as not a bypass"
 
 
 def test_skill_inline_mode_cross_references_hard_rules_not_duplicated():
@@ -160,15 +167,14 @@ def test_skill_inline_mode_cross_references_hard_rules_not_duplicated():
     )
 
 
-def test_qa_tester_no_handle_fallback_routes_to_inline_skill():
-    """odoo-qa-tester's no-handle fallback = invoke Skill(odoo-instance) inline-mode, not raw allocator."""
+def test_qa_tester_no_handle_fallback_routes_via_odoo_instance_skill():
+    """odoo-qa-tester's no-handle fallback provisions via Skill(odoo-instance) - carrying the HARD
+    RULES - never a raw allocator.py call."""
     text = _norm(QA_TESTER_MD)
-    assert "Skill(odoo-instance)" in text and "inline-mode" in text, (
-        "qa-tester must self-provision via Skill(odoo-instance) inline-mode"
-    )
-    assert "SOLE EXCEPTION" in text, "qa-tester must carve out the odoo-instance Skill exception"
-    assert "never spawn subagents" in text, (
-        "qa-tester must still forbid spawning subagents (no raw odoo-instance-ops cold-spawn)"
+    assert "Skill(odoo-instance)" in text, "qa-tester must self-provision via Skill(odoo-instance)"
+    assert "HARD RULES" in text, "qa-tester's provisioning must be stated as carrying the HARD RULES"
+    assert "raw" in text.lower() and "allocator.py" in text, (
+        "qa-tester must forbid a raw allocator.py call as the self-provisioning fallback"
     )
 
 
@@ -181,41 +187,57 @@ def test_coding_skill_no_handle_fallback_routes_to_inline_skill():
     assert "never a bare" in text, "coding must forbid a bare allocator.py call as the fallback"
 
 
-def test_handle_contract_no_handle_fallback_is_inline_skill():
-    """The instance-handle contract's no-handle fallback is the inline skill route."""
+def test_handle_contract_no_handle_fallback_routes_via_odoo_instance_skill():
+    """The instance-handle contract's no-handle fallback self-provisions via Skill(odoo-instance)
+    under the HARD RULES; whichever provisioning path is used, a provided handle always wins."""
     text = _norm(HANDLE_CONTRACT)
-    assert "Skill(odoo-instance)" in text and "inline-mode" in text
+    assert "Skill(odoo-instance)" in text, (
+        "the no-handle fallback must self-provision via Skill(odoo-instance)"
+    )
     assert "provided handle always wins" in text, "a provided handle must still always win"
 
 
 def test_worker_brief_permits_odoo_instance_skill_carveout():
-    """worker-brief must add a carve-out that a leaf MAY invoke Skill(odoo-instance)."""
+    """worker-brief permits a leaf to invoke Skill(odoo-instance) to self-provision (carrying the
+    instance HARD RULES), while the INDEPENDENT git-ops-via-Skill prohibition for leaves remains
+    intact - a leaf never owns git, regardless of the instance carve-out."""
     text = _norm(WORKER_BRIEF)
+    low = text.lower()
     assert "Skill(odoo-instance)" in text, "worker-brief must permit the odoo-instance Skill"
-    assert "a leaf never" in text and "invokes git-ops even via the Skill tool" in text, (
+    assert "HARD RULES" in text, (
+        "the carve-out must justify itself via the instance HARD RULES, not a depth argument"
+    )
+    assert "leaf never" in low and "invokes git-ops even via the skill tool" in low, (
         "the git-ops-via-Skill prohibition must remain intact"
     )
-    assert "no subagent" in text.lower() or "adds no nesting depth" in text, (
-        "carve-out must justify itself as adding no subagent depth"
-    )
 
 
-def test_evals_retargeted_to_single_owner_and_inline_leaf():
-    """Evals assert the new rule: leaf self-provisions via the skill, never raw-spawns the agent."""
+def test_evals_retarget_to_single_owner_never_bare_allocator():
+    """Evals assert the new rule: whichever path a caller provisions through (inline or by launching
+    odoo-instance-ops), it must never bypass the HARD RULES via a bare allocator.py call. A direct
+    launch of odoo-instance-ops is no longer, by itself, a failure - only bypassing the HARD RULES
+    (e.g. a bare allocator.py call) is."""
     data = json.loads(EVALS.read_text(encoding="utf-8"))
     evals = {e["id"]: e for e in data["evals"]}
 
-    # id 6 - orchestrator dispatch mode still routes through the skill, never a raw agent spawn.
+    # id 6 - orchestrator dispatch still routes through the skill; the failure is bypassing the
+    # HARD RULES or calling allocator.py directly, not "launching the agent directly" per se.
     assert evals[6]["expected_routed_to"] == "odoo-instance"
-    assert "raw agent" in evals[6]["must_not"] or "bypassing odoo-instance" in evals[6]["must_not"]
+    assert "allocator.py" in evals[6]["must_not"] or "hard rules" in evals[6]["must_not"].lower(), (
+        "id 6 must forbid bypassing the HARD RULES / calling allocator.py directly"
+    )
 
-    # id 11 - leaf self-provision via inline-mode; must NOT cold-spawn the agent or call allocator.py.
-    assert 11 in evals, "a leaf inline-mode self-provision eval (id 11) must exist"
+    # id 11 - leaf self-provision under the HARD RULES; must NOT call allocator.py directly.
+    # (Cold-spawning odoo-instance-ops from a leaf is a separate, tool-capability concern - a hard
+    # leaf structurally lacks the launch mechanism - not something this eval's must_not encodes.)
+    assert 11 in evals, "a leaf self-provisioning eval (id 11) must exist"
     e11 = evals[11]
     assert e11["expected_routed_to"] == "odoo-instance"
-    assert "inline" in e11["expected_behavior"].lower()
-    assert "odoo-instance-ops" in e11["must_not"] and "allocator.py" in e11["must_not"], (
-        "id 11 must forbid both raw agent cold-spawn AND a direct allocator.py call"
+    assert "hard rules" in e11["expected_behavior"].lower(), (
+        "id 11's expected behavior must invoke the instance HARD RULES"
+    )
+    assert "allocator.py" in e11["must_not"], (
+        "id 11 must forbid a direct allocator.py call that bypasses the HARD RULES"
     )
 
 
@@ -252,19 +274,24 @@ def test_backend_coder_no_handle_fallback_routes_to_inline_skill():
     )
 
 
-def test_lead_coder_owns_integrated_instance_test_inline():
-    """The odoo-coder per-module full-stack LEAD owns the INTEGRATED whole-module instance test, run
-    via Skill(odoo-instance) INLINE leaf-mode (never dispatch-mode, which would spawn odoo-instance-ops
-    one level deeper and overflow the depth cap). No-handle -> the lead self-provisions inline."""
+def test_lead_coder_owns_integrated_instance_test_via_odoo_instance_skill():
+    """The odoo-coder per-module LEAD owns the INTEGRATED whole-module instance test. No-handle -> it
+    self-provisions via Skill(odoo-instance), which the lead may run either inline in its own context
+    or by launching odoo-instance-ops - either way under the instance HARD RULES."""
     text = _norm(CODER_MD)
-    assert "Skill(odoo-instance)" in text and "INLINE" in text.upper(), (
-        "the lead must run the integrated module test via Skill(odoo-instance) inline-mode"
+    low = text.lower()
+    assert "Skill(odoo-instance)" in text, (
+        "the lead must run/provision the integrated module test via Skill(odoo-instance)"
     )
-    assert "integrated" in text.lower(), (
-        "the lead must own the INTEGRATED whole-module test"
+    assert "integrated" in low, "the lead must own the INTEGRATED whole-module test"
+    assert "HARD RULES" in text, (
+        "provisioning must be stated as carrying the instance HARD RULES"
     )
-    assert "NEVER dispatch-mode" in text or "never dispatch-mode" in text.lower(), (
-        "the lead must forbid dispatch-mode (spawning odoo-instance-ops would overflow the depth cap)"
+    assert "inline in your own context" in low or "inline in" in low, (
+        "the lead may provision inline in its own context"
+    )
+    assert "odoo-instance-ops" in text, (
+        "the lead may alternatively provision by launching the odoo-instance-ops agent"
     )
 
 
@@ -293,18 +320,6 @@ def test_frontend_coder_is_instance_free_no_self_provision():
     assert "verify-frontend.sh" in text, "the static verify-frontend.sh gate must remain the mandatory gate"
 
 
-def test_instance_touching_coder_agents_do_not_spawn_a_subagent_for_instance_skill():
-    """Invoking Skill(odoo-instance) is a Skill-tool call, not an Agent-tool spawn - the
-    instance-touching coding agents (the odoo-backend-coder writer's lint gate and the odoo-coder
-    lead's integrated test) stay INLINE (no subagent depth added), matching the worker-brief
-    carve-out. (odoo-frontend-coder is instance-free and is covered by its own test above.)"""
-    for path in (BACKEND_CODER_MD, CODER_MD):
-        text = _norm(path)
-        assert "adding no subagent depth" in text, (
-            f"{path.name} must justify the Skill(odoo-instance) carve-out as adding no subagent depth"
-        )
-
-
 def test_instance_resolution_notes_skill_is_the_agent_entry_point():
     """instance-resolution.md's raw § Allocate recipe stays the mechanism odoo-instance's
     inline-mode uses internally; agents are pointed at the skill, not the recipe, up front."""
@@ -321,4 +336,91 @@ def test_instance_resolution_notes_skill_is_the_agent_entry_point():
     # The recipe itself must still be present (not deleted) - other callers still need it.
     assert "allocator.py acquire --series" in text, (
         "the low-level allocate recipe must remain intact for the skill's inline-mode to use"
+    )
+
+
+# ---------------------------------------------------------------------------
+# BLOCKER fix - dispatch-path run/session-ownership + db_port carrier
+#
+# INSTANCE_HANDLE grew db_port + run_id (instance-handle-contract.md) so a multi-turn
+# orchestrator can drop/release the right instance on the right Postgres port under the
+# right owner. The INLINE path already carried them via $ALLOC_DB_PORT/$ALLOC_RUN_ID, but
+# the DISPATCH path (odoo-instance-ops's canonical output block + the odoo-instance skill's
+# relay/forward list) had no channel for either field - the orchestrator could not read them
+# back off a dispatched agent. Fixed by adding both fields to the agent's canonical block and
+# the skill's relayed schema + enumerated forwarding list.
+# ---------------------------------------------------------------------------
+
+def test_agent_canonical_output_block_carries_db_port_and_run_id():
+    """odoo-instance-ops's canonical output block must add db_port + run_id fields, and the
+    surrounding prose must instruct populating them from the acquire result ($ALLOC_DB_PORT /
+    $ALLOC_RUN_ID) - the dispatch path was previously missing this carrier entirely."""
+    text = _norm(AGENT_MD)
+    assert "db_port: <resolved port or empty>" in text, (
+        "canonical output block must add a db_port field"
+    )
+    assert "run_id: <owning run id or empty>" in text, (
+        "canonical output block must add a run_id field"
+    )
+    assert "populate them from Step D's acquire result" in text, (
+        "agent must instruct populating db_port/run_id from the acquire result"
+    )
+    assert "`db_port` from `$ALLOC_DB_PORT`" in text and "`run_id` from `$ALLOC_RUN_ID`" in text, (
+        "agent must map db_port from $ALLOC_DB_PORT and run_id from $ALLOC_RUN_ID explicitly"
+    )
+
+
+def test_skill_relay_forwards_db_port_and_run_id():
+    """odoo-instance SKILL.md's relay/forward section must carry db_port + run_id in BOTH the
+    relayed fenced schema and the enumerated forwarding list - matching the inline path's
+    $ALLOC_DB_PORT/$ALLOC_RUN_ID and instance-handle-contract.md's field names, so the
+    orchestrator has a channel to read them off the dispatch path too."""
+    text = _norm(SKILL_MD)
+    assert "db_port: <resolved port or empty>" in text, (
+        "relayed instance-ops schema must add a db_port field"
+    )
+    assert "run_id: <owning run id or empty>" in text, (
+        "relayed instance-ops schema must add a run_id field"
+    )
+    assert "forwards it (`dbname` / `http_port` / `db_port`" in text, (
+        "the enumerated forwarding list must include db_port"
+    )
+    assert "`lease_token` / `run_id`" in text, (
+        "the enumerated forwarding list must include run_id"
+    )
+
+
+def test_handle_contract_field_names_match_agent_and_skill():
+    """Cross-file consistency: db_port and run_id field names in the agent's canonical block and
+    the skill's relay must match instance-handle-contract.md's SSOT field names (no drift)."""
+    contract_text = _norm(HANDLE_CONTRACT)
+    assert "`db_port`" in contract_text and "`run_id`" in contract_text, (
+        "instance-handle-contract.md must be the SSOT declaring db_port + run_id"
+    )
+    agent_text = _norm(AGENT_MD)
+    skill_text = _norm(SKILL_MD)
+    for field in ("db_port", "run_id"):
+        assert field in agent_text, f"agent canonical block must use contract field name {field!r}"
+        assert field in skill_text, f"skill relay must use contract field name {field!r}"
+
+
+def test_evals_case_11_uses_neutral_self_provision_framing():
+    """Eval id 11 previously said 'Skill(odoo-instance) inline-mode' in expected_behavior while its
+    tags said 'inline-leaf-mode' - a two-mode framing the SSOT skill collapsed (inline-mode and
+    launching the agent are just two implementation options, not a leaf-forced special mode).
+    Reworded to the neutral 'self-provision via Skill(odoo-instance) (runs in the caller's own
+    context)', with tags matching."""
+    data = json.loads(EVALS.read_text(encoding="utf-8"))
+    e11 = {e["id"]: e for e in data["evals"]}[11]
+    assert "via `Skill(odoo-instance)` (runs in the caller's own context)" in e11["expected_behavior"], (
+        "eval 11's expected_behavior must use the neutral self-provision framing"
+    )
+    assert "inline-mode" not in e11["expected_behavior"], (
+        "eval 11 must not name inline-mode as a leaf-specific forced mode"
+    )
+    assert "inline-leaf-mode" not in e11["tags"], (
+        "eval 11's tags must not retain the stale inline-leaf-mode tag"
+    )
+    assert "self-provision" in e11["tags"], (
+        "eval 11's tags must be reworded consistently with the neutral expected_behavior"
     )

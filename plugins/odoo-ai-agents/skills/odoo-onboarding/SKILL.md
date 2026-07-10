@@ -171,7 +171,7 @@ eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read ~/.odoo-a
 - **js_config_source**: web/tooling  (or "fallback" when no Odoo checkout with addons/web/tooling/ is locatable)
 
 ## Verify environment  (optional - used by run/verify steps; SSOT is ~/.odoo-ai/instances.toml)
-- **verify_python**: /path/to/.venv/bin/python  (interpreter that runs odoo-bin/tests for this series; cache of the matching instances.toml `python` field)
+- **verify_python**: /path/to/.venv/bin/python  (non-authoritative HINT for READ-ONLY flows only; before any mutation, consumers MUST re-resolve and verify via `<python> <odoo-bin> --version` per `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md` - SSOT is instances.toml)
 - **addons_path**: /path/repo-a/addons,/path/repo-b  (cache only - re-resolve from instances.toml if a repo moved)
 
 ## Active session pins

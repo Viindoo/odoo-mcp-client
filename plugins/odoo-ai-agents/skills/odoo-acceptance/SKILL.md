@@ -28,8 +28,7 @@ anti-bias invariant: oracle author, code author, and adjudicator are three diffe
 `odoo-qa-planner` (independent oracle author) and `odoo-qa-tester` (live executor + adjudicator)
 agents. Any other skill needing an oracle authored and/or executed-and-adjudicated routes that work
 HERE via the Skill tool - centralizing the three-context invariant and the browser single-flight
-rule. Provision live execution by invoking the `odoo-instance` skill (never the raw
-`odoo-instance-ops` agent).
+rule. Provision live execution by invoking the `odoo-instance` skill.
 
 ## Out of Scope
 

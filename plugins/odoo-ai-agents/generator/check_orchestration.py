@@ -13,7 +13,7 @@ is complete and that skills thread the shared contracts they are required to:
   4. Instance     - skills with instance_touching=true reference cli_help / the lifecycle
                     docs (so they ground the CLI per target version instead of assuming).
   5. Spawn truth  - spawn_class is consistent with the SKILL.md body (a 'leaf' must not show
-                    Agent-tool spawn language; a 'spawner-*' should).
+                    active named-agent dispatch/launch language; a 'spawner-*' should).
   6. No hardcode / no leak - self-referential CSS custom properties, machine-specific
                     absolute paths, and hardcoded hex inside skill SCSS code fences.
 
@@ -94,7 +94,8 @@ def _derive_gate_tier(spawn_class: str, instance_touching: bool, output_mode: st
 # flag the dangerous drift - a skill declared `leaf` that actively dispatches an agent. The
 # orchestration SSOT (skill_tool_deps.json) is the authoritative classification.
 SPAWN_BODY_RE = re.compile(
-    r"(invoke the Agent tool|call the Agent tool|dispatch(?:es)? (?:to )?the [a-z][a-z-]+ agent)",
+    r"(invoke the Agent tool|call the Agent tool|dispatch(?:es)? (?:to )?the [a-z][a-z-]+ agent"
+    r"|launch(?:es|ing)? (?:the )?[a-z][a-z-]+ agent)",
     re.I,
 )
 # Negation tokens that suppress a spawn match. Note: "non-" is deliberately excluded - it
@@ -108,6 +109,8 @@ def _has_positive_spawn(body: str) -> bool:
         preceding = body[max(0, m.start() - 45):m.start()]
         if NEGATION_RE.search(preceding):
             continue  # e.g. "do NOT invoke the Agent tool" / "does not dispatch the X agent"
+                      # / "cannot launch the X agent" - "cannot launch agents" (no named agent)
+                      # never matches the regex at all, so it needs no negation guard here
         return True
     return False
 SELF_REF_RE = re.compile(r"--([a-z0-9-]+)\s*:\s*var\(\s*--\1\b", re.I)

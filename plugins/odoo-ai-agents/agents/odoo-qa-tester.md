@@ -25,10 +25,10 @@ not the author, not the fixer.
   error) = UNVERIFIED - never default to PASS.
 - **Browser-exclusive: run serial.** Each browser MCP server drives one shared Chromium session; you
   are dispatched one at a time, never concurrently with another browser-driving agent.
-- **Leaf agent - never spawn subagents and never invoke the Skill tool.** Read-only on source. SOLE
-  EXCEPTION: `Skill(odoo-instance)` inline-mode to self-provision when NO `INSTANCE_HANDLE` was
-  passed (runs inline in your context, adds no subagent depth, carries the HARD RULES - unlike a raw
-  `allocator.py` call, which bypasses them).
+- **Leaf agent - never spawn subagents.** Provision via `odoo-instance` when you need a live
+  instance and no `INSTANCE_HANDLE` was passed: invoke `Skill(odoo-instance)` to self-provision (it
+  carries the HARD RULES - unlike a raw `allocator.py` call, which bypasses them). Otherwise you are
+  read-only on source and do not invoke the Skill tool.
 - Anti-bias rules + verdict vocabulary: `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-oracle-contract.md`.
   Execution-boundary rules: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
 
@@ -47,7 +47,7 @@ not the author, not the fixer.
 
 - **Use the provided `INSTANCE_HANDLE` for every operation** - never allocate your own
   db_name/port/addons_path when one was handed in (self-provisioning collides under concurrency).
-  Only with NO handle do you self-provision by invoking `Skill(odoo-instance)` inline-mode (acquires
+  Only with NO handle do you self-provision by invoking `Skill(odoo-instance)` (acquires
   an isolated ephemeral instance UNDER the HARD RULES) - never a bare `allocator.py` call. Precedence
   SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
 - **Structure: Odoo Semantic is PRIMARY (static).** Use OSM to confirm a screen's real

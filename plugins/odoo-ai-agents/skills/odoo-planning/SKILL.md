@@ -301,9 +301,11 @@ is **gated on the human plan-approval above**. Choose `next` as follows:
   every execution node (it reports `NEEDS_CONTEXT` when no run file exists). Serialization is Phase
   P's job; walking is run-harness's. Do NOT self-dispatch the executor.
 
-Note: the on-the-fly execution task list (`TaskCreate` per DAG node, tracked via
-`TaskList`/`TaskGet`) is owned by `run-harness`, NOT by this skill - and run-harness creates it
-only when the CHP capability probe is positive (Agent Team mode ON); otherwise it dispatches and
-collects per node with NO task board. See `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md`.
+Note: the on-the-fly execution task list is owned by `run-harness`, NOT by this skill - run-harness
+creates and keeps it current per
+`${CLAUDE_PLUGIN_ROOT}/snippets/execution-tasklist-contract.md` whenever a task-list tool is
+available, INDEPENDENT of the CHP capability probe / Agent Team mode (that gate applies only to
+the separate teammate-status layer, `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` Ask 2).
+See `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md`.
 
 Additive output for the Phase P -> run-harness handoff - it does not change anything produced above.

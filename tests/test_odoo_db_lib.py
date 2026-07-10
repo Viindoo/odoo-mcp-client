@@ -392,6 +392,132 @@ def test_password_from_env_var(tmp_path):
 # `import odoo` does NOT (Odoo 19.0 behaviour). Regression guard for #154.
 # ---------------------------------------------------------------------------
 
+def _build_fake_odoo_recording_conn(tmp_path, marker_file):
+    """Like _build_fake_odoo but parse_config records EVERY --db_* connection arg
+    it received (one ``key=value`` line per arg) AND exp_drop records the db name
+    it was handed (``dropped=<db>``). Lets us assert #163's port + name threading.
+    """
+    pkg_root = tmp_path / "fake_odoo_conn_pkg"
+
+    odoo_dir = pkg_root / "odoo"
+    odoo_dir.mkdir(parents=True)
+    service_dir = odoo_dir / "service"
+    service_dir.mkdir()
+    tools_dir = odoo_dir / "tools"
+    tools_dir.mkdir()
+
+    marker_str = repr(str(marker_file))
+
+    (odoo_dir / "__init__.py").write_text(
+        "from odoo import tools, service\n", encoding="utf-8",
+    )
+    (tools_dir / "__init__.py").write_text(
+        textwrap.dedent("""\
+        class _Config(dict):
+            def parse_config(self, args=None):
+                args = args or []
+                mf = {marker_str}
+                i = 0
+                while i < len(args):
+                    a = args[i]
+                    if a.startswith('--') and i + 1 < len(args):
+                        key = a.lstrip('-')
+                        self[key] = args[i + 1]
+                        if mf:
+                            with open(mf, 'a', encoding='utf-8') as _fh:
+                                _fh.write(key + '=' + str(args[i + 1]) + '\\n')
+                        i += 2
+                    else:
+                        i += 1
+
+        config = _Config()
+        """.format(marker_str=marker_str)),
+        encoding="utf-8",
+    )
+    (tools_dir / "config.py").write_text("# placeholder\n", encoding="utf-8")
+    (service_dir / "__init__.py").write_text(
+        "from odoo.service import db\n", encoding="utf-8",
+    )
+    (service_dir / "db.py").write_text(
+        textwrap.dedent("""\
+        from odoo.tools import config
+
+        _MARKER_FILE = {marker_str}
+
+        def exp_drop(db_name):
+            if _MARKER_FILE:
+                with open(_MARKER_FILE, 'a', encoding='utf-8') as fh:
+                    fh.write('dropped=' + str(db_name) + '\\n')
+            return True
+
+        def exp_db_exist(db_name):
+            return True
+        """.format(marker_str=marker_str)),
+        encoding="utf-8",
+    )
+    return pkg_root
+
+
+def test_db_port_reaches_parse_config_as_db_port(tmp_path):
+    """--db-port <n> must be forwarded to Odoo's parse_config as --db_port <n> (issue #163)."""
+    marker = tmp_path / "conn.txt"
+    pkg = _build_fake_odoo_recording_conn(tmp_path, marker)
+
+    result = _run("drop", "mydb", "--db-port", "5430", pythonpath_prepend=pkg)
+    assert result.returncode == EXIT_OK, f"exit {result.returncode}; stderr={result.stderr!r}"
+    content = marker.read_text(encoding="utf-8")
+    assert "db_port=5430" in content, (
+        f"--db-port must reach parse_config as --db_port; marker={content!r}"
+    )
+
+
+def test_issue_163_port_flag_not_swallowed_as_db_name(tmp_path):
+    """#163 repro: `drop mydb --db-port 5430` must drop 'mydb' on port 5430 -
+    the flag must NOT be swallowed as a positional (dropping a DB named '--db-port')."""
+    marker = tmp_path / "conn.txt"
+    pkg = _build_fake_odoo_recording_conn(tmp_path, marker)
+
+    result = _run("drop", "mydb", "--db-port", "5430", pythonpath_prepend=pkg)
+    assert result.returncode == EXIT_OK, f"exit {result.returncode}; stderr={result.stderr!r}"
+    content = marker.read_text(encoding="utf-8")
+    assert "dropped=mydb" in content, (
+        f"db name must be 'mydb' (not '--db-port' swallowed as positional); marker={content!r}"
+    )
+    assert "db_port=5430" in content, "port must still reach parse_config"
+
+
+def test_unknown_flag_is_usage_error(tmp_path):
+    """An unrecognized --flag must be a hard usage error, not a silent positional (issue #163)."""
+    pkg = _build_fake_odoo(tmp_path, exp_drop_returns=True, marker_file=None)
+    result = _run("drop", "mydb", "--bogus-flag", "x", pythonpath_prepend=pkg)
+    assert result.returncode == EXIT_USAGE, (
+        f"unknown flag must exit EXIT_USAGE ({EXIT_USAGE}); got {result.returncode}; "
+        f"stderr={result.stderr!r}"
+    )
+
+
+def test_drop_observability_performed_names_resolved_host_port(tmp_path):
+    """Every drop emits a stderr line naming the RESOLVED host:port and performed/absent."""
+    pkg = _build_fake_odoo(tmp_path, exp_drop_returns=True, marker_file=None)
+    result = _run("drop", "mydb", "--db-host", "pghost", "--db-port", "5430",
+                  pythonpath_prepend=pkg)
+    assert result.returncode == EXIT_OK, f"stderr={result.stderr!r}"
+    assert "odoo_db: drop 'mydb' on pghost:5430 -> performed" in result.stderr, (
+        f"drop must emit a resolved-connection observability line; stderr={result.stderr!r}"
+    )
+
+
+def test_drop_observability_already_absent_uses_libpq_default(tmp_path):
+    """An idempotent no-op drop (exp_drop False) is now OBSERVABLE as already-absent."""
+    pkg = _build_fake_odoo(tmp_path, exp_drop_returns=False, marker_file=None)
+    result = _run("drop", "mydb", pythonpath_prepend=pkg)
+    assert result.returncode == EXIT_OK, f"stderr={result.stderr!r}"
+    assert "odoo_db: drop 'mydb' on libpq-default:libpq-default -> already-absent" in result.stderr, (
+        f"an absent-DB no-op must be observable and name the resolved connection; "
+        f"stderr={result.stderr!r}"
+    )
+
+
 def test_import_odoo_binds_tools_and_service_db(tmp_path, monkeypatch):
     """_import_odoo() must bind .tools and .service.db even when a bare import does NOT
     (Odoo 19.0 behaviour: the base package's __init__ no longer re-exports submodules

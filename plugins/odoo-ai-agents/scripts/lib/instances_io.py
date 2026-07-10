@@ -13,6 +13,7 @@ field value (never a dotted/quoted table header):
     db_name = "odoo_17_0"
     db_host = "localhost"
     db_user = "odoo"
+    db_port = 5433       # optional; ABSENT allowed -> INST_DB_PORT='' (libpq/PGPORT resolves it)
     python = ""          # optional path to a venv python
 
 Parsing uses tomllib (py3.11+) and falls back to a minimal text scan on older
@@ -219,6 +220,9 @@ def _cmd_read(argv):
     _emit("INST_DB_NAME", tbl.get("db_name", "odoo"))
     _emit("INST_DB_HOST", tbl.get("db_host", "localhost"))
     _emit("INST_DB_USER", tbl.get("db_user", "odoo"))
+    # db_port is EMPTY when undeclared (never a fabricated 5432): an empty value
+    # tells consumers to omit the flag and let libpq/PGPORT resolve the port.
+    _emit("INST_DB_PORT", tbl.get("db_port", ""))
     _emit("INST_PYTHON", tbl.get("python", ""))
     _emit("INST_PROFILE", profile_of(tbl))
     _emit("INST_KEY", instance_key_of(tbl))

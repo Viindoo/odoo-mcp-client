@@ -79,6 +79,7 @@ Per `[[instance]]`, add OPTIONAL fields (absent = derive a default; old files st
 | `port_pool_size` | `10` | how many ports the allocator may hand out from `http_port_base` (version-agnostic numbers; the consumer maps each to a CLI flag via `cli_help`) |
 | `db_name_prefix` | `db_name` | prefix for ephemeral DBs: `<prefix>_t_<uuid8>` |
 | `ephemeral_ok` | auto-probe | whether `db_user` may `CREATEDB` (probed once, cached) |
+| `db_port` | absent | optional Postgres port when the cluster is not on the libpq/`PGPORT` default; ABSENT is valid and MUST NOT be fabricated as `5432` - an emitted default would silently override `PGPORT` |
 
 `instances_io.py` must tolerate unknown/old keys (it already defaults missing fields).
 
@@ -95,18 +96,24 @@ read-modify-written only while holding `fcntl.flock` on `$ODOO_AI_HOME/runtime/r
 { "leases": [
   { "token": "<uuid>", "mode": "exclusive|ephemeral|shared",
     "series": "17.0", "db_name": "odoo_17_t_ab12cd34", "drop_on_release": true,
-    "python": "<venv-interpreter>", "db_host": "localhost", "db_user": "odoo",
+    "python": "<venv-interpreter>", "db_host": "localhost", "db_user": "odoo", "db_port": "<port|absent>",
     "ports": [8170, 8172],                            // [] when the caller passes --ports 0 (e.g. tests with --stop-after-init); N pooled ports otherwise
-    "owner": { "host": "<hostname>", "pid": 41234, "session_id": "<cc-session>", "started_at": <epoch> },
+    "owner": { "host": "<hostname>", "pid": 41234, "run_id": "<run-id>", "started_at": <epoch> },
     "ttl_s": 3600, "heartbeat_at": <epoch> } ] }
 
 `drop_on_release` replaces the old `created_db` flag (B2): True for ephemeral leases where the
 caller builds the DB via Odoo create-on-init and the allocator must drop it at release/gc via
 `scripts/lib/odoo_db.py` (through-Odoo path); raw `dropdb` is the logged fallback when the venv
 is unavailable. False when `--no-create` is passed, and always False for shared/exclusive (those
-DBs survive beyond the lease). The `python`/`db_host`/`db_user` fields are stored so the drop
-can invoke `odoo_db.py` under the right venv at release/gc time, even after the caller process
-has exited.
+DBs survive beyond the lease). The `python`/`db_host`/`db_user`/`db_port` fields are stored so the
+drop can invoke `odoo_db.py` under the right venv (and the right cluster, when `db_port` is set)
+at release/gc time, even after the caller process has exited. `db_port` absent means the ambient
+`PGPORT`/libpq default resolves the connection - never fabricate `5432`.
+
+`owner.run_id` is the canonical ownership key, stamped from `--run-id` (or its `--session` alias)
+at acquire. New leases no longer write `owner.session_id`; it is read only as a legacy fallback
+on leases minted before `run_id` existed (see §6.3 for the release/drop ownership guard this key
+enforces).
 ```
 
 `readonly` callers take NO lease (they only read a running server) - nothing to serialise.
@@ -138,12 +145,13 @@ existing reader, so shell consumers stay simple.
 
 | Command | Behavior |
 |---------|----------|
-| `acquire --series <X.Y> --mode <readonly\|ephemeral\|exclusive\|shared> [--profile <P>] [--ports <N>] [--port <P>] [--pid <pid>] [--ttl <s>] [--session <id>]` | resolve catalog instance for series (and profile when supplied); under flock: GC stale leases, pick N free ports from the pool (registry-set ∪ live `bind()` probe) when `--ports N>0`, choose db_name (ephemeral: unique reserved name; else declared), write the lease atomically (B2: does NOT create the DB - the caller's `-i` run performs Odoo create-on-init); probe CREATEDB and degrade ephemeral -> exclusive when absent (Odoo create-on-init requires it too); print `ALLOC_TOKEN/ALLOC_SERIES/ALLOC_PROFILE/ALLOC_DB_NAME/ALLOC_PORTS (space-separated)/ALLOC_PYTHON/ALLOC_ADDONS_PATH/ALLOC_DB_HOST/ALLOC_DB_USER`. When `--profile <P>` is given and `db_name` is not set explicitly in the catalog, `db_name` defaults to `odoo_<series_slug>_<profile_slug>` (e.g. `odoo_17_0_minimal`). **`shared`**: attach to the live `(series, db_name)` lease if one exists (emit `ALLOC_ATTACHED=1`) else mint one with `drop_on_release=false`; record the KNOWN port verbatim via `--port` (not pooled) and the long-lived server pid via `--pid` (idempotent upsert when a later call supplies a newer pid) - never blocks a second holder |
+| `acquire --series <X.Y> --mode <readonly\|ephemeral\|exclusive\|shared> [--profile <P>] [--ports <N>] [--port <P>] [--pid <pid>] [--ttl <s>] [--run-id <id>] (alias --session)` | resolve catalog instance for series (and profile when supplied); under flock: GC stale leases, pick N free ports from the pool (registry-set ∪ live `bind()` probe) when `--ports N>0`, choose db_name (ephemeral: unique reserved name; else declared), write the lease atomically (B2: does NOT create the DB - the caller's `-i` run performs Odoo create-on-init); probe CREATEDB and degrade ephemeral -> exclusive when absent (Odoo create-on-init requires it too); print `ALLOC_TOKEN/ALLOC_SERIES/ALLOC_PROFILE/ALLOC_DB_NAME/ALLOC_PORTS (space-separated)/ALLOC_PYTHON/ALLOC_ADDONS_PATH/ALLOC_DB_HOST/ALLOC_DB_USER/ALLOC_DB_PORT/ALLOC_RUN_ID`. `--run-id` is the canonical ownership key (the intake Phase P run id); `--session` is kept only as a back-compat alias for the same slot. When `--profile <P>` is given and `db_name` is not set explicitly in the catalog, `db_name` defaults to `odoo_<series_slug>_<profile_slug>` (e.g. `odoo_17_0_minimal`). **`shared`**: attach to the live `(series, db_name)` lease if one exists (emit `ALLOC_ATTACHED=1`) else mint one with `drop_on_release=false`; record the KNOWN port verbatim via `--port` (not pooled) and the long-lived server pid via `--pid` (idempotent upsert when a later call supplies a newer pid) - never blocks a second holder |
 | `query --series <X.Y>` | read-only cross-session discovery: print the live `shared` lease for the series (`ALLOC_TOKEN/ALLOC_MODE/ALLOC_DB_NAME/ALLOC_PORTS`), or exit 1 when none. Does not mutate the registry |
-| `release <token>` | under flock: drop the lease; if `drop_on_release` -> drop the ephemeral DB through Odoo (`scripts/lib/odoo_db.py`); raw `dropdb` as logged fallback when venv unavailable |
+| `release <token> [--run-id <id>] [--force]` | under flock: verify token match, then apply the ownership guard (§6.3) - refuses when the caller's run id conflicts with the lease owner's run id, unless `--force`; on success drops the lease and, if `drop_on_release` -> drops the ephemeral DB through Odoo (`scripts/lib/odoo_db.py`); raw `dropdb` as logged fallback when venv unavailable |
 | `heartbeat <token>` | bump `heartbeat_at` (long runs that outlive `ttl_s`) |
 | `gc` | under flock: reclaim leases whose owner pid is dead (same host: `os.kill(pid,0)`) OR `now - heartbeat_at > ttl_s`; for each reclaimed `drop_on_release` lease: drop through Odoo (`odoo_db.py`), raw `dropdb` fallback |
-| `list` | print current leases (debug / `odoo-doctor`) |
+| `assert-droppable --db-name <db> [--run-id <id>]` | read-only, under flock: exits non-zero and names the owning run id when a FRESH (non-stale) lease on `<db>` is owned by a DIFFERENT run; exits 0 when the DB is unowned, owned by the caller, or the lease is stale. Lets a bare-name drop confirm a DB is unmanaged before touching it (§6.3) |
+| `list` | print current leases (debug / `odoo-doctor`); tokens are redacted to an 8-char fingerprint by default - pass `--show-tokens` to print them in full |
 
 `acquire`/`release`/`gc` all do their read-modify-write **inside one `fcntl.flock`** so concurrent
 allocators serialise on the registry; the lock is held only for the short critical section, not for
@@ -155,8 +163,9 @@ the duration of the Odoo run.
 `odoo-bin -d <db> -i <modules> --stop-after-init` performs Odoo create-on-init, which builds the
 DB. On `release`/`gc` the allocator drops it through Odoo via `scripts/lib/odoo_db.py` (which
 invokes the Odoo `db` management API under the correct venv). Raw `dropdb` is the logged fallback
-when the venv is unavailable (exit 10 from `odoo_db.py`). The `python`/`db_host`/`db_user` fields
-stored in the lease allow drop-time to reconstruct the right invocation even after the caller exits.
+when the venv is unavailable (exit 10 from `odoo_db.py`). The `python`/`db_host`/`db_user`/`db_port`
+fields stored in the lease allow drop-time to reconstruct the right invocation - against the right
+Postgres cluster, when `db_port` is set - even after the caller process exits.
 
 **Degrade path (unchanged):** if `db_user` lacks `CREATEDB` (probed at acquire time), `ephemeral`
 automatically falls back to `exclusive` on the declared `db_name` (serialise instead of isolate)
@@ -196,9 +205,36 @@ Odoo-CLI fact, so it applies identically across all versions (v8-v19).
 Consumers point back here rather than restating the contract: `agents/odoo-instance-ops.md`
 ("Through-Odoo DB lifecycle") and `skills/odoo-instance/SKILL.md`.
 
+### 6.3 Ownership guard (run/session)
+
+`owner.run_id` is the canonical ownership key stamped at `acquire` (§4.2); the legacy
+`owner.session_id` field is no longer written on new leases and is read only as a fallback on
+leases minted before `run_id` existed.
+
+**`release` refuses a foreign run.** `release <token> [--run-id <id>]` refuses the release IFF
+the caller passes a non-empty `--run-id` AND the lease's `owner.run_id` (or its legacy
+`session_id` fallback) is non-empty AND the two differ - unless `--force` is also passed. In
+every other case (no run id forwarded, an unowned/legacy lease, or a matching run id) the
+release proceeds on token possession alone, exactly as before: a caller that never forwards a
+run id is NEVER blocked from releasing its own lease. `--force` proceeds anyway and logs the
+foreign run id it overrode. The check runs inside the same `flock` critical section as the
+release itself, so it is race-free.
+
+**A leased (managed) DB MUST be dropped via `release`, never by bare name.** Bare
+`odoo_db.py drop` / `55-instance-ops.sh drop` are for UNMANAGED databases only - one with no
+lease has nothing to orphan. Before a bare drop, confirm the DB is unmanaged with
+`assert-droppable --db-name <db> [--run-id <id>]`; it exits non-zero (and names the owning run)
+when a fresh foreign lease exists, so the caller routes to `release` instead. `--force` on the
+drop path is the explicit override for reaping a foreign or stale lease. This is an
+accident-prevention layer, not a security boundary - `run_id` is a semi-discoverable slug
+(worklog paths), and `assert-droppable` + the drop remain two separate processes, so a lease
+minted in the gap between them is not covered; managed DBs never take the bare-drop path, so
+this bounded TOCTOU window does not apply to them.
+
 ## 7. Crash / stale handling
 
-- Owner records `host`+`pid`+`session_id`+`started_at`. GC reclaims when, on the SAME host, the pid
+- Owner records `host`+`pid`+`run_id`+`started_at` (a legacy lease may carry `session_id`
+  instead - read as a fallback). GC reclaims when, on the SAME host, the pid
   is gone, or when `now - heartbeat_at > ttl_s` (covers different-host leases where pid liveness is
   unknowable). Long operations call `heartbeat`.
 - GC runs opportunistically at the start of every `acquire` (no daemon needed) and is also callable
@@ -229,7 +265,8 @@ Consumers point back here rather than restating the contract: `agents/odoo-insta
   + server pid AFTER the server answers, NOT an exclusive lease (that would defeat the sharing).
 - `agents/odoo-backend-coder.md` - the `odoo-bin` (scaffold / `/test_lint` gate) note points at the
   allocator (self-provisions its bounded lint gate); `agents/odoo-coder.md` (the per-module
-  coordinator) - owns the INTEGRATED whole-module instance test (self-provisions it inline); `agents/odoo-frontend-coder.md`
+  coordinator) - owns the INTEGRATED whole-module instance test (self-provisions it via
+  `Skill(odoo-instance)`); `agents/odoo-frontend-coder.md`
   is INSTANCE-FREE (static gate only - no allocator). This is also where `venv-resolution` belongs
   long-term (see the open item the brief slim-down surfaced).
 - `skills/_shared/concurrency-guard.md` - add an "Odoo instance allocation" section (sibling to the
@@ -270,7 +307,7 @@ second spin-up loses the OS port bind and exits, then both sessions attach to th
 3. **Form = a deterministic SCRIPT (`scripts/lib/allocator.py`) run via `Bash` at any depth** - NOT an
    LLM agent. Subagent-nesting IS available (Claude Code 2.1.172+, depth cap 5) but an LLM agent for a
    deterministic allocation is slow, token-costly, non-deterministic on port choice, and would force
-   opening the `Agent` tool on consumers (breaking the worker-brief + `test_skill_format` net).
+   opening agent-launch capability on consumers (breaking the worker-brief + `test_skill_format` net).
    `Bash` is allowed at any nesting level, so even a leaf-worker calls the script directly.
 4. **Version-specific stays OUT of the allocator.** It returns resource facts only (db_name, free port
    numbers, token); the CONSUMER builds the `odoo-bin` command - how many ports, and which flags

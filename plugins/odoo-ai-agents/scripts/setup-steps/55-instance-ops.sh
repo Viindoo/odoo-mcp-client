@@ -34,9 +34,20 @@
 #             Parses result and emits TEST_RESULT=passed|failed plus the TEST_FAILED/
 #             TEST_ERROR/TEST_WARNING counts and FINDINGS_PATH (a file holding the
 #             failing-test names + traceback heads and the warning lines).
-#   drop    --db <db> --python <venv_py> [--db-host H] [--db-user U]
+#   drop    --db <db> --python <venv_py> [--db-host H] [--db-user U] [--db-port P]
+#             [--run-id ID] [--force]
 #             Invoke scripts/lib/odoo_db.py drop <db> via the instance venv python.
+#             --db-port threads to odoo_db.py when non-empty (empty -> omit).
+#             Unless --force is given, always calls allocator.py assert-droppable first
+#             (with whatever --run-id value the caller has, including an empty one for a
+#             standalone/one-off caller) and refuses a fresh foreign lease (route via
+#             release); --force overrides.
 #             Exit 10 from odoo_db.py -> clear venv-unavailable error (NOT a raw dropdb).
+#
+# init/update/test also accept [--db-host H] [--db-user U] [--db-port P] so the
+# CREATE/INIT/UPDATE/TEST connection matches the DROP connection (one declared
+# port honored everywhere). All three run a `<python> <odoo-bin> --version`
+# preflight and fail loud (no working venv; run 45-venv.sh) BEFORE any real run.
 #   wait-log --log <logf> [--timeout <secs>] [--interval <secs>]
 #             Deterministic build-completion detector for a build launched in the
 #             BACKGROUND (Bash run_in_background). Polls <logf> for a TERMINAL marker
@@ -107,6 +118,38 @@ _find_odoo_bin() {
         if [[ -x "$(dirname "$p")/odoo-bin" ]]; then echo "$(dirname "$p")/odoo-bin"; return 0; fi
     done
     return 1
+}
+
+# ---------------------------------------------------------------------------
+# _preflight_venv - verify `<python> <odoo-bin> --version` runs BEFORE any real
+#   init/update/test. Mirrors 50-instance-spinup.sh's preflight so a wrong/stale
+#   venv fails loud + early instead of as an opaque mid-run Odoo traceback.
+# ---------------------------------------------------------------------------
+_preflight_venv() {
+    local py="$1" bin="$2"
+    if ! "$py" "$bin" --version >/dev/null 2>&1; then
+        echo "x PREFLIGHT FAILED: no working venv; run 45-venv.sh" >&2
+        echo "  '$py' cannot run '$bin --version'. Fix BEFORE retrying:" >&2
+        echo "    - Point --python at a venv with Odoo deps (45-venv.sh create-venv)." >&2
+        exit 1
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# _build_db_conn_args - populate the global array DB_CONN_ARGS with the odoo-bin
+#   server flags for the declared connection, from the caller-scope
+#   arg_db_host/arg_db_user/arg_db_port. Each flag is emitted ONLY when non-empty
+#   (empty-omit -> ambient PG env / libpq / PGPORT resolves it). Flags are stable
+#   `server` options across v8-v19.
+# ---------------------------------------------------------------------------
+_build_db_conn_args() {
+    DB_CONN_ARGS=()
+    [[ -n "${arg_db_host:-}" ]] && DB_CONN_ARGS+=("--db_host" "$arg_db_host")
+    [[ -n "${arg_db_user:-}" ]] && DB_CONN_ARGS+=("--db_user" "$arg_db_user")
+    [[ -n "${arg_db_port:-}" ]] && DB_CONN_ARGS+=("--db_port" "$arg_db_port")
+    # Explicit success: the last [[ -n ... ]] is false when the port is empty, and
+    # a bare-call function returning that non-zero status would trip `set -e`.
+    return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -315,6 +358,11 @@ _parse_common_args() {
     arg_extra=""
     arg_mode="fresh"
     arg_log_mode=""
+    # Optional DB-connection flags (empty -> omitted so ambient PG env is preserved).
+    # These make CREATE/INIT/UPDATE/TEST connect to the SAME cluster DROP uses.
+    arg_db_host=""
+    arg_db_user=""
+    arg_db_port=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -324,6 +372,15 @@ _parse_common_args() {
             --python)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --python requires a value" >&2; exit 2; }
                 arg_python="$2"; shift 2 ;;
+            --db-host)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --db-host requires a value" >&2; exit 2; }
+                arg_db_host="$2"; shift 2 ;;
+            --db-user)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --db-user requires a value" >&2; exit 2; }
+                arg_db_user="$2"; shift 2 ;;
+            --db-port)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --db-port requires a value" >&2; exit 2; }
+                arg_db_port="$2"; shift 2 ;;
             --addons)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --addons requires a value" >&2; exit 2; }
                 arg_addons="$2"; shift 2 ;;
@@ -366,6 +423,7 @@ _parse_common_args() {
 # ---------------------------------------------------------------------------
 cmd_init() {
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode
+    local arg_db_host arg_db_user arg_db_port
     _parse_common_args "$@"
 
     local odoo_bin
@@ -373,6 +431,7 @@ cmd_init() {
         echo "x Could not locate odoo-bin. Set ODOO_BIN=/path/to/odoo-bin and retry." >&2
         exit 1
     }
+    _preflight_venv "$arg_python" "$odoo_bin"
 
     local logf
     _open_log "$arg_db"
@@ -384,6 +443,9 @@ cmd_init() {
     addons_csv="${addons_csv//,  /,}"
     addons_csv="${addons_csv//,  /,}"  # second pass for edge-case double spaces
 
+    local DB_CONN_ARGS
+    _build_db_conn_args
+
     # Default log verbosity for a build op: warn (Odoo defaults to the noisier
     # `info`). `warn` is a stable flag v8-v19. Placed BEFORE ${arg_extra} so a
     # caller-supplied --log-level/--log-handler in --extra still overrides it
@@ -394,6 +456,7 @@ cmd_init() {
         -d "$arg_db" \
         -i "$arg_modules" \
         --addons-path "$addons_csv" \
+        "${DB_CONN_ARGS[@]}" \
         --stop-after-init \
         --log-level=warn \
         ${arg_extra} \
@@ -413,6 +476,7 @@ cmd_init() {
 # ---------------------------------------------------------------------------
 cmd_update() {
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode
+    local arg_db_host arg_db_user arg_db_port
     _parse_common_args "$@"
 
     local odoo_bin
@@ -420,6 +484,7 @@ cmd_update() {
         echo "x Could not locate odoo-bin. Set ODOO_BIN=/path/to/odoo-bin and retry." >&2
         exit 1
     }
+    _preflight_venv "$arg_python" "$odoo_bin"
 
     local logf
     _open_log "$arg_db"
@@ -429,6 +494,9 @@ cmd_update() {
     addons_csv="${addons_csv//,  /,}"
     addons_csv="${addons_csv//,  /,}"
 
+    local DB_CONN_ARGS
+    _build_db_conn_args
+
     # Default log verbosity: warn (see cmd_init). Placed BEFORE ${arg_extra} so a
     # caller-supplied --log-level in --extra still overrides it. `warn` is stable v8-v19.
     local rc=0
@@ -437,6 +505,7 @@ cmd_update() {
         -d "$arg_db" \
         -u "$arg_modules" \
         --addons-path "$addons_csv" \
+        "${DB_CONN_ARGS[@]}" \
         --stop-after-init \
         --log-level=warn \
         ${arg_extra} \
@@ -456,6 +525,7 @@ cmd_update() {
 # ---------------------------------------------------------------------------
 cmd_test() {
     local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags="" arg_mode arg_log_mode
+    local arg_db_host arg_db_user arg_db_port
     _parse_common_args "$@"
 
     local odoo_bin
@@ -463,6 +533,7 @@ cmd_test() {
         echo "x Could not locate odoo-bin. Set ODOO_BIN=/path/to/odoo-bin and retry." >&2
         exit 1
     }
+    _preflight_venv "$arg_python" "$odoo_bin"
 
     local logf
     _open_log "$arg_db"
@@ -494,12 +565,16 @@ cmd_test() {
         *)     log_flag_args=("--log-level=test") ;;
     esac
 
+    local DB_CONN_ARGS
+    _build_db_conn_args
+
     local rc=0
     # shellcheck disable=SC2086
     "$arg_python" "$odoo_bin" \
         -d "$arg_db" \
         "$mode_flag" "$arg_modules" \
         --addons-path "$addons_csv" \
+        "${DB_CONN_ARGS[@]}" \
         --test-enable \
         "${test_tags_args[@]}" \
         --stop-after-init \
@@ -523,9 +598,10 @@ cmd_test() {
 # cmd_drop - drop a database through Odoo (odoo_db.py); never raw dropdb
 # ---------------------------------------------------------------------------
 cmd_drop() {
-    local arg_db="" arg_python="" arg_db_host="" arg_db_user="" arg_addons="" arg_modules="" arg_extra="" arg_test_tags="" arg_mode="" arg_log_mode=""
+    local arg_db="" arg_python="" arg_db_host="" arg_db_user="" arg_db_port="" arg_run_id="" arg_force=""
 
-    # Parse drop-specific args (subset of common + optional db-host/db-user).
+    # Parse drop-specific args (subset of common + optional db-host/db-user/db-port
+    # + ownership guard --run-id/--force).
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --db)
@@ -540,6 +616,14 @@ cmd_drop() {
             --db-user)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --db-user requires a value" >&2; exit 2; }
                 arg_db_user="$2"; shift 2 ;;
+            --db-port)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --db-port requires a value" >&2; exit 2; }
+                arg_db_port="$2"; shift 2 ;;
+            --run-id)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --run-id requires a value" >&2; exit 2; }
+                arg_run_id="$2"; shift 2 ;;
+            --force)
+                arg_force="1"; shift ;;
             *)
                 echo "$(basename "$0"): unknown argument for drop: $1" >&2; exit 2 ;;
         esac
@@ -553,9 +637,30 @@ cmd_drop() {
         exit 1
     }
 
+    # Ownership guard: a bare-name drop is for UNMANAGED DBs only. Unless --force is
+    # given, always confirm the DB is not held by a FRESH lease owned by a DIFFERENT
+    # run (route that through the allocator's race-free `release`) - this MUST also
+    # run when arg_run_id is empty, since a standalone/one-off caller (the caller most
+    # likely to be nuking a DB it does not own) always has an empty run id. assert-
+    # droppable treats an empty caller run as "no run of mine" - it still refuses a
+    # DB with a fresh lease owned by any non-empty run, and still passes cleanly for
+    # an unmanaged DB (no lease at all) - so this is safe to make unconditional.
+    if [[ -z "$arg_force" ]]; then
+        local alloc_py="$LIB_DIR/allocator.py"
+        if [[ -f "$alloc_py" ]]; then
+            if ! python3 "$alloc_py" assert-droppable --db-name "$arg_db" --run-id "$arg_run_id" >/dev/null 2>&1; then
+                echo "x drop refused: '$arg_db' is held by a FRESH lease owned by a different run." >&2
+                echo "  Route the drop through 'allocator.py release <token>' (race-free ownership check)," >&2
+                echo "  or pass --force to reap a foreign/stale lease." >&2
+                exit 1
+            fi
+        fi
+    fi
+
     local drop_args=("$ODOO_DB_PY" "drop" "$arg_db")
     [[ -n "$arg_db_host" ]] && drop_args+=("--db-host" "$arg_db_host")
     [[ -n "$arg_db_user" ]] && drop_args+=("--db-user" "$arg_db_user")
+    [[ -n "$arg_db_port" ]] && drop_args+=("--db-port" "$arg_db_port")
 
     local rc=0
     "$arg_python" "${drop_args[@]}" || rc=$?
