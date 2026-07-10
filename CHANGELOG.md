@@ -6,8 +6,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.10.0] - 2026-07-10
+
+### Fixed
+
+- `odoo-ai-agents` - **dropping an Odoo instance database silently did nothing when Postgres was
+  not on the ambient default port.** The database port is now threaded through `create`, `init`,
+  `update`, `run-tests`, and `drop`, plus the `createdb` probe, and is carried in the instance
+  registry, the lease record, and the instance handle. The port defaults to omitted - never a
+  fabricated `5432` - so `PGPORT` and non-default clusters keep working. Unknown `--` flags are now
+  rejected instead of silently swallowed, and every drop logs which cluster it actually hit and
+  whether the database was removed or already absent. (#163)
+- `odoo-ai-agents` - instance operations could not reliably locate the Odoo virtualenv and would
+  fall back to guessing an interpreter. Setup now hard-gates a declared source-mode instance that
+  has no working venv (opt out with `ODOO_AI_ALLOW_NO_VENV=1` for a loud warning instead), instance
+  operations preflight the interpreter, and the resolution rules forbid using the system
+  interpreter for anything that runs Odoo, its tests, or a migration.
+
+### Added
+
+- `odoo-ai-agents` - per-run ownership for Odoo instances. Each lease now records the owning run
+  id, so a session can tell its own instances apart from another session's. Releasing a lease
+  owned by a different run is refused unless forced; a leased database must be dropped through the
+  ownership-checked release path, while a bare drop is reserved for unmanaged databases and is
+  guarded by a new `assert-droppable` check. Lease tokens are redacted in listings by default
+  (`--show-tokens` reveals them). The lease registry is stamped `schema_version: 2` and stays
+  backward compatible with existing registries.
+- `odoo-ai-agents` - a live task list is now created and maintained whenever execution of a
+  multi-step plan begins, so progress is visible as work happens. It complements, and never
+  replaces, the durable run state and the worklog.
+
 ### Changed
 
+- `odoo-ai-agents` - the per-module coding coordinator (`odoo-coder`) now actively leads its
+  workers: it tracks each work item, consumes every worker result, reacts to a worker blocked
+  before integration within a bounded retry loop, then integrates, verifies, and commits.
+- `odoo-ai-agents` - agent-facing instructions no longer name one harness's spawn tool; they say to
+  launch an agent and let the runtime pick the mechanism.
 - `odoo-ai-agents` - `odoo-coding` skill description optimized for triggering, measured against a
   27-case trigger eval (14 should-fire / 13 should-not, EN + VI, with adjacent-skill near-misses).
   The description now leads with the trigger condition ("Use when someone wants to build or change
@@ -19,6 +54,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   The checked-in trigger eval set grows 21 -> 27 cases and records the harness-isolation caveat
   (`--setting-sources project,local` to beat the installed plugin; precision is the high-confidence
   signal, recall is bare-env-depressed for a front-door orchestration skill).
+
+### Removed
+
+- `odoo-ai-agents` - the artificial agent-nesting depth cap and the rule forbidding a caller from
+  launching the `odoo-instance-ops` agent directly. Provisioning may run inline in the caller's
+  context or launch the agent; either way the instance hard rules apply. Only factual statements
+  about the platform's own nesting limit remain. The `git-toolkit` separate by-construction
+  nesting rule is unchanged.
 
 ## [4.9.1] - 2026-07-09
 
