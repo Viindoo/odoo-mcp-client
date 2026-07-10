@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `git-toolkit` 0.3.0 -> 0.3.1 - neutral agent-launch terminology: prose no longer names one
+  harness's spawn tool, using "launch an agent" / "agent-launch capability" instead, across
+  `docs/architecture.md`, `skills/git-ops/SKILL.md`, `agents/git-operator.md`,
+  `agents/git-pipeline-lead.md`, `snippets/git-model-tiers.md`, `snippets/git-nesting-protocol.md`.
+  The two-level by-construction nesting rule is unchanged.
+
 ## [4.10.0] - 2026-07-10
 
 ### Fixed
