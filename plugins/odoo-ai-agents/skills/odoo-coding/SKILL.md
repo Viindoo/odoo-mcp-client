@@ -373,6 +373,10 @@ brief goes to the `odoo-coder` COORDINATOR for EVERY module; the coordinator for
 module-scoped fields to whichever worker(s) each of its INTERNAL WIs needs (`odoo-backend-coder` for a
 backend WI, `odoo-frontend-coder` for a frontend WI - it adds `frontendRequest` for a frontend WI).
 
+**Dispatch-brief skeleton.** Fill the prompt below from the caller-side skeleton in
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the Coder family delta;
+never inline that file verbatim into a hard-leaf brief.
+
 Coder brief (target = the `odoo-coder` coordinator for the module):
 
 ```

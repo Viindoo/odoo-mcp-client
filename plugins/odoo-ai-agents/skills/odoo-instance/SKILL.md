@@ -114,7 +114,10 @@ brief, do NOT bypass it; let the driver surface it. For a direct invocation, con
 with the human before launching the agent.
 
 **Brief shape:** Launch the `odoo-instance-ops` agent with a worker brief per
-`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. The brief must include:
+`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`. When composing the dispatch prompt for any
+specialist agent you dispatch, fill the caller-side skeleton in
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's
+family delta; never inline that file verbatim into a hard-leaf brief. The brief must include:
 
 ```
 OPERATION: <operation>

@@ -120,7 +120,9 @@ the artifact dir is `.odoo-ai/gap-analysis/<slug>-<date>/`.
 **Cluster.** Partition the requirements by functional area (§ When to invoke). Assign each
 cluster a 2-digit `<NN>` and a short `<area>` label.
 
-**Dispatch.** Launch one `odoo-gap-analyzer` worker per cluster (or one worker total on the fast
+**Dispatch.** Fill each worker's prompt from the caller-side skeleton in
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the Survey/analyst family
+delta; never inline that file verbatim into a hard-leaf brief. Launch one `odoo-gap-analyzer` worker per cluster (or one worker total on the fast
 path) at the `model` chosen for that cluster's complexity, honoring the Mode B budget with a
 rolling window. Prefer CHP Tier-B `subagent_type: "fork"` (the fork inherits the orchestrator's
 loaded context + version pin and shares its prompt cache; see

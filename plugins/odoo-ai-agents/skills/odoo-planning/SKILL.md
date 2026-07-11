@@ -109,6 +109,10 @@ planner writes ONLY the plan under `.odoo-ai/`.
 
 ## Agent invocation - prompt templates (P1: code + doc)
 
+When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+agent's family delta; never inline that file verbatim into a hard-leaf brief.
+
 When intent is confirmed, dispatch BOTH planners sequentially. Their outputs compose into one
 lifecycle plan presented at a single gate.
 

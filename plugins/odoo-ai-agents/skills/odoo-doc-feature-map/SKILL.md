@@ -69,6 +69,10 @@ disk). A live instance is NEVER required for catalog production.
 
 ## Agent invocation
 
+**Dispatch-brief skeleton.** Fill the prompt below from the caller-side skeleton in
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the Survey/analyst family
+delta; never inline that file verbatim into a hard-leaf brief.
+
 Dispatch `odoo-feature-cataloger` with the following brief:
 
 ```

@@ -72,3 +72,19 @@ As the module lead you MUST keep a live task list of your WI work-items - one it
 Separately, when the CHP capability probe is positive (Agent Team mode on), you ALSO track teammate STATUS via Ask 2 of `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` - a distinct layer for tracking your OTHER named teammate subagents on the `TaskCreate`/`TaskList`/`TaskGet` board, and it stays CHP-gated (the nested-coordinator exception above exempts only your Ask-1 `SendMessage` completion-report, not this Ask-2 teammate board). When the probe is negative, skip the teammate board - the always-on WI task list above still applies regardless.
 
 Your turn's terminal action is the completion-report push to your launcher (`main` / the `odoo-coding` context) - never a content-less idle. Still write the worklog to files as usual.
+
+## Brief self-check
+
+(run before dispatching any leaf)
+Validate your OWN inbound dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and the
+Coder family's required fields (`RED_TEST_PATH`, module/file-set boundary, `INSTANCE_HANDLE` or
+`none provisioned`, `DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]).
+- Missing a field with a safe default: PROCEED and state the assumption as your first output line.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing field with no safe default: surface the gap
+  to your own caller before dispatching any leaf - do not silently guess or degrade, and do not
+  dispatch a leaf on an unresolved brief.
+
+Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
+`odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target
+leaf's family delta, and hand each leaf a self-contained brief - never your own raw inbound brief
+passed through unchanged.

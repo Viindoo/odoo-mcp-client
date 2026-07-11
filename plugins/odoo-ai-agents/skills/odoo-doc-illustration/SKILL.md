@@ -112,6 +112,11 @@ the run-scoped staging loses nothing. Then emit one aggregate index per run
 
 ## Writer dispatch briefs
 
+**Dispatch-brief skeleton.** When composing the dispatch prompt for `odoo-user-doc-writer`,
+`odoo-marketing-writer`, or any other specialist agent dispatched below, fill the caller-side
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+agent's Doc-writer family delta; never inline that file verbatim into a hard-leaf brief.
+
 The skill launches each writer with a self-contained brief. `MODULE PATH` may be a bare module name
 when `addons_path` is unknown - the writer resolves the absolute path from `context.md` or by
 scanning disk. Omitting an axis field preserves today's behavior (see Documentation axes). Shared

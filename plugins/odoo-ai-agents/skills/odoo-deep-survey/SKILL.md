@@ -227,6 +227,10 @@ worklog.
 A worker is a leaf subagent that **cannot resolve `${CLAUDE_PLUGIN_ROOT}` itself** - the
 orchestrator must **read referenced snippets and paste their content into the brief**.
 
+**Dispatch-brief skeleton.** Before dispatching, fill the caller-side skeleton in
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the Survey/analyst
+family delta; never inline that file verbatim into a hard-leaf brief.
+
 1. **Worker brief** - inline full text of `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`
    (leaf: no Skill tool, no sub-agent spawn; read-only on Odoo source; only Write is own findings
    file; OSM calls are always allowed).

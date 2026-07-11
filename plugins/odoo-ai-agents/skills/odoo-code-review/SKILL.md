@@ -157,12 +157,14 @@ Summary: (1) ORM/N+1, (2) missing `super()` in create/write/unlink, (3) `@api.de
 
 ## Agent invocation
 
+When composing the dispatch prompt for `odoo-code-reviewer`, fill the universal skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read by path) plus the Reviewer/auditor family delta.
+
 Full prompt templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references/agent-prompts.md`
 
 Key constraints for each dispatched agent:
 - Per-module (sonnet): write `<module>.md`, light bidirectional-impact pass, platform-design check, flag unprotected behavior. Return 5-line summary + path.
 - Synthesis (opus): cross-module closure only; read per-module reports on disk; write `_synthesis.md`. Return summary + path.
-- Each agent: restricted tools, writes only its own artifact, does NOT spawn subagents, does NOT invoke Skill tool.
+- Each agent: restricted tools, writes only its own artifact, does NOT spawn subagents. `odoo-code-reviewer` MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation (see `agents/odoo-code-reviewer.md`); every other dispatched agent (scoper, ui-reviewer) still does NOT invoke Skill tool.
 - Guidelines: reviewer reads `<version>/INDEX.md` index-first, consults the "By task" table, reads ONLY the files mapping to the changed file types (not all 6 topic files; full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`).
 
 After legs finish, main writes `index.md` summarizing the set.

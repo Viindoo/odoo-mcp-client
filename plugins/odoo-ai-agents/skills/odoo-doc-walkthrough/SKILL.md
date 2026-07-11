@@ -54,6 +54,10 @@ execution is needed to produce the walkthrough.
 
 ## Dispatch brief
 
+**Dispatch-brief skeleton.** Fill the prompt below from the caller-side skeleton in
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the Doc-writer family
+delta; never inline that file verbatim into a hard-leaf brief.
+
 Main dispatches `odoo-doc-scenarist` with:
 
 ```

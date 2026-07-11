@@ -89,9 +89,23 @@ If the code implements a recognizable Odoo pattern (computed field, SQL constrai
 
 When the change touches business structure (model, stored field, security rule, app menu), check the three binding platform principles (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`): multi-company (+ multi-branch v17+) scoping, generic-before-localization, standard app-menu shape. A principle a change cannot satisfy is a deliberate deviation - flag it (MED unless it breaks tenant isolation, which is CRITICAL). Confirm blast radius in BOTH directions (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`), direct and indirect: upstream via `module_inspect(method='dependencies', ...)` to check the change does not violate an upstream contract; downstream via `impact_analysis(...)` on the changed model/field/method to surface dependents it could break.
 
+### Step 3.6 - Audit escalation (self-derived)
+
+Derive audit triggers yourself from the diff you already read in Steps 1-3.5 - there is no separate scoper for this decision. When a trigger fires, invoke the matching dedicated audit skill via the Skill tool (see `## Hard constraints` for the HARD LEAF boundary this falls under):
+
+- **`odoo-security-audit`** - the diff touches access rules (`ir.model.access.csv`, `security/*.xml`), a controller, `sudo(`, raw SQL (`cr.execute(`), or `auth='public'`.
+- **`odoo-perf-audit`** - the diff adds/changes a high-volume model operation, or a stored `@api.depends` spanning relations.
+- **`odoo-deprecation-audit`** - the deprecated/removed core symbols found by Step 2's currency check cross a threshold (default N=3) in this diff. If the module is instead mid-upgrade, do NOT run the audit here: defer to the full-module sweep by emitting `next: odoo-modules-upgrade` in the Continuation Contract instead of invoking the audit inline.
+
+Brief each invoked audit with a diff-scoped input: `SCOPE_FILES`/`CHANGED_SET` = this diff's touched files, `odoo_version` from context (plus `TARGET_SERIES` for the deprecation audit, when upgrade intent exists). Each audit restricts its findings to those files (+ their direct callers) via its own diff-scope input mode, keeping pre-existing/blast-radius findings in a separate section.
+
+Merge the audit's findings into your report per `${CLAUDE_PLUGIN_ROOT}/snippets/review-severity-rubric.md`'s ownership-transfer rule: once a dimension escalates to its dedicated audit for this pass, YOUR inline D2 (security) / D3 (perf) / D5 (deprecation) findings for that dimension DEGRADE TO TRIGGER-ONLY - you may still note that the trigger fired, but you emit NO authoritative findings for that dimension; the audit becomes the sole owner, deduped on (dimension, file:line, symbol). Never report the same finding twice under both your inline dimension and the audit.
+
+Invoking a read-only audit skill does not touch the codebase under review - you remain strictly read-only w.r.t. the code (see `## Hard constraints`).
+
 ### Step 4 - Compile and present
 
-Merge findings from Steps 0.6-3.5. Deduplicate (prefer MCP-verified over Step-1 heuristic). Assign severity per `## Severity & scoring`, then present in the `## Output format`. Record the two CI-gate outcomes in their slots per `## Verification gates` - an unrun gate MUST read SKIPPED / CANNOT-VERIFY and the verdict MUST NOT claim a clean pass. Append the mandatory `## Verdict` block (Verdict + Score computed per `## Severity & scoring`).
+Merge findings from Steps 0.6-3.6, applying Step 3.6's ownership-transfer rule so an escalated dimension's findings come only from its audit. Deduplicate (prefer MCP-verified over Step-1 heuristic). Assign severity per `## Severity & scoring`, then present in the `## Output format`. Record the two CI-gate outcomes in their slots per `## Verification gates` - an unrun gate MUST read SKIPPED / CANNOT-VERIFY and the verdict MUST NOT claim a clean pass. Append the mandatory `## Verdict` block (Verdict + Score computed per `## Severity & scoring`).
 
 ## Verification gates
 
@@ -273,12 +287,30 @@ Detailed rules + severity live in `### Test coverage of the behavior` (under `##
 - Do NOT modify any source file under review - your ONLY permitted write is the review report under `.odoo-ai/reviews/...` (gitignored).
 - If OSM is unreachable after one retry, continue with static analysis and note the fallback (for `MODE=synthesis`, derive the closure from disk `__manifest__.py depends` + grep, labeled "closure approximate from disk").
 - Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline.
+- You are a HARD LEAF: the Skill tool is permitted ONLY to invoke the three dedicated audit skills inline for your own audit escalation (`## Review workflow` Step 3.6; precedent: `odoo-test-writer` invoking `odoo-test-writing` inline) - you NEVER launch another Agent.
 
 ## Continuation Contract
 
 Before finishing, APPEND your significant findings to the run worklog - CRITICAL/HIGH findings, design-principle deviations, blast-radius ripples, unmet TDD acceptance criteria, and any missing-test gap - so later phases inherit them (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the artifact written. If CRITICAL/HIGH issues (including an unmet TDD acceptance criterion or a code-vs-intent divergence) need a fix, emit `next: odoo-coding` with `inputs: {odoo_version: <the version pinned in Step 0>, report_path: <this report>, design_doc: <path, when present>, ...}` so the fix runs against the same pinned version; if a CRITICAL/HIGH behavior change lacks a protecting test, also emit `next: odoo-test-writing` with `inputs: {odoo_version: <same version>, ...}`.
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the artifact written. If CRITICAL/HIGH issues (including an unmet TDD acceptance criterion or a code-vs-intent divergence) need a fix, emit `next: odoo-coding` with `inputs: {odoo_version: <the version pinned in Step 0>, report_path: <this report>, design_doc: <path, when present>, ...}` so the fix runs against the same pinned version; if a CRITICAL/HIGH behavior change lacks a protecting test, also emit `next: odoo-test-writing` with `inputs: {odoo_version: <same version>, ...}`. If Step 3.6 deferred the deprecation audit because the module is mid-upgrade, also emit `next: odoo-modules-upgrade` with `inputs: {odoo_version: <same version>, module: <module>, ...}` instead of invoking `odoo-deprecation-audit` inline.
+
+## Brief self-check
+
+(run before any work)
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
+required fields (the target diff/worktree/PR pointer; which audit DIMENSIONS are in scope THIS
+pass, named - never "everything"; the severity taxonomy expected back, per
+`review-severity-rubric.md`; the coverage baseline, so a dimension a sibling pass already owns is
+not re-run; `CHANGED_SET`/`SCOPE_FILES` for diff-scoping). Graduated response, per ODOO-AI-ETHOS #2
+ask-vs-self-decide:
+- Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
+  assumption as your first output line.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
+  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
+  irreversible/large). Do not silently guess or degrade.
+
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
 
 ## Agent Team mode
 

@@ -165,6 +165,11 @@ The minimal `writes-files` plan `odoo-planning` emits for a single-module change
 
 Skills always go through the Skill tool: a skill name is not an agentType, so passing one to an agent launch fails. A `spawner-agent` skill must run in the main context so the Skill tool can load it there and let it launch its own subagents. Agents are launched directly - inside intake, only the Phase R read-only recon agent. Full rationale: `references/maintainers.md`.
 
+When composing the dispatch prompt for any specialist agent you dispatch (including the Phase R
+recon agent), fill the caller-side skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`
+(read it by path) plus the target agent's family delta; never inline that file verbatim into a
+hard-leaf brief.
+
 ## Phase P - RUN-DAG persistence + drive-to-done (optional, additive)
 
 This phase turns an approved plan into a self-advancing run. It is **purely additive**: single-step plans dispatch as before - Phase P only matters for multi-step work or hands-off execution.

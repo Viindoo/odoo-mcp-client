@@ -153,6 +153,12 @@ commit. Worktrees are filesystem isolation, not a second agent-dispatch level.
 
 ## The pipeline
 
+**Dispatch-brief skeleton.** When composing the dispatch prompt for any specialist agent
+dispatched across the phases below (`odoo-intent-extractor`, `odoo-diff-comparator`,
+`odoo-installable-prober`, `odoo-test-writer`, etc.), fill the caller-side skeleton in
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's family
+delta; never inline that file verbatim into a hard-leaf brief.
+
 Run phases in order. Intent + classify + design + the Plan Mode gate ALL precede the merge -
 the plan is approved against the REAL triaged tiers and REAL buckets, never bucket-guesses.
 Concurrency for any fan-out follows

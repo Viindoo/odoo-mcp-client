@@ -146,6 +146,21 @@ hardcode a tier in prose; reference that SSOT.
 `send-message`, the consuming skill must document the Tier-C fresh-spawn fallback (see section 3
 and `tests/test_chp_hardening.py`).
 
+**Dispatch-brief snippet - the caller-side counterpart to the worker brief.**
+`snippets/dispatch-brief.md` is the SSOT for how a spawner (main agent, a dispatching skill, or a
+nested coordinator) fills the dispatch prompt when it dispatches a specialist agent -
+the universal 10-field skeleton (`OBJECTIVE`, `WHY`, `SCOPE`, ...) plus a per-family delta
+(Designer/planner, Coder, Reviewer/auditor, Tester/QA, Doc-writer, Instance/ops, Survey/analyst).
+Every spawner skill/agent **reads it BY PATH** while composing a dispatch prompt; it is **NEVER
+inlined verbatim into a hard-leaf brief** - a leaf has no one to re-brief, so it self-checks
+against only its own family-delta field list instead of the full caller schema. This is the
+opposite direction from `worker-brief.md`, which IS inlined into every leaf because it is
+worker-side behavior the leaf must execute. Every non-git agent body carries a `## Brief
+self-check` section (the LEAF or SPAWNER variant from `dispatch-brief.md`, family-delta based);
+`git-toolkit` agents carry the equivalent contract via that plugin's own
+`git-nesting-protocol.md` (a cross-plugin boundary - `git-toolkit` cannot depend on
+`odoo-ai-agents`, so its git-specific delta lives there, not in `dispatch-brief.md`).
+
 CONTRIBUTING.md "Agent format" is the prose SSOT for this section.
 
 ## 5. Naming morphology (skill vs agent vs command)

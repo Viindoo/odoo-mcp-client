@@ -104,6 +104,12 @@ P9b writes `<sha>: reviewed` after the code-review loop returns no CRITICAL/HIGH
 
 ## The pipeline
 
+**Dispatch-brief skeleton.** When composing the dispatch prompt for any specialist agent
+dispatched across the phases below (`odoo-intent-extractor`, `odoo-diff-comparator`,
+`odoo-test-writer`, etc.), fill the caller-side skeleton in
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's family
+delta; never inline that file verbatim into a hard-leaf brief.
+
 Run phases in order. ALL analysis (P1-P4) precedes the Plan Mode gate (P6), which precedes ANY
 branch or worktree creation (P7). Concurrency for the P2 parallel fan-out follows
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B, model-weighted budget 8).

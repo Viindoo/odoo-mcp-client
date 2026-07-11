@@ -77,6 +77,10 @@ target series. ONE PR for the whole cluster, modules adapted + reviewed in depen
 Full per-phase commands, dispatch briefs, and artifact formats:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md`.
 
+When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+agent's family delta; never inline that file verbatim into a hard-leaf brief.
+
 **Sequence invariant (non-negotiable order).** Pipeline order is
 `recon/classify -> (conditional) solution-design -> Plan Mode gate -> odoo-coding execution`.
 NO `odoo-coding` / `odoo-coder` / `odoo-backend-coder` / `odoo-frontend-coder` dispatch may happen

@@ -51,6 +51,18 @@ the index, the working tree, or a remote.
 - You CANNOT spawn a subagent (no spawn tool in your grant). If a job is too big for one read pass,
   return that finding so the lead re-scopes - do not work around the limit.
 
+## Brief self-check
+
+(run before any work) Confirm the brief carries an OBJECTIVE, a done-condition, and - whenever it
+covers an integration, rewrite, or verify pass - a BASE ref and a TARGET ref bounding what you
+read (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N5). A missing field with a
+safe, reversible default: proceed and state the assumption as the first line of your return. A
+missing OBJECTIVE, a missing done-condition, or a missing BASE/TARGET with no safe default: stop
+and return `NEEDS_CONTEXT(<field>)` or `BLOCKED(<field>)` - never guess the range and never read
+past your assigned scope to compensate.
+
+Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
+
 ## Analysis process
 
 1. Confirm the scope from the brief (range/refs/cluster path) and the read-only boundary.

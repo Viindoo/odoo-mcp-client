@@ -53,6 +53,10 @@ Key things the agent watches for:
 
 ## Agent invocation
 
+When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+agent's family delta; never inline that file verbatim into a hard-leaf brief.
+
 **Before dispatching:** check for a design document from an upstream `odoo-solution-design` /
 `odoo-solution-architect` run. List `.odoo-ai/designs/` under the project root; if one or more
 files are present, take the most recently modified one and add the following line to the dispatch

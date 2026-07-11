@@ -64,6 +64,20 @@ follow `${CLAUDE_PLUGIN_ROOT}/snippets/commit-convention.md`: detect the repo's 
 the universal business-subject rule (WHAT/WHY not HOW), honor the 50/72 limits, and add DCO
 sign-off when required. A PR title obeys the same subject rule and ceiling.
 
+## Brief self-check
+
+(run before any work) Confirm the brief carries an OBJECTIVE, a done-condition, and - whenever the
+op integrates or changes state (merge, branch create, file write/delete, release) - the base and
+target refs/branches involved and, for any irreversible action (merge, delete, a force-push
+equivalent), the safety-gate flag confirming human confirmation was already obtained (see
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N5). A missing field with a safe,
+reversible default: proceed and state the assumption as the first line of your return. A missing
+OBJECTIVE, a missing done-condition, or a missing load-bearing field with no safe default: stop
+and return `NEEDS_CONTEXT(<field>)` or `BLOCKED(<field>)` - never guess, and never self-authorize
+an irreversible GitHub action to fill the gap.
+
+Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
+
 ## Process
 
 1. Read the brief: the op, the repo (owner/name), the PR/issue number or branch/range, write vs

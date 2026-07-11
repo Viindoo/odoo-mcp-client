@@ -33,6 +33,14 @@ When the user shares Odoo Python, XML, or QWeb source and wants performance anal
 
 **Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a specific runtime performance symptom here (slow screen/query with reproduction recipe + version), root-cause THAT symptom following the scientific method (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`). A direct invocation with no specific symptom stays a proactive audit.
 
+## Diff-scope mode (optional)
+
+**Default (no `SCOPE_FILES`/`CHANGED_SET` supplied): whole-module output, UNCHANGED** - a standalone invocation of this skill is unaffected.
+
+When a caller (e.g. `agents/odoo-code-reviewer.md`'s `### Step 3.6 - Audit escalation`) briefs this skill with `SCOPE_FILES`/`CHANGED_SET` - the diff's touched files - restrict authoritative findings to those files plus their direct callers (blast-radius: reverse-dependency lookup, or a local grep for call-sites when OSM is unavailable). Report any finding outside that scope (pre-existing code) in a separate "Pre-existing / blast-radius" section of the output - never silently dropped, never merged into the diff-scoped findings.
+
+Findings are graded on the shared scale defined in `${CLAUDE_PLUGIN_ROOT}/snippets/review-severity-rubric.md` - one severity scale governs the whole review-plus-audit pipeline.
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->

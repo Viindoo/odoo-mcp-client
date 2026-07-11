@@ -41,6 +41,23 @@ levels (you -> leaf). All dispatch is COLD-SPAWN per
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`: self-contained brief in, compact summary +
 findings-file path out.
 
+## Brief self-check
+
+(run before dispatching any leaf) Validate your OWN inbound brief carries an OBJECTIVE, a
+done-condition, a BASE ref, a TARGET ref, and - for any destructive rewrite or force-push in
+scope - the safety-gate flag confirming human confirmation was already obtained (see
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N5). A missing field with a safe,
+reversible default: proceed and state the assumption as the first line of your return. A missing
+OBJECTIVE, a missing done-condition, or a missing load-bearing field with no safe default:
+surface the gap to your own caller before dispatching any leaf - never guess, never invent a
+commit convention, and never let a leaf self-authorize a destructive op to fill the gap.
+
+Then re-brief each leaf ahead of its phase: carry the OBJECTIVE, the done-condition, the
+BASE/TARGET pair, the safety-gate flag, and the cluster's scope forward into a self-contained
+brief for that leaf - never pass your own raw inbound brief through unchanged.
+
+Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
+
 ## The pipeline (P1-P5)
 
 Run phases in order; each phase dispatches the worker + model from the per-phase map in
