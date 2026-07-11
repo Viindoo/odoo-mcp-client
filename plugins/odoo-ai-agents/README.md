@@ -134,9 +134,10 @@ flowchart TD
     G -->|"deep-survey opt-in"| DS["odoo-deep-survey<br/>haiku -> sonnet -> opus"]
     DS -->|"re-informs plan"| G
     G -->|"Single chat"| F1["Specialist fires"]
-    G -->|"Single writes-files"| F2["Specialist + Plan"]
+    G -->|"Single writes-files"| F2["Specialist<br/>(plan delegated to odoo-planning)"]
     G -->|"Multi-step"| GA["odoo-gap-analysis<br/>(optional)"]
 
+    F2 --> PLN
     GA --> SD["odoo-solution-design<br/>(odoo-solution-architect)"]
     SD --> PLN["TIER 2 - odoo-planning<br/>-> odoo-planner (code) + odoo-doc-planner (doc)<br/>1 gate: ONE lifecycle code -> QA -> doc -> PR -> merge"]
     PLN -->|"approve -> ExitPlanMode<br/>-> serialize the run file"| RUN["TIER 3 - run-harness<br/>(sequencer)"]
@@ -361,7 +362,7 @@ flowchart TD
 
 ### Forward-port pipeline (`/odoo-forward-port`)
 
-A 12-phase orchestration that ports commits across Odoo series using intent-first extraction
+A 13-phase orchestration (P0-P12) that ports commits across Odoo series using intent-first extraction
 (not raw code carry-over), merge-keep-SHA strategy, symbol-survival checking, pre-adapt drift
 scan, adaptive test forwarding, and verify-by-behavior per batch. Two human STOP-gates bound the automation.
 
@@ -395,7 +396,8 @@ flowchart TD
     PC --> P9["P9 - Verify by behavior<br/>(ephemeral instance, RED then GREEN,<br/>confirm-by-toggle per batch)"]
     P9 -->|"STOP - human confirm"| P10["P10 - Gate merge<br/>(commit + checkpoint;<br/>loop to P5 for next commit)"]
     P10 --> P11["P11 - PR + code-review<br/>(mandatory for new engines)"]
-    P11 --> DONE(["Done - .odoo-ai/forward-port/"])
+    P11 --> P12["P12 - End-to-end acceptance<br/>(odoo-acceptance) - MANDATORY<br/>cluster-wide, narrow-escape only<br/>gates ALONGSIDE human-merge decision"]
+    P12 --> DONE(["Done - .odoo-ai/forward-port/"])
 ```
 
 | Phase | Description | Parallel? | Human gate? |
@@ -412,6 +414,7 @@ flowchart TD
 | P9 Verify by behavior | Ephemeral instance, RED then GREEN, confirm-by-toggle per batch | Per-batch | - |
 | P10 Gate merge | STOP then commit + checkpoint; loop to P5 for next commit | - | STOP - human confirm |
 | P11 PR + code-review | Open PR; mandatory code-review for new engines | - | - |
+| P12 End-to-end acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole batch; MANDATORY, cluster-wide, narrow-escape only; verdict presented alongside the human-merge decision | - | L2 (human) - combined with merge decision |
 
 ### Git-rebase pipeline (`/odoo-git-rebase`)
 
@@ -486,7 +489,7 @@ more rigorous than forward-port (PR review only).
 
 ### Modules-upgrade pipeline (`/odoo-modules-upgrade`)
 
-An 8-phase orchestration (P0-P7, with P1d, P2b, P4b, and P5.7 sub-phases) that upgrades custom
+An 8-phase orchestration (P0-P7, with P1d, P2b, P4b, P5.7, and P5.8 sub-phases) that upgrades custom
 Odoo modules (v8-v19) across a major version jump using dependency-ordered absorption,
 scale-conditional design before Plan Mode, an in-pipeline per-module code-review-and-fix loop
 after adapt, and a final pre-merge dep-order PR review. Two human STOP-gates bound the
@@ -525,7 +528,8 @@ flowchart TD
     RV -->|"clean: no CRITICAL/HIGH (all modules)"| P5["P5 - Install + test gate<br/>(ephemeral instance, wave-by-wave, demo=on)"]
     P5 -->|"red wave -> debugger -> back to P4"| P4
     P5 -->|"all waves green"| P57["P5.7 - i18n reconcile<br/>(gated-on; auto-SKIP if no translatable surface change)"]
-    P57 --> P6["P6 - Gate (STOP, human sign-off)"]
+    P57 --> P58["P5.8 - Acceptance (odoo-acceptance)<br/>MANDATORY, cluster-wide, narrow-escape only"]
+    P58 --> P6["P6 - Gate (STOP, human sign-off)"]
     P6 -->|"STOP - human confirm"| P7["P7 - PR + FINAL dep-order review (human merge; no cluster-squash)"]
     P7 --> DONE(["Done - .odoo-ai/modules-upgrade/"])
 ```
@@ -546,6 +550,7 @@ PR review** (pre-merge). This is intentionally more rigorous than forward-port (
 | P4b Code-review loop | In-pipeline per module dep order: odoo-code-review -> odoo-code-reviewer scoped to each module's adapt diff; fix via odoo-coding on CRITICAL/HIGH; cap 3 iterations per module; automated fix-until-clean | Serial per module | - |
 | P5 Install + test gate | Ephemeral instance; wave-by-wave green with demo=on (no separate framework-validation phase); red wave loops back to P4 via debugger | Per wave | - |
 | P5.7 i18n reconcile | GATED-ON; auto-SKIP when no translatable surface changed; when active: load existing .po into a fresh instance + re-export + git-ops diff-review (never blind-regenerate) | - | - |
+| P5.8 Acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole cluster; MANDATORY, cluster-wide, narrow-escape only; verdict presented alongside the P6 sign-off | - | L2 (human) - combined with P6 sign-off |
 | P6 Gate | Human sign-off after all waves green | - | STOP - human confirm |
 | P7 PR + FINAL dep-order review | Open PR; Runbot parity gates + convention-compliance pass; mandatory final dep-order code-review; no cluster-squash (per-module consolidation to 1 clean commit per module allowed) | - | - |
 
