@@ -264,6 +264,14 @@ reviews or fixes inline. Write `<module>: reviewed` in checkpoint.json. Brief + 
 `references/upg-phase-detail.md` P4b. This is the in-pipeline review; the final pre-merge dep-order
 review stays at P7 (two review points total).
 
+**P4b acceptance hand-off (consumption clause).** Each dispatched `odoo-code-review`'s
+Continuation Contract MAY carry a `next: odoo-acceptance` entry - its Phase A.5 emits this
+whenever a module's `render_check_set` reaches beyond that module (dependents bind a changed
+symbol). READ it, but do NOT act on it per module here: it is superseded by ONE cluster-wide
+dispatch at P5.8 below, which reuses P1's `graph.md` reverse-closure instead of re-deriving it
+per module. This is the clause that was missing before - without it the hand-off was silently
+dropped on the floor.
+
 **P5 - Install + test gate [ephemeral instance, wave-by-wave, demo=on].**
 Goal: prove the whole cluster installs + tests green on a fresh target DB, bottom-up
 wave by wave (one wave = one DAG depth level, leaves first). Installing wave-by-wave
@@ -292,9 +300,42 @@ re-export -> git-ops diff-review each `.po` against its committed version + adju
 (NEVER blind-regenerate - a fresh-DB export with no load step destroys existing msgstr) ->
 hand-translate only the residual untranslated entries -> reload with `-u`. Detail: phase-detail § P5.7.
 
+**P5.8 - Acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape only].**
+Goal: prove the whole upgraded cluster works end-to-end on a real running instance/UI - the SAME
+acceptance rigor new-module development applies, so an upgrade is not held to a lighter bar just
+because it is an upgrade. P5's ephemeral-DB install+test proves the code loads and the unit/
+integration suite passes; it does NOT prove the cluster behaves correctly for a real user across
+roles/state/search - closing that gap is this stage's job.
+Compute the cluster-wide verify scope by invoking `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`
+directly - do NOT re-derive the reverse-closure: `changed_set` = every surviving (KEEP/REWRITE/
+MERGE/SPLIT) module in `plan.md`; the dependent-module reverse-closure comes for free from P1's
+`graph.md` DAG.
+Invoke the `odoo-acceptance` skill (via the Skill tool) ONCE for the whole cluster (never per
+module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by
+path): `INPUTS` = the `changed_set` above, `scope_hint` = `graph.md` + `absorption/*.md`,
+`odoo_version` = target series; `INSTANCE_HANDLE` from P5 if still live (reuse - never
+re-provision; else pass `none provisioned` and `odoo-acceptance` still scopes + plans its oracle,
+then emits `NEEDS_NEXT -> odoo-instance`). `ACCEPTANCE` (by pointer) = each surviving module's
+business behavior recorded in `absorption/<module>.md` and any P2b design doc's §9 - NEVER a
+pre-built oracle: `odoo-acceptance` authors its OWN independent oracle at its own Phase 1 from
+that requirement/intent, the same oracle-independence guarantee the new-module lifecycle
+protects. Do NOT hand it the implementation.
+**MANDATORY - narrow escape only.** An upgrade cluster's surviving modules have in-cluster
+dependents by construction, so the blast-radius bar this stage exists for is met almost always -
+this is NOT an opt-in hand-off. Skip it ONLY when `graph.md` proves the cluster is a true
+dependency leaf with ZERO in-repo dependents AND no behavioral surface (no views, no models any
+other module consumes) - record that proof explicitly in `install-test.md`; never skip silently.
+**The upgrade is not DONE until this stage returns ACCEPTED (PASS), or the narrow-escape condition
+above is explicitly met and recorded.**
+Gate tier: L2 (human) - present the acceptance verdict (or the recorded narrow-escape) ALONGSIDE
+the P6 sign-off below so the human sees ONE combined decision, not a surprise extra step later.
+Output: `.odoo-ai/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
+from `install-test.md`.
+
 **P6 - Gate [STOP, human sign-off].**
 Present `plan.md` + `absorption/*` summaries + `install-test.md` (including the list of
-DELETED-absorbed modules + their reasons). Wait for human sign-off before the PR.
+DELETED-absorbed modules + their reasons) + the P5.8 acceptance verdict (or its recorded
+narrow-escape). Wait for human sign-off before the PR.
 
 **P7 - PR + review [human merge].**
 Pre-PR checklist (extends P6 sign-off): run the Runbot parity gates
@@ -346,6 +387,11 @@ review modules in dependency order). Wait for human merge.
    For OBSOLETE verdict (module is moot at target, not absorbed by a named feature): the
    commit message uses `upg: delete <module> - obsolete at <tgt> (<reason>)` - do NOT
    invent a fake `absorbing_core_feature`.
+7. **Acceptance is mandatory (narrow escape only).** P5.8 dispatches `odoo-acceptance` ONCE for
+   the whole surviving cluster before the P6 human gate - mirroring the rigor a new module build
+   gets. This is NOT opt-in: skip it only when `graph.md` proves the cluster is a true dependency
+   leaf with zero in-repo dependents and no behavioral surface, and record that proof - never skip
+   silently. The upgrade is not DONE without an ACCEPTED verdict or a recorded narrow-escape.
 
 ## Checkpoint / resume
 
@@ -444,7 +490,7 @@ When the run finishes (or pauses at a gate), append a Continuation Contract bloc
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
 `produced` lists `intake.md`, `graph.md`, `deprecation.md`, `version-delta.md`,
 `transitive-symbol-survey.md`, `absorption/*.md`, `plan.md`, `install-test.md`,
-`checkpoint.json`, and the PR URL.
+`.odoo-ai/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR URL.
 When P2b routes a module out to design, `next: odoo-solution-design` with the Continuation
 Contract payload and the run YIELDS. Additive output for the run-harness - does not change
 anything produced above.

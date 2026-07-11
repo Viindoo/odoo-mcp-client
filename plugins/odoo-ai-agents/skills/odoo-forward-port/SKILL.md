@@ -125,6 +125,13 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
 8. **Verify subagent claims** - never trust a leaf's self-report of GREEN. Run the verify
    command yourself per batch (P9) before the P10 gate.
 
+9. **Acceptance is mandatory (narrow escape only)** - P12 dispatches `odoo-acceptance` ONCE for
+   the whole forward-ported batch before the human merge decision, mirroring the rigor a new
+   module build gets. This is NOT opt-in: skip it only when the touched module set is a true
+   dependency leaf with zero in-repo dependents and no behavioral surface, and record that proof -
+   never skip silently. The forward-port is not DONE without an ACCEPTED verdict or a recorded
+   narrow-escape.
+
 ## Git topology - two tiers of worktree
 
 Forward-port never touches B directly and parallelizes through worktree isolation.
@@ -132,7 +139,7 @@ Forward-port never touches B directly and parallelizes through worktree isolatio
 **JOB tier (always):** create `fp/<slug>` integration branch via dedicated worktree (delegated
 to git-toolkit via `git-ops`) from B's HEAD. All absorption, adapt, and verify happen inside this integration
 worktree. The target branch B is read-only for the whole run; the only thing that ever lands on
-B is the final PR merge (P11), human-confirmed.
+B is the final PR merge (P11 opens it, P12 gates it), human-confirmed.
 
 **WORK tier (when a phase fans out):** from the integration worktree, each parallel unit
 (one module or work-item in P8 adapt) gets its OWN dedicated child worktree (delegated to
@@ -474,8 +481,51 @@ A module that is `installable:False` at the target is in the lint-only lane (`[[
 the reviewer rates ONLY lint/syntax for it and MUST NOT raise a business-logic finding (its
 behavior is intentionally not forward-ported - see `## Model triage`).
 
-NEVER squash (keeps SHA). B stays LOCKED - the PR only adds the merge commits. Wait for human
-merge.
+**Acceptance hand-off (consumption clause).** The `odoo-code-review` dispatch above may carry a
+`next: odoo-acceptance` entry in its Continuation Contract (Phase A.5 emits this whenever
+`render_check_set` reaches beyond the reviewed modules). READ it, but do NOT act on it here - it is
+superseded by the single cluster-wide dispatch P12 runs below.
+
+NEVER squash (keeps SHA). B stays LOCKED - the PR only adds the merge commits.
+
+**P12 - End-to-end acceptance (odoo-acceptance) stage [MANDATORY, cluster-wide, narrow escape
+only].** Goal: prove the forward-ported batch works end-to-end on a real running instance/UI
+across its blast-radius - the SAME acceptance rigor new-module development applies, so a
+forward-port is not held to a lighter bar just because it moves existing behavior. P9's per-batch
+verify-by-behavior proves RED-then-GREEN + confirm-by-toggle for the ported intent tests; it does
+NOT prove the touched cluster behaves correctly for a real user across roles/state/search -
+closing that gap is this stage's job. This is a DIFFERENT concept from the P7 pre-adapt drift-scan
+**ACCEPTANCE GATE** (the test-collection sanity check that merged test files import and collect
+cleanly, `references/fp-phase-detail.md:335`) - deliberately named differently so the two are never
+conflated.
+Compute the verify scope by invoking `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` over
+every module touched across the batch (from `merge-log.md`) - forward-port has no pre-built
+dependency DAG file the way `odoo-modules-upgrade` does, so this pass derives the reverse-closure
+directly via OSM `impact_analysis` per that snippet's Step 1.
+Invoke the `odoo-acceptance` skill (via the Skill tool) ONCE for the whole batch (never per commit
+or per module). Fill the dispatch brief per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`
+(read it by path): `INPUTS` = the touched module set from `merge-log.md`, `scope_hint` =
+`merge-log.md` + `intents/<sha>.md`, `odoo_version` = target series; `INSTANCE_HANDLE` from P9 if
+still live (reuse - never re-provision; else pass `none provisioned` and `odoo-acceptance` still
+scopes + plans its oracle, then emits `NEEDS_NEXT -> odoo-instance`). `ACCEPTANCE` (by pointer) =
+each ported commit's behavioral contract recorded in `intents/<sha>.md` and any P3 design doc's §9
+- NEVER a pre-built oracle: `odoo-acceptance` authors its OWN independent oracle at its own
+Phase 1 from that intent, the same oracle-independence guarantee the new-module lifecycle
+protects. Do NOT hand it the implementation.
+**MANDATORY - narrow escape only.** A forward-ported batch's touched modules have in-cluster
+dependents by construction whenever they carry shared/depended-on symbols, so the blast-radius
+bar this stage exists for is met almost always - this is NOT an opt-in hand-off. Skip it ONLY when
+the touched set is a true dependency leaf with ZERO in-repo dependents AND no behavioral surface
+(no views, no models any other module consumes) - record that proof explicitly in `merge-log.md`;
+never skip silently. **The forward-port is not DONE until this stage returns ACCEPTED (PASS), or
+the narrow-escape condition above is explicitly met and recorded.**
+Gate tier: L2 (human) - present the acceptance verdict (or the recorded narrow-escape) ALONGSIDE
+the human-merge decision below so the human sees ONE combined gate, not a surprise extra step
+after merge is already requested.
+Output: `.odoo-ai/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
+from `merge-log.md`.
+
+Wait for human merge.
 
 ## Model triage - two tier tables
 
@@ -615,8 +665,9 @@ contracts are unchanged - only the grounding source degrades.
 
 When the run finishes (or pauses at a gate), append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
-`produced` lists `plan.md`, `intents/<sha>.md`, `merge-log.md`, `checkpoint.json`, and the PR
-URL; `next` is the human-confirm gate (P10 or P11 merge). When P3 routes a commit out to design,
+`produced` lists `plan.md`, `intents/<sha>.md`, `merge-log.md`,
+`.odoo-ai/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR
+URL; `next` is the human-confirm gate (P10, P11, or P12 merge). When P3 routes a commit out to design,
 `next: odoo-solution-design` with canonical payload
 `{ return_to: odoo-forward-port, design_slug_hint: <slug>-fp-<sha>, target_version: <series>,
 modules: [<names>], intent_records: [<paths>], classification: <bucket-(c) summary> }` and the
