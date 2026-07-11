@@ -124,4 +124,4 @@ closure against §10 cross-module contracts (ownership, dep-direction, integrati
 a violation is CRITICAL; emit Master-AC rows in "### TDD Conformance". When none: skip.
 ```
 
-Each agent: restricted tools, writes only its own report artifact, does NOT spawn subagents, does NOT invoke Skill tool.
+Each agent: restricted tools, writes only its own report artifact, does NOT spawn subagents. `odoo-code-reviewer` (per-module, synthesis, and domain-synthesis passes above are all this same agent) MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation (see `agents/odoo-code-reviewer.md`); every other agent above (scoper, ui-reviewer) still does NOT invoke Skill tool.

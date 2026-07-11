@@ -181,3 +181,19 @@ completion-report push to `main` (plus any `NOTIFY:` dependents) per
 `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your
 plan artifact to a file. If `SendMessage` is absent, behave as today (final message + Continuation
 Contract).
+
+## Brief self-check
+
+(run before any work)
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
+required fields (a pointer to the current architecture/constraint snapshot to fit inside; which
+decisions need an ADR-style tradeoff vs are already-settled; non-negotiable interfaces other
+modules assume; whether a human gate precedes code). Graduated response, per ODOO-AI-ETHOS #2
+ask-vs-self-decide:
+- Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
+  assumption as your first output line.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
+  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
+  irreversible/large). Do not silently guess or degrade.
+
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

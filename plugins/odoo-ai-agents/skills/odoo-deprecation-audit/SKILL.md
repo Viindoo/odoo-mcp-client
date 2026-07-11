@@ -22,8 +22,19 @@ Developer / Tech Lead
 - Version API diff without code scan → use `odoo-version-diff`
 - Fresh code generation in target version → use `odoo-coding`
 - Executive risk dashboard → use `odoo-risk-overview`
+- General code correctness / security / performance review → route to `odoo-code-review`
 
 **Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a deprecated-API-at-runtime symptom here (removed/changed symbol breaking after upgrade, with reproduction + two versions), root-cause THAT symptom following `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` and point at the replacement. A direct invocation stays a full pre-upgrade deprecation sweep.
+
+## Diff-scope mode (optional)
+
+**Default (no `SCOPE_FILES`/`CHANGED_SET` supplied): whole-module pre-upgrade sweep, UNCHANGED** - a standalone invocation, and `odoo-modules-upgrade`/`odoo-forward-port` callers, are unaffected.
+
+When a caller (e.g. `agents/odoo-code-reviewer.md`'s `### Step 3.6 - Audit escalation`) briefs this skill diff-scoped, it supplies:
+- `SCOPE_FILES`/`CHANGED_SET` - the diff's touched files. Restrict authoritative BREAKING/WARN/STYLE findings to those files plus their direct callers (blast-radius: reverse-dependency lookup, or a local grep for call-sites when OSM is unavailable). Report any finding outside that scope (pre-existing deprecated usage) in a separate "Pre-existing / blast-radius" section - never silently dropped.
+- `odoo_version` (the source version) and, optionally, `TARGET_SERIES` (the upgrade target) - version-relative values the brief supplies; use them exactly as Round 0 / Round 1b already do. When absent, fall back to `.odoo-ai/context.md` / manifest resolution as today. This skill never hardcodes a version number in its own prose - every version is a variable resolved from context or the brief.
+
+Findings are graded on the shared scale defined in `${CLAUDE_PLUGIN_ROOT}/snippets/review-severity-rubric.md`: this audit's own BREAKING/WARN/STYLE tiers map onto that scale's CRITICAL/HIGH/MED/LOW - one severity scale governs the whole review-plus-audit pipeline.
 
 ## MCP tools
 

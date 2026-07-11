@@ -180,6 +180,24 @@ Before finishing, APPEND your significant findings to the run worklog - FAIL ver
 
 When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
 
+## Brief self-check
+
+(run before any work)
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
+required fields (the target screen/worktree/PR pointer; which audit DIMENSIONS are in scope THIS
+pass, named - never "everything"; the verdict taxonomy expected back - its OWN six-lens
+PASS/WARN/FAIL verdict (aesthetics, functional, stability, accessibility, performance,
+design-system fidelity), never the code-review CRITICAL/HIGH/MED/LOW rubric; the coverage
+baseline, so a dimension a sibling pass already owns is not re-run). Graduated response, per
+ODOO-AI-ETHOS #2 ask-vs-self-decide:
+- Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
+  assumption as your first output line.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
+  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
+  irreversible/large). Do not silently guess or degrade.
+
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
+
 ## Agent Team mode
 
 If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your review report and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).

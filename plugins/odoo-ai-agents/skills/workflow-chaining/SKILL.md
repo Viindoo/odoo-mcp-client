@@ -107,6 +107,11 @@ For phases marked `fanout: true` with a `chunk_by` field:
    the OSM-First Grounding Contract (`${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`).
 4. Aggregate worker results before proceeding.
 
+When composing the dispatch prompt for any specialist agent you dispatch (e.g. a fan-out
+worker), fill the caller-side skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`
+(read it by path) plus the target agent's family delta; never inline that file verbatim into a
+hard-leaf brief.
+
 ### Expert-Pool (predicate-based specialist selection)
 
 Evaluate `when:` predicate against the current item; dispatch the matching specialist via the Skill tool (NL description-match as fallback).

@@ -77,6 +77,20 @@ the repo requires DCO. Load the matching reference
 (`references/commit-convention-general.md` or `references/commit-convention-odoo.md`) before
 writing the message.
 
+## Brief self-check
+
+(run before any work) Confirm the brief carries an OBJECTIVE, a done-condition, a BASE ref, a
+TARGET ref, and - for any destructive rewrite or force-push - the safety-gate flag confirming
+human confirmation was already obtained (see
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N5). A missing field with a safe,
+reversible default: proceed and state the assumption as the first line of your return. A missing
+OBJECTIVE, a missing done-condition, a missing BASE/TARGET, a missing safety-gate flag ahead of a
+destructive op, or a commit convention you cannot resolve: stop and return
+`NEEDS_CONTEXT(<field>)` or `BLOCKED(<field>)` - never guess, never invent a convention, and never
+self-authorize a destructive op to fill the gap.
+
+Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
+
 ## Execution process
 
 1. Read the brief: op, scope (refs/range/paths), destructive? confirmed? If mutation, identify or

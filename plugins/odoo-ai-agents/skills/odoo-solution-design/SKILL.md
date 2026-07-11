@@ -293,6 +293,10 @@ verbatim into test code.
 
 ## Agent invocation - prompt template (P1)
 
+When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+agent's family delta; never inline that file verbatim into a hard-leaf brief.
+
 When the user confirms intent (Phase 0 gate passed), launch `odoo-solution-architect` as a subagent.
 Use the template below **verbatim**, filling the bracketed placeholders.
 

@@ -30,6 +30,11 @@ agents. Any other skill needing an oracle authored and/or executed-and-adjudicat
 HERE via the Skill tool - centralizing the three-context invariant and the browser single-flight
 rule. Provision live execution by invoking the `odoo-instance` skill.
 
+**Dispatch-brief skeleton.** When composing the dispatch prompt for `odoo-qa-planner`,
+`odoo-qa-tester`, or any other specialist agent dispatched below, fill the caller-side skeleton in
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's family
+delta; never inline that file verbatim into a hard-leaf brief.
+
 ## Out of Scope
 
 - **A static release test-plan doc, deploy checklist, or user-level bug triage** (no execution) -> `odoo-qa-suite`

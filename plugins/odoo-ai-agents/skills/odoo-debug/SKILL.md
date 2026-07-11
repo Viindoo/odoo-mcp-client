@@ -128,6 +128,11 @@ Parallelism: the OSM-only legs (backend debugger + reactive audits) run in paral
 
 When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect as today.
 
+**Dispatch-brief skeleton.** When composing the dispatch prompt for `odoo-backend-debugger`,
+`odoo-ui-debugger`, or any other specialist agent dispatched below, fill the caller-side skeleton
+in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's
+family delta; never inline that file verbatim into a hard-leaf brief.
+
 **Agent dispatch - prompt template (use verbatim, fill the brackets):**
 
 ```

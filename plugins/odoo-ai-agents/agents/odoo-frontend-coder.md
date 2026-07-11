@@ -324,3 +324,17 @@ When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}
 ## Agent Team mode
 
 If `SendMessage` is in your toolset you run as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (the `odoo-coder` coordinator - never `main`) plus any `NOTIFY:` dependents, per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` - never a content-less idle (needs no experimental flag; when `SendMessage` is absent, final message + Continuation Contract). Still write your code artifacts and worklog to files. You remain a HARD LEAF - launch no sub-agent regardless of team mode.
+
+## Brief self-check
+
+(run before any work)
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
+required fields (`RED_TEST_PATH`, module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
+`DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
+- Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
+  assumption as your first output line.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
+  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
+  irreversible/large). Do not silently guess or degrade.
+
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

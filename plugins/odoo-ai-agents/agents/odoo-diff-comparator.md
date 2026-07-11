@@ -357,6 +357,24 @@ grounding: <osm | local-source | ungrounded>
 
 Do NOT include diff excerpts, file contents, or stack traces in the return block. The findings file carries the detail; the return block is the gate-able summary only.
 
+## Brief self-check
+
+(run before any work)
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
+required fields (`mode` - `rebase` or `upgrade`; rebase mode's `diff_path` + `diff_scope` +
+`intents_dir`, or upgrade mode's `diff_scope` + `repo_root` + `source_version`/`target_version`;
+`slug` for output paths; its OWN output vocabulary - upgrade-mode `KEEP`/`DELETE-absorbed`/
+`OBSOLETE`/`REWRITE(api|model)`/`MERGE`/`SPLIT`/`RECONCILE` classification, or rebase-mode outcome
+buckets (a)-(d) plus `range_diff_verdict: PASS | FAIL` for P10 verify). Graduated response, per
+ODOO-AI-ETHOS #2 ask-vs-self-decide:
+- Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
+  assumption as your first output line.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
+  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
+  irreversible/large). Do not silently guess or degrade.
+
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
+
 ## Agent Team mode
 
 If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your findings file as usual. If `SendMessage` is absent, behave as today (final return block).

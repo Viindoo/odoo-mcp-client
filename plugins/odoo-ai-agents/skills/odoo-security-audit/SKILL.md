@@ -37,6 +37,14 @@ Invoke whenever:
 
 **Reactive mode (dispatched by `odoo-debug`).** When `odoo-debug` routes a runtime security symptom here (observed leak, unexpected `AccessError`, apparent injection - with reproduction + version), root-cause THAT symptom per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md` and emit the same graded report. A direct invocation with no specific symptom stays a proactive audit.
 
+## Diff-scope mode (optional)
+
+**Default (no `SCOPE_FILES`/`CHANGED_SET` supplied): whole-module output, UNCHANGED** - a standalone invocation of this skill is unaffected.
+
+When a caller (e.g. `agents/odoo-code-reviewer.md`'s `### Step 3.6 - Audit escalation`) briefs this skill with `SCOPE_FILES`/`CHANGED_SET` - the diff's touched files - restrict authoritative findings to those files plus their direct callers (blast-radius: reverse-dependency lookup, or a local grep for call-sites when OSM is unavailable). Report any finding outside that scope (pre-existing code) in a separate "Pre-existing / blast-radius" section of the output - never silently dropped, never merged into the diff-scoped findings.
+
+Findings are graded on the shared scale defined in `${CLAUDE_PLUGIN_ROOT}/snippets/review-severity-rubric.md` - one severity scale governs the whole review-plus-audit pipeline.
+
 ## MCP tools
 
 <!-- BEGIN GENERATED TOOLS -->

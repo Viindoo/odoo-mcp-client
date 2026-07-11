@@ -229,3 +229,22 @@ the completion-report push to `main` (plus any `NOTIFY:` dependents) per
 `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your
 index.html and screenshot artifacts and worklog to files as usual. If `SendMessage` is absent, behave as
 above (final message + Continuation Contract).
+
+## Brief self-check
+
+(run before any work)
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
+required fields (target AUDIENCE/persona, locale/language list, grounding source (feature catalog /
+walkthrough - never invent claims), output format (`rst`/`html`/video-plan/`po`/`svg`)). Graduated
+response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
+- Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
+  assumption as your first output line.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
+  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
+  irreversible/large). Do not silently guess or degrade.
+
+`MARKETING COPY` and `FEATURE CATALOG` stay hard BLOCK per "Required inputs - hard BLOCK when
+missing" above - never PROCEED on a safe-default assumption for either; this check is the
+standardized overlay, not a replacement for that gate.
+
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

@@ -232,6 +232,12 @@ order:
    blast-radius review lenses: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
    § Review Escalation). Then the **cumulative regression close-gate** - the growing
    `cumulative_modules` suite run GREEN (never open a PR on red).
+
+When composing the dispatch prompt for any specialist agent you dispatch (e.g. the fable/opus
+review subagent above), fill the caller-side skeleton in
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's
+family delta; never inline that file verbatim into a hard-leaf brief.
+
 4. **One squashed PR, then STOP.** Open ONE squashed PR for the wave and STOP at the L2-squash-gate;
    the outward MERGE stays `odoo-pr-monitoring`'s (the single L2 merge gate). Then
    `integration@wave-(N+1)` forks from this closed integration and the loop continues.

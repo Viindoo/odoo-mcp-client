@@ -178,7 +178,10 @@ This skill dispatches strictly SERIALLY - one poll, then at most one route (`odo
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` are never exercised; that SSOT still
 governs any subagent it cold-spawns). Every delegate (`git-ops`, `odoo-debug`, `odoo-coding`) is
 invoked fresh each turn (Tier-C baseline), so the watch resumes correctly across a session boundary
-by re-reading `run-<id>.json` + the poll-state note.
+by re-reading `run-<id>.json` + the poll-state note. When composing the dispatch prompt for any
+specialist agent you dispatch, fill the caller-side skeleton in
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's
+family delta; never inline that file verbatim into a hard-leaf brief.
 
 ## Out of Scope
 

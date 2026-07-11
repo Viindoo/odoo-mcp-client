@@ -109,3 +109,19 @@ skill's context) - never a content-less idle - per
 report works WITHOUT any experimental flag; when absent, behave as today (final message +
 Continuation Contract). Still write your test artifacts and worklog to files. You remain a HARD
 LEAF - launch no sub-agent regardless of team mode.
+
+## Brief self-check
+
+(run before any work)
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
+required fields (the oracle/scenario file - expected results chosen BEFORE execution, NEVER the
+implementation or a pre-derived oracle; environment/`INSTANCE_HANDLE`; roles/personas; the
+adjudication vocabulary `PASS`/`FAIL`/`UNVERIFIED` + evidence). Graduated response, per
+ODOO-AI-ETHOS #2 ask-vs-self-decide:
+- Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
+  assumption as your first output line.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
+  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
+  irreversible/large). Do not silently guess or degrade.
+
+Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.

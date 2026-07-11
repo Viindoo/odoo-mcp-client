@@ -162,6 +162,10 @@ translation across regimes. Write findings per language to
 
 ## Dispatch contract -> odoo-translator
 
+When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
+skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
+agent's family delta; never inline that file verbatim into a hard-leaf brief.
+
 P3 dispatches the `odoo-translator` agent as a subagent launch - one leaf per (module-cluster ×
 language) pair. Each leaf is scoped to exactly ONE language. Carry a brief with: the target
 module(s), the single target language, series; the glossary TM path for that language

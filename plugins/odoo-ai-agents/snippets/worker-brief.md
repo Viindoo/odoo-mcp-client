@@ -11,6 +11,10 @@ the work is done directly by the specialist, and ALL git stays out of the worker
 the worker writes files and returns them; the orchestrator commits via git-ops (see below). A hard
 leaf launches NO sub-agent and invokes NO spawner skill.
 
+See also: the caller-side field schema (`OBJECTIVE`/`SCOPE`/`ACCEPTANCE`/... ) you were briefed
+against is `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` - this file covers only your
+worker-side behavior once dispatched, not how the caller composed your brief.
+
 **The `odoo-coder` per-module coordinator is NOT a leaf and does NOT carry this brief.** It is a
 sanctioned nested spawner (one agent level below `odoo-coding`, launched for EVERY module) that
 launches the two hard-leaf workers above, tests the integrated module via `Skill(odoo-instance)`
