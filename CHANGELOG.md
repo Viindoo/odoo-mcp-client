@@ -8,7 +8,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [4.12.0] - 2026-07-11
 
+### Added
+
+- `odoo-ai-agents` - `odoo-modules-upgrade` gains a MANDATORY P5.8 `odoo-acceptance` stage and
+  `odoo-forward-port` gains a MANDATORY P12 `odoo-acceptance` stage - cluster-wide, narrow-escape
+  only, so an upgrade or forward-port runs the same end-to-end acceptance rigor new-module
+  development gets instead of stopping at install/test (upgrade) or verify-by-behavior
+  (forward-port). Each stage computes its verify scope via `acceptance-scope.md` (the P1
+  dependency graph for upgrades; OSM `impact_analysis` reverse-closure for forward-port), dispatches
+  `odoo-acceptance` ONCE for the whole cluster/batch (never per module/commit), and its verdict - or
+  the explicitly recorded narrow-escape - is presented alongside the human sign-off/merge decision
+  so the upgrade or port is never marked DONE without it.
+
+### Changed
+
+- `odoo-ai-agents` - `odoo-intake` now ALWAYS delegates 3-block plan authoring to `odoo-planning`
+  via the Skill tool, on both the Plan-Mode step and the trivial single-module `writes-files`
+  path - intake never authors the plan inline. `odoo-planning` still emits the minimal
+  `[code, review, integrate]` plan for a single-module change, so the trivial path stays lean; it
+  is simply never hand-rolled by intake anymore.
+- `git-toolkit` 0.3.1 -> 0.4.0 - every git agent (`git-operator`, `git-pipeline-lead`,
+  `git-surveyor`, `github-operator`) gains the dispatch-brief `## Brief self-check` + N5/N6 delta
+  via `git-nesting-protocol.md` (no cross-plugin dependency on `odoo-ai-agents`).
+
 ## [4.11.0] - 2026-07-11
+
+### Added
+
+- `odoo-ai-agents` - the agent dispatch-brief system: a caller-side `dispatch-brief.md` SSOT
+  (10-field brief skeleton + role-family deltas) that every spawner skill now fills when composing
+  a dispatch prompt, plus a graduated `## Brief self-check` (NEEDS_CONTEXT/BLOCKED) added to all 30
+  agents so a leaf can push back on an incomplete brief instead of guessing.
+- `odoo-ai-agents` - `odoo-code-reviewer` now self-escalates to `odoo-perf-audit` /
+  `odoo-security-audit` / `odoo-deprecation-audit`, diff-scoped, when the reviewed diff crosses
+  their trigger thresholds (access rules/controllers/raw SQL, high-volume model ops or a stored
+  cross-relation `@api.depends`, or a deprecated-symbol count over threshold). Findings from the
+  review and the escalated audits are merged via a new `review-severity-rubric.md`, with an
+  ownership-transfer dedup rule so the same finding is never double-counted across the reviewer and
+  an audit. The three audits gain an optional `SCOPE_FILES`/`CHANGED_SET` mode (default stays
+  whole-module) so the diff-scoped escalation does not re-audit the whole module.
 
 ### Changed
 
