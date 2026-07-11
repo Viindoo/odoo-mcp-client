@@ -135,7 +135,7 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 **Procedure** (execute-skill that touches files):
 1. User sends `approve` on the Proposed Plan.
 2. Main agent calls **`EnterPlanMode`** tool.
-3. Main agent writes an implementation plan (files to be changed, approach, acceptance criteria) inside Plan Mode.
+3. Main agent invokes `odoo-planning` via the **Skill tool** - passing `plan_mode_active: true` (Plan Mode is already open at step 2) and a brief composed per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (OBJECTIVE/SCOPE/INPUTS/ACCEPTANCE) - to author the 3-block plan (module list, dependency graph, assignment) inside Plan Mode; intake does not draft plan content itself (see § Plan Mode Content Schema below).
 4. Main agent calls **`ExitPlanMode`** tool → Plan Mode UI shown to user.
 5. User reviews and approves in the Plan Mode UI.
 6. **Worktree isolation (Hard rule 6, no exceptions).** Self-provisioning specialists (SSOT set: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Self-provisioning specialists) provision internally - skip this step. On the common path a `writes-files` Approach engages Phase P and `run-harness` provisions at dispatch. Only in the non-Phase-P case, BEFORE dispatch, invoke `git-toolkit:git-ops` via the Skill tool to create a worktree/branch and pass its path into the brief (`WORKTREE_PATH` for `odoo-coding`, else `TARGET: worktree:<path>`). The principal checkout is NEVER the target. Mechanics: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
