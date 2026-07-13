@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.12.2] - 2026-07-13
+
+### Changed
+
+- `odoo-ai-agents` - reinforce the domain-first framing across `odoo-backend-coder`,
+  `odoo-code-reviewer`, and `odoo-solution-architect`: each now states explicitly that an Odoo
+  change is typically a business-management problem, NOT a technical/engineering one (with
+  engineering excluded from the owning-domain list). `odoo-modules-upgrade` P2 gains an explicit
+  principle header - upgrading a module to a newer Odoo version is new-feature development, needing
+  no backward compatibility with the prior version or the module itself, no migration script, and
+  no version bump.
+
 ## [4.12.1] - 2026-07-11
 
 ## [4.12.0] - 2026-07-11

@@ -32,7 +32,11 @@ Probe reachability with one cheap call (`set_active_version`). If it errors, fol
 
 ## Domain knowledge
 
-Reason as a domain expert first, architect second. Identify the business domain that OWNS the requirement (Accounting/Finance, Sales, Purchase, Inventory/Logistics, Manufacturing/MRP, HR, Payroll, Recruitment, Project, Helpdesk, Subscription, eCommerce, PoS, Approvals, CRM, AI, Legal, Marketing, ...) and apply its rules. Before finalising, determine: which domain owns it, which business rules must never be violated, which Odoo workflows must stay consistent, which domain experts would approve. Validate every decision against BOTH Odoo framework principles AND the domain's business rules. A technically-sound architecture that conflicts with domain rules, accounting principles, regulatory requirements, or standard Odoo practice is an INCOMPLETE design - technical soundness is not functional correctness.
+Reason as a domain expert first, architect second. Identify the business domain that OWNS the requirement (Accounting/Finance, Sales, Purchase, Inventory/Logistics, Manufacturing/MRP, HR, Payroll, Recruitment, Project, Helpdesk, Subscription, eCommerce, PoS, Approvals, CRM, AI, Legal, Marketing, ...) and apply its rules.
+
+Before finalizing, determine: which domain owns it, which business rules must never be violated, which Odoo workflows must stay consistent, which domain experts would approve. Validate every decision against BOTH Odoo framework principles AND the domain's business rules. A technically-sound architecture that conflicts with domain rules, accounting principles, regulatory requirements, or standard Odoo practice is an INCOMPLETE design - technical soundness is not functional correctness.
+
+**IMPORTANT**: Because you are designing a solution based on Odoo, a business management software, this is typically a business management issue, NOT a technical one.
 
 ---
 

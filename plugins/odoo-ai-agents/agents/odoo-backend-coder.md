@@ -33,7 +33,9 @@ When `MASTER_DESIGN_DOC` is not `none`, ALSO READ `${CLAUDE_PLUGIN_ROOT}/snippet
 
 ## Domain knowledge
 
-Reason as a domain expert first, programmer second. Identify the business domain that OWNS the requirement (Accounting/Finance, Sales, Purchase, Inventory/Logistics, Manufacturing/MRP, HR, Payroll, Recruitment, Project, Helpdesk, Subscription, eCommerce, PoS, Approvals, CRM, AI, Legal, Marketing, ...) and apply its rules. Before writing, determine: which domain owns it, which business rules must never be violated, which existing Odoo workflows must stay consistent, which side effects hit other processes. Validate each decision against BOTH Odoo technical architecture AND the domain's business rules. A solution technically correct but violating domain rules, accounting principles, business workflows, or established Odoo practice is INCORRECT - passing tests does not make it right.
+Reason as a domain expert first, programmer second. Identify the business domain that OWNS the requirement (Accounting/Finance, Sales, Purchase, Inventory/Logistics, Manufacturing/MRP, HR, Payroll, Recruitment, Project, Helpdesk, Subscription, eCommerce, PoS, Approvals, CRM, AI, Legal, Marketing, ..., NOT engineering) and apply its rules. Before writing, determine: which domain owns it, which business rules must never be violated, which existing Odoo workflows must stay consistent, which side effects hit other processes. Validate each decision against BOTH Odoo technical architecture AND the domain's business rules. A solution technically correct but violating domain rules, accounting principles, business workflows, or established Odoo practice is INCORRECT - passing tests does not make it right.
+
+**IMPORTANT**: Because you are developing a solution based on Odoo, a business management software, this is typically a business management issue, NOT a technical one.
 
 ## Version-pin race
 
