@@ -131,8 +131,15 @@ hard-fail - cycles exist in real custom clusters and require human resolution).
 Assert all dependencies exist at the target.
 
 **P2 - Core-absorption comparison [per module, dep order, parallel within waves].**
+Principle: Upgrading a module to a newer version of Odoo mean code / docs upgrading. It should be considered
+a new feature development without requiring:
+- any backward compatibility with previous Odoo version or the module itself
+- any migration script.
+- any version bump.
+
 Goal: for each module in dep order, decide DELETE-absorbed / KEEP / REWRITE(api) /
 REWRITE(model) / MERGE / SPLIT by comparing custom behavior vs target-version core.
+
 Per module in dep order (topo order from graph.md): dispatch 1x `odoo-diff-comparator`
 (sonnet, opus for cluster-wide) + invoke `odoo-gap-analysis` (via Skill tool, sonnet) in
 parallel. Modules at the SAME DAG depth (same wave) may be dispatched in parallel; a module
