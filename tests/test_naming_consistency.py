@@ -244,3 +244,51 @@ def test_naming_classifier_self_check():
     assert not _skill_uses_actor_morphology("run-harness")            # "harness"
     assert _agent_is_actor_noun("odoo-solution-architect")            # "architect"
     assert _agent_is_actor_noun("odoo-instance-ops")                  # "ops"
+
+
+# ===========================================================================
+# Residue guard: the retired per-wave git-executor skill (`odoo-wave`) and its
+# dead slash commands (`/odoo-run-wave`, `/wave-run`) must never reappear in
+# odoo-ai-agents runtime prose or the plugin manifests. That responsibility is
+# now owned by `run-harness`'s between-wave integration; a re-introduced literal
+# is dead-skill residue an executing agent would misread as a live component.
+# Only the LITERAL `odoo-wave` token + the two dead slash commands are scanned -
+# the bare word "wave" is legitimate DAG-batching vocabulary and is NOT banned.
+# ===========================================================================
+
+_ODOO_WAVE_RESIDUE = re.compile(r"odoo-wave|/odoo-run-wave|/wave-run", re.IGNORECASE)
+
+_RESIDUE_SCANNED = sorted(
+    set(SK.glob("**/*.md"))
+    | {
+        SK / ".claude-plugin" / "plugin.json",
+        SK / ".codex-plugin" / "plugin.json",
+        SK / "gemini-extension.json",
+    }
+)
+
+
+def test_no_odoo_wave_residue():
+    """No retired-skill residue: the literal `odoo-wave` token and the dead
+    `/odoo-run-wave` / `/wave-run` slash commands must not appear anywhere under
+    `plugins/odoo-ai-agents/**/*.md` or in the three plugin manifests.
+
+    The per-wave git-executor was folded into `run-harness`'s between-wave
+    integration; a stray literal would make an executing agent treat a dead skill
+    as a live component. The legitimate wave-batching CONCEPT (a wave of modules,
+    between-wave integration, per-wave loop) uses the bare word "wave" and is
+    intentionally NOT scanned here - banning it mechanically would false-positive
+    on current, accurate terminology.
+    """
+    offenders = []
+    for f in _RESIDUE_SCANNED:
+        if not f.exists():
+            continue
+        for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+            if _ODOO_WAVE_RESIDUE.search(line):
+                offenders.append(f"{f.relative_to(REPO_ROOT)}:{n}: {line.strip()[:120]}")
+    assert not offenders, (
+        "Retired `odoo-wave` / `/odoo-run-wave` / `/wave-run` residue reappeared. The per-wave "
+        "git-executor was folded into run-harness's between-wave integration - name run-harness or "
+        "the concept, never the dead skill/command:\n" + "\n".join(offenders)
+    )
