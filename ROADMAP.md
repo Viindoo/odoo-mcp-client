@@ -23,16 +23,13 @@ Items are directional, not commitments, and reflect publicly announced milestone
   EXECUTION plan after solution-design: a wave-batched module-DAG, the integration cadence,
   each module/stage wired to a skill, and the lifecycle code -> review -> doc -> PR -> monitor ->
   merge. `run-harness` (the sequencer, renamed from `run-driver`) walks it and lands each coding
-  wave-layer directly as its Between-wave integration step (the internal `odoo-wave` git-executor
-  was folded into `run-harness` in v4.9.0 - no separate git-executor skill); and the new
+  wave-layer directly as its Between-wave integration step; and the new
   `odoo-pr-monitoring` skill watches the opened PR to merge (CI/review poller, CI failures route to
-  `odoo-debug`, the L2-merge-gate). The standalone `/odoo-run-wave` slash command was removed in
-  v4.0.0.
+  `odoo-debug`, the L2-merge-gate).
 - **Git-wave execution** (v2.3.0; re-architected v4.0.0; folded into `run-harness` v4.9.0) - the
   git-executor logic that lands multiple modules as one reviewed, squashed PR without touching the
   principal branch: integration branch + per-module worktrees + cherry-pick + end-of-wave review +
-  1 PR + squash + tree-identity gate. v4.0.0 made it the internal, consume-only `odoo-wave` skill
-  driven by `run-harness`; v4.9.0 absorbed it directly into `run-harness` (no separate skill) - it
+  1 PR + squash + tree-identity gate. v4.9.0 absorbed it directly into `run-harness` (no separate skill) - it
   still invokes `odoo-coding` per module and stops at the L2-squash-gate, with merge owned by
   `odoo-pr-monitoring`. Principal-branch-locked; auto-merge never allowed.
 - **Workflow harness + `odoo-intake` front door** (v2.2.0) - three-layer architecture (Entry/Intake,

@@ -41,8 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   path - intake never authors the plan inline. `odoo-planning` still emits the minimal
   `[code, review, integrate]` plan for a single-module change, so the trivial path stays lean; it
   is simply never hand-rolled by intake anymore.
-- `git-toolkit` 0.3.1 -> 0.4.0 - every git agent (`git-operator`, `git-pipeline-lead`,
-  `git-surveyor`, `github-operator`) gains the dispatch-brief `## Brief self-check` + N5/N6 delta
+- `git-toolkit` 0.3.1 -> 0.4.0 - every git agent gains the dispatch-brief `## Brief self-check` + N5/N6 delta
   via `git-nesting-protocol.md` (no cross-plugin dependency on `odoo-ai-agents`).
 
 ## [4.11.0] - 2026-07-11
@@ -182,7 +181,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   plan-mode-schema / Phase P / `run-harness` plan, serialize, and iterate MODULES (the
   plan's Block 1 is a MODULE list; a coding RUN-DAG node is a wave of MODULES with
   `approach_kind: wave`; `run-harness` iterates the wave's modules and invokes `odoo-coding` per
-  module - there is no separate `odoo-wave` git-executor skill). The
+  module). The
   WORK-ITEM is now an INTERNAL intra-module parallelization unit OWNED by `odoo-coder`: for its ONE
   module the coordinator splits the changes into 1..N disjoint-file-set WIs, runs INDEPENDENT WIs in
   PARALLEL and DEPENDENT WIs SEQUENTIALLY (backend before a frontend WI that binds it), and assigns
@@ -294,11 +293,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `snippets/acceptance-oracle-contract.md` and `odoo-qa-planner` now cross-reference the §9
   INDEPENDENCE GUARD to make explicit that consuming `DESIGN_DOC` §9 does not violate oracle
   independence (the ban is on reading the implementation, not the requirement-derived design doc).
-- `odoo-ai-agents` - the `odoo-wave` git-executor skill is REMOVED (completing decision R). Its
-  per-wave integration (fork-from-prior-integration per Block 2W, cherry-pick in module-DAG order,
+- `odoo-ai-agents` - the per-wave integration (fork-from-prior-integration per Block 2W, cherry-pick in module-DAG order,
   cross-cutting integrated review, cumulative regression close-gate, one squashed PR at the
   L2-squash-gate, and the saga rollback/resume) is now owned DIRECTLY by `run-harness` as its
-  § Between-wave integration - there is no separate git-executor skill. A coding wave is a RUN-DAG
+  § Between-wave integration (completing decision R); there is no separate git-executor skill. A coding wave is a RUN-DAG
   node with `approach_kind: wave` that `run-harness` drives (it iterates the wave's modules, invokes
   `odoo-coding` per module - whose `odoo-coder` coordinator commits via `git-toolkit:git-ops` and
   returns the SHA - then cherry-picks + reviews + closes the wave). The `spawner-wave` spawn_class is
@@ -369,7 +367,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   always commits via `git-toolkit:git-ops` and self-provisions a worktree when invoked standalone
   (the old "no WORKTREE_PATH -> make no commit" branch is removed); the `odoo-intake` inline
   micro-plan gains a terminal `integrate` land node (git-ops opens a PR -> `odoo-pr-monitoring`
-  merges at gate-tier L2 - the single land mechanism shared with `odoo-wave`). `integrate` added
+  merges at gate-tier L2). `integrate` added
   to the `approach_kind` enum in `docs/reference/workflow-harness.md`. New
   `tests/test_coding_commit_ownership.py` guard.
 - `odoo-ai-agents` - `odoo-icon-design` now verifies and commits its generated icon assets
@@ -459,14 +457,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   "own-worktree add/commit/stash" carve-out for domain workers. The coders (`odoo-coder` /
   `odoo-frontend-coder`) and any other domain subagent now WRITE their files in the assigned
   worktree and RETURN the file list; they run zero git. The orchestrator that owns the worktree
-  (`odoo-coding`, invoked per WI by `odoo-wave`) invokes the `git-toolkit:git-ops` skill to stage +
+  (`odoo-coding`) invokes the `git-toolkit:git-ops` skill to stage +
   commit that output and capture the SHA. Rationale: workers do not know the project's git/commit
   conventions, so git is delegated entirely to git-ops.
   - SSOT tightened: `snippets/git-delegation.md` (dropped the "Benign local writes" section) and
     `snippets/worker-brief.md` (no worker git at all - write files, return, orchestrator commits).
   - `odoo-coder.md` / `odoo-frontend-coder.md`: removed the own-worktree-commit exception and the
     blanket "git-ops for any git work" clause - the coder returns files, never commits.
-  - `odoo-coding` + `odoo-wave` (+ `wave-templates.md`, wave evals): the commit is now an
+  - `odoo-coding` (+ `wave-templates.md`, wave evals): the commit is now an
     `odoo-coding` -> git-ops step after the coders return, not a raw coder commit; the WI-SHA
     contract is preserved (odoo-coding obtains the SHA via git-ops).
   - `odoo-modules-upgrade` P4 (KEEP/REWRITE brief) no longer instructs the coder to commit; the
@@ -543,7 +541,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Git delegation in `odoo-ai-agents` now routes through the `git-toolkit:git-ops` skill: consumers invoke `git-ops` via the Skill tool instead of cold-spawning `git-operator` / `git-surveyor` / `github-operator`; the guard test (`tests/test_git_delegation_boundary.py`) enforces the new seam.
+- Git delegation in `odoo-ai-agents` now routes through the `git-toolkit:git-ops` skill: consumers invoke `git-ops` via the Skill tool instead of cold-spawning git-toolkit's specialist agents; the guard test (`tests/test_git_delegation_boundary.py`) enforces the new seam.
 - `git-toolkit` 0.2.2 -> 0.2.3 - the 3 leaf agents can push a completion report in Agent Team mode (new snippet `snippets/agent-team-reporting.md`); still cannot fan out.
 - `odoo-semantic-mcp` 1.0.0 -> 1.0.1 and `git-toolkit` 0.2.3 -> 0.2.4 - their shipped command/skill (`connect`, `git-ops`) gained an `argument-hint`.
 
@@ -552,18 +550,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - New skill `odoo-planning` + agent `odoo-planner`: the EXECUTION-PLAN step between solution-design (HOW to build) and code (HOW to ship). The planner turns an approved technical design into a gate-able 3-block plan - a wave-batched module-DAG, the integration cadence, each module/stage wired to a SKILL, and the full lifecycle (code -> review -> doc -> PR -> monitor -> merge) - emitting effort / `est_agents` ESTIMATES only (the dispatched specialist skill owns the real model + count at runtime). This splits PLANNING out of the former monolithic wave so design, planning, and execution are three distinct gated concerns.
-- New skill `odoo-pr-monitoring`: the post-PR lifecycle owner (a poller, NOT a blocking DAG node) - watches an opened PR's CI + review state and MERGES at the L2-merge-gate, routing ANY CI warning/error/fail through `odoo-debug` (root-cause first) then `odoo-coding` (the re-push stays human-gated). PR/CI reads, the merge, and post-merge cleanup are delegated to git-toolkit's `github-operator` / `git-operator`.
+- New skill `odoo-pr-monitoring`: the post-PR lifecycle owner (a poller, NOT a blocking DAG node) - watches an opened PR's CI + review state and MERGES at the L2-merge-gate, routing ANY CI warning/error/fail through `odoo-debug` (root-cause first) then `odoo-coding` (the re-push stays human-gated). PR/CI reads, the merge, and post-merge cleanup are delegated to git-toolkit's specialist agents (routed through its `git-ops` front door).
 - Real naming-morphology enforcement (`tests/test_naming_consistency.py`): the three-layer name rules (skill = capability noun; agent = actor noun; `odoo-` prefix unless allowlisted) were previously only CLAIMED in prose with no test behind them - which is how a `run-driver`-class offender (unprefixed AND actor-morphology used as a skill) slipped in. The rules are now test-enforced, with a red-before-green classifier self-check.
 
 ### Changed
 
-- Orchestration split (planning separated from execution): the former `wave` skill is renamed `odoo-wave` and demoted to an INTERNAL, consume-only git-executor (`user-invocable: false`, not a user front door) that `run-harness` dispatches once per coding wave-layer of an approved plan; it never chooses agent/model, never self-derives a plan, and never merges (merge is owned by `odoo-pr-monitoring`). The sequencer skill `run-driver` is renamed `run-harness` (the drive-to-done loop over the run-DAG).
+- Orchestration split (planning separated from execution): the sequencer skill `run-driver` is renamed `run-harness` (the drive-to-done loop over the run-DAG).
 - `check_orchestration.py` gate-tier derivation: a new `outward` flag (declared on `odoo-pr-monitoring` in `generator/skill_tool_deps.json`) makes an outward git merge/push a third L2 trigger alongside `instance_touching` and `spawner-wave`, so an outward-merging poller's correct `default_gate_tier=L2` no longer mis-warns as "should be L1".
 - `git-toolkit` dependency-direction fix: genericized so the domain-agnostic provider library never names its consumer `odoo-ai-agents` (skills/agents/commands), with a new guard test `tests/test_git_toolkit_independence.py` that scans ONLY `plugins/git-toolkit/**` (the exact inverse of `test_git_delegation_boundary.py`; together a non-overlapping bidirectional guard). (`git-toolkit` 0.2.1 -> 0.2.2.)
 
 ### Removed
 
-- **BREAKING:** the `/odoo-run-wave` slash command is removed. Wave execution is no longer user-invoked; it is an internal step (`odoo-wave`) driven by `run-harness` after a plan is approved. This is the breaking change behind the major version bump.
+- **BREAKING:** the standalone slash command for user-invoked wave execution is removed. Wave execution is no longer user-invoked; it is now an internal step driven by `run-harness` after a plan is approved. This is the breaking change behind the major version bump.
 
 ## [3.34.0] - 2026-06-29
 
@@ -593,7 +591,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `odoo-ui-review` / `odoo-ui-reviewer` expanded to ground a screen's structure before checking its render: `module_inspect(method='views')` now also surfaces WHICH view types an action exposes (form/list/kanban/pivot/graph/calendar/activity), and the render-check scope is widened to dependents (blast-radius) per `acceptance-scope.md`. Declares the previously-undeclared `impact_analysis` (Step 1b template/asset-bundle blast radius) and `find_examples` (view-type shape); `docs/odoo-ui-knowledge.md` gains a "grounding a screen's structure" section.
 - `odoo-test-writing` expanded for tour/HttpCase + per-module JS-framework grounding: declares `test_base_classes` (base-class menu + `cr.commit()`-forbidden contract, incl. HttpCase), `find_test_examples` (test-only chunks, no production contamination), and `js_test_inspect` (QUnit vs Hoot mix + suite paths + tour registry). Server floor raised 0.13.1 -> 0.15.0 to cover the test-surface tools.
 - Test-execution delegation retrofit (writer != executor; SSOT `snippets/test-execution-handoff.md`): `odoo-coder`, `odoo-frontend-coder`, and `odoo-code-reviewer` now reuse a passed `INSTANCE_HANDLE` for bounded lint-only runs and delegate any full module / cross-module suite (and browser tours / served-bundle JS) to `odoo-instance` instead of running heavy suites inline.
-- Acceptance wired as an opt-in, L2 (human-gated) next step: `odoo-code-review` and `wave` emit `next: odoo-acceptance` when a change's `render_check_set` reaches beyond the changed modules (dependents bind a changed symbol) or the UI dimension is left `DONE_WITH_CONCERNS`; the `odoo-implement-feature` workflow tail (DESIGN -> CODE -> REVIEW -> ACCEPTANCE) and `odoo-solution-design` route the gate through `run-driver`. Never auto-runs, auto-blocks, or auto-merges.
+- Acceptance wired as an opt-in, L2 (human-gated) next step: `odoo-code-review` emits `next: odoo-acceptance` when a change's `render_check_set` reaches beyond the changed modules (dependents bind a changed symbol) or the UI dimension is left `DONE_WITH_CONCERNS`; the `odoo-implement-feature` workflow tail (DESIGN -> CODE -> REVIEW -> ACCEPTANCE) and `odoo-solution-design` route the gate through `run-driver`. Never auto-runs, auto-blocks, or auto-merges.
 - `odoo-intake` routing updated: rows 34 / 47 and disambiguation row 13 distinguish `odoo-acceptance` (execute + adjudicate an oracle on a live instance/UI) from `qa-suite` (static test-plan/checklist doc, nothing run), `odoo-ui-review` (rate one rendered screen), and `odoo-code-review` (static source review).
 - README artifact tables reconciled to the real surface (48 skills + 17 agents): added rows for `odoo-acceptance`, `odoo-qa-planner`, and `odoo-qa-tester`, plus the pre-existing-missing `odoo-forward-port` skill row and `odoo-gap-analyzer` agent row so the counts match `plugin.json`.
 
@@ -610,28 +608,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `odoo-gap-analysis` upgraded from an inline leaf into a spawner-agent orchestrator: it clusters requirements by functional area, fans out `odoo-gap-analyzer` workers (rolling-window, model chosen per cluster complexity), synthesizes and de-duplicates findings from disk, and emits a locked file-handoff artifact set under `.odoo-ai/gap-analysis/<slug>-<date>/` (`gap-report.md`, `gap-matrix.jsonl`, `gap-continuation-contract.json`).
 - Wired the gap-analysis file-handoff into its downstream consumers: `odoo-solution-design` and `odoo-solution-architect` (new `GAP_MATRIX` input port), `odoo-pricing-proposal` and `odoo-rfp-response` (effort read from `gap-matrix.jsonl`), the `odoo-respond-bid` and `odoo-implement-feature` workflows (explicit file-path chaining), `odoo-brl` (seed / cross-check from `gap-matrix`), and `odoo-intake` (scope-first routing: gap before design).
 - `odoo-ai-agents`: moved agent routing ("when to invoke") out of the 7 agent bodies into their `description` frontmatter, per Anthropic's subagent convention (the body is the agent's system prompt only); added a guard test (`tests/test_agent_body_convention.py`) and a CONTRIBUTING "Agent format" section so the split does not regress.
-- `git-toolkit`: same agent-body convention applied to its 4 agents (`git-operator`, `git-surveyor`, `github-operator`, `git-pipeline-lead`) - routing now lives in `description`, the body is the system prompt. (`git-toolkit` 0.2.0 -> 0.2.1.)
+- `git-toolkit`: same agent-body convention applied to its 4 agents - routing now lives in `description`, the body is the system prompt. (`git-toolkit` 0.2.0 -> 0.2.1.)
 
 ## [3.31.2] - 2026-06-28
 
 ### Changed
 
-- `git-toolkit` single-delegate model assignment: the three leaf agents (`git-surveyor`, `git-operator`, `github-operator`) now default to `model: sonnet` instead of `inherit`, so a single-delegate spawn no longer inherits the caller's model (often opus) for trivial git/github ops. New SSOT `snippets/git-model-tiers.md` maps each single-delegate op-class to a tier (haiku for mechanical reads, sonnet default, opus for destructive rewrites); the `git-ops` SINGLE-DELEGATE route now passes the Agent-tool `model` param + a `DISPATCH MODEL:` brief line and no longer relies on `inherit`. Inert inline model tokens stripped from `git-surveyor`'s phase descriptions (an agent's own model is fixed at spawn; body prose cannot set it). (`git-toolkit` 0.1.2 -> 0.2.0.)
-- `git-toolkit` `op=squash-push`: the squash-to-one + tree-identity + force-with-lease recipe is promoted into `snippets/git-squash-push.md` (composing the `git-safety-contract` S1/S6/S2 primitives), and `wave` now delegates to that named op instead of re-spelling the primitives in `wave/reference/wave-templates.md` - removing an SSOT duplication.
+- `git-toolkit` single-delegate model assignment: the three leaf agents now default to `model: sonnet` instead of `inherit`, so a single-delegate spawn no longer inherits the caller's model (often opus) for trivial git/github ops. New SSOT `snippets/git-model-tiers.md` maps each single-delegate op-class to a tier (haiku for mechanical reads, sonnet default, opus for destructive rewrites); the `git-ops` SINGLE-DELEGATE route now passes the Agent-tool `model` param + a `DISPATCH MODEL:` brief line and no longer relies on `inherit`. Inert inline model tokens stripped from one leaf agent's phase descriptions (an agent's own model is fixed at spawn; body prose cannot set it). (`git-toolkit` 0.1.2 -> 0.2.0.)
+- `git-toolkit` `op=squash-push`: the squash-to-one + tree-identity + force-with-lease recipe is promoted into `snippets/git-squash-push.md` (composing the `git-safety-contract` S1/S6/S2 primitives) - removing an SSOT duplication.
 
 ## [3.31.1] - 2026-06-28
 
 ### Fixed
 
-- `odoo-git-rebase` orchestration gaps (#115): P8 conflict resolution and review now dispatch the `odoo-coding` / `odoo-code-review` skills via the Skill tool instead of raw agents; reference the new `git-toolkit` S10 `rebase --continue` continue-driver; slug sanitization pinned; `rerere.autoupdate` set; a conflict-type taxonomy added; P8b symbol-survival + collection gate delegated (Explore / git-surveyor) with an explicit PASS/FAIL verdict; explicit pyflakes import-resolvability gate; `installable=False` guard; a shared `INSTANCE_HANDLE` (new `snippets/instance-handle-contract.md`) provisioned once via `odoo-instance` and forwarded downstream; run-tests verdict contract.
-- `git-toolkit` conflict continue-driver (#115): new S10 step in `git-safety-contract` - never `--skip` on "no unmerged files" (only on an empty `--continue` patch); per-path resolution (UD/DD -> `git rm`, static add/add -> non-empty side, marker -> coder, rerere-resolved -> `git add`); `rerere.autoupdate` enabled. `git-operator` and the `conflict-resolution` reference cite S10 inline. (`git-toolkit` 0.1.1 -> 0.1.2.)
+- `odoo-git-rebase` orchestration gaps (#115): P8 conflict resolution and review now dispatch the `odoo-coding` / `odoo-code-review` skills via the Skill tool instead of raw agents; reference the new `git-toolkit` S10 `rebase --continue` continue-driver; slug sanitization pinned; `rerere.autoupdate` set; a conflict-type taxonomy added; P8b symbol-survival + collection gate delegated (Explore / git-toolkit's read-only survey agent) with an explicit PASS/FAIL verdict; explicit pyflakes import-resolvability gate; `installable=False` guard; a shared `INSTANCE_HANDLE` (new `snippets/instance-handle-contract.md`) provisioned once via `odoo-instance` and forwarded downstream; run-tests verdict contract.
+- `git-toolkit` conflict continue-driver (#115): new S10 step in `git-safety-contract` - never `--skip` on "no unmerged files" (only on an empty `--continue` patch); per-path resolution (UD/DD -> `git rm`, static add/add -> non-empty side, marker -> coder, rerere-resolved -> `git add`); `rerere.autoupdate` enabled. the local-mutation agent and the `conflict-resolution` reference cite S10 inline. (`git-toolkit` 0.1.1 -> 0.1.2.)
 - Capability/gap pipeline guardrails (#121, client-side only): module-slug -> provider inference forbidden; per-claim provenance tags `[OSM-index]` / `[inferred]` with wording downgrade; absence-in-index transparency; new `snippets/ssot-extraction-contract.md` (verbatim extraction for SSOT source docs); recon-no-file-write guard in `odoo-intake`. Live-MCP cross-check intentionally out of scope (kept per PR #42).
 
 ## [3.31.0] - 2026-06-28
 
 ### Added
 
-- `odoo-solution-design`: master-child design decomposition for large multi-module scope. `odoo-solution-architect` now supports four modes (`single` / `master` / `child` / `consistency`); `master` mode produces one master TDD (cross-module contracts, shared-symbol ownership, DAG layer order) then N child TDDs in `dag_layer` order under `.odoo-ai/designs/<master-slug>/`; machine-readable `index.yaml` is the routing SSOT for downstream consumers. Two-level design handoff (`DESIGN_DOC` = child spec, `MASTER_DESIGN_DOC` = hard-constraint master TDD) wired through `odoo-coding`, `odoo-code-review`, `odoo-debug`, and `wave`. Contract SSOT: `snippets/master-child-design-contract.md`.
+- `odoo-solution-design`: master-child design decomposition for large multi-module scope. `odoo-solution-architect` now supports four modes (`single` / `master` / `child` / `consistency`); `master` mode produces one master TDD (cross-module contracts, shared-symbol ownership, DAG layer order) then N child TDDs in `dag_layer` order under `.odoo-ai/designs/<master-slug>/`; machine-readable `index.yaml` is the routing SSOT for downstream consumers. Two-level design handoff (`DESIGN_DOC` = child spec, `MASTER_DESIGN_DOC` = hard-constraint master TDD) wired through `odoo-coding`, `odoo-code-review`, and `odoo-debug`. Contract SSOT: `snippets/master-child-design-contract.md`.
 - `odoo-frontend-coder`: TDD-conformance gap fixed - agent now reads and enforces `MASTER_DESIGN_DOC` constraints in addition to the child `DESIGN_DOC` spec.
 
 ## [3.30.2] - 2026-06-28
@@ -669,27 +667,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- `git-toolkit` delegation: all git/GitHub operations in `odoo-ai-agents` now delegate to `git-toolkit` agents (`git-surveyor`, `git-operator`, `github-operator`, `git-pipeline-lead`) instead of running inline. New caller SSOT `plugins/odoo-ai-agents/snippets/git-delegation.md` documents the boundary and carve-outs; `git-toolkit` declared as an `odoo-ai-agents` dependency in `plugin.json`; boundary enforced by the new `tests/test_git_delegation_boundary.py`.
+- `git-toolkit` delegation: all git/GitHub operations in `odoo-ai-agents` now delegate to git-toolkit's specialist agents (routed through its `git-ops` front door) instead of running inline. New caller SSOT `plugins/odoo-ai-agents/snippets/git-delegation.md` documents the boundary and carve-outs; `git-toolkit` declared as an `odoo-ai-agents` dependency in `plugin.json`; boundary enforced by the new `tests/test_git_delegation_boundary.py`.
 
 ### Changed
 
-- The four heavy pipelines (`odoo-git-rebase`, `odoo-forward-port`, `odoo-modules-upgrade`, `wave`), `odoo-code-review`, and the read-only leaf agents (`odoo-diff-comparator`, `odoo-intent-extractor`, `odoo-installable-prober`, `odoo-review-scoper`) no longer execute git or `gh` CLI calls inline; they cold-spawn the appropriate `git-toolkit` agent. Bounded reads (e.g. `git log`, `git diff`) and a subagent's own-worktree `git add`/`commit`/`stash` are explicitly permitted to stay inline.
+- The three heavy pipelines (`odoo-git-rebase`, `odoo-forward-port`, `odoo-modules-upgrade`), `odoo-code-review`, and the read-only leaf agents (`odoo-diff-comparator`, `odoo-intent-extractor`, `odoo-installable-prober`, `odoo-review-scoper`) no longer execute git or `gh` CLI calls inline; they cold-spawn the appropriate `git-toolkit` agent. Bounded reads (e.g. `git log`, `git diff`) and a subagent's own-worktree `git add`/`commit`/`stash` are explicitly permitted to stay inline.
 
 ### Fixed
 
-- `odoo-modules-upgrade` upgrade robustness (review R3 findings M2/M3/L1/L2/L3): RECONCILE new-mechanism detection now runs `suggest_pattern`/`find_examples` unconditionally for every KEEP feature so a new parallel core mechanism (new model/mixin/action on the same domain) is caught even when the feature's own API endpoint shows no `new` items; crash-safe checkpoint resume now uses explicit per-phase skip thresholds (P2 skips {absorbed..done}, P4 skips {adapted..done}, P4b skips {reviewed..done}, P5 skips {installed,done}) preventing a resume from overwriting already-adapted integration worktree work; commit consolidation base is now recorded from the git-operator converge step SHA instead of being re-discovered from an interleaved log; design-trigger condition list removed from `upg-phase-detail.md` P2b (SKILL.md § P2b is the SSOT; duplicate no longer drifts); DCO sign-off (`git commit -s`) made mandatory in the P4 coder brief for KEEP/REWRITE paths.
-- `git-toolkit` safety contract gains S9 (worktree-always / principal-checkout-lock, mandatory for all delegated ops); `git-operator` now emits a `BLOCKED-CONFLICT` status with `conflicted_files` and `stopped_commit` fields to support the stateless conflict-resume loop at the orchestrator level.
+- `odoo-modules-upgrade` upgrade robustness (review R3 findings M2/M3/L1/L2/L3): RECONCILE new-mechanism detection now runs `suggest_pattern`/`find_examples` unconditionally for every KEEP feature so a new parallel core mechanism (new model/mixin/action on the same domain) is caught even when the feature's own API endpoint shows no `new` items; crash-safe checkpoint resume now uses explicit per-phase skip thresholds (P2 skips {absorbed..done}, P4 skips {adapted..done}, P4b skips {reviewed..done}, P5 skips {installed,done}) preventing a resume from overwriting already-adapted integration worktree work; commit consolidation base is now recorded from the git-ops converge step SHA instead of being re-discovered from an interleaved log; design-trigger condition list removed from `upg-phase-detail.md` P2b (SKILL.md § P2b is the SSOT; duplicate no longer drifts); DCO sign-off (`git commit -s`) made mandatory in the P4 coder brief for KEEP/REWRITE paths.
+- `git-toolkit` safety contract gains S9 (worktree-always / principal-checkout-lock, mandatory for all delegated ops); git-toolkit's local-mutation agent now emits a `BLOCKED-CONFLICT` status with `conflicted_files` and `stopped_commit` fields to support the stateless conflict-resume loop at the orchestrator level.
 - Hardcoded fork and upstream identifiers removed from `odoo-git-rebase`, `odoo-forward-port`, and `odoo-modules-upgrade` agent prose; these are now resolved at runtime via `git remote get-url origin`.
 
 ## [3.29.0] - 2026-06-26
 
 ### Added
 
-- Context-Handoff Protocol (CHP), an opt-in 3-tier agent-dispatch optimization (issue #98). New SSOT `snippets/context-handoff-protocol.md`: Tier A `SendMessage`-resume of a previously-spawned worker (gated on a runtime capability probe: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, `SendMessage` tool present, target addressable, orchestrator is the team lead), Tier B `subagent_type: "fork"` for read-heavy fan-outs, and Tier C fresh-spawn + worklog as the always-correct SSOT fallback. The snippet codifies the fallback trigger matrix (silent/automatic/degraded-but-correct), async park-and-be-resumed semantics, the lead-is-address-authority contract, "no nested teams = roster only", a confidentiality guard (never frame a handoff payload as a "secret"), the worklog-as-SSOT invariant, and an invariant/cross-check-at-aggregation rule. Wired into `odoo-coding` + `odoo-code-review` (coder<->reviewer loop, Tier A), `wave` (per-WI Tier A with a cd-on-resume hard rule), `odoo-forward-port` (P1 intent-extract fork + P8/P9 adapt Tier A), `odoo-deep-survey` and `odoo-brl` (read fan-out fork). New generator field `handoff: send-message | fork | fresh` in `generator/skill_tool_deps.json` (absent = `fresh`), a `[chp-tier-c-fallback]` lint in `generator/check_orchestration.py`, a `handoff` column in the generated `docs/reference/ORCHESTRATION-MAP.md`, and `tests/test_chp_hardening.py` (#98).
+- Context-Handoff Protocol (CHP), an opt-in 3-tier agent-dispatch optimization (issue #98). New SSOT `snippets/context-handoff-protocol.md`: Tier A `SendMessage`-resume of a previously-spawned worker (gated on a runtime capability probe: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, `SendMessage` tool present, target addressable, orchestrator is the team lead), Tier B `subagent_type: "fork"` for read-heavy fan-outs, and Tier C fresh-spawn + worklog as the always-correct SSOT fallback. The snippet codifies the fallback trigger matrix (silent/automatic/degraded-but-correct), async park-and-be-resumed semantics, the lead-is-address-authority contract, "no nested teams = roster only", a confidentiality guard (never frame a handoff payload as a "secret"), the worklog-as-SSOT invariant, and an invariant/cross-check-at-aggregation rule. Wired into `odoo-coding` + `odoo-code-review` (coder<->reviewer loop, Tier A), `odoo-forward-port` (P1 intent-extract fork + P8/P9 adapt Tier A), `odoo-deep-survey` and `odoo-brl` (read fan-out fork). New generator field `handoff: send-message | fork | fresh` in `generator/skill_tool_deps.json` (absent = `fresh`), a `[chp-tier-c-fallback]` lint in `generator/check_orchestration.py`, a `handoff` column in the generated `docs/reference/ORCHESTRATION-MAP.md`, and `tests/test_chp_hardening.py` (#98).
 
 ### Changed
 
-- Removed obsolete "no Skill tool / no subagent / NL-dispatch only" prohibitions now that Claude Code supports multi-level agent nesting (depth cap 5; interior agents can spawn subagents; "no nested teams" = roster only) and self-manages resources (concurrency cap, rolling windows, queueing). Skills, agents, and commands may now dispatch via the Skill tool: `odoo-qa-suite`, `odoo-debug` (relabeled Orchestrator), `odoo-support-triage`, `workflow-chaining` (phase dispatch incl. spawner skills), the `odoo-coder` / `odoo-frontend-coder` / `odoo-solution-architect` agents (blanket Skill-tool bans dropped; execution-pipeline carve-outs kept as scope correctness, not nesting fear), the `odoo-run-brl` / `odoo-run-wave` / `odoo-summarize-discovery` commands, and `docs/reference/workflow-harness.md` (fork-worker hard-rule narrowed to spawner-skills-only, internal inconsistency resolved). Genuine non-nesting/non-resource carve-outs preserved: `wave` cherry-pick critical-section + principal-branch lock + human-confirm-merge, `odoo-brl` sequential-outer ordering for checkpoint/resume correctness, `odoo-intake` fresh-context run-driver dispatch, and browser-main-context constraints. `README.md` and `workflow-harness.md` updated to document the CHP model and the corrected nesting reality (#98).
+- Removed obsolete "no Skill tool / no subagent / NL-dispatch only" prohibitions now that Claude Code supports multi-level agent nesting (depth cap 5; interior agents can spawn subagents; "no nested teams" = roster only) and self-manages resources (concurrency cap, rolling windows, queueing). Skills, agents, and commands may now dispatch via the Skill tool: `odoo-qa-suite`, `odoo-debug` (relabeled Orchestrator), `odoo-support-triage`, `workflow-chaining` (phase dispatch incl. spawner skills), the `odoo-coder` / `odoo-frontend-coder` / `odoo-solution-architect` agents (blanket Skill-tool bans dropped; execution-pipeline carve-outs kept as scope correctness, not nesting fear), the `odoo-run-brl` / `odoo-summarize-discovery` commands, and `docs/reference/workflow-harness.md` (fork-worker hard-rule narrowed to spawner-skills-only, internal inconsistency resolved). Genuine non-nesting/non-resource carve-outs preserved: the cherry-pick critical-section + principal-branch lock + human-confirm-merge, `odoo-brl` sequential-outer ordering for checkpoint/resume correctness, `odoo-intake` fresh-context run-driver dispatch, and browser-main-context constraints. `README.md` and `workflow-harness.md` updated to document the CHP model and the corrected nesting reality (#98).
 
 ## [3.28.0] - 2026-06-26
 
@@ -709,7 +707,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - `scripts/verify-backend.sh` lint gate parity: prepend `--disable=all` so only the derived Viindoo whitelist runs (no OCA-default broad enables), strip `#`-commented lines before deriving enabled codes, downgrade `unknown-option-value` (W0012) version drift to a non-blocking WARN, and fail-closed (loud WARN, never a silent green) when the whitelist cannot be derived; per-series `pylint_odoo` pins in `scripts/lib/odoo-python-matrix.json`; protected by `tests/test_verify_backend_gate.py` (red-before-green). The P5 install gate now runs framework validation with demo data ON (Runbot parity), and `odoo-deprecation-audit` scans at the TARGET version against the module's own source (with `era-reference.md` rewritten as a v8-v19 range). A performance lens (a stored compute aggregating a relation on a high-volume model must use a grouped `_read_group`) and verification discipline (no APPROVE-via-simulation; pre-write value / recompute claims require runtime evidence) were added to `odoo-code-reviewer` and `odoo-solution-architect`; `odoo-instance-ops` demo-flag guidance corrected to the v8-v18 vs v19 split (#117).
-- Coder model-tier no longer leaves large work on sonnet: the `odoo-coding` §5 tier table now escalates a single-stack work-item to opus on size/scope (net-new-or-changed >=~200 LOC, >=~5 files, or a large / high-blast-radius target module), the sonnet catch-all is capped below those thresholds, and `wave` resolves each work-item's model tier via that table instead of letting the leaf agent fall back to its default sonnet (#117).
+- Coder model-tier no longer leaves large work on sonnet: the `odoo-coding` §5 tier table now escalates a single-stack work-item to opus on size/scope (net-new-or-changed >=~200 LOC, >=~5 files, or a large / high-blast-radius target module), the sonnet catch-all is capped below those thresholds (#117).
 - Mandatory guideline-read enforcement, to stop agents shipping stale version constructs (e.g. `<tree>` on v18 where the guideline says `<list>`) when they skip the guidelines or lose them to context compaction. `read-before-write-contract.md` (SSOT) and every code/debug/review/architect agent now carry a unified `MANDATORY HARD RULE` (no line of a file type written before its By-task-mapped guideline + pivot section is read), a just-in-time pivot-row re-read immediately before writing each file type, and a `VERSION RULES APPLIED` sticky-note the coder emits before code and the reviewer verifies (mismatch = HIGH) so the rules survive compaction; coder/frontend-coder/reviewer gain a hard `MANDATORY READ GATE` checklist item (locked in by `tests/test_execute_agent_hardening.py`). Stale duplicated version-facts in agent/reference prose (`@odoo-module` "v16-v17", `@api.multi` "v13/v14", the tree/list history note, frozen era tables) are purged in favour of `odoo-version-pivots.md` pointers (#117).
 
 ## [3.27.0] - 2026-06-25
@@ -799,7 +797,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - **Dropped non-portable `/code-review` and `/skill-creator` references.** These slash commands
-  exist only on the maintainer's machine, so the `wave` / `odoo-forward-port` pipelines that called
+  exist only on the maintainer's machine, so the `odoo-forward-port` pipeline that called
   them would fail for any other user of this public plugin. Odoo code review now routes to the
   bundled `odoo-code-review` skill (OSM-grounded, always available, auto-spawns its reviewer from the
   orchestrating context); both commands are removed from the WI-worker spawner-ban enumerations and
@@ -832,7 +830,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   reports PASS / FAILED / SKIPPED; a soft-degraded (toolchain-absent) run reads SKIPPED and must not
   be reported as a clean Python pass - an unrun gate is not a green gate.
 - **odoo-code-review Phase 0 detects a sibling git worktree.** When `WORKTREE_PATH` is supplied it
-  diffs there (`git -C <path> diff`) instead of cwd, so changes living in a `wave` / `odoo-forward-port`
+  diffs there (`git -C <path> diff`) instead of cwd, so changes living in an `odoo-forward-port`
   worktree are no longer silently reviewed as clean. `verify-backend.sh` gains `VERIFY_BACKEND_GIT_DIR`.
 - **odoo-intake no longer double-gates a skill that owns a stronger gate.** When a routed skill opens
   with its own STOP plan gate (e.g. `odoo-forward-port` P0 per-commit plan), intake launches it
@@ -1001,7 +999,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   - `odoo-solution-design`, `odoo-solution-architect` - §7 test strategy grounded in OSM.
   - `odoo-run-forward-port` - P3.5 test-survival check so a test referencing a symbol
     deleted on the target version is caught instead of silently auto-merged.
-  - `wave` injects test grounding into each WI brief; `odoo-deep-survey` maps test
+  - `odoo-deep-survey` maps test
     blast-radius; `odoo-intent-extractor` grounds test-class base chains;
     `odoo-deprecation-audit` detects deprecated test APIs (`SavepointCase`, QUnit -> Hoot).
 - Wiring corrected against live OSM behavior: `find_test_examples` kind enum is
@@ -1299,7 +1297,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **`odoo-coding` now dispatches the coder agents via the Agent tool exclusively, in model-weighted
   batches** (SSOT `skills/_shared/concurrency-guard.md` Mode B), instead of a JS Workflow pipeline.
-  `wave` already proved model-weighted dispatch works on the Agent tool alone. Test-author isolation is
+  Test-author isolation is
   preserved (two sequential Agent calls - no JS needed). Trade-off accepted: true rolling-window becomes
   a model-weighted batch barrier per round, and `resumeFromRunId` is gone (resume = re-dispatch the
   BLOCKED modules as fresh Agent calls).
@@ -1469,7 +1467,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   code for non-trivial modules (the coder self-tests for trivial ones), feeding a bounded
   `code -> review+test -> code` loop; `odoo-code-review` gates test coverage and loops fixes back to
   `odoo-coding` / `odoo-test-writing`.
-- **Module-aware `wave`**: Phase 0 computes the Odoo module DAG, auto-infers work-item `depends_on`
+- **Module-aware wave batching**: Phase 0 computes the Odoo module DAG, auto-infers work-item `depends_on`
   from module dependencies, and warns on work-items that cross module boundaries.
 
 ### Changed
@@ -1506,7 +1504,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - **wave Phase 2 rolling-window (Mode B) + fable escalation** (`odoo-semantic-skills`, #61):
-  `wave` Phase 2 migrates from cap-3 Agent-tool batching to the Mode B model-weighted budget
+  Wave Phase 2 migrates from cap-3 Agent-tool batching to the Mode B model-weighted budget
   (BUDGET=8, per `skills/_shared/concurrency-guard.md`); cherry-pick stays a serialized depth-0
   critical section and a dependent WI starts only after its dependency is cherry-picked
   (`cherry_picked[dep]` gate, dependent worktrees created lazily). `odoo-debug` Phase 2 and the
@@ -1542,8 +1540,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (agent frontmatter is a floor only, mirroring `odoo-debug`).
 - **Concurrency-guard SSOT** (`skills/_shared/concurrency-guard.md`): the OOM fan-out rule
   now lives in one place - Mode A (legacy cap-3 batching) and Mode B (model-weighted budget:
-  haiku=1, sonnet=2, opus=4, fable=8; budget 8). The five fan-out skills (`odoo-coding`,
-  `odoo-debug`, `odoo-code-review`, `wave`, `workflow-chaining`) reference it instead of
+  haiku=1, sonnet=2, opus=4, fable=8; budget 8). The four fan-out skills (`odoo-coding`,
+  `odoo-debug`, `odoo-code-review`, `workflow-chaining`) reference it instead of
   restating the numbers. Guarded by `tests/test_concurrency_guard_ssot.py`.
 - **Claude Fable 5 integration** (`claude-fable-5`, tier above opus, 2x opus price):
   row 1 of the `odoo-coding` tier table (Custom-XL / >=3-module full-stack work, never a
@@ -1697,7 +1695,6 @@ fields that never matched their file are corrected:
 | `/odoo-feature-positioning` | `/odoo-position-feature` |
 | `/odoo-upgrade-plan-full` | `/odoo-plan-upgrade` |
 | `/odoo-brl-run` | `/odoo-run-brl` |
-| `/wave-run` | `/odoo-run-wave` |
 | `/odoo-video-produce` | `/odoo-produce-video` |
 | `/setup` | `/odoo-setup` |
 
@@ -1725,7 +1722,7 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
   Shipped fallback `scripts/odoo-pylintrc` (OCA defaults).
 - **`/test_lint` mandate in the test-run SSOT.** `docs/reference/ODOO-TESTING.md` now documents the
   two-part gate (core `test_lint` + `pylint-odoo`) once; `odoo-qa-suite`, `odoo-deploy-checklist`,
-  `wave`, `INSTANCE-LIFECYCLE.md` and `osm-first-contract.md` inherit it via their existing pointers.
+  `INSTANCE-LIFECYCLE.md` and `osm-first-contract.md` inherit it via their existing pointers.
   `odoo-coder` (Round 4) and `odoo-code-reviewer` now run `verify-backend.sh`; `odoo-deploy-checklist`
   gains a Domain-6 pre-push parity item. New reference: `docs/reference/odoo-code-quality.md`.
 - **Enforcement substrate - `SubagentStop` grounding hook (`hooks/enforce-grounding.sh`).** Turns the
@@ -1893,10 +1890,9 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
   `api_version_diff(scope)`→`symbol`) across skills, the cursor/gemini/openai snippets, and
   agent definitions.
 - **Tool-permission grants for file-authoring skills** - removed the `disallowed-tools: Write Edit`
-  frontmatter block from the four skills whose own contract is to write deliverables to disk
+  frontmatter block from the three skills whose own contract is to write deliverables to disk
   (`odoo-brl` → `.odoo-ai/brl/` rtm.csv/cost.json/dag/report.md, `odoo-qa-suite` →
-  `.odoo-ai/qa/*.md`, `workflow-runner` → `output_dir` artifacts + checkpoints, `wave` →
-  `.odoo-ai/wave/<slug>/plan.md`), which were previously blocked from delivering their output.
+  `.odoo-ai/qa/*.md`, `workflow-runner` → `output_dir` artifacts + checkpoints), which were previously blocked from delivering their output.
 - Restored `odoo-coder` / `odoo-frontend-coder` to write/apply code directly (with a patch
   preview before applying), per the README's coder intent ("Coder - Write Odoo backend or
   frontend code", "fix writer … writes the override and shows a patch preview before
@@ -1994,13 +1990,11 @@ manifests, and docs were updated in lockstep; `make gen` output is regenerated.
 
 #### Added
 
-- **`wave` skill** - depth-0 multi-subagent git-wave orchestration: integration branch +
+- **Git-wave orchestration** - depth-0 multi-subagent integration: integration branch +
   WI worktrees + cherry-pick + end-of-wave Opus review + PR + squash + tree-identity gate
   + human-confirm merge. Self-spawning, principal-branch-locked, auto-merge never allowed.
   Covers 1-WI minimal through ≥4-WI full plan-artifact (`.odoo-ai/wave/<slug>/plan.md`)
   with topology diagram and disjoint ownership map.
-- **`/odoo-semantic-skills:wave-run` command** - thin dispatcher to the `wave` skill;
-  accepts optional work-item description, emits plan gate before any branch is created.
 
 ## [2.2.0] - 2026-05-31
 
