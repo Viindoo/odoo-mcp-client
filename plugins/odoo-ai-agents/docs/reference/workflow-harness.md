@@ -22,7 +22,7 @@
    - [4.7 Inventory discovery - hybrid SSOT rules](47-inventory-discovery--hybrid-ssot-rules)
 5. [Composition contract](#5-composition-contract)
 6. [Skill delegation rule](#6-skill-delegation-rule)
-7. [Git-wave orchestration (orchestrating context)](#7-git-wave-orchestration-orchestrating-context)
+7. [Between-wave integration (run-harness-owned)](#7-between-wave-integration-run-harness-owned)
 8. [Drive-to-done orchestration (Continuation Contract + run-harness)](8-drive-to-done-orchestration-continuation-contract--run-harness)
    - [8.1 North Star diagram](81-north-star-diagram)
    - [8.2 Continuation Contract](82-continuation-contract)
@@ -771,8 +771,8 @@ referencing skills via the marker-block or direct reference.*
 ### 7.1 What it is
 
 The per-wave INTEGRATION is owned DIRECTLY by `run-harness` as it walks the coding waves of an
-APPROVED plan - there is **no separate git-executor skill** (the former `odoo-wave` skill was removed;
-decision R). A coding wave is a RUN-DAG node with `approach_kind: wave`; run-harness drives it via its
+APPROVED plan - there is **no separate git-executor skill**; `run-harness` owns this responsibility
+directly. A coding wave is a RUN-DAG node with `approach_kind: wave`; run-harness drives it via its
 § Between-wave integration procedure. It lands multiple related MODULE changes as one reviewed,
 squashed PR without ever touching the principal branch directly. run-harness does NOT choose
 agent/model and does NOT self-derive a plan - it iterates the wave's MODULES and INVOKES `odoo-coding`
@@ -826,7 +826,7 @@ workflow system.
   + cumulative close-gate + one-squashed-PR + the in-context squash gate. A standalone skill for it
   would merely rename run-harness's own loop with no real separation of concerns. Folding it into the
   driver keeps the coding chain shorter
-  (`main -> odoo-coding -> odoo-coder -> {workers | git-ops -> git-operator}`, git-ops running inline
+  (`main -> odoo-coding -> odoo-coder -> {workers | git-ops (internal dispatch)}`, git-ops running inline
   so the commit path adds no further agent hop) and keeps the between-wave regression guarantee (the
   cumulative close-gate) in the same context that decides whether to auto-advance.
 
@@ -862,13 +862,13 @@ below `odoo-coding`) that owns the module's INTERNAL work-item split, launches t
 WI (independent WIs in parallel - siblings at the SAME depth), tests the integrated module via
 `Skill(odoo-instance)` (inline in its own context, or by launching `odoo-instance-ops` - whichever
 fits), and COMMITS its module via `git-toolkit:git-ops`
-(inline Skill; git-ops cold-spawns exactly ONE `git-operator` leaf below it). A conflict resolver
+(inline Skill; git-ops cold-spawns exactly one internal leaf below it). A conflict resolver
 subagent is likewise a leaf that edits files in the worktree and runs no git op.
 
 run-harness is an inline orchestrating skill folded into main (the former git-executor level is
 gone), so the deepest nesting chain stays
 `main -> odoo-coding -> odoo-coder coordinator -> odoo-backend-coder/odoo-frontend-coder`; the
-commit chain is `odoo-coder -> git-ops[inline] -> git-operator`. The coordinator may launch
+commit chain is `odoo-coder -> git-ops[inline] -> (git-ops's own internal leaf)`. The coordinator may launch
 MULTIPLE workers in parallel (one per independent WI), but they are siblings at the same leaf
 level and add NO further depth.
 
@@ -1092,7 +1092,7 @@ which also enforces the derivation below). They replace the hardcoded chat-only 
   - **L1** else if `output_mode == writes-files` - writes internal files. Auto-pass under
     `--auto` within budget; gated under `--step`.
   - **L0** else - read-only / chat. Auto-pass.
-  There is **no `spawner-wave` branch** (that class was removed with `odoo-wave`).
+  There is **no `spawner-wave` branch** - that class was removed; `_derive_gate_tier` derives strictly from `(instance_touching, output_mode, outward)` with no wave-specific case.
 - **The between-wave integration (`approach_kind: wave`) node tier is L1** - but this is a
   run-harness NODE tier applied by the driver, NOT a skill's registry `default_gate_tier`
   (`_derive_gate_tier` has no wave branch). A STATIC `wave` advance DRIVES to done: run-harness's
