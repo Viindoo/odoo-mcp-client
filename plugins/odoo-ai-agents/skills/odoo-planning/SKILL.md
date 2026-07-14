@@ -45,8 +45,8 @@ Odoo delivery planner. Turns an approved technical design into ONE lifecycle pla
 full product journey - code-build AND doc. Dispatches TWO leaf planners in sequence:
 
 1. `odoo-planner` (code-build plan): wave-batched module-DAG, integration cadence,
-   git-executor cadence, each `module/stage -> SKILL` wiring. Pure code-build planner - no
-   doc-logic.
+   `run-harness`'s between-wave integration cadence, each `module/stage -> SKILL` wiring. Pure
+   code-build planner - no doc-logic.
 2. `odoo-doc-planner` (doc-package plan): dependency clusters, branch-aware instance allocation,
    per-instance incremental install-doc-verify-commit order, dedup, parallelism schedule; covers
    user-guide (`doc/index.rst`) AND marketing landing (`static/description/index.html`).
@@ -237,8 +237,8 @@ Approve plan? (approve / refine: [feedback] / cancel)
 - `approve` -> two branches:
   - **`return_to` UNSET (default):** the approved plan is the run-DAG. Call `ExitPlanMode`, then
     hand the approved 3-block plan to intake **Phase P**, which serializes `.odoo-ai/run-<id>.json`
-    and dispatches `run-harness` to walk it (coding waves via git-executor, then doc/i18n/PR/
-    monitor/merge). This skill never serializes the run file itself.
+    and dispatches `run-harness` to walk it (coding waves via its own between-wave integration,
+    then doc/i18n/PR/monitor/merge). This skill never serializes the run file itself.
   - **`return_to` SET (caller-return flow):** do NOT enter Plan Mode for code and do NOT dispatch
     any executor. Emit the Continuation Contract with `next: <return_to>` and hand control back.
 - `cancel` -> stop; the plan file remains on disk.
