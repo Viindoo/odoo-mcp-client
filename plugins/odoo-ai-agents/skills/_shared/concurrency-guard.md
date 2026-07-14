@@ -24,7 +24,7 @@ docs/reference/workflow-harness.md).
 At most **8 weight-units** in flight at once => up to 8 haiku, 4 sonnet, 2 opus,
 or exactly 1 fable (always exclusive). Mixing is allowed up to the budget. Worst
 case (2 opus) sits within the historical envelope (old cap: 3 sonnet ~ weight 6).
-Used by: odoo-coding (subagent weighted batches), wave.
+Used by: odoo-coding (subagent weighted batches).
 
 If an OOM recurs under Mode B, lower BUDGET to 6 here (one place) - do not patch
 individual skills.

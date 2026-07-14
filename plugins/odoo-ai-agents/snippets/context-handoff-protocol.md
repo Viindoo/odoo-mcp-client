@@ -1,6 +1,6 @@
 <!-- SSOT snippet. The single home for the 3-tier agent dispatch model (SendMessage-resume /
      fork / fresh-spawn) and its capability probe, fallback matrix, and confidentiality guard.
-     Referenced (not copy-pasted) by the orchestrator skills odoo-coding, odoo-code-review, wave,
+     Referenced (not copy-pasted) by the orchestrator skills odoo-coding, odoo-code-review,
      odoo-forward-port, odoo-deep-survey, odoo-brl. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md. Builds on worklog-contract.md. -->
 

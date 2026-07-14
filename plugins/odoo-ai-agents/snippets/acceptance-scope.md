@@ -2,7 +2,8 @@
      reverse-closure -> risk rank -> dependent modules + screens -> install/test/render sets.
      Builds ON bidirectional-impact.md (closure mechanics live there - do NOT restate them);
      this snippet adds risk ranking, screen enumeration, and the manifest contract. Referenced
-     (not copy-pasted) by odoo-acceptance Phase 0, odoo-code-review Phase A.5, and wave Phase 4.
+     (not copy-pasted) by odoo-acceptance Phase 0, odoo-code-review Phase A.5, and run-harness's
+     between-wave integration (step 3 blast-radius render-check + step 5 acceptance hand-off).
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md. -->
 
 # Acceptance Scope Contract (blast-radius -> verify-scope manifest)
