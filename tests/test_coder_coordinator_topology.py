@@ -44,7 +44,7 @@ CLAUDE_MANIFEST = PLUGIN / ".claude-plugin" / "plugin.json"
 DEPS = PLUGIN / "generator" / "skill_tool_deps.json"
 
 # The OUTER-layer sites that must think in MODULES only (never frame the outer unit as a WI).
-# (odoo-wave was removed - decision R; run-harness now owns the between-wave integration.)
+# (the separate per-wave git-executor was folded into run-harness; see run-harness/SKILL.md § Between-wave integration.)
 OUTER_LAYER_FILES = {
     "odoo-planning": PLUGIN / "skills" / "odoo-planning" / "SKILL.md",
     "odoo-planner": AGENTS / "odoo-planner.md",
@@ -192,7 +192,7 @@ def test_coordinator_monitors_wi_workers_on_a_live_task_list():
 def test_coordinator_commits_module_via_skill_git_ops_and_returns_sha():
     """New contract (worktree-graph refactor): the coordinator COMMITS its module by INVOKING the
     git-toolkit:git-ops skill (request-only), then returns the SHA to odoo-coding. It MUST NOT run
-    raw git and MUST NOT dispatch a git leaf agent (git-operator) directly."""
+    raw git and MUST NOT dispatch a git leaf agent directly."""
     body = _norm(LEAD)
     low = body.lower()
     assert "git-toolkit:git-ops" in body, (
@@ -204,9 +204,16 @@ def test_coordinator_commits_module_via_skill_git_ops_and_returns_sha():
         "the coordinator must return the commit SHA to odoo-coding"
     )
     # Request-only: it does not run raw git and does not cold-spawn a git leaf agent.
-    assert "git-operator" not in body or (
+    assert "git-operator" not in body, (
+        "odoo-coder.md must not name a git-toolkit leaf agent (git-toolkit owns internal naming; "
+        "consumers route only through git-ops)"
+    )
+    assert (
         "not dispatch" in low or "must not dispatch" in low or "never dispatch" in low
-    ), "the coordinator must NOT dispatch a git leaf agent (git-operator) directly"
+    ) and "git leaf" in low, (
+        "the coordinator must state it does NOT dispatch a git leaf agent directly (generic - no "
+        "leaf-agent name required)"
+    )
     assert "raw git" in low or "never raw git" in low or "not run raw git" in low, (
         "the coordinator must state it never runs raw git (only invokes git-ops)"
     )

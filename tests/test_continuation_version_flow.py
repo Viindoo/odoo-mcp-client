@@ -47,7 +47,7 @@ PLUGIN = REPO_ROOT / "plugins" / "odoo-ai-agents"
 CONTINUATION_CONTRACT = PLUGIN / "snippets" / "continuation-contract.md"
 
 # The coding-chain skills named by continuation-contract.md's own "Reserved `inputs` keys" rule.
-# (odoo-wave was removed - decision R; run-harness is the DRIVER, not a `next:` coding-chain target.)
+# (run-harness is the DRIVER of the between-wave integration, not a `next:` coding-chain target.)
 CODING_CHAIN_SKILLS = ("odoo-coding", "odoo-code-review", "odoo-test-writing")
 CODING_CHAIN_FILES = [PLUGIN / "skills" / s / "SKILL.md" for s in CODING_CHAIN_SKILLS]
 

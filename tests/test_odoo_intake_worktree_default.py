@@ -95,7 +95,7 @@ def test_intake_worktree_default_covers_ambiguous_and_fastpath_routes():
         "Worktree isolation must explicitly state it still applies to the Plan-Mode-exempt "
         "odoo-code-review/odoo-debug fast-path (which otherwise looks like it skips every gate)."
     )
-    # It must not be scoped ONLY to the named wave/forward-port/rebase/upgrade specialists -
+    # It must not be scoped ONLY to the named forward-port/rebase/upgrade specialists -
     # those are called out as ALREADY covered (self-provisioning), which is a distinct claim
     # from "this rule only applies to them".
     assert "self-provision" in low or "already satisf" in low, (

@@ -1,7 +1,7 @@
 """Guard: the per-module code -> review+test -> code loop must be unambiguous about who drives
 `odoo-code-review`.
 
-(Retargeted from the removed odoo-wave skill - decision R. run-harness now owns the between-wave
+(Retargeted from the folded-in per-wave git-executor. run-harness now owns the between-wave
 integration that invokes `odoo-coding` per module; the contract it protects is unchanged.)
 
 Root cause this protects against: `odoo-coding/SKILL.md`'s loop-driving prose must not let a
