@@ -20,10 +20,10 @@ repo `CLAUDE.md`; keep the two in lockstep.
 To perform a git/GitHub operation, INVOKE the `git-toolkit:git-ops` skill via the Skill
 tool, describing the op (e.g. create a worktree, cherry-pick a range onto integration +
 squash, open/merge a PR, read a diff range) + the scope + the worktree path + whether an
-L2 destructive op is human-confirmed. git-ops resolves the op to the right git agent
-(git-surveyor read / git-operator local mutation / github-operator GitHub / git-pipeline-lead
-for >500 files / >10k LOC / thousand-file jobs) and runs it under the safety contract.
-Consumers NO LONGER name or directly cold-spawn the git leaf agents by launching them.
+L2 destructive op is human-confirmed. git-ops classifies the op INTERNALLY by op-type
+(read-only cognition, local mutation, GitHub API, or large/complex at scale) and routes it
+to the specialist that owns that class, then runs it under the safety contract. Consumers
+never name or pick the specialist themselves.
 
 ## Bounded-read allowlist (inline OK)
 
@@ -54,17 +54,13 @@ itself. Every git verb - `add`,
 `push`, `force-push`, `fetch`, `pull`, `worktree add/remove`, and all GitHub-API ops - is routed
 through git-ops. The ONLY git a worker may run inline is the bounded-read allowlist above.
 
-## What git-ops resolves the op to (informational)
+## How git-ops resolves a request (informational)
 
-You do NOT pick or name these - you describe the op to git-ops and it classifies + routes.
-This table is reference only, so a brief author knows what is happening under the front door.
-
-| The op | git-ops resolves it to |
-|---|---|
-| Read-only git cognition - diff/log/range-diff analysis, map, verify | git-surveyor |
-| Local mutation - rebase, cherry-pick, merge, commit, push, reset, tag, forward/back-port | git-operator |
-| GitHub API - PR/issue lifecycle, CI, releases, fork->PR | github-operator |
-| LARGE/COMPLEX - >500 files OR >10k LOC OR multi-commit history rewrite OR thousand-file port | git-pipeline-lead |
+You do NOT pick or name a specialist - you describe the op and git-ops classifies + routes
+internally. Four op classes exist under the front door: read-only git cognition, local mutation,
+GitHub API, and large/complex jobs (>500 files OR >10k LOC OR a multi-commit history rewrite OR a
+thousand-file port). Which one applies is git-ops's decision, never yours; you never need a
+specialist's name to compose a valid request.
 
 ## Worktree isolation - mandatory for every mutation
 
