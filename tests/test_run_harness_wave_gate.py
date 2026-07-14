@@ -1,6 +1,6 @@
 """Behavioral guards for run-harness's between-wave integration drive-to-done gate (ETHOS#11).
 
-(Retargeted from the removed odoo-wave skill - decision R. The behavior each assertion
+(Retargeted from the folded-in per-wave git-executor. The behavior each assertion
 protects is unchanged; only the OWNER moved to run-harness.)
 
 These protect the two safety couplings the between-wave advance depends on - not the
@@ -77,13 +77,13 @@ def _section_84(text: str) -> str:
 
 
 def test_spawner_wave_class_is_gone():
-    """R2: the `spawner-wave` spawn_class was removed with odoo-wave (decision R).
+    """R2: the `spawner-wave` spawn_class was removed when the per-wave git-executor was folded into run-harness.
 
     Fails if: `spawner-wave` re-appears as a valid spawn class, or `_derive_gate_tier` regains a
     class-based branch that would need it.
     """
     assert "spawner-wave" not in VALID_SPAWN_CLASS, (
-        "spawner-wave must no longer be a valid spawn_class - it was removed with odoo-wave."
+        "spawner-wave must no longer be a valid spawn_class - it is no longer a registered spawn class."
     )
 
 

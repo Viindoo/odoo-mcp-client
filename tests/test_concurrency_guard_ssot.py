@@ -21,9 +21,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SKILLS_DIR = ROOT / "plugins" / "odoo-ai-agents" / "skills"
 GUARD = SKILLS_DIR / "_shared" / "concurrency-guard.md"
 
-# (odoo-wave was removed - decision R; its parallel fan-out lived inside the odoo-coding it invoked
-# per module, and run-harness's between-wave integration invokes odoo-coding sequentially, so the
-# OOM fan-out rule stays owned by odoo-coding - no new fan-out skill to register here.)
+# (the per-wave git-executor's parallel fan-out lived inside the odoo-coding it invoked per module,
+# and run-harness's between-wave integration invokes odoo-coding sequentially, so the OOM fan-out
+# rule stays owned by odoo-coding - no new fan-out skill to register here.)
 FANOUT_SKILLS = [
     "odoo-coding",
     "odoo-debug",

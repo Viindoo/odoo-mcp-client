@@ -14,9 +14,10 @@ A. NO INLINE EXECUTION (``test_no_git_delegation_bypass``) - a consumer must not
    may appear inline; even own-worktree add/commit/stash are forbidden - workers never run git,
    the orchestrator commits via git-ops). Scanned in code spans.
 
-B. NO DIRECT AGENT DISPATCH (``test_no_direct_git_agent_dispatch``) - a consumer must not
-   cold-spawn one of the git leaf agents as a ``subagent_type`` dispatch; it must invoke the
-   git-ops skill instead. Scanned in prose + code spans of the CONSUMER skills.
+B. NO GIT-TOOLKIT AGENT MENTION (``test_no_git_toolkit_agent_mention``) - a consumer must not
+   NAME one of the git-toolkit leaf agents (git-operator, git-surveyor, github-operator,
+   git-pipeline-lead) in ANY phrasing - dispatch instruction OR informational aside alike. Only
+   ``git-toolkit:git-ops`` may be named. Scanned across the odoo-ai-agents executor-facing prose set.
 
 FP-avoidance choices (do NOT loosen these without an accompanying test update):
 
@@ -39,26 +40,16 @@ FP-avoidance choices (do NOT loosen these without an accompanying test update):
    skill legitimately dispatches the git leaf agents) is not in the scan scope; its agents are
    the target delegates, not the source of violations.
 
-6. AGENT-DISPATCH PROHIBITION SCOPED TO CONSUMER SKILLS (boundary B) - the prose scan covers
-   ``skills/``, ``snippets/`` and ``commands/`` but NOT ``agents/``. The git leaf-worker agents
-   live in git-toolkit (already out of scope); the odoo-ai-agents leaf-worker agents are
-   git-free (they declare "NEVER run git commands") and only DESCRIBE the orchestrator's
-   pre-step. The dispatch DECISION - the thing the new seam governs - is made by the consumer
-   SKILL, so that is where the prohibition is enforced. Boundary A still covers ``agents/``.
-
-7. DISPATCH != MENTION (boundary B) - a git leaf agent may still be NAMED informationally
-   (e.g. the "what git-ops resolves the op to" reference table in snippets/git-delegation.md,
-   or "git-operator owns the worktree lifecycle"). Only an ACTIVE dispatch of a leaf agent is a
-   violation, in ANY of three forms: (i) a ``dispatch``/``spawn`` verb taking a leaf agent as
-   its direct object; (ii) a delegation verb (``delegate`` / ``route`` / ``hand off`` /
-   ``defer``) handing an op off TO a leaf agent (e.g. "delegate the cherry-pick to
-   git-operator", "route the push to github-operator"); OR (iii) a leaf-agent name co-occurring
-   on one line with an explicit cold-spawn mechanism token (``subagent_type`` / ``Agent tool`` /
-   ``cold-spawn``). An informational mention that carries NO dispatch/delegation verb and NO
-   mechanism token - a resolution-table cell ``| Local mutation ... | git-operator |``, the
-   gloss "git-operator owns the worktree lifecycle" - is NOT flagged. (The delegation-verb form
-   (ii) was previously the soft form left unflagged; it is now caught so a future regression
-   cannot reintroduce direct leaf coupling by phrasing it as "delegate ... to <agent>".)
+6. MENTION == VIOLATION (boundary B) - the rule is strict: a git-toolkit leaf-agent name must
+   NEVER appear in odoo-ai-agents executor-facing prose, because even an informational mention
+   gives a runtime executor a specialist name to imitate and dispatch directly. This is a strict
+   SUPERSET of the old "no active dispatch" rule (a name that never appears categorically cannot
+   be dispatched), so it is implemented as a single presence check - simpler than, and strictly
+   stronger than, the retired dispatch/delegation-verb heuristics it replaces. The scan scope now
+   covers ``skills/``, ``snippets/``, ``commands/``, ``agents/`` and ``docs/`` markdown PLUS the
+   plugin's own ``README.md`` and the ``generator/skill_tool_deps.json`` orchestration SSOT text -
+   everything an executing agent may read. ``plugins/git-toolkit/**`` stays out of scope (it
+   legitimately owns and names its own 4 agents); the scan never reaches repo-root ``CHANGELOG.md``.
 """
 
 from __future__ import annotations
@@ -94,17 +85,23 @@ def _md_files() -> list[Path]:
     return sorted(set(files))
 
 
-def _consumer_skill_files() -> list[Path]:
-    """Consumer-skill markdown (boundary B: agent-dispatch scan).
+def _consumer_prose_files() -> list[Path]:
+    """odoo-ai-agents executor-facing prose (boundary B: git-toolkit agent-name mention scan).
 
-    Excludes agents/ - see FP-avoidance #6: the dispatch DECISION belongs to the consumer
-    SKILL, and the leaf-worker agent docs are git-free / informational.
+    Scan scope is everything an executing agent may read: skills/, snippets/, commands/, agents/
+    and docs/ markdown, PLUS the plugin's own README.md and the generator/skill_tool_deps.json
+    orchestration SSOT text. plugins/git-toolkit/** is deliberately NOT here (it owns its own
+    agent names). The two non-*.md paths are appended AFTER the glob loop - the per-subdir
+    rglob only picks up *.md - each guarded by .exists().
     """
     files: list[Path] = []
-    for subdir in ("skills", "snippets", "commands"):
+    for subdir in ("skills", "snippets", "commands", "agents", "docs"):
         d = AGENTS_PLUGIN / subdir
         if d.exists():
             files.extend(d.rglob("*.md"))
+    for extra in (AGENTS_PLUGIN / "README.md", AGENTS_PLUGIN / "generator" / "skill_tool_deps.json"):
+        if extra.exists():
+            files.append(extra)
     return sorted(set(files))
 
 
@@ -289,11 +286,13 @@ def _scan_file(f: Path) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Boundary B: direct git-agent dispatch detection
+# Boundary B: git-toolkit leaf-agent NAME MENTION detection
 #
-# The new seam: a consumer skill must INVOKE git-toolkit:git-ops via the Skill tool, NOT
-# cold-spawn a git leaf agent via the Agent tool. A leaf agent may be NAMED informationally
-# (FP-avoidance #7); only an ACTIVE cold-spawn is a violation.
+# The seam: odoo-ai-agents executor-facing prose must route git work through the
+# git-toolkit:git-ops front door and must NEVER NAME a git-toolkit leaf agent - not even as an
+# informational aside, because a bare name gives a runtime executor a specialist to imitate.
+# A single presence check over _LEAF_AGENT_RE implements this (a strict superset of the old
+# active-dispatch-only detector, which is why the verb/mechanism heuristics were retired).
 # ---------------------------------------------------------------------------
 
 # The four git-toolkit leaf agents. The `\b` boundaries + explicit alternation keep
@@ -302,77 +301,13 @@ _LEAF_AGENT_RE = re.compile(
     r"\b(?:git-operator|git-surveyor|github-operator|git-pipeline-lead)\b"
 )
 
-# Explicit cold-spawn MECHANISM tokens. Presence of one of these on the SAME line as a leaf
-# agent name is an active cold-spawn (e.g. "... github-operator (cold-spawn via the Agent
-# tool ...)", '... subagent_type: "git-operator" ...'). NOTE: "dispatch" is deliberately NOT
-# a token here - on its own it is too common; it only counts when it directly governs a leaf
-# agent (see _DIRECT_DISPATCH_RE), so that "delegates ... to git-operator before dispatching
-# the worker" does NOT trip on the unrelated "dispatching".
-_COLDSPAWN_TOKEN_RE = re.compile(r"subagent_type|Agent\s+tool|cold-?spawn", re.IGNORECASE)
 
-# A dispatch/spawn/launch verb taking a leaf agent as its DIRECT OBJECT. Allows optional
-# "git-toolkit's", determiners ("a/the/one/fresh/new"), and markdown/quote wrappers
-# (``**name**``, `` `name` ``) between the verb and the agent name. Does NOT allow arbitrary
-# nouns, so "dispatch the worker via git-surveyor" (git-surveyor is object of "via", not the
-# dispatch) does not match.
-_DIRECT_DISPATCH_RE = re.compile(
-    r"\b(?:re-?)?(?:dispatch|spawn|launch)(?:es|ing|ed|s)?\s+"
-    # ReDoS-safe: a single decoration char per outer `*` iteration (no inner `+`
-    # nested inside the outer `*`), so no exponential backtracking. Matches the
-    # same strings - a run of N decoration chars is consumed as N outer iterations.
-    r"(?:(?:a|an|the|one|fresh|new|git-toolkit'?s?)\s+|[*`\"'(])*"
-    r"(?:git-operator|git-surveyor|github-operator|git-pipeline-lead)\b",
-    re.IGNORECASE,
-)
+def _scan_file_for_agent_mention(f: Path) -> list[str]:
+    """Return formatted boundary-B (leaf-agent-name mention) violation strings for one file.
 
-# A delegation verb handing an op off TO a leaf agent as the named delegate target:
-# "delegate the cherry-pick to git-operator", "route the push to github-operator". The git op
-# governed by delegate/route/hand-off/defer is what gets dispatched, and the leaf agent is the
-# explicit delegate - exactly the direct coupling the git-ops front door removes. This is the
-# soft prose form a future regression could reintroduce, so it is now caught alongside the hard
-# ``dispatch``/``spawn`` form. FP-avoidance: the gap between the verb and ``to <agent>`` is
-# bounded to a SINGLE clause (``[^.;\n]``) so a delegation verb in one clause cannot reach an
-# unrelated informational agent mention in another; and an informational table cell or "owns the
-# worktree lifecycle" gloss carries NO delegation verb, so it never matches. Determiner/markdown
-# wrappers between ``to`` and the agent name are tolerated (mirrors _DIRECT_DISPATCH_RE).
-_DELEGATION_DISPATCH_RE = re.compile(
-    r"\b(?:re-?)?(?:delegat(?:e|es|ed|ing)|rout(?:e|es|ed|ing)|defer(?:s|red|ring)?"
-    r"|hand(?:s|ed|ing)?\s+off)\b"
-    r"[^.;\n]*?\bto\s+"
-    # ReDoS-safe: a single decoration char per outer `*` iteration (no inner `+`
-    # nested inside the outer `*`), so no exponential backtracking. Matches the
-    # same strings - a run of N decoration chars is consumed as N outer iterations.
-    r"(?:(?:a|an|the|one|fresh|new|git-toolkit'?s?)\s+|[*`\"'(])*"
-    r"(?:git-operator|git-surveyor|github-operator|git-pipeline-lead)\b",
-    re.IGNORECASE,
-)
-
-
-def _is_agent_dispatch(line: str) -> bool:
-    """True if this single line actively dispatches a git leaf agent (boundary B).
-
-    A line is a violation when ANY of:
-      - a dispatch/spawn verb takes a leaf agent as its direct object, OR
-      - a delegation verb (delegate / route / hand off / defer) hands an op off TO a leaf agent
-        as the named delegate (e.g. "delegate the cherry-pick to git-operator"), OR
-      - an explicit cold-spawn mechanism token (subagent_type / Agent tool / cold-spawn)
-        co-occurs on the line with a leaf-agent name.
-    A bare informational mention of a leaf agent (no verb, no token) is NOT a violation.
-    """
-    if _DIRECT_DISPATCH_RE.search(line):
-        return True
-    if _DELEGATION_DISPATCH_RE.search(line):
-        return True
-    if _COLDSPAWN_TOKEN_RE.search(line) and _LEAF_AGENT_RE.search(line):
-        return True
-    return False
-
-
-def _scan_file_for_agent_dispatch(f: Path) -> list[str]:
-    """Return formatted boundary-B (direct-dispatch) violation strings for one file.
-
-    Scans prose AND code spans (the dispatch instructions live in prose), skipping only
-    generated regions.
+    Flags ANY line naming a git-toolkit leaf agent - dispatch instruction, table cell, gloss,
+    chain diagram, provenance note, all alike - skipping only generated regions. Reads the file
+    as raw text so a non-*.md path (the orchestration SSOT JSON) scans identically to markdown.
     """
     text = f.read_text(encoding="utf-8")
     rel = str(f.relative_to(REPO_ROOT))
@@ -381,9 +316,9 @@ def _scan_file_for_agent_dispatch(f: Path) -> list[str]:
     for i, raw_line in enumerate(text.splitlines(), start=1):
         if _in_generated(i, gen_regions):
             continue
-        if _is_agent_dispatch(raw_line):
+        for m in _LEAF_AGENT_RE.finditer(raw_line):
             ctx = raw_line.strip()[:90]
-            violations.append(f"{rel}:{i}: cold-spawns a git leaf agent  [{ctx!r}]")
+            violations.append(f"{rel}:{i}: names git-toolkit leaf agent {m.group()!r}  [{ctx!r}]")
     return violations
 
 
@@ -428,98 +363,74 @@ def test_no_git_delegation_bypass():
     )
 
 
-def test_no_direct_git_agent_dispatch():
-    """Boundary B (the NEW seam): a consumer skill must INVOKE the git-toolkit:git-ops skill
-    via the Skill tool - it must NOT cold-spawn one of the git leaf agents (git-operator,
-    git-surveyor, github-operator, git-pipeline-lead) directly as a subagent_type dispatch.
+def test_no_git_toolkit_agent_mention():
+    """Boundary B (the seam): odoo-ai-agents executor-facing prose must route git work through
+    the git-toolkit:git-ops front door and must contain ZERO occurrences of a git-toolkit leaf
+    agent name (git-operator, git-surveyor, github-operator, git-pipeline-lead), in ANY phrasing -
+    dispatch instruction or informational aside alike. Only ``git-toolkit:git-ops`` may be named.
 
-    git-ops itself (in git-toolkit, out of scan scope) is the ONLY place those agents are
-    legitimately dispatched. A consumer that writes "dispatch git-operator ..." or
-    "github-operator (cold-spawn via the Agent tool)" bypasses the front door and re-couples
-    the consumer to git-toolkit's internals.
+    This is a strict superset of the retired "no active dispatch" rule: a name that never appears
+    categorically cannot be dispatched, so the observable contract - an executing agent never sees
+    a git-toolkit leaf-agent name in odoo-ai-agents prose, so it has nothing to imitate - is now
+    asserted directly. git-toolkit itself (out of scan scope) legitimately owns those names.
 
-    Informational mentions remain allowed (FP-avoidance #7): the "what git-ops resolves the op
-    to" reference table, "git-operator owns the worktree lifecycle", etc. Only an ACTIVE
-    dispatch is a violation: a dispatch/spawn verb governing a leaf agent, a delegation verb
-    (delegate/route/hand off/defer) handing an op off TO a leaf agent, OR a leaf-agent name
-    co-occurring with a subagent_type / Agent tool / cold-spawn token.
+    Scan scope: skills/, snippets/, commands/, agents/, docs/ markdown + the plugin's README.md +
+    the generator/skill_tool_deps.json orchestration SSOT text. It does NOT reach repo-root
+    CHANGELOG.md, so a git-toolkit-internal dev-log line there never conflicts with this guard.
     """
     violations: list[str] = []
-    for f in _consumer_skill_files():
-        violations.extend(_scan_file_for_agent_dispatch(f))
+    for f in _consumer_prose_files():
+        violations.extend(_scan_file_for_agent_mention(f))
 
     n = len(violations)
     head = violations[:120]
     tail = f"\n... and {n - 120} more" if n > 120 else ""
 
     assert not violations, (
-        f"odoo-ai-agents: {n} consumer-skill line(s) cold-spawn a git leaf agent directly "
-        f"instead of invoking the git-toolkit:git-ops skill. Replace each direct dispatch "
-        f"(e.g. 'dispatch git-operator ...') with an INVOCATION of the git-toolkit:git-ops "
-        f"skill via the Skill tool, describing the op + scope + worktree + confirmation; "
-        f"git-ops resolves and runs it on the right git agent. A leaf agent may still be "
-        f"NAMED informationally, just not cold-spawned. See snippets/git-delegation.md.\n"
+        f"odoo-ai-agents: {n} line(s) name a git-toolkit leaf agent in executor-facing prose. "
+        f"A bare mention nudges a runtime executor toward direct dispatch - name ONLY the "
+        f"`git-toolkit:git-ops` front door and describe the op class generically (read-only "
+        f"cognition / local mutation / GitHub API / large-scale) if needed. See "
+        f"snippets/git-delegation.md.\n"
         + "\n".join(head)
         + tail
     )
 
 
-def test_agent_dispatch_detection_red_before_green():
+def test_agent_mention_detection_red_before_green(tmp_path, monkeypatch):
     """Self-check that boundary B can FAIL for the right reason (red-before-green).
 
-    Asserts the detector FLAGS genuine cold-spawn constructs and PASSES the new git-ops
-    invocation + informational mentions. If this regresses, boundary B has been loosened to
-    the point of vacuity and would no longer protect the seam.
+    Exercises the REAL scanner (_scan_file_for_agent_mention) on synthetic files so any loosening
+    trips here: the detector must FLAG a leaf-agent name UNIFORMLY regardless of phrasing - a
+    resolution-table cell, an informational gloss, and an active-dispatch sentence all count - and
+    must PASS a file that names only the git-ops front door.
     """
-    forbidden = [
-        # the canonical OLD construct the migration removes
-        "Dispatch git-operator via subagent_type to create the integration worktree.",
-        "1. Dispatch **github-operator** to fetch PR metadata and the changed file list.",
-        "Pre-step: dispatch git-surveyor (read-only, no worktree) to write the commit dump.",
-        "delegate to **github-operator** (via Agent tool) with the review body.",
-        "Each poll tick, dispatch git-toolkit's `github-operator` (cold-spawn via the Agent tool).",
-        'Fan out with `subagent_type: "git-operator"` per work-item.',
-        # MED-1: the soft delegation-verb form - a git op handed off TO a leaf agent as the named
-        # delegate. Previously left unflagged; now caught so a regression cannot reintroduce direct
-        # leaf coupling by phrasing the dispatch as "delegate/route/hand off/defer ... to <agent>".
-        "delegate the cherry-pick to git-operator.",
-        "route the push to github-operator",
-        "hand off the range-diff verification to git-surveyor",
-        "Each poll tick, defer the PR read to github-operator.",
-        # the same soft form that used to be in `allowed` - now a violation.
-        "delegate a bisect run to git-operator in a dedicated worktree.",
-        # MAJOR-4: "launch" added to the dispatch-verb group (neutral "Agent tool" -> "agent
-        # launch" rename) - a leaf agent as its direct object is still an active dispatch.
-        "Launch git-operator to create the integration worktree.",
-    ]
-    for line in forbidden:
-        assert _is_agent_dispatch(line), f"boundary B should FLAG but did not: {line!r}"
+    # _scan_file_for_agent_mention formats violations relative to REPO_ROOT; point it at tmp_path.
+    monkeypatch.setattr(sys.modules[__name__], "REPO_ROOT", tmp_path)
 
-    allowed = [
-        # the NEW seam - invoking the skill, never naming a leaf agent as a dispatch target
-        "Invoke the `git-toolkit:git-ops` skill via the Skill tool to create a worktree.",
-        "Each poll tick, invoke the `git-toolkit:git-ops` skill (via the Skill tool) to READ the PR.",
-        # informational mentions of leaf agents (FP-avoidance #7) - allowed: NO dispatch/delegation
-        # verb governs the agent, NO cold-spawn token co-occurs.
-        "git-ops resolves the op to git-operator for the local mutation and runs it.",
-        "| Local mutation - rebase, cherry-pick, merge, commit, push | git-operator |",
-        "git-operator owns the worktree lifecycle (S9 invariant).",
-        # a delegation verb that hands off to git-OPS (the front door), not to a leaf agent - fine.
-        "Route the cherry-pick to git-ops, which resolves it to the right git agent.",
-        # dispatching a NON-git agent (e.g. a semantic conflict resolver) is fine
-        "Dispatch the odoo-coder agent to edit the conflicted files.",
-        # delegating a NON-git op to a non-leaf agent is fine
-        "delegate the conflict resolution to odoo-coder in the worktree.",
-        # the fork handoff tier is not a git-agent cold-spawn
-        'launch one Opus subagent per cluster using `subagent_type: "fork"`.',
-        # MAJOR-4: "launch" governing a GENERIC noun (no named leaf agent as direct object) is
-        # a capability statement, not a dispatch - must NOT false-positive now that "launch" is
-        # in the verb group.
-        "This context cannot launch agents directly; it must go through git-ops.",
-        "A hard-leaf agent has no agent-launch capability and returns files to its coordinator.",
-    ]
-    for line in allowed:
-        assert not _is_agent_dispatch(line), f"boundary B should NOT flag but did: {line!r}"
+    bad = tmp_path / "names-leaf-agents.md"
+    bad.write_text(
+        "| Local mutation - rebase, cherry-pick, merge | git-operator |\n"
+        "git-operator owns the worktree lifecycle (S9 invariant).\n"
+        "Dispatch github-operator via subagent_type to open the PR.\n",
+        encoding="utf-8",
+    )
+    bad_hits = _scan_file_for_agent_mention(bad)
+    assert len(bad_hits) == 3, (
+        f"scanner must FLAG all three leaf-agent mentions (table cell, gloss, dispatch) "
+        f"uniformly; got {bad_hits!r}"
+    )
+
+    good = tmp_path / "names-only-git-ops.md"
+    good.write_text(
+        "Invoke the `git-toolkit:git-ops` skill via the Skill tool to create a worktree.\n"
+        "git-ops classifies the op internally and routes it to the specialist that owns it.\n",
+        encoding="utf-8",
+    )
+    good_hits = _scan_file_for_agent_mention(good)
+    assert good_hits == [], (
+        f"scanner must PASS a file that names only the git-ops front door; got {good_hits!r}"
+    )
 
 
 def test_inline_git_detection_red_before_green(tmp_path, monkeypatch):

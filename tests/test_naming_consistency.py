@@ -63,10 +63,9 @@ def test_no_bare_odoo_semantic_in_trigger_or_fallback_prose(doc):
 # convention", docs/authoring-skills-and-agents.md section 5.
 # ===========================================================================
 
-# The ONLY unprefixed (domain-agnostic) names allowed. `wave` left the list
-# long ago (it became `odoo-wave`, since REMOVED - decision R; the between-wave integration is now
-# owned by `run-harness`); `run-harness` (the run-driver sequencer) is the domain-agnostic name that
-# joined it. Keep in lockstep with the three prose statements above.
+# The ONLY unprefixed (domain-agnostic) names allowed. The between-wave integration is owned
+# directly by `run-harness` (the run-driver sequencer), the domain-agnostic name in this set.
+# Keep in lockstep with the three prose statements above.
 _NAMING_ALLOWLIST = {"workflow-chaining", "run-harness"}
 
 # Agentive (actor) derivational suffixes. Matched against the LAST hyphen

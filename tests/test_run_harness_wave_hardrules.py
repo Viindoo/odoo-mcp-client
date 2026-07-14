@@ -1,6 +1,6 @@
 """Behavioral guard for run-harness's between-wave integration hard rules.
 
-(Retargeted from the removed odoo-wave skill - decision R. The two business contracts protected are
+(Retargeted from the folded-in per-wave git-executor. The two business contracts protected are
 unchanged; only the OWNER moved to run-harness, which now owns the per-wave integration directly.)
 
 - Each assertion fails for exactly one reason: the corresponding rule was removed.

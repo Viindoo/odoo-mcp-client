@@ -29,10 +29,9 @@ def _valid_targets():
     # spawner skill fans out (e.g. `odoo-code-review` runs `odoo-code-reviewer`).
     # Validate them as real referents too so a typo'd agent name still fails.
     agents = {p.stem for p in (PLUGIN / "agents").glob("*.md")}
-    # `odoo-wave` was REMOVED (decision R) - the between-wave integration is now owned by
-    # `run-harness` itself, and intake no longer names any git-executor skill. The bare `wave` skill
-    # never existed as a target. `odoo-intake`/`workflow-chaining`/`run-harness` are real skill dirs -
-    # kept here only as belt-and-suspenders for the router's self-references.
+    # The between-wave integration is owned by `run-harness` itself; intake no longer names any
+    # separate git-executor skill. `odoo-intake`/`workflow-chaining`/`run-harness` are real skill
+    # dirs - kept here only as belt-and-suspenders for the router's self-references.
     extra = {"odoo-intake", "workflow-chaining", "run-harness"}
     return skills | workflows | command_slugs | agents | extra
 
@@ -44,7 +43,8 @@ def _valid_targets():
 # hyphenated general pattern would not catch, so without it a stray `` `wave` `` reference
 # (a dead skill token) would go unseen. It is intentionally NOT in `_valid_targets()`, so any
 # such reference FAILS - guarding against intake routing users to a non-existent wave skill
-# (the `odoo-wave` git-executor was removed - decision R; run-harness owns the wave integration).
+# (the separate git-executor skill was folded into run-harness itself; run-harness owns the
+# between-wave integration.)
 TARGET_RE = re.compile(r"`/?([a-z][a-z0-9]*(?:-[a-z0-9]+)+|odoo-intake|wave)`")
 KNOWN_NON_TARGETS = {
     # backticked tokens that look slug-ish but are not routing targets

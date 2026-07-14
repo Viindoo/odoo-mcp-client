@@ -139,8 +139,9 @@ def test_coder_commits_via_skill_git_ops_request_only():
     )
     # Request-only: no raw git, no direct git leaf-agent dispatch.
     assert "raw git" in low, "odoo-coder must state it never runs raw git (invokes git-ops instead)"
-    assert ("not dispatch" in low or "must not dispatch" in low) and "git-operator" in low, (
-        "odoo-coder must state it does NOT dispatch a git leaf agent (git-operator) directly"
+    assert ("not dispatch" in low or "must not dispatch" in low) and "git leaf" in low, (
+        "odoo-coder must state it does NOT dispatch a git leaf agent directly (generic wording - "
+        "no leaf-agent name required, per the git-toolkit agent-name zero-mention policy)"
     )
     # It returns the SHA up to odoo-coding.
     assert "sha" in low and "odoo-coding" in text, (
@@ -184,14 +185,14 @@ def test_integration_loop_names_run_harness_as_canonical_consumer():
     assert "run-harness" in low and "canonical per-wave integration consumer" in low, (
         "integration-loop.md must name run-harness as the canonical per-wave integration consumer"
     )
-    # After decision R, run-harness is the SOLE owner - there is no separate git-executor skill and
-    # odoo-wave must NOT be listed as an owner anymore.
+    # After decision R, run-harness is the SOLE owner - there is no separate git-executor skill.
+    # The dead per-wave git-executor must NOT be listed as an owner anymore.
     assert "sole owner" in low, (
         "integration-loop.md must state run-harness is the SOLE owner of the per-wave integration "
         "(the separate git-executor skill was removed)."
     )
     assert re.search(r"^-\s*`?odoo-wave`?\b", text, re.MULTILINE) is None, (
-        "integration-loop.md must no longer list `odoo-wave` as an owner bullet (it was removed)."
+        "integration-loop.md must no longer list the retired per-wave git-executor as an owner bullet."
     )
 
 

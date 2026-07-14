@@ -116,8 +116,8 @@ def test_architect_and_backend_coder_wire_demo_data():
 
 
 def test_module_graph_is_shared_by_coding_and_run_harness():
-    """The module DAG is one SSOT, referenced by both consumers (no dup). (odoo-wave was removed -
-    decision R; run-harness's between-wave integration is the wave-side consumer now.)"""
+    """The module DAG is one SSOT, referenced by both consumers (no dup). (run-harness's
+    between-wave integration is the wave-side consumer.)"""
     mg = "odoo-module-graph.md"
     assert mg in _read(SKILLS / "odoo-coding" / "SKILL.md"), (
         "odoo-coding must reference the module-graph SSOT"
@@ -131,7 +131,8 @@ def test_run_harness_between_wave_consumes_module_dag_and_audits_ownership():
     """The between-wave integration (run-harness) is consume-only - it CONSUMES the plan's
     wave-batched module-DAG (it does not self-auto-infer dependencies) AND still runs the disjoint
     file-ownership audit as a trust-but-verify safety check. Protects the behavior, not the wording.
-    (Retargeted from the removed odoo-wave skill - decision R.)"""
+    (Behavior protected across the module-primary decomposition; the wave-side consumer is
+    run-harness's between-wave integration.)"""
     body = _read(SKILLS / "run-harness" / "SKILL.md")
     lower = body.lower()
     # (a) consumes the plan's module-DAG (no self-derive)
