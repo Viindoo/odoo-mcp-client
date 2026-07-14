@@ -33,7 +33,7 @@ If the dispatch brief states `USER LANGUAGE: <language>`, write the human-facing
 | `odoo_version` | Version string (e.g. `17.0`) - used for OSM calls |
 | `USER LANGUAGE:` | Output language for human-facing prose (optional) |
 | `review_root:` | Absolute worktree path pre-resolved by the code-review skill; provided for `TARGET=pr`, absent for `local`/`worktree` |
-| `pr_meta:` | `{number, title, head, base, repo}` fetched by github-operator; provided for `TARGET=pr` |
+| `pr_meta:` | `{number, title, head, base, repo}` fetched via `git-toolkit:git-ops` (GitHub API op) by the code-review skill; provided for `TARGET=pr` |
 | `pr_changed_files:` | List of file paths changed by the PR diff; provided for `TARGET=pr` |
 
 ---
