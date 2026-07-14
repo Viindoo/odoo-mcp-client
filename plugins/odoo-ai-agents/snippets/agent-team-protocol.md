@@ -4,7 +4,7 @@
      continuation-contract.md (the report payload shape). CHP owns dispatch/resume (lead->worker);
      THIS owns completion-report + tracking (worker->lead) - the two are non-overlapping.
      Referenced (not copy-pasted) by the spawner/orchestrator skills (run-harness, odoo-intake,
-     odoo-coding, odoo-debug, odoo-code-review, wave, odoo-modules-upgrade, odoo-forward-port, ...)
+     odoo-coding, odoo-debug, odoo-code-review, odoo-modules-upgrade, odoo-forward-port, ...)
      and by every named teammate brief. Edit here only; consumers point at
      ${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md. -->
 
