@@ -194,6 +194,71 @@ def test_agent_team_reporting_snippet_exists():
 
 
 # ---------------------------------------------------------------------------
+# github-operator.md: the PR-review inline-findings fan-out recipe (P3) is
+# documented AND remains self-contained (no odoo-ai-agents artifact/path).
+# ---------------------------------------------------------------------------
+
+GITHUB_OPERATOR = TOOLKIT / "agents" / "github-operator.md"
+
+
+def test_github_operator_documents_inline_findings_fanout_recipe():
+    """github-operator.md must document the create -> loop -> submit_pending fan-out.
+
+    Business rule: when an orchestrator hands github-operator a LIST of findings, it must
+    post ONE inline comment per finding - never collapse to a single flat comment. The
+    documented sequence is: open a pending review ONCE (`create`, no `event`), call
+    `add_comment_to_pending_review` once per finding (subjectType LINE, a `suggestion`
+    fence in the body when a fix exists), then finalize ONCE via `submit_pending`. This
+    guards the sequence itself, not just the tool names in isolation.
+    """
+    text = GITHUB_OPERATOR.read_text(encoding="utf-8")
+    assert "## PR review with inline findings" in text, (
+        "github-operator.md is missing the '## PR review with inline findings (fan-out)' "
+        "recipe section"
+    )
+    assert re.search(r'method:\s*"create"', text), (
+        "github-operator.md does not document opening the pending review via "
+        "pull_request_review_write method: \"create\""
+    )
+    assert "add_comment_to_pending_review" in text and "subjectType" in text, (
+        "github-operator.md does not document the per-finding "
+        "add_comment_to_pending_review call with a subjectType"
+    )
+    assert "submit_pending" in text, (
+        "github-operator.md does not document finalizing the review via submit_pending"
+    )
+    assert "never `APPROVE`" in text or "never APPROVE" in text, (
+        "github-operator.md does not forbid an automated review from ever submitting APPROVE"
+    )
+    assert "subjectType: \"FILE\"" in text, (
+        "github-operator.md does not document the FILE-level fallback for a finding whose "
+        "line cannot be anchored in the PR diff"
+    )
+    assert "DONE_WITH_CONCERNS" in text and re.search(
+        r"never\s+silently collapse to one flat comment", text
+    ), (
+        "github-operator.md does not require DONE_WITH_CONCERNS (never a silent collapse to "
+        "one flat comment) when the GitHub MCP is unavailable"
+    )
+
+
+def test_github_operator_fanout_recipe_names_no_odoo_ai_agents_artifact():
+    """The fan-out recipe itself must stay self-contained (git-toolkit is dependency-free).
+
+    Belt-and-suspenders companion to test_git_toolkit_names_no_odoo_ai_agents_artifact: that
+    whole-provider scan already covers this file, but this test pins the guarantee directly
+    to the P3 feature so a future refactor of the broader scan cannot silently drop coverage
+    of this specific recipe.
+    """
+    pattern = _forbidden_re(_consumer_names())
+    violations = _scan(GITHUB_OPERATOR, pattern)
+    assert not violations, (
+        "github-operator.md's inline-findings fan-out recipe names an odoo-ai-agents "
+        f"artifact - git-toolkit must stay dependency-free:\n" + "\n".join(violations)
+    )
+
+
+# ---------------------------------------------------------------------------
 # The guard
 # ---------------------------------------------------------------------------
 

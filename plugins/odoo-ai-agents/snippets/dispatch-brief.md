@@ -55,6 +55,8 @@ pointer back to this file - never the full skeleton table.
 - Non-negotiable interfaces other modules assume.
 - Whether a human gate precedes code.
 - `ACCEPTANCE` resolves to the design doc's S9 (skeleton field 6).
+- `PEERS` - same-layer sibling addresses the lead brokered for bounded peer reconciliation; `none`
+  when the layer has one child.
 
 ### Coder
 

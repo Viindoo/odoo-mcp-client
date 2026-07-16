@@ -49,8 +49,8 @@ Before finalizing, determine: which domain owns it, which business rules must ne
 |------|-------|-----------|--------|
 | **single** (default) | requirement | full Rounds 0-4 below | flat TDD `.odoo-ai/designs/<slug>-<date>.md` |
 | **master** | requirement + scope DAG (survey/brl/manifests) | cross-module altitude: `impact_analysis` + dep graph + ownership decisions; per-field light | `_master-<date>.md` (§1 per-module table + §10 ownership registry) + `index.yaml` |
-| **child** | master TDD (BINDING) + `CHILD_MODULE` + upstream dep-context | Rounds 1-3 scoped to one module; CITE + HONOR §10 | child TDD; first header line: `Master TDD: _master-<date>.md` (same subdir); field `MASTER_DESIGN_DOC` set |
-| **consistency** | all child TDDs + master TDD | §1/§9/fields/deps per child only - NOT full body | reconcile seams: circular deps, shared-field consistency, ownership overlap, dep-direction vs master; update §10 + `index.yaml`; emit `conflict-list.md` at artifact root (`<master-slug>/`) per snippet §Conflict list |
+| **child** | master TDD (BINDING) + `CHILD_MODULE` + upstream dep-context | Rounds 1-3 scoped to one module; CITE + HONOR §10; if brief carries `PEERS:`, open a bounded peer-reconcile exchange for any shared-symbol disagreement before finalizing; record the agreed contract in your OWN child TDD (never edit `index.yaml`/§10) - master-child-design-contract.md § Peer reconciliation | child TDD; first header line: `Master TDD: _master-<date>.md` (same subdir); field `MASTER_DESIGN_DOC` set |
+| **consistency** | all child TDDs + master TDD | §1/§9/fields/deps per child only - NOT full body | consume the agreed contracts each child recorded in its own TDD; APPLY them to §10 + `index.yaml` (sole applier - children never write §10); VERIFY single-owner/dep-direction/no-circular-dep; also reconcile any remaining seams: shared-field consistency, ownership overlap, dep-direction vs master; only unresolved (escalated) seams go to `conflict-list.md` as ESCALATED, agreed ones as RESOLVED-BY-PEERS, at artifact root (`<master-slug>/`) per snippet §Conflict list |
 | **review** | master TDD and/or child TDD(s) under review (READ-ONLY) + `index.yaml` | independent adversarial pass; re-derive from the design's conclusions + the same OSM grounding calls an author would make, withholding the author's rationale where feasible | `_review-<date>.md` (see § Review mode) - FINDINGS (severity + concrete alternative), NEVER a rewrite |
 
 **single - decompose bounce:** before Rounds 0-4, assess scope. If the requirement spans multiple modules each needing non-trivial new models or cross-module contracts, return `status: NEEDS_NEXT` + note "recommend decompose into master-child" instead of writing a monolith flat TDD. Full decompose contract: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
@@ -85,6 +85,41 @@ dispatching gate) decides whether to act on a finding via `refine:`.
 **Model: opus floor.** Same fable-confirmation rule as the other modes - escalate to fable only on
 explicit human confirmation for a Custom-XL / new-inheritance-axis design under review; never
 default to fable.
+
+---
+
+## Peer reconciliation (child mode)
+
+Applies only when your dispatch brief carries a `PEERS:` field (same-`dag_layer` siblings the lead
+brokered addresses for). Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`
+§ Peer reconciliation - this section is the child-agent-facing summary of that SSOT.
+
+**Open.** When your design needs a shared symbol a peer named in `PEERS` owns or touches and you
+disagree on the contract, `SendMessage({to: <peer>, text: <the §10 symbol + your proposed contract +
+why>})`. Use only the names the lead supplied in `PEERS` - never a guessed address. Frame the message
+as shared design context, never "secret"/"private" (CHP confidentiality guard).
+
+**Round cap.** Two round-trips per peer pair (you -> peer -> you -> peer), then stop. Exhausting the
+cap with no written agreement IS the deadlock signal - go to Escalate below.
+
+**Agree -> record in your OWN TDD.** The moment you and the peer both state agreement in writing,
+stop messaging and record the agreed contract in your OWN child TDD + worklog (mark yourself owner or
+consumer-only, per the agreement). Never edit `index.yaml` or §10 yourself - `MODE: consistency` is
+the sole §10/`index.yaml` applier; it consumes what you recorded.
+
+**Escalate UP one level only.** Escalate to the lead (your `REPLY_TO`) - never to the peer, never past
+the lead - IFF either: the two-round cap is exhausted with no written agreement, OR no proposal on the
+table can satisfy a §10 HARD rule (single-owner, dependency-direction, no-circular-dep). You never
+overturn a master §10 constraint by debate; a disagreement with the master's decision is always an
+escalation, not a rewrite.
+
+Message shapes:
+
+```
+OPEN:     SendMessage({to: <peer in PEERS>, text: "PEER-RECONCILE symbol=<name> proposed=<contract> why=<reason>"})
+REPLY:    SendMessage({to: <opener>, text: "AGREE" | "COUNTER contract=<contract> why=<reason>"})
+ESCALATE: SendMessage({to: <REPLY_TO>, text: "ESCALATE symbol=<name> mine=<contract> theirs=<contract> why-no-yield=<reason>"})
+```
 
 ---
 
@@ -280,7 +315,7 @@ When you finish (single mode), append a Continuation Contract block per `${CLAUD
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your TDD and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. In `child` mode with a `PEERS:` field you additionally `SendMessage` a peer DIRECTLY for a bounded reconcile exchange (lateral, not up); your DONE report still goes UP to `REPLY_TO` only. Still write your TDD and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).
 
 ## Brief self-check
 

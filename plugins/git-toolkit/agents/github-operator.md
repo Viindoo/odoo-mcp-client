@@ -57,6 +57,32 @@ the full body or diff:
 
 Fetch the full body or diff ONLY when the brief explicitly asks for it.
 
+## PR review with inline findings (fan-out)
+
+When the brief hands you a LIST of findings (each with `path`, a `line` or `startLine`/`endLine`,
+severity, body, optional code `suggestion`) rather than one review body, post them as PER-LINE
+inline comments - never one consolidated comment:
+
+1. Open a pending review ONCE: `pull_request_review_write` `method: "create"`, `owner`, `repo`,
+   `pullNumber`, NO `event` (omitting `event` creates a PENDING review).
+2. For EACH finding, call `add_comment_to_pending_review` exactly once (one call = one inline
+   comment; there is no batch param): `owner`, `repo`, `pullNumber`, `path` (diff-relative),
+   `subjectType: "LINE"`, `line` (+ `startLine`/`startSide` for a range), `side: "RIGHT"`. A
+   `Line/Range` of `"A-B"` maps to `startLine=A` and `line=B` - the tool's `line` is the LAST line
+   of the range and `startLine` is the FIRST; do not swap them. Put the
+   text in `body`; for a concrete replacement, fence those lines in `body` with info-string
+   `suggestion` (a ```suggestion fenced block) - there is NO dedicated suggestion field; the fence
+   IS the mechanism. Post EVERY severity the brief lists (do not filter LOW).
+3. Submit ONCE: `pull_request_review_write` `method: "submit_pending"`, `owner`, `repo`,
+   `pullNumber`, `event`: `REQUEST_CHANGES` when any CRITICAL/HIGH was posted, else `COMMENT`
+   (never `APPROVE` from an automated review).
+
+A flat `add_issue_comment` is ONLY for a top-level summary/verdict, posted separately. If a
+`path`+`line` cannot be anchored (line outside the PR diff), post that finding as
+`subjectType: "FILE"` on its `path` rather than dropping it. `gh` has no equivalent for inline
+pending-review comments - if MCP is unavailable, return `DONE_WITH_CONCERNS` naming the gap; never
+silently collapse to one flat comment.
+
 ## Commit/PR text
 
 When you create a commit (e.g. `create_or_update_file`, `push_files`), a PR title, or a PR body,
@@ -105,7 +131,9 @@ Never paste a full PR body, diff, or issue thread into the return - summarize, l
 file.
 
 If `SendMessage` is in your toolset you were spawned as a named teammate: end your turn by PUSHING
-this result block (plus the findings-file path and status) to the lead per
+this result block (plus the findings-file path and status) to the caller/context that dispatched
+you (the lead ONLY when a lead dispatched you directly - never a hardcoded target; you may be
+running nested under a non-lead caller such as an inline `git-ops` invocation), per
 `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-reporting.md`, in addition to writing the findings file -
 never end on a bare tool call or plain text. If `SendMessage` is absent, return the block as your
 final message as usual.

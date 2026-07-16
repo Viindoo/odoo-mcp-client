@@ -42,9 +42,11 @@ CLI:
     allocator.py release <token> [--run-id <id>] [--force] [--instances <path>]
                  # refuses only when the caller's run differs from a non-empty
                  # owner run (token-possession otherwise); --force overrides loudly.
-    allocator.py assert-droppable --db-name <db> [--run-id <id>]
+    allocator.py assert-droppable --db-name <db> [--run-id <id>] [--force]
                  # read-only: non-zero if a FRESH lease on <db> is owned by a
-                 # DIFFERENT run (route that drop through `release`); 0 otherwise.
+                 # DIFFERENT run, OR is UNOWNED (no run_id recorded at all -
+                 # P5.8: unowned is no longer a synonym for "safe to drop");
+                 # 0 otherwise (own lease, stale lease, no lease, or --force).
     allocator.py heartbeat <token>
     allocator.py gc [--instances <path>]
     allocator.py list [--show-tokens]     # tokens are fingerprinted unless --show-tokens
@@ -69,6 +71,10 @@ import instances_io  # noqa: E402  (sibling lib; resolves via the path insert ab
 
 DEFAULT_POOL_SIZE = 10
 DEFAULT_TTL_S = 7200  # 2h; long runs call `heartbeat` to extend
+# SSOT for the "no declared port" fallback (Odoo's own stock default). Also
+# referenced by instances_io.py's INST_HTTP_PORT fallback so both Python
+# consumers converge on one literal (P5.9 8069-fallback consolidation).
+DEFAULT_HTTP_PORT = instances_io.DEFAULT_HTTP_PORT
 
 
 # --------------------------------------------------------------------------- #
@@ -200,11 +206,14 @@ def _ports_in_use(reg):
     return used
 
 
-def _pick_ports(reg, base, size, n):
-    """Pick n free ports from [base, base+size): not in the registry AND bindable."""
+def _pick_ports(reg, base, size, n, reserved=()):
+    """Pick n free ports from [base, base+size): not in the registry, not in
+    `reserved` (e.g. the instance's declared/shared HTTP port - P5 port-
+    uniqueness gate: a pooled lease must never collide with that port even
+    when it falls inside [base, base+size)), AND bindable."""
     if n <= 0:
         return []
-    used = _ports_in_use(reg)
+    used = _ports_in_use(reg) | {int(p) for p in reserved}
     chosen = []
     for p in range(base, base + size):
         if p in used:
@@ -216,7 +225,7 @@ def _pick_ports(reg, base, size, n):
             return chosen
     raise RuntimeError(
         f"port pool exhausted: need {n} free ports in [{base},{base + size}), "
-        f"found {len(chosen)} (in-use or bound)."
+        f"found {len(chosen)} (in-use, bound, or reserved)."
     )
 
 
@@ -472,7 +481,7 @@ def cmd_acquire(opts):
         _emit("ALLOC_TOKEN", "")
         _emit("ALLOC_MODE", "readonly")
         _emit("ALLOC_DB_NAME", inst.get("db_name", "odoo"))
-        _emit("ALLOC_PORTS", [inst.get("http_port", 8069)])
+        _emit("ALLOC_PORTS", [inst.get("http_port", DEFAULT_HTTP_PORT)])
         _emit("ALLOC_RUN_ID", run_id)
         _emit_instance_common(inst)
         return 0
@@ -554,7 +563,16 @@ def cmd_acquire(opts):
         return 2
 
     n_ports = int(opts.get("ports", 0))
-    base = int(inst.get("http_port_base", inst.get("http_port", 8069)))
+    # P5 port-uniqueness gate: the declared HTTP port is reserved for the
+    # shared/declared render target (readonly/shared modes above) and must
+    # NEVER be handed out as a pooled ephemeral/exclusive port - not even when
+    # the profile declares no separate http_port_base, which would otherwise
+    # make the pool start counting AT the declared port itself. Default the
+    # base to declared_port + 1 (skip it outright), and ALSO pass it as
+    # `reserved` so a misconfigured http_port_base that overlaps the declared
+    # port still can't collide.
+    declared_port = int(inst.get("http_port", DEFAULT_HTTP_PORT))
+    base = int(inst.get("http_port_base", declared_port + 1))
     size = int(inst.get("port_pool_size", DEFAULT_POOL_SIZE))
     prefix = inst.get("db_name_prefix", inst.get("db_name", "odoo"))
 
@@ -591,7 +609,7 @@ def cmd_acquire(opts):
                     return 3
 
         try:
-            ports = _pick_ports(reg, base, size, n_ports)
+            ports = _pick_ports(reg, base, size, n_ports, reserved={declared_port})
         except RuntimeError as exc:
             sys.stderr.write(f"allocator: {exc}\n")
             return 4
@@ -781,18 +799,23 @@ def cmd_list(opts):
 
 def cmd_assert_droppable(opts):
     """Read-only ownership probe (under flock). Exit non-zero + print the owning
-    run when a FRESH (non-stale) lease on --db-name is owned by a DIFFERENT
-    non-empty run than --run-id; else exit 0. A stale/absent/own lease is
-    droppable. Bounded TOCTOU: this and the actual drop are two processes, so a
-    lease minted in between is not covered - acceptable because MANAGED DBs are
+    run (when known) when a FRESH (non-stale) lease on --db-name is either (a)
+    owned by a DIFFERENT non-empty run than --run-id, or (b) UNOWNED (no run_id
+    recorded at all) - P5.8: an unowned lease is no longer assumed safe to drop,
+    since that is exactly the gap that let one session bare-drop another
+    session's live instance. Pass --force to reap either case. A stale lease,
+    or one owned by the calling run itself, remains droppable with no --force.
+    Bounded TOCTOU: this and the actual drop are two processes, so a lease
+    minted in between is not covered - acceptable because MANAGED DBs are
     dropped through the race-free `release` path, never via bare name."""
     db = opts.get("db_name")
     if not db:
         sys.stderr.write(
-            "Usage: allocator.py assert-droppable --db-name <db> [--run-id <id>]\n"
+            "Usage: allocator.py assert-droppable --db-name <db> [--run-id <id>] [--force]\n"
         )
         return 2
     caller_run = opts.get("run_id") or opts.get("session", "")
+    force = opts.get("force")
     with _locked():
         reg = _read_registry()
         for lease in reg["leases"]:
@@ -802,14 +825,36 @@ def cmd_assert_droppable(opts):
                 continue
             owner = lease.get("owner", {})
             owner_run = owner.get("run_id") or owner.get("session_id", "")
-            if owner_run and owner_run != caller_run:
+            if owner_run:
+                if owner_run == caller_run:
+                    continue  # own lease: droppable, no --force needed.
+                if not force:
+                    sys.stderr.write(
+                        f"allocator: database {db!r} is held by a FRESH lease owned by "
+                        f"run {owner_run!r}; route the drop through `release <token>` "
+                        "instead of a bare-name drop (or pass --force to reap it).\n"
+                    )
+                    _emit("ALLOC_OWNER_RUN", owner_run)
+                    return 1
                 sys.stderr.write(
-                    f"allocator: database {db!r} is held by a FRESH lease owned by "
-                    f"run {owner_run!r}; route the drop through `release <token>` "
-                    "instead of a bare-name drop (or pass --force to reap it).\n"
+                    f"allocator: --force reaping a lease owned by a different run "
+                    f"{owner_run!r} (caller run {caller_run!r}).\n"
                 )
-                _emit("ALLOC_OWNER_RUN", owner_run)
+                continue
+            # Unowned (no run_id recorded at all): no longer a synonym for
+            # "safe to drop" (P5.8) - refuse unless --force.
+            if not force:
+                sys.stderr.write(
+                    f"allocator: database {db!r} is held by a FRESH lease with NO "
+                    "recorded owner; an unowned lease is no longer assumed safe to "
+                    "drop - pass --force to reap it, or thread --run-id at acquire "
+                    "time so ownership is tracked.\n"
+                )
+                _emit("ALLOC_OWNER_RUN", "")
                 return 1
+            sys.stderr.write(
+                f"allocator: --force reaping an unowned fresh lease on {db!r}.\n"
+            )
     return 0
 
 

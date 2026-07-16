@@ -27,6 +27,11 @@ Rules:
 - **You only EMIT this - you never dispatch the next step yourself.** Advancing is the
   run-harness's job (a skill/agent emitting a contract must not self-dispatch the next spawner -
   that is the run-harness's job). See `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`.
+- **Spawner completion barrier (distinct from the no-self-dispatch rule above).** If you launched
+  any agent this turn, `status: DONE` is legal only when every child you launched returned
+  DONE/BLOCKED; while a child runs you are not done. Full rule:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1/R2. Different guarantee from
+  'you never dispatch the next step yourself'; both hold.
 - `status: DONE` when the run's goal is met; `NEEDS_NEXT` when more work should follow (fill
   `next`); `BLOCKED` when you cannot proceed; `NEEDS_CONTEXT` when you need a human decision.
 - `produced` is your evidence (Completion-status #8) - list the real paths you wrote.

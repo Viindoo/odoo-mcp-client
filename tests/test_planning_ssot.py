@@ -138,3 +138,49 @@ def test_specialist_orchestrators_point_at_gate_contract_not_restate_plan_mode_a
             f"{rel} must NOT restate the plan_mode_active definition - that SSOT lives only in "
             "planning-gate-contract.md; point at it."
         )
+
+
+def test_enter_precedes_authoring_invariant():
+    """P4 (plan mode ownership + timing): the SSOT states the temporal invariant - `EnterPlanMode`
+    is called BEFORE authoring, not merely before presenting the plan - and both odoo-planning
+    (the sole enterer, hoisted above its planner dispatch) and odoo-intake (which enters Plan Mode
+    on NO path) comply with it in their own prose. Root cause this guards: odoo-planning used to
+    enter AFTER its planners already wrote the plan file, and odoo-intake pre-opened Plan Mode on
+    the author's behalf - both are now excised."""
+    gate = GATE.read_text(encoding="utf-8")
+    low = " ".join(gate.lower().split())  # normalize whitespace - prose line-wraps
+    assert "enter before authoring" in low, (
+        "planning-gate-contract.md must state the WHEN invariant: EnterPlanMode is called BEFORE "
+        "authoring, not only before presenting the plan."
+    )
+    assert "exactly one actor calls it" in low, (
+        "planning-gate-contract.md must pin exactly ONE actor as the enterer for a given plan."
+    )
+    assert "pre-open plan mode on behalf of the plan author" in low, (
+        "planning-gate-contract.md must forbid a caller from pre-opening Plan Mode on the "
+        "author's behalf and then dispatching it."
+    )
+
+    planning = PLANNING.read_text(encoding="utf-8")
+    plow = " ".join(planning.lower().split())
+    assert "before dispatching either planner" in plow, (
+        "odoo-planning/SKILL.md must enter Plan Mode BEFORE dispatching either planner (P1a/P1b), "
+        "not after they return."
+    )
+    guard_idx = planning.find("Plan Mode guard")
+    p1a_idx = planning.find("### P1a - Code plan")
+    assert guard_idx != -1 and p1a_idx != -1 and guard_idx < p1a_idx, (
+        "odoo-planning's Plan Mode guard must be positioned BEFORE the P1a planner dispatch - "
+        "the enter must precede authoring, not follow it."
+    )
+
+    intake = INTAKE.read_text(encoding="utf-8")
+    ilow = " ".join(intake.lower().split())
+    assert "intake never does" in ilow, (
+        "odoo-intake/SKILL.md must state that it enters Plan Mode on NO path - the plan-authoring "
+        "skill (odoo-planning) is the sole enterer, never intake."
+    )
+    assert "main agent calls **`enterplanmode`**" not in ilow, (
+        "odoo-intake/SKILL.md must NOT instruct the main agent to call EnterPlanMode directly - "
+        "that call belongs solely to the plan-authoring skill it dispatches."
+    )

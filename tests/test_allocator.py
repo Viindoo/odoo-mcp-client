@@ -135,6 +135,65 @@ def test_zero_ports_leases_no_port(fixt):
 
 
 # --------------------------------------------------------------------------- #
+# P5 port-uniqueness gate (refinement 2, 23-review-final.md Part 2): a pooled
+# port handed to an `exclusive-running` build must never equal the declared
+# HTTP port (the shared/declared render target's port) - even when the
+# profile declares no separate http_port_base, so the pool would otherwise
+# start counting AT the declared port itself.
+# --------------------------------------------------------------------------- #
+def test_pooled_port_never_equals_the_declared_http_port(tmp_path):
+    """With NO http_port_base declared (legacy profile), the pool must not hand
+    out the declared http_port (8069) itself - that port is reserved for the
+    shared/declared render target, so a pooled exclusive-running lease landing
+    on it would collide."""
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML_LEGACY, encoding="utf-8")  # http_port=8069, no http_port_base
+    env = _env(home, toml)
+    p = _run(env, "acquire", "--series", "16.0", "--mode", "ephemeral",
+             "--no-create", "--ports", "1")
+    a = _parse_alloc(p.stdout)
+    assert p.returncode == 0, p.stderr
+    assert a["ALLOC_PORTS"][0] != 8069, (
+        "a pooled port must never equal the declared HTTP port (would collide with "
+        "the shared/declared render target listening there)"
+    )
+
+
+def test_concurrent_pooled_acquires_never_collide_with_declared_port(tmp_path):
+    """Two (or more) concurrent exclusive-running-style acquires on the same
+    series must get DISTINCT pooled ports, and NONE may equal the declared
+    http_port - even under concurrency, and even with no http_port_base
+    declared (the pool naively starts counting at the declared port)."""
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML_LEGACY, encoding="utf-8")
+    env = _env(home, toml)
+    n = 4
+    procs = [
+        subprocess.Popen(
+            [sys.executable, str(ALLOC), "acquire", "--series", "16.0",
+             "--mode", "ephemeral", "--no-create", "--ports", "1",
+             "--run-id", f"run-{i}"],
+            stdout=subprocess.PIPE, text=True, env=env,
+        )
+        for i in range(n)
+    ]
+    ports = []
+    for pr in procs:
+        out, _ = pr.communicate()
+        ports.extend(_parse_alloc(out).get("ALLOC_PORTS", []))
+    assert len(ports) == n, f"every concurrent acquire should yield a port; got {ports}"
+    assert len(set(ports)) == n, f"flock must prevent duplicate ports; got {ports}"
+    assert 8069 not in ports, (
+        "no pooled port may equal the declared HTTP port, even under concurrency and "
+        f"even with no http_port_base declared; got {ports}"
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Lease record shape (B2 model)
 # --------------------------------------------------------------------------- #
 def test_ephemeral_lease_carries_drop_context(tmp_path):
@@ -1068,6 +1127,30 @@ def test_assert_droppable_allows_unmanaged_db(fixt):
     env, _, _ = fixt
     r = _run(env, "assert-droppable", "--db-name", "no_such_lease", "--run-id", "run-B")
     assert r.returncode == 0, "an unmanaged DB (no lease) is always droppable"
+
+
+def test_assert_droppable_refuses_foreign_drop_of_shared_lease(fixt):
+    """A `shared` lease acquired WITH --run-id=A must refuse a foreign bare-drop
+    (--run-id=B) exactly like an exclusive lease does - assert-droppable's
+    ownership guard is mode-agnostic; owner-stamping a shared lease is enough
+    to protect it (P5.5: the shared-lease registration path threads --run-id)."""
+    env, _, _ = fixt
+    _shared(env, "--port", "18069", "--run-id", "run-A")
+    r = _run(env, "assert-droppable", "--db-name", "odoo_17_0", "--run-id", "run-B")
+    assert r.returncode != 0, "a shared lease owned by a different run must be non-droppable"
+    assert "run-A" in r.stderr, f"assert-droppable must name the owning run; stderr={r.stderr!r}"
+
+
+def test_assert_droppable_refuses_unowned_fresh_lease_without_force(fixt):
+    """P5.8: an UNOWNED (no run_id at all) but FRESH lease must be refused by
+    assert-droppable without --force - 'unowned' is no longer a synonym for
+    'safe to drop'. --force still overrides (the documented reap escape hatch)."""
+    env, _, _ = fixt
+    _acquire(env, "--mode", "exclusive", "--db-name", "mydb")  # no --run-id: unowned
+    r = _run(env, "assert-droppable", "--db-name", "mydb")
+    assert r.returncode != 0, "an unowned fresh lease must be refused without --force"
+    r2 = _run(env, "assert-droppable", "--db-name", "mydb", "--force")
+    assert r2.returncode == 0, "--force must override the unowned-fresh refusal"
 
 
 def test_assert_droppable_allows_stale_foreign_lease(fixt):

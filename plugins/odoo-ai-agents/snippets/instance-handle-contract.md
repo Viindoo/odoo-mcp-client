@@ -29,11 +29,17 @@ brief that touches code or tests (coder, test-author, verify, debug).
 
 An agent that receives an `INSTANCE_HANDLE` MUST use it for every odoo-bin operation
 (confirm-by-toggle, `-i` / `-u`, `--test-enable`) and MUST NOT build its own `db_name`, port, or
-`addons_path`. Self-provisioning when a handle was already passed causes port `8069` / DB-name
-collisions when multiple agents run concurrently. When NO handle is passed (a run that never
-provisioned one), the agent self-provisions by invoking `Skill(odoo-instance)` in its own context -
-which acquires its own isolated ephemeral instance UNDER the instance HARD RULES (`en_US` union, Viindoo
-`to_base`, lint-module install, per-version `cli_help` grounding) per
+`addons_path`. Collision is NOT solved merely by going through `odoo-instance`: the shared/spinup
+path collides on the same declared/`8069` numbers even when every caller carries a handle -
+`persist: shared-running` is DELIBERATELY one shared db+port for many readers, by design. Only
+`persist: exclusive-running` (unique db + an allocator-issued pooled port + an owned lease, keyed on
+`run_id`) prevents a collision outright; a `shared-running` instance stays shared on purpose but
+MUST be owner-stamped (`run_id`) so a foreign session cannot bare-drop it (see
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md` §5 + §6.3). When NO handle is passed (a
+run that never provisioned one), the agent self-provisions by invoking `Skill(odoo-instance)` in its
+own context - passing `persist: ephemeral` (default) or `persist: exclusive-running` when the
+process must stay listening - which acquires its own isolated instance UNDER the instance HARD RULES
+(`en_US` union, Viindoo `to_base`, lint-module install, per-version `cli_help` grounding) per
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance allocation - rather than
 a bare `allocator.py` call, which would bypass those rules. A provided handle always wins (consume,
 never re-provision).

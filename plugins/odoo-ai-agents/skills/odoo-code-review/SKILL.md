@@ -83,7 +83,7 @@ Dispatch ONE `odoo-code-reviewer` agent (sonnet). It writes its report to `.odoo
 
 Dispatch one `odoo-code-reviewer` agent per module in `modules[]`, all in one batch. Concurrency is bounded by the harness automatically - do NOT set a manual wave-cap (policy SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Each agent is scoped to ONLY its module, reads files at `review_root`, writes `<module>.md` to `.odoo-ai/reviews/<slug>-<date>/`, and returns a short summary + path.
 
-When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet, and read each result from the teammate's SendMessage push (NEVER from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect inline.
+When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per work-item, inject TASK_ID + REPLY_TO: <this skill's current orchestrating context> (this skill runs INLINE in whatever invoked it - that context IS `main` when the main-context driver invoked it, per CHP capability-probe condition 4; do NOT hardcode a literal `main` if you are running inside a non-lead agent) + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet, and read each result from the teammate's SendMessage push (NEVER from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` (defense-in-depth; see also `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3). When off, dispatch + collect inline.
 
 **When `module.needs_ui_review` is `true` or `candidate`**, add `UI_REVIEW=delegated` to that module's reviewer brief. Under that flag the reviewer reviews everything NON-rendered - Python/ORM/security/perf/data AND the SOURCE correctness of the view layer (XPath targets resolve, view `arch` well-formed, no dead JS import, SCSS compiles + reuses real tokens) - but does NOT grade rendered appearance, UX, accessibility, or runtime (delegated to Phase A.5's `odoo-ui-reviewer`). It still writes `<module>.md` (for a `candidate`, resolve view-binding via OSM and record `ui_review_required` there).
 
@@ -144,7 +144,37 @@ All output under `.odoo-ai/reviews/<slug>-<YYYY-MM-DD>/` (gitignored). Slug come
 - `domain-<d>.md` - per-domain synthesis (large sets only, Phase B domain-partition); the final `_synthesis.md` is built from these
 - `index.md` - short map: modules reviewed, dependency closure, per-module severity counts, overall verdict + score, highest-severity findings linking to detail files
 
-Report is presented as an artifact in chat by default. Post to PR ONLY when user explicitly requests it (keyword `post`): invoke the `git-toolkit:git-ops` skill (via the Skill tool) with the PR number from `pr.number` in the scope result and the review body; git-ops posts via the PR comment API (flat) or PR review API (per-finding inline) - prefer inline for actionable findings.
+Report is presented as an artifact in chat by default. Post to PR ONLY on explicit request (keyword
+`post`). Do NOT hand over a single review body. `git-toolkit:git-ops` is domain-agnostic: its
+inline-findings fan-out recipe (its GitHub specialist owns the create-pending -> per-finding ->
+submit fan-out internally) consumes a plain findings array and knows nothing about an Odoo "Issues
+table" or a "Suggested replacement" block. THIS skill - the owner of that Odoo-specific shape -
+CONVERTS it BEFORE invoking `git-toolkit:git-ops`:
+
+1. **Build `findings[]`** - one object per Issues-table row, across every report in scope. Post
+   EVERY severity CRITICAL through LOW so no finding is dropped. Per finding, emit exactly:
+   `{path, startLine, line, severity, body, suggestion}` where:
+   - `path` (diff-relative) - the row's `File` value, already repo-relative per the agent contract
+     - never the `review_root` worktree-absolute path.
+   - `startLine` - parsed from the row's `Line/Range`: a bare line `N` gives `startLine=N`; a range
+     `A-B` gives `startLine=A`.
+   - `line` - the LAST line of the range: `=startLine` for a single line, `=B` for range `A-B`.
+   - `severity` - the row's `Severity` value verbatim.
+   - `body` - the row's `Issue` cell (+ `Suggested fix` prose when no replacement block exists).
+   - `suggestion` (optional) - when the row has a matching `#### <File>:<Line/Range>` Suggested
+     replacement block, that block's fenced lines VERBATIM, with NO ```suggestion wrapper (the
+     poster adds the fence); omit the key entirely when the row has no replacement block.
+2. **Invoke `git-toolkit:git-ops`** (Skill tool) with `owner`/`repo` (from the scope's
+   `### PR metadata` `repo: <fullName>`, split on `/`), `pullNumber` (`number`), the `findings[]`
+   array just built, and the instruction: "open ONE pending review, post one inline comment per
+   `findings[]` entry, then submit the pending review with event REQUEST_CHANGES if any
+   CRITICAL/HIGH remains, else COMMENT." Pass the array - never a bare report path + prose;
+   `git-toolkit:git-ops` stays generic and never sees the words "Issues table" or "Suggested
+   replacement".
+
+Post the synthesis-level verdict/score as ONE separate top-level PR comment (flat) - the summary
+only, never a substitute for the per-finding inline comments. "Prefer inline" = this fan-out,
+always.
 
 Emit paths in the Continuation Contract `produced[]`; later steps reference these instead of re-reviewing.
 

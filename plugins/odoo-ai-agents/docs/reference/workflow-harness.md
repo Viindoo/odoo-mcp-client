@@ -314,9 +314,11 @@ flow:
 
 - **The orchestrating context CAN call `EnterPlanMode` / `ExitPlanMode`** - these are
   platform tools available to the main context. A skill running in the orchestrating
-  context (e.g., `odoo-intake`) may instruct the main agent to invoke `EnterPlanMode`
-  before any file-touching execution, producing genuine UI-approved Plan Mode - a
-  stronger enforcement than a text gate.
+  context (e.g., `odoo-planning`, the plan-authoring skill) may instruct the main agent
+  to invoke `EnterPlanMode` before it authors the plan, producing genuine UI-approved
+  Plan Mode - a stronger enforcement than a text gate. Exactly one skill enters for a
+  given plan - the author - never the dispatching front door (see § Planning-initiated
+  Plan Mode pattern below).
 - **Subagents cannot call `EnterPlanMode`** - the tool is only reachable from the
   main context. `ExitPlanMode` is only available to a subagent whose `permissionMode`
   is already `plan`.
@@ -349,20 +351,24 @@ Run this before any execute-skill dispatch. Intake reads the chosen Approach's
   checkpoint.json resume) owns its own run-DAG; intake dispatches it once and the skill
   drives itself.
 
-#### Intake-initiated Plan Mode pattern
+#### Planning-initiated Plan Mode pattern
 
-When `odoo-intake` (running in the orchestrating context) reaches the execute phase
-after the user approves a Proposed Plan and the Approach `output_mode = writes-files`,
-the main agent calls `EnterPlanMode` → writes the implementation plan (see §4.6
-Content Schema) for UI review → receives user approval via `ExitPlanMode` → then
-dispatches the file-touching specialist. This is a first-class enforcement option, not
-a workaround.
+When `output_mode = writes-files`, `odoo-intake` (running in the orchestrating context) reaches
+the execute phase after the user approves a Proposed Plan and dispatches the mandatory
+`odoo-planning` (Skill tool) - WITHOUT pre-opening Plan Mode and WITHOUT passing
+`plan_mode_active: true`. `odoo-planning` is the SOLE enterer: it calls `EnterPlanMode` itself,
+BEFORE it authors the plan (never after), writes the implementation plan (see §4.6 Content
+Schema) for UI review, receives user approval via `ExitPlanMode` itself, then hands control back
+to intake (Continuation Contract `next: odoo-intake`), which then dispatches the file-touching
+specialist. This is a first-class enforcement option, not a workaround. Intake never calls
+`EnterPlanMode`/`ExitPlanMode` on this or any other path - see `skills/odoo-intake/SKILL.md` §
+Plan Mode - harness-level pre-execute gate.
 
-For a non-trivial multi-module change, intake does not author the plan content itself: per the
-authoring split (§4.6), it DELEGATES authoring to `odoo-planning` (Skill tool) while Plan Mode
-stays open across that dispatch, passing `plan_mode_active: true` in the brief so `odoo-planning`
-does not call `EnterPlanMode` a second time (a double-enter is a harness error). SSOT for the flag
-and the enter/skip decision it drives: `skills/odoo-planning/SKILL.md` § Plan Mode guard.
+Intake does not author the plan content itself: per the authoring split (§4.6), it ALWAYS
+delegates authoring to `odoo-planning`. SSOT for the enter/skip decision `odoo-planning`'s own
+guard drives: `skills/odoo-planning/SKILL.md` § Plan Mode guard, which in turn points at
+`snippets/planning-gate-contract.md` § Plan-Mode enter/exit for the `plan_mode_active` definition
+and the enter-before-authoring invariant.
 
 There is **no platform write-block** behind the gate: `odoo-intake` does not declare
 `disallowed-tools: Write Edit`, and the coders (`odoo-coding`) DO write/apply code - that is
@@ -500,8 +506,10 @@ before `odoo-coding` writes the override.
 > mandatory for all work - see `snippets/planning-gate-contract.md`. It CONFORMS to the SSOT above
 > - never a second format.
 
-When `output_mode = writes-files` (decision tree §4.1) the plan written inside Plan Mode (step 3
-of the EnterPlanMode procedure) MUST contain three blocks, none optional:
+When `output_mode = writes-files` (decision tree §4.1) the plan written inside Plan Mode - entered
+by `odoo-planning`'s own guard, before it authors (see § Planning-initiated Plan Mode pattern
+above; `odoo-planning` is the sole enterer, never intake) - MUST contain three blocks, none
+optional:
 
 - **Block 1 - Module list** - one entry per MODULE (the OUTER unit is the module, never a
   work-item; SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` § Two-tier
@@ -741,9 +749,11 @@ The `handoff` field in `generator/skill_tool_deps.json` records the preferred ti
 **Agent Team mode (send-message tier).** When the capability probe is positive (Tier A available),
 the `send-message` tier now carries two extra obligations on top of resume-to-cut-cold-start: a
 teammate-side completion-report obligation (each teammate PUSHES its result/Continuation Contract
-to the lead via `SendMessage` to `main`, rather than the lead scraping it from the `.output`
-transcript) and a lead-side task board (the lead TaskCreates one task per dispatched work-item,
-injects `TASK_ID` + `REPLY_TO: main` + `NOTIFY: <dependent names>` into each teammate brief, and
+to its launcher via `SendMessage` to `<REPLY_TO>` - `main` only when main is that launcher, never a
+hardcoded literal - rather than the lead scraping it from the `.output` transcript) and a lead-side
+task board (the lead TaskCreates one task per dispatched work-item, injects `TASK_ID` +
+`REPLY_TO: <this lead's own address>` (`main` ONLY when main is the lead) +
+`NOTIFY: <dependent names>` into each teammate brief, and
 polls `TaskList`/`TaskGet` for live status). The board carries low-context status; the push carries
 result content. SSOT for both halves: `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`.
 

@@ -146,23 +146,45 @@ A CRITICAL or HIGH change to business behavior (new/altered constraint, compute,
 
 ## Output format
 
-```
+Wrapped in a 4-backtick fence below because the template itself contains nested 3-backtick example
+fences (the Suggested-replacement snippet and the Fixed Code block) - a 3-backtick closer inside a
+3-backtick wrapper would close the wrapper early under CommonMark (a closing fence needs >= the
+opening backtick count), silently dropping everything after it out of the block. Do NOT narrow this
+back to 3 backticks without also restructuring the nested fences.
+
+````
 ## Code Review: `<brief description of what the code does>`
 
 ### Summary
 <1-2 sentences readable before the table: what the change does + overall quality/risk in one glance.>
 
 ### Issues Found
-| Severity | Location | Rule | Issue | Fix |
-|----------|----------|------|-------|-----|
-| CRITICAL | line N   | -    | `field_name` does not exist on `model.name` (entity_lookup: NOT FOUND) | Use `correct_field_name` |
-| HIGH     | line N   | -    | N+1 query: ORM call inside `for rec in self` loop | Move search outside loop or use `mapped()` |
-| MED      | line N   | `17.0/naming.md` | compute method not named `_compute_<field>` | Rename to follow the version's naming prefix rule |
-| LOW      | line N   | `17.0/python.md` | String not translatable | Wrap in `_('...')` |
+| Severity | File | Line/Range | Rule | Issue | Suggested fix |
+|----------|------|------------|------|-------|---------------|
+| CRITICAL | models/sale_order.py | 42 | - | `amout_total` does not exist on `sale.order` (entity_lookup: NOT FOUND) | rename to `amount_total` |
+| HIGH     | models/sale_order.py | 58-64 | - | N+1 query: ORM call inside `for rec in self` loop | Move search outside loop or use `mapped()` |
+| MED      | models/sale_order.py | 71 | `17.0/naming.md` | compute method not named `_compute_<field>` | Rename to follow the version's naming prefix rule |
+| LOW      | models/sale_order.py | 90 | `17.0/python.md` | String not translatable | Wrap in `_('...')` |
 
-(The `Rule` column cites the version coding-guidelines file + section for convention findings, or `-`
-for non-convention bugs. With zero issues, state: "No CRITICAL or HIGH issues found. Code follows
-Odoo conventions correctly.")
+`File` is the repo-relative path matching the PR diff path EXACTLY (it feeds
+`add_comment_to_pending_review`'s `path` param) - you read files at an isolated `review_root`
+worktree, but you MUST emit `File` relative to the repo root, never the worktree absolute path.
+`Line/Range` is one line number or `startLine-endLine`. The `Rule` column cites the version
+coding-guidelines file + section for convention findings, or `-` for non-convention bugs. With zero
+issues, state: "No CRITICAL or HIGH issues found. Code follows Odoo conventions correctly."
+
+**Suggested replacement (per finding with a concrete fix).** When a finding has a literal code
+replacement for a contiguous line range, emit under the table a `#### <File>:<Line/Range>` heading
+followed by a fenced code block containing EXACTLY the replacement lines - this is the body a PR
+poster drops into a GitHub ```suggestion fence (mirrors
+`odoo-security-audit/references/vulnerability-taxonomy.md` "Concrete fix" and
+`odoo-perf-audit/references/output-format.md` "Remediation"). Omit this block for a finding with no
+literal replacement (e.g. "add a test"). Example:
+
+#### models/sale_order.py:42
+```python
+amount_total = self.amount_total
+```
 
 ### TDD Conformance
 (Include ONLY when a `DESIGN_DOC` was supplied in the brief; omit the whole block otherwise.)
@@ -218,7 +240,7 @@ structured signal for the orchestrating agent rather than advice to a human; thi
 read-only and produces findings only, so it does not spawn the reviewer itself:
 `SUGGESTED_NEXT: odoo-debug (reason=reactivity/render-failure finding)` or
 `SUGGESTED_NEXT: odoo-ui-review (reason=layout/styling finding)`. The orchestrator decides whether to run it.>
-```
+````
 
 ## Review dimensions
 
@@ -316,4 +338,4 @@ Full caller-side schema (reference only, not required to resolve): `dispatch-bri
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your review report and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your review report and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).

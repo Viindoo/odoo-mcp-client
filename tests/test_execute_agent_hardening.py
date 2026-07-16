@@ -31,6 +31,7 @@ NEW_SNIPPETS = [
     SNIPPETS / "read-before-write-contract.md",
     SNIPPETS / "test-behavior-contract.md",
     SNIPPETS / "context-handoff-protocol.md",
+    SNIPPETS / "spawner-completion-contract.md",
 ]
 
 # The agents that touch architecture / code / review / debug. The backend WRITER is

@@ -157,7 +157,7 @@ Then append a Continuation Contract per
 ## Agent Team mode
 
 If `SendMessage` is in your toolset you are running as a teammate: your terminal action
-MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per
+MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per
 `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle.
 Write your files as usual, then push the report.
 

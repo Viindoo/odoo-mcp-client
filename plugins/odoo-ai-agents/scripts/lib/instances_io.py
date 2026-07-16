@@ -37,6 +37,11 @@ import re
 import shlex
 import sys
 
+# SSOT for the "no declared http_port" fallback (Odoo's own stock default).
+# allocator.py imports this module and points its own DEFAULT_HTTP_PORT here
+# instead of repeating the literal (P5.9 8069-fallback consolidation).
+DEFAULT_HTTP_PORT = 8069
+
 
 def _load_tomllib(path):
     import tomllib  # py3.11+; ImportError -> caller falls back to text scan
@@ -216,7 +221,7 @@ def _cmd_read(argv):
     _emit("INST_VERSION", series_of(tbl))
     _emit("INST_ADDONS_PATH", tbl.get("addons_path", []))
     _emit("INST_RUN_MODE", tbl.get("run_mode", "source"))
-    _emit("INST_HTTP_PORT", tbl.get("http_port", 8069))
+    _emit("INST_HTTP_PORT", tbl.get("http_port", DEFAULT_HTTP_PORT))
     _emit("INST_DB_NAME", tbl.get("db_name", "odoo"))
     _emit("INST_DB_HOST", tbl.get("db_host", "localhost"))
     _emit("INST_DB_USER", tbl.get("db_user", "odoo"))

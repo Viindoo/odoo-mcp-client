@@ -109,6 +109,27 @@ planner writes ONLY the plan under `.odoo-ai/`.
 
 ## Agent invocation - prompt templates (P1: code + doc)
 
+### Plan Mode guard (enter HERE, before dispatching either planner)
+
+Enter Plan Mode HERE, BEFORE dispatching either planner - the planners WRITE the plan file, so
+entering after they return leaves authoring outside Plan Mode (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit, "enter before
+authoring"). This skill runs in the MAIN context, so it CAN call `EnterPlanMode`.
+
+Enter IFF ALL THREE hold: `plan_mode_active` is absent/false AND `return_to` is unset AND the
+session is not already in native Plan Mode (Shift+Tab / `/plan`). Skip iff `plan_mode_active:
+true` (a caller already holds Plan Mode open across this dispatch for its own reason - never a
+pre-open on THIS skill's behalf). When `return_to` is SET (caller-return flow - Phase 0 above
+already skips the plan-intent preview for this case) the caller owns the gate: do NOT enter here;
+author the plan, then hand control back via the Continuation Contract (`next: <return_to>`)
+without ever opening or closing Plan Mode.
+
+The enter/skip mechanics + the `plan_mode_active` definition are SSOT at
+`${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit +
+plan_mode_active. This guard decides only the ENTER side; the "Plan ready" gate and the
+`ExitPlanMode` call on `approve` (§ Plan-approval gate below - including the `return_to`-SET
+no-enter branch, unchanged) stay AFTER both planners return - only the ENTER moved up here.
+
 When composing the dispatch prompt for any specialist agent you dispatch, fill the caller-side
 skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief.
@@ -207,14 +228,9 @@ read-only execution detail and output contract.
 
 ## Plan-approval gate (who approves: the human)
 
-### Plan Mode guard (enter iff not already active)
-
-Enter iff `plan_mode_active` is absent/false; skip iff `plan_mode_active: true` (a caller - e.g.
-`odoo-intake` - already opened Plan Mode across the dispatch). This skill runs in the MAIN context
-so it CAN call `EnterPlanMode`. The enter/skip mechanics + the `plan_mode_active` definition are
-SSOT at `${CLAUDE_PLUGIN_ROOT}/snippets/planning-gate-contract.md` § Plan-Mode enter/exit +
-plan_mode_active. This guard decides only the ENTER side; the `ExitPlanMode` call on `approve` below
-(`return_to` unset) is unchanged.
+The ENTER already happened above (§ Plan Mode guard, before dispatching either planner). This
+section covers only what happens AFTER both planners return: present the plan, gate on human
+approval, then `ExitPlanMode`.
 
 When BOTH planners return, **do NOT auto-chain to execution.** Present a tight combined summary,
 then gate. Write the gate in the USER'S LANGUAGE (translate labels and prose; keep file paths,

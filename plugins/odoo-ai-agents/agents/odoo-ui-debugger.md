@@ -275,7 +275,7 @@ When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your diagnosis output and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your diagnosis output and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).
 
 ## Brief self-check
 

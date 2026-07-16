@@ -138,6 +138,10 @@ before this clears. The approved master §10 is the hard constraint for all chil
   `UPSTREAM_CHILD_DESIGNS: [<abs path to each already-authored lower-layer child TDD it
   depends_on>]` ALONGSIDE `MASTER_DESIGN_DOC`. Child cites master §10 for every cross-module
   symbol it references.
+- When dispatching a same-layer batch of >1 child, inject `PEERS: <other child names in this
+  batch>` into each child brief - you (the orchestrating skill) are the address authority for this
+  lead-brokered list. A lone-child layer gets `PEERS: none`. Full contract:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` § Peer reconciliation.
 - After each child subagent returns, YOU (the orchestrating main agent) write `status: designed`
   for that module to `index.yaml` (checkpoint for resume on interruption) - confirm every module
   in the current layer is `designed` before dispatching the next layer's batch.
@@ -146,16 +150,21 @@ before this clears. The approved master §10 is the hard constraint for all chil
 `odoo-solution-architect` `MODE: consistency`. Reads CONTRACT SUBSET of each child (§1 Intent,
 §9 Acceptance Criteria - confirming each child carries its own MANDATORY module-level AC block with
 the INDEPENDENCE GUARD honored (expected values requirement-derived, never code/OSM-derived) -
-cross-module fields/models/deps - NOT full body) + master §10. Reconciles seams,
-updates §10 where needed, emits `conflict-list.md` at the artifact root.
+cross-module fields/models/deps - NOT full body) + master §10. CONSUMES the peer-reconciled child
+TDDs (each peer having recorded its agreed contract in its own TDD per
+`master-child-design-contract.md` § Peer reconciliation) and is the SOLE §10/`index.yaml` applier -
+children never write §10 themselves. Reconciles any remaining seams, emits `conflict-list.md`
+(split RESOLVED-BY-PEERS vs ESCALATED) at the artifact root.
 
-**e. Batch gate (human, single gate for all children).** Present conflict-list (MANDATORY - state
-explicitly if empty; do not skip) + per-child TDD summaries (approach, top risk, data-model delta).
-Gate: `approve-all` (default) / `review-children` (opt-in - dispatch `odoo-solution-architect
-MODE: review` over the domain-close child clusters that sit on the same dependency chain, then
-re-present this gate with FINDINGS) / `refine:<module>: [feedback]` / `cancel`. A `refine:<module>`
-re-dispatches that child only, re-runs consistency pass, then re-presents this gate. One batch gate
-total. On `approve-all`, write `status: approved` for all modules in `index.yaml`.
+**e. Batch gate (human, single gate for all children).** Present conflict-list split into ESCALATED
+seams (the human decides these - the only seams needing a decision; MANDATORY - state explicitly if
+none) and RESOLVED-BY-PEERS seams (informational, state the count only) + per-child TDD summaries
+(approach, top risk, data-model delta). Gate: `approve-all` (default) / `review-children` (opt-in -
+dispatch `odoo-solution-architect MODE: review` over the domain-close child clusters that sit on the
+same dependency chain, then re-present this gate with FINDINGS) / `refine:<module>: [feedback]` /
+`cancel`. A `refine:<module>` re-dispatches that child only, re-runs consistency pass, then
+re-presents this gate. One batch gate total - escalated seams fold INTO this single gate, never a
+separate gate. On `approve-all`, write `status: approved` for all modules in `index.yaml`.
 
 **f. Continuation Contract (master-child).** Emit per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. All paths are repo-root-relative;
