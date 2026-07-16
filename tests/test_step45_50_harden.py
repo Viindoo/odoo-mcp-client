@@ -22,6 +22,7 @@ import signal
 import subprocess
 import sys
 import textwrap
+import time
 from pathlib import Path
 
 import pytest
@@ -995,6 +996,86 @@ def test_step50_leaves_no_shared_lease_when_server_never_comes_up(tmp_path):
     assert _leases_at(home) == [], (
         "a failed spin-up must leave NO shared lease (registration happens only after the server is up)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Root-cause fix: the readiness signal is a BOUNDED HTTP-port poll of
+# /web/database/selector (primary, docs/reference/INSTANCE-LIFECYCLE.md item
+# 14), fallback /web/login - never a log tail, never an unbounded wait.
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_step50_ready_via_database_selector_primary_probe(tmp_path):
+    """RED-first: the readiness probe's PRIMARY endpoint is
+    /web/database/selector, not /web/login alone. A curl stub that answers 200
+    ONLY for the selector path (000 for anything else, including /web/login)
+    must still let apply succeed - proving the probe actually queries the
+    selector endpoint. Under the OLD /web/login-only probe this stub would
+    NEVER see a 200 (its only endpoint always sees 000) and apply would time
+    out (BLOCKED, non-zero) instead."""
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    bind = tmp_path / "bin50"
+    _write_stub(bind / "curl", textwrap.dedent("""\
+        if [[ "$*" == *"/web/database/selector"* ]]; then
+            echo "200"
+        else
+            echo "000"
+        fi
+    """))
+    res = _run_step50(env)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, (
+        f"apply must succeed via the /web/database/selector probe alone.\n{out}"
+    )
+    assert "timed out" not in out
+
+
+@requires_bash
+def test_step50_falls_back_to_web_login_when_selector_never_ready(tmp_path):
+    """The BOUNDED poll falls back to /web/login exactly once the PRIMARY
+    /web/database/selector has exhausted its whole timeout budget without ever
+    answering 200 - covering a series/build where the selector route is
+    unavailable. A curl stub that answers 200 ONLY for /web/login (000 for the
+    selector path) must still let apply succeed, and it must actually launch
+    odoo-bin (not just short-circuit an 'already up' pre-check, which probes
+    the selector-only and sees 000 here)."""
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    env["SPINUP_TIMEOUT"] = "3"
+    bind = tmp_path / "bin50"
+    _write_stub(bind / "curl", textwrap.dedent("""\
+        if [[ "$*" == *"/web/database/selector"* ]]; then
+            echo "000"
+        else
+            echo "200"
+        fi
+    """))
+    res = _run_step50(env)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, f"apply must succeed via the /web/login fallback.\n{out}"
+    assert launch_log.exists(), (
+        f"the selector-only 'already up' pre-check must see 000 and proceed to launch, "
+        f"then the poll's fallback must confirm readiness on /web/login\n{out}"
+    )
+
+
+@requires_bash
+def test_step50_readiness_poll_is_bounded_never_hangs(tmp_path):
+    """The readiness poll (primary + fallback) is BOUNDED by SPINUP_TIMEOUT -
+    a server that never becomes ready on EITHER endpoint must return within a
+    small, deterministic wall-clock bound, never hang indefinitely and never
+    fall back to tailing a (possibly empty) log."""
+    env, _, _ = _make_step50_spinup_env(tmp_path, curl_mode="down")
+    env["SPINUP_TIMEOUT"] = "2"
+    started = time.monotonic()
+    res = _run_step50(env)
+    elapsed = time.monotonic() - started
+    out = res.stdout + res.stderr
+    assert res.returncode != 0, f"a never-ready spin-up must fail, not hang\n{out}"
+    assert elapsed < 20, (
+        f"the poll must be BOUNDED by SPINUP_TIMEOUT (=2s), not wait indefinitely; "
+        f"took {elapsed:.1f}s\n{out}"
+    )
+    assert "timed out" in out.lower()
 
 
 @requires_bash

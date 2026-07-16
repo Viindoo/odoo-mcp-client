@@ -90,13 +90,51 @@ A long `-i`/`-u`/`--test-enable` build (run synchronously by `55-instance-ops.sh
 
 1. **Launch in the background.** Run the `55-instance-ops.sh` verb via Bash with `run_in_background: true`. Capture the `LOG_PATH=` line it emits (the persistent log under `${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/`) as soon as it appears.
 2. **Poll to a TERMINAL marker.** Wait in a bounded loop on `LOG_PATH` - prefer the deterministic helper `55-instance-ops.sh wait-log --log <LOG_PATH> [--timeout <secs>] [--interval <secs>]`, which scans for the markers below and emits `BUILD_RESULT=success|failure|timeout` + `BUILD_MARKER=<line>`. Between polls, emit a heartbeat so the run is never mistaken for dead: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py heartbeat <ALLOC_TOKEN>`.
-   - **SUCCESS markers:** `Modules loaded.`, `Registry loaded`, process exit 0, or `Initiating shutdown` after a `--stop-after-init` run.
-   - **FAILURE markers:** `Traceback (most recent call last):`, ` CRITICAL `, ` ERROR `, `Failed to load registry`, `psycopg2.`, `ParseError`.
+   - **Progress/heartbeat signals (NOT independently sufficient for success):** `Registry loaded`, process exit 0, or `Initiating shutdown` after a `--stop-after-init` run - these confirm forward progress but do not by themselves confirm a completed install/update.
+   - **SUCCESS marker (init/update - matches the deterministic completion contract below):** `Modules loaded.` present AND none of the failure markers below. `wait-log`'s `_scan_build_markers` and the script's own `_install_confirmed` verdict share this EXACT marker set (SSOT) - `BUILD_RESULT=success` and `STATUS=ok` can never disagree.
+   - **FAILURE markers:** `Traceback (most recent call last):`, ` CRITICAL `, ` ERROR `, `Failed to load registry`, `psycopg2.`, `ParseError`, plus the SILENT-skip markers from the deterministic completion contract below (`invalid module names, ignored`, `Some modules are not loaded`, `Unmet dependenc(y|ies)`, `cannot be installed`) - any of these wins over a success marker, even `Modules loaded.` itself.
    - For the **run-tests** path, reuse the `test` verb's existing result markers (`TEST_RESULT=`, `FAIL:`/`ERROR:`, the `TEST_FAILED`/`TEST_ERROR`/`TEST_WARNING` counts) as the terminal signal; `_parse_test_result` already emits them.
-3. **Exit code is authoritative.** The in-log marker is the completion + diagnostics signal; the launched process's own exit code is the final word (0 -> `STATUS=ok`, non-zero -> `STATUS=error`). Marker wording can drift across series, so never let a marker override a non-zero exit.
+3. **Exit code is necessary but never sufficient.** A non-zero exit is ALWAYS `STATUS=error` - never let an in-log marker override a non-zero exit (marker wording can drift across series, so a drifting marker must never promote a non-zero exit to success). But exit 0 ALONE is NOT proof of a successful build: for init/update, `STATUS=ok` additionally requires the `"Modules loaded."` completion marker present AND no failure marker (see "Exit code 0 alone is NOT proof of install" below for the exact rule) - treat exit 0 with a missing completion marker, or with any failure marker present, the SAME as a non-zero exit: `STATUS=error`.
 4. **NEVER idle-stall or return before a terminal marker.** On timeout (no terminal marker within the bound), report `status: BLOCKED` with the `LOG_PATH` preserved and forwarded - do NOT silently hang or claim done.
 
-Version nuance: this covers BUILD completion. The RUNNING-server readiness check stays on the existing HTTP-200 probe in `50-instance-spinup.sh` (more robust than a log grep across series).
+**Deterministic completion contract (root-cause fix - never a log-tail wait).** Under the
+`--log-level=warn` build baseline, EVERY line above (`Modules loaded.`, `Registry loaded`, etc.) is
+INFO-level and gets SUPPRESSED - a clean, SUCCESSFUL run produces an EMPTY log. Waiting to SEE a
+line in that log therefore stalls to the bound even on success; `55-instance-ops.sh init`/`update`
+close this gap two ways:
+- **Forced completion line.** The invocation ALWAYS adds `--log-handler=<ns>.modules.loading:INFO`
+  (in addition to the `--log-level=warn` baseline), so `"Modules loaded."` survives regardless - a
+  per-logger `setLevel` wins over the inherited `warn` level; a plain `--log-handler=:INFO` on the
+  root logger does NOT work. `<ns>` is version-resolved: `openerp` for series < 10 (v8-v9), `odoo`
+  for v10+ (the namespace renamed at the v9->v10 boundary) - resolve it from the series already
+  pinned in Step A/B and pass `--version <series>` to the script.
+- **Process exit is the completion signal, never a log read.** `--stop-after-init` guarantees the
+  process EXITS; that exit (captured synchronously by the `init`/`update` invocation itself) is
+  when the job is DONE - the script never blocks on reading a log line to decide completion.
+- **Exit code 0 alone is NOT proof of install.** Three source-confirmed SILENT-skip paths stay
+  exit 0: a misspelled/nonexistent module name (logged, ignored), an unresolved dependency, and a
+  demo-data failure downgraded to a warning. SUCCESS therefore requires ALL of: exit 0 AND the
+  `"Modules loaded."` marker present AND NONE of these failure markers present: `CRITICAL`,
+  `Traceback (most recent call last)`, `invalid module names, ignored`, `Some modules are not
+  loaded`, `Unmet dependenc(y|ies)`, `cannot be installed`. Any failure marker wins even alongside
+  a success marker. FAILURE (non-zero exit, OR any failure marker, OR a missing `"Modules loaded."`
+  marker) -> the script itself reports `STATUS=error` with the log path preserved. This holds
+  whether you call the script synchronously OR drive it as the active wait above:
+  `55-instance-ops.sh wait-log`'s `_scan_build_markers` applies this EXACT marker set (SSOT, shared
+  with the script's own `_install_confirmed`) for its `BUILD_RESULT=success|failure` verdict on an
+  init/update log, so the active-wait path's `BUILD_RESULT` and the script's own `STATUS=` line can
+  never disagree - but the process exit code (captured once the backgrounded run completes) remains
+  the final arbiter per "Exit code is necessary but never sufficient" above; never stop at
+  `BUILD_RESULT=success` without also confirming the script's own `STATUS=` line.
+
+Version nuance: this covers BUILD completion (job shape). The RUNNING-server readiness check for a
+LISTENING instance (`persist: exclusive-running`/`shared-running`, no `--stop-after-init` - the
+process serves after load instead of exiting) is a DIFFERENT signal: a BOUNDED-timeout HTTP poll in
+`50-instance-spinup.sh` of the port - primary `GET /web/database/selector` (auth=none, no DB
+required, reliable v8-v19), fallback `/web/login` for a series/build where the selector route is
+unavailable. On timeout it reports `BLOCKED` with the last probe error; it never waits forever and
+never falls back to a log tail (more robust than a log grep across series). Full contract:
+`docs/reference/INSTANCE-LIFECYCLE.md` item 14.
 
 ---
 
@@ -258,8 +296,12 @@ are the exclusive-running and shared-running branches of this one decision):
     --db-user "$ALLOC_DB_USER" \
     [--db-port "$ALLOC_DB_PORT"] \
     --modules "<modules>" \
+    --version "<series>" \
     --extra "<version-correct flags resolved from cli_help>"
   ```
+
+  `--version` resolves the `--log-handler=<ns>.modules.loading:INFO` namespace (`openerp` v8-v9,
+  `odoo` v10+) per the "Deterministic completion contract" above - always pass it, never omit it.
 
   The script locates `odoo-bin` automatically (via `ODOO_BIN` env or addons-path scan), runs Odoo
   create-on-init, writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on
@@ -364,10 +406,11 @@ Install one or more modules into an existing Odoo database.
   --db-user "$ALLOC_DB_USER" \
   [--db-port "$ALLOC_DB_PORT"] \
   --modules "<modules>" \
+  --version "<series>" \
   [--extra "<version-correct flags from cli_help>"]
 ```
 
-The script runs `odoo-bin -d <db> -i <modules> --stop-after-init`, writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init failed - preserve the log path and surface it to the caller.
+The script runs `odoo-bin -d <db> -i <modules> --stop-after-init --log-handler=<ns>.modules.loading:INFO` (`<ns>` resolved from `--version` per the "Deterministic completion contract" above), writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout - `STATUS=ok` only when exit 0 AND the `"Modules loaded."` marker is confirmed AND no failure marker is present. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init did not confirm the install - preserve the log path and surface it to the caller.
 **Active wait (HARD RULE):** launch in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above; never idle-stall past the tool timeout.
 **Log verbosity:** the script defaults a build op to `--log-level=warn`; ESCALATE to `--log-level=info`/`--log-level=debug` for deep debugging via `--extra` (it overrides the `warn` default), confirming the flag via `cli_help`.
 **Language activation (HARD RULE):** fold `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) into `--extra` for v8-v18; for v19+ run `odoo-bin i18n loadlang -d <db> -l <code>` per code in `activation_set` after this init returns. `en_US` is never omitted.
@@ -389,6 +432,7 @@ Update one or more already-installed modules (-u).
   --db-user "$ALLOC_DB_USER" \
   [--db-port "$ALLOC_DB_PORT"] \
   --modules "<modules>" \
+  --version "<series>" \
   [--extra "<version-correct no-HTTP flag + any extra flags from cli_help>"]
 ```
 
@@ -449,7 +493,13 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh check --version 
 ${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh apply --version <series>
 ```
 
-`50-instance-spinup.sh apply` handles allocator shared-lease registration internally, polls `/web/login` until HTTP 200, and emits `LOG_PATH=<path>` to stdout. Capture `LOG_PATH=` verbatim. Do NOT run Steps C-D (no separate ephemeral acquire for an ensure-up - the spinup script registers the shared lease itself). For status-only (no spinup requested), return the status in the output block with `status: down`.
+`50-instance-spinup.sh apply` handles allocator shared-lease registration internally, detects READY
+via a BOUNDED-timeout HTTP poll (primary `/web/database/selector`, fallback `/web/login` - never a
+log tail; see the "Deterministic completion contract" above and `docs/reference/
+INSTANCE-LIFECYCLE.md` item 14), and emits `LOG_PATH=<path>` to stdout. Capture `LOG_PATH=`
+verbatim. Do NOT run Steps C-D (no separate ephemeral acquire for an ensure-up - the spinup script
+registers the shared lease itself). For status-only (no spinup requested), return the status in the
+output block with `status: down`.
 
 ### 7. load-language
 
@@ -562,6 +612,7 @@ Install the next module onto the SAME running DB (operation 3 `init-modules`):
   --db-user "$ALLOC_DB_USER" \
   [--db-port "$ALLOC_DB_PORT"] \
   --modules "<next_module>" \
+  --version "<series>" \
   --extra "<--skip-auto-install from cli_help> <no-HTTP flag from cli_help> --stop-after-init"
 ```
 `--skip-auto-install` MUST be present on every delta install call, not only the first.
@@ -697,6 +748,7 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] db_port and run_id populated from $ALLOC_DB_PORT / $ALLOC_RUN_ID (empty when unresolved/unowned) and forwarded in the output block on every operation
 - [ ] build ops (create/init/update/run-tests) launched in the BACKGROUND and actively waited to a TERMINAL marker (wait-log helper or test-verb markers) with an allocator heartbeat between polls - never idle-stalled past the tool timeout; on timeout reported BLOCKED with LOG_PATH preserved, exit code treated as authoritative
 - [ ] build ops ran at the default `--log-level=warn` unless the caller ESCALATED via --extra (--log-level=info/debug); the `test` verb kept `--log-level=test`
+- [ ] init/update calls passed `--version <series>` so `--log-handler=<ns>.modules.loading:INFO` resolved the correct namespace (openerp v8-v9, odoo v10+); STATUS=ok was never trusted from exit code alone - the "Modules loaded." marker AND absence of every failure marker were both required (deterministic completion contract)
 - [ ] run-tests: TEST_FAILED/TEST_ERROR/TEST_WARNING + FINDINGS_PATH captured; mode picked per the auto fresh-vs-reuse rule; warnings>0 with no fail/error reported as tests-passed-with-warnings (findings_path surfaced, not swallowed)
 - [ ] lease released (or token forwarded to caller for later release)
 - [ ] worklog appended with decisions

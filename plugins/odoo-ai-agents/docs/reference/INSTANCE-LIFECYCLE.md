@@ -102,3 +102,33 @@
     Owned by `skills/odoo-instance/SKILL.md` (the `persist:`/`run_id:` dispatch fields) and
     `agents/odoo-instance-ops.md` (operation 1, create-instance). Full contract:
     `INSTANCE-ALLOCATION.md` §5 + §6.3.
+14. **Readiness/completion detection is DETERMINISTIC - never a log tail.** Under the
+    `--log-level=warn` build baseline, EVERY completion line Odoo would otherwise log
+    (`Modules loaded.`, `HTTP service (werkzeug) running on ...`, `Registry loaded ...`) is
+    INFO-level and gets SUPPRESSED - a clean, successful run produces an EMPTY log. A completion
+    check that waits to SEE a line in that log therefore stalls to its timeout even on success;
+    this was the historical hang. Two DIFFERENT signals replace it, one per job shape:
+    - **Install/update job** (`-i`/`-u` with `--stop-after-init` - the ephemeral build AND the
+      build leg of `persist: exclusive-running`): the job ALWAYS exits (that is what
+      `--stop-after-init` is for), so completion is **PROCESS EXIT**, never a log read. The build
+      additionally forces `--log-handler=<ns>.modules.loading:INFO` onto the invocation so the
+      `"Modules loaded."` completion line survives the `warn` baseline regardless (a per-logger
+      `setLevel` wins over the inherited level) - `<ns>` is version-resolved: `openerp` for series
+      < 10 (v8-v9), `odoo` for v10+ (the namespace renamed at the v9->v10 boundary). **Exit code 0
+      alone is NOT proof of install** - three source-confirmed silent-skip paths stay exit 0: a
+      misspelled/nonexistent module name (logged, ignored), an unresolved dependency, and a
+      demo-data failure downgraded to a warning. SUCCESS therefore requires exit 0 AND the
+      `"Modules loaded."` marker present AND none of these failure markers present: `CRITICAL`,
+      `Traceback (most recent call last)`, `invalid module names, ignored`, `Some modules are not
+      loaded`, `Unmet dependenc(y|ies)`, `cannot be installed`. Any of those -> FAILURE, reported
+      with the log path preserved for diagnosis, never a hang.
+    - **Listening instance** (`persist: exclusive-running`/`shared-running`, no `--stop-after-init`
+      - the process serves after load instead of exiting): READY is a BOUNDED-timeout HTTP poll of
+      the port - primary `GET /web/database/selector` (auth=none, no DB required, reliable
+      v8-v19), fallback `/web/login` for a series/build where the selector route is unavailable.
+      On timeout -> BLOCKED with the last probe error; it never waits forever and never falls back
+      to a log tail.
+    Owned by `scripts/setup-steps/55-instance-ops.sh` (install/update job) and
+    `scripts/setup-steps/50-instance-spinup.sh` (listening readiness); the runtime contract for an
+    executing agent is `agents/odoo-instance-ops.md`'s "Active-wait on long builds" section, relayed
+    at dispatch level by `skills/odoo-instance/SKILL.md`.

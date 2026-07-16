@@ -49,6 +49,7 @@ INSTANCE_RESOLUTION_MD = PLUGIN / "snippets" / "instance-resolution.md"
 HANDLE_CONTRACT = PLUGIN / "snippets" / "instance-handle-contract.md"
 WORKER_BRIEF = PLUGIN / "snippets" / "worker-brief.md"
 EVALS = PLUGIN / "skills" / "odoo-instance" / "evals" / "evals.json"
+LIFECYCLE_DOC = PLUGIN / "docs" / "reference" / "INSTANCE-LIFECYCLE.md"
 
 
 def _norm(path: Path) -> str:
@@ -508,4 +509,118 @@ def test_agent_exclusive_running_never_falls_back_to_8069():
     )
     assert "BLOCK rather than fall back to the declared/`8069` port" in text, (
         "agent must state the spinup delegation BLOCKs rather than silently falling back to 8069"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Instance readiness/completion detection fix - the historical hang under
+# --log-level=warn (empty log -> a marker-only wait never terminates). The
+# fix replaces log-tailing with deterministic signals: install/update job ->
+# process exit + a forced completion marker + failure-marker scan; listening
+# instance -> bounded HTTP port poll. SSOT: docs/reference/
+# INSTANCE-LIFECYCLE.md item 14.
+# ---------------------------------------------------------------------------
+
+def test_agent_documents_log_handler_namespace_forcing():
+    """odoo-instance-ops.md must document forcing --log-handler=<ns>.modules.
+    loading:INFO onto init/update so 'Modules loaded.' survives the
+    --log-level=warn baseline, and the openerp/odoo namespace split by
+    version (v8-v9 vs v10+)."""
+    text = _norm(AGENT_MD)
+    assert "--log-handler=<ns>.modules.loading:INFO" in text, (
+        "agent must document the --log-handler=<ns>.modules.loading:INFO forcing"
+    )
+    assert "openerp" in text and "v8-v9" in text, (
+        "agent must name the openerp namespace for series < 10 (v8-v9)"
+    )
+    assert "odoo` for v10+" in text or "'odoo' for v10+" in text or "odoo` for v10+" in text.replace("'", "`"), (
+        "agent must name the odoo namespace for v10+"
+    )
+    assert "v9->v10" in text or "v9 -> v10" in text, (
+        "agent must name the v9->v10 boundary where the openerp->odoo namespace rename landed"
+    )
+
+
+def test_agent_documents_process_exit_completion_contract():
+    """odoo-instance-ops.md must state that an install/update job's completion
+    signal is PROCESS EXIT (never a log-tail wait), and that exit 0 alone is
+    NOT proof of install (the silent-skip holes)."""
+    text = _norm(AGENT_MD)
+    assert "Deterministic completion contract" in text, (
+        "agent must carry a named 'Deterministic completion contract' section"
+    )
+    assert "never a log-tail wait" in text.lower() or "never a log tail" in text.lower(), (
+        "agent must explicitly forbid a log-tail wait for completion"
+    )
+    assert "exit 0" in text.lower() and (
+        "not proof of install" in text.lower() or "is not proof" in text.lower()
+    ), "agent must state exit 0 alone is NOT proof of install"
+    for marker in (
+        "invalid module names, ignored",
+        "Some modules are not loaded",
+        "Unmet dependenc",
+        "cannot be installed",
+    ):
+        assert marker in text, f"agent must name the silent-skip failure marker {marker!r}"
+
+
+def test_agent_documents_bounded_port_poll_for_listening_readiness():
+    """odoo-instance-ops.md must state the LISTENING-instance readiness signal
+    is a bounded HTTP port poll of /web/database/selector (fallback
+    /web/login), never a log tail - distinct from the job-completion signal."""
+    text = _norm(AGENT_MD)
+    assert "/web/database/selector" in text, (
+        "agent must name /web/database/selector as the primary readiness probe"
+    )
+    assert "/web/login" in text, "agent must name /web/login as the fallback probe"
+    assert "BOUNDED" in text or "bounded" in text, (
+        "agent must state the port poll is bounded (has a timeout)"
+    )
+
+
+def test_init_and_update_delegation_recipes_pass_version_flag():
+    """The init-modules and update-modules delegation recipes must pass
+    --version so the script can resolve the --log-handler namespace - the
+    contract is inert without it being threaded through."""
+    text = _norm(AGENT_MD)
+
+    def _section(header_start: str, header_end: str) -> str:
+        s = text.find(header_start)
+        assert s != -1, f"section {header_start!r} not found"
+        e = text.find(header_end, s + 1)
+        return text[s: e if e != -1 else len(text)]
+
+    init = _section("### 3. init-modules", "### 4. update-modules")
+    update = _section("### 4. update-modules", "### 5. run-tests")
+    for name, sec in (("init-modules", init), ("update-modules", update)):
+        assert '--version "<series>"' in sec, (
+            f"{name} must pass --version \"<series>\" to 55-instance-ops.sh"
+        )
+
+
+def test_lifecycle_doc_item14_documents_ready_detect_contract():
+    """docs/reference/INSTANCE-LIFECYCLE.md must carry item 14 - the
+    readiness/completion detection contract - naming both signal shapes."""
+    text = _norm(LIFECYCLE_DOC)
+    assert "Readiness/completion detection is DETERMINISTIC" in text, (
+        "lifecycle doc must carry the readiness/completion detection item"
+    )
+    assert "PROCESS EXIT" in text, "lifecycle doc must name process exit as the job signal"
+    assert "/web/database/selector" in text and "/web/login" in text, (
+        "lifecycle doc must name the primary + fallback readiness endpoints"
+    )
+
+
+def test_skill_states_deterministic_signal_never_log_tail():
+    """skills/odoo-instance/SKILL.md must state at dispatch level that the
+    instance-up/job-done signal is deterministic, never a log tail."""
+    text = _norm(SKILL_MD)
+    assert "DETERMINISTIC" in text, (
+        "skill must state the readiness/completion signal is deterministic"
+    )
+    assert "never a log tail" in text.lower() or "never a log-tail" in text.lower(), (
+        "skill must state the signal is never a log tail"
+    )
+    assert "/web/database/selector" in text, (
+        "skill must name /web/database/selector as the listening-readiness probe"
     )

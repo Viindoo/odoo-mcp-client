@@ -4,7 +4,13 @@
 # Reads an instance profile written by 40-instance-profile.sh from
 # .odoo-ai/instances.toml, generates a temporary odoo.conf with the correct
 # addons_path ordering, launches Odoo (source via odoo-bin OR docker compose),
-# then polls /web/login until it answers HTTP 200 (or times out).
+# then detects READY with a BOUNDED-timeout HTTP poll of /web/database/selector
+# (fallback /web/login) - never a log-tail wait (docs/reference/
+# INSTANCE-LIFECYCLE.md item 14). /web/database/selector needs no DB and no
+# auth and is reliable across v8-v19 (v18+ moved the backend root /web -> /odoo,
+# but this route and /web/login are unchanged); /web/login is kept as a
+# fallback for a series/build where the selector route is unavailable. On
+# timeout the poll BLOCKs with the last probe error - it never waits forever.
 #
 # Unlike the other steps this one is PARAMETERISED by version:
 #   50-instance-spinup.sh apply --version 17.0
@@ -133,7 +139,7 @@ done
 # describe
 # ---------------------------------------------------------------------------
 cmd_describe() {
-    echo "Spin up a declared Odoo instance (source or docker) and wait for HTTP 200 on /web/login"
+    echo "Spin up a declared Odoo instance (source or docker) and wait for a bounded HTTP-200 poll of /web/database/selector (fallback /web/login)"
 }
 
 # ---------------------------------------------------------------------------
@@ -151,11 +157,45 @@ _read_instance() {
 }
 
 # ---------------------------------------------------------------------------
-# HTTP probe - returns the status code on /web/login (000 on connection fail)
+# HTTP probe - returns the status code on the given path (000 on connection
+# fail). $2 defaults to /web/login for back-compat; callers that care about
+# readiness use _probe_ready below instead of calling this directly.
 # ---------------------------------------------------------------------------
 _http_status() {
-    # $1 = port
-    curl -s -o /dev/null -w "%{http_code}" "http://localhost:$1/web/login" 2>/dev/null || echo "000"
+    # $1 = port, $2 = path (default /web/login)
+    local port="$1" path="${2:-/web/login}"
+    curl -s -o /dev/null -w "%{http_code}" "http://localhost:$port$path" 2>/dev/null || echo "000"
+}
+
+# ---------------------------------------------------------------------------
+# _probe_ready - the deterministic READY signal (docs/reference/
+#   INSTANCE-LIFECYCLE.md item 14): the PRIMARY endpoint is
+#   /web/database/selector (auth=none, no DB required, reliable v8-v19). ONE
+#   curl call per invocation - the bounded retry loop (_poll_until_up) is what
+#   provides repeated attempts, so this function never blocks past a single
+#   curl connect. Sets _last_ready_status/_last_ready_path in the CALLER's
+#   scope (bash dynamic scoping, same pattern as _open_log/_build_db_conn_args
+#   elsewhere in this toolkit) so a timeout caller can report the last error.
+# ---------------------------------------------------------------------------
+_probe_ready() {
+    local port="$1"
+    _last_ready_path="/web/database/selector"
+    _last_ready_status="$(_http_status "$port" "$_last_ready_path")"
+    [[ "$_last_ready_status" == "200" ]]
+}
+
+# ---------------------------------------------------------------------------
+# _probe_ready_fallback - the FALLBACK endpoint /web/login. ONE curl call.
+#   Used only as a last resort - see _poll_until_up - for a series/build where
+#   /web/database/selector is unavailable; never tried on every iteration
+#   (that would double the probe cost of every poll for no benefit, since the
+#   primary is reliable v8-v19 - docs/reference/INSTANCE-LIFECYCLE.md item 14).
+# ---------------------------------------------------------------------------
+_probe_ready_fallback() {
+    local port="$1"
+    _last_ready_path="/web/login"
+    _last_ready_status="$(_http_status "$port" "$_last_ready_path")"
+    [[ "$_last_ready_status" == "200" ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -164,11 +204,12 @@ _http_status() {
 cmd_check() {
     # Non-zero exit OR empty output from the loader = no instance to check.
     local kv port rc=0
+    local _last_ready_status="" _last_ready_path=""
     kv="$(_read_instance "$VERSION" "$PROFILE")" || rc=$?
     [[ "$rc" -eq 0 && -n "$kv" ]] || return 1
     eval "$kv"
     port="${INST_HTTP_PORT:-$DEFAULT_HTTP_PORT}"
-    [[ "$(_http_status "$port")" == "200" ]]
+    _probe_ready "$port"
 }
 
 # ---------------------------------------------------------------------------
@@ -191,19 +232,33 @@ _find_odoo_bin() {
 }
 
 _poll_until_up() {
-    # $1 = port. Poll /web/login until 200 or timeout. Returns 0 on success.
-    local port="$1" elapsed=0 status
-    echo "  Polling http://localhost:$port/web/login (timeout ${SPINUP_TIMEOUT}s)..."
+    # $1 = port. BOUNDED-timeout READY poll (docs/reference/
+    # INSTANCE-LIFECYCLE.md item 14): repeatedly probe the PRIMARY
+    # /web/database/selector endpoint (one curl call per iteration) until it
+    # answers 200 or the bound is reached. Only once the primary has exhausted
+    # its whole timeout budget without ever answering 200 does this make ONE
+    # additional attempt against the FALLBACK /web/login - covering a
+    # series/build where the selector route is unavailable, without doubling
+    # the probe cost of every iteration for the (reliable v8-v19) common case.
+    # Returns 0 on success. On timeout, BLOCKs (returns 1) with the last
+    # probe's endpoint + status - it NEVER waits forever and NEVER falls back
+    # to tailing a log.
+    local port="$1" elapsed=0
+    local _last_ready_status="" _last_ready_path=""
+    echo "  Polling http://localhost:$port/web/database/selector (fallback /web/login; timeout ${SPINUP_TIMEOUT}s)..."
     while (( elapsed < SPINUP_TIMEOUT )); do
-        status="$(_http_status "$port")"
-        if [[ "$status" == "200" ]]; then
-            echo "  ok HTTP 200 after ${elapsed}s"
+        if _probe_ready "$port"; then
+            echo "  ok ready at $_last_ready_path after ${elapsed}s"
             return 0
         fi
         sleep 3
         elapsed=$((elapsed + 3))
     done
-    echo "  x timed out after ${SPINUP_TIMEOUT}s (last status: ${status:-000})" >&2
+    if _probe_ready_fallback "$port"; then
+        echo "  ok ready at $_last_ready_path after ${elapsed}s (fallback)"
+        return 0
+    fi
+    echo "  x timed out after ${SPINUP_TIMEOUT}s (last: $_last_ready_path -> ${_last_ready_status:-000})" >&2
     return 1
 }
 
@@ -294,9 +349,10 @@ cmd_apply() {
         python3 "$alloc_py" "${args[@]}" >/dev/null 2>&1 || true
     }
 
-    if [[ "$(_http_status "$port")" == "200" ]]; then
+    local _last_ready_status="" _last_ready_path=""
+    if _probe_ready "$port"; then
         [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared
-        echo "ok Instance ${INST_VERSION} already up at http://localhost:$port/web/login"
+        echo "ok Instance ${INST_VERSION} already up at http://localhost:$port$_last_ready_path"
         return 0
     fi
 

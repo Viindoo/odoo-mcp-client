@@ -14,13 +14,37 @@
 #   check     - lightweight; always exits 0 (on-demand ops script, not installer)
 #   apply     - alias for init (for step-runner compat; same args as init)
 #   init    --db <db> --python <venv_py> --addons <path> --modules <a,b>
-#             [--extra "<resolved flags>"]
+#             [--version <X.Y>] [--extra "<resolved flags>"]
 #             Run: $python $odoo_bin -d <db> -i <modules> --addons-path <addons>
-#                  --stop-after-init <extra>
+#                  --stop-after-init --log-level=warn
+#                  --log-handler=<ns>.modules.loading:INFO <extra>
 #             Persistent log + LOG_PATH= + STATUS= lines.
+#
+#             Deterministic completion contract (never a log-tail wait - see
+#             docs/reference/INSTANCE-LIFECYCLE.md item 14): the process ALWAYS
+#             runs with --stop-after-init, so completion is PROCESS EXIT, bounded
+#             by nothing more than the caller's own foreground timeout. --version
+#             resolves <ns> = 'openerp' for series < 10 (v8-v9), else 'odoo' (v10+;
+#             also the default when --version is omitted) - the namespace Odoo's
+#             module-loading logger lives under changed at the v9->v10 rename. The
+#             --log-handler flag forces the "Modules loaded." completion line back
+#             onto the log even under the --log-level=warn baseline (a per-logger
+#             setLevel is applied AFTER the warn preset and overrides the inherited
+#             level; plain `--log-handler=:INFO` on the root logger does NOT work).
+#             SUCCESS = exit code 0 AND the "Modules loaded." marker is present AND
+#             NONE of these failure markers appear: CRITICAL, Traceback (most
+#             recent call last), invalid module names, ignored, Some modules are
+#             not loaded, Unmet dependenc(y|ies), cannot be installed. Exit 0 ALONE
+#             is NOT proof of install - three source-confirmed SILENT-skip paths
+#             stay exit 0: a misspelled/nonexistent module name, an unresolved
+#             dependency, and a demo-data failure downgraded to a warning. FAILURE
+#             (non-zero exit, OR any failure marker, OR a missing "Modules
+#             loaded." marker) -> non-zero return with the log path preserved for
+#             diagnosis; this verb NEVER blocks on reading a log line to decide
+#             completion, only on the process actually exiting.
 #   update  --db <db> --python <venv_py> --addons <path> --modules <a,b>
-#             [--extra "<resolved flags>"]
-#             Same as init but with -u instead of -i.
+#             [--version <X.Y>] [--extra "<resolved flags>"]
+#             Same as init but with -u instead of -i; identical completion contract.
 #   test    --db <db> --python <venv_py> --addons <path> --modules <a,b>
 #             [--test-tags <tags>] [--mode fresh|reuse] [--log-mode warn|info|debug|sql]
 #             [--extra "<resolved flags>"]
@@ -57,7 +81,12 @@
 #             LOG_PATH=<logf>. Exit 0 (success), 1 (failure), 2 (timeout). The build's
 #             own exit code stays authoritative; this is a completion + diagnostics
 #             signal, NOT the running-server readiness probe (that is 50-instance-spinup.sh's
-#             HTTP-200 probe). Markers are version-stable v8-v19.
+#             HTTP-200 probe). Markers are version-stable v8-v19. BUILD_RESULT=success/failure
+#             share the SAME "Modules loaded." success marker and silent-skip failure-marker
+#             regex as _install_confirmed (SSOT constants below) - so this background verdict
+#             can NEVER disagree with the init/update script's own STATUS=ok|error line; a log
+#             showing both "Modules loaded." and a silent-skip marker (e.g. "invalid module
+#             names, ignored") reports BUILD_RESULT=failure, never success.
 #
 # LOG convention (mirrors 50-instance-spinup.sh):
 #   Dir:  ${ODOO_AI_HOME:-$HOME/.odoo-ai}/logs/
@@ -150,6 +179,58 @@ _build_db_conn_args() {
     # Explicit success: the last [[ -n ... ]] is false when the port is empty, and
     # a bare-call function returning that non-zero status would trip `set -e`.
     return 0
+}
+
+# ---------------------------------------------------------------------------
+# _resolve_log_ns - series -> the logger namespace Odoo's module-loading
+#   logger lives under: 'openerp' for series < 10 (v8-v9), else 'odoo' (v10+ -
+#   the openerp->odoo rename landed at the v9->v10 boundary). Empty/unparsable
+#   series (e.g. --version omitted) defaults to 'odoo', the modern majority -
+#   a caller that cares about v8-v9 must pass --version explicitly.
+# ---------------------------------------------------------------------------
+_resolve_log_ns() {
+    local series="${1:-}" major
+    major="${series%%.*}"
+    if [[ "$major" =~ ^[0-9]+$ ]] && (( major < 10 )); then
+        echo "openerp"
+    else
+        echo "odoo"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Completion-marker SSOT - shared by _install_confirmed (foreground init/
+#   update verdict) AND _scan_build_markers (background wait-log verdict) so
+#   the two paths can NEVER diverge again. _INSTALL_FAIL_RE is the exact
+#   silent-skip + hard-failure marker set; _INSTALL_SUCCESS_MARKER is the
+#   completion line forced onto the log by --log-handler=<ns>.modules.
+#   loading:INFO. A future marker added to the install/update contract is
+#   added HERE ONLY - both call sites pick it up automatically.
+# ---------------------------------------------------------------------------
+_INSTALL_FAIL_RE='CRITICAL|Traceback \(most recent call last\)|invalid module names, ignored|Some modules are not loaded|Unmet dependenc|cannot be installed'
+_INSTALL_SUCCESS_MARKER='Modules loaded.'
+
+# ---------------------------------------------------------------------------
+# _install_confirmed - single-pass positive-install check for a completed
+#   (--stop-after-init) install/update job. Returns 0 (confirmed) iff the
+#   "Modules loaded." completion marker is present - forced onto the log even
+#   under --log-level=warn by --log-handler=<ns>.modules.loading:INFO - AND
+#   NONE of the SILENT-skip failure markers appear. Exit code 0 from odoo-bin
+#   is NOT proof of install on its own: a misspelled/nonexistent module name,
+#   an unresolved dependency, or a demo-data failure can all leave the process
+#   at exit 0 while silently skipping the requested install (see
+#   docs/reference/INSTANCE-LIFECYCLE.md item 14). Never blocks - two grep
+#   passes over the already-closed log file, no polling. Uses the shared
+#   _INSTALL_FAIL_RE / _INSTALL_SUCCESS_MARKER SSOT above - _scan_build_markers
+#   applies the SAME two constants so the background wait-log verdict can
+#   never disagree with this one.
+# ---------------------------------------------------------------------------
+_install_confirmed() {
+    local logf="$1"
+    if grep -aqE "$_INSTALL_FAIL_RE" "$logf" 2>/dev/null; then
+        return 1
+    fi
+    grep -aqF "$_INSTALL_SUCCESS_MARKER" "$logf" 2>/dev/null
 }
 
 # ---------------------------------------------------------------------------
@@ -260,29 +341,50 @@ _parse_test_result() {
 # ---------------------------------------------------------------------------
 # _scan_build_markers - single-pass terminal-marker scan of a build log.
 #   Echoes BUILD_MARKER=<matched line> (best-effort) and returns:
-#     0 -> a SUCCESS marker present and no FAILURE marker seen
-#     1 -> a FAILURE marker present (wins over success: a Traceback after
-#          "Registry loaded" is still a failed build)
+#     0 -> the "Modules loaded." completion marker present AND no failure
+#          marker seen - the SAME verdict _install_confirmed would reach on
+#          this log (shared _INSTALL_FAIL_RE / _INSTALL_SUCCESS_MARKER SSOT
+#          above), so BUILD_RESULT can never disagree with the script's own
+#          STATUS=ok|error line for an init/update build.
+#     1 -> a FAILURE marker present (wins over success: a silent-skip marker
+#          such as "invalid module names, ignored" appearing alongside
+#          "Modules loaded." is STILL a failed build, exactly as
+#          _install_confirmed rules it - and a Traceback after "Registry
+#          loaded" is still a failed build)
 #     2 -> no terminal marker yet (build still in flight)
-#   Markers mirror what odoo-bin emits on every series v8-v19; the caller's own
-#   process exit code stays authoritative - this is the in-log completion signal.
+#   The failure set is a SUPERSET of _INSTALL_FAIL_RE (adds psycopg2./
+#   ParseError/"Failed to load registry"/a bare ERROR line - broader build
+#   failures outside _install_confirmed's narrower install-only scope, e.g. a
+#   DB-connectivity error or an XML ParseError during a run-tests build).
+#   "Registry loaded"/"Initiating shutdown"/a bare process exit 0 remain named
+#   as progress/heartbeat signals in agents/odoo-instance-ops.md's
+#   "Active-wait on long builds" section, but are NOT independently
+#   sufficient for BUILD_RESULT=success here - only "Modules loaded." is,
+#   matching _install_confirmed exactly. Markers are version-stable v8-v19;
+#   the caller's own process exit code stays authoritative - this is the
+#   in-log completion signal.
 # ---------------------------------------------------------------------------
 _scan_build_markers() {
     local logf="$1"
     [[ -f "$logf" ]] || return 2
 
     # FAILURE first - a failure marker anywhere means the build did not succeed,
-    # even if an earlier line looked like progress.
+    # even if an earlier line looked like progress. _INSTALL_FAIL_RE (SSOT,
+    # shared with _install_confirmed) is unioned with broader generic build-
+    # failure signals below.
+    local fail_re="${_INSTALL_FAIL_RE}|[[:space:]]ERROR[[:space:]]|Failed to load registry|psycopg2\.|ParseError"
     local fail_line
-    fail_line="$(grep -aE 'Traceback \(most recent call last\):|[[:space:]]CRITICAL[[:space:]]|[[:space:]]ERROR[[:space:]]|Failed to load registry|psycopg2\.|ParseError' "$logf" 2>/dev/null | head -n 1 || true)"
+    fail_line="$(grep -aE "$fail_re" "$logf" 2>/dev/null | head -n 1 || true)"
     if [[ -n "$fail_line" ]]; then
         echo "BUILD_MARKER=$fail_line"
         return 1
     fi
 
-    # SUCCESS - registry/module load completed, or a clean stop-after-init shutdown.
+    # SUCCESS - the SAME completion marker _install_confirmed requires (SSOT:
+    # _INSTALL_SUCCESS_MARKER). Never treat "Registry loaded" or "Initiating
+    # shutdown" alone as success - see docstring above.
     local ok_line
-    ok_line="$(grep -aE 'Modules loaded\.|Registry loaded|Initiating shutdown' "$logf" 2>/dev/null | head -n 1 || true)"
+    ok_line="$(grep -aF "$_INSTALL_SUCCESS_MARKER" "$logf" 2>/dev/null | head -n 1 || true)"
     if [[ -n "$ok_line" ]]; then
         echo "BUILD_MARKER=$ok_line"
         return 0
@@ -345,10 +447,13 @@ cmd_wait_log() {
 
 # ---------------------------------------------------------------------------
 # _parse_common_args - parse --db/--python/--addons/--modules/--extra plus the
-#   optional --test-tags/--mode/--log-mode flags.
+#   optional --test-tags/--mode/--log-mode/--version flags.
 # Sets: arg_db, arg_python, arg_addons, arg_modules, arg_extra, arg_test_tags,
-#       arg_mode (default 'fresh'), arg_log_mode (default '').
-#   --mode and --log-mode are optional (NOT added to the required-args check).
+#       arg_mode (default 'fresh'), arg_log_mode (default ''), arg_version
+#       (default '' - init/update only; resolves the --log-handler namespace
+#       via _resolve_log_ns; empty defaults to the v10+ 'odoo' namespace).
+#   --mode/--log-mode/--version are optional (NOT added to the required-args
+#   check).
 # ---------------------------------------------------------------------------
 _parse_common_args() {
     arg_db=""
@@ -358,6 +463,7 @@ _parse_common_args() {
     arg_extra=""
     arg_mode="fresh"
     arg_log_mode=""
+    arg_version=""
     # Optional DB-connection flags (empty -> omitted so ambient PG env is preserved).
     # These make CREATE/INIT/UPDATE/TEST connect to the SAME cluster DROP uses.
     arg_db_host=""
@@ -390,6 +496,9 @@ _parse_common_args() {
             --extra)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --extra requires a value" >&2; exit 2; }
                 arg_extra="$2"; shift 2 ;;
+            --version)
+                [[ $# -ge 2 ]] || { echo "$(basename "$0"): --version requires a value" >&2; exit 2; }
+                arg_version="$2"; shift 2 ;;
             --test-tags)
                 [[ $# -ge 2 ]] || { echo "$(basename "$0"): --test-tags requires a value" >&2; exit 2; }
                 arg_test_tags="$2"; shift 2 ;;
@@ -422,7 +531,7 @@ _parse_common_args() {
 # cmd_init - install modules (-i)
 # ---------------------------------------------------------------------------
 cmd_init() {
-    local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode
+    local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode arg_version
     local arg_db_host arg_db_user arg_db_port
     _parse_common_args "$@"
 
@@ -446,10 +555,17 @@ cmd_init() {
     local DB_CONN_ARGS
     _build_db_conn_args
 
-    # Default log verbosity for a build op: warn (Odoo defaults to the noisier
-    # `info`). `warn` is a stable flag v8-v19. Placed BEFORE ${arg_extra} so a
-    # caller-supplied --log-level/--log-handler in --extra still overrides it
-    # (Odoo's arg parser takes the last occurrence) - mirrors the `test` verb.
+    # Deterministic completion contract (docs/reference/INSTANCE-LIFECYCLE.md
+    # item 14): --log-handler=<ns>.modules.loading:INFO forces the "Modules
+    # loaded." completion line back onto the log even under the --log-level=warn
+    # baseline below (a per-logger setLevel wins over the inherited warn level).
+    # <ns> is version-resolved via _resolve_log_ns (openerp v8-v9, odoo v10+).
+    # Both flags are placed BEFORE ${arg_extra} so a caller-supplied
+    # --log-level/--log-handler in --extra still overrides them (Odoo's arg
+    # parser takes the last occurrence) - mirrors the `test` verb.
+    local log_ns
+    log_ns="$(_resolve_log_ns "${arg_version:-}")"
+
     local rc=0
     # shellcheck disable=SC2086
     # --stop-after-init is correct HERE by design: cmd_init is the EPHEMERAL
@@ -458,6 +574,9 @@ cmd_init() {
     # shared-running) never routes through this verb - it goes through
     # 50-instance-spinup.sh, the sole listening mechanism (P5.7). Do NOT try to
     # make this verb long-running; add a new op instead if that is ever needed.
+    # Completion is PROCESS EXIT (this call blocks until odoo-bin exits) - never
+    # a log-tail wait; the log is consulted ONLY afterward, to CONFIRM the exit
+    # actually installed something (see _install_confirmed).
     "$arg_python" "$odoo_bin" \
         -d "$arg_db" \
         -i "$arg_modules" \
@@ -465,14 +584,21 @@ cmd_init() {
         "${DB_CONN_ARGS[@]}" \
         --stop-after-init \
         --log-level=warn \
+        --log-handler="${log_ns}.modules.loading:INFO" \
         ${arg_extra} \
         >"$logf" 2>&1 || rc=$?
 
-    if [[ "$rc" -eq 0 ]]; then
+    if [[ "$rc" -eq 0 ]] && _install_confirmed "$logf"; then
         echo "STATUS=ok"
     else
-        echo "STATUS=error"
-        echo "x init failed (exit $rc); see $logf" >&2
+        if [[ "$rc" -eq 0 ]]; then
+            rc=1
+            echo "STATUS=error"
+            echo "x init reported exit 0 but no positive install confirmation (missing 'Modules loaded.' or a failure marker present); see $logf" >&2
+        else
+            echo "STATUS=error"
+            echo "x init failed (exit $rc); see $logf" >&2
+        fi
         exit "$rc"
     fi
 }
@@ -481,7 +607,7 @@ cmd_init() {
 # cmd_update - update modules (-u)
 # ---------------------------------------------------------------------------
 cmd_update() {
-    local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode
+    local arg_db arg_python arg_addons arg_modules arg_extra arg_test_tags arg_mode arg_log_mode arg_version
     local arg_db_host arg_db_user arg_db_port
     _parse_common_args "$@"
 
@@ -503,10 +629,19 @@ cmd_update() {
     local DB_CONN_ARGS
     _build_db_conn_args
 
-    # Default log verbosity: warn (see cmd_init). Placed BEFORE ${arg_extra} so a
-    # caller-supplied --log-level in --extra still overrides it. `warn` is stable v8-v19.
+    # Deterministic completion contract - identical to cmd_init (see its
+    # comments above and docs/reference/INSTANCE-LIFECYCLE.md item 14):
+    # --log-handler=<ns>.modules.loading:INFO forces "Modules loaded." back onto
+    # the log under --log-level=warn; both flags precede ${arg_extra} so a
+    # caller override still wins. `warn` is stable v8-v19.
+    local log_ns
+    log_ns="$(_resolve_log_ns "${arg_version:-}")"
+
     local rc=0
     # shellcheck disable=SC2086
+    # Completion is PROCESS EXIT (this call blocks until odoo-bin exits) - never
+    # a log-tail wait; the log is consulted ONLY afterward to CONFIRM the exit
+    # actually updated something (see _install_confirmed).
     "$arg_python" "$odoo_bin" \
         -d "$arg_db" \
         -u "$arg_modules" \
@@ -514,14 +649,21 @@ cmd_update() {
         "${DB_CONN_ARGS[@]}" \
         --stop-after-init \
         --log-level=warn \
+        --log-handler="${log_ns}.modules.loading:INFO" \
         ${arg_extra} \
         >"$logf" 2>&1 || rc=$?
 
-    if [[ "$rc" -eq 0 ]]; then
+    if [[ "$rc" -eq 0 ]] && _install_confirmed "$logf"; then
         echo "STATUS=ok"
     else
-        echo "STATUS=error"
-        echo "x update failed (exit $rc); see $logf" >&2
+        if [[ "$rc" -eq 0 ]]; then
+            rc=1
+            echo "STATUS=error"
+            echo "x update reported exit 0 but no positive confirmation (missing 'Modules loaded.' or a failure marker present); see $logf" >&2
+        else
+            echo "STATUS=error"
+            echo "x update failed (exit $rc); see $logf" >&2
+        fi
         exit "$rc"
     fi
 }
