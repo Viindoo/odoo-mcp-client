@@ -46,6 +46,8 @@ When invoked, gather the following from the caller's request:
 |-----------|----------------|
 | `operation` | `create` / `drop` / `init` / `update` / `run-tests` / `ensure-up` / `status` / `load-language` |
 | `series` | e.g. `17.0`, `18.0` - required for create/init/update/run-tests; optional for status |
+| `persist` | `ephemeral` / `exclusive-running` / `shared-running` (default `ephemeral`) - the instance lifetime + isolation `create` needs: `ephemeral` = throwaway mutation build (`--stop-after-init`, unique db, no listening port); `exclusive-running` = a live, listening instance that is MINE (unique db + an allocator-issued pooled port + my `run_id` recorded as lease owner - use for mutating work that must stay up; never converges on `8069`); `shared-running` = attach to / register the SHARED read-only render target for this series (still owner-stamped with `run_id` so it cannot be foreign-bare-dropped). The judgment call: will the caller MUTATE and need the process to stay listening (`exclusive-running`) vs a read-only view of the shared target (`shared-running`) vs a throwaway build with no listener (`ephemeral`) |
+| `run_id` | the caller's session/run id - threaded into every brief and forwarded to the allocator as the lease owner. NEVER omit it: an unowned live lease is what lets another session drop yours |
 | `PROFILE` | Viindoo tenant profile name, e.g. `viindoo_17`; this skill reads `viindoo_profile` from `.odoo-ai/context.md` and threads it through - the caller never sets this manually; omit from the brief when `.odoo-ai/context.md` has no `viindoo_profile` field. REQUIRED input for the agent's `to_base`/lint-module HARD RULEs below - when omitted, the agent resolves the series' vanilla profile itself or BLOCKs rather than probe unprofiled |
 | `modules` | comma-separated or list; required for `init` / `update` / `run-tests` |
 | `demo` | `on` / `off` (default `off`) |
@@ -130,11 +132,18 @@ MODE: <fresh|reuse>           # run-tests only; auto reuse when reusing an INSTA
 LOG_MODE: <warn|info|debug|sql or 'default'>   # run-tests only; 'default' keeps --log-level=test
 FRESH_VENV: <true|false>
 INSTANCE_RESOLUTION: follow ${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md
-ALLOCATOR: acquire --mode ephemeral for mutations (create/init/update/run-tests);
+PERSIST: <ephemeral|exclusive-running|shared-running>   # create only; default ephemeral - see the dispatch table above
+RUN_ID: <the caller's session/run id>                   # ALWAYS set - the lease-ownership identity; never omit
+ALLOCATOR: PERSIST=ephemeral -> acquire --mode ephemeral --ports 0 (mutations that need no listener: init/update/run-tests, or a throwaway create);
+           PERSIST=exclusive-running -> acquire --mode ephemeral --ports 1 (or 2 when a gevent/longpolling port is needed too) --run-id <RUN_ID> - a LIVE, listening instance that is MINE, never converging on 8069;
+           PERSIST=shared-running -> the SHARED render target, owner-stamped via --run-id (never a bare acquire alongside it - the spinup mechanism registers this lease internally);
            query for ensure-up/status (read-only, no lease needed)
 OSM_GROUNDING: call cli_help(command='server', odoo_version='<series>') to discover per-version CLI flags;
                call set_active_version(odoo_version='<series>') before other OSM calls;
-               fall back to odoo-bin --help on the live binary when cli_help is silent
+               fall back to odoo-bin --help on the live binary when cli_help is silent;
+               when cli_help lists MORE THAN ONE port-flag candidate for the series, PREFER
+               --http-port/--gevent-port whenever present (use --xmlrpc-port only for v8-v10,
+               --longpolling-port only where --gevent-port is absent) - never a coin-flip between two listed flags
 HUMAN_GATE: instance_touching - L2 gate applies to all mutations
 LANGUAGES: <csv locales - ALWAYS unioned with en_US per the build rule above; 'none' -> en_US alone>
 SKIP_AUTO_INSTALL: <true|false>

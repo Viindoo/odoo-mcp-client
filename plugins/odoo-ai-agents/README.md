@@ -123,7 +123,7 @@ through the OSM MCP server; output is a direct answer or a file under `.odoo-ai/
 
 ```mermaid
 flowchart TD
-    A([Plain-language intent]) --> D{"odoo-intake<br/>router - owns Plan Mode"}
+    A([Plain-language intent]) --> D{"odoo-intake<br/>router - owns admission gate<br/>(Plan Mode entered by odoo-planning, never intake)"}
     D -->|"Vague"| E["Brainstorm options"]
     E -->|"approve"| D
     D -->|"Non-Odoo"| X["Route elsewhere"]

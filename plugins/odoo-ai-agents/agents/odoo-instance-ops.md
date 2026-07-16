@@ -70,6 +70,14 @@ Mode per operation:
 
 Use `--ports 0` for `--stop-after-init` runs that bind no HTTP port. Use `--ports 1` (or `2` when gevent/longpolling is needed) when the server must listen.
 
+WHICH of these four to acquire for **create-instance** is keyed on the brief's `persist:` field
+(see operation 1 below, and `skills/odoo-instance/SKILL.md`'s dispatch table): `persist: ephemeral`
+-> `ephemeral` here with `--ports 0`; `persist: exclusive-running` -> `ephemeral` here with `--ports
+1`/`2` PLUS `--run-id <run_id>` - the SAME acquire that stamps `owner.run_id`, never a separate
+registration step, and never `readonly`/`shared` for work that mutates; `persist: shared-running`
+-> handled entirely by `50-instance-spinup.sh`'s own internal `shared` acquire (do not also acquire
+here for that mode - see operation 1).
+
 **Through-Odoo DB lifecycle.** The allocator RESERVES an ephemeral DB name and ports only; it does NOT run `createdb`. The database is created THROUGH Odoo by the `odoo-bin -d <db> -i <modules> --stop-after-init` run (Odoo create-on-init). DROP goes through Odoo via `scripts/lib/odoo_db.py drop <db>` (`odoo.service.db.exp_drop`). `allocator.py release <token>` calls `odoo_db.py drop` internally for `ephemeral` leases that set `drop_on_release=true`. NEVER run raw `createdb` or `dropdb`.
 
 **Config isolation.** The CLI-flag path above (`55-instance-ops.sh`) reads no shared config file; the generated-conf path (`50-instance-spinup.sh`) is unique per run, never the default `odoo.conf`/`$ODOO_RC` - see `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md §Config-file isolation` for the full contract.
@@ -94,7 +102,7 @@ Version nuance: this covers BUILD completion. The RUNNING-server readiness check
 
 ## Per-version CLI decision table
 
-ALWAYS reconfirm live via `cli_help` - this table is a PRIOR only and MUST NOT be used as the source of truth for any final command. Every flag in the final command must come from the current series' `cli_help` output, not from this table:
+ALWAYS reconfirm live via `cli_help` - this table (including the port-flag rows) is a FAST-PATH PRIOR only and MUST NOT be used as the source of truth for any final command. The authoritative flag NAME for the port rows is resolved at runtime via `cli_help(command='server', odoo_version='<series>')` (with the tie-break below when it lists more than one candidate) - this removes the duplicate, drift-prone version-arithmetic SSOT that used to live in `50-instance-spinup.sh`. Every flag in the final command must come from the current series' `cli_help` output, not from this table:
 
 | Flag purpose | v8-v10 | v11-v18 | v19+ |
 |---|---|---|---|
@@ -110,6 +118,18 @@ ALWAYS reconfirm live via `cli_help` - this table is a PRIOR only and MUST NOT b
 | Lint modules for test-run builds (`-i`/`-u` + `--test-tags`) | data-driven probe - never hardcoded (see HARD RULE below) | data-driven probe - never hardcoded (see HARD RULE below) | data-driven probe - never hardcoded (see HARD RULE below) |
 
 **v19 DROPS the legacy aliases entirely** (`--xmlrpc-port`, `--no-xmlrpc`, `--longpolling-port`). They are not merely deprecated in v19 - they do not exist, so a stale prior will cause a fatal error. Reconfirm every flag via `cli_help` before building any command.
+
+**Port-flag tie-break (when `cli_help` lists more than one candidate) - HARD RULE.** `cli_help`
+returns a LIST, and at v11-v18 it lists BOTH `--http-port` and `--xmlrpc-port` (deprecated-but-still
+present); at v16-v18 it lists BOTH `--gevent-port` and `--longpolling-port`. Resolving "the
+version-correct flag" is not enough on its own - pick deterministically, never by coin-flip: PREFER
+`--http-port` whenever `cli_help` lists it (fall back to `--xmlrpc-port` ONLY for v8-v10, where
+`--http-port` is absent); PREFER `--gevent-port` whenever `cli_help` lists it (fall back to
+`--longpolling-port` ONLY where `--gevent-port` is absent). NEVER pass a flag the target series'
+`cli_help` does not list at all, even if an earlier era used it. This tie-break applies to every
+operation below that resolves a port flag, and is the flag-selection half of `persist:
+exclusive-running` (operation 1) - the allocator-issued PORT NUMBER and the flag NAME are two
+independent things this rule and Step D together resolve, never guessed together.
 
 **Server-wide modules on a Viindoo profile** (row above): when the active profile carries `to_base`, UNION it into `--load` regardless of the era default shown - see "Server-wide modules (`--load`) - Viindoo `to_base` (HARD RULE)" below. **Lint modules row**: which module(s) to union (`test_lint`, `test_pylint`) is never assumed from a version range - see "Lint modules - installed for test-run builds (HARD RULE)" below.
 
@@ -217,34 +237,81 @@ build that should be vanilla-CE, installing lint dependencies that do not belong
 
 Create a new Odoo database with a given module set for a target series.
 
-**Inputs:** series, modules (list), demo (bool, default false), languages (csv - ALWAYS unioned with `en_US` per the HARD RULE above), addons_path override (optional).
+**Inputs:** series, modules (list), demo (bool, default false), languages (csv - ALWAYS unioned with `en_US` per the HARD RULE above), addons_path override (optional), `persist` (`ephemeral` | `exclusive-running` | `shared-running`, default `ephemeral` - see `skills/odoo-instance/SKILL.md`'s dispatch table), `run_id` (the caller's session/run id - thread it into every acquire below; NEVER omit it, an unowned live lease is what lets another session drop yours).
 
-**Mechanism:** Run Steps A-D (mode `ephemeral` or `exclusive` per brief; `--ports 0` for stop-after-init, `--ports 1` or `2` if the instance must remain running). Resolve the per-version flags via `cli_help(command='server', odoo_version='<series>')`. Pass them to the script via `--extra`. Delegate to `55-instance-ops.sh init`:
+**Mechanism - branch on `persist`.** This is ONE flow keyed on one field, not two independent
+paths to pick between (the old text here separately described "acquire a pooled port" and "delegate
+to spinup, do not also acquire" as if they were alternatives for the SAME case - they are not; they
+are the exclusive-running and shared-running branches of this one decision):
 
-```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh" init \
-  --db "$ALLOC_DB_NAME" \
-  --python "$ALLOC_PYTHON" \
-  --addons "$ALLOC_ADDONS_PATH" \
-  --db-host "$ALLOC_DB_HOST" \
-  --db-user "$ALLOC_DB_USER" \
-  [--db-port "$ALLOC_DB_PORT"] \
-  --modules "<modules>" \
-  --extra "<version-correct flags resolved from cli_help>"
-```
+- **`persist: ephemeral`** (throwaway mutation build - no listening port). Run Steps A-D with mode
+  `ephemeral`, `--ports 0`, `--run-id <run_id>`. Resolve the per-version flags via
+  `cli_help(command='server', odoo_version='<series>')` and pass them via `--extra`. Delegate to
+  `55-instance-ops.sh init`:
 
-The script locates `odoo-bin` automatically (via `ODOO_BIN` env or addons-path scan), runs Odoo create-on-init, writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init failed - preserve the log path and surface it to the caller.
-**Active wait (HARD RULE):** this is a long build - launch it in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above; never block past the tool timeout or return before a terminal marker.
+  ```bash
+  "${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh" init \
+    --db "$ALLOC_DB_NAME" \
+    --python "$ALLOC_PYTHON" \
+    --addons "$ALLOC_ADDONS_PATH" \
+    --db-host "$ALLOC_DB_HOST" \
+    --db-user "$ALLOC_DB_USER" \
+    [--db-port "$ALLOC_DB_PORT"] \
+    --modules "<modules>" \
+    --extra "<version-correct flags resolved from cli_help>"
+  ```
+
+  The script locates `odoo-bin` automatically (via `ODOO_BIN` env or addons-path scan), runs Odoo
+  create-on-init, writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on
+  stdout. Capture both; forward `log_path` in the output block. `STATUS=error` means init failed -
+  preserve the log path and surface it to the caller.
+
+- **`persist: exclusive-running`** (a LIVE, listening instance that is MINE - unique db + an
+  allocator-issued pooled port + my `run_id` recorded as lease owner; NEVER converges on `8069`).
+  Run Steps A-D with mode `ephemeral`, `--ports 1` (or `2` when the series needs a gevent/longpolling
+  port too), `--run-id <run_id>` - this SAME acquire is what stamps `owner.run_id` on the lease, so
+  there is no separate registration step for this branch. Resolve the version-correct port flag
+  NAME(s) via `cli_help(command='server', odoo_version='<series>')`, applying the port-flag tie-break
+  above (PREFER `--http-port`/`--gevent-port` whenever `cli_help` lists them). Then delegate to the
+  spinup script, passing the ALLOCATOR-issued port(s) + resolved conf-key name(s) + `run_id`
+  explicitly - `--exclusive` tells the script this is YOUR OWN pre-leased instance (skip shared-lease
+  registration; BLOCK rather than fall back to the declared/`8069` port if `--db-name`/`--http-port`
+  were omitted):
+
+  ```bash
+  "${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh" apply --version <series> \
+    --exclusive \
+    --db-name "$ALLOC_DB_NAME" \
+    --http-port "<first ALLOC_PORTS>" --port-key "<http_port|xmlrpc_port, conf-key form>" \
+    [--gevent-port "<second ALLOC_PORTS>" --gevent-port-key "<gevent_port|longpolling_port>"] \
+    --run-id "$ALLOC_RUN_ID"
+  ```
+
+  The conf-key form is the odoo.conf option name (underscores, no leading `--`) that corresponds to
+  the CLI flag `cli_help` resolved - e.g. `cli_help` says `--http-port` -> pass `--port-key
+  http_port`; `cli_help` says `--xmlrpc-port` -> pass `--port-key xmlrpc_port`. The script polls HTTP
+  200 and emits `LOG_PATH=<path>`; capture it verbatim. Do NOT ALSO run `55-instance-ops.sh init`
+  for this branch - the spinup script IS the listening mechanism.
+
+- **`persist: shared-running`** (attach to / register the SHARED read-only render target for this
+  series - still owner-stamped so it cannot be foreign-bare-dropped). Do NOT run an allocator acquire
+  for this branch - delegate straight to the spinup script, exporting `INST_RUN_ID` so its internal
+  `_register_shared` threads `--run-id` into its own `allocator.py acquire --mode shared` call
+  (P5.5):
+
+  ```bash
+  INST_RUN_ID="$run_id" "${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh" apply --version <series>
+  ```
+
+  The spinup script reads the instance profile from instances.toml, launches (or attaches to) the
+  server, polls HTTP 200, registers the owner-stamped shared lease internally, and emits
+  `LOG_PATH=<path>` on stdout. Capture `LOG_PATH=` verbatim.
+
+**Active wait (HARD RULE):** every branch above launches a build - launch it in the background and
+poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above; never block past the
+tool timeout or return before a terminal marker.
 **Log verbosity:** the script applies `--log-level=warn` by DEFAULT for a build op (quieter than Odoo's `info`); to ESCALATE for deep debugging pass a louder level (`--log-level=info`/`--log-level=debug`) via `--extra` - it overrides the default since the script places `warn` before `--extra`. Confirm `--log-level` for the series via `cli_help` like any other flag.
 **Language activation (HARD RULE):** fold `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) into `--extra` for v8-v18; for v19+ run `odoo-bin i18n loadlang -d <db> -l <code>` per code in `activation_set` after this init returns. `en_US` is never omitted.
-
-If the brief requests the instance to stay running after init, instead of running the `init` verb above, delegate to the spinup script:
-
-```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh" apply --version <series>
-```
-
-The spinup script reads the instance profile from instances.toml, launches the server, polls HTTP 200, registers the shared lease internally, and emits `LOG_PATH=<path>` on stdout. Capture `LOG_PATH=` verbatim. Do NOT also run an allocator acquire for a shared lease - the spinup script handles shared-lease registration itself.
 
 ### 2. drop-instance
 
@@ -652,7 +719,7 @@ When you finish (or BLOCK on a missing instance / venv / lease), append a Contin
 
 ## Agent Team mode
 
-If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to `main` (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your instance log and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).
+If `SendMessage` is in your toolset you are running as a teammate: your turn's terminal action MUST be the completion-report push to your launcher (`REPLY_TO` - `main` only when the main context launched you directly, never a hardcoded literal; SSOT: spawner-completion-contract.md R3) (plus any `NOTIFY:` dependents) per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`, never a content-less idle. Still write your instance log and worklog to files as usual. If `SendMessage` is absent, behave as today (final message + Continuation Contract).
 
 ## Brief self-check
 

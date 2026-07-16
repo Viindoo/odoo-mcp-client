@@ -939,6 +939,13 @@ def _run_step50(env) -> subprocess.CompletedProcess:
     )
 
 
+def _run_step50_args(env, *extra_args) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["bash", str(STEP50), "apply", "--version", "17.0", *extra_args],
+        capture_output=True, text=True, env=env, timeout=30,
+    )
+
+
 @requires_bash
 def test_step50_registers_shared_lease_after_server_up(tmp_path):
     env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
@@ -1002,6 +1009,135 @@ def test_step50_degrades_to_plain_spinup_without_allocator(tmp_path):
     assert _leases_at(home) == [], "with the allocator disabled, NO lease is written"
     # The degraded path leaves a short backgrounded `sleep` (no lease records its
     # pid); it is detached and self-reaps, so it does not block the suite.
+
+
+# ---------------------------------------------------------------------------
+# P5.5-P5.9: persist: exclusive-running spin-up (--exclusive + allocator
+# overrides) and the owner-stamped shared lease.
+# ---------------------------------------------------------------------------
+@requires_bash
+def test_step50_exclusive_without_overrides_is_blocked_not_8069_fallback(tmp_path):
+    """--exclusive with NO --db-name/--http-port must BLOCK (non-zero, no launch)
+    rather than silently converge on the declared/8069 port (P5.9: the
+    exclusive-running path must bypass the 8069 fallback, never use it)."""
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    res = _run_step50_args(env, "--exclusive")
+    out = res.stdout + res.stderr
+    assert res.returncode != 0, f"--exclusive with no overrides must be BLOCKED\n{out}"
+    assert "BLOCKED" in out, f"expected an explicit BLOCKED message\n{out}"
+    assert not launch_log.exists(), f"odoo-bin must NOT launch when --exclusive is under-specified\n{out}"
+    assert _leases_at(home) == [], "a blocked exclusive spin-up must write no lease"
+
+
+@requires_bash
+def test_step50_exclusive_uses_allocator_port_and_db_skips_shared_lease(tmp_path):
+    """--exclusive --db-name --http-port --port-key spins up the CALLER's own
+    pre-leased db/port (not the declared 18069/odoo_test) and registers NO
+    shared lease at all - the DB is already owned by the caller's own acquire,
+    not a second shared render-target row (P5.6/P5.7)."""
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    res = _run_step50_args(
+        env, "--exclusive",
+        "--db-name", "odoo_17_0_t_deadbeef",
+        "--http-port", "18271",
+        "--port-key", "http_port",
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    assert launch_log.exists(), f"odoo-bin must launch for a well-specified --exclusive run\n{out}"
+    launched = launch_log.read_text(encoding="utf-8")
+    assert "odoo_17_0_t_deadbeef" in launched, (
+        f"launch must target the ALLOCATOR-issued db, not the declared odoo_test\n{launched}"
+    )
+    assert _leases_at(home) == [], (
+        "--exclusive must register NO shared lease - the DB is the caller's own "
+        f"pre-leased instance, not the shared render target\nleases: {_leases_at(home)}"
+    )
+    # Conf must carry the overridden port under the agent-resolved key.
+    conf_lines = [line for line in out.splitlines() if "Generated temp conf:" in line]
+    assert conf_lines, f"no 'Generated temp conf' line\n{out}"
+    conf_path = Path(conf_lines[0].split("Generated temp conf:")[-1].strip())
+    conf = conf_path.read_text(encoding="utf-8")
+    assert "http_port = 18271" in conf, f"conf must bind the allocator-issued port\n{conf}"
+
+
+@requires_bash
+def test_step50_gevent_port_without_key_is_blocked(tmp_path):
+    """--gevent-port with NO --gevent-port-key must BLOCK (non-zero, no launch)
+    rather than silently omitting the second listening port from the generated
+    conf (mirrors the --exclusive-without-overrides gate above)."""
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    res = _run_step50_args(env, "--gevent-port", "9069")
+    out = res.stdout + res.stderr
+    assert res.returncode != 0, f"--gevent-port with no --gevent-port-key must be BLOCKED\n{out}"
+    assert "BLOCKED" in out, f"expected an explicit BLOCKED message\n{out}"
+    assert "gevent-port" in out, f"expected the error to name the half-specified flag\n{out}"
+    assert not launch_log.exists(), (
+        f"odoo-bin must NOT launch when --gevent-port is under-specified\n{out}"
+    )
+    assert _leases_at(home) == [], "a blocked spin-up must write no lease"
+
+
+@requires_bash
+def test_step50_gevent_port_key_without_port_is_blocked(tmp_path):
+    """--gevent-port-key with NO --gevent-port must BLOCK (non-zero, no launch) -
+    the other half of the pairing gate (the previous test covers the reverse)."""
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    res = _run_step50_args(env, "--gevent-port-key", "longpolling_port")
+    out = res.stdout + res.stderr
+    assert res.returncode != 0, f"--gevent-port-key with no --gevent-port must be BLOCKED\n{out}"
+    assert "BLOCKED" in out, f"expected an explicit BLOCKED message\n{out}"
+    assert "gevent-port" in out, f"expected the error to name the half-specified flag\n{out}"
+    assert not launch_log.exists(), (
+        f"odoo-bin must NOT launch when --gevent-port-key is under-specified\n{out}"
+    )
+    assert _leases_at(home) == [], "a blocked spin-up must write no lease"
+
+
+@requires_bash
+def test_step50_gevent_port_and_key_together_writes_conf_line(tmp_path):
+    """Regression guard for the happy path: --gevent-port + --gevent-port-key
+    given TOGETHER must still succeed and the generated conf must carry the
+    second listening-port line under the agent-resolved key - the new pairing
+    gate must not block (or otherwise disturb) the well-specified case."""
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    res = _run_step50_args(
+        env, "--gevent-port", "9069", "--gevent-port-key", "longpolling_port",
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    assert launch_log.exists(), f"odoo-bin must launch for a well-specified gevent pair\n{out}"
+    conf_lines = [line for line in out.splitlines() if "Generated temp conf:" in line]
+    assert conf_lines, f"no 'Generated temp conf' line\n{out}"
+    conf_path = Path(conf_lines[0].split("Generated temp conf:")[-1].strip())
+    conf = conf_path.read_text(encoding="utf-8")
+    assert "longpolling_port = 9069" in conf, (
+        f"conf must carry the second listening port under the resolved key\n{conf}"
+    )
+
+
+@requires_bash
+def test_step50_shared_lease_owner_stamped_when_run_id_set(tmp_path):
+    """P5.5: when the caller sets INST_RUN_ID before invoking apply (the
+    declared/shared persist: shared-running path), _register_shared threads
+    --run-id into its allocator acquire, so the shared lease is owner-stamped
+    instead of unowned. Absent INST_RUN_ID, the lease stays unowned exactly as
+    before (back-compat - already covered by test_step50_registers_shared_lease_after_server_up)."""
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    env["INST_RUN_ID"] = "run-owner-xyz"
+    res = _run_step50(env)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    assert launch_log.exists()
+    shared = [lz for lz in _leases_at(home) if lz.get("mode") == "shared"]
+    assert len(shared) == 1, f"expected exactly one shared lease\n{_leases_at(home)}"
+    lz = shared[0]
+    assert lz["owner"].get("run_id") == "run-owner-xyz", (
+        f"the shared lease must be owner-stamped with INST_RUN_ID; got {lz['owner']!r}"
+    )
+    pid = lz["owner"]["pid"]
+    if pid and _alive(pid):
+        os.kill(int(pid), signal.SIGTERM)
 
 
 # ---------------------------------------------------------------------------

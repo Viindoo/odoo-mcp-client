@@ -90,11 +90,32 @@ omitted (treated as `false`).
 
 - **Enter iff `plan_mode_active` absent/false** - Plan Mode is not yet open; call `EnterPlanMode`
   before presenting the plan.
-- **Skip iff `plan_mode_active: true`** - a caller already opened Plan Mode (e.g. `odoo-intake`
-  calls `EnterPlanMode`, then delegates 3-block authoring to `odoo-planning` while Plan Mode is
-  still open). Do NOT call `EnterPlanMode` again - a second enter while already in Plan Mode is a
-  harness error.
+- **Skip iff `plan_mode_active: true`** - a caller already opened Plan Mode for its OWN reason
+  (genuinely holds it open across the dispatch, not to pre-open on behalf of the callee - see the
+  WHEN bullet below). Do NOT call `EnterPlanMode` again here - not because the harness call itself
+  would fail (a redundant call is a harmless no-op, see § Enter is conditional and defensive below),
+  but because calling it would violate the single-actor enter/exit ownership this contract pins: the
+  caller that set `plan_mode_active: true` is the enterer of record, not the callee.
 - **Exit** - on `approve`, the enterer calls `ExitPlanMode` to surface the plan for human approval.
+- **WHEN - enter BEFORE authoring, not only before presenting.** `EnterPlanMode` MUST be called
+  BEFORE ANY plan-content authoring or any dispatch that produces the plan being reviewed - never
+  after the plan artifact already exists on disk. Exactly ONE actor calls it for a given plan: the
+  plan-authoring skill running in the MAIN context (the lifecycle plan -> `odoo-planning`; a
+  specialized git/upgrade plan -> the self-gating orchestrator that authors it). A caller MUST NOT
+  pre-open Plan Mode on behalf of the plan author and then dispatch it - the author owns its own
+  enter/exit, so the enter cannot be misordered by an upstream caller. `plan_mode_active: true` is
+  passed ONLY by a caller that genuinely already holds Plan Mode open for its OWN reason (not to
+  wrap the plan author); the callee then skips its own enter to avoid a double-enter harness error.
+- **Enter is conditional and defensive.** The plan-authoring skill enters Plan Mode IFF
+  `plan_mode_active` is absent/false AND `return_to` is unset (when a caller requested return
+  routing the caller owns the gate) - the two brief-observable conditions; Plan Mode's native
+  session state (whether a human already opened it via Shift+Tab / `/plan`) is NOT exposed to
+  skills, so it is never a third condition to check. The author calls `EnterPlanMode` to ENSURE Plan
+  Mode is open, not to detect whether it already is: if the session is already in Plan Mode, the
+  call is treated as a harmless no-op by the harness. Skills cannot and need not detect Plan Mode
+  state themselves - defaulting to skip the call on an unsure state would defeat the
+  enter-before-authoring guarantee above, so the call is unconditional whenever the two brief fields
+  say to make it.
 
 **Reused by the self-driving front doors.** The dispatched-once orchestrators `odoo-forward-port`
 (P4), `odoo-git-rebase` (P6), and `odoo-modules-upgrade` (P3) reuse THESE same

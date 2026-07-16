@@ -297,8 +297,9 @@ Continuation-Contract `inputs`, consume it verbatim. Carry the design-doc path, 
    self-IDs). When Tier A is NOT available, proceed exactly as today (Tier C: fresh Agent calls,
    worklog for context). Tier C is always correct; Tier A is an optional optimization that degrades
    silently to Tier C. When the CHP capability probe is positive (Agent Team mode on), TaskCreate
-   one task per dispatched module, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names>
-   into each teammate brief, poll TaskList/TaskGet for status, and read each result from the
+   one task per dispatched module, inject TASK_ID + REPLY_TO: the current orchestrating context
+   (`main` here) + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet for
+   status, and read each result from the
    teammate's SendMessage push (NEVER from the .output transcript) - per
    `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect as today.
 1. Order modules so every module appears after its in-set dependencies (the wave column already
@@ -312,7 +313,11 @@ Continuation-Contract `inputs`, consume it verbatim. Carry the design-doc path, 
    and runs the integrated test - you do not fire the worker agents or decide the WI split yourself).
    When Tier A is in effect, give each launch its stable `name` and record the returned `agentId` in
    plan.md as you go.
-4. Wait for the batch (a batch barrier each round), then pack the next. A later step re-dispatches
+4. Wait for the batch (a batch barrier each round): after firing the parallel `odoo-coder` launches
+   in step 3, hold until every coordinator task on the run's task list is `completed`/`blocked`
+   before packing the next batch - the barrier is mechanical per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1, not an assumption. A batch is
+   done only when every coordinator returned DONE/BLOCKED (R2). A later step re-dispatches
    a BLOCKED module at the SAME recorded tier: under Tier A, resume the recorded `agentId` by
    `SendMessage` when it is still addressable; otherwise (Tier C fallback) make a fresh Agent call.
    The worklog stays the always-correct context layer the re-dispatched worker reads.

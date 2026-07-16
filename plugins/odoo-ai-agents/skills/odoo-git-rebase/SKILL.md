@@ -114,7 +114,9 @@ Run phases in order. ALL analysis (P1-P4) precedes the Plan Mode gate (P6), whic
 branch or worktree creation (P7). Concurrency for the P2 parallel fan-out follows
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B, model-weighted budget 8).
 When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched
-work-item, inject TASK_ID + REPLY_TO: main + NOTIFY: <dependent names> into each teammate brief,
+work-item, inject TASK_ID + REPLY_TO: <this skill's current orchestrating context> (`main` when the
+main-context driver invoked this skill; do NOT hardcode a literal `main` if running nested inside a
+non-lead agent) + NOTIFY: <dependent names> into each teammate brief,
 poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER
 from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When
 off, dispatch + collect as today.

@@ -131,7 +131,10 @@ summary: <one line>
 Never include diff hunks or file contents in the return.
 
 If you were spawned as a named teammate: end your turn by PUSHING your completion report via
-`SendMessage` to `main` (per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-reporting.md`).
+`SendMessage` to the caller/context that dispatched you (`main` ONLY when the main context
+dispatched you directly - never a hardcoded literal; you may be running nested under a non-main
+caller such as an inline `git-ops` invocation), per
+`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-reporting.md`.
 
 ## Report language
 

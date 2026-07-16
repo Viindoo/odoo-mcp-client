@@ -26,15 +26,18 @@ Detect the mode from your OWN toolset - do not assume:
 When `SendMessage` is present, completing your op is NOT enough. Your turn's TERMINAL action - the
 last thing you do before yielding - MUST be:
 
-`SendMessage({to: "main", text: <report>})`
+`SendMessage({to: <caller>, text: <report>})`
 
+- `<caller>` = the context that dispatched you - the recipient named in your dispatch brief. When
+  the main context dispatched you directly, that recipient IS `main` - e.g.
+  `SendMessage({to: "main", text: <report>})`. But never default to a hardcoded literal `main`:
+  you may be running nested under a non-main caller (e.g. an inline `git-ops` invocation, or a lead
+  that is itself a subagent), in which case `<caller>` is that caller, not `main`.
 - `<report>` = your normal structured result/findings block (the same compact summary + status you
   would otherwise return) PLUS the absolute path of the findings file you produced. Keep it compact:
   a summary, the status, and the findings-file path - never diff hunks or file contents.
 - This is IN ADDITION to writing your findings file, not instead of it. Always write the findings
   file first, then push the report that points at it.
-- `to: "main"` addresses the lead that dispatched the team. Use that recipient unless your brief
-  names a different recipient explicitly.
 
 NEVER end a team-mode turn on a bare tool call or on plain text only - either one leaves the lead
 parked on an empty idle notification with no result to read. The `SendMessage` push is what closes

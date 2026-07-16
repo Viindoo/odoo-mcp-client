@@ -35,6 +35,12 @@ it is itself a subagent - a separate context, not the `main`-context lead - so a
 completion report would misdeliver to the top-level main context, past the pipeline lead, leaving it
 stranded.
 
+This is the same report-up-one-level principle stated universally elsewhere: a worker reports to its
+direct launcher, never a grand-parent. The pipeline lead enforces it CONSERVATIVELY by refusing
+named-teammate mode when nested, so a leaf's return is structurally addressed to its launcher
+(cold-spawn has no address field to mis-set). The categorical rule here and the per-field `REPLY_TO`
+rule used elsewhere are two implementations of one principle, not two policies.
+
 ## N2 - Depth guard (anti-runaway)
 
 ONLY `git-pipeline-lead` holds agent-launch capability. The three leaf agents -

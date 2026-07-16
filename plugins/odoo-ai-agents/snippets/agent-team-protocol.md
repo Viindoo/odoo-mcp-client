@@ -12,7 +12,8 @@
 
 When the runtime is in **Agent Team mode**, a subagent spawned with a `name` is a TEAMMATE running
 in the background, addressable via `SendMessage({to: "<name>"})`; the orchestrating context is the
-team LEAD, addressed as `main`. In that mode a teammate's plain-text output AND any file it writes
+team LEAD, addressed by whichever context launched you (`main` ONLY when main is that launcher -
+see the Addressing section below). In that mode a teammate's plain-text output AND any file it writes
 are INVISIBLE to the lead - only an explicit `SendMessage` delivers content. A finished teammate
 that ends its turn on a tool call or on plain text emits only a content-less `idle_notification`,
 which strands the lead (it cannot tell *finished-without-reporting* from *still-working*).
@@ -43,15 +44,18 @@ team lead). Run the probe ONCE per run and cache it as CHP specifies - do NOT re
 
 ## Ask 1 - teammate completion-report contract (HARD RULE)
 
-> On completing your assigned work, your turn's TERMINAL action MUST be
-> `SendMessage({to: "main", text: <report>})`, plus one `SendMessage` to each named teammate listed
-> in your brief's `NOTIFY:` field. NEVER end the turn on a bare tool call or on plain-text-only
-> output.
+> After the spawner completion barrier clears (no still-running child -
+> `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R1/R2), your turn's TERMINAL
+> action MUST be `SendMessage({to: <REPLY_TO>, text: <report>})` where `<REPLY_TO>` is the launcher
+> named in your brief (`main` only when main launched you directly - never a hardcoded literal),
+> plus one `SendMessage` to each `NOTIFY:` teammate. NEVER end the turn on a bare tool call or on
+> plain-text-only output.
 
 NOTIFY peer-push is best-effort - it reaches only already-running dependents; a not-yet-spawned
-dependent receives the result via the lead's `main` report (the lead routes it), not a direct peer
-push. So `main` is the authoritative delivery channel; the peer push is an early-wakeup optimization
-for dependents already in flight.
+dependent receives the result via the lead's `REPLY_TO` report (the lead routes it), not a direct
+peer push. So `REPLY_TO` (the launcher named in the brief) is the authoritative delivery channel -
+`main` only when the main context is itself the lead; the peer push is an early-wakeup optimization.
+See `spawner-completion-contract.md` R3.
 
 The report `text` is, in order:
 
@@ -82,8 +86,10 @@ just stop and wait to be resumed if the lead has more for you (CHP async park-an
 
 > When the CHP capability probe is positive, the lead - at or before dispatch - `TaskCreate`s
 > exactly ONE task per work-item (title = the work-item id, status `pending`) and injects
-> `TASK_ID: <id>`, `REPLY_TO: main`, and `NOTIFY: <dependent teammate names>` into each teammate's
-> brief. The teammate `TaskUpdate`s its task `pending` -> `in_progress` at start and ->
+> `TASK_ID: <id>`, `REPLY_TO: <this lead's own address>` (`main` ONLY when the main context is the
+> lead - never a hardcoded literal when a nested spawner is the lead), and
+> `NOTIFY: <dependent teammate names>` into each teammate's brief. The teammate `TaskUpdate`s its
+> task `pending` -> `in_progress` at start and ->
 > `completed` | `blocked` at end with a status line of at most ONE line. The lead reads STATUS only
 > from `TaskList` / `TaskGet`, and report CONTENT only from the Ask-1 `SendMessage` push - NEVER
 > from a teammate's `.output` JSONL transcript.
@@ -124,13 +130,16 @@ Four non-overlapping channels, each with ONE job:
 | Worklog | WHY (the decision journal) | `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` |
 | Blackboard (`run-<id>.json`) | the driver RUN-DAG / machine state | run-harness (driver-only) |
 
-## Addressing - main is the lead, the lead is the address authority
+## Addressing - the lead is the address authority, not necessarily `main`
 
-`main` is the single orchestrating context that is the team lead - whichever skill is driving in the
-MAIN context: run-harness, or a spawner skill that the main context invoked via the Skill tool
-(those run IN the main context, they are NOT nested subagents, so they too address as `main`). A
-worker NEVER self-addresses or guesses its own id; the lead is the address authority and supplies
-every reply-to (`REPLY_TO: main`) and peer name (`NOTIFY: ...`) explicitly in the brief. Full rule:
+The team lead is whichever context launched you: the MAIN orchestrating context (run-harness, or a
+spawner skill the main context invoked via the Skill tool - those run IN the main context, they are
+NOT nested subagents) when main launched you directly, OR a nested spawner coordinator (e.g.
+`odoo-coder`) when a spawner below main launched you. A worker NEVER self-addresses or guesses its
+own id; the lead is the address authority and supplies every reply-to (`REPLY_TO: <lead's own
+address>`) and peer name (`NOTIFY: ...`) explicitly in the brief - `REPLY_TO: main` is correct ONLY
+when main is that lead, never a hardcoded default. Full rule (report-up-one-level, R3):
+`${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3; addressing authority:
 `${CLAUDE_PLUGIN_ROOT}/snippets/context-handoff-protocol.md` "Lead is the address authority".
 
 **Nested coordinator exception (`odoo-coder`).** A worker launched by the `odoo-coder` per-module

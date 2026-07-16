@@ -452,6 +452,12 @@ cmd_init() {
     # (Odoo's arg parser takes the last occurrence) - mirrors the `test` verb.
     local rc=0
     # shellcheck disable=SC2086
+    # --stop-after-init is correct HERE by design: cmd_init is the EPHEMERAL
+    # mutation-build mechanism (persist: ephemeral) - a throwaway install/init
+    # that never listens. A LISTENING instance (persist: exclusive-running /
+    # shared-running) never routes through this verb - it goes through
+    # 50-instance-spinup.sh, the sole listening mechanism (P5.7). Do NOT try to
+    # make this verb long-running; add a new op instead if that is ever needed.
     "$arg_python" "$odoo_bin" \
         -d "$arg_db" \
         -i "$arg_modules" \

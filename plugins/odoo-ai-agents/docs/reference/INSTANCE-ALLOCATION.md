@@ -138,6 +138,28 @@ CLI flag carries each (an HTTP port, plus a longpoll/gevent port on series that 
 `cli_help` for the `<series>` at runtime - the allocator just hands out N version-agnostic free port numbers.
 This removes most port contention outright.
 
+**`persist:` (caller-facing concept, NOT a fifth allocator mode).** `skills/odoo-instance/SKILL.md`'s
+`persist` field (`ephemeral` | `exclusive-running` | `shared-running`) is the SKILL/AGENT-level
+lifecycle/isolation choice a caller makes; it maps onto the four allocator modes above rather than
+adding a fifth:
+
+- `persist: ephemeral` -> allocator `ephemeral`, `--ports 0` (a throwaway `--stop-after-init` build).
+- `persist: exclusive-running` -> allocator `ephemeral`, `--ports 1` (or `2`) + `--run-id <id>` - the
+  SAME unique-db/pooled-port lease as `ephemeral` above, except the caller runs it as a LIVE,
+  listening process (`50-instance-spinup.sh --exclusive`, `agents/odoo-instance-ops.md` operation 1)
+  instead of `--stop-after-init`. This lease NEVER falls back to the declared/`8069` port - the port
+  always comes from this acquire (P5 port-uniqueness gate, below).
+- `persist: shared-running` -> allocator `shared`, now REQUIRED to be owner-stamped via `--run-id`
+  (§6.3) so a foreign session can no longer bare-drop it.
+
+**P5 port-uniqueness gate.** `_pick_ports` (§6 `acquire`) excludes the instance's declared `http_port`
+from the pool outright - both by defaulting `http_port_base` to `declared_port + 1` when the catalog
+declares no separate pool base, and by passing the declared port as an explicit `reserved` exclusion
+so a misconfigured overlapping `http_port_base` still cannot collide. Without this, a catalog entry
+with no separate `http_port_base` would let the pool hand out the declared/shared port itself to an
+`exclusive-running` lease. Covered by `test_allocator.py::test_pooled_port_never_equals_the_declared_http_port`
+and `::test_concurrent_pooled_acquires_never_collide_with_declared_port`.
+
 ## 6. Allocator API (`scripts/lib/allocator.py`)
 
 A thin Python CLI/lib next to `instances_io.py`. Emits shell-eval-able `ALLOC_*` lines like the
@@ -150,7 +172,7 @@ existing reader, so shell consumers stay simple.
 | `release <token> [--run-id <id>] [--force]` | under flock: verify token match, then apply the ownership guard (§6.3) - refuses when the caller's run id conflicts with the lease owner's run id, unless `--force`; on success drops the lease and, if `drop_on_release` -> drops the ephemeral DB through Odoo (`scripts/lib/odoo_db.py`); raw `dropdb` as logged fallback when venv unavailable |
 | `heartbeat <token>` | bump `heartbeat_at` (long runs that outlive `ttl_s`) |
 | `gc` | under flock: reclaim leases whose owner pid is dead (same host: `os.kill(pid,0)`) OR `now - heartbeat_at > ttl_s`; for each reclaimed `drop_on_release` lease: drop through Odoo (`odoo_db.py`), raw `dropdb` fallback |
-| `assert-droppable --db-name <db> [--run-id <id>]` | read-only, under flock: exits non-zero and names the owning run id when a FRESH (non-stale) lease on `<db>` is owned by a DIFFERENT run; exits 0 when the DB is unowned, owned by the caller, or the lease is stale. Lets a bare-name drop confirm a DB is unmanaged before touching it (§6.3) |
+| `assert-droppable --db-name <db> [--run-id <id>] [--force]` | read-only, under flock: exits non-zero when a FRESH (non-stale) lease on `<db>` is owned by a DIFFERENT run (names the owning run id), OR when it is UNOWNED (no run_id recorded at all - P5.8: unowned is no longer a synonym for "safe to drop"); exits 0 when owned by the caller, the lease is stale, no lease exists, or `--force` is passed. Lets a bare-name drop confirm a DB is unmanaged before touching it (§6.3) |
 | `list` | print current leases (debug / `odoo-doctor`); tokens are redacted to an 8-char fingerprint by default - pass `--show-tokens` to print them in full |
 
 `acquire`/`release`/`gc` all do their read-modify-write **inside one `fcntl.flock`** so concurrent
@@ -230,6 +252,14 @@ accident-prevention layer, not a security boundary - `run_id` is a semi-discover
 (worklog paths), and `assert-droppable` + the drop remain two separate processes, so a lease
 minted in the gap between them is not covered; managed DBs never take the bare-drop path, so
 this bounded TOCTOU window does not apply to them.
+
+**P5.8: an UNOWNED-but-fresh lease is ALSO refused, not just a foreign one.** Before this fix,
+`assert-droppable` treated an empty `owner.run_id` as `always droppable` - which is exactly what let
+one session bare-drop another session's live instance whenever the OWNING acquire never threaded
+`--run-id` (the `_register_shared` gap P5.5 closes). A fresh (non-stale) lease with NO recorded owner
+at all now ALSO requires `--force` to drop, same as a fresh foreign-owned one; an own-lease or a
+stale lease remains droppable with no `--force`, unchanged. Covered by
+`test_allocator.py::test_assert_droppable_refuses_unowned_fresh_lease_without_force`.
 
 ## 7. Crash / stale handling
 

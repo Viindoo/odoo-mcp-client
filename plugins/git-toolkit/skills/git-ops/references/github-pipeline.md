@@ -19,6 +19,7 @@ labels for issues) - the full body/diff is fetched only on explicit request.
 | Edit PR | `update_pull_request` | `gh pr edit <n>` |
 | Review (approve / request-changes / comment) | `pull_request_review_write` | `gh pr review <n>` |
 | Inline review comment | `add_comment_to_pending_review` | (no equivalent) |
+| PR review with inline findings | create pending -> N x `add_comment_to_pending_review` (one per finding, subjectType=LINE, `suggestion` fence in body where a fix exists, ALL severities) -> `submit_pending` (event REQUEST_CHANGES/COMMENT) | (no gh equivalent) |
 | Reply to a thread | `add_reply_to_pull_request_comment` | (limited) |
 | Merge | `merge_pull_request` | `gh pr merge <n> --squash/--merge/--rebase` |
 | Update branch from base | `update_pull_request_branch` | `gh pr update-branch <n>` |

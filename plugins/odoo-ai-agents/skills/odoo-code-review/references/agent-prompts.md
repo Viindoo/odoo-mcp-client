@@ -45,6 +45,9 @@ needs_ui_review is `candidate`, also confirm view-binding via OSM and record `ui
 Artifacts dir: .odoo-ai/reviews/<slug>-<date>/ - write your report to <module>.md there.
 Output contract: per odoo-code-reviewer agent SSOT (${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md)
 - include VERDICT (APPROVE/REQUEST_CHANGES) and SCORE 0-100 in your report.
+Populate the Issues table `File` + `Line/Range` for EVERY finding (diff-relative path) and emit a
+`#### <File>:<Line/Range>` Suggested replacement block for each finding with a literal code fix -
+the PR-post path posts one inline comment per row.
 Return a 5-line summary (counts by severity + top finding + verdict + score) and the artifact path.
 ```
 
@@ -61,6 +64,9 @@ depends/load-order, ripple to dependents). Read the per-module reports already i
 findings from Phase A.5) so the integration verdict accounts for UI findings. Write _synthesis.md there.
 Output contract: per odoo-code-reviewer agent SSOT (${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md)
 - include overall VERDICT (APPROVE/REQUEST_CHANGES) and SCORE 0-100 aggregated across all modules.
+Populate the Issues table `File` + `Line/Range` for EVERY finding (diff-relative path) and emit a
+`#### <File>:<Line/Range>` Suggested replacement block for each finding with a literal code fix -
+the PR-post path posts one inline comment per row.
 DESIGN_DOC: <null in master-child | flat TDD path in single>
 (master-child: pass null - per-module §9 ACs verified in Phase A; synthesis checks §10 only via MASTER_DESIGN_DOC. Single: pass the flat TDD path.)
 When non-null: MANDATORY - verify the closure satisfies the design's "## 9. Acceptance Criteria" solution-level criteria and emit the "### TDD Conformance" block. Skipping TDD verify when DESIGN_DOC is non-null is a review defect. When null: OMIT the TDD Conformance block.
@@ -103,7 +109,11 @@ Read ONLY this domain's per-module reports (<module>.md + ui-review-<module>.md)
 (forward module_inspect(name='<m>', method='dependencies', odoo_version='<version>'), reverse impact_analysis) and review cross-module
 integration risk inside the domain only. Write domain-<d>.md there.
 Output contract: per odoo-code-reviewer agent SSOT (${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md)
-- include VERDICT (APPROVE/REQUEST_CHANGES) and SCORE for this domain. Return a summary + path.
+- include VERDICT (APPROVE/REQUEST_CHANGES) and SCORE for this domain.
+Populate the Issues table `File` + `Line/Range` for EVERY finding (diff-relative path) and emit a
+`#### <File>:<Line/Range>` Suggested replacement block for each finding with a literal code fix -
+the PR-post path posts one inline comment per row.
+Return a summary + path.
 ```
 
 ### Final cross-domain pass (one, after all per-domain passes)
@@ -115,7 +125,11 @@ Read every domain-<d>.md in .odoo-ai/reviews/<slug>-<date>/. Compute CROSS-DOMAI
 domains). Write _synthesis.md with the overall VERDICT (APPROVE/REQUEST_CHANGES) + SCORE aggregated
 across ALL domains. The final verdict + score MUST aggregate the per-module severity counts carried
 in each domain-<d>.md (not only domain-level integration findings), so a large-set PR still reflects
-every per-module CRITICAL/HIGH. Return a summary + path.
+every per-module CRITICAL/HIGH.
+Populate the Issues table `File` + `Line/Range` for EVERY finding (diff-relative path) and emit a
+`#### <File>:<Line/Range>` Suggested replacement block for each finding with a literal code fix -
+the PR-post path posts one inline comment per row.
+Return a summary + path.
 DESIGN_DOC: <null in master-child | flat TDD path in single>
 (master-child: pass null - per-module §9 ACs verified in Phase A; synthesis checks §10 only via MASTER_DESIGN_DOC. Single: pass the flat TDD path.)
 When non-null: MANDATORY - verify the closure satisfies the design's "## 9. Acceptance Criteria" solution-level criteria and emit the "### TDD Conformance" block. Omit when null/absent.

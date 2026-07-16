@@ -94,3 +94,11 @@
     (SSOT: `agents/odoo-instance-ops.md` § Lint modules - installed for test-run builds (HARD
     RULE)); test-invocation detail in `ODOO-TESTING.md` § Install the lint modules (not just tag
     them).
+13. **`persist` + `run_id` on any build that must stay running.** A build that must remain a live,
+    listening process (never `--stop-after-init`) declares `persist: exclusive-running` (an isolated,
+    owner-stamped instance - unique db + an allocator-issued pooled port, never the declared/`8069`
+    port) or `persist: shared-running` (the shared render target, now ALSO owner-stamped via
+    `run_id` so a foreign session cannot bare-drop it) - never a bare port/db reuse with no owner.
+    Owned by `skills/odoo-instance/SKILL.md` (the `persist:`/`run_id:` dispatch fields) and
+    `agents/odoo-instance-ops.md` (operation 1, create-instance). Full contract:
+    `INSTANCE-ALLOCATION.md` §5 + §6.3.

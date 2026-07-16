@@ -424,3 +424,88 @@ def test_evals_case_11_uses_neutral_self_provision_framing():
     assert "self-provision" in e11["tags"], (
         "eval 11's tags must be reworded consistently with the neutral expected_behavior"
     )
+
+
+# ---------------------------------------------------------------------------
+# P5 - instance port isolation (persist: field + owned lease + runtime cli_help
+# port-flag resolution, never a hardcoded flag). See docs/reference/
+# INSTANCE-ALLOCATION.md §5 and agents/odoo-instance-ops.md operation 1.
+# ---------------------------------------------------------------------------
+
+def test_skill_carries_persist_and_run_id_dispatch_fields():
+    """skills/odoo-instance/SKILL.md must declare the persist:/run_id: dispatch
+    fields (P5.1) - the caller-facing lifecycle/isolation choice and the
+    lease-ownership identity, both threaded into the odoo-instance-ops brief."""
+    text = _norm(SKILL_MD)
+    assert "`persist`" in text and "ephemeral" in text and "exclusive-running" in text \
+        and "shared-running" in text, (
+        "SKILL.md dispatch table must declare persist: ephemeral|exclusive-running|shared-running"
+    )
+    assert "`run_id`" in text, "SKILL.md dispatch table must declare a run_id field"
+    assert "PERSIST:" in text and "RUN_ID:" in text, (
+        "SKILL.md's brief shape must thread PERSIST:/RUN_ID: into the odoo-instance-ops brief"
+    )
+    assert "never converges on `8069`" in text or "never converging on 8069" in text, (
+        "SKILL.md must state exclusive-running never converges on the declared/8069 port"
+    )
+
+
+def test_agent_resolves_port_flag_at_runtime_never_hardcoded():
+    """agents/odoo-instance-ops.md must instruct RUNTIME cli_help resolution of
+    the port flag name - never a hardcoded flag - and must state the tie-break
+    rule for when cli_help lists more than one candidate (P5.2 + refinement 1
+    from 23-review-final.md Part 2)."""
+    text = _norm(AGENT_MD)
+    assert "FAST-PATH PRIOR only" in text, (
+        "agent must state the per-version CLI table is a fast-path prior, not the SSOT"
+    )
+    assert "resolved at runtime via" in text and "cli_help" in text, (
+        "agent must instruct runtime cli_help resolution of the port flag, not a hardcoded one"
+    )
+    assert "Port-flag tie-break" in text, "agent must carry the port-flag tie-break rule"
+    assert "PREFER `--http-port` whenever `cli_help` lists it" in text, (
+        "tie-break must prefer --http-port whenever cli_help lists it (xmlrpc-port only for v8-v10)"
+    )
+    assert "PREFER `--gevent-port` whenever `cli_help` lists it" in text, (
+        "tie-break must prefer --gevent-port whenever cli_help lists it (longpolling-port only "
+        "where gevent-port is absent)"
+    )
+    assert "NEVER pass a flag the target series' `cli_help` does not list" in text, (
+        "tie-break must forbid passing a flag the target series' cli_help does not list at all"
+    )
+
+
+def test_agent_create_instance_is_one_persist_keyed_flow():
+    """The old odoo-instance-ops.md contradiction - Step D's 'acquire a pooled
+    port, --ports 1 to listen' (formerly :48/:71) vs create-instance's 'delegate
+    to spinup; do NOT also acquire' (formerly :241-247) - must be reconciled
+    into ONE persist:-keyed flow, not left as two divergent paths."""
+    text = _norm(AGENT_MD)
+
+    def _section(header_start: str, header_end: str) -> str:
+        s = text.find(header_start)
+        assert s != -1, f"section {header_start!r} not found"
+        e = text.find(header_end, s + 1)
+        return text[s: e if e != -1 else len(text)]
+
+    create = _section("### 1. create-instance", "### 2. drop-instance")
+    for mode in ("`persist: ephemeral`", "`persist: exclusive-running`", "`persist: shared-running`"):
+        assert mode in create, f"create-instance must branch explicitly on {mode}"
+    assert "--exclusive" in create, "the exclusive-running branch must pass --exclusive to spinup"
+    assert "INST_RUN_ID" in create, "the shared-running branch must export INST_RUN_ID for spinup"
+    assert "is ONE flow keyed on one field, not two independent" in text, (
+        "the agent must state the reconciliation explicitly, not just perform it silently"
+    )
+
+
+def test_agent_exclusive_running_never_falls_back_to_8069():
+    """The exclusive-running mechanism must state it never falls back to the
+    declared/8069 port and BLOCKs instead when the allocator port is missing
+    (P5.9 - the six 8069 fallbacks must not apply to this path)."""
+    text = _norm(AGENT_MD)
+    assert "NEVER converges on `8069`" in text or "NEVER converges on 8069" in text, (
+        "agent must state exclusive-running never converges on the declared/8069 port"
+    )
+    assert "BLOCK rather than fall back to the declared/`8069` port" in text, (
+        "agent must state the spinup delegation BLOCKs rather than silently falling back to 8069"
+    )

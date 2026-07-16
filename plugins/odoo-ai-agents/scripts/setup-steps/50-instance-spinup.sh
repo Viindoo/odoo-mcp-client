@@ -17,6 +17,28 @@
 #              (already running); exit 1 otherwise.
 #   apply      Generate conf, spin up, poll until 200 (timeout ~120s), print URL.
 #
+#              By DEFAULT `apply` spins up (or attaches to) the SHARED declared
+#              instance (persist: shared-running) and registers it as a `shared`
+#              allocator lease via _register_shared - owner-stamped with
+#              --run-id when the caller sets INST_RUN_ID (P5.5).
+#
+#              Pass --exclusive plus --db-name/--http-port (and, when the
+#              series needs one, --gevent-port) to instead spin up the CALLER'S
+#              OWN pre-leased instance (persist: exclusive-running - a unique db
+#              + an allocator-issued pooled port the caller already acquired via
+#              `allocator.py acquire --mode ephemeral --run-id <id>`, per
+#              agents/odoo-instance-ops.md operation 1). --exclusive SKIPS
+#              _register_shared entirely (the lease already exists and is
+#              already owned) and NEVER falls back to the declared/8069 port -
+#              --db-name/--http-port are REQUIRED with --exclusive; omitting
+#              either is a hard failure (BLOCKED), not a silent 8069 fallback
+#              (P5.9). --port-key/--gevent-port-key are the agent-resolved
+#              odoo.conf key names (e.g. `http_port`/`xmlrpc_port`,
+#              `gevent_port`/`longpolling_port`) from OSM `cli_help` - they
+#              override the local version-arithmetic fallback below, which
+#              stays in place ONLY for the shared/declared path so existing
+#              callers are unaffected (P5.6).
+#
 # HARD RULES:
 #   - Reads db_password ONLY from env (ODOO_PG_PASSWORD) - never from the TOML.
 #   - The generated odoo.conf goes in a temp dir; no project files are mutated.
@@ -32,6 +54,11 @@
 #   SPINUP_TIMEOUT     poll timeout seconds (default 120).
 #   ODOO_AI_ALLOCATOR  path to allocator.py (default ../lib/allocator.py). Set it
 #                      empty to skip shared-lease registration (plain spin-up).
+#   INST_RUN_ID        the caller's session/run id (P5.5) - when set, threaded
+#                      into _register_shared's `allocator.py acquire --mode
+#                      shared` call as --run-id, so the shared lease is
+#                      owner-stamped and can no longer be foreign-bare-dropped.
+#                      Unset -> the shared lease stays unowned (back-compat).
 
 set -euo pipefail
 
@@ -43,14 +70,28 @@ source "$SCRIPT_DIR/../lib/resolve_instances.sh"
 INSTANCES_TOML="$(_resolve_instances)"
 INSTANCES_IO="$SCRIPT_DIR/../lib/instances_io.py"
 SPINUP_TIMEOUT="${SPINUP_TIMEOUT:-120}"
+# SSOT for the "no declared http_port" fallback (P5.9 8069-fallback
+# consolidation) - mirrors instances_io.DEFAULT_HTTP_PORT / allocator.py's
+# DEFAULT_HTTP_PORT (bash cannot import the Python constant, so this is the
+# bash-side twin of the same literal).
+DEFAULT_HTTP_PORT=8069
 
 # ---------------------------------------------------------------------------
-# arg parse: subcommand first, then optional --version X.Y
+# arg parse: subcommand first, then optional --version X.Y [exclusive-running
+# overrides]
 # ---------------------------------------------------------------------------
 SUBCMD="${1:-}"
 shift || true
 VERSION=""
 PROFILE=""
+# persist: exclusive-running overrides (P5.6) - all empty/0 by default, which
+# keeps every existing (persist: shared-running) caller byte-for-byte unchanged.
+ARG_EXCLUSIVE=0
+ARG_DB_NAME=""
+ARG_HTTP_PORT=""
+ARG_PORT_KEY=""
+ARG_GEVENT_PORT=""
+ARG_GEVENT_PORT_KEY=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --version)
@@ -67,6 +108,23 @@ while [[ $# -gt 0 ]]; do
                 exit 2
             fi
             PROFILE="$2"; shift 2 ;;
+        --exclusive)
+            ARG_EXCLUSIVE=1; shift ;;
+        --db-name)
+            [[ $# -ge 2 ]] || { echo "$(basename "$0") --db-name requires a value" >&2; exit 2; }
+            ARG_DB_NAME="$2"; shift 2 ;;
+        --http-port)
+            [[ $# -ge 2 ]] || { echo "$(basename "$0") --http-port requires a value" >&2; exit 2; }
+            ARG_HTTP_PORT="$2"; shift 2 ;;
+        --port-key)
+            [[ $# -ge 2 ]] || { echo "$(basename "$0") --port-key requires a value" >&2; exit 2; }
+            ARG_PORT_KEY="$2"; shift 2 ;;
+        --gevent-port)
+            [[ $# -ge 2 ]] || { echo "$(basename "$0") --gevent-port requires a value" >&2; exit 2; }
+            ARG_GEVENT_PORT="$2"; shift 2 ;;
+        --gevent-port-key)
+            [[ $# -ge 2 ]] || { echo "$(basename "$0") --gevent-port-key requires a value" >&2; exit 2; }
+            ARG_GEVENT_PORT_KEY="$2"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 2 ;;
     esac
 done
@@ -109,7 +167,7 @@ cmd_check() {
     kv="$(_read_instance "$VERSION" "$PROFILE")" || rc=$?
     [[ "$rc" -eq 0 && -n "$kv" ]] || return 1
     eval "$kv"
-    port="${INST_HTTP_PORT:-8069}"
+    port="${INST_HTTP_PORT:-$DEFAULT_HTTP_PORT}"
     [[ "$(_http_status "$port")" == "200" ]]
 }
 
@@ -164,13 +222,57 @@ cmd_apply() {
         return 1
     fi
     eval "$kv"
-    local port="${INST_HTTP_PORT:-8069}"
+    # Effective db_name/port: the agent's exclusive-running overrides win when
+    # given (P5.6); otherwise this is the declared/shared instance, unchanged.
+    local port="${ARG_HTTP_PORT:-${INST_HTTP_PORT:-$DEFAULT_HTTP_PORT}}"
+    local db_name="${ARG_DB_NAME:-${INST_DB_NAME:-odoo}}"
+
+    # persist: exclusive-running (--exclusive) NEVER falls back to the
+    # declared/DEFAULT_HTTP_PORT port - the caller MUST have already acquired
+    # its own unique db + pooled port via allocator.py and pass both explicitly.
+    # Gate the six-8069-fallbacks class of bug at its source (P5.9): BLOCK
+    # loudly here instead of silently converging on the shared port/db.
+    if [[ "$ARG_EXCLUSIVE" == "1" ]]; then
+        if [[ -z "$ARG_DB_NAME" || -z "$ARG_HTTP_PORT" ]]; then
+            echo "" >&2
+            echo "x BLOCKED: --exclusive requires --db-name AND --http-port (both allocator-issued)." >&2
+            echo "  Refusing to fall back to the declared/\$DEFAULT_HTTP_PORT port for an" >&2
+            echo "  exclusive-running spin-up - that would collide with the shared render target." >&2
+            echo "  Acquire a pooled port first: allocator.py acquire --mode ephemeral --ports 1" >&2
+            echo "  [--ports 2] --run-id <run_id> (see agents/odoo-instance-ops.md operation 1," >&2
+            echo "  persist: exclusive-running)." >&2
+            return 1
+        fi
+    fi
+
+    # --gevent-port and --gevent-port-key are a PAIR (P5.6): a series that needs a
+    # second listening port (gevent/longpolling) requires BOTH the port AND its
+    # resolved conf key to emit that conf line. Half-specifying either one used to
+    # degrade silently to "no second listening port" with no error - BLOCK loudly
+    # instead, mirroring the --exclusive-without-overrides gate above, so a caller
+    # bug is caught here rather than shipping a single-port conf on a series that
+    # needs two.
+    if [[ ( -n "${ARG_GEVENT_PORT:-}" && -z "${ARG_GEVENT_PORT_KEY:-}" ) || \
+          ( -z "${ARG_GEVENT_PORT:-}" && -n "${ARG_GEVENT_PORT_KEY:-}" ) ]]; then
+        echo "" >&2
+        echo "x BLOCKED: --gevent-port and --gevent-port-key must be given TOGETHER." >&2
+        echo "  Got --gevent-port='${ARG_GEVENT_PORT:-}' --gevent-port-key='${ARG_GEVENT_PORT_KEY:-}'." >&2
+        echo "  Refusing to silently omit the second listening port - a series that" >&2
+        echo "  needs one would otherwise start with no error and no gevent/longpolling" >&2
+        echo "  port bound. Pass BOTH (resolve the key via OSM cli_help; see" >&2
+        echo "  agents/odoo-instance-ops.md operation 1, persist: exclusive-running)." >&2
+        return 1
+    fi
 
     # Register this spin-up as the SHARED, NON-exclusive render target so other
     # sessions discover it (allocator.py query) and gc reclaims it when it dies.
     # Best-effort only: an absent allocator/python degrades to plain spin-up,
     # exactly as before. We register AFTER the server answers (never before), so
     # a failed start leaves NO stale lease and we never need a teardown release.
+    # SKIPPED entirely for --exclusive (persist: exclusive-running): that DB is
+    # the caller's OWN pre-leased instance, already owned - registering it as a
+    # second, SHARED lease would be both redundant and wrong (shared leases are
+    # never exclusive-DB, but this DB genuinely is).
     local alloc_py="${ODOO_AI_ALLOCATOR-$SCRIPT_DIR/../lib/allocator.py}"
     _register_shared() {
         # $1 = optional live server pid. The pid is recorded only when it is
@@ -179,8 +281,13 @@ cmd_apply() {
         # always False on a shared lease, so gc never drops the declared DB.
         [[ -n "$alloc_py" && -f "$alloc_py" ]] || return 0
         local args=(acquire --series "${INST_VERSION:-}" --mode shared
-                    --port "$port" --db-name "${INST_DB_NAME:-odoo}")
+                    --port "$port" --db-name "$db_name")
         [[ -n "${INST_PROFILE:-}" ]] && args+=(--profile "${INST_PROFILE}")
+        # P5.5: owner-stamp the shared lease with the caller's run id (sourced
+        # from INST_RUN_ID, the same INST_* convention every other field here
+        # follows) so a foreign session can no longer bare-drop it. Unset ->
+        # the lease stays unowned, exactly as before (back-compat).
+        [[ -n "${INST_RUN_ID:-}" ]] && args+=(--run-id "${INST_RUN_ID}")
         if [[ -n "${1:-}" ]] && kill -0 "$1" 2>/dev/null; then
             args+=(--pid "$1")
         fi
@@ -188,7 +295,7 @@ cmd_apply() {
     }
 
     if [[ "$(_http_status "$port")" == "200" ]]; then
-        _register_shared
+        [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared
         echo "ok Instance ${INST_VERSION} already up at http://localhost:$port/web/login"
         return 0
     fi
@@ -246,17 +353,29 @@ cmd_apply() {
                 return 1
             fi
 
-            # Determine the config key for the HTTP port: v8/9/10 use xmlrpc_port;
-            # v11+ renamed it to http_port. Derive from INST_VERSION which carries
-            # the full series string (e.g. "17.0", "10.0"). The major version is
-            # the integer before the first dot.
             local _ver_major
             _ver_major="${INST_VERSION%%.*}"
             local _port_key
-            if [[ "$_ver_major" =~ ^[0-9]+$ ]] && (( _ver_major < 11 )); then
-                _port_key="xmlrpc_port"
+            if [[ -n "$ARG_PORT_KEY" ]]; then
+                # Agent-resolved conf key from OSM cli_help (P5.6) - the
+                # persist: exclusive-running caller ALWAYS passes this, so the
+                # local arithmetic below never runs for that path.
+                _port_key="$ARG_PORT_KEY"
             else
-                _port_key="http_port"
+                # FALLBACK for the shared/declared spin-up path only (no
+                # --port-key override): v8/9/10 use xmlrpc_port; v11+ renamed
+                # it to http_port. Derive from INST_VERSION (the full series
+                # string, e.g. "17.0", "10.0") - the major version is the
+                # integer before the first dot. NOT the authoritative SSOT
+                # (that is OSM cli_help - agents/odoo-instance-ops.md); kept
+                # here only so existing callers that never pass --port-key are
+                # unaffected (P5 §6 risk-4 mitigation: no behavior change
+                # until a caller opts in).
+                if [[ "$_ver_major" =~ ^[0-9]+$ ]] && (( _ver_major < 11 )); then
+                    _port_key="xmlrpc_port"
+                else
+                    _port_key="http_port"
+                fi
             fi
 
             # ---- PREFLIGHT: warn when ODOO_PG_PASSWORD is unset ---------------
@@ -273,7 +392,10 @@ cmd_apply() {
             # may not have the postgres client tools installed).
             local db_host="${INST_DB_HOST:-localhost}"
             local db_user="${INST_DB_USER:-odoo}"
-            local db_name="${INST_DB_NAME:-odoo}"
+            # db_name is already computed above (effective: ARG_DB_NAME override
+            # or the declared INST_DB_NAME) - do NOT re-declare `local db_name`
+            # here, that would reset the exclusive-running override back to the
+            # declared name.
             local db_port="${INST_DB_PORT:-}"
             # -p only when a non-default port is declared (empty-omit): let libpq /
             # PGPORT resolve it otherwise, matching the drop/create surface.
@@ -303,7 +425,16 @@ cmd_apply() {
                 echo "[options]"
                 echo "addons_path = $(printf '%s' "${INST_ADDONS_PATH:-}" | tr ':' ',')"
                 echo "$_port_key = $port"
-                echo "db_name = ${INST_DB_NAME:-odoo}"
+                # Second listening port (gevent/longpolling) - emitted when the
+                # agent passed both the port AND its resolved conf key (P5.6).
+                # A half-specified pair is BLOCKED earlier (see the
+                # --gevent-port/--gevent-port-key pairing gate above) - by this
+                # point both are set or both are empty, never one without the
+                # other.
+                if [[ -n "${ARG_GEVENT_PORT:-}" && -n "${ARG_GEVENT_PORT_KEY:-}" ]]; then
+                    echo "$ARG_GEVENT_PORT_KEY = $ARG_GEVENT_PORT"
+                fi
+                echo "db_name = $db_name"
                 echo "db_host = ${INST_DB_HOST:-localhost}"
                 echo "db_user = ${INST_DB_USER:-odoo}"
                 # db_port ONLY when a non-default port is declared (empty-omit) so
@@ -325,7 +456,7 @@ cmd_apply() {
             fi
 
             echo "  Generated temp conf: $conf"
-            echo "  Launching: $py '$bin' -c '$conf' -d '${INST_DB_NAME:-odoo}' ${_dev_flag}"
+            echo "  Launching: $py '$bin' -c '$conf' -d '$db_name' ${_dev_flag}"
             # Run in background so we can poll. Logs to a temp file.
             # Capture the PID directly (no subshell `( )`, which would hide it)
             # so a poll timeout can terminate the orphaned process.
@@ -339,12 +470,12 @@ cmd_apply() {
             # File: <db>-<UTC-timestamp>.log (e.g. odoo_test-20260620T153012Z.log)
             _logs_dir="${ODOO_AI_HOME:-${HOME:-/tmp}/.odoo-ai}/logs"
             mkdir -p "$_logs_dir"
-            _db_slug="${INST_DB_NAME:-odoo}"
+            _db_slug="$db_name"
             _ts="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%d%H%M%S)"
             logf="$_logs_dir/${_db_slug}-${_ts}.log"
             echo "LOG_PATH=$logf"
             # shellcheck disable=SC2086
-            "$py" "$bin" -c "$conf" -d "${INST_DB_NAME:-odoo}" ${_dev_flag} >"$logf" 2>&1 &
+            "$py" "$bin" -c "$conf" -d "$db_name" ${_dev_flag} >"$logf" 2>&1 &
             odoo_pid=$!
             echo "  Odoo starting (pid: $odoo_pid, log: $logf)"
             ;;
@@ -355,7 +486,7 @@ cmd_apply() {
     esac
 
     if _poll_until_up "$port"; then
-        _register_shared "$odoo_pid"
+        [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared "$odoo_pid"
         echo "ok Odoo ${INST_VERSION} is up: http://localhost:$port/web/login"
         return 0
     fi

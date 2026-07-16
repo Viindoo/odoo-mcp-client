@@ -98,6 +98,9 @@ STOP and escalate BLOCKED per the completion-status discipline - bad work at sca
 work. If a leaf reports the assigned scope exceeds one pass, re-cluster and re-dispatch; never push
 a leaf past the scale protocol.
 
+Report DONE only after every leaf you dispatched this phase returned; a phase with a still-running
+leaf is not DONE.
+
 ## Output format
 
 Return ONLY the final compact result (no phase-by-phase narration, no diff content):
@@ -113,7 +116,10 @@ summary: <one line - what landed, what is irreversible, what was confirmed>
 ```
 
 If you were spawned as a named teammate by the caller: end your turn by PUSHING your completion
-report via `SendMessage` to `main` per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-reporting.md`.
+report via `SendMessage` to the caller/context that dispatched you (`main` ONLY when the main
+context dispatched you directly - never a hardcoded literal; you may be running nested under a
+non-main caller such as an inline `git-ops` invocation), per
+`${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-reporting.md`.
 
 ## Report language
 

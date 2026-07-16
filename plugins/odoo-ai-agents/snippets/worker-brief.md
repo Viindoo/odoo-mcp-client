@@ -58,7 +58,7 @@ Contract):
 
 ```
 TASK_ID: <id>          # the task-board id for your work-item; TaskUpdate it in_progress -> completed|blocked.
-REPLY_TO: <lead>       # who to SendMessage your completion report to. For a coding worker (odoo-backend-coder/odoo-frontend-coder) this is ALWAYS the `odoo-coder` coordinator that launched you - never `main`, since every module now routes through the coordinator. Other leaf specialists report to whichever orchestrator dispatched them (often `main`).
+REPLY_TO: <launcher>  # ALWAYS the agent that launched you, supplied by that launcher; `main` ONLY when the main context launched you directly. A coding worker's `REPLY_TO` is ALWAYS its `odoo-coder` coordinator, never `main`. Report to `REPLY_TO`, never a higher ancestor - see `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3. Do NOT hardcode `main` in your body; defer to this field. If `SendMessage` is available but this field is ABSENT from your brief, do NOT guess or default to `main` - follow the malformed-input rule in `spawner-completion-contract.md` R3 (address the dispatching context if determinable, else return your report as your final message and state the missing-REPLY_TO condition).
 NOTIFY: <names>        # peer teammate names that depend on your output; SendMessage each too. `none` if no dependents.
 ```
 

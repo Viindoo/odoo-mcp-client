@@ -142,8 +142,10 @@ tracks OTHER named teammate agents via `TaskCreate`/`TaskList`/`TaskGet` per
 distinct from the always-on node checklist above and stays CHP-gated. run-harness itself does NOT
 spawn named teammate agents - it dispatches each node via Skill-tool inline, a spawner skill (Skill
 tool), or workflow-chaining. A spawner-skill node (e.g. odoo-coding) runs in the same `main` context
-and is team lead for its OWN teammates (injects their briefs TASK_ID + REPLY_TO: main + NOTIFY,
-consumes their pushes); run-harness reads the spawner's in-context aggregate result and does NOT
+and is team lead for its OWN teammates (injects their briefs TASK_ID + REPLY_TO: <that spawner
+skill's current orchestrating context> (`main` when the main-context driver invoked run-harness; do
+NOT hardcode a literal `main` if run-harness itself is running nested inside a non-lead agent) +
+NOTIFY, consumes their pushes); run-harness reads the spawner's in-context aggregate result and does NOT
 track the spawner's teammate tasks (single main context - no double-tracking). For a LEAF teammate
 dispatched directly, inject its brief and read the result from its SendMessage push (NEVER the
 `.output` transcript). When the CHP probe is off, teammate tracking is skipped - the always-on node
