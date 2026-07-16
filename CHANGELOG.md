@@ -6,6 +6,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.13.0] - 2026-07-16
+
+### Added
+
+- `odoo-ai-agents` - `spawner-completion-contract.md` SSOT: a spawner that launches child agents
+  blocks on a mechanical completion barrier, never reports DONE before its launched children
+  finish, and reports up exactly one level to its launcher (`REPLY_TO`), never a hardcoded `main`.
+- `odoo-ai-agents` - bounded architect peer reconciliation in `master-child-design-contract.md`:
+  same-layer architects reconcile directly via lead-brokered `PEERS:` (2 round-trips), recording
+  agreements in their own child TDD and escalating to the lead only on deadlock.
+- `odoo-ai-agents` - instance `persist:` modes (`ephemeral` / `exclusive-running` / `shared-running`)
+  with `run_id`-owned leases; an `exclusive-running` instance receives a unique allocator-issued
+  port (never the shared `8069`) and the version-correct port flag resolved at runtime via OSM
+  `cli_help` (v8-v19).
+
+### Changed
+
+- `odoo-ai-agents` - `odoo-code-review` PR mode now posts one inline comment per finding (every
+  severity) with GitHub `suggestion` blocks via `git-toolkit:git-ops`, plus a separate verdict
+  summary comment, instead of one consolidated comment.
+- `odoo-ai-agents` - Plan Mode is entered by exactly one actor - the plan-authoring skill
+  (`odoo-planning`), before it authors the plan; `odoo-intake` never enters Plan Mode.
+- `git-toolkit` - `git-pipeline-lead`, `git-operator`, and `github-operator` report to the caller
+  that dispatched them, never a hardcoded `main`, so a nested dispatch is not misdelivered.
+
+### Fixed
+
+- `odoo-ai-agents` - instance drop refuses a foreign or unowned-but-fresh lease without `--force`,
+  preventing one session from dropping another session's live instance.
+
 ## [4.12.3] - 2026-07-14
 
 ## [4.12.2] - 2026-07-13
