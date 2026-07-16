@@ -71,12 +71,31 @@ via `cli_help` like any other flag.
 
 **Active-wait on long builds (relay).** A `create` / `init` / `update` / `run-tests` build can run
 longer than the foreground tool timeout. The dispatched `odoo-instance-ops` agent MUST launch the
-build in the background and poll `LOG_PATH` to a TERMINAL marker (success: `Modules loaded.` /
-`Registry loaded` / exit 0 / `Initiating shutdown`; failure: `Traceback` / ` CRITICAL ` / ` ERROR ` /
-`Failed to load registry`; run-tests reuses `TEST_RESULT=`), emitting a heartbeat between polls and
-treating the exit code as authoritative - never idle-stalling or returning before a terminal marker;
-on timeout it reports `BLOCKED` with `LOG_PATH` preserved. Full contract:
+build in the background and poll `LOG_PATH` to a TERMINAL marker - for init/update, the ONLY success
+marker is `Modules loaded.` present AND no failure marker (matching the script's own
+`_install_confirmed` verdict, SSOT-shared with the `wait-log` helper's `_scan_build_markers`;
+`Registry loaded` / exit 0 / `Initiating shutdown` are progress signals only, never independently
+sufficient for success); failure: `Traceback` / ` CRITICAL ` / ` ERROR ` / `Failed to load registry` /
+the silent-skip markers (`invalid module names, ignored`, `Some modules are not loaded`, `Unmet
+dependenc(y|ies)`, `cannot be installed`); run-tests reuses `TEST_RESULT=`. Emit a heartbeat between
+polls; the exit code stays authoritative for FAILURE (never let a marker override a non-zero exit)
+while the completion marker is still required for SUCCESS - never idle-stalling or returning before a
+terminal marker; on timeout it reports `BLOCKED` with `LOG_PATH` preserved. Full contract:
 `${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Active-wait on long builds".
+
+**Readiness/completion signal is DETERMINISTIC, never a log tail.** Under the `--log-level=warn`
+baseline every completion line above is INFO-level and gets suppressed - a clean, successful run
+produces an EMPTY log, so waiting to SEE a line in it can stall to the timeout even on success. Two
+different, deterministic signals apply instead, one per job shape: an install/update job's DONE
+signal is the launched process EXITING (`--stop-after-init` guarantees this), confirmed by exit 0
+AND a forced completion marker (`Modules loaded.`, guaranteed present via
+`--log-handler=<ns>.modules.loading:INFO`, `<ns>` = `openerp` v8-v9 / `odoo` v10+) AND the absence
+of any failure marker - exit 0 ALONE is NOT proof of install (a bad module name, an unresolved
+dependency, or a failed demo load can all exit 0 while silently skipping the install). A LISTENING
+instance's READY signal is a BOUNDED-timeout HTTP port poll - primary `/web/database/selector`,
+fallback `/web/login` - never a log line. Full contract:
+`${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` "Deterministic completion contract" and
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md` item 14.
 
 **`en_US` is mandatory on every build - independent of caller input.** `en_US` is Odoo's
 base/source language. Every `create`, `init`, and `run-tests` (`mode: fresh`) dispatch MUST activate

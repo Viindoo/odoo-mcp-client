@@ -155,7 +155,11 @@ def test_init_runs_odoo_bin_with_install_flag(tmp_path):
 
     Verifies the LOG_PATH= line is emitted and the log file exists on disk.
     """
-    fake_bin = _make_fake_odoo_bin(tmp_path)
+    # extra_output emits the "Modules loaded." completion marker - forced onto
+    # the log by --log-handler=<ns>.modules.loading:INFO even under the
+    # --log-level=warn baseline - so a genuinely successful run is confirmed
+    # (exit 0 alone is not proof of install; see _install_confirmed).
+    fake_bin = _make_fake_odoo_bin(tmp_path, extra_output='echo "Modules loaded."')
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()
@@ -593,7 +597,9 @@ def test_force_overrides_gate_for_fresh_foreign_db(tmp_path):
 @requires_bash
 def test_update_uses_dash_u_not_dash_i(tmp_path):
     """update must invoke odoo-bin with -u <modules>, NOT -i."""
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    # "Modules loaded." confirms the run per the deterministic completion
+    # contract (exit 0 alone is not proof - see _install_confirmed).
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()
@@ -629,7 +635,9 @@ def test_update_uses_dash_u_not_dash_i(tmp_path):
 @requires_bash
 def test_init_forwards_extra_flags(tmp_path):
     """--extra flags are forwarded verbatim to odoo-bin."""
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    # "Modules loaded." confirms the run per the deterministic completion
+    # contract (exit 0 alone is not proof - see _install_confirmed).
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()
@@ -669,7 +677,9 @@ def test_init_forwards_extra_flags(tmp_path):
 @requires_bash
 def test_init_defaults_to_log_level_warn(tmp_path):
     """init must inject --log-level=warn by default (quieter than Odoo's info)."""
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    # "Modules loaded." confirms the run per the deterministic completion
+    # contract (exit 0 alone is not proof - see _install_confirmed).
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()
@@ -692,7 +702,9 @@ def test_init_defaults_to_log_level_warn(tmp_path):
 @requires_bash
 def test_update_defaults_to_log_level_warn(tmp_path):
     """update must inject --log-level=warn by default."""
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    # "Modules loaded." confirms the run per the deterministic completion
+    # contract (exit 0 alone is not proof - see _install_confirmed).
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()
@@ -720,7 +732,9 @@ def test_init_extra_log_level_overrides_warn_default(tmp_path):
     appear BEFORE the --extra value in the argv - assert both the presence and
     the order.
     """
-    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)
+    # "Modules loaded." confirms the run per the deterministic completion
+    # contract (exit 0 alone is not proof - see _install_confirmed).
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()
@@ -807,6 +821,227 @@ def test_init_failure_marker_run_preserves_log(tmp_path):
     assert log_path.exists(), "Log must persist on failure for diagnosis."
 
 
+# ---------------------------------------------------------------------------
+# Contract 7 (RED-first / root-cause fix): the historical hang.
+#
+# Root cause: under --log-level=warn, EVERY completion line ("Modules
+# loaded.", etc.) is INFO-level and gets suppressed - a clean run produces an
+# EMPTY log. A completion check that requires seeing a line in that log would
+# therefore wait forever (or, bounded, always time out) even on a genuinely
+# successful run. The fix has two parts, both asserted below:
+#   (a) init/update now force --log-handler=<ns>.modules.loading:INFO onto the
+#       odoo-bin invocation so "Modules loaded." survives the warn baseline -
+#       completion is decided by PROCESS EXIT (this call already blocks on
+#       it), never by tailing/waiting on a log line.
+#   (b) exit 0 alone is NOT sufficient - a run that exits 0 but never confirms
+#       (empty log, or a silent-skip failure marker present) must report
+#       STATUS=error, not STATUS=ok.
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_init_exit0_with_no_confirmation_marker_is_status_error(tmp_path):
+    """RED-first: exit 0 with an OTHERWISE-EMPTY log (no warning/error line at
+    all - simulating the old warn-level hang where the completion line was
+    suppressed) must NOT be treated as done. This is the exact root-cause bug:
+    before the fix, cmd_init trusted exit 0 alone and reported STATUS=ok here."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)  # no extra_output -> empty log
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init", "--db", "emptywarn", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode != 0, (
+        f"exit 0 with an empty log must NOT be confirmed done.\nstdout={res.stdout}\nstderr={res.stderr}"
+    )
+    assert "STATUS=error" in res.stdout, f"expected STATUS=error.\nstdout={res.stdout}"
+    assert "STATUS=ok" not in res.stdout
+    log_line = [l for l in res.stdout.splitlines() if l.startswith("LOG_PATH=")]
+    assert len(log_line) == 1, f"LOG_PATH must be preserved for diagnosis: {res.stdout}"
+    assert Path(log_line[0].split("=", 1)[1]).exists()
+
+
+@requires_bash
+def test_update_exit0_with_no_confirmation_marker_is_status_error(tmp_path):
+    """Same RED-first contract as above, for the update verb (-u)."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0)  # no extra_output -> empty log
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "update", "--db", "emptywarnu", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode != 0
+    assert "STATUS=error" in res.stdout, f"stdout={res.stdout}"
+    assert "STATUS=ok" not in res.stdout
+
+
+@requires_bash
+@pytest.mark.parametrize(
+    "failure_line",
+    [
+        "invalid module names, ignored",
+        "Some modules are not loaded, some dependencies or manifest may be missing",
+        "Unmet dependency detected",
+        "cannot be installed because",
+    ],
+)
+def test_init_exit0_with_silent_skip_marker_is_status_error(tmp_path, failure_line):
+    """RED-first: exit 0 PLUS the 'Modules loaded.' marker PLUS a silent-skip
+    failure marker (a bad module name / unmet dep / demo failure that Odoo
+    still exits 0 for) must still report STATUS=error - a failure marker wins
+    over the success marker."""
+    fake_bin = _make_fake_odoo_bin(
+        tmp_path, exit_code=0,
+        extra_output=f'echo "Modules loaded."\necho "{failure_line}"'
+    )
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init", "--db", "silentskip", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode != 0, (
+        f"a silent-skip marker ({failure_line!r}) must flip the verdict to error "
+        f"even with exit 0 and the success marker present.\nstdout={res.stdout}"
+    )
+    assert "STATUS=error" in res.stdout, f"stdout={res.stdout}"
+
+
+@requires_bash
+@pytest.mark.parametrize("series,expected_ns", [
+    ("8.0", "openerp"),
+    ("9.0", "openerp"),
+    ("10.0", "odoo"),
+    ("17.0", "odoo"),
+])
+def test_init_forces_log_handler_namespace_by_version(tmp_path, series, expected_ns):
+    """init must add --log-handler=<ns>.modules.loading:INFO, ns resolved from
+    --version: 'openerp' for v8-v9, 'odoo' for v10+ (the openerp->odoo rename
+    landed at the v9->v10 boundary)."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init", "--db", f"nsdb{series.replace('.', '')}", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        "--version", series,
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    expected_flag = f"--log-handler={expected_ns}.modules.loading:INFO"
+    assert expected_flag in call_content, (
+        f"series={series}: expected {expected_flag!r} in odoo-bin invocation: {call_content}"
+    )
+
+
+@requires_bash
+def test_init_log_handler_defaults_to_odoo_namespace_when_version_omitted(tmp_path):
+    """Omitting --version must default the namespace to 'odoo' (the v10+
+    majority) rather than failing or omitting the flag entirely."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "init", "--db", "noversiondb", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--log-handler=odoo.modules.loading:INFO" in call_content, (
+        f"expected the odoo (v10+ default) namespace when --version is omitted: {call_content}"
+    )
+
+
+@requires_bash
+@pytest.mark.parametrize("series,expected_ns", [
+    ("8.0", "openerp"),
+    ("9.0", "openerp"),
+    ("10.0", "odoo"),
+    ("17.0", "odoo"),
+])
+def test_update_forces_log_handler_namespace_by_version(tmp_path, series, expected_ns):
+    """update must add --log-handler=<ns>.modules.loading:INFO, ns resolved from
+    --version: 'openerp' for v8-v9, 'odoo' for v10+ (the openerp->odoo rename
+    landed at the v9->v10 boundary) - same namespace-resolution contract as
+    init (mirrors test_init_forces_log_handler_namespace_by_version)."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "update", "--db", f"nsupddb{series.replace('.', '')}", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        "--version", series,
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    expected_flag = f"--log-handler={expected_ns}.modules.loading:INFO"
+    assert expected_flag in call_content, (
+        f"series={series}: expected {expected_flag!r} in odoo-bin invocation: {call_content}"
+    )
+
+
+@requires_bash
+def test_update_log_handler_defaults_to_odoo_namespace_when_version_omitted(tmp_path):
+    """Omitting --version must default the namespace to 'odoo' (the v10+
+    majority) rather than failing or omitting the flag entirely - mirrors
+    test_init_log_handler_defaults_to_odoo_namespace_when_version_omitted."""
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "update", "--db", "noversionupddb", "--python", str(fake_py),
+        "--addons", str(addons_dir), "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode == 0, f"stdout={res.stdout}\nstderr={res.stderr}"
+    call_content = (tmp_path / "odoo-bin-calls.log").read_text(encoding="utf-8")
+    assert "--log-handler=odoo.modules.loading:INFO" in call_content, (
+        f"expected the odoo (v10+ default) namespace when --version is omitted: {call_content}"
+    )
+
+
 def _write_log(tmp_path: Path, name: str, body: str) -> Path:
     p = tmp_path / name
     p.write_text(body, encoding="utf-8")
@@ -859,6 +1094,33 @@ def test_wait_log_failure_wins_over_success_marker(tmp_path):
 
 
 @requires_bash
+def test_wait_log_silent_skip_marker_wins_over_modules_loaded(tmp_path):
+    """RED-first (review fix): a log carrying BOTH the 'Modules loaded.'
+    completion marker AND a silent-skip failure marker (a bad module name /
+    unmet dep / demo failure that odoo-bin still exits 0 for - see
+    _install_confirmed) must report BUILD_RESULT=failure, never success.
+
+    Before the fix, _scan_build_markers (the wait-log verdict used by the
+    MANDATED background active-wait path in agents/odoo-instance-ops.md) used
+    a separate, weaker marker set than _install_confirmed (the foreground
+    verdict) and did NOT know about the silent-skip markers - so this exact
+    log wrongly produced BUILD_RESULT=success. The fix makes both paths share
+    the same _INSTALL_FAIL_RE / _INSTALL_SUCCESS_MARKER SSOT."""
+    logf = _write_log(
+        tmp_path, "build.log",
+        "Loading modules...\nModules loaded.\ninvalid module names, ignored\n",
+    )
+    res = _run("wait-log", "--log", str(logf), "--timeout", "0", "--interval", "1",
+               env=_base_env(tmp_path))
+    assert res.returncode == 1, (
+        f"a silent-skip marker alongside 'Modules loaded.' must classify as "
+        f"failure, not success.\nstdout={res.stdout}\nstderr={res.stderr}"
+    )
+    assert "BUILD_RESULT=failure" in res.stdout
+    assert "BUILD_RESULT=success" not in res.stdout
+
+
+@requires_bash
 def test_wait_log_timeout_when_no_marker(tmp_path):
     """wait-log with no terminal marker within the bound -> BUILD_RESULT=timeout, exit 2."""
     logf = _write_log(tmp_path, "build.log", "still starting up...\n")
@@ -877,7 +1139,9 @@ def test_wait_log_timeout_when_no_marker(tmp_path):
 @requires_bash
 def test_init_threads_db_conn_flags_when_declared(tmp_path):
     """init must forward --db_host/--db_user/--db_port to odoo-bin when declared."""
-    fake_bin = _make_fake_odoo_bin(tmp_path)
+    # "Modules loaded." confirms the run per the deterministic completion
+    # contract (exit 0 alone is not proof - see _install_confirmed).
+    fake_bin = _make_fake_odoo_bin(tmp_path, extra_output='echo "Modules loaded."')
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()
@@ -908,7 +1172,9 @@ def test_init_threads_db_conn_flags_when_declared(tmp_path):
 @requires_bash
 def test_init_omits_db_port_when_not_declared(tmp_path):
     """No --db-port -> odoo-bin invocation must OMIT --db_port (empty-omit rule)."""
-    fake_bin = _make_fake_odoo_bin(tmp_path)
+    # "Modules loaded." confirms the run per the deterministic completion
+    # contract (exit 0 alone is not proof - see _install_confirmed).
+    fake_bin = _make_fake_odoo_bin(tmp_path, extra_output='echo "Modules loaded."')
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()
@@ -930,7 +1196,9 @@ def test_init_omits_db_port_when_not_declared(tmp_path):
 
 @requires_bash
 def test_update_threads_db_port_when_declared(tmp_path):
-    fake_bin = _make_fake_odoo_bin(tmp_path)
+    # "Modules loaded." confirms the run per the deterministic completion
+    # contract (exit 0 alone is not proof - see _install_confirmed).
+    fake_bin = _make_fake_odoo_bin(tmp_path, extra_output='echo "Modules loaded."')
     fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
     addons_dir = tmp_path / "addons"
     addons_dir.mkdir()

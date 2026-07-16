@@ -206,7 +206,7 @@ cmd_apply() {
     if _needs_instance; then
         printf '  %s' "$(_mark _have python3)"; echo " python3 (runs odoo-bin in source mode)"
         echo "         fix: install python3, or 'uv python install <version>'"
-        printf '  %s' "$(_mark _have curl)";    echo " curl (polls /web/login during spin-up)"
+        printf '  %s' "$(_mark _have curl)";    echo " curl (polls /web/database/selector during spin-up, falling back to /web/login)"
         if _have pg_isready; then
             printf '  %s' "$(_mark pg_isready -q)"; echo " PostgreSQL running (pg_isready)"
         else
