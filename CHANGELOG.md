@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.14.0] - 2026-07-16
+
+### Added
+
+- `odoo-ai-agents` - deterministic instance readiness/completion detection (v8-v19): an `-i`/`-u` build keys off process exit plus a forced `Modules loaded.` completion marker (`--log-handler=<ns>.modules.loading:INFO`, `openerp` for v8-v9 / `odoo` for v10+) and a silent-skip failure-marker scan - exit 0 alone is not treated as proof of install; a listening instance detects readiness by a bounded HTTP poll of `/web/database/selector` (fallback `/web/login`), never by tailing a log left empty under `--log-level=warn`. The foreground and background (`wait-log`) completion checks share one SSOT marker set so they cannot diverge.
+
+### Changed
+
+- `git-toolkit` - bumped to 0.5.0, formalizing this PR's git-toolkit changes: `github-operator` inline PR-review fan-out recipe, and report-up-one-level (`git-pipeline-lead`/`git-operator`/`github-operator` report to the caller that dispatched them, never a hardcoded `main`).
+
 ## [4.13.0] - 2026-07-16
 
 ### Added
