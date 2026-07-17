@@ -77,7 +77,7 @@ marker is `Modules loaded.` present AND no failure marker (matching the script's
 `Registry loaded` / exit 0 / `Initiating shutdown` are progress signals only, never independently
 sufficient for success); failure: `Traceback` / ` CRITICAL ` / ` ERROR ` / `Failed to load registry` /
 the silent-skip markers (`invalid module names, ignored`, `Some modules are not loaded`, `Unmet
-dependenc(y|ies)`, `cannot be installed`); run-tests reuses `TEST_RESULT=`. Emit a heartbeat between
+dependenc(y|ies)`, `cannot be installed`); run-tests reuses `TEST_RESULT=` (a skip-only run - `TEST_SKIPPED>0` with no failure - is `TEST_RESULT=inconclusive`, a terminal marker like any other, never a stall). Emit a heartbeat between
 polls; the exit code stays authoritative for FAILURE (never let a marker override a non-zero exit)
 while the completion marker is still required for SUCCESS - never idle-stalling or returning before a
 terminal marker; on timeout it reports `BLOCKED` with `LOG_PATH` preserved. Full contract:
@@ -189,9 +189,10 @@ log_path: <log file path>
 failed: <n or null>            # run-tests only; from TEST_FAILED=
 errors: <n or null>           # run-tests only; from TEST_ERROR=
 warnings: <n or null>         # run-tests only; from TEST_WARNING=
-findings_path: <path or null> # run-tests only; from FINDINGS_PATH= (failures + warnings file)
+skipped: <n or null>          # run-tests only; from TEST_SKIPPED=
+findings_path: <path or null> # run-tests only; from FINDINGS_PATH= (failures + warnings + skips file)
 lease_token: <token or null>
-status: <created|dropped|up|down|started|tests-passed|tests-passed-with-warnings|tests-failed|BLOCKED|NEEDS_CONTEXT>
+status: <created|dropped|up|down|started|tests-passed|tests-passed-with-warnings|tests-inconclusive|tests-failed|BLOCKED|NEEDS_CONTEXT>
 notes: <short human-readable summary or error>
 ```
 

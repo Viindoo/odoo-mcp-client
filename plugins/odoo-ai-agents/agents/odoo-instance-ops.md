@@ -93,7 +93,7 @@ A long `-i`/`-u`/`--test-enable` build (run synchronously by `55-instance-ops.sh
    - **Progress/heartbeat signals (NOT independently sufficient for success):** `Registry loaded`, process exit 0, or `Initiating shutdown` after a `--stop-after-init` run - these confirm forward progress but do not by themselves confirm a completed install/update.
    - **SUCCESS marker (init/update - matches the deterministic completion contract below):** `Modules loaded.` present AND none of the failure markers below. `wait-log`'s `_scan_build_markers` and the script's own `_install_confirmed` verdict share this EXACT marker set (SSOT) - `BUILD_RESULT=success` and `STATUS=ok` can never disagree.
    - **FAILURE markers:** `Traceback (most recent call last):`, ` CRITICAL `, ` ERROR `, `Failed to load registry`, `psycopg2.`, `ParseError`, plus the SILENT-skip markers from the deterministic completion contract below (`invalid module names, ignored`, `Some modules are not loaded`, `Unmet dependenc(y|ies)`, `cannot be installed`) - any of these wins over a success marker, even `Modules loaded.` itself.
-   - For the **run-tests** path, reuse the `test` verb's existing result markers (`TEST_RESULT=`, `FAIL:`/`ERROR:`, the `TEST_FAILED`/`TEST_ERROR`/`TEST_WARNING` counts) as the terminal signal; `_parse_test_result` already emits them.
+   - For the **run-tests** path, reuse the `test` verb's existing result markers (`TEST_RESULT=`, `FAIL:`/`ERROR:`, the `TEST_FAILED`/`TEST_ERROR`/`TEST_WARNING`/`TEST_SKIPPED` counts) as the terminal signal; `_parse_test_result` already emits them. A skip-only run (`TEST_SKIPPED>0` with no failure) is `TEST_RESULT=inconclusive` - a terminal marker like any other, not a stall.
 3. **Exit code is necessary but never sufficient.** A non-zero exit is ALWAYS `STATUS=error` - never let an in-log marker override a non-zero exit (marker wording can drift across series, so a drifting marker must never promote a non-zero exit to success). But exit 0 ALONE is NOT proof of a successful build: for init/update, `STATUS=ok` additionally requires the `"Modules loaded."` completion marker present AND no failure marker (see "Exit code 0 alone is NOT proof of install" below for the exact rule) - treat exit 0 with a missing completion marker, or with any failure marker present, the SAME as a non-zero exit: `STATUS=error`.
 4. **NEVER idle-stall or return before a terminal marker.** On timeout (no terminal marker within the bound), report `status: BLOCKED` with the `LOG_PATH` preserved and forwarded - do NOT silently hang or claim done.
 
@@ -474,14 +474,15 @@ Run the Odoo test suite for one or more modules - either against a fresh ephemer
 
 (Pass `--mode` per the auto rule above. Pass `--test-tags` only when test tags are provided, and `--log-mode` only when a non-default log level is wanted - omitted, the script keeps `--log-level=test`. Version-correct flags - e.g. a skip-auto-install flag on series that support it - go in `--extra`; confirm availability via `cli_help(command='server', odoo_version='<series>')`. The script places the resolved log flag before `--extra`, so a `--log-level`/`--log-handler` in `--extra` still overrides it. For `fresh` mode (builds a new DB via `-i`), fold `--load-language=<activation_set>` (`en_US` unioned with any requested languages) into `--extra` per the `en_US` HARD RULE for v8-v18, or run a post-init `loadlang` per code for v19+; `reuse` needs none - its DB was built under the invariant.)
 
-**Active wait (HARD RULE):** a `--test-enable` build is long - launch it in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above, reusing the `test` verb's own result markers (`TEST_RESULT=`, `FAIL:`/`ERROR:`, the count lines) as the completion signal; never idle-stall past the tool timeout or return before the run terminates.
+**Active wait (HARD RULE):** a `--test-enable` build is long - launch it in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above, reusing the `test` verb's own result markers (`TEST_RESULT=`, `FAIL:`/`ERROR:`, the count lines, `TEST_SKIPPED=`) as the completion signal; never idle-stall past the tool timeout or return before the run terminates.
 
-The script writes a persistent log and emits, on stdout: `LOG_PATH=<path>`, `TEST_RESULT=passed|failed`, the `TEST_FAILED=<n>` / `TEST_ERROR=<n>` / `TEST_WARNING=<n>` counts, `FINDINGS_PATH=<path>`, and `STATUS=ok|error`. Capture all of them. `FINDINGS_PATH` is a file written next to the log holding the failing-test names + traceback heads and the warning lines (in-scope warnings - mentioning a `--modules` name - listed separately); forward the POINTER, not the file body. Release the lease when done. On any failure OR warning, preserve `log_path` and `findings_path` and forward them in the output block.
+The script writes a persistent log and emits, on stdout: `LOG_PATH=<path>`, `TEST_RESULT=passed|failed|inconclusive`, the `TEST_FAILED=<n>` / `TEST_ERROR=<n>` / `TEST_WARNING=<n>` / `TEST_SKIPPED=<n>` counts, `FINDINGS_PATH=<path>`, and `STATUS=ok|error`. Capture all of them. `FINDINGS_PATH` is a file written next to the log holding the failing-test names + traceback heads, the warning lines (in-scope warnings - mentioning a `--modules` name - listed separately), and any skipped-test names; forward the POINTER, not the file body. Release the lease when done. On any failure, warning, OR skip, preserve `log_path` and `findings_path` and forward them in the output block.
 
-**Verdict contract.** Derive `status` from the counts:
+**Verdict contract.** Derive `status` from the counts, in this precedence order:
 - `failed + errors > 0` -> `status: tests-failed` (equivalently `TEST_RESULT=failed`): a BLOCKING gate. The caller MUST halt - do NOT proceed to merge or the next phase - and route `findings_path` + `log_path` to `odoo-debug`.
-- `warnings > 0` with `failed + errors = 0` -> `status: tests-passed-with-warnings` (DONE_WITH_CONCERNS): the suite passed but warnings ARE findings that must be fixed, so you MUST surface `findings_path` to the caller rather than swallow it.
-- clean (`failed + errors = 0` and `warnings = 0`) -> `status: tests-passed`: the only verdict that lets the caller proceed with nothing to address.
+- else `skipped > 0` -> `status: tests-inconclusive` (equivalently `TEST_RESULT=inconclusive`; DONE_WITH_CONCERNS at minimum, a HOLD not a green light): skips are NOT fatal (legitimately produced by `@tagged` filters or a missing optional external dependency) but they are also NOT proof the suite ran clean - `TEST_SKIPPED>0` NEVER downgrades to a bare `tests-passed`. The caller MUST NOT treat this as a verified pass and MUST NOT proceed to merge or the next phase without a human reviewing `findings_path` (which lists the skipped test names) first. Do not force a non-zero exit for this alone; always surface `findings_path` + `log_path` to the caller rather than swallow it.
+- else `warnings > 0` -> `status: tests-passed-with-warnings` (DONE_WITH_CONCERNS): the suite passed but warnings ARE findings that must be fixed, so you MUST surface `findings_path` to the caller rather than swallow it.
+- clean (`failed + errors = 0`, `skipped = 0`, and `warnings = 0`) -> `status: tests-passed`: the only verdict that lets the caller proceed with nothing to address.
 
 ### 6. ensure-up / status
 
@@ -729,9 +730,10 @@ server_pid: <pid or null>    # the server's process-GROUP id under setsid (pgid 
 failed: <n or null>          # run-tests only; from TEST_FAILED=
 errors: <n or null>          # run-tests only; from TEST_ERROR=
 warnings: <n or null>        # run-tests only; from TEST_WARNING=
-findings_path: <path or null># run-tests only; from FINDINGS_PATH= (failures + warnings file)
+skipped: <n or null>         # run-tests only; from TEST_SKIPPED=
+findings_path: <path or null># run-tests only; from FINDINGS_PATH= (failures + warnings + skips file)
 lease_token: <token or null>
-status: up | down | created | dropped | tests-passed | tests-passed-with-warnings | tests-failed | ready-for-doc | error
+status: up | down | created | dropped | tests-passed | tests-passed-with-warnings | tests-inconclusive | tests-failed | ready-for-doc | error
 notes: <one-line summary of any non-obvious decision or error>
 ```
 ````
@@ -761,7 +763,8 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] build ops (create/init/update/run-tests) launched in the BACKGROUND and actively waited to a TERMINAL marker (wait-log helper or test-verb markers) with an allocator heartbeat between polls - never idle-stalled past the tool timeout; on timeout reported BLOCKED with LOG_PATH preserved, exit code treated as authoritative
 - [ ] build ops ran at the default `--log-level=warn` unless the caller ESCALATED via --extra (--log-level=info/debug); the `test` verb kept `--log-level=test`
 - [ ] init/update calls passed `--version <series>` so `--log-handler=<ns>.modules.loading:INFO` resolved the correct namespace (openerp v8-v9, odoo v10+); STATUS=ok was never trusted from exit code alone - the "Modules loaded." marker AND absence of every failure marker were both required (deterministic completion contract)
-- [ ] run-tests: TEST_FAILED/TEST_ERROR/TEST_WARNING + FINDINGS_PATH captured; mode picked per the auto fresh-vs-reuse rule; warnings>0 with no fail/error reported as tests-passed-with-warnings (findings_path surfaced, not swallowed)
+- [ ] run-tests: TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED + FINDINGS_PATH captured; mode picked per the auto fresh-vs-reuse rule; warnings>0 with no fail/error reported as tests-passed-with-warnings (findings_path surfaced, not swallowed)
+- [ ] skipped>0 with no fail/error reported as tests-inconclusive, NEVER a bare tests-passed (findings_path surfaced with the skipped test names, not swallowed; no exit code forced by skips alone)
 - [ ] you release it UNLESS you forward the handle to a NAMED catcher in `next.inputs`
       (`INSTANCE_HANDLE`) - an unforwarded live lease at DONE is a leak (SSOT:
       `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T4)

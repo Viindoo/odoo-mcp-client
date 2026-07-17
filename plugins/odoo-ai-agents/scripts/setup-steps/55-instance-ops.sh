@@ -55,9 +55,16 @@
 #             the odoo log flag (warn/info/debug -> --log-level=<v>, sql ->
 #             --log-handler=odoo.sql_db:DEBUG); omitted keeps --log-level=test. The log
 #             flag is placed before --extra so --extra can still override it.
-#             Parses result and emits TEST_RESULT=passed|failed plus the TEST_FAILED/
-#             TEST_ERROR/TEST_WARNING counts and FINDINGS_PATH (a file holding the
-#             failing-test names + traceback heads and the warning lines).
+#             Parses result and emits TEST_RESULT=passed|failed|inconclusive plus the
+#             TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED counts and FINDINGS_PATH
+#             (a file holding the failing-test names + traceback heads, the warning
+#             lines, and any skipped-test names). TEST_RESULT=inconclusive fires when
+#             TEST_SKIPPED>0 and no failure occurred: "0 failed, 0 error(s) of 1 tests"
+#             can mean the sole test was SKIPPED (never ran), not proven green - a bare
+#             TEST_RESULT=passed would falsely certify that. Skips are NOT fatal
+#             (legitimate via @tagged filters or missing external deps): they are
+#             reported, never swallowed into an unqualified pass, and never force a
+#             non-zero exit on their own.
 #   drop    --db <db> --python <venv_py> [--db-host H] [--db-user U] [--db-port P]
 #             [--run-id ID] [--force]
 #             Invoke scripts/lib/odoo_db.py drop <db> via the instance venv python.
@@ -96,12 +103,15 @@
 #   Line: LOG_PATH=<absolute-path>   (parseable; one per operation)
 #
 # STATUS line:  STATUS=ok|error        (parseable; always emitted)
-# TEST_RESULT:  TEST_RESULT=passed|failed  (parseable; only for `test` verb)
-# TEST counts:  TEST_FAILED=<n> TEST_ERROR=<n> TEST_WARNING=<n>
+# TEST_RESULT:  TEST_RESULT=passed|failed|inconclusive  (parseable; only for `test` verb;
+#               inconclusive means TEST_SKIPPED>0 with no failure - tests were SKIPPED,
+#               never proven to have actually run; NEVER reported as a bare `passed`)
+# TEST counts:  TEST_FAILED=<n> TEST_ERROR=<n> TEST_WARNING=<n> TEST_SKIPPED=<n>
 #               (parseable; `test` verb only; best-effort from the log)
 # FINDINGS_PATH: FINDINGS_PATH=<path>  (`test` verb only; a file written next to the log
-#               holding the FAIL/ERROR test names + traceback heads and the WARNING lines,
-#               with in-scope warnings - mentioning a --modules name - listed separately)
+#               holding the FAIL/ERROR test names + traceback heads, the WARNING lines
+#               (in-scope warnings - mentioning a --modules name - listed separately),
+#               and any SKIPPED-test names)
 #
 # odoo-bin location:
 #   Env ODOO_BIN wins; else scan addons entries one-level-up for odoo-bin.
@@ -249,7 +259,9 @@ _open_log() {
 
 # ---------------------------------------------------------------------------
 # _parse_test_result - read $logf + $1 (exit code) -> emit TEST_RESULT= plus the
-#   TEST_FAILED/TEST_ERROR/TEST_WARNING counts and a FINDINGS_PATH file.
+#   TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED counts and a FINDINGS_PATH
+#   file. TEST_RESULT is inconclusive (never a bare passed) whenever
+#   TEST_SKIPPED>0 and no failure occurred - see issue #171.
 #   Reads $logf and (best-effort) $arg_modules from the caller's scope (bash
 #   dynamic scope) to mark in-scope warnings.
 # ---------------------------------------------------------------------------
@@ -267,6 +279,62 @@ _parse_test_result() {
     n_warn="$(grep -cE '[[:space:]]WARNING[[:space:]]' "$logf" 2>/dev/null || true)"
     n_fail="${n_fail:-0}"; n_error="${n_error:-0}"; n_warn="${n_warn:-0}"
 
+    # --- Skip detection (issue #171 root cause) ---------------------------
+    # Bug: exit 0 + "0 failed, 0 error(s) of 1 tests" reads as green even when
+    # the sole test was SKIPPED (never ran) - e.g. "skipped . : Failed to
+    # detect chrome devtools port after 10.0s." A skip is not a failure (it is
+    # frequently legitimate: @tagged filters, an optional external dependency
+    # missing) but it also is NOT proof the suite ran clean, so it must be
+    # counted and surfaced as its own field rather than silently folded into
+    # "passed".
+    #
+    # SKIP_RE catches both version-era log shapes (validated against the
+    # issue's real repro), and BOTH alternatives are anchored on a real
+    # test-package PATH SEGMENT, never a bare substring match - an earlier
+    # draft matched `test` as a substring anywhere, which false-positived on
+    # ordinary model/module names that merely CONTAIN "test" (e.g.
+    # hr_attestation, website_testimonial, contest) and on an unrelated
+    # `\.\.\.[[:space:]]+skipped` business message (e.g. a stock reservation
+    # retry log line "... skipped (insufficient qty, will retry)"). Both
+    # alternatives below require a literal `.` immediately before the
+    # "test(s)" token (so it is a whole dot-delimited segment, not a
+    # substring) and a literal `.`/`:` immediately after it (so a longer word
+    # like "testimonial" cannot satisfy it either):
+    #   1. v14+ modern Odoo test-runner logger name: `(openerp|odoo)\.<pkg
+    #      path>.tests?[.:]<...>: skip[ped] <name>` (<ns> = openerp v8-v9 /
+    #      odoo v10+, matching _resolve_log_ns).
+    #   2. Older Python-stdlib unittest verbose runner line (bypasses the
+    #      Odoo logger, so no <ns> prefix): `test_name (<module path
+    #      containing a .tests. or .test. segment>) ... skipped`.
+    # The exact per-series wording is Odoo framework-internal (not indexed by
+    # OSM), so this is deliberately a two-shape, case-insensitive regex rather
+    # than a single hardcoded string - but never a bare `grep -i skip`, which
+    # would reopen both false-positive classes above.
+    local SKIP_RE='(^|[[:space:]])(openerp|odoo)\.[a-z0-9_.]*\.tests?[.:][a-z0-9_.]*:[[:space:]]*skip|(^|[[:space:]])test_[a-z0-9_]+[[:space:]]+\([a-z0-9_.]*\.tests?\.[a-z0-9_.]+\)[[:space:]]+\.\.\.[[:space:]]+skip'
+    local n_skip
+    n_skip="$(grep -icE "$SKIP_RE" "$logf" 2>/dev/null || true)"
+    n_skip="${n_skip:-0}"
+
+    # Skip NAMES for the findings file. Extraction runs over the plain
+    # (non-line-numbered) matches - unlike the `grep -icE` count above, the
+    # stdlib-shape sed pattern below anchors at line-start (^...), so a `-n`
+    # line-number prefix would break it; the modern-shape pattern is
+    # unanchored and unaffected either way. Each matched line satisfies at
+    # most one of the two shapes, so both sed passes run over the same input
+    # and are merged + de-duplicated.
+    local skip_lines skip_names=""
+    skip_lines="$(grep -aiE "$SKIP_RE" "$logf" 2>/dev/null || true)"
+    if [[ -n "$skip_lines" ]]; then
+        skip_names="$(
+            {
+                printf '%s\n' "$skip_lines" \
+                    | sed -nE 's/.*:[[:space:]]*skip[a-z]*[[:space:]]+([A-Za-z0-9_.]+).*/\1/p'
+                printf '%s\n' "$skip_lines" \
+                    | sed -nE 's/^([A-Za-z0-9_]+)[[:space:]]+\(([A-Za-z0-9_.]+)\)[[:space:]]+\.\.\..*/\2.\1/p'
+            } | awk '!seen[$0]++'
+        )"
+    fi
+
     # Per-volume contract: the DETAIL goes to a file next to the log; stdout
     # carries only the counts + the pointer.
     local findings="${logf%.log}.findings.md"
@@ -278,7 +346,7 @@ _parse_test_result() {
         echo "# Test findings"
         echo
         echo "Log: $logf"
-        echo "Counts: failed=$n_fail error=$n_error warning=$n_warn"
+        echo "Counts: failed=$n_fail error=$n_error warning=$n_warn skipped=$n_skip"
         echo
         echo "## Failures and errors (marker line + first $tb_head lines)"
         echo
@@ -288,6 +356,16 @@ _parse_test_result() {
             echo '```'
         else
             echo "_No failing or errored tests detected in the log._"
+        fi
+        echo
+        echo "## Skipped tests (capped at $warn_cap) - NOT a failure, but NOT proof the suite ran clean either"
+        echo
+        if [[ "$n_skip" -gt 0 ]]; then
+            echo '```'
+            printf '%s\n' "$skip_names" | head -n "$warn_cap"
+            echo '```'
+        else
+            echo "_No skipped tests detected in the log._"
         fi
         echo
         echo "## In-scope warnings (mention a --modules name, capped at $warn_cap)"
@@ -309,9 +387,10 @@ _parse_test_result() {
     echo "TEST_FAILED=$n_fail"
     echo "TEST_ERROR=$n_error"
     echo "TEST_WARNING=$n_warn"
+    echo "TEST_SKIPPED=$n_skip"
     echo "FINDINGS_PATH=$findings"
 
-    # --- Pass/fail verdict (unchanged decision logic) ---
+    # --- Pass/fail verdict (unchanged decision logic, plus the skip branch) ---
     if [[ "$exit_code" -ne 0 ]]; then
         echo "TEST_RESULT=failed"
         return
@@ -329,12 +408,24 @@ _parse_test_result() {
         echo "TEST_RESULT=failed"
         return
     fi
+    # Skip verdict (issue #171 fix) - MUST be checked before the "0 failed, 0
+    # error" explicit-pass marker below, since a skip-only run (e.g. "0 failed,
+    # 0 error(s) of 1 tests" where the 1 test was skipped) matches that marker
+    # too. Skips are not fatal (never force a non-zero exit; exit_code above
+    # already governs failed/error) but must never be silently certified as a
+    # bare "passed" - report the distinct, non-silent `inconclusive` verdict
+    # instead (mirrors _install_confirmed: absence of a positive "ran clean"
+    # signal escalates to a non-default verdict, not a fallthrough to success).
+    if [[ "$n_skip" -gt 0 ]]; then
+        echo "TEST_RESULT=inconclusive"
+        return
+    fi
     # Explicit pass marker: "0 failed, 0 error"
     if grep -qE '0 failed, 0 error' "$logf" 2>/dev/null; then
         echo "TEST_RESULT=passed"
         return
     fi
-    # Exit 0 with no failure markers -> passed
+    # Exit 0 with no failure markers and no skips -> passed
     echo "TEST_RESULT=passed"
 }
 

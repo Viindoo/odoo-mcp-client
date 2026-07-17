@@ -343,6 +343,333 @@ def test_test_verb_emits_failed_on_fail_marker_in_log(tmp_path):
     )
 
 
+# ---------------------------------------------------------------------------
+# Contract 2c: test - skipped tests must NEVER read as a bare passed (issue #171)
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_test_verb_skip_only_run_is_inconclusive_never_passed(tmp_path):
+    """A skip-only run (real repro shape from issue #171) must report
+    TEST_RESULT=inconclusive, NEVER a bare TEST_RESULT=passed.
+
+    Repro: a single test is SKIPPED (never ran, e.g. missing chrome devtools
+    port), odoo-bin still prints "0 failed, 0 error(s) of 1 tests" and exits 0.
+    Before the fix, that "0 failed, 0 error" line alone was read as a pass.
+
+    Asserted as an EXACT stdout line (splitlines()), not a substring - a
+    substring check would be fooled by any future verdict value that happens
+    to start with "TEST_RESULT=passed" (e.g. a hypothetical
+    "TEST_RESULT=passed-with-skips"), which is exactly why `inconclusive` was
+    chosen as the verdict value instead.
+    """
+    extra_output = (
+        'echo "INFO 12345 test odoo.addons.website_slides.tests.test_ui: '
+        'skipped test_website_slides_tour : Failed to detect chrome devtools '
+        'port after 10.0s."\n'
+        'echo "INFO 12345 test odoo.tests.result: 0 failed, 0 error(s) of 1 tests"'
+    )
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output=extra_output)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test",
+        "--db", "skiponlydb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "website_slides",
+        env=env,
+    )
+
+    stdout_lines = res.stdout.splitlines()
+    assert "TEST_RESULT=inconclusive" in stdout_lines, (
+        f"Expected an exact TEST_RESULT=inconclusive line for a skip-only run.\n"
+        f"stdout:\n{res.stdout}"
+    )
+    assert "TEST_RESULT=passed" not in stdout_lines, (
+        f"A skip-only run must NEVER report TEST_RESULT=passed.\nstdout:\n{res.stdout}"
+    )
+
+
+@requires_bash
+def test_test_verb_emits_test_skipped_count(tmp_path):
+    """TEST_SKIPPED=<n> must be emitted as a first-class field, counting every
+    skip line matched by the version-robust skip regex (modern odoo.*test*:
+    skip shape), alongside TEST_FAILED/TEST_ERROR/TEST_WARNING."""
+    extra_output = (
+        'echo "INFO 1 test odoo.addons.foo.tests.test_a: skipped test_one : reason one"\n'
+        'echo "INFO 1 test odoo.addons.foo.tests.test_b: skipped test_two : reason two"\n'
+        'echo "INFO 1 test odoo.tests.result: 0 failed, 0 error(s) of 2 tests"'
+    )
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output=extra_output)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test",
+        "--db", "skipcountdb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "foo",
+        env=env,
+    )
+
+    assert "TEST_SKIPPED=2" in res.stdout.splitlines(), (
+        f"Expected TEST_SKIPPED=2 for two skip lines.\nstdout:\n{res.stdout}"
+    )
+    assert "TEST_RESULT=inconclusive" in res.stdout.splitlines()
+
+
+@requires_bash
+def test_test_verb_skip_names_appear_in_findings_file(tmp_path):
+    """Skipped test NAMES must be surfaced into the FINDINGS_PATH file under a
+    dedicated section, mirroring the existing FAIL/ERROR and warnings sections -
+    never swallowed, so a caller can see WHICH tests were skipped."""
+    extra_output = (
+        'echo "INFO 1 test odoo.addons.website_slides.tests.test_ui: '
+        'skipped test_website_slides_tour : Failed to detect chrome devtools '
+        'port after 10.0s."\n'
+        'echo "INFO 1 test odoo.tests.result: 0 failed, 0 error(s) of 1 tests"'
+    )
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output=extra_output)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test",
+        "--db", "skipfindingsdb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "website_slides",
+        env=env,
+    )
+
+    findings_lines = [l for l in res.stdout.splitlines() if l.startswith("FINDINGS_PATH=")]
+    assert len(findings_lines) == 1, f"Expected one FINDINGS_PATH= line.\nstdout:\n{res.stdout}"
+    findings_path = Path(findings_lines[0].split("=", 1)[1])
+    assert findings_path.exists(), f"findings file {findings_path} was not created."
+
+    findings_text = findings_path.read_text(encoding="utf-8")
+    assert "Skipped tests" in findings_text, (
+        f"findings file must have a Skipped tests section.\n{findings_text}"
+    )
+    assert "test_website_slides_tour" in findings_text, (
+        f"findings file must list the skipped test's name.\n{findings_text}"
+    )
+    assert "skipped=1" in findings_text, (
+        f"findings file Counts line must include the skipped count.\n{findings_text}"
+    )
+
+
+@requires_bash
+def test_test_verb_skip_alone_does_not_force_nonzero_exit(tmp_path):
+    """Skips are NOT fatal (legitimate via @tagged filters / missing external
+    deps): a skip-only run with odoo-bin exit 0 must keep exiting 0 and report
+    STATUS=ok - the skip verdict is surfaced via TEST_RESULT/TEST_SKIPPED only,
+    never by forcing a non-zero exit."""
+    extra_output = (
+        'echo "INFO 1 test odoo.addons.foo.tests.test_a: skipped test_one : reason"\n'
+        'echo "INFO 1 test odoo.tests.result: 0 failed, 0 error(s) of 1 tests"'
+    )
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output=extra_output)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test",
+        "--db", "skipexitdb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "foo",
+        env=env,
+    )
+
+    assert res.returncode == 0, (
+        f"a skip-only run with odoo-bin exit 0 must keep the script's own exit at 0.\n"
+        f"stdout:\n{res.stdout}\nstderr:\n{res.stderr}"
+    )
+    assert "STATUS=ok" in res.stdout.splitlines()
+
+
+@requires_bash
+def test_test_verb_zero_skip_clean_run_still_emits_passed(tmp_path):
+    """Regression guard: a genuinely clean run (0 failed, 0 error, 0 skipped)
+    must still emit an exact TEST_RESULT=passed line and TEST_SKIPPED=0 - the
+    skip fix must not regress the plain-pass path."""
+    passing_summary = "  Ran 5 test(s) in 1.23s: 0 failed, 0 error(s) (at_install)"
+    fake_bin = _make_fake_odoo_bin(
+        tmp_path, exit_code=0, extra_output=f'echo "{passing_summary}"'
+    )
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test",
+        "--db", "cleanrundb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "sale",
+        env=env,
+    )
+
+    assert res.returncode == 0
+    stdout_lines = res.stdout.splitlines()
+    assert "TEST_RESULT=passed" in stdout_lines, (
+        f"a genuinely clean 0-skip run must still emit an exact TEST_RESULT=passed line.\n"
+        f"stdout:\n{res.stdout}"
+    )
+    assert "TEST_SKIPPED=0" in stdout_lines
+
+
+@requires_bash
+def test_test_verb_benign_skip_lookalikes_do_not_trip_skip_detection(tmp_path):
+    """Regression guard (skeptic-review blockers): a genuinely clean, fully-passing
+    run whose log ALSO contains two benign lines that merely LOOK like a skip must
+    still emit an exact TEST_RESULT=passed line and TEST_SKIPPED=0 - never
+    inconclusive.
+
+    1. An ordinary business retry line using the bare "... skipped" phrase
+       (e.g. a stock reservation retry), which is NOT a test-skip event.
+    2. A business log line from a module/model whose NAME merely CONTAINS the
+       substring "test" (hr_attestation, website_testimonial) paired with an
+       unrelated "skipping" business message - the model name is not a
+       ".tests." package path segment.
+
+    Neither line has a genuine `.tests.`/`.tests:` logger-namespace segment nor
+    the stdlib `test_NAME (module.tests.path) ... skipped` shape, so SKIP_RE
+    must not match either one.
+    """
+    extra_output = (
+        'echo "INFO 1 test odoo.addons.stock.models.stock_move: reservation '
+        '... skipped (insufficient qty, will retry)"\n'
+        'echo "INFO 1 test odoo.addons.hr_attestation.models.hr_attestation: '
+        'skipping approval because state != draft"\n'
+        'echo "INFO 1 test odoo.addons.website_testimonial.models.testimonial: '
+        'skipping duplicate testimonial entry"\n'
+        'echo "  Ran 5 test(s) in 1.23s: 0 failed, 0 error(s) (at_install)"'
+    )
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output=extra_output)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test",
+        "--db", "skiplookalikedb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "stock",
+        env=env,
+    )
+
+    assert res.returncode == 0
+    stdout_lines = res.stdout.splitlines()
+    assert "TEST_SKIPPED=0" in stdout_lines, (
+        f"benign skip-lookalike lines must NOT be counted as skips.\nstdout:\n{res.stdout}"
+    )
+    assert "TEST_RESULT=passed" in stdout_lines, (
+        f"a clean run with only skip-lookalike noise must still emit an exact "
+        f"TEST_RESULT=passed line, never inconclusive.\nstdout:\n{res.stdout}"
+    )
+    assert "TEST_RESULT=inconclusive" not in stdout_lines
+
+
+@requires_bash
+def test_test_verb_fail_dominates_over_skip(tmp_path):
+    """A run with BOTH a genuine skip AND a failing test must report
+    TEST_RESULT=failed - a failure is always the dominant, blocking verdict,
+    never downgraded to inconclusive just because a skip is also present."""
+    extra_output = (
+        'echo "INFO 1 test odoo.addons.website_slides.tests.test_ui: '
+        'skipped test_website_slides_tour : Failed to detect chrome devtools '
+        'port after 10.0s."\n'
+        'echo "FAIL: test_my_module.TestCase.test_foo"'
+    )
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output=extra_output)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test",
+        "--db", "failskipdb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "website_slides",
+        env=env,
+    )
+
+    stdout_lines = res.stdout.splitlines()
+    assert "TEST_RESULT=failed" in stdout_lines, (
+        f"fail must dominate over a co-occurring skip.\nstdout:\n{res.stdout}"
+    )
+    assert "TEST_RESULT=inconclusive" not in stdout_lines
+    assert "TEST_SKIPPED=1" in stdout_lines
+
+
+@requires_bash
+def test_test_verb_skip_dominates_over_warning(tmp_path):
+    """A run with BOTH a genuine skip AND a warning (no fail/error) must report
+    TEST_RESULT=inconclusive - a skip is not proof the suite ran clean, so it
+    must win over a plain warning-only verdict."""
+    extra_output = (
+        'echo "INFO 1 test odoo.addons.website_slides.tests.test_ui: '
+        'skipped test_website_slides_tour : Failed to detect chrome devtools '
+        'port after 10.0s."\n'
+        'echo "2026-07-17 10:00:00,000 1 WARNING test odoo.addons.website_slides: '
+        'some deprecation notice"'
+    )
+    fake_bin = _make_fake_odoo_bin(tmp_path, exit_code=0, extra_output=extra_output)
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+    addons_dir = tmp_path / "addons"
+    addons_dir.mkdir()
+
+    env = _base_env(tmp_path)
+    env["ODOO_BIN"] = str(fake_bin)
+
+    res = _run(
+        "test",
+        "--db", "skipwarndb",
+        "--python", str(fake_py),
+        "--addons", str(addons_dir),
+        "--modules", "website_slides",
+        env=env,
+    )
+
+    stdout_lines = res.stdout.splitlines()
+    assert "TEST_RESULT=inconclusive" in stdout_lines, (
+        f"skip must dominate over a co-occurring warning (no fail/error).\nstdout:\n{res.stdout}"
+    )
+    assert "TEST_WARNING=1" in stdout_lines
+    assert "TEST_SKIPPED=1" in stdout_lines
+
+
 @requires_bash
 def test_test_verb_passes_test_tags_to_odoo_bin(tmp_path):
     """test with --test-tags should forward --test-tags to odoo-bin."""
