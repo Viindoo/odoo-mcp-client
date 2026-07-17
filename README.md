@@ -28,7 +28,7 @@ flowchart TD
     end
 
     server["OSM MCP Server (AGPL-3.0)<br/>31 tools / 9 resources · Odoo v8+"]
-    out["Answer in chat or .odoo-ai/"]
+    out["Answer in chat or $ODOO_AI_HOME"]
 
     You --> intake
     You -. "skill fires directly" .-> skills

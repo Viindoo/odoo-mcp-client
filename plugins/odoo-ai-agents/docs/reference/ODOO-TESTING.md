@@ -16,8 +16,12 @@
 ## Core test invocation (verify flags via `cli_help` for the target)
 
 ```
-odoo-bin -d <DB> -i <module> --test-enable --test-tags /<module> --stop-after-init --log-level=test
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+odoo-bin -d <DB> -i <module> --test-enable --test-tags /<module> --stop-after-init --log-level=test \
+  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
+
+Memory-cap policy (default, override, uncap escape hatch): `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
 
 **Fresh DB vs re-run - `-i` vs `-u`.** The example above is the **fresh-DB** case: `-i` installs
 the not-yet-installed module and runs its `at_install` tests in one pass. To RE-RUN the suite on a
@@ -103,14 +107,20 @@ v13" as the table implies) - never assume the table over a live probe.
 | v16+ | `/test_lint,/test_pylint` | CE `test_lint` + Viindoo `tvtmaaddons` custom `test_pylint` |
 
 ```bash
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+
 # v14-v15: test_lint only
 odoo-bin -d <DB> -u <module> --test-enable \
-  --test-tags '/<module>,/test_lint' --stop-after-init --log-level=test
+  --test-tags '/<module>,/test_lint' --stop-after-init --log-level=test \
+  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 
 # v16+ Viindoo: also add /test_pylint (tvtmaaddons)
 odoo-bin -d <DB> -u <module> --test-enable \
-  --test-tags '/<module>,/test_lint,/test_pylint' --stop-after-init --log-level=test
+  --test-tags '/<module>,/test_lint,/test_pylint' --stop-after-init --log-level=test \
+  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
+
+Memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
 
 **Confirm the exact tag and module name for the target version via OSM before running:**
 `set_active_version(<version>)` then `check_module_exists("test_lint", odoo_version='<version>')` and

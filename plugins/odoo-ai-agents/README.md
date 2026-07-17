@@ -27,7 +27,7 @@ whole job once, then drives it to done:
   `odoo-coding` and re-reviews to verify (review -> code -> review, bounded to 3 rounds then escalates).
 - **Large / open-ended job** -> it can offer an opt-in **`deep-survey`**: a read-only, multi-phase
   pass (broad haiku sweep -> narrow sonnet dives -> optional opus) that writes a synthesis under
-  `.odoo-ai/survey/` and re-informs a sharper plan before any code is written.
+  `<SHARE_DIR>/survey/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) and re-informs a sharper plan before any code is written.
 - **Multi-step intent** -> it lays out a plan (the modules, their order, who does each), you
   approve once, and then it **advances step-to-step on its own** - dispatching each specialist,
   reading the result, and moving to the next - stopping only when a step is irreversible/outward
@@ -99,11 +99,11 @@ context-aware, then (4) emits a **Proposed Plan** and waits for your approval. F
 - **Single clear step** -> the one specialist fires; chat-only answers skip Plan Mode entirely.
 - **Opt-in deep-survey** (offered on large jobs) -> if you approve `deep-survey`, `odoo-deep-survey`
   fans out a broad haiku sweep -> narrow sonnet dives -> an optional opus pass and writes a synthesis
-  under `.odoo-ai/survey/` that re-informs a sharper Proposed Plan before any execution.
+  under `<SHARE_DIR>/survey/` that re-informs a sharper Proposed Plan before any execution.
 - **Multi-step** -> for non-trivial multi-module work the approved plan is authored by
   **`odoo-planning`** (via the `odoo-planner` agent) after `odoo-solution-design`: a wave-batched
   module-DAG that wires each module/stage to a SKILL and spans the full lifecycle (code -> review ->
-  doc -> PR -> monitor -> merge). `odoo-intake` serializes it to a run file (`.odoo-ai/run-<id>.json`)
+  doc -> PR -> monitor -> merge). `odoo-intake` serializes it to a run file (`<ISOLATE_DIR>/run-<id>.json`)
   and hands it to **`run-harness`** (the sequencer), which walks the
   module nodes to `DONE` / `BLOCKED` / `NEEDS_CONTEXT`: pick the next ready node -> check its gate tier
   -> dispatch it (a leaf skill inline, a coding/review/UI **agent bundle**, a declarative **workflow**
@@ -118,8 +118,8 @@ context-aware, then (4) emits a **Proposed Plan** and waits for your approval. F
 
 Each step carries a **gate tier** that decides what stops for you (see
 [Drive to done](#drive-to-done-how-to-use-it)). On a new Odoo project, `odoo-onboarding`
-bootstraps `.odoo-ai/context.md` so later skills skip setup. Every skill grounds its answers
-through the OSM MCP server; output is a direct answer or a file under `.odoo-ai/`.
+bootstraps `<SHARE_DIR>/context.md` so later skills skip setup. Every skill grounds its answers
+through the OSM MCP server; output is a direct answer or a file under the `$ODOO_AI_HOME` state root.
 
 ```mermaid
 flowchart TD
@@ -174,7 +174,7 @@ flowchart TD
     WAVE --> I
     FIX --> I
     MON --> I
-    I --> Z([Answer or .odoo-ai/])
+    I --> Z([Answer or $ODOO_AI_HOME])
 ```
 
 _All agents (main + custom sub-agents) share a universal Work Ethos loaded from `ODOO-AI-ETHOS.md`; built-in Plan/Explore agents skip it by design._
@@ -197,7 +197,7 @@ a human stop. **L2 always stops for a human; the dial can never lower it.**
 | Tier | What it is | Under `--auto` |
 |------|-----------|----------------|
 | **L0** | Read-only / chat answers | Auto-passes |
-| **L1** | Writes internal files under `.odoo-ai/` (reversible, gitignored) | Auto-passes |
+| **L1** | Writes internal files under the `$ODOO_AI_HOME` state root (reversible, outside the repo) | Auto-passes |
 | **L2** | Irreversible / outward: git push or merge, sending to a customer, touching a live instance - **and any source-code write that was not in the approved plan** | **Always stops for you** |
 
 **Best practice.** Start with a plain-language `/odoo-intake "<what you want>"`. Approve the plan once.
@@ -272,8 +272,8 @@ the full schema and handoff fields.
 ```mermaid
 flowchart TD
     SD["odoo-solution-design<br/>(odoo-solution-architect)"]
-    SD -->|"single module / simple scope"| S["single TDD<br/>.odoo-ai/designs/slug-date.md<br/>DESIGN_DOC=path"]
-    SD -->|"multi-module / large scope"| M["master + N child TDDs<br/>.odoo-ai/designs/master-slug/"]
+    SD -->|"single module / simple scope"| S["single TDD<br/><SHARE_DIR>/designs/slug-date.md<br/>DESIGN_DOC=path"]
+    SD -->|"multi-module / large scope"| M["master + N child TDDs<br/><SHARE_DIR>/designs/master-slug/"]
     M --> IDX["index.yaml - routing SSOT<br/>_master-date.md - cross-module constraints<br/>module-date.md per module (DAG order)<br/>design_docs[] in Continuation Contract"]
 ```
 
@@ -288,32 +288,32 @@ that up and chains the next step across workflows automatically.
 
 | Workflow | Trigger | Output dir |
 |----------|---------|------------|
-| `odoo-respond-bid` | Full bid / RFP response chain | `.odoo-ai/bids/` |
-| `odoo-implement-feature` | Requirement to shipped code with a design step (scope -> design -> code -> review) | `.odoo-ai/implement/` |
-| `odoo-plan-upgrade` | Comprehensive upgrade plan | `.odoo-ai/upgrade-plans/` |
-| `odoo-position-feature` | Positioning copy for marketing and sales | `.odoo-ai/positioning/` |
-| `discovery-pipeline` | Synthesize and structure discovery notes | `.odoo-ai/discovery/` |
-| `qa-suite` | Static release test-plan + QA checklist + bug triage (non-executing; live acceptance/oracle -> `odoo-acceptance`) | `.odoo-ai/qa/` |
-| `support-triage` | Classify + root-cause + draft resolution for a support ticket | `.odoo-ai/support/` |
-| `video-produce` | Multi-scene Odoo demo video (storyboard -> record -> assemble) | `.odoo-ai/video/` |
-| `sales-closing-cycle` | Late-stage sales cycle: objection handling + closing steps | `.odoo-ai/sales/` |
-| `ui-debug-session` | Resumable multi-turn UI debug with browser evidence | `.odoo-ai/debug/` |
-| `content-production` | Multi-asset content from a positioning brief | `.odoo-ai/content/` |
-| `research-multiphase` | Flexible-phase research: broad survey -> deep dives -> synthesis, a different model tier per phase | `.odoo-ai/research/` |
-| `module-packaging` | End-to-end: scope -> doc-plan (branch-aware, 1 gate) -> feature-map/walkthrough/icon/copy fan-out (browser-free, parallel) -> provision-capture per instance-path (incremental, branch-aware) -> manifest-audit; output `.odoo-ai/packaging/` | `.odoo-ai/packaging/` |
+| `odoo-respond-bid` | Full bid / RFP response chain | `<ISOLATE_DIR>/bids/` |
+| `odoo-implement-feature` | Requirement to shipped code with a design step (scope -> design -> code -> review) | `<ISOLATE_DIR>/implement/` |
+| `odoo-plan-upgrade` | Comprehensive upgrade plan | `<ISOLATE_DIR>/upgrade-plans/` |
+| `odoo-position-feature` | Positioning copy for marketing and sales | `<ISOLATE_DIR>/positioning/` |
+| `discovery-pipeline` | Synthesize and structure discovery notes | `<ISOLATE_DIR>/discovery/` |
+| `qa-suite` | Static release test-plan + QA checklist + bug triage (non-executing; live acceptance/oracle -> `odoo-acceptance`) | `<ISOLATE_DIR>/qa/` |
+| `support-triage` | Classify + root-cause + draft resolution for a support ticket | `<ISOLATE_DIR>/support/` |
+| `video-produce` | Multi-scene Odoo demo video (storyboard -> record -> assemble) | `<ISOLATE_DIR>/video/` |
+| `sales-closing-cycle` | Late-stage sales cycle: objection handling + closing steps | `<ISOLATE_DIR>/sales/` |
+| `ui-debug-session` | Resumable multi-turn UI debug with browser evidence | `<ISOLATE_DIR>/debug/` |
+| `content-production` | Multi-asset content from a positioning brief | `<ISOLATE_DIR>/content/` |
+| `research-multiphase` | Flexible-phase research: broad survey -> deep dives -> synthesis, a different model tier per phase | `<ISOLATE_DIR>/research/` |
+| `module-packaging` | End-to-end: scope -> doc-plan (branch-aware, 1 gate) -> feature-map/walkthrough/icon/copy fan-out (browser-free, parallel) -> provision-capture per instance-path (incremental, branch-aware) -> manifest-audit; output `<ISOLATE_DIR>/packaging/` | `<ISOLATE_DIR>/packaging/` |
 
 Commands come in two shapes: multi-phase orchestrators that chain several skills in a
 gated sequence, and single-step wrappers that run one skill and offer a save step.
 
 | Command | Skill chain | Output |
 |---------|------------|--------|
-| `/odoo-respond-bid` | discovery-summary -> gap-analysis -> capability-proof -> objection-handling -> assemble | `.odoo-ai/bids/` |
-| `/odoo-position-feature` | feature-check -> addon-diff -> competitive-brief -> positioning | `.odoo-ai/positioning/` |
-| `/odoo-plan-upgrade` | risk-overview -> deprecation-audit -> version-diff -> synthesis | `.odoo-ai/upgrade-plans/` |
-| `/odoo-run-brl` | Gate 0 chunk plan -> classify + cost -> dependency DAG -> RTM + report | `.odoo-ai/brl/` |
-| `/odoo-draft-followup` | odoo-deal-followup (single step) | `.odoo-ai/followups/` |
-| `/odoo-summarize-discovery` | odoo-discovery-summary (single step) | `.odoo-ai/discovery/` |
-| `/odoo-produce-video` | odoo-demo-recording per scene | `.odoo-ai/video/` |
+| `/odoo-respond-bid` | discovery-summary -> gap-analysis -> capability-proof -> objection-handling -> assemble | `<ISOLATE_DIR>/bids/` |
+| `/odoo-position-feature` | feature-check -> addon-diff -> competitive-brief -> positioning | `<ISOLATE_DIR>/positioning/` |
+| `/odoo-plan-upgrade` | risk-overview -> deprecation-audit -> version-diff -> synthesis | `<ISOLATE_DIR>/upgrade-plans/` |
+| `/odoo-run-brl` | Gate 0 chunk plan -> classify + cost -> dependency DAG -> RTM + report | `<SHARE_DIR>/brl/` |
+| `/odoo-draft-followup` | odoo-deal-followup (single step) | `<ISOLATE_DIR>/followups/` |
+| `/odoo-summarize-discovery` | odoo-discovery-summary (single step) | `<ISOLATE_DIR>/discovery/` |
+| `/odoo-produce-video` | odoo-demo-recording per scene | `<ISOLATE_DIR>/video/` |
 
 The visual UI testing stack is a sibling cluster, not a linear chain: one `setup` step
 provisions the browser environment, then four skills run independently and converge on
@@ -397,7 +397,7 @@ flowchart TD
     P9 -->|"STOP - human confirm"| P10["P10 - Gate merge<br/>(commit + checkpoint;<br/>loop to P5 for next commit)"]
     P10 --> P11["P11 - PR + code-review<br/>(mandatory for new engines)"]
     P11 --> P12["P12 - End-to-end acceptance<br/>(odoo-acceptance) - MANDATORY<br/>cluster-wide, narrow-escape only<br/>gates ALONGSIDE human-merge decision"]
-    P12 --> DONE(["Done - .odoo-ai/forward-port/"])
+    P12 --> DONE(["Done - <ISOLATE_DIR>/forward-port/"])
 ```
 
 | Phase | Description | Parallel? | Human gate? |
@@ -462,7 +462,7 @@ flowchart TD
     RV -->|"clean: no CRITICAL/HIGH"| P10["P10 - Verify<br/>(range-diff + dup-guard + conditional instance)"]
     P10 -->|"STOP - human confirm"| P11["P11 - Gate (human-confirm)"]
     P11 --> P12["P12 - PR + FINAL review (human merge; never squash)"]
-    P12 --> DONE(["Done - .odoo-ai/git-rebase/"])
+    P12 --> DONE(["Done - <ISOLATE_DIR>/git-rebase/"])
 ```
 
 Two review points are visible: the **P9b in-pipeline code-review loop** (fix-until-clean, right
@@ -531,7 +531,7 @@ flowchart TD
     P57 --> P58["P5.8 - Acceptance (odoo-acceptance)<br/>MANDATORY, cluster-wide, narrow-escape only"]
     P58 --> P6["P6 - Gate (STOP, human sign-off)"]
     P6 -->|"STOP - human confirm"| P7["P7 - PR + FINAL dep-order review (human merge; no cluster-squash)"]
-    P7 --> DONE(["Done - .odoo-ai/modules-upgrade/"])
+    P7 --> DONE(["Done - <ISOLATE_DIR>/modules-upgrade/"])
 ```
 
 Two review points are visible: the **P4b in-pipeline code-review loop** (per module, dep order,
@@ -556,7 +556,7 @@ PR review** (pre-merge). This is intentionally more rigorous than forward-port (
 
 ### Module-packaging workflow (`module-packaging`)
 
-End-to-end pipeline that packages a module for the Odoo Apps Store: scope inline, doc-plan (branch-aware, single whole-plan gate), browser-free content prep in parallel, then branch-aware per-instance-path provision-capture (incremental install -> doc -> commit), and a final manifest audit. P0.5 (`odoo-doc-planner`) clusters modules and allocates instances; after the gate, P1-P4 run fully in parallel; P3 (icon) writes directly to `static/description/` without waiting for P5, then commits via `git-toolkit:git-ops` per its Verify-then-commit step; P5 (`provision-capture`, fused) runs per instance-path - parallel across paths, sequential within - incremental install leaf-first then doc then git commit; P6 audits inline; P7 aggregates output under `.odoo-ai/packaging/`.
+End-to-end pipeline that packages a module for the Odoo Apps Store: scope inline, doc-plan (branch-aware, single whole-plan gate), browser-free content prep in parallel, then branch-aware per-instance-path provision-capture (incremental install -> doc -> commit), and a final manifest audit. P0.5 (`odoo-doc-planner`) clusters modules and allocates instances; after the gate, P1-P4 run fully in parallel; P3 (icon) writes directly to `static/description/` without waiting for P5, then commits via `git-toolkit:git-ops` per its Verify-then-commit step; P5 (`provision-capture`, fused) runs per instance-path - parallel across paths, sequential within - incremental install leaf-first then doc then git commit; P6 audits inline; P7 aggregates output under `<ISOLATE_DIR>/packaging/`.
 
 ```mermaid
 flowchart TD
@@ -584,9 +584,9 @@ flowchart TD
 
     PKG_P5 --> PKG_P6["P6 - Manifest audit inline<br/>check __manifest__.py summary/website/<br/>category vs catalog; flag drift"]
 
-    PKG_P6 --> PKG_P7["P7 - Aggregate<br/>.odoo-ai/packaging/ index<br/>asset manifest + diff summary"]
+    PKG_P6 --> PKG_P7["P7 - Aggregate<br/><ISOLATE_DIR>/packaging/ index<br/>asset manifest + diff summary"]
 
-    PKG_P7 --> PKG_DONE(["DONE - .odoo-ai/packaging/"])
+    PKG_P7 --> PKG_DONE(["DONE - <ISOLATE_DIR>/packaging/"])
     PKG_ICON -- "commit via git-toolkit:git-ops" --> PKG_DONE
 ```
 
@@ -600,7 +600,7 @@ flowchart TD
 | P4 Copy | `odoo-content-draft` -> Apps Store copy + description | Part of P1-P4 fanout | - |
 | P5 provision-capture (FUSED) | `odoo-instance` + `odoo-doc-illustration` + `git-ops` per instance-path; incremental install leaf-first -> doc -> commit per module | Parallel ACROSS paths (<=W); sequential WITHIN | YES (per-path serial) |
 | P6 Manifest audit | Inline: audit __manifest__.py summary/website/category vs catalog; flag drift | - | - |
-| P7 Aggregate | Write .odoo-ai/packaging/ index, asset manifest, diff summary | - | - |
+| P7 Aggregate | Write <ISOLATE_DIR>/packaging/ index, asset manifest, diff summary | - | - |
 
 ### Available commands
 
@@ -608,13 +608,13 @@ flowchart TD
 
 | Command | Purpose | Chained skills |
 |---------|---------|----------------|
-| `/odoo-respond-bid` | Full bid response chain for RFP/requirements documents, saves to `.odoo-ai/bids/` | `odoo-discovery-summary` -> `odoo-gap-analysis` -> `odoo-capability-proof` -> `odoo-objection-handling` |
-| `/odoo-draft-followup` | Sales follow-up email saved to `.odoo-ai/followups/` | `odoo-deal-followup` |
-| `/odoo-summarize-discovery` | Synthesize discovery notes into a structured profile, saves to `.odoo-ai/discovery/` | `odoo-discovery-summary` |
-| `/odoo-position-feature` | Positioning copy for marketing and sales use, saves to `.odoo-ai/positioning/` | `odoo-feature-check` -> `odoo-addon-diff` -> `odoo-competitive-brief` -> positioning copy |
-| `/odoo-plan-upgrade` | Comprehensive upgrade plan (replaces legacy `odoo-upgrade-planner` agent), saves to `.odoo-ai/upgrade-plans/` | `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis |
-| `/odoo-run-brl` | Bulk requirement-list classification at scale (chunked, resumable), saves to `.odoo-ai/brl/<job-id>/` | `odoo-brl` (sequential-outer-parallel-inner) |
-| `/odoo-produce-video` | Multi-scene Odoo demo video (storyboard -> record -> assemble), saves to `.odoo-ai/video/` | `odoo-demo-recording` (per scene) |
+| `/odoo-respond-bid` | Full bid response chain for RFP/requirements documents, saves to `<ISOLATE_DIR>/bids/` | `odoo-discovery-summary` -> `odoo-gap-analysis` -> `odoo-capability-proof` -> `odoo-objection-handling` |
+| `/odoo-draft-followup` | Sales follow-up email saved to `<ISOLATE_DIR>/followups/` | `odoo-deal-followup` |
+| `/odoo-summarize-discovery` | Synthesize discovery notes into a structured profile, saves to `<ISOLATE_DIR>/discovery/` | `odoo-discovery-summary` |
+| `/odoo-position-feature` | Positioning copy for marketing and sales use, saves to `<ISOLATE_DIR>/positioning/` | `odoo-feature-check` -> `odoo-addon-diff` -> `odoo-competitive-brief` -> positioning copy |
+| `/odoo-plan-upgrade` | Comprehensive upgrade plan (replaces legacy `odoo-upgrade-planner` agent), saves to `<ISOLATE_DIR>/upgrade-plans/` | `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis |
+| `/odoo-run-brl` | Bulk requirement-list classification at scale (chunked, resumable), saves to `<SHARE_DIR>/brl/<job-id>/` | `odoo-brl` (sequential-outer-parallel-inner) |
+| `/odoo-produce-video` | Multi-scene Odoo demo video (storyboard -> record -> assemble), saves to `<ISOLATE_DIR>/video/` | `odoo-demo-recording` (per scene) |
 | `/odoo-ai-agents:odoo-setup` | One-shot idempotent setup for the visual workflow - wires the browser MCP families (one eager `chrome-devtools` + five opt-in) across Claude/Codex/Gemini, installs browser deps, auto-allows tool permissions, discovers + optionally spins up a local Odoo instance | - |
 
 ## Use cases - day in the life
@@ -629,7 +629,7 @@ Odoo vs SAP. At the last meeting they promised technical feedback within the wee
 Write a follow-up email."
 ```
 
-Skill `odoo-deal-followup` fires. Output: risk score (red - warm lead, >14 days no reply), next-best-action ("re-engage with concrete value proof"), and a 4-paragraph follow-up email. To save it: `/odoo-draft-followup` chains the skill and writes to `.odoo-ai/followups/customer-a-2026-MM-DD.md`.
+Skill `odoo-deal-followup` fires. Output: risk score (red - warm lead, >14 days no reply), next-best-action ("re-engage with concrete value proof"), and a 4-paragraph follow-up email. To save it: `/odoo-draft-followup` chains the skill and writes to `<ISOLATE_DIR>/followups/customer-a-2026-MM-DD.md`.
 
 ### Use case 2 - Pre-Sales: RFP with 15 requirements
 
@@ -639,7 +639,7 @@ A prospect sends an RFP with 15 functional requirements: lot tracking, multi-lev
 You: "/odoo-respond-bid - Customer B (F&B chain, 50 locations), 15 requirements listed below"
 ```
 
-The command runs a gated workflow: `odoo-discovery-summary` (prospect profile) -> `odoo-gap-analysis` (effort matrix: Standard / Config / Extension / Custom + S/M/L/XL days) -> `odoo-capability-proof` (evidence for covered items) -> `odoo-objection-handling` (2-3 anticipated objections) -> assemble proposal -> save to `.odoo-ai/bids/customer-b-2026-MM-DD.md`. You approve each phase before the next fires.
+The command runs a gated workflow: `odoo-discovery-summary` (prospect profile) -> `odoo-gap-analysis` (effort matrix: Standard / Config / Extension / Custom + S/M/L/XL days) -> `odoo-capability-proof` (evidence for covered items) -> `odoo-objection-handling` (2-3 anticipated objections) -> assemble proposal -> save to `<ISOLATE_DIR>/bids/customer-b-2026-MM-DD.md`. You approve each phase before the next fires.
 
 ### Use case 3 - Pre-Sales: BRL scoping for a large implementation
 
@@ -670,7 +670,7 @@ Customer D is running Odoo 15 with 12 custom modules and wants to move to v17 in
 You: "/odoo-plan-upgrade - Customer D, v15 to v17, 12 custom modules, deadline Q3"
 ```
 
-Chains `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis. Output: executive risk overview, code-level deprecation findings, API/feature diff, action ordering, S/M/L/XL effort estimate, and rollback plan. Saves to `.odoo-ai/upgrade-plans/customer-d-v15-v17-2026-MM-DD.md`. When you need actual code written, invoke the `odoo-coding` skill (it owns the coder fan-out + model tier; OSM access).
+Chains `odoo-risk-overview` -> `odoo-deprecation-audit` -> `odoo-version-diff` -> synthesis. Output: executive risk overview, code-level deprecation findings, API/feature diff, action ordering, S/M/L/XL effort estimate, and rollback plan. Saves to `<ISOLATE_DIR>/upgrade-plans/customer-d-v15-v17-2026-MM-DD.md`. When you need actual code written, invoke the `odoo-coding` skill (it owns the coder fan-out + model tier; OSM access).
 
 ### Use case 6 - Marketer: launch a new feature campaign
 
@@ -681,7 +681,7 @@ You: "/odoo-position-feature - inventory forecasting module, target SME manufact
 launch window 2 weeks, main competitor SAP Business One"
 ```
 
-The command chains `odoo-feature-check` (verifies the feature and reads its scope from OSM) -> `odoo-addon-diff` (CE vs EE edition framing) -> `odoo-competitive-brief` (how it lands against SAP B1) -> positioning synthesis. Output: a one-line value proposition, three proof points, objection rebuttals, and channel-by-channel copy. Saves to `.odoo-ai/positioning/inventory-forecasting-2026-MM-DD.md`. For a full multi-week campaign blueprint, follow up with `odoo-campaign-plan`; for per-asset drafts (blog, email sequence, social), call `odoo-content-draft`.
+The command chains `odoo-feature-check` (verifies the feature and reads its scope from OSM) -> `odoo-addon-diff` (CE vs EE edition framing) -> `odoo-competitive-brief` (how it lands against SAP B1) -> positioning synthesis. Output: a one-line value proposition, three proof points, objection rebuttals, and channel-by-channel copy. Saves to `<ISOLATE_DIR>/positioning/inventory-forecasting-2026-MM-DD.md`. For a full multi-week campaign blueprint, follow up with `odoo-campaign-plan`; for per-asset drafts (blog, email sequence, social), call `odoo-content-draft`.
 
 ### Use case 7 - QA / Visual: catch visual regressions after installing a module
 
@@ -703,13 +703,13 @@ You: "Customer F reports: invoice approval button disappeared after installing
 account_invoice_approval v14. Users are blocked."
 ```
 
-Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression), generates a root-cause hint using OSM to inspect the `account` module's approval flow and the installed module's view overrides, and drafts a resolution note ready to send to the customer. If a live browser is available, it NL-dispatches to `odoo-debug` to capture the console error and pinpoint the broken view. Output saved to `.odoo-ai/support/customer-f-2026-MM-DD.md`.
+Skill `odoo-support-triage` fires. It classifies the ticket (bug - UI regression), generates a root-cause hint using OSM to inspect the `account` module's approval flow and the installed module's view overrides, and drafts a resolution note ready to send to the customer. If a live browser is available, it NL-dispatches to `odoo-debug` to capture the console error and pinpoint the broken view. Output saved to `<ISOLATE_DIR>/support/customer-f-2026-MM-DD.md`.
 
 ### Frequently asked questions
 
 **I only need one skill - do I have to know all 53?** No. Skills auto-fire by intent match. Describe what you need; the right skill triggers. `odoo-intake` acts as a brainstorm partner when you are not sure which skill to use.
 
-**What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by reading your local codebase and `.odoo-ai/context.md` directly (Read/Grep/WebFetch, three-tier grounding) instead of asking you to paste data; if a browser is genuinely unreachable a visual skill returns BLOCKED rather than requesting screenshots. The plugin does not break when OSM is offline.
+**What if the OSM server is offline?** Each skill has a `## Standalone-first fallback` section - it degrades gracefully by reading your local codebase and `<SHARE_DIR>/context.md` directly (Read/Grep/WebFetch, three-tier grounding) instead of asking you to paste data; if a browser is genuinely unreachable a visual skill returns BLOCKED rather than requesting screenshots. The plugin does not break when OSM is offline.
 
 **What about confidentiality?** Plugin code is public (MIT). Skills contain no customer-specific data or pricing. A pre-commit hook and CI scan block several categories of sensitive content. Examples use abstract labels (Customer A through Customer F).
 
@@ -799,11 +799,29 @@ There are two distinct loading mechanisms for shared context:
 | `snippets/read-before-write-contract.md` | Read the target version's coding guidelines (`skills/_shared/coding_guidelines/<version>/`) BEFORE writing code and conform on the first pass - not patched against a checklist afterward |
 | `snippets/test-first-contract.md` | Red-before-green: the behavior test is authored and fails BEFORE the code, and is never weakened to pass (drives the `code -> review+test -> code` loop, bounded to 3 rounds) |
 | `snippets/test-behavior-contract.md` | Tests drive the REAL workflow (call `action_confirm`/`action_validate`/`button_validate`, build via `Form()` for onchange, `with_user()` not `sudo()` for access) and assert observable outcomes - never seed the terminal state with `create({'state': ...})`, which hides transition/constraint/onchange bugs |
-| `snippets/worklog-contract.md` | Append-only cross-agent decision journal (`.odoo-ai/worklog/<run>/<NNN>-<agent>.md`) read at start, appended at end, so a later phase can look up why an earlier one decided what it did |
+| `snippets/worklog-contract.md` | Append-only cross-agent decision journal (`<ISOLATE_DIR>/worklog/<run>/<NNN>-<agent>.md`) read at start, appended at end, so a later phase can look up why an earlier one decided what it did |
+| `snippets/state-root-resolution.md` | The `$ODOO_AI_HOME` two-axis state root: Tier-1 flat (machine-global, never namespaced - the lease registry lives here) vs Tier-2 SHARE (`<SHARE_DIR>`, converges across a repo's worktrees) vs Tier-2 ISOLATE (`<ISOLATE_DIR>`, per-worktree); the repo-key/wt-key resolvers; and the mandatory resolve-once-capture-substitute protocol every skill/agent follows before any Read/Write/Edit under a Tier-2 path |
+| `snippets/odoo-bin-resource-limits.md` | The odoo-bin memory-cap policy for every launch: a version-general `ulimit -Sv` + `--limit-memory-hard` pair (the v12.0 boundary where Odoo's own enforcement begins), the `MemTotal`-derived default (overridable via `ODOO_AI_LIMIT_MEMORY_HARD`), and which limit flags fire on a `--stop-after-init` build vs a long-running listener conf |
 | `snippets/context-handoff-protocol.md` | 3-tier agent dispatch optimization (Tier A `SendMessage`-resume / Tier B `subagent_type: "fork"` / Tier C fresh spawn + worklog); Tier C is the always-correct SSOT fallback; consumed by `odoo-coding`, `odoo-code-review`, `odoo-forward-port`, `odoo-deep-survey`, `odoo-brl`. The `handoff` metadata field (`send-message \| fork \| fresh`) is surfaced per-skill in `docs/reference/ORCHESTRATION-MAP.md` |
 | `snippets/new-module-manifest.md` | Greenfield `__manifest__.py` authoring: scaffold-first, preserve commented placeholder keys, and use the short version form (`0.1` / `1.0.0`) - never the series-prefixed `17.0.1.0.0` form on a new module (enforced by `odoo-backend-coder`, `odoo-frontend-coder`, and `odoo-code-reviewer`) |
 | `snippets/upg-conventions.md` | Viindoo upgrade + module-rename conventions (Viindoo Standard/Internal profile, OSM-gated): keeping the manifest `version` unchanged on a code-level upgrade; a renamed module's `__manifest__.py` must carry `old_technical_name` so Viindoo tooling can map the old name to the new one; does not replace OpenUpgrade DB-level rename (consumed by `odoo-backend-coder`, `odoo-code-reviewer`) |
 | `skills/_shared/odoo-module-graph.md` | The Odoo module DAG (from each `__manifest__.py` `depends`); `odoo-planning` is the canonical producer of the wave-batched result, which `odoo-coding` and `run-harness`'s between-wave integration consume so all dispatch in dependency order and respect module boundaries |
+
+The two-axis state root at a glance (full classification tables + the resolve-capture-substitute
+protocol: `snippets/state-root-resolution.md`):
+
+```mermaid
+flowchart TD
+    HOME["$ODOO_AI_HOME<br/>(default ~/.odoo-ai)"]
+    HOME --> T1["Tier-1 - flat, machine-global<br/>instances.toml, runtime/leases.json,<br/>logs/, i18n.json - NEVER namespaced"]
+    HOME --> PROJ["projects/&lt;repo-key&gt;/"]
+    PROJ --> SHARE["Tier-2 SHARE = &lt;SHARE_DIR&gt;<br/>context.md, designs/, plans/,<br/>coordination/, survey/, brl/<br/>converges across a repo's worktrees"]
+    PROJ --> WT["worktrees/&lt;wt-key&gt;/"]
+    WT --> ISO["Tier-2 ISOLATE = &lt;ISOLATE_DIR&gt;<br/>run-&lt;id&gt;.json, worklog/, wave/,<br/>workflow output_dir/<br/>distinct per worktree"]
+
+    REPOKEY["repo-key = sha256(realpath(git-common-dir))[:12]"] -.-> PROJ
+    WTKEY["wt-key = sha256(realpath(show-toplevel))[:12]"] -.-> WT
+```
 
 ### Skills (53)
 
@@ -821,7 +839,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-test-writing` | Engineer | The SSOT test-authoring capability - writes executable `test_*.py` (TransactionCase/Form/HttpCase, tours), JS Hoot/QUnit, and lightweight performance/load tests that protect business behavior, not current code; also a direct user-triggerable front door. Every component that needs a test authored launches the `odoo-test-writer` AGENT, which invokes THIS skill inline for context isolation (the RED-first failing test before the code in the `odoo-coding` loop, durable acceptance tours, and coverage backfill when review flags an unprotected behavior) |
 | `odoo-security-audit` | Engineer | Audit code for SQLi / XSS / access-control / CSRF / unsafe deserialization, graded findings |
 | `odoo-data-migration` | Engineer | Write pre/post migration scripts + a verification plan (does not execute against an instance) |
-| `odoo-i18n` | Engineer / Coder | Dedicated i18n cluster - export .pot templates, non-destructively merge into maintained .po translations, dispatch leaf translation for one or more target languages in a single run (default vi_VN; reads machine-global `~/.odoo-ai/i18n.json`), and audit cross-module term consistency; the i18n step forward-port and new-module workflows dispatch into |
+| `odoo-i18n` | Engineer / Coder | Dedicated i18n cluster - export .pot templates, non-destructively merge into maintained .po translations, dispatch leaf translation for one or more target languages in a single run (default vi_VN; reads machine-global `$ODOO_AI_HOME/i18n.json`), and audit cross-module term consistency; the i18n step forward-port and new-module workflows dispatch into |
 | `odoo-perf-audit` | Engineer | Audit for N+1 queries, missing prefetch, unindexed domains, compute thrash, with fixes |
 | `odoo-git-rebase` | Engineer | Rebase a feature branch onto another branch of the SAME Odoo series, absorbing intent (not code text) via whole-range `git rebase --onto`. |
 | `odoo-modules-upgrade` | Engineer | Upgrade a custom module cluster from a lower Odoo major to a higher one (code-level): drop what core now provides, adapt the rest, 1 PR per cluster. |
@@ -847,9 +865,9 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-feature-highlights` | Marketer | Marketing-friendly feature highlights for a version |
 | `odoo-content-draft` | Marketer | Draft blog posts, slide decks, or social content around Odoo features |
 | `odoo-campaign-plan` | Marketer | Multi-channel campaign plan from a positioning brief |
-| `odoo-onboarding` | Onboarding / Concierge | Bootstrap project context into `.odoo-ai/context.md` for new engagements |
+| `odoo-onboarding` | Onboarding / Concierge | Bootstrap project context into `<SHARE_DIR>/context.md` for new engagements |
 | `odoo-intake` | Onboarding / Concierge | Universal front door - brainstorms when vague, fast-paths a single clear step, resolves the Odoo version (escalates to `odoo-onboarding` when unknown and OSM is reachable, asks for version + repo path otherwise), offers an opt-in `deep-survey` on large jobs, and fast-paths review / PR-review and debug intents straight to the specialist (skipping Plan Mode); for multi-step work plans once then hands a `run-<id>.json` to `run-harness` to drive to done; always gates with a Proposed Plan before execution |
-| `odoo-deep-survey` | Onboarding / Concierge (opt-in) | Multi-phase opt-in deep survey - invoked by `odoo-intake` after the user approves `deep-survey`; fans out a broad haiku sweep -> narrow sonnet dives -> optional opus, then writes a synthesis under `.odoo-ai/survey/` that re-informs the plan (read-only; spawner-agent, requires orchestrating context) |
+| `odoo-deep-survey` | Onboarding / Concierge (opt-in) | Multi-phase opt-in deep survey - invoked by `odoo-intake` after the user approves `deep-survey`; fans out a broad haiku sweep -> narrow sonnet dives -> optional opus, then writes a synthesis under `<SHARE_DIR>/survey/` that re-informs the plan (read-only; spawner-agent, requires orchestrating context) |
 | `odoo-ui-review` | Coder / Visual | Six-lens review of a rendered Odoo screen in a live browser (aesthetics, function, stability, accessibility, performance, design-system + theme fidelity); slim, paired with agent bundle |
 | `odoo-debug` | Coder | Front-door orchestrator for all Odoo debugging - scientific method; dispatches specialist debug agents (backend/UI). On a CRITICAL/HIGH root cause it drives the fix autonomously - hands the proven cause to `odoo-coding`, which loops back through `odoo-code-review` to verify (bounded to 3 iterations, then escalates) |
 | `odoo-visual-regression` | Coder / Visual | Screenshot baseline + diff between two Odoo states (before/after upgrade, module install, theme change) with blast-radius assessment |

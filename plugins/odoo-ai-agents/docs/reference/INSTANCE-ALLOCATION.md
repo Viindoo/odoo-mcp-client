@@ -3,8 +3,10 @@
 Status: IMPLEMENTED
 Audience: plugin maintainers + global contributors. This is a design contract, not code.
 Related: `snippets/instance-resolution.md`, `snippets/venv-resolution.md`,
-`docs/reference/INSTANCE-LIFECYCLE.md`, `skills/_shared/concurrency-guard.md`,
-`scripts/lib/instances_io.py`, `scripts/lib/odoo_db.py`, `scripts/setup-steps/50-instance-spinup.sh`.
+`snippets/instance-handle-contract.md`, `snippets/state-root-resolution.md`,
+`snippets/odoo-bin-resource-limits.md`, `docs/reference/INSTANCE-LIFECYCLE.md`,
+`skills/_shared/concurrency-guard.md`, `scripts/lib/instances_io.py`, `scripts/lib/odoo_db.py`,
+`scripts/setup-steps/40-instance-profile.sh`, `scripts/setup-steps/50-instance-spinup.sh`.
 
 > **Programmatic front door:** the `odoo-instance` skill and the `odoo-instance-ops` agent are the
 > high-level interface for instance lifecycle operations (build, drop, init, update, test). The
@@ -17,7 +19,7 @@ Multiple subagents in one Claude Code session - and multiple sessions on one hos
 operations concurrently. Some agents only READ a running instance (share is fine); some need an
 ISOLATED database (tests, `-i`/`-u`, a throwaway dev server). Today there is no coordination.
 
-What exists is **declaration + resolution only**: `~/.odoo-ai/instances.toml` is a machine-global
+What exists is **declaration + resolution only**: `$ODOO_AI_HOME/instances.toml` is a machine-global
 catalog (`series`, one `http_port`, one `db_name`, `db_host`/`db_user`, `addons_path`, venv
 `python`) and `instances_io.py` picks the first instance matching a series. There is **no
 in-use/owner/lease field, no per-run database or port, no PID/runtime registry, and no
@@ -60,12 +62,21 @@ external `mcp__odoo__*` instances; replacing `instances.toml` (it stays the cata
 
 | Layer | Where | Nature | Owner |
 |-------|-------|--------|-------|
-| **Catalog** | `~/.odoo-ai/instances.toml` (existing) | static capability: where Postgres is, which venv, base port, addons | the user (via `/odoo-setup`) |
+| **Catalog** | `$ODOO_AI_HOME/instances.toml` (existing) | static capability: where Postgres is, which venv, base port, addons | the user (via `/odoo-setup`) |
 | **Runtime Lease Registry** | `$ODOO_AI_HOME/runtime/leases.json` (NEW) | dynamic: who currently holds which db/port | the allocator |
 
 The catalog answers "what CAN run here"; the registry answers "what IS running/held right now".
 Keeping them separate means the catalog stays a clean, hand-editable, commit-free declaration while
 all volatile state lives in one machine-global file the allocator owns.
+
+**Both layers are Tier-1 - flat under `$ODOO_AI_HOME`, NEVER namespaced per project/worktree.** This
+is a hard invariant of the namespaced state-root convention
+(`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Tier-1 allowlist): namespacing the lease
+registry under a project- or worktree-scoped dir would let two worktrees of the same repo (or two
+different repos) allocate the same port/DB independently, exactly the collision this whole design
+exists to prevent. Every other `.odoo-ai/`-rooted artifact in this plugin (design docs, worklogs,
+survey findings, ...) is project- or worktree-scoped; `instances.toml` and `runtime/` are the
+deliberate exceptions.
 
 ### 4.1 Catalog additions (optional, backward-compatible)
 
@@ -131,8 +142,15 @@ dies (or on TTL), but - because `drop_on_release` is false - it NEVER drops the 
 | `exclusive` | a persistent dev server, or `-u`/migration against a REAL database that must not be touched concurrently | the declared (or a named) `db_name` | N pooled ports (`--ports`) | yes, exclusive on (db_name) |
 | `shared` | the visual stack's live render server (UI review / debug / visual-regression / demo against an up server), shared by many readers across sessions | the declared `db_name` | the ACTUAL bound port, recorded verbatim via `--port` (not pooled) | yes, NON-exclusive + `drop_on_release=false` (gc reclaims a dead-server row but NEVER drops the declared DB) |
 
-Key nuance: a CI-style test (`odoo-bin -d <db> -i <mod> --test-enable --stop-after-init`) binds **no
-HTTP port** - so `ephemeral` tests need only a unique DB, not a port (pass `--ports 0`). Port leasing
+Key nuance: a CI-style test - memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`
+(HARD RULE, never omit the `ulimit -Sv` guard):
+
+```bash
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+odoo-bin -d <db> -i <mod> --test-enable --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
+```
+
+binds **no HTTP port** - so `ephemeral` tests need only a unique DB, not a port (pass `--ports 0`). Port leasing
 applies only when a server actually listens. The CONSUMER decides HOW MANY ports it needs and which
 CLI flag carries each (an HTTP port, plus a longpoll/gevent port on series that need one) by querying
 `cli_help` for the `<series>` at runtime - the allocator just hands out N version-agnostic free port numbers.
@@ -160,6 +178,54 @@ with no separate `http_port_base` would let the pool hand out the declared/share
 `exclusive-running` lease. Covered by `test_allocator.py::test_pooled_port_never_equals_the_declared_http_port`
 and `::test_concurrent_pooled_acquires_never_collide_with_declared_port`.
 
+**P5b - catalog-wide reservation (closes the boundary off-by-one).** The single-instance exclusion
+above is not sufficient across a MULTI-instance catalog: declared ports historically stepped by 10
+(`40-instance-profile.sh`) while a pool spans `DEFAULT_POOL_SIZE=10` ports starting at
+`declared_port + 1`, so instance 0's pool ends exactly AT instance 1's declared port (e.g. 8069's
+pool reaching 8079, a second catalog entry's declared port). `cmd_acquire` now reserves EVERY
+catalog-declared `http_port`, not only the acquiring instance's own: it reads the full catalog via
+the same `load_instances()` call already made (before the `with _locked()` critical section, so this
+adds no new lock and no deadlock risk) and passes the whole set as the `reserved` exclusion to
+`_pick_ports`. This is the fix that closes the boundary off-by-one on an EXISTING catalog; widening
+new instances' port step to 11 (`40-instance-profile.sh`) is a COSMETIC companion only - it does not
+touch already-declared ports and does not by itself prevent the collision. Covered by
+`test_allocator.py::test_maxed_out_pool_never_hands_out_a_sibling_instances_declared_port`.
+
+**P6 - bootstrap-race safety (two same-series projects racing to spin up first).** A `db_name`
+default derived from `series` alone (`odoo_17_0` for every v17.0 project) plus a declared port that
+also defaults identically at index 0 meant two never-migrated same-series projects could resolve to
+the SAME db_name and port before either had a chance to register distinctly - a bare `db_name`
+identity check could then pass against a foreign server. Three-part fix, all in `40-instance-profile.sh`
+/ `50-instance-spinup.sh` (outside `allocator.py` itself, but part of this design's concurrency
+guarantee):
+1. **PRIMARY - eager catalog migration.** `40-instance-profile.sh` migrates a project's local
+   `instances.toml` into the machine-global catalog EAGERLY, at the top of every subcommand dispatch
+   - not lazily, only inside `apply` as before - so two projects that both migrate early land in ONE
+   global catalog whose port stepper (P5b above) then sees every already-declared instance and
+   assigns distinct ports before either spins up. Covered by
+   `test_setup_instances.py::test_migration_runs_eagerly_at_session_start_not_gated_behind_apply` and
+   `::test_eager_migration_two_same_series_projects_get_distinct_ports_and_db_names`.
+2. **BACKSTOP - instance-identity attach guard.** `50-instance-spinup.sh` records an identity token
+   (a hash of `addons_path` - unique per project checkout, unlike `db_name`/series alone) on the port
+   at spin-up, and refuses to treat "the port answers HTTP 200" as "my instance is up" when a LATER
+   invocation's expected token mismatches a recorded one - a fail-closed collision detector for the
+   narrow race window the eager migration shrinks but cannot fully eliminate. A port with no recorded
+   marker yet (nothing has spun up through this guard) is a pass-through, same as before the guard
+   existed. Covered by `test_setup_instances.py::test_attach_guard_rejects_a_live_port_with_mismatched_recorded_identity`,
+   `::test_attach_guard_allows_a_live_port_with_no_recorded_identity_yet`, and
+   `::test_attach_guard_allows_a_live_port_with_matching_recorded_identity`.
+3. **db_name project-discriminator.** The default `db_name` is now series- AND project-scoped
+   (`odoo_<series>_<repo-key8>`, the first 8 hex chars of the same `sha256(realpath(git-common-dir))`
+   key that `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` uses for the Tier-2 SHARE root -
+   not a fresh hash), so two same-series projects sharing the now-global catalog never default to the
+   SAME db name even outside the race window.
+
+**Gevent/longpolling port stays OPT-IN.** The default THREADED mode (`workers=0`, what `odoo-instance`
+provisions unless told otherwise) multiplexes the longpolling/realtime bus over the single
+`http_port` - no second port is needed, and none is allocated by default. A second port is needed
+only under prefork (`--workers>0`), which MUST also request `--ports 2` at acquire time; full
+contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Prefork needs a second port.
+
 ## 6. Allocator API (`scripts/lib/allocator.py`)
 
 A thin Python CLI/lib next to `instances_io.py`. Emits shell-eval-able `ALLOC_*` lines like the
@@ -183,8 +249,16 @@ the duration of the Odoo run.
 ### 6.1 DB lifecycle ownership (B2 model: caller-side create, through-Odoo drop)
 
 `ephemeral` acquire reserves a unique DB name + ports but does NOT create the DB. The caller's
-`odoo-bin -d <db> -i <modules> --stop-after-init` performs Odoo create-on-init, which builds the
-DB. On `release`/`gc` the allocator drops it through Odoo via `scripts/lib/odoo_db.py` (which
+odoo-bin run performs Odoo create-on-init, which builds the DB - memory-cap policy (HARD RULE,
+never omit the `ulimit -Sv` guard): `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`:
+
+```bash
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+odoo-bin -d <db> -i <modules> --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
+```
+
+On `release`/`gc` the allocator drops it through Odoo via
+`scripts/lib/odoo_db.py` (which
 invokes the Odoo `db` management API under the correct venv). Raw `dropdb` is the logged fallback
 when the venv is unavailable (exit 10 from `odoo_db.py`). The `python`/`db_host`/`db_user`/`db_port`
 fields stored in the lease allow drop-time to reconstruct the right invocation - against the right

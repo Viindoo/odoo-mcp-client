@@ -55,7 +55,7 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 │  Declarative *.workflow.yaml + workflow-chaining skill            │
 │  · maps one of 6 team-patterns to a gated phase sequence        │
 │  · phase gates: approve / refine / cancel between phases        │
-│  · writes .odoo-ai/<output_dir>/ artifacts                      │
+│  · writes <ISOLATE_DIR>/<output_dir>/ artifacts                 │
 │  Monolithic skills (odoo-brl) also live here                    │
 └───────────────────────────────────┬────────────────────────────┘
                                     │ NL-dispatch or context: fork (≤3)
@@ -91,40 +91,58 @@ one layer; cross-layer calls travel top-down only and never skip a layer.
 
 ## 2. `.odoo-ai/` artifact convention
 
-`.odoo-ai/` is gitignored by the onboarding skill (`/odoo-onboarding`). All runtime
-artifacts are written here; nothing under `.odoo-ai/` is committed to the repo.
+Every `.odoo-ai/`-rooted sub-path below is a **relative form** of a Tier-1/Tier-2 location in
+the namespaced state-root convention (Problem 3) - never a literal project-relative `./.odoo-ai/`
+on disk. Full Tier-1 (flat, machine-global)/Tier-2-SHARE (per-repo, worktree-converged)/Tier-2-
+ISOLATE (per-worktree) classification tables + the mandatory resolve-capture-substitute protocol
+every consumer follows to turn one of these relative forms into a real absolute path:
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (SSOT - this section does not restate
+those tables, only cross-references each row's Tier). A Tier-2 path (SHARE or ISOLATE) resolves
+under `$ODOO_AI_HOME` (machine-global, outside any git working tree), so nothing listed here is
+committed to the repo; the historical "gitignored under `./.odoo-ai/`" framing predates the
+namespaced convention and no longer describes where these artifacts physically live.
 
 ### File-ownership table
 
-| Component | Sub-path | Written by |
-|-----------|----------|------------|
-| Context snapshot | `.odoo-ai/context.md` | `odoo-onboarding` skill |
-| Brainstorm state | `.odoo-ai/brainstorm/state.json` | `odoo-intake` skill |
-| Brainstorm design doc | `.odoo-ai/brainstorm/<slug>-<date>.md` | `odoo-intake` (approval turn) |
-| BRL job artifacts | `.odoo-ai/brl/<job-id>/` | `odoo-brl` skill |
-| Workflow phase state | `<output_dir>/<slug>-state.json` (output_dir is the full `.odoo-ai/...` path) | `workflow-chaining` |
-| QA artifacts | `.odoo-ai/qa/` | `qa-suite` workflow (static test-plan / checklist / triage); `odoo-acceptance` skill (scope manifest + immutable oracle + live acceptance report) |
-| Wave execution log | `.odoo-ai/wave/<slug>/` | `run-harness` (between-wave integration, orchestrating context) |
-| Execution plan (3-block) | `.odoo-ai/plans/<slug>-<date>.md` | `odoo-planner` (via `odoo-planning`) - the wave-batched module-DAG + integration cadence + lifecycle plan |
-| Design doc (single mode) | `.odoo-ai/designs/<slug>-<date>.md` | `odoo-solution-architect` (one module or simple scope) |
-| Design artifacts (master-child) | `.odoo-ai/designs/<master-slug>/` - `index.yaml` (routing SSOT) + `_master-<date>.md` + `<module>-<date>.md` per module; full schema: `snippets/master-child-design-contract.md` | `odoo-solution-architect` (multi-module or large scope) |
+| Component | Sub-path | Tier | Written by |
+|-----------|----------|------|------------|
+| Context snapshot | `.odoo-ai/context.md` | SHARE | `odoo-onboarding` skill |
+| Brainstorm state | `.odoo-ai/brainstorm/state.json` | ISOLATE | `odoo-intake` skill |
+| Brainstorm design doc | `.odoo-ai/brainstorm/<slug>-<date>.md` | ISOLATE (same run-scoped `brainstorm/` family as `state.json`; not yet an explicit row in `state-root-resolution.md` - flagged there per "The rule" default) | `odoo-intake` (approval turn) |
+| BRL job artifacts | `.odoo-ai/brl/<job-id>/` | SHARE | `odoo-brl` skill |
+| Workflow phase state | `<output_dir>/<slug>-state.json` (output_dir is the full `.odoo-ai/...` path) | ISOLATE - resolved against the ISOLATE dir at RUNTIME (see note below) | `workflow-chaining` |
+| QA artifacts | `.odoo-ai/qa/` | ISOLATE (workflow `output_dir`) | `qa-suite` workflow (static test-plan / checklist / triage); `odoo-acceptance` skill (scope manifest + immutable oracle + live acceptance report) |
+| Wave execution log | `.odoo-ai/wave/<slug>/` | ISOLATE | `run-harness` (between-wave integration, orchestrating context) |
+| Execution plan (3-block) | `.odoo-ai/plans/<slug>-<date>.md` | SHARE | `odoo-planner` (via `odoo-planning`) - the wave-batched module-DAG + integration cadence + lifecycle plan |
+| Design doc (single mode) | `.odoo-ai/designs/<slug>-<date>.md` | SHARE | `odoo-solution-architect` (one module or simple scope) |
+| Design artifacts (master-child) | `.odoo-ai/designs/<master-slug>/` - `index.yaml` (routing SSOT) + `_master-<date>.md` + `<module>-<date>.md` per module; full schema: `snippets/master-child-design-contract.md` | SHARE | `odoo-solution-architect` (multi-module or large scope) |
 
 Every new workflow declares its `output_dir` in its `*.workflow.yaml` file
-(see §5). `output_dir` is the full path (e.g. `.odoo-ai/qa`) and is the single
+(see §5). `output_dir` is the full literal path (e.g. `.odoo-ai/qa`) and is the single
 registration point for that workflow's artifacts.
+
+**`output_dir` resolution at runtime.** The YAML `output_dir:` literal stays a relative
+`.odoo-ai/<name>` string by design (per `state-root-resolution.md` § Codemod guards) - it is
+**never** rewritten. At execution time, `workflow-chaining` resolves the ISOLATE dir once (via
+`scripts/lib/resolve_project_dir.sh isolate`, resolve-capture-substitute) and treats every
+`output_dir`-rooted write as relative to that resolved absolute ISOLATE path. All 13
+`output_dir:` values across `workflows/*.workflow.yaml` are Tier-2 ISOLATE. This is intentionally
+unchanged by Problem-3 namespacing: the YAML literals and the `generator/check_workflows.py`
+`output_dir` must-start-with-`.odoo-ai/` assertion (~line 241) are untouched - only the *runtime*
+resolution of that literal moved from a bare project-relative path to the namespaced ISOLATE dir.
 
 ---
 
 ## 3. BRL job schema
 
 The BRL (Business Requirement List) engine writes all artifacts under
-`.odoo-ai/brl/<job-id>/`. The job ID format is
+`<SHARE_DIR>/brl/<job-id>/`. The job ID format is
 `<CUSTOMER_LABEL>-<YYYYMMDD>-<4hex>` (e.g. `Customer-A-20260531-9f3a`).
 
 ### 3.1 Directory layout
 
 ```
-.odoo-ai/brl/<job-id>/
+<SHARE_DIR>/brl/<job-id>/
   manifest.json          # immutable job metadata
   input.jsonl            # 1 line per requirement: {req_id, req_text, req_category?, priority?}
   chunkplan.json         # {chunk_size, chunks: [{idx, req_ids:[...]}]}
@@ -270,7 +288,7 @@ evidence_module,evidence_field,risk_flag,status,notes
 ```
 
 Every number traces back to `cost-config.json` (shipped with the skill, override-able
-at `.odoo-ai/`) via `effort_tier → effort_lookup → rate_card → multiplier`. No cost
+at `<SHARE_DIR>/cost-config.json`) via `effort_tier → effort_lookup → rate_card → multiplier`. No cost
 figures are hard-coded in the skill body.
 
 ### 3.7 dag.json - dependency graph
@@ -886,14 +904,14 @@ level and add NO further depth.
 
 run-harness's between-wave integration is consume-only: the MODULE count and wave-batching are decided
 UPSTREAM by `odoo-planning` (the canonical producer) and consumed here - run-harness makes no scaling
-decision and writes only a run-local execution log to `.odoo-ai/wave/<slug>/`. Concurrency (the coder
+decision and writes only a run-local execution log to `<ISOLATE_DIR>/wave/<slug>/`. Concurrency (the coder
 fan-out + the Mode-B OOM budget) is owned INSIDE each `odoo-coding` invocation
 (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`, Mode B); run-harness invokes odoo-coding
 per MODULE sequentially from its single orchestrating context and never sets a coder count or model.
 
 ### 7.6 Artifact location
 
-The wave integration log and state files land under `.odoo-ai/wave/<slug>/` (gitignored by
+The wave integration log and state files land under `<ISOLATE_DIR>/wave/<slug>/` (gitignored by
 `odoo-onboarding`). The `<slug>` is a short kebab-case descriptor chosen when the coding waves begin.
 The directory is cleaned up after a successful human-confirm merge.
 
@@ -945,7 +963,7 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
                  (block applies ONLY to subagents as a quality gate, never to main)
    • Stop        drive-continuation → main ends turn while RUN==NEEDS_NEXT ⇒ systemMessage
                  advisory (continue=true, never block) - main keeps the right to stop
-  blackboard .odoo-ai/run-<id>.json = SINGLE SOURCE (only run-harness writes); state on disk ⇒
+  blackboard <ISOLATE_DIR>/run-<id>.json = SINGLE SOURCE (only run-harness writes); state on disk ⇒
   main context does not grow with run length.
 ```
 
@@ -986,7 +1004,7 @@ blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 
 ### 8.3 run-`<id>`.json blackboard
 
-Single source of truth for one run, under `.odoo-ai/` (gitignored). **Only `run-harness`
+Single source of truth for one run, under `<ISOLATE_DIR>/run-<id>.json` (gitignored). **Only `run-harness`
 writes it** (hooks never write - avoids a write race). Resume mirrors the BRL checkpoint
 contract (§3.3): re-entry reads the file, skips `DONE` nodes, resumes at the first `READY`
 node in topo-order.
@@ -1043,7 +1061,7 @@ every participant (architect, test-author, coder, reviewer, debugger, run-harnes
 before starting and writes when finishing, SSOT
 `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`. It answers "*why* did the prior phase do
 this" so a later phase builds on intent instead of re-deriving it. It is **one file per writer**
-under `.odoo-ai/worklog/<run-or-slug>/<NNN>-<agent>.md` (per-writer files make parallel appends
+under `<ISOLATE_DIR>/worklog/<run-or-slug>/<NNN>-<agent>.md` (per-writer files make parallel appends
 race-free; the single blackboard only the driver touches). When a run is active the driver records
 the worklog dir so all nodes resolve the same path; standalone, a skill derives it from its own
 slug. (3) The **native task board** (`TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet`) carries two
@@ -1092,7 +1110,8 @@ which also enforces the derivation below). They replace the hardcoded chat-only 
   That field's **value was set per-skill from the skill's declared Output semantics - NOT
   derived from `stack`** (a backend/frontend-stack skill can be read-only: `odoo-version-diff`,
   `odoo-deprecation-audit`, `odoo-code-review`, `odoo-ui-review` are all `chat-only`).
-  - `writes-files` → persists a file artifact (`.odoo-ai/…` or source) → **Plan Mode required**.
+  - `writes-files` → persists a file artifact (under the namespaced state root - SHARE/ISOLATE
+    per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` - or source) → **Plan Mode required**.
   - `chat-only` → emits to chat only → skip Plan Mode.
 - **`default_gate_tier`** is a per-SKILL registry value derived deterministically from
   `(instance_touching, output_mode, outward)`, checked in this order (`_derive_gate_tier`):
@@ -1112,7 +1131,7 @@ which also enforces the derivation below). They replace the hardcoded chat-only 
   Auto-pass under `--auto`; gated under `--step`. A DYNAMIC (unplanned) source-writing wave is NOT
   a static plan node - it stays L2 via run-harness's dynamic-source-write rule (§8.1 driver loop).
 - **Per-node override** lives in `run-<id>.json` (a node may raise its tier, e.g. a coder told
-  to write outside `.odoo-ai/`), never in the registry.
+  to write outside the namespaced state root), never in the registry.
 
 ### 8.5 Command / Skill / Agent - the three axes
 
@@ -1140,7 +1159,7 @@ instantiated at run-time by the recipe.
 
 ### 8.6 Main Agent Operating Contract
 
-When a run is active (`.odoo-ai/run-<id>.json` exists with `status != DONE`), the main agent
+When a run is active (`<ISOLATE_DIR>/run-<id>.json` exists with `status != DONE`), the main agent
 keeps its context clean by acting as orchestrator + decision-maker only - three principles, in
 priority order:
 

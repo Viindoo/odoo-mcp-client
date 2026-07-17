@@ -19,7 +19,7 @@
 | `odoo-data-migration` | leaf | fresh | backend | - | - |
 | `odoo-deal-followup` | leaf | fresh | none | - | - |
 | `odoo-debug` | spawner-agent | fresh | fullstack | - | odoo-backend-debugger, odoo-ui-debugger |
-| `odoo-deep-survey` | spawner-agent | fork | none | - | (anonymous read-only fan-out subagents, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under .odoo-ai/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B) |
+| `odoo-deep-survey` | spawner-agent | fork | none | - | (anonymous read-only fan-out subagents, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under <SHARE_DIR>/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B) |
 | `odoo-demo-recording` | leaf | fresh | none | - | - |
 | `odoo-deploy-checklist` | leaf | fresh | none | yes | - |
 | `odoo-deprecation-audit` | leaf | fresh | backend | - | - |
