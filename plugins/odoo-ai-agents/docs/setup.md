@@ -24,7 +24,7 @@ These three steps are easy to confuse. Only the first is required:
 |------|-----------------|-------|------|
 | 1. Connect the MCP server | `/odoo-semantic-mcp:connect` | Once per machine | **Required** - registers server URL + API key so `mcp__odoo-semantic__*` tools load |
 | 2. Wire the visual stack | `/odoo-ai-agents:odoo-setup` | Once per machine | **Optional** - browser MCP + Playwright + local Odoo instance, only for the `Visual` skills |
-| 3. Onboard a project | `odoo-onboarding` skill | Once per repo | **Optional** - writes `.odoo-ai/context.md` (repo version/modules/conventions); runs even without the server |
+| 3. Onboard a project | `odoo-onboarding` skill | Once per repo | **Optional** - writes `<SHARE_DIR>/context.md` (repo version/modules/conventions; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); runs even without the server |
 
 Step 1 is covered below. Step 2 is in [Visual stack / browser MCP setup](#visual-stack-browser-mcp-setup). Step 3 runs automatically the first time you invoke an `odoo-*` skill in a new repo.
 
@@ -100,10 +100,10 @@ After install, 53 skills activate automatically:
 | `odoo-override-finding` | Engineer | Find the safe method to override, with the existing override chain and a ready-to-apply `super()` template |
 | `odoo-deprecation-audit` | Engineer | Scan a codebase for deprecated Odoo APIs before an upgrade, grouped by file with replacements and urgency |
 | `odoo-deploy-checklist` | Engineer | Pre-deployment safety checklist across 8 domains (backup, migration, smoke tests, rollback, ...) |
-| `odoo-forward-port` | Coder / Engineer | Continuous/one-shot Odoo forward-port (merge-keep-SHA, per-commit intent extract, adaptive test forward); output under `.odoo-ai/forward-port/`; invoke via `/odoo-forward-port` or plain-language intent |
+| `odoo-forward-port` | Coder / Engineer | Continuous/one-shot Odoo forward-port (merge-keep-SHA, per-commit intent extract, adaptive test forward); output under `<ISOLATE_DIR>/forward-port/`; invoke via `/odoo-forward-port` or plain-language intent |
 | `odoo-version-diff` | Engineer + Marketer | Comprehensive API + feature diff between two Odoo versions (developer track + marketer track) |
 | `odoo-coding` | Coder | The single coding front door - write production-ready backend (Python/XML) AND frontend (JS/OWL/QWeb/SCSS) code, from a single computed field to a multi-module full-stack feature; scopes the change and sequences the backend + frontend coder agents |
-| `odoo-i18n` | Coder / Engineer | Export .pot templates, non-destructively merge .po translations, dispatch hand-translation for one or more target languages in a single run (default vi_VN; reads `~/.odoo-ai/i18n.json`), and audit cross-module term consistency - the dedicated i18n cluster and the translation step dispatched by forward-port and other workflows |
+| `odoo-i18n` | Coder / Engineer | Export .pot templates, non-destructively merge .po translations, dispatch hand-translation for one or more target languages in a single run (default vi_VN; reads `$ODOO_AI_HOME/i18n.json`), and audit cross-module term consistency - the dedicated i18n cluster and the translation step dispatched by forward-port and other workflows |
 | `odoo-code-review` | Code-Reviewer | Review Odoo Python/JS/XML/OWL code for bugs, conventions, security, and performance with graded findings |
 | `odoo-feature-check` | Pre-Sales Consultant | Answer "does standard Odoo already do this?" with module name, edition, and a client-ready verdict |
 | `odoo-gap-analysis` | Pre-Sales Consultant | Compare client requirements vs Odoo standard, ending in an effort matrix with day estimates |
@@ -264,8 +264,8 @@ drop-in. What it does:
    DISK (npm cache warm - install only, never launched: disk cost, zero RAM cost, and strictly
    separate from step 12's register/run); installs Playwright Chromium; checks `ffmpeg`.
 3. **Permissions** - auto-allows the browser MCP tools in Claude permissions.
-4. **Instance profile** - discovers local Odoo repos and writes the machine-global `~/.odoo-ai/instances.toml` (any agent on this host resolves instances regardless of working directory).
-   Also seeds `~/.odoo-ai/i18n.json` (`{"default_languages":["vi_VN"]}`) - the machine-global
+4. **Instance profile** - discovers local Odoo repos and writes the machine-global `$ODOO_AI_HOME/instances.toml` (any agent on this host resolves instances regardless of working directory).
+   Also seeds `$ODOO_AI_HOME/i18n.json` (`{"default_languages":["vi_VN"]}`) - the machine-global
    language registry for the odoo-i18n cluster; edit to add or remove target languages.
 5. **Instance spin-up** (optional) - launches a declared Odoo instance and waits for HTTP 200.
 
@@ -559,7 +559,7 @@ The MCP server supports **sticky session context**: run `set_active_version` onc
 1. list_available_versions()    # see which Odoo versions the server has data for
 2. set_active_version("<version>")   # pin the version for this session (24h TTL)
 3. list_available_profiles()    # see which tenant profiles exist (optional)
-4. set_active_profile("<your profile from step 3>")   # pin tenant profile (optional; do not hardcode - read from .odoo-ai/context.md)
+4. set_active_profile("<your profile from step 3>")   # pin tenant profile (optional; do not hardcode - read from <SHARE_DIR>/context.md)
 5. <any tool call with odoo_version omitted>   # falls back to the pinned value
 ```
 

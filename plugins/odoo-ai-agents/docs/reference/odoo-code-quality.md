@@ -48,7 +48,10 @@ counts as a green JS lint gate.
 ## Section 4 - Brand fidelity (sibling, optional, brand-agnostic)
 
 Brand-token fidelity is a separate optional layer and is **not** vendored: the plugin ships a
-mechanism, the consumer declares the brand. Set `brand_tokens_source` in `.odoo-ai/context.md` to a
+mechanism, the consumer declares the brand. Set `brand_tokens_source` in `<SHARE_DIR>/context.md`
+(resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
+substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+Read/Write/Edit) to a
 JSON map (`{"--primary": "#1E88E5", …}`). Two halves share `scripts/lib/color_delta.py` (stdlib
 CIEDE2000): the **static** half (`verify-frontend.sh` Tier 4) WARNs on hardcoded SCSS hex within ΔE
 of a brand token; the **runtime** half (`odoo-ui-review` Step 4b) ΔE-diffs `getComputedStyle(:root)`

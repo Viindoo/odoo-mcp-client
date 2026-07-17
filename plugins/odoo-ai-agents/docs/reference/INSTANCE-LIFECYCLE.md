@@ -134,6 +134,27 @@
     `scripts/setup-steps/50-instance-spinup.sh` (listening readiness); the runtime contract for an
     executing agent is `agents/odoo-instance-ops.md`'s "Active-wait on long builds" section, relayed
     at dispatch level by `skills/odoo-instance/SKILL.md`.
+15. **Memory/time resource limits apply on every launch - a version-general cap, not a version-branch.**
+    Every install/update/test build (`--stop-after-init`, driven by `55-instance-ops.sh`) wraps the
+    odoo-bin invocation in a shell `ulimit -Sv` PLUS a `--limit-memory-hard` flag, both derived from
+    ONE resolved value: `ulimit -Sv` is the ONLY protection on v8-v11 (Odoo applies no memory cap of
+    its own on this path before v12.0 - an uncapped install there risks a kernel OOM-kill instead of
+    a clean error); `--limit-memory-hard` is REQUIRED on v12+ because Odoo's own `setrlimit` would
+    otherwise clamp the process back down to its 2.5 GiB stock default even when a shell `ulimit`
+    already raised it. Both mechanisms fire unconditionally on every build - each is a no-op on the
+    version range the other one covers. The resolved default is `floor(MemTotal * 0.5)` floored at
+    4 GiB, overridable via `ODOO_AI_LIMIT_MEMORY_HARD` (set to `""`/`0` for the deliberate uncapped
+    escape hatch). A long-running listener (`persist: exclusive-running` / `shared-running`, the
+    generated conf in `50-instance-spinup.sh`) additionally carries `limit_memory_soft` and
+    `limit_time_real` conf keys - both are structurally unreachable on the `--stop-after-init` build
+    path (they live in `ThreadedServer.process_limit()`, past the `if stop: return rc` short-circuit
+    that `--stop-after-init` always takes), so the build path correctly omits them rather than
+    passing a flag that looks like protection but is silently never evaluated. Full policy - the
+    v12.0 enforcement boundary, the exact resolution formula, the uncapped escape hatch, and the
+    `RLIMIT_AS`-is-virtual-not-physical caveat - lives in ONE place, not restated here:
+    `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md` (SSOT). Owned by
+    `scripts/setup-steps/55-instance-ops.sh` (build path) and `scripts/setup-steps/50-instance-spinup.sh`
+    (listener conf); the resolution logic itself lives only in `scripts/lib/resource_limits.sh`.
 
 ## Teardown - the lifecycle does not end at "server answers"
 

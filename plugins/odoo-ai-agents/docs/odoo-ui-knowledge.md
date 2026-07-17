@@ -3,7 +3,10 @@
 Portable, version-aware reference shared by the visual skills (`odoo-ui-review`,
 `odoo-visual-regression`, `odoo-demo-recording`) and the `odoo-ui-reviewer` / `odoo-ui-debugger`
 agents. Contains no instance-specific or confidential values - concrete URLs, logins, and
-baseline directories live in each project's `.odoo-ai/context.md`.
+baseline directories live in each project's `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>`/
+`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute
+the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+Read/Write/Edit).
 
 ## URLs and entry points
 
@@ -170,17 +173,17 @@ For repeatable, deterministic captures and for exercising role-specific UI:
    be reviewed without re-authenticating mid-session.
 
 Credential values themselves come from the agreed credential source referenced in
-`.odoo-ai/context.md` (`instance_login`) - never hard-code them here.
+`<SHARE_DIR>/context.md` (`instance_login`) - never hard-code them here.
 
 ## Context file keys consumed by the visual skills
 
-All four skills read `.odoo-ai/context.md` (Markdown bullets `- **key**: value`, not YAML):
+All four skills read `<SHARE_DIR>/context.md` (Markdown bullets `- **key**: value`, not YAML):
 
 - `odoo_version` - selects `/odoo` vs `/web` and the framework era above.
 - `instance_base_url` - root of the running instance to navigate.
 - `instance_login` - login identifier + agreed credential source.
 - `screenshot_baseline_dir` - where baselines/evidence screenshots are written; videos default to
-  `.odoo-ai/visual/videos/`.
+  `<ISOLATE_DIR>/visual/videos/`.
 - `brand_tokens_source` - (optional) path to a consumer-declared JSON map `token -> expected color`
   (e.g. `{"--primary": "#1E88E5"}`). When present, `odoo-ui-review` Step 4b ΔE-diffs the resolved
   `getComputedStyle(:root)` brand tokens against it (runtime brand fidelity, `odoo-frontend-fidelity.md`
@@ -215,6 +218,6 @@ SSOT for the screenshot write mechanism (allowed-roots constraint + 2-tier relat
 
 ### UC2 - cluster / docs-repo output
 
-When `doc_output_dir` is set in `.odoo-ai/context.md` (MODE cluster), images go to that
+When `doc_output_dir` is set in `<SHARE_DIR>/context.md` (MODE cluster), images go to that
 directory instead of `static/description/`. RST references use `.. image:: <filename>.png`
 (no path prefix when the image is in the same docs dir as the `.rst` file).
