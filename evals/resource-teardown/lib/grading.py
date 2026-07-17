@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Deterministic grading logic for the resource-teardown-before-DONE behavioral evals (L2.6).
+"""Deterministic grading logic for the resource-teardown-before-DONE behavioral evals.
 
-Context: /tmp/odoo-mcp-solution-final.md L2.6 (Eval A + Eval B specs) and L1.7 (the visual-
-regression pre-ship gate). SSOT contract under test: plugins/odoo-ai-agents/snippets/
-resource-teardown-contract.md (T0-T4, the CLOSE-vs-RELEASE/DROP verb glossary).
+Behavioral evals for the resource-teardown contract
+(plugins/odoo-ai-agents/snippets/resource-teardown-contract.md, T0-T4 + the CLOSE(browser)-vs-
+RELEASE/DROP(instance) verb glossary): Eval A proves the CLOSE-vs-RELEASE verb split holds even
+under a forwarded-lease collision (T2 vs T3); Eval B proves the visual-regression matrix-close
+(T0/T2) leaves no run-created page open.
 
-Blocking issue 4 ("verb collision needs behavioral proof") is what these evals resolve: a static
+"Verb collision needs behavioral proof" is what these evals resolve: a static
 wording-freeze guard (like tests/test_resource_teardown_contract.py) can prove the SSOT snippet
 text is unchanged, but it cannot prove that an agent reading "never drop or release the forwarded
 lease" right next to a NEW "close every page you opened" instruction actually does BOTH things at

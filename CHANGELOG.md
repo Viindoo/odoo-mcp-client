@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [4.15.0] - 2026-07-17
 
+### Added
+
+- `odoo-ai-agents` - resource teardown before DONE: an execute-agent can no longer report DONE
+  while a self-provisioned Odoo test instance or a browser page it opened is still alive, closing
+  a RAM-leak source. The instance allocator now binds the server's process-group id (`server_pid`)
+  onto the lease and launches the server under `setsid`, so release stops the whole process group
+  (SIGTERM, then a bounded SIGKILL escalation) before dropping the database. Enforcement is two
+  hooks: `enforce-teardown.sh` (SubagentStop) hard-blocks a DONE claim against a live
+  self-provisioned lease and flags an open browser page as advisory, while `session-end-gc.sh`
+  (SessionEnd) reclaims anything a crashed session left behind, with a 7200s TTL as the final
+  backstop. The contract lives in one new SSOT, `snippets/resource-teardown-contract.md` (stages
+  T0-T4), wired into the completion hub and every skill/agent that can open an instance or a
+  browser page.
+
+### Changed
+
+- `odoo-ai-agents` - portability cleanup for the new resource-teardown eval assets: replaced
+  machine-specific absolute paths with placeholders/module names so the eval set runs unmodified
+  on any machine.
+
+### Fixed
+
+- `odoo-ai-agents` - the `test` verb no longer reports `TEST_RESULT=passed` when the run's only
+  outcome was a SKIPPED test. It now counts skips, emits `TEST_SKIPPED`, lists the skipped test
+  names in the findings file, and reports `TEST_RESULT=inconclusive` (`status:
+  tests-inconclusive`) instead - a HOLD, not a pass. (#171)
+
 ## [4.14.0] - 2026-07-16
 
 ### Added
