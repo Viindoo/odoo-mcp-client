@@ -2,11 +2,11 @@
 name: odoo-onboarding
 argument-hint: "[project path]"
 description: |
-  Bootstrap Odoo project context on first use - probe the Odoo environment (version, custom modules, active profile, naming conventions) and persist findings to `.odoo-ai/context.md` at project root (gitignored), so every later `odoo-*` skill reads it as Round -1 and skips setup.
+  Bootstrap Odoo project context on first use - probe the Odoo environment (version, custom modules, active profile, naming conventions) and persist findings to the project's shared context file (gitignored), so every later `odoo-*` skill reads it as Round -1 and skips setup.
 
-  Trigger AGGRESSIVELY on "new Odoo project" / "first time" signals, or when no `.odoo-ai/context.md` exists yet: "set up Odoo for this project", "initialize Odoo context". Also fires on Vietnamese: "khởi tạo dự án Odoo mới", "thiết lập context Odoo". Implicit: dir has `__manifest__.py` but no `.odoo-ai/context.md` → first `odoo-*` skill recommends onboard; intake also escalates here when context is missing.
+  Trigger AGGRESSIVELY on "new Odoo project" / "first time" signals, or when no shared context file exists yet: "set up Odoo for this project", "initialize Odoo context". Also fires on Vietnamese: "khởi tạo dự án Odoo mới", "thiết lập context Odoo". Implicit: dir has `__manifest__.py` but no shared context file yet → first `odoo-*` skill recommends onboard; intake also escalates here when context is missing.
 
-  DO NOT trigger when: (1) `.odoo-ai/context.md` exists and `last_updated` < 30 days - offer "refresh?" instead; (2) no `__manifest__.py` within 3 levels; (3) the user is mid-workflow inside another skill (e.g. odoo-coding writing code) - don't interrupt; (4) the user types another skill's trigger - let that skill fire
+  DO NOT trigger when: (1) the shared context file exists and `last_updated` < 30 days - offer "refresh?" instead; (2) no `__manifest__.py` within 3 levels; (3) the user is mid-workflow inside another skill (e.g. odoo-coding writing code) - don't interrupt; (4) the user types another skill's trigger - let that skill fire
 ---
 
 # Odoo Onboard - Project Context Bootstrap
@@ -17,7 +17,7 @@ Front door for all Odoo personas (Developer, Pre-Sales, AE, Marketer, CS). Most 
 
 ## Out of Scope
 
-- **NEVER write outside `.odoo-ai/`.** One context file + one `.gitignore` line only.
+- **NEVER write outside the `$ODOO_AI_HOME` state root.** One context file + one `.gitignore` line only.
 - **NEVER call MCP write tools.** Only read tools: `list_available_versions`, `list_available_profiles`, `set_active_version`, `set_active_profile`, `check_module_exists`.
 - **NEVER assume context without user confirm.** Every detected field must be shown and confirmed before persisting.
 - **NEVER overwrite a recent context.** If `last_updated` < 30 days, ask before overwriting.
@@ -29,7 +29,7 @@ Front door for all Odoo personas (Developer, Pre-Sales, AE, Marketer, CS). Most 
 
 ### Step 0 - Pre-flight
 
-Check `.odoo-ai/context.md`:
+Check `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` via the resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before this and any later Read/Write/Edit of a state-root path in this skill):
 - Exists AND `last_updated` < 30 days → "Context already exists (updated \<date\>). Refresh? (yes/no)". No → end. Yes → continue; preserve `## Notes` AND `## Instance / Visual` verbatim (owned by `/odoo-ai-agents:odoo-setup`).
 - Exists AND stale (>30 days) → note staleness + continue with refresh.
 - Absent → continue.
@@ -55,7 +55,7 @@ Call `mcp__odoo-semantic__list_available_profiles` (no args). Default heuristic:
 
 Present inferred default; wait for user pick.
 
-Then call `mcp__odoo-semantic__profile_inspect(method='summary', name=<chosen_profile>, odoo_version=<chosen_version>)` to capture real composition (inheritance chain, repos, module count) and record into `.odoo-ai/context.md`. This doubles as validation that the profile name resolves.
+Then call `mcp__odoo-semantic__profile_inspect(method='summary', name=<chosen_profile>, odoo_version=<chosen_version>)` to capture real composition (inheritance chain, repos, module count) and record into `<SHARE_DIR>/context.md`. This doubles as validation that the profile name resolves.
 
 ### Step 4 - Discover custom modules
 
@@ -116,15 +116,17 @@ On failure: log error in `## Notes` and continue.
 
 ### Step 7 - Write context file
 
+Resolve the SHARE dir and capture its printed absolute path (the resolver already `mkdir -p`s it - do NOT `mkdir -p .odoo-ai` in cwd, that creates a stray CWD-relative dir instead of the machine-global state root):
+
 ```bash
-mkdir -p .odoo-ai
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share
 ```
 
-Write `.odoo-ai/context.md` per schema below. On refresh: preserve `## Notes` AND `## Instance / Visual` verbatim.
+Write `<SHARE_DIR>/context.md` (substitute the absolute path captured above; never write the placeholder `<SHARE_DIR>` token or a bare `.odoo-ai/context.md` literal into the Write/Edit call) per schema below. On refresh: preserve `## Notes` AND `## Instance / Visual` verbatim.
 
 ### Step 8 - Update `.gitignore`
 
-Grep for `.odoo-ai/`; if absent, append (with leading newline if needed). If `.gitignore` missing, create it. Idempotent.
+Grep for `.odoo-ai/`; if absent, append (with leading newline if needed) as a defensive guard against a stray project-local state dir (all current agent state lives under the machine-global `$ODOO_AI_HOME`, never here). If `.gitignore` missing, create it. Idempotent.
 
 ### Step 9 - Verify + suggest next
 
@@ -133,7 +135,7 @@ Show the summary block (Output Format below). Ask: "Anything to add to `## Notes
 Run:
 
 ```bash
-eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read ~/.odoo-ai/instances.toml <series>)"
+eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read ${ODOO_AI_HOME:-$HOME/.odoo-ai}/instances.toml <series>)"
 ```
 
 - If the command exits non-zero (no matching instance in instances.toml), skip the `## Verify environment` section entirely - do not block onboarding on it.
@@ -170,7 +172,7 @@ eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read ~/.odoo-a
 - **ruff_line_length**: 120  (read from pyproject.toml/ruff.toml; "none" if absent)
 - **js_config_source**: web/tooling  (or "fallback" when no Odoo checkout with addons/web/tooling/ is locatable)
 
-## Verify environment  (optional - used by run/verify steps; SSOT is ~/.odoo-ai/instances.toml)
+## Verify environment  (optional - used by run/verify steps; SSOT is `$ODOO_AI_HOME/instances.toml`)
 - **verify_python**: /path/to/.venv/bin/python  (non-authoritative HINT for READ-ONLY flows only; before any mutation, consumers MUST re-resolve and verify via `<python> <odoo-bin> --version` per `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md` - SSOT is instances.toml)
 - **addons_path**: /path/repo-a/addons,/path/repo-b  (cache only - re-resolve from instances.toml if a repo moved)
 
@@ -182,9 +184,9 @@ eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read ~/.odoo-a
 - **instance_base_url**: http://localhost:8069
 - **instance_login**: admin  (password NEVER stored here - agreed credential source only)
 - **visual_mcp**: chrome-devtools  (the browser MCP wired for the visual skills)
-- **screenshot_baseline_dir**: .odoo-ai/visual/baseline
-- **brand_tokens_source**: .odoo-ai/brand-tokens.json  (optional - consumer-declared JSON map `token -> color`, e.g. `{"--primary": "#1E88E5"}`; enables the brand-fidelity checks in verify-frontend.sh Tier 4 + ui-reviewer Step 4b. Omit for pure-Odoo projects. No brand is vendored in the plugin.)
-- **mockup_dir**: .odoo-ai/mockups  (optional - reference mockups/design specs for the mockup-first fidelity check)
+- **screenshot_baseline_dir**: <SHARE_DIR>/visual/baselines/
+- **brand_tokens_source**: <SHARE_DIR>/brand-tokens.json  (optional - consumer-declared JSON map `token -> color`, e.g. `{"--primary": "#1E88E5"}`; enables the brand-fidelity checks in verify-frontend.sh Tier 4 + ui-reviewer Step 4b. Omit for pure-Odoo projects. No brand is vendored in the plugin.)
+- **mockup_dir**: <SHARE_DIR>/mockups  (optional - reference mockups/design specs for the mockup-first fidelity check)
 
 ## last_updated
 2026-05-28T11:30:00Z
@@ -202,14 +204,14 @@ After Step 9, output exactly this template:
 ```
 ✓ Onboarding complete
 
-**Project context** saved to `.odoo-ai/context.md`:
+**Project context** saved to `<SHARE_DIR>/context.md`:
 - Odoo version: <X.0>
 - Profile: <name or "(none)">
 - Modules detected: <N> (top: <m1>, <m2>, <m3>)
 - Module prefix: <prefix>
 - Lint: ruff line-length=<value or "none">, JS=<"web/tooling" or "fallback">
 
-`.gitignore` updated to exclude `.odoo-ai/`.
+`.gitignore` updated to exclude a stray local `.odoo-ai/` (defensive - current agent state lives under `$ODOO_AI_HOME`, not here).
 
 Suggest next: <relevant follow-up - see "Suggest-next logic" below>
 ```
@@ -221,17 +223,17 @@ Pick ONE:
 - User mentioned "upgrade" / "migration" → "Run `odoo-deprecation-audit` next."
 - User mentioned "feature" / "client" → "Try `odoo-feature-check` or `odoo-gap-analysis`."
 - Repo has frontend assets OR user mentioned UI/demo/video → "Run `/odoo-ai-agents:odoo-setup` to wire the visual stack."
-- Default → "Ready for any `odoo-*` skill. All skills will auto-read `.odoo-ai/context.md`."
+- Default → "Ready for any `odoo-*` skill. All skills will auto-read `<SHARE_DIR>/context.md`."
 
 ## Standalone-first fallback
 
-When OSM (`odoo-semantic-mcp`) is unreachable: still auto-discover modules via disk probes (Steps 1 + 4). For version, read the `version` field from any manifest (first two dotted components) or check `pyproject.toml`/`setup.cfg` before asking. Only ask if no on-disk source resolves it. Write `.odoo-ai/context.md` with `osm_verified: false` so downstream skills know the context is user-asserted.
+When OSM (`odoo-semantic-mcp`) is unreachable: still auto-discover modules via disk probes (Steps 1 + 4). For version, read the `version` field from any manifest (first two dotted components) or check `pyproject.toml`/`setup.cfg` before asking. Only ask if no on-disk source resolves it. Write `<SHARE_DIR>/context.md` with `osm_verified: false` so downstream skills know the context is user-asserted.
 
 ## Integration notes
 
-- **Context bootstrap**: Many `odoo-*` skills read `.odoo-ai/context.md` via `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` at Round 0, pre-filling `odoo_version`, `viindoo_profile`, and module list. Forward-compatible - presence never breaks skills that don't yet read it.
-- **Cross-runtime**: Codex and Gemini read the same `.odoo-ai/context.md`; schema is markdown (not JSON) for portability.
-- **Visual stack**: `.odoo-ai/context.md` is SSOT for instance URL and visual config. `/odoo-ai-agents:odoo-setup` writes `## Instance / Visual`; visual skills (`odoo-ui-review`, `odoo-visual-regression`, `odoo-demo-recording`) read it at Round 0. Onboard preserves that section on refresh.
+- **Context bootstrap**: Many `odoo-*` skills read `<SHARE_DIR>/context.md` via `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` at Round 0, pre-filling `odoo_version`, `viindoo_profile`, and module list. Forward-compatible - presence never breaks skills that don't yet read it.
+- **Cross-runtime**: Codex and Gemini read the same `<SHARE_DIR>/context.md`; schema is markdown (not JSON) for portability.
+- **Visual stack**: `<SHARE_DIR>/context.md` is SSOT for instance URL and visual config. `/odoo-ai-agents:odoo-setup` writes `## Instance / Visual`; visual skills (`odoo-ui-review`, `odoo-visual-regression`, `odoo-demo-recording`) read it at Round 0. Onboard preserves that section on refresh.
 
 ## Examples
 

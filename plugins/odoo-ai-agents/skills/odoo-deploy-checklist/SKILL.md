@@ -77,7 +77,7 @@ Domain purposes (for autofill logic):
 
 ### Round 0 - Load context
 
-Read `.odoo-ai/context.md` if present. Extract `odoo_version`, `modules`, and any previous audit output references to pre-fill Domain 1. If absent, proceed to Round 1.
+Read `<SHARE_DIR>/context.md` if present (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Extract `odoo_version`, `modules`, and any previous audit output references to pre-fill Domain 1. If absent, proceed to Round 1.
 
 ### Round 1 - Confirm scope (single message)
 
@@ -120,7 +120,7 @@ Output template: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-deploy-checklist/references/
 
 When OSM is unreachable:
 1. Skip all MCP calls.
-2. Mark all OSM-dependent Domain 1 rows `⚠ Manual check` with note: `(OSM offline - verify module existence manually via: odoo-bin --addons-path ... -d <db> --update <module>)`
+2. Mark all OSM-dependent Domain 1 rows `⚠ Manual check` with note: `(OSM offline - verify module existence manually via: [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true ; odoo-bin --addons-path ... -d <db> --update <module> --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296} - memory-cap policy: ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md)`
 3. Fill all other domains from user-supplied information.
 4. Add notice: `> Note: Module existence checks skipped (OSM unreachable). All OSM-dependent items marked ⚠ Manual check.`
 
@@ -130,7 +130,7 @@ The checklist remains fully usable - 7 of 8 domains require no OSM access.
 
 ## Notes
 
-- **`.odoo-ai/context.md` integration:** Pre-fills `odoo_version`, `modules`, and previous audit links. Without it, all Round 1 questions are mandatory.
+- **`<SHARE_DIR>/context.md` integration:** Pre-fills `odoo_version`, `modules`, and previous audit links. Without it, all Round 1 questions are mandatory.
 - **Pre-flight code audit:** Run `odoo-deprecation-audit` first - its output directly fills Domain 1.
 - **Full upgrade orchestration:** `/odoo-plan-upgrade` chains `odoo-deprecation-audit` → `odoo-version-diff` → `odoo-deploy-checklist`. Use when a complete plan is needed, not just a deploy gate.
 - **Risk overview for stakeholders:** Route to `odoo-risk-overview` when the audience is a manager or client.

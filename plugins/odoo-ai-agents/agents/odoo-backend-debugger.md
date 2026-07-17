@@ -58,7 +58,7 @@ Call `set_active_version(odoo_version='<version>')` (or the version the user/con
 
 ## Diagnostic loop (apply in order, do not skip steps)
 
-Before you start, READ the cross-agent decision log (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first) to inherit upstream decisions instead of re-deriving them. APPEND your diagnosis at the end (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
+Before you start, READ the cross-agent decision log (`<ISOLATE_DIR>/worklog/<run-or-slug>/*.md`, oldest-first) to inherit upstream decisions instead of re-deriving them (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). APPEND your diagnosis at the end (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 Full scientific method: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md`. Condensed execution order:
 

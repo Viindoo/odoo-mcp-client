@@ -16,8 +16,12 @@ design. Existing layout unchanged; this contract adds nothing for that case.
 
 ## Artifact layout
 
+Artifacts live under the Tier-2 SHARE dir (`<SHARE_DIR>` - resolve once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit):
+
 ```
-.odoo-ai/designs/
+<SHARE_DIR>/designs/
   <slug>-<date>.md                 # SINGLE mode - unchanged
   <master-slug>/                   # MASTER-CHILD mode
     index.yaml                     # manifest machine-readable (routing SSOT)
@@ -72,8 +76,8 @@ still-shifting one.
 
 ## Index selection and path resolution
 
-**Locating the index**: consumers search all `.odoo-ai/designs/*/index.yaml` files under the repo
-root. A single match is used directly. When multiple index files match the current scope:
+**Locating the index**: consumers search all `<SHARE_DIR>/designs/*/index.yaml` files. A single
+match is used directly. When multiple index files match the current scope:
 
 **Tie-break order** (apply in sequence until unique):
 1. Intersection size - choose the index whose `modules` list has the largest intersection with the
@@ -84,13 +88,14 @@ root. A single match is used directly. When multiple index files match the curre
    `design_doc_ambiguity: true` plus a list of all candidate index paths before proceeding.
 
 **Path resolution**: `master` and `child_path` values in `index.yaml` are RELATIVE to the
-directory containing that `index.yaml` (i.e. `.odoo-ai/designs/<master-slug>/`). Consumers MUST
+directory containing that `index.yaml` (i.e. `<SHARE_DIR>/designs/<master-slug>/`). Consumers MUST
 resolve them to absolute paths (join the index directory + the relative value) BEFORE reading the
 files or inserting paths into `DESIGN_DOC` / `MASTER_DESIGN_DOC` fields.
 
-Example: `index.yaml` at `.odoo-ai/designs/fleet-billing/index.yaml` with
+Example: `index.yaml` at `<SHARE_DIR>/designs/fleet-billing/index.yaml` with
 `child_path: viin_fleet_billing-2026-06-28.md` resolves to
-`.odoo-ai/designs/fleet-billing/viin_fleet_billing-2026-06-28.md` (repo-root-relative).
+`<SHARE_DIR>/designs/fleet-billing/viin_fleet_billing-2026-06-28.md` (absolute, under the
+resolved SHARE dir).
 
 ## §10 Cross-module contracts - shared-symbol ownership registry (in master TDD)
 
@@ -169,7 +174,7 @@ default `approve`, so review is NEVER a mandatory stop (preserves drive-to-done)
 single adversarial pass by a fresh context that did NOT author the design under review
 (context-independence is the anti-bias axis, not agent-type independence); it reads the master
 and/or child TDD(s) READ-ONLY, names the single weakest assumption plus a concrete alternative,
-and writes `_review-<date>.md` under `.odoo-ai/designs/<master-slug>/` as a FINDINGS list
+and writes `_review-<date>.md` under `<SHARE_DIR>/designs/<master-slug>/` as a FINDINGS list
 (severity + alternative) - it never rewrites the TDD or `index.yaml`. Full contract:
 `agents/odoo-solution-architect.md` § Review mode.
 
@@ -191,16 +196,18 @@ was invoked with `return_to` set, it emits `next: <return_to>` instead and hands
 status: NEEDS_NEXT
 next: odoo-planning
 inputs:
-  design_index: .odoo-ai/designs/<master-slug>/index.yaml
-  master_design_doc: .odoo-ai/designs/<master-slug>/_master-<date>.md
+  design_index: <SHARE_DIR>/designs/<master-slug>/index.yaml
+  master_design_doc: <SHARE_DIR>/designs/<master-slug>/_master-<date>.md
   design_docs:
     - module: <module-name>
-      child_path: .odoo-ai/designs/<master-slug>/<module-name>-<date>.md
+      child_path: <SHARE_DIR>/designs/<master-slug>/<module-name>-<date>.md
 ```
 
-All paths are repo-root-relative. `child_path` values in `design_docs` are ABSOLUTE (repo-root
-path, not relative to subdir) - consumers use them directly without additional joining. This is the
-canonical form; single-mode uses `inputs: {design_doc: .odoo-ai/designs/<slug>-<date>.md}` (no
+All paths are absolute (rooted at the resolved `<SHARE_DIR>`, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` - never repo-root-relative). `child_path`
+values in `design_docs` are ABSOLUTE and already fully resolved (not relative to subdir) -
+consumers use them directly without additional joining. This is the
+canonical form; single-mode uses `inputs: {design_doc: <SHARE_DIR>/designs/<slug>-<date>.md}` (no
 `design_index`). Top-level `design_doc:` (singular) is NOT emitted in master-child mode - it is
 valid only in single mode. Downstream consumers resolve per-module paths from `design_docs` +
 `design_index`.
@@ -217,7 +224,7 @@ The master-phase consistency pass CONSUMES the peer-reconciled child TDDs (each 
 recorded its agreed contract in its own TDD per § Peer reconciliation) and is the SOLE §10/
 `index.yaml` applier - children never write §10 themselves. It emits `conflict-list.md` at the
 artifact root - the same subdir as `index.yaml` (i.e.
-`.odoo-ai/designs/<master-slug>/conflict-list.md`). `conflict-list.md` splits into RESOLVED-BY-PEERS
+`<SHARE_DIR>/designs/<master-slug>/conflict-list.md`). `conflict-list.md` splits into RESOLVED-BY-PEERS
 seams (peers already agreed; informational, no decision needed) and ESCALATED seams (peers hit the
 bounded-loop cap or a §10 HARD-rule conflict; need a human decision). This file is a MANDATORY
 INPUT to the batch coding gate: the gate reads it and resolves every listed ESCALATED conflict

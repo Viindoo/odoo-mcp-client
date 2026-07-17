@@ -16,10 +16,12 @@ file specifies HOW. Cross-references reused skills' SSOTs; copies none.
 
 ## Artifact paths
 
-Base: `.odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/`
+Base: `<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>`
+once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
+absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit)
 Integration worktree: `<path>/upg-integration` (JOB tier, created at P4 post-gate)
 Child worktrees: `<path>/upg-<module>` per module (WORK tier, created + removed in P4)
-Progress ledger: `.odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/checkpoint.json`
+Progress ledger: `<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/checkpoint.json`
   Schema: `{"<module>": "pending|absorbed|designed|adapted|reviewed|installed|done"}`
   Written after each module completes a phase. Per-phase skip rules on resume:
   P2 skips {absorbed, designed, adapted, reviewed, installed, done};
@@ -160,7 +162,7 @@ MODULE_PATHS: <comma-separated absolute paths from intake.md candidate_modules[]
 matched_profile: <matched_profile from intake.md>
 Run the TARGET-version survival pass (symbols stable at <source> but deprecated/removed at
 <target> - the upgrade-critical class find_deprecated_usage misses when pinned to source).
-Output to: .odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/deprecation.md
+Output to: <ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/deprecation.md
 ```
 
 `odoo-deprecation-audit` has its own protocol (find_deprecated_usage + api_version_diff +
@@ -174,7 +176,7 @@ Dispatch via Skill tool. Brief:
 From version: <source_version>
 To version: <target_version>
 Focus: developer track (API breaking changes, removed symbols, migration notes).
-Output to: .odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/version-delta.md
+Output to: <ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/version-delta.md
 ```
 
 `odoo-version-diff` owns its own protocol. The upgrade orchestrator consumes its
@@ -416,7 +418,7 @@ inputs:
   design_slug_hint: <src>-<tgt>-<cluster>-upg-<module>
   target_version: <target_version>
   modules: [<module>]
-  intent_records: [.odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/absorption/<module>.md]
+  intent_records: [<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/absorption/<module>.md]
   classification: "<verdict> - <one-line reason from absorption/<module>.md>"
 ```
 
@@ -803,7 +805,7 @@ PR body template:
  reasons - sourced from the structured verdict list, not grep of plan.md prose>
 
 ### Test result
-See .odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/install-test.md - all waves green.
+See <ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/install-test.md - all waves green.
 
 ### Review request
 Please review modules in dependency order (leaves first):

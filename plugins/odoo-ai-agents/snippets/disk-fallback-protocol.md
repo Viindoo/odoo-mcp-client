@@ -7,7 +7,9 @@
 
 **Your consumer is another AI agent, not a human.** Every agent running this plugin has the
 universal tools - `Read`, `Grep`, `Glob`, `Bash`, `WebFetch`/`WebSearch` - plus the OSM index
-and the plugin's own `.odoo-ai/` files. When OSM (the `odoo-semantic` index) is unreachable,
+and its own namespaced `.odoo-ai/`-rooted state (Tier-1/SHARE/ISOLATE per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`, never a project-relative
+`./.odoo-ai/`). When OSM (the `odoo-semantic` index) is unreachable,
 **reading the source yourself is a legitimate grounding path, not a degraded one.** Asking a
 human to paste data you can fetch is the worst possible fallback for an agent. Resolve every
 input in this order and stop at the first hit. Do not build a step on any optional, non-default
@@ -57,8 +59,10 @@ self-serve from real sources you already have access to:
 - **Official upstream** - `WebFetch` the raw source for the target version, e.g.
   `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`,
   release notes, or `WebSearch` for public changelog / competitor / pricing pages.
-- **Context + vault** - `Read .odoo-ai/context.md` for version/profile/instance; read vault
-  notes (`Resources/Competitors/*`, `Sales/Customers/*`) instead of asking for them.
+- **Context + vault** - resolve the Tier-2 SHARE dir per `state-root-resolution.md`'s
+  resolve-capture-substitute protocol and `Read` `context.md` there (never a bare
+  `.odoo-ai/context.md` literal) for version/profile/instance; read vault notes
+  (`Resources/Competitors/*`, `Sales/Customers/*`) instead of asking for them.
 
 Label any artifact built this way `grounded: local-source (not OSM-indexed)` and lower
 confidence one notch versus Tier 1 - it is **verified against real source**, just not the

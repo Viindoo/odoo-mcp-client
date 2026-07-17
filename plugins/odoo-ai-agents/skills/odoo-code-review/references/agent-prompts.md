@@ -7,11 +7,14 @@ TARGET: <local | worktree:<abs-path> | pr:<number-or-url>>
 BASE: <base-ref, default master>
 odoo_version: <e.g. 17.0>
 USER LANGUAGE: <e.g. Vietnamese>
+SHARE_DIR: <abs-path captured by the code-review skill in Phase 0, resolved against review_root>
+ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0, resolved against review_root>
 
 Scope this review per your full I/O contract (${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md).
 Resolve the diff, detect modules (dirs with __manifest__.py), run test_coverage_audit per module,
 detect any design doc, determine fanout (single|multi), and write the compact scope file to
-.odoo-ai/reviews/<slug>-<date>/_scope.md.
+<ISOLATE_DIR>/reviews/<slug>-<date>/_scope.md using the SHARE_DIR/ISOLATE_DIR literals above
+DIRECTLY - do NOT re-resolve them yourself (state-root-resolution.md §Cross-worktree dispatch).
 Return the scope block exactly per Step 6 of your I/O contract.
 ```
 
@@ -20,6 +23,10 @@ Return the scope block exactly per Step 6 of your I/O contract.
 ```
 MODE=per-module. Review ONLY the changes in module `<module>` at `<path>` (read files at
 review_root=<abs-path> from scoper - do NOT read from master or cwd unless review_root matches).
+SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
+ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
+Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path (worklog, artifacts dir) - do NOT
+re-resolve them yourself (state-root-resolution.md §Cross-worktree dispatch).
 Also do a LIGHT bidirectional-impact pass (${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md):
 the direct upstream it depends on + direct downstream that depends on it - deep transitive closure
 stays the synthesis job, but flag an obvious cross-module break even in single-module review.
@@ -42,7 +49,8 @@ well-formed, no dead JS module import, SCSS compiles); the rendered-UI verdict (
 runtime) is owned by the Phase A.5 odoo-ui-reviewer - do not duplicate it. When the module's
 needs_ui_review is `candidate`, also confirm view-binding via OSM and record `ui_review_required` in
 <module>.md. Omit this line when needs_ui_review=false.
-Artifacts dir: .odoo-ai/reviews/<slug>-<date>/ - write your report to <module>.md there.
+Artifacts dir: <ISOLATE_DIR>/reviews/<slug>-<date>/ (build from the ISOLATE_DIR literal above) -
+write your report to <module>.md there.
 Output contract: per odoo-code-reviewer agent SSOT (${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md)
 - include VERDICT (APPROVE/REQUEST_CHANGES) and SCORE 0-100 in your report.
 Populate the Issues table `File` + `Line/Range` for EVERY finding (diff-relative path) and emit a
@@ -55,12 +63,16 @@ Return a 5-line summary (counts by severity + top finding + verdict + score) and
 
 ```
 MODE=synthesis. Changed/added modules: [<m1>, <m2>, …]. review_root: <abs-path from scoper>.
+SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
+ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
+Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path - do NOT re-resolve them yourself
+(state-root-resolution.md §Cross-worktree dispatch).
 Read all files at review_root - do NOT read from master or cwd unless review_root matches.
 Compute the dependency closure -
 forward via module_inspect(name=<module>, method='dependencies', odoo_version='<version>') transitively, reverse via impact_analysis -
 and review CROSS-MODULE integration risk only (override conflicts, MRO, inter-module contracts,
 depends/load-order, ripple to dependents). Read the per-module reports already in
-.odoo-ai/reviews/<slug>-<date>/ - each <module>.md AND each ui-review-<module>.md (rendered-UI
+<ISOLATE_DIR>/reviews/<slug>-<date>/ - each <module>.md AND each ui-review-<module>.md (rendered-UI
 findings from Phase A.5) so the integration verdict accounts for UI findings. Write _synthesis.md there.
 Output contract: per odoo-code-reviewer agent SSOT (${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md)
 - include overall VERDICT (APPROVE/REQUEST_CHANGES) and SCORE 0-100 aggregated across all modules.
@@ -85,14 +97,18 @@ Dispatch once per module with `needs_ui_review` (`true` or `candidate`) when an 
 ```
 USER LANGUAGE: <e.g. Vietnamese>
 ODOO_VERSION: <e.g. 17.0>
+SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
+ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
+Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path (worklog, context.md, screenshot
+staging) - do NOT re-resolve them yourself (state-root-resolution.md §Cross-worktree dispatch).
 Review the RENDERED UI for module `<module>` on these screens: <affected_screens - view/action/menu
-xmlids from scoper>. Resolve instance_base_url from .odoo-ai/context.md (else ~/.odoo-ai/instances.toml);
-browser headless by default.
+xmlids from scoper>. Resolve instance_base_url from <SHARE_DIR>/context.md (the SHARE_DIR literal
+above; else $ODOO_AI_HOME/instances.toml); browser headless by default.
 Rate the six lenses (aesthetics, functional correctness, runtime stability, accessibility, performance,
 design-system/theme fidelity) per your agent SSOT (${CLAUDE_PLUGIN_ROOT}/agents/odoo-ui-reviewer.md).
 DESIGN_DOC: <path | absent> - when present (non-null): MANDATORY - verify the UI-observable acceptance
 criteria and emit the "### TDD Conformance" block. When absent: OMIT it.
-ARTIFACT_DIR: .odoo-ai/reviews/<slug>-<date>/
+ARTIFACT_DIR: <ISOLATE_DIR>/reviews/<slug>-<date>/ (build from the ISOLATE_DIR literal above)
 ARTIFACT_FILE: ui-review-<module>.md - write your six-lens verdict THERE (not your own default path) so
 Phase B synthesis can read it.
 Return a short summary (per-lens PASS/WARN/FAIL + top finding) and the artifact path.
@@ -104,8 +120,12 @@ Return a short summary (per-lens PASS/WARN/FAIL + top finding) and the artifact 
 
 ```
 MODE=synthesis. DOMAIN: <domain name>. Modules in this domain: [<m1>, <m2>, …]. review_root: <abs-path>.
+SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
+ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
+Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path - do NOT re-resolve them yourself
+(state-root-resolution.md §Cross-worktree dispatch).
 Read ONLY this domain's per-module reports (<module>.md + ui-review-<module>.md) in
-.odoo-ai/reviews/<slug>-<date>/. Compute the dependency closure WITHIN this domain
+<ISOLATE_DIR>/reviews/<slug>-<date>/. Compute the dependency closure WITHIN this domain
 (forward module_inspect(name='<m>', method='dependencies', odoo_version='<version>'), reverse impact_analysis) and review cross-module
 integration risk inside the domain only. Write domain-<d>.md there.
 Output contract: per odoo-code-reviewer agent SSOT (${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md)
@@ -120,7 +140,11 @@ Return a summary + path.
 
 ```
 MODE=synthesis. Domains: [<d1>, <d2>, …]. review_root: <abs-path>.
-Read every domain-<d>.md in .odoo-ai/reviews/<slug>-<date>/. Compute CROSS-DOMAIN closure
+SHARE_DIR: <abs-path captured by the code-review skill in Phase 0>
+ISOLATE_DIR: <abs-path captured by the code-review skill in Phase 0>
+Use SHARE_DIR/ISOLATE_DIR above DIRECTLY for every Tier-2 path - do NOT re-resolve them yourself
+(state-root-resolution.md §Cross-worktree dispatch).
+Read every domain-<d>.md in <ISOLATE_DIR>/reviews/<slug>-<date>/. Compute CROSS-DOMAIN closure
 (inter-domain field/API contracts, manifest depends + data load-order across domains, ripple between
 domains). Write _synthesis.md with the overall VERDICT (APPROVE/REQUEST_CHANGES) + SCORE aggregated
 across ALL domains. The final verdict + score MUST aggregate the per-module severity counts carried
@@ -138,4 +162,4 @@ closure against §10 cross-module contracts (ownership, dep-direction, integrati
 a violation is CRITICAL; emit Master-AC rows in "### TDD Conformance". When none: skip.
 ```
 
-Each agent: restricted tools, writes only its own report artifact, does NOT spawn subagents. `odoo-code-reviewer` (per-module, synthesis, and domain-synthesis passes above are all this same agent) MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation (see `agents/odoo-code-reviewer.md`); every other agent above (scoper, ui-reviewer) still does NOT invoke Skill tool.
+Each agent: restricted tools, writes only its own report artifact, does NOT spawn subagents. `odoo-code-reviewer` (per-module, synthesis, and domain-synthesis passes above are all this same agent) MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation (see `agents/odoo-code-reviewer.md`); every other agent above (scoper, ui-reviewer) still does NOT invoke Skill tool. Every template above carries `SHARE_DIR:`/`ISOLATE_DIR:` - the SAME literals the code-review skill captured once in its Phase 0 against `review_root`; every dispatched agent consumes them verbatim and never re-resolves (`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).

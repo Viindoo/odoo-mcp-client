@@ -7,7 +7,7 @@ description: >
   symptoms or feature-gap evidence, (3) draft a resolution note or escalation memo ready
   to send to the customer. NL-dispatches to odoo-debug for runtime bug symptoms, to
   odoo-feature-check for feature-gap questions, and borrows odoo-deal-followup tone for
-  customer-facing replies. Outputs land in .odoo-ai/support/ (gitignored), never in
+  customer-facing replies. Outputs land in the run's isolated state dir (gitignored), never in
   tracked files. Trigger on: "support ticket", "customer issue", "bug report",
   "user complaint", "triage this ticket", "classify this issue", "draft response to
   customer complaint", "escalate this issue", "config issue reported by customer".
@@ -49,7 +49,9 @@ If OSM unreachable: all phases complete via training knowledge; append caveat th
 
 ## Phase 0 - Collect ticket input
 
-Read `.odoo-ai/context.md` if present (`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`); extract `odoo_version` as default.
+`context.md` is Tier-2 SHARE; resolve it via the resolve-capture-substitute protocol in
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<SHARE_DIR>`
+below). Read `<SHARE_DIR>/context.md` if present (`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`); extract `odoo_version` as default.
 
 Ask only for still-missing fields:
 
@@ -106,7 +108,9 @@ One concise paragraph. Flag uncertainty ("likely", "possibly") - never assert un
 
 ## Phase 4 - Output assembly
 
-Combine Phases 1-3 into a structured artifact. Write to `.odoo-ai/support/<ticket-slug>.md`; emit the path in output. Use abstract labels (Customer A, Ticket-001) - never log real company or contact names.
+Combine Phases 1-3 into a structured artifact. `support/` is Tier-2 ISOLATE; resolve it via the
+resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`
+(captured path shown as `<ISOLATE_DIR>` below). Write to `<ISOLATE_DIR>/support/<ticket-slug>.md`; emit the path in output. Use abstract labels (Customer A, Ticket-001) - never log real company or contact names.
 
 ### Output format
 
@@ -138,14 +142,14 @@ screenshot" or "Suggest: run odoo-feature-check to confirm edition availability"
 "Suggest: run odoo-risk-overview if this is part of a larger upgrade">
 
 ## Artifact
-Saved to: .odoo-ai/support/<ticket-slug>.md
+Saved to: <ISOLATE_DIR>/support/<ticket-slug>.md
 Emit this path in the final output so the caller can reference or forward the file.
-Note: .odoo-ai/ is gitignored - no customer data committed to the repo.
+Note: this lives under $ODOO_AI_HOME, outside the repo working tree - no customer data is committed.
 ```
 
 ## Confidentiality rules
 
-ALL output → `.odoo-ai/support/` (gitignored). Abstract labels only: never log real company names, contacts, or pricing. Template fields use `Customer A`, `Module X`, `Error Y`.
+ALL output → `<ISOLATE_DIR>/support/` (outside the repo working tree, never committed). Abstract labels only: never log real company names, contacts, or pricing. Template fields use `Customer A`, `Module X`, `Error Y`.
 
 ## Dispatch rules
 

@@ -264,7 +264,7 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-competitive-brief/references/examples.md`
 
 ## Notes
 
-- **Context integration**: read `.odoo-ai/context.md` for platform roadmap signals and active competitor list. Load vault dossier `Resources/Competitors/<name>.md` automatically in Round 1 Pre-Round if it exists.
+- **Context integration**: read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) for platform roadmap signals and active competitor list. Load vault dossier `Resources/Competitors/<name>.md` automatically in Round 1 Pre-Round if it exists.
 - **Confidentiality**: this skill structures information YOU provide. No external competitive databases; no invented pricing or GTM facts; no session retention. Treat output as internal-only. Remove/redact signals from customer conversations or partner disclosures before sharing externally.
 
 ## Continuation Contract

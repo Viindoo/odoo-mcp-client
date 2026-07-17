@@ -73,21 +73,24 @@ disk). A live instance is NEVER required for catalog production.
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the Survey/analyst family
 delta; never inline that file verbatim into a hard-leaf brief.
 
-Dispatch `odoo-feature-cataloger` with the following brief:
+Dispatch `odoo-feature-cataloger` with the following brief (resolve `<SHARE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before filling `PROFILE`/`OUTPUT_DIR`
+below; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/`
+into a Read/Write/Edit):
 
 ```
 MODULE: <module technical name>
 MODULE_PATH: <absolute path to the module dir on disk, if resolvable>
 ODOO_VERSION: <concrete version from context.md or manifest, e.g. 17.0>
-PROFILE: <viindoo_profile from .odoo-ai/context.md, or omit if absent>
-OUTPUT_DIR: .odoo-ai/documentation/<slug>/<module>/
+PROFILE: <viindoo_profile from <SHARE_DIR>/context.md, or omit if absent>
+OUTPUT_DIR: <SHARE_DIR>/documentation/<slug>/<module>/
 ```
 
 `OUTPUT_DIR` is the per-module subdir (`<slug>` = run id, `<module>` = module technical name) so a
 multi-module run never collides on a flat `feature-catalog.jsonl`. Producer and consumer agree on
 this path: the walkthrough/illustration phases read the catalog from the same `<slug>/<module>/`.
 
-`MODULE_PATH` is optional but speeds up disk fallback. Derive `ODOO_VERSION` from `.odoo-ai/context.md`
+`MODULE_PATH` is optional but speeds up disk fallback. Derive `ODOO_VERSION` from `<SHARE_DIR>/context.md`
 -> `__manifest__.py` `version` field major prefix -> addons-dir regex -> ask if none found.
 
 ## Standalone-first fallback

@@ -35,7 +35,7 @@ you never let the implementation tell you what "correct" is.
 | `odoo_version:` | Concrete target series (e.g. `17.0`) for structural grounding |
 | `CHANGED_SET:` | The modules/models/fields/methods the change touches (context, not a source of expected) |
 | `SCOPE_MANIFEST:` | The verify-scope manifest from `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` - dependent modules + affected screens + risk tiers to cover |
-| `SCENARIOS_PATH:` | Where to write the oracle; default `.odoo-ai/qa/<slug>-scenarios.md` |
+| `SCENARIOS_PATH:` | Where to write the oracle; default `<ISOLATE_DIR>/qa/<slug>-scenarios.md` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) |
 | `USER LANGUAGE:` | Language for human-facing prose; identifiers/paths/tool names stay English |
 
 ## Structural grounding (Odoo Semantic is PRIMARY; static only)
@@ -68,7 +68,7 @@ tester's job.
 
 ## Output - the oracle file (immutable)
 
-Write `SCENARIOS_PATH` (create `.odoo-ai/qa/` if needed). Header: requirement source, `odoo_version`,
+Write `SCENARIOS_PATH` (create `<ISOLATE_DIR>/qa/` if needed). Header: requirement source, `odoo_version`,
 `grounding: osm | local-source`, and the line `IMMUTABLE - the executor reads this read-only and MUST
 NOT edit any expected to match actual`. Then one block per scenario:
 

@@ -66,7 +66,9 @@ Read `plan_source` from the dispatch brief; it selects where the module-DAG come
 1. **`plan_source: design-dag`** (full-lifecycle, dispatched by the `odoo-planning` skill alongside
    `odoo-planner`): REUSE the approved design module-DAG already computed in planning - read the
    design `dag_layers` + dependency direction from `DESIGN_INDEX`
-   (`.odoo-ai/designs/<master-slug>/index.yaml`) per
+   (`<SHARE_DIR>/designs/<master-slug>/index.yaml`, resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path
+   - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) per
    `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`. Do NOT re-resolve the graph.
 2. **`plan_source: scope`** (doc-only standalone, dispatched by the `module-packaging` workflow or
    `odoo-doc-illustration` after `odoo-doc-scoper` runs): read the scope block `_scope.md` /
@@ -99,9 +101,9 @@ Apply, do not restate:
 Write ONE `doc-plan.yaml` conforming to the schema in `doc-cluster-plan.md` (do NOT invent a new
 format). Path by dispatch path:
 
-- **workflow / full-lifecycle:** `.odoo-ai/packaging/<run>/doc-plan.yaml` (co-located with
+- **workflow / full-lifecycle:** `<ISOLATE_DIR>/packaging/<run>/doc-plan.yaml` (co-located with
   `scope.yaml`).
-- **standalone `odoo-doc-illustration`:** `.odoo-ai/documentation/<slug>-<date>/doc-plan.yaml`
+- **standalone `odoo-doc-illustration`:** `<SHARE_DIR>/documentation/<slug>-<date>/doc-plan.yaml`
   (co-located with the scoper's `_scope.md`).
 
 Set the header: `plan_kind: doc-package`, `plan_source` (design-dag | scope), `grounding` (osm |

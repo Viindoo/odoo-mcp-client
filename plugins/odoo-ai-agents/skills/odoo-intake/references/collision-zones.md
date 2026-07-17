@@ -77,7 +77,7 @@ Had the user said "customer says Odoo doesn't support X, I need to write a respo
 not save) -> **Pick SKILL `odoo-discovery-summary`**.
 
 If the user had typed "/odoo-summarize-discovery" -> command invokes directly (intake not
-consulted). If user said "synthesize discovery + save to .odoo-ai/" -> recommend the COMMAND
+consulted). If user said "synthesize discovery + save it to disk" -> recommend the COMMAND
 for the save step.
 
 ## Collision 6 - Capability Proof (text evidence) vs Demo Recorder (real video)

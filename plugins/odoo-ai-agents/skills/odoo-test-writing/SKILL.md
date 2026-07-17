@@ -47,7 +47,7 @@ Trigger when the user wants: coverage for a model/computed field/constraint/onch
 
 ### Round 0 - version pin + context
 
-Call `set_active_version('<version>')`. Resolve from `.odoo-ai/context.md` first; fall back to manifest `version` field; default to v17 only when both absent.
+Call `set_active_version('<version>')`. Resolve from `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) first; fall back to manifest `version` field; default to v17 only when both absent.
 
 ### Round 1 - framework selection (OSM-grounded)
 
@@ -160,7 +160,7 @@ Report format: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-test-writing/references/output
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 
 - **Tier 2 - Disk:** `Grep`/`Read` the addon's `models/*.py` for field names/types; locate existing tests in `tests/` to infer the framework in use. Write the test file to the correct location - do NOT fall back to copy-pasteable blocks unless the repo is genuinely inaccessible.
-- **Tier 2 - Version fallback:** Derive Odoo version from manifest `version` field if `.odoo-ai/context.md` is absent.
+- **Tier 2 - Version fallback:** Derive Odoo version from manifest `version` field if `<SHARE_DIR>/context.md` is absent.
 - **Copy-pasteable-only mode** (last resort): emit standalone blocks only when the repo itself is unreachable. Label `grounded: local-source (not OSM-indexed)` when built from disk; `OSM unavailable - ungrounded` only when neither OSM nor local source is available.
 - Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes - never ask a human to paste field lists, model definitions, or manifests.
 

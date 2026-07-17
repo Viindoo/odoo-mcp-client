@@ -8,8 +8,11 @@
 
 ## 1. Directory layout
 
-All BRL artifacts live under `.odoo-ai/brl/<job-id>/`. The `.odoo-ai/` directory is gitignored
-by the `odoo-onboarding` skill so no artifact is ever committed to the project repo.
+All BRL artifacts live under `<SHARE_DIR>/brl/<job-id>/` (resolve `<SHARE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write a bare `.odoo-ai/` literal into a Read/Write/Edit). The machine-global `$ODOO_AI_HOME`
+state root is gitignored by the `odoo-onboarding` skill so no artifact is ever committed to the
+project repo.
 
 `<job-id>` format: `<CUSTOMER_LABEL>-<YYYYMMDD>-<4hex>`
 Example: `Customer-A-20260531-9f3a`
@@ -17,7 +20,7 @@ Example: `Customer-A-20260531-9f3a`
 CUSTOMER_LABEL MUST be abstract (Customer-A, Customer-B, etc.). Never use a real company name.
 
 ```
-.odoo-ai/brl/<job-id>/
+<SHARE_DIR>/brl/<job-id>/
   manifest.json           # immutable job metadata (written at Phase 0, never mutated after Gate 0)
   input.jsonl             # 1 line per requirement: {req_id, req_text, req_category?, priority?}
   chunkplan.json          # chunk split plan

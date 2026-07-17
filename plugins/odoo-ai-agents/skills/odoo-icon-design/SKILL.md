@@ -79,7 +79,10 @@ not a live-rendered Odoo UI component - so the CSS design-token checks in
 `skills/_shared/odoo-frontend-fidelity.md` (the in-repo frontend fidelity contract, which governs
 RENDERED Odoo screens) do NOT apply to the icon asset itself. Palette is brand-agnostic and
 resolved to CONCRETE hex values via Step 1 of the `odoo-icon-designer` agent (dispatch `BRIEF:`
--> `.odoo-ai/context.md` brand tokens -> module-category hue -> Odoo default `#714B67`). Never
+-> `<SHARE_DIR>/context.md` brand tokens (resolve `<SHARE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) -> module-category hue ->
+Odoo default `#714B67`). Never
 invent CSS custom-property names (e.g. `var(--primary)`) and never hardcode a vendor brand
 (Viindoo) palette in the source SVG or this skill - the SVG is composed with the same resolved hex
 fills, not with design-system token references.

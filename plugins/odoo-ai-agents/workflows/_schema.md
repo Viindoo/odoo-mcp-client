@@ -102,11 +102,13 @@ Must start with `.odoo-ai/`. Examples:
 ```
 .odoo-ai/qa
 .odoo-ai/discovery
-.odoo-ai/upgrade
+.odoo-ai/upgrade-plans
 ```
 
-`.odoo-ai/` is gitignored by the `odoo-onboarding` skill. All runtime artifacts are written
-here and are never committed to the repo.
+These `output_dir:` values are relative names `workflow-chaining` resolves against the
+machine-global `$ODOO_AI_HOME` state root at runtime (see
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) - artifacts land outside the repo
+working tree entirely, so nothing here needs to be committed or gitignored.
 
 ---
 
@@ -162,8 +164,11 @@ fallback: standalone
 - `nl_trigger` - the exact NL prompt the runner passes to the context to fire the target
   skill via description-match. It should naturally match the skill's `description` field.
 - `inline: true` on `synthesize` - the runner assembles the two phase outputs and writes
-  `.odoo-ai/discovery/<slug>-synthesize.md` itself; no external skill is dispatched.
-- `resume: true` - the runner writes `.odoo-ai/discovery/<slug>-state.json` after each
+  `<ISOLATE_DIR>/discovery/<slug>-synthesize.md` itself (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>`
+  once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
+  absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); no
+  external skill is dispatched.
+- `resume: true` - the runner writes `<ISOLATE_DIR>/discovery/<slug>-state.json` after each
   phase so a cancelled or interrupted workflow can be resumed.
 - `fallback: standalone` - if OSM is unreachable, each specialist phase runs in standalone
   mode; the runner appends a caveat to the final artifact.

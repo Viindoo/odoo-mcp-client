@@ -16,7 +16,7 @@ Four things must hold in `skills/odoo-intake/SKILL.md`:
      checkout named as never the target.
   2. The rule explicitly states it covers the ambiguous/unclassified/fast-path/inline path,
      not only the named multi-WI specialists.
-  3. Read-only work (analysis/review/brainstorm, `.odoo-ai/`/`/tmp`-only output) is named as
+  3. Read-only work (analysis/review/brainstorm, `$ODOO_AI_HOME`/`/tmp`-only output) is named as
      exempt - the rule must not overreach into work that never touches git.
   4. The concrete Plan Mode Procedure actually provisions the worktree BEFORE the
      Skill-tool dispatch step (ordering, not just a floating mention), and the mechanics are
@@ -105,15 +105,25 @@ def test_intake_worktree_default_covers_ambiguous_and_fastpath_routes():
 
 
 def test_intake_worktree_default_exempts_read_only_work():
+    """Premise re-derived for the ~/.odoo-ai/ two-axis convention (state-root-resolution.md):
+    Tier-2 ISOLATE is now the private per-worktree store and Tier-2 SHARE is deliberately
+    cross-worktree, so the exemption can no longer key on a project-relative `.odoo-ai/`
+    literal (that convention no longer exists). What the rule actually protects is unchanged -
+    worktree isolation exists to guard GIT-TRACKED files, so any deliverable confined to the
+    machine-global `$ODOO_AI_HOME` state root (either tier) or `/tmp` never needs a dedicated
+    worktree, because nothing there is git-tracked to begin with. The re-derived assertion keys
+    on `$ODOO_AI_HOME` (the SSOT env var for the state root) instead of the retired literal.
+    """
     text = _text()
     low = text.lower()
     assert "read-only work" in low or "exempt" in low, (
         "The worktree-isolation rule must explicitly exempt read-only work (analysis, review, "
         "brainstorming) - it must not overreach into work that never touches git."
     )
-    assert ".odoo-ai/" in text and "/tmp" in text, (
-        "The exemption must name .odoo-ai/ and /tmp scratch output as out of scope for "
-        "worktree isolation (nothing git-tracked to isolate)."
+    assert "$ODOO_AI_HOME" in text and "/tmp" in text, (
+        "The exemption must name the $ODOO_AI_HOME state root and /tmp scratch output as out of "
+        "scope for worktree isolation (nothing git-tracked to isolate) - under the new "
+        "SHARE/ISOLATE convention this is expressed via $ODOO_AI_HOME, not a bare .odoo-ai/ literal."
     )
 
 

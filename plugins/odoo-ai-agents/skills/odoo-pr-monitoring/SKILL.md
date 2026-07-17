@@ -53,11 +53,14 @@ no code, no design, and no git authority of its own (all git/GitHub work is dele
 The watch is keyed on the PR produced upstream. On start, locate the PR by pointer (do NOT re-open
 or re-derive it):
 
-- **PR URL + branches** - from the active `.odoo-ai/run-<id>.json` (run-harness's wave-integration squash step
+- **PR URL + branches** - from the active `run-<id>.json`, which lives under the Tier-2 ISOLATE
+  dir; resolve it via the resolve-capture-substitute protocol in
+  `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<ISOLATE_DIR>`
+  below) - `<ISOLATE_DIR>/run-<id>.json` (run-harness's wave-integration squash step
   `produced` carries the PR URL, integration branch, squashed SHA). A fresh session re-attaches by
   reading `run-<id>.json` for the PR URL and resuming. (`run-harness` owns writing `run-<id>.json`;
   this skill only SURFACES the PR URL + poll state in its Continuation Contract `produced`, and
-  writes its own poll-state notes under `.odoo-ai/pr-monitoring/<id>.md`.)
+  writes its own poll-state notes under `<ISOLATE_DIR>/pr-monitoring/<id>.md`.)
 - **Direct user invocation** - "watch PR #N" supplies the PR number/URL directly; no run file
   required.
 
@@ -67,7 +70,7 @@ guess a PR or open a new one.
 ## Phase 1 - Attach + choose the poll cadence
 
 1. Resolve the PR handle (above). Read any existing poll-state note
-   (`.odoo-ai/pr-monitoring/<id>.md`) and the run worklog
+   (`<ISOLATE_DIR>/pr-monitoring/<id>.md`) and the run worklog
    (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`, oldest-first) so a resumed watch builds on
    what an earlier turn already saw (last CI conclusion, review round count).
 2. Choose the cadence and state it:
@@ -142,8 +145,9 @@ NEVER pushed autonomously.
    cleanup in one brief (the checklist run-harness's wave integration reserved for this owner:
    `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` Cleanup Checklist): remove
    the per-module worktrees and the integration worktree, delete the module + integration branches, delete
-   the wave-backup tag, and prune stale worktree refs. The gitignored `.odoo-ai/wave/<slug>/` and
-   this skill's own `.odoo-ai/pr-monitoring/<id>.md` may be removed inline. Optionally surface a
+   the wave-backup tag, and prune stale worktree refs. `<ISOLATE_DIR>/wave/<slug>/` (outside any git
+   working tree, so no gitignore entry applies) and this skill's own
+   `<ISOLATE_DIR>/pr-monitoring/<id>.md` may be removed inline. Optionally surface a
    version-bump/changelog follow-up (wrapping `make bump`) as a `next` entry for `run-harness` to
    gate - do not run it autonomously.
 
@@ -212,7 +216,7 @@ When the watch yields control (a tick with no action, a gate awaiting the human,
 state), append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`:
 
-- **Still watching / pending CI** -> `status: NEEDS_NEXT`, `produced: [.odoo-ai/pr-monitoring/<id>.md]`,
+- **Still watching / pending CI** -> `status: NEEDS_NEXT`, `produced: [<ISOLATE_DIR>/pr-monitoring/<id>.md]`,
   `next: [{skill: odoo-pr-monitoring, reason: "CI still pending - keep polling", inputs: {pr: <url>}, risk_level: L0}]`
   so the run re-attaches on the next tick.
 - **Failure routed (D3)** -> `status: NEEDS_NEXT` with `next` to `odoo-debug` then `odoo-coding`; the

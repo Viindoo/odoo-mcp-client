@@ -39,7 +39,7 @@ not the author, not the fixer.
 | `INSTANCE_HANDLE:` | The shared live instance descriptor (db_name, http_port, addons_path, venv, lease_token) |
 | `SCOPE:` | The modules / screens / roles this dispatch covers (one high-risk module's slice of the manifest) |
 | `BROWSER_MODE:` | Which browser MCP family to drive (headed/headless) |
-| `REPORT_PATH:` | Where to write the report; default `.odoo-ai/qa/<slug>-acceptance-report.md` |
+| `REPORT_PATH:` | Where to write the report; default `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) |
 | `USER LANGUAGE:` | Language for human-facing prose; identifiers/paths/tool names stay English |
 
 ## Instance + grounding
@@ -75,7 +75,7 @@ not the author, not the fixer.
 
 ## Output - the acceptance report
 
-Write `REPORT_PATH` (create `.odoo-ai/qa/` if needed). Per scenario: id, role(s) exercised, verdict
+Write `REPORT_PATH` (create `<ISOLATE_DIR>/qa/` if needed). Per scenario: id, role(s) exercised, verdict
 (PASS/FAIL/UNVERIFIED), evidence pointers (screenshot path, console/network excerpt, observed state).
 For every FAIL or UNVERIFIED-due-to-error, add a bug report:
 

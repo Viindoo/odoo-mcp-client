@@ -104,8 +104,13 @@ numbered feature screenshots per capture-mechanics.md, honouring `CAPTURE MODE` 
 Filenames follow app-store-template.md § Image Specifications: hero `main_screenshot.gif` (per-locale
 `main_screenshot.<locale>.gif`), feature shots `NN-slug.jpg` (per-locale `NN-slug.<locale>.jpg`);
 English canonical carries no suffix. Stage every capture under the run/module-scoped dir (default family
-`chrome-devtools`, direct `take_screenshot path`): `.odoo-ai/visual/<RUN_ID>/<module>_staging/<slug>.png`
-(playwright opt-in namespaces its two-tier write as `.playwright-mcp/<RUN_ID>/<module>_staging/...`) -
+`chrome-devtools`, direct `take_screenshot path`): `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/<slug>.png`
+(`<ISOLATE_DIR>`: when your dispatch brief carries `SHARE_DIR:`/`ISOLATE_DIR:` fields - the
+`odoo-doc-illustration` skill resolves them once against `doc_root` and passes them to every writer,
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch - use those
+literals directly; only when absent, resolve them yourself per that snippet's protocol, substituting
+the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit;
+playwright opt-in namespaces its two-tier write as `.playwright-mcp/<RUN_ID>/<module>_staging/...`) -
 NEVER a bare `doc-staging/`. Place the finals into `<module>/static/description/` via the section-3
 write. Emit the capture-coverage report; degrade per capture-mechanics.md section 11.
 
@@ -123,7 +128,7 @@ are the SSOT):
   marker has no match, place the image ref immediately after the heading of the feature it illustrates.
 - **Key Features grid**: titles + one-line `value` come from `feature-catalog.jsonl` ONLY (never the OSM
   summary). Hero tagline = manifest `summary`, outcome-first.
-- **Brand**: pull palette/fonts from `.odoo-ai/context.md` brand tokens or the brief; default to the
+- **Brand**: pull palette/fonts from `<SHARE_DIR>/context.md` brand tokens or the brief; default to the
   Odoo palette in the reference. NEVER hardcode a vendor brand (this repo is public).
 - **On-disk convention wins**: if the module already uses legacy `oe_*` classes, stay consistent;
   otherwise default to the Bootstrap-5 sanitizer-safe template. Per-locale -> `index_<locale>.html`,

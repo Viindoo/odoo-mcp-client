@@ -86,7 +86,10 @@ the log-flag table): `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`
 
 The executor and the adjudicator return a compact verdict plus a POINTER to evidence on disk - they
 do NOT dump the full test log, traceback, or screenshot stream into the caller's context. Write the
-detail to the run's artifact (e.g. `.odoo-ai/qa/<slug>-acceptance-report.md`, the instance log path)
+detail to the run's artifact (e.g. `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` - resolve
+`<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
+substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+Read/Write/Edit -, the instance log path)
 and return: the verdict, per-scenario PASS/FAIL/UNVERIFIED counts, the top failure(s) with a one-line
 repro, and the artifact path. The point of delegation is a clean caller context - inlining the log
 defeats it.

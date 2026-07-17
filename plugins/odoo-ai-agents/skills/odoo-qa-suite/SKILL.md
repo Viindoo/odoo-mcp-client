@@ -43,7 +43,9 @@ only when no leaf skill covers it.
 
 ## Phase 0 - Scope confirmation
 
-Read `.odoo-ai/context.md` first (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) to extract `odoo_version` and `modules`. Use those as defaults and skip asking for already-resolved fields.
+`context.md` is Tier-2 SHARE; resolve it via the resolve-capture-substitute protocol in
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<SHARE_DIR>`
+below). Read `<SHARE_DIR>/context.md` first (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) to extract `odoo_version` and `modules`. Use those as defaults and skip asking for already-resolved fields.
 
 Ask for all missing inputs in a **single message**:
 1. **Feature / module name** (skip if clear from context)
@@ -58,9 +60,13 @@ Present a **soft-plan-gate** before running any phase:
 Feature/module: <name>
 Version:        <X.Y>
 Phases:         generate-tests → qa-checklist → bug-triage
-Output:         .odoo-ai/qa/
+Output:         <ISOLATE_DIR>/qa/
 Gate: approve / refine: [feedback] / cancel
 ```
+
+`qa/` is Tier-2 ISOLATE; resolve it via the same resolve-capture-substitute protocol in
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<ISOLATE_DIR>`
+below).
 
 After gate approval, run the **test inventory** before Phase 1: call `tests_covering` for the
 module's primary model(s) to find which test methods already exercise them, then `test_coverage_audit`
@@ -102,7 +108,7 @@ Rules:
 - Ground test mechanics in the TARGET version - test classes, tag syntax, and JS framework (QUnit vs Hoot) differ across versions. Resolve via OSM (`set_active_version` + `cli_help`) and follow `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`; never assume one version's command line applies to another.
 - **Python test class grounding:** call `test_base_classes` before specifying any TransactionCase/HttpCase in the table - it returns the `cr.commit() FORBIDDEN - isolation is savepoint rollback` contract plus the authoritative base-class menu (e.g. `test_base_classes(odoo_version='17.0')`). When authoring Phase 1 runnable tests, launch the `odoo-test-writer` agent (it authors by invoking the `odoo-test-writing` skill inline, in its own context); instruct it to run `test_base_classes` first and apply `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` for all test local variables (Rule A: no `l`/`O`/`i`; B/C when Viindoo profile).
 - **JS test framework grounding:** for any frontend module, call `js_test_inspect` (e.g. `js_test_inspect(module='web', odoo_version='17.0')`) to discover the framework (hoot/qunit/tour) and existing suites. Never assume Hoot vs QUnit from version alone - some modules pin an older framework during a transitional release. When authoring JS tests, launch the `odoo-test-writer` agent and forward the `js_test_inspect` result so it writes in the correct framework.
-- Output file: `.odoo-ai/qa/<slug>-test-cases.md`
+- Output file: `<ISOLATE_DIR>/qa/<slug>-test-cases.md`
 
 ---
 
@@ -110,7 +116,7 @@ Rules:
 
 Invoke `odoo-deploy-checklist` via the Skill tool: "Generate a pre-deployment QA checklist for <module> targeting Odoo <version> in staging environment, covering all 8 domains: pre-flight, backup, data migration, downtime, deploy mechanics, smoke tests, monitoring, and rollback."
 
-Write the returned checklist to `.odoo-ai/qa/<slug>-deploy-checklist.md`.
+Write the returned checklist to `<ISOLATE_DIR>/qa/<slug>-deploy-checklist.md`.
 
 Gate before dispatching: "approve / skip / cancel".
 
@@ -149,13 +155,13 @@ Severity rules (non-negotiable - never soften):
 
 If a bug requires live browser inspection to classify, invoke `odoo-debug` via the Skill tool: "Investigate the following runtime issue in Odoo <version> and return a root-cause analysis with reproduction steps: <bug description>." Incorporate the returned root-cause into the triage entry.
 
-Output file: `.odoo-ai/qa/<slug>-bug-triage.md`
+Output file: `<ISOLATE_DIR>/qa/<slug>-bug-triage.md`
 
 ---
 
 ## Phase 4 - Summary (inline)
 
-Write `.odoo-ai/qa/<slug>-qa-summary.md`:
+Write `<ISOLATE_DIR>/qa/<slug>-qa-summary.md`:
 
 ```
 # QA Summary - <feature/module> @ Odoo <version>

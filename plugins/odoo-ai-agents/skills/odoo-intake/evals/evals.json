@@ -164,7 +164,7 @@
     {
       "id": 21,
       "prompt": "I'm not sure what I need but I have a big Odoo project starting next month",
-      "expected_output": "Intake fires (open-ended, no concrete verb). Enters brainstorm: reads .odoo-ai/context.md, presents 3 clarifying options (engineering setup, sales/pre-sales, strategic planning). Proposes Proposed Plan with domain + approach + gate. Does NOT write any files this turn.",
+      "expected_output": "Intake fires (open-ended, no concrete verb). Enters brainstorm: reads <SHARE_DIR>/context.md, presents 3 clarifying options (engineering setup, sales/pre-sales, strategic planning). Proposes Proposed Plan with domain + approach + gate. Does NOT write any files this turn.",
       "expected_routed_to": "brainstorm",
       "category": "vague-brainstorm",
       "files": []
@@ -188,7 +188,7 @@
     {
       "id": 24,
       "prompt": "where do I begin with this Odoo project",
-      "expected_output": "Intake fires (explicit 'where do I begin' trigger phrase from description). Enters brainstorm or suggests odoo-onboarding if .odoo-ai/context.md is absent. Presents Proposed Plan gate.",
+      "expected_output": "Intake fires (explicit 'where do I begin' trigger phrase from description). Enters brainstorm or suggests odoo-onboarding if <SHARE_DIR>/context.md is absent. Presents Proposed Plan gate.",
       "expected_routed_to": "brainstorm OR odoo-onboarding",
       "category": "vague-brainstorm",
       "files": []

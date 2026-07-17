@@ -61,7 +61,7 @@ This skill produces a full Discovery Profile without OSM. Follow rounds in seque
 
 Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` before asking for any project fact:
 
-1. **Read `.odoo-ai/context.md`** if present. Extract `odoo_version` and `profile_name` as
+1. **Read `<SHARE_DIR>/context.md`** if present (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Extract `odoo_version` and `profile_name` as
    authoritative defaults (used when `check_module_exists` is called in Rounds 3/3.5).
 2. If absent, derive version from manifest files; default to `odoo_version=<version>` if still unresolved.
 3. Ask the caller only for context genuinely missing after steps 1-2.
@@ -176,7 +176,7 @@ self-contained - a colleague who was not on the call should understand the full 
 
 ## Notes
 
-- **`.odoo-ai/context.md` integration:** Handled by Round 0 (see context-bootstrap snippet). `odoo_version` and `profile_name` are used as authoritative defaults for all OSM calls. Absent → derive from disk, ask human for details.
+- **`<SHARE_DIR>/context.md` integration:** Handled by Round 0 (see context-bootstrap snippet). `odoo_version` and `profile_name` are used as authoritative defaults for all OSM calls. Absent → derive from disk, ask human for details.
 - **Cross-skill handoff:** Discovery Profile is the INPUT to `odoo-gap-analysis`. Pipeline: `odoo-discovery-summary` (qualify) → `odoo-gap-analysis` (scope) → `odoo-deal-followup` (follow up) → `odoo-respond-bid` (proposal).
 
 ## Continuation Contract

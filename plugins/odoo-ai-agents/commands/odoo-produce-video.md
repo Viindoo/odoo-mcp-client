@@ -35,7 +35,9 @@ Three gated phases (Pipeline pattern):
 | 1 - Record scenes | `odoo-demo-recording` (per scene) | approve-all / retake: [N] / cancel |
 | 2 - Assemble | inline | save / discard / cancel |
 
-Output lands in `.odoo-ai/video/<project_label>-<YYYY-MM-DD>/`.
+Output lands in `<ISOLATE_DIR>/video/<project_label>-<YYYY-MM-DD>/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>`
+once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
+absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
 
 > **pagecast is opt-in.** Recording (pagecast / Playwright video) is no longer an eager browser
 > MCP - only the headless `chrome-devtools` is eager. Wire the recorder family first via

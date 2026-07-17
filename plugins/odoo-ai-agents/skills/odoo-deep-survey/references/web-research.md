@@ -68,7 +68,9 @@ text) that OSM does not index. Never let a blog override `model_inspect`.
 ## Recording
 
 Every web finding carries **source-tier + URL + fetch-date**. Workers write findings to
-`.odoo-ai/survey/<slug>-<date>/phaseW/<NN>-<subquestion>.md` + one worklog entry each. At
+`<SHARE_DIR>/survey/<slug>-<date>/phaseW/<NN>-<subquestion>.md` (resolve `<SHARE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) + one worklog entry each. At
 synthesis they aggregate into the `web_findings` section of `synthesis.md`
 (`references/synthesis-schema.md`) as rows:
 `claim | source-tier | URL | corroborating-source | VERIFIED/UNVERIFIED`.

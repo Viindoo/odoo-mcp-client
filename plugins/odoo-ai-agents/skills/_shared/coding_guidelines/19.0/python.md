@@ -372,7 +372,7 @@ In general in Odoo, when manipulating strings, prefer `%` over `.format()` (when
 Before choosing a new label or `string=` value, check whether a canonical term already exists for the concept. Use these three sources in order:
 
 - **Translation memory:** search `.po` files in the Odoo core and your dependency chain for existing `msgid` entries that express the same concept - reuse the established wording verbatim.
-- **Project glossary:** consult `.odoo-ai/glossary.yml` for domain-level term decisions already recorded for this project.
+- **Project glossary:** consult `<SHARE_DIR>/glossary.yml` for domain-level term decisions already recorded for this project (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
 - **OSM field string:** run `entity_lookup(kind='field', model='<model>', field='<field>', odoo_version='<version>')` and read the `string` attribute - it is the authoritative label used by Odoo for that field.
 
 REUSE the canonical term; do NOT invent a new label that duplicates an existing concept under a different name. Terminology drift makes translation memory unusable and confuses users who switch languages.

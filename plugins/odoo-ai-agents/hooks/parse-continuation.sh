@@ -49,5 +49,16 @@ fi
 
 [[ "$STATUS" == "NEEDS_NEXT" ]] || _pass    # only nudge when more work is signalled
 
-jq -cn '{continue:true, systemMessage:"A subagent emitted a Continuation Contract with status=NEEDS_NEXT. run-harness: read the active .odoo-ai/run-*.json, record this result, and advance the next[] node(s). (Advisory - you decide; not a block.)"}'
+# ISOLATE state dir (Problem 3 - snippets/state-root-resolution.md), resolved FROM the
+# hook's own project cwd so the nudge names the correct per-worktree run-*.json instead
+# of the legacy project-relative convention. CRITICAL RESILIENCE: this hook must NEVER
+# hard-fail or block - a resolver refusal (non-git, no marker) or any error (missing
+# script, no CLAUDE_PLUGIN_ROOT) silently falls back to the legacy project-relative path.
+CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
+PROJ_DIR="${CWD:-${CLAUDE_PROJECT_DIR:-.}}"
+RUN_DIR="$(cd "$PROJ_DIR" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" isolate 2>/dev/null || true)"
+[[ -n "$RUN_DIR" ]] || RUN_DIR="${PROJ_DIR}/.odoo-ai"
+
+jq -cn --arg m "A subagent emitted a Continuation Contract with status=NEEDS_NEXT. run-harness: read the active $RUN_DIR/run-*.json, record this result, and advance the next[] node(s). (Advisory - you decide; not a block.)" \
+  '{continue:true, systemMessage:$m}'
 exit 0

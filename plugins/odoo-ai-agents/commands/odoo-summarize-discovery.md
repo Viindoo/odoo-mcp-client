@@ -32,19 +32,23 @@ Use when you already want discovery synthesis and want to skip natural-language 
 3. **Phase 2: Show output**
    - Display the skill's output to the user.
    - Ask: "Save this profile? (yes / no / change-name)"
-   - If the user provides a custom filename, use it. Otherwise, default to `.odoo-ai/discovery/<label>-<date>.md` where `<date>` is YYYY-MM-DD.
+   - If the user provides a custom filename, use it. Otherwise, default to
+     `<ISOLATE_DIR>/discovery/<label>-<date>.md` where `<date>` is YYYY-MM-DD (resolve
+     `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
+     substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into
+     a Read/Write/Edit).
 
 4. **Phase 3: Write file (optional)**
    - If the user answers `yes`, write the profile to the file using the `Write` tool.
-   - Confirm: "`✓ Profile saved to .odoo-ai/discovery/<filename>.md`"
+   - Confirm: "`✓ Profile saved to <ISOLATE_DIR>/discovery/<filename>.md`"
    - If the user answers `no`, stop. Do not write.
 
 ## Hard rules
 
 - Dispatch the target skill via the Skill tool. NL description-match is an acceptable fallback.
 - Do **not** proceed to gap analysis, proposal drafting, or other chained skills. If the user wants the full discovery → proposal chain, redirect to `/odoo-respond-bid`.
-- Check for `.odoo-ai/context.md` in the project root. If it exists and has an `odoo_version` key, use that as the default Odoo version. If absent, do not assume a version - the skill uses its internal default.
-- The file path `<cwd>/.odoo-ai/discovery/` is the canonical location. Create the directory if it does not exist.
+- Check for `<SHARE_DIR>/context.md`. If it exists and has an `odoo_version` key, use that as the default Odoo version. If absent, do not assume a version - the skill uses its internal default.
+- `<ISOLATE_DIR>/discovery/` is the canonical location. Create the directory if it does not exist.
 - Do **not** commit or push the file. File ownership: read-only for this command.
 
 ## Examples
@@ -75,11 +79,11 @@ Skill output:
   **Recommended product fit:** Odoo Accounting + Invoice Automation...
   **Next step:** Demo accounts module, pricing discussion...
 
-Agent: Save to .odoo-ai/discovery/Customer-A-Corp-2026-05-28.md? (yes / no / change-name)
+Agent: Save to <ISOLATE_DIR>/discovery/Customer-A-Corp-2026-05-28.md? (yes / no / change-name)
 
 User: yes
 
-Agent: ✓ Profile saved to .odoo-ai/discovery/Customer-A-Corp-2026-05-28.md
+Agent: ✓ Profile saved to <ISOLATE_DIR>/discovery/Customer-A-Corp-2026-05-28.md
 ```
 
 ## Standalone fallback

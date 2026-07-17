@@ -58,12 +58,14 @@ skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path)
 agent's family delta; never inline that file verbatim into a hard-leaf brief.
 
 **Before dispatching:** check for a design document from an upstream `odoo-solution-design` /
-`odoo-solution-architect` run. List `.odoo-ai/designs/` under the project root; if one or more
+`odoo-solution-architect` run. List `<SHARE_DIR>/designs/` (resolve `<SHARE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); if one or more
 files are present, take the most recently modified one and add the following line to the dispatch
 brief:
 
 ```
-DESIGN_DOC: .odoo-ai/designs/<filename>
+DESIGN_DOC: <SHARE_DIR>/designs/<filename>
 ```
 
 The reviewer uses this to verify UI-observable acceptance criteria (controls visible, workflow
@@ -71,7 +73,7 @@ paths reachable, labels correct, access-rule state reflected in the UI) from §1
 User impact) and §9 (Acceptance Criteria) of the design document. When no `designs/` directory
 exists or it is empty, omit the line entirely.
 
-**Master-child mode (index-aware):** If `.odoo-ai/designs/<master-slug>/index.yaml` exists,
+**Master-child mode (index-aware):** If `<SHARE_DIR>/designs/<master-slug>/index.yaml` exists,
 resolve the per-module child path from `index.yaml` (`modules[].child_path` for the module
 being reviewed) instead of picking the most-recently-modified flat file. Also add
 `MASTER_DESIGN_DOC: <subdir>/_master-<date>.md` to the dispatch brief so the reviewer can

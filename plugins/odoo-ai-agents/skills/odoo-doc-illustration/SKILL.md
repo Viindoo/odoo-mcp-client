@@ -43,6 +43,21 @@ are INTERNAL leaf executors - only this skill launches them; no consumer reaches
 a writer. The writers NEVER spawn, call the Skill tool, call `odoo-content-draft`/`-scoper`/
 `-planner`, or run a loop - ALL orchestration lives here.
 
+**State dir resolution (once per run, before any writer dispatch).** This skill is the
+cross-worktree dispatcher for its own pipeline (writers + end-of-run cleanup) - per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch, resolve
+`<SHARE_DIR>`/`<ISOLATE_DIR>` ONCE, with cwd set to the run's target root (`doc_root` from the
+scoper for multi-module; the module's own containing repo root for the single-module legacy path),
+and CAPTURE both absolute paths for the rest of the run:
+```
+bash -c "cd <doc_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share"
+bash -c "cd <doc_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh isolate"
+```
+Pass these captured literals as `SHARE_DIR:` / `ISOLATE_DIR:` fields in EVERY writer dispatch brief
+(§Writer dispatch briefs below) and reuse the SAME captured `ISOLATE_DIR` value - never a fresh
+resolve call - at the end-of-run staging cleanup step below, so the writers' staging path and the
+cleanup's `rm -rf` target are guaranteed identical.
+
 **Single module.** A single module dir/name keeps the legacy single-module path with no
 scoper/planner hop: provision (or receive an `INSTANCE_HANDLE`), then run the loop body ONCE
 against that module - behavior unchanged.
@@ -103,11 +118,13 @@ Order per module: **install -> pre-fetch copy (marketing) -> capture + assemble 
 
 **End-of-run staging cleanup (skill-owned).** After the LAST module is verified + committed and
 BEFORE emitting the aggregate index, delete this run's transient capture staging - scoped to
-`<run_id>` ONLY:
+`<run_id>` ONLY. `visual/` is Tier-2 ISOLATE; reuse the SAME `<ISOLATE_DIR>` captured ONCE at
+§State dir resolution above (the identical literal every writer this run staged under, per the
+`SHARE_DIR:`/`ISOLATE_DIR:` fields in §Writer dispatch briefs) - do NOT re-resolve here, then:
 ```
-rm -rf .odoo-ai/visual/<run_id>/ .playwright-mcp/<run_id>/
+rm -rf <ISOLATE_DIR>/visual/<run_id>/ .playwright-mcp/<run_id>/
 ```
-HARD RULE: never `rm` another run's subtree (no bare `.odoo-ai/visual/` or `.playwright-mcp/`); the
+HARD RULE: never `rm` another run's subtree (no bare `<ISOLATE_DIR>/visual/` or `.playwright-mcp/`); the
 final committed images already live in each module's `static/description/` (or `doc/`), so removing
 the run-scoped staging loses nothing.
 
@@ -138,14 +155,19 @@ per-locale loop, `CAPTURE MODE` step-drive) live in `references/capture-mechanic
 does not restate them.
 
 Both briefs carry `RUN_ID: <run-or-slug>` - REUSE the run's worklog run-or-slug (the id used for
-`doc-run-<run_id>/index.jsonl`); do NOT mint a new id. The writers stage captures under
-`.odoo-ai/visual/<run_id>/<module>_staging/...` (per `references/capture-mechanics.md` section 3), so
-two modules or concurrent runs never clobber each other.
+`doc-run-<run_id>/index.jsonl`); do NOT mint a new id. Both briefs ALSO carry `SHARE_DIR:` /
+`ISOLATE_DIR:` - the SAME absolute paths captured ONCE at §State dir resolution above; writers use
+them literally per `references/capture-mechanics.md` section 3, never re-resolving. The writers
+stage captures under `<ISOLATE_DIR>/visual/<run_id>/<module>_staging/...` (using the passed
+`ISOLATE_DIR` literal), so two modules or concurrent runs never clobber each other, and the
+end-of-run cleanup (which reuses the same literal) always finds the real staging tree.
 
 **`odoo-user-doc-writer`** (DOC LAYER `userguide`, or the userguide half of `both`):
 ```
 MODULE PATH: <abs path to module dir | module name>
 RUN_ID: <run-or-slug>                 # reuse the worklog run-or-slug; scopes the staging dir
+SHARE_DIR: <abs-path captured at State dir resolution>
+ISOLATE_DIR: <abs-path captured at State dir resolution>   # use directly - do NOT re-resolve
 INSTANCE_HANDLE: <db>:<port>          # from provision-once; absent = writer self-checks install
 WALKTHROUGH: <abs path to walkthrough.jsonl from odoo-doc-scenarist>   # required for CAPTURE MODE: scenarios
 FEATURE CATALOG: <abs path to feature-catalog.jsonl>                   # optional; feeds Usage + feature list
@@ -160,6 +182,8 @@ BROWSER MODE: headless | headed
 ```
 MODULE PATH: <abs path to module dir | module name>
 RUN_ID: <run-or-slug>                 # reuse the worklog run-or-slug; scopes the staging dir
+SHARE_DIR: <abs-path captured at State dir resolution>
+ISOLATE_DIR: <abs-path captured at State dir resolution>   # use directly - do NOT re-resolve
 INSTANCE_HANDLE: <db>:<port>
 MARKETING COPY: <abs path or inline sectioned copy from odoo-content-draft>   # REQUIRED - skill pre-fetches it
 FEATURE CATALOG: <abs path to feature-catalog.jsonl>                          # REQUIRED - absent -> writer BLOCKS
@@ -193,8 +217,9 @@ RST and deep technical steps out of the HTML - do not duplicate content across t
 external CDN/Google-Fonts link; Bootstrap-5 utility classes; hex colors only; HTML entities;
 relative image paths). The skill pre-fetches the copy from `odoo-content-draft`; the writer resolves
 `[Image: <slug>]` markers after capture and sources the Key Features grid from the feature catalog.
-Brand palette/fonts come from `.odoo-ai/context.md` brand tokens or the brief - never hardcode a
-vendor brand.
+Brand palette/fonts come from `context.md` brand tokens (Tier-2 SHARE; resolve via the
+resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`,
+i.e. `<SHARE_DIR>/context.md`) or the brief - never hardcode a vendor brand.
 
 **DOC SCOPE (userguide structure).** `screenshot-doc` (default) = one section per feature with field
 text + a screenshot. `full-guide` = `odoo-user-doc-writer` writes a structured guide with

@@ -53,7 +53,10 @@ these are what a live tester must open:
 
 ## Step 4 - Emit the verify-scope manifest
 
-Write the manifest to `.odoo-ai/qa/<slug>-scope.md` (the run's slug). It is the contract the
+Write the manifest to `<ISOLATE_DIR>/qa/<slug>-scope.md` (the run's slug; resolve `<SHARE_DIR>`/
+`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the
+captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
+It is the contract the
 planner and tester consume; structure it exactly so both can parse it:
 
 ```

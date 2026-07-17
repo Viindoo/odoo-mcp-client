@@ -20,7 +20,9 @@ user-invocable: true
 
 ## Where this sits in the flow (planning follows design, precedes code)
 
-Planning step only. Output: `.odoo-ai/plans/<slug>-<date>.md` (gitignored, L1) - never production
+Planning step only. Output: `<SHARE_DIR>/plans/<slug>-<date>.md` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>`
+via the resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`
+before the first Read/Write/Edit of a state-root path in this skill; gitignored, L1) - never production
 source. Correct order:
 
 ```
@@ -63,13 +65,13 @@ Pairs with `odoo-solution-design` (consumes its design DAG, passed to both plann
 The plan is GROUNDED on three upstream artifacts; locate them and pass their paths to the planner
 (do NOT paste their contents, do NOT re-derive their facts):
 
-- **Design DAG** - `.odoo-ai/designs/<master-slug>/index.yaml` (`dag_layers` + dependency
-  direction) for a master-child design, or the single-mode `.odoo-ai/designs/<slug>-<date>.md`.
+- **Design DAG** - `<SHARE_DIR>/designs/<master-slug>/index.yaml` (`dag_layers` + dependency
+  direction) for a master-child design, or the single-mode `<SHARE_DIR>/designs/<slug>-<date>.md`.
   This is the logical truth the plan batches into waves; the planner CONSUMES it, never recomputes
   it.
-- **Gap matrix** - `.odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl` (or a BRL RTM under
-  `.odoo-ai/brl/<job-id>/`) for per-requirement effort tier - drives the `effort` estimate.
-- **QA oracle (OPTIONAL - usually ABSENT at planning time)** - `.odoo-ai/qa/<slug>-scenarios.md`
+- **Gap matrix** - `<SHARE_DIR>/gap-analysis/<slug>-<date>/gap-matrix.jsonl` (or a BRL RTM under
+  `<SHARE_DIR>/brl/<job-id>/`) for per-requirement effort tier - drives the `effort` estimate.
+- **QA oracle (OPTIONAL - usually ABSENT at planning time)** - `<ISOLATE_DIR>/qa/<slug>-scenarios.md`
   (the immutable acceptance oracle authored by `odoo-qa-planner`). The oracle is normally authored
   LATER, at `odoo-acceptance` Phase 1, after coding - do NOT treat it as a standard planning input.
   When absent (the common case), the plan RESERVES the acceptance stage against the design's §9
@@ -97,15 +99,16 @@ Will decide:  code plan: wave-batched module-DAG + integration cadence + module/
               · full lifecycle (code -> review -> test/QA -> user-doc -> marketing-doc -> PR ->
               monitor -> merge) · effort + est_agents ESTIMATES (ADVISORY, non-binding)
 Inputs:       design <path> · gap-matrix <path|none> · qa oracle <path|none>
-Artifacts:    .odoo-ai/plans/<slug>-<date>.md (code 3-block plan) ·
-              .odoo-ai/plans/<slug>-doc-<date>.yaml (doc cluster plan)
+Artifacts:    <SHARE_DIR>/plans/<slug>-<date>.md (code 3-block plan) ·
+              <SHARE_DIR>/plans/<slug>-doc-<date>.yaml (doc cluster plan)
               (no run-<id>.json - that is intake Phase P)
 OSM:          backed | standalone
 Proceed? (yes / refine: [feedback] / cancel)
 ```
 
 Wait for the reply before proceeding. This is a preview, not a write-block - on confirmation the
-planner writes ONLY the plan under `.odoo-ai/`.
+planner writes ONLY the plan under the `$ODOO_AI_HOME` state root (SHARE tier - see
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`).
 
 ## Agent invocation - prompt templates (P1: code + doc)
 
@@ -150,7 +153,7 @@ DISPATCH MODEL: opus
 You are the odoo-planner agent. Produce the 3-block EXECUTION PLAN (NOT code, NOT a design) for:
 
 REQUEST: [the change to ship, target Odoo version, any constraints]
-DESIGN_INDEX: [.odoo-ai/designs/<master-slug>/index.yaml, or the single-mode design doc path]
+DESIGN_INDEX: [<SHARE_DIR>/designs/<master-slug>/index.yaml, or the single-mode design doc path]
 GAP_MATRIX: [omit when absent; else the gap-matrix.jsonl / BRL RTM path]
 QA_ORACLE: [omit when absent - the common case at planning time, since the oracle is authored
 later at odoo-acceptance Phase 1; else the scenarios.md path]
@@ -186,7 +189,7 @@ plan_source: design-dag
 LANGUAGES: [brief-specified list if any; otherwise resolve from registry - English always included]
 
 Apply the scheduling algorithm from skills/_shared/doc-cluster-plan.md. Emit doc-plan.yaml to
-.odoo-ai/plans/<slug>-doc-<date>.yaml covering user-guide (doc/index.rst) AND marketing landing
+<SHARE_DIR>/plans/<slug>-doc-<date>.yaml covering user-guide (doc/index.rst) AND marketing landing
 (static/description/index.html) for every in-scope module. Estimates only. Do NOT provision any
 instance. Do NOT spawn subagents or invoke skills.
 ```
@@ -238,8 +241,8 @@ module names, model identifiers, and skill names verbatim):
 
 ```
 Plan ready:
-  Code plan:  .odoo-ai/plans/<slug>-<YYYY-MM-DD>.md
-  Doc plan:   .odoo-ai/plans/<slug>-doc-<YYYY-MM-DD>.yaml
+  Code plan:  <SHARE_DIR>/plans/<slug>-<YYYY-MM-DD>.md
+  Doc plan:   <SHARE_DIR>/plans/<slug>-doc-<YYYY-MM-DD>.yaml
 Build order: <wave-1 modules> -> <wave-2 modules> -> ...   (integration cadence: <one line>)
 Doc clusters: <n clusters> · <n instances> · <n modules doc'd>   (allocation: <one line>)
 Lifecycle:   code -> review -> test/QA -> [user-doc + marketing-doc] -> PR -> monitor -> merge
@@ -252,7 +255,7 @@ Approve plan? (approve / refine: [feedback] / cancel)
 - `refine: [feedback]` -> re-dispatch the planner with the feedback; rewrite the same plan file.
 - `approve` -> two branches:
   - **`return_to` UNSET (default):** the approved plan is the run-DAG. Call `ExitPlanMode`, then
-    hand the approved 3-block plan to intake **Phase P**, which serializes `.odoo-ai/run-<id>.json`
+    hand the approved 3-block plan to intake **Phase P**, which serializes `<ISOLATE_DIR>/run-<id>.json`
     and dispatches `run-harness` to walk it (coding waves via its own between-wave integration,
     then doc/i18n/PR/monitor/merge). This skill never serializes the run file itself.
   - **`return_to` SET (caller-return flow):** do NOT enter Plan Mode for code and do NOT dispatch

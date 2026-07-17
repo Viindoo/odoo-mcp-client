@@ -7,8 +7,11 @@
 > 1. OSM (`odoo-semantic`) is reachable (probe with `list_available_profiles` or `set_active_version`).
 > 2. The active profile resolves to a Viindoo Standard or Viindoo Internal distribution -
 >    semantically, profiles of the form `standard_viindoo_<series>` or
->    `viindoo_internal_<series>`. Determine the active profile via `.odoo-ai/context.md`
->    (field `viindoo_profile`), or via OSM `profile_inspect` / `list_available_profiles` /
+>    `viindoo_internal_<series>`. Determine the active profile via `<SHARE_DIR>/context.md`
+>    (field `viindoo_profile`; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
+>    `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute
+>    path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit), or via OSM
+>    `profile_inspect` / `list_available_profiles` /
 >    the currently active profile.
 >
 > If OSM is unavailable, OR the active profile is not a Viindoo Standard/Internal distribution

@@ -65,7 +65,7 @@ generate awareness, drive demo requests, support regional or vertical expansion.
 Before asking anything, read what onboarding captured
 (see `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`):
 
-1. **Read `.odoo-ai/context.md`** if present; apply as authoritative overrides:
+1. **Read `<SHARE_DIR>/context.md`** if present (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); apply as authoritative overrides:
    - `odoo_version` - default for all feature-claim verification and version references.
    - Audience personas / messaging pillars there override this skill's generic defaults.
    - Channel restrictions (e.g. "no paid ads", "LinkedIn only") are applied without asking.
@@ -88,7 +88,7 @@ adjust afterward.
    - **L (Large)**: full paid mix; LinkedIn Ads + Google Search + YouTube + landing page + email
 5. **Available channels**: which channels can the team actually publish to? (LinkedIn company
    page, personal LinkedIn, blog/website, YouTube, email list, Facebook/Zalo page, paid ads)
-6. **Odoo version / edition** (resolved from `.odoo-ai/context.md` in bootstrap step above;
+6. **Odoo version / edition** (resolved from `<SHARE_DIR>/context.md` in bootstrap step above;
    fallback to "Odoo 17 CE" if file absent and user does not specify)
 
 ### Round 1 - Frame the campaign angle

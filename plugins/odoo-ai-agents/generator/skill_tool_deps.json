@@ -253,7 +253,7 @@
       ],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "After profile selection, profile_inspect(modules) records the real module inventory into .odoo-ai/context.md so downstream skills need not re-derive it. min_server 0.13.1 for profile_inspect."
+      "notes": "After profile selection, profile_inspect(modules) records the real module inventory into <SHARE_DIR>/context.md so downstream skills need not re-derive it. min_server 0.13.1 for profile_inspect."
     },
     "odoo-override-finding": {
       "mcp_tools": [
@@ -313,7 +313,7 @@
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Post-PR lifecycle owner (poller; NOT a blocking DAG node). Stays LIGHT on tools - it makes essentially no OSM calls: all PR/CI/review reads + the merge are GitHub-API ops routed through git-toolkit's `git-ops` skill, post-merge cleanup is likewise routed through `git-ops`, and deep source grounding happens INSIDE the odoo-debug / odoo-coding it routes to. set_active_version pins the run's target Odoo series once at attach (doubling as the OSM reachability probe) so the version-pinned context travels with any D3 hand-off to odoo-debug and into the merge report. Writes only its own poll-state under .odoo-ai/pr-monitoring/ (gitignored); the PR URL lives in run-<id>.json (run-harness owns that write) so a fresh session can re-attach to the watch. min_server 0.6.0 for set_active_version."
+      "notes": "Post-PR lifecycle owner (poller; NOT a blocking DAG node). Stays LIGHT on tools - it makes essentially no OSM calls: all PR/CI/review reads + the merge are GitHub-API ops routed through git-toolkit's `git-ops` skill, post-merge cleanup is likewise routed through `git-ops`, and deep source grounding happens INSIDE the odoo-debug / odoo-coding it routes to. set_active_version pins the run's target Odoo series once at attach (doubling as the OSM reachability probe) so the version-pinned context travels with any D3 hand-off to odoo-debug and into the merge report. Writes only its own poll-state under <ISOLATE_DIR>/pr-monitoring/ (gitignored); the PR URL lives in run-<id>.json (run-harness owns that write) so a fresh session can re-attach to the watch. min_server 0.6.0 for set_active_version."
     },
     "odoo-risk-overview": {
       "mcp_tools": [
@@ -386,7 +386,7 @@
       "mcp_tools": [],
       "min_server_version": "0.1.0",
       "deprecated_tools_used": [],
-      "notes": "Composition skill - no MCP tools called directly. NL-dispatches to odoo-debug (bug path) and odoo-feature-check (feature-request path) via description-match. All outputs to .odoo-ai/support/ (gitignored, confidentiality-safe)."
+      "notes": "Composition skill - no MCP tools called directly. NL-dispatches to odoo-debug (bug path) and odoo-feature-check (feature-request path) via description-match. All outputs to <ISOLATE_DIR>/support/ (gitignored, confidentiality-safe)."
     },
     "odoo-qa-suite": {
       "mcp_tools": [
@@ -395,13 +395,13 @@
       ],
       "min_server_version": "0.8.0",
       "deprecated_tools_used": [],
-      "notes": "Phase 1 grounds test mechanics (test class, tag syntax, --test-enable/--test-tags) via OSM set_active_version + cli_help for the target version; Phase 2 NL-dispatches to odoo-deploy-checklist. Outputs to .odoo-ai/qa/."
+      "notes": "Phase 1 grounds test mechanics (test class, tag syntax, --test-enable/--test-tags) via OSM set_active_version + cli_help for the target version; Phase 2 NL-dispatches to odoo-deploy-checklist. Outputs to <ISOLATE_DIR>/qa/."
     },
     "run-harness": {
       "mcp_tools": [],
       "min_server_version": "0.13.1",
       "deprecated_tools_used": [],
-      "notes": "Drive-to-done loop: walks the RUN-DAG in .odoo-ai/run-<id>.json, dispatches each node, reads its Continuation Contract, advances to DONE/BLOCKED/NEEDS_CONTEXT. Pure orchestration - no MCP tools of its own."
+      "notes": "Drive-to-done loop: walks the RUN-DAG in <ISOLATE_DIR>/run-<id>.json, dispatches each node, reads its Continuation Contract, advances to DONE/BLOCKED/NEEDS_CONTEXT. Pure orchestration - no MCP tools of its own."
     },
     "odoo-test-writing": {
       "mcp_tools": [
@@ -499,7 +499,7 @@
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "Front-door debug orchestrator. Stays light on tools - pins version + quick layer classification, then dispatches specialist debug agents (odoo-backend-debugger OSM-only; odoo-ui-debugger browser, serial-exclusive). Heavy OSM localization happens inside the agents. test_base_classes checks for cr.commit() misuse in test context; tests_covering locates existing tests covering the failing model. Writes run notes to .odoo-ai/debug/ (gitignored). min_server 0.15.0 for test tools."
+      "notes": "Front-door debug orchestrator. Stays light on tools - pins version + quick layer classification, then dispatches specialist debug agents (odoo-backend-debugger OSM-only; odoo-ui-debugger browser, serial-exclusive). Heavy OSM localization happens inside the agents. test_base_classes checks for cr.commit() misuse in test context; tests_covering locates existing tests covering the failing model. Writes run notes to <ISOLATE_DIR>/debug/ (gitignored). min_server 0.15.0 for test tools."
     },
     "odoo-forward-port": {
       "mcp_tools": [
@@ -793,7 +793,7 @@
     }
   },
   "orchestration": {
-    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no subagent spawn) | spawner-agent (dispatches a named subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes .odoo-ai/ internal - auto-pass under --auto) | L2 (irreversible/outward: an outward git merge/push or a shared instance_touching - ALWAYS human gate; dial cannot lower). run-harness's OWN between-wave integration advance is L1 (autonomous drive-to-done: instance touches are ephemeral test DBs, the squash/force-push is the in-context L2-squash-gate, and the only irreversible landing is the downstream outward merge); a DYNAMIC unplanned source-writing wave stays L2 via run-harness's dynamic-source-write rule - neither is a registry default_gate_tier value (a run-harness node tier, not a skill field). Per-node override lives in run-<id>.json, not here. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: lead resumes a named worker via SendMessage, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via Agent tool + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md.",
+    "_doc": "SSOT (single source of truth) for orchestration metadata of every skills/<dir>. Consumed by gen_surface.py -> docs/reference/ORCHESTRATION-MAP.md + orchestration-digest.txt, and validated by check_orchestration.py. spawn_class: leaf (runs inline) | orchestrator-nl (chains other skills via natural-language dispatch, no subagent spawn) | spawner-agent (dispatches a named subagent). stack: backend | frontend | fullstack | none (drives backend<->frontend routing). instance_touching: true when the skill emits odoo-bin / builds or updates an instance (must ground CLI via OSM cli_help per target version). output_mode: chat-only (emits to chat, skip Plan Mode) | writes-files (persists file artifact, requires Plan Mode); SSOT here, replaces hardcoded chat-only lists. default_gate_tier: L0 (read-only/chat auto-pass) | L1 (writes $ODOO_AI_HOME/ internal - auto-pass under --auto) | L2 (irreversible/outward: an outward git merge/push or a shared instance_touching - ALWAYS human gate; dial cannot lower). run-harness's OWN between-wave integration advance is L1 (autonomous drive-to-done: instance touches are ephemeral test DBs, the squash/force-push is the in-context L2-squash-gate, and the only irreversible landing is the downstream outward merge); a DYNAMIC unplanned source-writing wave stays L2 via run-harness's dynamic-source-write rule - neither is a registry default_gate_tier value (a run-harness node tier, not a skill field). Per-node override lives in run-<id>.json, not here. handoff: Context-Handoff Protocol tier for resuming subagents across turns. send-message (Tier-A: lead resumes a named worker via SendMessage, avoiding cold-spawn overhead) | fork (Tier-B: subagent_type=fork fan-out inheriting parent context + prompt cache) | fresh (Tier-C default: cold-spawn every turn via Agent tool + worklog blackboard - the always-correct baseline). Absence of the field is treated as fresh by the lint rule; only declare when the skill is wired for Tier-A or Tier-B in snippets/context-handoff-protocol.md.",
     "odoo-intake": {
       "spawn_class": "spawner-agent",
       "spawns": [
@@ -808,7 +808,7 @@
       "spawn_class": "spawner-agent",
       "handoff": "fork",
       "spawns": [
-        "(anonymous read-only fan-out subagents, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under .odoo-ai/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B)"
+        "(anonymous read-only fan-out subagents, explicit model per phase haiku/sonnet/opus; read-only on Odoo source, write only findings under <SHARE_DIR>/survey/, no further spawn - see skills/_shared/concurrency-guard.md Mode B)"
       ],
       "stack": "none",
       "instance_touching": false,

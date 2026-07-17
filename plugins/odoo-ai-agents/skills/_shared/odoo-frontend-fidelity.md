@@ -213,7 +213,10 @@ the deployment's own quality module - **single source of truth lives in the cons
 not vendored here.**
 
 **Declaration (consumer side).** A project opts in by setting `brand_tokens_source` in
-`.odoo-ai/context.md` to a committed JSON map of token -> expected color, e.g.
+`<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) to a committed JSON map
+of token -> expected color, e.g.
 `{ "--primary": "#1E88E5", "--o-brand-secondary": "#8E24AA" }`. No map declared -> brand checks
 silently skip (pure-Odoo projects are unaffected). The map is the brand SSOT; never hardcode
 brand values into a skill, agent, or rule file.

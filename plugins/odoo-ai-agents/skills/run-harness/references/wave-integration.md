@@ -115,9 +115,11 @@ base ─────────────────────────
 
 run-harness does NOT author the plan - it CONSUMES the approved plan (`odoo-planning` is the
 producer). This template is the run-local EXECUTION LOG run-harness writes to
-`.odoo-ai/wave/<slug>/plan.md` (gitignored): the consumed topology + module map, the cherry-pick /
-saga-checkpoint log, the review log, and the PR/squash result. It records what run-harness did, not
-what to do.
+`<ISOLATE_DIR>/wave/<slug>/plan.md` (gitignored; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit): the consumed topology +
+module map, the cherry-pick / saga-checkpoint log, the review log, and the PR/squash result. It
+records what run-harness did, not what to do.
 
 ```markdown
 # Wave Integration Log: <slug>
@@ -185,7 +187,7 @@ Status  : <open | merged | closed>
 - [ ] module branches deleted
 - [ ] Integration branch deleted (after merge)
 - [ ] Backup tag deleted
-- [ ] .odoo-ai/wave/<slug>/ removed
+- [ ] <ISOLATE_DIR>/wave/<slug>/ removed
 ```
 
 ---
@@ -207,7 +209,7 @@ Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) in one request (
 [ ] worktree-prune                     (clean stale worktree refs)
 ```
 
-Local (run inline): `rm -rf .odoo-ai/wave/<slug>/` (gitignored; safe to delete)
+Local (run inline): `rm -rf <ISOLATE_DIR>/wave/<slug>/` (gitignored; safe to delete)
 
 Verify after cleanup (bounded reads inline):
 `git worktree list` should show only the principal worktree.
@@ -284,7 +286,7 @@ MODULE-DAG SLICE : <this module's node + in-wave depends_on (already cherry-pick
 TOPOLOGY         : <independent | linear | mixed | diamond - this module's place>
 DESIGN_DOC       : <child TDD for this module | none>
 MASTER_DESIGN_DOC: <master TDD path | none>
-design_index     : <path to .odoo-ai/designs/*/index.yaml | none>
+design_index     : <path to <SHARE_DIR>/designs/*/index.yaml | none>
 ODOO VERSION     : <one resolved version for the run>
 REQUEST          : <precise description of what this module implements>
 Repo Capability Card: base=<principal> verify=<command> commit=<convention> confidential=<level>
@@ -440,7 +442,7 @@ this wave's PR so the cluster is verified before merge:
 next:
   - skill: odoo-acceptance
     reason: wave changed a UI/behavior surface with dependents (render_check_set beyond the changed modules); run blast-radius acceptance over the affected cluster before merge
-    inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: ".odoo-ai/qa/<slug>-scope.md", odoo_version: "<version>"}
+    inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: "<ISOLATE_DIR>/qa/<slug>-scope.md", odoo_version: "<version>"}
     confidence: 0.7
     gate_tier: L2
 ```

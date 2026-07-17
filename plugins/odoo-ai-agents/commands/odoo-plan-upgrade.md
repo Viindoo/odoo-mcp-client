@@ -10,8 +10,11 @@ Thin dispatcher for the declarative odoo-plan-upgrade workflow.
 
 **SSOT**: `plugins/odoo-ai-agents/workflows/odoo-plan-upgrade.workflow.yaml`
 
-All phase definitions, gates, model tiers, skills, output directory (`.odoo-ai/upgrade-plans/`),
-fallback policy, and resume logic live in the workflow YAML. Do not duplicate them here.
+All phase definitions, gates, model tiers, skills, output directory (`<ISOLATE_DIR>/upgrade-plans/`;
+resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
+substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+Read/Write/Edit), fallback policy, and resume logic live in the workflow YAML. Do not duplicate
+them here.
 
 ## Dispatch
 
@@ -29,7 +32,7 @@ deadline), emits the soft-plan-gate, and executes the four-phase pipeline:
 risk-overview -> deprecation-audit -> version-diff -> synthesis
 ```
 
-Output is written to `.odoo-ai/upgrade-plans/` on explicit user confirmation at the final gate. Do NOT
+Output is written to `<ISOLATE_DIR>/upgrade-plans/` on explicit user confirmation at the final gate. Do NOT
 dispatch `workflow-chaining` directly - without the run-harness above it, the `on_complete` design
 handoff degrades to a human suggestion (see below).
 

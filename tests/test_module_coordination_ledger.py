@@ -5,7 +5,7 @@ Business rules this protects:
 - The ledger entry schema: {module, status in claimed|building|done|failed, run_id, worktree,
   claimed_at, heartbeat_at}.
 - LEDGER_ROOT is resolved via `git rev-parse --git-common-dir` so it is SHARED across every linked
-  worktree and concurrent run (a per-worktree `.odoo-ai/` cannot do this).
+  worktree and concurrent run (a per-worktree Tier-2 ISOLATE dir cannot do this).
 - A claim is an ATOMIC `mkdir` (POSIX single syscall) - no flock / lock file.
 - ONLY odoo-coding writes the ledger; the leaf coder stays ledger-unaware.
 - All 6 decision-table cases are present.
@@ -57,7 +57,7 @@ def test_entry_schema_fields_and_statuses():
 def test_ledger_root_via_git_common_dir():
     """LEDGER_ROOT must resolve via `git rev-parse --git-common-dir` for cross-run visibility.
 
-    Fails if: the resolution drops --git-common-dir (e.g. a per-worktree `.odoo-ai/`) - concurrent
+    Fails if: the resolution drops --git-common-dir (e.g. a per-worktree ISOLATE dir) - concurrent
     runs in different worktrees would then never see each other's claims.
     """
     text = _text()
@@ -65,7 +65,8 @@ def test_ledger_root_via_git_common_dir():
         "LEDGER_ROOT must be resolved via `git rev-parse --git-common-dir`."
     )
     assert "LEDGER_ROOT" in text and "coordination/modules" in text, (
-        "LEDGER_ROOT must point at .odoo-ai/coordination/modules under the shared common dir."
+        "LEDGER_ROOT must point at $SHARE_DIR/coordination/modules (Tier-2 SHARE, resolved under "
+        "the shared common dir per state-root-resolution.md)."
     )
     low = text.lower()
     assert "common-dir" in low and ("shared" in low or "cross-run" in low), (

@@ -47,8 +47,9 @@ when changing intake's structure, the routing table, or the harness wiring.
   invoked via the Skill tool from the main context) fans out broad-haiku → narrow-sonnet →
   optional-opus workers and returns a `synthesis.md` that intake folds into the `Survey:` field and
   a re-proposed plan. It is the ONE `writes-files` skill intake dispatches WITHOUT Plan Mode: it
-  writes only `.odoo-ai/survey/` analysis (not the routed deliverable), and the `deep-survey` keyword
-  is itself the human gate (same rationale as Hard rule 1 letting intake write planning artifacts).
+  writes only `<SHARE_DIR>/survey/` analysis (resolve `<SHARE_DIR>` via the resolve-capture-substitute
+  protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) (not the routed deliverable),
+  and the `deep-survey` keyword is itself the human gate (same rationale as Hard rule 1 letting intake write planning artifacts).
   Deliberately NOT a routing-table row - never intent-routed, only opt-in. The re-proposed gate
   drops `deep-survey` so the survey runs at most once.
 - This skill carries the standard `odoo-` prefix as `odoo-intake`. The unprefixed `intake` namespace is reserved for a future domain-agnostic front door (general ERP, strategy, etc.) that may route to `odoo-intake` on detecting Odoo intent - keeping Odoo-specific and domain-agnostic responsibilities separate.

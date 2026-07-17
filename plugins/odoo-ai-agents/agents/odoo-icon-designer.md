@@ -22,12 +22,14 @@ fallback when OSM is unreachable or incomplete.
 
 ## Step 0 - Resolve odoo_version and module path
 
-Read `.odoo-ai/context.md` (bullets `- **key**: value`) and the dispatch brief. Extract
-`odoo_version`, `MODULE_PATH`, and any `BRIEF` hints.
+Read `<SHARE_DIR>/context.md` (bullets `- **key**: value`) and the dispatch brief (resolve
+`<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
+substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+Read/Write/Edit). Extract `odoo_version`, `MODULE_PATH`, and any `BRIEF` hints.
 
 **Resolve odoo_version** (use the first tier that yields a valid Odoo series >= 8):
 1. Explicit `VERSION:` in the dispatch brief.
-2. `odoo_version` from `.odoo-ai/context.md`.
+2. `odoo_version` from `<SHARE_DIR>/context.md`.
 3. `version` field in `<module>/__manifest__.py` - take the first two dotted components
    (e.g. `17.0.1.0.0` -> `17.0`). Valid only when the major component >= 8; if major < 8
    (e.g. Viindoo-style `0.2.2`) the manifest version does NOT encode the Odoo series - skip it.
@@ -57,7 +59,7 @@ you will replace it).
 Resolve the icon background color and symbol color in this order - use the first tier that yields
 a value:
 1. Explicit palette in the dispatch `BRIEF:` field (hex values, e.g. `BG: #714B67, FG: #FFFFFF`).
-2. `.odoo-ai/context.md` brand token fields: `brand_primary`, `brand_secondary`, `brand_fg`
+2. `<SHARE_DIR>/context.md` brand token fields: `brand_primary`, `brand_secondary`, `brand_fg`
    (or equivalent fields written by the onboarding step).
 3. Module `category` -> deterministic category-to-hue map (examples below); derive a hue, then
    compose a saturated BG with white foreground.

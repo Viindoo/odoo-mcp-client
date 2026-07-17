@@ -61,8 +61,10 @@ opted into the autonomous review/debug fix loop, so do NOT stop for a confirmati
 you finish writing **IMMEDIATELY invoke `odoo-code-review` via the Skill tool yourself** to verify
 (§ The code -> review+test -> code loop). Bound to 3 iterations, then STOP and escalate.
 
-Otherwise (normal invocation), First READ any existing worklog for this run
-(`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first) per
+Otherwise (normal invocation), First READ any existing worklog for this run. Worklog is Tier-2
+ISOLATE; resolve it via the resolve-capture-substitute protocol in
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<ISOLATE_DIR>`
+below) - `<ISOLATE_DIR>/worklog/<run-or-slug>/*.md`, oldest-first - per
 `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` so you build on the decisions an upstream
 phase (e.g. `odoo-solution-design`) already recorded instead of re-deriving them. Then do six
 things, then stop for the user's reply.
@@ -124,7 +126,9 @@ them (fast-path above), and invoked standalone it self-derives the approach in t
 
 **1. Resolve any existing design doc (index-first, backward-compat).**
 When a `design_doc` is already provided by the caller (via Continuation Contract `inputs.design_doc` / `inputs.design_docs`, e.g. a `return_to` or run-harness handoff), use it directly as `DESIGN_DOC` and build to it - skip the resolution below. Otherwise:
-1. **Master-child (priority):** glob `.odoo-ai/designs/*/index.yaml`. If found, read the matching
+1. **Master-child (priority):** designs live under the Tier-2 SHARE dir; resolve it via the
+   resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`
+   (captured path shown as `<SHARE_DIR>` below), then glob `<SHARE_DIR>/designs/*/index.yaml`. If found, read the matching
    `index.yaml` per `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md` - routing SSOT.
    When glob returns >1 file, apply the tie-break in `§Index selection` of that snippet (largest
    module-intersection → newest `created:` → alphabetical slug → emit `design_doc_ambiguity: true`
@@ -132,7 +136,7 @@ When a `design_doc` is already provided by the caller (via Continuation Contract
    directory + the relative value) before use. Per module: `DESIGN_DOC` = resolved absolute child
    path; `MASTER_DESIGN_DOC` = resolved absolute master path. Never let the flat glob below match
    inside a master-child subdir.
-2. **Single (fallback):** no `index.yaml` found - glob `.odoo-ai/designs/<slug>-*.md`. If found:
+2. **Single (fallback):** no `index.yaml` found - glob `<SHARE_DIR>/designs/<slug>-*.md`. If found:
    `DESIGN_DOC` = that path; `MASTER_DESIGN_DOC` = `none`. Behavior identical to pre-master-child.
 3. **None:** neither found - no approved design in scope; self-derive the approach in the steps below (this is a normal standalone path - admission is the front door's job, not re-checked here).
 
@@ -289,7 +293,7 @@ The Phase 0 plan carries, per module: name, path on disk, stack, model (and `fro
 split), the in-set dependency edges (the "(depends on ...)" in the gate table), whether it is a new
 module, the coverage pre-flight (universal test-first via `odoo-test-writer`), and the per-module
 request (+ a frontendRequest for the UI leg). Resolve ONE concrete Odoo version for the whole run via
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` (read `.odoo-ai/context.md` -> manifest
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` (read `<SHARE_DIR>/context.md` -> manifest
 `version` -> ask the user) - NEVER a silent default; when a plan/design fed `odoo_version` in the
 Continuation-Contract `inputs`, consume it verbatim. Carry the design-doc path, the runSlug
 (scopes the shared worklog dir) and - when the user is not working in English - the userLanguage.
@@ -451,8 +455,9 @@ membership in `git-delegation.md` § Self-provisioning specialists; an orchestra
 
 ## Artifacts - persist the coding plan
 
-Write the orchestration plan to `.odoo-ai/coding/<slug>-<YYYY-MM-DD>/plan.md` (`.odoo-ai/` is
-gitignored): the module/stack/wave/**model** table, the computed dependency order, and the design
+Write the orchestration plan to `<ISOLATE_DIR>/coding/<slug>-<YYYY-MM-DD>/plan.md` (the whole
+`$ODOO_AI_HOME` state root lives outside any git working tree, so this needs no gitignore entry -
+it is live run state, not source): the module/stack/wave/**model** table, the computed dependency order, and the design
 doc referenced. The agents write source directly; `plan.md` records what was built so a later
 review / fix / resume step can pick up without recomputing the graph. `<slug>` derives from the
 change (branch, feature name, or the module set).
@@ -519,8 +524,8 @@ outcome goes in the worklog.
 
 When the bundle finishes, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set
-`produced` to the source + test files written, plus `.odoo-ai/coding/<slug>-<date>/plan.md` and the
-`.odoo-ai/worklog/<slug>/` entries, and emit `next: odoo-code-review` with `inputs: {odoo_version:
+`produced` to the source + test files written, plus `<ISOLATE_DIR>/coding/<slug>-<date>/plan.md` and the
+`<ISOLATE_DIR>/worklog/<slug>/` entries, and emit `next: odoo-code-review` with `inputs: {odoo_version:
 <the run's resolved version>}` (a reserved key - `continuation-contract.md` Rules) so the review
 runs against the same pinned version without re-deriving it (that skill now scales to the same
 multi-module set). Additionally, when any module in the

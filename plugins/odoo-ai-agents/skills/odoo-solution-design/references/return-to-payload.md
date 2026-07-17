@@ -14,7 +14,7 @@ dispatch template as follows - do NOT improvise or drop any field:
 | `modules` | `REQUEST` preamble | Write "Modules: <names>" as the second line of `REQUEST` |
 | `classification` | `REQUEST` body | Paste the bucket-(c) summary verbatim as the core requirement description in `REQUEST` |
 | `intent_records` | `REQUEST` body | Write "Intent records (read these FIRST for the OSM-grounded behavioral contract): <paths>" as a dedicated line in `REQUEST`; the architect MUST Read each path before designing - this is the behavioral contract the forward-port must preserve |
-| `design_slug_hint` | `DESIGN_SLUG_HINT` line | Copy verbatim; the architect uses it as `<slug>` when naming `.odoo-ai/designs/<slug>-<date>.md` |
+| `design_slug_hint` | `DESIGN_SLUG_HINT` line | Copy verbatim; the architect uses it as `<slug>` when naming `<SHARE_DIR>/designs/<slug>-<date>.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) |
 | `return_to` | `RETURN_TO` line | Copy verbatim; routes the architect's Continuation Contract back to the caller |
 
 The assembled `REQUEST` therefore reads:

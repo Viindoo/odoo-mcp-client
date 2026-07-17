@@ -32,12 +32,14 @@ For a **short ad-hoc gap matrix** (no cost, no scale): use `/odoo-gap-analysis` 
 
 1. **Phase gate mandatory.** GATE 0 blocks all classification work; GATE E blocks all deliverable
    writes. The command does NOT advance past either gate without explicit user confirmation.
-2. **Context check.** At startup, load `.odoo-ai/context.md` if present. If missing, suggest
-   `/odoo-onboarding` but allow manual continuation.
+2. **Context check.** At startup, load `<SHARE_DIR>/context.md` if present (resolve `<SHARE_DIR>`/
+   `<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the
+   captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
+   If missing, suggest `/odoo-onboarding` but allow manual continuation.
 3. **Abstract labels.** Use the customer label from `$ARGUMENTS` or default "Customer-A".
    Never write real company names, VND figures, or internal pricing into any committed file.
 4. **Dispatch via the Skill tool.** This command fires the `odoo-brl` skill using the Skill tool. NL description-match is the fallback when the Skill tool is unavailable.
-5. **Public repo safety.** All job artifacts go to `.odoo-ai/brl/<job-id>/` which is gitignored.
+5. **Public repo safety.** All job artifacts go to `<SHARE_DIR>/brl/<job-id>/` which is gitignored.
    No deliverable is committed to the repo.
 
 ## Invocation
@@ -57,7 +59,7 @@ For a **short ad-hoc gap matrix** (no cost, no scale): use `/odoo-gap-analysis` 
 > as Available-in-Odoo-CE, Available-in-Odoo-EE, Available-in-Viindoo, or Custom using
 > double-profile MCP checks; compute deterministic cost from cost-config.json; produce
 > a full RTM (rtm.csv + results.jsonl) and executive report (report.md) in
-> .odoo-ai/brl/[CUSTOMER_LABEL]-[DATE]-[HEX]/. Input: [embed the BRL content read above; if a
+> <SHARE_DIR>/brl/[CUSTOMER_LABEL]-[DATE]-[HEX]/. Input: [embed the BRL content read above; if a
 > file_path was given, use the Read output]."
 
 The skill handles all phases (INGEST, GATE 0, Phase A-B-C-E, GATE E) with checkpoint/resume.
@@ -93,7 +95,7 @@ Defaults to Customer-A label. Same flow.
 ## What this command does NOT do
 
 - Does NOT send emails or upload files
-- Does NOT commit anything to the repo (all artifacts in `.odoo-ai/brl/`)
+- Does NOT commit anything to the repo (all artifacts in `<SHARE_DIR>/brl/`)
 - Does NOT guarantee OSM availability - degrades gracefully when unreachable
 - Does NOT externalize cost estimates without passing GATE E (the approval gate safeguards
   any deliverable shared, whether the caller is a human or an orchestrator)

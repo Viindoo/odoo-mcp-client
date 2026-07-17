@@ -58,10 +58,10 @@ Skill always operates without OSM or any live server. All logic runs on user-pro
 
 ### Round 0 - Bootstrap context, then ask only for gaps
 
-1. **Input port `gap_matrix_path` (preferred cost basis).** Glob `.odoo-ai/gap-analysis/*/gap-matrix.jsonl`; on a hit, READ the newest match and derive the cost basis FROM the artifact instead of asking the user to paste numbers - cite the path in the proposal. Per row, map `effort_tier` to days (band S 0-1 / M 1-3 / L 3-10 / XL 10-20) and route `classification` to a cost-table phase (`standard`/`config` -> Configuration; `extension`/`custom` -> Custom development). For the aggregate implementation min-max, read the sibling `gap-continuation-contract.json` `meta.effort_days{min,max}` (or the `gap-report.md` Total row). If `odoo-gap-analysis` output is instead already in the conversation, use that directly.
+1. **Input port `gap_matrix_path` (preferred cost basis).** Glob `<SHARE_DIR>/gap-analysis/*/gap-matrix.jsonl` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); on a hit, READ the newest match and derive the cost basis FROM the artifact instead of asking the user to paste numbers - cite the path in the proposal. Per row, map `effort_tier` to days (band S 0-1 / M 1-3 / L 3-10 / XL 10-20) and route `classification` to a cost-table phase (`standard`/`config` -> Configuration; `extension`/`custom` -> Custom development). For the aggregate implementation min-max, read the sibling `gap-continuation-contract.json` `meta.effort_days{min,max}` (or the `gap-report.md` Total row). If `odoo-gap-analysis` output is instead already in the conversation, use that directly.
 2. **Fallback - no artifact.** When the glob misses and no gap output is in context, accept an effort range from chat (e.g. "15-20 days") via the Required inputs below.
 3. **Edition signal.** If the user stated the module list, derive an edition recommendation from it. Do not re-ask for what the artifact or context already provides.
-4. **Read `.odoo-ai/context.md`** if present - extract `odoo_version`, partner rate card references, or any pricing defaults the team recorded.
+4. **Read `<SHARE_DIR>/context.md`** if present - extract `odoo_version`, partner rate card references, or any pricing defaults the team recorded.
 5. **Ask only for fields still unresolved** after steps 1-4. Batch into one message.
 
 **Required inputs:**
@@ -234,7 +234,7 @@ recommended next step. No internals, no jargon.>
 ## Notes
 
 - **Rate placeholders are intentional.** Rate cards vary by region, customer tier, and commercial agreement; hardcoding would be incorrect and misleading. The AE replaces every `<...>` before sending. SSOT for the proposal structure; the rate card is SSOT elsewhere.
-- **Data priority:** Prefer the `gap-matrix.jsonl` artifact (glob `.odoo-ai/gap-analysis/*/gap-matrix.jsonl`, cite the path) or in-context `odoo-gap-analysis` output as the cost basis; only ask the user for an effort range when neither exists.
+- **Data priority:** Prefer the `gap-matrix.jsonl` artifact (glob `<SHARE_DIR>/gap-analysis/*/gap-matrix.jsonl`, cite the path) or in-context `odoo-gap-analysis` output as the cost basis; only ask the user for an effort range when neither exists.
 - **No invented numbers.** If the AE has not provided a rate, output a clearly labeled placeholder.
 - **Language.** Default English (audience = business decision-maker). If the user requests another language or the deal context is clearly in Vietnamese, produce executive summary and next step in the requested language while keeping tables in a language the customer will accept.
 - **Leaf skill.** Does NOT spawn subagents, does NOT invoke the Skill tool.

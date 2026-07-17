@@ -64,7 +64,7 @@ Findings are graded on the shared scale defined in `${CLAUDE_PLUGIN_ROOT}/snippe
 
 Use parallel MCP calls to minimize round trips. Full audit completes in 3-4 rounds.
 
-**Round 0 - Pin version + profile:** `set_active_version` + `set_active_profile` simultaneously. Read `.odoo-ai/context.md` if present for module scope.
+**Round 0 - Pin version + profile:** `set_active_version` + `set_active_profile` simultaneously. Read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) if present for module scope.
 
 **Round 1 - Structural scan (parallel):** For each model in scope, fire simultaneously:
 - `model_inspect(model=<name>, method='fields', odoo_version='<version>')` - collect `store`, `index`, `compute`, `depends`, `related`, `comodel_name` for fields used in domain/order
