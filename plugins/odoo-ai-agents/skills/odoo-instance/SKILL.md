@@ -235,8 +235,11 @@ them here):
 4. **Run the operation** via `${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/55-instance-ops.sh`
    (`init` / `update` / `test` / `drop`) with resolved flags in `--extra`, applying the active-wait
    contract above (background launch + poll `LOG_PATH` to a terminal marker; never idle-stall).
-5. **Release** the lease when done (or forward `ALLOC_TOKEN` for later release), and emit the same
-   `instance-ops` block used when the agent is launched instead, so the caller consumes an
+5. **Release** the lease when done - you release it UNLESS you forward the handle to a NAMED
+   catcher in `next.inputs` (`INSTANCE_HANDLE`, naming the skill that needs the live state); an
+   unforwarded live lease at your terminal status is a leak, not a valid handoff. Full rule:
+   `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T1/T4. Either way, emit the
+   same `instance-ops` block used when the agent is launched instead, so the caller consumes an
    identical handle either way.
 
 The L2 human gate still applies to any mutation via this path (see "Human gate"): if a run-harness

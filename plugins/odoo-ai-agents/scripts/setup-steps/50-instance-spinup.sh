@@ -58,6 +58,9 @@
 #                      the 'core' addons_path entry if unset.
 #   ODOO_PG_PASSWORD   postgres password (env only; optional for trust auth).
 #   SPINUP_TIMEOUT     poll timeout seconds (default 120).
+#   SPINUP_STOP_GRACE  seconds to wait for a failed spin-up's process group to
+#                      exit on SIGTERM before escalating to a group SIGKILL
+#                      (default 10; mirrors allocator.py _stop_group's bound).
 #   ODOO_AI_ALLOCATOR  path to allocator.py (default ../lib/allocator.py). Set it
 #                      empty to skip shared-lease registration (plain spin-up).
 #   INST_RUN_ID        the caller's session/run id (P5.5) - when set, threaded
@@ -76,6 +79,7 @@ source "$SCRIPT_DIR/../lib/resolve_instances.sh"
 INSTANCES_TOML="$(_resolve_instances)"
 INSTANCES_IO="$SCRIPT_DIR/../lib/instances_io.py"
 SPINUP_TIMEOUT="${SPINUP_TIMEOUT:-120}"
+SPINUP_STOP_GRACE="${SPINUP_STOP_GRACE:-10}"
 # SSOT for the "no declared http_port" fallback (P5.9 8069-fallback
 # consolidation) - mirrors instances_io.DEFAULT_HTTP_PORT / allocator.py's
 # DEFAULT_HTTP_PORT (bash cannot import the Python constant, so this is the
@@ -98,6 +102,10 @@ ARG_HTTP_PORT=""
 ARG_PORT_KEY=""
 ARG_GEVENT_PORT=""
 ARG_GEVENT_PORT_KEY=""
+# The allocator lease token for an --exclusive spin-up. The caller
+# (odoo-instance-ops) acquires the lease, then forwards its token here so this
+# script can bind the launched server pid onto that lease (see _bind_exclusive).
+ARG_ALLOC_TOKEN=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --version)
@@ -131,6 +139,9 @@ while [[ $# -gt 0 ]]; do
         --gevent-port-key)
             [[ $# -ge 2 ]] || { echo "$(basename "$0") --gevent-port-key requires a value" >&2; exit 2; }
             ARG_GEVENT_PORT_KEY="$2"; shift 2 ;;
+        --alloc-token)
+            [[ $# -ge 2 ]] || { echo "$(basename "$0") --alloc-token requires a value" >&2; exit 2; }
+            ARG_ALLOC_TOKEN="$2"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 2 ;;
     esac
 done
@@ -349,6 +360,56 @@ cmd_apply() {
         python3 "$alloc_py" "${args[@]}" >/dev/null 2>&1 || true
     }
 
+    _bind_exclusive() {
+        # $1 = the live server pid. For an --exclusive spin-up the lease was
+        # already acquired by the caller (odoo-instance-ops) and its token
+        # forwarded via --alloc-token; bind the just-launched server pid onto THAT
+        # lease so `allocator.py release`/`gc` can stop the whole process group
+        # (master + workers + gevent/longpolling + --dev watchdog) BEFORE dropping
+        # the DB, instead of leaking a listening server against a dropped DB.
+        # Same liveness guard as _register_shared: only record a pid that kill -0
+        # confirms alive, so a fast-failing server never binds a dead pid.
+        [[ -n "$alloc_py" && -f "$alloc_py" ]] || return 0
+        [[ -n "${ARG_ALLOC_TOKEN:-}" ]] || return 0
+        if [[ -n "${1:-}" ]] && kill -0 "$1" 2>/dev/null; then
+            python3 "$alloc_py" bind "${ARG_ALLOC_TOKEN}" --pid "$1" >/dev/null 2>&1 || true
+        fi
+    }
+
+    _stop_group_local() {
+        # $1 = the setsid-launched leader pid (pgid == pid). Tear down the WHOLE
+        # process group of a FAILED spin-up - master + HTTP workers + cron +
+        # gevent/longpolling + any --dev watchdog - not just the leader. Mirrors
+        # allocator.py _stop_group's pattern: SIGTERM the group, wait a bounded
+        # grace, then escalate to a group SIGKILL; fall back to a single-pid
+        # signal when the group id cannot be resolved (getpgid-equivalent fails).
+        # Replaces the old bare `kill <pid>` (SIGTERM-only, leader-only), which
+        # left forked children running against a DB the caller may then drop.
+        local pid="${1:-}"
+        [[ -n "$pid" ]] || return 0
+        local pgid
+        pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')"
+        # Graceful SIGTERM: prefer the group (negative pgid), fall back to the pid.
+        if [[ -n "$pgid" ]]; then
+            kill -TERM "-${pgid}" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+        else
+            kill -TERM "$pid" 2>/dev/null || true
+        fi
+        # Bounded wait for the leader to exit (poll the leader pid, like _stop_group).
+        local waited=0
+        while (( waited < SPINUP_STOP_GRACE )); do
+            kill -0 "$pid" 2>/dev/null || return 0
+            sleep 1
+            waited=$((waited + 1))
+        done
+        # Escalate: SIGKILL the group (fall back to the single pid).
+        if [[ -n "$pgid" ]]; then
+            kill -KILL "-${pgid}" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+        else
+            kill -KILL "$pid" 2>/dev/null || true
+        fi
+    }
+
     local _last_ready_status="" _last_ready_path=""
     if _probe_ready "$port"; then
         [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared
@@ -530,10 +591,23 @@ cmd_apply() {
             _ts="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%d%H%M%S)"
             logf="$_logs_dir/${_db_slug}-${_ts}.log"
             echo "LOG_PATH=$logf"
+            # setsid: the server becomes its OWN session/process-group leader
+            # (pgid == its own pid), so allocator.py can later stop the whole
+            # group (master + HTTP workers + cron + gevent/longpolling + any
+            # --dev=reload watchdog) in one os.killpg before dropping the DB.
+            # A bare `&` would leave the server in the launching shell's group,
+            # which has no clean target to kill. `$!` is still the leader's pid.
             # shellcheck disable=SC2086
-            "$py" "$bin" -c "$conf" -d "$db_name" ${_dev_flag} >"$logf" 2>&1 &
+            setsid "$py" "$bin" -c "$conf" -d "$db_name" ${_dev_flag} >"$logf" 2>&1 &
             odoo_pid=$!
             echo "  Odoo starting (pid: $odoo_pid, log: $logf)"
+            # Bind the pid onto the caller's exclusive lease IMMEDIATELY - BEFORE
+            # the readiness poll - so allocator.py release/gc can stop this
+            # server's whole process group even if the poll below TIMES OUT (a
+            # slow/failed start still forks workers that would otherwise leak).
+            # No-op for shared leases (their lease is registered only on success);
+            # the kill -0 liveness guard lives inside _bind_exclusive.
+            [[ "$ARG_EXCLUSIVE" == "1" ]] && _bind_exclusive "$odoo_pid"
             ;;
         *)
             echo "x Unknown run_mode: ${INST_RUN_MODE}. Use 'source' or 'docker'." >&2
@@ -542,17 +616,24 @@ cmd_apply() {
     esac
 
     if _poll_until_up "$port"; then
+        # The exclusive lease was already bound immediately after launch above;
+        # the shared render target registers its lease only after readiness.
         [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared "$odoo_pid"
         echo "ok Odoo ${INST_VERSION} is up: http://localhost:$port/web/login"
         return 0
     fi
 
-    # Poll timed out - tear down what we started so we leave no orphan.
+    # Poll timed out - tear down what we started so we leave no orphan. The
+    # server ran under setsid (its own process group), so stop the WHOLE group
+    # (master + workers + gevent/cron + --dev watchdog) with SIGTERM -> bounded
+    # wait -> group SIGKILL - not the old bare `kill <pid>` that left children
+    # running. For an exclusive lease the pid is already bound (above), so even
+    # if this local stop is interrupted, allocator.py release/gc can still reap.
     echo "x Odoo did not become ready. Check the launch log above." >&2
     if [[ "$run_mode" == "source" ]]; then
         if [[ -n "$odoo_pid" ]]; then
-            echo "  Stopping background Odoo (pid $odoo_pid)" >&2
-            kill "$odoo_pid" 2>/dev/null || true
+            echo "  Stopping background Odoo process group (leader pid $odoo_pid)" >&2
+            _stop_group_local "$odoo_pid"
         fi
         [[ -n "$conf" && -f "$conf" ]] && rm -f "$conf"
     elif [[ "$run_mode" == "docker" ]]; then

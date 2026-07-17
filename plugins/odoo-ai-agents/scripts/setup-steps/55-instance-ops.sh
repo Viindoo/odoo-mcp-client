@@ -744,6 +744,13 @@ cmd_test() {
 
 # ---------------------------------------------------------------------------
 # cmd_drop - drop a database through Odoo (odoo_db.py); never raw dropdb
+#
+# This is the bare-UNMANAGED-DB path: NO allocator lease, NO server pid tracked.
+# There is no process group to stop here (a LEASED, listening instance is torn
+# down via `allocator.py release`, which stops the server's process group FIRST -
+# see scripts/lib/allocator.py _stop_group - THEN drops). For an unmanaged DB,
+# odoo_db.py's own pg_terminate_backend (session-terminate) before DROP DATABASE
+# suffices; do NOT add stop-group logic here (SSOT stays in the allocator).
 # ---------------------------------------------------------------------------
 cmd_drop() {
     local arg_db="" arg_python="" arg_db_host="" arg_db_user="" arg_db_port="" arg_run_id="" arg_force=""

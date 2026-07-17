@@ -83,6 +83,10 @@ main launches the `odoo-ui-reviewer` agent as a subagent with restricted tools (
 chrome-devtools, read-only). The agent does NOT spawn further subagents, does NOT invoke any Skill
 tool, and never edits Odoo source - fixes are handed to `odoo-coding`.
 
+**Teardown before DONE.** The dispatched `odoo-ui-reviewer` agent's `DONE` is not valid while a
+browser page it opened this dispatch is still open - close every page you created before your
+terminal status. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T2.
+
 **Browser mode (headless default / headed on request).** The agent defaults to headless - the only
 safe choice on a no-display/CI host. Only when the human explicitly asks to see/watch the browser
 does main add a `BROWSER MODE: headed` line to the dispatch brief; the agent then uses its

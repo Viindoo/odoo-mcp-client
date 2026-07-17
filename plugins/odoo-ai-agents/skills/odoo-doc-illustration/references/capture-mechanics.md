@@ -15,15 +15,17 @@ copy pre-fetch, the per-instance loop, verify, and commit.
 
 ## 1. Browser exclusivity + server family
 
-- **Browser-exclusive, serial within a dispatch.** You drive exactly ONE browser, one action at a
-  time, for the whole run. NEVER run concurrently with another browser-driving agent
-  (`odoo-ui-reviewer`, `odoo-visual-regression`, `odoo-demo-recording`, or the sibling writer).
-  When the skill fans out multiple capture workers (multi-module / multi-locale), each worker is on
-  a DISTINCT browser MCP server family and a DISTINCT instance - the skill computes the cap; you do
-  not self-parallelize and you never share a family/instance with another worker.
-- **Pick one server family per run and stay on it. The DEFAULT is `chrome-devtools`** - the one
-  EAGER browser MCP (always present via the bundled `.mcp.json`); the others are OPT-IN and require
-  the odoo-setup wiring step (`/odoo-ai-agents:odoo-setup browser`) before their tools exist:
+Browser-exclusive, serial within a dispatch (never concurrent with another browser-driving agent);
+full rule + close-before-done: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2.
+When the skill fans out multiple capture workers (multi-module / multi-locale), each worker is on a
+DISTINCT browser MCP server family and a DISTINCT instance - the skill computes the cap; you do not
+self-parallelize and you never share a family/instance with another worker.
+
+- **Pick one server family per run and stay on it - a FAMILY choice, not a page-lifetime one.**
+  Staying on one family across the run does not mean keeping a page open across the run; you still
+  close per T2. **The DEFAULT is `chrome-devtools`** - the one EAGER browser MCP (always present via
+  the bundled `.mcp.json`); the others are OPT-IN and require the odoo-setup wiring step
+  (`/odoo-ai-agents:odoo-setup browser`) before their tools exist:
   - **chrome-devtools (default)** - `mcp__plugin_odoo-ai-agents_chrome-devtools__*`: `navigate_page`,
     `resize_page`, `take_screenshot` (accepts a configurable `path` - stage DIRECTLY, see section 3),
     `click` / `fill` / `fill_form` / `hover`, `evaluate_script`. Use for ALL standard capture steps,
@@ -77,7 +79,10 @@ reuse it, never mint a new id); `<module>` is the module being documented. **NEV
   dir, read the returned path, Bash `cp` to the dest absolute path. `mkdir -p` the dest dir first.
 
 The skill owns end-of-run cleanup of `.odoo-ai/visual/<run_id>/` and `.playwright-mcp/<run_id>/`
-(scoped to `<run_id>` only); do not delete another run's subtree.
+(scoped to `<run_id>` only); do not delete another run's subtree. This staging cleanup is a FILES
+step only - it is not resource teardown (the browser page you drove and the instance lease the
+skill holds are separate obligations); see
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2/T3.
 
 ## 4. INSTANCE_HANDLE - the instance is already provisioned
 
@@ -87,7 +92,9 @@ started, and installed the module (as a cumulative delta) on that instance and o
   Odoo MCP calls. Skip any self-provisioning step and skip the standalone install gate.
 - Still run the documentation-clean precondition check (demo data present, each resolved locale
   active, no out-of-scope menus) and emit a WARNING if unmet - but do NOT re-provision; the skill
-  owns provisioning. Never drop or release the lease.
+  owns provisioning. Never drop or release the lease. (This ban is about the INSTANCE lease only -
+  it is orthogonal to browser pages. You MUST still CLOSE any browser page you opened; closing a
+  page never touches the lease. See resource-teardown-contract.md T2 vs T3.)
 - After all writes, emit the path-incremental completion block so the skill can verify + commit and
   install the next module delta. Never install the next module yourself.
 

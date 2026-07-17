@@ -1143,6 +1143,214 @@ def test_step50_exclusive_uses_allocator_port_and_db_skips_shared_lease(tmp_path
 
 
 @requires_bash
+def test_step50_exclusive_binds_launched_pid_onto_the_caller_lease(tmp_path):
+    """L1.1 (RAM-leak fix): an --exclusive spin-up must BIND the launched server
+    pid onto the caller's PRE-ACQUIRED lease (via --alloc-token), so a later
+    `allocator.py release`/`gc` can stop the whole process group before dropping
+    the DB. Before this fix only shared leases recorded a pid, so an exclusive
+    lease leaked the listening server on release.
+    """
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+
+    # The caller (odoo-instance-ops) acquires the exclusive lease FIRST.
+    db = "odoo_17_0_t_deadbeef"
+    acq = subprocess.run(
+        [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
+         "--mode", "exclusive", "--db-name", db, "--run-id", "run-excl"],
+        capture_output=True, text=True, env=env,
+    )
+    assert acq.returncode == 0, acq.stderr
+    token = next(
+        line.split("=", 1)[1].strip().strip("'")
+        for line in acq.stdout.splitlines() if line.startswith("ALLOC_TOKEN=")
+    )
+    assert token, f"acquire must mint a token\n{acq.stdout}"
+    lease_before = [lz for lz in _leases_at(home) if lz.get("token") == token][0]
+    assert lease_before["owner"]["pid"] is None, "exclusive acquire records no pid until the bind"
+
+    res = _run_step50_args(
+        env, "--exclusive",
+        "--db-name", db,
+        "--http-port", "18271",
+        "--port-key", "http_port",
+        "--alloc-token", token,
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    assert launch_log.exists(), f"odoo-bin must launch for a well-specified --exclusive run\n{out}"
+
+    lease_after = [lz for lz in _leases_at(home) if lz.get("token") == token]
+    assert lease_after, f"the exclusive lease must survive (never a shared row)\n{_leases_at(home)}"
+    pid = lease_after[0]["owner"]["pid"]
+    assert pid, "the launched server pid must be BOUND onto the exclusive lease"
+    assert _alive(int(pid)), "the bound pid must be the live server (kill -0 confirmed)"
+    # No shared lease is ever created on the exclusive branch.
+    assert not [lz for lz in _leases_at(home) if lz.get("mode") == "shared"], (
+        "the exclusive branch must NOT register a shared render lease"
+    )
+    os.kill(int(pid), signal.SIGTERM)  # reap the backgrounded sleep stand-in
+
+
+def _make_step50_forking_env(tmp_path: Path, *, trap_term: bool):
+    """A step-50 source-mode scenario whose 'odoo-bin' launch forks a CHILD
+    (a stand-in worker) in the setsid process group and whose curl NEVER answers
+    200 (the readiness poll TIMES OUT). Writes '<leader> <child>' to a pidfile.
+    When trap_term is True, BOTH leader and child TRAP SIGTERM (append to a marker
+    file and keep running) so only a SIGKILL escalation can reap them - proving
+    the timeout cleanup escalates and targets the whole GROUP. Returns
+    (env, home, pidfile, marker)."""
+    pidfile = tmp_path / "grp.pids"
+    marker = tmp_path / "term.marker"
+    py_bin_dir = tmp_path / "fake-py-bin"
+    py_bin_dir.mkdir(exist_ok=True)
+    fake_py = py_bin_dir / "python"
+    if trap_term:
+        launch_body = textwrap.dedent(f"""\
+            trap 'echo leader >> "{marker}"' TERM
+            (
+              trap 'echo child >> "{marker}"' TERM
+              while :; do sleep 1; done
+            ) &
+            echo "$$ $!" > "{pidfile}"
+            while :; do sleep 1; done
+        """)
+    else:
+        launch_body = textwrap.dedent(f"""\
+            sleep 300 &
+            echo "$$ $!" > "{pidfile}"
+            wait
+        """)
+    _write_stub(fake_py, textwrap.dedent(f"""\
+        if [[ "$2" == "--version" ]]; then echo "Odoo Server 17.0"; exit 0; fi
+    """) + launch_body)
+
+    odoo_bin = tmp_path / "odoo-bin"
+    _write_stub(odoo_bin, "exit 0\n")  # only needs to exist for _find_odoo_bin
+    bind = tmp_path / "bin50"
+    bind.mkdir(exist_ok=True)
+    _write_stub(bind / "curl", 'echo "000"\n')       # never ready -> poll times out
+    _write_stub(bind / "pg_isready", "exit 0\n")
+
+    toml = _make_step50_toml(tmp_path, series="17.0", py_path=str(fake_py))
+    home = tmp_path / "odoo-ai-home"
+    env = dict(os.environ)
+    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_AI_HOME"] = str(home)
+    env["SPINUP_TIMEOUT"] = "3"       # short poll bound
+    env["SPINUP_STOP_GRACE"] = "2"    # short SIGTERM->SIGKILL escalation bound
+    env.pop("ODOO_PG_PASSWORD", None)
+    env["ODOO_BIN"] = str(odoo_bin)
+    return env, home, pidfile, marker
+
+
+def _wait_dead(pid: int, timeout_s: float = 5.0) -> bool:
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if not _alive(pid):
+            return True
+        time.sleep(0.05)
+    return not _alive(pid)
+
+
+@requires_bash
+def test_step50_exclusive_binds_pid_before_poll_and_group_reaped_on_timeout(tmp_path):
+    """L1.1 failure-path gap: an --exclusive spin-up must bind the pid onto the
+    lease BEFORE the readiness poll (so release/gc can always reap), and on a poll
+    TIMEOUT the local cleanup must stop the whole process GROUP - not just the
+    leader - so a forked worker child does not survive against a DB the caller may
+    then drop."""
+    env, home, pidfile, _ = _make_step50_forking_env(tmp_path, trap_term=False)
+    db = "odoo_17_0_t_timeout1"
+    acq = subprocess.run(
+        [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
+         "--mode", "exclusive", "--db-name", db, "--run-id", "run-excl"],
+        capture_output=True, text=True, env=env,
+    )
+    assert acq.returncode == 0, acq.stderr
+    token = next(
+        line.split("=", 1)[1].strip().strip("'")
+        for line in acq.stdout.splitlines() if line.startswith("ALLOC_TOKEN=")
+    )
+
+    res = _run_step50_args(
+        env, "--exclusive", "--db-name", db, "--http-port", "18271",
+        "--port-key", "http_port", "--alloc-token", token,
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode != 0, f"a never-ready spin-up must FAIL (timeout)\n{out}"
+    assert pidfile.exists(), f"the fake server must have launched + forked a child\n{out}"
+    leader, child = (int(x) for x in pidfile.read_text().split())
+
+    # (1) pid bound onto the lease BEFORE the poll (even though the poll timed out).
+    lease = [lz for lz in _leases_at(home) if lz.get("token") == token]
+    assert lease, "the exclusive lease must survive the timeout"
+    assert lease[0]["owner"]["pid"] == leader, (
+        "the launched pid must be BOUND onto the lease before the readiness poll, "
+        "so release/gc can reap the group regardless of poll outcome"
+    )
+    # (2) the WHOLE group is reaped by the local cleanup - child too, not just leader.
+    try:
+        assert _wait_dead(leader), "the timeout cleanup must stop the group leader"
+        assert _wait_dead(child), (
+            "the timeout cleanup must stop the forked CHILD too (group-targeted, "
+            "not a bare `kill <leader>` that leaves workers running)"
+        )
+    finally:
+        for p in (child, leader):
+            try:
+                os.kill(p, signal.SIGKILL)
+            except (ProcessLookupError, OSError):
+                pass
+
+
+@requires_bash
+def test_step50_timeout_cleanup_escalates_to_group_sigkill(tmp_path):
+    """The timeout cleanup must ESCALATE: SIGTERM the group, wait a bounded grace,
+    then SIGKILL the group. Proven with a leader AND child that both TRAP SIGTERM
+    (survive it) - they must still end up dead (only SIGKILL can do that), and both
+    must have RECEIVED the group SIGTERM (marker written by each)."""
+    env, home, pidfile, marker = _make_step50_forking_env(tmp_path, trap_term=True)
+    db = "odoo_17_0_t_timeout2"
+    acq = subprocess.run(
+        [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
+         "--mode", "exclusive", "--db-name", db, "--run-id", "run-excl"],
+        capture_output=True, text=True, env=env,
+    )
+    assert acq.returncode == 0, acq.stderr
+    token = next(
+        line.split("=", 1)[1].strip().strip("'")
+        for line in acq.stdout.splitlines() if line.startswith("ALLOC_TOKEN=")
+    )
+
+    res = _run_step50_args(
+        env, "--exclusive", "--db-name", db, "--http-port", "18271",
+        "--port-key", "http_port", "--alloc-token", token,
+    )
+    out = res.stdout + res.stderr
+    assert res.returncode != 0, f"a never-ready spin-up must FAIL (timeout)\n{out}"
+    assert pidfile.exists(), out
+    leader, child = (int(x) for x in pidfile.read_text().split())
+
+    try:
+        # Both members RECEIVED the group SIGTERM (group targeting), yet survived it
+        # (they trap it) - so being dead now proves the SIGKILL escalation fired.
+        assert _wait_dead(leader), "SIGKILL escalation must reap the SIGTERM-trapping leader"
+        assert _wait_dead(child), "SIGKILL escalation must reap the SIGTERM-trapping child"
+        marker_text = marker.read_text(encoding="utf-8") if marker.exists() else ""
+        assert "leader" in marker_text, "the leader must have received the group SIGTERM"
+        assert "child" in marker_text, (
+            "the child must have received the group SIGTERM too (group-targeted, not leader-only)"
+        )
+    finally:
+        for p in (child, leader):
+            try:
+                os.kill(p, signal.SIGKILL)
+            except (ProcessLookupError, OSError):
+                pass
+
+
+@requires_bash
 def test_step50_gevent_port_without_key_is_blocked(tmp_path):
     """--gevent-port with NO --gevent-port-key must BLOCK (non-zero, no launch)
     rather than silently omitting the second listening port from the generated

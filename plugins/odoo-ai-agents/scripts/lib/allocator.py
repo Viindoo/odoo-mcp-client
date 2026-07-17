@@ -47,6 +47,11 @@ CLI:
                  # DIFFERENT run, OR is UNOWNED (no run_id recorded at all -
                  # P5.8: unowned is no longer a synonym for "safe to drop");
                  # 0 otherwise (own lease, stale lease, no lease, or --force).
+    allocator.py bind <token> --pid <server_pid>
+                 # upsert the live server pid onto an EXISTING lease (the
+                 # exclusive-running path: acquire reserves the lease, the
+                 # spin-up binds the launched pid) so release/gc can stop the
+                 # whole process GROUP before dropping the DB.
     allocator.py heartbeat <token>
     allocator.py gc [--instances <path>]
     allocator.py list [--show-tokens]     # tokens are fingerprinted unless --show-tokens
@@ -60,6 +65,7 @@ import fcntl
 import json
 import os
 import shlex
+import signal
 import socket
 import subprocess
 import sys
@@ -182,6 +188,71 @@ def _pid_alive(pid):
         return True  # exists, owned by another user
     except (OSError, TypeError):
         return False
+    return True
+
+
+def _stop_group(pid, timeout_s=10):
+    """Stop the whole process GROUP led by `pid`: SIGTERM, a bounded wait, then a
+    group SIGKILL escalation.
+
+    Under `setsid` at launch the Odoo server is its own session/process-group
+    leader (pgid == pid), so signalling the group reaps the master AND every
+    child it spawned in one shot - HTTP workers, cron, the longpolling/gevent
+    process, and any `--dev=reload` watchdog - which is exactly what release/gc
+    must do before a `DROP DATABASE` (a still-connected backend blocks the drop).
+
+    If `os.getpgid` raises (a legacy pre-setsid lease whose pid is not a clean
+    group leader, or a pid that already exited) we fall back to single-pid
+    signalling. `ProcessLookupError`/`PermissionError`/`OSError` are swallowed
+    throughout: the process dying out from under us is success, not an error.
+    Caller MUST apply the same-host guard - a pid integer is meaningless on
+    another host (see `_stop_owner_group_if_local`).
+    """
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return
+    # Resolve the group ONCE; fall back to the bare pid when getpgid can't.
+    try:
+        pgid = os.getpgid(pid)
+
+        def _signal(sig):
+            os.killpg(pgid, sig)
+    except OSError:  # ProcessLookupError (gone) / legacy non-leader pid
+
+        def _signal(sig):
+            os.kill(pid, sig)
+
+    with contextlib.suppress(OSError):
+        _signal(signal.SIGTERM)
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if not _pid_alive(pid):
+            return
+        time.sleep(0.1)
+    with contextlib.suppress(OSError):
+        _signal(signal.SIGKILL)
+
+
+def _stop_owner_group_if_local(lease, timeout_s=10):
+    """Stop the lease's recorded server process group IFF it is a live pid on THIS
+    host. Same-host guard mirrors `_is_stale`'s `owner.host` check - we NEVER
+    signal a pid recorded on another host (the integer would name an unrelated
+    local process). No-op when there is no pid, it is on another host, or it is
+    already dead. Returns True when a stop was attempted."""
+    owner = lease.get("owner", {})
+    if owner.get("host") != _host():
+        return False
+    pid = owner.get("pid")
+    if pid is None:
+        return False
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if not _pid_alive(pid):
+        return False
+    _stop_group(pid, timeout_s=timeout_s)
     return True
 
 
@@ -409,6 +480,12 @@ def _gc(reg):
     kept, reclaimed = [], []
     for lease in reg["leases"]:
         if _is_stale(lease):
+            # Reap the ORPHAN before reclaiming: a lease can be stale by ttl while
+            # its server process is STILL alive (the box did not crash, the owner
+            # just went away). Stop that process group first so we free RAM AND so
+            # the drop below is not blocked by a live backend. A dead pid here is a
+            # no-op (the same-host + liveness guard short-circuits).
+            _stop_owner_group_if_local(lease)
             if lease.get("drop_on_release") and lease.get("db_name"):
                 drop_ok = _drop_through_odoo(lease)
                 if not drop_ok:
@@ -718,6 +795,14 @@ def cmd_release(opts):
                 f"(caller run {caller_run!r}).\n"
             )
 
+        # Teardown ORDER is mandatory (L1.2): stop the server's process group
+        # FIRST, THEN drop the DB. A listening Odoo master + workers hold open DB
+        # connections, and an active backend blocks `DROP DATABASE`; stopping the
+        # group closes those connections (odoo_db.py's pg_terminate_backend stays
+        # as a second belt). No-op for a lease with no live local pid (legacy
+        # pre-setsid / shared / already-dead), so this is always safe to call.
+        _stop_owner_group_if_local(found)
+
         if found.get("drop_on_release") and found.get("db_name"):
             drop_ok = _drop_through_odoo(found)
             if not drop_ok:
@@ -747,6 +832,38 @@ def cmd_heartbeat(opts):
             _write_registry(reg)
         else:
             sys.stderr.write(f"allocator: no lease with token {token!r}.\n")
+            return 1
+    return 0
+
+
+def cmd_bind(opts):
+    """Bind a live server pid onto an EXISTING lease (under flock).
+
+    The exclusive-running spin-up acquires its lease FIRST (reserving the db +
+    ports) and only later learns the launched server's pid; `bind` upserts that
+    pid onto the SAME `owner.pid` slot the shared-acquire path already writes, so
+    release/gc can stop the whole process group before the drop (L1.1). Refuses
+    an unknown token and a missing --pid; reuses the token-scan + write helpers
+    (no second ledger path)."""
+    token = opts.get("token")
+    if not token:
+        sys.stderr.write("Usage: allocator.py bind <token> --pid <server_pid>\n")
+        return 2
+    pid = opts.get("pid")
+    if not pid:
+        sys.stderr.write("Usage: allocator.py bind <token> --pid <server_pid>\n")
+        return 2
+    with _locked():
+        reg = _read_registry()
+        hit = False
+        for lease in reg["leases"]:
+            if lease.get("token") == token:
+                lease.setdefault("owner", {})["pid"] = int(pid)
+                hit = True
+        if hit:
+            _write_registry(reg)
+        else:
+            sys.stderr.write(f"allocator: no lease with token {token!r} to bind.\n")
             return 1
     return 0
 
@@ -900,6 +1017,9 @@ def main(argv):
     if cmd == "heartbeat":
         opts.setdefault("token", pos[0] if pos else None)
         return cmd_heartbeat(opts)
+    if cmd == "bind":
+        opts.setdefault("token", pos[0] if pos else None)
+        return cmd_bind(opts)
     if cmd == "gc":
         return cmd_gc(opts)
     if cmd == "list":
@@ -910,7 +1030,7 @@ def main(argv):
         return cmd_assert_droppable(opts)
     sys.stderr.write(
         f"Unknown subcommand: {cmd!r}. "
-        "Use acquire|release|heartbeat|gc|list|query|assert-droppable.\n"
+        "Use acquire|release|bind|heartbeat|gc|list|query|assert-droppable.\n"
     )
     return 2
 

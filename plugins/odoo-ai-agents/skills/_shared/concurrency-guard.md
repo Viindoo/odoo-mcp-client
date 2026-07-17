@@ -77,10 +77,14 @@ or `--mode exclusive` (single-holder lease on a declared DB); a read-only attach
 stays lease-free. The allocator returns version-agnostic port NUMBERS - map them to
 CLI flags via `cli_help` for the target series at runtime. Full protocol + GC/stale
 rules: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md` § Allocate and
-`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`.
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`. Whatever lease you acquire
+here, you release before your terminal status - the imperative + release mechanics are the
+resource-teardown contract's, not this file's:
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3.
 
 ## Browser exclusivity (orthogonal)
 
 Browser-driving agents (odoo-ui-debugger / odoo-ui-reviewer) are EXCLUSIVE-serial
-regardless of mode - never two at once. That rule lives with those agents; this
-file only governs OSM-only fan-out.
+regardless of mode - never two at once. Full rule + close-before-done:
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2. This file governs
+OSM-only fan-out; it does not own the browser exclusivity rule.

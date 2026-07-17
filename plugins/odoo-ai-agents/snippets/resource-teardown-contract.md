@@ -1,0 +1,142 @@
+<!-- SSOT snippet. The single home for the resource-teardown-before-DONE invariant: browser
+     pages/contexts/recordings (T2) and Odoo instance leases (T3) with one DONE-gate (T0),
+     one ownership rule (T1), and one failure-path rule (T4). Also the SSOT for the browser
+     single-flight (exclusivity) rule formerly restated per-agent. Edit here only; consumers
+     point at ${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md.
+     This contract operationalizes ODOO-AI-ETHOS Principle #10 (DONE needs observable evidence)
+     for tool-using agents: a resource you left running is evidence the task is NOT done. It does
+     not restate #10; it makes it checkable for browsers and instances. -->
+
+# Resource Teardown Contract (close/release before DONE)
+
+## Verb glossary - read this first
+
+Two resource classes, two disjoint verb sets. Never mix them:
+
+- **CLOSE** - browser verbs. You CLOSE a page/tab/context and STOP a recording/trace.
+  These verbs never apply to an Odoo instance or its lease.
+- **RELEASE / DROP** - Odoo instance verbs. You RELEASE a lease (which may DROP the DB and
+  stop the server). These verbs never apply to a browser page.
+
+Closing a browser page is ORTHOGONAL to the instance lease: `close_page` / `browser_close`
+touches only the browser; the Odoo server keeps running and the lease is untouched. Every
+"never drop or release the lease" instruction you carry refers to the INSTANCE only - it does
+not forbid, and never excuses skipping, the browser CLOSE rules below.
+
+## T0 - The DONE-gate
+
+You may not emit `status: DONE` while:
+(a) a browser page, tab, context, recording, or trace that YOU opened this dispatch is still
+    open or running, or
+(b) an Odoo instance that YOU self-provisioned this dispatch is still leased or listening.
+
+DONE claims two things at once: the goal is met AND the resources the work borrowed are
+returned. A finished report with a live leftover page or instance is NOT done - finish the
+teardown, then emit the status. This gate binds every terminal status path (see T4 for
+BLOCKED / NEEDS_CONTEXT / handoff).
+
+## T1 - Ownership: who tears down what
+
+Teardown belongs to whoever ACQUIRED the resource - never to whoever merely used it.
+
+| How you hold it | Who tears it down | When |
+|---|---|---|
+| Browser page/context/recording you opened | YOU (close/stop it) | as you go + before your terminal status |
+| Instance you self-provisioned (no `INSTANCE_HANDLE` in your brief; `persist: ephemeral` or `exclusive-running`) | YOU (release the lease) | before your terminal status |
+| `INSTANCE_HANDLE` forwarded in your brief | NEVER you | the provisioning orchestrator, at end of run |
+| Instance you provisioned AND forwarded to children (you are the run-level owner) | YOU | after every child returned (spawner barrier R1) and the run verdict is final - then before your own DONE |
+| `mode_hint: path-incremental` EXCLUSIVE lease | the owning skill, via release-lease (operation E) | at path completion - never between steps |
+| `persist: shared-running` | NO single consumer, ever | allocator GC only (dead-pid / TTL) |
+
+An ephemeral `--stop-after-init` build self-terminates its process, but the LEASE (db + port
+reservation) is still yours - release it so `drop_on_release` reclaims the DB.
+
+The run-level owner's end-of-run release is crash-safe only because a mechanical backstop
+exists below this contract: the allocator's TTL (default 7200s) + heartbeat, SessionEnd gc,
+and gc-on-acquire reap an owner that died before releasing. The backstop is a safety net,
+not an alternative - you still release; the net catches crashes, not laziness.
+
+## T2 - Browser: close what you opened
+
+- **Close pages, never the server.** The browser MCP servers (chrome-devtools, playwright,
+  pagecast; headed and headless variants) are deliberately long-lived shared processes - one
+  eager chrome-devtools server serves the whole session. Your teardown scope is INSIDE the
+  server: pages, tabs, contexts, recordings, traces. NEVER kill, restart, or "clean up" the
+  MCP server process itself (the npx process) - that is session infrastructure, not your
+  resource. Closing the current/last page is safe by design - a subsequent navigate
+  re-creates a page. (This has not yet been smoke-verified across every headed variant; if a
+  family ever wedges on last-page close, close all other pages and hand the last one to a
+  named catcher per T4.)
+- **The close calls, by family:** chrome-devtools -> `close_page` (per page you opened; use
+  `list_pages` to find strays you created); playwright -> `browser_close` (plus
+  `browser_stop_video` / `browser_stop_tracing` if you started a video or trace); pagecast ->
+  `stop_recording` (by its tool name, not just "stop the recorder" in prose).
+- **Clean up as you go, not just at the end.** Reuse ONE page across a sweep (navigate +
+  resize in place) instead of opening a page per screen/breakpoint/role. If a step needed an
+  extra page or context, close it when that step ends - do not accumulate open pages until a
+  final sweep. Before your terminal status, close every page `list_pages` reports that YOU
+  created - not just the one you think you reused. On playwright, `browser_close` closes
+  everything you drove; on pagecast, confirm no recording is live (`stop_recording`).
+- **Single-flight (exclusivity).** At most ONE browser-driving agent runs at a time,
+  regardless of MCP family. Each browser MCP server drives one shared Chromium process
+  (shared DOM/session); two concurrent drivers corrupt each other's evidence. Orchestrators
+  dispatch browser agents as exclusive, serial steps - never in a parallel fan-out. Serial
+  dispatches share the server, NOT your pages: closing your pages at dispatch end does not
+  break the next dispatch (it navigates afresh).
+- **Headed exception (human-watch).** Headed variants: when the human explicitly asked to
+  WATCH, you may leave the watched page open at the human's request - state that you did, and
+  name the human as the owner who closes it. That is a T4 named-catcher handoff, not an
+  exemption. Default (nobody asked to watch): close, headed or not.
+- **Disambiguations.** "Pick one server family per run and stay on it" governs FAMILY choice
+  (do not mix chrome-devtools and playwright mid-run) - it does not mean keep pages open.
+  Saved `storageState-<role>.json` files live on disk and survive page close - reuse the
+  FILE to skip re-login, never an open page.
+
+## T3 - Instance: release what you provisioned
+
+- **Route the teardown; never hand-roll it.** Release through the same path you acquired:
+  `Skill(odoo-instance)` / `allocator.py release <token> --run-id <id>`. Release is now
+  teardown-complete for a listening instance: the allocator stops the server's process group
+  FIRST (SIGTERM, bounded wait, group SIGKILL - covering HTTP workers, cron, the
+  longpolling/gevent process, and any `--dev=reload` watchdog), THEN drops the DB for
+  `drop_on_release` leases. You never signal processes or run `dropdb` yourself, and you never
+  hardcode a series' flags - `odoo-instance-ops` resolves the per-version CLI at runtime via
+  OSM `cli_help` (a `db drop` CLI exists only on v16+; `--longpolling-port` and
+  `--xmlrpc-port` are removed at v19).
+- **Long-lived holders heartbeat.** Long-lived holders (path-incremental, an acceptance run
+  across phases): call `allocator.py heartbeat <token>` between phases so the TTL backstop
+  (default 7200s) never reaps a healthy run.
+- **Per-mode rule is T1's matrix.** Self-provisioned ephemeral/exclusive -> you release at
+  your own task end. Forwarded handle -> hands off, never release. `shared-running` -> no
+  consumer ever drops it. `path-incremental` -> the owning skill releases at path end via
+  operation E, never between steps.
+
+## T4 - Failure and handoff paths
+
+- **BLOCKED / NEEDS_CONTEXT do not waive teardown.** Before emitting any terminal status -
+  including after an error, a failed oracle, or a REJECTED verdict - close your pages and
+  release your self-provisioned instances. Your captured evidence (screenshots, console
+  dumps, logs, findings files) is on disk; the open page or running server is not evidence,
+  it is a leak.
+- **The only exception is an EXPLICIT, NAMED handoff.** You may leave a self-provisioned
+  instance leased ONLY when your continuation block forwards its handle to a named catcher:
+  `status: NEEDS_NEXT` with `INSTANCE_HANDLE` (incl. `lease_token`, `run_id`) in
+  `next.inputs`, naming the skill that needs the live state. An unnamed "forward the token
+  for later release" is not a handoff - it is the leak this contract exists to close.
+  Browser pages get no such exception, with one narrow carve-out: T2's headed human-watch
+  case, which is itself a NAMED handoff (to the human, not silence) - outside that one case,
+  close pages even when handing off.
+- **If teardown itself fails** (release errors, a process refuses to die), you are BLOCKED,
+  not DONE: report the lease token / page id and the error as the blocker so the caller or
+  allocator GC can reap it - never report success over a live leftover.
+
+## Why browsers and instances are enforced differently
+
+- Browser sessions are session-bounded and advisory: pages die with the session's shared MCP
+  server process, so a stray page cannot outlive your run - enforcement nudges, it does not
+  block.
+- Odoo instances are detached OS processes: a leased instance is a ledger entry that outlives
+  your run if you crash, so enforcement blocks on the ledger's provable truth, never on a
+  transcript guess.
+- Do not equalize them in either direction - tightening browsers to a ledger-block or loosening
+  instances to advisory-only breaks this design; the asymmetry is intentional, not an oversight.

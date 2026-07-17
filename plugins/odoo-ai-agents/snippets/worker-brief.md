@@ -49,6 +49,9 @@ re-commits). See `${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
   `verify-frontend.sh`, and any live check is owned by the `odoo-coder` coordinator's integrated
   test or a delegated `odoo-instance` run. Contract:
   `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
+  **Self-provisioning carries teardown:** what you acquire under this carve-out you release
+  before your terminal status - `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+  T1/T3.
 
 ## Agent Team mode keys (present only when team mode is on)
 

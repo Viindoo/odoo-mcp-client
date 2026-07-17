@@ -66,21 +66,19 @@ per-API-key and racy under concurrency, see
 `model_inspect` / `check_module_exists` only for Phase 1 layer classification when needed; all
 deep localization happens inside the dispatched agents.
 
-## Browser concurrency - HARD design rule
+## Browser concurrency
 
-Each MCP browser server drives ONE Chromium process (shared DOM/session). Two agents driving
-it concurrently corrupt evidence.
+`odoo-ui-debugger` is an **exclusive, serial step** - never run two browser agents at once. Full
+rule + close-before-done: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2. For
+flat/off-theme symptoms it applies the token-reality check from
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.
 
-- `odoo-ui-debugger` is an **exclusive, serial step** - never run two browser agents at once.
-  For flat/off-theme symptoms it applies the token-reality check from
-  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.
 - **Headless default / headed on request.** Only add `BROWSER MODE: headed` to the dispatch
   brief when the human explicitly asks to *see/watch*. On CI/no-display hosts, warn instead
   of dispatching a doomed headed run.
-- OSM-only agents (`odoo-backend-debugger`, reactive audits) are safe in parallel (cap <=3
-  - Mode A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).
-- Parallel visual checks require separate server instances (distinct ports/user-data-dir) -
-  out of scope; serialize for now.
+- **Parallel visual checks are out of scope for this skill today.** Running two would need
+  separate server instances (distinct ports/user-data-dir), which this skill does not
+  provision - serialize visual checks for now.
 
 ## Workflow
 

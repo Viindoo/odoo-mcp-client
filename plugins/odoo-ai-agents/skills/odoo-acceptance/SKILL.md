@@ -140,6 +140,10 @@ channel may overlap Phase 2a, which uses no browser).
   screen and assert it renders with NO console error and NO 4xx/5xx (a lightweight `odoo-qa-tester`
   smoke dispatch) - so P0's "smoke on Low" is actually executed, not just computed.
 
+Between Phase 2a/2b and Phase 3, call `allocator.py heartbeat <token>` on the cluster's
+`INSTANCE_HANDLE` so the TTL backstop never reaps this long-lived run while the fix-loop below is
+still iterating. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T3.
+
 ## Phase 3 - ADJUDGE + fix-loop (bounded)
 
 Read the tester report and durable results, reconcile them against the oracle, and produce the
@@ -149,6 +153,13 @@ the failed scenarios on whichever channel failed (Phase 2a durable and/or Phase 
 loop to **3 iterations**; if still not clean, STOP and
 escalate with what remains - never loop forever. A UNVERIFIED on a High-tier scenario blocks ACCEPTED
 until evidence is obtained.
+
+**Release on the final verdict (conditions DONE).** Once the verdict is final (ACCEPTED, or the
+3-iteration escalation STOP), RELEASE the Phase 2 cluster instance you provisioned - via
+`odoo-instance` or `allocator.py release <token> --run-id <id>` - before emitting your terminal
+status. Do NOT release between iterations of the fix-loop above (the re-runs need the same live
+cluster); release exactly once, after the verdict is final. `DONE` is not valid while that instance
+is still leased. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T1/T3.
 
 ## Output
 

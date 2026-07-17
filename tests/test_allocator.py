@@ -14,11 +14,15 @@ it THROUGH odoo_db.py (the through-Odoo path).  The fallback to raw dropdb is
 only allowed when the venv python is absent from the lease.
 """
 
+import contextlib
+import importlib.util
 import json
 import os
+import signal
 import socket
 import subprocess
 import sys
+import textwrap
 import time
 from pathlib import Path
 
@@ -1192,3 +1196,209 @@ def test_registry_stamps_schema_version_2(fixt):
     _acquire(env, "--mode", "ephemeral", "--no-create")
     reg = json.loads(_run(env, "list", "--show-tokens").stdout)
     assert reg.get("schema_version") == 2, "a written registry must be stamped schema_version: 2"
+
+
+# --------------------------------------------------------------------------- #
+# L1.1/L1.2 - process-group teardown BEFORE the DB drop (the RAM-leak fix).
+#
+# Behavior contract protected here (NOT a code snapshot):
+#   - `bind <token> --pid` upserts the live server pid onto the EXISTING lease
+#     (the exclusive-lease path, so release/gc can find the process group), and
+#     refuses an unknown token / a missing --pid.
+#   - `release` stops the whole process GROUP (server master + its children)
+#     BEFORE it drops the DB - active DB sessions block DROP DATABASE, so the
+#     order is mandatory and must be observable.
+#   - `gc` reaps the ttl-expired-but-process-still-alive ORPHAN: it stops the
+#     group before reclaiming the lease (an upgrade from "wait for death").
+#   - a legacy lease that carries NO pid releases cleanly - no crash, no signal.
+# --------------------------------------------------------------------------- #
+def _import_allocator():
+    """Import allocator.py as a module so the ordering tests can monkeypatch the
+    drop function in-process (the ledger tests still shell out, matching the rest
+    of this file)."""
+    spec = importlib.util.spec_from_file_location("allocator_under_test", ALLOC)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _spawn_orphan_group(pidfile: Path):
+    """Spawn a REAL process GROUP - a `setsid` session/group leader that forks a
+    child, both alive - that is NOT a child of the test process. Because it is
+    orphaned (reparented to init), killing the group makes the members disappear
+    for real (no zombie held open by pytest), so `_pid_alive` flips to False and
+    the ordering assertions are deterministic. Returns (leader_pid, child_pid);
+    os.getpgid(leader) == leader, so os.killpg(leader, ...) reaps both.
+    """
+    launcher = textwrap.dedent(
+        f"""\
+        import os, time
+        # Detach: fork + setsid so the leader is reparented to init, not to pytest.
+        if os.fork() != 0:
+            os._exit(0)                 # intermediary exits immediately
+        os.setsid()                     # this process becomes session+group leader
+        leader = os.getpid()
+        child = os.fork()
+        if child == 0:                  # grandchild: stays in the leader's group
+            time.sleep(120)
+            os._exit(0)
+        with open({str(pidfile)!r}, "w") as fh:
+            fh.write(f"{{leader}} {{child}}\\n")
+        time.sleep(120)
+        os._exit(0)
+        """
+    )
+    # check=True waits for the intermediary (exits 0); the leader is now orphaned.
+    subprocess.run([sys.executable, "-c", launcher], check=True, timeout=30)
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        if pidfile.exists() and pidfile.read_text().strip():
+            break
+        time.sleep(0.02)
+    leader, child = (int(x) for x in pidfile.read_text().split())
+    return leader, child
+
+
+def _reap(*pids):
+    for pid in pids:
+        with contextlib.suppress(ProcessLookupError, OSError):
+            os.kill(pid, signal.SIGKILL)
+
+
+# --- bind verb (ledger, shell-driven like the rest of the file) ------------- #
+def test_bind_upserts_server_pid_onto_the_exclusive_lease(fixt):
+    """An exclusive lease records no pid at acquire (only shared/--pid did before);
+    `bind` upserts the live server pid onto that SAME lease slot so release/gc can
+    stop its process group."""
+    env, _, _ = fixt
+    _, a = _acquire(env, "--mode", "exclusive", "--db-name", "excl_db")
+    tok = a["ALLOC_TOKEN"]
+    assert _leases(env)[0]["owner"]["pid"] is None, "exclusive acquire records no pid until bind"
+    r = _run(env, "bind", tok, "--pid", str(os.getpid()))
+    assert r.returncode == 0, f"bind must succeed on a known token; stderr={r.stderr!r}"
+    leases = _leases(env)
+    assert len(leases) == 1, "bind must NOT create a second lease row"
+    assert leases[0]["owner"]["pid"] == os.getpid(), "bind must upsert the pid onto the exact lease"
+
+
+def test_bind_refuses_unknown_token_and_missing_pid(fixt):
+    env, _, _ = fixt
+    _acquire(env, "--mode", "exclusive", "--db-name", "excl_db")
+    bad = _run(env, "bind", "deadbeef" * 4, "--pid", str(os.getpid()))
+    assert bad.returncode != 0, "bind must refuse an unknown token"
+    _, a = _acquire(env, "--mode", "exclusive", "--db-name", "excl_db2")
+    no_pid = _run(env, "bind", a["ALLOC_TOKEN"])  # --pid omitted
+    assert no_pid.returncode != 0, "bind must refuse when --pid is missing"
+
+
+# --- release stops the group BEFORE the drop (in-process, order observable) - #
+def test_release_stops_process_group_before_dropping(tmp_path, monkeypatch):
+    alloc = _import_allocator()
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("ODOO_AI_HOME", str(home))
+
+    leader, child = _spawn_orphan_group(tmp_path / "grp.pids")
+    try:
+        assert alloc._pid_alive(leader) and alloc._pid_alive(child), "group must start alive"
+        token = "ab" * 16
+        now = int(time.time())
+        _seed_registry({"ODOO_AI_HOME": str(home)}, [{
+            "token": token, "mode": "exclusive", "db_name": "leakdb",
+            "drop_on_release": True, "python": "", "db_host": "localhost",
+            "db_user": "odoo", "ports": [],
+            "owner": {"host": socket.gethostname(), "pid": leader,
+                      "run_id": "run-A", "started_at": now},
+            "ttl_s": 7200, "heartbeat_at": now,
+        }])
+
+        seen = {}
+
+        def _recording_drop(lease):
+            # Snapshot liveness at the exact moment the drop fires: if the group
+            # was stopped FIRST, both members are already gone here.
+            seen["called"] = True
+            seen["leader_alive"] = alloc._pid_alive(leader)
+            seen["child_alive"] = alloc._pid_alive(child)
+            return True
+
+        monkeypatch.setattr(alloc, "_drop_through_odoo", _recording_drop)
+        rc = alloc.cmd_release({"token": token, "run_id": "run-A"})
+
+        assert rc == 0, "release must succeed"
+        assert seen.get("called"), "the drop path must run (after the group stop)"
+        assert seen["leader_alive"] is False, (
+            "the server's process-group LEADER must be dead BEFORE the DB drop fires "
+            "(a live session blocks DROP DATABASE)"
+        )
+        assert seen["child_alive"] is False, (
+            "a child (worker/gevent/watchdog) must also be dead BEFORE the drop"
+        )
+    finally:
+        _reap(child, leader)
+
+
+# --- gc reaps the ttl-expired-but-alive orphan group ------------------------ #
+def test_gc_stops_a_ttl_expired_but_still_alive_orphan_group(tmp_path, monkeypatch):
+    alloc = _import_allocator()
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("ODOO_AI_HOME", str(home))
+
+    leader, child = _spawn_orphan_group(tmp_path / "grp.pids")
+    try:
+        assert alloc._pid_alive(leader) and alloc._pid_alive(child)
+        token = "cd" * 16
+        past = int(time.time()) - 100000
+        _seed_registry({"ODOO_AI_HOME": str(home)}, [{
+            "token": token, "mode": "exclusive", "db_name": "orphan_db",
+            # drop_on_release False keeps the reclaim Postgres-free; the NEW
+            # behavior under test is that gc STOPS the live group before reclaim.
+            "drop_on_release": False, "python": "", "db_host": "localhost",
+            "db_user": "odoo", "ports": [],
+            "owner": {"host": socket.gethostname(), "pid": leader,
+                      "run_id": "run-A", "started_at": past},
+            "ttl_s": 1, "heartbeat_at": past,  # long past ttl -> stale by time
+        }])
+
+        rc = alloc.cmd_gc({})
+        assert rc == 0
+        # The orphan's whole group must be reaped, and the lease reclaimed.
+        deadline = time.time() + 5
+        while time.time() < deadline and (alloc._pid_alive(leader) or alloc._pid_alive(child)):
+            time.sleep(0.05)
+        assert not alloc._pid_alive(leader), "gc must stop the ttl-expired orphan's group leader"
+        assert not alloc._pid_alive(child), "gc must stop the orphan's child too"
+        reg = json.loads((home / "runtime" / "leases.json").read_text(encoding="utf-8"))
+        assert reg["leases"] == [], "gc must reclaim the ttl-expired lease after stopping the group"
+    finally:
+        _reap(child, leader)
+
+
+# --- legacy lease with NO pid releases cleanly (no crash, no signal) --------- #
+def test_legacy_lease_without_pid_releases_without_signalling(tmp_path, monkeypatch):
+    alloc = _import_allocator()
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("ODOO_AI_HOME", str(home))
+
+    token = "ef" * 16
+    now = int(time.time())
+    _seed_registry({"ODOO_AI_HOME": str(home)}, [{
+        "token": token, "mode": "exclusive", "db_name": "legacy",
+        "drop_on_release": False, "python": "", "db_host": "localhost",
+        "db_user": "odoo", "ports": [],
+        # Pre-setsid legacy lease: no pid recorded at all.
+        "owner": {"host": socket.gethostname(), "pid": None,
+                  "run_id": "run-A", "started_at": now},
+        "ttl_s": 7200, "heartbeat_at": now,
+    }])
+
+    called = {"stop": False}
+    monkeypatch.setattr(alloc, "_stop_group",
+                        lambda *a, **k: called.__setitem__("stop", True))
+    rc = alloc.cmd_release({"token": token, "run_id": "run-A"})
+    assert rc == 0, "a legacy (no-pid) lease must release cleanly"
+    assert called["stop"] is False, "no pid -> _stop_group must never be invoked (no signal sent)"
+    reg = json.loads((home / "runtime" / "leases.json").read_text(encoding="utf-8"))
+    assert reg["leases"] == [], "the legacy lease must be removed on release"
