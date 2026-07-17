@@ -1,8 +1,7 @@
-"""Behavioral evals for the resource-teardown-before-DONE contract (L2.6).
-
-Context: /tmp/odoo-mcp-solution-final.md L2.6 (Eval A + Eval B specs), L1.7 (the visual-
-regression pre-ship gate), and blocking issue 4 ("verb collision needs behavioral proof").
-SSOT contract under test: plugins/odoo-ai-agents/snippets/resource-teardown-contract.md.
+"""Behavioral evals for the resource-teardown contract (plugins/odoo-ai-agents/snippets/
+resource-teardown-contract.md): Eval A proves the CLOSE(browser)-vs-RELEASE(instance) verb split
+(T2 vs T3) holds even under a forwarded-lease collision; Eval B proves the visual-regression
+matrix-close (T0/T2) leaves no run-created page open.
 
 WHY these tests exist (and what they do NOT prove): tests/test_resource_teardown_contract.py
 (a static wording-freeze guard) can prove the SSOT snippet text is unchanged. It CANNOT prove
