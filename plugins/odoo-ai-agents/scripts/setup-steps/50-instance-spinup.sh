@@ -2,7 +2,7 @@
 # 50-instance-spinup.sh - Start a declared Odoo instance and wait for HTTP 200.
 #
 # Reads an instance profile written by 40-instance-profile.sh from
-# .odoo-ai/instances.toml, generates a temporary odoo.conf with the correct
+# $ODOO_AI_HOME/instances.toml, generates a temporary odoo.conf with the correct
 # addons_path ordering, launches Odoo (source via odoo-bin OR docker compose),
 # then detects READY with a BOUNDED-timeout HTTP poll of /web/database/selector
 # (fallback /web/login) - never a log-tail wait (docs/reference/
@@ -51,7 +51,6 @@
 #   - No sudo. docker mode uses `docker compose` (must already be installed).
 #
 # CONFIG:
-#   ODOO_AI_DIR        project artifacts dir  ${ODOO_AI_DIR:-$PWD/.odoo-ai}
 #   ODOO_AI_HOME       machine-global dir     ${ODOO_AI_HOME:-$HOME/.odoo-ai}
 #   ODOO_AI_INSTANCES  full-path override for instances.toml
 #   ODOO_BIN           path to odoo-bin (source mode). Auto-detected from
@@ -72,10 +71,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ODOO_AI_DIR="${ODOO_AI_DIR:-$PWD/.odoo-ai}"
 # instances.toml is machine-global; resolve it (global-wins) via the shared helper.
 # shellcheck source=../lib/resolve_instances.sh
 source "$SCRIPT_DIR/../lib/resolve_instances.sh"
+# Resource-limit SSOT (Problem 1 hardening) - resolves limit_memory_hard/soft +
+# limit_time_real for the generated [options] conf block below (A2 - a
+# long-running listener, unlike 55-instance-ops.sh's --stop-after-init build
+# path). Policy: snippets/odoo-bin-resource-limits.md.
+# shellcheck source=../lib/resource_limits.sh
+source "$SCRIPT_DIR/../lib/resource_limits.sh"
 INSTANCES_TOML="$(_resolve_instances)"
 INSTANCES_IO="$SCRIPT_DIR/../lib/instances_io.py"
 SPINUP_TIMEOUT="${SPINUP_TIMEOUT:-120}"
@@ -210,6 +214,69 @@ _probe_ready_fallback() {
 }
 
 # ---------------------------------------------------------------------------
+# Instance-identity attach guard (P2 bootstrap-race BACKSTOP -
+#   49-solution-final.md §2.4.2): "the port answers 200" alone is NOT proof
+#   that the server behind it is THIS instance - two same-series projects can
+#   (in the narrow race window the eager migration in 40-instance-profile.sh
+#   shrinks but does not eliminate) end up sharing a declared port before the
+#   catalog converges. The launcher records an identity token (a hash of
+#   addons_path - unique per project checkout, unlike db_name/series alone)
+#   in a small marker file keyed by port under the machine-global runtime dir
+#   at the moment it confirms ITS OWN server is up; a later "already up" check
+#   compares the port's recorded token against what THIS invocation expects.
+#
+#   MINIMAL/backstop scope (documented residual, not a registry-schema
+#   change): a port with NO recorded marker yet (nothing has ever spun up
+#   through this guard, e.g. a pre-existing server, or the very first launch)
+#   is treated as a pass-through - it cannot be disproven, so it is allowed,
+#   same as before this guard existed. Markers are never actively cleaned up
+#   on release/gc/teardown, so a port legitimately repurposed later keeps its
+#   old token until the NEXT successful spin-up through this script rewrites
+#   it; the failure mode this produces is "an old marker blocks a legitimate
+#   reattach until a fresh spin-up rewrites it" - i.e. it fails CLOSED
+#   (refuses to treat a mismatched live server as attachable), which is the
+#   safe direction for a collision-detection backstop.
+# ---------------------------------------------------------------------------
+_identity_marker_path() {
+    # $1 = port. Lives under the SAME machine-global runtime root the
+    # allocator/resolver use (_odoo_ai_runtime_dir, sourced from
+    # resolve_instances.sh above) - not a new root, not the leases.json schema.
+    local dir
+    dir="$(_odoo_ai_runtime_dir)/identity" || return 1
+    mkdir -p "$dir" 2>/dev/null || true
+    printf '%s/%s.token\n' "$dir" "$1"
+}
+
+_identity_token() {
+    # $1 = addons_path (colon-separated). Deterministic per project checkout -
+    # two different projects/repos never share addons_path, even when they
+    # share series, profile, db_name, and (in the race window) port.
+    python3 -c '
+import hashlib, sys
+print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:16])
+' "$1"
+}
+
+_write_identity_marker() {
+    # $1 = port, $2 = expected token, $3 = db_name (debug context only).
+    local path
+    path="$(_identity_marker_path "$1")" || return 0
+    { printf '%s\n%s\n' "$2" "$3" >"$path"; } 2>/dev/null || true
+}
+
+_identity_ok() {
+    # $1 = port, $2 = this invocation's expected token. Returns 0 (pass) when
+    # no marker is recorded yet (cannot disprove - see the docstring above) OR
+    # the recorded token matches; returns 1 on a CONFIRMED mismatch (a live
+    # server on this port was launched by this guard for a DIFFERENT project).
+    local port="$1" expected="$2" path have
+    path="$(_identity_marker_path "$port")" || return 0
+    [[ -f "$path" ]] || return 0
+    have="$(head -n1 "$path" 2>/dev/null || true)"
+    [[ -z "$have" || "$have" == "$expected" ]]
+}
+
+# ---------------------------------------------------------------------------
 # check
 # ---------------------------------------------------------------------------
 cmd_check() {
@@ -220,7 +287,8 @@ cmd_check() {
     [[ "$rc" -eq 0 && -n "$kv" ]] || return 1
     eval "$kv"
     port="${INST_HTTP_PORT:-$DEFAULT_HTTP_PORT}"
-    _probe_ready "$port"
+    _probe_ready "$port" || return 1
+    _identity_ok "$port" "$(_identity_token "${INST_ADDONS_PATH:-}")"
 }
 
 # ---------------------------------------------------------------------------
@@ -411,10 +479,26 @@ cmd_apply() {
     }
 
     local _last_ready_status="" _last_ready_path=""
+    # Instance-identity token this invocation EXPECTS to see recorded on
+    # $port (see the guard block above _probe_ready_fallback). Computed once
+    # here and reused both by the "already up" pre-check below and by the
+    # marker write after a fresh launch succeeds.
+    local _id_expected
+    _id_expected="$(_identity_token "${INST_ADDONS_PATH:-}")"
     if _probe_ready "$port"; then
-        [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared
-        echo "ok Instance ${INST_VERSION} already up at http://localhost:$port$_last_ready_path"
-        return 0
+        if _identity_ok "$port" "$_id_expected"; then
+            [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared
+            echo "ok Instance ${INST_VERSION} already up at http://localhost:$port$_last_ready_path"
+            return 0
+        fi
+        echo "" >&2
+        echo "x COLLISION: port $port answers HTTP 200, but its recorded instance-identity" >&2
+        echo "  does NOT match this project's addons_path. A DIFFERENT Odoo server (most" >&2
+        echo "  likely another project/session caught in the P2 bootstrap-race window - see" >&2
+        echo "  snippets/instance-handle-contract.md) is bound to this port. Refusing to" >&2
+        echo "  treat it as this instance being up - investigate before retrying, or" >&2
+        echo "  declare a distinct http_port for this project." >&2
+        return 1
     fi
 
     # Tracked so a poll timeout can kill the orphaned process / remove temp conf
@@ -551,6 +635,16 @@ cmd_apply() {
                 if [[ -n "${ARG_GEVENT_PORT:-}" && -n "${ARG_GEVENT_PORT_KEY:-}" ]]; then
                     echo "$ARG_GEVENT_PORT_KEY = $ARG_GEVENT_PORT"
                 fi
+                # Resource limits (Problem 1 hardening - snippets/odoo-bin-
+                # resource-limits.md): this is a REAL long-running listener
+                # (unlike 55-instance-ops.sh's --stop-after-init build path),
+                # so limit_memory_hard/soft AND limit_time_real all actually
+                # fire here (ThreadedServer.process_limit()). Do NOT add
+                # limit_time_cpu - it is a DEAD key while workers=0 (this
+                # script never passes --workers).
+                echo "limit_memory_hard = $(resource_limit_hard_bytes)"
+                echo "limit_memory_soft = $(resource_limit_soft_bytes)"
+                echo "limit_time_real = $(resource_limit_time_real)"
                 echo "db_name = $db_name"
                 echo "db_host = ${INST_DB_HOST:-localhost}"
                 echo "db_user = ${INST_DB_USER:-odoo}"
@@ -591,6 +685,21 @@ cmd_apply() {
             _ts="$(date -u +%Y%m%dT%H%M%SZ 2>/dev/null || date -u +%Y%m%d%H%M%S)"
             logf="$_logs_dir/${_db_slug}-${_ts}.log"
             echo "LOG_PATH=$logf"
+            # v8-v11 listener guard (Problem 1 hardening - snippets/odoo-bin-
+            # resource-limits.md): Odoo applies NO memory cap of its own pre-
+            # v12 on ANY run mode - the generated limit_memory_hard/soft conf
+            # keys above are inert there too. A shell `ulimit -Sv` is the ONLY
+            # protection for a v8-v11 listener. Applied to the CURRENT shell
+            # immediately before backgrounding (the fork at `&` inherits it)
+            # and restored right after capturing `$!` - `ulimit` is a process
+            # rlimit, not a subshell, so it never disturbs setsid's process-
+            # group-leader invariant below. v12+ already gets the conf-key
+            # enforcement, so this guard is scoped to major < 12 only.
+            local _prev_lim_v=""
+            if ! resource_limit_is_uncapped && [[ "$_ver_major" =~ ^[0-9]+$ ]] && (( _ver_major < 12 )); then
+                _prev_lim_v="$(ulimit -Sv 2>/dev/null || echo unlimited)"
+                ulimit -Sv "$(resource_limit_hard_kib)" 2>/dev/null || true
+            fi
             # setsid: the server becomes its OWN session/process-group leader
             # (pgid == its own pid), so allocator.py can later stop the whole
             # group (master + HTTP workers + cron + gevent/longpolling + any
@@ -600,6 +709,7 @@ cmd_apply() {
             # shellcheck disable=SC2086
             setsid "$py" "$bin" -c "$conf" -d "$db_name" ${_dev_flag} >"$logf" 2>&1 &
             odoo_pid=$!
+            [[ -n "$_prev_lim_v" ]] && { ulimit -Sv "$_prev_lim_v" 2>/dev/null || true; }
             echo "  Odoo starting (pid: $odoo_pid, log: $logf)"
             # Bind the pid onto the caller's exclusive lease IMMEDIATELY - BEFORE
             # the readiness poll - so allocator.py release/gc can stop this
@@ -616,6 +726,11 @@ cmd_apply() {
     esac
 
     if _poll_until_up "$port"; then
+        # Record THIS launch's instance-identity token on the port BEFORE
+        # anything else touches it, so the next "already up" check (this
+        # session or a foreign one) can tell a genuine re-attach from a
+        # collision (see the guard block above _probe_ready_fallback).
+        _write_identity_marker "$port" "$_id_expected" "$db_name"
         # The exclusive lease was already bound immediately after launch above;
         # the shared render target registers its lease only after readiness.
         [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared "$odoo_pid"

@@ -8,6 +8,7 @@ CPU-only: no PostgreSQL, no Odoo, no network.
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tomllib
@@ -263,7 +264,17 @@ def test_step40_spec_defaults_fill_missing_optional_fields(tmp_path):
     # Defaults must be filled in:
     assert inst.get("db_host") == "localhost"
     assert inst.get("db_user") == "odoo"
-    assert inst.get("db_name") == "odoo_18_0"
+    # P2 db_name project-discriminator (49-solution-final.md §2.4.3): the
+    # default is now "odoo_<series>_<repo-key8>" (an 8-hex-char project
+    # discriminator), not a bare series-only "odoo_18_0" - two same-series
+    # projects must never default to the SAME db_name once they share one
+    # global catalog. tmp_path is not inside a git repo, so the discriminator
+    # falls back to hashing the project dir's realpath - still deterministic,
+    # just not independently reproducible here, so assert the CONTRACT
+    # (series prefix + 8 lowercase hex chars) rather than an exact value.
+    assert re.fullmatch(r"odoo_18_0_[0-9a-f]{8}", inst.get("db_name", "")), (
+        f"Expected db_name matching 'odoo_18_0_<repo-key8>', got {inst.get('db_name')!r}"
+    )
     # Port: first instance gets base_port (8069) since file was empty.
     assert inst.get("http_port") == 8069
 
@@ -368,7 +379,8 @@ def test_step40_writes_profile_and_instance_key_fields(tmp_path):
     assert inst.get("instance_key") == "17.0:dev", (
         f"Expected instance_key='17.0:dev', got {inst.get('instance_key')!r}"
     )
-    # db_name default must have profile slug suffix when profile is set.
-    assert inst.get("db_name") == "odoo_17_0_dev", (
-        f"Expected db_name='odoo_17_0_dev', got {inst.get('db_name')!r}"
+    # db_name default must have the project discriminator (P2 §2.4.3) AND the
+    # profile slug suffix when profile is set: odoo_<series>_<repo-key8>_<slug>.
+    assert re.fullmatch(r"odoo_17_0_[0-9a-f]{8}_dev", inst.get("db_name", "")), (
+        f"Expected db_name matching 'odoo_17_0_<repo-key8>_dev', got {inst.get('db_name')!r}"
     )

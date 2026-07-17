@@ -515,7 +515,11 @@ def _emit(name, value):
 def _resolve_instance(path, series, profile=None):
     items = instances_io.load_instances(path)
     inst, _ = instances_io.select_instance(items, series or None, profile=profile or None)
-    return inst
+    # Return the FULL catalog alongside the selected instance: cmd_acquire needs
+    # every declared http_port (not just the selected one) to close the
+    # boundary off-by-one (P2 §2.3) - this is the same load_instances() call
+    # (no second read), so callers get it for free.
+    return inst, items
 
 
 def _emit_instance_common(inst):
@@ -535,7 +539,7 @@ def cmd_acquire(opts):
     path = resolve_instances_path(opts.get("instances"))
     series = opts.get("series", "")
     profile = opts.get("profile", "")
-    inst = _resolve_instance(path, series, profile=profile or None)
+    inst, catalog_items = _resolve_instance(path, series, profile=profile or None)
     if inst is None:
         sys.stderr.write(
             f"allocator: no instance for series {series!r} in {path}. "
@@ -653,6 +657,21 @@ def cmd_acquire(opts):
     size = int(inst.get("port_pool_size", DEFAULT_POOL_SIZE))
     prefix = inst.get("db_name_prefix", inst.get("db_name", "odoo"))
 
+    # P2 §2.3 boundary off-by-one fix: reserve EVERY catalog-declared http_port,
+    # not just the acquiring instance's own. Declared ports step by 10
+    # (40-instance-profile.sh) while a pool spans DEFAULT_POOL_SIZE=10 ports
+    # starting at declared+1, so instance-0's pool would otherwise end AT
+    # instance-1's declared port (e.g. 8079) and could hand it out. catalog_items
+    # was already loaded via load_instances() in _resolve_instance() ABOVE this
+    # point - i.e. before the `with _locked()` critical section below - so this
+    # reserves the whole catalog with no new lock and no deadlock risk.
+    reserved_ports = {declared_port}
+    for _item in catalog_items:
+        try:
+            reserved_ports.add(int(_item.get("http_port", DEFAULT_HTTP_PORT)))
+        except (TypeError, ValueError):
+            continue
+
     # B2 model: the allocator NO LONGER calls createdb.  The ephemeral DB is
     # created by the caller's `odoo-bin -d <db> -i <mods> --stop-after-init`
     # (Odoo create-on-init).  We still probe CREATEDB because Odoo create-on-init
@@ -686,7 +705,7 @@ def cmd_acquire(opts):
                     return 3
 
         try:
-            ports = _pick_ports(reg, base, size, n_ports, reserved={declared_port})
+            ports = _pick_ports(reg, base, size, n_ports, reserved=reserved_ports)
         except RuntimeError as exc:
             sys.stderr.write(f"allocator: {exc}\n")
             return 4
@@ -717,7 +736,11 @@ def cmd_acquire(opts):
             "python": inst.get("python", ""),
             # addons_path is forward-context only (for future tooling that may want
             # to launch odoo-bin from the lease); the drop path never reads it.
-            "addons_path": ":".join(str(x) for x in inst.get("addons_path", [])),
+            # Odoo's --addons-path/addons_path takes COMMA-separated directories
+            # (never colon - that is PATH/PYTHONPATH style, not Odoo's addons-path
+            # syntax), matching ALLOC_ADDONS_PATH above - so any future consumer can
+            # forward this value to odoo-bin verbatim, with no extra conversion step.
+            "addons_path": ",".join(str(x) for x in inst.get("addons_path", [])),
             "db_host": host,
             "db_user": user,
             # db_port travels top-level beside db_host/db_user; empty when undeclared.
