@@ -73,13 +73,17 @@ One fresh DB per module, installed in dependency order, exported from a DB that 
 its children, so a parent's `.pot` carries only the parent's terms.
 
 ```bash
+# Memory-cap policy: ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
 # install + load en_US (base language, KT3 - ALWAYS) + the target language into an isolated
 # per-module DB (dependency order):
 odoo-bin -d <db> -i <module> --load-language=en_US,<lang> \
-  --without-demo=all --stop-after-init
+  --without-demo=all --stop-after-init \
+  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 # export the language file (.pot template, or .po once <lang> is loaded above):
 odoo-bin -d <db> --modules=<module> --i18n-export=<module>.pot \
-  --language=<lang> --stop-after-init
+  --language=<lang> --stop-after-init \
+  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
 
 ### v17-v18 (has `--skip-auto-install`; server flags)
@@ -88,12 +92,15 @@ odoo-bin -d <db> --modules=<module> --i18n-export=<module>.pot \
 registry - install just the module and its closure:
 
 ```bash
+# Memory-cap policy: ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
 # install + load en_US (base language, KT3 - ALWAYS) + the target language, blocking auto_install siblings:
 odoo-bin -d <db> -i <module> --skip-auto-install --load-language=en_US,<lang> \
-  --stop-after-init
+  --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 # export the language file:
 odoo-bin -d <db> --modules=<module> --i18n-export=<module>.pot \
-  --language=<lang> --stop-after-init
+  --language=<lang> --stop-after-init \
+  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
 
 `--skip-auto-install` is load-bearing: omit it and every `auto_install: True` module whose deps
@@ -108,10 +115,14 @@ into v19. Ground exact sub-subcommand flags via `cli_help(command='i18n', odoo_v
 before invoking:
 
 ```bash
-# install the module (still a server-flag concern):
-odoo-bin -d <db> -i <module> --skip-auto-install --stop-after-init
+# install the module (still a server-flag concern) - memory-cap policy:
+# ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+odoo-bin -d <db> -i <module> --skip-auto-install --stop-after-init \
+  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 # load en_US (base language, KT3 - ALWAYS) + the target language INTO the DB
-# (KT1 - activates msgstr for a translated export):
+# (KT1 - activates msgstr for a translated export). The `i18n` subcommand is a separate CLI
+# parser from the server build path above and does not take --limit-memory-hard:
 odoo-bin i18n loadlang -d <db> -l en_US
 odoo-bin i18n loadlang -d <db> -l <lang>
 # export (default -l pot = template .pot; pass <lang> to emit the translated .po):
@@ -210,8 +221,16 @@ Odoo's exporter left a `fuzzy` flag on an entry, clear it only after confirming 
    entry as you write it (a `re`-based spot-check on that entry is fine); reproduced entries from the
    diff baseline were already correct and need no full-file re-scan.
 
-3. **Load validation via Odoo, NOT msgfmt.** Reload the module: `odoo-bin -d <db> -u <module>
-   --stop-after-init` (see `docs/reference/INSTANCE-LIFECYCLE.md`). `-u` re-imports the translation
+3. **Load validation via Odoo, NOT msgfmt.** Reload the module (HARD RULE, never omit the
+   `ulimit -Sv` guard; memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`;
+   see `docs/reference/INSTANCE-LIFECYCLE.md`):
+
+   ```bash
+   [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+   odoo-bin -d <db> -u <module> --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
+   ```
+
+   `-u` re-imports the translation
    and surfaces a broken `.po` (duplicate `msgid`, bad header, format error) that `msgfmt` misses -
    `msgfmt` validates gettext syntax only, not Odoo's import path. Pass signal: clean `-u` reload,
    no translation error in the log.
@@ -251,9 +270,11 @@ Consult when building the TM (P1) and hand-translating the residual (L3):
 1. **TM from core + deps.** Read the already-translated `<lang>.po` of core Odoo and the module's
    dependency modules; reuse their `msgstr` for any recurring `msgid`. Largest, most authoritative
    term source.
-2. **Project glossary file.** `.odoo-ai/glossary.yml` - YAML map of domain/regulatory terms the
+2. **Project glossary file.** `glossary.yml` - YAML map of domain/regulatory terms the
    project has fixed (accounting-circular terminology, product names) + source citation. Project
-   terms override a generic TM hit on conflict.
+   terms override a generic TM hit on conflict. Tier-2 SHARE; resolve it via the
+   resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`
+   (captured path shown as `<SHARE_DIR>` below) - `<SHARE_DIR>/glossary.yml`.
 3. **OSM canonical field label.** For a term mapping to a model field, reuse the field's canonical
    `string` rather than inventing one:
 

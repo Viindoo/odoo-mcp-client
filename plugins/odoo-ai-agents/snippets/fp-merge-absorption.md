@@ -131,10 +131,13 @@ to exclusive (see "Allocator footgun" below).
    # emits ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_DB_PORT / ALLOC_RUN_ID / ALLOC_TOKEN
    ```
 
-3. Install the N affected modules ONCE on that DB (Odoo create-on-init creates the DB):
+3. Install the N affected modules ONCE on that DB (Odoo create-on-init creates the DB). Memory-cap
+   policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
 
    ```
-   odoo-bin -d $ALLOC_DB_NAME -i mod_a,mod_b --test-enable --stop-after-init
+   [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+   odoo-bin -d $ALLOC_DB_NAME -i mod_a,mod_b --test-enable --stop-after-init \
+     --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
    ```
 
 4. For subsequent commits in the same batch that touch only a subset, run `-u <changed_mod>`

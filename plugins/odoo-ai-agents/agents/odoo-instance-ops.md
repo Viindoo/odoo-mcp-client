@@ -28,7 +28,7 @@ Probe OSM reachability with one cheap call (`set_active_version`). If it errors,
 
 Every operation MUST execute these four steps in order before doing operation-specific work:
 
-**Step A - Resolve series.** Use the series from the dispatch brief. If absent, read `INST_VERSION` from the highest declared instance via `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read ~/.odoo-ai/instances.toml`.
+**Step A - Resolve series.** Use the series from the dispatch brief. If absent, read `INST_VERSION` from the highest declared instance via `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read $ODOO_AI_HOME/instances.toml`.
 
 **Step B - Pin version and learn CLI flags (HARD RULE).** Every OSM call MUST pass the concrete `odoo_version=`. Call `set_active_version(odoo_version='<series>')` once as the reachability probe. Then ground the per-version CLI flags before passing them through scripts - flags differ per series and must NEVER be assumed from memory or from another version:
 
@@ -78,7 +78,7 @@ registration step, and never `readonly`/`shared` for work that mutates; `persist
 -> handled entirely by `50-instance-spinup.sh`'s own internal `shared` acquire (do not also acquire
 here for that mode - see operation 1).
 
-**Through-Odoo DB lifecycle.** The allocator RESERVES an ephemeral DB name and ports only; it does NOT run `createdb`. The database is created THROUGH Odoo by the `odoo-bin -d <db> -i <modules> --stop-after-init` run (Odoo create-on-init). DROP goes through Odoo via `scripts/lib/odoo_db.py drop <db>` (`odoo.service.db.exp_drop`). `allocator.py release <token>` calls `odoo_db.py drop` internally for `ephemeral` leases that set `drop_on_release=true`. NEVER run raw `createdb` or `dropdb`.
+**Through-Odoo DB lifecycle.** The allocator RESERVES an ephemeral DB name and ports only; it does NOT run `createdb`. The database is created THROUGH Odoo by the `odoo-bin -d <db> -i <modules> --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}` run (Odoo create-on-init; memory cap - HARD RULE above). DROP goes through Odoo via `scripts/lib/odoo_db.py drop <db>` (`odoo.service.db.exp_drop`). `allocator.py release <token>` calls `odoo_db.py drop` internally for `ephemeral` leases that set `drop_on_release=true`. NEVER run raw `createdb` or `dropdb`.
 
 **Config isolation.** The CLI-flag path above (`55-instance-ops.sh`) reads no shared config file; the generated-conf path (`50-instance-spinup.sh`) is unique per run, never the default `odoo.conf`/`$ODOO_RC` - see `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md §Config-file isolation` for the full contract.
 
@@ -204,7 +204,9 @@ stack is Viindoo. Pin the series (`set_active_version(odoo_version='<series>')`,
 then resolve and PIN the profile BEFORE any probe - never call `check_module_exists` profile-less:
 
 1. **Resolve.** Take the brief's `PROFILE:` field (the dispatching `odoo-instance` skill already
-   read it from `.odoo-ai/context.md`'s `viindoo_profile`). If `PROFILE:` is absent from the
+   read it from `<SHARE_DIR>/context.md`'s `viindoo_profile`, resolved once per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path
+   - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). If `PROFILE:` is absent from the
    brief, resolve the target series' VANILLA profile instead: call `list_available_profiles()`,
    filter to profiles reporting `<series>`, and use `profile_inspect(method='summary',
    name='<candidate>', odoo_version='<series>')` on each to find the one with an empty/root
@@ -268,6 +270,16 @@ lint module - the runtime probe is authoritative (`ODOO-TESTING.md`'s version ta
 illustrative only). The same "vanilla -> no-op" guarantee from the `to_base` HARD RULE applies
 here: an unpinned probe would risk falsely reporting `test_lint`/`test_pylint` as present on a
 build that should be vanilla-CE, installing lint dependencies that do not belong there.
+
+## Memory cap on every scripted odoo-bin launch (HARD RULE)
+
+Every `55-instance-ops.sh`-backed **create-instance**, **init-modules**, **update-modules**, and
+**run-tests** launch is wrapped in the `ulimit -Sv` + `--limit-memory-hard=<bytes>` resource-limit
+guard, sourced from `scripts/lib/resource_limits.sh` and resolved BEFORE `${arg_extra}` so an
+explicit caller override still wins (policy SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`).
+Never strip or bypass this wrapper when hand-assembling an `odoo-bin` command outside the script.
+The default is generous and OVERRIDABLE via `ODOO_AI_LIMIT_MEMORY_HARD` (set it to raise/lower the
+cap, or to `""`/`"0"` to opt into the uncapped escape hatch) - never hardcode a value in prose here.
 
 ## Seven operations
 
@@ -419,7 +431,7 @@ Install one or more modules into an existing Odoo database.
   [--extra "<version-correct flags from cli_help>"]
 ```
 
-The script runs `odoo-bin -d <db> -i <modules> --stop-after-init --log-handler=<ns>.modules.loading:INFO` (`<ns>` resolved from `--version` per the "Deterministic completion contract" above), writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout - `STATUS=ok` only when exit 0 AND the `"Modules loaded."` marker is confirmed AND no failure marker is present. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init did not confirm the install - preserve the log path and surface it to the caller.
+The script runs `odoo-bin -d <db> -i <modules> --stop-after-init --log-handler=<ns>.modules.loading:INFO --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}` (`<ns>` resolved from `--version` per the "Deterministic completion contract" above; memory cap - HARD RULE above), writes the persistent log, and emits `LOG_PATH=<path>` and `STATUS=ok|error` on stdout - `STATUS=ok` only when exit 0 AND the `"Modules loaded."` marker is confirmed AND no failure marker is present. Capture both lines; forward `log_path` in the output block. `STATUS=error` means init did not confirm the install - preserve the log path and surface it to the caller.
 **Active wait (HARD RULE):** launch in the background and poll `LOG_PATH` to a terminal marker per "Active-wait on long builds" above; never idle-stall past the tool timeout.
 **Log verbosity:** the script defaults a build op to `--log-level=warn`; ESCALATE to `--log-level=info`/`--log-level=debug` for deep debugging via `--extra` (it overrides the `warn` default), confirming the flag via `cli_help`.
 **Language activation (HARD RULE):** fold `--load-language=<activation_set>` (`en_US` unioned with the brief's `languages`) into `--extra` for v8-v18; for v19+ run `odoo-bin i18n loadlang -d <db> -l <code>` per code in `activation_set` after this init returns. `en_US` is never omitted.
@@ -523,7 +535,9 @@ Activate one or more locales in an existing Odoo database so the UI renders in t
 - **v8-v18:** Combine `--load-language=<csv>` with `-i base --stop-after-init`. Using the
   pre-installed `base` module as the `-i` target loads the locale without installing new modules:
   ```bash
-  odoo-bin -d <db> -i base --load-language=<csv> --stop-after-init
+  [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+  odoo-bin -d <db> -i base --load-language=<csv> --stop-after-init \
+    --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
   ```
   CRITICAL KT1 distinction: `--load-language` ACTIVATES translation in the DB (makes the locale
   selectable in the UI and active in `res.lang`). `-l`/`--language` ONLY selects which .po file
@@ -562,11 +576,13 @@ flags in the SAME `odoo-bin` init call to produce a clean instance - target modu
 direct `depends[]` only, no auto_install noise:
 
 ```bash
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
 odoo-bin -d <db> -i <target_module> \
   --with-demo=all \               # v19+ only; v8-v18 demo is ON by default, omit this flag
   --load-language=<csv_locales> \ # v8-v18: all resolved locales in one csv; v19: see below
   --skip-auto-install \           # v17+: prevent auto_install modules from installing
-  --stop-after-init
+  --stop-after-init \
+  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}   # memory cap (HARD RULE above)
 ```
 
 For v19+: run the init WITHOUT `--load-language` first, then load each locale via
@@ -703,7 +719,7 @@ Odoo and the allocator.
 
 ## Worklog
 
-Before starting, read the run worklog per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` (`Glob .odoo-ai/worklog/<run-or-slug>/*.md` oldest-first). After completing the operation, append your decisions (lease mode chosen and why, ports assigned, venv path, CLI flags resolved, errors encountered and mitigations) using the entry format from `worklog-contract.md`.
+Before starting, read the run worklog per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md` (`Glob <ISOLATE_DIR>/worklog/<run-or-slug>/*.md` oldest-first). After completing the operation, append your decisions (lease mode chosen and why, ports assigned, venv path, CLI flags resolved, errors encountered and mitigations) using the entry format from `worklog-contract.md`.
 
 ---
 
@@ -762,6 +778,7 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] db_port and run_id populated from $ALLOC_DB_PORT / $ALLOC_RUN_ID (empty when unresolved/unowned) and forwarded in the output block on every operation
 - [ ] build ops (create/init/update/run-tests) launched in the BACKGROUND and actively waited to a TERMINAL marker (wait-log helper or test-verb markers) with an allocator heartbeat between polls - never idle-stalled past the tool timeout; on timeout reported BLOCKED with LOG_PATH preserved, exit code treated as authoritative
 - [ ] build ops ran at the default `--log-level=warn` unless the caller ESCALATED via --extra (--log-level=info/debug); the `test` verb kept `--log-level=test`
+- [ ] confirmed the odoo-bin launch carried the memory cap (ulimit -Sv + --limit-memory-hard, from resource_limits.sh) or an explicit uncap
 - [ ] init/update calls passed `--version <series>` so `--log-handler=<ns>.modules.loading:INFO` resolved the correct namespace (openerp v8-v9, odoo v10+); STATUS=ok was never trusted from exit code alone - the "Modules loaded." marker AND absence of every failure marker were both required (deterministic completion contract)
 - [ ] run-tests: TEST_FAILED/TEST_ERROR/TEST_WARNING/TEST_SKIPPED + FINDINGS_PATH captured; mode picked per the auto fresh-vs-reuse rule; warnings>0 with no fail/error reported as tests-passed-with-warnings (findings_path surfaced, not swallowed)
 - [ ] skipped>0 with no fail/error reported as tests-inconclusive, NEVER a bare tests-passed (findings_path surfaced with the skipped test names, not swallowed; no exit code forced by skips alone)

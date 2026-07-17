@@ -62,7 +62,7 @@ Appended after the script block in the chat response (does NOT go into the scrip
 - [ ] Spot-check sample: `SELECT <new_columns> FROM <table> LIMIT 5`
 - [ ] `SELECT COUNT(*) FROM <table> WHERE <new_column> IS NULL` returns 0 (for backfills)
 - [ ] Odoo server log contains migration info lines with matching row counts
-- [ ] Module upgrades without error: `odoo-bin -u <module> --stop-after-init`
+- [ ] Module upgrades without error: run `[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true` first (HARD RULE, never omit), then `odoo-bin -u <module> --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}` (memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`)
 - [ ] Smoke test: open a record in the UI and confirm the migrated field displays correctly
 
 ### Rollback note
@@ -73,7 +73,10 @@ script errored before the ALTER/UPDATE completed (the transaction was not commit
 
 ### Execution reminder
 Running this migration against a live instance is a SEPARATE human-gated deploy step.
-This skill only produces the script file. Execute it as part of the module upgrade:
-`odoo-bin -u <module> -d <database> --stop-after-init` (verify the exact CLI flags for
-your Odoo version via OSM `cli_help` before running in production).
+This skill only produces the script file. Execute it as part of the module upgrade - first:
+`[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true`
+(HARD RULE, never omit), then:
+`odoo-bin -u <module> -d <database> --stop-after-init --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}`
+(verify the exact CLI flags for your Odoo version via OSM `cli_help` before running in
+production; memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`).
 ```

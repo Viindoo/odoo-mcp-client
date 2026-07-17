@@ -17,6 +17,7 @@ no real Python venv, no real Odoo install required. Offline and deterministic.
 """
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -170,7 +171,6 @@ def _run_step45(
     env = dict(os.environ)
     env["PATH"] = f"{bind}:{env.get('PATH', '')}"
     env["ODOO_AI_INSTANCES"] = str(instances_toml)
-    env["ODOO_AI_DIR"] = str(tmp_path / "odoo-ai")
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
     cmd = ["bash", str(STEP45), "create-venv", "--series", series,
            "--tool", "uv", "--path", str(venv_path)]
@@ -397,7 +397,6 @@ def test_step45_per_profile_venv_path_and_profile_field(tmp_path):
     env = dict(os.environ)
     env["PATH"] = f"{bind}:{env.get('PATH', '')}"
     env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_DIR"] = str(tmp_path / "odoo-ai")
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
     # Run with --profile minimal_17: no --path so venv path is auto-derived.
     res = subprocess.run(
@@ -600,10 +599,13 @@ def test_step45_per_profile_venv_path_auto_derived(tmp_path):
         encoding="utf-8",
     )
 
-    # Auto-derived venv dir: ODOO_AI_DIR/venvs/17.0-minimal_17
+    # Auto-derived venv dir: <SHARE dir>/venvs/17.0-minimal_17 (Tier-2 SHARE -
+    # snippets/state-root-resolution.md; resolve_project_dir.sh share). Pin the
+    # SHARE dir via the documented ODOO_AI_PROJECT_DIR override so this test is
+    # hermetic (independent of the real git repo / HOME it happens to run in).
     # slug of "minimal_17" = "minimal_17" (already clean)
-    odoo_ai_dir = tmp_path / "odoo-ai"
-    expected_venv = odoo_ai_dir / "venvs" / "17.0-minimal_17"
+    share_dir = tmp_path / "odoo-ai" / "share"
+    expected_venv = share_dir / "venvs" / "17.0-minimal_17"
 
     # Pre-create the venv dir with a python stub so uv stub no-ops and
     # the gate check finds the right python.
@@ -625,7 +627,7 @@ def test_step45_per_profile_venv_path_auto_derived(tmp_path):
     env = dict(os.environ)
     env["PATH"] = f"{bind}:{env.get('PATH', '')}"
     env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_DIR"] = str(odoo_ai_dir)
+    env["ODOO_AI_PROJECT_DIR"] = str(share_dir)
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
 
     # Run WITHOUT --path so the auto-derive branch is exercised.
@@ -1703,7 +1705,6 @@ def test_step45_verifies_all_profile_repos_present(tmp_path):
     env = dict(os.environ)
     env["PATH"] = f"{bind}:{env.get('PATH', '')}"
     env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_DIR"] = str(tmp_path / "odoo-ai")
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
 
     res = subprocess.run(
@@ -1773,14 +1774,15 @@ def test_step45_no_profile_multiprofile_fails_early(tmp_path):
     venv_dir = _make_fake_venv(tmp_path, odoo_runnable=True)
     bind, _pip_log = _make_step45_stub_bin(tmp_path, venv_dir)
 
-    # Auto-derived venv path (what the script would create if --path were absent)
-    odoo_ai_dir = tmp_path / "odoo-ai"
-    auto_venv_path = odoo_ai_dir / "venvs" / "17.0"
+    # A representative auto-derived venv path. The --profile guard fires BEFORE
+    # the venv path is ever computed (resolve_project_dir_share included), so
+    # its exact root is irrelevant to this assertion - what matters is that NO
+    # venv directory materializes anywhere under tmp_path.
+    auto_venv_path = tmp_path / "odoo-ai" / "venvs" / "17.0"
 
     env = dict(os.environ)
     env["PATH"] = f"{bind}:{env.get('PATH', '')}"
     env["ODOO_AI_INSTANCES"] = str(toml)
-    env["ODOO_AI_DIR"] = str(odoo_ai_dir)
     env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
 
     # Run WITHOUT --profile AND WITHOUT --path so auto-derived path is used
@@ -1993,3 +1995,69 @@ def test_step05_venv_gate_passes_with_runnable_venv(tmp_path):
     out = res.stdout + res.stderr
     assert res.returncode == 0, f"a working venv must PASS the gate.\n{out}"
     assert "FAILED" not in out, f"a working venv must not emit a FAILED line.\n{out}"
+
+
+# ---------------------------------------------------------------------------
+# P1 (Problem 1 hardening): the A2 long-running listener conf must carry
+# limit_memory_hard/limit_memory_soft/limit_time_real (previously ZERO limit
+# keys) and must NOT carry limit_time_cpu while workers=0 (a dead key there -
+# it lives only in the prefork Worker.check_limits() path, which needs
+# workers>0; this plugin never passes --workers). Unlike 55-instance-ops.sh's
+# --stop-after-init build path, this IS a real listening ThreadedServer, so
+# limit_memory_hard/soft AND limit_time_real all actually fire here. See
+# snippets/odoo-bin-resource-limits.md.
+# ---------------------------------------------------------------------------
+
+def _generated_conf_text(out: str) -> str:
+    conf_lines = [line for line in out.splitlines() if "Generated temp conf:" in line]
+    assert conf_lines, f"no 'Generated temp conf:' line in output\n{out}"
+    conf_path = Path(conf_lines[0].split("Generated temp conf:")[-1].strip())
+    return conf_path.read_text(encoding="utf-8")
+
+
+@requires_bash
+def test_step50_conf_carries_limit_memory_hard_soft_and_time_real(tmp_path):
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    res = _run_step50(env)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    conf = _generated_conf_text(out)
+    assert re.search(r"^limit_memory_hard = \d+$", conf, re.MULTILINE), (
+        f"conf must carry a numeric limit_memory_hard key.\nconf:\n{conf}"
+    )
+    assert re.search(r"^limit_memory_soft = \d+$", conf, re.MULTILINE), (
+        f"conf must carry a numeric limit_memory_soft key.\nconf:\n{conf}"
+    )
+    assert re.search(r"^limit_time_real = \d+$", conf, re.MULTILINE), (
+        f"conf must carry a numeric limit_time_real key.\nconf:\n{conf}"
+    )
+
+
+@requires_bash
+def test_step50_conf_never_carries_limit_time_cpu_while_workers_zero(tmp_path):
+    """limit_time_cpu must never appear at all while workers=0 - a dead key
+    would give false confidence that a runaway request is bounded."""
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    res = _run_step50(env)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    conf = _generated_conf_text(out)
+    assert "limit_time_cpu" not in conf, (
+        f"conf must NOT carry limit_time_cpu while workers=0 (dead key).\nconf:\n{conf}"
+    )
+
+
+@requires_bash
+def test_step50_conf_limit_memory_hard_is_env_overridable(tmp_path):
+    """The A2 conf keys must be driven by the SAME resource_limits.sh env
+    overrides as the build path (SSOT: one resolver, not two independent
+    formulas) - ODOO_AI_LIMIT_MEMORY_HARD wins verbatim."""
+    env, home, launch_log = _make_step50_spinup_env(tmp_path, curl_mode="up_after_launch")
+    env["ODOO_AI_LIMIT_MEMORY_HARD"] = "1234567890"
+    res = _run_step50(env)
+    out = res.stdout + res.stderr
+    assert res.returncode == 0, out
+    conf = _generated_conf_text(out)
+    assert "limit_memory_hard = 1234567890" in conf, (
+        f"conf must honor an explicit ODOO_AI_LIMIT_MEMORY_HARD override.\nconf:\n{conf}"
+    )

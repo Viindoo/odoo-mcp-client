@@ -41,7 +41,9 @@
 #             (non-zero exit, OR any failure marker, OR a missing "Modules
 #             loaded." marker) -> non-zero return with the log path preserved for
 #             diagnosis; this verb NEVER blocks on reading a log line to decide
-#             completion, only on the process actually exiting.
+#             completion, only on the process actually exiting. The launch is
+#             ALSO wrapped in a `ulimit -Sv`+`--limit-memory-hard=` resource-limit
+#             guard (see below and snippets/odoo-bin-resource-limits.md).
 #   update  --db <db> --python <venv_py> --addons <path> --modules <a,b>
 #             [--version <X.Y>] [--extra "<resolved flags>"]
 #             Same as init but with -u instead of -i; identical completion contract.
@@ -79,6 +81,13 @@
 # CREATE/INIT/UPDATE/TEST connection matches the DROP connection (one declared
 # port honored everywhere). All three run a `<python> <odoo-bin> --version`
 # preflight and fail loud (no working venv; run 45-venv.sh) BEFORE any real run.
+#
+# RESOURCE LIMITS (init/update/test only - Problem 1 hardening): the odoo-bin
+# launch runs in a scoped subshell `( ulimit -Sv <kib> ...; <odoo-bin cmd> ...
+# --limit-memory-hard=<bytes> ... ${arg_extra} )` - both driven by
+# scripts/lib/resource_limits.sh, overridable via ODOO_AI_LIMIT_MEMORY_HARD.
+# Full policy (why both mechanisms, the v12.0 enforcement boundary, the
+# uncapped escape hatch): snippets/odoo-bin-resource-limits.md.
 #   wait-log --log <logf> [--timeout <secs>] [--interval <secs>]
 #             Deterministic build-completion detector for a build launched in the
 #             BACKGROUND (Bash run_in_background). Polls <logf> for a TERMINAL marker
@@ -125,6 +134,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
 ODOO_DB_PY="$LIB_DIR/odoo_db.py"
+# Resource-limit SSOT (Problem 1 hardening) - resolves the memory HARD cap
+# for the ulimit/--limit-memory-hard wrapper on all 3 odoo-bin verbs below.
+# Policy: snippets/odoo-bin-resource-limits.md. Values: scripts/lib/resource_limits.sh.
+# shellcheck source=../lib/resource_limits.sh
+source "$LIB_DIR/resource_limits.sh"
 
 # ---------------------------------------------------------------------------
 # describe
@@ -657,6 +671,17 @@ cmd_init() {
     local log_ns
     log_ns="$(_resolve_log_ns "${arg_version:-}")"
 
+    # Resource-limit wrapper (Problem 1 hardening - snippets/odoo-bin-resource-
+    # limits.md, SSOT values in resource_limits.sh): `ulimit -Sv` is the
+    # version-general spine (Odoo applies NO memory cap on v8-v11's build
+    # path); `--limit-memory-hard=<bytes>` raises Odoo's own v12+ default
+    # clamp. resource_limit_hard_bytes() already resolves to 0 under the
+    # uncapped escape hatch, so the flag is always emitted; only the `ulimit`
+    # call is skipped in that case.
+    local _lim_bytes _lim_kib
+    _lim_bytes="$(resource_limit_hard_bytes)"
+    _lim_kib="$(resource_limit_hard_kib)"
+
     local rc=0
     # shellcheck disable=SC2086
     # --stop-after-init is correct HERE by design: cmd_init is the EPHEMERAL
@@ -668,16 +693,23 @@ cmd_init() {
     # Completion is PROCESS EXIT (this call blocks until odoo-bin exits) - never
     # a log-tail wait; the log is consulted ONLY afterward, to CONFIRM the exit
     # actually installed something (see _install_confirmed).
-    "$arg_python" "$odoo_bin" \
-        -d "$arg_db" \
-        -i "$arg_modules" \
-        --addons-path "$addons_csv" \
-        "${DB_CONN_ARGS[@]}" \
-        --stop-after-init \
-        --log-level=warn \
-        --log-handler="${log_ns}.modules.loading:INFO" \
-        ${arg_extra} \
-        >"$logf" 2>&1 || rc=$?
+    # Scoped subshell: `ulimit -Sv` applies only to this one odoo-bin
+    # invocation and never leaks past it. --limit-memory-hard sits BEFORE
+    # ${arg_extra} so a caller-supplied override in --extra still wins
+    # (Odoo's arg parser takes the last occurrence).
+    (
+        resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
+        "$arg_python" "$odoo_bin" \
+            -d "$arg_db" \
+            -i "$arg_modules" \
+            --addons-path "$addons_csv" \
+            "${DB_CONN_ARGS[@]}" \
+            --stop-after-init \
+            --log-level=warn \
+            --log-handler="${log_ns}.modules.loading:INFO" \
+            --limit-memory-hard="$_lim_bytes" \
+            ${arg_extra}
+    ) >"$logf" 2>&1 || rc=$?
 
     if [[ "$rc" -eq 0 ]] && _install_confirmed "$logf"; then
         echo "STATUS=ok"
@@ -728,21 +760,33 @@ cmd_update() {
     local log_ns
     log_ns="$(_resolve_log_ns "${arg_version:-}")"
 
+    # Resource-limit wrapper - see the identical comment block in cmd_init
+    # above and snippets/odoo-bin-resource-limits.md for the full policy.
+    local _lim_bytes _lim_kib
+    _lim_bytes="$(resource_limit_hard_bytes)"
+    _lim_kib="$(resource_limit_hard_kib)"
+
     local rc=0
     # shellcheck disable=SC2086
     # Completion is PROCESS EXIT (this call blocks until odoo-bin exits) - never
     # a log-tail wait; the log is consulted ONLY afterward to CONFIRM the exit
     # actually updated something (see _install_confirmed).
-    "$arg_python" "$odoo_bin" \
-        -d "$arg_db" \
-        -u "$arg_modules" \
-        --addons-path "$addons_csv" \
-        "${DB_CONN_ARGS[@]}" \
-        --stop-after-init \
-        --log-level=warn \
-        --log-handler="${log_ns}.modules.loading:INFO" \
-        ${arg_extra} \
-        >"$logf" 2>&1 || rc=$?
+    # Scoped subshell: `ulimit -Sv` applies only to this one odoo-bin
+    # invocation and never leaks past it. --limit-memory-hard sits BEFORE
+    # ${arg_extra} so a caller-supplied override in --extra still wins.
+    (
+        resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
+        "$arg_python" "$odoo_bin" \
+            -d "$arg_db" \
+            -u "$arg_modules" \
+            --addons-path "$addons_csv" \
+            "${DB_CONN_ARGS[@]}" \
+            --stop-after-init \
+            --log-level=warn \
+            --log-handler="${log_ns}.modules.loading:INFO" \
+            --limit-memory-hard="$_lim_bytes" \
+            ${arg_extra}
+    ) >"$logf" 2>&1 || rc=$?
 
     if [[ "$rc" -eq 0 ]] && _install_confirmed "$logf"; then
         echo "STATUS=ok"
@@ -807,19 +851,31 @@ cmd_test() {
     local DB_CONN_ARGS
     _build_db_conn_args
 
+    # Resource-limit wrapper - see the identical comment block in cmd_init
+    # above and snippets/odoo-bin-resource-limits.md for the full policy.
+    local _lim_bytes _lim_kib
+    _lim_bytes="$(resource_limit_hard_bytes)"
+    _lim_kib="$(resource_limit_hard_kib)"
+
     local rc=0
     # shellcheck disable=SC2086
-    "$arg_python" "$odoo_bin" \
-        -d "$arg_db" \
-        "$mode_flag" "$arg_modules" \
-        --addons-path "$addons_csv" \
-        "${DB_CONN_ARGS[@]}" \
-        --test-enable \
-        "${test_tags_args[@]}" \
-        --stop-after-init \
-        "${log_flag_args[@]}" \
-        ${arg_extra} \
-        >"$logf" 2>&1 || rc=$?
+    # Scoped subshell: `ulimit -Sv` applies only to this one odoo-bin
+    # invocation and never leaks past it. --limit-memory-hard sits BEFORE
+    # ${arg_extra} so a caller-supplied override in --extra still wins.
+    (
+        resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
+        "$arg_python" "$odoo_bin" \
+            -d "$arg_db" \
+            "$mode_flag" "$arg_modules" \
+            --addons-path "$addons_csv" \
+            "${DB_CONN_ARGS[@]}" \
+            --test-enable \
+            "${test_tags_args[@]}" \
+            --stop-after-init \
+            "${log_flag_args[@]}" \
+            --limit-memory-hard="$_lim_bytes" \
+            ${arg_extra}
+    ) >"$logf" 2>&1 || rc=$?
 
     _parse_test_result "$rc"
 

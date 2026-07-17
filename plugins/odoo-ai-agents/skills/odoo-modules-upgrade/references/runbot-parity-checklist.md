@@ -38,16 +38,21 @@ at v13). On v16+ Viindoo profiles also include `/test_pylint` (tvtmaaddons). Req
 instance + DB.
 
 ```bash
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+
 # v14-v15 CE (and v16+ CE without Viindoo tvtmaaddons):
 odoo-bin -d <DB> -u <module> --test-enable \
-    --test-tags '/<module>,/test_lint' --stop-after-init
+    --test-tags '/<module>,/test_lint' --stop-after-init \
+    --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 
 # v16+ Viindoo (tvtmaaddons installed):
 odoo-bin -d <DB> -u <module> --test-enable \
-    --test-tags '/<module>,/test_lint,/test_pylint' --stop-after-init
+    --test-tags '/<module>,/test_lint,/test_pylint' --stop-after-init \
+    --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
 
 See `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` for the authoritative gate reference.
+Memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
 
 ---
 
@@ -127,12 +132,18 @@ on Runbot with `--init <module>` and **demo data ON** (the default for all v8-v1
 `--with-demo` for v19+). Run locally with demo ON to reproduce:
 
 ```bash
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+
 # v8-v18: demo ON is the default - no extra flag
-odoo-bin -i <module> --test-enable --stop-after-init <db-options>
+odoo-bin -i <module> --test-enable --stop-after-init <db-options> \
+         --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 
 # v19+: demo ON requires explicit flag
-odoo-bin -i <module> --with-demo --test-enable --stop-after-init <db-options>
+odoo-bin -i <module> --with-demo --test-enable --stop-after-init <db-options> \
+         --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
+
+Memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
 
 > The `-i` here reproduces the Runbot FRESH-init scenario (module just flipped installable, clean
 > DB). Re-running this gate against a DB where the module is ALREADY installed uses `-u <module>`
@@ -142,8 +153,10 @@ odoo-bin -i <module> --with-demo --test-enable --stop-after-init <db-options>
 Additionally run `base.TestInvisibleField` and (for `hr.*` modules) `hr.TestSelfAccessProfile`:
 
 ```bash
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
 odoo-bin --test-tags base.TestInvisibleField,hr.TestSelfAccessProfile \
-         -i <module> --stop-after-init <db-options>
+         -i <module> --stop-after-init <db-options> \
+         --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
 ```
 
 See `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` (CLI demo flag section) for the
