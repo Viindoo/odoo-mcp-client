@@ -198,6 +198,77 @@ def test_concurrent_pooled_acquires_never_collide_with_declared_port(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# P2 boundary off-by-one fix (49-solution-final.md §2.3): a pooled port must
+# never be handed out to instance-0 when it is instance-1's DECLARED boundary
+# port, even though it falls inside instance-0's naive pool range. Declared
+# ports step by 10 (40-instance-profile.sh) while DEFAULT_POOL_SIZE=10, so
+# instance-0's pool [8070, 8080) naturally reaches 8079 == instance-1's
+# declared port.
+# --------------------------------------------------------------------------- #
+INSTANCES_TOML_TWO_INSTANCES_BOUNDARY = """\
+[[instance]]
+series = "17.0"
+addons_path = ["/srv/odoo/addons-a"]
+run_mode = "source"
+http_port = 8069
+db_name = "odoo_17_0_a"
+db_name_prefix = "odoo_17_0_a"
+db_host = "localhost"
+db_user = "odoo"
+
+[[instance]]
+series = "18.0"
+addons_path = ["/srv/odoo/addons-b"]
+run_mode = "source"
+http_port = 8079
+db_name = "odoo_18_0_b"
+db_name_prefix = "odoo_18_0_b"
+db_host = "localhost"
+db_user = "odoo"
+"""
+
+
+def test_maxed_out_pool_never_hands_out_a_sibling_instances_declared_port(tmp_path):
+    """Two catalog instances declared 8069/8079 (10-apart; no http_port_base/
+    port_pool_size overrides, so the pool derives from http_port+1..+10 = the
+    naive [8070, 8080) range). Maxing out instance-0's pool must NEVER hand out
+    8079 - instance-1's declared http_port - even though it falls inside
+    instance-0's naive pool range.
+
+    MUST FAIL on the pre-fix allocator (which only reserved the ACQUIRING
+    instance's own declared port, `reserved={declared_port}`) and PASS once
+    every catalog-declared http_port is reserved. Asserts on allocation
+    RESULTS (the actual ports handed out), not on `_pick_ports` internals.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    toml = tmp_path / "instances.toml"
+    toml.write_text(INSTANCES_TOML_TWO_INSTANCES_BOUNDARY, encoding="utf-8")
+    env = _env(home, toml)
+
+    # Instance-0's naive pool is [8070, 8080) (DEFAULT_POOL_SIZE=10,
+    # base=declared_port+1). Drain it one port at a time until exhausted,
+    # recording every port actually handed out.
+    handed_out = []
+    for _ in range(20):  # generous upper bound; the pool holds at most 10
+        p = _run(env, "acquire", "--series", "17.0", "--mode", "ephemeral",
+                 "--no-create", "--ports", "1")
+        if p.returncode != 0:
+            break
+        handed_out.extend(_parse_alloc(p.stdout).get("ALLOC_PORTS", []))
+
+    assert handed_out, "instance-0's pool must hand out at least one port"
+    assert len(handed_out) == len(set(handed_out)), (
+        f"a maxed-out pool must never hand out the same port twice; got {handed_out!r}"
+    )
+    assert 8079 not in handed_out, (
+        "instance-0's pool must NEVER hand out 8079 - instance-1's declared "
+        f"http_port - even though it falls inside the naive [8070,8080) pool "
+        f"range; got {handed_out!r}"
+    )
+
+
+# --------------------------------------------------------------------------- #
 # Lease record shape (B2 model)
 # --------------------------------------------------------------------------- #
 def test_ephemeral_lease_carries_drop_context(tmp_path):
@@ -238,6 +309,30 @@ def test_ephemeral_lease_carries_drop_context(tmp_path):
     # Password must NOT be stored - it is read from ODOO_PG_PASSWORD at drop time.
     assert "db_password" not in lz, "PG password must never be stored in the lease"
     assert "created_db" not in lz, "old created_db field must not appear (replaced by drop_on_release)"
+
+
+def test_lease_addons_path_is_comma_separated_not_colon(fixt):
+    """The lease's stored addons_path is forward-context for future tooling that
+    launches odoo-bin directly from the lease (see the comment in allocator.py) -
+    it must already be in Odoo's --addons-path/addons_path syntax (COMMA-separated
+    directories), never colon (that is PATH/PYTHONPATH style, not an Odoo addons-path
+    separator), and must match ALLOC_ADDONS_PATH's format so a future consumer can
+    forward it to odoo-bin verbatim with no extra conversion step."""
+    env, _, _ = fixt
+    p, a = _acquire(env, "--mode", "ephemeral", "--no-create", "--ports", "0")
+    assert p.returncode == 0
+    assert a["ALLOC_ADDONS_PATH"] == "/srv/odoo/addons,/srv/custom"
+
+    leases = _leases(env)
+    assert len(leases) == 1
+    assert leases[0]["addons_path"] == a["ALLOC_ADDONS_PATH"] == "/srv/odoo/addons,/srv/custom", (
+        "lease addons_path must be comma-separated, matching Odoo's --addons-path/"
+        "addons_path syntax and ALLOC_ADDONS_PATH - not colon-delimited"
+    )
+    assert ":" not in leases[0]["addons_path"], (
+        "lease addons_path must never use colon as the directory separator - "
+        "Odoo's addons-path parser splits on comma only"
+    )
 
 
 def test_ephemeral_no_create_lease_does_not_set_drop_on_release(fixt):

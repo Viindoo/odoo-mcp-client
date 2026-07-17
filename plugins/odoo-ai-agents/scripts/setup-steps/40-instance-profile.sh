@@ -21,7 +21,6 @@
 #   - Backs up before modifying (via the lib); idempotent on the gitignore line.
 #
 # CONFIG:
-#   ODOO_AI_DIR        project context dir    ${ODOO_AI_DIR:-$PWD/.odoo-ai}
 #   ODOO_AI_HOME       machine-global state   ${ODOO_AI_HOME:-$HOME/.odoo-ai}
 #   ODOO_AI_INSTANCES  full-path override for instances.toml (tests / custom)
 #   ODOO_GIT_BASE      scan root for repos    (consumed by discover_odoo.sh)
@@ -49,12 +48,52 @@ PY
 }
 DISCOVER="$SCRIPT_DIR/../lib/discover_odoo.sh"
 
-ODOO_AI_DIR="${ODOO_AI_DIR:-$PWD/.odoo-ai}"   # project artifacts (context.md, worklog, ...) - cwd-scoped
 # instances.toml is machine-global (resolvable from any cwd); the resolver is the SSOT.
 # shellcheck source=../lib/resolve_instances.sh
 source "$SCRIPT_DIR/../lib/resolve_instances.sh"
+# repo-key resolver (Tier-2 state-root convention - snippets/state-root-resolution.md):
+# sourced ONLY for its internal _project_dir_repo_key / _project_dir_hash12 /
+# _project_dir_realpath_dir helpers (see _repo_key8 below). This step does not
+# itself resolve a SHARE/ISOLATE dir, so the public resolve_project_dir_share/
+# _isolate API is unused here.
+# shellcheck source=../lib/resolve_project_dir.sh
+source "$SCRIPT_DIR/../lib/resolve_project_dir.sh"
 INSTANCES_TOML="$(_write_instances_target)"
 GITIGNORE="$PWD/.gitignore"
+
+# P2 db_name project-discriminator (49-solution-final.md §2.4.3): the first 8
+# hex chars of sha256(realpath(git-common-dir)) - a stable, project-unique
+# suffix so two same-series projects (now landing in ONE global catalog via
+# the eager migration above) never default to the SAME db_name (the old
+# default was series-derived only: "odoo_17_0" for every v17.0 project).
+# CONVERGED (P3) onto resolve_project_dir.sh's repo-key resolver: the SAME
+# source (sha256(realpath(git rev-parse --git-common-dir))) and the SAME
+# non-git fallback (marker walk-up: a global `.odoo-ai-root` sentinel first,
+# else the nearest `__manifest__.py`) - just an 8-hex slice of the resolver's
+# 12-hex key instead of a fresh hash. When NEITHER git nor a marker is found
+# anywhere in the chain (the resolver's own non-git fallback would REFUSE),
+# falls back one step further to hashing THIS dir's own realpath - still
+# deterministic per project dir, NEVER a bare constant.
+_repo_key8() {
+    local key12=""
+    key12="$(_project_dir_repo_key 2>/dev/null)" || key12=""
+    if [[ -z "$key12" ]]; then
+        key12="$(_project_dir_hash12 "$(_project_dir_realpath_dir "$PWD")")" || return 1
+    fi
+    printf '%s\n' "${key12:0:8}"
+}
+
+# P2 bootstrap-race PRIMARY fix (49-solution-final.md §2.4.1): migrate THIS
+# project's local .odoo-ai/instances.toml into the machine-global catalog
+# EAGERLY, at session start (every subcommand dispatch below), rather than
+# LAZILY only inside `apply` (which is additionally gated behind
+# ODOO_AI_PROFILE_SPEC and so may never run at all in a given session). Two
+# never-migrated same-series projects that BOTH migrate early land in ONE
+# global catalog whose port_idx stepper (below) then sees every already-
+# declared instance and assigns distinct ports before either ever spins up -
+# shrinking the race window to near-zero by construction. Idempotent + a
+# no-op copy (never clobbers an existing global) - see resolve_instances.sh.
+_migrate_local_instances_to_global || true
 
 # ---------------------------------------------------------------------------
 # describe
@@ -188,17 +227,21 @@ cmd_apply() {
         return 1
     fi
 
-    # instances.toml is machine-global. Seed it once from an existing project-local
-    # file (idempotent copy, no clobber) and ensure the global dir + a defensive
-    # .gitignore exist before we write.
-    _migrate_local_instances_to_global
-
+    # instances.toml is machine-global; the migration itself now runs EAGERLY at
+    # session start (top of this script, before subcommand dispatch - see the
+    # P2 bootstrap-race comment there), not here. This mkdir remains as a
+    # defensive no-op in case apply somehow runs before the eager call above.
     mkdir -p "$(dirname "$INSTANCES_TOML")"
 
     # Port allocation: assign a distinct http_port per NEW instance, stepping by
-    # 10 so each instance leaves room for a longpolling/gevent port later. Seed
-    # the counter from the number of instances already declared so re-running
-    # never changes an existing instance's port (idempotent).
+    # 11 so each instance leaves room for a longpolling/gevent port later
+    # without landing exactly on the next declared boundary port (COSMETIC
+    # ONLY - 49-solution-final.md §2.3: this does NOT fix an existing 8069/8079
+    # catalog and does not itself close the allocator boundary off-by-one; the
+    # real fix is allocator.py reserving every catalog-declared http_port, see
+    # scripts/lib/allocator.py cmd_acquire). Seed the counter from the number
+    # of instances already declared so re-running never changes an existing
+    # instance's port (idempotent).
     local base_port=8069 port_idx
     # NOTE: `grep -c` prints "0" on stdout AND exits 1 when the file exists but
     # has zero matches. A `|| echo 0` fallback would ALSO fire in that case,
@@ -240,6 +283,12 @@ if errors:
     sys.exit(1)
 PY
 
+    # P2 db_name project-discriminator (49-solution-final.md §2.4.3): resolved
+    # ONCE per apply() invocation (constant across every item in this spec, not
+    # per-loop-iteration work) and threaded into the db_name default below.
+    local repo_key8
+    repo_key8="$(_repo_key8)"
+
     local i=0
     while [[ $i -lt $n_items ]]; do
         local ver addons_raw db_name_raw db_host_raw db_user_raw http_port_raw py_raw profile_raw
@@ -271,15 +320,21 @@ data = json.load(open(sys.argv[1]))
 item = data[int(sys.argv[2])]
 base = int(sys.argv[3])
 idx  = int(sys.argv[4])
-print(item.get("http_port") or (base + idx * 10))
+# Step by 11 (COSMETIC ONLY - see the comment above base_port): does not fix
+# an existing catalog and is not itself the boundary off-by-one fix.
+print(item.get("http_port") or (base + idx * 11))
 PY
 )"
-        db_name_raw="$(python3 - "$spec_file" "$i" "$ver" "$profile_raw" <<'PY'
+        db_name_raw="$(python3 - "$spec_file" "$i" "$ver" "$profile_raw" "$repo_key8" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1]))
 item = data[int(sys.argv[2])]
 prof = sys.argv[4]
-default = "odoo_" + sys.argv[3].replace(".", "_")
+repo_key8 = sys.argv[5]
+# P2 db_name project-discriminator: default is now series- AND project-scoped
+# (odoo_<series>_<repo-key8>) so two same-series projects sharing one global
+# catalog never default to the SAME db_name (the old default was series-only).
+default = "odoo_" + sys.argv[3].replace(".", "_") + "_" + repo_key8
 if prof and not item.get("db_name"):
     # When profile is set and db_name not explicit, suffix the slug to avoid
     # two profiles of the same series sharing a database.

@@ -11,8 +11,11 @@ These guard the behaviour fixed for issue #19:
 CPU-only: no PostgreSQL, no Odoo, no network. Uses the real library modules.
 """
 
+import hashlib
 import importlib.util
+import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -634,4 +637,257 @@ def test_step50_binds_pid_onto_lease_on_the_exclusive_branch():
     assert 'kill -0 "$1"' in bind_block, (
         "the bind helper must keep the kill -0 liveness guard so a fast-failing "
         "server never records a dead pid"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# P2 bootstrap-race fix (49-solution-final.md §2.4): eager catalog-migration
+# at session start + a project-discriminated db_name default.
+# --------------------------------------------------------------------------- #
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_migration_runs_eagerly_at_session_start_not_gated_behind_apply(tmp_path):
+    """P2 §2.4.1: `_migrate_local_instances_to_global` must fire for EVERY
+    subcommand dispatch (even a bare `check`, with ODOO_AI_PROFILE_SPEC unset
+    and `apply` never invoked) - not lazily, only from inside a successful
+    `apply` (which is itself gated behind a confirmed spec and so may never
+    run in a given session at all).
+
+    MUST FAIL on the pre-fix script (migration lived only inside cmd_apply,
+    behind the ODOO_AI_PROFILE_SPEC guard) and PASS once the migration call is
+    hoisted to unconditional session-start execution.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    proj = tmp_path / "proj"
+    (proj / ".odoo-ai").mkdir(parents=True)
+    projfile = proj / ".odoo-ai" / "instances.toml"
+    projfile.write_text(
+        '[[instance]]\nseries = "17.0"\naddons_path = ["/repos/17"]\n'
+        'http_port = 8069\ndb_name = "odoo_17_0"\n',
+        encoding="utf-8",
+    )
+
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("ODOO_AI_INSTANCES", "ODOO_AI_PROFILE_SPEC")}
+    env["ODOO_AI_HOME"] = str(home)
+    env["HOME"] = str(home)
+
+    # `check` alone: no spec, no apply. Must still eagerly migrate.
+    proc = subprocess.run(
+        ["bash", str(STEP40), "check"],
+        capture_output=True, text=True, cwd=proj, env=env,
+    )
+
+    glob = home / "instances.toml"
+    assert glob.exists(), (
+        "a bare `check` (no apply, no ODOO_AI_PROFILE_SPEC) must still "
+        f"eagerly migrate the project-local catalog into the global one; "
+        f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    )
+    assert glob.read_text() == projfile.read_text(), (
+        "the migrated global content must match the project-local source"
+    )
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_eager_migration_two_same_series_projects_get_distinct_ports_and_db_names(tmp_path):
+    """P2 §2.4.1 + §2.4.3: two DIFFERENT projects (distinct project dirs, hence
+    distinct repo-key8 - neither is a git repo here, so each falls back to
+    hashing its OWN realpath'd project dir) declaring an Odoo v17.0 instance
+    under their OWN profile (the sanctioned mechanism for two same-series
+    instances to coexist in one catalog - a profile-less item intentionally
+    dedupes by series, Q1 backward-compat, unrelated to P2), sharing ONE
+    machine-global $ODOO_AI_HOME.
+
+    Asserts on the OUTCOME: after both projects' `apply` runs, ONE global
+    catalog holds two instances with DISTINCT http_port values AND
+    project-discriminated db_name values (each embeds its OWN project's
+    repo-key8) - two same-series projects never default to the same port or
+    the same db_name.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    proj_a = tmp_path / "repo-a"
+    proj_a.mkdir()
+    proj_b = tmp_path / "repo-b"
+    proj_b.mkdir()
+
+    spec_a = tmp_path / "spec_a.json"
+    spec_a.write_text(json.dumps(
+        [{"series": "17.0", "profile": "proj-a", "addons_path": ["/repos/a17"]}]
+    ), encoding="utf-8")
+    spec_b = tmp_path / "spec_b.json"
+    spec_b.write_text(json.dumps(
+        [{"series": "17.0", "profile": "proj-b", "addons_path": ["/repos/b17"]}]
+    ), encoding="utf-8")
+
+    base_env = {k: v for k, v in os.environ.items()
+                if k not in ("ODOO_AI_INSTANCES", "ODOO_AI_PROFILE_SPEC")}
+    base_env["ODOO_AI_HOME"] = str(home)
+    base_env["HOME"] = str(home)
+
+    proc_a = subprocess.run(
+        ["bash", str(STEP40), "apply"], capture_output=True, text=True,
+        cwd=proj_a, env={**base_env, "ODOO_AI_PROFILE_SPEC": str(spec_a)},
+    )
+    assert proc_a.returncode == 0, f"project A apply failed: {proc_a.stderr}"
+
+    proc_b = subprocess.run(
+        ["bash", str(STEP40), "apply"], capture_output=True, text=True,
+        cwd=proj_b, env={**base_env, "ODOO_AI_PROFILE_SPEC": str(spec_b)},
+    )
+    assert proc_b.returncode == 0, f"project B apply failed: {proc_b.stderr}"
+
+    data = tomllib.loads((home / "instances.toml").read_text())
+    instances = data["instance"]
+    assert len(instances) == 2, f"expected 2 declared instances, got {instances}"
+
+    ports = [inst["http_port"] for inst in instances]
+    assert len(set(ports)) == 2, (
+        f"two same-series projects must land on DISTINCT ports; got {ports}"
+    )
+
+    db_names = [inst["db_name"] for inst in instances]
+    assert len(set(db_names)) == 2, (
+        f"project-discriminated db_names must differ across projects; got {db_names}"
+    )
+    # Match each instance's db_name against ITS OWN profile field (not a
+    # sorted-order assumption - the repo-key8 hash order is not deterministic
+    # relative to the profile names).
+    for inst in instances:
+        profile = inst["profile"]
+        db_name = inst["db_name"]
+        assert re.fullmatch(rf"odoo_17_0_[0-9a-f]{{8}}_{re.escape(profile)}", db_name), (
+            f"expected db_name matching 'odoo_17_0_<repo-key8>_{profile}', got {db_name!r}"
+        )
+
+
+# --------------------------------------------------------------------------- #
+# P2 instance-identity attach guard (49-solution-final.md §2.4.2, BACKSTOP):
+# "the port answers 200" is not proof it is THIS project's server.
+# --------------------------------------------------------------------------- #
+def _identity_token_py(addons_path: str) -> str:
+    """Mirror of 50-instance-spinup.sh's `_identity_token` (sha256[:16] of the
+    addons_path) - used ONLY to seed a marker file representing a FOREIGN
+    project's already-recorded identity. The guard's own computation for THIS
+    project's expected token is exercised end-to-end via the shipped script,
+    never reimplemented/asserted against here."""
+    return hashlib.sha256(addons_path.encode()).hexdigest()[:16]
+
+
+def _write_curl_stub_always_200(bindir: Path) -> None:
+    bindir.mkdir(exist_ok=True)
+    curl = bindir / "curl"
+    curl.write_text("#!/usr/bin/env bash\necho -n 200\n", encoding="utf-8")
+    curl.chmod(0o755)
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_attach_guard_rejects_a_live_port_with_mismatched_recorded_identity(tmp_path):
+    """A live-looking port (stubbed curl always answers 200) whose recorded
+    instance-identity marker belongs to a DIFFERENT project's addons_path must
+    NOT be treated as 'this instance is up' - a foreign server with a
+    matching port/db_name but a different addons_path is a COLLISION."""
+    home = tmp_path / "home"
+    home.mkdir()
+    identity_dir = home / "runtime" / "identity"
+    identity_dir.mkdir(parents=True)
+    foreign_token = _identity_token_py("/repos/foreign")
+    (identity_dir / "8069.token").write_text(
+        f"{foreign_token}\nodoo_17_0_foreign\n", encoding="utf-8"
+    )
+
+    toml = tmp_path / "instances.toml"
+    toml.write_text(
+        '[[instance]]\nseries = "17.0"\naddons_path = ["/repos/mine"]\n'
+        'http_port = 8069\ndb_name = "odoo_17_0_mine"\n',
+        encoding="utf-8",
+    )
+
+    bindir = tmp_path / "fakebin"
+    _write_curl_stub_always_200(bindir)
+
+    env = dict(os.environ)
+    env["ODOO_AI_HOME"] = str(home)
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["PATH"] = f"{bindir}{os.pathsep}{env.get('PATH', '')}"
+
+    proc = subprocess.run(
+        ["bash", str(STEP50), "check", "--version", "17.0"],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc.returncode != 0, (
+        "a port that answers 200 but carries a MISMATCHED recorded identity "
+        f"must NOT be treated as 'up'; stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    )
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_attach_guard_allows_a_live_port_with_no_recorded_identity_yet(tmp_path):
+    """No marker recorded for the port yet -> identity cannot be disproven ->
+    the pre-existing 'port answers 200 -> up' behavior is preserved (the
+    documented pass-through residual of this minimal backstop)."""
+    home = tmp_path / "home"
+    home.mkdir()
+
+    toml = tmp_path / "instances.toml"
+    toml.write_text(
+        '[[instance]]\nseries = "17.0"\naddons_path = ["/repos/mine"]\n'
+        'http_port = 8069\ndb_name = "odoo_17_0_mine"\n',
+        encoding="utf-8",
+    )
+
+    bindir = tmp_path / "fakebin"
+    _write_curl_stub_always_200(bindir)
+
+    env = dict(os.environ)
+    env["ODOO_AI_HOME"] = str(home)
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["PATH"] = f"{bindir}{os.pathsep}{env.get('PATH', '')}"
+
+    proc = subprocess.run(
+        ["bash", str(STEP50), "check", "--version", "17.0"],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc.returncode == 0, (
+        f"no recorded marker must pass through (cannot disprove identity); "
+        f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    )
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_attach_guard_allows_a_live_port_with_matching_recorded_identity(tmp_path):
+    """A marker recorded for THIS project's own addons_path must be treated as
+    a genuine re-attach, not a collision (the guard must not false-positive)."""
+    home = tmp_path / "home"
+    home.mkdir()
+    identity_dir = home / "runtime" / "identity"
+    identity_dir.mkdir(parents=True)
+    my_token = _identity_token_py("/repos/mine")
+    (identity_dir / "8069.token").write_text(
+        f"{my_token}\nodoo_17_0_mine\n", encoding="utf-8"
+    )
+
+    toml = tmp_path / "instances.toml"
+    toml.write_text(
+        '[[instance]]\nseries = "17.0"\naddons_path = ["/repos/mine"]\n'
+        'http_port = 8069\ndb_name = "odoo_17_0_mine"\n',
+        encoding="utf-8",
+    )
+
+    bindir = tmp_path / "fakebin"
+    _write_curl_stub_always_200(bindir)
+
+    env = dict(os.environ)
+    env["ODOO_AI_HOME"] = str(home)
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["PATH"] = f"{bindir}{os.pathsep}{env.get('PATH', '')}"
+
+    proc = subprocess.run(
+        ["bash", str(STEP50), "check", "--version", "17.0"],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc.returncode == 0, (
+        f"a matching recorded identity must be treated as 'up', not a "
+        f"collision; stdout={proc.stdout!r} stderr={proc.stderr!r}"
     )

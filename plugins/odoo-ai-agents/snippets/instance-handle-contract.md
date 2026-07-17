@@ -46,6 +46,14 @@ process must stay listening - which acquires its own isolated instance UNDER the
 a bare `allocator.py` call, which would bypass those rules. A provided handle always wins (consume,
 never re-provision).
 
+## Prefork (`--workers>0`) needs a second port
+
+The default THREADED mode (`workers=0`, what `odoo-instance` provisions unless told otherwise)
+multiplexes the longpolling/realtime bus over the single `http_port` - no second port is needed. Any
+use of prefork (`--workers>0`) MUST also request `--ports 2` at acquire time and forward the resolved
+gevent/longpolling port + its conf key (`gevent_port`/`longpolling_port`, per OSM `cli_help`) to the
+spin-up step; gevent/prefork stays OPT-IN, never the default.
+
 ## Lifecycle
 
 One instance per run. Who releases it, when, and what "released" means (stop the process group,
