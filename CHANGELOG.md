@@ -6,6 +6,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.16.0] - 2026-07-17
+
+### Added
+
+- Default `odoo-bin` memory + time caps on every scripted instance launch (init/update/test), version-general across Odoo v8-v19: a shell `ulimit -Sv` spine (the only guard that fires on v8-v11, where Odoo applies no RLIMIT_AS itself) plus `--limit-memory-hard` (which overrides Odoo's own 2.5 GiB default clamp on v12+). The cap defaults to `MemTotal x 0.5` floored at 4 GiB and is overridable via `ODOO_AI_LIMIT_MEMORY_HARD` (empty or `0` opts out). New `scripts/lib/resource_limits.sh` value resolver and `snippets/odoo-bin-resource-limits.md` policy SSOT; the long-running listener conf additionally carries `limit_memory_soft` + `limit_time_real`.
+- Single namespaced `~/.odoo-ai/` state root with a two-axis model, replacing the per-project `./.odoo-ai/`: Tier-1 machine-global flat (lease registry, `instances.toml`, logs, `i18n.json`), Tier-2 SHARE-per-repo (`context.md`, designs, coordination, survey - converges across a repo's worktrees), and Tier-2 ISOLATE-per-worktree (run state, worklog, qa - distinct per worktree so the drive-to-done continuation hook's "one active run" invariant holds). New `scripts/lib/resolve_project_dir.sh` + `paths.py` resolver (shell/Python parity), `snippets/state-root-resolution.md` SSOT with the resolve-capture-substitute prose protocol and cross-worktree dispatch rule, and an idempotent, crash-safe SessionStart migration of any legacy project-local `.odoo-ai/`.
+
+### Changed
+
+- Every skill/agent/command now resolves its state paths through the resolve-capture-substitute protocol (resolve once via the resolver, substitute the captured absolute path) instead of a bare project-relative `.odoo-ai/` literal.
+- Instance database names now carry a per-project discriminator (`odoo_<series>_<repo-key8>`), so two concurrent projects on the same Odoo series never share a database name in the machine-global catalog.
+
+### Fixed
+
+- Port-allocation boundary off-by-one: the allocator now reserves ALL catalog-declared ports when picking a pool, so a heavily loaded instance pool can no longer hand out the next instance's declared port to a concurrent session.
+- Bootstrap-race where two never-migrated projects could both default to port 8069 and attach to the wrong Odoo server: fixed with eager catalog migration (distinct ports assigned up front) plus an instance-identity attach guard that fails closed rather than attaching to a foreign server.
+- `--addons-path` was written colon-separated (PATH-style) into the allocator lease record; Odoo requires comma-separated addon directories, so the lease field is now comma-joined to match its sibling and Odoo's own expectation.
+
 ## [4.15.0] - 2026-07-17
 
 ### Added
