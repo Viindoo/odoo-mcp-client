@@ -33,6 +33,7 @@ Run: python -m pytest tests/test_instance_ops_hardening.py -v
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -50,6 +51,8 @@ HANDLE_CONTRACT = PLUGIN / "snippets" / "instance-handle-contract.md"
 WORKER_BRIEF = PLUGIN / "snippets" / "worker-brief.md"
 EVALS = PLUGIN / "skills" / "odoo-instance" / "evals" / "evals.json"
 LIFECYCLE_DOC = PLUGIN / "docs" / "reference" / "INSTANCE-LIFECYCLE.md"
+INSTANCE_OPS_SH = PLUGIN / "scripts" / "setup-steps" / "55-instance-ops.sh"
+RESOURCE_LIMITS_SNIPPET = PLUGIN / "snippets" / "odoo-bin-resource-limits.md"
 
 
 def _norm(path: Path) -> str:
@@ -679,4 +682,123 @@ def test_agent_exclusive_running_spinup_forwards_alloc_token():
     assert '--alloc-token "$ALLOC_TOKEN"' in exclusive, (
         "the exclusive-running spinup invocation must forward the acquired lease "
         "token ($ALLOC_TOKEN, returned by Step D's allocator.py acquire) as --alloc-token"
+    )
+
+
+# ---------------------------------------------------------------------------
+# P1 - odoo-bin memory/time resource-limit hardening (Problem 1). Protects:
+# "a big install fails cleanly / is capped, on EVERY version, and the caller
+# can override or uncap it." Value RESOLUTION is tested separately in
+# test_resource_limits.py; these tests protect the COMMAND-CONSTRUCTION
+# contract - that each of the 3 build verbs actually WIRES the resolved
+# values into the odoo-bin launch, with override precedence intact. Assert on
+# PRESENCE + ORDERING, never the numeric default, so the default formula can
+# change without a false failure here.
+# ---------------------------------------------------------------------------
+
+def _raw_section(text: str, header_start: str, header_end: str) -> str:
+    """Like the per-test `_section` helpers above, but over RAW (non-whitespace-
+    normalized) text - needed here because ordering/indentation of the actual
+    shell command matters for the ulimit/--limit-memory-hard/${arg_extra}
+    assertions below."""
+    s = text.find(header_start)
+    assert s != -1, f"section {header_start!r} not found"
+    e = text.find(header_end, s + 1)
+    return text[s: e if e != -1 else len(text)]
+
+
+def test_instance_ops_sources_resource_limits_lib():
+    """55-instance-ops.sh must source the resource-limit SSOT lib (never
+    re-derive the hard-cap formula inline)."""
+    text = INSTANCE_OPS_SH.read_text(encoding="utf-8")
+    assert 'source "$LIB_DIR/resource_limits.sh"' in text, (
+        "55-instance-ops.sh must source scripts/lib/resource_limits.sh"
+    )
+
+
+def test_instance_ops_verbs_wrap_odoo_bin_in_ulimit_and_hard_cap():
+    """cmd_init/cmd_update/cmd_test must each wrap the odoo-bin launch in
+    `ulimit -Sv` AND emit `--limit-memory-hard=` BEFORE `${arg_extra}` (override
+    precedence: Odoo's arg parser takes the LAST occurrence of a repeated flag,
+    so a caller-supplied override in --extra must still win).
+
+    Ordering is checked against the ACTUAL CODE lines only (a literal,
+    unquoted `${arg_extra}` standing alone on its own line, and the literal
+    `--limit-memory-hard="$_lim_bytes"` flag construction) - prose comments
+    in this file legitimately mention both tokens in either order while
+    explaining the rule, so a bare substring search would false-positive on
+    a comment sentence instead of the real command line."""
+    text = INSTANCE_OPS_SH.read_text(encoding="utf-8")
+
+    init = _raw_section(text, "cmd_init() {", "cmd_update() {")
+    update = _raw_section(text, "cmd_update() {", "cmd_test() {")
+    test_verb = _raw_section(text, "cmd_test() {", "cmd_drop() {")
+
+    hard_flag_re = re.compile(r'^[ \t]+--limit-memory-hard="\$_lim_bytes"', re.MULTILINE)
+    arg_extra_line_re = re.compile(r'^[ \t]+\$\{arg_extra\}[ \t]*\\?[ \t]*$', re.MULTILINE)
+
+    for name, section in (("cmd_init", init), ("cmd_update", update), ("cmd_test", test_verb)):
+        assert "ulimit -Sv" in section, f"{name} must wrap the odoo-bin launch in ulimit -Sv"
+        assert "resource_limit_is_uncapped" in section, (
+            f"{name} must honor the uncapped escape hatch (skip ulimit when the resolved "
+            "cap is 0/empty)"
+        )
+        hard_match = hard_flag_re.search(section)
+        extra_match = arg_extra_line_re.search(section)
+        assert hard_match, f"{name} must emit the code line --limit-memory-hard=\"$_lim_bytes\""
+        assert extra_match, f"{name} must still pass ${{arg_extra}} through as its own code line"
+        assert hard_match.start() < extra_match.start(), (
+            f"{name}: --limit-memory-hard= must appear BEFORE ${{arg_extra}} so a caller "
+            "override supplied via --extra still wins"
+        )
+
+
+def test_instance_ops_verbs_scope_ulimit_to_a_subshell():
+    """The `ulimit -Sv` call must be scoped to a subshell wrapping ONLY the
+    odoo-bin invocation, never applied to the calling shell at large (which
+    would silently tighten every later command in the same script run).
+
+    Matched against the ACTUAL CODE line (not the prose comment above it,
+    which also legitimately says "ulimit -Sv" while explaining the rule)."""
+    text = INSTANCE_OPS_SH.read_text(encoding="utf-8")
+    init = _raw_section(text, "cmd_init() {", "cmd_update() {")
+    update = _raw_section(text, "cmd_update() {", "cmd_test() {")
+    test_verb = _raw_section(text, "cmd_test() {", "cmd_drop() {")
+    ulimit_code_re = re.compile(
+        r'^[ \t]+resource_limit_is_uncapped \|\| ulimit -Sv', re.MULTILINE
+    )
+    for name, section in (("cmd_init", init), ("cmd_update", update), ("cmd_test", test_verb)):
+        ulimit_match = ulimit_code_re.search(section)
+        assert ulimit_match, f"{name}: expected the code line `resource_limit_is_uncapped || ulimit -Sv ...`"
+        open_paren_idx = section.rfind("(\n", 0, ulimit_match.start())
+        assert open_paren_idx != -1, (
+            f"{name}: ulimit -Sv must be inside a scoped `(` subshell, not the bare script body"
+        )
+
+
+def test_resource_limits_snippet_documents_the_policy():
+    """snippets/odoo-bin-resource-limits.md must exist and document the
+    canonical default, the v12 enforcement boundary, the uncapped escape
+    hatch, and the override-precedence rule - other files point at it rather
+    than restating command text."""
+    assert RESOURCE_LIMITS_SNIPPET.exists(), (
+        "snippets/odoo-bin-resource-limits.md must exist as the P1 SSOT policy doc"
+    )
+    text = _norm(RESOURCE_LIMITS_SNIPPET)
+    assert "ODOO_AI_LIMIT_MEMORY_HARD" in text, "snippet must name the override env var"
+    assert "4 GiB" in text or "4294967296" in text, "snippet must state the 4 GiB floor"
+    assert "v12" in text, "snippet must document the v12.0 enforcement boundary"
+    assert "uncapped" in text.lower(), "snippet must document the uncapped escape hatch"
+    assert "limit_time_cpu" in text and "dead" in text.lower(), (
+        "snippet must state limit_time_cpu is a dead key while workers=0"
+    )
+
+
+def test_spinup_conf_sources_resource_limits_lib_and_references_snippet():
+    """50-instance-spinup.sh must source the same resource-limit SSOT lib
+    (never a second, independent formula for the A2 conf keys)."""
+    step50 = PLUGIN / "scripts" / "setup-steps" / "50-instance-spinup.sh"
+    text = step50.read_text(encoding="utf-8")
+    assert 'source "$SCRIPT_DIR/../lib/resource_limits.sh"' in text, (
+        "50-instance-spinup.sh must source scripts/lib/resource_limits.sh"
     )
