@@ -63,7 +63,9 @@ rather than guessing it.
 ## The pipeline
 
 `<cluster>` = the scope slug (the `cluster_slug` field resolved in P0 intake). Artifacts under
-`.odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/`. `<path>` = the upgrade-worktree base, a
+`<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once
+per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute
+path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). `<path>` = the upgrade-worktree base, a
 `.upg-worktrees/` directory SIBLING to the principal checkout (never inside it, so principal
 `git status` stays clean). The integration-loop saga/rollback + checkpoint contract this pipeline
 runs (record the pre-loop SHA, checkpoint each integrated wave, clean-abort or resume on failure -
@@ -338,7 +340,7 @@ other module consumes) - record that proof explicitly in `install-test.md`; neve
 above is explicitly met and recorded.**
 Gate tier: L2 (human) - present the acceptance verdict (or the recorded narrow-escape) ALONGSIDE
 the P6 sign-off below so the human sees ONE combined decision, not a surprise extra step later.
-Output: `.odoo-ai/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
+Output: `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
 from `install-test.md`.
 
 **P6 - Gate [STOP, human sign-off].**
@@ -404,7 +406,7 @@ review modules in dependency order). Wait for human merge.
 
 ## Checkpoint / resume
 
-The pipeline writes a progress ledger at `.odoo-ai/modules-upgrade/<src>-<tgt>-<cluster>/checkpoint.json`
+The pipeline writes a progress ledger at `<ISOLATE_DIR>/modules-upgrade/<src>-<tgt>-<cluster>/checkpoint.json`
 after each module completes a phase. Schema:
 
 ```json
@@ -499,7 +501,7 @@ When the run finishes (or pauses at a gate), append a Continuation Contract bloc
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
 `produced` lists `intake.md`, `graph.md`, `deprecation.md`, `version-delta.md`,
 `transitive-symbol-survey.md`, `absorption/*.md`, `plan.md`, `install-test.md`,
-`.odoo-ai/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR URL.
+`<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR URL.
 When P2b routes a module out to design, `next: odoo-solution-design` with the Continuation
 Contract payload and the run YIELDS. Additive output for the run-harness - does not change
 anything produced above.

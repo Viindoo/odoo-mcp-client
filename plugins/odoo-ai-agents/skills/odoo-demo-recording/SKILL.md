@@ -79,12 +79,14 @@ Work in rounds; fire independent calls in the same message within a round.
 
 ### Round 0 - Load context
 
-Read `.odoo-ai/context.md` (Markdown bullets, `- **key**: value` format). Extract `odoo_version`,
-`instance_base_url`, `instance_login`, `screenshot_baseline_dir` (parent = video output dir).
+`context.md` is Tier-2 SHARE; resolve it via the resolve-capture-substitute protocol in
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<SHARE_DIR>`
+below), then read `<SHARE_DIR>/context.md` (Markdown bullets, `- **key**: value` format). Extract
+`odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir` (parent = video
+output dir).
 
-If a key is missing, fall back to the machine-global `~/.odoo-ai/instances.toml` (project
-`./.odoo-ai/instances.toml` is only a transitional fallback; see `snippets/instance-resolution.md`)
-for the instance URL. Ask the user only for what none of these resolve (plus the workflow to record,
+If a key is missing, fall back to the machine-global `$ODOO_AI_HOME/instances.toml` (see
+`snippets/instance-resolution.md`) for the instance URL. Ask the user only for what none of these resolve (plus the workflow to record,
 format MP4/GIF, and length) in a single message. Do not guess.
 
 Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)` and
@@ -118,13 +120,15 @@ EVERY recording round, including a retake. Full rule:
 
 ### Round 4 - Produce the artifact
 
-Save the MP4 (or GIF) to `.odoo-ai/visual/videos/<feature>-<timestamp>.{mp4,gif}` and report the
+`visual/videos/` is Tier-2 ISOLATE; resolve it via the same resolve-capture-substitute protocol
+(captured path shown as `<ISOLATE_DIR>` below). Save the MP4 (or GIF) to
+`<ISOLATE_DIR>/visual/videos/<feature>-<timestamp>.{mp4,gif}` and report the
 path, duration, and step list so the take is re-runnable.
 
 ## Standalone-first fallback
 
 - **OSM unreachable:** skip Round 1 verification; grep the repo for menu/view ids (`grep -rn "<menu_id>" --include=*.xml`) to reconstruct the click path from source; only ask the caller to confirm the menu path and records if the grep result is insufficient. Prefix with `⚠ OSM unreachable - click path planned from disk grep, verify menus on the live instance`.
-- **Browser MCP / video recorder unreachable:** if video capture is unavailable, fall back to a screenshot frame sequence assembled into a GIF. If the instance itself is unreachable, re-check `.odoo-ai/context.md` for `instance_base_url` and `instance_login`; if still unreachable after trying the URL from context, emit `status: NEEDS_NEXT` with:
+- **Browser MCP / video recorder unreachable:** if video capture is unavailable, fall back to a screenshot frame sequence assembled into a GIF. If the instance itself is unreachable, re-check `<SHARE_DIR>/context.md` for `instance_base_url` and `instance_login`; if still unreachable after trying the URL from context, emit `status: NEEDS_NEXT` with:
   ```
   next:
     - skill: odoo-instance
@@ -144,7 +148,7 @@ path, duration, and step list so the take is re-runnable.
 1. Navigate <url> → 2. Click <menu> → 3. Fill <field>=<value> → 4. Click <action> …
 
 ### Artifact
-- File: .odoo-ai/visual/videos/<feature>-<timestamp>.mp4 (or .gif)
+- File: <ISOLATE_DIR>/visual/videos/<feature>-<timestamp>.mp4 (or .gif)
 - Duration: <s> · Resolution: <WxH> · Poster: <screenshot path>
 
 ### Notes
@@ -156,7 +160,7 @@ Examples (sales order MP4 + portal GIF with recorder unavailable):
 
 ## Notes / Integration
 
-- Videos/GIFs are written under `.odoo-ai/visual/videos/`.
+- Videos/GIFs are written under `<ISOLATE_DIR>/visual/videos/`.
 - Use a consistent viewport and login for repeatable takes.
 - This skill records flows only; it never edits Odoo source. Hand any needed fix to `odoo-coding`.
 

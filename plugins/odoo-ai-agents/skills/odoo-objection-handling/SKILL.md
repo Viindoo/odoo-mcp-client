@@ -81,7 +81,7 @@ The "Suggested response (verbatim)" must be ready to use in a client meeting wit
 
 The objection text is already in the invocation - do not ask the caller to re-provide it.
 
-1. `Read .odoo-ai/context.md` (per `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) for `odoo_version`, `viindoo_profile`, and industry hints.
+1. `Read <SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit; see also `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) for `odoo_version`, `viindoo_profile`, and industry hints.
 2. If a customer name is known, `Read` the vault dossier at `Resources/Competitors/<name>.md` or `Sales/Customers/<name>.md` if present.
 
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:

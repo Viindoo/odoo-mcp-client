@@ -16,8 +16,10 @@ description: >
 
 ## Where this sits in the flow (design precedes the code Plan Mode)
 
-Planning/analysis step only. Output: `.odoo-ai/designs/…` (gitignored, L1) - never production
-source. Correct order:
+Planning/analysis step only. Output: `<SHARE_DIR>/designs/…` (gitignored, L1; resolve `<SHARE_DIR>`
+once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
+absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) - never
+production source. Correct order:
 
 ```
 design (architect writes the TDD)  →  HUMAN approves the design  →  Plan Mode for the code  →  code → review
@@ -31,8 +33,8 @@ Before the Phase 0 preview, look for a gap-analysis artifact on disk - the per-r
 classification/effort is the design PRECONDITION, read it; do NOT re-derive the tier from
 conversational text:
 
-- **Glob** `.odoo-ai/gap-analysis/*/gap-matrix.jsonl` (newest dir wins); the consultant path
-  may instead carry BRL output under `.odoo-ai/brl/*/` - accept either source.
+- **Glob** `<SHARE_DIR>/gap-analysis/*/gap-matrix.jsonl` (newest dir wins); the consultant path
+  may instead carry BRL output under `<SHARE_DIR>/brl/*/` - accept either source.
 - **Found:** READ it. Each `gap-matrix.jsonl` line is one requirement with keys `req_id` ·
   `requirement` · `coverage` (full|partial|none) · `classification`
   (standard|config|extension|custom) · `effort_tier` (S|M|L|XL) · `module` · `grounded` ·
@@ -63,7 +65,7 @@ Will decide:  approach (inherit axis / new vs extend) · data model · override 
               module structure · sequencing · test outline · risks · platform-principles
               (multi-company/branch, localization strategy, app-menu) · bidirectional
               (upstream+downstream) impact · dynamic demo-data plan
-Artifact:     .odoo-ai/designs/<slug>-<YYYY-MM-DD>.md (design doc, no production code)
+Artifact:     <SHARE_DIR>/designs/<slug>-<YYYY-MM-DD>.md (design doc, no production code)
 OSM:          backed | standalone
 Proceed? (yes / refine: [feedback] / cancel)
 ```
@@ -71,7 +73,8 @@ Proceed? (yes / refine: [feedback] / cancel)
 Wait for the user's reply before proceeding. This gate is the single mandatory checkpoint for
 the default (no `return_to`) path and applies even on a direct (intake-bypass) entry. It is a
 **preview, not a write-block** - on confirmation the architect writes ONLY the design doc under
-`.odoo-ai/`, never source files.
+the machine-global `$ODOO_AI_HOME` state root (two-axis convention:
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), never source files.
 
 **Multi-module scope heuristic.** Before emitting the preview, check for these qualitative
 signals - a cluster of them suggests master-child decomposition is worth offering:
@@ -107,7 +110,7 @@ scope as multi-module, return `NEEDS_NEXT`, and loop instead of writing the TDD.
 
 Only entered when the user replied `approve-master-child` at Phase 0.
 Contract SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
-Artifact root: `.odoo-ai/designs/<master-slug>/`.
+Artifact root: `<SHARE_DIR>/designs/<master-slug>/`.
 
 **a. Master TDD dispatch.** Dispatch `odoo-solution-architect` with `MODE: master`. Architect
 produces `_master-<date>.md` (cross-module altitude: §10 shared-symbol registry, dep directions,
@@ -167,18 +170,20 @@ re-presents this gate. One batch gate total - escalated seams fold INTO this sin
 separate gate. On `approve-all`, write `status: approved` for all modules in `index.yaml`.
 
 **f. Continuation Contract (master-child).** Emit per
-`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. All paths are repo-root-relative;
-`child_path` under `design_docs` MUST be the full repo-root path (not relative to subdir):
+`${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`. All paths are the absolute resolved
+`<SHARE_DIR>` paths (never repo-root-relative or subdir-relative; resolve+substitute per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`); `child_path` under `design_docs` MUST
+be the full absolute path (not relative to subdir):
 
 ```yaml
 status: NEEDS_NEXT
 next: <return_to or odoo-planning>
 inputs:
-  design_index: .odoo-ai/designs/<master-slug>/index.yaml
-  master_design_doc: .odoo-ai/designs/<master-slug>/_master-<date>.md
+  design_index: <SHARE_DIR>/designs/<master-slug>/index.yaml
+  master_design_doc: <SHARE_DIR>/designs/<master-slug>/_master-<date>.md
   design_docs:
     - module: <name>
-      child_path: .odoo-ai/designs/<master-slug>/<name>-<date>.md
+      child_path: <SHARE_DIR>/designs/<master-slug>/<name>-<date>.md
 ```
 
 Do NOT emit bare `design_doc:` (single-mode only). Do NOT put `design_index` /
@@ -327,8 +332,8 @@ classification/effort tier, prefer the GAP_MATRIX file below over a pasted tier 
 architect reads it per requirement]
 
 GAP_MATRIX: [omit this line entirely when absent; otherwise the gap artifact path found by the
-Input port - .odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl, or the BRL results dir
-.odoo-ai/brl/<job-id>/. The architect READS this for the authoritative per-requirement
+Input port - <SHARE_DIR>/gap-analysis/<slug>-<date>/gap-matrix.jsonl, or the BRL results dir
+<SHARE_DIR>/brl/<job-id>/. The architect READS this for the authoritative per-requirement
 classification/effort_tier - do NOT also flatten the tier into REQUEST as free text]
 
 RETURN_TO: [omit this line entirely when absent; set to the caller skill name (e.g.
@@ -336,7 +341,7 @@ odoo-forward-port) when the caller requests return routing after design approval
 
 DESIGN_SLUG_HINT: [omit when absent; short slug the caller wants used for the design doc
 filename, e.g. account-move-fp-18 - the architect uses this as the <slug> when writing
-.odoo-ai/designs/<slug>-<date>.md]
+<SHARE_DIR>/designs/<slug>-<date>.md]
 
 Step 0 (ONLY if mcp__odoo-semantic__* tools are available): call
 set_active_version('<version>'), then proceed through your design rounds. If OSM is
@@ -347,7 +352,7 @@ everything it covers and Read/Grep the local addons for just the missed entities
 the design hybrid (grounded: osm + local-source (hybrid)). Do NOT
 design from memory when OSM is reachable.
 
-Follow your system-prompt rounds. Write the design doc to .odoo-ai/designs/<slug>-<date>.md.
+Follow your system-prompt rounds. Write the design doc to <SHARE_DIR>/designs/<slug>-<date>.md.
 Do NOT write any production source files. Do NOT spawn subagents or invoke skills.
 ```
 
@@ -388,7 +393,7 @@ then gate. Write the gate message in the USER'S LANGUAGE (translate labels and p
 paths, module names, and model identifiers verbatim):
 
 ```
-Design ready: .odoo-ai/designs/<slug>-<YYYY-MM-DD>.md
+Design ready: <SHARE_DIR>/designs/<slug>-<YYYY-MM-DD>.md
 Intent: <one line - what this solves and why>   ·   Business value: <one line>
 Approach: <one line>   ·   Top risk: <one line>
 Modules:

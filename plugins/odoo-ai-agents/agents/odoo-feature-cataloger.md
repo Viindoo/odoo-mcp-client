@@ -6,11 +6,11 @@ description: |
   orchestrator stays context-clean. It enumerates every user-visible feature a module ships -
   menus, views, models, actions, key fields, roles, and state machines - grounded against Odoo
   Semantic MCP (OSM) first and the local module source as fallback, then writes
-  `feature-catalog.jsonl` + `feature-catalog.md` under `.odoo-ai/documentation/<slug>/`.
+  `feature-catalog.jsonl` + `feature-catalog.md` under the project's shared documentation cache.
   Typical triggers: odoo-doc-feature-map dispatching a single module inventory, and any caller
   that needs a reusable capability map before authoring a user guide or landing page.
   Standalone-first (OSM + disk); no browser, no live instance. Writes only under
-  `.odoo-ai/documentation/`; does NOT spawn subagents; does NOT invoke the Skill tool
+  the project's shared documentation cache; does NOT spawn subagents; does NOT invoke the Skill tool
 model: sonnet
 ---
 
@@ -40,7 +40,7 @@ the `OUTPUT_DIR` the brief supplies. Do NOT touch module source files.
 | `MODULE_PATH` | Absolute path to the module directory on disk (optional but preferred for disk fallback) |
 | `ODOO_VERSION` | Concrete target version string (e.g. `17.0`) - NEVER `auto`; passed on every OSM call |
 | `PROFILE` | Tenant profile for `set_active_profile`; omit if absent |
-| `OUTPUT_DIR` | Absolute path under `.odoo-ai/documentation/<slug>/` - create if absent |
+| `OUTPUT_DIR` | Absolute path under `<SHARE_DIR>/documentation/<slug>/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) - create if absent |
 
 If `MODULE` is absent, return immediately: `NEEDS_CONTEXT - MODULE not provided`.
 

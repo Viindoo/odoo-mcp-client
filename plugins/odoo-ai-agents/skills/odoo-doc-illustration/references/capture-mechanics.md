@@ -52,12 +52,20 @@ never clobber each other's images. `<run_id>` is the brief's `RUN_ID` (the workl
 reuse it, never mint a new id); `<module>` is the module being documented. **NEVER stage into a bare
 `doc-staging/<...>` with no `<run_id>/<module>` prefix.** Both roots below are gitignored.
 
+**`<ISOLATE_DIR>` resolution.** This staging tree is Tier-2 ISOLATE. Your dispatch brief carries
+`ISOLATE_DIR:` (the `odoo-doc-illustration` skill resolves it ONCE against `doc_root` and passes it
+to every writer + reuses it at its own end-of-run cleanup - see
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch) - use that
+literal directly below; do NOT re-resolve. Only when it is absent (standalone dispatch outside the
+skill's pipeline) resolve it yourself via the resolve-capture-substitute protocol in
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`.
+
 - **Default family `chrome-devtools`** accepts a configurable `take_screenshot` `path`, so stage
   DIRECTLY - no two-tier dance:
   ```
-  .odoo-ai/visual/<run_id>/<module>_staging/<scenario_id>-step<NN>.png
+  <ISOLATE_DIR>/visual/<run_id>/<module>_staging/<scenario_id>-step<NN>.png
   ```
-  Pass that relative path as `take_screenshot path`; `mkdir -p` its dir first. Read the returned
+  Pass that path as `take_screenshot path`; `mkdir -p` its dir first. Read the returned
   actual path, then Bash `cp`/`mv` (not MCP file tools) to place the image at its final destination
   inside the module dir.
 - **OPT-IN family `playwright`** writes only inside its allowed roots (the MCP process cwd plus
@@ -69,7 +77,7 @@ reuse it, never mint a new id); `<module>` is the module being documented. **NEV
   (an absolute path outside the allowed roots is REJECTED: `File access denied: ... outside allowed
   roots`).
 - **OPT-IN family `pagecast`** (GIF/clip only) stages its output dir under the same
-  `.odoo-ai/visual/<run_id>/<module>_staging/` prefix.
+  `<ISOLATE_DIR>/visual/<run_id>/<module>_staging/` prefix.
 
 **Branch selection (decide once, before the capture loop):**
 - **Branch A (dest inside cwd):** if the final destination is a subpath of cwd
@@ -78,11 +86,12 @@ reuse it, never mint a new id); `<module>` is the module being documented. **NEV
 - **Branch B (dest outside cwd, default safe branch):** capture into the run/module-scoped staging
   dir, read the returned path, Bash `cp` to the dest absolute path. `mkdir -p` the dest dir first.
 
-The skill owns end-of-run cleanup of `.odoo-ai/visual/<run_id>/` and `.playwright-mcp/<run_id>/`
-(scoped to `<run_id>` only); do not delete another run's subtree. This staging cleanup is a FILES
-step only - it is not resource teardown (the browser page you drove and the instance lease the
-skill holds are separate obligations); see
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2/T3.
+The skill owns end-of-run cleanup of `<ISOLATE_DIR>/visual/<run_id>/` and `.playwright-mcp/<run_id>/`
+(scoped to `<run_id>` only), reusing the SAME `ISOLATE_DIR` literal it passed to every writer this
+run (never a fresh resolve at cleanup time, so the `rm -rf` target always matches where writers
+actually staged); do not delete another run's subtree. This staging cleanup is a FILES step only -
+it is not resource teardown (the browser page you drove and the instance lease the skill holds are
+separate obligations); see `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2/T3.
 
 ## 4. INSTANCE_HANDLE - the instance is already provisioned
 

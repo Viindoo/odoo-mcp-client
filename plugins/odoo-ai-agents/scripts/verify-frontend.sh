@@ -525,23 +525,32 @@ fi
 # ===========================================================================
 # TIER 4 - BRAND FIDELITY (optional, brand-agnostic, static)
 # ===========================================================================
-# Runs ONLY when the consumer declares `brand_tokens_source` in .odoo-ai/context.md
-# (a JSON map of token -> color, e.g. {"--primary": "#1E88E5", ...}). The plugin
-# ships NO brand of its own - the map is discovered from the consumer environment.
-# No browser here: this is the STATIC half (hardcoded-hex vs brand palette).
-# The RUNTIME half (getComputedStyle :root ΔE-diff) is the ui-reviewer's
+# Runs ONLY when the consumer declares `brand_tokens_source` in the project's SHARE
+# context.md (Tier-2 SHARE - resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
+# ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md; substitute the captured
+# absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+# Read/Write/Edit) (a JSON map of token -> color, e.g. {"--primary": "#1E88E5", ...}).
+# The plugin ships NO brand of its own - the map is discovered from the consumer
+# environment. No browser here: this is the STATIC half (hardcoded-hex vs brand
+# palette). The RUNTIME half (getComputedStyle :root ΔE-diff) is the ui-reviewer's
 # Step 4b. Both share scripts/lib/color_delta.py. WARN-only (never blocks).
 echo
 echo "--- Tier 4: Brand fidelity (optional) ---"
+# Resolve the Tier-2 SHARE dir from CWD (this script runs from inside the target
+# repo). CRITICAL RESILIENCE: never hard-fail - a resolver refusal (non-git, no
+# marker) or any error (missing script, no CLAUDE_PLUGIN_ROOT) silently falls back
+# to the legacy project-relative path.
+_SHARE_DIR="$(cd "$PWD" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" share 2>/dev/null || true)"
+[[ -n "$_SHARE_DIR" ]] || _SHARE_DIR="$PWD/.odoo-ai"
 _BRAND_SRC=""
-if [[ -f ".odoo-ai/context.md" ]]; then
-    _BRAND_SRC="$(grep -iE '^[-*][[:space:]]*\**brand_tokens_source' .odoo-ai/context.md 2>/dev/null \
+if [[ -f "$_SHARE_DIR/context.md" ]]; then
+    _BRAND_SRC="$(grep -iE '^[-*][[:space:]]*\**brand_tokens_source' "$_SHARE_DIR/context.md" 2>/dev/null \
         | head -1 | sed -E 's/.*brand_tokens_source\**[[:space:]]*:?[[:space:]]*//' | tr -d '`' | xargs 2>/dev/null || true)"
 fi
 COLOR_DELTA="${CLAUDE_PLUGIN_ROOT}/scripts/lib/color_delta.py"
 _BRAND_NEAR="${BRAND_NEAR_DELTA:-3.0}"   # hardcoded hex this close to a brand token => should use the var
 if [[ -z "$_BRAND_SRC" ]]; then
-    _skip "no brand_tokens_source in .odoo-ai/context.md - brand fidelity skipped (not a blocking condition)"
+    _skip "no brand_tokens_source in $_SHARE_DIR/context.md - brand fidelity skipped (not a blocking condition)"
 elif [[ ! -f "$_BRAND_SRC" ]]; then
     _warn "brand_tokens_source declared but file not found: $_BRAND_SRC"
 elif ! _have python3 || [[ ! -f "$COLOR_DELTA" ]]; then

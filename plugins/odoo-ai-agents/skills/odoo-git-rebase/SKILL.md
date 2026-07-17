@@ -62,8 +62,16 @@ orchestrator dispatches the P0 intake subagent first (below) and asks the user O
 `<slug> = <feature-ref>-onto-<new-base>`, sanitized: lowercase; replace each space, slash, or
 any character outside `[a-z0-9._-]` with `-`; collapse repeated `-`; truncate to 64 chars. The
 orchestrator computes `<slug>` ONCE and passes the ABSOLUTE artifact path
-(`.odoo-ai/git-rebase/<slug>/...`) into every subagent brief - subagents never recompute the slug
-(prevents artifact-path drift). Artifacts under `.odoo-ai/git-rebase/<slug>/` (gitignored).
+(`<ISOLATE_DIR>/git-rebase/<slug>/...`; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` and substitute the captured absolute
+path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) into every
+subagent brief - subagents never recompute the slug (prevents artifact-path drift). This pipeline
+dispatches leaves (`odoo-intent-extractor`, `odoo-diff-comparator`, P2/P8/P9b, ...) that may run
+inside the P7 integration worktree rather than the principal; the resolve-once-and-pass-the-slug
+pattern above is this pipeline's concrete instance of the general cross-worktree dispatch rule -
+SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch - so no
+dispatched leaf re-resolves `<SHARE_DIR>`/`<ISOLATE_DIR>` against the worktree it happens to be
+working in. Artifacts under `<ISOLATE_DIR>/git-rebase/<slug>/` (gitignored).
 `<old-base> = git merge-base <new-base> <feature-ref>` (the orchestrator runs this ONE mechanical
 command; everything that reads diff CONTENT is delegated). Full git commands, dispatch briefs, and
 format templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-git-rebase/references/rb-phase-detail.md`.
@@ -75,7 +83,7 @@ The integration-loop saga/rollback + checkpoint contract this section implements
 applied commit, clean-abort or resume on failure - never leave a half-built branch); the per-commit
 state file below is this skill's concrete realization of it.
 
-`.odoo-ai/git-rebase/<slug>/checkpoint.json` maps per-commit status and run state:
+`<ISOLATE_DIR>/git-rebase/<slug>/checkpoint.json` maps per-commit status and run state:
 
 ```json
 {
@@ -131,7 +139,7 @@ guarantees correctness at small scale and is not optional even on a 1-commit bra
 **Fast-path P8 fallback (commit dump provisioning):** the fast-path skips P2 so no
 `intents/<sha>.md` exist. If P8 stops on a conflict, provision the dump first: invoke
 git-ops to write the stopped commit's full output to
-`.odoo-ai/git-rebase/<slug>/commits/<sha>.dump`; then dispatch `odoo-intent-extractor` (rebase
+`<ISOLATE_DIR>/git-rebase/<slug>/commits/<sha>.dump`; then dispatch `odoo-intent-extractor` (rebase
 MODE, brief: `references/rb-phase-detail.md` P2) with `commit_dump_path:` set to that path
 before dispatching the `odoo-coding` skill at P8.
 
@@ -172,7 +180,7 @@ Write `recon.md`. Verbatim commands: `references/rb-phase-detail.md` P1.
 
 **P2 - Intent extract (per non-(a) commit, PARALLEL) [git-ops pre-step + N x odoo-intent-extractor rebase MODE].**
 Pre-step: invoke git-ops to write the full commit output (message + diff) for
-each non-(a) commit to `.odoo-ai/git-rebase/<slug>/commits/<sha>.dump`; collect the resulting
+each non-(a) commit to `<ISOLATE_DIR>/git-rebase/<slug>/commits/<sha>.dump`; collect the resulting
 `{ <sha>: <abs-path> }` map. Then dispatch one `odoo-intent-extractor` per non-(a) commit with
 rebase MODE brief: ground at `<new-base>` HEAD, do NOT call cross-version `api_version_diff`.
 Pass `commit_dump_path: <abs-path>` in every extractor brief. Model per EXTRACT tier
@@ -291,7 +299,7 @@ stays at P12 (two review points total).
 
 **P10 - Verify (range-diff + dup-guard + conditional instance) [git-ops pre-step + odoo-diff-comparator sonnet + conditional odoo-instance-ops].**
 Two-step: (1) invoke git-ops to run `git range-diff <old-base>..<feature-tip>
-<new-base>..rb/<slug>` and write the output to `.odoo-ai/git-rebase/<slug>/range-diff.txt`
+<new-base>..rb/<slug>` and write the output to `<ISOLATE_DIR>/git-rebase/<slug>/range-diff.txt`
 (full brief: `references/rb-phase-detail.md` P10 pre-step); (2) dispatch `odoo-diff-comparator`
 (sonnet) with `diff_path:` pointing to the surveyor-written file to confirm every P4 intent is
 present and unchanged in meaning;

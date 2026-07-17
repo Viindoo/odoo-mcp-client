@@ -18,8 +18,8 @@ Optional: supply customer label on the command line (e.g., `Customer A`). If omi
 
 ## Hard rules
 
-- **Read context first**: Check `.odoo-ai/context.md` for CRM metadata and pipeline rules before drafting. This ensures the drafted email aligns with your deal context.
-- **Use what the caller already gave, then ask only for gaps**: deal details are usually already in the request (orchestrator structured data, or the sales user stating it) or in `.odoo-ai/context.md`. Never make a human retype what is present. Optionally enrich from a live CRM/ERP/email integration if one exists - but never assume one; this command must work for an agent with only the request text and local files. Ask **only** for fields still unresolved:
+- **Read context first**: Check `<SHARE_DIR>/context.md` for CRM metadata and pipeline rules before drafting (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). This ensures the drafted email aligns with your deal context.
+- **Use what the caller already gave, then ask only for gaps**: deal details are usually already in the request (orchestrator structured data, or the sales user stating it) or in `<SHARE_DIR>/context.md`. Never make a human retype what is present. Optionally enrich from a live CRM/ERP/email integration if one exists - but never assume one; this command must work for an agent with only the request text and local files. Ask **only** for fields still unresolved:
   - Customer label or short name (e.g., "ABC Manufacturing")
   - Last touch date - only if not already provided
   - Current pipeline stage - only if not already provided
@@ -31,7 +31,7 @@ Optional: supply customer label on the command line (e.g., `Customer A`). If omi
 
 ### Phase 0: Parse inputs and gather deal context
 1. Parse `$ARGUMENTS` for an optional customer label.
-2. Read `.odoo-ai/context.md` to load CRM metadata, pipeline rules, and any standing objection handlers.
+2. Read `<SHARE_DIR>/context.md` to load CRM metadata, pipeline rules, and any standing objection handlers.
 3. Pull deal details already present in the invocation context (caller-provided data, prior conversation) and pre-fill everything available. Optionally enrich from a live CRM/email integration only if one exists - never assume it.
 4. If the customer label is still unknown, ask: "Customer name or label?" Ask for any remaining unresolved field (last touch, stage, blockers) in a single batched message - never for data already supplied.
 
@@ -65,7 +65,7 @@ Ask explicitly: **"Email draft OK? Reply with `yes` to save, `iterate` to refine
 
 ### Phase 3: Write to disk and confirm
 On user "yes":
-1. Create directory `.odoo-ai/followups/` if it does not exist.
+1. Create directory `<ISOLATE_DIR>/followups/` if it does not exist.
 2. Slugify customer-label: lowercase, replace whitespace and non-alphanumeric with `-`, collapse repeats. Example: `ABC Manufacturing` → `abc-manufacturing`.
 3. Derive filename: `<slugified-customer-label>-<YYYY-MM-DD>.md` (e.g., `abc-manufacturing-2026-05-28.md`). If a file for today already exists for this customer, append a short suffix (e.g., `-v2`) or ask the user for a unique name.
 3. Write the draft to the file in Markdown format:
@@ -84,7 +84,7 @@ On user "yes":
    
    [email body]
    ```
-4. Confirm to user: `✓ Draft saved to .odoo-ai/followups/abc-manufacturing-2026-05-28.md`.
+4. Confirm to user: `✓ Draft saved to <ISOLATE_DIR>/followups/abc-manufacturing-2026-05-28.md`.
 
 ## Examples
 
@@ -96,7 +96,7 @@ If `odoo-deal-followup` skill is unavailable, do not hand the work back to the u
 
 ## What this command does NOT do
 
-- **Does NOT auto-send email**: it drafts to `.odoo-ai/followups/<slug>.md` and emits the path. Sending/queuing is the orchestrator/environment's job (whatever email integration it has) and always requires explicit confirmation.
+- **Does NOT auto-send email**: it drafts to `<ISOLATE_DIR>/followups/<slug>.md` and emits the path. Sending/queuing is the orchestrator/environment's job (whatever email integration it has) and always requires explicit confirmation.
 - **Does NOT change CRM/opportunity fields** (amount, stage) and assumes no live CRM. Logging back to a CRM, if desired, is the orchestrator's call.
 - **Does NOT handle objections directly**: for a technical/pricing objection use the `odoo-objection-handling` skill separately.
 - **Does NOT escalate**: no manager notification or workflow trigger.

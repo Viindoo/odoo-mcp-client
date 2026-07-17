@@ -28,7 +28,7 @@ run, test, or migration.
 
 1. The **`python` field of the matching `[[instance]]`** in the resolved `instances.toml`.
    Resolve the file per `snippets/instance-resolution.md` (machine-global
-   `~/.odoo-ai/instances.toml`), then read the interpreter:
+   `$ODOO_AI_HOME/instances.toml`), then read the interpreter:
 
    ```
    python3 <plugin>/scripts/lib/instances_io.py read <path-to-instances.toml> <series> [profile]
@@ -91,7 +91,10 @@ resolved above for the instance run - you do not need a separate toolchain for l
 
 ## Precedence over the `verify_python` context cache
 
-`.odoo-ai/context.md`'s `verify_python` field (see `snippets/context-bootstrap.md`) is a
+`<SHARE_DIR>/context.md`'s `verify_python` field (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit; see also
+`snippets/context-bootstrap.md`) is a
 non-authoritative HINT for READ-ONLY flows only - it can go stale once the venv it names moves,
 breaks, or is rebuilt after the field was cached. For ANY odoo-bin run, test, migration, or
 DB-mutating operation, re-resolve the interpreter per the resolution order above and confirm it

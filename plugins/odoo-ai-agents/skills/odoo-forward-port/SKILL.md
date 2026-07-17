@@ -164,7 +164,12 @@ commit. Worktrees are filesystem isolation, not a second agent-dispatch level.
 dispatched across the phases below (`odoo-intent-extractor`, `odoo-diff-comparator`,
 `odoo-installable-prober`, `odoo-test-writer`, etc.), fill the caller-side skeleton in
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target agent's family
-delta; never inline that file verbatim into a hard-leaf brief.
+delta; never inline that file verbatim into a hard-leaf brief. This pipeline dispatches leaves
+(P1/P8a/P8b etc.) that may run inside a JOB- or WORK-tier worktree rather than the principal - the
+general rule for resolving/threading `<SHARE_DIR>`/`<ISOLATE_DIR>` across such a target-vs-principal
+split is `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch; this
+pipeline's resolve-once-and-pass-the-slug pattern (below, and at each `<ISOLATE_DIR>/forward-port/
+<slug>/...` reference) already follows it.
 
 Run phases in order. Intent + classify + design + the Plan Mode gate ALL precede the merge -
 the plan is approved against the REAL triaged tiers and REAL buckets, never bucket-guesses.
@@ -193,8 +198,10 @@ design. Triage tier table: `references/fp-triage-table.md`.
 on extracted intent, not a guess. This is the only true parallel speed-up - and it is honored
 fully. Pre-step: invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only, no worktree)
 in a single batch pass to write per-commit dump files - for each commit in the range, a full-patch
-commit dump (message + diff) written to `.odoo-ai/forward-port/<slug>/commits/<sha>.dump`; collect
-the `{ <sha>: <abs-path> }` map. Include `repo: <main-checkout-root>` in the git-ops dispatch for cross-repo ports. Each
+commit dump (message + diff) written to `<ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump`
+(resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
+substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+Read/Write/Edit); collect the `{ <sha>: <abs-path> }` map. Include `repo: <main-checkout-root>` in the git-ops dispatch for cross-repo ports. Each
 extractor brief MUST include `commit_dump_path: <that path>` (the extractor mandates this field
 and never runs git itself).
 Dispatch one `odoo-intent-extractor` agent per commit using CHP Tier-B `subagent_type:
@@ -205,7 +212,7 @@ profile) and shares the parent's prompt cache, eliminating per-worker re-groundi
 worktree children needed - extraction is read-only; Tier B applies unconditionally here.
 Fallback (Tier C): if `subagent_type: "fork"` is unavailable, dispatch a fresh `general-purpose`
 spawn with an explicit brief (current behavior) - the worklog is always written regardless of tier.
-Each worker writes `.odoo-ai/forward-port/<slug>/intents/<sha>.md` (the why + behavioral contract +
+Each worker writes `<ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md` (the why + behavioral contract +
 OSM-grounded symbols, never the diff).
 Aggregate the returned summaries into the P2 classify queue.
 
@@ -229,9 +236,9 @@ AMBIGUOUS - OSM returned `installable:True` at the target AND the module manifes
 by the cherry-pick range, OR OSM was unreachable. Do NOT blanket-sweep every module: OSM already
 grounds categories 1-2, so a probe there is wasted. Pre-step before dispatch: invoke the
 `git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files - the clean-tip manifest (`<module>/__manifest__.py`
-at `target_ref`) to `manifest_path = .odoo-ai/forward-port/<slug>/installable/<module>/manifest.py`,
+at `target_ref`) to `manifest_path = <ISOLATE_DIR>/forward-port/<slug>/installable/<module>/manifest.py`,
 and the patched manifest history (log-with-patch of manifest modifications against `source_ref`) to
-`history_dump_path = .odoo-ai/forward-port/<slug>/installable/<module>/history.diff`. Include
+`history_dump_path = <ISOLATE_DIR>/forward-port/<slug>/installable/<module>/history.diff`. Include
 `repo: <main-checkout-root>` in the git-ops dispatch for cross-repo ports. Dispatcher inputs
 (canonical contract, pass exactly):
 `{ module, repo_root, source_ref, target_ref, target_version, manifest_path, history_dump_path }`.
@@ -282,7 +289,7 @@ JOB-tier integration worktree branched from B (Hard rule 1; dispatch contract: `
 Supply the branch name `fp/<slug>`, path `<path>/fp-integration`, and base `<target-branch>` in the
 brief. No branch is created before this point - everything up to and including the plan gate is read-only.
 
-THEN write `.odoo-ai/forward-port/<slug>/plan.md` (commit topology + per-commit tier + bucket +
+THEN write `<ISOLATE_DIR>/forward-port/<slug>/plan.md` (commit topology + per-commit tier + bucket +
 installable routing + design-doc links + merge batches) as the resume RECORD - the SSOT-of-record
 that later phases and the checkpoint/continuation read. plan.md is now a RECORD, not the gate;
 the gate is Plan Mode above. plan.md template: `references/fp-phase-detail.md` P4.
@@ -524,7 +531,7 @@ the narrow-escape condition above is explicitly met and recorded.**
 Gate tier: L2 (human) - present the acceptance verdict (or the recorded narrow-escape) ALONGSIDE
 the human-merge decision below so the human sees ONE combined gate, not a surprise extra step
 after merge is already requested.
-Output: `.odoo-ai/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
+Output: `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (`odoo-acceptance`'s own artifact), referenced
 from `merge-log.md`.
 
 Wait for human merge.
@@ -576,7 +583,7 @@ commit may be haiku to EXTRACT but opus to ADAPT if the target re-implementation
 
 ## Checkpoint / resume
 
-`.odoo-ai/forward-port/<slug>/checkpoint.json` maps
+`<ISOLATE_DIR>/forward-port/<slug>/checkpoint.json` maps
 `{<sha>: extracted | designed | adapted | verified | done}`, with `designed` carrying the
 `design_doc` path for any commit P3 routed to `odoo-solution-design`. P0 reads it and skips
 `status=done` commits (and resumes a `status=designed` commit at the P4 plan gate with its
@@ -668,7 +675,7 @@ contracts are unchanged - only the grounding source degrades.
 When the run finishes (or pauses at a gate), append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
 `produced` lists `plan.md`, `intents/<sha>.md`, `merge-log.md`,
-`.odoo-ai/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR
+`<ISOLATE_DIR>/qa/<slug>-acceptance-report.md`, `checkpoint.json`, and the PR
 URL; `next` is the human-confirm gate (P10, P11, or P12 merge). When P3 routes a commit out to design,
 `next: odoo-solution-design` with canonical payload
 `{ return_to: odoo-forward-port, design_slug_hint: <slug>-fp-<sha>, target_version: <series>,

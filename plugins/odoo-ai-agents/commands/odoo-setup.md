@@ -27,8 +27,9 @@ What it sets up:
    ever starting a process or paying idle RAM for it.
 3. **Permissions** - auto-allows the browser MCP tools in Claude permissions.
 4. **Instance profile** - discovers local Odoo repos via OSM-grounded propose-then-confirm,
-   writes the machine-global `~/.odoo-ai/instances.toml` (resolvable from any cwd by any agent
-   on this host).
+   writes the machine-global `$ODOO_AI_HOME/instances.toml` (resolvable from any cwd by any agent
+   on this host; see `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` for the full
+   Tier-1/SHARE/ISOLATE convention).
 5. **Instance spin-up** - launches a declared Odoo instance and waits for HTTP 200.
 
 ## Argument filter
@@ -66,7 +67,7 @@ Which parts of the Odoo visual workflow would you like to set up?
     browser deps, and auto-allow tool permissions (runs steps 10, 12, 20, 30)
 
 [ ] Declare + spin up a local Odoo instance - OSM-grounded propose-then-confirm
-    flow that writes ~/.odoo-ai/instances.toml and launches an Odoo process
+    flow that writes $ODOO_AI_HOME/instances.toml and launches an Odoo process
     (runs steps AI-1..AI-4 + 40 + optional 45 + 50)
 
 [ ] Reset instances.toml - backup then clean the instance registry
@@ -249,10 +250,11 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
    `import odoo`.**
 
    Candidate venv locations to scan (check in this order):
-   - The `python` field in `~/.odoo-ai/instances.toml` for the matching series
+   - The `python` field in `$ODOO_AI_HOME/instances.toml` for the matching series
      (if already set from a previous run).
-   - `venvs/<series>-<profile>` inside the plugin's `ODOO_AI_DIR` (per-profile
-     venv path written by `45 create-venv`).
+   - `venvs/<series>-<profile>` inside the project's Tier-2 SHARE dir
+     (`scripts/lib/resolve_project_dir.sh share`; per-profile venv path
+     written by `45 create-venv`).
    - Any path the user already named in this session.
 
    Two v8-v19-safe probes (the subagent only reads / runs `--version`, installs
@@ -317,7 +319,7 @@ Let `STEPS_DIR` = the `scripts/setup-steps/` directory inside this plugin
       `apply`; you may still surface a heads-up first.)
    c. On `Y`: run `"$s" apply` and stream its output to the user.
       - For `50-instance-spinup`, pass `--version <X.Y>` if the user confirmed
-        one at CONFIRM #5 (or one was discovered in `~/.odoo-ai/instances.toml`).
+        one at CONFIRM #5 (or one was discovered in `$ODOO_AI_HOME/instances.toml`).
       - If `apply` exits `2` → it is a refuse-to-corrupt signal (invalid JSON
         target). Surface the stderr verbatim and STOP that step; do not retry,
         do not delete anything.
@@ -389,7 +391,7 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   step 10/12's job.
 - **30-permissions** - appends browser tool prefixes to `permissions.allow[]`
   in `$CLAUDE_SETTINGS` = `~/.claude/settings.json`. Asks [Y/n] itself.
-- **40-instance-profile** - writes `~/.odoo-ai/instances.toml` as
+- **40-instance-profile** - writes `$ODOO_AI_HOME/instances.toml` as
   `[[instance]]` array-of-tables entries from the confirmed spec passed via
   `ODOO_AI_PROFILE_SPEC` (a JSON array of instance objects). Step `40` does
   NOT auto-discover or auto-write; it refuses `apply` without a confirmed
@@ -397,10 +399,13 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   user-confirmed mapping (AI-1..AI-3) and passes it as env before `40 apply`.
   addons_path ordering is own-repos-first → ancestor → core-last; the user may
   reorder at CONFIRM #3. The file is machine-global (resolvable from any cwd);
-  a project-local `./.odoo-ai/instances.toml` is honored only as a transitional
-  fallback. Step 40 also gitignores the project `.odoo-ai/` and writes a
-  defensive `~/.odoo-ai/.gitignore`. Backup + idempotent.
-  Also seeds `~/.odoo-ai/i18n.json` (idempotent, no-clobber) with `{"default_languages":["vi_VN"]}` -
+  a project-local `./.odoo-ai/instances.toml` (pre-migration legacy location) is
+  honored only as a transitional migration source, folded into the machine-global
+  catalog automatically. Step 40 also gitignores the legacy project-relative
+  `.odoo-ai/` directory (a repo-relative gitignore glob, distinct from the
+  machine-global state root - left as-is) and writes a defensive
+  `$ODOO_AI_HOME/.gitignore`. Backup + idempotent.
+  Also seeds `$ODOO_AI_HOME/i18n.json` (idempotent, no-clobber) with `{"default_languages":["vi_VN"]}` -
   the machine-global default translation-language registry for the odoo-i18n cluster. Edit this file
   to add or remove languages (e.g. `["vi_VN","en_US"]`).
 - **45-venv** *(optional, source instances only - offered between 40 and 50)* -
@@ -410,7 +415,7 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   1. Show the recommended Python: `"$STEPS_DIR/45-venv.sh" suggest <series>`.
   2. Then let the user choose:
      - **Reuse an existing venv** - set the `python` field on the matching
-       `[[instance]]` in `~/.odoo-ai/instances.toml`, or export `ODOO_PYTHON`.
+       `[[instance]]` in `$ODOO_AI_HOME/instances.toml`, or export `ODOO_PYTHON`.
        Step 50 prefers the `python` field, then `ODOO_PYTHON`, then `python3`.
      - **Build a new venv** (opt-in; needs system build deps):
        `"$STEPS_DIR/45-venv.sh" create-venv --series <X.Y> --profile <name> --tool uv|pip [--python <VER>] [--requirements <path>] ...`
@@ -500,5 +505,8 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
 - `/odoo-semantic-mcp:connect` - connect the Odoo Semantic MCP *server*
   (different scope: that is the indexing backend; this command wires the
   *browser* MCP servers + local Odoo instances for the visual workflow).
-- `odoo-onboarding` skill - writes `.odoo-ai/context.md` (project Odoo version /
-  modules / conventions); complementary to this command's `instances.toml`.
+- `odoo-onboarding` skill - writes `<SHARE_DIR>/context.md` (project Odoo version /
+  modules / conventions; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute
+  path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); complementary
+  to this command's `instances.toml`.

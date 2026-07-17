@@ -39,7 +39,9 @@ Six gated phases (Pipeline pattern):
 | 5 - Assemble proposal | inline | yes - save / iterate / cancel |
 | 6 - Output | inline (write file) | - |
 
-Output lands in `.odoo-ai/bids/<customer_label>-<YYYY-MM-DD>.md`.
+Output lands in `<ISOLATE_DIR>/bids/<customer_label>-<YYYY-MM-DD>.md` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>`
+once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
+absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
 
 For full phase specifications, gate behavior, standalone fallback rules, hard rules
 (abstract labels, no external writes before Gate 5, no email sending), and examples -

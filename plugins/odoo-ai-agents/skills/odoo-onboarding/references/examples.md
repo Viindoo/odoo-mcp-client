@@ -5,28 +5,28 @@
 User prompt: "I just cloned this Odoo repo - set up context for me"
 
 Skill flow:
-1. Pre-flight: no `.odoo-ai/context.md` → continue.
+1. Pre-flight: no `<SHARE_DIR>/context.md` → continue (resolve `<SHARE_DIR>` per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`).
 2. Detect root: 12 manifests found under `./` → root inferred as `.`.
 3. Version probe: server returns [8.0..19.0]; user picks 17.0.
 4. Profile probe: server returns [odoo_17, viindoo_17, ...]; default = viindoo_17 (because `viin_*` prefix detected in Step 4 will run after - for now, ask user).
 5. Module discovery: 12 modules; 10 have `viin_` prefix, 2 are `custom_*`.
 6. Conventions: prefix=`viin_`, field=`snake_case`, branch=`feature/<slug>`.
 7. Pins set: version=17.0, profile=standard_viindoo_17.
-8. Write `.odoo-ai/context.md` + add `.gitignore` line.
+8. Write `<SHARE_DIR>/context.md` + add `.gitignore` line.
 9. Verify + ask notes.
 
 Output:
 ```
 ✓ Onboarding complete
 
-**Project context** saved to `.odoo-ai/context.md`:
+**Project context** saved to `<SHARE_DIR>/context.md`:
 - Odoo version: 17.0
 - Profile: viindoo_17
 - Modules detected: 12 (top: viin_sale_advance, viin_account_vat, viin_purchase_advance)
 - Module prefix: viin_
 - Lint: ruff line-length=120, JS=web/tooling
 
-`.gitignore` updated to exclude `.odoo-ai/`.
+`.gitignore` updated to exclude a stray local `.odoo-ai/` (defensive - current agent state lives under `$ODOO_AI_HOME`, not here).
 
 Suggest next: Run `odoo-customization-inventory` to list all 12 modules and assess their business purpose.
 ```
@@ -48,7 +48,7 @@ Skill flow:
 
 ## Example 3 - Refresh existing context
 
-User prompt: "initialize Odoo context" (but `.odoo-ai/context.md` already exists, last_updated yesterday)
+User prompt: "initialize Odoo context" (but `<SHARE_DIR>/context.md` already exists, last_updated yesterday)
 
 Skill flow:
 1. Pre-flight: context exists, last_updated 2026-05-27 (1 day ago, fresh) → output: "Context already exists (updated 2026-05-27). Refresh? (yes/no)". User says "no" → end.

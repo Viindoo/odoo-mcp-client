@@ -37,9 +37,10 @@ execute.
 | 10 | `RETURN_BUDGET` | COND - recommended for research/analysis | Cap on the returned summary length/time-box. |
 
 `odoo_version` and `viindoo_profile` are NOT skeleton fields - they are carried per
-`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` (read `.odoo-ai/context.md` first; ask the
-caller only when absent). This file references that snippet rather than re-specifying those two
-fields.
+`${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` (resolve the Tier-2 SHARE dir per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`'s resolve-capture-substitute protocol
+and read `context.md` there first - never a bare `.odoo-ai/context.md` literal; ask the caller
+only when absent). This file references that snippet rather than re-specifying those two fields.
 
 ## Role-family deltas (additive on the skeleton)
 

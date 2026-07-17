@@ -31,7 +31,8 @@ a user approves a multi-step workflow plan at the soft-plan-gate.
    "Do NOT invoke spawner skills via the Skill tool. Do NOT spawn sub-agents. You MAY use the Skill tool for read-only leaf skills (e.g. odoo-feature-check, odoo-override-finding). Only Read/Grep/Glob/Write/Bash."
 4. **No execution before gate.** Emit a gate before each phase; wait for approval.
 5. **Resume from checkpoint.** If `resume: true` and `<output_dir>/<slug>-state.json` exists
-   (`output_dir` is the full `.odoo-ai/...` path from the YAML), load it and skip done phases.
+   (`output_dir` is the full `.odoo-ai/...` path from the YAML - see Phase 0 step 2 for how it
+   resolves to a real location), load it and skip done phases.
 6. **SSOT for schema** → `workflows/_schema.md`. This body describes behavior, not schema.
 7. **on_complete EMITs, never dispatches.** Matched transitions go to Continuation Contract
    `next[]` for the run-harness - this skill never fires a spawner itself.
@@ -39,10 +40,16 @@ a user approves a multi-step workflow plan at the soft-plan-gate.
 ## Phase 0 - Load and validate
 
 1. Read the referenced `workflows/<name>.workflow.yaml` file.
-2. Read `.odoo-ai/context.md` if it exists (Odoo version, profile defaults).
-3. If `resume: true`, check for `<output_dir>/<slug>-state.json` (the `output_dir`
-   already includes the `.odoo-ai/` prefix); if found, load it and determine the last
-   completed phase.
+2. Resolve the run's state root once, via the resolve-capture-substitute protocol in
+   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`: `output_dir:` from the YAML is a
+   relative `.odoo-ai/<name>` literal that this skill resolves against the Tier-2 **ISOLATE**
+   dir (`scripts/lib/resolve_project_dir.sh isolate`) at RUNTIME - the YAML literal itself and
+   the generator's `output_dir` must-start-with-`.odoo-ai/` assertion are intentionally
+   UNCHANGED; only the runtime resolution moved off a bare project-relative path. Read
+   `context.md` under the resolved SHARE dir if it exists (Odoo version, profile defaults).
+3. If `resume: true`, check for `<output_dir>/<slug>-state.json` under the resolved ISOLATE dir
+   (the captured absolute path substitutes for the `output_dir` prefix from the YAML); if found,
+   load it and determine the last completed phase.
 4. Collect any missing `inputs[]` from the user (one question per missing input).
 5. Emit the **soft-plan-gate** header before any phase runs:
 
@@ -142,8 +149,10 @@ For `inline: true` phases, the runner performs the work itself:
 ## Resume logic
 
 After each phase completes successfully:
-1. Write or update `<output_dir>/<slug>-state.json` (`output_dir` already starts with
-   `.odoo-ai/` - do not prepend it again):
+1. Write or update `<output_dir>/<slug>-state.json` under the resolved ISOLATE dir from Phase 0
+   step 2 (`output_dir` already starts with `.odoo-ai/` in the YAML - do not prepend it again;
+   substitute the captured ISOLATE literal for that prefix, never a bare `.odoo-ai/...` path in
+   the actual Read/Write/Edit call):
    ```json
    {
      "workflow": "<name>",

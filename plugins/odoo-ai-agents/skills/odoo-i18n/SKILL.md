@@ -76,7 +76,9 @@ the instance requirement is absolute and never degrades to a no-DB path.
 
 Run phases in order. Each phase names its model tier; dispatch follows
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` (Mode B) for any fan-out. Artifacts land
-under `.odoo-ai/i18n/<slug>-<date>/`. The full non-destructive recipe (every command, the
+under the Tier-2 ISOLATE dir; resolve it via the resolve-capture-substitute protocol in
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<ISOLATE_DIR>`
+below) - `<ISOLATE_DIR>/i18n/<slug>-<date>/`. The full non-destructive recipe (every command, the
 diff-review reconcile, the validation gates, the glossary) lives in `references/i18n-recipe.md`.
 
 **P0 - Scope gate [sonnet, STOP].** Resolve the target language list by precedence (highest first),
@@ -107,10 +109,12 @@ approval in a single turn before any export or DB op.
 
 **P1 - Glossary build [haiku or sonnet].** Assemble the translation memory the later phases reuse:
 read the already-translated `<lang>.po` of core Odoo and the module's dependency modules, load the
-project `.odoo-ai/glossary.yml` (domain/regulatory terms + their source citation), and for any
+project `glossary.yml` (domain/regulatory terms + their source citation) - Tier-2 SHARE, resolved
+via the same `state-root-resolution.md` protocol (captured path shown as `<SHARE_DIR>` below):
+`<SHARE_DIR>/glossary.yml` - and for any
 field-mapped term confirm the canonical label via OSM (see the glossary layer in the recipe). Build
 the TM **per language** (one independent memory per language, covering all in-scope modules). Write
-each assembled TM to `.odoo-ai/i18n/<slug>-<date>/glossary-tm-<lang>.json` (one file per target
+each assembled TM to `<ISOLATE_DIR>/i18n/<slug>-<date>/glossary-tm-<lang>.json` (one file per target
 language). Do NOT share or merge TM across languages. Sonnet when the scope spans domain/regulatory
 terminology; haiku for a plain module.
 
@@ -158,7 +162,7 @@ auto-dedup. Critically, legally independent regimes (e.g. the Vietnam accounting
 TT133 / TT99) MUST NOT be deduped even when their `msgid`s match - each regime's translation stays
 complete and self-standing, and an incidental string match is never a reason to share or rewrite a
 translation across regimes. Write findings per language to
-`.odoo-ai/i18n/<slug>-<date>/consistency-audit-<lang>.md` (one file per target language).
+`<ISOLATE_DIR>/i18n/<slug>-<date>/consistency-audit-<lang>.md` (one file per target language).
 
 ## Dispatch contract -> odoo-translator
 
@@ -196,7 +200,7 @@ re-export preserves it, and it must be added manually when entries are written b
 
 ## Artifacts
 
-All under `.odoo-ai/i18n/<slug>-<date>/`:
+All under `<ISOLATE_DIR>/i18n/<slug>-<date>/`:
 
 - `glossary-tm-<lang>.json` - assembled translation memory per target language (P1; one file per
   language; TM of one language is never shared with another)

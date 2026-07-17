@@ -2,15 +2,22 @@
 
 `instances.toml` declares the local Odoo instances on THIS host - series,
 `http_port`, `db_port`, `db_host`/`db_user`/`db_name`, `addons_path`, and the venv `python`.
-It is **machine-global**, not project-scoped: an execute-agent has no guaranteed
-working directory, so the instance profile must be findable from any cwd. (Every
-other `.odoo-ai/` artifact - `context.md`, `survey/`, `worklog/`, ... - stays
-project-scoped under `./.odoo-ai/`.)
+It is **Tier-1 - flat under `$ODOO_AI_HOME`**, not project-scoped: an execute-agent has no
+guaranteed working directory, so the instance profile must be findable from any cwd, and
+namespacing it per project/worktree would fragment one host's instance catalog into copies.
+Every OTHER `.odoo-ai/`-rooted artifact - `context.md`, `survey/`, `worklog/`, ... - is
+project- or worktree-scoped under the two-axis `$ODOO_AI_HOME/projects/<repo-key>/[worktrees/<wt-key>/]`
+convention, **never** a project-relative `./.odoo-ai/`. Full Tier-1/SHARE/ISOLATE
+classification tables + the resolve-capture-substitute protocol every consumer follows:
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (SSOT - do not restate the tables
+here).
 
 ## Resolution order (stop at the first that yields a usable instance)
 
-1. **`instance_base_url` in `./.odoo-ai/context.md`** - a project may pin a
+1. **`instance_base_url` in `<SHARE_DIR>/context.md`** - a project may pin a
    specific running instance for its own work; this project override wins when present.
+   (Resolve `<SHARE_DIR>` per the resolve-capture-substitute protocol in
+   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before reading it.)
 2. **A live SHARED server in the allocator registry** - before deriving a URL from the
    static catalog, ask whether a render server is already running for the series. Its
    ACTUAL bound port may differ from the declared `http_port`, and it is visible across
@@ -20,12 +27,11 @@ project-scoped under `./.odoo-ai/`.)
    # emits ALLOC_PORTS (the actual bound port) + ALLOC_DB_NAME when a live shared server exists; rc=1 when none
    ```
    When present, use `instance_base_url = http://localhost:<ALLOC_PORTS>`.
-3. **`$ODOO_AI_INSTANCES`** - an explicit full path to an `instances.toml`
-   (set in the environment; used by tests / non-standard layouts).
-4. **`$HOME/.odoo-ai/instances.toml`** - the machine-global profile written by
-   `/odoo-ai-agents:odoo-setup`. This is the canonical source; prefer it.
-5. **`./.odoo-ai/instances.toml`** - a project-local profile, only as a
-   transitional fallback when no machine-global file exists yet.
+3. **`instances.toml`, resolved via `scripts/lib/resolve_instances.sh`** - the helper
+   already applies the machine-global SSOT with its internal override/fallback order
+   (`$ODOO_AI_INSTANCES` explicit override -> machine-global `$ODOO_AI_HOME/instances.toml`
+   written by `/odoo-ai-agents:odoo-setup` -> a transitional project-local copy only when no
+   global file exists yet); consumers reference the resolver, not the individual paths.
 
 Each `[[instance]]` entry may include an optional `profile` field (a short name
 like `"community"` or `"enterprise"`) and an `instance_key` (a stable key

@@ -48,19 +48,32 @@ For a sibling git worktree (wave/forward-port integration tree), the orchestrato
 
 ## Phase 0 - Scope the review (git targets only)
 
-**Pre-resolution for `TARGET=pr:<N>` (before dispatching the scoper)** - resolve the PR to an isolated worktree via the `git-toolkit:git-ops` skill (delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
+**Resolve `review_root` first (all TARGET kinds), before resolving any state dir:**
+- `TARGET=local` -> `review_root` = this skill's own cwd (`git rev-parse --show-toplevel`).
+- `TARGET=worktree:<abs-path>` -> `review_root` = `<abs-path>` (given directly in `TARGET`).
+- `TARGET=pr:<N>` -> resolved by the pre-resolution step below.
+
+**Pre-resolution for `TARGET=pr:<N>` (before resolving state dirs or dispatching the scoper)** - resolve the PR to an isolated worktree via the `git-toolkit:git-ops` skill (delegation contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
 1. Invoke `git-toolkit:git-ops` to fetch PR metadata + changed-file list: `pr_meta = {number, title, head, base, repo}`, `pr_changed_files = [<path>, ...]`.
 2. Invoke `git-toolkit:git-ops` to create an isolated worktree (`/tmp/pr-review-<N>`, S9 - never the main checkout) with the PR branch checked out; receive `review_root`.
 
-Pass `review_root`, `pr_meta`, `pr_changed_files` into the scoper brief (the scoper no longer resolves these).
+**Resolve the review's state dirs ONCE, against `review_root` (cross-worktree dispatch rule - SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).** THIS skill is the dispatcher for the whole pipeline (scoper + every per-module reviewer + ui-reviewer + synthesis), so it resolves once here and threads the captured literals through every leg below - no leg re-resolves from its own inherited cwd, which would diverge from `review_root` for `worktree`/`pr` targets:
+```
+bash -c "cd <review_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share"
+bash -c "cd <review_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh isolate"
+```
+Capture both printed absolute paths as `SHARE_DIR` / `ISOLATE_DIR` for the rest of this run. Pass them as explicit `SHARE_DIR:` / `ISOLATE_DIR:` fields into EVERY dispatch brief below (scoper, per-module reviewer, synthesis, ui-reviewer, domain synthesis) - every leaf CONSUMES these literals verbatim and MUST NOT re-resolve from its own cwd.
+
+Pass `review_root`, `pr_meta`, `pr_changed_files`, `SHARE_DIR`, `ISOLATE_DIR` into the scoper brief.
 
 Dispatch agent `odoo-review-scoper` (sonnet) per the SCOPER I/O CONTRACT (SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Pass:
 - `TARGET:` - `local` | `worktree:<abs-path>` | `pr:<number-or-url>` (for `pr`, also `review_root`, `pr_meta`, `pr_changed_files`)
 - `BASE:` - default `master`
 - `odoo_version:` - target series
 - `USER LANGUAGE:` - language for the scoper's output
+- `SHARE_DIR:` / `ISOLATE_DIR:` - the absolute paths captured above; the scoper writes `_scope.md` under `<ISOLATE_DIR>/reviews/<slug>-<date>/` using THESE literals, never its own re-resolution.
 
-The scoper writes `.odoo-ai/reviews/<slug>-<date>/_scope.md` and returns the compact scope. Do NOT run git diff inline, map `__manifest__.py`, or call `test_coverage_audit` in main context - the scoper handles all of it.
+The scoper writes `<ISOLATE_DIR>/reviews/<slug>-<date>/_scope.md` and returns the compact scope. Do NOT run git diff inline, map `__manifest__.py`, or call `test_coverage_audit` in main context - the scoper handles all of it.
 
 Scope output fields used by main: full field schema per Step 6 of the scoper I/O contract (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Key dispatch behaviors:
 
@@ -75,13 +88,13 @@ Decide review topology from `fanout`: `single` → one reviewer pass; `multi` �
 
 ## Single module (the common case)
 
-Dispatch ONE `odoo-code-reviewer` agent (sonnet). It writes its report to `.odoo-ai/reviews/<slug>-<date>/<module>.md`. No synthesis pass needed for a single module. When `module.needs_ui_review` is `true` or `candidate`, add `UI_REVIEW=delegated` to the reviewer brief and run Phase A.5 (same instance-check + dispatch) after the reviewer completes.
+Dispatch ONE `odoo-code-reviewer` agent (sonnet), passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0. It writes its report to `<ISOLATE_DIR>/reviews/<slug>-<date>/<module>.md` using those literals - it does not re-resolve. No synthesis pass needed for a single module. When `module.needs_ui_review` is `true` or `candidate`, add `UI_REVIEW=delegated` to the reviewer brief and run Phase A.5 (same instance-check + dispatch, same captured `SHARE_DIR`/`ISOLATE_DIR`) after the reviewer completes.
 
 ## Multi-module - fan-out, then integration synthesis
 
 ### Phase A - Per-module fan-out (parallel sonnet)
 
-Dispatch one `odoo-code-reviewer` agent per module in `modules[]`, all in one batch. Concurrency is bounded by the harness automatically - do NOT set a manual wave-cap (policy SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Each agent is scoped to ONLY its module, reads files at `review_root`, writes `<module>.md` to `.odoo-ai/reviews/<slug>-<date>/`, and returns a short summary + path.
+Dispatch one `odoo-code-reviewer` agent per module in `modules[]`, all in one batch, each carrying the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0. Concurrency is bounded by the harness automatically - do NOT set a manual wave-cap (policy SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Each agent is scoped to ONLY its module, reads files at `review_root`, writes `<module>.md` to `<ISOLATE_DIR>/reviews/<slug>-<date>/` using the passed literal, and returns a short summary + path.
 
 When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per work-item, inject TASK_ID + REPLY_TO: <this skill's current orchestrating context> (this skill runs INLINE in whatever invoked it - that context IS `main` when the main-context driver invoked it, per CHP capability-probe condition 4; do NOT hardcode a literal `main` if you are running inside a non-lead agent) + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet, and read each result from the teammate's SendMessage push (NEVER from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md` (defense-in-depth; see also `${CLAUDE_PLUGIN_ROOT}/snippets/spawner-completion-contract.md` R3). When off, dispatch + collect inline.
 
@@ -97,8 +110,8 @@ When the CHP capability probe is positive (Agent Team mode on), TaskCreate one t
 
 For each module with `needs_ui_review` (`true` or `candidate`), plus each dependent module the `render_check_set` flags:
 - **For a `candidate` module**, first read its `<module>.md` and check `ui_review_required`; skip the ui-reviewer dispatch when it is `false` or absent (the reviewer already resolved the Python change is not view-bound).
-- **Resolve an instance.** Read `instance_base_url` from `.odoo-ai/context.md`, else `~/.odoo-ai/instances.toml` (project `./.odoo-ai/instances.toml` is a transitional fallback; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`), and confirm a browser MCP is reachable.
-- **Instance reachable** → dispatch one `odoo-ui-reviewer` (sonnet) scoped to that module's screens from the `render_check_set` (changed-module `affected_screens` plus the dependent screens that bind a changed symbol), briefing `ARTIFACT_DIR: .odoo-ai/reviews/<slug>-<date>/` and `ARTIFACT_FILE: ui-review-<module>.md` (brief template in `references/agent-prompts.md`). These run in parallel; each `ui-review-<module>.md` feeds Phase B synthesis.
+- **Resolve an instance.** Read `instance_base_url` from `<SHARE_DIR>/context.md` (the SAME `SHARE_DIR` captured in Phase 0), else `$ODOO_AI_HOME/instances.toml` (SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`), and confirm a browser MCP is reachable.
+- **Instance reachable** → dispatch one `odoo-ui-reviewer` (sonnet) scoped to that module's screens from the `render_check_set` (changed-module `affected_screens` plus the dependent screens that bind a changed symbol), passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0 and briefing `ARTIFACT_DIR: <ISOLATE_DIR>/reviews/<slug>-<date>/` (the captured literal, not the placeholder) and `ARTIFACT_FILE: ui-review-<module>.md` (brief template in `references/agent-prompts.md`). These run in parallel; each `ui-review-<module>.md` feeds Phase B synthesis.
 - **No instance / browser unreachable** → do NOT block, and do NOT let the UI dimension drift silently. Write `ui-review-<module>.md` holding `UI review REQUIRED - no running instance (render_check_set: [...])`, mark the run `DONE_WITH_CONCERNS` for the UI dimension, AND emit `next: odoo-acceptance` (see below) so the dependent cluster is verified opt-in rather than skipped.
 
 **Emit the acceptance hand-off (L2, opt-in).** Whenever the `render_check_set` reaches beyond the changed modules (dependents bind a changed symbol) OR the rendered-UI dimension is left `DONE_WITH_CONCERNS` (no instance), add a `next` entry to this skill's Continuation Contract (the same contract carrying `produced[]`):
@@ -107,7 +120,7 @@ For each module with `needs_ui_review` (`true` or `candidate`), plus each depend
 next:
   - skill: odoo-acceptance
     reason: change touches a UI/behavior surface with dependents (render_check_set beyond the changed modules); run blast-radius acceptance over the affected cluster
-    inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: ".odoo-ai/qa/<slug>-scope.md", odoo_version: "<version>"}
+    inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: "<ISOLATE_DIR>/qa/<slug>-scope.md", odoo_version: "<version>"}
     confidence: 0.7
     gate_tier: L2
 ```
@@ -119,7 +132,7 @@ Opt-in: it surfaces the verdict + recommended acceptance pass for an L2 (human) 
 Pick the synthesis topology by scale - default threshold **~8 modules** (adjustable: lower it when per-module reports are unusually large and the combined set would overflow one opus context).
 
 **Small set (`len(modules)` ≤ ~8 and reports fit one context) - single pass:**
-Dispatch ONE `odoo-code-reviewer` at **opus**. Scope = full **dependency closure** from OSM:
+Dispatch ONE `odoo-code-reviewer` at **opus**, passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0. Scope = full **dependency closure** from OSM:
 - **Forward closure:** walk `module_inspect(name=<m>, method='dependencies', odoo_version='<version>')` transitively.
 - **Reverse closure:** `impact_analysis(...)` on changed modules, walked transitively.
 
@@ -127,8 +140,8 @@ It reviews only what per-module legs cannot: override-chain conflicts, inheritan
 
 **Large set (`len(modules)` > ~8 or reports overflow one context) - domain-partition:**
 1. **Group by business domain** - classify each module with OSM `describe_module` (fall back to the manifest `category` on disk) into business-domain buckets (e.g. Accounting/Finance, Sales/CRM, Purchase, Inventory/Logistics, MRP, HR/Payroll, Project/Helpdesk, eCommerce/Website, Core/Base).
-2. **Per-domain synthesis** - for each bucket, dispatch one `odoo-code-reviewer` at **opus** (`MODE=synthesis`, scoped to that bucket): it reads only that bucket's `<module>.md` + `ui-review-<module>.md`, computes the closure WITHIN the bucket, and writes `domain-<d>.md`.
-3. **Final cross-domain synthesis** - dispatch ONE final `odoo-code-reviewer` at **opus** that `Read`s every `domain-<d>.md`, computes cross-domain closure (inter-domain field/API contracts, load-order, ripple), and writes `_synthesis.md` with the overall verdict + score.
+2. **Per-domain synthesis** - for each bucket, dispatch one `odoo-code-reviewer` at **opus** (`MODE=synthesis`, scoped to that bucket, passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0): it reads only that bucket's `<module>.md` + `ui-review-<module>.md`, computes the closure WITHIN the bucket, and writes `domain-<d>.md`.
+3. **Final cross-domain synthesis** - dispatch ONE final `odoo-code-reviewer` at **opus** (same captured `SHARE_DIR:`/`ISOLATE_DIR:`) that `Read`s every `domain-<d>.md`, computes cross-domain closure (inter-domain field/API contracts, load-order, ripple), and writes `_synthesis.md` with the overall verdict + score.
 
 (The per-domain and final cross-domain passes use the two domain-synthesis brief templates in `references/agent-prompts.md`.)
 
@@ -136,7 +149,7 @@ It reviews only what per-module legs cannot: override-chain conflicts, inheritan
 
 ## Artifacts
 
-All output under `.odoo-ai/reviews/<slug>-<YYYY-MM-DD>/` (gitignored). Slug comes from scoper `slug` field; every phase agent (scoper, per-module reviewer, ui-reviewer, domain + final synthesis) writes ONLY into this directory:
+All output under `<ISOLATE_DIR>/reviews/<slug>-<YYYY-MM-DD>/` (gitignored) - the SAME `<ISOLATE_DIR>` resolved ONCE against `review_root` in Phase 0 and threaded, as a captured literal, through every dispatch brief below (§Phase 0; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch). Slug comes from scoper `slug` field; every phase agent (scoper, per-module reviewer, ui-reviewer, domain + final synthesis) writes ONLY into this directory, using the passed-in literal, never a fresh re-resolution:
 - `_scope.md` - scoper output (written by scoper agent)
 - `<module>.md` - per-module review (or single-module review); each contains VERDICT + SCORE per the `odoo-code-reviewer` agent output contract (SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-code-reviewer.md`)
 - `ui-review-<module>.md` - rendered-UI six-lens review for a `needs_ui_review` module (Phase A.5); when no instance was available it holds the `UI review REQUIRED - no running instance` placeholder (run is `DONE_WITH_CONCERNS` for UI)
@@ -194,6 +207,7 @@ Full prompt templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/references
 Key constraints for each dispatched agent:
 - Per-module (sonnet): write `<module>.md`, light bidirectional-impact pass, platform-design check, flag unprotected behavior. Return 5-line summary + path.
 - Synthesis (opus): cross-module closure only; read per-module reports on disk; write `_synthesis.md`. Return summary + path.
+- Every dispatched agent (scoper, per-module/synthesis reviewer, ui-reviewer) receives the `SHARE_DIR:`/`ISOLATE_DIR:` literals captured once in Phase 0 and MUST use them directly for every Tier-2 path - it does NOT re-resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` from its own cwd (§Phase 0; SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch).
 - Each agent: restricted tools, writes only its own artifact, does NOT spawn subagents. `odoo-code-reviewer` MAY invoke the Skill tool inline, but only for its own dedicated-audit escalation (see `agents/odoo-code-reviewer.md`); every other dispatched agent (scoper, ui-reviewer) still does NOT invoke Skill tool.
 - Guidelines: reviewer reads `<version>/INDEX.md` index-first, consults the "By task" table, reads ONLY the files mapping to the changed file types (not all 6 topic files; full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`).
 
@@ -219,7 +233,7 @@ The ONLY case where you emit a Continuation Contract `next` and let a driver adv
 
 ## Continuation Contract
 
-Before finishing, APPEND your significant findings/decisions to the run worklog (`.odoo-ai/worklog/<run-or-slug>/`) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`.
+Before finishing, APPEND your significant findings/decisions to the run worklog (`<ISOLATE_DIR>/worklog/<run-or-slug>/`) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`.
 
 When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set `produced` to the paths actually written; decide the `next` arm by what the review found (test-discipline SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md`).
 **The `next:` entries below are the audit record AND the run-harness path - NOT a substitute for the direct Skill-tool invoke in § Autonomous fix loop.** With NO run-harness active you have ALREADY invoked the target; `next:` advances nothing on its own, so **never stop at it**.

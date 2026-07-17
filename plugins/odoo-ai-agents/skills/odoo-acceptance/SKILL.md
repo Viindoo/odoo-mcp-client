@@ -92,15 +92,17 @@ artifact path below.
 Build the verify-scope manifest per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`: reverse
 `impact_analysis` closure on the changed set -> rank each dependent module/screen by risk
 (likelihood x impact) -> enumerate the affected screens (views binding a changed symbol) -> emit
-`install_set` / `test_set` / `render_check_set`. Write it to `.odoo-ai/qa/<slug>-scope.md`. This is
-the scope every later phase obeys - depth on High tier, smoke on Low.
+`install_set` / `test_set` / `render_check_set`. Resolve the Tier-2 ISOLATE dir per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`'s resolve-capture-substitute protocol
+(captured path shown as `<ISOLATE_DIR>` below) and write it to `<ISOLATE_DIR>/qa/<slug>-scope.md`.
+This is the scope every later phase obeys - depth on High tier, smoke on Low.
 
 ## Phase 1 - PLAN (independent oracle)
 
 Dispatch `odoo-qa-planner` (tier per the model-tier SSOT - sonnet default; escalate ONLY when the requirement spans multiple hard business domains with heavy cross-module coupling, never for cluster width or scenario count alone) with
 `REQUIREMENT` (+ DESIGN_DOC §1/§9 when present), `odoo_version`, `CHANGED_SET`, the `SCOPE_MANIFEST`
 path, and
-`SCENARIOS_PATH: .odoo-ai/qa/<slug>-scenarios.md`. It returns the immutable oracle (GWT +
+`SCENARIOS_PATH: <ISOLATE_DIR>/qa/<slug>-scenarios.md`. It returns the immutable oracle (GWT +
 EP/BVA/negative + role/CRUD/state/search matrices, risk-tagged). The planner derives `expected` from
 the requirement only - it never reads the implementation to decide it.
 
@@ -131,7 +133,7 @@ channel may overlap Phase 2a, which uses no browser).
 
 - **High-tier screens (deep):** for each High-tier module dispatch ONE `odoo-qa-tester` with
   `ORACLE_PATH`, the `INSTANCE_HANDLE`, that module's `SCOPE` (screens + roles), `BROWSER_MODE`, and
-  `REPORT_PATH: .odoo-ai/qa/<slug>-acceptance-report.md`. It drives real CRUD + at least two roles +
+  `REPORT_PATH: <ISOLATE_DIR>/qa/<slug>-acceptance-report.md`. It drives real CRUD + at least two roles +
   state transitions + search on each in-scope screen and adjudicates PASS/FAIL/UNVERIFIED with
   evidence. Optionally, in the same serial slot, dispatch `odoo-ui-reviewer` for that module's screens
   for the read-only one-screen quality verdict (distinct from the tester's behavior verdict; do not
@@ -163,9 +165,9 @@ is still leased. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-co
 
 ## Output
 
-- `.odoo-ai/qa/<slug>-scope.md` - the verify-scope manifest
-- `.odoo-ai/qa/<slug>-scenarios.md` - the immutable oracle (planner)
-- `.odoo-ai/qa/<slug>-acceptance-report.md` - per-scenario verdict + evidence + bug list (tester),
+- `<ISOLATE_DIR>/qa/<slug>-scope.md` - the verify-scope manifest
+- `<ISOLATE_DIR>/qa/<slug>-scenarios.md` - the immutable oracle (planner)
+- `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` - per-scenario verdict + evidence + bug list (tester),
   with the final ACCEPTED/REJECTED roll-up
 
 ## Standalone-first fallback

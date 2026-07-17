@@ -6,7 +6,9 @@
 
 All paths are under the integration worktree unless noted. `<slug>` derives from the
 source/target series (`<source-series>-to-<target-series>`). Artifacts live under
-`.odoo-ai/forward-port/<slug>/` (gitignored). Every Odoo Semantic call passes a concrete
+`<ISOLATE_DIR>/forward-port/<slug>/` (gitignored; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Every Odoo Semantic call passes a concrete
 `odoo_version=` (never a default; the pin is per-API-key state any concurrent agent can overwrite).
 
 ---
@@ -14,8 +16,11 @@ source/target series (`<source-series>-to-<target-series>`). Artifacts live unde
 ## P0 - Recon & triage (read-only, NO stop)
 
 ```bash
+# 0 - resolve the ISOLATE state dir once for this run
+DIR="$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh" isolate)"
+
 # 1 - resume: read prior state, skip done commits
-cat .odoo-ai/forward-port/<slug>/checkpoint.json 2>/dev/null   # {<sha>: status}
+cat "$DIR/forward-port/<slug>/checkpoint.json" 2>/dev/null   # {<sha>: status}
 
 # 2 - enumerate the commits to forward (read-only; no worktree, no branch yet)
 # Same-repo (both refs on origin): compute merge-base locally
@@ -51,7 +56,7 @@ Pre-step (once before the parallel dispatch): invoke the `git-toolkit:git-ops` s
 in a batch pass to write per-commit dump files. For each commit SHA in the range:
 
 - op: full-patch commit show (full message + diff) for the sha
-- `output: .odoo-ai/forward-port/<slug>/commits/<sha>.dump`
+- `output: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump`
 - `repo: <main-checkout-root>` (cross-repo ports only; source commits live only in the main
   checkout after the P0 source-remote add+fetch)
 
@@ -64,12 +69,12 @@ Brief (run-specific inputs only - the agent's system prompt owns every procedure
 ```
 DISPATCH MODEL: <extract-tier>
 SHA: <sha>
-commit_dump_path: .odoo-ai/forward-port/<slug>/commits/<sha>.dump
+commit_dump_path: <ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump
 SOURCE SERIES: <e.g. 16.0>
 SLUG: <slug>
 TASK: Extract the business intent + behavioral contract of this one commit. Read commit
       message -> PR/issue -> test changes -> code comments (in that priority). OSM-ground the
-      touched symbols at the SOURCE version. Write .odoo-ai/forward-port/<slug>/intents/<sha>.md.
+      touched symbols at the SOURCE version. Write <ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md.
       Do NOT copy diff hunks as intent. Do NOT classify the 4-outcome bucket (caller's job).
 USER LANGUAGE: <lang | omit when English>
 ```
@@ -112,10 +117,10 @@ cross-repo ports include `repo: <main-checkout-root>` (source commits live only 
 checkout after P0 bootstrap):
 
 - `manifest_path`: read `<module>/__manifest__.py` at `target_ref` and write to
-  `.odoo-ai/forward-port/<slug>/installable/<module>/manifest.py`
+  `<ISOLATE_DIR>/forward-port/<slug>/installable/<module>/manifest.py`
 - `history_dump_path`: run a log-with-patch of manifest modifications (--follow --diff-filter=M
   on `<module>/__manifest__.py`) against `source_ref` and write to
-  `.odoo-ai/forward-port/<slug>/installable/<module>/history.diff`
+  `<ISOLATE_DIR>/forward-port/<slug>/installable/<module>/history.diff`
 
 Assign the resulting absolute paths before launching the prober; the prober mandates both fields
 and never runs git itself.
@@ -171,7 +176,7 @@ inputs:
   design_slug_hint: <slug>-fp-<sha>
   target_version: <target>
   modules: [<module-name>, ...]
-  intent_records: [.odoo-ai/forward-port/<slug>/intents/<sha>.md]
+  intent_records: [<ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md]
   classification: <bucket-(c) summary>
 ```
 
@@ -217,7 +222,7 @@ scope: branch fp/<slug>, base <target-branch>
 worktree: <path>/fp-integration
 ```
 
-THEN write `.odoo-ai/forward-port/<slug>/plan.md` as the resume RECORD (not the gate - the gate
+THEN write `<ISOLATE_DIR>/forward-port/<slug>/plan.md` as the resume RECORD (not the gate - the gate
 is Plan Mode above). Later phases and the checkpoint/continuation read it:
 
 ```markdown
@@ -229,7 +234,7 @@ Commits (<N>, after --scope/--since filter, minus checkpoint done):
 | SHA | summary | EXTRACT tier | ADAPT tier | bucket | installable routing | design_doc |
 |-----|---------|--------------|------------|--------|---------------------|------------|
 | abc1234 | double-post guard | sonnet | sonnet | (b) | normal | - |
-| def5678 | new report engine | opus | opus | (c) do-now | normal | .odoo-ai/designs/...md |
+| def5678 | new report engine | opus | opus | (c) do-now | normal | <SHARE_DIR>/designs/...md |
 
 Fable rows (if any): <m> - <why> (~2x opus). (confirmed in Plan Mode)
 ```
@@ -340,9 +345,13 @@ At P7 no instance DB has been acquired yet (allocator runs at P9) - use the `pyt
 # pytest collection smoke-test
 python -m pytest <test_files> --collect-only -q 2>&1 | tail -20
 # OR Odoo collection (for TestCase subclasses with setUpClass) - requires a DB acquired via allocator
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
 odoo-bin -d $ALLOC_DB_NAME --test-enable --test-tags <tag> --stop-after-init \
-  --skip-auto-install --http-port=$ALLOC_HTTP_PORT 2>&1 | grep -E 'ERROR|setUpClass'
+  --skip-auto-install --http-port=$ALLOC_HTTP_PORT \
+  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296} 2>&1 | grep -E 'ERROR|setUpClass'
 ```
+
+Memory-cap policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
 
 A collection failure (ImportError, setUpClass crash, missing fixture) means the tests NEVER
 RAN in P9 - a count of `0 failed, N error(s)` is NOT a passing result (the setUpClass
@@ -426,7 +435,7 @@ coder brief lacks:
 ```
 DISPATCH MODEL: <adapt-tier>
 REQUEST: Adapt the forwarded intent to the target platform.
-INTENT RECORD: .odoo-ai/forward-port/<slug>/intents/<sha>.md   (the why - build to this, not the source diff)
+INTENT RECORD: <ISOLATE_DIR>/forward-port/<slug>/intents/<sha>.md   (the why - build to this, not the source diff)
 BUCKET: <a skip-code | b 3-way+adapt | c re-implement on target idiom | d skip-code>
 FAILING TEST (RED, written by the odoo-test-writer above): <paths> - implement until GREEN; do NOT edit them.
 NEW MODULE: <yes - apply installable:False checklist [[fp-installable-false]] | no>
@@ -512,7 +521,7 @@ namespace package changes bootstrap; always pass `odoo_version=<target>` to `cli
 Instance lifecycle protocol: `docs/reference/INSTANCE-LIFECYCLE.md`. Test invocation
 conventions: `docs/reference/ODOO-TESTING.md`.
 
-**Env-bootstrap (do this FIRST, before any odoo-bin call).** Read `.odoo-ai/context.md`
+**Env-bootstrap (do this FIRST, before any odoo-bin call).** Read `<SHARE_DIR>/context.md`
 `## Verify environment` FIRST: if `verify_python` / `addons_path` are present, treat
 `verify_python` as a non-authoritative HINT only - confirm it via `<verify_python> <odoo-bin>
 --version` before relying on it for any mutation, then use the confirmed interpreter and
@@ -560,8 +569,11 @@ python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemera
 # would otherwise be pulled in silently and mask (or fabricate) a break. --http-port binds the
 # allocator-issued free port: --no-http does NOT prevent the bind a running HttpCase performs,
 # so two parallel batches collide on the default 8069 - always pin the allocated port.
+# Memory-cap policy: ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
 odoo-bin -d $ALLOC_DB_NAME -i mod_a,mod_b --test-enable --stop-after-init \
-  --skip-auto-install --http-port=$ALLOC_HTTP_PORT 2>&1 | tee install.log
+  --skip-auto-install --http-port=$ALLOC_HTTP_PORT \
+  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296} 2>&1 | tee install.log
 # The closure suite can be very large. MAY narrow with --test-tags to touched modules +
 # direct dependers (/mod_a,/mod_b), but NEVER narrow to only the edited module - a
 # forwarded change can break tests in a downstream depender, and a module-only tag would
@@ -720,5 +732,5 @@ git worktree list          # confirm no dangling fp/<slug>-* child worktrees
 #   confirmed: yes - forward-port is merged
 ```
 
-Leave `.odoo-ai/forward-port/<slug>/` for the next continuous run's resume (it is gitignored and
+Leave `<ISOLATE_DIR>/forward-port/<slug>/` for the next continuous run's resume (it is gitignored and
 the checkpoint lets tomorrow's run skip done commits).

@@ -5,7 +5,7 @@ description: >
   Gap analysis turning a list of client requirements into a costed effort matrix (Standard /
   Configuration / Extension / Custom + S/M/L/XL). Now an ORCHESTRATOR - it clusters requirements
   by functional area, delegates each cluster to the odoo-gap-analyzer subagent (main context
-  stays clean), then emits a reusable file artifact under .odoo-ai/gap-analysis/. Use ANY time
+  stays clean), then emits a reusable file artifact under the project's shared state dir. Use ANY time
   someone is about to quote, scope, or estimate an Odoo project - even if they don't say "gap".
   Fire on a list of requirements + "is this standard Odoo or do we build it?", "how many days?",
   "RFP has 23 requirements - classify them". Vietnamese: "phân tích gap", "cái này Odoo có sẵn
@@ -38,7 +38,7 @@ Consultant / Project Manager
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
@@ -110,12 +110,12 @@ check fails, a shard is missing or malformed - re-dispatch that cluster before w
 ## Instructions
 
 **Round 0 - Bootstrap + pin.** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`.
-Read `.odoo-ai/context.md`; extract `odoo_version` and `viindoo_profile` (never hard-code
+Read `<SHARE_DIR>/context.md`; extract `odoo_version` and `viindoo_profile` (never hard-code
 `standard_viindoo_17`); derive the version from on-disk manifests if the file is absent. The
 requirement list is already in context - do not ask for it. Call `set_active_version` once as the
 reachability probe (concrete version only - `'auto'` is unsafe under fan-out, per the
 concurrency-guard OSM version-pin race). Pick the slug (reuse any feature slug already in play);
-the artifact dir is `.odoo-ai/gap-analysis/<slug>-<date>/`.
+the artifact dir is `<SHARE_DIR>/gap-analysis/<slug>-<date>/`.
 
 **Cluster.** Partition the requirements by functional area (§ When to invoke). Assign each
 cluster a 2-digit `<NN>` and a short `<area>` label.
@@ -141,7 +141,7 @@ correct. Each worker brief carries:
    / `module_inspect` (`author`, `shortdesc`); a vendor-like token in a slug is NOT proof of a
    provider. If unprovable, leave `module` empty (`null`) and set `grounded: unknown`.
 6. **Output contract** - write one JSON object PER requirement to
-   `.odoo-ai/gap-analysis/<slug>-<date>/clusters/<NN>-<area>.jsonl` with the EXACT keys
+   `<SHARE_DIR>/gap-analysis/<slug>-<date>/clusters/<NN>-<area>.jsonl` with the EXACT keys
    `{req_id, requirement, coverage, classification, effort_tier, module, grounded, notes}`
    (enums per § Context). Be conservative - upgrade `effort_tier` when in doubt.
 
@@ -176,7 +176,7 @@ phrase it that way.
 
 ## Output - locked file-handoff contract
 
-All outputs live in `.odoo-ai/gap-analysis/<slug>-<date>/`. The skill is no longer chat-only: it
+All outputs live in `<SHARE_DIR>/gap-analysis/<slug>-<date>/`. The skill is no longer chat-only: it
 writes the three artifacts below, then prints a compact summary plus these paths to chat.
 
 ### `gap-matrix.jsonl` (machine SSOT - one JSON object per requirement)
@@ -235,7 +235,7 @@ Prompt: "gap analysis for a client who needs multi-company invoicing, approval w
 custom loyalty program"
 Action: One cohesive list -> ONE `odoo-gap-analyzer` worker (sonnet). It writes
 `clusters/01-finance.jsonl`; the orchestrator emits the artifact set under
-`.odoo-ai/gap-analysis/<slug>-<date>/`. Rows: multi-company invoicing -> standard/S; approval
+`<SHARE_DIR>/gap-analysis/<slug>-<date>/`. Rows: multi-company invoicing -> standard/S; approval
 workflows -> extension/M (`mail.activity.mixin`); custom loyalty -> custom/XL. `has_nontrivial:
 true` -> `next: odoo-solution-design`.
 

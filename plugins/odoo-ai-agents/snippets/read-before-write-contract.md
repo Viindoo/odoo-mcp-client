@@ -18,7 +18,10 @@ stable series) violates the "keep diffs minimal" rule the guidelines themselves 
 
 ## The contract
 
-1. **Resolve the Odoo version first** (from `.odoo-ai/context.md`, the discovered `__manifest__.py`,
+1. **Resolve the Odoo version first** (from `<SHARE_DIR>/context.md` - resolve `<SHARE_DIR>`/
+   `<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute
+   the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+   Read/Write/Edit -, the discovered `__manifest__.py`,
    or what the user stated). The guidelines are version-pinned and do NOT inherit across series; a
    v17 rule may be wrong for v18. If the version cannot be resolved, resolve it before writing - a
    precondition, not optional.

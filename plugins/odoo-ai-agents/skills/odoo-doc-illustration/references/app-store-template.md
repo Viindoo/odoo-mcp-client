@@ -2,7 +2,10 @@
 
 Runtime reference for assembling `static/description/index.html` and related assets for
 an Odoo App Store listing. Brand-agnostic - palette and fonts are placeholders resolved from
-`.odoo-ai/context.md` brand tokens or user input; default = Odoo palette `#714B67`.
+`context.md` brand tokens or user input; default = Odoo palette `#714B67`. `context.md` is Tier-2
+SHARE; resolve it via the resolve-capture-substitute protocol in
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (captured path shown as `<SHARE_DIR>`
+below - `<SHARE_DIR>/context.md`).
 
 ---
 
@@ -55,7 +58,7 @@ X to support Y" or expose Python class names / field technical names in headings
 
 ## 3. Bootstrap-5 Fragment Skeleton (brand-agnostic)
 
-Replace `{{PLACEHOLDER}}` values from `.odoo-ai/context.md` brand tokens or user input.
+Replace `{{PLACEHOLDER}}` values from `<SHARE_DIR>/context.md` brand tokens or user input.
 Default palette when no brand tokens: primary `#714B67`, accent `#714B67`, bg-light `#F8F4F8`.
 
 ```html
@@ -422,7 +425,7 @@ even if the registry omits it.
 **Language resolver order** (doc-illustration tiers - reuse, do not clone):
 
 1. Brief field `LANGUAGES:` (explicit override, optional)
-2. `.odoo-ai/context.md` -> `doc_languages`
+2. `<SHARE_DIR>/context.md` -> `doc_languages`
 3. `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` -> `default_languages`
 4. Disk: `<module>/i18n/*.po` locale codes
 5. Live `res.lang` (active languages on instance, late fallback)

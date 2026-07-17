@@ -13,8 +13,14 @@ when it finishes, so a later phase can look up *why* instead of re-deriving it.
 
 ## Where it lives
 
+`worklog/` is Tier-2 **ISOLATE** (per-run execution log; parallel runs must not interleave) - full
+policy + classification tables: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`. Resolve
+the ISOLATE dir ONCE via that file's mandatory resolve-capture-substitute protocol
+(`scripts/lib/resolve_project_dir.sh isolate`, captured as a literal absolute path - never a bare
+`.odoo-ai/...` string in a Read/Write/Edit call), then place the worklog under it:
+
 ```
-.odoo-ai/worklog/<run-or-slug>/<NNN>-<agent>.md     # one file per writer - never a shared file
+<ISOLATE_DIR>/worklog/<run-or-slug>/<NNN>-<agent>.md     # one file per writer - never a shared file
 ```
 
 - `<run-or-slug>`: the active run id when a `run-<id>.json` blackboard exists (the driver records
@@ -34,8 +40,8 @@ race on a single shared file; per-writer files make every append conflict-free.
 
 **Master-child design runs**: each child architect writes under a module subpath to prevent
 collision across N parallel children:
-`.odoo-ai/worklog/<run-or-slug>/<module>/NNN-architect.md`. The master architect uses the
-top-level dir (no `<module>` subpath): `.odoo-ai/worklog/<run-or-slug>/NNN-architect.md`.
+`<ISOLATE_DIR>/worklog/<run-or-slug>/<module>/NNN-architect.md`. The master architect uses the
+top-level dir (no `<module>` subpath): `<ISOLATE_DIR>/worklog/<run-or-slug>/NNN-architect.md`.
 
 ## When you WRITE (append, at end of your step)
 
@@ -64,9 +70,10 @@ label is fine when no clock is available.
 
 ## When you READ (before you start)
 
-Glob `.odoo-ai/worklog/<run-or-slug>/*.md` and read them oldest-first. They tell you what upstream
-phases decided so you build on - not against - those decisions (understand intent
-before acting). If the dir is absent, you are the first writer - create it.
+Glob `<ISOLATE_DIR>/worklog/<run-or-slug>/*.md` (same captured ISOLATE literal as § Where it lives) and
+read them oldest-first. They tell you what upstream phases decided so you build on - not against -
+those decisions (understand intent before acting). If the dir is absent, you are the first
+writer - create it.
 
 ## Relation to the blackboard
 

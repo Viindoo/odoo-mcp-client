@@ -34,13 +34,15 @@ four gated phases in sequence:
 - **competitor_name** - competitor to benchmark against (optional; answer "none" to skip Phase 3)
 - **output_channel** - slide / blog / email / proposal
 
-Output artifacts land under `.odoo-ai/positioning/`.
+Output artifacts land under `<ISOLATE_DIR>/positioning/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once
+per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute
+path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
 
 ## To run
 
 Invoke this command; `workflow-chaining` guides you through all phases with explicit
 gates between each. To resume an interrupted run, re-invoke with the same feature slug -
-the runner reads `.odoo-ai/positioning/<slug>-state.json` automatically.
+the runner reads `<ISOLATE_DIR>/positioning/<slug>-state.json` automatically.
 
 ## See also
 

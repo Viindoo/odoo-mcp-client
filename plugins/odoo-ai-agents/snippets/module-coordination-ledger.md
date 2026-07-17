@@ -23,27 +23,35 @@ dependencies' committed code by construction. So this ledger and the `odoo-backe
 pre-flight now backstop ONLY concurrent INDEPENDENT runs (cross-run) + the manifest-crash safety net;
 the intra-run false BLOCKED no longer fires.
 
-## Location and why `--git-common-dir`
+## Location and why the SHARE dir
 
-Resolve the ledger root ONCE per run:
+Resolve the ledger root ONCE per run via the Tier-2 SHARE resolver (Problem 3 - full policy +
+classification tables: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`), following its
+mandatory resolve-capture-substitute protocol:
 
 ```bash
-LEDGER_ROOT="$(git rev-parse --git-common-dir)/../.odoo-ai/coordination/modules"
+SHARE_DIR="$(bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share)"
+LEDGER_ROOT="$SHARE_DIR/coordination/modules"
 ```
 
-Each module's entry lives at `<principal-root>/.odoo-ai/coordination/modules/<module>/entry.json`.
+Each module's entry lives at `$LEDGER_ROOT/<module>/entry.json`.
 
-WHY `git rev-parse --git-common-dir` (not a per-worktree `.odoo-ai/`): a linked worktree has its own
-`.git` file, but it points back to the ONE shared common git dir of the principal checkout.
-`--git-common-dir` always resolves to that single shared dir regardless of which worktree (or which
-concurrent run) you are in, so `$LEDGER_ROOT` is the SAME path for every linked worktree and every
-concurrent invocation. A per-worktree `.odoo-ai/` is private to that worktree - two concurrent runs
-in two worktrees would each write their own copy and never see each other, which is exactly the
-cross-run blindness this ledger removes. `.odoo-ai/` is already gitignored, so `coordination/` needs
-no new gitignore entry (it is never committed - it is live cross-run state, not source).
+WHY SHARE (not ISOLATE, and not a per-worktree `./.odoo-ai/`): the SHARE dir is keyed off
+`sha256(realpath(git rev-parse --git-common-dir))` - a linked worktree has its own `.git` file, but
+it points back to the ONE shared common git dir of the principal checkout, so `--git-common-dir`
+(and therefore the resolved SHARE dir) is the SAME path for every linked worktree and every
+concurrent invocation of THIS repo. A per-worktree ISOLATE dir is private to that worktree - two
+concurrent runs in two worktrees would each write their own copy and never see each other, which is
+exactly the cross-run blindness this ledger removes. The SHARE dir lives under `$ODOO_AI_HOME`
+(machine-global, outside any git working tree), so it needs no gitignore entry and is never
+committed - it is live cross-run state, not source. Do NOT collapse this to a bare
+`$ODOO_AI_HOME/coordination/` (cross-project-global) - that would regress cross-repo isolation:
+two UNRELATED repos on the same host would then see each other's module claims. The SHARE dir
+already gives exactly what this ledger needs: repo-scoped, worktree-converged coordination.
 
-**No git repo (no common dir).** If `git rev-parse --git-common-dir` fails (the run is outside any
-git repo), there is no shared ledger: degrade to per-run behavior with NO ledger (the per-run
+**No git repo and no project marker (resolver refuses).** If `resolve_project_dir.sh share` fails
+(the run is outside any git repo AND no `.odoo-ai-root`/`__manifest__.py` marker exists up the
+chain), there is no shared ledger: degrade to per-run behavior with NO ledger (the per-run
 pre-flight still produces graceful BLOCKEDs), and LOG that the ledger was unavailable. Never fabricate
 a ledger location outside the repo.
 

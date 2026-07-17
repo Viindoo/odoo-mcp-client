@@ -75,7 +75,7 @@ Migration is needed when a module version bump introduces any of: field rename, 
 
 ### Round 0 - Load context
 
-Read `.odoo-ai/context.md` if present. Extract `odoo_version`, `modules`, and any migration history. If absent, ask for target version and module name in a single message.
+Read `<SHARE_DIR>/context.md` if present (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Extract `odoo_version`, `modules`, and any migration history. If absent, ask for target version and module name in a single message.
 
 Call `set_active_version` and `set_active_profile` (parallel if both available).
 
@@ -83,14 +83,14 @@ Call `set_active_version` and `set_active_profile` (parallel if both available).
 
 > **Design-gate (non-trivial migrations).** A model split/merge, a backfill/transform with more
 > than one viable mapping, or a migration where the pre/post split is itself a real decision is a
-> DESIGN choice. When no approved design doc exists (`.odoo-ai/designs/<slug>-*.md` or a
+> DESIGN choice. When no approved design doc exists (`<SHARE_DIR>/designs/<slug>-*.md` or a
 > `design_doc` input), recommend `odoo-solution-design` first (`SUGGESTED_NEXT: odoo-solution-design`).
 > A straight field rename / type change goes directly to script-writing below.
 >
 > **Master-child mode (index-aware):** If the design lives in a master-child subdir, resolve
 > the per-module child path from `index.yaml` (`modules[].child_path` for the module being
 > migrated) as `DESIGN_DOC`; the master TDD (`MASTER_DESIGN_DOC`) carries hard constraints
-> only. Single mode (flat `.odoo-ai/designs/<slug>-*.md`): unchanged. Full contract:
+> only. Single mode (flat `<SHARE_DIR>/designs/<slug>-*.md`): unchanged. Full contract:
 > `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`.
 
 Confirm: (1) migration type, (2) source/target field/model names, (3) module name and version bump, (4) timing (pre-migrate / post-migrate / both).
@@ -133,7 +133,7 @@ When OSM is unreachable, follow the three-tier grounding in
   module. Read `models/*.py` with `grep -n "class \|_name\|_inherit\|= fields\." models/*.py`
   to discover real field names and types. Read any existing `migrations/` directory for
   prior patterns. Derive the Odoo version from the manifest `version` field if
-  `.odoo-ai/context.md` is absent.
+  `<SHARE_DIR>/context.md` is absent.
 - **Tier 2 - Column check fallback:** When OSM cannot confirm a column name, add a comment
   in the script: `# VERIFY: confirm column name against live schema with \`\d <table>\` before running`.
 - **Caveat:** Label output `grounded: local-source (not OSM-indexed)`. Confirm openupgradelib

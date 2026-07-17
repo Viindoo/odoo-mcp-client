@@ -1,6 +1,6 @@
 {
   "version": "v1",
-  "description": "BRL cost estimation lookup table. Numbers are public industry benchmarks (USD, Vietnam day-rate region). Override at .odoo-ai/cost-config.json to change rate_region or risk_profile for a specific job.",
+  "description": "BRL cost estimation lookup table. Numbers are public industry benchmarks (USD, Vietnam day-rate region). Override at <SHARE_DIR>/cost-config.json (resolve `<SHARE_DIR>` once per ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md; substitute the captured absolute path - never a bare .odoo-ai/ literal) to change rate_region or risk_profile for a specific job.",
   "effort_lookup": {
     "Standard": {
       "min_days": 0,
@@ -75,7 +75,7 @@
   "annual_maintenance_pct": 0.10,
   "_meta": {
     "schema_version": "cost-config/v1",
-    "override_path": ".odoo-ai/cost-config.json",
+    "override_path": "<SHARE_DIR>/cost-config.json",
     "last_updated": "2026-05-31"
   }
 }

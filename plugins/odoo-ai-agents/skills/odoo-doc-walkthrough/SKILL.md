@@ -58,15 +58,18 @@ execution is needed to produce the walkthrough.
 `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the Doc-writer family
 delta; never inline that file verbatim into a hard-leaf brief.
 
-Main dispatches `odoo-doc-scenarist` with:
+Main dispatches `odoo-doc-scenarist` with (resolve `<SHARE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before filling `CATALOG_PATH`/`OUTPUT_DIR`
+below; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/`
+into a Read/Write/Edit):
 
 ```
 MODULE: <module technical name>
 MODULE_PATH: <absolute path to module dir, if known>
 ODOO_VERSION: <concrete series, e.g. 17.0>
 SLUG: <short identifier for output paths, e.g. sale_order>
-CATALOG_PATH: .odoo-ai/documentation/<slug>/<module>/feature-catalog.jsonl (written by odoo-doc-feature-map; omit if not run)
-OUTPUT_DIR: .odoo-ai/documentation/<slug>/<module>/
+CATALOG_PATH: <SHARE_DIR>/documentation/<slug>/<module>/feature-catalog.jsonl (written by odoo-doc-feature-map; omit if not run)
+OUTPUT_DIR: <SHARE_DIR>/documentation/<slug>/<module>/
 USER LANGUAGE: <language for human-facing prose; identifiers stay English>
 ```
 
@@ -74,7 +77,7 @@ USER LANGUAGE: <language for human-facing prose; identifiers stay English>
 technical name) so a multi-module run never collides on a flat `walkthrough.jsonl`/`feature-catalog.jsonl`,
 and the scenarist reads the catalog from the exact path the feature-map phase wrote it (producer == consumer).
 
-If `MODULE_PATH` is unknown, the scenarist resolves it from `.odoo-ai/context.md` or disk.
+If `MODULE_PATH` is unknown, the scenarist resolves it from `<SHARE_DIR>/context.md` or disk.
 If `ODOO_VERSION` is not stated, the scenarist infers it from the module manifest `version`
 field major digit or from the addons directory name pattern; if still unresolved it returns
 `NEEDS_CONTEXT(odoo_version)` before proceeding.

@@ -3,7 +3,7 @@ name: run-harness
 argument-hint: "[run-id]"
 user-invocable: false
 description: >
-  Drive-to-done loop. Walks the RUN-DAG in `.odoo-ai/run-<id>.json` that intake's
+  Drive-to-done loop. Walks the RUN-DAG in the worktree's isolated run-state file that intake's
   Phase P produced: picks the next ready node, resolves its gate tier (L0/L1/L2), dispatches
   it (Skill-tool a leaf skill | Skill-tool a spawner skill (it fans out its own agent) | hand a
   workflow to workflow-chaining), reads the step's Continuation Contract, updates the blackboard, and
@@ -48,24 +48,28 @@ contract.
 5. **L2 is always a human gate.** The autonomy dial can lower L1→auto-pass but can NEVER lower
    L2 (irreversible/outward: instance, git push/merge, send to a third party).
 6. **Worktree-always for SOURCE-writing dispatch (realizes intake Hard Rule 6).** Before
-   dispatching a node that writes the SOURCE tree (not `.odoo-ai/`; same test as Gate-tier
-   resolution), if it has no `WORKTREE_PATH`/`TARGET: worktree:<path>` and its approach is not a
+   dispatching a node that writes the SOURCE tree (not the `$ODOO_AI_HOME` state root; same test as
+   Gate-tier resolution), if it has no `WORKTREE_PATH`/`TARGET: worktree:<path>` and its approach is not a
    self-provisioning specialist (SSOT list:
    `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Self-provisioning specialists), INVOKE
    `git-toolkit:git-ops` to create a dedicated worktree/branch, inject its path into the node's
    `inputs`, and `write(RUN)`. NEVER dispatch a source-writing node against the principal checkout.
-   A `.odoo-ai/`-only node (e.g. `odoo-code-review` at `TARGET=local`) is NOT provisioned.
+   A node that writes only under the `$ODOO_AI_HOME` state root (e.g. `odoo-code-review` at
+   `TARGET=local`) is NOT provisioned.
 
 ## Inputs
 
-- An active `.odoo-ai/run-<id>.json` (serialized by intake Phase P from the approved plan, schema in
-  harness §8.3) - run-harness is dispatched only after this file exists; it never receives a raw plan `.md`.
+- An active `<ISOLATE_DIR>/run-<id>.json` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute
+  path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit; serialized by
+  intake Phase P from the approved plan, schema in harness §8.3) - run-harness is dispatched only
+  after this file exists; it never receives a raw plan `.md`.
 - `autonomy` ∈ {auto (default), step, plan} read from that file.
 
 ## The loop
 
 ```
-load RUN = read(.odoo-ai/run-<id>.json)        # the active run; if several, the one intake just wrote / the user named
+load RUN = read(<ISOLATE_DIR>/run-<id>.json)        # the active run; if several, the one intake just wrote / the user named
 
 while RUN.status == "NEEDS_NEXT":
     if RUN.budget.nodes_run >= RUN.budget.max_nodes:        # runaway guard
@@ -157,11 +161,11 @@ Per node: `node.gate_tier` (run.json override) → else registry `default_gate_t
 (`skill_tool_deps.json`). Apply the dial: `--step` raises floor to L1; `--auto` lets L0+L1
 auto-pass within budget. **L2 never lowers.** See harness §8.4.
 
-**Source-writing nodes** (targets source tree, not `.odoo-ai/`) - **human gate MUST be at the
-driver, before dispatch.** Spawner skills fan out their worker via launch subagent and that subagent
-cannot pause for human input; the skill's internal Phase-0 gate is only a safety-net, not the
-binding gate. Spawner skills writing only `.odoo-ai/` (`odoo-code-review`, `odoo-ui-review`) need
-no extra driver gate beyond registry tier.
+**Source-writing nodes** (targets source tree, not the `$ODOO_AI_HOME` state root) - **human gate
+MUST be at the driver, before dispatch.** Spawner skills fan out their worker via launch subagent
+and that subagent cannot pause for human input; the skill's internal Phase-0 gate is only a
+safety-net, not the binding gate. Spawner skills writing only under the `$ODOO_AI_HOME` state root
+(`odoo-code-review`, `odoo-ui-review`) need no extra driver gate beyond registry tier.
 
 A coding wave node's `approach_kind` is `wave`: the node groups one wave's MODULES (with their
 module-DAG + topology + `cumulative_modules` + the Block-2W lineage slice) - the outer unit is the

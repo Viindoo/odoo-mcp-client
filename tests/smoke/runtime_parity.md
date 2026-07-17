@@ -70,7 +70,8 @@ Before beginning this checklist, confirm all of the following:
    - `mcp__odoo-semantic__list_available_versions` returns a non-empty list.
    - API key is valid (test with one quick `cli_help` call).
 
-3. **`.odoo-ai/context.md` populated** in the test working directory (run
+3. **`<SHARE_DIR>/context.md` populated** (the Tier-2 SHARE path resolved per
+   `snippets/state-root-resolution.md` for the test working directory's repo; run
    `odoo-onboarding` first, or manually create with target version and profile).
    This is required for skills that read Round -1 context.
 
@@ -155,7 +156,7 @@ Before beginning this checklist, confirm all of the following:
 - Available Odoo versions list from `list_available_versions`
 - Detected module list (at least one `__manifest__.py` found)
 - Conventions summary (module prefix, field naming, branch pattern)
-- Confirmation that `.odoo-ai/context.md` was written and `.gitignore` updated
+- Confirmation that `<SHARE_DIR>/context.md` was written and `.gitignore` updated
 - "Suggest next" line pointing to a follow-up skill
 
 | Runtime | Pass? | Notes |
@@ -409,9 +410,10 @@ equivalent check (`python test_skill_format.py`) or rely on CI.
 **Mitigation**: CI runs the same check on every push. The hook is advisory on
 developer machines; CI is authoritative.
 
-### Gap 5 - `.odoo-ai/context.md` write step (onboard skill)
+### Gap 5 - `<SHARE_DIR>/context.md` write step (onboard skill)
 
-`odoo-onboarding` writes `.odoo-ai/context.md` to the local filesystem. All
+`odoo-onboarding` writes `<SHARE_DIR>/context.md` (the Tier-2 SHARE path resolved
+per `snippets/state-root-resolution.md`) to the local filesystem. All
 three runtimes can execute this write via their respective file-write tool.
 However, the exact tool name differs (CC: `Write`; Codex: file-write API;
 Gemini: file-write API). If a runtime does not expose a file-write tool, the

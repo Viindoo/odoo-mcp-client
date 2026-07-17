@@ -42,7 +42,7 @@ traceability from requirement to evidence to budget line.
 
 **Session bootstrap** (call once at session start):
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
-- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 
 **Primary tools:**
 - `check_module_exists` - Verify module availability, edition (CE/EE/Viindoo), and cross-version presence.
@@ -77,9 +77,9 @@ Governing rules (full statements in § Hard rules): OEEL-1 no-retry (5), determi
    `${CLAUDE_PLUGIN_ROOT}/snippets/ssot-extraction-contract.md` - extract each requirement faithfully, not inferred.
 
 2. **Write internal state** (before GATE 0):
-   - `.odoo-ai/brl/<job-id>/manifest.json` - job metadata (see `reference/schema.md` §manifest)
-   - `.odoo-ai/brl/<job-id>/input.jsonl` - 1 line per requirement
-   - `.odoo-ai/brl/<job-id>/chunkplan.json` - chunk split (default 50/chunk, user can override)
+   - `<SHARE_DIR>/brl/<job-id>/manifest.json` - job metadata (see `reference/schema.md` §manifest)
+   - `<SHARE_DIR>/brl/<job-id>/input.jsonl` - 1 line per requirement
+   - `<SHARE_DIR>/brl/<job-id>/chunkplan.json` - chunk split (default 50/chunk, user can override)
 
    `<job-id>` format: `<CUSTOMER_LABEL>-<YYYYMMDD>-<4hex>` (e.g. `Customer-A-20260531-9f3a`).
    Use abstract label for CUSTOMER_LABEL. Never use real company name.
@@ -88,12 +88,12 @@ Governing rules (full statements in § Hard rules): OEEL-1 no-retry (5), determi
    - `list_available_versions` -> present options to user
    - `set_active_version(odoo_version=<chosen>)` -> pin for session
    - `set_active_profile(profile_name='odoo_<version>')` -> base profile. Resolve the concrete name
-     from `list_available_profiles` / `.odoo-ai/context.md` - never hard-code a hyphenated or
+     from `list_available_profiles` / `<SHARE_DIR>/context.md` - never hard-code a hyphenated or
      unversioned name (the server registers `odoo_8..odoo_19`, `standard_viindoo_17/18`, etc.).
    - `profile_inspect(method='summary', name='standard_viindoo_<version>', odoo_version='<version>')`
      -> confirm the Viindoo profile's composition before GATE 0.
 
-4. **Load context:** Check `.odoo-ai/context.md`. If found, use its version/profile settings as defaults.
+4. **Load context:** Check `<SHARE_DIR>/context.md`. If found, use its version/profile settings as defaults.
    If absent, suggest `/odoo-onboarding` but allow manual continuation.
 
 5. **GATE 0:** Present plan before any classification work:
@@ -107,7 +107,7 @@ Governing rules (full statements in § Hard rules): OEEL-1 no-retry (5), determi
    Chunks         : <M> chunks x <chunk_size> items/chunk
    Est. MCP calls : ~<estimate> (with cache de-duplication)
    Est. cost band : classification only - no charge; cost estimate computed from config
-   Artifacts      : .odoo-ai/brl/<job-id>/
+   Artifacts      : <SHARE_DIR>/brl/<job-id>/
 
    Options:
      approve          - start classification pipeline
@@ -119,7 +119,7 @@ Governing rules (full statements in § Hard rules): OEEL-1 no-retry (5), determi
 
 ### Seed + cross-check from a prior gap-analysis (optional)
 
-At Phase 0 (before GATE 0), glob `.odoo-ai/gap-analysis/*/gap-matrix.jsonl` (newest dir wins). If one
+At Phase 0 (before GATE 0), glob `<SHARE_DIR>/gap-analysis/*/gap-matrix.jsonl` (newest dir wins). If one
 exists, BRL MAY consume it as a PRIOR - never ground truth - to seed and cross-check the fit-gap of
 its RTM. BRL does NOT delegate to the gap-analyzer; it stays the standalone classifier and only reads
 the artifact:
@@ -136,7 +136,7 @@ the artifact:
   (`gap-matrix said <x>; OSM confirms <y>`). A `grounded: unknown` gap row is treated as unseeded.
 
 **Stay format-compatible (downstream design reads EITHER source).** `odoo-solution-design` accepts a
-gap-matrix OR a BRL results dir (`.odoo-ai/brl/<job-id>/`). Keep BRL's per-req rows carrying the same
+gap-matrix OR a BRL results dir (`<SHARE_DIR>/brl/<job-id>/`). Keep BRL's per-req rows carrying the same
 recognizable keys (`req_id`, `requirement`, `module`, an effort axis, `notes`) and keep the
 § Continuation Contract handoff to `odoo-solution-design` in the same shape as a gap-analysis handoff
 (`{<deliverable path>, items: [REQ-…], risk_level}`), so the architect reads either interchangeably.
@@ -468,13 +468,14 @@ On `approve`, write ALL deliverables atomically:
    subagent prompt MUST contain: `Do NOT invoke Skill tool. Do NOT spawn sub-agent. Only Read/Grep/Glob/Write/Bash.`
 2. **Leaf subagents:** Phase D DAG cluster subagents must never spawn another subagent or invoke a skill.
 3. **Public-repo safety:** Abstract customer labels only. Never write real company names, VND amounts,
-   or internal pricing into any committable file. `.odoo-ai/brl/` is gitignored.
+   or internal pricing into any committable file. `<SHARE_DIR>/brl/` is gitignored.
 4. **No cost fabrication:** All cost figures from `cost-config.json` lookup. No LLM-generated numbers.
    If missing: stop and report "cost-config.json not found - cannot compute deterministic cost."
 5. **OEEL-1 no-retry:** When check_module_exists returns a license notice, classify as
    Available-in-Viindoo and stop. Do NOT retry, do NOT call model_inspect on OEEL-1 modules.
-6. **Context check:** Load `.odoo-ai/context.md` if present. Absent -> suggest `/odoo-onboarding`.
-7. **Principal-branch-lock:** Read-only on the project repo. Only write to `.odoo-ai/`.
+6. **Context check:** Load `<SHARE_DIR>/context.md` if present. Absent -> suggest `/odoo-onboarding`.
+7. **Principal-branch-lock:** Read-only on the project repo. Only write within the machine-global
+   `$ODOO_AI_HOME` state root (two-axis convention: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) - never a source file in the project repo.
 8. **Sequential outer:** Never fan-out chunks to parallel subagents. Inner <=3 MCP parallel per chunk
    is the only concurrency. Rationale: MCP-I/O-bound not CPU-bound; subagent fan-out risks OOM and
    rate-limit spikes (Mode A - see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`).
@@ -501,7 +502,7 @@ When OSM is unreachable (bootstrap fails or `check_module_exists` returns repeat
 **Example 1 - Standard dispatch:**
 Prompt: "800 requirements from a manufacturing client RFP - classify, cost, give us the RTM."
 Action: Fire odoo-brl. GATE 0 plan: 800 items / 16 chunks / ~1600 MCP calls with cache. After approve,
-runs Phase 0-A-B-C-D-E. Produces rtm.csv + cost.json + report.md in `.odoo-ai/brl/Customer-A-YYYYMMDD-<hex>/`.
+runs Phase 0-A-B-C-D-E. Produces rtm.csv + cost.json + report.md in `<SHARE_DIR>/brl/Customer-A-YYYYMMDD-<hex>/`.
 
 **Example 2 - Resume after interruption:**
 Prompt: "The BRL job from yesterday got interrupted at chunk 7 - resume?"

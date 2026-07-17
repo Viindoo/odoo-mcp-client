@@ -9,7 +9,9 @@ Prompt: "Record a 30-second demo of creating and confirming a sales order in Odo
 - Round 2: log in, navigate to Sales, set clean state.
 - Round 3: record click path: New → pick customer → add line → Confirm; `stop_recording`, then
   `close_page` the driven page before Round 4.
-- Round 4: save `.odoo-ai/visual/videos/sale-order-<timestamp>.mp4`, report path + duration.
+- Round 4: save to the Tier-2 ISOLATE dir resolved per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` -
+  `<ISOLATE_DIR>/visual/videos/sale-order-<timestamp>.mp4`, report path + duration.
 
 ## Example 2 - website portal GIF, recorder unavailable
 

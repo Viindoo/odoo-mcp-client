@@ -47,7 +47,7 @@ Difference from siblings: `odoo-gap-analysis` outputs effort tiers (days) for qu
 > Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
 
 **Session bootstrap** (call once at session start):
-- `set_active_profile(profile_name='<viindoo_profile from .odoo-ai/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
+- `set_active_profile(profile_name='<viindoo_profile from <SHARE_DIR>/context.md>')` - Pin tenant profile for the session so subsequent calls scope to one customer profile.
 - `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
 
 **Primary tools:**
@@ -84,7 +84,7 @@ Difference from siblings: `odoo-gap-analysis` outputs effort tiers (days) for qu
 
 Follow `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md` for all claims.
 
-**Round 0 - Context bootstrap + pin:** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`: read `.odoo-ai/context.md` if present and extract `odoo_version` and `viindoo_profile`. Call `set_active_version(odoo_version=…)` and `set_active_profile(profile_name=…)` with those values (never hard-code `standard_viindoo_17`). If `.odoo-ai/context.md` is absent, derive version from manifests on disk per the context-bootstrap snippet before asking.
+**Round 0 - Context bootstrap + pin:** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`: read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) if present and extract `odoo_version` and `viindoo_profile`. Call `set_active_version(odoo_version=…)` and `set_active_profile(profile_name=…)` with those values (never hard-code `standard_viindoo_17`). If `<SHARE_DIR>/context.md` is absent, derive version from manifests on disk per the context-bootstrap snippet before asking.
 
 The requirement list is already in the invocation context - proceed directly without asking the user to re-provide it.
 
@@ -168,7 +168,7 @@ EE license is required>
 
 **Effort legend (for via-Extension and No rows):** S = <1d - M = 1-3d - L = 3-10d - XL = >10d
 
-**Effort source:** When a costed gap matrix already exists, read effort per requirement from `.odoo-ai/gap-analysis/*/gap-matrix.jsonl` (the `effort_tier` keyed by `req_id`, produced by `odoo-gap-analysis`) and cite the path, rather than re-deriving day-counts from chat.
+**Effort source:** When a costed gap matrix already exists, read effort per requirement from `<SHARE_DIR>/gap-analysis/*/gap-matrix.jsonl` (the `effort_tier` keyed by `req_id`, produced by `odoo-gap-analysis`) and cite the path, rather than re-deriving day-counts from chat.
 
 **Worked examples:** `${CLAUDE_PLUGIN_ROOT}/skills/odoo-rfp-response/references/examples.md`
 

@@ -22,7 +22,7 @@ re-invent it); **estimate, never bind** (wire each node to a SKILL, give rough e
 per-agent model or fan-out count); **never design, never code** (consume the approved design; do not
 change it and do not write source).
 
-Your only Write target is the plan under `.odoo-ai/plans/`. Never write a
+Your only Write target is the plan under `<SHARE_DIR>/plans/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Never write a
 `.py`/`.xml`/`.js`/`.scss`/`__manifest__.py`, never edit a design doc, never serialize
 `run-<id>.json` (intake Phase P owns that). You are a leaf: spawn nothing, invoke no skills. You
 inherit the full read tool surface; use OSM read-only and lightly. Do NOT mutate anything; do NOT
@@ -55,18 +55,18 @@ sequencing decision no artifact encodes - never to ask a human to paste the desi
 
 ## Round 0 - Read the inputs BY POINTER (do not re-derive)
 
-First read the cross-agent decision log (`.odoo-ai/worklog/<run-or-slug>/*.md`, oldest-first; absent
+First read the cross-agent decision log (`<ISOLATE_DIR>/worklog/<run-or-slug>/*.md`, oldest-first; absent
 dir = you are the first writer) per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`. Then read
 these pointers, each authoritative:
 
-1. **DESIGN_INDEX** - `.odoo-ai/designs/<master-slug>/index.yaml` (`dag_layers` = topo-ordered build
+1. **DESIGN_INDEX** - `<SHARE_DIR>/designs/<master-slug>/index.yaml` (`dag_layers` = topo-ordered build
    layers + dependency direction) per
    `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`; or single-mode
-   `.odoo-ai/designs/<slug>-<date>.md` (§5 Module structure + §6 Sequencing). This is the LOGICAL
+   `<SHARE_DIR>/designs/<slug>-<date>.md` (§5 Module structure + §6 Sequencing). This is the LOGICAL
    truth - module set, dependency direction, layering. Batch it into waves; never recompute it.
-2. **GAP_MATRIX** - `.odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl` (or a BRL RTM under
-   `.odoo-ai/brl/<job-id>/`) - read `effort_tier` per requirement to set each node's `effort`.
-3. **QA_ORACLE (OPTIONAL - usually ABSENT at planning time)** - `.odoo-ai/qa/<slug>-scenarios.md`
+2. **GAP_MATRIX** - `<SHARE_DIR>/gap-analysis/<slug>-<date>/gap-matrix.jsonl` (or a BRL RTM under
+   `<SHARE_DIR>/brl/<job-id>/`) - read `effort_tier` per requirement to set each node's `effort`.
+3. **QA_ORACLE (OPTIONAL - usually ABSENT at planning time)** - `<ISOLATE_DIR>/qa/<slug>-scenarios.md`
    (the immutable oracle from `odoo-qa-planner`). Normally authored LATER, at `odoo-acceptance`
    Phase 1, after coding - do NOT treat it as a standard planning input. When absent (the common
    case), the plan RESERVES the acceptance stage against the design's §9 Acceptance Criteria
@@ -125,7 +125,7 @@ count/model) stays the specialist skill's.
 
 ## Round 3 - Write the plan (CONFORM to the existing 3-block schema)
 
-Write ONE markdown file to `.odoo-ai/plans/<slug>-<YYYY-MM-DD>.md` (create the dir if needed),
+Write ONE markdown file to `<SHARE_DIR>/plans/<slug>-<YYYY-MM-DD>.md` (create the dir if needed),
 conforming to `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` - three
 blocks, none optional; do NOT invent a new format or relocate the schema. Emit: Run header + Block 1
 (module list) + Block 2 (dependency graph) + Block 3 (assignment, full lifecycle). **Block 2 MUST
@@ -142,7 +142,7 @@ Topology/lifecycle only - NEVER SHAs, branch tips, worktree paths, or leases (th
 Keep it a contract, not an essay: tables and node lines, every node traceable to the design DAG. No
 implementation code. Do NOT serialize `run-<id>.json`.
 
-After writing, APPEND your significant decisions to `.odoo-ai/worklog/<run-or-slug>/<NNN>-planner.md`
+After writing, APPEND your significant decisions to `<ISOLATE_DIR>/worklog/<run-or-slug>/<NNN>-planner.md`
 per `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`: wave batching + why, topology, lifecycle
 stages added, any sequencing assumption - each with evidence.
 
@@ -156,7 +156,7 @@ After writing the file, return:
 - Integration cadence: <one line>
 - Lifecycle: code -> review -> doc -> PR -> monitor -> merge
 - Estimates: effort <total S/M/L/XL> · est_agents <n> (ADVISORY / du kien - non-binding)
-- Artifact: .odoo-ai/plans/<slug>-<date>.md
+- Artifact: <SHARE_DIR>/plans/<slug>-<date>.md
 - Next: (RETURN_TO set) Return to: <RETURN_TO> | (else) serialize via intake Phase P -> run-harness
 ```
 
@@ -164,7 +164,7 @@ After writing the file, return:
 
 When you finish, append a Continuation Contract block per
 `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). Set
-`status: NEEDS_NEXT`, `produced: [.odoo-ai/plans/<slug>-<date>.md]`. Choose `next`:
+`status: NEEDS_NEXT`, `produced: [<SHARE_DIR>/plans/<slug>-<date>.md]`. Choose `next`:
 
 - **`RETURN_TO` SET:** `next: <RETURN_TO>` with `inputs: {plan: <path>}` - the caller owns downstream
   serialization + execution.

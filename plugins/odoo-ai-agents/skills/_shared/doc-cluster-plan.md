@@ -116,7 +116,10 @@ Every install step keeps three flags, whose exact names are resolved version-awa
 
 ### 8. Emit `doc-plan.yaml`
 
-Write ONE `doc-plan.yaml` per run in the schema below.
+Write ONE `doc-plan.yaml` per run in the schema below. `scope_ref` below resolves under
+`<ISOLATE_DIR>` (resolve once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
+substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+Read/Write/Edit).
 
 ---
 
@@ -133,7 +136,7 @@ run: doc-run-<timestamp>
 plan_kind: doc-package                    # distinguishes this from a code-build 3-block plan
 plan_source: design-dag | scope           # full-lifecycle reuses the design DAG; standalone resolves from scope
 grounding: osm | local-source             # module_inspect vs disk depends fallback
-scope_ref: .odoo-ai/packaging/<run>/scope.yaml
+scope_ref: <ISOLATE_DIR>/packaging/<run>/scope.yaml
 clusters:
   # --- cluster c1: LINEAR chain mod_c <- mod_b <- mod_a (each extends the previous) => ONE instance ---
   - cluster_id: c1

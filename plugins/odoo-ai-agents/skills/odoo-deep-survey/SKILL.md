@@ -4,7 +4,7 @@ argument-hint: "[scope/codebase path]"
 description: >-
   Multi-phase opt-in deep survey of an Odoo codebase or scope for the EXECUTE-AGENT
   consumer: a broad haiku sweep, then narrow sonnet dives, then an optional opus pass,
-  writing reusable findings to .odoo-ai/survey/ that later phases cite. Invoked ONLY by
+  writing reusable findings to the project's shared survey cache that later phases cite. Invoked ONLY by
   odoo-intake AFTER the user explicitly approves a deep survey via the `deep-survey`
   gate keyword - it is NOT a front door and NEVER auto-triggers on a bare prompt. DO NOT
   trigger when: the user has not opted into a deep survey; the intent is a single-file or
@@ -28,7 +28,9 @@ finding must be actionable without re-derivation: a `file:line` pointer or OSM c
 Read-only reconnaissance orchestrator. Loaded by the **Skill tool** from the main context, it
 fans out anonymous worker agents to map "can the codebase actually meet this intent, and where
 does the work land?" - at three escalating tiers of cost and depth. Writes analysis artifacts
-under `.odoo-ai/survey/`; never writes Odoo source.
+under `<SHARE_DIR>/survey/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
+never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit); never writes Odoo source.
 
 ## When this runs (opt-in only)
 
@@ -40,11 +42,11 @@ plan. It is heavy (many subagents, real tokens), which is why it is opt-in and n
 ## Inputs (passed by intake in the invocation)
 
 - **Intent / purpose / expected outcomes** - the closed Phase 0 gate (what / why / done-looks-like).
-- **Odoo version + profile** - from `.odoo-ai/context.md` or the intake version gate. Pin this
+- **Odoo version + profile** - from `<SHARE_DIR>/context.md` or the intake version gate. Pin this
   concrete version on every OSM call (see § OSM grounding).
 - **The first Proposed Plan** - so synthesis can express its findings as a *delta* against it.
 - **Slug** - reuse the feature slug intake already uses for brainstorm artifacts; the survey dir
-  is `.odoo-ai/survey/<slug>-<date>/`.
+  is `<SHARE_DIR>/survey/<slug>-<date>/`.
 
 ## Hard rules
 
@@ -52,8 +54,8 @@ plan. It is heavy (many subagents, real tokens), which is why it is opt-in and n
    tool from the main context. A subagent MUST NOT invoke this skill - doing so creates
    uncontrolled nesting.
 2. **Read-only.** Workers read Odoo source and call read-only OSM tools. The ONLY writes are this
-   skill's own analysis artifacts under `.odoo-ai/survey/` and worklog entries under
-   `.odoo-ai/worklog/`. No edits to Odoo source, no routed deliverable.
+   skill's own analysis artifacts under `<SHARE_DIR>/survey/` and worklog entries under
+   `<ISOLATE_DIR>/worklog/`. No edits to Odoo source, no routed deliverable.
 3. **Every claim is grounded.** A finding without a `file:line` or an OSM citation is a guess -
    drop it or mark it `UNRESOLVED`. The worklog `EVIDENCE` field is mandatory
    (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
@@ -124,7 +126,7 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
   they disagree - drop it or keep it only as a flagged discrepancy. Web is load-bearing ONLY for
   genuinely external facts OSM does not index. Every web finding carries source-tier + URL +
   fetch-date and lands in the synthesis `web_findings` section.
-- **Persist:** `.odoo-ai/survey/<slug>-<date>/phaseW/<NN>-<subquestion>.md` + one worklog entry
+- **Persist:** `<SHARE_DIR>/survey/<slug>-<date>/phaseW/<NN>-<subquestion>.md` + one worklog entry
   per worker. Sequence Phase W with the broad sweep (it feeds Phase-2 deep dives that touch the
   external dimension); if skipped, note "Phase W: skipped (no external sub-question)".
 
@@ -133,7 +135,7 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
 **Goal:** a fast, wide map of every candidate area. Cheap and parallel.
 
 - **Scope unit** = one top-level custom module (enumerate via `find . -name __manifest__.py`, or
-  the module list in `.odoo-ai/context.md`). For a non-code intent, the unit is one persona-domain
+  the module list in `<SHARE_DIR>/context.md`). For a non-code intent, the unit is one persona-domain
   area implied by the intent.
 - **Fan-out:** one haiku worker per unit, filling the Mode B budget (rolling-window beyond it).
 - **Each worker** (haiku = read-only lookup/classify only, never multi-tool OSM synthesis):
@@ -149,7 +151,7 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
   (`describe_module` - 1-2 lines, downgrades a hot-spot in an off-intent module) and **L2
   entry-point map** (`ir.actions` / controllers / `ir.cron` / view buttons / `execute_kw`-reachable
   `@api.model` methods, each `file:line` -> dispatched model/route) as a first-class artifact.
-- **Persist:** `.odoo-ai/survey/<slug>-<date>/phase1/<NN>-<area>.md` + one worklog entry per worker.
+- **Persist:** `<SHARE_DIR>/survey/<slug>-<date>/phase1/<NN>-<area>.md` + one worklog entry per worker.
 
 ## Phase 2 - narrow / deep dives (sonnet)
 
@@ -203,7 +205,7 @@ into each web worker's brief). It is reconnaissance, NOT the built-in `deep-rese
   `hr.TestSelfAccessProfile`, `test_pylint`, `test_lint`) is assembled at synthesis. All three feed
   the synthesis `tests_protecting` section.
 
-- **Persist:** `.odoo-ai/survey/<slug>-<date>/phase2/<NN>-<hotspot>.md` + worklog entries.
+- **Persist:** `<SHARE_DIR>/survey/<slug>-<date>/phase2/<NN>-<hotspot>.md` + worklog entries.
 
 ## Phase 3 - opus escalation (conditional)
 
@@ -219,7 +221,7 @@ synthesis - opus is the costly tier, 2 in-flight max under Mode B):
    Phase 2.
 
 Each opus worker takes one such unresolved knot and resolves it with cross-file reasoning over the
-Phase-1/2 artifacts + OSM. **Persist:** `.odoo-ai/survey/<slug>-<date>/phase3/<NN>-<knot>.md` +
+Phase-1/2 artifacts + OSM. **Persist:** `<SHARE_DIR>/survey/<slug>-<date>/phase3/<NN>-<knot>.md` +
 worklog.
 
 ## Worker brief - what every dispatched worker must carry
@@ -259,7 +261,7 @@ family delta; never inline that file verbatim into a hard-leaf brief.
 ## Synthesis + hand back to intake
 
 After the last phase, read every `phase*/*.md` + the worklog (oldest-first), aggregate the lens
-subsections (do NOT re-survey), and write `.odoo-ai/survey/<slug>-<date>/synthesis.md` to the full
+subsections (do NOT re-survey), and write `<SHARE_DIR>/survey/<slug>-<date>/synthesis.md` to the full
 contract in `references/synthesis-schema.md`. Each section is few-token, agent-readable, and
 carries `grounded: osm | hybrid | local-source`. Sections:
 
@@ -315,7 +317,7 @@ Every finding carries one grounding label - `grounded: osm | hybrid | local-sour
 ## Artifacts & resume
 
 ```
-.odoo-ai/survey/<slug>-<date>/
+<SHARE_DIR>/survey/<slug>-<date>/
   state.json        # {slug, intent, phase_done: [...], next: <phase|synthesis>}
   phaseW/<NN>-<subquestion>.md   # only if an external-dimension sub-question triggered Phase W
   phase1/<NN>-<area>.md
@@ -330,7 +332,8 @@ truth; `state.json` is the fast index).
 
 ## Out of Scope
 
-- **NEVER write Odoo source or the routed deliverable.** Analysis artifacts under `.odoo-ai/` only.
+- **NEVER write Odoo source or the routed deliverable.** Analysis artifacts under the machine-global
+  `$ODOO_AI_HOME` state root only (two-axis convention: `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`).
 - **NEVER auto-trigger.** This skill exists to be invoked by `odoo-intake` after the `deep-survey`
   opt-in. It is not a front door and does not classify intent - that is `odoo-intake`'s job.
 - **NEVER spawn from workers.** Workers are leaves; they do not invoke the Skill tool or

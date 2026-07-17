@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "I just cloned this Odoo repo, help me set up context",
-      "expected_output": "Skill walks the 9-step workflow; writes .odoo-ai/context.md with detected version + modules; updates .gitignore",
+      "expected_output": "Skill walks the 9-step workflow; writes <SHARE_DIR>/context.md with detected version + modules; updates .gitignore",
       "category": "should-fire-direct",
       "files": []
     },
@@ -24,7 +24,7 @@
     },
     {
       "id": 4,
-      "prompt": "review this PR (working dir is a fresh Odoo repo with no .odoo-ai/)",
+      "prompt": "review this PR (working dir is a fresh Odoo repo with no context.md recorded yet)",
       "expected_output": "Either: (a) onboard fires proactively due to missing context, OR (b) odoo-code-review fires first but immediately suggests running onboard. Phase A acceptance: skill description should make case (a) preferred but case (b) acceptable.",
       "category": "should-fire-proactive",
       "files": []

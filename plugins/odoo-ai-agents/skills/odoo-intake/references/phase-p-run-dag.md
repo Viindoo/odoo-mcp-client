@@ -26,7 +26,7 @@ Continuation Contract `next[]` - if a step emits a `next[]` worth chaining, re-r
 open a RUN-DAG.
 
 **Procedure** (when Phase P is engaged):
-1. Serialize the approved 3-block plan into `.odoo-ai/run-<id>.json` per the blackboard schema
+1. Serialize the approved 3-block plan into `<ISOLATE_DIR>/run-<id>.json` (resolve `<ISOLATE_DIR>`/`<SHARE_DIR>` via the resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`) per the blackboard schema
    (harness §8.3). The plan's OUTER unit is the MODULE, never a work-item (SSOT:
    `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` § Two-tier decomposition axis). Emit
    one `nodes[]` entry per plan node, with `depends_on` from the dependency graph and
@@ -41,7 +41,7 @@ open a RUN-DAG.
    `<short-intent-slug>-<YYYYMMDD>-<4 random chars>` (e.g. `add-priority-20260607-a3f1`) so
    concurrent runs never collide.
    - **Non-trivial path (plan authored by `odoo-planning`):** ingest the planner artifact BY
-     POINTER - read the approved 3-block plan from `.odoo-ai/plans/<slug>-<date>.md` and serialize
+     POINTER - read the approved 3-block plan from `<SHARE_DIR>/plans/<slug>-<date>.md` and serialize
      its modules/DAG/assignment directly. Do NOT re-derive the DAG from chat text; the planner
      already produced the canonical 3-block (it does not serialize `run-<id>.json` itself -
      serialization stays here, in one place).
@@ -49,15 +49,15 @@ open a RUN-DAG.
      `odoo-planning` via the **Skill tool** (`plan_mode_active: true`) - there is NO trivial/
      size/module-count bypass (`planning-gate-contract.md` § Mandatory-planning rule); it emits
      the minimal `[code, review, integrate]` plan. Once `odoo-planning` returns its plan pointer
-     (`.odoo-ai/plans/<slug>-<date>.md`), ingest it BY POINTER and serialize it into `run-<id>.json`
+     (`<SHARE_DIR>/plans/<slug>-<date>.md`), ingest it BY POINTER and serialize it into `run-<id>.json`
      using the identical "ingest by pointer" procedure as the non-trivial path directly above
      (`phase-p-run-dag.md:43-47`) - never hand-author the plan inline.
    - **Decision X (node inputs):** each node carries `inputs: {effort, est_agents}` (ADVISORY /
      du kien) and **no binding `model`** - the dispatched specialist skill owns the actual model +
      agent count at runtime; the run-node never pins them.
 2. Tag each node's `gate_tier` from the registry `default_gate_tier`
-   (`generator/skill_tool_deps.json`), raising it if the node writes outside `.odoo-ai/`.
-   - For each SOURCE-writing node (writes outside `.odoo-ai/`) that is NOT a self-provisioning
+   (`generator/skill_tool_deps.json`), raising it if the node writes outside the `$ODOO_AI_HOME` state root.
+   - For each SOURCE-writing node (writes outside the `$ODOO_AI_HOME` state root) that is NOT a self-provisioning
      specialist (SSOT set: `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Self-provisioning
      specialists), set `inputs.needs_worktree: true`. `run-harness` provisions the actual
      worktree/branch at dispatch (its Hard rule 6); Phase P only RECORDS the requirement - it does

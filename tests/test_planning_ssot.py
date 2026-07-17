@@ -101,7 +101,8 @@ def test_plan_schema_is_ssot_owned_by_planning_and_not_relocated():
 
 def test_intake_decision_tree_exemption_names_design_and_planning():
     """intake:134 'Does NOT apply' exemption list must include odoo-solution-design AND
-    odoo-planning (they write only .odoo-ai/; odoo-planning owns its own Plan Mode)."""
+    odoo-planning (they write only under the $ODOO_AI_HOME state root; odoo-planning owns its
+    own Plan Mode)."""
     text = INTAKE.read_text(encoding="utf-8")
     idx = text.find("**Does NOT apply**")
     assert idx != -1, "intake must have a '**Does NOT apply**' Plan-Mode exemption clause."

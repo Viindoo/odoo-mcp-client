@@ -72,10 +72,10 @@ Work in rounds; fire independent calls in the same message within a round.
 
 ### Round 0 - Load context
 
-Read `.odoo-ai/context.md` (Markdown bullets, `- **key**: value` format). Extract:
+Read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit; Markdown bullets, `- **key**: value` format). Extract:
 - `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir`.
 
-If absent or key missing, fall back to the machine-global `~/.odoo-ai/instances.toml` (project `./.odoo-ai/instances.toml` is only a transitional fallback; see `snippets/instance-resolution.md`) for instance URL and OSM
+If absent or key missing, fall back to `$ODOO_AI_HOME/instances.toml` (resolve via `scripts/lib/resolve_instances.sh`; see `snippets/instance-resolution.md`) for instance URL and OSM
 `list_available_versions` for Odoo version. Ask the user (plus the two states to compare) in a
 single message only if none supply the needed values. Do not guess.
 
@@ -162,7 +162,7 @@ Examples (two worked scenarios - upgrade regression + SCSS change drift):
 ## Notes / Integration
 
 - Determinism matters: same login, data, breakpoint, scroll position for both captures or the diff is noise.
-- Baselines are written under `screenshot_baseline_dir` from `.odoo-ai/context.md`.
+- Baselines are written under `screenshot_baseline_dir` from `<SHARE_DIR>/context.md`.
 - This skill detects drift only; hand fixes to `odoo-coding`.
 
 ## Continuation Contract

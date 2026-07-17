@@ -5,9 +5,11 @@
 # Git-Rebase Pipeline - per-phase execution detail
 
 All paths are under the integration worktree unless noted. `<slug> = <feature-ref>-onto-<new-base>`
-(sanitized). Artifacts live under `.odoo-ai/git-rebase/<slug>/` (gitignored). Every Odoo
-Semantic call passes a concrete `odoo_version=` (never a default; the pin is per-API-key state
-any concurrent agent can overwrite).
+(sanitized). Artifacts live under `<ISOLATE_DIR>/git-rebase/<slug>/` (gitignored; resolve
+`<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
+substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+Read/Write/Edit). Every Odoo Semantic call passes a concrete `odoo_version=` (never a default; the
+pin is per-API-key state any concurrent agent can overwrite).
 
 ---
 
@@ -25,8 +27,11 @@ never by switching the principal.
 **FIRST: check for an in-progress or partially-completed run before dispatching intake.**
 
 ```bash
+# 0. Resolve the ISOLATE state dir once for this run.
+DIR="$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh" isolate)"
+
 # 1. Check for an existing checkpoint from a prior session.
-CHECKPOINT=.odoo-ai/git-rebase/<slug>/checkpoint.json
+CHECKPOINT="$DIR/git-rebase/<slug>/checkpoint.json"
 if [ -f "$CHECKPOINT" ]; then
   echo "Prior run detected - read checkpoint.json and resume from last completed phase."
 fi
@@ -62,7 +67,7 @@ STEPS:
          Do NOT create any worktree or switch any branch yourself.
      The orchestrator delegates worktree creation to git-ops after you return.
   5. Emit open_questions[] for anything ambiguous - do NOT guess. One item per ambiguity.
-EMIT: intake.md at .odoo-ai/git-rebase/<slug>/intake.md
+EMIT: intake.md at <ISOLATE_DIR>/git-rebase/<slug>/intake.md
 FORMAT:
   feature_ref: <local branch name or PR URL>
   feature_worktree_path: <absolute path if already present locally, else "pending-materialize">
@@ -139,7 +144,7 @@ STEPS:
      These are CANDIDATES only - P3 is authoritative.
   5. For each non-(a) commit: git show --stat <sha> -> assign EXTRACT tier per Table 1.
   6. Emit recon.md (below).
-EMIT: .odoo-ai/git-rebase/<slug>/recon.md
+EMIT: <ISOLATE_DIR>/git-rebase/<slug>/recon.md
 FORMAT (one row per commit):
   sha: <sha>
   subject: <one-line message>
@@ -162,7 +167,7 @@ for each non-(a) commit:
 ```
 TASK: write per-commit dump files for intent extraction
 commits: [<sha1>, <sha2>, ...]  # all non-(a) SHAs from recon.md
-output_dir: .odoo-ai/git-rebase/<slug>/commits/
+output_dir: <ISOLATE_DIR>/git-rebase/<slug>/commits/
 output_format: full commit content (message + diff) for each SHA written to <output_dir>/<sha>.dump
 worktree: <any local worktree where the commits are accessible (e.g. feature worktree or principal)>
 ```
@@ -180,14 +185,14 @@ DISPATCH MODEL: <extract_tier>
 GROUNDING MODE: rebase-base-head
 NEW BASE REF: <new-base>
 SHA: <sha>
-commit_dump_path: .odoo-ai/git-rebase/<slug>/commits/<sha>.dump
+commit_dump_path: <ISOLATE_DIR>/git-rebase/<slug>/commits/<sha>.dump
 SERIES: <e.g. 17.0>
 SLUG: <slug>
 TASK: Extract the business intent and behavioral contract of this one commit. Read commit
       message -> PR/issue -> test changes -> code comments (priority order). Ground the
       touched symbols at <NEW BASE REF> HEAD (same-version grounding, NOT a cross-version diff).
       Do NOT call api_version_diff (same series; no version jump).
-      Write .odoo-ai/git-rebase/<slug>/intents/<sha>.md
+      Write <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md
       Do NOT copy diff hunks as intent. Do NOT classify the 4-outcome bucket (caller's job).
 OUTPUT FIELDS: sha, intent_one_liner, symbols[], outcome_hint, grounding
 USER LANGUAGE: <lang | omit when English>
@@ -206,7 +211,7 @@ Before dispatching odoo-diff-comparator, invoke git-ops to produce the three-dot
 ```
 TASK: produce three-dot diff for rebase behavior comparison
 scope: <new-base>...<feature-ref>  (three-dot form: base vs feature)
-output: .odoo-ai/git-rebase/<slug>/three-dot-diff.txt
+output: <ISOLATE_DIR>/git-rebase/<slug>/three-dot-diff.txt
 worktree: <any local worktree where both refs are accessible>
 ```
 
@@ -223,8 +228,8 @@ TASK: Compare the feature branch versus the new base as a WHOLE - what intents t
 REFS:
   FEATURE_REF: <branch>
   NEW_BASE: <branch>
-  diff_path: .odoo-ai/git-rebase/<slug>/three-dot-diff.txt
-  INTENT_FILES: .odoo-ai/git-rebase/<slug>/intents/*.md
+  diff_path: <ISOLATE_DIR>/git-rebase/<slug>/three-dot-diff.txt
+  INTENT_FILES: <ISOLATE_DIR>/git-rebase/<slug>/intents/*.md
 OUTCOME_CONTRACT: [[rb-intent-4outcome]] (${CLAUDE_PLUGIN_ROOT}/snippets/rb-intent-4outcome.md)
 STEPS:
   1. Read diff_path and all intent files.
@@ -233,7 +238,7 @@ STEPS:
   3. Propose exactly one outcome (a/b/c/d) per commit with evidence (symbol + path).
   4. List a duplicate-behavior risk for any commit classified (a) - confirm the feature truly
      already exists at new-base and is not just a similar-looking construct.
-EMIT: .odoo-ai/git-rebase/<slug>/comparison.md
+EMIT: <ISOLATE_DIR>/git-rebase/<slug>/comparison.md
 FORMAT per commit:
   sha: <sha>
   outcome: a|b|c|d
@@ -262,7 +267,7 @@ resolved silently.
 `already_on_base: true` in `recon.md` but `comparison.md` assigns it a non-(a) outcome,
 that commit was skipped by the P2 pre-step and has no dump file or intent file. Before
 proceeding to P5/P6: invoke git-ops to write its dump to
-`.odoo-ai/git-rebase/<slug>/commits/<sha>.dump` (same brief as P2 pre-step for a single SHA);
+`<ISOLATE_DIR>/git-rebase/<slug>/commits/<sha>.dump` (same brief as P2 pre-step for a single SHA);
 then dispatch a late `odoo-intent-extractor` (rebase MODE, same brief as P2 dispatch with
 `commit_dump_path:` set). Record `<sha>: extracted` in `checkpoint.json`. The deep
 reclassification routing logic is FLAG-ONLY - this step only provisions the input so the
@@ -288,7 +293,7 @@ inputs:
   design_slug_hint: <slug>-rb-<sha>
   target_version: <series>
   modules: [<names>]
-  intent_records: [.odoo-ai/git-rebase/<slug>/intents/<sha>.md]
+  intent_records: [<ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md]
   classification: "<outcome bucket (c or b)> - <one-line reason>"
 ```
 
@@ -452,7 +457,7 @@ git status
 
 **Fast-path fallback (missing intent file):** if no `intents/<sha>.md` exists for
 `stopped_commit` (e.g., the small-scale fast-path was taken and P2 was skipped): invoke
-git-ops to write the commit dump to `.odoo-ai/git-rebase/<slug>/commits/<sha>.dump`,
+git-ops to write the commit dump to `<ISOLATE_DIR>/git-rebase/<slug>/commits/<sha>.dump`,
 then dispatch `odoo-intent-extractor` (rebase MODE, P2 brief with `commit_dump_path:` set)
 to create the intent file before proceeding to the coder.
 
@@ -466,7 +471,7 @@ SKILL: odoo-coding
 DISPATCH MODEL: <adapt_tier from plan.md>
 TASK: Resolve a rebase conflict for one commit in a same-series Odoo rebase.
 SHA: <sha>
-INTENT_FILE: .odoo-ai/git-rebase/<slug>/intents/<sha>.md
+INTENT_FILE: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md
 OUTCOME: <a|b|c|d>
 FAILURE_MODE: <from comparison.md>
 CONFLICTED_FILES: <list from git diff --check - text hunks only; .po/binary/generated handled above>
@@ -571,7 +576,10 @@ python -m pytest --collect-only <feature-touched test files>
 #   -i <modules> on a FRESH <db> (modules not yet installed - the usual collection-gate case);
 #   -u <modules> on a REUSED/already-installed <db> (-i on an installed module is a no-op).
 #   Confirm flags via cli_help; see ${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md
-odoo-bin -d <db> --test-enable --stop-after-init -i <modules> 2>&1 | grep -E "ERROR|error"
+#   Memory-cap policy: ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md
+[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
+odoo-bin -d <db> --test-enable --stop-after-init -i <modules> \
+  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296} 2>&1 | grep -E "ERROR|error"
 ```
 
 **ACCEPTANCE GATE (HARD):** collection must complete with `0 failed, 0 error(s)`.
@@ -592,7 +600,7 @@ Skill tool) until GREEN - `odoo-coding` owns the coder fan-out + model (do NOT d
 DISPATCH MODEL: <adapt_tier>
 TASK: Adapt the branch's own tests to the new-base idiom for module <module>.
 MODE: adapt (RED first, then GREEN)
-INTENT_FILE: .odoo-ai/git-rebase/<slug>/intents/<sha>.md
+INTENT_FILE: <ISOLATE_DIR>/git-rebase/<slug>/intents/<sha>.md
 TARGET_SERIES: <series>
 NEW_BASE: <new-base branch>
 WORKTREE_PATH: <WT_ROOT>/rb-integration
@@ -653,7 +661,7 @@ Invoke git-ops to produce the range-diff before odoo-diff-comparator:
 ```
 TASK: produce range-diff for rebase outcome verification
 scope: <old-base>..<feature-ref-tip> vs <new-base>..<rb-tip>
-output: .odoo-ai/git-rebase/<slug>/range-diff.txt
+output: <ISOLATE_DIR>/git-rebase/<slug>/range-diff.txt
 worktree: <WT_ROOT>/rb-integration (rb/<slug> and feature-ref-tip accessible from here)
 ```
 
@@ -666,9 +674,9 @@ Dispatch `odoo-diff-comparator` (sonnet):
 ```
 DISPATCH MODEL: sonnet
 TASK: Verify the rebase outcome via range-diff and duplicate-behavior guard.
-diff_path: .odoo-ai/git-rebase/<slug>/range-diff.txt
-INTENT_FILES: .odoo-ai/git-rebase/<slug>/intents/*.md
-PLAN: .odoo-ai/git-rebase/<slug>/plan.md
+diff_path: <ISOLATE_DIR>/git-rebase/<slug>/range-diff.txt
+INTENT_FILES: <ISOLATE_DIR>/git-rebase/<slug>/intents/*.md
+PLAN: <ISOLATE_DIR>/git-rebase/<slug>/plan.md
 STEPS:
   1. Read the file at diff_path (the range-diff output produced by the git-ops pre-step above).
   2. For each P4 intent: confirm it is present and semantically unchanged in the rb branch.
@@ -683,7 +691,7 @@ STEPS:
         path to locate the definitions. This is a locator only, not the dup signal.
      Flag any identifier with OSM count >1 as a definitive duplicate; flag count=0
      (symbol removed at base) as a symbol-survival miss that should have been caught at P8b.
-EMIT: .odoo-ai/git-rebase/<slug>/verify.md
+EMIT: <ISOLATE_DIR>/git-rebase/<slug>/verify.md
 FORMAT:
   range_diff_verdict: pass|fail|warn
   intent_survival: [{sha, present: true|false, note}]

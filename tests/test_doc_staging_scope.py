@@ -6,9 +6,9 @@ staging, and the doc default capture family must be the ONE eager browser MCP
 
   - capture-mechanics.md documents chrome-devtools as the DEFAULT capture family;
   - the staging path is run+module scoped: `<run_id>/<module>_staging/...` under
-    BOTH `.odoo-ai/visual/` (chrome-devtools direct) and `.playwright-mcp/`
-    (playwright opt-in), and a bare `doc-staging/` with no `<run_id>/<module>`
-    prefix is explicitly FORBIDDEN;
+    BOTH `<ISOLATE_DIR>/visual/` (chrome-devtools direct, Tier-2 ISOLATE per
+    state-root-resolution.md) and `.playwright-mcp/` (playwright opt-in), and a
+    bare `doc-staging/` with no `<run_id>/<module>` prefix is explicitly FORBIDDEN;
   - the odoo-doc-illustration skill threads `RUN_ID` into BOTH writer briefs and
     owns an end-of-run cleanup scoped to `<run_id>` only;
   - the two writer agents' staging examples use the `<run_id>/<module>_staging/`
@@ -42,9 +42,10 @@ def test_chrome_devtools_is_the_documented_default_family():
 
 def test_staging_path_is_run_and_module_scoped():
     text = _read(CAPTURE)
-    # chrome-devtools default stages directly under .odoo-ai/visual/<run_id>/<module>_staging/
-    assert ".odoo-ai/visual/<run_id>/<module>_staging/" in text, (
-        "chrome-devtools default must stage under .odoo-ai/visual/<run_id>/<module>_staging/"
+    # chrome-devtools default stages directly under <ISOLATE_DIR>/visual/<run_id>/<module>_staging/
+    # (Tier-2 ISOLATE per state-root-resolution.md - resolved+captured, never a bare .odoo-ai/ literal)
+    assert "<ISOLATE_DIR>/visual/<run_id>/<module>_staging/" in text, (
+        "chrome-devtools default must stage under <ISOLATE_DIR>/visual/<run_id>/<module>_staging/"
     )
     # playwright opt-in namespaces .playwright-mcp/ by run + module
     assert ".playwright-mcp/<run_id>/<module>_staging/" in text, (
@@ -74,7 +75,7 @@ def test_skill_threads_run_id_into_both_writer_briefs():
 
 def test_skill_has_end_of_run_cleanup_scoped_to_run_id():
     text = _read(SKILL)
-    assert "rm -rf .odoo-ai/visual/<run_id>/ .playwright-mcp/<run_id>/" in text, (
+    assert "rm -rf <ISOLATE_DIR>/visual/<run_id>/ .playwright-mcp/<run_id>/" in text, (
         "skill must own an end-of-run rm -rf scoped to <run_id>"
     )
     # And it must forbid deleting another run's subtree.
@@ -84,7 +85,7 @@ def test_skill_has_end_of_run_cleanup_scoped_to_run_id():
 def test_writer_agents_use_run_module_staging_template():
     for agent in (USER_DOC, MKT_DOC):
         text = _read(agent)
-        assert ".odoo-ai/visual/<RUN_ID>/<module>_staging/" in text, (
+        assert "<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/" in text, (
             f"{agent.name} staging example must use the <RUN_ID>/<module>_staging/ template"
         )
         # doc-staging/ may appear ONLY inside the forbiddance, never as a positive

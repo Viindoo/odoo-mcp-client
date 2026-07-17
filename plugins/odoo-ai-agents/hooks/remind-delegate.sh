@@ -8,7 +8,8 @@
 # HARD CONTRACT: this hook NEVER denies a tool call. The main agent is the top decision-maker
 #   alongside the human; hard-blocking it is dangerous (can trap the agent / deadlock). So:
 #   - permissionDecision is ALWAYS "allow"; we only attach `additionalContext` as a reminder.
-#   - Self-gates: no active run (no .odoo-ai/run-*.json with status NEEDS_NEXT) → silent pass.
+#   - Self-gates: no active run (no ISOLATE run-*.json with status NEEDS_NEXT; resolved per
+#     ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md) → silent pass.
 #   - Best-effort targets the MAIN agent only (skip when we can tell we are in a subagent), so a
 #     subagent doing the delegated work is not nagged. When unsure, stay silent (no nudge).
 #   - Degrades to exit 0 on any uncertainty (no jq, parse error, no run file).
@@ -34,9 +35,16 @@ if [[ -n "$AGENT_ID" || ( -n "$AGENT_TYPE" && "$AGENT_TYPE" != "general-purpose"
   _pass    # inside a subagent - it is supposed to do the work; do not nag
 fi
 
-# Active-run self-gate: only nudge when a run is mid-flight (status NEEDS_NEXT).
+# Active-run self-gate: only nudge when a run is mid-flight (status NEEDS_NEXT). ISOLATE
+# state dir (Problem 3 - snippets/state-root-resolution.md), resolved FROM the hook's own
+# project cwd. CRITICAL RESILIENCE: this hook must NEVER hard-fail or block a tool call - a
+# resolver refusal (non-git, no marker) or any error (missing script, no CLAUDE_PLUGIN_ROOT)
+# silently falls back to the legacy project-relative path (previously this was ALWAYS
+# CWD-relative, a bug: it ignored the resolver entirely).
 CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
-RUN_DIR="${CWD:-${CLAUDE_PROJECT_DIR:-.}}/.odoo-ai"
+PROJ_DIR="${CWD:-${CLAUDE_PROJECT_DIR:-.}}"
+RUN_DIR="$(cd "$PROJ_DIR" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" isolate 2>/dev/null || true)"
+[[ -n "$RUN_DIR" ]] || RUN_DIR="${PROJ_DIR}/.odoo-ai"
 active_run=""
 shopt -s nullglob
 for rf in "$RUN_DIR"/run-*.json; do
@@ -46,6 +54,6 @@ done
 shopt -u nullglob
 [[ -n "$active_run" ]] || _pass    # no active run → not in drive-to-done mode → silent
 
-jq -cn --arg ctx "You are mid-run (active drive-to-done run in .odoo-ai/). As the orchestrator, prefer delegating this $TOOL to a subagent/specialist so your context stays clean for decisions. This is only a reminder - proceed if you judge it right." \
+jq -cn --arg ctx "You are mid-run (active drive-to-done run under the namespaced state root - see snippets/state-root-resolution.md). As the orchestrator, prefer delegating this $TOOL to a subagent/specialist so your context stays clean for decisions. This is only a reminder - proceed if you judge it right." \
   '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"allow", additionalContext:$ctx}}'
 exit 0

@@ -9,7 +9,6 @@
 # build deps). The setup command calls `create-venv` only when the user asks.
 #
 # CONFIG (env overrides):
-#   ODOO_AI_DIR        project state dir     (default $PWD/.odoo-ai)
 #   ODOO_AI_HOME       machine-global dir    (default $HOME/.odoo-ai)
 #   ODOO_AI_INSTANCES  full-path override for instances.toml
 #
@@ -26,10 +25,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$SCRIPT_DIR/../lib/config_merge.py"
 MATRIX_JSON="$SCRIPT_DIR/../lib/odoo-python-matrix.json"
-ODOO_AI_DIR="${ODOO_AI_DIR:-$PWD/.odoo-ai}"
 # instances.toml is machine-global; resolve it (global-wins) via the shared helper.
 # shellcheck source=../lib/resolve_instances.sh
 source "$SCRIPT_DIR/../lib/resolve_instances.sh"
+# venvs/ root (Tier-2 SHARE - snippets/state-root-resolution.md): sourced for
+# resolve_project_dir_share, called lazily in cmd_create_venv (below) so a venv
+# built in one linked worktree of a repo is reused by every other worktree of
+# the SAME repo, instead of the old $ODOO_AI_DIR-relative (cwd/worktree-scoped)
+# path. follow-up: reclassify venvs/ to host-global by requirements-hash (deferred).
+# shellcheck source=../lib/resolve_project_dir.sh
+source "$SCRIPT_DIR/../lib/resolve_project_dir.sh"
 INSTANCES_TOML="$(_resolve_instances)"
 
 cmd_describe() {
@@ -200,14 +205,23 @@ PY
         [[ "$_ep_rc" -eq 0 ]] || return "$_ep_rc"
     fi
 
-    # Venv path: when --profile is given and --path is absent, use a per-profile path.
+    # Venv path: when --profile is given and --path is absent, use a per-profile
+    # path rooted at the resolver's Tier-2 SHARE dir (resolve_project_dir.sh
+    # share) - converges across a repo's linked worktrees instead of the old
+    # $ODOO_AI_DIR-relative (cwd/worktree-scoped) path.
+    # follow-up: reclassify venvs/ to host-global by requirements-hash (deferred).
     if [[ -z "$path" ]]; then
+        local share_dir
+        share_dir="$(resolve_project_dir_share)" || {
+            echo "x could not resolve the project SHARE dir for venvs/ (see resolve_project_dir.sh)." >&2
+            return 1
+        }
         if [[ -n "$profile" ]]; then
             local prof_slug
             prof_slug="$(printf '%s' "$profile" | tr -c '[:alnum:]._-' '_')"
-            path="$ODOO_AI_DIR/venvs/${series}-${prof_slug}"
+            path="$share_dir/venvs/${series}-${prof_slug}"
         else
-            path="$ODOO_AI_DIR/venvs/$series"
+            path="$share_dir/venvs/$series"
         fi
     fi
 

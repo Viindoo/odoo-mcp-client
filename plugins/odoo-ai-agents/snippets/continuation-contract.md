@@ -39,9 +39,10 @@ Rules:
   opened CLOSED, self-provisioned instance leases RELEASED (or explicitly handed off by
   name). Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 - `produced` is your evidence (Completion-status #8) - list the real paths you wrote.
-- `risk_level`: L0 read-only/chat · L1 writes internal `.odoo-ai/` files · L2
-  irreversible/outward (touches an instance, git push/merge, sends to a third party). When
-  unsure, pick the higher tier.
+- `risk_level`: L0 read-only/chat · L1 writes internal state (Tier-2 SHARE/ISOLATE `.odoo-ai/`-rooted
+  files, resolved per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` - never a
+  project-relative `./.odoo-ai/`) · L2 irreversible/outward (touches an instance, git push/merge,
+  sends to a third party). When unsure, pick the higher tier.
 - Outside an active run this block is harmless - it just documents suggested next steps.
 - Back-compat: a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line is still read by
   the driver as a low-confidence `NEEDS_NEXT`; prefer the fenced block going forward.

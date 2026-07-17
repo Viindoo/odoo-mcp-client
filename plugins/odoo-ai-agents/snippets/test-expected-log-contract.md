@@ -68,7 +68,10 @@ and the test gives a false green.
 
 ## JS-OWL era split (resolve at runtime - never hardcode)
 
-Resolve the target Odoo series from `.odoo-ai/context.md` (`odoo_version` field); if that file
+Resolve the target Odoo series from `<SHARE_DIR>/context.md` (`odoo_version` field; resolve
+`<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
+substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+Read/Write/Edit); if that file
 is absent or the field is empty, fall back to the first segment of the module `__manifest__.py`
 `version` field (e.g. `17.0.x.y.z` -> `17`); if both are absent, default to `v17` and state
 the assumption. Then call `js_test_inspect(module=..., odoo_version=...)` to confirm the

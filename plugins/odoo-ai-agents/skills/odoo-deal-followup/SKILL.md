@@ -55,7 +55,7 @@ Skill **always operates without OSM**. All logic runs on user-provided text.
 ### Round 0 - Bootstrap context, then ask only for gaps
 
 1. **Use the invocation context first.** Deal details are usually already in the request - do not re-ask for anything already provided.
-2. **Read `.odoo-ai/context.md`** if present - extract `odoo_version` and any CRM defaults.
+2. **Read `<SHARE_DIR>/context.md`** if present (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) - extract `odoo_version` and any CRM defaults.
 3. **Optional enrichment:** If a live CRM/email integration is available, enrich from it - but treat as a bonus, never required. Skill must work with only request text + local files.
 4. Ask only for fields still unresolved after steps 1-3, in one message.
 
@@ -161,7 +161,7 @@ the customer">
 
 ## Notes
 
-- **Odoo version context:** Feature claims in an email thread are flagged under "Optional: feature claims to verify". Version resolved from `.odoo-ai/context.md` in Round 0.
+- **Odoo version context:** Feature claims in an email thread are flagged under "Optional: feature claims to verify". Version resolved from `<SHARE_DIR>/context.md` in Round 0.
 - **Email language:** Matches thread language or explicit request. No thread → default English.
 - **No invented information:** Missing last contact date or pipeline stage → ask before computing risk score.
 - **Leaf skill.** Does NOT spawn subagents, does NOT invoke the Skill tool. References to other skills are text suggestions only.
