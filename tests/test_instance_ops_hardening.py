@@ -624,3 +624,59 @@ def test_skill_states_deterministic_signal_never_log_tail():
     assert "/web/database/selector" in text, (
         "skill must name /web/database/selector as the listening-readiness probe"
     )
+
+
+# ---------------------------------------------------------------------------
+# L1.5 - server_pid in the canonical instance handle, and --alloc-token
+# threaded through the exclusive-running provisioning path so the spinup
+# script's exclusive-branch pid-bind (allocator.py bind) actually fires.
+# ---------------------------------------------------------------------------
+
+def test_agent_canonical_output_block_carries_server_pid():
+    """odoo-instance-ops.md's canonical instance-ops output block must add a
+    server_pid field - the server's process-group id under setsid, null for
+    --stop-after-init builds (which self-terminate)."""
+    text = _norm(AGENT_MD)
+    assert "server_pid: <pid or null>" in text, (
+        "canonical output block must add a server_pid field"
+    )
+    assert "process-group id under setsid" in text.lower(), (
+        "agent must document server_pid as the process-group id under setsid"
+    )
+    assert "--stop-after-init" in text and "self-terminate" in text, (
+        "agent must state server_pid is null for --stop-after-init builds, which self-terminate"
+    )
+
+
+def test_handle_contract_declares_server_pid_optional_field():
+    """instance-handle-contract.md must add server_pid as an OPTIONAL forwarded
+    field, matching the agent's canonical block (SSOT: field names must not drift)."""
+    text = _norm(HANDLE_CONTRACT)
+    assert "`server_pid`" in text, "handle contract must declare server_pid"
+    assert "optional" in text.lower(), "server_pid must be documented as optional"
+
+
+def test_agent_exclusive_running_spinup_forwards_alloc_token():
+    """The persist: exclusive-running provisioning path's 50-instance-spinup.sh
+    invocation must forward the lease token Step D's acquire returned via
+    --alloc-token, or the script's exclusive-branch pid-bind (allocator.py
+    bind) silently never fires in production (_bind_exclusive no-ops when
+    ARG_ALLOC_TOKEN is unset)."""
+    text = _norm(AGENT_MD)
+
+    def _section(header_start: str, header_end: str) -> str:
+        s = text.find(header_start)
+        assert s != -1, f"section {header_start!r} not found"
+        e = text.find(header_end, s + 1)
+        return text[s: e if e != -1 else len(text)]
+
+    exclusive = _section(
+        "**`persist: exclusive-running`**", "**`persist: shared-running`**"
+    )
+    assert "--alloc-token" in exclusive, (
+        "the exclusive-running spinup invocation must pass --alloc-token"
+    )
+    assert '--alloc-token "$ALLOC_TOKEN"' in exclusive, (
+        "the exclusive-running spinup invocation must forward the acquired lease "
+        "token ($ALLOC_TOKEN, returned by Step D's allocator.py acquire) as --alloc-token"
+    )

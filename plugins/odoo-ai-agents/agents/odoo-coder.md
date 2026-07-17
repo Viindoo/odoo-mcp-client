@@ -41,6 +41,15 @@ After ALL your WIs return, verify the WHOLE module together (backend behavior + 
 - **`INSTANCE_HANDLE` present** -> run the integrated module test against that handed-in instance; do NOT self-provision.
 - **No handle -> self-provision via `Skill(odoo-instance)`** (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`). Provision the way that fits your context - inline in your own context, or by launching the `odoo-instance-ops` agent - either way `odoo-instance` applies the instance HARD RULES (`en_US` union, Viindoo `to_base` union, the `/test_lint`+`/test_pylint` install union) and returns the `instance-ops` block (`failed`/`errors`/`warnings`/`findings_path`). Request an isolated ephemeral instance with the module installed + tested (`OPERATION: run-tests`, `SERIES: <version>`, `MODULES: <module>`, `MODE: fresh`). Derive the verdict from the returned block, not a firehose (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`). A `warnings > 0` result is a finding, never swallowed.
 
+**After the integrated test, RELEASE the instance you self-provisioned.** If you self-provisioned
+(no `INSTANCE_HANDLE` was handed to you), once the integrated-test verdict is captured: RELEASE
+the lease you acquired (`allocator.py release <token> --run-id <id>`); you may not report DONE with
+a self-provisioned instance still leased. This release is what makes workflow-harness section 8.4's
+L1-auto-advance assumption ("instance touches are EPHEMERAL test DBs" that self-clean) true - do not
+remove it without revisiting that gate. If `INSTANCE_HANDLE` was handed to you, do NOT release it -
+it belongs to the run-level owner, never to you. Full rule:
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
+
 ## Bounded fix loop on failure
 
 On an integrated-test FAILURE (or a `verify-frontend.sh` / lint regression surfaced by a worker), RE-LAUNCH the relevant worker (`odoo-backend-coder` for a Python/ORM/data failure, `odoo-frontend-coder` for a render/JS/asset failure) with the concrete failure detail (failing assertion / traceback pointer + `findings_path`) so it fixes to that evidence - never edit the `odoo-test-writer`-authored RED test to force green (fix the code, not the test). Re-launch the SAME worker (via `SendMessage` when addressable, else a fresh launch at the same model) and re-run the integrated test. Bound the loop to **3 iterations** per `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md` § The loop, bounded; still not green after 3 -> STOP and return BLOCKED with the failure evidence. Record each iteration's outcome in the worklog (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).

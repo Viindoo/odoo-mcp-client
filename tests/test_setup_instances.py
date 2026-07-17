@@ -27,6 +27,7 @@ LIB = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib"
 CONFIG_MERGE = LIB / "config_merge.py"
 INSTANCES_IO = LIB / "instances_io.py"
 STEP40 = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "setup-steps" / "40-instance-profile.sh"
+STEP50 = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "setup-steps" / "50-instance-spinup.sh"
 DISCOVER = LIB / "discover_odoo.sh"
 
 
@@ -584,3 +585,53 @@ def test_resolve_fails_closed_when_home_and_overrides_unset(tmp_path):
     )
     assert proc.returncode != 0
     assert "unset" in proc.stderr.lower()
+
+
+# --------------------------------------------------------------------------- #
+# L1.1 - RAM-leak fix: the source-mode launch must run under `setsid` (so the
+# server is its own process-group leader and allocator.py can group-stop it),
+# and an --exclusive spin-up must BIND the launched pid onto the caller's lease
+# (today only shared leases recorded a pid, so an exclusive lease leaked the
+# listening server on release). Static string guards - the behavioral proof of
+# the bind lives in tests/test_step45_50_harden.py.
+# --------------------------------------------------------------------------- #
+def test_step50_launches_source_server_under_setsid():
+    """The source-mode odoo-bin launch line must be prefixed with `setsid` so the
+    server becomes its own session/process-group leader (pgid == its own pid)."""
+    text = STEP50.read_text(encoding="utf-8")
+    # A true backgrounded launch ends with a bare ` &` (the preflight
+    # `"$py" "$bin" --version ...; then` line contains `2>&1` but is NOT a
+    # background job, so key on the trailing `&`, not any `&`).
+    launch_lines = [
+        ln for ln in text.splitlines()
+        if '"$py" "$bin"' in ln and ln.rstrip().endswith("&")
+        and not ln.lstrip().startswith("#")
+    ]
+    assert launch_lines, "could not find the backgrounded odoo-bin launch line"
+    assert all(ln.lstrip().startswith("setsid ") for ln in launch_lines), (
+        "the odoo-bin launch must run under `setsid` so the server is a clean "
+        f"process-group leader; got: {launch_lines!r}"
+    )
+
+
+def test_step50_binds_pid_onto_lease_on_the_exclusive_branch():
+    """The exclusive branch must call `allocator.py bind ... --pid` so the live
+    server pid is recorded on the lease (release/gc need it to stop the group)."""
+    text = STEP50.read_text(encoding="utf-8")
+    assert "_bind_exclusive" in text, "expected an exclusive-branch pid-bind helper"
+    assert "bind" in text and "--pid" in text, (
+        "the exclusive branch must invoke the allocator `bind <token> --pid` verb"
+    )
+    # The bind must be gated on the exclusive branch (not fire for shared leases).
+    assert 'ARG_EXCLUSIVE" == "1"' in text and "_bind_exclusive" in text, (
+        "the pid bind must be gated on the --exclusive branch"
+    )
+    # Liveness guard preserved: only a kill -0 confirmed pid is bound. Extract a
+    # window starting at the helper definition up to its `bind` invocation (a
+    # naive split on `}` would stop inside `${ARG_ALLOC_TOKEN:-}`).
+    after = text.split("_bind_exclusive()", 1)[1]
+    bind_block = after.split('bind "${ARG_ALLOC_TOKEN}"', 1)[0]
+    assert 'kill -0 "$1"' in bind_block, (
+        "the bind helper must keep the kill -0 liveness guard so a fast-failing "
+        "server never records a dead pid"
+    )

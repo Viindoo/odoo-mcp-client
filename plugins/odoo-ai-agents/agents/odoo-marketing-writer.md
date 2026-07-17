@@ -146,11 +146,23 @@ missing - NEVER fabricate a value; leave the key absent if the user has not supp
 store-readiness gaps (missing `icon.png` -> route to `odoo-icon-design`; missing cover; missing
 `license`; RST-only description) as a checklist.
 
+### Step 4.5 - Close your capture pages (before terminal status)
+
+1. CLOSE every page you opened for capture (`list_pages` -> `close_page` each; playwright:
+   `browser_close`; pagecast: confirm `stop_recording`). You may not report DONE with a page you
+   opened still open. This applies whether or not `INSTANCE_HANDLE` was supplied - closing a page
+   never touches the forwarded instance lease.
+
+Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
+
 ### Step 5 - Path-incremental completion block (only when INSTANCE_HANDLE was used)
 
 After the writes and the worklog entry, and only when `INSTANCE_HANDLE` was supplied, emit the block
 below as the final output before the Continuation Contract. It signals the skill to verify + commit and
-install the next delta. Do NOT drop or release the lease; do NOT install the next module.
+install the next delta. Do NOT drop or release the lease; do NOT install the next module. (This ban
+is about the INSTANCE lease only - it is orthogonal to browser pages. You MUST still CLOSE any
+browser page you opened; closing a page never touches the lease. See resource-teardown-contract.md
+T2 vs T3.)
 
 ```
 ### Path-incremental completion
@@ -180,6 +192,9 @@ artifacts:
 - Browser-exclusive, serial; never run concurrently with another browser-driving agent.
 - Git/GitHub mutations are the skill's job via git-toolkit `git-ops`; never run git mutations, `gh`, or
   the github MCP directly. Bounded reads may stay inline.
+- CLOSE every page you opened before any terminal status; the lease ban in Step 5 is INSTANCE-only
+  and orthogonal to browser pages. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+  T2 vs T3.
 
 ## Output format
 

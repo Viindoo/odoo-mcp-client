@@ -315,10 +315,12 @@ are the exclusive-running and shared-running branches of this one decision):
   there is no separate registration step for this branch. Resolve the version-correct port flag
   NAME(s) via `cli_help(command='server', odoo_version='<series>')`, applying the port-flag tie-break
   above (PREFER `--http-port`/`--gevent-port` whenever `cli_help` lists them). Then delegate to the
-  spinup script, passing the ALLOCATOR-issued port(s) + resolved conf-key name(s) + `run_id`
-  explicitly - `--exclusive` tells the script this is YOUR OWN pre-leased instance (skip shared-lease
-  registration; BLOCK rather than fall back to the declared/`8069` port if `--db-name`/`--http-port`
-  were omitted):
+  spinup script, passing the ALLOCATOR-issued port(s) + resolved conf-key name(s) + `run_id` +
+  the lease token Step D's acquire returned (`$ALLOC_TOKEN`) explicitly - `--exclusive` tells the
+  script this is YOUR OWN pre-leased instance (skip shared-lease registration; BLOCK rather than
+  fall back to the declared/`8069` port if `--db-name`/`--http-port` were omitted); `--alloc-token`
+  is what lets the script bind the just-launched server pid onto YOUR lease so a later
+  release/gc can stop the whole process group - never omit it:
 
   ```bash
   "${CLAUDE_PLUGIN_ROOT}/scripts/setup-steps/50-instance-spinup.sh" apply --version <series> \
@@ -326,7 +328,8 @@ are the exclusive-running and shared-running branches of this one decision):
     --db-name "$ALLOC_DB_NAME" \
     --http-port "<first ALLOC_PORTS>" --port-key "<http_port|xmlrpc_port, conf-key form>" \
     [--gevent-port "<second ALLOC_PORTS>" --gevent-port-key "<gevent_port|longpolling_port>"] \
-    --run-id "$ALLOC_RUN_ID"
+    --run-id "$ALLOC_RUN_ID" \
+    --alloc-token "$ALLOC_TOKEN"
   ```
 
   The conf-key form is the odoo.conf option name (underscores, no leading `--`) that corresponds to
@@ -363,7 +366,13 @@ Drop an existing Odoo database through Odoo (never raw dropdb).
 
 **Mechanism.** A MANAGED (leased) DB MUST be dropped by releasing its lease - release is
 ownership-checked and race-free, so it is the only safe path once an allocator lease tracks the DB.
-If a lease token is known, release it (pass the run id so ownership is asserted, not just token
+For a listening (`exclusive-running`/`shared-running`) lease, release is teardown-complete: the
+allocator STOPS THE SERVER'S PROCESS GROUP FIRST (SIGTERM, a bounded wait, then a group SIGKILL -
+covering HTTP workers, cron, the longpolling/gevent process, and any `--dev=reload` watchdog),
+using the `server_pid` bound onto the lease at create-instance (the `--alloc-token` wiring above),
+THEN drops the DB for `drop_on_release` leases. This agent does not signal the process itself -
+that mechanism lives in the allocator's release path, triggered by the release call below. If a
+lease token is known, release it (pass the run id so ownership is asserted, not just token
 possession) - the allocator calls `odoo_db.py drop` internally for leases with
 `drop_on_release=true` (all `ephemeral` leases that performed create-on-init):
 
@@ -646,6 +655,8 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py release "$ALLOC_TOKEN" --
 **Invariants this agent enforces:**
 - Operations B-E require the caller to supply the `ALLOC_TOKEN` from operation A; never
   acquires a second keep-alive lease.
+- Between successive B/C iterations (walking the path module-by-module), call
+  `allocator.py heartbeat <token>` so the TTL backstop never reaps a healthy long-lived path run.
 - `--skip-auto-install` on every init-delta call (B).
 - No-HTTP flag + `--stop-after-init` during delta installs; ensure-up is a separate call (C).
 - NEVER raw `createdb`/`dropdb`: DB created via Odoo create-on-init at A, released through
@@ -714,6 +725,7 @@ demo: true | false
 venv_python: <path>
 addons_path: <colon-separated path>
 log_path: <captured verbatim from LOG_PATH= line emitted by the script>
+server_pid: <pid or null>    # the server's process-GROUP id under setsid (pgid == server_pid); null for --stop-after-init builds, which self-terminate after the job completes
 failed: <n or null>          # run-tests only; from TEST_FAILED=
 errors: <n or null>          # run-tests only; from TEST_ERROR=
 warnings: <n or null>        # run-tests only; from TEST_WARNING=
@@ -750,7 +762,9 @@ later turn - forward them on EVERY operation, not only create-instance.
 - [ ] build ops ran at the default `--log-level=warn` unless the caller ESCALATED via --extra (--log-level=info/debug); the `test` verb kept `--log-level=test`
 - [ ] init/update calls passed `--version <series>` so `--log-handler=<ns>.modules.loading:INFO` resolved the correct namespace (openerp v8-v9, odoo v10+); STATUS=ok was never trusted from exit code alone - the "Modules loaded." marker AND absence of every failure marker were both required (deterministic completion contract)
 - [ ] run-tests: TEST_FAILED/TEST_ERROR/TEST_WARNING + FINDINGS_PATH captured; mode picked per the auto fresh-vs-reuse rule; warnings>0 with no fail/error reported as tests-passed-with-warnings (findings_path surfaced, not swallowed)
-- [ ] lease released (or token forwarded to caller for later release)
+- [ ] you release it UNLESS you forward the handle to a NAMED catcher in `next.inputs`
+      (`INSTANCE_HANDLE`) - an unforwarded live lease at DONE is a leak (SSOT:
+      `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T4)
 - [ ] worklog appended with decisions
 - [ ] OSM caveat preserved if grounding was local-source or ungrounded
 - [ ] build ops (create-instance / init-modules / run-tests fresh): `en_US` unioned into the activation set and loaded (--load-language for v8-v18, i18n loadlang for v19+) EVEN when the brief LANGUAGES was 'none' - no build completes without `en_US` active
@@ -767,7 +781,7 @@ later turn - forward them on EVERY operation, not only create-instance.
 
 ## Continuation Contract
 
-When you finish (or BLOCK on a missing instance / venv / lease), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced` lists the log file path and any artifact written; a missing venv or unreachable postgres is `status: NEEDS_CONTEXT` with the requirement as `blocked_reason`.
+When you finish (or BLOCK on a missing instance / venv / lease), append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). `produced` lists the log file path and any artifact written; a missing venv or unreachable postgres is `status: NEEDS_CONTEXT` with the requirement as `blocked_reason`. Which caller holds release responsibility for the instance you just operated on (self-provisioned vs a forwarded `INSTANCE_HANDLE` vs a named T4 handoff) is governed by `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T3/T4 - this agent executes the release/drop call it is asked for; it does not decide on its own whether one is owed.
 
 ## Agent Team mode
 

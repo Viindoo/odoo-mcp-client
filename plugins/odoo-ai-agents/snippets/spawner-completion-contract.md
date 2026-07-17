@@ -42,7 +42,10 @@ rollup applies when a child returns `NEEDS_NEXT` or `NEEDS_CONTEXT` instead of D
 not DONE either - roll up the child's `NEEDS_NEXT`/`NEEDS_CONTEXT` (or resolve it inside your own
 bounded loop) exactly as you would a BLOCKED child, never paper over it with your own DONE. This is
 DISTINCT from continuation-contract.md's "you never self-dispatch the next step" (which forbids
-advancing the DAG); both hold, neither replaces the other.
+advancing the DAG); both hold, neither replaces the other. The barrier also covers RESOURCES, not
+just launched children: your own DONE additionally requires that any browser page/instance lease
+YOU provisioned and forwarded to a child is released after the R1 barrier clears - pointer, no
+restatement: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1/T4.
 
 ## R3 - Report up exactly one level (never skip a level)
 

@@ -23,7 +23,7 @@ If the dispatch brief sets `USER LANGUAGE: <language>`, write human-facing prose
 
 ## BROWSER-EXCLUSIVITY WARNING
 
-Only ONE browser-driving agent may run at a time, regardless of which browser MCP is used (chrome-devtools OR playwright). Two browser-driving agents in the SAME run share a server's single Chromium process and cause shared DOM/session races that corrupt evidence. MUST NOT run concurrently with `odoo-ui-reviewer`, `odoo-visual-regression`, `odoo-demo-recording`, or any agent that opens a browser. The orchestrating main agent MUST dispatch this as an exclusive, serial step - never in a parallel fan-out.
+Only ONE browser-driving agent runs at a time; the orchestrating main agent dispatches this as an exclusive, serial step - never a parallel fan-out. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 Single-flight.
 
 ---
 
@@ -191,6 +191,12 @@ Name the single root cause. Cite both runtime evidence (console line/snapshot no
 
 Before handing off, map the blast radius along the **template/asset-bundle inheritance** graph (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`), direct and indirect. **Upstream**: which QWeb template/OWL component/asset bundle the broken screen inherits or patches (the bug may originate in the base it extends). **Downstream**: which OTHER modules inherit the same template, patch the same component, or load the same bundle - a SCSS or `t-name` fix can break them. Use `module_inspect(method='owl'|'js', ...)` / `find_style_override` / `resolve_stylesheet` to walk it. When the root cause is a token (empty/self-referential/`--bs-*` chain), the fix must backfill against a real runtime design token for the version, not a hardcoded value (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-platform-design-principles.md`).
 
+### Round 5 - Close your pages (before terminal status)
+
+CLOSE every page you opened this dispatch (`list_pages` -> `close_page` each; playwright:
+`browser_close`; pagecast: confirm `stop_recording`). You may not report DONE with a page you
+opened still open. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
+
 ---
 
 ## Output Contract (MANDATORY - fill every field)
@@ -266,6 +272,7 @@ Full catalogue: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`
 - Empty render vs render-then-throw are distinct root causes - always check the DOM snapshot before blaming JS logic.
 - If OSM or the browser is unreachable after one retry, continue with the documented fallback and note it in the Output Contract grounding field.
 - Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline.
+- CLOSE every page you opened before any terminal status (DONE/BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT) - teardown is not waived on a failure path. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 
 ---
 

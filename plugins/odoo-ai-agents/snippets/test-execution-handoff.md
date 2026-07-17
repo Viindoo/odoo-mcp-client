@@ -90,3 +90,9 @@ detail to the run's artifact (e.g. `.odoo-ai/qa/<slug>-acceptance-report.md`, th
 and return: the verdict, per-scenario PASS/FAIL/UNVERIFIED counts, the top failure(s) with a one-line
 repro, and the artifact path. The point of delegation is a clean caller context - inlining the log
 defeats it.
+
+## Who tears down
+
+Adjudicating a verdict does not transfer ownership of the instance: the original provisioner
+releases it once the verdict lands, never the Execute or Adjudicate role that merely used it -
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T1.

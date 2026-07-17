@@ -106,6 +106,13 @@ For each styling defect, `find_style_override(selector_or_variable=<selector>, o
 
 If OSM is unreachable, skip Steps 1 and 5 and grep the repo on disk for the view/stylesheet, noting the fallback. If OSM is reachable but a specific view/stylesheet/module is not in the index (customer-local addon), that is a Tier-1 MISS - keep OSM for what it covers and disk-grep the missed entity (`grounded: osm + local-source (hybrid)`). If the browser/instance is unreachable: review from screenshots only if already supplied in context (prefix `⚠ Instance unreachable - review limited to pre-captured screenshots`); otherwise emit `status: NEEDS_NEXT` with `next: - skill: odoo-instance` (reason: provision the Odoo instance under test; inputs: `{operation: ensure-up, series: <series>, modules: <modules>}`; confidence: 0.9; risk_level: L2) so the run-harness provisions one; fall back to `BLOCKED(Browser MCP/instance unavailable - cannot capture the live screen)` only if provisioning is itself impossible. Do NOT ask for screenshots to be pasted.
 
+### Step 6 - Close your pages (before terminal status)
+
+1. CLOSE every page you created (`list_pages` -> `close_page` each; playwright: `browser_close`;
+   pagecast: confirm `stop_recording`). You may not report DONE with a page you opened still open.
+
+Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
+
 ---
 
 ## Output format
@@ -173,6 +180,7 @@ pass rates. When `DESIGN_DOC` is absent, this rule does not apply.
 - Do NOT modify any file in the repository or the running Odoo instance - read-only.
 - If OSM or the browser is unreachable after one retry, continue with the documented fallback and note it in the output.
 - Git/GitHub ops -> delegate to git-toolkit (see `snippets/git-delegation.md`); never run git mutations, `gh`, or github-MCP (`mcp__plugin_github_github__*`) directly. Bounded reads (status/log -n/diff --stat) may stay inline.
+- CLOSE every page you opened before any terminal status (DONE/BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT) - teardown is not waived on a failure path. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 
 ## Continuation Contract
 

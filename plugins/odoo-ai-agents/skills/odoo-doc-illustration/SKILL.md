@@ -94,7 +94,9 @@ GUARD: never run two paths on the same browser family or the same instance):
 3. **Advance.** Tell `odoo-instance` to install the next delta (`init-delta` on the SAME DB) +
    `ensure-up`, then repeat step 2 for M+1. Convergence reuse+fill per `doc-plan.yaml`. THE SKILL
    decides WHEN to advance and WHEN to release the lease; instance-ops only executes each atomic op
-   and returns its block.
+   and returns its block. Between advances, call `allocator.py heartbeat <token>` so the TTL
+   backstop never reaps this long-lived path-incremental run - full rule:
+   `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T3.
 
 Order per module: **install -> pre-fetch copy (marketing) -> capture + assemble (writer(s), serial)
 -> verify -> commit -> next-delta.**
@@ -107,8 +109,17 @@ rm -rf .odoo-ai/visual/<run_id>/ .playwright-mcp/<run_id>/
 ```
 HARD RULE: never `rm` another run's subtree (no bare `.odoo-ai/visual/` or `.playwright-mcp/`); the
 final committed images already live in each module's `static/description/` (or `doc/`), so removing
-the run-scoped staging loses nothing. Then emit one aggregate index per run
-(`doc-run-<run_id>/index.jsonl`) listing every output path.
+the run-scoped staging loses nothing.
+
+**Files vs teardown (distinct steps - do all three, in order).** The staging `rm -rf` above handles
+FILES only - it is NOT resource teardown; see
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2/T3 for pages and the lease. Before
+emitting the aggregate index, also: (a) RELEASE the path-incremental instance lease via `odoo-instance`
+(operation E / `allocator.py release <token> --run-id <id>`) - never leave the last module's instance
+leased; (b) CLOSE every browser page a writer opened this run (`list_pages`, then `close_page` for
+any stray this run created).
+
+Then emit one aggregate index per run (`doc-run-<run_id>/index.jsonl`) listing every output path.
 
 ## Writer dispatch briefs
 

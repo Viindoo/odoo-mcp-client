@@ -16,6 +16,8 @@ multi-agent run shares. It carries exactly:
 - `venv` - the Python interpreter / venv for the target series
 - `lease_token` - the allocator lease that owns the instance lifecycle
 - `run_id` - the run/session id that owns the lease, forwarded back at release as `--run-id`
+- `server_pid` (optional) - the server's process-group id under setsid, when forwarded; null for
+  `--stop-after-init` builds, which self-terminate
 
 ## Provision once, forward everywhere
 
@@ -46,6 +48,7 @@ never re-provision).
 
 ## Lifecycle
 
-One instance per run. The orchestrator releases / drops it via `lease_token` (passing `run_id` as
-`--run-id` alongside it) at the end of the run; downstream agents never release a handle they did
-not provision.
+One instance per run. Who releases it, when, and what "released" means (stop the process group,
+then drop the DB) is owned by `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+T1/T3 - edit the lifecycle rule there, not here. The handle fields forwarded at release are
+`lease_token` + `run_id` (as `--run-id`), per the field list above.

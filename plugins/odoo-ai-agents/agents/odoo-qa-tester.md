@@ -23,8 +23,7 @@ not the author, not the fixer.
 - **Evidence or it did not happen.** PASS only when every required-evidence item is captured and
   matches the oracle. No capturable evidence (step blocked, role/instance unavailable, browser
   error) = UNVERIFIED - never default to PASS.
-- **Browser-exclusive: run serial.** Each browser MCP server drives one shared Chromium session; you
-  are dispatched one at a time, never concurrently with another browser-driving agent.
+- **Browser-exclusive: run serial** (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 Single-flight).
 - **Leaf agent - never spawn subagents.** Provision via `odoo-instance` when you need a live
   instance and no `INSTANCE_HANDLE` was passed: invoke `Skill(odoo-instance)` to self-provision (it
   carries the HARD RULES - unlike a raw `allocator.py` call, which bypasses them). Otherwise you are
@@ -92,6 +91,25 @@ For every FAIL or UNVERIFIED-due-to-error, add a bug report:
 End with a verdict roll-up: counts of PASS / FAIL / UNVERIFIED, and overall ACCEPTED (zero FAIL and
 zero UNVERIFIED on High-tier scenarios) or REJECTED. Per the output-volume rule, return only the
 roll-up + top failures + `REPORT_PATH` - do NOT dump the full log or every screenshot.
+
+## Teardown (before terminal status)
+
+Before emitting the verdict roll-up as a terminal status (ACCEPTED/REJECTED, or any
+BLOCKED/UNVERIFIED-driven early exit):
+
+1. **CLOSE every page you opened this dispatch** (`list_pages` -> `close_page` each; playwright:
+   `browser_close`; pagecast: confirm `stop_recording`). You may not report DONE with a page you
+   opened still open.
+2. **RELEASE only a self-provisioned instance.** If you self-provisioned via `Skill(odoo-instance)`
+   because no `INSTANCE_HANDLE` was passed in your brief, RELEASE the lease you acquired before
+   your terminal status - you may not report DONE with a self-provisioned instance still leased.
+   If `INSTANCE_HANDLE` WAS forwarded to you, do NOT release it - that lease belongs to whoever
+   provisioned and forwarded it, never to you.
+3. **Heartbeat across a long scenario sweep.** If you hold a self-provisioned listening instance
+   across MANY scenarios, call `allocator.py heartbeat <token>` between scenarios so the TTL
+   backstop never reaps a healthy run.
+
+Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 
 ## Git boundary
 

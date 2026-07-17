@@ -34,6 +34,10 @@ Rules:
   'you never dispatch the next step yourself'; both hold.
 - `status: DONE` when the run's goal is met; `NEEDS_NEXT` when more work should follow (fill
   `next`); `BLOCKED` when you cannot proceed; `NEEDS_CONTEXT` when you need a human decision.
+- **Teardown gate on every terminal status.** `DONE` (and `BLOCKED`/`NEEDS_CONTEXT`) is legal
+  only after the resources this dispatch acquired are returned - browser pages/recordings you
+  opened CLOSED, self-provisioned instance leases RELEASED (or explicitly handed off by
+  name). Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0-T4.
 - `produced` is your evidence (Completion-status #8) - list the real paths you wrote.
 - `risk_level`: L0 read-only/chat · L1 writes internal `.odoo-ai/` files · L2
   irreversible/outward (touches an instance, git push/merge, sends to a third party). When

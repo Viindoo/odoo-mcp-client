@@ -95,6 +95,10 @@ concurrency, so passing it explicitly avoids scoping against the wrong version.
 
 ### Round 2 - Capture baseline (browser)
 
+**Single-page discipline.** Reuse ONE page for the whole sweep - `navigate_page` + `resize_page` in
+place across every screen/breakpoint - instead of opening a new page per screen. Never call
+`new_page` per screen; navigating the reused page IS the correct reuse pattern.
+
 For each in-scope screen at each agreed breakpoint:
 1. `navigate_page` to the screen (state A).
 2. `resize_page` to the breakpoint.
@@ -111,6 +115,11 @@ Switch to state B instance URL, then for each screen:
 List each screen as UNCHANGED / DRIFTED, attach both screenshots for drifted screens, and tie drift
 back to the Round 1 blast radius. Flag any drifted screen NOT predicted by the impact analysis as a
 higher-priority surprise.
+
+**Close before reporting (unconditional, every run).** Before emitting the report, call `list_pages`,
+then `close_page` on every page it reports that YOU created this run - not just the one you think you
+reused. This step is unconditional: run it even when Round 2/3 stayed on one page. Full rule:
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T2.
 
 ## Standalone-first fallback
 

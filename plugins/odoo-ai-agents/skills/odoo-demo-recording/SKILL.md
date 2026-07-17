@@ -111,7 +111,10 @@ clean, repeatable demo state (known record, expanded menu, top of page).
 
 Start the recorder, then drive the planned path with `click` / `fill` / `fill_form` / `hover`,
 pausing briefly on key screens. Capture `take_screenshot` key frames for the poster and as GIF
-fallback. Stop the recorder.
+fallback. Stop the recorder by name - `stop_recording` (pagecast) - then CLOSE the page you drove
+this round (`close_page` / `browser_close`) before moving to Round 4. Both steps are mandatory for
+EVERY recording round, including a retake. Full rule:
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T2.
 
 ### Round 4 - Produce the artifact
 

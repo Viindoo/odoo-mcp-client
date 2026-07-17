@@ -278,6 +278,11 @@ invoking `Skill(odoo-instance)` (a unique ephemeral DB acquired UNDER the HARD R
 never a bare `scripts/lib/allocator.py` call that would bypass them - so the brief never passes a
 shared db/port. A provided handle always wins (consume, never re-provision).
 
+**Dispatcher-level invariant.** A module's coding run is not DONE until every instance its
+`odoo-coder` coordinator self-provisioned this run is released by that coordinator - a returned
+module SHA with a still-leased self-provisioned instance is not a clean handoff. Full rule:
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T1/T3.
+
 ### Dispatch loop - model-weighted batches
 
 The Phase 0 plan carries, per module: name, path on disk, stack, model (and `frontendModel` when
