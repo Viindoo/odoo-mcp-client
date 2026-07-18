@@ -19,6 +19,11 @@ AND the op is low-risk:
 - `git status`, `git log -n <small>`, `git show --stat`, branch/ref existence checks,
   `git rev-parse`, `git diff --stat`/`--name-only` (summaries, not content).
 
+This is the CANONICAL, domain-agnostic bounded-read allowlist (SSOT) for git-toolkit's INLINE
+mode. A downstream consumer layer MAY document additional domain-specific bounded reads in its own
+snippet (cross-referencing this list, never duplicating it), but MUST NOT weaken or remove any
+entry here. git-toolkit itself never names or depends on a downstream consumer.
+
 NEVER inline unbounded output: a full PR body, file contents, or a full diff. "Read one PR" returns
 an unbounded body -> that is DELEGATE, not inline.
 

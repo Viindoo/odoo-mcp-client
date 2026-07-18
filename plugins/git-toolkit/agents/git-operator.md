@@ -89,6 +89,11 @@ destructive op, or a commit convention you cannot resolve: stop and return
 `NEEDS_CONTEXT(<field>)` or `BLOCKED(<field>)` - never guess, never invent a convention, and never
 self-authorize a destructive op to fill the gap.
 
+Also verify: the brief's first line is `DISPATCH MODEL: <tier>` when this dispatch came through
+`git-ops` SINGLE-DELEGATE (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md`). Confirm that
+stated tier matches your own model identity; if it does not, note the mismatch as a caller dispatch
+error in your return's `summary` - do not self-correct or halt on it alone.
+
 Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 
 ## Execution process

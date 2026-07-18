@@ -27,13 +27,25 @@ never name or pick the specialist themselves.
 
 ## Bounded-read allowlist (inline OK)
 
-These bounded, low-risk reads MAY run inline without routing through git-ops:
+Canonical SSOT: `git-toolkit`'s `snippets/git-delegation-decision.md` (INLINE mode) defines the
+base bounded-read allowlist - `git status`, `git rev-parse`, `git log -n<N>`, `git show --stat`,
+branch/ref existence checks, `git diff --stat`/`--name-only`. git-toolkit is the LOWER layer (it
+never names or depends on odoo-ai-agents); this file cross-references that list rather than
+forking it, and adds only the Odoo-specific reads below.
+
+odoo-ai-agents-specific additions, also bounded-output and inline-OK: `git branch --show-current`
+(current-branch read), `git remote get-url` (remote URL read), `git merge-base` (common-ancestor
+read), `git worktree list` (listing only, not add/remove), `git diff --shortstat/--quiet/--check`
+(extra bounded diff flags beyond `--stat`/`--name-only`), `git log --oneline` (extra bounded log
+format).
+
+The full inline-OK set for odoo-ai-agents is the UNION of both lists above:
 `git status`, `git rev-parse`, `git branch --show-current`, `git remote get-url`,
 `git merge-base`, `git worktree list`,
 `git diff --stat/--name-only/--shortstat/--quiet/--check`,
 `git log -n<N>/--oneline`, `git show --stat`
 
-Anything beyond this list (full diff content, unbounded log range, blame, large range) -> route through git-ops.
+Anything beyond this union (full diff content, unbounded log range, blame, large range) -> route through git-ops.
 
 ## No LEAF-worker git - the orchestrator (or a spawner coordinator) commits via git-ops
 

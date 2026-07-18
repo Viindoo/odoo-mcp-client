@@ -35,9 +35,12 @@ clean and every mutation behind its backup/verify/confirm gate.
 
 Bucket the request into one of: READ (status/log/diff/blame/bisect-read), REVERSIBLE-WRITE
 (stage/commit/clone/init/stash, fetch/pull-rebase/merge/cherry-pick/branch/tag/worktree/non-force
-push/forward-port/backport), DESTRUCTIVE-REWRITE
+push/forward-port/backport/bisect-run), DESTRUCTIVE-REWRITE
 (rebase -i/squash/split/amend/reset/filter-repo/force-with-lease), or GITHUB
-(PR/issue/review/release/CI/fork).
+(PR/issue/review/release/CI/fork). `bisect-read` (a completed session's `git bisect log`/`view`, no
+checkout) is a bounded READ; `bisect-run` (a LIVE `git bisect start`/`good`/`bad`/`run` session,
+which repeatedly checks out commits) is checkout-mutating and MUST classify as REVERSIBLE-WRITE,
+never READ.
 
 ## Step 2 - route by the delegation decision
 

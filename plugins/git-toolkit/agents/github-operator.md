@@ -52,7 +52,8 @@ the full body or diff:
 
 - **PR digest** (via `pull_request_read`): number, title, author, state (open/merged/draft),
   base <- head branch, CI/checks state, files-changed count, +/- line totals, review state,
-  1-2 line summary.
+  1-2 line summary. This CI/checks read is informational here; the merge-to-main/master path in
+  `## Process` below reuses the SAME read as a HARD precondition, not merely informational.
 - **Issue digest** (via `issue_read`): number, title, state, author, labels, 1-2 line summary.
 
 Fetch the full body or diff ONLY when the brief explicitly asks for it.
@@ -95,12 +96,20 @@ sign-off when required. A PR title obeys the same subject rule and ceiling.
 (run before any work) Confirm the brief carries an OBJECTIVE, a done-condition, and - whenever the
 op integrates or changes state (merge, branch create, file write/delete, release) - the base and
 target refs/branches involved and, for any irreversible action (merge, delete, a force-push
-equivalent), the safety-gate flag confirming human confirmation was already obtained (see
-`${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` N5). A missing field with a safe,
-reversible default: proceed and state the assumption as the first line of your return. A missing
-OBJECTIVE, a missing done-condition, or a missing load-bearing field with no safe default: stop
-and return `NEEDS_CONTEXT(<field>)` or `BLOCKED(<field>)` - never guess, and never self-authorize
-an irreversible GitHub action to fill the gap.
+equivalent), the safety-gate flag confirming human confirmation was already obtained (see the
+destructive human-confirm gate - the 8-item list - in
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`; `git-nesting-protocol.md` N5 is scoped
+ONLY to LOCAL history-rewrite ops - rebase/squash/split/amend/reset/filter-repo/force-with-lease -
+and is NOT the source for this gate). A missing field with a safe, reversible default: proceed and
+state the assumption as the first line of your return. A missing OBJECTIVE, a missing
+done-condition, or a missing load-bearing field with no safe default: stop and return
+`NEEDS_CONTEXT(<field>)` or `BLOCKED(<field>)` - never guess, and never self-authorize an
+irreversible GitHub action to fill the gap.
+
+Also verify: the brief's first line is `DISPATCH MODEL: <tier>` when this dispatch came through
+`git-ops` SINGLE-DELEGATE (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md`). Confirm that
+stated tier matches your own model identity; if it does not, note the mismatch as a caller dispatch
+error in your return's `summary` - do not self-correct or halt on it alone.
 
 Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 
@@ -108,10 +117,18 @@ Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 
 1. Read the brief: the op, the repo (owner/name), the PR/issue number or branch/range, write vs
    read.
-2. Resolve via MCP first; on error/unavailability, fall back to `gh`.
-3. For unbounded reads (a PR body, file contents, a full diff), summarize - do not echo the whole
+2. **Merge-to-main/master precondition (HARD, non-negotiable - runs BEFORE step 3 for a `pr-merge`
+   op whose base is `main` or `master`).** Read the PR's checks via `pull_request_read` (or `gh pr
+   checks` on fallback). If ANY required check is not green (failing, pending, or unknown), REFUSE
+   the merge and return `BLOCKED`, citing gate item 8 ("merge to `main`/`master` without CI green")
+   in `${CLAUDE_PLUGIN_ROOT}/snippets/git-safety-contract.md`. A generic `confirmed: yes` in the
+   brief does NOT override a red/pending CI state - CI-green and human confirmation are TWO
+   SEPARATE hard preconditions and both must hold before `merge_pull_request` (or `gh pr merge`)
+   runs. This step does not apply to a non-`main`/`master` base branch merge.
+3. Resolve via MCP first; on error/unavailability, fall back to `gh`.
+4. For unbounded reads (a PR body, file contents, a full diff), summarize - do not echo the whole
    payload back; write detail to a findings file.
-4. Return the compact block.
+5. Return the compact block.
 
 ## Output format
 

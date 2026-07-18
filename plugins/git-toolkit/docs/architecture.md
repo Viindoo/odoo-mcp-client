@@ -17,10 +17,10 @@ frontmatter; the actual work is `git`/`gh`/GitHub-MCP commands the agents issue 
     No spawn tool.
   - `github-operator` - GitHub API, MCP-first / gh-fallback. No spawn tool.
   - `git-pipeline-lead` - the BRAIN + ORCHESTRATOR for large changes; the ONLY agent that spawns.
-- **8 snippets (SSOT).** safety-contract, scale-protocol, nesting-protocol, delegation-decision,
-  github-mcp-first, commit-convention, language-mirroring, agent-team-reporting. Each rule is
-  declared ONCE; the skill and agents POINT at it via `${CLAUDE_PLUGIN_ROOT}/snippets/...`, never
-  duplicate it.
+- **10 snippets (SSOT).** safety-contract, scale-protocol, nesting-protocol, delegation-decision,
+  model-tiers, squash-push, github-mcp-first, commit-convention, language-mirroring,
+  agent-team-reporting. Each rule is declared ONCE; the skill and agents POINT at it via
+  `${CLAUDE_PLUGIN_ROOT}/snippets/...`, never duplicate it.
 - **6 references.** large-change-pipeline, history-rewrite, conflict-resolution, github-pipeline,
   and the two commit-convention standards (general, odoo) - deterministic recipes loaded on demand.
 
