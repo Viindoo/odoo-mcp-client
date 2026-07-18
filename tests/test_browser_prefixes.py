@@ -72,6 +72,67 @@ def test_matches_rejects_foreign_tool():
     assert bp._matches("mcp__odoo-semantic__model_inspect", PLUGIN) is False
 
 
+# --- V-19: bare (non-plugin-namespaced) tool names -------------------------------------
+# The 5 opt-in browser families are registered STAND-ALONE by odoo-setup, so their tool
+# names carry NO `plugin_<name>_` prefix at all (e.g. `mcp__playwright__browser_click`,
+# verbatim in a deferred-tool listing). Before the fix, `_matches` only recognized the
+# plugin-namespaced form, so these tools showed a manual permission prompt on first use in
+# the very session they were just wired (durable settings.json allowlist self-healed only
+# NEXT session). `_matches` must cover the IDENTICAL name set `browser_prefixes()` emits.
+@pytest.mark.parametrize("server", ALL_SIX)
+def test_matches_accepts_bare_form_for_every_family(server):
+    tool = f"mcp__{server}__navigate_page"
+    assert bp._matches(tool, PLUGIN) is True, (
+        f"bare-form tool for family {server!r} must match - browser_prefixes() emits a bare "
+        f"allow-prefix for it, so _matches must accept the same name set (V-19)"
+    )
+
+
+def test_matches_bare_form_rejects_foreign_server():
+    """A bare tool from an unrelated MCP server must still be rejected."""
+    assert bp._matches("mcp__odoo-semantic__model_inspect", PLUGIN) is False
+    assert bp._matches("mcp__github__get_me", PLUGIN) is False
+
+
+# --- V-19: hooks.json PermissionRequest matcher (the gate BEFORE _matches even runs) ----
+# Claude Code only invokes auto-approve-browser.sh at all when the tool name satisfies this
+# regex - so `_matches` alone is not sufficient; the matcher itself must also accept the
+# bare form, or the hook never runs for the 5 opt-in families in the first place.
+def _permission_request_matcher():
+    hooks_json = json.loads((PLUGIN / "hooks" / "hooks.json").read_text(encoding="utf-8"))
+    entries = hooks_json["hooks"]["PermissionRequest"]
+    assert len(entries) == 1
+    return entries[0]["matcher"]
+
+
+@pytest.mark.parametrize("server", ALL_SIX)
+def test_hooks_json_permission_matcher_accepts_bare_form_for_every_family(server):
+    import re
+
+    pattern = _permission_request_matcher()
+    tool = f"mcp__{server}__navigate_page"
+    assert re.match(pattern, tool), (
+        f"hooks.json PermissionRequest matcher {pattern!r} must match the bare-form tool "
+        f"{tool!r} - otherwise auto-approve-browser.sh never even runs for this family (V-19)"
+    )
+
+
+def test_hooks_json_permission_matcher_still_accepts_namespaced_form():
+    import re
+
+    pattern = _permission_request_matcher()
+    tool = "mcp__plugin_odoo-ai-agents_chrome-devtools__navigate_page"
+    assert re.match(pattern, tool)
+
+
+def test_hooks_json_permission_matcher_rejects_foreign_server():
+    import re
+
+    pattern = _permission_request_matcher()
+    assert re.match(pattern, "mcp__odoo-semantic__model_inspect") is None
+    assert re.match(pattern, "Bash") is None
+
+
 def test_prefixes_union_includes_live_only_extra(tmp_path):
     """A family added to .mcp.json but not in STATIC_SERVERS is still covered (union)."""
     (tmp_path / ".claude-plugin").mkdir()

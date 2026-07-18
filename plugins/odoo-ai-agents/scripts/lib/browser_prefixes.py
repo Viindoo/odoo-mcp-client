@@ -110,12 +110,20 @@ def _matches(tool_name: str, plugin_root: Path = PLUGIN_ROOT) -> bool:
 
     Matches at the ``mcp__plugin_<name>_<server>__`` boundary - the same rule
     Claude Code uses - so e.g. ``...chrome-devtools__navigate_page`` matches but
-    ``Bash`` or a foreign server does not.
+    ``Bash`` or a foreign server does not. ALSO matches the bare
+    ``mcp__<server>__`` boundary (V-19): the eager ``chrome-devtools`` family is
+    plugin-namespaced (bundled in ``.mcp.json``), but the 5 opt-in families are
+    registered STAND-ALONE by ``odoo-setup`` and therefore produce bare
+    ``mcp__playwright__...``-style tool names with no ``plugin_<name>_`` prefix
+    at all - covering only the namespaced form left them permission-blocked on
+    first use in the very session they were just wired. This must stay the
+    IDENTICAL name set ``browser_prefixes()`` emits (both forms, per family) -
+    that function is the durable-allowlist SSOT; this is the in-session mirror.
     """
     name = _normalize(_read_plugin_name(plugin_root))
     servers = [_normalize(s) for s in _all_servers(plugin_root)]
     for s in servers:
-        if tool_name.startswith(f"mcp__plugin_{name}_{s}__"):
+        if tool_name.startswith(f"mcp__plugin_{name}_{s}__") or tool_name.startswith(f"mcp__{s}__"):
             return True
     return False
 

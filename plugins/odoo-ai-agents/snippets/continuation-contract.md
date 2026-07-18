@@ -13,7 +13,11 @@ decide what runs next. It does NOT replace or alter anything above it - it is pu
 ```continuation
 status: DONE | NEEDS_NEXT | BLOCKED | NEEDS_CONTEXT
 produced: [<real artifact path>, ...]      # files you actually wrote; [] for chat-only
-next:                                       # [] unless status == NEEDS_NEXT
+next:                                       # [] when nothing to add; REQUIRED (>=1 entry) on
+                                             # NEEDS_NEXT; DONE MAY also carry a low-confidence
+                                             # (<0.5) advisory entry - the driver's "materialize
+                                             # next[] -> dynamic node" step (workflow-harness.md
+                                             # §8.1) reads next[] regardless of your own status
   - skill: <skill-or-workflow-name>
     reason: <why this is the next step>
     inputs: {<key>: <value>}                 # odoo_version, viindoo_profile are RESERVED - see Rules
@@ -45,7 +49,14 @@ Rules:
   sends to a third party). When unsure, pick the higher tier.
 - Outside an active run this block is harmless - it just documents suggested next steps.
 - Back-compat: a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line is still read by
-  the driver as a low-confidence `NEEDS_NEXT`; prefer the fenced block going forward.
+  the driver as a low-confidence `NEEDS_NEXT`; prefer the fenced block going forward. **Superseded
+  for `odoo-backend-coder`, `odoo-frontend-coder`, `odoo-code-reviewer`, and `odoo-instance-ops`**
+  (V-34): these four now emit their conditional follow-up (a UI-review suggestion, a code-agent
+  handoff) as an in-block `next:` entry instead - a bare `SUGGESTED_NEXT:` line was silently
+  dropped whenever the fenced block ALSO set a status (the parser's back-compat branch only reads
+  `SUGGESTED_NEXT` when `status` is empty, `parse-continuation.sh:46`), and all four always emit a
+  fenced block. Do not emit both channels for these four agents - the in-block `next:` is the only
+  one the parser is guaranteed to see.
 - **Reserved `inputs` keys.** `inputs` stays free-form, but `odoo_version` (concrete series) and
   `viindoo_profile` are RESERVED: any `next:` hop into a code/test/review skill (`odoo-coding`,
   `odoo-code-review`, `odoo-test-writing`) MUST carry `odoo_version` in `inputs` so

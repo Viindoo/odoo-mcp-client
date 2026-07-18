@@ -1,5 +1,5 @@
 {
-  "description": "odoo-ai-agents hooks - SessionStart readiness probe + browser-MCP permission self-apply + ETHOS @import injector + guarded legacy-state-root migration + UserPromptSubmit intent detector + SubagentStop grounding enforcement & continuation nudge & resource-teardown gate + PreToolUse delegate reminder + Stop continuation nudge & browser-teardown advisory + SessionEnd allocator gc crash-backstop. The drive-to-done and browser-teardown hooks are ADVISORY (never hard-block). The ONE hard block is the SubagentStop instance-teardown gate, and it is narrow: it fires only on a live, non-shared lease that the SUBAGENT ITSELF provisioned (correlated from its own acquire/bind/heartbeat --run-id) at a DONE claim. Main-context / orchestrator-owned leases are NOT hard-gated - they are reclaimed by the SessionEnd gc backstop plus the allocator TTL.",
+  "description": "odoo-ai-agents hooks - SessionStart readiness probe + browser-MCP permission self-apply + ETHOS @import injector + guarded legacy-state-root migration + UserPromptSubmit intent detector + SubagentStop grounding enforcement & continuation nudge & resource-teardown gate + PreToolUse delegate reminder + Stop continuation nudge & browser-teardown advisory + SessionEnd allocator gc crash-backstop. The drive-to-done and browser-teardown hooks are ADVISORY (never hard-block). The ONE hard block is the SubagentStop instance-teardown gate, and it is narrow: it fires only on a live, non-shared lease that the SUBAGENT ITSELF provisioned (correlated from its own acquire/bind/heartbeat --run-id) at a DONE claim. Main-context / orchestrator-owned leases are NOT hard-gated - they are reclaimed by the SessionEnd gc backstop plus the allocator TTL. The PermissionRequest matcher's browser-family alternation (chrome-devtools|playwright|pagecast, each optionally -headed) is a JSON-literal mirror of scripts/lib/browser_prefixes.py STATIC_SERVERS / scripts/lib/browser-mcp-servers.sh BROWSER_MCP_ALL_SERVERS (JSON cannot source either file) - keep the three lists in sync when a browser family is added or removed (V-19).",
   "hooks": {
     "PreToolUse": [
       {
@@ -79,7 +79,7 @@
     ],
     "PermissionRequest": [
       {
-        "matcher": "mcp__plugin_odoo-ai-agents_.*",
+        "matcher": "mcp__plugin_odoo-ai-agents_.*|mcp__(chrome-devtools|playwright|pagecast)(-headed)?__.*",
         "hooks": [
           {
             "type": "command",

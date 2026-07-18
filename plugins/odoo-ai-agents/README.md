@@ -51,17 +51,24 @@ review, and upgrade planning as a core engineering capability.
 
 ## Who is it for
 
-| Persona | Key skills |
-|---------|-----------|
-| Onboarding / Concierge | `odoo-intake` - `odoo-onboarding` |
-| Engineer | override-finding - deprecation-audit - forward-port / version-diff - git-rebase - modules-upgrade |
-| Coder | odoo-coding - odoo-debug - solution-design |
-| Code-Reviewer | odoo-code-review |
-| Visual / UI QA | ui-review - visual-regression - demo-recording - doc-illustration |
-| Pre-Sales | feature-check - gap-analysis - brl |
-| Sales AE | objection-handling - deal-followup - discovery-summary |
-| Marketer | feature-highlights - content-draft - campaign-plan - icon-design - doc-feature-map - doc-walkthrough |
-| Strategist / CEO | risk-overview - competitive-brief - customization-inventory |
+The `Domain` column cross-references the `domain` enum in `workflows/_schema.md` §3 (the
+technical SSOT `hooks/detect-intent.sh` and every `*.workflow.yaml` classify against) - several
+personas share one domain value where the underlying work is the same discipline (Engineer /
+Coder / Code-Reviewer all `engineering`); `qa` and `support` are workflow-level domain values
+(`qa-suite.workflow.yaml`, `support-triage.workflow.yaml`) without a dedicated top-level persona
+row above.
+
+| Persona | Domain | Key skills |
+|---------|--------|-----------|
+| Onboarding / Concierge | consultant | `odoo-intake` - `odoo-onboarding` |
+| Engineer | engineering | override-finding - deprecation-audit - forward-port / version-diff - git-rebase - modules-upgrade |
+| Coder | engineering | odoo-coding - odoo-debug - solution-design |
+| Code-Reviewer | engineering | odoo-code-review |
+| Visual / UI QA | qa | ui-review - visual-regression - demo-recording - doc-illustration |
+| Pre-Sales | presales | feature-check - gap-analysis - brl |
+| Sales AE | sales | objection-handling - deal-followup - discovery-summary |
+| Marketer | marketing | feature-highlights - content-draft - campaign-plan - icon-design - doc-feature-map - doc-walkthrough |
+| Strategist / CEO | strategy | risk-overview - competitive-brief - customization-inventory |
 
 - **Engineer** - Find the correct override point, audit deprecated API usage before an upgrade, or validate a deployment is safe.
 - **Coder** - Write Odoo backend (Python/XML) or frontend (JS/OWL) code that is idiomatic and convention-correct, without looking up every framework rule.

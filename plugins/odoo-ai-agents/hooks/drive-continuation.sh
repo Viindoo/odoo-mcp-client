@@ -28,7 +28,9 @@ PROJ_DIR="${CWD:-${CLAUDE_PROJECT_DIR:-.}}"
 # holds independently in each worktree - the C-1 regression fix). CRITICAL RESILIENCE:
 # this hook must NEVER hard-fail or block a session - a resolver refusal (non-git, no
 # marker) or any error (missing script, no CLAUDE_PLUGIN_ROOT) silently falls back to
-# the legacy project-relative path.
+# the legacy project-relative path. This fallback is the SANCTIONED "Advisory-glob
+# exception" (V-50, state-root-resolution.md) - a read-only glob that only ever degrades
+# to silence, never a write; do not copy this pattern into a call site that writes.
 RUN_DIR="$(cd "$PROJ_DIR" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" isolate 2>/dev/null || true)"
 [[ -n "$RUN_DIR" ]] || RUN_DIR="${PROJ_DIR}/.odoo-ai"
 active_run=""; run_id=""; cursor=""; cnt=0

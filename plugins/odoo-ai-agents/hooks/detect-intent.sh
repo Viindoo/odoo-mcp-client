@@ -33,76 +33,108 @@ if [ -z "${_prompt}" ]; then
 fi
 
 # --- Domain classification via 9-bucket keyword scan (no LLM, ~0ms) ---
-# Buckets match the README 9-persona taxonomy used across the plugin.
+# Internal buckets stay finer-grained than the emitted vocabulary (upgrade vs engineering,
+# visual-UI vs engineering) so the OSM/frontend hint routing below can still distinguish them;
+# `_domain_enum` (computed once classification is done) maps each bucket onto the
+# workflows/_schema.md `domain` enum (SSOT) - the ONLY vocabulary that reaches the emitted
+# `domain: ...` text (V-33 - the old buckets matched neither the README table nor the enum). The
+# README persona table's "Domain" column cross-references the same enum.
 _domain=""
 
 _p_lower=$(printf '%s' "${_prompt}" | tr '[:upper:]' '[:lower:]')
 
+# Word-boundary keyword match (space/punct-delimited alternations) - NOT a bare substring glob.
+# `case *ui*)` used to match "req**ui**rements" and `*view*` matched "re**view**" (V-11). Left
+# boundary is ALWAYS required (start-of-word) - that alone kills every mid-word embedding while
+# still catching common inflections (upgrade/upgraded/upgrading) via the open right side. Pass
+# "full" as $2 for keywords that are ALSO genuine PREFIXES of ordinary English words
+# (doc->doctor, win->window, plan->planet, design->designate, copy->copyright, seo->Seoul,
+# brief->briefly, objective->objectively, style->stylish, qa->Qatar) - those close both
+# boundaries and enumerate the desired inflections explicitly instead of an open stem.
+_wb() {
+  if [ "${2:-}" = "full" ]; then
+    printf '%s' "${_p_lower}" | grep -Eq "(^|[^a-z0-9])(${1})([^a-z0-9]|\$)"
+  else
+    printf '%s' "${_p_lower}" | grep -Eq "(^|[^a-z0-9])(${1})"
+  fi
+}
+
 # Primary Odoo/ERP anchor - must be present or one of the domain buckets must match
 _odoo_anchor=false
-case "${_p_lower}" in
-  *odoo*|*viindoo*|*erp*|*openerp*)
-    _odoo_anchor=true ;;
-esac
+if _wb 'odoo|viindoo|erp|openerp'; then
+  _odoo_anchor=true
+fi
 
 # 9-domain keyword scan
 # NOTE: upgrade/migrate/migration checked FIRST to avoid being shadowed by the
 # engineering bucket (which previously matched *upgrade* and *migration* before
 # the upgrade bucket could fire).
-case "${_p_lower}" in
-  *upgrade*|*migrate*|*migration*|*backport*|*breaking*|*deprecat*)
-    _domain="upgrade" ;;
-esac
-if [ -z "${_domain}" ]; then
-  case "${_p_lower}" in
-    *module*|*model*|*computed*|*onchange*|*inherit*|*controller*|*v16*|*v17*|*v18*|*v19*|*version*)
-      _domain="engineering" ;;
-  esac
+if _wb 'upgrade|migrate|migration|backport|breaking|deprecat'; then
+  _domain="upgrade"
+fi
+if [ -z "${_domain}" ] && _wb 'module|model|computed|onchange|inherit|controller|v16|v17|v18|v19|version'; then
+  _domain="engineering"
 fi
 if [ -z "${_domain}" ]; then
-  case "${_p_lower}" in
-    *sale*|*deal*|*crm*|*lead*|*proposal*|*quotation*|*customer*|*pipeline*|*win*|*opportunity*)
-      _domain="sales" ;;
-  esac
+  if _wb 'sale|deal|crm|lead|proposal|quotation|customer|pipeline|opportunity' \
+     || _wb 'win|wins|winning|won' full; then
+    _domain="sales"
+  fi
 fi
 if [ -z "${_domain}" ]; then
-  case "${_p_lower}" in
-    *marketing*|*campaign*|*email*|*social*|*landing*|*content*|*seo*|*blog*)
-      _domain="marketing" ;;
-  esac
+  if _wb 'marketing|campaign|email|social|landing|content|blog' \
+     || _wb 'seo' full; then
+    _domain="marketing"
+  fi
 fi
 if [ -z "${_domain}" ]; then
-  case "${_p_lower}" in
-    *strategy*|*okr*|*roadmap*|*decision*|*brief*|*plan*|*objective*|*kpi*)
-      _domain="strategy" ;;
-  esac
+  if _wb 'strategy|roadmap|decision' \
+     || _wb 'okr|okrs' full \
+     || _wb 'brief|briefs|briefing|briefings' full \
+     || _wb 'plan|plans|planned|planning' full \
+     || _wb 'objective|objectives' full \
+     || _wb 'kpi|kpis' full; then
+    _domain="strategy"
+  fi
 fi
 if [ -z "${_domain}" ]; then
-  case "${_p_lower}" in
-    *ui*|*ux*|*view*|*frontend*|*visual*|*design*|*screenshot*|*regression*|*style*|*css*|*qweb*)
-      _domain="visual-UI" ;;
-  esac
+  if _wb 'frontend|visual|screenshot|regression|view' \
+     || _wb 'ui' full \
+     || _wb 'ux' full \
+     || _wb 'css' full \
+     || _wb 'qweb' full \
+     || _wb 'design|designs|designed|designing' full \
+     || _wb 'style|styles|styling|stylesheet|stylesheets' full; then
+    _domain="visual-UI"
+  fi
 fi
 if [ -z "${_domain}" ]; then
-  case "${_p_lower}" in
-    *onboard*|*setup*|*install*|*configure*|*first*time*|*getting*start*|*new*user*)
-      _domain="onboarding" ;;
-  esac
+  if _wb 'onboard|setup|install|configure' \
+     || printf '%s' "${_p_lower}" | grep -Eq '(^|[^a-z0-9])first[[:space:]]+time' \
+     || printf '%s' "${_p_lower}" | grep -Eq '(^|[^a-z0-9])getting[[:space:]]+start' \
+     || printf '%s' "${_p_lower}" | grep -Eq '(^|[^a-z0-9])new[[:space:]]+user'; then
+    _domain="onboarding"
+  fi
 fi
 if [ -z "${_domain}" ]; then
-  case "${_p_lower}" in
-    *document*|*doc*|*write*|*draft*|*content*|*translate*|*localiz*|*copy*)
-      _domain="content" ;;
-  esac
+  if _wb 'document|write|draft|translate|localiz' \
+     || _wb 'docs|documents|documentation' full \
+     || _wb 'copy|copies|copied|copying' full; then
+    _domain="content"
+  fi
 fi
 if [ -z "${_domain}" ]; then
-  case "${_p_lower}" in
-    *test*|*qa*|*bug*|*issue*|*support*|*ticket*|*error*|*debug*|*fail*)
-      _domain="QA-support" ;;
-  esac
+  if _wb 'test|bug|issue|support|ticket|error|debug|fail' \
+     || _wb 'qa' full; then
+    _domain="QA-support"
+  fi
 fi
 
-# Require either Odoo anchor OR a domain hit before proceeding
+# Require either a domain-bucket hit OR an Odoo anchor before proceeding at all. Odoo-SPECIFIC
+# hints (OSM tool reminder, frontend-specialist routing below) are gated SEPARATELY on
+# `_odoo_anchor=true` (V-11) - a domain hit alone (e.g. a genuine non-Odoo "strategy" or
+# "marketing" business prompt) can still reach the general vague-dispatch hint, but never the
+# Odoo-tool-calling or frontend-agent-naming hints without a real Odoo/Viindoo anchor.
 if [ -z "${_domain}" ] && [ "${_odoo_anchor}" = "false" ]; then
   exit 0
 fi
@@ -111,6 +143,17 @@ fi
 if [ -z "${_domain}" ]; then
   _domain="general"
 fi
+
+# Map the internal bucket to the workflows/_schema.md `domain` enum (SSOT):
+# engineering|sales|presales|marketing|strategy|qa|support|content|consultant. This
+# keyword-scan hook never has a reliable signal for "presales" specifically (that distinction
+# needs deal-stage context this hook does not have), so it is not a target bucket here.
+case "${_domain}" in
+  upgrade|visual-UI) _domain_enum="engineering" ;;
+  onboarding|QA-support) _domain_enum="support" ;;
+  general) _domain_enum="consultant" ;;
+  *) _domain_enum="${_domain}" ;;
+esac
 
 # --- OSM-availability probe ---
 # Grep for "odoo-semantic" in the Claude config file (same pattern as check-setup-deps.sh
@@ -125,23 +168,34 @@ fi
 # Word count proxy via wc -w
 _word_count=$(printf '%s' "${_prompt}" | wc -w | tr -d ' ')
 
-# Action-verb present check (engineering/concrete single-step phrases)
+# Action-verb present check (engineering/concrete single-step phrases). Same word-boundary
+# discipline as the domain-bucket scan above (V-11 class - a bare substring glob previously let
+# *diff* match inside "different", *list* match inside "listen", *show* match inside "shower",
+# *check* match inside "checkup"/"checkers", *audit* match inside "auditorium", *fix* match
+# inside "fixture", *run* match inside "rung").
 _has_action=false
-case "${_p_lower}" in
-  *write*|*create*|*generate*|*fix*|*review*|*debug*|*run*|*deploy*|*diff*|*compare*|*show*|*list*|*check*|*find*|*analyze*|*audit*|*report*)
-    _has_action=true ;;
-esac
+if _wb 'write|create|generate|review|debug|deploy|compare|find|analyze|report' \
+   || _wb 'fix|fixes|fixed|fixing' full \
+   || _wb 'run|runs|running|ran' full \
+   || _wb 'diff|diffs' full \
+   || _wb 'show|shows|showed|showing' full \
+   || _wb 'list|lists|listed|listing' full \
+   || _wb 'check|checks|checked|checking' full \
+   || _wb 'audit|audits|audited|auditing' full; then
+  _has_action=true
+fi
 
 # Lookup/introspection intent - question is about indexed STRUCTURE (which
 # modules/repos/models a profile or version contains), NOT code-gen. The
 # indexed answer lives in odoo-semantic (profile_inspect / describe_module /
-# model_inspect), never in the vault. EN + VI phrasings.
+# model_inspect), never in the vault. EN + VI phrasings. Same word-boundary discipline (V-11
+# class) - *repo* previously matched inside "report" (a keyword in the action-verb list above).
 _is_lookup=false
-case "${_p_lower}" in
-  *module*|*repo*|*profile*|*inventory*|*composition*|*compose*|\
-  *'gồm'*|*'có gì'*|*'module nào'*|*'repo nào'*|*'những gì'*|*'có bao nhiêu'*)
-    _is_lookup=true ;;
-esac
+if _wb 'module|profile|inventory|composition|compose' \
+   || _wb 'repo|repos|repository|repositories' full \
+   || _wb 'gồm|có gì|module nào|repo nào|những gì|có bao nhiêu'; then
+  _is_lookup=true
+fi
 
 # Consider vague when: short (<= 12 words) OR no action verb detected
 _is_vague=false
@@ -155,7 +209,10 @@ fi
 _osm_context=""
 case "${_domain}" in
   engineering|upgrade|visual-UI)
-    if [ "${_osm_wired}" = "true" ]; then
+    # V-11: an Odoo-specific tool-calling hint must never fire without a real Odoo/Viindoo
+    # anchor - a domain-bucket match alone (e.g. a non-Odoo "visual design" or "version" prompt)
+    # is not proof this is an Odoo task.
+    if [ "${_odoo_anchor}" = "true" ] && [ "${_osm_wired}" = "true" ]; then
       _osm_r1="[OSM] odoo-semantic index is AVAILABLE - before generating or editing Odoo code, call mcp__odoo-semantic__set_active_version then model_inspect/entity_lookup; do NOT code from memory. If a tool errors at call time, fall back to disk-grounded mode (Read/Grep the addons source yourself), not to asking a human to paste."
       _osm_r2="[Tip] For an engineering task, planning enters Plan Mode for you before any file is changed."
       _osm_context="${_osm_r1}\n${_osm_r2}"
@@ -178,12 +235,20 @@ fi
 # silently skips the frontend specialists). Appended to whatever OSM context exists. ---
 case "${_domain}" in
   visual-UI)
-    _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work → odoo-coding (write, its frontend leg); odoo-debug (runtime render/console errors); odoo-ui-review (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity → see skills/_shared/odoo-frontend-fidelity.md (build theme-correct, never hardcode hex / self-reference a CSS var)."
-    _osm_context="${_osm_context:+${_osm_context}\n}${_fe_hint}"
+    # V-11: gated on the Odoo anchor too (previously unconditional) - naming
+    # odoo-coding/odoo-debug/odoo-ui-review is wrong for a domain-bucket match with no actual
+    # Odoo/Viindoo anchor in the prompt (e.g. a non-Odoo "review this contract" false match).
+    if [ "${_odoo_anchor}" = "true" ]; then
+      _fe_hint="[Frontend/UI specialists] JS/OWL/SCSS/QWeb work → odoo-coding (write, its frontend leg); odoo-debug (runtime render/console errors); odoo-ui-review (rate a working screen); odoo-visual-regression (before/after diff). Theme/token fidelity → see skills/_shared/odoo-frontend-fidelity.md (build theme-correct, never hardcode hex / self-reference a CSS var)."
+      _osm_context="${_osm_context:+${_osm_context}\n}${_fe_hint}"
+    fi
     ;;
   engineering)
-    # Only when OSM context already fired (i.e. OSM wired) - avoids noising every prompt.
-    if [ -n "${_osm_context}" ]; then
+    # Only when OSM context already fired (i.e. anchor true + OSM wired) - avoids noising every
+    # prompt; the anchor check here is redundant with the OSM block above but kept explicit so
+    # this branch's own invariant (never fire without an anchor) does not depend on reading
+    # the block above.
+    if [ "${_odoo_anchor}" = "true" ] && [ -n "${_osm_context}" ]; then
       _fe_hint="[Stack check] If the change touches JS/OWL/QWeb or an asset bundle, odoo-coding covers it (its frontend leg) alongside the backend in the same pass - full-stack is one skill, no separate frontend step needed."
       _osm_context="${_osm_context}\n${_fe_hint}"
     fi
@@ -209,7 +274,7 @@ if [ -n "${_osm_context}" ]; then
 fi
 
 if [ "${_is_vague}" = "true" ]; then
-  _hint="Business/Odoo intent detected (domain: ${_domain})."
+  _hint="Business/Odoo intent detected (domain: ${_domain_enum})."
   _line2="If the goal is still broad or you want to explore options first, the odoo-intake front door can brainstorm approaches and route to the right specialist."
   _line3="If the intent is already specific and single-step, the matching specialist will fire directly - no extra step needed."
   _nl_hint="${_hint}\n${_line2}\n${_line3}"
