@@ -249,6 +249,7 @@ per `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`.
 Model: sonnet (opus for a cluster-wide comparison or when the module has >500 LOC).
 
 ```
+mode: upgrade
 TASK: Core-absorption comparison for module '<module>' upgrading <src> -> <tgt>.
 
 MODULE PATH: <path>

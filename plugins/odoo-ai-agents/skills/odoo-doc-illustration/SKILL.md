@@ -64,7 +64,7 @@ against that module - behavior unchanged.
 
 **Multi-module** (TARGET is `local`, `worktree:<abs-path>`, or `repo:<abs-path>` with >1 module):
 1. **Scope** - dispatch `odoo-doc-scoper` FIRST to enumerate `modules[]` with per-module
-   `{path, languages, doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc}`.
+   `{abs_path, languages, doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc}`.
 2. **Plan** - dispatch `odoo-doc-planner` (`plan_source: scope`) to emit `doc-plan.yaml` -
    dependency clusters + branch-aware instance allocation + per-instance topological
    `install_doc_sequence` + dedup + parallelism schedule. Algorithm SSOT:
@@ -93,11 +93,14 @@ GUARD: never run two paths on the same browser family or the same instance):
       sectioned `<!-- HERO -->` ... copy with `[Image: <slug>]` markers. The writers NEVER call
       content-draft; the skill owns this pre-fetch.
    2. **Launch the writer(s) per DOC LAYER, SERIAL on this instance** (browser-exclusive - NEVER two
-      writers concurrent on ONE instance): `userguide` -> `odoo-user-doc-writer`; `appstore` ->
-      `odoo-marketing-writer`; `both` -> BOTH, one after the other on the same `INSTANCE_HANDLE`
-      (two audience-pure capture passes - the marketing hero/feature-grid shots and the userguide
-      per-step shots are DIFFERENT sets). Fan-out is free across MODULES/INSTANCES (each on its own
-      family/instance), never within one instance.
+      writers concurrent on ONE instance). Read `M.doc_layer` from THIS module's `install_doc_sequence`
+      entry (SSOT: `skills/_shared/doc-cluster-plan.md` § schema); when `M.doc_layer` is absent (a
+      `plan_source: design-dag` entry with no scoper pass), use the run-level DOC LAYER axis default
+      (§ Documentation axes below) for that module only - never the other way round. Resolved value:
+      `userguide` -> `odoo-user-doc-writer`; `appstore` -> `odoo-marketing-writer`; `both` -> BOTH, one
+      after the other on the same `INSTANCE_HANDLE` (two audience-pure capture passes - the marketing
+      hero/feature-grid shots and the userguide per-step shots are DIFFERENT sets). Fan-out is free
+      across MODULES/INSTANCES (each on its own family/instance), never within one instance.
       **Model selection (skill-owned).** The skill picks EACH writer's model at dispatch - default
       `sonnet`, override up/down per job complexity, scope, and module count (spawn-time resolution:
       env > Agent-param > frontmatter > inherit). The writer frontmatter carries only the default;
@@ -199,6 +202,12 @@ BROWSER MODE: headless | headed
 `static/description/index.html`); TONE `technical`; DOC SCOPE `screenshot-doc`; CAPTURE MODE
 `screens`. A dispatch that omits these fields behaves exactly as before - existing runs and tests
 are unaffected.
+
+**DOC LAYER precedence (multi-module runs).** A per-module `doc_layer` on the `doc-plan.yaml`
+`install_doc_sequence` entry (§ per-instance loop step 2 above) ALWAYS wins for that module; this
+run-level DOC LAYER axis is the default applied only when a module's plan entry carries no
+`doc_layer`. The single-module legacy path (no scoper/planner hop) has no plan entry, so the
+run-level axis is authoritative there.
 
 **DOC LAYER** - which output files are produced and which writer runs:
 - `appstore` -> `odoo-marketing-writer` writes `static/description/index.html` (App Store listing).

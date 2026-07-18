@@ -132,7 +132,8 @@ Browser work is single-flight: dispatch ONE browser-driving agent at a time, nev
 channel may overlap Phase 2a, which uses no browser).
 
 - **High-tier screens (deep):** for each High-tier module dispatch ONE `odoo-qa-tester` with
-  `ORACLE_PATH`, the `INSTANCE_HANDLE`, that module's `SCOPE` (screens + roles), `BROWSER_MODE`, and
+  `ORACLE_PATH`, the `INSTANCE_HANDLE`, that module's `SCOPE` (screens from the manifest; roles from
+  the oracle scenarios' `role:` field), `BROWSER_MODE`, and
   `REPORT_PATH: <ISOLATE_DIR>/qa/<slug>-acceptance-report.md`. It drives real CRUD + at least two roles +
   state transitions + search on each in-scope screen and adjudicates PASS/FAIL/UNVERIFIED with
   evidence. Optionally, in the same serial slot, dispatch `odoo-ui-reviewer` for that module's screens
