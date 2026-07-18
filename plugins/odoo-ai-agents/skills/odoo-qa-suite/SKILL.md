@@ -41,6 +41,27 @@ only when no leaf skill covers it.
 
 ---
 
+## MCP tools
+
+<!-- BEGIN GENERATED TOOLS -->
+> **Pick the right tool first.** Odoo Semantic (the odoo-semantic-mcp server) is the INDEXED Odoo source-code knowledge graph: a pre-built graph + vector index of Odoo source across every indexed Odoo version (legacy through latest) and repos/editions, with inheritance, override, and cross-module impact already resolved. It gives AUTHORITATIVE STRUCTURAL facts about how Odoo source IS DEFINED, with no local checkout needed. Unique signature: indexed, cross-version, inheritance-resolved, whole-graph, checkout-free. It is a STATIC index with NO runtime/live data.
+>
+> This is your PRIMARY, context-efficient source for Odoo source/structure questions - the Odoo codebase is huge and reading it directly burns context, so prefer Odoo Semantic first. Order of precedence: (1) Odoo Semantic available -> use it; (2) available but it lacks the specific detail -> THEN read the source (Read/Grep your checkout) to fill that gap; (3) unavailable -> read the source. Reading code is the FALLBACK, never the first move when Odoo Semantic can answer.
+>
+> Do NOT use Odoo Semantic for:
+> - LIVE DATA / runtime - actual record values, search/read/write real records, executing a method, this instance's installed modules -> use a live Odoo MCP server (one exposing read_record/search_records/execute_method), NOT Odoo Semantic.
+>
+> Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+
+**Primary tools:**
+- `cli_help` - Look up odoo-bin subcommand flags, their status, and replacement for deprecated flags.
+<!-- END GENERATED TOOLS -->
+
+---
+
 ## Phase 0 - Scope confirmation
 
 `context.md` is Tier-2 SHARE; resolve it via the resolve-capture-substitute protocol in
@@ -106,8 +127,8 @@ Rules:
 - Cover at minimum: happy path, edge case (empty/zero/boundary), error path (invalid input), permission check (user without access gets rejected).
 - Separate unit tests (no DB, no UI) from integration tests (multi-model or multi-user).
 - Ground test mechanics in the TARGET version - test classes, tag syntax, and JS framework (QUnit vs Hoot) differ across versions. Resolve via OSM (`set_active_version` + `cli_help`) and follow `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`; never assume one version's command line applies to another.
-- **Python test class grounding:** call `test_base_classes` before specifying any TransactionCase/HttpCase in the table - it returns the `cr.commit() FORBIDDEN - isolation is savepoint rollback` contract plus the authoritative base-class menu (e.g. `test_base_classes(odoo_version='17.0')`). When authoring Phase 1 runnable tests, launch the `odoo-test-writer` agent (it authors by invoking the `odoo-test-writing` skill inline, in its own context); instruct it to run `test_base_classes` first and apply `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` for all test local variables (Rule A: no `l`/`O`/`i`; B/C when Viindoo profile).
-- **JS test framework grounding:** for any frontend module, call `js_test_inspect` (e.g. `js_test_inspect(module='web', odoo_version='17.0')`) to discover the framework (hoot/qunit/tour) and existing suites. Never assume Hoot vs QUnit from version alone - some modules pin an older framework during a transitional release. When authoring JS tests, launch the `odoo-test-writer` agent and forward the `js_test_inspect` result so it writes in the correct framework.
+- **Python test class grounding:** call `test_base_classes` before specifying any TransactionCase/HttpCase in the table - it returns the `cr.commit() FORBIDDEN - isolation is savepoint rollback` contract plus the authoritative base-class menu (e.g. `test_base_classes(odoo_version='17.0')`). For runnable tests, route to `odoo-test-writing` (see frontmatter `description`) - this phase only records the base-class menu in the table.
+- **JS test framework grounding:** for any frontend module, call `js_test_inspect` (e.g. `js_test_inspect(module='web', odoo_version='17.0')`) to discover the framework (hoot/qunit/tour) and existing suites. Never assume Hoot vs QUnit from version alone - some modules pin an older framework during a transitional release.
 - Output file: `<ISOLATE_DIR>/qa/<slug>-test-cases.md`
 
 ---

@@ -10,7 +10,7 @@
 | `odoo-brl` | spawner-agent | fork | none | - | (conditional DAG workers when >10 large clusters) |
 | `odoo-campaign-plan` | leaf | fresh | none | - | - |
 | `odoo-capability-proof` | leaf | fresh | none | - | - |
-| `odoo-code-review` | spawner-agent | send-message | fullstack | - | odoo-code-reviewer, odoo-review-scoper, odoo-test-writer (coverage gate - authors the missing/adapt-mode protecting test when a CRITICAL/HIGH behavior change ships uncovered; agent launched for context isolation, invokes the odoo-test-writing skill inline), git-ops (PR worktree checkout + diff/branch read + inline-comment posting on the PR - via git-ops skill - git-toolkit) |
+| `odoo-code-review` | spawner-agent | send-message | fullstack | - | odoo-code-reviewer, odoo-review-scoper, odoo-ui-reviewer (conditional Phase A.5 - rendered-UI review when module.needs_ui_review is true or candidate and an instance is reachable), odoo-test-writer (coverage gate - authors the missing/adapt-mode protecting test when a CRITICAL/HIGH behavior change ships uncovered; agent launched for context isolation, invokes the odoo-test-writing skill inline), git-ops (PR worktree checkout + diff/branch read + inline-comment posting on the PR - via git-ops skill - git-toolkit) |
 | `odoo-coding` | spawner-agent | send-message | fullstack | - | odoo-coder (per-module COORDINATOR - launched for EVERY module; the sanctioned nested spawner that owns the module's INTERNAL work-item split, launches odoo-backend-coder / odoo-frontend-coder per WI, sequences backend-before-frontend, tests the integrated module via odoo-instance INLINE, and returns files for odoo-coding to commit - a nested spawner-coordinator one level below odoo-coding), odoo-test-writer (hard leaf - launched FIRST by the odoo-coder coordinator per WI to author the RED test, before the coder makes it green; authors by invoking the odoo-test-writing skill inline), odoo-backend-coder (hard leaf - launched by the odoo-coder coordinator for a backend work-item), odoo-frontend-coder (hard leaf - launched by the odoo-coder coordinator for a frontend work-item), (dispatch: ONE odoo-coder per module; model-weighted subagent batches, explicit model per module per tier table haiku/sonnet/opus/fable - see skills/_shared/concurrency-guard.md Mode B) |
 | `odoo-competitive-brief` | leaf | fresh | none | - | - |
 | `odoo-content-draft` | leaf | fresh | none | - | - |
@@ -45,7 +45,7 @@
 | `odoo-planning` | spawner-agent | fresh | none | - | odoo-planner, odoo-doc-planner, (dispatch: single planner by default; for very large scope fan out one planner per module cluster following concurrency-guard.md Mode B, then reconcile - handoff fresh) |
 | `odoo-pr-monitoring` | spawner-agent | fresh | none | - | git-ops (read PR CI status + review state, MERGE at the L2-merge-gate, re-push of an approved D3 fix + post-merge cleanup of worktrees/branches/tag - via git-ops skill - git-toolkit), odoo-debug (D3: route ANY CI warning/error/fail for root-cause first, via Skill tool), odoo-coding (author the fix odoo-debug located, via Skill tool; the re-push stays human-gated X2) |
 | `odoo-pricing-proposal` | leaf | fresh | none | - | - |
-| `odoo-qa-suite` | orchestrator-nl | fresh | none | yes | odoo-test-writer (Phase 1 runnable test_*.py / Hoot / tour authoring - agent launched for context isolation; invokes the odoo-test-writing skill inline) |
+| `odoo-qa-suite` | orchestrator-nl | fresh | none | yes | - |
 | `odoo-rfp-response` | leaf | fresh | none | - | - |
 | `odoo-risk-overview` | leaf | fresh | none | - | - |
 | `odoo-security-audit` | leaf | fresh | backend | - | - |
@@ -75,7 +75,7 @@
 
 Derived from a non-empty `spawns` entry, NOT from `spawn_class` - the same predicate `orchestration-digest.txt` uses ([NEW]-2), so the two artifacts cannot disagree. A skill listed here with a `spawn_class` other than `spawner-agent` above is a drift to fix at the SSOT (either the class or the `spawns` entry is wrong).
 
-`odoo-acceptance`, `odoo-brl`, `odoo-code-review`, `odoo-coding`, `odoo-debug`, `odoo-deep-survey`, `odoo-doc-feature-map`, `odoo-doc-illustration`, `odoo-doc-walkthrough`, `odoo-forward-port`, `odoo-gap-analysis`, `odoo-git-rebase`, `odoo-i18n`, `odoo-icon-design`, `odoo-instance`, `odoo-intake`, `odoo-modules-upgrade`, `odoo-planning`, `odoo-pr-monitoring`, `odoo-qa-suite`, `odoo-solution-design`, `odoo-ui-review`, `run-harness`
+`odoo-acceptance`, `odoo-brl`, `odoo-code-review`, `odoo-coding`, `odoo-debug`, `odoo-deep-survey`, `odoo-doc-feature-map`, `odoo-doc-illustration`, `odoo-doc-walkthrough`, `odoo-forward-port`, `odoo-gap-analysis`, `odoo-git-rebase`, `odoo-i18n`, `odoo-icon-design`, `odoo-instance`, `odoo-intake`, `odoo-modules-upgrade`, `odoo-planning`, `odoo-pr-monitoring`, `odoo-solution-design`, `odoo-ui-review`, `run-harness`
 
 ## Skill Conflict Resolution
 
