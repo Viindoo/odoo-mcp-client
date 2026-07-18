@@ -29,12 +29,12 @@ that Markdown, not to run at user time.
 ```bash
 make setup              # create .venv + install requirements.txt (one-time)
 make test               # full pytest suite (tests/)
-make validate           # claude plugin validate (if CLI present) + schema/format pytest + workflow check
+make validate           # claude plugin validate (if CLI present) + schema/format pytest + workflow + orchestration check, both STRICT/enforced
 make gen                # regenerate SSOT-derived artifacts (see "SSOT generator" below)
 make gen-check          # run gen, then fail if it produced any diff (CI idempotency gate)
 make deps-check         # assert every skill->tool reference points at a live tool
-make workflows-check    # validate workflows/*.workflow.yaml against the schema
-make orchestration-check # capability/contract lint (warn-first; ORCH_STRICT=1 to enforce)
+make workflows-check    # validate workflows/*.workflow.yaml against the schema (warn-first standalone; WORKFLOWS_STRICT=1 to enforce locally - `make validate` always runs it strict)
+make orchestration-check # capability/contract lint (warn-first standalone; ORCH_STRICT=1 to enforce locally - `make validate` always runs it strict)
 ```
 
 Run a single test (use the venv directly):
@@ -52,7 +52,8 @@ claude --plugin-dir ./plugins/odoo-semantic-mcp   # MCP connection + connect com
 ```
 
 CI (`.github/workflows/validate.yml`) runs `pytest tests/`, `check_deps.py`, the gen-idempotency
-check, and orchestration lint on every PR. Match these locally before pushing.
+check, and the orchestration + workflow-schema lints (both STRICT/enforced) on every PR. Match
+these locally with `make validate` before pushing.
 
 ## Architecture you must understand before editing
 
