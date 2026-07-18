@@ -994,7 +994,10 @@ next:                                       # [] unless status == NEEDS_NEXT
 blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 ```
 
-- **Parsing** reuses the transcript jq pipeline already in `hooks/enforce-grounding.sh`.
+- **Parsing** uses the same assistant-text selection idiom already in `hooks/enforce-grounding.sh`
+  (the two hooks' jq filters are structurally different - `enforce-grounding.sh` tags each block
+  `tool_use`/`text`, `parse-continuation.sh` emits text-only - but both select assistant-authored
+  text the same way, guarding against a continuation block quoted in a tool_result/instruction).
 - **Back-compat:** a legacy `SUGGESTED_NEXT: <skill> (reason=…, target=…)` line maps to
   `next: [{skill, reason, confidence: 0.5, risk_level: L0}]` with `status: NEEDS_NEXT`. This
   lets the rollout be gradual - an un-migrated skill still drives at low confidence.

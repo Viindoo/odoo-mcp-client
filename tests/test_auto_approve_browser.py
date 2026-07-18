@@ -84,6 +84,22 @@ def test_non_plugin_tool_passes_through():
     assert r.stdout.strip() == "", f"non-plugin tool must produce no decision; stdout={r.stdout!r}"
 
 
+def test_bare_form_optin_tool_is_allowed():
+    """V-19: a bare (non-plugin-namespaced) opt-in tool must also be allowed.
+
+    The 5 opt-in browser families are registered STAND-ALONE by odoo-setup, so their real
+    tool names carry no `plugin_<name>_` prefix at all (e.g. `mcp__playwright__browser_click`).
+    Before the fix these showed a manual permission prompt on first use in the session they
+    were just wired, defeating the hook's stated purpose for them.
+    """
+    bare_tool = "mcp__playwright__browser_click"
+    r = _run({"tool_name": bare_tool, "hook_event_name": "PermissionRequest"})
+    assert r.returncode == 0, f"hook must exit 0; stderr={r.stderr}"
+    out = json.loads(r.stdout)
+    behavior = out["hookSpecificOutput"]["decision"]["behavior"]
+    assert behavior == "allow", f"expected allow for {bare_tool}; got {out}"
+
+
 def test_opt_out_passes_through_even_for_browser_tool():
     r = _run(
         {"tool_name": HEADED_TOOL, "hook_event_name": "PermissionRequest"},

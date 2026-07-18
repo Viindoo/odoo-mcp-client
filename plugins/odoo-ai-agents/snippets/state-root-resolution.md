@@ -149,6 +149,35 @@ the FULL subpath, never by the top-level directory name alone - `visual/` itself
   otherwise deals only in Tier-2 paths, a Tier-1 subpath (`instances.toml`, `runtime/`, `logs/`,
   `i18n.json`) is NEVER rewritten to a SHARE/ISOLATE literal - it stays exactly `$ODOO_AI_HOME/<subpath>`.
 
+## Advisory-glob exception (V-50 - read-only, never-block hooks)
+
+The general rule above (never a project-relative `./.odoo-ai/`) has exactly ONE sanctioned
+exception, and it is narrow: `hooks/parse-continuation.sh`, `hooks/drive-continuation.sh`, and
+`hooks/remind-delegate.sh` each resolve `RUN_DIR` via `resolve_project_dir.sh isolate` and, only
+when that resolution itself fails (script missing, `CLAUDE_PLUGIN_ROOT` unset, cwd outside any
+git repo with no `.odoo-ai-root`/`__manifest__.py` marker anywhere in the chain - the resolver's
+own documented REFUSAL case), fall back to `RUN_DIR="${PROJ_DIR}/.odoo-ai"` before globbing
+`run-*.json`. This is INTENTIONALLY tolerated for these three call sites and no others, because
+all three hold simultaneously:
+
+1. **Read-only glob, never a write.** None of the three ever creates, writes, or deletes anything
+   at the fallback path - `run-<id>.json` is written ONLY by `run-harness` (§8.3), which always
+   resolves through the real two-axis root. A degraded glob at the wrong location cannot corrupt
+   or fork the lease registry the way a Tier-1 mis-route (§ Tier-1 allowlist above) could.
+2. **Fail-closed, not fail-open.** `shopt -s nullglob` makes a non-existent or wrong-location
+   fallback dir match zero files, so the hook silently emits NO nudge - never a false one. The
+   worst case is a missed advisory reminder, not an incorrect action.
+3. **Hard resilience contract.** All three hooks are documented NEVER to hard-fail or block a
+   tool call / turn-end / subagent-stop on ANY error (missing script, parse failure, no run
+   file) - a resolver refusal is just one more input the hook must degrade through, not escalate.
+   Re-deriving a real two-axis key here is not possible in the refusal case anyway (the key inputs
+   - `git rev-parse --git-common-dir` / `--show-toplevel` - are exactly what the resolver could
+   not get), so there is no strictly-better fallback root to substitute in.
+
+No other skill, agent, or hook may adopt this pattern - every other Tier-2 consumer follows the
+resolve-capture-substitute protocol below with no silent fallback, because those call sites WRITE
+state (a wrong-location write is the actual anti-pattern this doc exists to prevent).
+
 ## The rule (how to place a NEW subpath)
 
 When you introduce a new `.odoo-ai/`-rooted artifact, ask ONE question and place it accordingly -

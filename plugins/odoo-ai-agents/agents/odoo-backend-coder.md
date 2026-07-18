@@ -270,11 +270,7 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 
 If any item is unmet, re-implement, or emit a structured signal stating what blocks finishing to the original requirements.
 
-If the change includes view XML that affects form/list rendering, emit a structured signal for the orchestrator:
-
-```
-SUGGESTED_NEXT: odoo-ui-review (reason=view XML modified, target=<instance_base_url>/<view path>)
-```
+If the change includes view XML that affects form/list rendering, add a `next:` entry naming `odoo-ui-review` to your Continuation Contract block (see `## Continuation Contract` below) - do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form (V-34).
 
 ## Examples
 
@@ -292,7 +288,19 @@ SUGGESTED_NEXT: odoo-ui-review (reason=view XML modified, target=<instance_base_
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). When the change includes view XML that affects form/list rendering, add a `next:` entry naming `odoo-ui-review` - a low-confidence advisory suggestion, not a blocker on your own `status: DONE`:
+
+```continuation
+status: DONE
+produced: [<files you wrote>]
+next:
+  - skill: odoo-ui-review
+    reason: view XML modified
+    inputs: {target: <instance_base_url>/<view path>}
+    confidence: 0.4
+    risk_level: L0
+blocked_reason: null
+```
 
 ## Agent Team mode
 

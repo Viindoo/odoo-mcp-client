@@ -127,13 +127,7 @@ The classic failure: a "shim" custom property whose value references itself - a 
 
 **Round 4 - assemble complete output.** JS file with full `odoo.define()` module · QWeb2 XML template · `__manifest__.py` registration (`assets` dict for v10+; `qweb` list for v8/v9) · for v14, note whether `ir.asset` records should be used instead of the assets dict.
 
-**Round 5 - suggest visual verification (forward-wiring).** After presenting, emit a structured signal for the orchestrator - do NOT invoke any skill yourself:
-
-```
-SUGGESTED_NEXT: odoo-ui-review (reason=widget renders, target=<instance_base_url>/<path>)
-```
-
-The orchestrator decides whether to run `odoo-ui-review` (layout), `odoo-debug` (console error), or `odoo-visual-regression` (before/after diff). Do not phrase this as advice to a human reader.
+**Round 5 - suggest visual verification (forward-wiring).** After presenting, add a `next:` entry naming `odoo-ui-review` to your Continuation Contract block (see `## Continuation Contract` below) - do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form (V-34); do NOT invoke any skill yourself. The orchestrator decides whether to run `odoo-ui-review` (layout), `odoo-debug` (console error), or `odoo-visual-regression` (before/after diff) - do not phrase this as advice to a human reader.
 
 ---
 
@@ -177,7 +171,7 @@ Confirm currency of every core registry/service/hook API you call at the target 
 
 **Forward-port adapt (your brief references `[[fp-merge-absorption]]`).** On a `__manifest__.py` `version` conflict keep the TARGET file's value - never invent or merge-pick a bump (C1). Retarget a forwarded `migrations/<src-series>.a.b.c/` dir to the target series (C2). If you spot a defect that pre-exists at the source series and is NOT security/safety, carry it FAITHFULLY forward and report it (do not inline-fix); fix only FP-delta defects here (C3). Full rules: `[[fp-merge-absorption]]`.
 
-**Round 5 - suggest visual verification (forward-wiring).** Same as the legacy Round 5: emit a `SUGGESTED_NEXT: odoo-ui-review (…)` signal for the orchestrator. Do NOT invoke any skill yourself.
+**Round 5 - suggest visual verification (forward-wiring).** Same as the legacy Round 5: add a `next:` entry naming `odoo-ui-review` to your Continuation Contract block. Do NOT invoke any skill yourself.
 
 ---
 
@@ -319,7 +313,19 @@ If imports differ by version, show both with a comment.
 
 ## Continuation Contract
 
-When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next).
+When you finish, append a Continuation Contract block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` (status / produced / next). When you wrote/patched a widget or component that renders, add a `next:` entry naming `odoo-ui-review` - a low-confidence advisory suggestion, not a blocker on your own `status: DONE`:
+
+```continuation
+status: DONE
+produced: [<files you wrote>]
+next:
+  - skill: odoo-ui-review
+    reason: widget renders
+    inputs: {target: <instance_base_url>/<path>}
+    confidence: 0.4
+    risk_level: L0
+blocked_reason: null
+```
 
 ## Agent Team mode
 

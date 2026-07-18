@@ -54,6 +54,9 @@ fi
 # of the legacy project-relative convention. CRITICAL RESILIENCE: this hook must NEVER
 # hard-fail or block - a resolver refusal (non-git, no marker) or any error (missing
 # script, no CLAUDE_PLUGIN_ROOT) silently falls back to the legacy project-relative path.
+# This fallback is the SANCTIONED "Advisory-glob exception" (V-50, state-root-resolution.md) -
+# a read-only glob that only ever degrades to silence, never a write; do not copy this
+# pattern into a call site that writes.
 CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
 PROJ_DIR="${CWD:-${CLAUDE_PROJECT_DIR:-.}}"
 RUN_DIR="$(cd "$PROJ_DIR" 2>/dev/null && bash "${CLAUDE_PLUGIN_ROOT:-}/scripts/lib/resolve_project_dir.sh" isolate 2>/dev/null || true)"
