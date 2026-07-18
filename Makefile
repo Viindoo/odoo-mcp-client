@@ -5,13 +5,13 @@ PYTHON ?= $(VENV)/bin/python
 VENV_STAMP := $(VENV)/.stamp
 
 help:
-	@echo "make validate        - validate plugin.json + skill frontmatter + workflows (claude plugin validate + pytest)"
+	@echo "make validate        - validate plugin.json + skill frontmatter + workflows (claude plugin validate + pytest); ENFORCES workflows-check + orchestration-check in strict mode"
 	@echo "make test            - run the plugin test suite"
 	@echo "make gen             - regenerate skill ## MCP tools sections + IDE snippets + orchestration map"
 	@echo "make gen-check       - run gen then assert git diff is empty (CI idempotency check)"
 	@echo "make deps-check      - check skill ↔ tool dependencies (no broken/removed tool refs)"
-	@echo "make workflows-check - validate all workflows/*.workflow.yaml against the schema (hard rules always fatal; WORKFLOWS_STRICT=1 also enforces the warn-first content rules)"
-	@echo "make orchestration-check - lint the capability/contract layer (warn-first; ORCH_STRICT=1 to enforce)"
+	@echo "make workflows-check - validate all workflows/*.workflow.yaml against the schema (hard rules always fatal; warn-first by default here - set WORKFLOWS_STRICT=1 to also enforce the content rules locally; 'make validate' always runs this strict)"
+	@echo "make orchestration-check - lint the capability/contract layer (warn-first by default here - set ORCH_STRICT=1 to enforce locally; 'make validate' always runs this strict)"
 	@echo "make setup           - create .venv (Python >= 3.12) and install requirements.txt"
 	@echo "make bump            - auto-classify the level from commits since last VERSION bump, then bump"
 	@echo "make bump-dry        - preview the auto-classified level + resulting version (writes nothing)"
@@ -41,6 +41,11 @@ setup: $(VENV_STAMP)
 	@echo "venv ready: $(PYTHON)"
 
 # Structural validation: official CLI check (if available) + our schema/format tests.
+# ENFORCING (CI-gating): both content lints below are invoked with --strict, so a genuine
+# rule-11/12 (workflows) or rule-5/8 (orchestration) finding fails `make validate` outright.
+# For warn-only local iteration while migrating new content, run the standalone
+# `make workflows-check` / `make orchestration-check` targets instead (those stay warn-first
+# by default; opt into their own strict mode with WORKFLOWS_STRICT=1 / ORCH_STRICT=1).
 validate: $(VENV_STAMP)
 	@command -v claude >/dev/null 2>&1 && { \
 		claude plugin validate plugins/odoo-ai-agents && \
@@ -49,12 +54,14 @@ validate: $(VENV_STAMP)
 	} || \
 		echo "(claude CLI not found - skipping 'claude plugin validate'; running pytest checks)"
 	$(PYTHON) -m pytest tests/test_plugin_schema.py tests/test_skill_format.py -q
-	$(PYTHON) plugins/odoo-ai-agents/generator/check_workflows.py
+	$(PYTHON) plugins/odoo-ai-agents/generator/check_workflows.py --strict
+	$(PYTHON) plugins/odoo-ai-agents/generator/check_orchestration.py --strict
 
 # Workflow schema validator: assert all *.workflow.yaml files conform to the contract. Hard
 # rules (1-10) are always fatal; the WARN-FIRST content rules (11-12) print but exit 0 by
 # default - set WORKFLOWS_STRICT=1 to promote them to fatal too (same pattern as
-# orchestration-check's ORCH_STRICT).
+# orchestration-check's ORCH_STRICT). `make validate` always runs this checker strict
+# regardless of this env var - use this target directly for warn-only local iteration.
 workflows-check: $(VENV_STAMP)
 	$(PYTHON) plugins/odoo-ai-agents/generator/check_workflows.py $(if $(WORKFLOWS_STRICT),--strict,)
 
@@ -81,8 +88,9 @@ deps-check: $(VENV_STAMP)
 	$(PYTHON) plugins/odoo-ai-agents/generator/check_deps.py
 
 # Orchestration/contract lint: spawn-class coverage, OSM-first + design-system + instance
-# references, spawn-truth, no-hardcode/no-leak. WARN-FIRST by default (exits 0); set
-# ORCH_STRICT=1 to enforce (exits 1 on any finding) once all skills comply.
+# references, spawn-truth, no-hardcode/no-leak. WARN-FIRST by default here (exits 0); set
+# ORCH_STRICT=1 to enforce (exits 1 on any finding) for local iteration. `make validate`
+# always runs this checker strict regardless of this env var.
 orchestration-check: $(VENV_STAMP)
 	$(PYTHON) plugins/odoo-ai-agents/generator/check_orchestration.py $(if $(ORCH_STRICT),--strict,)
 

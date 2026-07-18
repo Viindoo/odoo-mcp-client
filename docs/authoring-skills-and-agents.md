@@ -214,12 +214,12 @@ Names encode role so a router can tell the layers apart even when a name appears
 Run the full local gate (same as CI) before pushing:
 
 ```bash
-make validate          # plugin schema + skill frontmatter + description cap + workflow schema
+make validate          # plugin schema + skill frontmatter + description cap + workflow + orchestration check, both STRICT/enforced
 make test              # full pytest suite (naming, format, body convention, CHP, disambiguation, ...)
 make gen-check         # regenerate SSOT artifacts, fail on any diff (idempotency)
 make deps-check        # every skill->tool reference points at a live tool
-make workflows-check   # workflows/*.workflow.yaml vs schema
-make orchestration-check  # capability/contract lint (warn-first; ORCH_STRICT=1 to enforce)
+make workflows-check   # workflows/*.workflow.yaml vs schema (warn-first standalone; WORKFLOWS_STRICT=1 to enforce locally - `make validate` always runs it strict)
+make orchestration-check  # capability/contract lint (warn-first standalone; ORCH_STRICT=1 to enforce locally - `make validate` always runs it strict)
 ```
 
 Then commit via the `git-toolkit:git-ops` skill (it detects the convention and applies the DCO

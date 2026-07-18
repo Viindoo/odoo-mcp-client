@@ -59,18 +59,35 @@ jobs:
           fi
 
   orchestration-check:
-    name: Capability/contract lint (warn-first)
+    name: Capability/contract lint (enforced)
     runs-on: ubuntu-latest
     # Lints the Declarative Capability & Contract Layer: orchestration coverage,
     # OSM-first + design-system + instance references, spawn-truth, no-hardcode/no-leak.
-    # WARN-FIRST: non-blocking during migration (exits 0, prints findings). Flip to
-    # enforcing by adding `--strict` (or env ORCH_STRICT=1) once all skills comply.
+    # ENFORCING: --strict promotes every finding (incl. rule 5 spawn-truth/orchestrator-nl
+    # and rule 8 agent-role) to fatal. All prior hardening PRs cleared this lint before it
+    # was flipped from warn-first - a finding here means a real defect, not noise.
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - run: python3 plugins/odoo-ai-agents/generator/check_orchestration.py
+      - run: python3 plugins/odoo-ai-agents/generator/check_orchestration.py --strict
+
+  workflows-check:
+    name: Workflow schema + content lint (enforced)
+    runs-on: ubuntu-latest
+    # Validates workflows/*.workflow.yaml against the schema (plugins/odoo-ai-agents/workflows/_schema.md).
+    # Hard structural rules (1-10) are always fatal; --strict additionally promotes the
+    # content rules (11: auto-skip claims need a `when:` predicate, 12: no haiku-tier
+    # feature-existence verdicts) to fatal. All prior hardening PRs cleared this lint
+    # before it was flipped from warn-first - a finding here means a real defect, not noise.
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python3 plugins/odoo-ai-agents/generator/check_workflows.py --strict
 
   version-bump-suggestion:
     name: Suggested version bump (advisory)
