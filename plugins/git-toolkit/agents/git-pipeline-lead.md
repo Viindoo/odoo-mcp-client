@@ -56,6 +56,13 @@ Then re-brief each leaf ahead of its phase: carry the OBJECTIVE, the done-condit
 BASE/TARGET pair, the safety-gate flag, and the cluster's scope forward into a self-contained
 brief for that leaf - never pass your own raw inbound brief through unchanged.
 
+Also verify, before each leaf dispatch: resolve that phase's tier from the N3 per-phase model map
+in `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md` (tier vocabulary:
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-model-tiers.md`), pass it as the launch's `model` parameter,
+AND put `DISPATCH MODEL: <tier>` as the first line of that leaf's brief - confirm both match before
+every dispatch, not only at P1. Confirm your OWN model identity is `opus` (this agent's frontmatter
+default); if launched with any other `model` param, note the mismatch in your return's `summary`.
+
 Full brief contract: `${CLAUDE_PLUGIN_ROOT}/snippets/git-nesting-protocol.md`.
 
 ## The pipeline (P1-P5)
