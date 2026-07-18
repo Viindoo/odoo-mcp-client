@@ -2,7 +2,7 @@
 """CI workflow validator: assert every workflows/*.workflow.yaml conforms to the schema.
 
 Schema SSOT: plugins/odoo-ai-agents/workflows/_schema.md
-Rules enforced:
+Hard rules enforced (always fatal - exit 1 on any violation):
   1. All required top-level fields present (name, domain, team_pattern, description,
      output_dir, phases).
   2. `domain` in the 9 allowed persona buckets.
@@ -14,7 +14,19 @@ Rules enforced:
   8. `name` matches the file stem.
   9. `description` does not end with '.', '!', or '?'.
  10. Phases with `skill` or `agent` (not inline) must have a non-empty `nl_trigger`.
+
+WARN-FIRST rules (V-32 / V-51 class - print a finding, but do not fail the build unless
+--strict / WORKFLOWS_STRICT=1 is set; see "Main" below):
+ 11. A phase whose own text (`nl_trigger` / `gate`) claims the runner auto-skips it (e.g.
+     "skip this phase entirely", "skipped automatically") must carry a `when:` predicate -
+     `when:` is the schema's only auto-skip mechanism (_schema.md §5), so an unbacked claim is
+     false.
+ 12. A phase at `model_tier: haiku` must not read as a feature-existence verdict (dispatches
+     `odoo-feature-check`, or its `nl_trigger` reads like one) - `_schema.md` §6: "NEVER haiku
+     for ... feature-existence verdicts; those need sonnet".
 """
+import os
+import re
 import sys
 import pathlib
 
@@ -73,6 +85,33 @@ ALLOWED_MODEL_TIERS = {"haiku", "sonnet", "opus", "inherit"}
 ALLOWED_GATE_TIERS = {"L0", "L1", "L2"}
 
 REQUIRED_TOP_LEVEL = ["name", "domain", "team_pattern", "description", "output_dir", "phases"]
+
+# ---------------------------------------------------------------------------
+# WARN-FIRST rule detectors (rules 11-12; see module docstring)
+# ---------------------------------------------------------------------------
+
+# Rule 11 (V-32 class): a phase's own text promising the RUNNER will skip it automatically.
+# Deliberately narrow to the "the runner decides, not the dispatched specialist" phrasing - a
+# skill choosing to output "No bugs to triage... and skip [some in-body step]" is the SKILL's own
+# business logic, not a runner-level auto-skip claim, and must not match.
+AUTO_SKIP_CLAIM_RE = re.compile(
+    r"skip(?:s|ped)?\s+(?:this\s+)?phase\s+(?:entirely|automatically)"
+    r"|skipped\s+automatically"
+    r"|automatically\s+skip(?:s|ped)?",
+    re.I,
+)
+
+# Rule 12 (V-51 class): _schema.md §6 - haiku is NEVER for "multi-tool OSM synthesis (e.g.
+# capability tables, feature-existence verdicts)". `odoo-feature-check` IS the feature-existence
+# skill (its own description: "a one-line verdict" on "does standard Odoo already do this?"), so
+# dispatching it at haiku is the direct violation. The text regex is a second, independent signal
+# for an inline/other phase that reads like the same verdict without naming that skill.
+FEATURE_EXISTENCE_SKILL = "odoo-feature-check"
+FEATURE_VERDICT_TEXT_RE = re.compile(
+    r"\bverdict\b.{0,120}\b(exist|existence|cover|covers|support|supports|available)\b"
+    r"|\b(exist|existence|cover|covers|support|supports|available)\b.{0,120}\bverdict\b",
+    re.I | re.S,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -136,6 +175,57 @@ def _validate_on_complete(data: dict, self_name: str, fname: str) -> list[str]:
     return errors
 
 
+def _validate_auto_skip_when(data: dict, workflow_name: str, fname: str) -> list[str]:
+    """Rule 11 (WARN-FIRST, V-32 class). A phase whose own `nl_trigger`/`gate` text claims the
+    runner auto-skips it must carry a `when:` predicate - otherwise the runner has no mechanism
+    to actually honor the claim (schema §5: `when:` is the only auto-skip mechanism)."""
+    findings: list[str] = []
+    phases = data.get("phases")
+    if not isinstance(phases, list):
+        return findings
+    for phase in phases:
+        if not isinstance(phase, dict):
+            continue
+        phase_id = phase.get("id", "<unknown>")
+        text = " ".join(str(phase.get(k, "")) for k in ("nl_trigger", "gate"))
+        if not AUTO_SKIP_CLAIM_RE.search(text):
+            continue
+        when = phase.get("when")
+        if isinstance(when, str) and when.strip():
+            continue
+        findings.append(
+            f"File '{fname}': workflow '{workflow_name}' phase '{phase_id}' claims an "
+            f"auto-skip in its own text but has no 'when:' predicate (schema §5 - 'when' is "
+            f"the runner's only auto-skip mechanism)"
+        )
+    return findings
+
+
+def _validate_haiku_verdict_tier(data: dict, workflow_name: str, fname: str) -> list[str]:
+    """Rule 12 (WARN-FIRST, V-51 class). `_schema.md` §6: haiku is NEVER for a feature-existence
+    verdict - those need sonnet. Flag any phase at `model_tier: haiku` that dispatches the
+    feature-existence skill (`odoo-feature-check`) or whose own `nl_trigger` reads as one."""
+    findings: list[str] = []
+    phases = data.get("phases")
+    if not isinstance(phases, list):
+        return findings
+    for phase in phases:
+        if not isinstance(phase, dict):
+            continue
+        if phase.get("model_tier") != "haiku":
+            continue
+        phase_id = phase.get("id", "<unknown>")
+        skill = phase.get("skill")
+        nl_trigger = str(phase.get("nl_trigger", ""))
+        if skill == FEATURE_EXISTENCE_SKILL or FEATURE_VERDICT_TEXT_RE.search(nl_trigger):
+            findings.append(
+                f"File '{fname}': workflow '{workflow_name}' phase '{phase_id}' runs at "
+                f"model_tier=haiku but reads as a feature-existence verdict (schema §6: "
+                f"'NEVER haiku for ... feature-existence verdicts; those need sonnet')"
+            )
+    return findings
+
+
 def _validate_phase(phase: dict, phase_idx: int, workflow_name: str) -> list[str]:
     errors = []
     prefix = f"Workflow '{workflow_name}' phase[{phase_idx}]"
@@ -194,18 +284,22 @@ def _workflow_stem(path: pathlib.Path) -> str:
     return path.stem
 
 
-def _validate_workflow(path: pathlib.Path) -> list[str]:
-    errors = []
+def _validate_workflow(path: pathlib.Path) -> tuple[list[str], list[str]]:
+    """Returns (fatal_errors, warn_first_findings) - see the module docstring for which rule
+    lands in which bucket. `warn_first_findings` never affects the return value on its own;
+    `main()` decides whether to promote them to fatal based on --strict / WORKFLOWS_STRICT."""
+    errors: list[str] = []
+    warn_findings: list[str] = []
     stem = _workflow_stem(path)  # filename without .workflow.yaml
 
     try:
         with path.open(encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
     except yaml.YAMLError as exc:
-        return [f"File '{path.name}': YAML parse error: {exc}"]
+        return [f"File '{path.name}': YAML parse error: {exc}"], []
 
     if not isinstance(data, dict):
-        return [f"File '{path.name}': top-level must be a YAML mapping, got {type(data).__name__}"]
+        return [f"File '{path.name}': top-level must be a YAML mapping, got {type(data).__name__}"], []
 
     # Required top-level fields - empty/whitespace strings count as missing
     for field in REQUIRED_TOP_LEVEL:
@@ -272,7 +366,11 @@ def _validate_workflow(path: pathlib.Path) -> list[str]:
     # optional cross-workflow transition block
     errors.extend(_validate_on_complete(data, name or stem, path.name))
 
-    return errors
+    # WARN-FIRST rules (11-12) - never fatal here; main() decides fatality via strict mode.
+    warn_findings.extend(_validate_auto_skip_when(data, name or stem, path.name))
+    warn_findings.extend(_validate_haiku_verdict_tier(data, name or stem, path.name))
+
+    return errors, warn_findings
 
 
 # ---------------------------------------------------------------------------
@@ -329,7 +427,14 @@ def _driver_required_warnings() -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    # WARN-FIRST toggle for rules 11-12 - same pattern as check_orchestration.py's
+    # --strict / ORCH_STRICT (see the Makefile `orchestration-check` target): default prints a
+    # finding and still exits 0; --strict / WORKFLOWS_STRICT=1 promotes those findings to fatal
+    # errors. The hard rules (1-10) are ALWAYS fatal, independent of this flag.
+    strict = "--strict" in argv or os.environ.get("WORKFLOWS_STRICT") == "1"
+
     workflow_files = sorted(
         f for f in WORKFLOWS_DIR.glob("*.workflow.yaml") if f.is_file()
     )
@@ -339,8 +444,15 @@ def main() -> int:
         return 0
 
     all_errors: list[str] = []
+    warn_first_findings: list[str] = []
     for wf_path in workflow_files:
-        all_errors.extend(_validate_workflow(wf_path))
+        errs, warn_findings = _validate_workflow(wf_path)
+        all_errors.extend(errs)
+        warn_first_findings.extend(warn_findings)
+
+    if strict:
+        all_errors.extend(warn_first_findings)
+        warn_first_findings = []
 
     if all_errors:
         for err in all_errors:
@@ -351,7 +463,7 @@ def main() -> int:
         )
         return 1
 
-    warnings = _driver_required_warnings()
+    warnings = _driver_required_warnings() + warn_first_findings
     for w in warnings:
         print(f"WARN: {w}", file=sys.stderr)
 
