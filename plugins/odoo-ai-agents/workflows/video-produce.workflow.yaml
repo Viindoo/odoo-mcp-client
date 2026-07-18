@@ -74,7 +74,8 @@ phases:
     #      scene-boundary annotation and a per-scene GIF fallback.
     #   2. Write final file to .odoo-ai/video/<project_label>-<YYYY-MM-DD>.<mp4|gif>
     #   3. Print artifact path, total duration, scene count, and the re-runnable storyboard.
-    #   4. Remind: .odoo-ai/ is gitignored; final file is not committed to the repo.
+    #   4. Remind: .odoo-ai/video/... resolves to the per-worktree ISOLATE dir under
+    #      $ODOO_AI_HOME at runtime, outside the repo - the final file is not committed.
     # Fallback: if only screenshot capture was available for any scene, the assembler
     # stitches frame sequences and prefixes the output with:
     #   ⚠ Recorder unavailable for scene(s) N - assembled from screenshot frames.

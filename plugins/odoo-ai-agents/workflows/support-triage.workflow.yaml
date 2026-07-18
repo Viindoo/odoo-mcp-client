@@ -32,7 +32,8 @@ phases:
     # Runner collects: ticket description (pasted text or summary), Odoo version,
     # module/menu path (optional), customer label (abstract), severity (optional).
     # Enforces confidentiality: abstract labels only; no real company/contact names
-    # in any artifact. Warns user that .odoo-ai/ must be in .gitignore.
+    # in any artifact. Warns user that the output resolves to the per-worktree ISOLATE dir
+    # under $ODOO_AI_HOME at runtime, outside the repo (never a project-relative path).
 
   # ------------------------------------------------------------------
   # Phase 1 - Classify the ticket (inline: no specialist needed)
@@ -102,5 +103,6 @@ phases:
     #   1. Write .odoo-ai/support/<customer-label>-<YYYY-MM-DD>.md (abstract labels only)
     #   2. Print full triage to terminal for copy-paste
     #   3. Show summary: "Support triage saved: .odoo-ai/support/<file>"
-    #   4. Remind: .odoo-ai/ must be in .gitignore (customer data protection)
+    #   4. Remind: .odoo-ai/support/... resolves to the per-worktree ISOLATE dir under
+    #      $ODOO_AI_HOME at runtime, outside the repo (customer data protection)
     # CONFIDENTIALITY: no real company/contact names in saved file; use abstract labels.

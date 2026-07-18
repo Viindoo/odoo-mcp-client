@@ -105,4 +105,5 @@ phases:
     #   - If resolved: writes a closure summary with root cause + fix applied
     #   - If still failing: loops back to inspect with updated symptom card (resume)
     # Final artifact: .odoo-ai/debug/<slug>-session-summary.md
-    # Reminder: .odoo-ai/ is gitignored; debug artifacts are never committed to the repo.
+    # Reminder: .odoo-ai/debug/... above resolves to the per-worktree ISOLATE dir under
+    # $ODOO_AI_HOME at runtime, outside the repo - debug artifacts are never committed.

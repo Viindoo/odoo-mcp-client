@@ -71,4 +71,5 @@ phases:
     #   3. Re-engagement draft from Phase 2 (ready to send)
     #   4. "If no reply in X days" contingency action
     # Writes to .odoo-ai/sales/<customer-label>-<YYYY-MM-DD>-closing-plan.md
-    # Reminder: .odoo-ai/ is gitignored; artifacts are never committed to the repo.
+    # Reminder: .odoo-ai/sales/... above resolves to the per-worktree ISOLATE dir under
+    # $ODOO_AI_HOME at runtime, outside the repo - artifacts are never committed.

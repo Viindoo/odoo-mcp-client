@@ -2,13 +2,15 @@
 # resolve_instances.sh - Source-only helper: resolve WHERE instances.toml lives.
 #
 # instances.toml declares the local Odoo instances on THIS host (series, ports,
-# db, addons_path, python). It is the ONLY machine-scoped artifact in the
-# .odoo-ai/ convention - every other .odoo-ai/ file (context.md, survey/,
-# worklog/, ...) is project-scoped and stays under $PWD/.odoo-ai/. Storing
-# instances.toml per-cwd meant an execute-agent running in repo X could not see
-# an instance declared while in repo Y. This helper is the single source of
-# truth for the path so the setup steps (40/45/50) and any consumer resolve it
-# the same way from any working directory.
+# db, addons_path, python). It is Tier-1 - flat under $ODOO_AI_HOME - the same
+# machine-global tier as the allocator runtime/ registry, logs/, and i18n.json.
+# Every OTHER former .odoo-ai/ artifact (context.md, survey/, worklog/, ...) is
+# now namespaced Tier-2 under $ODOO_AI_HOME/projects/<repo-key>/[worktrees/<wt-key>/]
+# (SSOT: snippets/state-root-resolution.md), NEVER a project-relative $PWD/.odoo-ai/.
+# Keeping instances.toml machine-global (not per-cwd) means an execute-agent in
+# repo X still sees an instance declared while in repo Y. This helper is the
+# single source of truth for the path so the setup steps (40/45/50) and any
+# consumer resolve it the same way from any working directory.
 #
 # Resolution order (READ; first existing file with >=1 [[instance]] wins):
 #   1. $ODOO_AI_INSTANCES                                  explicit full-path override
