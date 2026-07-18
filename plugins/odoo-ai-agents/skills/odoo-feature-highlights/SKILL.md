@@ -61,8 +61,8 @@ Odoo ships annual major releases - each brings API changes (developer-facing) an
 | v11/v12 | Community stabilization; major accounting improvements |
 | v13 | OWL introduced (most views still use legacy widgets) |
 | v14 | OWL becomes primary framework; `web.Widget` deprecated |
-| v15 | OWL 2.0 (breaking OWL API); spreadsheet; sign matured |
-| v16 | Full OWL stable; `web.Widget` removed; new field types |
+| v15 | ES6 module system canonical (`/** @odoo-module **/`); spreadsheet; sign matured |
+| v16 | OWL 2.x library (`@odoo/owl`, breaking OWL API); `web.Widget` removed; new field types |
 | v17 | Performance; Python 3.10+; UX refinements |
 | v18+ | ORM enhancements; module restructuring |
 

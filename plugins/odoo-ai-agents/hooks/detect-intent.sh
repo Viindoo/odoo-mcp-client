@@ -59,9 +59,14 @@ _wb() {
   fi
 }
 
-# Primary Odoo/ERP anchor - must be present or one of the domain buckets must match
+# Primary Odoo/ERP anchor - must be present or one of the domain buckets must match.
+# NOT the generic `_wb`: its left boundary `[^a-z0-9]` treats the hyphen in an explicit negation
+# like "non-odoo" as a word start, so `_wb` would false-anchor on a prompt that says the work is
+# NOT Odoo. The dedicated boundary below allows start-of-string, a non-alnum/non-hyphen char (space,
+# punctuation), or an OPTIONAL leading hyphen only when that hyphen is itself preceded by an allowed
+# boundary - so a letter/digit-then-hyphen prefix ("non-odoo", "anti-odoo", "x-odoo") does NOT fire.
 _odoo_anchor=false
-if _wb 'odoo|viindoo|erp|openerp'; then
+if printf '%s' "${_p_lower}" | grep -Eq "(^|[^a-z0-9-])-?(odoo|viindoo|erp|openerp)"; then
   _odoo_anchor=true
 fi
 

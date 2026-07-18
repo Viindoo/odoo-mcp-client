@@ -90,9 +90,10 @@ test_base_classes(odoo_version='17.0')   # replace with actual target version
 ```
 
 Use the result to audit test files for legacy base classes. Specifically flag:
-- `SavepointCase` used in test files (distinct class on v12-v15; deprecated alias of
-  `TransactionCase` from v16+, still runs; migrate for cleanliness to `TransactionCase` idiom on
-  v16+ targets only - see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`) - WARN
+- `SavepointCase` used in test files (distinct class on v12-v14; at v15 `TransactionCase` absorbed
+  the class-level savepoint behavior and `SavepointCase` became a deprecated alias, still runs;
+  migrate for cleanliness to the `TransactionCase` idiom on **v15+** targets - keep `SavepointCase`
+  on v12-v14 - see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`) - WARN
 - `cr.commit()` inside `TransactionCase` or `SavepointCase` test bodies - always BREAKING
   (isolation is savepoint rollback; `cr.commit()` is forbidden in the test transaction)
 - `SingleTransactionCase` if the target version changed its semantics - WARN

@@ -259,9 +259,13 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
     lines.append("")
     lines.append(
         "Derived from a non-empty `spawns` entry, NOT from `spawn_class` - the same predicate "
-        "`orchestration-digest.txt` uses ([NEW]-2), so the two artifacts cannot disagree. A skill "
-        "listed here with a `spawn_class` other than `spawner-agent` above is a drift to fix at "
-        "the SSOT (either the class or the `spawns` entry is wrong)."
+        "`orchestration-digest.txt` uses ([NEW]-2), so the two artifacts cannot disagree. Two "
+        "spawn_classes legitimately appear here: (1) a `spawner-agent` (launches a named subagent "
+        "directly); (2) an `orchestrator-nl` whose `spawns` are SKILL invocations it drives "
+        "transitively via the Skill tool (e.g. `run-harness` chaining `odoo-coding` / `git-ops`) - "
+        "it launches no agent itself, but the skills it dispatches may, so surfacing it here is "
+        "correct, not a defect. Only a `leaf` listed here is a genuine drift to fix at the SSOT (a "
+        "leaf must never carry a `spawns` entry - either its class or the `spawns` entry is wrong)."
     )
     lines.append("")
     may_spawn = sorted(n for n, e in orch.items() if _may_spawn(e))
@@ -303,7 +307,8 @@ def gen_orchestration_digest(orch: dict[str, dict]) -> str:
     spawners = sorted(n for n, e in orch.items() if _may_spawn(e))
     lines = [
         "[odoo-ai-agents] Orchestration registry (so you never forbid a legitimate spawn):",
-        "- Skills that LAUNCH subagents (let them; a worker doing delegated work should not re-launch them): "
+        "- Skills that LAUNCH subagents - directly, or transitively by chaining a spawner skill via "
+        "the Skill tool, e.g. run-harness (let them; a worker doing delegated work should not re-launch them): "
         + (", ".join(spawners) or "none"),
         "- Full map: docs/reference/ORCHESTRATION-MAP.md",
     ]

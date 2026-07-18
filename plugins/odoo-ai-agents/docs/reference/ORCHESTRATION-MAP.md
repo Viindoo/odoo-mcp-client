@@ -73,7 +73,7 @@
 
 ## Skills that may spawn
 
-Derived from a non-empty `spawns` entry, NOT from `spawn_class` - the same predicate `orchestration-digest.txt` uses ([NEW]-2), so the two artifacts cannot disagree. A skill listed here with a `spawn_class` other than `spawner-agent` above is a drift to fix at the SSOT (either the class or the `spawns` entry is wrong).
+Derived from a non-empty `spawns` entry, NOT from `spawn_class` - the same predicate `orchestration-digest.txt` uses ([NEW]-2), so the two artifacts cannot disagree. Two spawn_classes legitimately appear here: (1) a `spawner-agent` (launches a named subagent directly); (2) an `orchestrator-nl` whose `spawns` are SKILL invocations it drives transitively via the Skill tool (e.g. `run-harness` chaining `odoo-coding` / `git-ops`) - it launches no agent itself, but the skills it dispatches may, so surfacing it here is correct, not a defect. Only a `leaf` listed here is a genuine drift to fix at the SSOT (a leaf must never carry a `spawns` entry - either its class or the `spawns` entry is wrong).
 
 `odoo-acceptance`, `odoo-brl`, `odoo-code-review`, `odoo-coding`, `odoo-debug`, `odoo-deep-survey`, `odoo-doc-feature-map`, `odoo-doc-illustration`, `odoo-doc-walkthrough`, `odoo-forward-port`, `odoo-gap-analysis`, `odoo-git-rebase`, `odoo-i18n`, `odoo-icon-design`, `odoo-instance`, `odoo-intake`, `odoo-modules-upgrade`, `odoo-planning`, `odoo-pr-monitoring`, `odoo-solution-design`, `odoo-ui-review`, `run-harness`
 
