@@ -83,4 +83,5 @@ phases:
     #   3. Distribution checklist (platforms, hashtags, UTM parameters if applicable)
     #   4. Brief performance-tracking note (what metric to check after 48 hours)
     # Writes to .odoo-ai/content/<topic-slug>-<YYYY-MM-DD>-<channel>.md
-    # Reminder: .odoo-ai/ is gitignored; content artifacts are never committed to the repo.
+    # Reminder: .odoo-ai/content/... above resolves to the per-worktree ISOLATE dir under
+    # $ODOO_AI_HOME at runtime, outside the repo - content artifacts are never committed.

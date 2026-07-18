@@ -139,5 +139,6 @@ phases:
     #   1. Write .odoo-ai/bids/<customer_label>-<YYYY-MM-DD>.md (create dir if needed)
     #   2. Print full proposal to terminal for copy-paste
     #   3. Show summary: "Bid response saved: .odoo-ai/bids/<file>"
-    #   4. Remind: .odoo-ai/ should be in .gitignore
+    #   4. Remind: .odoo-ai/bids/... resolves to the per-worktree ISOLATE dir under
+    #      $ODOO_AI_HOME at runtime, outside the repo
     # Note: runner does NOT send emails.
