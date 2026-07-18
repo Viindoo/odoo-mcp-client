@@ -206,6 +206,18 @@ def _load_skill_tool_deps() -> None:
         ORCHESTRATION[skill_name] = dict(entry)
 
 
+def _may_spawn(entry: dict) -> bool:
+    """SSOT predicate for "this skill may launch a subagent" - a non-empty `spawns` list, NOT
+    `spawn_class == 'spawner-agent'`. `gen_orchestration_map` and `gen_orchestration_digest`
+    both call this SAME function so the two generated artifacts can never disagree.
+
+    Deliberately not spawn_class-based: a record whose spawn_class was left/mislabeled as
+    `leaf` or `orchestrator-nl` but that still carries a real `spawns` entry must still surface
+    to planners as a spawner - the digest existing solely to protect planners from forbidding a
+    legitimate launch, a spawn_class typo or drift must never hide one ([NEW]-2)."""
+    return bool(entry.get("spawns"))
+
+
 def gen_orchestration_map(orch: dict[str, dict]) -> str:
     """Full human/agent-readable orchestration map: one row per skill dir."""
     lines = [
@@ -240,6 +252,18 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
     lines.append("- **stack** - drives backend↔frontend routing; `fullstack` work must engage both a")
     lines.append("  backend and a frontend specialist.")
     lines.append("")
+    lines.append("## Skills that may spawn")
+    lines.append("")
+    lines.append(
+        "Derived from a non-empty `spawns` entry, NOT from `spawn_class` - the same predicate "
+        "`orchestration-digest.txt` uses ([NEW]-2), so the two artifacts cannot disagree. A skill "
+        "listed here with a `spawn_class` other than `spawner-agent` above is a drift to fix at "
+        "the SSOT (either the class or the `spawns` entry is wrong)."
+    )
+    lines.append("")
+    may_spawn = sorted(n for n, e in orch.items() if _may_spawn(e))
+    lines.append(", ".join(f"`{n}`" for n in may_spawn) if may_spawn else "(none)")
+    lines.append("")
     lines.append("## Skill Conflict Resolution")
     lines.append("")
     lines.append(
@@ -273,10 +297,7 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
 def gen_orchestration_digest(orch: dict[str, dict]) -> str:
     """Tiny digest injected at SessionStart so the planning agent knows, up front,
     which skills launch subagents. Kept terse on purpose."""
-    spawners = sorted(
-        n for n, e in orch.items()
-        if e.get("spawn_class", "").startswith("spawner")
-    )
+    spawners = sorted(n for n, e in orch.items() if _may_spawn(e))
     lines = [
         "[odoo-ai-agents] Orchestration registry (so you never forbid a legitimate spawn):",
         "- Skills that LAUNCH subagents (let them; a worker doing delegated work should not re-launch them): "

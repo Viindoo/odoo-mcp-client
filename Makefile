@@ -10,7 +10,7 @@ help:
 	@echo "make gen             - regenerate skill ## MCP tools sections + IDE snippets + orchestration map"
 	@echo "make gen-check       - run gen then assert git diff is empty (CI idempotency check)"
 	@echo "make deps-check      - check skill ↔ tool dependencies (no broken/removed tool refs)"
-	@echo "make workflows-check - validate all workflows/*.workflow.yaml against the schema"
+	@echo "make workflows-check - validate all workflows/*.workflow.yaml against the schema (hard rules always fatal; WORKFLOWS_STRICT=1 also enforces the warn-first content rules)"
 	@echo "make orchestration-check - lint the capability/contract layer (warn-first; ORCH_STRICT=1 to enforce)"
 	@echo "make setup           - create .venv (Python >= 3.12) and install requirements.txt"
 	@echo "make bump            - auto-classify the level from commits since last VERSION bump, then bump"
@@ -51,9 +51,12 @@ validate: $(VENV_STAMP)
 	$(PYTHON) -m pytest tests/test_plugin_schema.py tests/test_skill_format.py -q
 	$(PYTHON) plugins/odoo-ai-agents/generator/check_workflows.py
 
-# Workflow schema validator: assert all *.workflow.yaml files conform to the contract.
+# Workflow schema validator: assert all *.workflow.yaml files conform to the contract. Hard
+# rules (1-10) are always fatal; the WARN-FIRST content rules (11-12) print but exit 0 by
+# default - set WORKFLOWS_STRICT=1 to promote them to fatal too (same pattern as
+# orchestration-check's ORCH_STRICT).
 workflows-check: $(VENV_STAMP)
-	$(PYTHON) plugins/odoo-ai-agents/generator/check_workflows.py
+	$(PYTHON) plugins/odoo-ai-agents/generator/check_workflows.py $(if $(WORKFLOWS_STRICT),--strict,)
 
 test: $(VENV_STAMP)
 	$(PYTHON) -m pytest tests/ -q

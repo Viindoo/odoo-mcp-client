@@ -71,6 +71,12 @@
 - **stack** - drives backend↔frontend routing; `fullstack` work must engage both a
   backend and a frontend specialist.
 
+## Skills that may spawn
+
+Derived from a non-empty `spawns` entry, NOT from `spawn_class` - the same predicate `orchestration-digest.txt` uses ([NEW]-2), so the two artifacts cannot disagree. A skill listed here with a `spawn_class` other than `spawner-agent` above is a drift to fix at the SSOT (either the class or the `spawns` entry is wrong).
+
+`odoo-acceptance`, `odoo-brl`, `odoo-code-review`, `odoo-coding`, `odoo-debug`, `odoo-deep-survey`, `odoo-doc-feature-map`, `odoo-doc-illustration`, `odoo-doc-walkthrough`, `odoo-forward-port`, `odoo-gap-analysis`, `odoo-git-rebase`, `odoo-i18n`, `odoo-icon-design`, `odoo-instance`, `odoo-intake`, `odoo-modules-upgrade`, `odoo-planning`, `odoo-pr-monitoring`, `odoo-qa-suite`, `odoo-solution-design`, `odoo-ui-review`, `run-harness`
+
 ## Skill Conflict Resolution
 
 Full skill-collision policy with worked examples lives in `skills/odoo-intake/references/collision-zones.md`. The one case below is specific to a single skill and kept here:

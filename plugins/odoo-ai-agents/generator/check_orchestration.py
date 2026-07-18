@@ -12,10 +12,20 @@ is complete and that skills thread the shared contracts they are required to:
                     skills/_shared/odoo-frontend-fidelity.md.
   4. Instance     - skills with instance_touching=true reference cli_help / the lifecycle
                     docs (so they ground the CLI per target version instead of assuming).
-  5. Spawn truth  - spawn_class is consistent with the SKILL.md body (a 'leaf' must not show
-                    active named-agent dispatch/launch language; a 'spawner-*' should).
-  6. No hardcode / no leak - self-referential CSS custom properties, machine-specific
+  5. Spawn truth  - spawn_class is consistent with the SKILL.md body: neither a 'leaf' nor
+                    an 'orchestrator-nl' (chains skills via NL dispatch, no subagent spawn)
+                    may show active named-agent dispatch/launch language; a 'spawner-agent'
+                    is unconstrained here (the orchestration SSOT is authoritative for it).
+  6. CHP          - a skill declaring handoff in {send-message, fork} documents the Tier-C
+                    (fresh spawn) fallback in its body.
+  7. No hardcode / no leak - self-referential CSS custom properties, machine-specific
                     absolute paths, and hardcoded hex inside skill SCSS code fences.
+  8. Agent role   - for every agents/<name>.md with a `role` declared in skill_tool_deps.json
+                    "agents"."<name>"."role", a `role: leaf` agent's body must carry the
+                    never-git/never-spawn clause and show neither positive spawn language nor
+                    a positive git-mutation instruction. INERT (no findings) for any agent
+                    with no `role` key - the field does not exist in the SSOT yet (a later PR
+                    populates it); this pass only bites once it does.
 
 WARN-FIRST: by default this prints findings and exits 0 (migration-friendly). Pass --strict
 (or set ORCH_STRICT=1) to exit 1 on any finding - flip that on once all skills comply.
@@ -32,6 +42,7 @@ from pathlib import Path
 PLUGIN_ROOT = Path(__file__).parent.parent.resolve()
 DEPS_FILE = Path(__file__).parent / "skill_tool_deps.json"
 SKILLS_DIR = PLUGIN_ROOT / "skills"
+AGENTS_DIR = PLUGIN_ROOT / "agents"
 
 OSM_SNIPPET = "osm-first-contract"
 DESIGN_DOC = "odoo-frontend-fidelity"
@@ -55,6 +66,8 @@ OSM_REQUIRED = {"workflow-chaining", "odoo-brl"}
 # the skill is a safe non-spawner).
 VALID_SPAWN_CLASS = {"leaf", "orchestrator-nl", "spawner-agent"}
 VALID_STACK = {"backend", "frontend", "fullstack", "none"}
+# agents.<name>.role enum (V-01 SSOT, populated in a later PR - see the agent-role pass below).
+VALID_AGENT_ROLE = {"leaf", "spawner", "coordinator"}
 # output_mode drives the Plan-Mode decision; default_gate_tier drives the run-harness gate
 # policy. Both are SSOT here (replacing the hardcoded chat-only lists). output_mode is read
 # per-skill from the SKILL.md Output field (a backend-stack skill can be read-only/chat-only,
@@ -88,14 +101,17 @@ def _derive_gate_tier(spawn_class: str, instance_touching: bool, output_mode: st
         return "L1"
     return "L0"
 
-# High-precision ACTIVE dispatch signals in a SKILL.md body. Deliberately narrow: a generic
-# "spawn subagents" phrase is NOT included because it appears in negated capability statements
-# ("this skill does not invoke other skills or spawn subagents") and is pure noise. We only
-# flag the dangerous drift - a skill declared `leaf` that actively dispatches an agent. The
-# orchestration SSOT (skill_tool_deps.json) is the authoritative classification.
+# High-precision ACTIVE dispatch signals in a SKILL.md/agents/*.md body. Deliberately narrow: a
+# generic "spawn subagents" phrase is NOT included because it appears in negated capability
+# statements ("this skill does not invoke other skills or spawn subagents") and is pure noise. We
+# only flag the dangerous drift - a skill/agent declared `leaf` (or `orchestrator-nl`) that
+# actively dispatches an agent. The orchestration/agent-role SSOT (skill_tool_deps.json) is the
+# authoritative classification. Backtick-tolerant: prose commonly names the target agent in
+# backticks ("launch the `odoo-test-writer` agent") - the bare-word-only form missed that.
 SPAWN_BODY_RE = re.compile(
-    r"(invoke the Agent tool|call the Agent tool|dispatch(?:es)? (?:to )?the [a-z][a-z-]+ agent"
-    r"|launch(?:es|ing)? (?:the )?[a-z][a-z-]+ agent)",
+    r"(invoke the Agent tool|call the Agent tool"
+    r"|dispatch(?:es)? (?:to )?the `?[a-z][a-z-]+`? agent"
+    r"|launch(?:es|ing)? (?:the )?`?[a-z][a-z-]+`? agent)",
     re.I,
 )
 # Negation tokens that suppress a spawn match. Note: "non-" is deliberately excluded - it
@@ -113,6 +129,40 @@ def _has_positive_spawn(body: str) -> bool:
                       # never matches the regex at all, so it needs no negation guard here
         return True
     return False
+
+
+# Agent-role pass (§7) detectors. GIT_MUTATION_RE mirrors the exact verb list from the V-01 spec
+# (`git (commit|add|push|rebase|merge|reset|cherry-pick|stash|tag|checkout|branch)`); reuses the
+# SAME NEGATION_RE lookback as _has_positive_spawn so "does NOT run git commit" is not a finding.
+GIT_MUTATION_RE = re.compile(
+    r"\bgit (commit|add|push|rebase|merge|reset|cherry-pick|stash|tag|checkout|branch)\b",
+    re.I,
+)
+
+
+def _has_positive_git_mutation(body: str) -> bool:
+    """True if the body shows a real (non-negated) git-mutation instruction - a `role: leaf`
+    agent must never carry one (see snippets/git-delegation.md: leaves never run git)."""
+    for m in GIT_MUTATION_RE.finditer(body):
+        preceding = body[max(0, m.start() - 45):m.start()]
+        if NEGATION_RE.search(preceding):
+            continue
+        return True
+    return False
+
+
+# Required-substring proxy for "the body carries the never-git/never-spawn clause"
+# (snippets/worker-brief.md's leaf clause is the prose SSOT this mirrors: "You do NOT run git -
+# at all" / "cannot launch agents" / "HARD LEAF - never launches another agent"). Several accepted
+# phrasings on purpose - the 14+ agents that already self-declare today do not share one exact
+# wording yet (that convergence is a later PR); this stays a permissive OR of the reserved terms.
+LEAF_CLAUSE_RE = re.compile(
+    r"(hard[- ]leaf|never launch(?:es)? (?:another|an|no) agent|launch(?:es)? no (?:sub-?)?agent"
+    r"|does not (?:launch|spawn|invoke) (?:a |an |another )?(?:sub-?)?agent"
+    r"|never spawns?(?: (?:a|an|another) (?:sub-?)?agent)?|no sub-?agents?"
+    r"|does not run git|never runs? git|cannot launch agents|you do not run git)",
+    re.I,
+)
 SELF_REF_RE = re.compile(r"--([a-z0-9-]+)\s*:\s*var\(\s*--\1\b", re.I)
 MACHINE_PATH_RE = re.compile(r"/(?:home|Users)/([A-Za-z0-9._-]+)/")
 # Usernames that are NOT a leak of this machine's real home: doc placeholders + standard
@@ -135,9 +185,67 @@ def load_orch():
     return {k: v for k, v in data.get("orchestration", {}).items() if not k.startswith("_")}
 
 
+def load_agents():
+    data = json.loads(DEPS_FILE.read_text(encoding="utf-8"))
+    return dict(data.get("agents", {}))
+
+
 def skill_body(name: str) -> str | None:
     p = SKILLS_DIR / name / "SKILL.md"
     return p.read_text(encoding="utf-8") if p.exists() else None
+
+
+def agent_body(name: str) -> str | None:
+    p = AGENTS_DIR / f"{name}.md"
+    return p.read_text(encoding="utf-8") if p.exists() else None
+
+
+def check_agent_roles(findings: list[str]) -> None:
+    """8. Agent-role SSOT lint (V-01 mechanism, PR-1 half of a two-PR rollout).
+
+    Reads `agents.<name>.role` from skill_tool_deps.json. For `role == "leaf"`, asserts the
+    agent body (a) carries the never-git/never-spawn clause, (b) shows no positive spawn
+    language (reuses `_has_positive_spawn` - the SAME detector rule 5 uses, so there is one
+    SSOT regex for "does this body launch an agent", not two), and (c) shows no positive
+    git-mutation instruction.
+
+    INERT BY DESIGN today: the `role` field does not exist anywhere in the SSOT yet (it is
+    populated in a later PR) - an agent whose entry has no `role` key is silently skipped, so
+    this pass currently contributes zero findings. It becomes meaningful the moment `role`
+    values land.
+    """
+    agents = load_agents()
+    for name in sorted(agents):
+        entry = agents[name]
+        role = entry.get("role")
+        if role is None:
+            continue  # not yet populated in the SSOT - inert (see docstring)
+        if role not in VALID_AGENT_ROLE:
+            findings.append(
+                f"[agent-role] '{name}' has invalid role '{role}' (not in {sorted(VALID_AGENT_ROLE)})"
+            )
+            continue
+        if role != "leaf":
+            continue  # only `leaf` carries a never-git/never-spawn obligation here
+        body = agent_body(name)
+        if body is None:
+            findings.append(
+                f"[agent-role] '{name}' has role=leaf in the SSOT but agents/{name}.md does not exist"
+            )
+            continue
+        if not LEAF_CLAUSE_RE.search(body):
+            findings.append(
+                f"[agent-role] '{name}' has role=leaf but its body does not carry the "
+                f"never-git/never-spawn clause"
+            )
+        if _has_positive_spawn(body):
+            findings.append(
+                f"[agent-role] '{name}' has role=leaf but body actively dispatches an agent"
+            )
+        if _has_positive_git_mutation(body):
+            findings.append(
+                f"[agent-role] '{name}' has role=leaf but body instructs a git mutation"
+            )
 
 
 def main(argv: list[str]) -> int:
@@ -212,12 +320,14 @@ def main(argv: list[str]) -> int:
                 f"{', '.join(INSTANCE_REFS)}"
             )
 
-        # 5. spawn_class vs body - flag only the dangerous drift: a declared `leaf` that
-        #    actively dispatches an agent. (Reverse direction is omitted as noisy; the
+        # 5. spawn_class vs body - flag only the dangerous drift: a declared `leaf` OR
+        #    `orchestrator-nl` that actively dispatches an agent (an orchestrator-nl skill
+        #    chains other SKILLS via NL dispatch - Skill tool - and must show no named-AGENT
+        #    launch language, same bar as a leaf). (Reverse direction is omitted as noisy; the
         #    orchestration SSOT is authoritative for the spawner declaration.)
-        if spawn_class == "leaf" and _has_positive_spawn(body):
+        if spawn_class in ("leaf", "orchestrator-nl") and _has_positive_spawn(body):
             findings.append(
-                f"[spawn-truth] '{name}' is spawn_class=leaf but body actively dispatches an agent"
+                f"[spawn-truth] '{name}' is spawn_class={spawn_class} but body actively dispatches an agent"
             )
 
         # 6. CHP (Context-Handoff Protocol) - handoff enum + Tier-C fallback documentation.
@@ -255,6 +365,9 @@ def main(argv: list[str]) -> int:
             if HEX_RE.search(block):
                 findings.append(f"[no-hardcode] hardcoded hex color in a style code fence in {rel}")
                 break
+
+    # 8. Agent role (see check_agent_roles docstring - INERT until `role` is populated in the SSOT)
+    check_agent_roles(findings)
 
     if findings:
         print(f"check_orchestration: {len(findings)} finding(s)"
