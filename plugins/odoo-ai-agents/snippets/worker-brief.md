@@ -44,7 +44,9 @@ re-commits). See `${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
   when handed NO `INSTANCE_HANDLE`. This is allowed because `odoo-instance` applies the instance
   HARD RULES (`en_US` union, Viindoo `to_base`, lint-module install, per-version `cli_help`
   grounding); do NOT call `scripts/lib/allocator.py` directly, which would bypass them. A provided
-  `INSTANCE_HANDLE` always wins: consume it, never re-provision.
+  `INSTANCE_HANDLE` always wins: consume it, never re-provision. Because you are a declared HARD
+  LEAF, `odoo-instance` runs INLINE for you (never launches `odoo-instance-ops`) - this is a MUST,
+  not a judgment call, per its own binding rule.
   `odoo-frontend-coder` is INSTANCE-FREE - it never self-provisions; its only gate is the static
   `verify-frontend.sh`, and any live check is owned by the `odoo-coder` coordinator's integrated
   test or a delegated `odoo-instance` run. Contract:

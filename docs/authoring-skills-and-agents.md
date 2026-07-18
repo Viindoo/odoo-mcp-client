@@ -136,6 +136,14 @@ stricter than the generic Anthropic option to allowlist tools. (Generic backgrou
 you omit `Agent` from `tools`/`disallowedTools` to stop an agent spawning subagents; here you
 state that as a body constraint instead.)
 
+**Leaf/spawner status is SSOT'd, not just prose.** Every agent's `role` (`leaf` | `spawner` |
+`coordinator`) is declared in `generator/skill_tool_deps.json` `agents.<name>.role` and
+lint-enforced (`check_orchestration.py`'s agent-role pass) - a `role: leaf` agent's body is
+checked for the never-git/never-spawn clause and for any contradicting spawn/git language. The
+body-prose declaration ("You are a HARD LEAF...") stays required regardless; the SSOT does not
+replace it, it guarantees it is present and non-contradictory. This does NOT change the
+`tools:`-free convention above - still no allowlist, still no hard-deny hook.
+
 **Model is a default, overridden per dispatch.** Frontmatter `model:` (an alias) is only the
 default tier. The dispatcher sets the launch `model` from the dispatched work's complexity - see
 `skills/_shared/concurrency-guard.md` "Model-tier selection" (haiku = mechanical, sonnet =

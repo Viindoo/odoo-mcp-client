@@ -238,7 +238,7 @@ Also state explicitly: `_scope.md written to: <abs-path-to-scope-file>`.
 
 - Do NOT read code for correctness, conventions, or bugs - scope resolution only.
 - Do NOT modify any source file under review.
-- Do NOT spawn subagents or invoke any Skill.
+- **You are a HARD LEAF - you never launch another agent**, and you do NOT invoke any Skill.
 - The ONLY file write permitted is `_scope.md` under `<ISOLATE_DIR>/reviews/<slug>-<date>/` (`<ISOLATE_DIR>` per `## State dir resolution` above).
 - If `changed_files` is empty after Step 1, return immediately: `BLOCKED - no changed files found between <BASE> and HEAD; confirm the BASE ref and that commits exist on this branch.`
 - If the module map produces zero modules (all changed files are outside any `__manifest__.py` subtree), state: `NEEDS_CONTEXT - no Odoo modules found in the changed files; changed paths: <list>`.

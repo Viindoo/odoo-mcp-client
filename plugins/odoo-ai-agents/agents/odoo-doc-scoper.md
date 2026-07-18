@@ -188,7 +188,7 @@ State explicitly: `_scope.md written to: <abs-path>`.
 ## Hard constraints
 
 - Do NOT modify any source file.
-- Do NOT spawn subagents or invoke any Skill.
+- **You are a HARD LEAF - you never launch another agent**, and you do NOT invoke any Skill.
 - The ONLY file write permitted is `_scope.md` under `<SHARE_DIR>/documentation/<slug>-<date>/`.
 - Do NOT review, illustrate, or produce any documentation content.
 - Run Steps 3-5 in parallel across modules to stay fast on large `repo:` scans.
