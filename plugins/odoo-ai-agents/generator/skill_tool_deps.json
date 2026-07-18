@@ -618,159 +618,11 @@
     }
   },
   "agents": {
-    "odoo-diff-comparator": {
-      "mcp_tools": [
-        "set_active_version",
-        "model_inspect",
-        "module_inspect",
-        "entity_lookup",
-        "check_module_exists",
-        "api_version_diff"
-      ],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "Read-only diff-range comparator: reads a whole-cluster or per-module git diff and emits a structured nghiệp vụ / intent / expected-outcome / acceptance-criteria comparison between two branches (rebase) or between a custom module and new-version core (upgrade). Writes only its findings file; no further spawn. Reused by odoo-git-rebase (P3 cluster comparison + P10 verify) and odoo-modules-upgrade (P2 core-absorption)."
-    },
-    "odoo-user-doc-writer": {
-      "mcp_tools": [
-        "check_module_exists",
-        "model_inspect",
-        "module_inspect",
-        "set_active_version"
-      ],
-      "min_server_version": "0.7.0",
-      "deprecated_tools_used": [],
-      "notes": "End-user guide writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures userguide screenshots + assembles doc/index.rst (and per-locale variants); audience = end user, task-guidance tone; never spawns. OSM grounds UI labels via model_inspect."
-    },
-    "odoo-marketing-writer": {
-      "mcp_tools": [
-        "check_module_exists",
-        "describe_module",
-        "model_inspect",
-        "module_inspect",
-        "set_active_version"
-      ],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "App-Store landing writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures hero/feature-grid screenshots + assembles static/description/index.html (and per-locale variants) from supplied marketing copy + feature-catalog.jsonl + app-store-template.md; wires manifest images + store-keys audit; never spawns. describe_module for manifest summary. min_server 0.13.1."
-    },
-    "odoo-gap-analyzer": {
-      "mcp_tools": [
-        "check_module_exists",
-        "describe_module",
-        "find_examples",
-        "lookup_core_api",
-        "model_inspect",
-        "module_inspect",
-        "profile_inspect",
-        "suggest_pattern",
-        "set_active_profile",
-        "set_active_version"
-      ],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "Gap-analysis leaf worker: dispatched by the odoo-gap-analysis skill (one per requirement cluster) to classify Configuration vs Extension and ground coverage in OSM; mirrors the skill's tool set. min_server 0.13.1 for profile_inspect."
-    },
-    "odoo-installable-prober": {
-      "mcp_tools": [
-        "module_inspect",
-        "set_active_version"
-      ],
-      "min_server_version": "0.6.0",
-      "deprecated_tools_used": [],
-      "notes": "Read-only forward-port pipeline leaf: probes the target-series installable state for a single module via module_inspect(summary, odoo_version) before cherry-pick / merge. Falls back to direct file read when OSM misses. No writes, no further spawns."
-    },
-    "odoo-instance-ops": {
-      "mcp_tools": [
-        "check_module_exists",
-        "cli_help",
-        "list_available_versions",
-        "profile_inspect",
-        "set_active_profile",
-        "set_active_version"
-      ],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "Instance lifecycle leaf agent: learns per-version odoo-bin CLI flags at runtime via cli_help; set_active_version pins the target series; list_available_versions used for version resolution when target is vague. check_module_exists (+ set_active_profile / profile_inspect to pin and confirm the active profile) grounds two build-time HARD RULES: union Viindoo to_base into --load when present, and union present test_lint/test_pylint into the test-run install set. Does NOT call OSM for code-structure queries otherwise - only for CLI surface + module-presence discovery. min_server 0.13.1 for profile_inspect."
-    },
-    "odoo-qa-planner": {
-      "mcp_tools": [
-        "set_active_version",
-        "model_inspect",
-        "entity_lookup",
-        "module_inspect"
-      ],
-      "min_server_version": "0.6.0",
-      "deprecated_tools_used": [],
-      "notes": "Acceptance oracle author (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup / module_inspect confirm that the fields, views, labels, state values, and role groups its scenarios reference actually EXIST for the version. OSM is STATIC - used only to keep the oracle well-formed, NEVER to infer the business expected (that comes from the requirement). min_server 0.6.0 for set_active_version."
-    },
-    "odoo-qa-tester": {
-      "mcp_tools": [
-        "set_active_version",
-        "model_inspect",
-        "entity_lookup"
-      ],
-      "min_server_version": "0.6.0",
-      "deprecated_tools_used": [],
-      "notes": "Live acceptance executor (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup confirm a screen's real fields/views/labels/state values before driving it. OSM is STATIC structural grounding only; live record values come from the running instance + browser MCP (and a live Odoo MCP exposing read_record/search_records), not OSM. min_server 0.6.0 for set_active_version."
-    },
-    "odoo-icon-designer": {
-      "mcp_tools": [
-        "set_active_version",
-        "check_module_exists",
-        "describe_module",
-        "module_inspect"
-      ],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "Icon design leaf agent: generates module identity icon as SVG then rasterizes to PNG; version-gated emit (PNG-only v8-v18; +icon.svg+manifest key on v19); style-era-aware (skeuo v8-v10, flat v11-v16, flat-shadow v17-v19); standalone-first, browser-free. OSM optional for category/version grounding. min_server 0.13.1 for describe_module."
-    },
-    "odoo-feature-cataloger": {
-      "mcp_tools": [
-        "set_active_version",
-        "check_module_exists",
-        "describe_module",
-        "module_inspect",
-        "model_inspect"
-      ],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "Feature-inventory leaf agent: enumerates all capabilities a module ships for documentation. Browser-free; standalone-first. OSM-primary (describe_module + module_inspect + model_inspect); disk fallback for ACL/security. Produces feature-catalog.jsonl + feature-catalog.md. min_server 0.13.1 for describe_module."
-    },
-    "odoo-doc-scenarist": {
-      "mcp_tools": [
-        "set_active_version",
-        "describe_module",
-        "module_inspect",
-        "model_inspect"
-      ],
-      "min_server_version": "0.6.0",
-      "deprecated_tools_used": [],
-      "notes": "Doc-scenario leaf agent: authors happy-path usage scenarios (narrative + structured steps[]) for module documentation. Browser-free; standalone-first; NOT bound by acceptance-oracle-contract.md. OSM for grounding scenario steps in real UI labels/views. Produces walkthrough.jsonl + walkthrough.md. min_server 0.6.0."
-    },
-    "odoo-doc-scoper": {
-      "mcp_tools": [
-        "set_active_version",
-        "check_module_exists",
-        "describe_module",
-        "module_inspect"
-      ],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "Multi-module scope mapper (mirrors odoo-review-scoper pattern): walks manifests under TARGET, enumerates modules, resolves languages (D6 6-tier + disk-union), detects doc_layer capability, records has_demo. Emits a scope block + modules[] list. Read-only on source; writes only scope block file. min_server 0.13.1 for describe_module."
-    },
-    "odoo-doc-planner": {
-      "mcp_tools": [
-        "set_active_version",
-        "module_inspect",
-        "describe_module",
-        "check_module_exists"
-      ],
-      "min_server_version": "0.13.1",
-      "deprecated_tools_used": [],
-      "notes": "reuses _shared/doc-cluster-plan.md; standalone-first, OSM optional; writes doc-plan.yaml"
+    "odoo-coder": {
+      "role": "coordinator"
     },
     "odoo-test-writer": {
+      "role": "leaf",
       "mcp_tools": [
         "set_active_version",
         "model_inspect",
@@ -790,6 +642,204 @@
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
       "notes": "Context-isolated executor that AUTHORS Odoo automation tests by invoking the odoo-test-writing skill INLINE (Skill tool, +0 depth) - a HARD LEAF that spawns no agent. Same tool surface as odoo-test-writing (it delegates the grounded authoring to that skill): test_base_classes/test_class_inspect resolve base classes + cursor contract; find_test_examples returns test-only chunks; js_test_inspect confirms the per-module JS framework mix + tour registry; tests_covering + test_coverage_audit set the anti-reinvention coverage baseline; model_inspect/resolve_orm_chain/validate_relation/validate_depends ground fields + relational chains + @api.depends; api_version_diff grounds adapt-mode renamed/removed-API mapping. Launched by odoo-coder (test-first teammate), odoo-acceptance (P2a durable tour/HttpCase), odoo-qa-suite (Phase 1 runnable tests), odoo-code-review (coverage gate), odoo-forward-port / odoo-git-rebase (adapt-mode test translation). Returns the authored RED test file paths. min_server 0.15.0 for the test-surface tools."
+    },
+    "odoo-backend-coder": {
+      "role": "leaf"
+    },
+    "odoo-diff-comparator": {
+      "role": "leaf",
+      "mcp_tools": [
+        "set_active_version",
+        "model_inspect",
+        "module_inspect",
+        "entity_lookup",
+        "check_module_exists",
+        "api_version_diff"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Read-only diff-range comparator: reads a whole-cluster or per-module git diff and emits a structured nghiệp vụ / intent / expected-outcome / acceptance-criteria comparison between two branches (rebase) or between a custom module and new-version core (upgrade). Writes only its findings file; no further spawn. Reused by odoo-git-rebase (P3 cluster comparison + P10 verify) and odoo-modules-upgrade (P2 core-absorption)."
+    },
+    "odoo-solution-architect": {
+      "role": "leaf"
+    },
+    "odoo-planner": {
+      "role": "leaf"
+    },
+    "odoo-code-reviewer": {
+      "role": "leaf"
+    },
+    "odoo-review-scoper": {
+      "role": "leaf"
+    },
+    "odoo-ui-reviewer": {
+      "role": "leaf"
+    },
+    "odoo-frontend-coder": {
+      "role": "leaf"
+    },
+    "odoo-backend-debugger": {
+      "role": "leaf"
+    },
+    "odoo-ui-debugger": {
+      "role": "leaf"
+    },
+    "odoo-intent-extractor": {
+      "role": "leaf"
+    },
+    "odoo-installable-prober": {
+      "role": "leaf",
+      "mcp_tools": [
+        "module_inspect",
+        "set_active_version"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Read-only forward-port pipeline leaf: probes the target-series installable state for a single module via module_inspect(summary, odoo_version) before cherry-pick / merge. Falls back to direct file read when OSM misses. No writes, no further spawns."
+    },
+    "odoo-translator": {
+      "role": "leaf"
+    },
+    "odoo-instance-ops": {
+      "role": "leaf",
+      "mcp_tools": [
+        "check_module_exists",
+        "cli_help",
+        "list_available_versions",
+        "profile_inspect",
+        "set_active_profile",
+        "set_active_version"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Instance lifecycle leaf agent: learns per-version odoo-bin CLI flags at runtime via cli_help; set_active_version pins the target series; list_available_versions used for version resolution when target is vague. check_module_exists (+ set_active_profile / profile_inspect to pin and confirm the active profile) grounds two build-time HARD RULES: union Viindoo to_base into --load when present, and union present test_lint/test_pylint into the test-run install set. Does NOT call OSM for code-structure queries otherwise - only for CLI surface + module-presence discovery. min_server 0.13.1 for profile_inspect."
+    },
+    "odoo-gap-analyzer": {
+      "role": "leaf",
+      "mcp_tools": [
+        "check_module_exists",
+        "describe_module",
+        "find_examples",
+        "lookup_core_api",
+        "model_inspect",
+        "module_inspect",
+        "profile_inspect",
+        "suggest_pattern",
+        "set_active_profile",
+        "set_active_version"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Gap-analysis leaf worker: dispatched by the odoo-gap-analysis skill (one per requirement cluster) to classify Configuration vs Extension and ground coverage in OSM; mirrors the skill's tool set. min_server 0.13.1 for profile_inspect."
+    },
+    "odoo-qa-planner": {
+      "role": "leaf",
+      "mcp_tools": [
+        "set_active_version",
+        "model_inspect",
+        "entity_lookup",
+        "module_inspect"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Acceptance oracle author (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup / module_inspect confirm that the fields, views, labels, state values, and role groups its scenarios reference actually EXIST for the version. OSM is STATIC - used only to keep the oracle well-formed, NEVER to infer the business expected (that comes from the requirement). min_server 0.6.0 for set_active_version."
+    },
+    "odoo-qa-tester": {
+      "role": "leaf",
+      "mcp_tools": [
+        "set_active_version",
+        "model_inspect",
+        "entity_lookup"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Live acceptance executor (leaf, no spawn): set_active_version pins the series, then model_inspect / entity_lookup confirm a screen's real fields/views/labels/state values before driving it. OSM is STATIC structural grounding only; live record values come from the running instance + browser MCP (and a live Odoo MCP exposing read_record/search_records), not OSM. min_server 0.6.0 for set_active_version."
+    },
+    "odoo-icon-designer": {
+      "role": "leaf",
+      "mcp_tools": [
+        "set_active_version",
+        "check_module_exists",
+        "describe_module",
+        "module_inspect"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Icon design leaf agent: generates module identity icon as SVG then rasterizes to PNG; version-gated emit (PNG-only v8-v18; +icon.svg+manifest key on v19); style-era-aware (skeuo v8-v10, flat v11-v16, flat-shadow v17-v19); standalone-first, browser-free. OSM optional for category/version grounding. min_server 0.13.1 for describe_module."
+    },
+    "odoo-feature-cataloger": {
+      "role": "leaf",
+      "mcp_tools": [
+        "set_active_version",
+        "check_module_exists",
+        "describe_module",
+        "module_inspect",
+        "model_inspect"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Feature-inventory leaf agent: enumerates all capabilities a module ships for documentation. Browser-free; standalone-first. OSM-primary (describe_module + module_inspect + model_inspect); disk fallback for ACL/security. Produces feature-catalog.jsonl + feature-catalog.md. min_server 0.13.1 for describe_module."
+    },
+    "odoo-doc-scenarist": {
+      "role": "leaf",
+      "mcp_tools": [
+        "set_active_version",
+        "describe_module",
+        "module_inspect",
+        "model_inspect"
+      ],
+      "min_server_version": "0.6.0",
+      "deprecated_tools_used": [],
+      "notes": "Doc-scenario leaf agent: authors happy-path usage scenarios (narrative + structured steps[]) for module documentation. Browser-free; standalone-first; NOT bound by acceptance-oracle-contract.md. OSM for grounding scenario steps in real UI labels/views. Produces walkthrough.jsonl + walkthrough.md. min_server 0.6.0."
+    },
+    "odoo-doc-scoper": {
+      "role": "leaf",
+      "mcp_tools": [
+        "set_active_version",
+        "check_module_exists",
+        "describe_module",
+        "module_inspect"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "Multi-module scope mapper (mirrors odoo-review-scoper pattern): walks manifests under TARGET, enumerates modules, resolves languages (D6 6-tier + disk-union), detects doc_layer capability, records has_demo. Emits a scope block + modules[] list. Read-only on source; writes only scope block file. min_server 0.13.1 for describe_module."
+    },
+    "odoo-doc-planner": {
+      "role": "leaf",
+      "mcp_tools": [
+        "set_active_version",
+        "module_inspect",
+        "describe_module",
+        "check_module_exists"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "reuses _shared/doc-cluster-plan.md; standalone-first, OSM optional; writes doc-plan.yaml"
+    },
+    "odoo-user-doc-writer": {
+      "role": "leaf",
+      "mcp_tools": [
+        "check_module_exists",
+        "model_inspect",
+        "module_inspect",
+        "set_active_version"
+      ],
+      "min_server_version": "0.7.0",
+      "deprecated_tools_used": [],
+      "notes": "End-user guide writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures userguide screenshots + assembles doc/index.rst (and per-locale variants); audience = end user, task-guidance tone; never spawns. OSM grounds UI labels via model_inspect."
+    },
+    "odoo-marketing-writer": {
+      "role": "leaf",
+      "mcp_tools": [
+        "check_module_exists",
+        "describe_module",
+        "model_inspect",
+        "module_inspect",
+        "set_active_version"
+      ],
+      "min_server_version": "0.13.1",
+      "deprecated_tools_used": [],
+      "notes": "App-Store landing writer: browser-exclusive leaf agent dispatched by odoo-doc-illustration; captures hero/feature-grid screenshots + assembles static/description/index.html (and per-locale variants) from supplied marketing copy + feature-catalog.jsonl + app-store-template.md; wires manifest images + store-keys audit; never spawns. describe_module for manifest summary. min_server 0.13.1."
     }
   },
   "orchestration": {

@@ -25,7 +25,7 @@ a real task with the module. Your scenarios are grounded in the module's ACTUAL 
 (field labels, menus, state transitions) as reported by Odoo Semantic MCP (OSM) and, when
 available, a pre-built feature catalog.
 
-You are a leaf agent: you NEVER spawn subagents and NEVER invoke the Skill tool.
+You are a HARD LEAF - you never launch another agent, and you NEVER invoke the Skill tool.
 You are read-only on source; you write only under `<SHARE_DIR>/documentation/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
 
 ## Inputs (dispatch brief)

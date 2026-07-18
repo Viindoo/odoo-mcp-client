@@ -27,9 +27,14 @@ parameters - hand them over, get back a structured `instance-ops` block.
 fan-out: any component needing a live instance routes here via the Skill tool instead of driving
 the lifecycle itself, so the L2 human gate, instance-allocation rules, and HARD RULES (`en_US`
 union, Viindoo `to_base`, lint-module install, per-version `cli_help` grounding) are enforced in
-one place. Provision the way that fits the caller's context - run the ops steps INLINE in the
-caller's own context (see "Inline leaf-mode" below), or launch the `odoo-instance-ops` agent per
-"Brief shape" below; this skill is the component that owns launching that agent. However the
+one place. **When the caller is a declared HARD LEAF (`agents.<name>.role == leaf` in the
+agent-role SSOT, `generator/skill_tool_deps.json`), this skill MUST provision INLINE (see "Inline
+leaf-mode" below) and MUST NOT launch the `odoo-instance-ops` agent** - inline leaf-mode is
+mandatory for a leaf caller, not a judgment call. For a spawner/coordinator/skill caller, provision
+the way that fits the caller's context - run the ops steps INLINE in the caller's own context (see
+"Inline leaf-mode" below), or launch the `odoo-instance-ops` agent per "Brief shape" below; this
+skill is the component that owns launching that agent - the agent-launch path is available only to
+spawner/coordinator/skill callers, never to a hard-leaf caller. However the
 operation is carried out, the SAME HARD RULES apply - the inline path is not a bypass. A provided
 `INSTANCE_HANDLE` ALWAYS wins over self-provisioning either way (contract:
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`), and neither path ever calls
@@ -215,8 +220,11 @@ information.
 ### Inline leaf-mode (dispatched leaf / subagent self-provision)
 
 Run the ops steps INLINE in the caller's own context - without launching the `odoo-instance-ops`
-agent - whenever that fits the caller's situation better than launching the agent (see "Single
-owner of instance provisioning" above and `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). This
+agent. **MANDATORY, not a judgment call, when the caller is a declared HARD LEAF** (`agents.<name>.role
+== leaf`) - a hard-leaf caller MUST get inline leaf-mode and this skill MUST NOT launch
+`odoo-instance-ops` for it. For a spawner/coordinator/skill caller, use inline leaf-mode whenever
+that fits the caller's situation better than launching the agent (see "Single owner of instance
+provisioning" above and `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`). This
 lets a caller lacking an `INSTANCE_HANDLE` self-provision an isolated ephemeral DB directly, and -
 unlike a raw `allocator.py` call - still under the HARD RULES.
 

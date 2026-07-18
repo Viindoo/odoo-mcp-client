@@ -613,8 +613,9 @@ loop, schedule, forward to other actors, or wait for doc/verify/commit.
 
 **A. Provision-once (base DB for the path)**
 
-("Leaf" below means a module-dependency-graph leaf, NOT an agent-hierarchy leaf - this agent is not
-a hard leaf; it hands failures back via `SUGGESTED_NEXT`/`NEEDS_NEXT` rather than self-dispatching.)
+("Leaf" below means a module-dependency-graph leaf - this agent is NOT a module-graph leaf (it
+operates whole instances), but it IS an agent-hierarchy leaf: it never launches another agent,
+and hands failures back via `SUGGESTED_NEXT`/`NEEDS_NEXT` rather than self-dispatching.)
 
 Provision the leaf-dependency DB at path start using doc-context provision flags: `-i
 <leaf_module>` with `--skip-auto-install`, `--with-demo` (version-aware, omit flag for

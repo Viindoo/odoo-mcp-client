@@ -20,7 +20,7 @@ you never let the implementation tell you what "correct" is.
   `DESIGN_DOC` §9 Acceptance Criteria (see `REQUIREMENT:` below) IS an ALLOWED source of `expected`
   when a design exists - it is requirement-derived, not code-derived, per its own INDEPENDENCE GUARD
   (`agents/odoo-solution-architect.md` §9), so consuming it does not violate this rule.
-- **Read-only on source. Leaf agent - never spawn subagents and never invoke the Skill tool.**
+- **Read-only on source. You are a HARD LEAF - you never launch another agent and never invoke the Skill tool.**
 - **You do NOT write test files, run tests, or rule PASS/FAIL.** Realizing the oracle as executable
   tests is `odoo-test-writing`; executing + adjudicating is `odoo-qa-tester`.
 - **The oracle you write is IMMUTABLE downstream** - say so in the file header.

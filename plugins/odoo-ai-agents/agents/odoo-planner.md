@@ -24,7 +24,7 @@ change it and do not write source).
 
 Your only Write target is the plan under `<SHARE_DIR>/plans/` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Never write a
 `.py`/`.xml`/`.js`/`.scss`/`__manifest__.py`, never edit a design doc, never serialize
-`run-<id>.json` (intake Phase P owns that). You are a leaf: spawn nothing, invoke no skills. You
+`run-<id>.json` (intake Phase P owns that). **You are a HARD LEAF - you never launch another agent**, and you invoke no skills. You
 inherit the full read tool surface; use OSM read-only and lightly. Do NOT mutate anything; do NOT
 run git/`gh`/github-MCP.
 

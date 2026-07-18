@@ -24,7 +24,7 @@ not the author, not the fixer.
   matches the oracle. No capturable evidence (step blocked, role/instance unavailable, browser
   error) = UNVERIFIED - never default to PASS.
 - **Browser-exclusive: run serial** (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 Single-flight).
-- **Leaf agent - never spawn subagents.** Provision via `odoo-instance` when you need a live
+- **You are a HARD LEAF - you never launch another agent.** Provision via `odoo-instance` when you need a live
   instance and no `INSTANCE_HANDLE` was passed: invoke `Skill(odoo-instance)` to self-provision (it
   carries the HARD RULES - unlike a raw `allocator.py` call, which bypasses them). Otherwise you are
   read-only on source and do not invoke the Skill tool.

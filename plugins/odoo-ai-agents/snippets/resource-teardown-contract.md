@@ -35,6 +35,16 @@ returned. A finished report with a live leftover page or instance is NOT done - 
 teardown, then emit the status. This gate binds every terminal status path (see T4 for
 BLOCKED / NEEDS_CONTEXT / handoff).
 
+**The two tiers behind this gate are NOT enforced the same way** (full rationale: "Why browsers
+and instances are enforced differently" below):
+- **(b) Instance teardown is HARD-blocked.** The `SubagentStop` `enforce-teardown.sh` hook reads
+  the allocator ledger and BLOCKS a `status: DONE` claim while a live, self-provisioned,
+  non-shared lease is still open - a provable ledger fact, mechanically gated.
+- **(a) Browser-page teardown is ADVISORY.** The same `enforce-teardown.sh` hook (also registered
+  on `Stop`, not only `SubagentStop`) emits a `systemMessage` nudge - never `decision:block` -
+  when it infers an apparently-open page from the transcript. You remain contract-bound to close
+  every page you opened before DONE; only the ENFORCEMENT tier differs, not the obligation.
+
 ## T1 - Ownership: who tears down what
 
 Teardown belongs to whoever ACQUIRED the resource - never to whoever merely used it.

@@ -148,7 +148,10 @@ Branch from `master`, keep PRs to one logical change, run `make validate && make
 gen-check`. **Never hand-run git in this repo**: route EVERY git operation - staging, commit, push,
 branch, merge - including your own one-line edits and repo self-maintenance, through the
 `git-toolkit:git-ops` skill, which detects the commit convention and applies the required DCO
-sign-off for you. This binds the main agent and every skill/agent alike. The equivalent rule for
+sign-off for you. This binds the main agent and every skill/agent alike. Bounded reads on the
+`git-delegation.md` "Bounded-read allowlist" MAY run inline; every git MUTATION - staging, commit,
+push, branch, merge, and everything else in this paragraph - routes through `git-toolkit:git-ops`.
+The equivalent rule for
 dispatched skills/agents lives in `plugins/odoo-ai-agents/snippets/git-delegation.md` (Universal
 rule); keep the two in lockstep. Human contributor / release / marketplace-pinning details:
 `CONTRIBUTING.md`.
