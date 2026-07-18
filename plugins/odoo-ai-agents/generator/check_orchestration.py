@@ -20,12 +20,13 @@ is complete and that skills thread the shared contracts they are required to:
                     (fresh spawn) fallback in its body.
   7. No hardcode / no leak - self-referential CSS custom properties, machine-specific
                     absolute paths, and hardcoded hex inside skill SCSS code fences.
-  8. Agent role   - for every agents/<name>.md with a `role` declared in skill_tool_deps.json
-                    "agents"."<name>"."role", a `role: leaf` agent's body must carry the
-                    never-git/never-spawn clause and show neither positive spawn language nor
-                    a positive git-mutation instruction. INERT (no findings) for any agent
-                    with no `role` key - the field does not exist in the SSOT yet (a later PR
-                    populates it); this pass only bites once it does.
+  8. Agent role   - LIVE and enforcing (all agents now carry a `role` in the SSOT). Two checks:
+                    (i) coverage - every agents/<name>.md on disk must have a `role` entry in
+                    skill_tool_deps.json "agents"."<name>"."role" (a wholly-unregistered agent
+                    is a finding, mirroring rule 1's skill-side coverage); (ii) for a `role: leaf`
+                    agent, its body must carry the never-SPAWN clause and show neither positive
+                    spawn language nor a positive git-mutation instruction. (Historically this
+                    pass shipped INERT while `role` was unpopulated; it now bites - roles landed.)
 
 WARN-FIRST: by default this prints findings and exits 0 (migration-friendly). Pass --strict
 (or set ORCH_STRICT=1) to exit 1 on any finding - flip that on once all skills comply.
@@ -66,7 +67,7 @@ OSM_REQUIRED = {"workflow-chaining", "odoo-brl"}
 # the skill is a safe non-spawner).
 VALID_SPAWN_CLASS = {"leaf", "orchestrator-nl", "spawner-agent"}
 VALID_STACK = {"backend", "frontend", "fullstack", "none"}
-# agents.<name>.role enum (V-01 SSOT, populated in a later PR - see the agent-role pass below).
+# agents.<name>.role enum (V-01 SSOT - now populated for every agent; see the agent-role pass below).
 VALID_AGENT_ROLE = {"leaf", "spawner", "coordinator"}
 # output_mode drives the Plan-Mode decision; default_gate_tier drives the run-harness gate
 # policy. Both are SSOT here (replacing the hardcoded chat-only lists). output_mode is read
@@ -151,16 +152,19 @@ def _has_positive_git_mutation(body: str) -> bool:
     return False
 
 
-# Required-substring proxy for "the body carries the never-git/never-spawn clause"
-# (snippets/worker-brief.md's leaf clause is the prose SSOT this mirrors: "You do NOT run git -
-# at all" / "cannot launch agents" / "HARD LEAF - never launches another agent"). Several accepted
-# phrasings on purpose - the 14+ agents that already self-declare today do not share one exact
-# wording yet (that convergence is a later PR); this stays a permissive OR of the reserved terms.
-LEAF_CLAUSE_RE = re.compile(
+# Required-substring proxy for "the body carries the never-SPAWN clause" - the leaf/spawner
+# invariant this pass exists to protect (snippets/worker-brief.md's leaf clause is the prose SSOT
+# this mirrors: "cannot launch agents" / "HARD LEAF - never launches another agent"). Scoped to the
+# never-SPAWN family ONLY, on purpose: git-abstention is a SEPARATE, independent guarantee already
+# enforced repo-wide by tests/test_git_delegation_boundary.py, so folding git phrasings in here
+# would let unrelated git-delegation boilerplate stand in for the never-spawn promise - the exact
+# hole (17/26 leaves) that let a dropped never-spawn sentence pass strict. Several accepted spawn
+# phrasings on purpose - agents that self-declare do not all share one exact wording.
+NEVER_SPAWN_CLAUSE_RE = re.compile(
     r"(hard[- ]leaf|never launch(?:es)? (?:another|an|no) agent|launch(?:es)? no (?:sub-?)?agent"
     r"|does not (?:launch|spawn|invoke) (?:a |an |another )?(?:sub-?)?agent"
     r"|never spawns?(?: (?:a|an|another) (?:sub-?)?agent)?|no sub-?agents?"
-    r"|does not run git|never runs? git|cannot launch agents|you do not run git)",
+    r"|cannot launch agents)",
     re.I,
 )
 SELF_REF_RE = re.compile(r"--([a-z0-9-]+)\s*:\s*var\(\s*--\1\b", re.I)
@@ -201,42 +205,56 @@ def agent_body(name: str) -> str | None:
 
 
 def check_agent_roles(findings: list[str]) -> None:
-    """8. Agent-role SSOT lint (V-01 mechanism, PR-1 half of a two-PR rollout).
+    """8. Agent-role SSOT lint (V-01 mechanism) - LIVE and enforcing (roles are populated).
 
-    Reads `agents.<name>.role` from skill_tool_deps.json. For `role == "leaf"`, asserts the
-    agent body (a) carries the never-git/never-spawn clause, (b) shows no positive spawn
-    language (reuses `_has_positive_spawn` - the SAME detector rule 5 uses, so there is one
-    SSOT regex for "does this body launch an agent", not two), and (c) shows no positive
-    git-mutation instruction.
+    (c) Coverage: every agents/<name>.md on disk must declare a `role` in
+        skill_tool_deps.json "agents"."<name>"."role" (mirrors the skill-side coverage pass,
+        rule 1). A new agent file added without an SSOT role entry - or an entry with no `role`
+        key - is a finding, so a wholly-unregistered agent can no longer slip through role-less.
 
-    INERT BY DESIGN today: the `role` field does not exist anywhere in the SSOT yet (it is
-    populated in a later PR) - an agent whose entry has no `role` key is silently skipped, so
-    this pass currently contributes zero findings. It becomes meaningful the moment `role`
-    values land.
+    Then, reading `agents.<name>.role`: for `role == "leaf"`, asserts the agent body
+    (a) carries the never-SPAWN clause (NEVER_SPAWN_CLAUSE_RE - scoped to the never-launch-an-agent
+    family only; git-abstention is independently enforced by tests/test_git_delegation_boundary.py,
+    so unrelated git-delegation boilerplate can no longer stand in for the never-spawn promise),
+    (b) shows no positive spawn language (reuses `_has_positive_spawn` - the SAME detector rule 5
+    uses, so there is one SSOT regex for "does this body launch an agent", not two), and (c) shows
+    no positive git-mutation instruction.
+
+    (Historically this pass shipped INERT while `role` was unpopulated; it now bites.)
     """
     agents = load_agents()
+
+    # (c) Coverage - disk -> SSOT. Every agent that exists on disk must have a `role` in the map.
+    on_disk = sorted(p.stem for p in AGENTS_DIR.glob("*.md")) if AGENTS_DIR.exists() else []
+    for name in on_disk:
+        if agents.get(name, {}).get("role") is None:
+            findings.append(
+                f"[agent-role] agents/{name}.md exists on disk but has no `role` in "
+                f"skill_tool_deps.json's `agents` map"
+            )
+
     for name in sorted(agents):
         entry = agents[name]
         role = entry.get("role")
         if role is None:
-            continue  # not yet populated in the SSOT - inert (see docstring)
+            continue  # role-less on-disk agents are flagged by the coverage pass above
         if role not in VALID_AGENT_ROLE:
             findings.append(
                 f"[agent-role] '{name}' has invalid role '{role}' (not in {sorted(VALID_AGENT_ROLE)})"
             )
             continue
         if role != "leaf":
-            continue  # only `leaf` carries a never-git/never-spawn obligation here
+            continue  # only `leaf` carries a never-spawn/never-git obligation here
         body = agent_body(name)
         if body is None:
             findings.append(
                 f"[agent-role] '{name}' has role=leaf in the SSOT but agents/{name}.md does not exist"
             )
             continue
-        if not LEAF_CLAUSE_RE.search(body):
+        if not NEVER_SPAWN_CLAUSE_RE.search(body):
             findings.append(
                 f"[agent-role] '{name}' has role=leaf but its body does not carry the "
-                f"never-git/never-spawn clause"
+                f"never-spawn clause (HARD LEAF / never launches another agent)"
             )
         if _has_positive_spawn(body):
             findings.append(
@@ -366,7 +384,7 @@ def main(argv: list[str]) -> int:
                 findings.append(f"[no-hardcode] hardcoded hex color in a style code fence in {rel}")
                 break
 
-    # 8. Agent role (see check_agent_roles docstring - INERT until `role` is populated in the SSOT)
+    # 8. Agent role (see check_agent_roles docstring - LIVE: roles are populated for every agent)
     check_agent_roles(findings)
 
     if findings:

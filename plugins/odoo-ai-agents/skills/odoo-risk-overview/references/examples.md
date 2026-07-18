@@ -8,5 +8,5 @@ migration complexity note (e.g. from v16 = Low multiplier), recommended action.
 **Example 2:**
 Prompt: "risk overview before we upgrade our system from version 14 to 17"
 Output: Risk analysis for distribution-maintained vs custom modules, identify modules needing
-deep migration work (v13 `@api.multi` removal + v14 OWL-becomes-primary + v15 OWL 2.0),
+deep migration work (v13 `@api.multi` removal + v14 OWL-becomes-primary + v16 OWL 2.x library),
 estimate timeline and recommended action in business language.

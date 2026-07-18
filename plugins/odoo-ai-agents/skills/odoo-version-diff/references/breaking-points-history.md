@@ -5,8 +5,8 @@
 | v8 → v10 | Python 2→3, `__openerp__.py` → `__manifest__.py`, `osv.osv` → `models.Model`, `_columns` → class attributes, `pool.get()` removed |
 | v12 → v13 | `@api.multi`, `@api.one` removed; OWL introduced as new JS framework (alongside old `web.Widget` - NOT yet primary) |
 | v13 → v14 | OWL becomes primary frontend framework; `web.Widget` deprecated (still present) |
-| v14 → v15 | OWL 2.0 migration; many widget APIs changed; `AbstractModel`, `AbstractRenderer` removed |
-| v15 → v16 | `web.Widget` removed completely; `fields.Text` with `widget='html'` replaced by `fields.Html`; new `HtmlField` widget; `body_html` field type changes; accounting model restructure |
+| v14 → v15 | ES6 `/** @odoo-module **/` module system becomes canonical (legacy `odoo.define` via compat shim); many widget APIs changed; `AbstractModel`, `AbstractRenderer` removed |
+| v15 → v16 | OWL 2.x library migration (`@odoo/owl`, breaking OWL API); `web.Widget` removed completely; `fields.Text` with `widget='html'` replaced by `fields.Html`; new `HtmlField` widget; `body_html` field type changes; accounting model restructure |
 | v16 → v17 | Python 3.10+ required; performance improvements; several `tools.*` cleanup |
 | v17 → v18+ | ORM enhancements; module restructuring (ongoing) |
 

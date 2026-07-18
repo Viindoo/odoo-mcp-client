@@ -80,7 +80,7 @@ indicative and frozen at v18; new pivots live ONLY in
 | `fields_view_get()` override | v16 deprecated; **v17+ REMOVED** | Replace with `get_views()` (new signature) |
 | `attrs` / `states` view attribute (Python-eval) | v17+ | Replace with `invisible` / `required` / `readonly` domain-style attributes |
 | `cr.commit()` in tests | all | FORBIDDEN inside `TransactionCase` / `SavepointCase`; remove or restructure test |
-| `SavepointCase` alias | v16+ WARN (alias of `TransactionCase`; still works) | Migrate to `TransactionCase` |
+| `SavepointCase` alias | **v15+** WARN (at v15 `TransactionCase` absorbed the class-level savepoint behavior; `SavepointCase` is a deprecated alias, still works) | Migrate to `TransactionCase` on v15+ (keep on v12-v14) |
 
 ### View / QWeb breaks
 

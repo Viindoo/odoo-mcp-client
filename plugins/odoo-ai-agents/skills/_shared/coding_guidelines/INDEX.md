@@ -25,8 +25,8 @@ version's conventions carry to another.
 | Version | Directory | Notes |
 |---|---|---|
 | Odoo 14.0 | `14.0/` | Baseline for v14+ guidelines |
-| Odoo 15.0 | `15.0/` | OWL 2 becomes the default frontend framework |
-| Odoo 16.0 | `16.0/` | Asset bundles in `__manifest__.py`; SCSS/CSS section greatly expanded; `Command` import |
+| Odoo 15.0 | `15.0/` | ES6 module system (`/** @odoo-module **/`) becomes canonical (legacy `odoo.define` still loads via compat shim); OWL library is still 1.x |
+| Odoo 16.0 | `16.0/` | OWL 2.x (`@odoo/owl`) becomes the default frontend framework; asset bundles in `__manifest__.py`; SCSS/CSS section greatly expanded; `Command` import |
 | Odoo 17.0 | `17.0/` | `tree` view type; CSS custom properties are DOM-contextual only |
 | Odoo 18.0 | `18.0/` | `_ = self.env._` translation; `<tree>` renamed to `<list>` |
 | Odoo 19.0 | `19.0/` | `<list>` view type; current series |
