@@ -195,7 +195,7 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 - **Copy-pasteable-only mode** (last resort): emit standalone blocks only when the repo itself is unreachable. Label `grounded: local-source (not OSM-indexed)` when built from disk; `OSM unavailable - ungrounded` only when neither OSM nor local source is available.
 - Escalate (`NEEDS_CONTEXT`) only for business decisions no source encodes - never ask a human to paste field lists, model definitions, or manifests.
 
-When no live Odoo instance is reachable to run the suite under `--test-enable` (FRESH DB: `-i <module>`; already-installed DB: `-u <module>`) in Round 5: emit `status: NEEDS_NEXT` with:
+When no live Odoo instance is reachable to run the suite under `--test-enable` (FRESH DB: `-i <module>`; already-installed DB: `-u <module>`) in Round 5: emit `status: NEEDS_NEXT` with (execution is instance-REQUIRED - authoring is NOT gated, only the run is; see `${CLAUDE_PLUGIN_ROOT}/snippets/instance-optional-completion.md` for the instance-optional/instance-required split):
 ```
 next:
   - skill: odoo-instance

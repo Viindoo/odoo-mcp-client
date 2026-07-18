@@ -179,7 +179,9 @@ When Odoo Semantic is unreachable, structural grounding falls back to the local 
 disk". When NO live instance + browser MCP is reachable, EXECUTION cannot run: still produce Phase 0
 scope and the Phase 1 oracle, then emit `NEEDS_NEXT -> odoo-instance` to provision one
 (`${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`); fall back to `BLOCKED` only when
-provisioning is impossible. Never report ACCEPTED without live evidence.
+provisioning is impossible. Never report ACCEPTED without live evidence. This skill is
+instance-REQUIRED - live execution + adjudication IS the deliverable, unlike a static-review
+skill's instance-optional split (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-optional-completion.md`).
 
 ## Continuation Contract
 

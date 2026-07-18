@@ -114,6 +114,14 @@ For each module with `needs_ui_review` (`true` or `candidate`), plus each depend
 - **Instance reachable** → dispatch one `odoo-ui-reviewer` (sonnet) scoped to that module's screens from the `render_check_set` (changed-module `affected_screens` plus the dependent screens that bind a changed symbol), passing the SAME `SHARE_DIR:`/`ISOLATE_DIR:` captured in Phase 0 and briefing `ARTIFACT_DIR: <ISOLATE_DIR>/reviews/<slug>-<date>/` (the captured literal, not the placeholder) and `ARTIFACT_FILE: ui-review-<module>.md` (brief template in `references/agent-prompts.md`). These run in parallel; each `ui-review-<module>.md` feeds Phase B synthesis.
 - **No instance / browser unreachable** → do NOT block, and do NOT let the UI dimension drift silently. Write `ui-review-<module>.md` holding `UI review REQUIRED - no running instance (render_check_set: [...])`, mark the run `DONE_WITH_CONCERNS` for the UI dimension, AND emit `next: odoo-acceptance` (see below) so the dependent cluster is verified opt-in rather than skipped.
 
+**Principle (instance-optional completion).** `odoo-code-review`'s PRIMARY deliverable (static
+Python/XML/OWL review) is complete WITHOUT a live instance - only the rendered-UI dimension is
+instance-gated, so a missing instance downgrades that one dimension to `DONE_WITH_CONCERNS` +
+opt-in `next: odoo-acceptance` rather than blocking the whole review. This differs from a skill
+whose deliverable REQUIRES a live render (e.g. `odoo-ui-review`), which emits
+`NEEDS_NEXT: odoo-instance` instead. Full rule + more examples:
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-optional-completion.md`.
+
 **Emit the acceptance hand-off (L2, opt-in).** Whenever the `render_check_set` reaches beyond the changed modules (dependents bind a changed symbol) OR the rendered-UI dimension is left `DONE_WITH_CONCERNS` (no instance), add a `next` entry to this skill's Continuation Contract (the same contract carrying `produced[]`):
 
 ```

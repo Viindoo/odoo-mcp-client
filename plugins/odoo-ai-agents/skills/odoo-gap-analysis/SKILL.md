@@ -2,17 +2,16 @@
 name: odoo-gap-analysis
 argument-hint: "[requirement list / RFP scope]"
 description: >
-  Gap analysis turning a list of client requirements into a costed effort matrix (Standard /
-  Configuration / Extension / Custom + S/M/L/XL). Now an ORCHESTRATOR - it clusters requirements
-  by functional area, delegates each cluster to the odoo-gap-analyzer subagent (main context
+  Gap analysis turning a list of client requirements into an effort-tiered coverage/classification
+  matrix (Standard / Configuration / Extension / Custom + S/M/L/XL). Now an ORCHESTRATOR - it clusters
+  requirements by functional area, delegates each cluster to the odoo-gap-analyzer subagent (main context
   stays clean), then emits a reusable file artifact under the project's shared state dir. Use ANY time
-  someone is about to quote, scope, or estimate an Odoo project - even if they don't say "gap".
-  Fire on a list of requirements + "is this standard Odoo or do we build it?", "how many days?",
-  "RFP has 23 requirements - classify them". Vietnamese: "phân tích gap", "cái này Odoo có sẵn
-  hay phải build thêm", "ước lượng bao nhiêu ngày công", "ma trận effort cho báo giá". For ONE
-  specific feature route to odoo-feature-check; for marketing highlights route to
-  odoo-feature-highlights; for a large costed + dependency-DAG pipeline at scale route to
-  odoo-brl
+  someone is about to quote, scope, or estimate an Odoo project - even if they don't say "gap". Fire on a
+  list of requirements + "is this standard Odoo or do we build it?". Vietnamese: "cái này Odoo có sẵn
+  hay phải build thêm", "ma trận effort cho báo giá". For ONE specific feature route to
+  odoo-feature-check; for marketing highlights route to odoo-feature-highlights; use odoo-brl when the
+  list needs cost + dependency DAG (typically tens+ items) - this stays a shorter
+  coverage/classification matrix with no costing
 ---
 
 ## Role
@@ -23,7 +22,7 @@ Consultant / Project Manager
 - Single feature availability check -> use `odoo-feature-check`
 - Marketing highlights for version release -> use `odoo-feature-highlights`
 - Source-level API diff between versions -> use `odoo-version-diff`
-- Large costed + dependency-DAG pipeline at scale -> use `odoo-brl`
+- List needs cost + dependency DAG (typically tens+ items) -> use `odoo-brl`
 
 ## MCP tools
 
@@ -224,7 +223,11 @@ available"; word `unknown` rows as "to be confirmed" (§ Standalone-first fallba
   "next": null
 }
 ```
-- `has_nontrivial` is `true` iff any `extension` or `custom` row is present.
+- `has_nontrivial` is `true` iff any `custom` row is present, OR any `extension` row has
+  `effort_tier` in `{L, XL}`. An `extension` row with `effort_tier: M` (Extension-M - a simple
+  `_inherit` point) does NOT trigger design on its own. This mirrors `odoo-brl`'s Extension-M
+  (skips design) vs Extension-L/Custom-XL (routes to design) split, so the two classifiers are
+  interchangeable (`odoo-brl/SKILL.md` § Stay format-compatible).
 - `next` is `"odoo-solution-design"` when `has_nontrivial` is true, else `null`.
 - `effort_days` is the deduped min/max from the band table above.
 
@@ -252,6 +255,6 @@ dedup shared builds (e.g. two HR reqs that both extend `hr.employee` are one bui
 Emit the chat continuation block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
 (status / produced / next); it MUST mirror `gap-continuation-contract.json`. `produced` lists the
 three artifact paths. When `meta.has_nontrivial` is true: `status: NEEDS_NEXT`,
-`next: odoo-solution-design` with inputs `{gap_report: <path>, gap_matrix: <path>, items: [<extension/custom req_id>]}`
+`next: odoo-solution-design` with inputs `{gap_report: <path>, gap_matrix: <path>, items: [<req_id of the custom rows and the extension rows with effort_tier L/XL that made has_nontrivial true>]}`
 and `risk_level: L1`. Otherwise `status: DONE`, `next: []`. Surface every `grounded: unknown` row
 in the risk flags so the human can supply an OSM index or checkout before design proceeds.

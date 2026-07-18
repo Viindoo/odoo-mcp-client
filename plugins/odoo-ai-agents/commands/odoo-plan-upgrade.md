@@ -43,6 +43,11 @@ present to read the emitted Continuation Contract and auto-advance - the chain f
 bare `workflow-chaining` dispatch (no run-harness) degrades this to a visible human suggestion, which is
 why this command routes via intake.
 
+**Execute handoff.** For the code-level upgrade once this plan is approved, invoke `odoo-modules-upgrade`
+(skill) - it executes the dependency-ordered adapt loop this plan only scoped. This is a manual next
+step, separate from the `on_complete` design chain above: this plan writes no code, and
+`odoo-modules-upgrade` is not auto-dispatched.
+
 ## When to use
 
 - A client asks for a **full upgrade plan** covering risk, deprecation, and API diff in one deliverable.
@@ -56,5 +61,6 @@ Do **not** use when:
 ## See also
 
 - `workflows/odoo-plan-upgrade.workflow.yaml` - phase contract (SSOT)
+- `odoo-modules-upgrade` skill - executes the code-level upgrade once this plan is approved
 - `odoo-deploy-checklist` skill - use at actual deploy time
 - `/odoo-respond-bid` - if this upgrade is part of a prospect proposal

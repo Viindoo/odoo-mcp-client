@@ -12,7 +12,7 @@ description: >
   Vietnamese triggers: "viết migration script", "đổi tên cột trong CSDL", "backfill dữ liệu
   sau khi đổi field", "tách model", "gộp model", "sinh file pre_migrate / post_migrate". DO NOT
   trigger for: WHAT changed between versions (odoo-version-diff); deploy readiness gate
-  (odoo-deploy-checklist); full upgrade plan (odoo-plan-upgrade)
+  (odoo-deploy-checklist); full upgrade plan (/odoo-plan-upgrade, command)
 model: inherit
 ---
 

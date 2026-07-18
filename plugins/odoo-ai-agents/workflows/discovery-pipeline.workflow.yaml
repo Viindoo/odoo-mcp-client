@@ -9,9 +9,8 @@ description: |
   Run a two-phase presales discovery pipeline: summarize raw discovery meeting notes
   into a structured customer profile, then generate a full gap analysis effort matrix
   (Standard/Config/Extension/Custom + day estimates) from that profile - all in one
-  gated workflow. Trigger: "discovery to gap analysis", "full presales pipeline",
-  "summarize my notes and scope the project", "discovery and scoping in one pass",
-  "take my meeting notes and give me a proposal-ready effort matrix"
+  gated workflow. Reference/dogfood workflow, not a front door - invoked by explicit id
+  via `workflow-chaining`, not NL-triggered from `odoo-intake`
 output_dir: .odoo-ai/discovery
 inputs:
   - discovery_notes

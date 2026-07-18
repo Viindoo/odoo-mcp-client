@@ -22,7 +22,7 @@ Performance-focused Tech Lead / DBA auditing Odoo code with semantic MCP enrichm
 ## Out of Scope
 
 - **Applying or writing fixes** - findings report only; route to `odoo-coding` to implement remediation
-- **UI / browser-side slowness** (slow page render, LCP, JS bundle size) - route to `chrome-devtools-mcp:debug-optimize-lcp` or `odoo-debug`
+- **UI / browser-side slowness** (slow page render, LCP, JS bundle size) - route to `odoo-ui-review` (Lighthouse lens)
 - **Deprecated API removal** (upgrade blockers) - route to `odoo-deprecation-audit`
 - **General code correctness / security review** - route to `odoo-code-review`
 - **Live profiling against a running instance** - requires a live Odoo MCP; this skill audits source code statically (with OSM grounding)
