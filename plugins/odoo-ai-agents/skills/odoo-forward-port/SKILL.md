@@ -395,9 +395,15 @@ the P9 failure output. Tier C is always correct; the worklog is always written r
   guaranteed to be restored across a SendMessage-resume; the explicit `cd` makes Tier-A re-adapt
   safe regardless of runtime behavior. Apply this on every resume, not only the first;
   (i) **base class grounding** - call `test_base_classes(odoo_version='<target_version>')` to
-  confirm the correct base class (`SavepointCase` deprecated alias from v8-v15, should adapt to
-  `TransactionCase`; `cr.commit()` FORBIDDEN in all test cases); attach the output so the agent
-  uses target-native idiom;
+  confirm the correct base class. `SavepointCase` is a DISTINCT class on v12-v15 and a DEPRECATED
+  ALIAS of `TransactionCase` from **v16+**; adapt to `TransactionCase` only when the target series
+  is v16 or later (keep `SavepointCase` on v12-v15 targets). See
+  `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`. `cr.commit()` FORBIDDEN in all test
+  cases. NOTE: OSM `test_base_classes` currently mislabels SavepointCase's alias window as
+  `v8-v15` (a known server-side annotation bug); the authoritative boundary is v16 - treat the
+  annotation string as advisory FOR THIS ONE SYMBOL and apply the era-boundaries rule instead. Do
+  NOT force a `TransactionCase` rewrite on a v12-v15 target on the strength of that string. Attach
+  the raw output so the agent uses target-native idiom for every OTHER base class in the menu;
   (ii) **test examples at target** - call `find_test_examples(query='<feature_or_model>', odoo_version='<target_version>')`
   (optional `model='<model>'`; for kind: `'transaction'`|`'http'`|`'form'`; `kind='js'` only
   for JS tests - `kind='python'` is NOT valid) and attach the top examples as concrete templates;

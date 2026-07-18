@@ -50,6 +50,14 @@ it tells you what to *expect*, never what actually rendered, so always confirm t
 
 ## Break-signal taxonomy (what a render defect looks like)
 
+**Determine the frontend era first** - Legacy AMD/Widget (no OWL default render path) = v8-v14;
+OWL era (some OWL version is the default component path) = v15+ (module-system boundary: see
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 1; OWL library major version differs
+within the OWL era - v15 is still OWL 1.x, v16+ is OWL 2.x, see row 1b - but that finer split does
+not change which break-signal class applies here). Rate a legacy-era screen against the G8 Legacy
+class below rather than force-fitting an OWL-specific class (e.g. G5 OWL white-screen presumes an
+OWL render path that does not exist pre-v15).
+
 Map every render failure to one of these classes so a finding is precise and locatable. The per-view tables
 below cite these tags.
 
@@ -62,10 +70,13 @@ below cite these tags.
 | G5 | OWL white-screen | a blank content area with NO Python traceback - only a browser-console JS error reveals it |
 | G6 | view load-fail (kanban / search / pivot / graph / calendar) | the view does not render because its template or a search / group-by / measure / date field references a removed field |
 | G7 | ACL block | an AccessError, an empty list, or a hidden field / button for the logged-in role (invisible when the screen is reviewed as admin) |
+| G8 | Legacy break (v8-v14 only) | a legacy `web.Widget` fails to instantiate (silent - no OWL error surface exists pre-v15), an `odoo.define()` AMD module fails to load (console-only error, blank region), or a QWeb2 template id is missing/misspelled (silent blank) |
 
 Scope note: G7 (role-dependent) and any CRUD / state-transition coverage need MULTIPLE roles and write
 operations - that is the acceptance tester's scope (`odoo-qa-tester`). A rendered-UI review observes G1-G6
 plus whatever G7 effect is visible for the single role it is logged in as, on one screen, without mutating data.
+G8 replaces G5 as the relevant white-screen class on a v8-v14 target - the two are mutually exclusive per screen
+once the era is determined.
 
 ## View-type render checks
 
@@ -140,11 +151,14 @@ a finding.
 
 ## OWL vs legacy by version
 
-| Odoo version | Web client framework | Implication for debugging |
-|--------------|----------------------|---------------------------|
-| v8-v14 | Legacy `web.Widget` / `odoo.define()` (QWeb2) | Render failures show as missing DOM nodes; check `field_registry` and template names. |
-| v15 | OWL 1.x (`patch(Class.prototype, …)`) | Reactivity via `useState`; prototype-level patches. |
-| v16+ | OWL 2.x (`patch(Class, …)`, ES modules) | `odoo.define` removed; registries via `registry.category(...)`; class-level patches. Confirmed through v19; verify new majors via OSM. |
+Boundary SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` - do not restate a
+divergent boundary here.
+
+| Odoo version | Module system | OWL library | Implication for debugging |
+|--------------|----------------|-------------|---------------------------|
+| v8-v14 | Legacy `odoo.define()` AMD (QWeb2) | Absent as the default rendering path | Render failures show as missing DOM nodes; check `field_registry` and template names. |
+| v15 | ES6 `/** @odoo-module **/` canonical; legacy AMD still loads via a compat shim (deprecated) | OWL 1.x (global `owl.*` namespace) - a transition release; do NOT apply OWL-2 idioms (2-arg `patch`, `@odoo/owl` import) | Reactivity via `owl.hooks.useState`; confirm era before diagnosing - see era-boundaries SSOT row 1b. |
+| v16+ | ES6 only; legacy AMD module system REMOVED | OWL 2.x (`@odoo/owl` import, class-level `patch(Class, …)`) | `odoo.define` removed; registries via `registry.category(...)`; class-level patches. Confirmed through v19; verify new majors via OSM. |
 
 A render-then-error symptom and an empty-render symptom have different root causes - confirm which
 via a DOM snapshot before attributing the cause to JS.

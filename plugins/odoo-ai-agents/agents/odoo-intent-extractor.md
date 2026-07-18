@@ -133,7 +133,9 @@ tests_covering(model='account.move', odoo_version='16.0')
 return the contents of `setUpClass` fixtures (Read the source file directly if fixture
 internals are needed). The base chain and `commit_allowed` directly inform the 4-outcome hint:
 if the test class uses a base that is deprecated at the target version (e.g. `SavepointCase`
-is a deprecated alias from v16+, still runnable), the hint should lean toward bucket (b).
+is a distinct class on v12-v15 but a deprecated alias of `TransactionCase` from v16+, still
+runnable - see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`), the hint should lean
+toward bucket (b) only when the target is v16+.
 `tests_covering` enriches the Behavioral contract section with
 which production behaviors the commit's tests already guard, making the coverage picture concrete
 rather than inferred from the diff alone.

@@ -239,7 +239,10 @@ Drawn from `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-failure-modes.md` JS/OWL/S
 
 ## OWL era awareness
 
-Before localizing a JS/OWL bug, confirm the era from `odoo_version`:
+Before localizing a JS/OWL bug, confirm the era from `odoo_version`. Coarse module-system /
+break-signal-class boundary (legacy AMD vs OWL-as-default-path, v8-v14 vs v15+): see
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 1. The finer OWL-library-major-version
+split below (row 1b of that SSOT) is what actually governs which patch/import idiom to apply:
 
 - **v16+** (Era 3 - OWL 2): native `import`/`export`, components imported from `@odoo/owl`,
   `registry.category("...").add(...)`. `patch()` is 3-arg at v16 but **2-arg at v17+** (the
