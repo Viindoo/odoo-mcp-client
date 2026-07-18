@@ -38,6 +38,9 @@ SKILL_TOOL_DEPS_FILE = Path(__file__).parent / "skill_tool_deps.json"
 
 BEGIN_MARKER = "<!-- BEGIN GENERATED TOOLS -->"
 END_MARKER = "<!-- END GENERATED TOOLS -->"
+# Shared with inject_markers_into_file()'s Case-2 detection and the preflight below -
+# one SSOT regex so the two never diverge on what counts as the heading.
+MCP_HEADING_RE = re.compile(r"^## MCP tools", re.IGNORECASE)
 
 # Skill dirs to skip for MCP-tools section generation.
 # These are pure-text skills with no MCP invocations (router, onboard), skills whose
@@ -472,7 +475,7 @@ def inject_markers_into_file(path: Path, new_block: str) -> bool:
 
     begin_re = re.compile(r"^\s*" + re.escape(BEGIN_MARKER) + r"\s*$")
     end_re = re.compile(r"^\s*" + re.escape(END_MARKER) + r"\s*$")
-    mcp_heading_re = re.compile(r"^## MCP tools", re.IGNORECASE)
+    mcp_heading_re = MCP_HEADING_RE
     next_h2_re = re.compile(r"^## ", re.IGNORECASE)
 
     # Case 1: markers already present
@@ -626,6 +629,34 @@ def main():
                 print(
                     f"ERROR: skill '{skill_name}' is neither in SKIP_SKILL_DIRS nor in "
                     f"skill_tool_deps.json. Add an entry to one of them.",
+                    file=sys.stderr,
+                )
+                return 1
+
+    # Preflight: every registered skill with a non-empty mcp_tools list must carry a
+    # '## MCP tools' heading in its SKILL.md. Without the heading, inject_markers_into_file()
+    # Case 2 finds nothing to anchor on and silently discards the computed block (V-20) -
+    # fail loudly here instead so a new/edited skill can't lose its generated tools section.
+    if skills_dir.exists():
+        for skill_dir in sorted(skills_dir.iterdir()):
+            if not skill_dir.is_dir():
+                continue
+            skill_name = skill_dir.name
+            if skill_name in SKIP_SKILL_DIRS:
+                continue
+            if not SKILL_TO_TOOLS.get(skill_name):
+                continue  # no tools to render - a heading is optional
+            skill_md = skill_dir / "SKILL.md"
+            if not skill_md.exists():
+                continue
+            text = skill_md.read_text(encoding="utf-8")
+            if not any(MCP_HEADING_RE.match(line) for line in text.splitlines()):
+                print(
+                    f"ERROR: skill '{skill_name}' has {len(SKILL_TO_TOOLS[skill_name])} "
+                    f"mcp_tools in skill_tool_deps.json but its SKILL.md has no '## MCP tools' "
+                    f"heading - add the heading + <!-- BEGIN/END GENERATED TOOLS --> markers "
+                    f"(see docs/authoring-skills-and-agents.md) so `make gen` has somewhere to "
+                    f"write the block.",
                     file=sys.stderr,
                 )
                 return 1

@@ -921,6 +921,7 @@
       "spawns": [
         "odoo-code-reviewer",
         "odoo-review-scoper",
+        "odoo-ui-reviewer (conditional Phase A.5 - rendered-UI review when module.needs_ui_review is true or candidate and an instance is reachable)",
         "odoo-test-writer (coverage gate - authors the missing/adapt-mode protecting test when a CRITICAL/HIGH behavior change ships uncovered; agent launched for context isolation, invokes the odoo-test-writing skill inline)",
         "git-ops (PR worktree checkout + diff/branch read + inline-comment posting on the PR - via git-ops skill - git-toolkit)"
       ],
@@ -1108,9 +1109,6 @@
     },
     "odoo-qa-suite": {
       "spawn_class": "orchestrator-nl",
-      "spawns": [
-        "odoo-test-writer (Phase 1 runnable test_*.py / Hoot / tour authoring - agent launched for context isolation; invokes the odoo-test-writing skill inline)"
-      ],
       "stack": "none",
       "instance_touching": true,
       "output_mode": "writes-files",

@@ -28,9 +28,14 @@ CLAUDE_MANIFEST = PLUGIN / ".claude-plugin" / "plugin.json"
 DEPS = PLUGIN / "generator" / "skill_tool_deps.json"
 
 # Skills whose body actively LAUNCHES the odoo-test-writer agent to have a test authored.
+#
+# odoo-qa-suite is intentionally NOT here: its Phase 1 produces a STATIC, non-executing
+# release TEST-PLAN table (frontmatter, :24, :86), never a runnable test file, so it must
+# never launch the agent - launching it was the outlier bug fixed by V-05 (deleted).
+# Runnable tests route to the odoo-test-writing skill directly (see its frontmatter
+# description), not through this skill.
 CALLERS = {
     "odoo-acceptance": SKILLS / "odoo-acceptance" / "SKILL.md",
-    "odoo-qa-suite": SKILLS / "odoo-qa-suite" / "SKILL.md",
     "odoo-code-review": SKILLS / "odoo-code-review" / "SKILL.md",
     "odoo-forward-port": SKILLS / "odoo-forward-port" / "SKILL.md",
     "odoo-git-rebase": SKILLS / "odoo-git-rebase" / "SKILL.md",
@@ -92,6 +97,16 @@ def test_named_callers_launch_the_test_writer_agent():
         assert "odoo-test-writer" in _text(path), (
             f"{name} must launch the odoo-test-writer agent to author tests (context isolation)"
         )
+
+
+def test_qa_suite_does_not_launch_the_test_writer_agent():
+    """Regression guard for V-05: odoo-qa-suite Phase 1 is a STATIC, non-executing release
+    TEST-PLAN table - it must never launch odoo-test-writer (that launch contradicted its own
+    frontmatter/:24/:86 static-orchestrator contract and was deleted)."""
+    assert "odoo-test-writer" not in _text(SKILLS / "odoo-qa-suite" / "SKILL.md"), (
+        "odoo-qa-suite must not launch the odoo-test-writer agent - Phase 1 is static/"
+        "non-executing/inline; runnable tests route to odoo-test-writing directly"
+    )
 
 
 def test_coder_launches_writer_but_coding_skill_does_not():

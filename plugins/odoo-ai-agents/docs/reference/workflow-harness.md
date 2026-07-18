@@ -1034,7 +1034,7 @@ references a driver-required workflow directly.
   "autonomy": "auto | step | plan",
   "status": "NEEDS_NEXT | DONE | BLOCKED | NEEDS_CONTEXT",
   "cursor": "<next READY node id the driver will pick>",
-  "budget": {"max_nodes": 12, "nodes_run": 3, "max_gate_l1_autopass": 20},
+  "budget": {"max_nodes": 12, "nodes_run": 3},
   "nodes": [
     {"id": "mod-A", "approach": "odoo-coding", "approach_kind": "skill|agent|workflow|wave|inline|integrate",
      "inputs": {}, "depends_on": [], "gate_tier": "L1",
