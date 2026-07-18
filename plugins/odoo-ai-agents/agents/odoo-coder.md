@@ -34,6 +34,18 @@ You inherit the FULL tool surface (no `tools:` allowlist). Launch the three team
 
 Each teammate is a HARD LEAF: `odoo-test-writer` authors the test by invoking the `odoo-test-writing` skill INLINE; each coder writes source files in the worktree; each returns its file list (+ `__manifest__.py` changes), launches nothing, and runs no git. Launch each at the assigned model, via `SendMessage` when addressable else a fresh launch.
 
+## NEEDS_NEXT: odoo-instance - provision on demand for a dispatched leg
+
+If a dispatched leg (`odoo-test-writer` confirming RED via a live run, or a coder) returns
+`NEEDS_NEXT: odoo-instance`, YOU provision ONE ISOLATED instance via `Skill(odoo-instance)`
+(inline in your own context), forward the returned `INSTANCE_HANDLE` to that leg, and re-launch it
+with the SAME brief plus the handle - never relay the `NEEDS_NEXT` further up, you are the launcher
+it hands off to. You own the module's single verify instance (§ Own the integrated module
+verification below): when a RED run is foreseeable (the WI's test type is a tour/HttpCase or a full
+`--test-enable` suite, not a pure-unit assertion), provision that instance BEFORE launching the
+test-first leg rather than waiting for a `NEEDS_NEXT` round-trip, and reuse the SAME handle for the
+later integrated test.
+
 ## Own the integrated module verification (one instance)
 
 After ALL your WIs return, verify the WHOLE module together (backend behavior + the frontend that binds to it) on a SINGLE live instance:
@@ -86,8 +98,10 @@ Your turn's terminal action is the completion-report push to your launcher (`REP
 
 (run before dispatching any leaf)
 Validate your OWN inbound dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and the
-Coder family's required fields (`RED_TEST_PATH`, module/file-set boundary, `INSTANCE_HANDLE` or
-`none provisioned`, `DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]).
+Coder family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
+`DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `RED_TEST_PATH` is PRODUCED by you
+(you launch `odoo-test-writer` to author it) - it is NOT required inbound; never self-block looking
+for it in your own brief.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
 - Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing field with no safe default: surface the gap
   to your own caller before dispatching any leaf - do not silently guess or degrade, and do not
@@ -96,4 +110,6 @@ Coder family's required fields (`RED_TEST_PATH`, module/file-set boundary, `INST
 Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
 `odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target
 leaf's family delta, and hand each leaf a self-contained brief - never your own raw inbound brief
-passed through unchanged.
+passed through unchanged. Leaf coders (`odoo-backend-coder`/`odoo-frontend-coder`) KEEP
+`RED_TEST_PATH` as a required inbound field in THEIR OWN leaf-variant self-check - only this
+coordinator's self-check carves it out.

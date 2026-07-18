@@ -200,8 +200,10 @@ re-brief.
 
 (run before dispatching any leaf)
 Validate your OWN inbound dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and the
-Coder family's required fields (`RED_TEST_PATH`, module/file-set boundary, `INSTANCE_HANDLE` or
-`none provisioned`, `DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]).
+Coder family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
+`DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `RED_TEST_PATH` is PRODUCED by this
+coordinator (you launch `odoo-test-writer` to author it) - it is NOT required inbound; never
+self-block looking for it in your own brief.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
 - Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing field with no safe default: surface the gap
   to your own caller before dispatching any leaf - do not silently guess or degrade, and do not
@@ -210,7 +212,9 @@ Coder family's required fields (`RED_TEST_PATH`, module/file-set boundary, `INST
 Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
 `odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target
 leaf's family delta, and hand each leaf a self-contained brief - never your own raw inbound brief
-passed through unchanged.
+passed through unchanged. Leaf coders (`odoo-backend-coder`/`odoo-frontend-coder`) KEEP
+`RED_TEST_PATH` as a required inbound field in THEIR OWN leaf-variant self-check - only this
+coordinator's self-check carves it out.
 ```
 
 ## How a caller uses it

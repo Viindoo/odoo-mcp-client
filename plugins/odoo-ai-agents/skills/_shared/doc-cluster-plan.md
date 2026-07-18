@@ -129,7 +129,13 @@ Instances live UNDER a cluster (a branching cluster has multiple instances), not
 `install_step` = position in the CUMULATIVE `-i` set on that instance (step k = {deltas with
 install_step <= k}). `doc:true|false` is the dedup switch. `extends_in_scope` (= `depends_in_scope`
 ∩ the `doc:true` set) drives the cross-reference hint ("Extends `<base>` - see its documentation")
-the assembler adds to an extension's doc.
+the assembler adds to an extension's doc. `doc_layer` (`userguide|appstore|both`) is the PER-MODULE
+documentation-layer selector - carried straight from the `odoo-doc-scoper` scope block's per-module
+`doc_layer` (SSOT: `agents/odoo-doc-scoper.md` § Step 5, default `both`) when `plan_source: scope`;
+a `plan_source: design-dag` entry MAY omit it (the design DAG carries no doc-layer signal). The
+writer-launch step (`odoo-doc-illustration/SKILL.md` § per-instance loop) reads THIS field per
+module; when an entry has no `doc_layer`, the run-level DOC LAYER axis default (`odoo-doc-illustration/SKILL.md`
+§ Documentation axes) applies to that module only.
 
 ```yaml
 run: doc-run-<timestamp>
@@ -144,23 +150,23 @@ clusters:
     instances:
       - instance_id: inst-c1-1
         install_doc_sequence:            # leaf-DEPENDENCY first (deepest dep installed first)
-          - {module: mod_c, doc: true, install_step: 1, install_delta: [mod_c], depends_in_scope: [],      extends_in_scope: []}
-          - {module: mod_b, doc: true, install_step: 2, install_delta: [mod_b], depends_in_scope: [mod_c], extends_in_scope: [mod_c]}
-          - {module: mod_a, doc: true, install_step: 3, install_delta: [mod_a], depends_in_scope: [mod_b], extends_in_scope: [mod_b]}
+          - {module: mod_c, doc: true, install_step: 1, install_delta: [mod_c], depends_in_scope: [],      extends_in_scope: [], doc_layer: both}
+          - {module: mod_b, doc: true, install_step: 2, install_delta: [mod_b], depends_in_scope: [mod_c], extends_in_scope: [mod_c], doc_layer: userguide}
+          - {module: mod_a, doc: true, install_step: 3, install_delta: [mod_a], depends_in_scope: [mod_b], extends_in_scope: [mod_b], doc_layer: both}
   # --- cluster c2: BRANCH  mod_a2 depends on TWO independent branches (mod_b2, mod_c2) ---
   - cluster_id: c2
     dag: "mod_a2 depends mod_b2 AND mod_c2; mod_b2, mod_c2 independent"
     instances:
       - instance_id: inst-c2-b           # independent branch 1 -> OWN instance (PURE {mod_b2})
         install_doc_sequence:
-          - {module: mod_b2, doc: true, install_step: 1, install_delta: [mod_b2], depends_in_scope: []}
+          - {module: mod_b2, doc: true, install_step: 1, install_delta: [mod_b2], depends_in_scope: [], doc_layer: appstore}
         reused_at: {node: mod_a2}        # convergence reuses THIS instance
       - instance_id: inst-c2-c           # independent branch 2 -> OWN instance (PURE {mod_c2})
         install_doc_sequence:
-          - {module: mod_c2, doc: true, install_step: 1, install_delta: [mod_c2], depends_in_scope: []}
+          - {module: mod_c2, doc: true, install_step: 1, install_delta: [mod_c2], depends_in_scope: [], doc_layer: both}
     convergence:                         # A reuses ONE branch instance + installs the FILL, then docs A
       - {node: mod_a2, reuse_instance: inst-c2-b, install_fill: [mod_c2, mod_a2],
-         doc: true, depends_in_scope: [mod_b2, mod_c2], extends_in_scope: [mod_b2, mod_c2],
+         doc: true, depends_in_scope: [mod_b2, mod_c2], extends_in_scope: [mod_b2, mod_c2], doc_layer: both,
          note: "reuse branch-1 (has mod_b2); install missing mod_c2 + mod_a2; doc mod_a2 on {mod_b2,mod_c2,mod_a2}"}
     dedup_skip: []
 parallelism:

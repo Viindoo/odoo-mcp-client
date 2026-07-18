@@ -63,7 +63,7 @@ phases:
     #     already exists (feeds cross-run dedup in the planner).
     # Collect interactively if not passed: `doc_layer` (default: both), `languages`
     # (default: per the odoo-doc-scoper resolver; English always added).
-    # Emits scope block: modules[] with {name, path, languages, doc_layer, has_demo, version,
+    # Emits scope block: modules[] with {name, abs_path, languages, doc_layer, has_demo, version,
     # depends_in_scope, has_ondisk_doc}.
     # Written to .odoo-ai/packaging/<run>/scope.yaml for all downstream phases.
 

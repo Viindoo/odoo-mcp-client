@@ -4,13 +4,22 @@ Root failure log: `unbounded-opus-fanout-oom` - unbounded OPUS fan-out crashed t
 host. The guard has two modes; every skill that fans out agents references this
 file instead of restating the numbers.
 
+## Choosing Mode A vs Mode B (decision rule for a NEW fan-out skill)
+
+Choose **Mode B** (per-worker ledger + disjoint-file partition) when the skill fans out MORE THAN
+ONE worker that WRITE to a shared module/worktree - the model-weighted budget below, combined with
+each worker owning a DISJOINT file set and the cross-run coordination ledger
+(`${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md`), is what keeps concurrent writers
+from colliding. Otherwise use **Mode A**. Apply this rule first; the "Used by" lists under each
+mode below are EXAMPLES of skills that already resolve to one side of the rule, not the definition.
+
 ## Mode A - subagent batching (legacy, default for un-migrated skills)
 
 Cap at **3 concurrent** subagent launches (or fork workers / parallel MCP legs);
-for more work, batch in waves of <=3 (fire <=3, wait, fire the next <=3). Used
-by: odoo-debug, workflow-chaining, odoo-brl (inner MCP
+for more work, batch in waves of <=3 (fire <=3, wait, fire the next <=3). Example: odoo-debug,
+workflow-chaining, odoo-brl (inner MCP
 parallelism), and the YAML workflow fan-out ceiling (workflows/_schema.md,
-docs/reference/workflow-harness.md).
+docs/reference/workflow-harness.md) - none fans out >1 worker writing a shared module/worktree.
 
 ## Mode B - model-weighted budget (rolling-window / weighted-batch skills)
 
@@ -24,7 +33,8 @@ docs/reference/workflow-harness.md).
 At most **8 weight-units** in flight at once => up to 8 haiku, 4 sonnet, 2 opus,
 or exactly 1 fable (always exclusive). Mixing is allowed up to the budget. Worst
 case (2 opus) sits within the historical envelope (old cap: 3 sonnet ~ weight 6).
-Used by: odoo-coding (subagent weighted batches).
+Example: odoo-coding (subagent weighted batches - each `odoo-coder` per-module coordinator's WI
+workers write a disjoint file set within the same module/worktree, coordinated via the ledger).
 
 If an OOM recurs under Mode B, lower BUDGET to 6 here (one place) - do not patch
 individual skills.

@@ -223,6 +223,7 @@ Dispatch `odoo-diff-comparator` (opus for cluster-wide runs, sonnet for <=3 smal
 
 ```
 DISPATCH MODEL: opus
+mode: rebase
 TASK: Compare the feature branch versus the new base as a WHOLE - what intents the new base
       already satisfies, what symbols it renamed/moved, what override points it refactored.
 REFS:
@@ -673,6 +674,8 @@ Dispatch `odoo-diff-comparator` (sonnet):
 
 ```
 DISPATCH MODEL: sonnet
+mode: rebase
+verify_mode: true
 TASK: Verify the rebase outcome via range-diff and duplicate-behavior guard.
 diff_path: <ISOLATE_DIR>/git-rebase/<slug>/range-diff.txt
 INTENT_FILES: <ISOLATE_DIR>/git-rebase/<slug>/intents/*.md

@@ -1,4 +1,5 @@
-<!-- SSOT snippet. Owned by odoo-planning. The single source of truth for the cross-run / worktree
+<!-- SSOT snippet. Authoring-owned by odoo-planning; WRITTEN at runtime only by odoo-coding. The
+     single source of truth for the cross-run / worktree
      module-coordination ledger (Q3): the on-disk claim/status registry that lets concurrent runs
      and linked worktrees see which NEW modules are being built where, so a `BLOCKED: manifest
      dependency <D> unresolved` can be classified honestly instead of guessed. WRITTEN ONLY by

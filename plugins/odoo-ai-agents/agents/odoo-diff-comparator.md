@@ -221,6 +221,14 @@ For each feature the custom module provides, propose one classification. Use the
 | `SPLIT` | Feature bundles multiple concerns; split into separate functions for the target |
 | `RECONCILE` | Target-core newly writes/computes the SAME business quantity on the SAME records as the custom code (data-divergence: two SSOTs), OR target-core gained a NEW mechanism/API that can replace or materially simplify the custom implementation (new-feature wire-in). The custom intent survives, but the SSOT/wire-in choice is architectural - MUST route to P2b design (odoo-solution-design); never silently KEEP/coexist |
 
+After classifying every feature, derive ONE per-module `verdict`: if every feature shares one
+class, `verdict` = that class; if classes differ, `verdict` = `MIXED`. Set
+`whole_module_absorbed` = true only when `verdict = DELETE-absorbed` AND every feature is
+DELETE-absorbed by the SAME core module/feature (name it in `absorbing_core_feature`); otherwise
+`whole_module_absorbed` = false and `absorbing_core_feature` = null. Emit `verdict`,
+`whole_module_absorbed`, and `absorbing_core_feature` identically in both the absorption-file
+header below AND the return block (§ Upgrade mode return block) - keep the two in lockstep.
+
 Write to `<ISOLATE_DIR>/modules-upgrade/<slug>/absorption/<module>.md`:
 
 ```markdown
@@ -230,6 +238,9 @@ Write to `<ISOLATE_DIR>/modules-upgrade/<slug>/absorption/<module>.md`:
 **Module:** <module>
 **Source version:** <source_version>
 **Target version:** <target_version>
+**Verdict:** KEEP | REWRITE(api) | REWRITE(model) | MERGE | SPLIT | RECONCILE | DELETE-absorbed | OBSOLETE | MIXED
+**Whole module absorbed:** true | false
+**Absorbing core feature:** <core_module>/<feature> | null
 **Grounding:** <osm | local-source | ungrounded>
 **Generated:** <ISO date>
 
@@ -338,7 +349,16 @@ slug: <slug>
 module: <module>
 absorption_file: <ISOLATE_DIR>/modules-upgrade/<slug>/absorption/<module>.md
 features_compared: <N>
-proposed_classification:
+verdict: KEEP | REWRITE(api) | REWRITE(model) | MERGE | SPLIT | RECONCILE | DELETE-absorbed | OBSOLETE | MIXED
+  # single per-module verdict - the P2b gate matches directly on THIS field, never on the
+  # proposed_classification counts below. If every feature shares one class, verdict = that
+  # class; if classes differ, verdict = MIXED.
+whole_module_absorbed: true | false
+  # true only when verdict=DELETE-absorbed AND every feature is DELETE-absorbed by the SAME
+  # core module/feature; false otherwise.
+absorbing_core_feature: <core_module>/<feature> | null
+  # set only when whole_module_absorbed=true; null otherwise (never invented for OBSOLETE).
+proposed_classification:  # per-class count aggregate - an EXTRA roll-up, not the gate key
   DELETE-absorbed: <count>
   OBSOLETE: <count>
   KEEP: <count>

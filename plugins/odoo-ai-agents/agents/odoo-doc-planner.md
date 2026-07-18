@@ -72,8 +72,10 @@ Read `plan_source` from the dispatch brief; it selects where the module-DAG come
    `${CLAUDE_PLUGIN_ROOT}/snippets/master-child-design-contract.md`. Do NOT re-resolve the graph.
 2. **`plan_source: scope`** (doc-only standalone, dispatched by the `module-packaging` workflow or
    `odoo-doc-illustration` after `odoo-doc-scoper` runs): read the scope block `_scope.md` /
-   `scope.yaml` and consume its `modules[]` with per-module `depends_in_scope[]` and
-   `has_ondisk_doc`. Resolve the DAG FROM that scope.
+   `scope.yaml` and consume its `modules[]` with per-module `depends_in_scope[]`, `has_ondisk_doc`,
+   and `doc_layer` (SSOT: `agents/odoo-doc-scoper.md` § Step 5, default `both`). Resolve the DAG
+   FROM that scope. A `plan_source: design-dag` run has no scoper pass, so its modules carry no
+   per-module `doc_layer` - leave the field absent on those entries (§ Round 2 below).
 
 For either path, also read the version, `languages[]` (English-mandatory canonical + resolved
 locales), and `REDOC` / `MAX_CLUSTER_MODULES` / `purity` overrides if the brief carries them.
@@ -109,7 +111,10 @@ format). Path by dispatch path:
 Set the header: `plan_kind: doc-package`, `plan_source` (design-dag | scope), `grounding` (osm |
 local-source), `scope_ref`. Cover BOTH the user-guide and the marketing landing for every `doc:true`
 module. Every in-scope module appears exactly once as a doc owner or is explicitly `doc:false` with
-a `dedup_reason`.
+a `dedup_reason`. Carry each module's `doc_layer` (from the scope block, `plan_source: scope` only)
+into its `install_doc_sequence` entry verbatim - do NOT collapse it to a run-level default and do
+NOT re-derive it; omit the field on a `design-dag` entry that has none (the writer-launch step
+falls back to the run-level DOC LAYER axis default for that module).
 
 ## Output (to the calling skill / workflow)
 

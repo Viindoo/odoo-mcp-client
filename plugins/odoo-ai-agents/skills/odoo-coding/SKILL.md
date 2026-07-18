@@ -275,12 +275,15 @@ Concurrency/OOM rule (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-gu
 model-weighted budget - WEIGHT haiku=1, sonnet=2, opus=4, fable=8; at most 8 weight-units in flight
 at once (keeps opus <=2 and fable exclusive while haiku/sonnet flow freely).
 
-Instance-allocation rule (SSOT: same `concurrency-guard.md` § Odoo instance allocation): a coder or
-`odoo-test-writer` that runs `odoo-bin` against a database (tests via `--test-enable`, `-i`/`-u`, or
-scaffolding into a DB) and was handed NO `INSTANCE_HANDLE` self-provisions an ISOLATED instance by
-invoking `Skill(odoo-instance)` (a unique ephemeral DB acquired UNDER the HARD RULES),
-never a bare `scripts/lib/allocator.py` call that would bypass them - so the brief never passes a
-shared db/port. A provided handle always wins (consume, never re-provision).
+Instance-allocation rule (SSOT: same `concurrency-guard.md` § Odoo instance allocation): a coder
+that runs `odoo-bin` against a database (tests via `--test-enable`, `-i`/`-u`, or scaffolding into a
+DB) and was handed NO `INSTANCE_HANDLE` self-provisions an ISOLATED instance by invoking
+`Skill(odoo-instance)` (a unique ephemeral DB acquired UNDER the HARD RULES), never a bare
+`scripts/lib/allocator.py` call that would bypass them - so the brief never passes a shared
+db/port. `odoo-test-writer` NEVER self-provisions: when confirming RED needs a live run, it relays
+`NEEDS_NEXT: odoo-instance` up to its launcher (`odoo-coder`), which provisions the instance and
+re-launches it (`agents/odoo-coder.md` § NEEDS_NEXT: odoo-instance). A provided handle always wins
+(consume, never re-provision).
 
 **Dispatcher-level invariant.** A module's coding run is not DONE until every instance its
 `odoo-coder` coordinator self-provisioned this run is released by that coordinator - a returned

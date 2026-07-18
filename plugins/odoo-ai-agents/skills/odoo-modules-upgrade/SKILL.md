@@ -178,8 +178,10 @@ MERGE/SPLIT), every DUE item becomes a REAL upgrade work-item: P4 folds it into 
 implement -> P4b review -> P5 test path, not a side note (see § P4).
 
 **P2b - Hard-call design [mandatory route-out for specific verdicts].**
-Route to `odoo-solution-design` (`odoo-solution-architect` opus) when P2 returns ANY of
-the following verdicts (tied to the verdict enum, not to a fuzzy "ambiguous" judgment):
+Route to `odoo-solution-design` (`odoo-solution-architect` opus) when the comparator's return
+block `verdict:` field (`agents/odoo-diff-comparator.md` § Upgrade mode return block) equals ANY
+of the following - match directly on `verdict:`, never infer from the `proposed_classification`
+count aggregate (that field is an extra roll-up, not the gate key):
 - `MERGE` (any merge, regardless of apparent clarity)
 - `SPLIT` (any split)
 - `RECONCILE` (always - data-divergence or new-feature wire-in; the SSOT/wire-in choice is architectural)

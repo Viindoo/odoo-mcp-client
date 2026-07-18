@@ -43,9 +43,9 @@ phases:
     skill: odoo-discovery-summary
     nl_trigger: >
       Summarize the customer profile from the following raw prospect input. Identify:
-      industry, size, key pain points (max 5), success criteria (max 3), relevant Odoo
-      modules, and deployment risk (low/medium/high with one-line reason). Use the
-      abstract customer label throughout - never log real company or contact names.
+      industry, size, key pain points (max 5), success criteria (max 3), and relevant Odoo
+      modules. Use the abstract customer label throughout - never log real company or
+      contact names.
       Input: {prospect_input}
     model_tier: sonnet
     gate: "yes / edit / cancel"
