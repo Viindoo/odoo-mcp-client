@@ -30,7 +30,11 @@ stable series) violates the "keep diffs minimal" rule the guidelines themselves 
    executing (topic file(s) + any listed snippet + the `odoo-version-pivots §` for that task).
    Do NOT read the whole directory; files for task categories not in scope waste tokens and add
    noise. Domain-knowledge activation (e.g. HR payroll, Accounting) applies within the mapped
-   files - read the relevant section, not the whole file.
+   files - read the relevant section, not the whole file. If `coding_guidelines/<version>/INDEX.md`
+   does not exist (v8-v13), use `coding_guidelines/14.0/INDEX.md` as the closest curated baseline
+   AND ground version-specifics via OSM (`set_active_version` + `api_version_diff`/`suggest_pattern`)
+   - OSM indexes v8-v19 (see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/INDEX.md` for
+   the fallback rationale).
 3. **Read the By-task mapped files for THIS change, then write to spec on the first pass.** The
    INDEX By-task table maps each task category to the exact files - follow it. Reference only:
    Python/ORM tasks typically pull `python.md`, `naming.md`, `model-ordering.md`; XML/view tasks
