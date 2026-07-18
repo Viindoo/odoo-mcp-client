@@ -3,19 +3,21 @@ domain: consultant
 team_pattern: Fan-out
 description: |
   Multi-phase, multi-model research over an Odoo question - the reference dogfood proving the
-  harness can run "broad cheap survey → deep mid-tier analysis → single high-tier synthesis"
-  with a different model_tier per phase. Phase count is flexible (this 3-phase shape is just the
-  canonical example; fewer or more phases are fine for a given job).
-  Trigger: "multi-phase research", "survey then deep-dive then synthesize", "research <topic>
-  across angles", "broad scan then focused analysis", "nghiên cứu nhiều pha", "khảo sát rộng
-  rồi đào sâu rồi tổng hợp"
+  harness can run "grounded survey → deep analysis → single high-tier synthesis" with model_tier
+  scaled to phase complexity (survey and deep-dive both need sonnet per `_schema.md` §6's
+  feature-existence-verdict rule; synthesis alone steps up to opus). Phase count is flexible
+  (this 3-phase shape is just the canonical example; fewer or more phases are fine for a given
+  job). Reference/dogfood workflow, not a front door - invoked by explicit id via
+  `workflow-chaining`, not NL-triggered from `odoo-intake`
 output_dir: .odoo-ai/research
 inputs:
   - research_question
   - candidate_angles
 
 phases:
-  # Phase 1 - broad survey: many cheap haiku workers, one per candidate angle, locate the scope.
+  # Phase 1 - broad survey: sonnet workers, one per candidate angle, locate the scope. Bumped
+  # from haiku per _schema.md §6 - this verdict is feature-existence-adjacent (Promising/Partial/
+  # Not-relevant), which the model_tier rule reserves for sonnet, never haiku.
   - id: survey
     skill: odoo-feature-check
     fanout: true
@@ -25,7 +27,7 @@ phases:
       edition, and is it promising enough to analyse deeply? Return a one-line verdict
       (Promising / Partial / Not-relevant) with a pointer to the module/model, so the next phase
       knows which angles are worth a deep dive.
-    model_tier: haiku
+    model_tier: sonnet
     gate: "approve / refine: [feedback] / cancel"
 
   # Phase 2 - deep dive: fewer sonnet workers on the angles the survey marked promising.

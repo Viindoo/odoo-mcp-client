@@ -100,7 +100,7 @@ warn the human rather than dispatching a doomed run.
 
 - **OSM unreachable:** agent skips code-grounding steps and greps the repo on disk for the relevant view and stylesheet. Prefix output with `⚠ OSM unreachable - style/view origin inferred from disk, verify against the live module`.
 - **OSM reachable but view/stylesheet/module not in index (customer-local addon):** Tier-1 MISS, not proof of absence - keep OSM for what it covers; grep disk for just the missed entity, label `grounded: osm + local-source (hybrid)` (see `snippets/disk-fallback-protocol.md`).
-- **Browser MCP or instance unreachable:** if the orchestrator has provided pre-captured screenshot paths in context, use those for aesthetics/a11y review. If no pre-captured screenshots are available, emit `status: NEEDS_NEXT` with:
+- **Browser MCP or instance unreachable:** if the orchestrator has provided pre-captured screenshot paths in context, use those for aesthetics/a11y review. If no pre-captured screenshots are available, emit `status: NEEDS_NEXT` with (this skill is instance-REQUIRED - a rated screenshot IS the deliverable, unlike `odoo-code-review`'s instance-optional split; see `${CLAUDE_PLUGIN_ROOT}/snippets/instance-optional-completion.md`):
   ```
   next:
     - skill: odoo-instance

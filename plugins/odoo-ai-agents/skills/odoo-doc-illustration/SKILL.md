@@ -332,7 +332,9 @@ added; default behavior preserved.
 - **Browser MCP or instance unreachable:** for TONE `marketing` or DOC SCOPE `full-guide`, the writer
   does the **degraded assembly** first (structure + supplied copy with `[Image: <slug>]`
   placeholders) then emits `status: NEEDS_NEXT` routing to `odoo-instance` (`operation: ensure-up`)
-  so the run-harness provisions one and a later pass fills the captures. Fall back to
+  so the run-harness provisions one and a later pass fills the captures - screen captures are the
+  instance-REQUIRED part of this deliverable (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-optional-completion.md`).
+  Fall back to
   `BLOCKED(Browser MCP unavailable - cannot capture screenshots)` only when even the degraded
   structure cannot be written.
 

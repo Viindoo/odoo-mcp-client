@@ -297,7 +297,7 @@ fixes inline. Write `<sha>: reviewed` in checkpoint.json. Brief + loop protocol:
 `references/rb-phase-detail.md` P9b. This is the in-pipeline review; the final pre-merge review
 stays at P12 (two review points total).
 
-**P10 - Verify (range-diff + dup-guard + conditional instance) [git-ops pre-step + odoo-diff-comparator sonnet + conditional odoo-instance-ops].**
+**P10 - Verify (range-diff + dup-guard + conditional instance) [git-ops pre-step + odoo-diff-comparator sonnet + conditionally the `odoo-instance` skill (via the Skill tool)].**
 Two-step: (1) invoke git-ops to run `git range-diff <old-base>..<feature-tip>
 <new-base>..rb/<slug>` and write the output to `<ISOLATE_DIR>/git-rebase/<slug>/range-diff.txt`
 (full brief: `references/rb-phase-detail.md` P10 pre-step); (2) dispatch `odoo-diff-comparator`
@@ -305,12 +305,12 @@ Two-step: (1) invoke git-ops to run `git range-diff <old-base>..<feature-tip>
 present and unchanged in meaning;
 dup-guard: OSM `entity_lookup` definition-count across the full inheritance chain is the
 PRIMARY (hard) dup signal (fail if count >1); grep is a secondary locator only. Emit
-`verify.md`. CONDITIONAL `odoo-instance-ops`: run ONLY when the rebased range touches
+`verify.md`. CONDITIONAL the `odoo-instance` skill (via the Skill tool): run ONLY when the rebased range touches
 DB-stateful behavior (model field add/remove/type-change, stored-compute, ORM
 create/write/unlink override, migration dir, or TransactionCase/HttpCase test). Skip for
 pure-frontend or docstring-only ranges. Decision from `commits[].modules[]` + P3 metadata -
 no inline diff read. Full condition list: `references/rb-phase-detail.md` P10 § B3.
-When `odoo-instance-ops` runs: resolve odoo-bin flags via `cli_help` (pass
+When the `odoo-instance` skill (via the Skill tool) runs: resolve odoo-bin flags via `cli_help` (pass
 `odoo_version=<series>`); instance lifecycle protocol:
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md`; test invocation conventions:
 `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.

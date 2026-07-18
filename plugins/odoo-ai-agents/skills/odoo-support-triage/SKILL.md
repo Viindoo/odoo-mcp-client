@@ -8,9 +8,9 @@ description: >
   to send to the customer. NL-dispatches to odoo-debug for runtime bug symptoms, to
   odoo-feature-check for feature-gap questions, and borrows odoo-deal-followup tone for
   customer-facing replies. Outputs land in the run's isolated state dir (gitignored), never in
-  tracked files. Trigger on: "support ticket", "customer issue", "bug report",
+  tracked files. Trigger on: "customer issue", "bug report",
   "user complaint", "triage this ticket", "classify this issue", "draft response to
-  customer complaint", "escalate this issue", "config issue reported by customer".
+  customer complaint", "config issue reported by customer".
   Also fires on Vietnamese: "ticket hỗ trợ", "phân loại sự cố", "soạn phản hồi khiếu nại
   khách hàng", "escalate vấn đề".
   Do NOT trigger for: pre-release test authoring
@@ -81,8 +81,10 @@ One concise paragraph. Flag uncertainty ("likely", "possibly") - never assert un
 
 **config:** Name the most likely setting or access-right to check.
 
-**bug:** State suspected module + trigger. If runtime symptoms present, invoke `odoo-debug` via the Skill tool:
+**bug:** State suspected module + trigger. In **skill-direct mode**, if runtime symptoms present, invoke `odoo-debug` via the Skill tool:
 > "Debug the following Odoo runtime issue: [ticket description]. Identify root cause, affected module, and fix recommendation."
+
+In **workflow-driven mode**, the `root-cause-bug` phase runs this diagnosis inline (no live browser) and RECOMMENDS `odoo-debug` in the output rather than dispatching it live.
 
 **feature-request:** State if likely available in another edition/app. If verification is needed, invoke `odoo-feature-check` via the Skill tool:
 > "Does Odoo [version] support [feature description]? Provide module name, edition (CE/EE), and one-line verdict."
@@ -153,7 +155,7 @@ ALL output → `<ISOLATE_DIR>/support/` (outside the repo working tree, never co
 
 ## Dispatch rules
 
-This skill dispatches `odoo-debug` (Skill tool) for runtime bug symptoms and `odoo-feature-check` (Skill tool) for edition/feature verification, when the ticket needs them. Other skill references are text suggestions only ("Suggest: run X") - user decides.
+In **skill-direct mode**, this skill dispatches `odoo-debug` (Skill tool) for runtime bug symptoms. In **workflow-driven mode**, the `root-cause-bug` phase runs inline and RECOMMENDS `odoo-debug` instead (no live dispatch). Both modes dispatch `odoo-feature-check` (Skill tool) for edition/feature verification when the ticket needs it. Other skill references are text suggestions only ("Suggest: run X") - user decides.
 
 ## Continuation Contract
 

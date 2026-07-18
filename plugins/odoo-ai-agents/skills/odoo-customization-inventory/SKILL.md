@@ -11,8 +11,9 @@ description: >
   "what's safe to keep vs deprecate?". Also fires on Vietnamese: "đã tuỳ biến những gì trên
   Odoo", "phạm vi customization trước khi nâng cấp", "module nào nên giữ module nào nên bỏ".
   Trigger even if the user dumps a list of names with
-  no context - that's the signal to enumerate. Upgrade risk scoring → odoo-deprecation-audit.
-  Marketing feature highlights → odoo-feature-highlights
+  no context - that's the signal to enumerate. Upgrade risk scoring → odoo-deprecation-audit;
+  executive 1-page risk dashboard → odoo-risk-overview. Marketing feature highlights →
+  odoo-feature-highlights
 ---
 
 ## Role

@@ -55,6 +55,7 @@ phases:
       provide a competitor name or answered "none", skip this phase entirely.
     model_tier: sonnet
     gate: "approve / skip / cancel"
+    when: "competitor_name != null"
 
   # ------------------------------------------------------------------
   # Phase positioning-copy - produce copy block adapted to audience + channel (inline)

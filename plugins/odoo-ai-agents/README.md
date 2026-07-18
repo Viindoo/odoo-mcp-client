@@ -299,7 +299,7 @@ that up and chains the next step across workflows automatically.
 | `sales-closing-cycle` | Late-stage sales cycle: objection handling + closing steps | `<ISOLATE_DIR>/sales/` |
 | `ui-debug-session` | Resumable multi-turn UI debug with browser evidence | `<ISOLATE_DIR>/debug/` |
 | `content-production` | Multi-asset content from a positioning brief | `<ISOLATE_DIR>/content/` |
-| `research-multiphase` | Flexible-phase research: broad survey -> deep dives -> synthesis, a different model tier per phase | `<ISOLATE_DIR>/research/` |
+| `research-multiphase` | Flexible-phase research: broad survey -> deep dives -> synthesis, model tier scaled per phase | `<ISOLATE_DIR>/research/` |
 | `module-packaging` | End-to-end: scope -> doc-plan (branch-aware, 1 gate) -> feature-map/walkthrough/icon/copy fan-out (browser-free, parallel) -> provision-capture per instance-path (incremental, branch-aware) -> manifest-audit; output `<ISOLATE_DIR>/packaging/` | `<ISOLATE_DIR>/packaging/` |
 
 Commands come in two shapes: multi-phase orchestrators that chain several skills in a

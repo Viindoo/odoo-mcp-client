@@ -9,8 +9,8 @@ description: >
   video of a live flow, not a static review or bug hunt. Pushy trigger: fire on "record a demo
   of this Odoo workflow", "capture a GIF of creating an invoice in Odoo", "capture a short MP4
   for the website", "quay video demo Odoo", "tạo video hướng dẫn quy trình". Routing: stitch
-  many scenes / multi-scene walkthrough into one video → odoo-produce-video; RATE how a screen
-  looks → odoo-ui-review; broken screen → odoo-debug; compare two builds →
+  many scenes / multi-scene walkthrough into one video → /odoo-produce-video (command); RATE how
+  a screen looks → odoo-ui-review; broken screen → odoo-debug; compare two builds →
   odoo-visual-regression; write frontend code → odoo-coding; code audit →
   odoo-code-review
 ---

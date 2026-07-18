@@ -35,6 +35,8 @@ never squash or cherry-pick in continuous mode.
 - A version-to-version API/feature delta only (no merge, no adapt) -> use `odoo-version-diff`
 - Reviewing or auditing an existing PR or diff -> use `odoo-code-review`
 - A pre-upgrade deprecation sweep of one codebase -> use `odoo-deprecation-audit`
+- Same-series single-commit replay (no version jump) -> use `odoo-git-rebase`
+- Whole-cluster upgrade to a higher series (not one commit) -> use `odoo-modules-upgrade`
 - A STANDALONE design request with no commits to port -> use `odoo-solution-design` directly.
   A bucket-(c) commit INSIDE a forward-port run that requires non-trivial design is handled by
   the P3 conditional route-out (which delegates to odoo-solution-design and returns) - that is

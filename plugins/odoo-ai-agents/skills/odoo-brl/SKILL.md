@@ -8,10 +8,10 @@ description: >
   odoo-semantic-mcp tool calls, a deterministic cost estimate (lookup table, no fabrication), and a
   requirements traceability matrix (RTM) for consultant export. Runs as a chunked sequential-outer /
   parallel-inner pipeline with checkpoint/resume after interruption. Fire ANY time someone pastes or points
-  to a multi-item requirement list to scope end-to-end: "classify these 400 requirements", "turn this RFP
-  spreadsheet into an effort + cost plan". Also fires on Vietnamese: "phân loại danh sách yêu cầu này",
-  "biến RFP thành kế hoạch chi phí + công". For a SINGLE feature use odoo-feature-check; for a short ad-hoc
-  gap matrix with no cost, no chunked pipeline, and no scale requirement use odoo-gap-analysis
+  to a multi-item requirement list to scope end-to-end: "classify these 400 requirements". Also fires on
+  Vietnamese: "biến RFP thành kế hoạch chi phí + công". For a SINGLE feature use odoo-feature-check;
+  odoo-brl is for when the list needs cost + dependency DAG (typically tens+ items) - a shorter
+  coverage/classification matrix with no costing routes to odoo-gap-analysis
 model: opus
 ---
 
@@ -24,7 +24,7 @@ traceability from requirement to evidence to budget line.
 ## Out of Scope
 
 - Single feature availability check -> use `odoo-feature-check`
-- Short ad-hoc gap matrix (no cost/DAG/scale) -> use `odoo-gap-analysis`
+- Shorter coverage/classification matrix, no costing, no dependency DAG (fewer than ~tens of items) -> use `odoo-gap-analysis`
 - Code generation or module scaffolding -> use `odoo-coding`
 - Source-level API diff between versions -> use `odoo-version-diff`
 

@@ -38,7 +38,7 @@ Plan Mode, drives the dep-order adapt loop, opens the PR, and stops for human co
 
 | Situation | Route to | Discriminator |
 |---|---|---|
-| Transport ONE commit across same-major branches | `odoo-forward-port` | FP = same major, cherry-pick, never asks "still needed?" |
+| Transport ONE commit across majors/cross-series | `odoo-forward-port` | different series = forward-port, never asks "still needed?"; same-series single-commit replay = `odoo-git-rebase` |
 | Rebase a branch onto another branch, SAME series | `odoo-git-rebase` | same series, no version bump, no core-absorption question |
 | Risk + deprecation + diff PLAN only (no code) | `/odoo-plan-upgrade` | plan-upgrade writes NO code; upgrade EXECUTES (may take its plan as optional `--plan` input) |
 | Scan deprecated symbols only | `odoo-deprecation-audit` | detection only; upgrade INVOKES it in recon then fixes |
