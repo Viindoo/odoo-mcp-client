@@ -125,6 +125,35 @@ When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-pr
 
 **Worked examples:** `${CLAUDE_PLUGIN_ROOT}/skills/odoo-capability-proof/references/examples.md`
 
+## Batch mode (multiple requirements in one proof package)
+
+When a caller supplies MULTIPLE requirements to prove in a single pass (e.g. `/odoo-respond-bid`
+Phase 3's "batch all Standard/Config items in one consolidated proof list") - run Rounds 0-2 once
+per requirement (parallel MCP calls across requirements where possible), then emit ONE
+consolidated table instead of repeating the single-item format per requirement:
+
+```
+## Capability Proof Batch: <N requirements>
+
+**Odoo version:** <version>
+**Edition:** CE / EE / Custom distribution
+
+| # | Requirement | Verdict | Module | Key fields/methods | Demo steps (max 3) | Source |
+|---|---|---|---|---|---|---|
+| 1 | <requirement text> | Supported natively | ... | ... | 1. ... 2. ... 3. ... | [OSM-index] |
+| 2 | <requirement text> | Supported with configuration | ... | ... | ... | [inferred] |
+
+### Honest limitations (per-row, only where applicable)
+- **#<n>:** <what this row's implementation does NOT cover>
+```
+
+Batch mode is a PRESENTATION change only - it reuses the same verdict enum (§ Capability verdicts),
+the same per-row `[OSM-index]`/`[inferred]` provenance tagging, and the same "never fabricate"
+rule as the single-item format; it does not relax evidence standards. Batch mode still asks for
+EVIDENCE per item, not an effort/cost quote - a caller asking to scope + estimate effort across
+multiple requirements (rather than prove capability) still routes to `odoo-gap-analysis`
+unchanged (§ Out of Scope); batch-evidence is NOT that routed-away case.
+
 ## Notes / Integration
 
 This skill produces TEXT/code evidence and written demo steps - not a video. To turn the written demo steps into a real screencast on a live instance, hand them to `odoo-demo-recording`. Mention this as an optional next step; do not invoke it from here (this is a leaf skill).

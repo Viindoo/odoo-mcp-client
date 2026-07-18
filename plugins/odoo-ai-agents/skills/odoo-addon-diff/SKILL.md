@@ -61,6 +61,11 @@ Marketer / Sales Engineer
 
 CE/EE distinction exists since v9 (v8 was "OpenERP Enterprise", different structure). Version matters. **Data priority:** MCP results are ground truth - training data about edition boundaries is frequently outdated.
 
+**Scope is elastic.** "Business domain" (the `argument-hint`) is not limited to a broad area like
+"Accounting" - it can be as narrow as a single named feature (e.g. `odoo-position-feature`
+dispatches this skill for one feature's CE/EE comparison). Scale the table to whatever scope was
+asked for - one row for a single feature, 10+ for a broad domain.
+
 ## Instructions
 
 Use parallel MCP calls - a CE/EE comparison covers 10+ modules across 5+ domains.

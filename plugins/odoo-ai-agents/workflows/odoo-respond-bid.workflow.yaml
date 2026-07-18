@@ -92,20 +92,39 @@ phases:
     gate: "yes / iterate / cancel"
 
   # ------------------------------------------------------------------
-  # Phase 4 - Objection pre-empt
+  # Phase 4a - Objection list (inline; GENERATES the objections[] fan-out input)
+  # odoo-objection-handling is a REACTIVE single-objection skill (argument-hint
+  # "[objection / concern]") - it must not be asked to invent the list itself. This
+  # phase owns list generation; Phase 4b dispatches the skill once per objection.
+  # ------------------------------------------------------------------
+  - id: objection-list
+    inline: true
+    model_tier: sonnet
+    # Based on the raw prospect input and the gap matrix at
+    # .odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl (the run dir reported by the
+    # gap-analysis phase, or the newest .odoo-ai/gap-analysis/*/gap-matrix.jsonl; cite the
+    # path), select 2-3 likely objections from the prospect. Common archetypes to consider:
+    # missing enterprise feature, data residency/compliance, TCO vs current solution, data
+    # migration risk, local support availability. Emit objections: [<objection text>, ...]
+    # (2-3 items) for Phase 4b to fan out over. This phase ONLY selects/phrases the
+    # objection list - it does NOT draft the rebuttal (that is Phase 4b).
+
+  # ------------------------------------------------------------------
+  # Phase 4b - Objection pre-empt (fan-out: one odoo-objection-handling dispatch PER
+  # objection from Phase 4a's objections[] - keeps the reactive skill single-purpose)
   # ------------------------------------------------------------------
   - id: objection-preempt
     skill: odoo-objection-handling
     nl_trigger: >
-      Based on the raw prospect input and the gap matrix at
-      .odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl (the run dir reported by the
-      gap-analysis phase, or the newest .odoo-ai/gap-analysis/*/gap-matrix.jsonl; cite the
-      path), anticipate 2-3 likely objections from the prospect. For each objection:
-      acknowledge the concern, provide concrete Odoo evidence, propose a de-risk next step.
-      Tone calibrated to: {contact_role}. Common archetypes to consider: missing enterprise
-      feature, data residency/compliance, TCO vs current solution, data migration risk, local
-      support availability.
+      For the objection "{objection}" (one item from the objection-list phase's
+      objections[]): acknowledge the concern, provide concrete Odoo evidence grounded in
+      the gap matrix at .odoo-ai/gap-analysis/<slug>-<date>/gap-matrix.jsonl (the run dir
+      reported by the gap-analysis phase, or the newest
+      .odoo-ai/gap-analysis/*/gap-matrix.jsonl; cite the path), and propose a de-risk next
+      step. Tone calibrated to: {contact_role}.
     model_tier: sonnet
+    fanout: true
+    chunk_by: objections
     gate: "yes / edit / cancel"
 
   # ------------------------------------------------------------------
@@ -121,8 +140,9 @@ phases:
     #   3. Gap matrix table - read from the gap-analysis run dir gap-report.md
     #      (.odoo-ai/gap-analysis/<slug>-<date>/gap-report.md), not from chat
     #   4. Capability evidence list (Phase 3 output, grouped by module)
-    #   5. Anticipated objection responses (Phase 4 playbook, inline)
-    #   6. Roadmap and cost tier (S/M/L effort_tier from gap-matrix.jsonl; NO currency figures)
+    #   5. Anticipated objection responses (Phase 4a/4b objection-list + objection-preempt
+    #      fan-out, aggregated)
+    #   6. Roadmap and cost tier (S/M/L/XL effort_tier from gap-matrix.jsonl; NO currency figures)
     #   7. Next steps (CTA: book demo / technical workshop / commercial proposal)
     # Extension/Custom items: "Custom development items will be quoted separately
     # after technical scope confirmation."

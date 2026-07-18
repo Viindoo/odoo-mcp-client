@@ -432,12 +432,12 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   the suggestion and move on - step 50 will fall back to `python3`.
 - **47-instance-reset** *(reset-only - runs ONLY via `--reset`, never via `all` or `instance`)* -
   `apply`: backs up `instances.toml` to `<path>.bak.<timestamp>` then writes a
-  clean replacement. Default mode (`apply`): preserves instances whose local
-  paths still exist on disk; removes entries with missing paths and legacy /
-  junk records (e.g. version `0.0`, dotted-key format). Hard mode (`apply
-  --hard`): wipes all entries unconditionally. `check` always exits 0 (reset
-  is always available); it is excluded from the `all`/`instance` loops so it
-  never runs silently.
+  clean replacement. Default mode (`apply`): removes entries whose addons paths
+  no longer exist; re-parses and reformats legacy dotted-key blocks to modern
+  `[[instance]]` shape (it does NOT drop version-`0.0`/dotted-key records - the
+  only filter is path existence). Hard mode (`apply --hard`): wipes all entries
+  unconditionally. `check` always exits 0 (reset is always available); it is
+  excluded from the `all`/`instance` loops so it never runs silently.
 - **50-instance-spinup** - before launching anything, runs a **fail-loud
   preflight**: verifies (a) `odoo-bin --version` runs under the instance's
   Python (confirms the venv is functional and Odoo is reachable) and

@@ -50,9 +50,12 @@ phases:
       Using the feature identified in the feature-check phase and the competitor name
       provided by the user, produce a focused competitive comparison. Output a 2-column
       capability matrix (Odoo vs competitor) covering this feature only. Highlight
-      Odoo's unique strengths and any gaps. Use generic labels (e.g., "leading mid-market
-      ERP") rather than hardcoding real competitor names in examples. If the user did not
-      provide a competitor name or answered "none", skip this phase entirely.
+      Odoo's unique strengths and any gaps. Name the competitor explicitly throughout -
+      odoo-competitive-brief's contract is named-competitor (argument-hint "[competitor
+      name]", output header "# Competitive Brief: <Competitor Name>") and
+      .odoo-ai/positioning/ is gitignored, so there is no confidentiality reason to
+      genericize the name. If the user did not provide a competitor name or answered
+      "none", skip this phase entirely.
     model_tier: sonnet
     gate: "approve / skip / cancel"
     when: "competitor_name != null"

@@ -91,8 +91,16 @@ GUARD: never run two paths on the same browser family or the same instance):
       `odoo-doc-feature-map` (which runs `odoo-feature-cataloger`) - then dispatch
       `odoo-content-draft` (landing-page-copy channel, grounded in that catalog) to produce the
       sectioned `<!-- HERO -->` ... copy with `[Image: <slug>]` markers. The writers NEVER call
-      content-draft; the skill owns this pre-fetch.
-   2. **Launch the writer(s) per DOC LAYER, SERIAL on this instance** (browser-exclusive - NEVER two
+      content-draft; the skill owns this pre-fetch. `marketing` is the DOC LAYER `appstore` default
+      (§ Documentation axes), so a bare appstore dispatch triggers this pre-fetch automatically.
+   2. **Walkthrough pre-fetch (CAPTURE MODE: scenarios only).** If a `WALKTHROUGH:` path is not
+      already supplied (a caller may pass one; a standalone `CAPTURE MODE: scenarios` run does
+      not): dispatch `odoo-doc-walkthrough` (which fans out `odoo-doc-scenarist`) to produce
+      `walkthrough.jsonl` for this module, then pass its path as `WALKTHROUGH:` to the writer(s)
+      below. Conditional on `CAPTURE MODE: scenarios` only - the default `screens` mode does not
+      need this pre-fetch (narrow blast radius). The writers NEVER call `odoo-doc-walkthrough`
+      themselves; the skill owns this pre-fetch, mirroring the marketing-copy pre-fetch above.
+   3. **Launch the writer(s) per DOC LAYER, SERIAL on this instance** (browser-exclusive - NEVER two
       writers concurrent on ONE instance). Read `M.doc_layer` from THIS module's `install_doc_sequence`
       entry (SSOT: `skills/_shared/doc-cluster-plan.md` § schema); when `M.doc_layer` is absent (a
       `plan_source: design-dag` entry with no scoper pass), use the run-level DOC LAYER axis default
@@ -105,7 +113,7 @@ GUARD: never run two paths on the same browser family or the same instance):
       `sonnet`, override up/down per job complexity, scope, and module count (spawn-time resolution:
       env > Agent-param > frontmatter > inherit). The writer frontmatter carries only the default;
       no consumer sets a writer's model - model authority stays with this orchestrator.
-   3. **Verify then commit.** Verify each writer's returned artifacts against its path-incremental
+   4. **Verify then commit.** Verify each writer's returned artifacts against its path-incremental
       completion block (files exist at the reported paths), then COMMIT M's docs via git-toolkit
       `git-ops` (per-module commit, one-way git; the skill never runs raw git mutations).
    For `M.doc == false` (dedup dependency): SKIP capture, still let instance-ops install it.
@@ -116,8 +124,8 @@ GUARD: never run two paths on the same browser family or the same instance):
    backstop never reaps this long-lived path-incremental run - full rule:
    `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T3.
 
-Order per module: **install -> pre-fetch copy (marketing) -> capture + assemble (writer(s), serial)
--> verify -> commit -> next-delta.**
+Order per module: **install -> pre-fetch copy (marketing) -> pre-fetch walkthrough (scenarios) ->
+capture + assemble (writer(s), serial) -> verify -> commit -> next-delta.**
 
 **End-of-run staging cleanup (skill-owned).** After the LAST module is verified + committed and
 BEFORE emitting the aggregate index, delete this run's transient capture staging - scoped to
@@ -172,7 +180,7 @@ RUN_ID: <run-or-slug>                 # reuse the worklog run-or-slug; scopes th
 SHARE_DIR: <abs-path captured at State dir resolution>
 ISOLATE_DIR: <abs-path captured at State dir resolution>   # use directly - do NOT re-resolve
 INSTANCE_HANDLE: <db>:<port>          # from provision-once; absent = writer self-checks install
-WALKTHROUGH: <abs path to walkthrough.jsonl from odoo-doc-scenarist>   # required for CAPTURE MODE: scenarios
+WALKTHROUGH: <abs path to walkthrough.jsonl from odoo-doc-scenarist>   # required for CAPTURE MODE: scenarios - skill pre-fetches via odoo-doc-walkthrough (§ per-instance loop step 2.2) when not already supplied
 FEATURE CATALOG: <abs path to feature-catalog.jsonl>                   # optional; feeds Usage + feature list
 LANGUAGES: <resolved locale list, English-first>
 DOC SCOPE: screenshot-doc | full-guide
@@ -198,10 +206,16 @@ BROWSER MODE: headless | headed
 
 ## Documentation axes
 
-**Axis defaults** (omitting any field preserves today's behavior): DOC LAYER `appstore` (writes
-`static/description/index.html`); TONE `technical`; DOC SCOPE `screenshot-doc`; CAPTURE MODE
-`screens`. A dispatch that omits these fields behaves exactly as before - existing runs and tests
-are unaffected.
+**Axis defaults.** DOC LAYER `appstore` (writes `static/description/index.html`); TONE
+`marketing` when DOC LAYER resolves to `appstore` (an App-Store `index.html` is inherently
+buyer-facing, so this default also makes the copy/catalog pre-fetch in step 2.1 below FIRE by
+default, supplying `odoo-marketing-writer`'s REQUIRED `MARKETING COPY`/`FEATURE CATALOG` inputs -
+see § TONE); the `userguide` layer is unaffected by TONE (TONE governs only the appstore
+`index.html`, § TONE below). DOC SCOPE `screenshot-doc`; CAPTURE MODE `screens` - both unchanged
+from before. A bare dispatch that omits every axis field now produces a marketing-toned App-Store
+landing page by default: pass `TONE: technical` explicitly to keep the previous plain-technical
+`index.html` (previously the default, which left the pre-fetch un-fired and could BLOCK
+`odoo-marketing-writer` on its own REQUIRED inputs).
 
 **DOC LAYER precedence (multi-module runs).** A per-module `doc_layer` on the `doc-plan.yaml`
 `install_doc_sequence` entry (§ per-instance loop step 2 above) ALWAYS wins for that module; this
@@ -219,8 +233,7 @@ run-level axis is authoritative there.
 overview); `doc/index.rst` = the **Documentation** tab (technical guide). Keep marketing out of the
 RST and deep technical steps out of the HTML - do not duplicate content across the two.
 
-**TONE (appstore index.html tone).** `technical` (default) = a plain technical-documentation
-`index.html` (one `<h2>` per feature, OSM-grounded prose, screenshots). `marketing` =
+**TONE (appstore index.html tone).** `marketing` (default when DOC LAYER resolves to `appstore`) =
 `odoo-marketing-writer` assembles a brand-aware **App-Store landing page** per
 `references/app-store-template.md` (sanitizer-safe fragment - no `<html>/<head>/<body>`, no JS, no
 external CDN/Google-Fonts link; Bootstrap-5 utility classes; hex colors only; HTML entities;
@@ -228,7 +241,14 @@ relative image paths). The skill pre-fetches the copy from `odoo-content-draft`;
 `[Image: <slug>]` markers after capture and sources the Key Features grid from the feature catalog.
 Brand palette/fonts come from `context.md` brand tokens (Tier-2 SHARE; resolve via the
 resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`,
-i.e. `<SHARE_DIR>/context.md`) or the brief - never hardcode a vendor brand.
+i.e. `<SHARE_DIR>/context.md`) or the brief - never hardcode a vendor brand. `technical` (opt-in via
+`TONE: technical`) = a plain technical-documentation `index.html` intent (one `<h2>` per feature,
+OSM-grounded prose, screenshots). `odoo-marketing-writer` is the sole `appstore` writer regardless
+of TONE, and its `MARKETING COPY`/`FEATURE CATALOG` inputs are UNCONDITIONALLY REQUIRED (hard
+BLOCK if absent, per `odoo-marketing-writer.md` § Required inputs) - the copy pre-fetch above is
+gated on `TONE: marketing`, so an explicit `TONE: technical` dispatch does NOT trigger it and the
+caller must supply `MARKETING COPY` some other way or the writer BLOCKs. Prefer the `marketing`
+default unless a caller has its own copy-supply path for `technical`.
 
 **DOC SCOPE (userguide structure).** `screenshot-doc` (default) = one section per feature with field
 text + a screenshot. `full-guide` = `odoo-user-doc-writer` writes a structured guide with
