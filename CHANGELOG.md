@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `git-toolkit` - the bounded-read allowlist is single-sourced in `git-delegation-decision.md`,
   with the `odoo-ai-agents` copy cross-referencing it instead of duplicating it; `bisect-run` is
   now classified as a reversible-write, distinct from the read-only `bisect-read`.
+- `git-toolkit` - bumped to 0.6.0, formalizing this PR's git-toolkit changes.
 
 ### Fixed
 
