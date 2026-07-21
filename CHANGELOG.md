@@ -6,6 +6,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.17.0] - 2026-07-21
+
+### Added
+
+- `odoo-ai-agents` - agent-role SSOT: every agent now declares a `leaf` or `coordinator` role in
+  `skill_tool_deps.json`, backing a strict lint that fails an agent missing a role or missing its
+  never-spawn self-declaration; a new advisory (non-blocking) leaf-guard nudge fires when a
+  dispatched leaf reaches for `Agent`, a git-mutating `Bash` call, or `Skill(git-ops)`.
+- `odoo-ai-agents` - `snippets/odoo-era-boundaries.md`, a new SSOT for Odoo version-era boundaries
+  (legacy vs OWL-2 frontend, the `owl` 2.x library package rollout, the Hoot test framework, and
+  the `SavepointCase` absorption point), consumed by the coding-guidelines index, the
+  `odoo-coder`/architect read-before-write steps, forward-port, deprecation-audit, test-writing,
+  risk-overview, and the UI-review era-detection step. A v8-v13 request now falls back to the
+  14.0 baseline plus an OSM lookup at the call site instead of getting no guidance at all.
+- The generator's spawn-truth and workflow lints - agent-role coverage, orchestrator-nl spawn
+  detection, auto-skip-needs-`when:`, no-haiku-feature-verdict - and `check_workflows.py` are now
+  enforced in CI (`make validate` runs both `--strict`; a dedicated workflows-check CI job was
+  added), closing the gap where these checks existed but were warn-first or not run in CI at all.
+
+### Changed
+
+- `odoo-ai-agents` - corrected the `SavepointCase` era boundary to **v15** (`TransactionCase`
+  absorbs the class-level savepoint there, not v16 as several docs previously stated) and the
+  `owl` 2.x library package boundary to **v16**, across forward-port, deprecation-audit,
+  test-writing, intent-extractor, the upgrade classification table, and risk-overview - all now
+  citing the era-boundaries SSOT.
+- `odoo-doc-illustration` now defaults the App Store landing layer to `TONE=marketing`, so a bare
+  run pre-fetches marketing copy/catalog instead of hard-blocking on the marketing writer;
+  `odoo-doc-walkthrough`'s scenario-capture mode gains the same walkthrough pre-fetch.
+- `odoo-ai-agents` - reconciled producer/consumer handoff contracts across the upgrade, coding,
+  and doc pipelines: `odoo-diff-comparator` now emits a per-module verdict (including `MIXED`)
+  plus `whole_module_absorbed`/`absorbing_core_feature` flags, and `odoo-modules-upgrade` gates on
+  that verdict instead of counting findings; `odoo-coder` now handles a `NEEDS_NEXT:
+  odoo-instance` reply by self-provisioning inline and re-launching instead of stalling;
+  per-module `doc_layer` now threads through `doc-plan.yaml` -> planner -> writer-launch (the
+  run-level axis is the fallback, never the primary); dispatch briefs carry explicit
+  `mode:`/`verify_mode:` keys.
+- `odoo-ai-agents` - routing cleanup: duplicated natural-language triggers removed from
+  `odoo-qa-suite`/`odoo-support-triage` (the owning workflows already carry them), several skills
+  now name the `odoo-instance` skill front door instead of the raw `odoo-instance-ops` agent, and
+  Out-of-Scope/handoff boundaries were corrected across forward-port, rebase, modules-upgrade,
+  perf-audit, gap-analysis, and customization-inventory; command references in prose now carry a
+  leading `/`.
+- `git-toolkit` - the bounded-read allowlist is single-sourced in `git-delegation-decision.md`,
+  with the `odoo-ai-agents` copy cross-referencing it instead of duplicating it; `bisect-run` is
+  now classified as a reversible-write, distinct from the read-only `bisect-read`.
+
+### Fixed
+
+- `odoo-ai-agents` - `detect-intent.sh` matched on unanchored substrings, so strings like
+  "view-in-review" or "repo-in-report" could trip an unrelated domain bucket; matching is now
+  word-boundary-anchored, and Odoo-specific hints are gated on an actual Odoo anchor.
+- `odoo-ai-agents` - opt-in browser MCP families (playwright, pagecast, and their headed variants)
+  were not auto-approved in-session because the permission matcher only recognized the
+  fully-qualified tool name; it now also accepts the bare `mcp__<server>__` prefix.
+- `odoo-ai-agents` - a conditional UI-review suggestion emitted via the deprecated
+  `SUGGESTED_NEXT` field was silently dropped once a status block was present; it now goes
+  through the fenced continuation `next:` array, which the parser actually reads.
+- `odoo-ai-agents` - the `## MCP tools` generated-marker block was missing entirely from
+  `odoo-i18n`, `odoo-qa-suite`, `odoo-test-writing`, and `odoo-icon-design`; the generator
+  preflight now hard-fails when a registered, non-empty skill is missing the heading instead of
+  leaving it silently unpopulated.
+- `odoo-ai-agents` - `odoo-qa-suite` no longer claims, in its own body or the README, to launch
+  the `odoo-test-writer` agent; it stays static/inline, matching actual behavior.
+- `odoo-ai-agents` - dropped an orphan `budget.max_gate_l1_autopass` field from the
+  workflow-harness schema documentation, and stale project-relative `.odoo-ai` narrative left
+  over from the 4.16.0 state-root migration.
+- `git-toolkit` - `github-operator` now hard-gates a merge to `main`/`master` on a green CI status
+  instead of sourcing the gate from the nesting-protocol doc; `git-squash-push`'s human-confirm
+  gate now sits before the destructive `reset --soft` step rather than only in front of the push.
+
 ## [4.16.0] - 2026-07-17
 
 ### Added
