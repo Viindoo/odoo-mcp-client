@@ -6,6 +6,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.17.1] - 2026-07-24
+
+A zero-trust hardening sweep of the runtime instructions consumed by executor agents: 7 parallel
+domain surveys, an independent adjudication pass, an adversarial solution review, and 4 post-change
+reviews resolved 80+ verified defects across 100 files. Two of them change runtime behaviour - see
+the first two Changed entries.
+
+### Changed
+
+- `odoo-ai-agents` - a multi-wave coding run now lands on ONE run-level `run-integration` branch:
+  every wave cherry-picks onto it and AUTO-ADVANCES on a green cumulative close-gate, and the
+  terminal `integrate` land-tail opens a SINGLE pull request once after the final wave. This
+  replaces one squashed PR per wave, which produced N stacked PRs on unmerged bases and stopped for
+  a human at every wave boundary. Hard rule 5 is reconciled accordingly: the branch push and PR
+  open are part of drive-to-done, and the only L2 gate left in a coding run is the outward merge.
+  There is still no auto-merge.
+- `odoo-ai-agents` - browser exclusivity is now **one driver per MCP family** rather than a global
+  single-flight. The previous rationale ("one shared Chromium regardless of family") was factually
+  wrong: the six registered families are distinct processes with isolated profiles. Same-family
+  exclusivity is retained; cross-family concurrency is bounded by the `concurrency-guard.md` pool
+  cap plus an explicit RAM guardrail, since nothing actually enforces a browser RAM budget
+  (`resource_limits.sh` caps `odoo-bin` only, not browsers).
+- `odoo-ai-agents` - any DYNAMIC (unplanned) run node now gates at L2, not only source-writing
+  ones; the static-node tie-break is the lowest node id.
+
+### Fixed
+
+- `odoo-ai-agents` - version boundaries re-grounded against the Odoo Semantic index (v8-v19):
+  `patch()` is 3-arg at **v15/v16** and 2-arg only from **v17** - previously asserted as v16 in
+  several files, which put the frontend coder and the code reviewer in direct conflict inside the
+  same coding loop; `odoo.define()`, `web.Widget` and `AbstractField` are **not** removed at v16
+  (loadable through v17, absent from the index by v18); `t-out` is v15+; the manifest `assets` dict
+  is v15+; Hoot is v18+ and QUnit v17 and below; `check_access(operation)`.
+- `odoo-ai-agents` - removed hardcoded vault folder paths from the sales skills in favour of an
+  optional env-rooted, layout-agnostic read, and extended the pre-commit hook plus the
+  confidentiality-scan CI job so that convention cannot return to a public repo.
+- `odoo-ai-agents` - corrected the run-harness orchestration registry entry that still described
+  the superseded per-wave landing model, and regenerated the orchestration map from it.
+- `odoo-ai-agents` - collapsed facts that had drifted across files to one definition plus
+  cross-references: the doc language resolver, the Med-tier acceptance depth, the browser pool cap,
+  the MCP tool/resource counts in the IDE snippets, and the skill count in the Codex manifest.
+- `odoo-ai-agents` - contract clarifications for executor agents: `WORKTREE_PATH` is load-bearing
+  with no safe default, the coordination ledger root points at its SSOT instead of an inline git
+  call, a stray `gate_tier` in a continuation block is now `risk_level`, `odoo-gap-analysis` routes
+  buildable-but-trivial work onward instead of reporting DONE, and `odoo-acceptance` gains a
+  bounded UNVERIFIED path distinct from its FAIL loop.
+- `odoo-ai-agents` - guard tests retargeted to assert the new contracts rather than the old
+  wording: the resource-teardown fingerprints now pin the per-family rule and go red if it is
+  reverted, the agent-body convention test proves its own predicate can fail, and the wave-gate
+  tests were tightened.
+
 ## [4.17.0] - 2026-07-21
 
 ### Added
