@@ -10,7 +10,9 @@ Hard rules enforced (always fatal - exit 1 on any violation):
   4. `output_dir` starts with '.odoo-ai/'.
   5. Each phase has exactly one of: skill, inline (true), agent.
   6. For phases with `skill`: the skill directory exists under plugins/.../skills/.
-  7. `model_tier` in {haiku, sonnet, opus, inherit}.
+  7. `model_tier` in {haiku, sonnet, opus, inherit}; `inherit` is permitted ONLY on an
+     `inline: true` phase - a `skill`/`agent` authoring phase produces net-new content and must
+     declare a concrete tier (sonnet floor).
   8. `name` matches the file stem.
   9. `description` does not end with '.', '!', or '?'.
  10. Phases with `skill` or `agent` (not inline) must have a non-empty `nl_trigger`.
@@ -271,6 +273,17 @@ def _validate_phase(phase: dict, phase_idx: int, workflow_name: str) -> list[str
     elif tier not in ALLOWED_MODEL_TIERS:
         errors.append(
             f"{prefix_id}: model_tier '{tier}' not in {sorted(ALLOWED_MODEL_TIERS)}"
+        )
+
+    # model_tier: inherit is legal ONLY on an `inline: true` assembler phase (_schema.md §6):
+    # a `skill:`/`agent:` phase AUTHORS net-new content and must declare a concrete tier
+    # (sonnet floor). An inline phase merely stitches already-authored prior-phase outputs, so
+    # it may defer to the caller's model.
+    if tier == "inherit" and not has_inline:
+        errors.append(
+            f"{prefix_id}: model_tier 'inherit' is only permitted on an 'inline: true' "
+            f"assembler phase; a 'skill'/'agent' authoring phase must declare a concrete "
+            f"tier (sonnet floor)"
         )
 
     return errors

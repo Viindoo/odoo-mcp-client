@@ -801,8 +801,9 @@ referencing skills via the marker-block or direct reference.*
 The per-wave INTEGRATION is owned DIRECTLY by `run-harness` as it walks the coding waves of an
 APPROVED plan - there is **no separate git-executor skill**; `run-harness` owns this responsibility
 directly. A coding wave is a RUN-DAG node with `approach_kind: wave`; run-harness drives it via its
-§ Between-wave integration procedure. It lands multiple related MODULE changes as one reviewed,
-squashed PR without ever touching the principal branch directly. run-harness does NOT choose
+§ Between-wave integration procedure. It lands the whole run's related MODULE changes as ONE reviewed,
+squashed PR - opened once after the FINAL wave, NO per-wave PR - without ever touching the principal
+branch directly. run-harness does NOT choose
 agent/model and does NOT self-derive a plan - it iterates the wave's MODULES and INVOKES `odoo-coding`
 per module (which owns count+model) and consumes the plan's MODULE list + wave-batched module-DAG +
 topology + the **Block 2W** worktree lineage. The outer unit is the MODULE; the work-item is
@@ -812,14 +813,15 @@ topology + the **Block 2W** worktree lineage. The outer unit is the MODULE; the 
 ```
 principal branch (untouched throughout)
   |
-  +-- integration branch  (wave/integration-<slug>)   <- forked per Block 2W lineage
-        |                                                (wave-1 forks base; wave-(N+1) forks integration@wave-N)
+  +-- run-integration branch  (run-integration-<slug>)   <- forked from base ONCE at run start
+        |                                                    (every wave's worktrees fork from IT)
+        |  ----- per wave N (auto-advance on green; NO per-wave PR) -----
         +-- mod-A worktree  (wave/mod-<slug>-a)  <- INVOKE odoo-coding (owns its own coder count+model)
         +-- mod-B worktree  (wave/mod-<slug>-b)  <- INVOKE odoo-coding
         +-- mod-C worktree  (wave/mod-<slug>-c)  <- INVOKE odoo-coding
               |
               (per module: the odoo-coder coordinator COMMITS + returns the SHA; run-harness
-               cherry-picks A -> B -> C onto integration, verify + checkpoint, saga on failure)
+               cherry-picks A -> B -> C onto run-integration, verify + checkpoint, saga on failure)
               |
         integrated cross-cutting review  (inline, orchestrating context)
               |
@@ -827,11 +829,13 @@ principal branch (untouched throughout)
               |
         cumulative regression close-gate  (growing cumulative_modules suite GREEN)
               |
-        1 PR  (integration -> principal)
+        close wave -> AUTO-ADVANCE to next wave (loop back; next wave forks from run-integration)
+        |  ----- after the FINAL wave: terminal `integrate` land-tail, ONCE -----
+        squash run-integration + tree-identity verify  (backup ref + git diff --quiet)
               |
-        squash + tree-identity verify  (backup ref + git diff --quiet)
+        fresh FIRST-push (non-force) + open ONE PR  (run-integration -> principal)
               |
-        STOP at the L2-squash-gate  (run-harness never merges)
+        STOP at "PR opened"  (drive-to-done; run-harness never merges)
               |
         merge + post-merge cleanup owned by odoo-pr-monitoring (L2-merge-gate)
 ```
@@ -850,8 +854,9 @@ workflow system.
   context that holds git authority and the legal `odoo-code-review` call site, so it owns the
   integration with no schema change.
 - **Not a separate git-executor skill.** The residual per-wave work after the worktree-graph refactor
-  is a single coherent responsibility - cherry-pick-in-order + saga + integrated cross-cutting review
-  + cumulative close-gate + one-squashed-PR + the in-context squash gate. A standalone skill for it
+  is a single coherent responsibility - cherry-pick-in-order onto the ONE run-integration branch + saga
+  + integrated cross-cutting review + cumulative close-gate + auto-advance, then the ONE terminal
+  squashed PR at run end. A standalone skill for it
   would merely rename run-harness's own loop with no real separation of concerns. Folding it into the
   driver keeps the coding chain shorter
   (`main -> odoo-coding -> odoo-coder -> {workers | git-ops (internal dispatch)}`, git-ops running inline
@@ -866,12 +871,13 @@ context via `approach_kind: wave`, not a standalone skill and not a `team_patter
 
 | Step | Action | Actor |
 |-------|--------|-------|
-| 0 - Safety verify (consume) | Consume the plan's MODULE list + module-DAG + topology + Block 2W lineage; run the disjoint module-ownership safety audit; plan-staleness check. No plan-gate (Plan-Mode approval upstream is the advance's human gate; the STATIC wave node advances at L1 / drive-to-done - the two human L2 gates are the in-context squash and the downstream merge) | run-harness (orchestrating context) |
-| 1 - Integration branch + worktrees | Fork `integration@wave-N` per Block 2W lineage, then `git worktree add -b wave/mod-<slug>-X` from integration (dependents lazily) | git-toolkit:git-ops skill via run-harness |
+| Run start (ONCE) | Fork ONE `run-integration` branch from base/principal | git-toolkit:git-ops skill via run-harness |
+| 0 - Safety verify (consume) | Consume the plan's MODULE list + module-DAG + topology + Block 2W lineage; run the disjoint module-ownership safety audit; plan-staleness check. No plan-gate (Plan-Mode approval upstream is the advance's human gate; the STATIC wave node advances at L1 / drive-to-done - the ONLY human L2 gate in the coding run is the downstream merge; branch-push + PR-open are drive-to-done) | run-harness (orchestrating context) |
+| 1 - Worktrees (per wave) | `git worktree add -b wave/mod-<slug>-X` FROM the run-integration branch (dependents lazily); run-integration already carries all prior waves' code | git-toolkit:git-ops skill via run-harness |
 | 2 - Per-module: INVOKE odoo-coding | Per MODULE, sequentially INVOKE `odoo-coding` via the Skill tool (owns count+model); the `odoo-coder` coordinator authors+COMMITS in the provided worktree via git-ops and returns SHA(s) | run-harness (Skill tool) -> odoo-coding |
-| 3 - Cherry-pick + resolver (saga) | Cherry-pick A -> B -> C onto integration (serialized, verify + checkpoint after each); Sonnet resolver on conflict; saga rollback on unrecoverable failure | git-toolkit:git-ops skill via run-harness |
-| 4 - Close the wave | Inline integrated cross-cutting review over the INTEGRATED tree, then `odoo-code-review` inline from main context, then the cumulative regression close-gate (GREEN) | run-harness (orchestrating context) |
-| 5 - PR + squash + tree-identity -> STOP | Create 1 PR (integration -> principal); backup ref, squash to 1 commit, `git diff --quiet` vs backup; STOP at the L2-squash-gate | git-toolkit:git-ops skill via run-harness (PR + squash/verify) |
+| 3 - Cherry-pick + resolver (saga) | Cherry-pick A -> B -> C onto run-integration (serialized, verify + checkpoint after each); Sonnet resolver on conflict; saga rollback on unrecoverable failure | git-toolkit:git-ops skill via run-harness |
+| 4 - Close the wave -> AUTO-ADVANCE | Inline integrated cross-cutting review over the INTEGRATED tree, then `odoo-code-review` inline from main context, then the cumulative regression close-gate (GREEN); on green AUTO-ADVANCE to the next wave (NO per-wave PR) - the next wave forks from run-integration | run-harness (orchestrating context) |
+| 5 - After the FINAL wave: land-tail (ONCE) | Squash run-integration to 1 commit, `git diff --quiet` vs backup, fresh FIRST-push (non-force), open ONE PR (run-integration -> principal); STOP at "PR opened" | git-toolkit:git-ops skill via run-harness (squash/verify + first-push + PR) |
 | (merge) | Merge + post-merge cleanup at the L2-merge-gate | `odoo-pr-monitoring` (NOT run-harness) |
 
 ### 7.4 The spawner ban is leaf-only - run-harness legally invokes odoo-coding
@@ -946,7 +952,7 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
 │        │                                                                               │
 │        ▼  run-harness (orchestrating skill) - DRIVER LOOP                               │
 │   while RUN.status == NEEDS_NEXT and within budget:                                    │
-│     node = pick_ready(DAG ∪ dynamic_nodes)         # topo-order; tie → confidence desc │
+│     node = pick_ready(DAG ∪ dynamic_nodes)         # topo-order; tie → lowest node id │
 │     tier = resolve_gate(node)                      # --step raises floor, --auto lowers L1│
 │       L2 → ALWAYS human gate ; L1 → auto-pass(--auto)/gate(--step) ; L0 → auto-pass    │
 │     dispatch(node):  (3a) leaf skill INLINE (orchestrating context)                    │
@@ -1051,11 +1057,13 @@ references a driver-required workflow directly.
 ```
 
 **`approach_kind: integrate`** is the terminal *land* node (the tail of every `writes-files`
-plan). Its dispatch is not a skill/agent/workflow call: `run-harness` invokes
-`git-toolkit:git-ops` to push the change's branch + open a PR against the principal branch, then
-materializes a dynamic `next` node -> `odoo-pr-monitoring` at `gate_tier: L2` (the single outward
-merge gate). Operational SSOT for this dispatch: `run-harness` SKILL.md § "`integrate` node
-dispatch (the land tail)".
+plan), dispatched ONCE after the final coding wave closes green. Its dispatch is not a
+skill/agent/workflow call: `run-harness` invokes `git-toolkit:git-ops` to squash the run-integration
+branch, fresh FIRST-push it (non-force - no history rewrite, so no destructive-op gate fires), and
+open ONE PR against the principal branch, then materializes a dynamic `next` node ->
+`odoo-pr-monitoring` at `gate_tier: L2` (the single outward merge gate). There is exactly ONE PR per
+run - never one per wave. Operational SSOT for this dispatch: `run-harness` SKILL.md § "`integrate`
+node dispatch (the land tail)".
 
 **Three coordination surfaces (no overlap).** A run coordinates over three distinct surfaces,
 each answering a different question. (1) The **blackboard** above is the driver-only *DAG state
@@ -1118,8 +1126,10 @@ which also enforces the derivation below). They replace the hardcoded chat-only 
   - `chat-only` → emits to chat only → skip Plan Mode.
 - **`default_gate_tier`** is a per-SKILL registry value derived deterministically from
   `(instance_touching, output_mode, outward)`, checked in this order (`_derive_gate_tier`):
-  - **L2** if `outward` - an outward git merge/push (e.g. odoo-pr-monitoring's
-    merge-to-principal). **ALWAYS human gate; the autonomy dial can never lower L2.**
+  - **L2** if `outward` - an outward git MERGE to the principal branch (e.g. odoo-pr-monitoring's
+    merge-to-principal). **ALWAYS human gate; the autonomy dial can never lower L2.** (The terminal
+    `integrate` land-tail's fresh FIRST-push of run-integration + PR-open is NOT `outward` - it is a
+    non-destructive first push and runs as drive-to-done, not L2.)
   - **L2** else if `instance_touching` - touches a shared live instance. **ALWAYS human gate.**
   - **L1** else if `output_mode == writes-files` - writes internal files. Auto-pass under
     `--auto` within budget; gated under `--step`.
@@ -1128,11 +1138,12 @@ which also enforces the derivation below). They replace the hardcoded chat-only 
 - **The between-wave integration (`approach_kind: wave`) node tier is L1** - but this is a
   run-harness NODE tier applied by the driver, NOT a skill's registry `default_gate_tier`
   (`_derive_gate_tier` has no wave branch). A STATIC `wave` advance DRIVES to done: run-harness's
-  per-wave integration is worktree-isolated, so its instance touches are EPHEMERAL test DBs, its
-  squash/force-push is the in-context L2-squash-gate presented as the wave closes, and the only
-  irreversible landing is the downstream `outward` merge (odoo-pr-monitoring's L2-merge-gate).
-  Auto-pass under `--auto`; gated under `--step`. A DYNAMIC (unplanned) source-writing wave is NOT
-  a static plan node - it stays L2 via run-harness's dynamic-source-write rule (§8.1 driver loop).
+  between-wave integration is worktree-isolated, so its instance touches are EPHEMERAL test DBs; on a
+  GREEN cumulative close-gate the wave AUTO-ADVANCES to the next wave (NO per-wave PR), and the only
+  irreversible landing is the downstream `outward` merge (odoo-pr-monitoring's L2-merge-gate) of the
+  single run-level PR the terminal `integrate` land-tail opens once after the final wave. Auto-pass
+  under `--auto`; gated under `--step`. A DYNAMIC (unplanned) wave is NOT a static plan node - it
+  stays L2 via run-harness's all-dynamic-L2 rule (§8.1 driver loop; GATE E-4).
 - **Per-node override** lives in `run-<id>.json` (a node may raise its tier, e.g. a coder told
   to write outside the namespaced state root), never in the registry.
 

@@ -73,7 +73,12 @@ Work in rounds; fire independent calls in the same message within a round.
 ### Round 0 - Load context
 
 Read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit; Markdown bullets, `- **key**: value` format). Extract:
-- `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir`.
+- `odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir`, and (optional)
+  `instance_base_url_b` - see `docs/odoo-ui-knowledge.md` § "Context file keys consumed by the
+  visual skills" for the full definitions. `instance_base_url_b` is set ONLY for a genuine
+  two-instance comparison (two separate builds/hosts); when absent, state B is the SAME
+  `instance_base_url` re-navigated after the change under test (module install/uninstall, theme
+  toggle, in-place upgrade) is applied.
 
 If absent or key missing, fall back to `$ODOO_AI_HOME/instances.toml` (resolve via `scripts/lib/resolve_instances.sh`; see `snippets/instance-resolution.md`) for instance URL and OSM
 `list_available_versions` for Odoo version. Ask the user (plus the two states to compare) in a
@@ -106,7 +111,9 @@ For each in-scope screen at each agreed breakpoint:
 
 ### Round 3 - Capture current + diff (browser)
 
-Switch to state B instance URL, then for each screen:
+Switch to state B's instance URL - `instance_base_url_b` when this is a two-instance comparison,
+otherwise re-navigate the SAME `instance_base_url` after applying the change under test (module
+install/uninstall, theme toggle, in-place upgrade) - then for each screen:
 1. `resize_page` to same breakpoint; `take_screenshot` → `<screenshot_baseline_dir>/current/<screen>-<breakpoint>.png`.
 2. Compare pairs. Where pixel diff is ambiguous, use `evaluate_script` to compare DOM structure/text of the region.
 

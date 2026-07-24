@@ -273,8 +273,9 @@ reads a number as a directive. Planning is binding at the inter-module layer (wa
 module-DAG + integration cadence); intra-skill coordination (per-module dispatch, backend-first
 leg, count/model) stays the specialist skill's.
 
-The integration cadence the plan reserves (per-wave cherry-pick + the saga rollback/resume that
-`run-harness`'s between-wave integration will run) follows the SSOT
+The integration cadence the plan reserves (per-wave cherry-pick onto the ONE run-integration branch +
+the saga rollback/resume + per-wave auto-advance, then the SINGLE run-level PR opened once after the
+FINAL wave - NO per-wave PR - which `run-harness`'s between-wave integration will run) follows the SSOT
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`; planning references it so the plan
 reserves that behavior - it does NOT run the loop itself. The plan likewise reserves the per-wave
 cumulative close-verify (`run-harness`'s between-wave close-gate) the planner surfaces as each coding-wave node's

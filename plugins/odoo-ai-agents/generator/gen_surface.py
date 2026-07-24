@@ -49,7 +49,6 @@ MCP_HEADING_RE = re.compile(r"^## MCP tools", re.IGNORECASE)
 SKIP_SKILL_DIRS = {
     "odoo-campaign-plan",
     "odoo-code-review",
-    "odoo-coding",
     "odoo-competitive-brief",
     "odoo-content-draft",
     "odoo-deal-followup",
@@ -245,7 +244,8 @@ def gen_orchestration_map(orch: dict[str, dict]) -> str:
     lines.append("## Legend")
     lines.append("")
     lines.append("- **spawn_class** - `leaf` (runs inline) · `orchestrator-nl` (chains other skills via")
-    lines.append("  natural-language dispatch, no subagent spawn) · `spawner-agent` (dispatches a named")
+    lines.append("  natural-language dispatch; no NAMED-teammate subagent spawn - see a skill's own spawns")
+    lines.append("  cell for any anonymous review/resolver subagent) · `spawner-agent` (dispatches a named")
     lines.append("  subagent).")
     lines.append("- **handoff** - Context-Handoff Protocol (CHP) tier for resuming subagents across turns.")
     lines.append("  `send-message` (Tier-A: lead resumes a named worker via SendMessage, avoiding")

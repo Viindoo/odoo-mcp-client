@@ -175,8 +175,11 @@ phrase it that way.
 
 ## Output - locked file-handoff contract
 
-All outputs live in `<SHARE_DIR>/gap-analysis/<slug>-<date>/`. The skill is no longer chat-only: it
-writes the three artifacts below, then prints a compact summary plus these paths to chat.
+All outputs live in `<SHARE_DIR>/gap-analysis/<slug>-<date>/`. The skill writes state-root
+artifacts (L0/L1, per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` risk tiers) - it
+writes the three artifacts below, then prints a compact summary plus these paths to chat. It still
+**skips Plan Mode**: a state-root-only writer is chat-only for the Plan-Mode gate (Plan Mode gates
+git-TRACKED writes, not state-root writes - see `odoo-intake/SKILL.md` § Plan Mode decision tree).
 
 ### `gap-matrix.jsonl` (machine SSOT - one JSON object per requirement)
 
@@ -220,7 +223,7 @@ available"; word `unknown` rows as "to be confirmed" (§ Standalone-first fallba
     "has_nontrivial": false,
     "effort_days": {"min": 0, "max": 0}
   },
-  "next": null
+  "next": []
 }
 ```
 - `has_nontrivial` is `true` iff any `custom` row is present, OR any `extension` row has
@@ -228,7 +231,18 @@ available"; word `unknown` rows as "to be confirmed" (§ Standalone-first fallba
   `_inherit` point) does NOT trigger design on its own. This mirrors `odoo-brl`'s Extension-M
   (skips design) vs Extension-L/Custom-XL (routes to design) split, so the two classifiers are
   interchangeable (`odoo-brl/SKILL.md` § Stay format-compatible).
-- `next` is `"odoo-solution-design"` when `has_nontrivial` is true, else `null`.
+- `next` is a JSON **array** mirroring the chat continuation block's `next[]` (empty `[]`, or one
+  entry `[{"skill": "..."}]`) - never a bare string/null. Three branches, evaluated in order (same
+  split `odoo-brl` uses for Extension-L/Custom-XL vs Standard/Config/Extension-M, § Stay
+  format-compatible):
+  1. `has_nontrivial` true -> `next: [{"skill": "odoo-solution-design"}]`.
+  2. `has_nontrivial` false BUT buildable work exists (any row `classification` in
+     `{config, extension, custom}` - i.e. NOT purely `standard` activation, equivalently
+     `meta.config + meta.extension + meta.custom > 0`) -> `next: [{"skill": "odoo-planning"}]`
+     (mirrors `odoo-brl`'s "Standard/Config/Extension-M only -> `odoo-planning` instead of
+     `odoo-coding` directly").
+  3. Purely `standard` (every row `classification: standard`, i.e.
+     `meta.config == meta.extension == meta.custom == 0`) -> `next: []`.
 - `effort_days` is the deduped min/max from the band table above.
 
 ## Examples
@@ -240,7 +254,7 @@ Action: One cohesive list -> ONE `odoo-gap-analyzer` worker (sonnet). It writes
 `clusters/01-finance.jsonl`; the orchestrator emits the artifact set under
 `<SHARE_DIR>/gap-analysis/<slug>-<date>/`. Rows: multi-company invoicing -> standard/S; approval
 workflows -> extension/M (`mail.activity.mixin`); custom loyalty -> custom/XL. `has_nontrivial:
-true` -> `next: odoo-solution-design`.
+true` -> `next: [{skill: odoo-solution-design}]` (branch 1).
 
 **Example 2 - larger scope, clustered fan-out:**
 Prompt: "Classify these 40 requirements across manufacturing, inventory, accounting and HR for a
@@ -254,7 +268,14 @@ dedup shared builds (e.g. two HR reqs that both extend `hr.employee` are one bui
 
 Emit the chat continuation block per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md`
 (status / produced / next); it MUST mirror `gap-continuation-contract.json`. `produced` lists the
-three artifact paths. When `meta.has_nontrivial` is true: `status: NEEDS_NEXT`,
-`next: odoo-solution-design` with inputs `{gap_report: <path>, gap_matrix: <path>, items: [<req_id of the custom rows and the extension rows with effort_tier L/XL that made has_nontrivial true>]}`
-and `risk_level: L1`. Otherwise `status: DONE`, `next: []`. Surface every `grounded: unknown` row
-in the risk flags so the human can supply an OSM index or checkout before design proceeds.
+three artifact paths. Three branches, evaluated in order (mirrors `odoo-brl`'s
+Extension-L/Custom-XL vs Standard/Config/Extension-M split, § Stay format-compatible):
+1. `meta.has_nontrivial` true -> `status: NEEDS_NEXT`, `next: [{skill: odoo-solution-design, reason: "non-trivial item(s) need a designed-and-approved solution before code", inputs: {gap_report: <path>, gap_matrix: <path>, items: [<req_id of the custom rows and the extension rows with effort_tier L/XL that made has_nontrivial true>]}, risk_level: L1}]`.
+2. `meta.has_nontrivial` false BUT buildable work exists (any row `classification` in
+   `{config, extension, custom}` - not purely `standard` activation) -> `status: NEEDS_NEXT`,
+   `next: [{skill: odoo-planning, reason: "one-approach (standard/config/extension-M) work still needs the mandatory minimal plan before coding", inputs: {gap_report: <path>, gap_matrix: <path>, items: [<req_id of every non-standard row>]}, risk_level: L1}]` (mirrors `odoo-brl`'s
+   "Standard/Config/Extension-M only -> `odoo-planning` instead of `odoo-coding` directly").
+3. Purely `standard` (every row `classification: standard`) -> `status: DONE`, `next: []`.
+
+Surface every `grounded: unknown` row in the risk flags so the human can supply an OSM index or
+checkout before design proceeds.

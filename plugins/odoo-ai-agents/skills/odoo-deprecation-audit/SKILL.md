@@ -127,10 +127,13 @@ version-range table) rather than trusting an OSM MISS as "symbol absent". Scan A
 
 **Round 3b - JS patch audit (when migrating from v8-v13 or from v17 to v18+):** Call
 `module_inspect(name=<scope>, method='js', odoo_version='<version>')` to enumerate all legacy
-`web.Widget`-based patches. Era1 (v8-v13) patches require manual OWL rewrites because the Widget
-API was removed in v16. Flag each patch as BREAKING if target version is v14+ and the patch still
-references `AbstractField`, `FieldWidget`, or `web.Widget`. Fire in parallel with Round 3 if both
-apply.
+`web.Widget`-based patches. Era1 (v8-v13) patches require manual OWL rewrites because the legacy
+Widget API is deprecated from v14 and OWL becomes the primary component path from v16 onward -
+`web.Widget`/`AbstractField` are NOT actually removed at v16 (see
+`references/era-reference.md`), but usage declines from v16 and the symbols are absent from the
+OSM index by v18, so Era1 patches still need rewriting to stay supportable at the target. Flag
+each patch as BREAKING if target version is v14+ and the patch still references
+`AbstractField`, `FieldWidget`, or `web.Widget`. Fire in parallel with Round 3 if both apply.
 
 When the target version is v18 or later, also audit JS test files for framework migration. Call
 `js_test_inspect` for each module that has JS tests:

@@ -65,7 +65,10 @@ Skill **always operates without OSM**. All logic runs on user-provided text.
 - Current pipeline stage (Qualified / Proposal sent / Negotiation / Demo done / Contract review)
 - Prior commitment / promise made
 
-**Optional inputs:** email/note thread; expected close date; deal size category (Small <$2K / Medium $2K-$20K / Large >$20K); existing Odoo license; multi-year preference.
+**Optional inputs:** email/note thread; expected close date; deal size category (Small / Medium /
+Large - thresholds and currency are region-specific, so use `<small-threshold> <currency>` /
+`<large-threshold> <currency>` placeholders, or the real bands from `<SHARE_DIR>/context.md` if
+present, rather than assuming a fixed currency); existing Odoo license; multi-year preference.
 
 If the user pastes an email thread without context, extract required fields from it first, then confirm before proceeding.
 

@@ -76,7 +76,7 @@ follow, sourced from `odoo-version-pivots.md`. For example:
     VERSION RULES APPLIED (v18):
     - XML: `<list>` not `<tree>`; always-invisible field needs `<!-- invisible: reason -->` XML comment
     - Python: `_compute_display_name` not `name_get()`
-    - ACL: `check_access(mode)` not `check_access_rights()` + `check_access_rule()`
+    - ACL: `check_access(operation)` not `check_access_rights()` + `check_access_rule()`
     (omit file types not in scope for this task)
 
 This sticky note survives context compaction and is verified by the reviewer. A self-citation

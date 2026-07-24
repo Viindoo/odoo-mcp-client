@@ -96,8 +96,8 @@ indicative and frozen at v18; new pivots live ONLY in
 
 | Break | Affected versions | Fix |
 |-------|------------------|-----|
-| `odoo.define()` / `web.Widget` / `AbstractField` | v14 (deprecated) -> v16 (removed) | Rewrite as OWL component with `patch()` / `useState` / `useService` |
-| `FieldWidget` / `AbstractField` from web module | v16+ removed | Route to `odoo-coding` (frontend leg) for OWL rewrite |
+| `odoo.define()` / `web.Widget` / `AbstractField` | v14-v15 (deprecated) - NOT removed at v16; absent from the OSM index by v18 | Rewrite as OWL component with `patch()` / `useState` / `useService` |
+| `FieldWidget` / `AbstractField` from web module | v14 (deprecated) - NOT removed at v16; absent from the OSM index by v18 | Route to `odoo-coding` (frontend leg) for OWL rewrite |
 | Legacy asset bundle keys (`web.assets_backend` manifest shape) | v15+ | Update `__manifest__.py` `assets` dict to new bundle format |
 | SCSS `@import "variables"` | v16+ | Replace with `@use "variables" as *` + `math.div()` for division |
 | `@import` for SCSS files that moved | any | Verify import paths against `module_inspect(name='<module>', method='assets', odoo_version='auto')` at target |

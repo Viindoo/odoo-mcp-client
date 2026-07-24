@@ -21,6 +21,15 @@ description: >
 
 Strategist / CEO needing board-ready competitive intelligence - usable in board decks, investor updates, or strategy sessions. The CEO is the primary intelligence source; this skill structures and prioritizes what the user already knows. It does NOT invent competitive facts.
 
+**Scope is elastic** (mirrors `odoo-addon-diff`'s elastic scope). The default is the full board
+brief below (Rounds 0-5, 5-10 dimension capability matrix, GTM moves, threat assessment,
+recommended response). When the ask is narrower - ONE named feature only, not a landscape/GTM/
+threat review (e.g. `odoo-position-feature` dispatches this skill for a single feature's Odoo-vs-
+competitor check) - scale down to **single-feature mode**: skip the GTM (Round 3) and threat
+(Round 4) machinery and emit just the compact 2-column matrix in "Single-feature mode" under
+Output format. Full-brief output stays the default whenever scope is unspecified or spans more
+than one feature/dimension.
+
 ---
 
 ## Out of Scope
@@ -63,7 +72,11 @@ intelligence. MCP is additive verification only - never a blocker.
 
 ### Round 0 - Scope confirmation (at most 1 question)
 
-Identify: (1) subject (named competitor or landscape question), (2) scope (Product / Pricing / GTM / Positioning / All), (3) output use (board deck / investor update / internal / quick scan).
+Identify: (1) subject (named competitor or landscape question), (2) scope (Product / Pricing / GTM / Positioning / All, OR a single named feature), (3) output use (board deck / investor update / internal / quick scan).
+
+If the ask names ONE specific feature rather than a scope dimension (e.g. dispatched from
+`odoo-position-feature`), route to **single-feature mode**: skip directly to the compact
+2-column matrix in "Single-feature mode" under Output format - no Round 0 question needed.
 
 If prompt already names a competitor and ≥1 scope dimension, skip to Round 1.
 
@@ -78,7 +91,10 @@ Make reasonable defaults if user is partially specific.
 
 **Pre-Round (self-serve before marking Unknown):**
 
-1. `Read` vault dossier `Resources/Competitors/<name>.md` if it exists.
+1. If `$ODOO_AI_VAULT_HOME` is set (an OPTIONAL pointer to the caller's own private notes vault -
+   unset by default, no assumed folder layout - see `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`),
+   `Bash: find "$ODOO_AI_VAULT_HOME" -iname "<name>*.md"` for a note matching the competitor name
+   and `Read` the first hit. Otherwise skip this step - it is never required.
 2. `WebSearch` `"<competitor> features pricing"` (or `"<competitor> Vietnam ERP"` for local players).
 3. `WebFetch` competitor pricing/features page when URL is discoverable.
 
@@ -103,7 +119,7 @@ Build a comparison table on 5-10 dimensions. Select the most relevant from:
 | Dimension | Description |
 |---|---|
 | ERP module coverage | Which functional modules (Accounting, HR, Inventory, MRP, etc.) |
-| Vietnam localization | VAS accounting, e-invoice, labor law, tax compliance |
+| Localization & compliance | Local accounting standards, e-invoicing, labor law, tax compliance (per target market) |
 | Vertical depth | Industry-specific features (F&B, manufacturing, retail, services) |
 | AI / automation features | Built-in AI, workflow automation, chatbot, predictive analytics |
 | Integration ecosystem | Open API, marketplace connectors, EDI, 3rd-party SaaS |
@@ -157,6 +173,24 @@ Cite signals for each High/Critical. Do not assign High/Critical without a Round
 ---
 
 ## Output format
+
+### Single-feature mode (elastic scope)
+
+When scope is ONE named feature (see Role and Round 0), skip the full brief below entirely and
+emit only this compact block:
+
+```markdown
+# Competitive Brief: <Feature Name> vs <Competitor Name>
+
+| Your platform | <Competitor Name> |
+|---|---|
+| <capability + rating for this feature only> | <capability + rating for this feature only> |
+
+**Recommendation:** <1-2 sentence positioning takeaway - Odoo's unique strength or gap on this
+one feature, in place of the full Round 5 response plan>
+```
+
+### Full board brief (default)
 
 ```markdown
 # Competitive Brief: <Competitor Name>
@@ -216,7 +250,7 @@ _No moves listed = no signals provided by user._
 | Dimension | Threat level | Signals |
 |---|---|---|
 | ERP module coverage | <Low/Med/High/Critical> | <signal> |
-| Vietnam localization | <Low/Med/High/Critical> | <signal> |
+| Localization & compliance | <Low/Med/High/Critical> | <signal> |
 | Vertical depth | <Low/Med/High/Critical> | <signal> |
 | AI / automation | <Low/Med/High/Critical> | <signal> |
 | Integration ecosystem | <Low/Med/High/Critical> | <signal> |
@@ -264,7 +298,7 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-competitive-brief/references/examples.md`
 
 ## Notes
 
-- **Context integration**: read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) for platform roadmap signals and active competitor list. Load vault dossier `Resources/Competitors/<name>.md` automatically in Round 1 Pre-Round if it exists.
+- **Context integration**: read `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) for platform roadmap signals and active competitor list. When `$ODOO_AI_VAULT_HOME` is set, the same optional vault lookup runs automatically in Round 1 Pre-Round (step 1) - it is skipped gracefully, never blocking, when the variable is unset or no matching note is found.
 - **Confidentiality**: this skill structures information YOU provide. No external competitive databases; no invented pricing or GTM facts; no session retention. Treat output as internal-only. Remove/redact signals from customer conversations or partner disclosures before sharing externally.
 
 ## Continuation Contract

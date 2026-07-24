@@ -50,7 +50,7 @@ Cherry-pick in any order. Maximum parallelism.
 ```
 base ────────────────────────────────────────────► (unchanged)
              │
-             └─► integration ─── cherry-pick A ─── cherry-pick B ─── cherry-pick C ──► PR
+             └─► run-integration ─── cherry-pick A ─── cherry-pick B ─── cherry-pick C ──► close wave
                      │
                  mod-A ──► commit-A
                  mod-B ──► commit-B    (all parallel)
@@ -65,7 +65,7 @@ Dispatch sequentially; cherry-pick A before dispatching B.
 ```
 base ──────────────────────────────────────────────► (unchanged)
              │
-             └─► integration ─── cherry-pick A ─── cherry-pick B ──► PR
+             └─► run-integration ─── cherry-pick A ─── cherry-pick B ──► close wave
                      │
                  mod-A ──► commit-A
                               └─► (mod-B dispatched after mod-A commits)
@@ -80,7 +80,7 @@ then the sequential group.
 ```
 base ────────────────────────────────────────────────────────────► (unchanged)
              │
-             └─► integration ─── cherry-pick A ─── cherry-pick C ─── cherry-pick B ──► PR
+             └─► run-integration ─── cherry-pick A ─── cherry-pick C ─── cherry-pick B ──► close wave
                      │
                  mod-A ──► commit-A   (independent)
                  mod-C ──► commit-C   (independent, parallel with A)
@@ -96,18 +96,22 @@ Cherry-pick A first, then dispatch B and C in parallel.
 ```
 base ──────────────────────────────────────────────────────────────► (unchanged)
              │
-             └─► integration ─── cherry-pick A ─── cherry-pick B ─── cherry-pick C ──► PR
+             └─► run-integration ─── cherry-pick A ─── cherry-pick B ─── cherry-pick C ──► close wave
                      │
                  mod-A ──► commit-A
                               ├─► mod-B ──► commit-B   (parallel after A)
                               └─► mod-C ──► commit-C   (parallel after A)
 ```
 
-> Cross-WAVE lineage (Block 2W): `integration@wave-(N+1)` forks from `integration@wave-N`, NOT from
-> base/principal. The four topologies above describe the module ordering INSIDE one wave; the
-> fork-from-prior-integration edge threads each wave's integrated state into the next wave's forks
-> so a dependent module's worktree already carries its dependencies' committed code. SSOT for the
-> lineage: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 2W.
+> Cross-WAVE lineage (Block 2W): there is ONE **run-integration** branch, forked from base/principal
+> ONCE at run start; every wave's module worktrees fork from IT (not from base, not from a per-wave
+> branch). The four topologies above describe the module ordering INSIDE one wave; each wave ends at
+> the cumulative close-gate and AUTO-ADVANCES (no per-wave PR - the "close wave" terminal above). The
+> run opens exactly ONE PR after the FINAL wave (the terminal `integrate` land-tail). Because
+> run-integration already carries all PRIOR waves' cherry-picked code, a dependent module's worktree
+> already carries its dependencies' committed code (the fork-from-integrated-parent property, now on
+> ONE branch). SSOT for the lineage:
+> `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 2W.
 
 ---
 
@@ -126,7 +130,7 @@ records what run-harness did, not what to do.
 
 Generated: <ISO datetime>
 Principal branch: <name>
-Integration branch: wave/integration-<slug>
+Run-integration branch: run-integration-<slug>
 
 ## Repo Capability Card
 
@@ -175,17 +179,17 @@ odoo-coder's private concern, not logged here.)
 | Integrated cross-cutting review | Opus | <summary> | <yes/no + detail> |
 | odoo-code-review | odoo-code-review skill | <findings> | <yes/no + detail> |
 
-## PR
+## PR (ONE per run - opened once after the final wave)
 
-URL     : <to be filled>
+URL     : <to be filled by the terminal integrate land-tail>
 Squash  : <backup ref> -> tree-identity <confirmed | FAILED>
 Status  : <open | merged | closed>
 
 ## Cleanup
 
-- [ ] module worktrees removed
-- [ ] module branches deleted
-- [ ] Integration branch deleted (after merge)
+- [ ] per-module worktrees removed (all waves)
+- [ ] per-module branches deleted (all waves)
+- [ ] run-integration branch deleted (after merge)
 - [ ] Backup tag deleted
 - [ ] <ISOLATE_DIR>/wave/<slug>/ removed
 ```
@@ -195,17 +199,18 @@ Status  : <open | merged | closed>
 ## Cleanup Checklist
 
 Post-merge cleanup is owned by `odoo-pr-monitoring` (it runs AFTER the `L2-merge-gate` merge);
-run-harness's between-wave integration itself stops at the `L2-squash-gate` and never merges or
-cleans up the integration branch. This checklist is the one the post-merge owner runs.
+run-harness's between-wave integration itself stops at "PR opened" (drive-to-done) and never merges
+or cleans up the run-integration branch. This checklist is the one the post-merge owner runs; it
+covers the ONE run-integration branch plus every per-module worktree/branch across all waves.
 
 Invoke the **`git-toolkit:git-ops`** skill (via the Skill tool) in one request (op=wave-cleanup):
 
 ```
-[ ] remove worktree <path>/mod-a        (and all other module worktrees)
-[ ] remove worktree <path>/integration
-[ ] delete branch wave/mod-<slug>-a     (and all other module branches)
-[ ] delete branch wave/integration-<slug>   (after merge confirmed on remote)
-[ ] delete tag wave-backup-<slug>
+[ ] remove worktree <path>/mod-a        (and all other per-module worktrees, all waves)
+[ ] remove worktree <path>/run-integration
+[ ] delete branch wave/mod-<slug>-a     (and all other per-module branches, all waves)
+[ ] delete branch run-integration-<slug>    (after merge confirmed on remote)
+[ ] delete tag run-integration-backup-<slug>
 [ ] worktree-prune                     (clean stale worktree refs)
 ```
 
@@ -219,26 +224,29 @@ Confirm wave branches are gone (git-ops reports deletion success).
 
 ## Squash Tree-Identity Recipe (git-ops delegation)
 
+Runs ONCE, at the terminal `integrate` land-tail after the FINAL wave closes green - NOT per wave.
 All mutation steps are delegated to git-toolkit via the **`git-ops`** skill
 (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`).
 
-**git-ops request - squash-push operation:**
+**git-ops request - squash + first-push operation:**
 
 ```
 op                 : squash-push
-worktree           : <path>/integration
+worktree           : <path>/run-integration
 principal          : <principal-branch-name>
-backup-ref         : wave-backup-<slug>
+backup-ref         : run-integration-backup-<slug>
 commit-msg         : <conventional commit message>
-integration-branch : wave/integration-<slug>
-confirmed          : yes - <human approval covering the L2-squash-gate force-push (run-harness L2 + git-toolkit confirm backstop)>
+integration-branch : run-integration-<slug>
+first-push         : yes - the run-integration branch was NEVER pushed before, so this is a fresh
+                     FIRST push (initial upstream push), NOT a force-with-lease; no history is
+                     rewritten on any remote branch, so no git-toolkit destructive-op confirm gate fires
 ```
 
-git-ops executes the `squash-push` recipe (stale-base guard -> S1 backup -> reset-soft squash-to-one -> S6 tree-identity gate -> S2 force-with-lease), owned by git-toolkit per its git-safety-contract S1/S6/S2.
+git-ops executes the `squash-push` recipe (stale-base guard -> S1 backup -> reset-soft squash-to-one -> S6 tree-identity gate -> FIRST push, non-force), owned by git-toolkit per its git-safety-contract S1/S6. Because this is a first push of a never-pushed branch, the S2 force-with-lease step is not exercised and no `confirmed:` field is required (branch-push is drive-to-done, not L2).
 
 After git-ops returns, confirm its reported tree-identity exit code is 0. This is run-harness's
-terminal per-wave step (the L2-squash-gate) - it STOPS here and does NOT merge; the merge is owned by
-`odoo-pr-monitoring` at the L2-merge-gate.
+terminal RUN-level land step - it STOPS at "PR opened" (drive-to-done) and does NOT merge; the merge
+is owned by `odoo-pr-monitoring` at the L2-merge-gate.
 
 ---
 
@@ -310,21 +318,22 @@ context, MODULES are processed SEQUENTIALLY in module-DAG order; the parallel fa
 intra-module work-item split) lives INSIDE each `odoo-coding` invocation.
 
 ```text
-# Between-wave: per wave N, per module: ensure worktree -> INVOKE odoo-coding -> cherry-pick (saga). Sequential.
+# Run start (ONCE): run_integration = fork(base). Then per wave N, per module: ensure worktree ->
+# INVOKE odoo-coding -> cherry-pick onto run_integration (saga). Sequential.
 # SSOT for the saga/rollback + checkpoint contract: skills/_shared/integration-loop.md (do not restate).
 # SSOT for the coder fan-out + Mode-B OOM budget: odoo-coding + skills/_shared/concurrency-guard.md.
-# SSOT for the fork-from-prior-integration lineage: plan-mode-schema.md § Block 2W.
+# SSOT for the single-run-integration lineage: plan-mode-schema.md § Block 2W.
 
-integration = fork(prior_wave_integration)  # wave-1 forks base; wave-(N+1) forks integration@wave-N
-pre_wave_sha = tip(integration)            # saga anchor (integration-loop.md step 1)
-cherry_picked = {}                          # module -> True once ON integration + verified
+# run_integration was forked from base ONCE at run start; it is NOT re-forked per wave.
+pre_wave_sha = tip(run_integration)         # saga anchor (integration-loop.md step 1)
+cherry_picked = {}                          # module -> True once ON run_integration + verified
 
 for mod in topological_order(modules):      # module-DAG / wave order; dependents after deps
     if any(not cherry_picked.get(d) for d in mod.depends_on):
         record(mod, "upstream blocked"); apply_saga_rollback(); return  # terminate the WHOLE wave
 
-    ensure_worktree(mod)                    # git-ops worktree-add per Block 2W lineage (forks the
-                                            # wave integration, which already holds prior waves' code)
+    ensure_worktree(mod)                    # git-ops worktree-add per Block 2W lineage (forks
+                                            # run_integration, which already holds prior waves' code)
 
     # INVOKE odoo-coding via the Skill tool from THIS orchestrating context (legal: spawner ban is
     # leaf-only). Pass inputs only so odoo-coding's Plan-provided fast-path consumes them. odoo-coding
@@ -346,7 +355,7 @@ for mod in topological_order(modules):      # module-DAG / wave order; dependent
     # cherry-pick: orchestrator-side CRITICAL SECTION, one at a time, topology order.
     mod_failed = False
     for sha in result.shas:
-        cherry_pick(sha, into=integration)  # invoke git-ops in the INTEGRATION worktree
+        cherry_pick(sha, into=run_integration)  # invoke git-ops in the run-integration worktree
         if conflict: resolve_conflict(mod)  # Sonnet resolver + cherry-pick --continue - full brief: § Conflict Resolver below
         if not run_verify():                # Repo Capability Card verify after each pick
             mod_failed = True; break         # stop picking THIS module's commits (inner loop only)
@@ -355,17 +364,18 @@ for mod in topological_order(modules):      # module-DAG / wave order; dependent
         record(mod, "verify failed")         #   do NOT checkpoint and do NOT mark this module cherry-picked
         apply_saga_rollback(); return        #   clean-abort/resume; never build on a rolled-back branch
 
-    checkpoint(mod, tip(integration), "PASS")  # integration-loop.md step 2 (ONLY on full module success)
+    checkpoint(mod, tip(run_integration), "PASS")  # integration-loop.md step 2 (ONLY on full module success)
     cherry_picked[mod] = True                 # unblock dependents ONLY after cherry-picked + verified
 
 # close the wave: integrated cross-cutting review -> cumulative regression close-gate (GREEN) ->
-# ONE squashed PR -> STOP at the L2-squash-gate. Then integration@wave-(N+1) forks from this closed
-# integration and the loop continues onto the next wave.
+# AUTO-ADVANCE to the next wave (NO per-wave PR). The next wave forks its worktrees from the SAME
+# run_integration branch (now carrying this wave's code). After the FINAL wave: the terminal
+# `integrate` land-tail squashes run_integration + fresh FIRST-push + opens ONE PR (drive-to-done).
 #
 # apply_saga_rollback(): clean-abort (reset-hard to pre_wave_sha) OR resume from last passing
-# checkpoint; never leave a half-built integration branch. Full contract: integration-loop.md.
+# checkpoint; never leave a half-built run_integration branch. Full contract: integration-loop.md.
 # `return` ends the wave loop entirely (matches integration-loop.md clean-abort): a failed/blocked module
-# is never recorded PASS and the loop never continues onto a rolled-back integration branch.
+# is never recorded PASS and the loop never continues onto a rolled-back run_integration branch.
 ```
 
 ---
@@ -436,7 +446,7 @@ hand-off (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/SKILL.md` § Emit the a
 shared render_check_set SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`). Do NOT auto-run
 acceptance and do NOT auto-merge/auto-block on it: materialize an `odoo-acceptance` node in the
 RUN-DAG (a `next` entry run-harness's driver loop picks up) at `gate_tier: L2` (human), depending on
-this wave's PR so the cluster is verified before merge:
+the run's PR so the cluster is verified before merge:
 
 ```
 next:
@@ -444,7 +454,7 @@ next:
     reason: wave changed a UI/behavior surface with dependents (render_check_set beyond the changed modules); run blast-radius acceptance over the affected cluster before merge
     inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: "<ISOLATE_DIR>/qa/<slug>-scope.md", odoo_version: "<version>"}
     confidence: 0.7
-    gate_tier: L2
+    risk_level: L2
 ```
 
 `scope_hint` is advisory - `odoo-acceptance` Phase 0 regenerates the verify-scope manifest from the
@@ -457,35 +467,39 @@ changed set.
 > These examples start from run-harness picking a coding wave node off the RUN-DAG (never from a user
 > phrase - a user's parallel/multi-module request routes to `odoo-planning`, which plans the waves).
 
-**Example 1 - Standard 3-module wave:**
+**Example 1 - Standard 3-module wave (a single-wave run):**
 run-harness picks a wave node with 3 independent MODULES (each e.g. a computed field + its OWL widget
 + its unit tests) + their module-DAG + `independent` topology + the Block-2W lineage slice.
-Action: verify disjoint module ownership (safety audit) + plan-staleness; create the integration
-branch (forked per Block 2W) + 3 worktrees; INVOKE `odoo-coding` per module sequentially (each
-odoo-coding dispatches one odoo-coder, which commits its module and returns the SHA); cherry-pick each
-SHA onto integration, verifying + checkpointing after each; run the integrated cross-cutting review +
-`odoo-code-review` inline + the cumulative close-gate; open 1 squashed PR (tree-identity verified) and
-STOP at the L2-squash-gate. No merge.
+Action: verify disjoint module ownership (safety audit) + plan-staleness; the run-integration branch
+was forked once at run start; fork 3 worktrees from it; INVOKE `odoo-coding` per module sequentially
+(each odoo-coding dispatches one odoo-coder, which commits its module and returns the SHA); cherry-pick
+each SHA onto run-integration, verifying + checkpointing after each; run the integrated cross-cutting
+review + `odoo-code-review` inline + the cumulative close-gate. This being the FINAL (only) wave, the
+terminal `integrate` land-tail then squashes run-integration + fresh FIRST-push + opens ONE PR
+(tree-identity verified); STOP at "PR opened". No merge.
 
 **Example 2 - Dependency edge consumed (linear):**
 The wave's module-DAG has module-B `depends_on` module-A.
-Action: cherry-pick A first; then lazily fork module-B's worktree from the updated integration; INVOKE
-`odoo-coding` for B; cherry-pick B. run-harness never recomputes the edge - it consumes it from the plan.
+Action: cherry-pick A first; then lazily fork module-B's worktree from the updated run-integration;
+INVOKE `odoo-coding` for B; cherry-pick B. run-harness never recomputes the edge - it consumes it from
+the plan.
 
 **Example 3 - Cross-wave dependency (Block 2W lineage):**
 A wave-2 module depends on a wave-1 module.
-Action: `integration@wave-2` forks from `integration@wave-1` (which holds wave-1's committed modules),
-so the wave-2 module's worktree already carries the dependency on its addons-path - no case-4 BLOCKED.
+Action: wave-1's cherry-picked code is already on the single run-integration branch, so wave-2's
+module worktree - forked from run-integration - already carries the dependency on its addons-path,
+with NO per-wave PR between the waves and no case-4 BLOCKED.
 
 **Example 4 - Ownership conflict (safety audit catches a bad plan):**
 The plan maps models.py to two module scopes.
 Action: the disjoint-module-ownership audit finds models.py in both scopes. STOP BLOCKED: report the
 overlap and route back to `odoo-planning` to re-partition. No worktree is created.
 
-**Example 5 - Squash mismatch abort:**
-Squash step on a 4-module integration branch: `git diff --quiet wave-backup-<slug>` exits 1 (tree
-mismatch). Abort: "Squash tree-identity FAILED - the squashed commit does not match the pre-squash
-tree. Restoring from wave-backup-<slug>. Do NOT force-push." Report the differing files.
+**Example 5 - Squash mismatch abort (terminal land-tail):**
+Terminal squash of the run-integration branch: `git diff --quiet run-integration-backup-<slug>` exits
+1 (tree mismatch). Abort: "Squash tree-identity FAILED - the squashed commit does not match the
+pre-squash tree. Restoring from run-integration-backup-<slug>. Do NOT push." Report the differing
+files. (No branch was pushed yet, so there is nothing to force-push or revert on the remote.)
 
 **Example 6 - Conflict resolver path:**
 module-A and module-B unexpectedly both touch a shared file (missed by the plan; caught at cherry-pick):
@@ -496,4 +510,4 @@ re-invokes git-ops (cherry-pick --continue). Re-run verify, checkpoint, continue
 **Example 7 - Mid-wave failure (saga rollback):**
 A cherry-pick verify cannot be made green within the loop's bound. Apply the
 `integration-loop.md` saga: clean-abort (reset-hard to the pre-wave SHA) or resume from the last
-passing checkpoint; report the failing module. Never leave a half-built integration branch.
+passing checkpoint; report the failing module. Never leave a half-built run-integration branch.

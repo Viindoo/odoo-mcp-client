@@ -82,7 +82,11 @@ The "Suggested response (verbatim)" must be ready to use in a client meeting wit
 The objection text is already in the invocation - do not ask the caller to re-provide it.
 
 1. `Read <SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit; see also `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md`) for `odoo_version`, `viindoo_profile`, and industry hints.
-2. If a customer name is known, `Read` the vault dossier at `Resources/Competitors/<name>.md` or `Sales/Customers/<name>.md` if present.
+2. If a customer or competitor name is known AND `$ODOO_AI_VAULT_HOME` is set (an OPTIONAL pointer
+   to the caller's own private notes vault - unset by default, no assumed folder layout - see
+   `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`), `Bash: find "$ODOO_AI_VAULT_HOME"
+   -iname "<name>*.md"` for a matching note and `Read` the first hit. Skip this step entirely
+   when the variable is unset or nothing matches - never block, never ask the human to paste it.
 
 When OSM is unreachable, follow `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`:
 - **Tier 2:** `WebFetch` relevant Odoo source or docs to ground capability claims; use local `Read`/`Grep` when a source tree is available. Label artifacts `grounded: local-source (not OSM-indexed)`.

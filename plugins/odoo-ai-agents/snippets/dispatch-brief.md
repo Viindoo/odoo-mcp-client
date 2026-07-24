@@ -83,6 +83,8 @@ pointer back to this file - never the full skeleton table.
   PASS/WARN/FAIL verdict.
 - The coverage baseline, so a dimension a sibling pass already owns is not re-run.
 - `CHANGED_SET`/`SCOPE_FILES` for diff-scoping (the diff-scoped code reviewer).
+- `ACCEPTANCE` resolves to `DESIGN_DOC` §9 when a design doc exists for this change; otherwise
+  `N/A` (a review/audit pass often has no upstream TDD to point at).
 
 ### Diff comparator (rebase / upgrade absorption)
 

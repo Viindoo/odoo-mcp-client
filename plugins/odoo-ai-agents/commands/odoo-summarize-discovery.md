@@ -92,7 +92,7 @@ If `odoo-discovery-summary` is unavailable (OSM offline, network error), synthes
 
 ## What this command does NOT do
 
-- Does **not** perform gap analysis (use `/odoo-gap-analysis` for that).
+- Does **not** perform gap analysis (use `/odoo-ai-agents:odoo-gap-analysis` for that).
 - Does **not** draft a proposal or response (use `/odoo-respond-bid` for the full chain).
 - Does **not** call MCP write tools directly - only `Write` via the agent after user confirmation.
 - Does **not** commit or push files to Git.

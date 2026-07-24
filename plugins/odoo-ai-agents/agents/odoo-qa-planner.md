@@ -59,8 +59,10 @@ tester's job.
    matrix row per (role x guarded action) using real groups; a CRUD matrix per entity (incl.
    Duplicate/Archive + constraints); state-transition coverage (legal pass, illegal blocked); a
    decision table when conditions combine.
-3. **Cover the cluster, weighted by risk.** Per `SCOPE_MANIFEST`: High-tier get the deep matrix,
-   Low-tier a smoke scenario. Tag every scenario with its risk tier.
+3. **Cover the cluster, weighted by risk.** Per `SCOPE_MANIFEST`: High-tier get the deep matrix;
+   Med-tier get BOTH the deep matrix (durable regression) AND a smoke scenario (live render check) -
+   depth defined once in `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (SSOT, do not
+   restate); Low-tier a smoke scenario. Tag every scenario with its risk tier.
 4. **Choose the expected up front.** Fix the single observable `expected` (state/value/side-effect
    record/rendered element/raised error), derived from the requirement, plus the concrete evidence
    that proves it.

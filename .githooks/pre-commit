@@ -64,6 +64,18 @@ for f in "${SCAN_FILES[@]}"; do
         HARD_FAIL=1
     fi
 
+    # Relative "personal vault" folder convention - a PARA-style private notes vault path
+    # hardcoded into agent prose (top-level folder like Resources or Sales, then a named
+    # sub-folder such as Competitors or Customers, then a file). Never a repo-relative path.
+    # The caller's own vault layout belongs behind an optional env-rooted read (see
+    # snippets/disk-fallback-protocol.md's `$ODOO_AI_VAULT_HOME`), not a hardcoded literal.
+    # (NOTE: do not spell out the literal pattern here as contiguous text - it would trip
+    # this very check on this file. Keep this comment worded like the paragraph above.)
+    if printf '%s' "$content" | grep -qIE '(Resources|Sales)/(Competitors|Customers)'; then
+        echo "ERROR: hardcoded vault-folder convention in staged blob: $f" >&2
+        HARD_FAIL=1
+    fi
+
     for regex in "${LOCAL_PATTERNS[@]}"; do
         if printf '%s' "$content" | grep -qIE "$regex"; then
             echo "ERROR: confidential term /${regex}/ in staged blob: $f" >&2

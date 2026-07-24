@@ -696,9 +696,11 @@ host.
 increases materially. The allocator enforces port uniqueness (no two leases share a port) but
 does NOT impose a hard count ceiling - the orchestrator manages the budget. For browser-bound
 capture phases, cap at W workers equal to the number of distinct browser server families
-available (2 headless; optionally +2 headed when DISPLAY is present); state-mutating
-(CRUD-heavy) scenario drives stay <= 2 simultaneous. Browser-free phases (feature-map, copy,
-icon) need no instance at all and can fan out without this constraint.
+available; state-mutating (CRUD-heavy) scenario drives stay <= 2 simultaneous. Browser-free phases (feature-map, copy,
+icon) need no instance at all and can fan out without this constraint. `W` is per-family,
+RAM-permitting - never a global single-flight across families:
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity is the SSOT for
+the `W` number; full exclusivity rule + rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2.
 
 **Per-instance provisioning (caller invokes per instance needed):**
 

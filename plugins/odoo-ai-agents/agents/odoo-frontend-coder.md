@@ -73,12 +73,14 @@ The workflow diverges at Round 1 based on the detected version:
 |---|---|---|---|
 | v8-v9 | AMD `openerp.define()` | `web.Widget`, `web.View`, `$.Deferred` | QWeb2 XML (`<templates>`) |
 | v10-v12 | `odoo.define()` | `AbstractField`, `field_registry`, `Widget.include({})` | QWeb2 XML |
-| v13-v14 | `odoo.define()` + optional `patch()` | `web.Widget` primary; OWL available but not default | QWeb2 XML |
+| v13 | `odoo.define()` | `web.Widget` only - no OWL library yet | QWeb2 XML |
+| v14 | `odoo.define()` + optional `patch()` | `web.Widget` primary; OWL 1.x available (experimental, not default) | QWeb2 XML |
 | v15 | OWL 1.x + `/** @odoo-module **/` | `patch(Class.prototype, 'name', {})`, hooks from `@odoo/owl` | QWeb3 (OWL templates) |
-| v16+ | OWL 2.x + ES modules | `patch(Class, {})`, `import`/`export`, no `odoo.define()` | QWeb3 inline or separate XML |
+| v16 | OWL 2.x (class-level components) + ES modules | `patch(Class, 'name', {})` - still 3-arg, unchanged from v15's calling convention | QWeb3 inline or separate XML |
+| v17+ | OWL 2.x + ES modules | `patch(Class, {})` - 2-arg only from v17 (`name` dropped), `import`/`export` | QWeb3 inline or separate XML |
 
 - **v14 crossover:** `web.Widget` still works and is the safest choice for extensions; OWL is for *new* components only. If the user is unsure, ask.
-- **v16+:** `web.Widget` and `odoo.define()` are fully removed.
+- **v16+:** `web.Widget`'s core-view usage declines as OWL becomes the default path (from v16), but the class itself is NOT removed then - OSM shows it still defined and actively used (e.g. `AbstractField.extend(Widget)`) at v16, and still present (ES-module form, unconverted to OWL) at v17; `odoo.define()` is deprecated from v15 and stays loadable via a compat shim through at least v17 - it is NOT removed at v16 either.
 - **Why indexed examples beat training memory:** internal hook names and registration APIs shift between minor releases. `find_examples`/`find_override_point` reflect actual indexed code - prefer them over training knowledge on any conflict, especially lifecycle hooks and import paths.
 
 ---
@@ -125,7 +127,7 @@ The classic failure: a "shim" custom property whose value references itself - a 
 
 **Round 3 - write the boilerplate.** If the task includes writing a JS test for the legacy widget, first call `js_test_inspect(module='<module>', odoo_version='<version>')` to confirm the test framework in use (QUnit for v8-v14) and the existing test suite layout, then call `find_test_examples(query='<widget feature>', kind='js', odoo_version='<version>')` for real indexed QUnit examples. Write the legacy JS for Odoo v<N> using the right pattern (`odoo.define` / `AbstractField` / `Widget.include`), grounded in the Rounds 1-2 examples + API diff. Use the `find_examples` snippets as the structural template so import paths and lifecycle hooks match the target version.
 
-**Round 4 - assemble complete output.** JS file with full `odoo.define()` module · QWeb2 XML template · `__manifest__.py` registration (`assets` dict for v10+; `qweb` list for v8/v9) · for v14, note whether `ir.asset` records should be used instead of the assets dict.
+**Round 4 - assemble complete output.** JS file with full `odoo.define()` module · QWeb2 XML template · `__manifest__.py` registration: the manifest `assets` dict key does NOT exist before v15 (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §Asset bundles) - for v8-v14 register via the `qweb` list key (template files) plus a bundle-XML `<template inherit_id="web.assets_backend">` in views (JS/CSS files).
 
 **Round 5 - suggest visual verification (forward-wiring).** After presenting, add a `next:` entry naming `odoo-ui-review` to your Continuation Contract block (see `## Continuation Contract` below) - do not emit a bare `SUGGESTED_NEXT:` line, superseded by the in-block form (V-34); do NOT invoke any skill yourself. The orchestrator decides whether to run `odoo-ui-review` (layout), `odoo-debug` (console error), or `odoo-visual-regression` (before/after diff) - do not phrase this as advice to a human reader.
 
@@ -146,7 +148,8 @@ The classic failure: a "shim" custom property whose value references itself - a 
 | Odoo version | OWL era | `patch()` form | Lifecycle hooks source |
 |---|---|---|---|
 | v15 | OWL 1.x | `patch(Class.prototype, 'mod.name', {…})` | `@odoo/owl` |
-| v16-v19 | OWL 2.x | `patch(Class, {…})` | `@odoo/owl` |
+| v16 | OWL 2.x | `patch(Class, 'mod.name', {…})` - still 3-arg, unchanged from v15 | `@odoo/owl` |
+| v17-v19 | OWL 2.x | `patch(Class, {…})` - 2-arg from v17 (`name` dropped) | `@odoo/owl` |
 
 When the version is ambiguous, default to **v17 (OWL 2.x)** and state the assumption. If porting between versions, call `api_version_diff` to surface breaking changes first.
 
@@ -156,13 +159,13 @@ When the version is ambiguous, default to **v17 (OWL 2.x)** and state the assump
 3. `find_examples(query="OWL component <feature> Odoo v<N>", odoo_version='<version>')` - real import paths and hook names (trust this over training memory for syntax). When the task context is writing a JS test rather than production component code, use `find_test_examples(query='<component feature>', kind='js', odoo_version='<version>')` instead, which returns test-only chunks and avoids contamination from production component implementations.
 4. `find_override_point(model=<Component>, method=<method>, odoo_version='<version>')` - only when patching an existing component; skip for brand-new ones.
 
-Confirm currency of every core registry/service/hook API you call at the target version. `lookup_core_api` indexes PYTHON core only and returns not-found for JS/OWL, so JS currency authority is `api_version_diff(symbol='<symbol>', from_version='<older>', to_version='<version>')` when the code crosses versions, PLUS `find_examples(query='<hook/registry usage>', odoo_version='<version>')` for real indexed usage AT the target, PLUS `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §JavaScript/OWL/tests (module header, `patch()` arity, `web.Widget` removed v16). Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md` §Frontend.
+Confirm currency of every core registry/service/hook API you call at the target version. `lookup_core_api` indexes PYTHON core only and returns not-found for JS/OWL, so JS currency authority is `api_version_diff(symbol='<symbol>', from_version='<older>', to_version='<version>')` when the code crosses versions, PLUS `find_examples(query='<hook/registry usage>', odoo_version='<version>')` for real indexed usage AT the target, PLUS `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §JavaScript/OWL/tests (module header, `patch()` arity per-version, `web.Widget` core-view usage declining v16→v18). Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/symbol-currency-check.md` §Frontend.
 
 **Round 3 - write the component.** Write the OWL `<1.x|2.x>` component - `setup()` + lifecycle hooks + template, any `patch()` block, and the `registry.category('…').add(…)` registration - grounded in the Rounds 1-2 example snippets, registry category, and verified import paths. Reason step by step before writing when: logic crosses multiple components via `useChildSubEnv`/`useBus`; a custom service holds state surviving unmount; or a `patch` must call `super` at a position-sensitive point relative to side effects.
 
 **Round 4 - assemble complete output.**
 
-**Before emitting the first code block**, write a "**VERSION RULES APPLIED (v<N>):**" block listing the key pivot rules for the JS/OWL/SCSS you will write (e.g. "JS module header: per F0 §JavaScript/OWL/tests; OWL patch form: 2-arg `patch(Class, {…})`; SCSS: no `--bs-*` tokens") drawn from `odoo-version-pivots.md` and `odoo-frontend-fidelity.md`. Anti-compaction sticky note; `odoo-code-reviewer` WILL verify each cited rule against the actual code.
+**Before emitting the first code block**, write a "**VERSION RULES APPLIED (v<N>):**" block listing the key pivot rules for the JS/OWL/SCSS you will write (e.g. "JS module header: per F0 §JavaScript/OWL/tests; OWL patch form: 3-arg `patch(Class, 'name', {…})` at v15/v16, 2-arg `patch(Class, {…})` only from v17; SCSS: no `--bs-*` tokens") drawn from `odoo-version-pivots.md` and `odoo-frontend-fidelity.md`. Anti-compaction sticky note; `odoo-code-reviewer` WILL verify each cited rule against the actual code.
 
 1. **JS file** - `/** @odoo-module **/` first line per `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §JavaScript/OWL/tests row "JS module header" (and `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`), then `import`s from verified paths, then the component class, then registry `.add()`.
 2. **XML template file** - separate file preferred for templates over ~10 lines.
@@ -238,15 +241,21 @@ odoo.define('<module>.<widget_name>', function (require) {
 
 ### Appended to `__manifest__.py`
 ```python
-# v10+ assets dict (v8/v9: use the 'qweb' list key, no 'assets' dict):
-'assets': {'web.assets_backend': [
-    '<module>/static/src/js/<widget_name>.js',
-    '<module>/static/src/xml/<widget_name>.xml',
-]},
+# manifest 'assets' dict does NOT exist before v15 (SSOT: odoo-version-pivots.md §Asset bundles):
+'qweb': ['static/src/xml/<widget_name>.xml'],
+```
+
+### Bundle XML (v8-v14 - registers the JS/CSS files the 'assets' dict would list from v15)
+```xml
+<template id="assets_backend" inherit_id="web.assets_backend">
+    <xpath expr="." position="inside">
+        <script type="text/javascript" src="/<module>/static/src/js/<widget_name>.js"></script>
+    </xpath>
+</template>
 ```
 
 ### Version notes
-<ES5 constraint, $.Deferred vs Promise, _super() vs super(), patch() availability, ir.asset vs assets dict>
+<ES5 constraint, $.Deferred vs Promise, _super() vs super(), patch() availability, qweb key + bundle-XML (pre-v15) vs manifest assets dict (v15+)>
 ```
 
 **OWL v15+:**
@@ -309,7 +318,7 @@ If imports differ by version, show both with a comment.
 - R0: `17.0`, version gate → OWL, `set_active_version("<version>")`. R1: v17 → OWL 2.x, `patch(Class, {…})`, hooks from `@odoo/owl`. R2 (parallel): `module_inspect(name=<module>, method='owl', odoo_version='<version>')` + `module_inspect(name=<module>, method='qweb', odoo_version='<version>')` + `find_examples("dashboard OWL component Odoo 17", odoo_version='<version>')`; no override point. R3: write the OWL 2.x dashboard fetching `sale.order` stats via `useService('orm')` + `useState` + `onWillStart`. R4: JS (`/** @odoo-module **/`, `SaleOrderDashboard` with `setup()`) + KPI-card template XML + action registration under `registry.category('actions')` + manifest.
 
 **4 - v16 OWL: patch form controller to add a custom button.** "patch the sale order form to add a custom button using OWL in Odoo 16"
-- R0: `16.0`, version gate → OWL 2.x. R2 (parallel): `find_examples("patch FormController OWL Odoo 16", odoo_version='<version>')` + `find_override_point("SaleOrderForm", "actionConfirm", odoo_version='<version>')`. R3: write the OWL 2.x `patch(FormController, …)` adding a `confirmWithComment` button. R4: JS `patch(FormController, { confirmWithComment() {…} })` + XPath template override + manifest. OWL note: "In v15 use `patch(FormController.prototype, 'sale_custom.patch', {…})` - prototype and name arguments were removed in v16."
+- R0: `16.0`, version gate → OWL 2.x. R2 (parallel): `find_examples("patch FormController OWL Odoo 16", odoo_version='<version>')` + `find_override_point("SaleOrderForm", "actionConfirm", odoo_version='<version>')`. R3: write the OWL 2.x `patch(FormController, "sale_custom.confirmWithComment", …)` adding a `confirmWithComment` button. R4: JS `patch(FormController, "sale_custom.confirmWithComment", { confirmWithComment() {…} })` + XPath template override + manifest. OWL note: "`patch()` is still 3-arg `patch(Class, name, {…})` at v16 (unchanged from v15's calling convention - only the `.prototype` target is gone now that components are class-level); the `name` argument is dropped only from v17's 2-arg `patch(Class, {…})`."
 
 ## Continuation Contract
 

@@ -115,10 +115,12 @@ context-aware, then (4) emits a **Proposed Plan** and waits for your approval. F
   module nodes to `DONE` / `BLOCKED` / `NEEDS_CONTEXT`: pick the next ready node -> check its gate tier
   -> dispatch it (a leaf skill inline, a coding/review/UI **agent bundle**, a declarative **workflow**
   via `workflow-chaining`, a coding wave-layer via `run-harness`'s own **between-wave integration**
-  (invokes `odoo-coding` per module, opens one squashed PR, and STOPS at the L2-squash-gate), or
-  the terminal **`integrate`** land node that every `writes-files` plan ends on - `run-harness`
-  invokes `git-toolkit:git-ops` to push the change's branch and open a PR against the principal
-  branch) -> read the step's **Continuation Contract** -> advance. Once a PR is open the async
+  (invokes `odoo-coding` per module, cherry-picks the result onto the one run-level integration
+  branch, and AUTO-ADVANCES to the next wave - no per-wave PR, no per-wave stop), or the terminal
+  **`integrate`** land node that every `writes-files` plan ends on, running ONCE after the FINAL
+  wave - `run-harness` invokes `git-toolkit:git-ops` to squash the integration branch, push it, and
+  open the run's ONE PR against the principal branch) -> read the step's **Continuation Contract**
+  -> advance. Once a PR is open the async
   poller **`odoo-pr-monitoring`** drives it to merge (watches CI + review; any failure routes to
   `odoo-debug` with the re-push human-gated; the L2-merge-gate). A step can chain the next one
   (including across workflows via `on_complete`), so the run keeps moving without re-prompting.
@@ -155,8 +157,9 @@ flowchart TD
     PK -->|"L2 irreversible"| STOP["STOP - human gate"]
     STOP -->|"approve"| PK
     PK -->|"leaf / agent bundle / workflow"| DISP["dispatch node"]
-    PK -->|"coding wave-layer"| WAVE["TIER 4 - run-harness between-wave integration (internal)<br/>per MODULE: worktree -> INVOKE odoo-coding<br/>-> cherry-pick -> end-of-wave review<br/>-> 1 PR + squash -> STOP at L2-squash-gate"]
-    PK -->|"terminal: integrate node<br/>(land tail, every writes-files plan)"| INT["run-harness invokes git-toolkit:git-ops<br/>push change branch + open PR"]
+    PK -->|"coding wave-layer"| WAVE["TIER 4 - run-harness between-wave integration (internal)<br/>per MODULE: worktree -> INVOKE odoo-coding<br/>-> cherry-pick onto run-integration<br/>-> end-of-wave review -> close-gate GREEN<br/>-> AUTO-ADVANCE (no per-wave PR, no per-wave stop)"]
+    WAVE -->|"more waves"| PK
+    PK -->|"terminal: integrate node<br/>(land tail, ONCE after final wave)"| INT["run-harness invokes git-toolkit:git-ops<br/>squash + fresh push + open the run's ONE PR"]
     PK -->|"after coding waves"| DOCPREP["doc content prep (parallel, browser-free)<br/>odoo-doc-feature-map + odoo-doc-walkthrough<br/>+ odoo-icon-design"]
     DOCPREP --> DOC["odoo-doc-illustration (browser-serial)<br/>+ i18n (odoo-i18n)"]
 
@@ -168,8 +171,7 @@ flowchart TD
     CC -->|"next / on_complete<br/>(clean review -> integrate)"| PK
     CC -->|"all done (no source write)"| DONE([DONE / BLOCKED])
 
-    WAVE -. "ASYNC boundary - not a blocking node" .-> MON["odoo-pr-monitoring<br/>/loop | /schedule poller"]
-    INT -. "materializes next @ L2" .-> MON
+    INT -. "materializes next @ L2" .-> MON["odoo-pr-monitoring<br/>/loop | /schedule poller"]
     MON -->|"CI warn/error/fail = D3"| DBG["odoo-debug -> odoo-coding<br/>re-push human-gated (X2)"]
     DBG --> MON
     MON -->|"green + approved"| MG["L2-merge-gate -><br/>merge + post-merge cleanup"]
@@ -885,9 +887,9 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-doc-walkthrough` | Marketer | Produces happy-path usage walkthroughs for a module's key flows; dispatches `odoo-doc-scenarist`; standalone-first, browser capture optional. |
 | `odoo-qa-suite` | Coder / Visual | Static release QA - produce a non-executing release test-plan, a pre-deploy checklist, and bug triage with severity + reproduction steps; the independent acceptance oracle and live execution/adjudication route to `odoo-acceptance` |
 | `odoo-acceptance` | Coder / QA | End-to-end acceptance on a change AND its blast-radius - map the affected cluster, plan an INDEPENDENT oracle, then EXECUTE it on a real running instance/UI and adjudicate PASS/FAIL with evidence; dispatches `odoo-qa-planner` (oracle) + `odoo-qa-tester` (live execute) and chains tours/HttpCase via `odoo-instance` (needs a live instance + browser MCP) |
-| `odoo-pr-monitoring` | Coder / Engineer | Owns the PR lifecycle AFTER a PR is open - either `run-harness`'s between-wave integration at its L2-squash-gate or `run-harness`'s terminal `integrate` land node (every other `writes-files` plan) - a poller (via `/loop` or `/schedule`, PR/CI ops routed through `git-toolkit:git-ops`), not a blocking node: routes any CI warning/error/fail to `odoo-debug` (root-cause first; fix re-push always human-gated, X2), caps review ping-pong, and on green + approved presents the L2-merge-gate, merges, and runs post-merge cleanup |
+| `odoo-pr-monitoring` | Coder / Engineer | Owns the PR lifecycle AFTER a PR is open - `run-harness`'s terminal `integrate` land node, the single land-tail every `writes-files` plan ends on (runs ONCE after the final wave) - a poller (via `/loop` or `/schedule`, PR/CI ops routed through `git-toolkit:git-ops`), not a blocking node: routes any CI warning/error/fail to `odoo-debug` (root-cause first; fix re-push always human-gated, X2), caps review ping-pong, and on green + approved presents the L2-merge-gate, merges, and runs post-merge cleanup |
 | `workflow-chaining` | Internal (harness) | Generic declarative workflow executor - reads `*.workflow.yaml` and runs gated phase sequences; invoked by odoo-intake via NL-dispatch, not directly by users |
-| `run-harness` | Internal (harness) | Orchestrating drive-to-done loop - walks the `run-<id>.json` plan, dispatches each ready node, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent. Owns the per-wave **between-wave integration** directly (consumes Block 2W; per module invokes `odoo-coding`, cherry-picks the returned SHA, runs the cumulative close-gate, opens one squashed PR, STOPS at the L2-squash-gate) |
+| `run-harness` | Internal (harness) | Orchestrating drive-to-done loop - walks the `run-<id>.json` plan, dispatches each ready node, reads its Continuation Contract, and advances to DONE/BLOCKED/NEEDS_CONTEXT; gates L2 always, never traps the main agent. Owns the per-wave **between-wave integration** directly (consumes Block 2W; per module invokes `odoo-coding`, cherry-picks the returned SHA onto the ONE run-level integration branch forked at run start, runs the cumulative close-gate, and AUTO-ADVANCES to the next wave with no per-wave PR); after the FINAL wave, the terminal `integrate` land-tail runs ONCE - squash + fresh non-force push + open the run's ONE PR against principal - and STOPS at "PR opened" (no merge) |
 
 ### Agents (26)
 

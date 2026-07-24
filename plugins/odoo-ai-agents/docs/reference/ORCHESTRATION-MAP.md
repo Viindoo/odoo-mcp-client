@@ -55,13 +55,14 @@
 | `odoo-ui-review` | spawner-agent | fresh | frontend | - | odoo-ui-reviewer |
 | `odoo-version-diff` | leaf | fresh | backend | - | - |
 | `odoo-visual-regression` | leaf | fresh | frontend | - | - |
-| `run-harness` | orchestrator-nl | fresh | none | - | odoo-coding (INVOKED per MODULE via the Skill tool during between-wave integration; odoo-coding owns coder count + model; the odoo-coder coordinator COMMITS its module and returns the SHA - the work-item is odoo-coder's INTERNAL unit, never a wave input), git-ops (worktree add per Block 2W lineage, cherry-pick onto integration in module-DAG order, squash, force-with-lease, read-only diff + tree-identity verify, open PR integration->principal and STOP at the L2-squash-gate; merge owned by odoo-pr-monitoring - via git-ops skill - git-toolkit) |
+| `run-harness` | orchestrator-nl | fresh | none | - | odoo-coding (INVOKED per MODULE via the Skill tool during between-wave integration; odoo-coding owns coder count + model; the odoo-coder coordinator COMMITS its module and returns the SHA - the work-item is odoo-coder's INTERNAL unit, never a wave input), git-ops (worktree add per Block 2W lineage; per wave, cherry-picks each module's commit onto the single run-integration branch as a saga/checkpoint - verified after each pick, no per-wave PR, no force-push; ONCE, after the final wave closes green, the terminal integrate land-tail squashes run-integration + a fresh non-force FIRST push, then opens ONE PR run-integration->principal; no L2-squash-gate - the only L2 is the downstream outward merge, owned by odoo-pr-monitoring; no auto-merge - via git-ops skill - git-toolkit), (anonymous Sonnet conflict-resolver subagent - dispatched ONLY when a between-wave cherry-pick reports a semantic conflict: handed the conflict diff + both module briefs via worker-brief.md, it edits the conflicting files (markers removed), then git-ops runs cherry-pick --continue; NOT a registered/named teammate agent - see skills/run-harness/references/wave-integration.md § Conflict Resolver), (anonymous fable close-the-wave review subagent - escalated ONLY for a large integrated wave (>~1500 changed lines OR N>=8 modules), human-gated at ~2x opus cost; the small-wave close-the-wave review is opus INLINE in this context, NOT a spawn - see skills/run-harness/references/wave-integration.md § Review Escalation) |
 | `workflow-chaining` | orchestrator-nl | fresh | none | - | - |
 
 ## Legend
 
 - **spawn_class** - `leaf` (runs inline) · `orchestrator-nl` (chains other skills via
-  natural-language dispatch, no subagent spawn) · `spawner-agent` (dispatches a named
+  natural-language dispatch; no NAMED-teammate subagent spawn - see a skill's own spawns
+  cell for any anonymous review/resolver subagent) · `spawner-agent` (dispatches a named
   subagent).
 - **handoff** - Context-Handoff Protocol (CHP) tier for resuming subagents across turns.
   `send-message` (Tier-A: lead resumes a named worker via SendMessage, avoiding

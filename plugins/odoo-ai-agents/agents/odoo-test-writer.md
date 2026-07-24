@@ -114,9 +114,9 @@ LEAF - launch no sub-agent regardless of team mode.
 
 (run before any work)
 Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
-required fields (the oracle/scenario file - expected results chosen BEFORE execution, NEVER the
-implementation or a pre-derived oracle; environment/`INSTANCE_HANDLE`; roles/personas; the
-adjudication vocabulary `PASS`/`FAIL`/`UNVERIFIED` + evidence). Graduated response, per
+required fields (`MODE`: test-first|coverage|adapt|tour/HttpCase|performance/load; `TARGET
+BEHAVIOR` / oracle scenarios the test must protect - never the implementation or a pre-derived
+oracle; `TEST TYPE(S)` requested; the RED-before-green intent). Graduated response, per
 ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.

@@ -87,12 +87,26 @@ not an alternative - you still release; the net catches crashes, not laziness.
   final sweep. Before your terminal status, close every page `list_pages` reports that YOU
   created - not just the one you think you reused. On playwright, `browser_close` closes
   everything you drove; on pagecast, confirm no recording is live (`stop_recording`).
-- **Single-flight (exclusivity).** At most ONE browser-driving agent runs at a time,
-  regardless of MCP family. Each browser MCP server drives one shared Chromium process
-  (shared DOM/session); two concurrent drivers corrupt each other's evidence. Orchestrators
-  dispatch browser agents as exclusive, serial steps - never in a parallel fan-out. Serial
-  dispatches share the server, NOT your pages: closing your pages at dispatch end does not
-  break the next dispatch (it navigates afresh).
+- **Single-flight (exclusivity) - PER FAMILY.** At most ONE browser-driving agent runs at a
+  time **per MCP family** (chrome-devtools, playwright, pagecast; each headed/headless variant
+  is its own family - 6 total). Two drivers on the SAME family share one Chromium process
+  (shared DOM/session) and corrupt each other's evidence - that is the hard exclusivity, and
+  orchestrators dispatch same-family browser agents as exclusive, serial steps, never a
+  parallel fan-out. Across DISTINCT families, parallel drivers ARE allowed - each family is a
+  distinct stdio process with its own `--isolated` Chromium profile, so there is no shared-DOM
+  risk across families. The cross-family ceiling is the pool cap `W` defined in
+  `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity (that file
+  is the SSOT for the exact figure - do not restate it here), subject to the operator's RAM
+  budget (see the guardrail note below); state-mutating (CRUD) drives stay at most 2
+  simultaneous regardless of family mix. Serial same-family dispatches share the server,
+  NOT your pages: closing your pages at dispatch end does not break the next dispatch (it
+  navigates afresh).
+  - **RAM guardrail.** No machinery enforces a browser RAM budget:
+    `${CLAUDE_PLUGIN_ROOT}/scripts/lib/resource_limits.sh` / `ODOO_AI_LIMIT_MEMORY_HARD` cap the
+    odoo-bin process's VIRTUAL memory only, and the allocator counts Postgres/ports, not
+    Chromium - neither caps aggregate browser RAM. The `W` pool cap above IS the guardrail;
+    raise it only after the operator has verified host RAM headroom for that many concurrent
+    Chromium processes.
 - **Headed exception (human-watch).** Headed variants: when the human explicitly asked to
   WATCH, you may leave the watched page open at the human's request - state that you did, and
   name the human as the owner who closes it. That is a T4 named-catcher handoff, not an

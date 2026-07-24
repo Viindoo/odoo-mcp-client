@@ -18,11 +18,12 @@ run or worktree, was already built elsewhere, or is genuinely absent. It exists 
 turn that raw BLOCKED into a specific, evidence-backed decision.
 
 **Scope note (Block 2W).** The planned worktree dependency graph's fork-from-integrated-parent
-lineage (`integration@wave-(N+1)` forks `integration@wave-N`) makes INTRA-run cross-wave
-dependency-blindness **structurally solved** - a dependent wave's worktrees always carry their
-dependencies' committed code by construction. So this ledger and the `odoo-backend-coder` dependency
-pre-flight now backstop ONLY concurrent INDEPENDENT runs (cross-run) + the manifest-crash safety net;
-the intra-run false BLOCKED no longer fires.
+lineage (every wave's worktrees fork from the ONE `run-integration` branch, which already carries
+all prior waves' cherry-picked code) makes INTRA-run cross-wave dependency-blindness
+**structurally solved** - a dependent wave's worktrees always carry their dependencies' committed
+code by construction. So this ledger and the `odoo-backend-coder` dependency pre-flight now backstop ONLY
+concurrent INDEPENDENT runs (cross-run) + the manifest-crash safety net; the intra-run false BLOCKED
+no longer fires.
 
 ## Location and why the SHARE dir
 

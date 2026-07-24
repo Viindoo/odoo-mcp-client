@@ -141,7 +141,7 @@ When the dispatch brief carries `ARTIFACT_DIR` and `ARTIFACT_FILE` (e.g. from od
 | Lens | Verdict (PASS/WARN/FAIL) | Evidence |
 
 ### Functional
-- View types present (form / list / kanban / search / pivot / graph / calendar / activity) - each: rendered? (<selector + screenshot>) | break class (G1-G7) if not
+- View types present (form / list / kanban / search / pivot / graph / calendar / activity) - each: rendered? (<selector + screenshot>) | break class (G1-G8) if not
 - Form internals (notebook / button-box / chatter / statusbar) - each: rendered? (<evidence>) | break class if not
 - <other control> - works / broken (<evidence>)
 

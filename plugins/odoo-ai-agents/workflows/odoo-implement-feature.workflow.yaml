@@ -52,10 +52,12 @@ phases:
       S/M/L/XL effort tier per item, grounded via OSM, and emit the locked gap-analysis artifacts
       under .odoo-ai/gap-analysis/<slug>-<date>/: gap-matrix.jsonl (machine SSOT), gap-report.md
       (human deliverable), and gap-continuation-contract.json. The downstream branch reads
-      `meta.has_nontrivial` from gap-continuation-contract.json - true if ANY item is extension or
-      custom (a new module, a core create/write/unlink override, a schema migration, a cross-model
-      computed chain, a full-stack feature, or a refactor); false if every item is a one-approach
-      standard/config change.
+      `meta.has_nontrivial` from gap-continuation-contract.json - true if ANY item is `custom`, OR
+      any `extension` item has effort_tier `L` or `XL` (a new module, a core create/write/unlink
+      override, a schema migration, a cross-model computed chain, a full-stack feature, or a
+      refactor); an `extension` item alone at effort_tier `M` (a simple `_inherit` point) does NOT
+      trigger it. False if every item is `standard`/`config`, or `extension` capped at effort_tier
+      `M`.
     model_tier: sonnet
     gate: "approve / refine: [feedback] / cancel"
 

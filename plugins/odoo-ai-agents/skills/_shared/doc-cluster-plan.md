@@ -98,8 +98,11 @@ on top = most pure); ties break to the earliest instance in the schedule. Three 
   OWN browser family. `W = min(#independent instance-paths, browser-family pool, ephemeral instance
   cap)`. The browser families are exclusive-serial per family (never two workers on one family;
   headless pool vs DISPLAY pool), and the fan-out envelope + instance-lease caps are the
-  `concurrency-guard.md` SSOT - reference it, do not restate the numbers. When W=1, all paths
-  serialize; the planner records that so the runner reports `DONE_WITH_CONCERNS(W=1: serialized)`.
+  `concurrency-guard.md` SSOT - reference it, do not restate the numbers. Full exclusivity rule +
+  rationale (why same-family is serial, why distinct families may run concurrently):
+  `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 - reference it, do not restate
+  it. When W=1, all paths serialize; the planner records that so the runner reports
+  `DONE_WITH_CONCERNS(W=1: serialized)`.
 
 ### 7. Provision flags per install step
 

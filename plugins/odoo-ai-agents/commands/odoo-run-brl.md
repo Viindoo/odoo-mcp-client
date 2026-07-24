@@ -25,8 +25,8 @@ and need:
 - **RTM export** (rtm.csv for Excel, results.jsonl for machine consumption)
 - **Executive report** (report.md with classification mix, budget range, risk flags)
 
-For a **single feature** check: use `/odoo-feature-check` instead.
-For a **short ad-hoc gap matrix** (no cost, no scale): use `/odoo-gap-analysis` instead.
+For a **single feature** check: use `/odoo-ai-agents:odoo-feature-check` instead.
+For a **short ad-hoc gap matrix** (no cost, no scale): use `/odoo-ai-agents:odoo-gap-analysis` instead.
 
 ## Hard rules
 
@@ -35,7 +35,7 @@ For a **short ad-hoc gap matrix** (no cost, no scale): use `/odoo-gap-analysis` 
 2. **Context check.** At startup, load `<SHARE_DIR>/context.md` if present (resolve `<SHARE_DIR>`/
    `<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the
    captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit).
-   If missing, suggest `/odoo-onboarding` but allow manual continuation.
+   If missing, suggest `/odoo-ai-agents:odoo-onboarding` but allow manual continuation.
 3. **Abstract labels.** Use the customer label from `$ARGUMENTS` or default "Customer-A".
    Never write real company names, VND figures, or internal pricing into any committed file.
 4. **Dispatch via the Skill tool.** This command fires the `odoo-brl` skill using the Skill tool. NL description-match is the fallback when the Skill tool is unavailable.

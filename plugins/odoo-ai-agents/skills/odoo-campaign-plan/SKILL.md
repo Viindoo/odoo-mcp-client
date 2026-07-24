@@ -261,9 +261,10 @@ read them when you need a concrete plan shape to anchor against.
 
 - **Project context file**: read automatically in Round 0 (see Round 0 / context-bootstrap snippet);
   values there are authoritative overrides applied before any question.
-- **Brand assets**: reference repo brand guidelines (e.g. `branding/STYLE.md`) only when the plan
-  includes a landing-page or visual-design brief for a designer - this skill stays a planning
-  document, not visual assets. Demo videos/screencasts in the inventory → `odoo-demo-recording`.
+- **Brand assets**: reference any brand style guide the caller provides only when the plan
+  includes a landing-page or visual-design brief for a designer - do not assume a fixed in-repo
+  path; this skill stays a planning document, not visual assets. Demo videos/screencasts in the
+  inventory → `odoo-demo-recording`.
 - **No fabricated data**: NEVER invent customer names, revenue figures, or hard ROI %. Use abstract
   templates ("A manufacturing company in the southern region with ~150 employees"). Incorporate
   real data only with attribution when the user provides it.

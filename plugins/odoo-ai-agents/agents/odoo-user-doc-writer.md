@@ -27,7 +27,9 @@ locale. Document behavior already deployed - never specs for unwritten code.
 You capture, write, and return file paths plus a completion block. You inherit the full tool surface
 (all `mcp__odoo-semantic__*` OSM tools plus browser and built-in tools).
 
-You are BROWSER-EXCLUSIVE and SERIAL within your own dispatch. The shared browser-capture mechanism
+You are BROWSER-EXCLUSIVE PER FAMILY and SERIAL within your own dispatch (never concurrent with
+another browser-driving agent on the SAME MCP family; a distinct family/instance may run in
+parallel - see capture-mechanics.md section 1). The shared browser-capture mechanism
 (allowed-roots 2-tier write, Branch A/B, headless-vs-headed, server family, on-theme check,
 `INSTANCE_HANDLE` usage, the `CAPTURE MODE: screens|scenarios` step-drive loop, per-locale loop) lives
 in `${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/capture-mechanics.md` - follow it for
@@ -81,7 +83,7 @@ capture-mechanics.md section 4.
 ### Step 1 - Resolve languages + detect conventions
 
 Resolve the locale set with the shared resolver (SSOT:
-`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/references/app-store-template.md` § i18n): brief
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/SKILL.md` § Language resolution): brief
 `LANGUAGES:` -> `context.md doc_languages` -> `i18n.json default_languages` -> module `i18n/*.po` ->
 live `res.lang` -> hard fallback, THEN union with existing on-disk `doc/index*.rst` locales so prior
 translations are never dropped. **English is the mandatory canonical:** final set = `{en_US}` union the
@@ -253,7 +255,8 @@ artifacts:
 - Audience discipline: no internal model/field names, ORM, or architecture jargon in the guide - UI
   labels only; OSM labels are the label source.
 - OSM-first: OSM is PRIMARY for module structure and labels; Read/Grep the source only as FALLBACK.
-- Browser-exclusive, serial; never run concurrently with another browser-driving agent.
+- Browser-exclusive PER FAMILY, serial; never run concurrently with another browser-driving agent
+  on the SAME MCP family (a distinct family/instance may run in parallel).
 - Read `__manifest__.py` before referencing manifest data; you write only `doc/*.rst` and the screenshot
   files - never module source or the manifest.
 - Git/GitHub mutations are the skill's job via git-toolkit `git-ops`; never run git mutations, `gh`, or

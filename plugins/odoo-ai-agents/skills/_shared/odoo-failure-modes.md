@@ -40,7 +40,9 @@ Tools: `model_inspect`, `resolve_orm_chain`, `find_override_point`, `lookup_core
 ## Layer: JS / OWL / QWeb / SCSS (frontend runtime) - BROWSER
 
 > This layer needs live browser evidence (console/network/DOM) AND code grounding. It is the
-> exclusive-serial leg: never run two browser-driving agents at once (shared Chromium/session).
+> exclusive-serial leg per MCP family: never run two browser-driving agents on the SAME family
+> at once (shared Chromium/session) - the shared-Chromium risk is per-family, not cross-family;
+> distinct families may run in parallel (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2).
 
 | Symptom | Likely root cause | Localize with |
 |---|---|---|

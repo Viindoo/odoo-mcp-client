@@ -130,11 +130,12 @@ from scratch ("create a color picker widget"), there is no runtime to debug ->
 
 - `odoo-planning`: handles the USER-facing "parallelize these changes", "multi-WI PR with review +
   squash" intent -> it produces the wave-batched EXECUTION PLAN. The git orchestration itself
-  (integration branch, parallel WI worktrees, cherry-pick, end-of-wave review, 1 PR, squash, then
-  STOP at the L2-squash-gate) is `run-harness`'s INTERNAL between-wave integration, which it drives
-  from the approved plan (there is no separate git-executor skill); it never merges - the merge is
-  owned by the subsequent `odoo-pr-monitoring` at the L2-merge-gate. The between-wave integration is
-  internal to `run-harness` - never route a user prompt to an executor.
+  (ONE run-integration branch, per-wave module worktrees, cherry-pick, per-wave review + cumulative
+  close-gate + auto-advance, then ONE run-level PR + squash after the FINAL wave, STOP at "PR opened")
+  is `run-harness`'s INTERNAL between-wave integration, which it drives from the approved plan (there
+  is no separate git-executor skill); it never merges - the merge is owned by the subsequent
+  `odoo-pr-monitoring` at the L2-merge-gate. The between-wave integration is internal to
+  `run-harness` - never route a user prompt to an executor.
 - `odoo-brl`: handles "classify changes", "requirements" -> classifies and costs a
   list of BUSINESS REQUIREMENTS - produces an RTM/cost/DAG but writes NO code and does NOT touch git.
 - `odoo-coding`: handles "implement feature", "write code" -> writes code for a SINGLE
@@ -183,14 +184,15 @@ commits to replay and a few conflicts to resolve."
 - `odoo-planning`: handles "parallelize N disjoint work items into one squashed PR" -> it produces
   the wave-batched plan; the cherry-pick + squash of N independent changes that do NOT share a
   continuous range is performed by `run-harness`'s INTERNAL between-wave integration (driven
-  from the approved plan), not by the user. It STOPS at the L2-squash-gate and never
-  merges - the merge is owned by the subsequent `odoo-pr-monitoring` at the L2-merge-gate.
+  from the approved plan), not by the user. It lands the whole run as ONE PR (opened once after the
+  final wave) and STOPS at "PR opened"; it never merges - the merge is owned by the subsequent
+  `odoo-pr-monitoring` at the L2-merge-gate.
 
 **Discriminator**: same Odoo series + one branch's whole commit range to replay ->
 **Pick `odoo-git-rebase`**. Cross-major single commit/PR to port -> `odoo-forward-port`. Many
 disjoint changes to land together -> **Pick `odoo-planning`** (it plans the delivery; `run-harness`'s
-between-wave integration performs the cherry-pick + squash and STOPS at the L2-squash-gate, the merge
-owned by `odoo-pr-monitoring`).
+between-wave integration performs the cherry-pick + squash and opens the ONE run-level PR, STOPPING at
+"PR opened"; the merge is owned by `odoo-pr-monitoring`).
 
 If the user said "rebase my 17.0-custom onto origin/17.0" -> `odoo-git-rebase` (same series,
 whole range).

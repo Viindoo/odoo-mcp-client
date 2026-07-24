@@ -59,10 +59,14 @@ self-serve from real sources you already have access to:
 - **Official upstream** - `WebFetch` the raw source for the target version, e.g.
   `https://raw.githubusercontent.com/odoo/odoo/<version>/addons/<module>/__manifest__.py`,
   release notes, or `WebSearch` for public changelog / competitor / pricing pages.
-- **Context + vault** - resolve the Tier-2 SHARE dir per `state-root-resolution.md`'s
+- **Context + optional local vault** - resolve the Tier-2 SHARE dir per `state-root-resolution.md`'s
   resolve-capture-substitute protocol and `Read` `context.md` there (never a bare
-  `.odoo-ai/context.md` literal) for version/profile/instance; read vault notes
-  (`Resources/Competitors/*`, `Sales/Customers/*`) instead of asking for them.
+  `.odoo-ai/context.md` literal) for version/profile/instance. If the caller has set
+  `$ODOO_AI_VAULT_HOME` - an OPTIONAL pointer to their own private notes vault, unset by default,
+  with NO assumed internal folder layout - `Bash: find "$ODOO_AI_VAULT_HOME" -iname "<name>*.md"`
+  for a note matching the entity name and `Read` the first hit instead of asking for it. Skip this
+  source entirely (never block, never ask a human) when the variable is unset or the search finds
+  nothing - it degrades gracefully, the same way an absent optional live-ERP/CRM integration does.
 
 Label any artifact built this way `grounded: local-source (not OSM-indexed)` and lower
 confidence one notch versus Tier 1 - it is **verified against real source**, just not the

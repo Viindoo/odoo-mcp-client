@@ -17,12 +17,13 @@ rolled back or resumed deterministically, never left in an ambiguous partial sta
 
 These owners run an integration loop and reference THIS file instead of restating it:
 
-- `run-harness` - the **canonical per-wave integration consumer** and SOLE owner (there is no
-  separate git-executor skill): it walks the coding
-  waves and, per wave, forks `integration@wave-(N+1)` from `integration@wave-N` (Block 2W lineage),
-  cherry-picks each module's commit in module-DAG order under this saga, runs the integrated
-  cross-cutting review + cumulative close-gate, and opens one squashed PR (see `run-harness/SKILL.md`
-  § Between-wave integration).
+- `run-harness` - the **canonical between-wave integration consumer** and SOLE owner (there is no
+  separate git-executor skill): it forks ONE `run-integration` branch from base at run start, then
+  per wave forks the module worktrees from it (Block 2W lineage), cherry-picks each module's commit in
+  module-DAG order under this saga onto run-integration, runs the integrated cross-cutting review +
+  cumulative close-gate, and AUTO-ADVANCES to the next wave. There is NO per-wave PR: after the FINAL
+  wave the terminal `integrate` land-tail squashes run-integration + opens the ONE run-level PR (see
+  `run-harness/SKILL.md` § Between-wave integration + § `integrate` node dispatch).
 - The PEER orchestrators, each owning its own loop plus a main-context human-confirm gate:
   `odoo-forward-port`, `odoo-modules-upgrade`, `odoo-git-rebase`.
 - `odoo-planning` - references this contract so the plan it emits reserves the rollback/resume
@@ -49,10 +50,11 @@ unrecoverable failure unwinds to a known-clean point:
    Never leave a half-built integration branch (a cherry-pick applied but unverified, or conflict
    markers in the tree). Always report which WI failed and which outcome (abort | resume) was taken.
 
-**Wave-closing verify = the CUMULATIVE suite.** The FINAL verify that closes a wave (before any PR)
-runs the cumulative run-set (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/cumulative-test-scope.md`),
-not just the touched module; a red cumulative suite is unrecoverable within the loop's bound ->
-clean-abort or resume-from-checkpoint, and NEVER open a PR on red.
+**Wave-closing verify = the CUMULATIVE suite.** The FINAL verify that closes a wave (before the wave
+AUTO-ADVANCES) runs the cumulative run-set (SSOT:
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/cumulative-test-scope.md`), not just the touched module; a red
+cumulative suite is unrecoverable within the loop's bound -> clean-abort or resume-from-checkpoint,
+and NEVER auto-advance (nor open the run's ONE PR) on red.
 
 ## Git-mutation safety - POINT, do not restate (dependency direction)
 
@@ -63,16 +65,20 @@ them. The executor (or the git-toolkit operator it delegates to) MUST honor
 
 - **S1 - backup before any destructive op.** The pre-wave SHA above is recorded as / alongside the
   S1 backup branch, so a reset-hard is always recoverable.
-- **S6 - tree-identity verify after a rewrite.** The squash that closes the loop is proven
-  byte-identical to the integrated tree before any force-with-lease (the executor's squash gate).
+- **S6 - tree-identity verify after a rewrite.** The single terminal squash that closes the RUN (once,
+  after the final wave) is proven byte-identical to the integrated tree before the fresh first push
+  (the executor's squash gate).
 - **S9 - worktree-lock / principal-checkout-lock.** Every mutation runs in a dedicated worktree;
   the primary checkout never leaves its principal branch.
 
-The reset-hard and the closing push are among that contract's human-confirm-gated destructive ops:
-the executor delegates them through git-toolkit
-(`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`), which enforces the S1 backup and the
-confirm gate as a backstop. odoo-ai-agents (consumer) pointing at git-toolkit (provider) is the
-legal direction; git-toolkit never names a consumer.
+The reset-hard (saga rollback) is one of that contract's human-confirm-gated destructive ops: the
+executor delegates it through git-toolkit (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`), which
+enforces the S1 backup and the confirm gate as a backstop. The terminal closing push, by contrast, is
+a fresh FIRST push of the never-pushed run-integration branch (non-force, no history rewrite on any
+remote branch) - it is NOT a destructive op and fires no confirm gate; it runs as part of
+drive-to-done. The only human-gated LANDING is the downstream outward MERGE (odoo-pr-monitoring's
+L2-merge-gate). odoo-ai-agents (consumer) pointing at git-toolkit (provider) is the legal direction;
+git-toolkit never names a consumer.
 
 ## Recording
 
