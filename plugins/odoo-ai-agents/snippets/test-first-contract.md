@@ -37,8 +37,9 @@ dedicated **`odoo-test-writer` agent** (a context-isolated executor that invokes
 the code. The code-author (`odoo-backend-coder` / `odoo-frontend-coder`) then implements to green and
 must not touch the test. The coders never author tests; the coordinator (`odoo-coder`) launches the
 `odoo-test-writer` per work-item before the coder. (Callers outside the coding loop - odoo-acceptance,
-odoo-qa-suite, odoo-code-review, odoo-forward-port, odoo-git-rebase - likewise launch the
-`odoo-test-writer` agent for context isolation rather than authoring inline.)
+odoo-code-review, odoo-forward-port, odoo-git-rebase - likewise launch the
+`odoo-test-writer` agent for context isolation rather than authoring inline. `odoo-qa-suite`'s
+Phase 1 is a static/inline test-PLAN, not a runnable test file, so it is not a caller here.)
 
 ## The loop, bounded
 

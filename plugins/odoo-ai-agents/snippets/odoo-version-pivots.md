@@ -20,7 +20,7 @@ Compact canonical table. Row format: **change** | **new API / mechanism** | **fr
 
 | Change | New API | From | Old |
 |---|---|---|---|
-| Unified access check | `check_access(mode)` / `has_access(mode)` | v18 | `check_access_rights(mode)` + `check_access_rule(mode)` = alias (DeprecationWarning v18+) |
+| Unified access check | `check_access(operation)` / `has_access(operation)` | v18 | `check_access_rights(operation)` + `check_access_rule(operation)` = alias (DeprecationWarning v18+) |
 | Filtered access | `_filtered_access(mode)` | v18 | `_filter_access_rules()` / `_filter_access_rules_python()` = alias |
 | User group test - single xmlid | `user.has_group('mod.xmlid')` | v8 | -- (present since v8) |
 | User group test - plural / env shorthand | `user.has_groups('a.x,b.y')` | v18 | `user_has_groups(xmlid)` **REMOVED v18** |

@@ -111,17 +111,10 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
 
 ## MCP RESOURCES (read-only, URI-addressable)
 
-Seven `odoo://` Resources for bookmark-stable reads when the caller already knows the entity ID - no tool-call overhead:
-
-- odoo://{version}/model/{name}              - Model record
-- odoo://{version}/field/{model}/{field}     - Field record
-- odoo://{version}/method/{model}/{method}   - Method record
-- odoo://{version}/module/{name}             - Module record
-- odoo://{version}/view/{xmlid}              - View record
-- odoo://{version}/pattern/{name}            - Pattern catalogue entry
-- odoo://{version}/stylesheet/{module}/{file_path*}    - Stylesheet record
-
-Same `X-API-Key` header as tool calls.
+`odoo://` Resources for bookmark-stable reads when the caller already knows the entity ID - no
+tool-call overhead. Same `X-API-Key` header as tool calls. Full generated list (kept in lockstep
+with the server): see **MCP RESOURCES (generated)** under "Generated Tool Surface" below - do not
+restate the count or the list here.
 
 ## PERSONA MODES
 

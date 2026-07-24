@@ -85,18 +85,21 @@ Apply these SSOTs by pointer:
 - **Integration loop** - the per-wave cadence is executed at runtime by `run-harness`'s between-wave
   integration (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`); the plan carries
   wave ordering via `depends_on` **AND the symbolic worktree TOPOLOGY/LIFECYCLE** (fork-from lineage -
-  `integration@wave-(N+1)` forks from `integration@wave-N`; module worktrees fork from their wave
-  integration; the cherry-pick-into points; the per-wave integration node and the loop). It still
-  carries **NO concrete ref STATE** - no SHAs, no branch tips, no resolved worktree filesystem
-  paths, no lease tokens; those are RUNTIME, resolved by `run-harness`.
+  there is ONE `run-integration` branch forked from base at run start, and every wave's module
+  worktrees fork from IT; the cherry-pick-into points; the per-wave close + auto-advance; the ONE
+  terminal PR after the final wave). It still carries **NO concrete ref STATE** - no SHAs, no branch
+  tips, no resolved worktree filesystem paths, no lease tokens; those are RUNTIME, resolved by
+  `run-harness`.
 - **Worktree dependency graph (Block 2W)** - author it IN PARALLEL with the Block-2 module-DAG, as a
   SECOND projection of the SAME wave grouping onto worktree lineage (SSOT:
   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 2W). Emit the
-  symbolic nodes (`base`, `integration@wave-N`, `worktree(m)@wave-N`) and edges (fork-from `==>`,
-  cherry-pick-into `-->`, per-wave close) - crucially the fork-from-integrated-parent loop edge
-  `integration@wave-(N+1) ==> integration@wave-N` so a dependent wave builds on its dependencies'
-  already-integrated code. Symbolic ONLY (topology/lifecycle, never SHAs/paths/leases); it is a
-  deterministic function of the wave grouping, so it adds no non-reproducible value.
+  symbolic nodes (`base`, the single `run-integration`, `worktree(m)@wave-N`) and edges (fork-from
+  `==>`, cherry-pick-into `-->`, per-wave close/auto-advance) - crucially every wave's worktrees fork
+  from the ONE run-integration branch (`worktree(m)@wave-N ==> run-integration`), which already
+  carries all prior waves' code, so a dependent wave builds on its dependencies' already-integrated
+  code (the fork-from-integrated-parent property, now on ONE branch). Symbolic ONLY (topology/
+  lifecycle, never SHAs/paths/leases); it is a deterministic function of the wave grouping, so it
+  adds no non-reproducible value.
 - **Model tier + TDD oracle** - the model tier is owned by the dispatched specialist skill at
   runtime (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md` model-tier section); the TDD oracle
   is `odoo-qa-planner`'s `scenarios.md`. Reference both - pick neither.
@@ -106,10 +109,13 @@ outer unit is the MODULE, never a work-item (SSOT:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` § Two-tier decomposition axis - the
 work-item is `odoo-coder`'s INTERNAL intra-module unit and never appears in the plan). Each coding
 wave-layer is one node (`approach_kind: wave`) that `run-harness` drives via its between-wave
-integration - iterating the wave's MODULES and invoking `odoo-coding` per module. After the coding
-waves, append the terminal lifecycle stages: doc
-(`odoo-doc-illustration`), i18n (`odoo-i18n`), PR + monitor + merge - each its own node with the
-correct gate tier.
+integration - iterating the wave's MODULES and invoking `odoo-coding` per module, cherry-picking onto
+the ONE run-integration branch, and AUTO-ADVANCING to the next wave (there is NO per-wave PR). After
+the coding waves, append the terminal lifecycle stages: doc (`odoo-doc-illustration`), i18n
+(`odoo-i18n`), then the terminal `integrate` land-tail + monitor + merge. That land-tail opens THE
+SINGLE run-level PR (one PR for the whole run, opened once after the final wave) - it is NOT an extra
+PR on top of per-wave PRs, because per-wave PRs no longer exist; `odoo-pr-monitoring` then merges that
+one PR at the L2-merge-gate. Each stage is its own node with the correct gate tier.
 
 ## Round 2 - Decision X: estimate, never bind model or count
 
@@ -134,10 +140,12 @@ mermaid) per plan-mode-schema.md Block 2 - nodes marked `(NEW)`/`(existing)`, ta
 `[skill: <name>]`, grouped under `Wave N`, with per-node `depends-on:` + a flat `X --> Y` edge list;
 DERIVED from the design `dag_layers` / the plan's `topological_order` + the Block 3 assignment, never
 hand-drawn. For a multi-wave plan, ALSO emit **Block 2W - the symbolic worktree dependency graph**
-(fenced ```` ```text ````, per plan-mode-schema.md § Block 2W): the `base` / `integration@wave-N` /
-`worktree(m)@wave-N` nodes and the fork-from (`==>`) / cherry-pick-into (`-->`) / close edges,
-including the fork-from-integrated-parent loop edge `integration@wave-(N+1) ==> integration@wave-N`.
-Topology/lifecycle only - NEVER SHAs, branch tips, worktree paths, or leases (those are runtime).
+(fenced ```` ```text ````, per plan-mode-schema.md § Block 2W): the `base` / the single
+`run-integration` / `worktree(m)@wave-N` nodes and the fork-from (`==>`) / cherry-pick-into (`-->`) /
+close+auto-advance edges, including the fork-from-integrated-parent edge that every wave's worktrees
+fork from the ONE run-integration branch (`worktree(m)@wave-N ==> run-integration`), plus the ONE
+terminal PR after the final wave. Topology/lifecycle only - NEVER SHAs, branch tips, worktree paths,
+or leases (those are runtime).
 
 Keep it a contract, not an essay: tables and node lines, every node traceable to the design DAG. No
 implementation code. Do NOT serialize `run-<id>.json`.

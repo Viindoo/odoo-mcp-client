@@ -68,8 +68,10 @@ deep localization happens inside the dispatched agents.
 
 ## Browser concurrency
 
-`odoo-ui-debugger` is an **exclusive, serial step** - never run two browser agents at once. Full
-rule + close-before-done: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2. For
+`odoo-ui-debugger` is an **exclusive, serial step per MCP family** - at most ONE browser-driving
+agent runs at a time within a given family (chrome-devtools, playwright, pagecast; each
+headed/headless variant is its own family); distinct families may run in parallel. Full rule +
+close-before-done: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2. For
 flat/off-theme symptoms it applies the token-reality check from
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md`.
 
@@ -106,10 +108,12 @@ confirm before a long run unless the caller already authorized auto-run.
 
 > **Expected-log triage (deny-path / guard / constraint WARNING - check before escalating).** A WARNING in a test run that matches a deny-path, guard, or SQL-constraint signature is EXPECTED noise - verify it is wrapped with `assertLogs` / `mute_logger`; do NOT open a code investigation. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/test-expected-log-contract.md`.
 
-Dispatch ONE agent (model **haiku**, or **sonnet** if the traceback is long/cross-file) to:
-pin the version, read the symptom/traceback/console, produce the **smallest stable reproduction
-recipe**, classify the layer using `odoo-failure-modes.md`, and emit a **complexity score**
-(contained-1-layer vs cross-file/multi-hypothesis). You use that score to pick the Phase 2 model.
+Dispatch ONE **anonymous** Explore/recon-class subagent (model **haiku**, or **sonnet** if the
+traceback is long/cross-file) - NOT a layer specialist (`odoo-backend-debugger`/`odoo-ui-debugger`),
+NOT a registered agent - to: pin the version, read the symptom/traceback/console, produce the
+**smallest stable reproduction recipe**, classify the layer using `odoo-failure-modes.md`, and emit
+a **complexity score** (contained-1-layer vs cross-file/multi-hypothesis). You use that score to
+pick the Phase 2 model.
 
 ### Phase 2 - Localize (root-cause hunt, per layer)
 
@@ -117,14 +121,20 @@ Route each suspected layer to its specialist, choosing the model **explicitly** 
 
 | Layer / symptom | Dispatch to | Mechanism |
 |---|---|---|
-| Python/ORM, data-state, Expected singleton, AccessError, compute/onchange/constraint, traceback, module-load/migration/ParseError, `test_lint` failure (`gettext-placeholders`/E8505, v18+ - see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §gettext placeholders) | `odoo-backend-debugger` agent | subagent launch (OSM, parallel-safe) |
+| Python/ORM, data-state, Expected singleton, routine AccessError (`ir.model.access`/`ir.rule` misconfig - no suspected leak/escalation/injection), compute/onchange/constraint, traceback, module-load/migration/ParseError, `test_lint` failure (`gettext-placeholders`/E8505, v18+ - see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md` §gettext placeholders) | `odoo-backend-debugger` agent | subagent launch (OSM, parallel-safe) |
 | OWL/JS/QWeb/SCSS runtime, console/network/blank render | `odoo-ui-debugger` agent | subagent launch (BROWSER → serial, exclusive) |
 | "why is it slow" / N+1 happening now | `odoo-perf-audit` (reactive mode) | Skill tool |
-| security symptom at runtime (leak, unexpected AccessError, observed injection) | `odoo-security-audit` (reactive mode) | Skill tool |
+| AccessError WITH a suspected leak, privilege escalation, or injection (not a routine access-rule misconfig) | `odoo-security-audit` (reactive mode) | Skill tool |
 | pre-upgrade / deprecated-API-at-runtime | `odoo-deprecation-audit` | Skill tool |
 | need a broad static sweep of code | `odoo-code-review` | Skill tool |
 
-Parallelism: the OSM-only legs (backend debugger + reactive audits) run in parallel (<=3 - Mode A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). The browser leg (odoo-ui-debugger) runs as its OWN exclusive step and MAY overlap the OSM legs - just never run two browser-driving agents at once.
+**AccessError tie-break:** a routine `ir.model.access`/`ir.rule` misconfiguration is a
+`odoo-backend-debugger` symptom; only escalate to `odoo-security-audit` when the AccessError comes
+with a suspected leak, privilege escalation, or injection. When unsure which applies, default to
+`odoo-backend-debugger` first - it can hand off to `odoo-security-audit` via its own Continuation
+Contract once the access layer is confirmed.
+
+Parallelism: the OSM-only legs (backend debugger + reactive audits) run in parallel (<=3 - Mode A of `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). The browser leg (odoo-ui-debugger) runs as its OWN exclusive step and MAY overlap the OSM legs - just never run two browser-driving agents in the SAME MCP family at once (per-family single-flight; see `## Browser concurrency` above).
 
 When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched work-item, inject TASK_ID + REPLY_TO: <this skill's current orchestrating context> (`main` when the main-context driver invoked this skill; do NOT hardcode a literal `main` if running nested inside a non-lead agent) + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect as today.
 
@@ -150,8 +160,8 @@ unreachable, use your Standalone-first fallback (disk Read/Grep) and label groun
 If OSM answers but the module under investigation is not in the index (customer-local addon),
 Read/Grep that module's source directly and ground hybrid (osm + local-source) - an index miss
 is not proof of absence.
-Fill EVERY field of the Output Contract in skills/_shared/debug-method.md. Do not spawn subagents
-or invoke skills.
+Fill EVERY field of the Output Contract in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md.
+Do not spawn subagents or invoke skills.
 ```
 
 The agent frontmatter pins `model: sonnet` only as a floor - the subagent `model` parameter you pass OVERRIDES it. Always pass it explicitly (haiku/sonnet/opus per the table); if you omit it, the dispatch silently runs at sonnet and a Phase-2 cross-file case that needed opus will be under-powered.
@@ -162,15 +172,29 @@ When invoking an audit skill via the Skill tool, pass the symptom + reproduction
 
 ### Phase 3 - Verify (adversarial)
 
-Dispatch ONE independent agent (model **sonnet**, or **opus** if the cause is subtle) to TRY TO
-REFUTE the proposed root cause: does the confirm-by-toggle actually hold? Is it the root or a
-symptom? Default to "not yet proven" if the evidence is thin. This independent pass is why root
-causes survive - a self-graded diagnosis is weak.
+For each layer Phase 2 localized, dispatch ONE independent agent - a **fresh instance of that
+layer's Phase-2 specialist** (`odoo-backend-debugger` / `odoo-ui-debugger`), never the same
+instance that produced the hypothesis (model **sonnet**, or **opus** if the cause is subtle) - to
+TRY TO REFUTE the proposed root cause: does the confirm-by-toggle actually hold? Is it the root or
+a symptom? Default to "not yet proven" if the evidence is thin. This independent pass is why root
+causes survive - a self-graded diagnosis is weak. A UI-leg refutation (`odoo-ui-debugger`)
+serializes behind the browser single-flight rule (`## Browser concurrency` above, per-family) like
+any other browser-driving dispatch.
+
+**Multi-layer symptoms.** When Phase 2 localized more than one layer (e.g. backend AND UI both
+implicated), refute EACH layer's hypothesis independently as above - do not skip straight to a
+single cross-layer verdict; Phase 4 does the merge.
 
 ### Phase 4 - Synthesize + hand off
 
-Compile the final **Output Contract** block from `debug-method.md`: single proven root cause,
-exact fix location, red→green regression test.
+When Phase 3 refuted more than one layer's hypothesis, merge them first: if the per-layer proven
+causes converge on the same underlying defect, compile ONE proven root cause; if they are
+genuinely distinct (each independently contributes to the symptom), designate a **primary root
+cause plus any contributing factors** - name both, never silently drop a secondary cause.
+
+Compile the final **Output Contract** block from `debug-method.md`: the proven root cause (single,
+or primary + contributing per the multi-layer merge above), exact fix location, red→green
+regression test.
 
 **Before invoking `odoo-coding`, ground the regression test brief with two OSM calls:**
 

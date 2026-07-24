@@ -89,8 +89,9 @@ git-toolkit's `snippets/git-safety-contract.md`. Violating it is an ERROR, not a
 These skills create their own worktree/branch internally, so an orchestrator/driver MUST NOT
 provision one for them: `odoo-forward-port`, `odoo-git-rebase`,
 `odoo-modules-upgrade`, and `odoo-code-review` at `TARGET=pr`. (The per-wave coding worktrees are
-provisioned by `run-harness`'s own between-wave integration per Block 2W, not by a dispatched
-specialist - see `run-harness` SKILL.md § Between-wave integration.)
+provisioned by `run-harness`'s own between-wave integration - each forked FROM the ONE
+`run-integration` branch per Block 2W, not by a dispatched specialist - see `run-harness` SKILL.md
+§ Between-wave integration.)
 
 ## Invocation contract
 

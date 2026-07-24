@@ -93,6 +93,8 @@ These are platform invariants, not suggestions - apply them whenever you design 
 - odoo://{version}/view/{xmlid}             # = entity_lookup(kind='view', ...)
 - odoo://{version}/pattern/{name}           # canonical pattern catalogue entry
 - odoo://{version}/stylesheet/{module}/{file_path*}   # CSS/SCSS/LESS record
+- odoo://{version}/test/{module}/{class_name}         # = test_class_inspect(name=<class_name>, method='summary', ...)
+- odoo://{version}/testcoverage/{model}     # = tests_covering(model=<model>, ...)
 
 Use Resources when you already know the entity ID - no tool call overhead.
 
@@ -167,7 +169,7 @@ Targeted tools:
 - "What type does dotted path a.b.c resolve to" → resolve_orm_chain
 - "Does field X point to model Y" → validate_relation
 
-MCP Resources (read-only handles): odoo://{version}/<model|field|method|view|module|pattern|stylesheet>/...
+MCP Resources (read-only handles): odoo://{version}/<model|field|method|view|module|pattern|stylesheet|test|testcoverage>/...
 
 Always call the tool before answering codebase-specific questions.
 Default Odoo version: 17.0 (detect from project manifest if available, else use set_active_version).

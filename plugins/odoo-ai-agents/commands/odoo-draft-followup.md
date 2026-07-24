@@ -41,7 +41,7 @@ Invoke the `odoo-deal-followup` skill via natural-language prompt. Supply:
 - Request: risk score + next-best-action recommendation + draft email (tone: professional, warm, concise).
 
 The skill outputs:
-- **Risk score**: LOW / MEDIUM / HIGH (how likely is this deal to churn or stall further?)
+- **Risk score**: green / yellow / red (how likely is this deal to churn or stall further?)
 - **Next-best-action**: specific action the customer or you should take next (e.g., "schedule call", "send spec sheet", "escalate to manager").
 - **Draft email**: 3-5 paragraph follow-up email, subject line included, ready for review.
 
@@ -53,7 +53,7 @@ Subject: [subject line from draft]
 [email body]
 
 ---
-Risk Score: [MEDIUM]
+Risk Score: [yellow]
 Next-Best-Action: [Schedule a 30-min call next week]
 ```
 
@@ -75,7 +75,7 @@ On user "yes":
    **Date:** 2026-05-28
    **Last Touch:** [user-supplied date]
    **Pipeline Stage:** [user-supplied stage]
-   **Risk Score:** [MEDIUM]
+   **Risk Score:** [yellow]
    **Next-Best-Action:** [action from skill]
    
    ## Email Draft
@@ -88,7 +88,7 @@ On user "yes":
 
 ## Examples
 
-**Example 1 (abstract):** Customer: "Customer A"; last touch: 2026-04-30 (28 days ago); pipeline stage: "Proposal sent"; blocker: "waiting on technical evaluation from customer's IT team". Skill assesses **HIGH risk** (customer is silent, evaluating alternatives), recommends **"schedule a 30-min call to unblock evaluation"**, drafts a warm but concise email offering technical support and a concrete call time.
+**Example 1 (abstract):** Customer: "Customer A"; last touch: 2026-04-30 (28 days ago); pipeline stage: "Proposal sent"; blocker: "waiting on technical evaluation from customer's IT team". Skill assesses **red risk** (customer is silent, evaluating alternatives), recommends **"schedule a 30-min call to unblock evaluation"**, drafts a warm but concise email offering technical support and a concrete call time.
 
 ## Standalone fallback
 

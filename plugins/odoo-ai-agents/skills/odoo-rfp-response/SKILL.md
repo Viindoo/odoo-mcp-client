@@ -33,6 +33,8 @@ Difference from siblings: `odoo-gap-analysis` outputs effort tiers (days) for qu
 - Single feature availability outside RFP context → `odoo-feature-check`
 - Narrative sections of the full proposal → `odoo-content-draft`
 - Objection handling after RFP submission → `odoo-objection-handling`
+- A full end-to-end bid response package (discovery synthesis + gap analysis + capability proof +
+  objection pre-empt + proposal draft), not just this compliance matrix → `/odoo-respond-bid`
 
 ## MCP tools
 

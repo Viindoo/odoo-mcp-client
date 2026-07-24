@@ -100,23 +100,25 @@ lineage), the plan stays as reproducible as Block 2 itself.
 
 Nodes (all SYMBOLIC - names, never SHAs/paths):
 - `base` - the run's base ref (the principal branch at dispatch). One root.
-- `integration@wave-N` - one per coding wave N: the wave's cherry-pick target AND the next wave's
-  fork parent.
+- `run-integration` - ONE per run: forked from `base` at run start, it is the cherry-pick target for
+  EVERY wave and the branch the terminal `integrate` land-tail squashes + pushes as the run's ONE PR.
+  (There is NO per-wave integration branch.)
 - `worktree(m)@wave-N` - one per module `m` built in wave N.
 
 Edges (three kinds, all symbolic):
-- **fork-from** (`==>`, lineage): `integration@wave-1 ==> base`; `worktree(m)@wave-N ==>
-  integration@wave-N` (every module worktree forks from ITS OWN wave's integration, which already
-  holds all prior waves' code); and the wave-threading **fork-from-integrated-parent** edge
-  **`integration@wave-(N+1) ==> integration@wave-N`** - wave N+1's integration FORKS the prior
-  wave's integration, **NOT `base`/principal**. This is the loop fix: a dependent wave builds on its
+- **fork-from** (`==>`, lineage): `run-integration ==> base` (ONCE at run start); and every module
+  worktree `worktree(m)@wave-N ==> run-integration` - EVERY wave's worktrees fork from the ONE
+  run-integration branch, which already holds all PRIOR waves' cherry-picked code. This is the
+  fork-from-integrated-parent property (now on ONE branch): a dependent wave builds on its
   dependencies' already-integrated code, so an intra-run cross-wave `depends` is on the addons-path
   BY CONSTRUCTION (it structurally removes the cross-wave "dependency absent" BLOCKED path - the
   ledger's decision-table case 4 no longer fires intra-run).
-- **cherry-pick-into** (`-->`): `worktree(m)@wave-N --> integration@wave-N` (the coder's module
-  commit is cherry-picked into its wave integration, in module-DAG topo order).
-- **close** (per wave): `integration@wave-N` -> {integrated cross-cutting review, cumulative
-  close-gate, one squashed PR} -> then it becomes the fork parent of wave N+1.
+- **cherry-pick-into** (`-->`): `worktree(m)@wave-N --> run-integration` (the coder's module commit
+  is cherry-picked onto the ONE run-integration branch, in module-DAG topo order).
+- **close** (per wave): `run-integration` -> {integrated cross-cutting review, cumulative close-gate}
+  -> AUTO-ADVANCE to the next wave (NO per-wave PR); the next wave's worktrees fork from the same
+  run-integration branch. After the FINAL wave, the terminal `integrate` land-tail squashes
+  run-integration + opens the run's ONE PR.
 
 Render Block 2W as a fenced ```` ```text ```` block (ASCII only, ETHOS rule 0), mirroring Block-2
 style (reusable template):
@@ -124,21 +126,24 @@ style (reusable template):
 ```text
 Worktree dependency graph  (symbolic lineage; "==>" fork-from, "-->" cherry-pick-into)
   base
-    ==> integration@wave-1
-          <-- worktree(mod_a)@w1        (forks integration@w1; commit cherry-picked back)
+    ==> run-integration                                  # forked ONCE at run start
+          <-- worktree(mod_a)@w1        (forks run-integration; commit cherry-picked back)
           <-- worktree(mod_b)@w1
-        [close w1: integrated review + cumulative gate {mod_a,mod_b} + 1 squashed PR]
-    integration@wave-2  ==> integration@wave-1        # threads w1's integrated state forward
-          <-- worktree(mod_c)@w2        (mod_c depends mod_a; mod_a already present via lineage)
-        [close w2: integrated review + cumulative gate {mod_a,mod_b,mod_c} + 1 squashed PR]
-  Loop: build+commit (odoo-coder) -> cherry-pick into integration@wN -> close -> integration@w(N+1) forks from it
+        [close w1: integrated review + cumulative gate {mod_a,mod_b} -> AUTO-ADVANCE, no PR]
+          <-- worktree(mod_c)@w2        (mod_c depends mod_a; mod_a already on run-integration)
+        [close w2: integrated review + cumulative gate {mod_a,mod_b,mod_c} -> AUTO-ADVANCE, no PR]
+  After the FINAL wave: integrate land-tail -> squash run-integration + fresh first-push + open ONE PR
+  Loop: build+commit (odoo-coder) -> cherry-pick onto run-integration -> close -> AUTO-ADVANCE to next wave
 ```
 
-The **planned cadence** the graph encodes, one iteration per coding wave: wave-1 worktrees fork
-`base` -> `odoo-coder` builds + COMMITS each module in its worktree -> cherry-pick each commit into
-`integration@wave-1` (module-DAG order, verify + checkpoint) -> close wave 1 -> `integration@wave-2`
-FORKS `integration@wave-1` -> loop. The per-wave integration (fork-from-prior-integration +
-cherry-pick + saga + integrated review + cumulative close-gate + one squashed PR) is EXECUTED at
+The **planned cadence** the graph encodes, one iteration per coding wave (onto ONE run-integration
+branch): run-integration forks `base` ONCE at run start -> per wave, its module worktrees fork from
+run-integration -> `odoo-coder` builds + COMMITS each module in its worktree -> cherry-pick each
+commit onto run-integration (module-DAG order, verify + checkpoint) -> close the wave (integrated
+review + cumulative close-gate) -> AUTO-ADVANCE to the next wave (NO per-wave PR) -> loop. After the
+FINAL wave, the terminal `integrate` land-tail squashes run-integration + fresh first-push + opens the
+run's ONE PR. The between-wave integration (fork-worktrees-from-run-integration + cherry-pick + saga +
+integrated review + cumulative close-gate + auto-advance, then the single terminal PR) is EXECUTED at
 runtime - SSOT `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md` (SOLE consumer:
 `run-harness`'s between-wave integration - there is no separate git-executor skill). The
 concrete SHAs / branch tips / worktree paths / leases the runtime resolves are exactly the non-

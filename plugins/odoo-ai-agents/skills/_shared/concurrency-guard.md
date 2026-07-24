@@ -94,7 +94,14 @@ resource-teardown contract's, not this file's:
 
 ## Browser exclusivity (orthogonal)
 
-Browser-driving agents (odoo-ui-debugger / odoo-ui-reviewer) are EXCLUSIVE-serial
-regardless of mode - never two at once. Full rule + close-before-done:
-`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2. This file governs
-OSM-only fan-out; it does not own the browser exclusivity rule.
+Browser-driving agents (odoo-ui-debugger / odoo-ui-reviewer) are EXCLUSIVE-serial **per MCP
+family** - never two drivers on the SAME family (chrome-devtools, playwright, pagecast; headed
+and headless each count as their own family) at once. Distinct families MAY run in parallel, up
+to the pool cap **`W` = the number of distinct browser server families available (2 headless;
+optionally +2 headed when a headed variant is also in play), RAM permitting** -
+state-mutating (CRUD-heavy) drives stay <= 2 simultaneous regardless of family mix. THIS file is
+the SSOT for the `W` number; other files cite it here rather than restate it. Full rule
+(exclusivity rationale + the RAM-guardrail note) + close-before-done:
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2. This file governs OSM-only
+fan-out and owns the `W` browser pool-cap number; it does not own the browser exclusivity rule's
+rationale - that lives in T2.

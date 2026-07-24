@@ -4,14 +4,15 @@ Protects the CONTRACT (not a wording snapshot) of the worktree dependency graph:
 
 (a) Block 2W - the symbolic worktree dependency graph - lives in plan-mode-schema.md as a SECOND
     projection alongside the Block-2 module-DAG, carries SYMBOLIC topology/lifecycle only (never ref
-    STATE: SHAs/tips/paths/leases), and encodes the fork-from-integrated-parent loop edge
-    `integration@wave-(N+1) ==> integration@wave-N`. odoo-planner authors it and its plan-ref line is
-    relaxed to allow symbolic topology while still forbidding concrete ref state.
+    STATE: SHAs/tips/paths/leases), and encodes the fork-from-integrated-parent edge
+    `worktree(m)@wave-N ==> run-integration` - every wave's worktrees fork from the ONE
+    run-integration branch, which already carries all prior waves. odoo-planner authors it and its
+    plan-ref line is relaxed to allow symbolic topology while still forbidding concrete ref state.
 (b) The odoo-coder coordinator COMMITS its module via Skill(git-toolkit:git-ops) - request-only, no
     direct git leaf agent, no raw git (see also test_coder_coordinator_topology.py).
-(c) run-harness carries the between-wave integration (fork-from-prior-integration + cherry-pick in
-    module-DAG order + saga + integrated review + cumulative close-gate + one squashed PR at the
-    L2-squash-gate), consuming Block 2W.
+(c) run-harness carries the between-wave integration (fork-worktrees-from-run-integration + cherry-pick
+    in module-DAG order + saga + integrated review + cumulative close-gate + AUTO-ADVANCE with NO
+    per-wave PR, then ONE run-level PR via the terminal `integrate` land-tail), consuming Block 2W.
 
 Red-before-green: each assertion fails if its clause is dropped or inverted.
 """
@@ -52,7 +53,7 @@ def _block_2w_section() -> str:
 
 def test_schema_has_block_2w_with_symbolic_nodes():
     sec = _block_2w_section()
-    for node in ("base", "integration@wave-N", "worktree(m)@wave-N"):
+    for node in ("base", "run-integration", "worktree(m)@wave-N"):
         assert node in sec, f"Block 2W must declare the symbolic node `{node}`"
     low = sec.lower()
     assert "parallel" in low, (
@@ -77,19 +78,21 @@ def test_block_2w_is_symbolic_topology_never_ref_state():
     assert "path" in low, "Block 2W must forbid resolved worktree filesystem paths (ref state)"
 
 
-def test_block_2w_fork_from_integrated_parent_loop_edge():
-    """The wave-threading fix: integration@wave-(N+1) forks from integration@wave-N (NOT principal)."""
+def test_block_2w_fork_from_integrated_parent_edge():
+    """The wave-threading property on ONE branch: every wave's worktrees fork from the single
+    run-integration branch (which already carries all prior waves), NOT from a per-wave branch."""
     sec = _block_2w_section()
-    assert "integration@wave-(N+1) ==> integration@wave-N" in sec, (
+    assert "worktree(m)@wave-N ==> run-integration" in sec, (
         "Block 2W must carry the fork-from-integrated-parent edge "
-        "`integration@wave-(N+1) ==> integration@wave-N` (the loop fix)."
+        "`worktree(m)@wave-N ==> run-integration` (every wave forks from the ONE run-integration branch)."
     )
     low = sec.lower()
-    assert "not `base`/principal" in low or "not base/principal" in low or (
-        "not" in low and "principal" in low
-    ), "Block 2W must state wave N+1 integration forks the PRIOR integration, NOT base/principal"
+    assert "run-integration" in low, "Block 2W must name the single run-integration branch"
+    assert "no per-wave pr" in low, (
+        "Block 2W must state each wave auto-advances with NO per-wave PR (single-run-PR model)"
+    )
     assert "cherry-pick" in low and "-->" in sec, (
-        "Block 2W must carry the cherry-pick-into edge (worktree -> integration, `-->`)"
+        "Block 2W must carry the cherry-pick-into edge (worktree -> run-integration, `-->`)"
     )
     assert "loop" in low, "Block 2W must describe the per-wave loop"
 
@@ -117,8 +120,8 @@ def test_planner_authors_block_2w_and_ref_relaxation():
     assert "no concrete ref state" in low or "no concrete ref" in low, (
         "odoo-planner must still forbid concrete ref STATE (SHAs/tips/paths/leases stay runtime)"
     )
-    assert "integration@wave-(n+1)" in low, (
-        "odoo-planner must name the fork-from-integrated-parent loop edge it authors"
+    assert "run-integration" in low, (
+        "odoo-planner must name the single run-integration branch lineage it authors"
     )
     # The old absolute forbid ('never worktree/ref state') must be gone.
     assert "never worktree/ref state" not in low, (
@@ -160,12 +163,13 @@ def test_run_harness_owns_between_wave_integration():
         "run-harness must carry a between-wave integration responsibility (consumes Block 2W)"
     )
     assert "block 2w" in low, "run-harness between-wave integration must CONSUME Block 2W"
-    assert "fork-from-prior-integration" in low or (
-        "forks `integration@wave-(n+1)` from `integration@wave-n`" in low
-    ), "run-harness must fork wave N+1 integration from wave N integration (fork-from-prior-integration)"
+    assert "run-integration" in low and "fork" in low, (
+        "run-harness must fork each wave's module worktrees from the ONE run-integration branch "
+        "(fork-from-integrated-parent, now on a single branch)"
+    )
 
 
-def test_run_harness_cumulative_close_gate_and_squashed_pr():
+def test_run_harness_cumulative_close_gate_and_single_pr():
     text = _text(RUN_HARNESS)
     low = text.lower()
     assert "cumulative regression close-gate" in low or "cumulative" in low and "close-gate" in low, (
@@ -175,15 +179,21 @@ def test_run_harness_cumulative_close_gate_and_squashed_pr():
         "run-harness must cherry-pick each module commit in module-DAG order"
     )
     assert "saga" in low, "run-harness cherry-pick must use saga rollback (integration-loop.md)"
-    assert "squashed pr" in low, "run-harness must open ONE squashed PR per wave"
-    assert "l2-squash-gate" in low, "run-harness must STOP at the L2-squash-gate (merge stays odoo-pr-monitoring)"
+    # Single-run-PR model: NO per-wave PR; exactly ONE run-level PR via the terminal integrate land-tail.
+    assert "no per-wave pr" in low, "run-harness must state there is NO per-wave PR (waves auto-advance)"
+    assert "one pr" in low and "integrate" in low, (
+        "run-harness must open exactly ONE run-level PR via the terminal `integrate` land-tail"
+    )
+    assert "l2-merge-gate" in low, (
+        "the outward MERGE of the single run PR stays odoo-pr-monitoring's (L2-merge-gate)"
+    )
 
 
 def test_integration_loop_names_run_harness_as_canonical_consumer():
     text = _text(INTEGRATION_LOOP)
     low = text.lower()
-    assert "run-harness" in low and "canonical per-wave integration consumer" in low, (
-        "integration-loop.md must name run-harness as the canonical per-wave integration consumer"
+    assert "run-harness" in low and "canonical between-wave integration consumer" in low, (
+        "integration-loop.md must name run-harness as the canonical between-wave integration consumer"
     )
     # After decision R, run-harness is the SOLE owner - there is no separate git-executor skill.
     # The dead per-wave git-executor must NOT be listed as an owner anymore.

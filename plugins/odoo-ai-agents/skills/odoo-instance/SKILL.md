@@ -267,9 +267,11 @@ port pool). Safe cap is ~3 simultaneous ephemeral instances before RAM / port-po
 allocator enforces port uniqueness but imposes no count ceiling - the orchestrator manages the
 budget. Use `CONTEXT: doc` for clean documentation instances (demo on + skip-auto-install; target
 module only). For browser-bound capture workers, cap W at the number of distinct browser server
-families available (2 headless; +2 headed when DISPLAY is present); state-mutating scenario drives
-stay <= 2 simultaneous. Browser-free phases (feature-map, icon, copy) fan out wider. Never
-`createdb`/`dropdb` raw - always through Odoo and the allocator.
+families available; state-mutating scenario drives stay <= 2 simultaneous. Browser-free phases (feature-map, icon, copy) fan out wider. Never
+`createdb`/`dropdb` raw - always through Odoo and the allocator. `W` is per-family, RAM-permitting
+(never a global single-flight across families): `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+§ Browser exclusivity is the SSOT for the `W` number; full exclusivity rule + rationale:
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2.
 
 ## Out of Scope
 

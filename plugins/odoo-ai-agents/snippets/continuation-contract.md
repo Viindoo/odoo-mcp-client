@@ -28,9 +28,12 @@ blocked_reason: <non-null iff status in {BLOCKED, NEEDS_CONTEXT}>
 ````
 
 Rules:
-- **You only EMIT this - you never dispatch the next step yourself.** Advancing is the
-  run-harness's job (a skill/agent emitting a contract must not self-dispatch the next spawner -
-  that is the run-harness's job). See `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`.
+- **You only EMIT this - you never dispatch the next step yourself, with one narrow category
+  exception.** Advancing ANOTHER agent's `next` is always the driver's (run-harness's) job. The
+  exception: a front-door ORCHESTRATOR skill that drives its OWN bounded next/fix loop when it is
+  NOT running as a run-harness node MAY self-dispatch its next spawner - its own instructions carry
+  the exact condition and iteration bound for doing so. A leaf worker/agent NEVER self-dispatches.
+  See `${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`.
 - **Spawner completion barrier (distinct from the no-self-dispatch rule above).** If you launched
   any agent this turn, `status: DONE` is legal only when every child you launched returned
   DONE/BLOCKED; while a child runs you are not done. Full rule:

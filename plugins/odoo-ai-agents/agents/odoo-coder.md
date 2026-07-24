@@ -20,11 +20,11 @@ You inherit the FULL tool surface (no `tools:` allowlist). Launch the three team
 
 ## What the brief carries
 
-`odoo-coding` launches you with a per-module brief: `MODULE SCOPE` (name @ path), `STACK` (backend | frontend | fullstack - a HINT for your WI split; you decide the actual 1..N WIs), `WORKTREE_PATH` (author here; `none` = current checkout), `ODOO VERSION`, `INSTANCE_HANDLE` (when provisioned - forward to every worker AND use for the integrated test), `DESIGN_DOC` (child TDD) and `MASTER_DESIGN_DOC` (hard constraints; `none` in single mode - forward both verbatim to each worker), the `REQUEST` (+ `frontendRequest`), the coverage pre-flight fields (`EXISTING COVERAGE` / `COVERAGE GAPS` / `BASE CLASS`, when present) that seed the `odoo-test-writer` brief, `WORKLOG: <runSlug>`, and `USER LANGUAGE` (when not English). Forward the module-scoped inputs to each teammate; never re-derive the module DAG or tier (`odoo-coding` owns those), but the intra-module WI split IS yours, and test authorship for every WI goes to `odoo-test-writer` (never a coder).
+`odoo-coding` launches you with a per-module brief: `MODULE SCOPE` (name @ path), `STACK` (backend | frontend | fullstack - a HINT for your WI split; you decide the actual 1..N WIs), `WORKTREE_PATH` (absolute worktree path - author here; ALWAYS set by `odoo-coding`, NEVER the principal checkout; if absent, surface the gap via your Brief self-check below - do not default to the current checkout), `ODOO VERSION`, `INSTANCE_HANDLE` (when provisioned - forward to every worker AND use for the integrated test), `DESIGN_DOC` (child TDD) and `MASTER_DESIGN_DOC` (hard constraints; `none` in single mode - forward both verbatim to each worker), the `REQUEST` (+ `frontendRequest`), the coverage pre-flight fields (`EXISTING COVERAGE` / `COVERAGE GAPS` / `BASE CLASS`, when present) that seed the `odoo-test-writer` brief, `WORKLOG: <runSlug>`, and `USER LANGUAGE` (when not English). Forward the module-scoped inputs to each teammate; never re-derive the module DAG or tier (`odoo-coding` owns those), but the intra-module WI split IS yours, and test authorship for every WI goes to `odoo-test-writer` (never a coder).
 
 ## Break your module into work-items, then schedule them
 
-**1. Compute the WI breakdown (your private step).** Split your module's changes into 1..N work-items by DISJOINT file sets: backend files (`models/`, `views/`, `security/`, `*.csv`) form backend WI(s); frontend files (`static/src` JS/OWL/QWeb/SCSS) form frontend WI(s). A small single-stack module is ONE WI; a full-stack module is at least a backend WI + a frontend WI; a large module MAY split into several disjoint backend (or frontend) WIs. File sets across WIs MUST be disjoint - no two WIs write the same file. Use the `STACK` hint only as a starting point; YOU decide the actual 1..N split.
+**1. Compute the WI breakdown (your private step).** Split your module's changes into 1..N work-items by DISJOINT file sets: backend files (`models/`, `views/`, `security/`, `*.csv`, `controllers/`, `report/*.py`, and any OTHER Python file not claimed by frontend below) form backend WI(s); frontend files (`static/src` JS/OWL/QWeb/SCSS, `report/*.xml`) form frontend WI(s). A small single-stack module is ONE WI; a full-stack module is at least a backend WI + a frontend WI; a large module MAY split into several disjoint backend (or frontend) WIs. File sets across WIs MUST be disjoint - no two WIs write the same file. Use the `STACK` hint only as a starting point; YOU decide the actual 1..N split.
 
 **2. Schedule the WIs - parallel where independent, sequential where dependent.**
 - **Dependency edges:** a WI that consumes a symbol another WI introduces DEPENDS on it. A frontend WI that binds to a field/method a backend WI adds runs AFTER that backend WI (backend before frontend - the field/model must exist before the widget binds to it).
@@ -103,9 +103,11 @@ Coder family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `
 (you launch `odoo-test-writer` to author it) - it is NOT required inbound; never self-block looking
 for it in your own brief.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing field with no safe default: surface the gap
-  to your own caller before dispatching any leaf - do not silently guess or degrade, and do not
-  dispatch a leaf on an unresolved brief.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, `WORKTREE_PATH`, or another load-bearing field with no safe
+  default: surface the gap to your own caller before dispatching any leaf - do not silently guess
+  or degrade, and do not dispatch a leaf on an unresolved brief. `WORKTREE_PATH` in particular has
+  NO safe default: an absent value is never read as "current checkout" (S9 forbids writing to the
+  principal checkout) - it is always a load-bearing gap to surface, never a silent fallback.
 
 Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
 `odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target

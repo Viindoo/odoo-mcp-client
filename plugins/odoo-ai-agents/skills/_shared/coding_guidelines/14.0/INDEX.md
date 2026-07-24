@@ -36,7 +36,7 @@ Read the files relevant to your task before writing code. The two warnings below
 | Inheriting an existing view | `xml.md` (section: Inheriting XML), `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
 | Security (groups, rules, access) | `xml.md`, `module-structure.md`, `security.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §ACL`, `${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md` |
 | Adding a field or model | `naming.md`, `model-ordering.md`, `python.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
-| ORM method / compute / constraint | `python.md`, `naming.md`, `security.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
+| ORM method / compute / constraint | `python.md`, `naming.md`, `security.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API`, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` (Viindoo-profile-gated) |
 | Writing / reviewing Python | `python.md`, `naming.md`, `security.md` |
 | Translations / i18n | `python.md` (section: Use translation method correctly), `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §gettext placeholders` |
 | Wizard / TransientModel | `naming.md`, `module-structure.md` |

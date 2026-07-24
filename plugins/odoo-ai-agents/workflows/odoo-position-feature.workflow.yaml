@@ -48,14 +48,20 @@ phases:
     skill: odoo-competitive-brief
     nl_trigger: >
       Using the feature identified in the feature-check phase and the competitor name
-      provided by the user, produce a focused competitive comparison. Output a 2-column
-      capability matrix (Odoo vs competitor) covering this feature only. Highlight
-      Odoo's unique strengths and any gaps. Name the competitor explicitly throughout -
+      provided by the user, produce a focused competitive comparison in single-feature
+      mode (per odoo-competitive-brief's elastic scope). Output a 2-column capability
+      matrix (Odoo vs competitor) covering this feature only. Highlight Odoo's unique
+      strengths and any gaps. Name the competitor explicitly throughout -
       odoo-competitive-brief's contract is named-competitor (argument-hint "[competitor
-      name]", output header "# Competitive Brief: <Competitor Name>") and
-      .odoo-ai/positioning/ is gitignored, so there is no confidentiality reason to
-      genericize the name. If the user did not provide a competitor name or answered
-      "none", skip this phase entirely.
+      name]", output header "# Competitive Brief: <Competitor Name>"). This phase's
+      output is an INTERNAL working artifact consumed only by the positioning-copy
+      phase below - distinct from that phase's EXTERNAL-facing deliverable, which MUST
+      genericize the competitor label before it can be shared, published, or sent to a
+      customer. (.odoo-ai/positioning/ being gitignored only keeps this internal
+      artifact out of THIS repo - it says nothing about whether the caller later shares
+      the FINAL positioning copy externally, which is the actual reason that phase
+      genericizes.) If the user did not provide a competitor name or answered "none",
+      skip this phase entirely.
     model_tier: sonnet
     gate: "approve / skip / cancel"
     when: "competitor_name != null"
@@ -85,7 +91,9 @@ phases:
     #   marketer  -> messaging hooks, social proof, differentiator framing
     # On gate "save": write .odoo-ai/positioning/<slug>-<channel>-<YYYY-MM-DD>.md.
     # On "terminal": display only. On "cancel": discard.
-    # Use generic competitor labels (e.g. "leading mid-market ERP") in saved copy.
+    # Use generic competitor labels (e.g. "leading mid-market ERP") in saved copy - this
+    # output is EXTERNAL-facing and may be shared/published, unlike the internal
+    # competitive-brief artifact above (see that phase's nl_trigger for the distinction).
 
 resume: true
 fallback: standalone

@@ -134,15 +134,10 @@ ARGS: model (required), field (required, relational field), target_model (requir
 
 ## MCP Resources (read-only handles)
 
-Seven URI-addressable resources for bookmark-stable reads (no parameters; same X-API-Key auth as tool calls):
-
-- odoo://{version}/model/{name}              - Model record (inheritance, counts, modules)
-- odoo://{version}/field/{model}/{field}     - Field record (type, compute, definition module)
-- odoo://{version}/method/{model}/{method}   - Method record (override chain, super_ratio)
-- odoo://{version}/module/{name}             - Module record (manifest, counts)
-- odoo://{version}/view/{xmlid}              - View record (xpath chain, inherit_id)
-- odoo://{version}/pattern/{name}            - Pattern catalogue entry
-- odoo://{version}/stylesheet/{module}/{file_path*}    - Stylesheet record
+URI-addressable resources for bookmark-stable reads (no parameters; same X-API-Key auth as tool
+calls). Full generated list (kept in lockstep with the server): see § "MCP Resources
+(read-only, URI-addressable)" under "Generated Tool Surface" below - do not restate the count or
+the list here.
 
 Prefer Resources when the caller already knows the entity ID - no tool-call overhead.
 

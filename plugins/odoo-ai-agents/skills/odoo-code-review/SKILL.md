@@ -75,7 +75,9 @@ Dispatch agent `odoo-review-scoper` (sonnet) per the SCOPER I/O CONTRACT (SSOT: 
 
 The scoper writes `<ISOLATE_DIR>/reviews/<slug>-<date>/_scope.md` and returns the compact scope. Do NOT run git diff inline, map `__manifest__.py`, or call `test_coverage_audit` in main context - the scoper handles all of it.
 
-Scope output fields used by main: full field schema per Step 6 of the scoper I/O contract (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Key dispatch behaviors:
+**Handle scoper terminals first, before reading `fanout`.** If the scoper returns `status: BLOCKED` or `status: NEEDS_CONTEXT` (e.g. an empty diff, an unresolvable `TARGET`, or a PR it could not map to modules), surface that status and its reason immediately and STOP - do NOT read `fanout` and do NOT dispatch any reviewer. A `BLOCKED`/`NEEDS_CONTEXT` scope has no reliable module list to fan out over.
+
+Scope output fields used by main (once the scoper's status is neither `BLOCKED` nor `NEEDS_CONTEXT`): full field schema per Step 6 of the scoper I/O contract (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Key dispatch behaviors:
 
 **Mode detection:** master-child mode iff `master_design_doc != none` in the scope block; else single mode.
 
@@ -130,7 +132,7 @@ next:
     reason: change touches a UI/behavior surface with dependents (render_check_set beyond the changed modules); run blast-radius acceptance over the affected cluster
     inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: "<ISOLATE_DIR>/qa/<slug>-scope.md", odoo_version: "<version>"}
     confidence: 0.7
-    gate_tier: L2
+    risk_level: L2
 ```
 
 Opt-in: it surfaces the verdict + recommended acceptance pass for an L2 (human) gate - never auto-blocks the review, never auto-runs acceptance. `scope_hint` is advisory (odoo-acceptance Phase 0 regenerates the verify-scope manifest from the changed set).

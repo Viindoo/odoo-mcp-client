@@ -422,17 +422,10 @@ even if the registry omits it.
 | `doc/index.rst` | English canonical - Documentation tab | No locale suffix. Tab appears on listing only when this file exists. |
 | `doc/index_<locale>.rst` | Localized Documentation tab | One file per non-English locale. |
 
-**Language resolver order** (doc-illustration tiers - reuse, do not clone):
-
-1. Brief field `LANGUAGES:` (explicit override, optional)
-2. `<SHARE_DIR>/context.md` -> `doc_languages`
-3. `${ODOO_AI_HOME:-$HOME/.odoo-ai}/i18n.json` -> `default_languages`
-4. Disk: `<module>/i18n/*.po` locale codes
-5. Live `res.lang` (active languages on instance, late fallback)
-6. Hard fallback (tier-6 default stays `["vi_VN"]` for the shared resolver)
-
-After resolving, **union with existing on-disk `index_*.html` / `index_*.rst`** so prior
-translations are never dropped.
+**Language resolver order.** SSOT:
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-doc-illustration/SKILL.md` § Language resolution (6-tier +
+disk-UNION) - do not restate the tier order or the disk-UNION rule here; that section is
+authoritative and this file cross-references it.
 
 **Screenshot localization**: per-locale screenshots are captured separately. Filename pattern:
 English canonical has NO suffix (`NN-slug.jpg`, `main_screenshot.gif`); every non-English locale

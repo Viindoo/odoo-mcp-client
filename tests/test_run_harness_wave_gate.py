@@ -7,16 +7,18 @@ These protect the two safety couplings the between-wave advance depends on - not
 code structure:
 
 - R1 (advance<->close-gate coupling): run-harness may auto-advance between waves ONLY because
-  each wave now proves a green CUMULATIVE close-gate before it opens a PR. If that anchor is ever
-  removed while the L1 between-wave autonomy stays, the run would drive to done with no regression
-  proof. This test fails the moment the "cumulative ... close-gate" clause disappears from
-  run-harness, so the autonomy cannot ship without its justification.
+  each wave now proves a green CUMULATIVE close-gate before it auto-advances (and, ultimately,
+  before the run's ONE terminal PR). If that anchor is ever removed while the L1 between-wave
+  autonomy stays, the run would drive to done with no regression proof. This test fails the moment
+  the "cumulative ... close-gate" clause disappears from run-harness, so the autonomy cannot ship
+  without its justification.
 
 - R2 (SSOT<->code drift): docs/reference/workflow-harness.md §8.4 is a HAND-AUTHORED SSOT. It
   states (a) the registry `_derive_gate_tier` derivation (which has NO spawner-wave branch anymore)
   and (b) that the between-wave integration (`approach_kind: wave`) node advances at L1 while the
-  squash/merge stays human-gated. This test asserts the doc and the code agree, so a future editor
-  cannot re-introduce a `spawner-wave` class or flip the between-wave tier without a red test.
+  downstream outward MERGE stays human-gated (L2). This test asserts the doc and the code agree, so
+  a future editor cannot re-introduce a `spawner-wave` class or flip the between-wave tier without a
+  red test.
 
 Each assertion fails for exactly one reason. Run:
   python3 -m pytest tests/test_run_harness_wave_gate.py -v
@@ -51,7 +53,7 @@ def test_run_harness_has_cumulative_close_gate():
 
     Fails if: the cumulative close-gate wording is removed from run-harness/SKILL.md. The
     between-wave advance is L1 (auto-pass / drive-to-done); that is only safe because each wave
-    proves a green cumulative regression suite before opening a PR.
+    proves a green cumulative regression suite before it auto-advances (and before the run's ONE PR).
     """
     assert RUN_HARNESS.exists(), f"skills/run-harness/SKILL.md not found at {RUN_HARNESS}"
     body = RUN_HARNESS.read_text(encoding="utf-8")
@@ -116,20 +118,26 @@ def test_harness_doc_states_between_wave_node_is_l1():
         "workflow-harness.md §8.4 must state the between-wave integration (`approach_kind: wave`) "
         "node tier is L1 (the drive-to-done advance)."
     )
-    # The squash/downstream merge stays human-gated (L2) - the doc must keep that coupling.
-    assert "L2-squash-gate" in sec or "downstream" in sec.lower() and "merge" in sec.lower(), (
-        "workflow-harness.md §8.4 must keep the human-gated squash/merge coupling for the wave node."
+    # The downstream outward merge stays human-gated (L2) - the doc must keep that coupling.
+    assert "downstream" in sec.lower() and "merge" in sec.lower(), (
+        "workflow-harness.md §8.4 must keep the human-gated downstream merge coupling for the wave node."
     )
 
 
-def test_run_harness_body_states_wave_advance_l1_squash_l2():
-    """R2 (companion): run-harness SKILL.md itself must state the between-wave advance is L1 and the
-    squash/PR is the in-context L2-squash-gate (the human gate)."""
+def test_run_harness_body_states_wave_advance_l1_merge_l2():
+    """R2 (companion): run-harness SKILL.md itself must state the between-wave advance is L1
+    (auto-advance, NO per-wave PR) and the ONLY coding-run L2 is the downstream outward MERGE
+    (odoo-pr-monitoring's L2-merge-gate). The single-run-PR model has no per-wave L2-squash-gate."""
     body = RUN_HARNESS.read_text(encoding="utf-8")
     low = body.lower()
     assert "between-wave integration" in low, "run-harness must own a between-wave integration section"
-    assert "l1" in low and "l2-squash-gate" in low, (
-        "run-harness must state the between-wave advance is L1 and the squash is the L2-squash-gate."
+    assert "l1" in low, "run-harness must state the between-wave advance is L1 (drive-to-done)."
+    assert "no per-wave pr" in low, (
+        "run-harness must state the wave auto-advances with NO per-wave PR (single-run-PR model)."
+    )
+    assert "l2-merge-gate" in low and "odoo-pr-monitoring" in low, (
+        "run-harness must state the ONLY coding-run L2 is the downstream outward MERGE "
+        "(odoo-pr-monitoring's L2-merge-gate)."
     )
     assert "approach_kind" in low and "wave" in low, (
         "run-harness must describe the coding wave node as `approach_kind: wave`."

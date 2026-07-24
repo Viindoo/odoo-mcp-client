@@ -34,7 +34,10 @@ set_active_version(odoo_version='17.0')   # always explicit
 model_inspect(model='account.move', method='summary', odoo_version='17.0')
 
 # 3 - check if the intent is already present (behavior already shipped)
-entity_lookup(name='<field_or_method>', kind='<field-or-method>', odoo_version='17.0')
+# field form:
+entity_lookup(kind='field', model='<model>', field='<field_name>', odoo_version='17.0')
+# method form:
+entity_lookup(kind='method', model='<model>', method_name='<method_name>', odoo_version='17.0')
 ```
 
 - Symbol **present with compatible signature** and intent NOT yet applied -> bucket (b).
@@ -68,8 +71,9 @@ runtime or test-run.
 After replaying a commit (outcome (b) or (c)), run this check before staging the files via git-ops:
 
 1. **OSM inheritance-chain count (AUTHORITATIVE - HARD FAIL if >1):**
-   `entity_lookup(name='<identifier>', kind='<field-or-method>', odoo_version='<series>')` - count definitions
-   ACROSS THE FULL INHERITANCE CHAIN (all modules). If the count is >1 the commit hit
+   field -> `entity_lookup(kind='field', model='<model>', field='<field_name>', odoo_version='<series>')`;
+   method -> `entity_lookup(kind='method', model='<model>', method_name='<method_name>', odoo_version='<series>')`
+   - count definitions ACROSS THE FULL INHERITANCE CHAIN (all modules). If the count is >1 the commit hit
    outcome (a) silently: the rebase re-added a behavior that base already ships, potentially
    in a DIFFERENT module (classic core-absorption). This is a BLOCKER - do NOT stage the
    files; tell git-ops to abort this apply step instead.

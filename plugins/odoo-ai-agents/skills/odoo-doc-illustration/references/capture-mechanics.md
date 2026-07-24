@@ -15,11 +15,13 @@ copy pre-fetch, the per-instance loop, verify, and commit.
 
 ## 1. Browser exclusivity + server family
 
-Browser-exclusive, serial within a dispatch (never concurrent with another browser-driving agent);
-full rule + close-before-done: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2.
-When the skill fans out multiple capture workers (multi-module / multi-locale), each worker is on a
-DISTINCT browser MCP server family and a DISTINCT instance - the skill computes the cap; you do not
-self-parallelize and you never share a family/instance with another worker.
+Browser-exclusive PER FAMILY, serial within a dispatch (never concurrent with another
+browser-driving agent on the SAME MCP family); full rule + close-before-done:
+`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2. When the skill fans out multiple
+capture workers (multi-module / multi-locale), each worker is on a DISTINCT browser MCP server
+family and a DISTINCT instance - the skill computes the cap; you do not self-parallelize and you
+never share a family/instance with another worker. Distinct families MAY run concurrently (each is
+an isolated process with its own Chromium profile - no shared-DOM risk).
 
 - **Pick one server family per run and stay on it - a FAMILY choice, not a page-lifetime one.**
   Staying on one family across the run does not mean keeping a page open across the run; you still
@@ -222,7 +224,8 @@ the bound that triggered it, so the caller sees exactly what was produced.
   absolute paths appear ONLY at the Bash write/cp step.
 - Never pass an absolute path as a screenshot filename to any browser tool (rejected by allowed-roots).
 - Never use `browser_annotate` (playwright-only; chrome-devtools has no equivalent) in the
-  capture loop, on any family; never run concurrently with another browser-driving agent.
+  capture loop, on any family; never run concurrently with another browser-driving agent on the
+  SAME MCP family (T2) - a distinct family/instance may run in parallel.
 - Git/GitHub mutations are NOT yours - the dispatching skill commits via git-toolkit `git-ops`.
   Bounded reads (`git status`, `git diff --stat`) may stay inline; never run git mutations, `gh`, or
   the github MCP directly.

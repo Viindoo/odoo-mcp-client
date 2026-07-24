@@ -48,6 +48,30 @@ coordinator, not here.
 - **Designing the approach before any code (non-trivial)** → `odoo-solution-design`
 - **Verifying the rendered UI / a runtime render error / image regression** → `odoo-ui-review` / `odoo-debug` / `odoo-visual-regression`
 
+## MCP tools
+
+<!-- BEGIN GENERATED TOOLS -->
+> **Pick the right tool first.** Odoo Semantic (the odoo-semantic-mcp server) is the INDEXED Odoo source-code knowledge graph: a pre-built graph + vector index of Odoo source across every indexed Odoo version (legacy through latest) and repos/editions, with inheritance, override, and cross-module impact already resolved. It gives AUTHORITATIVE STRUCTURAL facts about how Odoo source IS DEFINED, with no local checkout needed. Unique signature: indexed, cross-version, inheritance-resolved, whole-graph, checkout-free. It is a STATIC index with NO runtime/live data.
+>
+> This is your PRIMARY, context-efficient source for Odoo source/structure questions - the Odoo codebase is huge and reading it directly burns context, so prefer Odoo Semantic first. Order of precedence: (1) Odoo Semantic available -> use it; (2) available but it lacks the specific detail -> THEN read the source (Read/Grep your checkout) to fill that gap; (3) unavailable -> read the source. Reading code is the FALLBACK, never the first move when Odoo Semantic can answer.
+>
+> Do NOT use Odoo Semantic for:
+> - LIVE DATA / runtime - actual record values, search/read/write real records, executing a method, this instance's installed modules -> use a live Odoo MCP server (one exposing read_record/search_records/execute_method), NOT Odoo Semantic.
+>
+> Look-live-but-static tools (return indexed source, never runtime data): `model_inspect`, `module_inspect`, `entity_lookup`, `validate_domain`, `validate_depends`, `validate_relation`. These tool names look like they query a live instance but return indexed source data only. If you need live records, Odoo Semantic is the wrong server.
+
+**Session bootstrap** (call once at session start):
+- `set_active_version(odoo_version='17.0')` - Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL).
+
+**Primary tools:**
+- `module_inspect` ★ - Module-level architecture overview: manifest summary, models defined/extended, views, OWL components, QWeb templates, JS patches, module dependency chain, or test class list in one call.
+- `find_override_point` - Show override chain, super() safety guidance, and anti-patterns for a method to find the safest place to inject custom behavior.
+- `impact_analysis` - Risk assessment of changing or removing a field, method, or model: blast radius, dependent modules, and downstream fields.
+- `tests_covering` - List test methods that have COVERS_MODEL/COVERS_FIELD/COVERS_METHOD edges to the target model or field (static reference coverage, not runtime executed coverage).
+- `test_coverage_audit` - Audit an entire module for test coverage gaps: lists fields/methods with zero COVERS_* edges (never referenced by any test).
+- `test_base_classes` - Menu of official Odoo test framework base classes (TransactionCase, HttpCase, SavepointCase, Form, etc.) for the given version, with test_type and cursor contract.
+<!-- END GENERATED TOOLS -->
+
 ## Phase 0 - Scope + module graph (1-turn gate, mandatory)
 
 This is the single confirmation checkpoint. It applies even when the request arrived directly
@@ -57,9 +81,11 @@ immediately below), in which case you skip this gate entirely.**
 **Autonomous-fix exception - SKIP this gate entirely** when your brief contains
 **"AUTONOMOUS FIX (review-driven)"** or **"AUTONOMOUS FIX (debug-driven)"**: the human already
 opted into the autonomous review/debug fix loop, so do NOT stop for a confirmation. Read the worklog
-+ the review report / proven root cause passed in, fix directly to those findings, and the moment
-you finish writing **IMMEDIATELY invoke `odoo-code-review` via the Skill tool yourself** to verify
-(§ The code -> review+test -> code loop). Bound to 3 iterations, then STOP and escalate.
++ the review report / proven root cause passed in, then proceed straight into the dispatch+fix loop:
+dispatch the `odoo-coder` coordinator(s) (per ## Execution below) to fix to those findings - this
+skill never edits files inline itself - and the moment they return **IMMEDIATELY invoke
+`odoo-code-review` via the Skill tool yourself** to verify (§ The code -> review+test -> code loop).
+Bound to 3 iterations, then STOP and escalate.
 
 Otherwise (normal invocation), First READ any existing worklog for this run. Worklog is Tier-2
 ISOLATE; resolve it via the resolve-capture-substitute protocol in
@@ -193,6 +219,11 @@ Constraints on the table:
   in plan.md (`<m2>: opus (fable declined)`). If the work is fable-grade but NO
   approved design doc exists, recommend `SUGGESTED_NEXT: odoo-solution-design`
   first (Custom-XL work is design-first).
+- **Suppressed-gate auto-downgrade (no human is available to confirm).** When the Phase-0 gate is
+  suppressed (an active `run-<id>` node, or the `WORKTREE_PATH` between-wave path - see Phase 0
+  above), no inline human confirmation is possible: if step 5 resolves a module to **fable**,
+  AUTO-DOWNGRADE it to **opus** and record `<m>: opus (fable auto-downgraded - gate suppressed)`
+  in plan.md, in the same format as the human-declined downgrade above.
 - A fullstack module gets ONE tier applied to both legs by default; you MAY set a
   lower `frontendModel` when the design doc splits effort (e.g. opus backend +
   sonnet frontend). Never set the frontend leg HIGHER than the module tier.
@@ -351,8 +382,10 @@ THIS skill (not the leaf coder) owns cross-module coordination for NEW modules -
 batch map, the DONE barrier, and (now) the coordination ledger. Full contract:
 `${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md` (do NOT restate it here).
 
-**Write the ledger (only this skill writes it).** Resolve `LEDGER_ROOT` once per run via
-`git rev-parse --git-common-dir` so it is shared across every linked worktree and concurrent run.
+**Write the ledger (only this skill writes it).** Resolve `LEDGER_ROOT` once per run per
+`${CLAUDE_PLUGIN_ROOT}/snippets/module-coordination-ledger.md` (`LEDGER_ROOT` = `<SHARE_DIR>/coordination/modules`,
+`SHARE_DIR` via `resolve_project_dir.sh share` - shared across every linked worktree and concurrent
+run; do NOT restate the resolution recipe here).
 For each NEW in-scope module (a module resolving to neither OSM nor disk per
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md`), before dispatching its coder:
 
@@ -401,10 +434,10 @@ DISPATCH MODEL: <tier>
 REQUEST: <the change for this module: target model + constraints (+ frontendRequest for a frontend WI)>
 STACK: <backend | frontend | fullstack - hint for the coordinator's WI split; it decides the actual 1..N WIs>
 MODULE SCOPE: <name> @ <path> - write ONLY within this module (+ its __manifest__.py / static assets).
-WORKTREE_PATH: <absolute worktree path | none> - when set (run-harness between-wave integration path): `cd` here and write ALL your work in this worktree; your hard-leaf coders RETURN their file lists (no git), then YOU (the coordinator) COMMIT the module via `git-toolkit:git-ops` once the integrated test is green and RETURN the SHA - `odoo-coding` collects it and `run-harness`'s between-wave integration cherry-picks it. `none` -> author in the current checkout as usual, no git.
+WORKTREE_PATH: <absolute worktree path> - ALWAYS set (odoo-coding self-provisions one before dispatch when the caller handed in none - S9, never the principal checkout): `cd` here and write ALL your work in this worktree; your hard-leaf coders RETURN their file lists (no git), then YOU (the coordinator) COMMIT the module via `git-toolkit:git-ops` once the integrated test is green and RETURN the SHA - `odoo-coding` collects it and `run-harness`'s between-wave integration cherry-picks it. A missing value here is a load-bearing gap, never `current checkout` - surface it (Brief self-check) rather than defaulting to it.
 NEW MODULE: <yes - ALWAYS scaffold with `odoo-bin scaffold` first; edit only needed keys and KEEP scaffold's commented placeholders; keep its short version default, do NOT rewrite to `<series>.x.y.z` | no>
 ODOO VERSION: <version>
-INSTANCE_HANDLE: <the run's provisioned instance handle from a prior odoo-instance step, when present - db_name/http_port/addons_path/venv/lease_token; omit when the run provisioned none>
+INSTANCE_HANDLE: <the run's provisioned instance handle from a prior odoo-instance step, when present - db_name/http_port/db_port/addons_path/venv/lease_token/run_id (full field list: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`); omit when the run provisioned none>
 DESIGN_DOC: <child TDD path | none> - per-module spec; if present, build to it; do not re-derive.
 MASTER_DESIGN_DOC: <master TDD path | none> - hard constraints (ownership, dep-direction, §10 contracts); `none` in single mode.
 TEST: test-first (universal) - launch `odoo-test-writer` FIRST per WI to author the RED test, then the coder implements to green; the coders do NOT author tests. Forward the coverage pre-flight below to `odoo-test-writer`.
@@ -478,7 +511,7 @@ When OSM (the odoo-semantic-mcp server) is unreachable, the dependency graph and
 from disk - read each `__manifest__.py` `depends` and scan `static/src` (or the haiku reader
 above) - and each agent falls back to its own disk-grounded mode per
 `${CLAUDE_PLUGIN_ROOT}/snippets/disk-fallback-protocol.md`, still writing files to their correct
-locations. Label the plan "graph from disk (OSM unavailable)"; the wave/pair topology is
+locations. Label the plan "graph from disk (OSM unavailable)"; the wave topology is
 unchanged, only the grounding degrades. Never ask a human to paste code, field lists, or manifests.
 
 ## Agent-managed tools
@@ -533,6 +566,9 @@ When the bundle finishes, append a Continuation Contract block per
 runs against the same pinned version without re-deriving it (that skill now scales to the same
 multi-module set). Additionally, when any module in the
 run is new (`NEW MODULE: yes`) OR the change introduces user-facing translatable strings
-(`_("...")` / `string=` field attr), also add `SUGGESTED_NEXT: odoo-i18n` so the module's
-`.pot` / `.po` files are generated and translated via the dedicated i18n skill. Additive output for the
-run-harness - it does not change anything produced above.
+(`_("...")` / `string=` field attr), ALSO add a second entry to the same `next:` list naming
+`odoo-i18n` (reason: the module's `.pot` / `.po` files need generating/translating) at
+`confidence: 0.4` and `risk_level: L2` (the skill requires a live instance) - a low-confidence
+advisory the driver surfaces as a suggestion, never a bare `SUGGESTED_NEXT:` line (superseded by
+the in-block form, the V-34 pattern already applied to the coder/reviewer family). Additive output
+for the run-harness - it does not change anything produced above.

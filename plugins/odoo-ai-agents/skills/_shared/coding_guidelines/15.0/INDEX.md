@@ -36,7 +36,7 @@ These guidelines aim to improve the quality of Odoo Apps code. Proper code impro
 | Writing Python models | `python.md`, `naming.md`, `model-ordering.md`, `security.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
 | Writing XML views / data | `xml.md`, `naming.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §XML views` |
 | Translation / `_()` usage | `python.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §gettext placeholders` |
-| CRUD override or onchange | `model-ordering.md`, `python.md`, `security.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API` |
+| CRUD override or onchange | `model-ordering.md`, `python.md`, `security.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/orm-performance.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/stored-write-survival.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §model-API`, `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` (Viindoo-profile-gated) |
 | Security (groups, rules, access) | `xml.md`, `module-structure.md`, `security.md`, `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-version-pivots.md §ACL`, `${CLAUDE_PLUGIN_ROOT}/snippets/access-groups-conventions.md` |
 | Writing JavaScript | `javascript.md` (JS tooling/ESLint/Prettier detail: `../javascript-coding-guidelines.md`) |
 | Writing CSS / SCSS | `scss.md` |

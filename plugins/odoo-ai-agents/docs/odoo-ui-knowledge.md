@@ -73,10 +73,11 @@ below cite these tags.
 | G8 | Legacy break (v8-v14 only) | a legacy `web.Widget` fails to instantiate (silent - no OWL error surface exists pre-v15), an `odoo.define()` AMD module fails to load (console-only error, blank region), or a QWeb2 template id is missing/misspelled (silent blank) |
 
 Scope note: G7 (role-dependent) and any CRUD / state-transition coverage need MULTIPLE roles and write
-operations - that is the acceptance tester's scope (`odoo-qa-tester`). A rendered-UI review observes G1-G6
-plus whatever G7 effect is visible for the single role it is logged in as, on one screen, without mutating data.
-G8 replaces G5 as the relevant white-screen class on a v8-v14 target - the two are mutually exclusive per screen
-once the era is determined.
+operations - that is the acceptance tester's scope (`odoo-qa-tester`). A rendered-UI review observes the
+FULL era-appropriate taxonomy on one screen, single-role, without mutating data: G1-G4 and G6 always;
+G5 (OWL era, v15+) OR G8 (Legacy era, v8-v14) - never both, mutually exclusive per screen once the era is
+determined (see "Determine the frontend era first" above); plus whatever G7 effect is visible for the
+single role it is logged in as (full role-matrix ACL coverage stays out of scope, per above).
 
 ## View-type render checks
 
@@ -194,7 +195,15 @@ Credential values themselves come from the agreed credential source referenced i
 All four skills read `<SHARE_DIR>/context.md` (Markdown bullets `- **key**: value`, not YAML):
 
 - `odoo_version` - selects `/odoo` vs `/web` and the framework era above.
-- `instance_base_url` - root of the running instance to navigate.
+- `instance_base_url` - root of the running instance to navigate. For a two-state visual-regression
+  comparison this is state A (the baseline); a same-instance before/after (module install/uninstall,
+  theme toggle, in-place upgrade) also reuses it for state B - re-navigate the same URL after
+  applying the change.
+- `instance_base_url_b` - (optional) root of a SECOND, genuinely distinct running instance, consumed
+  only by `odoo-visual-regression` for a true two-instance comparison (e.g. two separate builds/hosts
+  - staging vs prod, or two independently-provisioned version instances). Omit for a same-instance
+  before/after diff; when absent, `odoo-visual-regression` treats state B as `instance_base_url`
+  re-navigated post-change.
 - `instance_login` - login identifier + agreed credential source.
 - `screenshot_baseline_dir` - where baselines/evidence screenshots are written; videos default to
   `<ISOLATE_DIR>/visual/videos/`.
@@ -204,8 +213,9 @@ All four skills read `<SHARE_DIR>/context.md` (Markdown bullets `- **key**: valu
   Section G). Brand-agnostic - no brand is vendored in the plugin; omit for pure-Odoo projects.
 - `mockup_dir` - (optional) directory of reference mockups/design specs for the mockup-first check.
 
-If a *required* key (the first four) is missing, the skill asks the user rather than guessing; the
-optional brand/mockup keys simply disable their checks when absent.
+If a *required* key (`odoo_version`, `instance_base_url`, `instance_login`, `screenshot_baseline_dir`)
+is missing, the skill asks the user rather than guessing; the optional `instance_base_url_b` /
+brand / mockup keys simply disable their (or fall back on their) behavior when absent.
 
 ## Documentation screenshots (static/description)
 

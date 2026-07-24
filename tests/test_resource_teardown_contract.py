@@ -289,9 +289,12 @@ UNIQUE_TO_SNIPPET_FINGERPRINTS = [
     "the owning skill, via release-lease",
     "NO single consumer, ever",
     "Teardown belongs to whoever ACQUIRED the resource",
-    # The normative browser-exclusivity sentence.
-    "one shared Chromium process",
-    "two concurrent drivers corrupt each other's evidence",
+    # The normative PER-FAMILY browser-exclusivity sentences (E-3b: same-family
+    # hard exclusivity + the cross-family parallelism permission that
+    # distinguishes per-family from the old global single-flight rule).
+    "Two drivers on the SAME family share one Chromium process",
+    "and corrupt each other's evidence - that is the hard exclusivity",
+    "Across DISTINCT families, parallel drivers ARE allowed",
 ]
 
 

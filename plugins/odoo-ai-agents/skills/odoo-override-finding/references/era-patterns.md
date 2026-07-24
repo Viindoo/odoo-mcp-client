@@ -5,7 +5,9 @@
 - **v8/v9 (OpenERP):** Use `osv.osv` or `orm.TransientModel`. Constraints via `_constraints` list. No `super()` - use `SUPERCLASS._method(self, cr, uid, ids, ...)`. `@api.*` decorators don't exist.
 - **v10-v12 (transition):** `models.Model`, `@api.multi`, `@api.one` (deprecated v13). `super()` with new API: `super(MyModel, self).method(...)`.
 - **v13+ (modern):** `@api.multi` and `@api.one` removed. All methods implicitly recordset-aware. `super()` standard Python 3 style: `super().method(...)`.
-- **Frontend/JS v14+ (OWL primary):** Override via `patch()` utility: `import { patch } from "@web/core/utils/patch"`. Old `web.Widget` `.include()` pattern deprecated in v14, removed completely in v16+. In v13, OWL was introduced but `web.Widget` still coexisted - use `patch()` only for v14+.
+- **Frontend/JS v8-v13 (legacy):** `web.Widget` + `.include()` pattern via `odoo.define(...)`; legacy override utility `web.utils.patch(Class, name, fn)` predates the ES-module `patch()` utility below.
+- **Frontend/JS v14 (OWL 1.x ships):** OWL library first ships this version (global `owl.*` namespace, no `@odoo/owl` import yet) - `web.Widget` still coexists alongside it.
+- **Frontend/JS v15+ (ES `patch()` utility):** Override via `import { patch } from "@web/core/utils/patch"`. Signature is **3-arg** `patch(proto, name, obj)` at v15 AND v16, changing to **2-arg** `patch(proto, obj)` only at v17 (cite `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 1b - the corrected SSOT; do not read patch arity as a v16 marker). `web.Widget` `.include()` is deprecated from v14 and superseded by OWL as the default component path from v15+.
 - **XML/QWeb:** Override via `xpath` in XML with `position="replace|before|after|attributes"` on `<template>` or `<record>` with `inherit_id`.
 
 **Data priority:** `find_override_point` and `entity_lookup(kind='method', ...)` results reflect the actual indexed codebase. If MCP says a method's override chain has 4 entries but training knowledge only knows 2, trust MCP.
@@ -17,8 +19,8 @@
 | Business logic change | `_inherit` + `super()` override |
 | New computed value | `@api.depends` compute field |
 | Pre/post hook | `create`/`write` override |
-| Wizard step injection | `TransientModel` with `target_model_id` |
-| JS behavior | OWL `patch()` utility (v14+) |
+| Wizard step injection | `TransientModel` reading `context.active_model`/`active_id(s)` (or `res_model`/`res_id` fields) |
+| JS behavior | OWL `patch()` utility (v15+; 3-arg v15/16, 2-arg v17) |
 
 ## Output format
 

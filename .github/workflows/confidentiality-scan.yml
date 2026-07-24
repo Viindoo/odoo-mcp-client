@@ -48,6 +48,18 @@ jobs:
             echo "::error::absolute /home|/Users/<user>/ path (non-portable) found in:"; echo "$hits"; fail=1
           fi
 
+          # Relative "personal vault" folder convention - a PARA-style private notes vault path
+          # hardcoded into agent prose (top-level folder like Resources or Sales, then a named
+          # sub-folder such as Competitors or Customers, then a file). Never a repo-relative
+          # path. Belongs behind an optional env-rooted read ($ODOO_AI_VAULT_HOME, see
+          # snippets/disk-fallback-protocol.md), not a hardcoded literal.
+          # (NOTE: do not spell out the literal pattern here as contiguous text - it would
+          # trip this very check on this file. Keep this comment worded like the paragraph above.)
+          hits=$(git grep -lIE '(Resources|Sales)/(Competitors|Customers)' -- . || true)
+          if [ -n "$hits" ]; then
+            echo "::error::hardcoded vault-folder convention found in:"; echo "$hits"; fail=1
+          fi
+
           [ "$fail" -eq 0 ] || exit 1
           echo "OK: structural scan clean"
 

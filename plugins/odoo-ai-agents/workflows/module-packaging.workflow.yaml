@@ -48,21 +48,27 @@ phases:
     # lives under .odoo-ai/packaging/<run>/<module>/ (per-module subdir avoids flat-path collision
     # when the run covers more than one module).
     # Resolve target modules from the `modules` input (module name or absolute path; walk
-    # __manifest__.py files for multi-module repos). Resolve per-module languages, doc_layer,
-    # version, and has_demo by APPLYING the resolver contract defined in agent `odoo-doc-scoper`
-    # - that agent's I/O contract is the SSOT for the D6 6-tier + disk-union language resolver,
-    # doc_layer (appstore | userguide | both) detection, version inference, the has_demo flag,
-    # AND the two dependency-planning fields below. Do NOT reimplement those tiers here; this
-    # inline phase only adapts the scoper's output location to the packaging run dir.
-    # force-include en_US (English is the canonical mandatory language, always added regardless
-    # of registry).
+    # __manifest__.py files for multi-module repos). Resolve per-module doc_layer, version, and
+    # has_demo by APPLYING the resolver contract defined in agent `odoo-doc-scoper` - that agent's
+    # I/O contract is the SSOT for doc_layer (appstore | userguide | both) detection, version
+    # inference, the has_demo flag, AND the two dependency-planning fields below. Resolve
+    # per-module LANGUAGES via the single language-resolution SSOT:
+    # skills/odoo-doc-illustration/SKILL.md § Language resolution (6-tier + disk-UNION,
+    # English-mandatory) - odoo-doc-scoper cross-refs the same SSOT rather than owning it. Do NOT
+    # reimplement either resolver here; this inline phase only adapts their output location to the
+    # packaging run dir.
     # Two fields the doc-plan phase (0.5) consumes:
     #   - depends_in_scope[]: per module, the subset of __manifest__['depends'] that is ALSO in
     #     modules[] (the in-scope dependency edges). Empty = no in-scope dependency.
     #   - has_ondisk_doc: true if <module>/static/description/index.html OR <module>/doc/index.rst
     #     already exists (feeds cross-run dedup in the planner).
-    # Collect interactively if not passed: `doc_layer` (default: both), `languages`
-    # (default: per the odoo-doc-scoper resolver; English always added).
+    # `doc_layer` defaults to PER-MODULE AUTO-DETECTION from disk (odoo-doc-scoper Step 5: disk has
+    # static/description/ -> appstore capability, disk has doc/ -> userguide capability, both
+    # present -> both). An explicit `doc_layer` input OVERRIDES ALL modules uniformly with one
+    # value - this DEFEATS per-module detection, so pass it sparingly (only when every module in
+    # the run genuinely shares one doc_layer). `languages` defaults per the language-resolution
+    # SSOT above (English always added); collect either interactively only when genuinely
+    # unresolvable from the inputs above.
     # Emits scope block: modules[] with {name, abs_path, languages, doc_layer, has_demo, version,
     # depends_in_scope, has_ondisk_doc}.
     # Written to .odoo-ai/packaging/<run>/scope.yaml for all downstream phases.
@@ -191,8 +197,11 @@ phases:
   - id: copy
     skill: odoo-content-draft
     nl_trigger: >
-      For each module with doc:true in .odoo-ai/packaging/<run>/doc-plan.yaml (skip doc:false
-      dedup modules), using .odoo-ai/packaging/<run>/scope.yaml, draft App-Store landing copy for
+      For each module with doc:true AND doc_layer in {appstore, both} in
+      .odoo-ai/packaging/<run>/doc-plan.yaml (skip doc:false dedup modules AND skip
+      doc_layer: userguide-only modules - no static/description/index.html is produced for them,
+      so App-Store landing copy would have nothing to fill), using
+      .odoo-ai/packaging/<run>/scope.yaml, draft App-Store landing copy for
       every resolved language (English canonical mandatory; per-locale variants per languages[]
       from scope.yaml). Channel: landing-page copy. Output: sectioned copy with HTML-comment markers
       <!-- HERO --> / <!-- KEY-FEATURES --> / <!-- BENEFITS --> / <!-- SCREENSHOTS --> /

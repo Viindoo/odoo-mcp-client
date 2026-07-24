@@ -56,10 +56,10 @@ Migrating FROM v8/v9: expect full Python 2→3 rewrite + full model API rewrite.
 
 | Symbol / pattern | Status | Replacement |
 |---|---|---|
-| `web.Widget` (JS) | Deprecated v14, **REMOVED v16** | OWL `Component` + `registry.category(...)` |
-| `AbstractField` (JS) | **REMOVED v16** | `registry.category('fields').get(...)` override |
-| `web.field_registry` | **REMOVED v16** | `registry.category('fields')` |
-| `odoo.define(name, fn)` (AMD) | Shim-only from v17 | `/** @odoo-module **/` + ES modules |
+| `web.Widget` (JS) | Deprecated v14; core-view usage declines from v16 (OWL becomes primary) but the class is **NOT removed at v16** - still defined and actively used (e.g. `AbstractField.extend(Widget)`) at v16, and still present (ES-module form, unconverted) at v17; absent from the OSM index by v18 | OWL `Component` + `registry.category(...)` |
+| `AbstractField` (JS) | Deprecated v14 alongside `web.Widget`, same lifecycle - **NOT removed at v16** (still defined/used at v16-v17); absent from the OSM index by v18 | `registry.category('fields').get(...)` override |
+| `web.field_registry` | Deprecated v14 alongside `web.Widget`, same lifecycle - **NOT removed at v16** (still registering legacy field widgets at v16); absent from the OSM index by v18 | `registry.category('fields')` |
+| `odoo.define(name, fn)` (AMD) | Deprecated from v15 (compat shim already bridges it over the ES6 module system there); stays loadable via that shim through at least v17 - NOT removed at v16 | `/** @odoo-module **/` + ES modules |
 | Manifest `qweb` key | Deprecated v15 | `assets` key (from v15) |
 
 ### v16-v17 (ORM cache + view pivot era)
@@ -73,15 +73,15 @@ Migrating FROM v8/v9: expect full Python 2→3 rewrite + full model API rewrite.
 | `fields_get_keys()` | **REMOVED v17** | direct `_fields` dict access |
 | `registry.clear_caches()` | alias (v17+) | `registry.clear_cache()` (from v17) |
 | `attrs=` / `states=` in views | **ValidationError from v17** | inline Python modifier `invisible="record.x == 'y'"` |
-| QUnit JS tests | **REMOVED v18** | `@odoo/hoot` (from v18) |
+| QUnit JS tests | **WARN v18 (shim)** - Hoot primary from v18, QUnit still present/loadable as residual | `@odoo/hoot` (from v18) |
 
 ### v18+ (unified API era)
 
 | Symbol / pattern | Status | Replacement |
 |---|---|---|
-| `check_access_rights(mode)` | alias (DeprecationWarning v18+) | `check_access(mode)` (from v18) |
-| `check_access_rule(mode)` | alias (DeprecationWarning v18+) | `check_access(mode)` (from v18) |
-| `has_access(mode)` | new shorthand (v18) | -- |
+| `check_access_rights(operation)` | alias (DeprecationWarning v18+) | `check_access(operation)` (from v18) |
+| `check_access_rule(operation)` | alias (DeprecationWarning v18+) | `check_access(operation)` (from v18) |
+| `has_access(operation)` | new shorthand (v18) | -- |
 | `_filter_access_rules()` | alias | `_filtered_access(mode)` (from v18) |
 | `user_has_groups(xmlid)` | **REMOVED v18** | `user.has_groups('mod.xmlid')` (from v18) |
 | `user.has_group(xmlid)` | kept (from v8) | -- |
@@ -142,6 +142,7 @@ effort estimate.
 **Example 2:**
 Prompt: "We are running Odoo 12 and want to upgrade to v18 - what needs to be fixed?"
 Output: Multi-era analysis: v12→v13 (@api.multi removal), v13→v15 (OWL transition, web.Widget
-deprecated), v16 (flush/invalidate split, web.Widget removed), v17 (attrs= ValidationError,
-flush/invalidate removed), v18 (unified ACL, name_get removed, chatter tag). Effort estimate:
+deprecated), v16 (flush/invalidate split, web.Widget usage declining but not removed), v17
+(attrs= ValidationError, flush/invalidate removed), v18 (unified ACL, name_get removed, chatter
+tag). Effort estimate:
 Very High. Includes sprint planning recommendations and JavaScript OWL rewrite scope.

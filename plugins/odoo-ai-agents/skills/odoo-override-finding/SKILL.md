@@ -60,7 +60,12 @@ Era-specific override patterns and scenario-to-pattern mapping:
 
 ### Round 0 - Pin the version
 
-`set_active_version(odoo_version=…)` once.
+Resolve the target version in order, never a silent default: (1) `<SHARE_DIR>/context.md` (resolve
+`<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the
+captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit);
+(2) the module manifest `version` field if `context.md` is absent or lacks it; (3) if both are
+absent, ASK the caller once - a wrong guess yields a wrong-era override pattern, so do not default
+silently. Then `set_active_version(odoo_version=…)` once.
 
 ### Round 1 - Enumerate methods (before drilling in)
 

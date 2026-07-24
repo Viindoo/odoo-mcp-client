@@ -33,7 +33,10 @@ the ISOLATE dir ONCE via that file's mandatory resolve-capture-substitute protoc
   The HARD requirement is a UNIQUE filename per writer; the prefix only makes the sort best-effort,
   it is not a correctness invariant.
 - `<agent>`: the writer's short name (`architect`, `coder-<module>`, `reviewer-<module>`,
-  `wi-<id>`, ...). Combined with the prefix, two writers never collide on a filename.
+  `wi-<id>`, ...). When a module runs PARALLEL same-module WIs on both stacks (backend +
+  frontend coders writing concurrently), qualify by stack so the two never share a name:
+  `coder-<module>-backend` / `coder-<module>-frontend`. Combined with the prefix, two writers
+  never collide on a filename.
 
 **One file per writer is mandatory.** Parallel workers (rolling-window coders, wave WIs) would
 race on a single shared file; per-writer files make every append conflict-free.

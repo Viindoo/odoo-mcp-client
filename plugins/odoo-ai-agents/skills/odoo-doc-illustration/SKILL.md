@@ -77,8 +77,9 @@ against that module - behavior unchanged.
 
 **Per-instance incremental loop (the loop body).** Per instance-path (SEQUENTIAL within a path;
 PARALLEL across independent instance-paths up to
-`W = min(#paths, browser-family pool 2 headless / 4 headed, ephemeral-instance cap ~3)`; HARD
-GUARD: never run two paths on the same browser family or the same instance):
+`W = min(#paths, browser-family pool, ephemeral-instance cap ~3)` - browser-family pool size is per
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity, the SSOT for
+`W`; HARD GUARD: never run two paths on the same browser family or the same instance):
 
 1. **Provision once at the leaf.** Dispatch `odoo-instance` (`odoo-instance-ops`,
    `CONTEXT: doc, MODE: path-incremental`, `--skip-auto-install --with-demo --load-language=<csv>`,
@@ -100,8 +101,10 @@ GUARD: never run two paths on the same browser family or the same instance):
       below. Conditional on `CAPTURE MODE: scenarios` only - the default `screens` mode does not
       need this pre-fetch (narrow blast radius). The writers NEVER call `odoo-doc-walkthrough`
       themselves; the skill owns this pre-fetch, mirroring the marketing-copy pre-fetch above.
-   3. **Launch the writer(s) per DOC LAYER, SERIAL on this instance** (browser-exclusive - NEVER two
-      writers concurrent on ONE instance). Read `M.doc_layer` from THIS module's `install_doc_sequence`
+   3. **Launch the writer(s) per DOC LAYER, SERIAL on this instance** (browser-exclusive PER FAMILY,
+      per `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 - NEVER two writers
+      concurrent on ONE instance OR the SAME browser MCP family; distinct families/instances may run
+      in parallel). Read `M.doc_layer` from THIS module's `install_doc_sequence`
       entry (SSOT: `skills/_shared/doc-cluster-plan.md` § schema); when `M.doc_layer` is absent (a
       `plan_source: design-dag` entry with no scoper pass), use the run-level DOC LAYER axis default
       (§ Documentation axes below) for that module only - never the other way round. Resolved value:
@@ -282,9 +285,11 @@ hardcode flag names). The skill VERIFIES this precondition; if not met, it route
 walkthrough, icon, copy) fan out wide. The browser-bound wave is bounded: each writer uses ONE
 browser MCP server family (`chrome-devtools` (default) / `playwright` (opt-in), plus headed families
 when `DISPLAY` is present) AND one ephemeral instance. HARD GUARD: never assign two writers to the
-same server family (shared server = race). `W = min(#(module x locale) browser-bound units, 2
-headless / 4 with display, ~3 ephemeral instances)`; work beyond W batches serially. State-mutating
-(CRUD-heavy) scenario captures cap at <=2 simultaneous.
+same server family (shared server = race). `W = min(#(module x locale) browser-bound units,
+browser-family pool, ~3 ephemeral instances)` - browser-family pool size is per
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity, the SSOT for
+`W`; work beyond W batches serially. State-mutating (CRUD-heavy) scenario captures cap at <=2
+simultaneous.
 
 **Degraded paths (never hard-block the whole run).** Per-locale: if a locale fails to load/switch,
 the writer reuses the English screenshots for that locale's doc with an `[Image: <slug>]` note and
@@ -298,6 +303,11 @@ no-display / CI host. Pass `headed` only when the user explicitly asks to watch,
 confirming a display is plausibly available; warn rather than dispatch headed on a headless host.
 
 ## Language resolution (6-tier + disk-UNION)
+
+**SSOT.** This section is the single source of truth for the 6-tier language resolver (+
+disk-UNION). Any other file that describes this resolution order (e.g. `app-store-template.md`,
+`doc-scoper.md`) or cites it (`user-doc-writer.md`, `marketing-writer.md`) MUST cross-reference this
+section rather than restate the tiers - do not fork a second copy of this order elsewhere.
 
 Resolve the documentation language list the skill passes as each writer's `LANGUAGES:` in this order
 - first tier that yields a value wins (extends `skills/odoo-i18n/SKILL.md` P0 with one extra tier):

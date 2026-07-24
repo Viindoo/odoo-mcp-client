@@ -4,8 +4,9 @@
 unchanged; only the OWNER moved to run-harness, which now owns the per-wave integration directly.)
 
 - Each assertion fails for exactly one reason: the corresponding rule was removed.
-- Tests protect the business contract ("never auto-merge - stop at the L2-squash-gate; the merge is
-  human-gated", "never write to the principal checkout"), NOT the code structure.
+- Tests protect the business contract ("never auto-merge - each wave auto-advances with NO per-wave
+  PR; the single run-level PR's outward merge is human-gated (L2)", "never write to the principal
+  checkout"), NOT the code structure.
 
 Run with: python3 -m pytest tests/test_run_harness_wave_hardrules.py -v
 """
@@ -55,8 +56,9 @@ def test_principal_branch_lock_present():
 
 # ---------------------------------------------------------------------------
 # Rule 4: Human-confirm merge (no auto-merge)
-# The between-wave integration must STOP at the human-gated squash, and the merge stays L2 (always
-# a human gate). If deleted, a run could auto-land unreviewed changes on the principal branch.
+# Each wave AUTO-ADVANCES on a green cumulative close-gate with NO per-wave PR; the single run-level
+# PR's outward merge stays L2 (always a human gate). If deleted, a run could auto-land unreviewed
+# changes on the principal branch.
 # ---------------------------------------------------------------------------
 
 _HUMAN_CONFIRM_RE = re.compile(
@@ -80,14 +82,18 @@ def test_human_confirm_merge_present():
     )
 
 
-def test_between_wave_stops_at_squash_gate_never_merges():
-    """Rule 4 (companion): the between-wave integration STOPS at the L2-squash-gate and the outward
-    MERGE stays odoo-pr-monitoring's - run-harness's wave integration never merges to principal."""
+def test_between_wave_auto_advances_and_never_merges():
+    """Rule 4 (companion): each wave AUTO-ADVANCES on a green cumulative close-gate with NO per-wave
+    PR; the whole run lands as exactly ONE PR whose outward MERGE stays odoo-pr-monitoring's -
+    run-harness's between-wave integration never merges to principal."""
     body = _skill_body()
     low = body.lower()
-    assert "l2-squash-gate" in low, (
-        "run-harness between-wave integration must STOP at the L2-squash-gate."
+    assert "no per-wave pr" in low, (
+        "run-harness between-wave integration must AUTO-ADVANCE with NO per-wave PR (single-run-PR model)."
+    )
+    assert "one pr" in low, (
+        "run-harness must land the whole run as exactly ONE PR (opened once after the final wave)."
     )
     assert "odoo-pr-monitoring" in low and "merge" in low, (
-        "the outward merge must stay odoo-pr-monitoring's (run-harness's wave integration never merges)."
+        "the outward merge must stay odoo-pr-monitoring's (run-harness's between-wave integration never merges)."
     )

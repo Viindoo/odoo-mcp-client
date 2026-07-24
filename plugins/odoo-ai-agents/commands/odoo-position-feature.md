@@ -47,6 +47,6 @@ the runner reads `<ISOLATE_DIR>/positioning/<slug>-state.json` automatically.
 ## See also
 
 - `plugins/odoo-ai-agents/workflows/odoo-position-feature.workflow.yaml` - SSOT for phases, gates, model tiers
-- `/odoo-content-draft` - full marketing pieces (blog, whitepaper, case study)
+- `/odoo-ai-agents:odoo-content-draft` - full marketing pieces (blog, whitepaper, case study)
 - `/odoo-respond-bid` - RFP positioning with pricing and timelines
-- `/odoo-objection-handling` - reactive objection responses
+- `/odoo-ai-agents:odoo-objection-handling` - reactive objection responses

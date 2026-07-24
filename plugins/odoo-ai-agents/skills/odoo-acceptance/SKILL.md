@@ -27,8 +27,8 @@ anti-bias invariant: oracle author, code author, and adjudicator are three diffe
 **Sole dispatcher of acceptance fan-out.** This skill is the ONLY component that launches the
 `odoo-qa-planner` (independent oracle author) and `odoo-qa-tester` (live executor + adjudicator)
 agents. Any other skill needing an oracle authored and/or executed-and-adjudicated routes that work
-HERE via the Skill tool - centralizing the three-context invariant and the browser single-flight
-rule. Provision live execution by invoking the `odoo-instance` skill.
+HERE via the Skill tool - centralizing the three-context invariant and the per-family browser
+exclusivity rule. Provision live execution by invoking the `odoo-instance` skill.
 
 **Dispatch-brief skeleton.** When composing the dispatch prompt for `odoo-qa-planner`,
 `odoo-qa-tester`, or any other specialist agent dispatched below, fill the caller-side skeleton in
@@ -109,10 +109,12 @@ the requirement only - it never reads the implementation to decide it.
 ## Phase 2 - provision the cluster (once)
 
 Provision the live instance via `odoo-instance` with the FULL `install_set` co-installed as ONE
-cluster (demo=on, `--http-port`) - co-installing surfaces MRO / load-order breaks a single-module
-install hides. Capture `INSTANCE_HANDLE` once and forward it to every dispatch below (precedence:
-`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`). Provisioning and the test-run lifecycle
-are NOT owned here - `odoo-instance` (the `odoo-instance-ops` agent) owns create/init/run-tests/drop
+cluster (demo=on, `--http-port`, `persist: exclusive-running` - the cluster stays listening across
+Phase 2a/2b and the Phase 3 fix-loop, not a `--stop-after-init` build) - co-installing surfaces MRO /
+load-order breaks a single-module install hides. Capture `INSTANCE_HANDLE` once and forward it to
+every dispatch below (precedence: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`).
+Provisioning and the test-run lifecycle are NOT owned here - `odoo-instance` (the
+`odoo-instance-ops` agent) owns create/init/run-tests/drop
 and grounds per-series odoo-bin flags via `cli_help`; this skill stays conductor/adjudicator.
 Lifecycle + test-invocation conventions: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md`
 and `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
@@ -124,12 +126,18 @@ it authors by invoking the `odoo-test-writing` skill inline, in its own context)
 oracle's user-flow scenarios as durable regression, then have `odoo-instance` run them (headless
 `--test-enable`). This channel uses no browser, parallelizes across ephemeral DBs, feeds CI, and MAY
 run concurrently with Phase 2b. Delegation boundary (writer != executor, INSTANCE_HANDLE precedence,
-output-volume): `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`.
+output-volume): `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`. (Med-tier also gets a
+SEPARATE smoke pass on the live channel below - see the Med-tier depth note in Phase 2b; the two
+clauses target different channels, not a contradiction.)
 
-## Phase 2b - LIVE channel (browser-exclusive, single-flight)
+## Phase 2b - LIVE channel (browser-exclusive, per MCP family)
 
-Browser work is single-flight: dispatch ONE browser-driving agent at a time, never two at once (this
-channel may overlap Phase 2a, which uses no browser).
+Browser work is exclusive-serial PER MCP FAMILY (chrome-devtools, playwright, pagecast; headed and
+headless each count as their own family) - never two browser-driving agents on the SAME family at
+once. Distinct families MAY run in parallel, up to the pool cap `W` (RAM-permitting) - SSOT:
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Browser exclusivity; full rule +
+rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T2 (this channel may
+overlap Phase 2a, which uses no browser).
 
 - **High-tier screens (deep):** for each High-tier module dispatch ONE `odoo-qa-tester` with
   `ORACLE_PATH`, the `INSTANCE_HANDLE`, that module's `SCOPE` (screens from the manifest; roles from
@@ -141,7 +149,11 @@ channel may overlap Phase 2a, which uses no browser).
   duplicate).
 - **Med/Low-tier screens (smoke):** cover the rest of `render_check_set` with a smoke pass - open each
   screen and assert it renders with NO console error and NO 4xx/5xx (a lightweight `odoo-qa-tester`
-  smoke dispatch) - so P0's "smoke on Low" is actually executed, not just computed.
+  smoke dispatch) - so P0's "smoke on Low" is actually executed, not just computed. Med-tier here is
+  the smoke half of its depth (it already got the deep durable regression in Phase 2a above); Med
+  getting BOTH is by design, not double-work - full definition + rationale (SSOT, do not restate):
+  `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (tier-assignment section) and
+  `${CLAUDE_PLUGIN_ROOT}/agents/odoo-qa-planner.md`.
 
 Between Phase 2a/2b and Phase 3, call `allocator.py heartbeat <token>` on the cluster's
 `INSTANCE_HANDLE` so the TTL backstop never reaps this long-lived run while the fix-loop below is
@@ -154,8 +166,16 @@ acceptance verdict + consolidated bug list (severity / repro / expected-vs-actua
 On any FAIL, drive the fix yourself: `odoo-debug` for root cause -> `odoo-coding` for the fix -> re-run
 the failed scenarios on whichever channel failed (Phase 2a durable and/or Phase 2b live). Bound the
 loop to **3 iterations**; if still not clean, STOP and
-escalate with what remains - never loop forever. A UNVERIFIED on a High-tier scenario blocks ACCEPTED
-until evidence is obtained.
+escalate with what remains - never loop forever.
+
+**UNVERIFIED is a separate bounded path, not the FAIL loop.** A FAIL means the system disagreed with
+the oracle; UNVERIFIED means no capturable evidence was obtained (step blocked, role/instance
+unavailable, browser error) - re-running the fix-loop does not address it. On UNVERIFIED, retry
+evidence capture (re-dispatch `odoo-qa-tester` for that scenario only) on a fresh instance/session
+**at most 2 times**; if still unobtainable, stop retrying and emit `status: BLOCKED (evidence
+unobtainable)` for that scenario - never loop indefinitely chasing evidence. A UNVERIFIED on a
+High-tier scenario blocks ACCEPTED until evidence is obtained or the scenario is explicitly
+escalated as BLOCKED.
 
 **Release on the final verdict (conditions DONE).** Once the verdict is final (ACCEPTED, or the
 3-iteration escalation STOP), RELEASE the Phase 2 cluster instance you provisioned - via

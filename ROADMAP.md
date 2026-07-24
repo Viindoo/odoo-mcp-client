@@ -28,10 +28,14 @@ Items are directional, not commitments, and reflect publicly announced milestone
   `odoo-debug`, the L2-merge-gate).
 - **Git-wave execution** (v2.3.0; re-architected v4.0.0; folded into `run-harness` v4.9.0) - the
   git-executor logic that lands multiple modules as one reviewed, squashed PR without touching the
-  principal branch: integration branch + per-module worktrees + cherry-pick + end-of-wave review +
-  1 PR + squash + tree-identity gate. v4.9.0 absorbed it directly into `run-harness` (no separate skill) - it
-  still invokes `odoo-coding` per module and stops at the L2-squash-gate, with merge owned by
-  `odoo-pr-monitoring`. Principal-branch-locked; auto-merge never allowed.
+  principal branch: ONE run-level `run-integration` branch that every wave cherry-picks onto, with
+  per-module worktrees + end-of-wave review + a cumulative regression close-gate. v4.9.0 absorbed
+  it directly into `run-harness` (no separate skill) - it still invokes `odoo-coding` per module;
+  each wave AUTO-ADVANCES to the next on a GREEN cumulative close-gate (no per-wave PR, no per-wave
+  human stop). ONCE, after the FINAL wave, the terminal `integrate` land-tail squashes the
+  run-integration branch, does a fresh NON-FORCE first push, and opens ONE PR. The only L2 in a
+  coding run is the downstream outward MERGE of that PR, owned by `odoo-pr-monitoring`.
+  Principal-branch-locked; auto-merge never allowed.
 - **Workflow harness + `odoo-intake` front door** (v2.2.0) - three-layer architecture (Entry/Intake,
   Workflow, Execution). `odoo-intake` replaces `odoo-router` as the universal front door: brainstorms
   when vague, fast-paths when clear, always gates with a Proposed Plan before dispatching. The

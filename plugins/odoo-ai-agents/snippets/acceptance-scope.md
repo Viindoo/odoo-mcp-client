@@ -36,7 +36,10 @@ Do NOT verify every node equally. Score each module/screen in the closure:
   screen; lower for cosmetic or rarely-used surfaces.
 
 Assign each node a tier: **High** (likelihood x impact large), **Med**, or **Low**. High = cover
-DEEP (full role/CRUD/state/negative matrix, durable tour/HttpCase); Low = SMOKE only (does the
+DEEP (full role/CRUD/state/negative matrix, durable tour/HttpCase); **Med = deep durable regression
+in `test_set` (like High) AND smoke live in `render_check_set` (like Low)** - the two clauses target
+different channels (durable vs live), not a contradiction; this is the single SSOT for Med-tier
+depth, every other consumer references it rather than restating it; Low = SMOKE only (does the
 screen render without console/4xx-5xx error). The goal is depth where it matters, not uniform
 coverage.
 

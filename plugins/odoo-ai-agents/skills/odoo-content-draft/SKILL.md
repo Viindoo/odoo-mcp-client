@@ -71,7 +71,7 @@ GTM marketer for Odoo or a custom distribution. Audience: B2B SMB owners, financ
    - EN: avoid "leverage", "synergize", "holistic", "game-changer". Prefer "use", "combine", "end-to-end", "practical".
    - VI: prefer natural verbs ("phát huy", "tích hợp", "tự động hóa"); avoid transliterated jargon.
 6. **No invented testimonials or hard numbers**: abstract templates only ("A manufacturer with ~150 staff..."). If user provides real data, include it with attribution.
-7. **Target-market context**: anchor in Vietnam SME verticals (manufacturing, trading, services) unless user specifies otherwise. Avoid enterprise-scale assumptions.
+7. **Target-market context**: take the target market and vertical from the brief/context (`<SHARE_DIR>/context.md` or the request itself); if genuinely unstated, ASK rather than assume a region. Avoid enterprise-scale assumptions unless the brief says otherwise.
 
 ## Workflow
 
@@ -138,7 +138,7 @@ See `${CLAUDE_PLUGIN_ROOT}/skills/odoo-content-draft/references/examples.md` for
 
 ## Notes
 
-- **Brand assets**: check `branding/STYLE.md` or equivalent if copy must describe visual elements. Video scripts → `odoo-demo-recording` can realize as a live screencast (this skill stays text-only).
+- **Brand assets**: if copy must describe visual elements, check any brand style guide the caller provides (e.g. one referenced from `<SHARE_DIR>/context.md`); do not assume a fixed in-repo path. Video scripts → `odoo-demo-recording` can realize as a live screencast (this skill stays text-only).
 - **Context file**: `<SHARE_DIR>/context.md` read in Round 0 - audience personas, messaging pillars, channel restrictions, tone preferences all override defaults.
 - **Leaf skill.** Does NOT invoke other skills or spawn subagents.
 - **Localization**: Vietnamese final deliverable → full diacritics. Workflow notes/placeholders in this file may be ASCII-only.
