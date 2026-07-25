@@ -134,6 +134,15 @@ def test_agent_frontmatter(agent):
     assert not _fm_list(text, "tools"), (
         f"{agent.stem}: agents must omit the `tools:` allowlist (inherit the full surface)"
     )
+    # Locks out the CHANGELOG:2104-2118 regression class (a `disallowed-tools: Write Edit`
+    # frontmatter block previously blocked file-authoring agents from delivering output). Checked
+    # via the generic top-level-key extractor (not `_fm_list`, which only recognizes the
+    # block-sequence form) so an inline-array declaration is caught too.
+    assert not fm.get("disallowedTools"), (
+        f"{agent.stem}: agents under plugins/odoo-ai-agents/agents/ must omit `disallowedTools` - "
+        f"it is the same tool-permission-restriction regression class as the `tools:` allowlist "
+        f"this test already bans."
+    )
 
 
 # ---------------------------------------------------------------------------

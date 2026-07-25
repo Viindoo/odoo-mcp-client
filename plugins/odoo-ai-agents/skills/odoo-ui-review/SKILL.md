@@ -57,6 +57,13 @@ When composing the dispatch prompt for any specialist agent you dispatch, fill t
 skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief.
 
+**Resolve and thread `ISOLATE_DIR`.** This skill is the `odoo-ui-reviewer` agent's dedicated front
+door - the reviewer writes its own captured evidence to `<ISOLATE_DIR>/visual/screenshots/<slug>/`
+(never the repo working tree). Resolve `<ISOLATE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (resolve-capture-substitute protocol) and
+pass the captured absolute path as `ISOLATE_DIR:` in the dispatch brief below - the agent consumes
+this literal directly and does not re-resolve.
+
 **Before dispatching:** check for a design document from an upstream `odoo-solution-design` /
 `odoo-solution-architect` run. List `<SHARE_DIR>/designs/` (resolve `<SHARE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -

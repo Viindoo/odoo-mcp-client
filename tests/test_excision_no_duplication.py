@@ -75,6 +75,25 @@ def test_why_next_intake_rationale_stated_once():
     )
 
 
+def test_p1_retired_test_base_class_directives_excised():
+    """Issue #177 correction (P1): the retired `test_base_classes` window/framing phrases must not
+    survive anywhere under plugins/ as inline restatements - every former consumer now cross-refs
+    odoo-era-boundaries.md rows 3/4 instead of restating a divergent window or the retired
+    "distrust the tool" framing."""
+    phrases = (
+        "does not exist v8-v11",
+        "deprecated alias, v8-v15",
+        "known server-side annotation bug",
+        "the same tag string is emitted at every queried version",
+        "per-class version tags are STATIC",
+    )
+    for phrase in phrases:
+        hits = _count(phrase)
+        assert sum(hits.values()) == 0, (
+            f"Retired P1 directive {phrase!r} must be excised everywhere; found: {hits}"
+        )
+
+
 def test_pointers_replaced_the_old_sites():
     """The former duplicate sites now POINT at their SSOT (measurably shorter = a pointer)."""
     planner = (PLUGIN / "agents" / "odoo-planner.md").read_text(encoding="utf-8")

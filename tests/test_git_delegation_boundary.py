@@ -54,7 +54,10 @@ FP-avoidance choices (do NOT loosen these without an accompanying test update):
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -518,3 +521,80 @@ def test_agent_facing_docs_route_git_through_git_ops():
         if f.exists(): v.extend(_scan_agent_doc(f))
     assert not v, ("agent-facing repo docs contain a raw git command in a code span; route through "
                    "the git-toolkit:git-ops skill.\n" + "\n".join(v))
+
+
+# ---------------------------------------------------------------------------
+# Boundary C: the ADVISORY reminder hook must never auto-approve the git
+# mutation it exists to discourage
+#
+# `hooks/remind-delegate.sh` (PreToolUse) reminds a role=leaf subagent that it must route git
+# mutations through git-toolkit:git-ops instead of running them itself (boundary A/B above are
+# the build-time/static guarantee; this hook is only a same-turn, runtime nudge). Being
+# advisory means it must NEVER hand back a `permissionDecision` that DECIDES the call for the
+# permission system - "allow" silently auto-approves the exact git mutation this whole file's
+# boundary exists to stop, defeating the delegation contract at the one layer (PreToolUse) that
+# runs before the user ever sees a prompt. This is a runtime-behavior test (invokes the actual
+# hook script as the harness would), not a source-text scan like boundaries A/B.
+# ---------------------------------------------------------------------------
+
+REMIND_DELEGATE_HOOK = AGENTS_PLUGIN / "hooks" / "remind-delegate.sh"
+
+
+def test_remind_delegate_never_allows_risky_git_mutation():
+    """remind-delegate.sh must NOT emit permissionDecision:"allow" for a git-mutating Bash
+    command dispatched from a role=leaf subagent (the RISKY branch, ~line 66-84).
+
+    Business rule: this hook is documented as ADVISORY-ONLY (HARD CONTRACT header) - it may
+    attach `additionalContext` as a reminder, but it must never itself decide the tool call,
+    because "allow" bypasses normal permission-rule evaluation (including the user's own
+    deny/ask rules) for the exact git mutation the delegation boundary (this file, boundary A/B)
+    exists to stop. An advisory hook that auto-approves what it exists to discourage is a
+    machine-level bypass of the repo's own git-delegation contract.
+
+    Red-before-green: prior to this fix, both PreToolUse emit sites in remind-delegate.sh hard-
+    coded `permissionDecision:"allow"` (unconditionally, regardless of TOOL/RISKY), so this
+    exact assertion (decision must not be "allow") would have FAILED against the pre-fix
+    script - it asserts the opposite of what the script used to always emit, so it is not a
+    snapshot of current behavior; it protects the advisory-never-decides contract this whole
+    module guards.
+    """
+    assert REMIND_DELEGATE_HOOK.exists(), f"hook script not found: {REMIND_DELEGATE_HOOK}"
+
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": {"command": "git commit -am 'do the thing'"},
+        # role=leaf per generator/skill_tool_deps.json "agents"."odoo-backend-coder".role
+        "agent_id": "agent-under-test",
+        "agent_type": "odoo-backend-coder",
+        "cwd": str(REPO_ROOT),
+    }
+
+    env = dict(os.environ)
+    env["CLAUDE_PLUGIN_ROOT"] = str(AGENTS_PLUGIN)
+
+    result = subprocess.run(
+        ["bash", str(REMIND_DELEGATE_HOOK)],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        f"remind-delegate.sh must never hard-fail (exit 0 always); "
+        f"got rc={result.returncode}, stderr={result.stderr!r}"
+    )
+    assert result.stdout.strip(), (
+        "remind-delegate.sh produced no output for a RISKY git-mutating Bash command from a "
+        "role=leaf subagent - expected a hookSpecificOutput reminder JSON on stdout"
+    )
+    output = json.loads(result.stdout)
+    decision = output.get("hookSpecificOutput", {}).get("permissionDecision")
+    assert decision != "allow", (
+        f"remind-delegate.sh emitted permissionDecision={decision!r} for a git-mutating Bash "
+        f"command dispatched from a role=leaf subagent - an ADVISORY hook must never itself "
+        f"approve the exact git mutation it exists to discourage. Full output: {output!r}"
+    )

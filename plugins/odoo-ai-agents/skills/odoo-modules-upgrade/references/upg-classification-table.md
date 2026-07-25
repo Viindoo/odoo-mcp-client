@@ -80,7 +80,7 @@ indicative and frozen at v18; new pivots live ONLY in
 | `fields_view_get()` override | v16 deprecated; **v17+ REMOVED** | Replace with `get_views()` (new signature) |
 | `attrs` / `states` view attribute (Python-eval) | v17+ | Replace with `invisible` / `required` / `readonly` domain-style attributes |
 | `cr.commit()` in tests | all | FORBIDDEN inside `TransactionCase` / `SavepointCase`; remove or restructure test |
-| `SavepointCase` alias | **v15+** WARN (at v15 `TransactionCase` absorbed the class-level savepoint behavior; `SavepointCase` is a deprecated alias, still works) | Migrate to `TransactionCase` on v15+ (keep on v12-v14) |
+| `SavepointCase` used in tests | **v15-v16** WARN (deprecated, still real); **v17+** BREAKING (removed - import failure) - see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 3 | Migrate to `TransactionCase` (mandatory at v17+, cleanliness at v15-v16; keep on v8-v14) |
 
 ### View / QWeb breaks
 

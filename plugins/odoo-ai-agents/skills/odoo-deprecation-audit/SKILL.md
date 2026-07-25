@@ -82,21 +82,21 @@ Use parallel MCP calls - full audit completes in 3 rounds.
 are completely independent: one scans the codebase, the other fetches the version spec. No
 dependency between them.
 
-When the target version is v16 or later, also call `test_base_classes` in the same parallel batch
+When the target version is v15 or later, also call `test_base_classes` in the same parallel batch
 to get the authoritative base-class mapping for the target version:
 
 ```python
 test_base_classes(odoo_version='17.0')   # replace with actual target version
 ```
 
-Use the result to audit test files for legacy base classes. Specifically flag:
-- `SavepointCase` used in test files (distinct class on v12-v14; at v15 `TransactionCase` absorbed
-  the class-level savepoint behavior and `SavepointCase` became a deprecated alias, still runs;
-  migrate for cleanliness to the `TransactionCase` idiom on **v15+** targets - keep `SavepointCase`
-  on v12-v14 - see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md`) - WARN
+Use the result to audit test files for legacy base classes. Specifically flag, per the window in
+`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 3:
+- `SavepointCase` / `HttpSavepointCase` used in test files - severity depends on the TARGET
+  version: **v8-v14** target - real, non-deprecated class, no finding; **v15-v16** target -
+  deprecated but still real, migrate to `TransactionCase`/`HttpCase` for cleanliness - WARN;
+  **v17+** target - REMOVED (a surviving import fails outright) - BREAKING, never a WARN
 - `cr.commit()` inside `TransactionCase` or `SavepointCase` test bodies - always BREAKING
   (isolation is savepoint rollback; `cr.commit()` is forbidden in the test transaction)
-- `SingleTransactionCase` if the target version changed its semantics - WARN
 
 These are deprecated TEST API patterns that `find_deprecated_usage` does not cover directly.
 Add them to the output table under a "Test API" group.

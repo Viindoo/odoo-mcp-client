@@ -106,7 +106,7 @@ Capture the userguide screenshots per capture-mechanics.md: apply `DOC SCOPE` + 
 per-locale loop. In `CAPTURE MODE: scenarios`, drive each walkthrough step and shoot a still per step
 (`<scenario-slug>-step<NN>.png`, per-locale suffix for non-English). In `screens`, capture the main
 feature screens. Stage every capture under the run/module-scoped dir (default family `chrome-devtools`,
-direct `take_screenshot path`): `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/<scenario_id>-step<NN>.png`
+direct `take_screenshot filePath`): `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/<scenario_id>-step<NN>.png`
 (playwright opt-in namespaces its two-tier write as `.playwright-mcp/<RUN_ID>/<module>_staging/...`) -
 NEVER a bare `doc-staging/`. Place the finals into `<module>/static/description/` (shared with the
 landing) via the section-3 write. Emit the capture-coverage report; degrade per capture-mechanics.md

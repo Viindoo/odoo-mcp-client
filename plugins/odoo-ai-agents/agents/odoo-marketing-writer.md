@@ -108,7 +108,7 @@ numbered feature screenshots per capture-mechanics.md, honouring `CAPTURE MODE` 
 Filenames follow app-store-template.md § Image Specifications: hero `main_screenshot.gif` (per-locale
 `main_screenshot.<locale>.gif`), feature shots `NN-slug.jpg` (per-locale `NN-slug.<locale>.jpg`);
 English canonical carries no suffix. Stage every capture under the run/module-scoped dir (default family
-`chrome-devtools`, direct `take_screenshot path`): `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/<slug>.png`
+`chrome-devtools`, direct `take_screenshot filePath`): `<ISOLATE_DIR>/visual/<RUN_ID>/<module>_staging/<slug>.png`
 (`<ISOLATE_DIR>`: when your dispatch brief carries `SHARE_DIR:`/`ISOLATE_DIR:` fields - the
 `odoo-doc-illustration` skill resolves them once against `doc_root` and passes them to every writer,
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch - use those

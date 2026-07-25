@@ -101,7 +101,7 @@ Test (pre-write, Tier-0) - split by symbol class:
 | # | Tool call (example) | Assert |
 |---|---|---|
 | 0 | `set_active_version(odoo_version='18.0')` | pin |
-| 1 | `test_base_classes(odoo_version='18.0')` | base-class currency (SavepointCase deprecated alias; `cr.commit()` forbidden) - already wired; NOT `lookup_core_api` |
+| 1 | `test_base_classes(odoo_version='18.0')` | base-class currency (the tool states each class's window/deprecation/removal for the queried version - see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 3; `cr.commit()` forbidden) - already wired; NOT `lookup_core_api` |
 | 2 | `js_test_inspect(module='account', odoo_version='18.0')` | JS-framework currency (Hoot v18+ vs QUnit) - already wired; NOT `lookup_core_api` |
 | 3 | `lookup_core_api(name='<core ORM/action method>', odoo_version='18.0')` for setUp/factory/assert symbols | CURRENCY of core ORM/action symbols the test calls only |
 | 4 | `model_inspect(model='account.move', method='fields', odoo_version='18.0')` + `resolve_orm_chain(model='account.move', dotted_path='partner_id.country_id.code', odoo_version='18.0')` | create()/assert field names + relational paths |

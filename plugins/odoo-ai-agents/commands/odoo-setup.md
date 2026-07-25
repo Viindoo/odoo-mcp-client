@@ -25,7 +25,8 @@ What it sets up:
    strictly separate from step 12's REGISTER: pre-installing here means a
    later real spawn (once step 12 wires it) has no download latency, without
    ever starting a process or paying idle RAM for it.
-3. **Permissions** - auto-allows the browser MCP tools in Claude permissions.
+3. **Permissions** - auto-allows the browser MCP tools in Claude permissions, plus the
+   narrow set of state-root Bash/Read/Write/Edit rules the planning pipeline needs.
 4. **Instance profile** - discovers local Odoo repos via OSM-grounded propose-then-confirm,
    writes the machine-global `$ODOO_AI_HOME/instances.toml` (resolvable from any cwd by any agent
    on this host; see `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` for the full
@@ -44,7 +45,7 @@ menu" below).
 | `all`          | Preflight (Gate #1 + Gate #2) then every step in `scripts/setup-steps/` EXCEPT `47-instance-reset` (47 is reset-only, excluded from the all loop) |
 | `browser`      | Preflight (Gate #1 soft, Gate #2) then `10-browser-mcp` + `12-browser-mcp-optin` + `20-browser-deps` |
 | `runtime`      | Preflight (Gate #1 soft) then `10-browser-mcp` + `12-browser-mcp-optin` (opt-in browser-family wiring only) |
-| `permissions`  | `30-permissions` (no preflight needed - config file only) |
+| `permissions`  | `30-permissions` + `32-permissions-state-root` (no preflight needed - config file only) |
 | `instance`     | Preflight (Gate #1 + Gate #2) then AI-1..AI-4 + `40-instance-profile` + optional `45-venv` + `50-instance-spinup`. SKIPS `47` (47 is reset-only, excluded from the instance loop) |
 | `--reset`      | Runs ONLY `47-instance-reset` (Case 3: backup then clear `instances.toml`). No other steps run. |
 | (none / unknown) | **Interactive menu** - present AskUserQuestion with multiSelect=true (see below). Do NOT default to `all`. |
@@ -391,6 +392,22 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   step 10/12's job.
 - **30-permissions** - appends browser tool prefixes to `permissions.allow[]`
   in `$CLAUDE_SETTINGS` = `~/.claude/settings.json`. Asks [Y/n] itself.
+- **32-permissions-state-root** - appends the 7 narrow state-root
+  Bash/Read/Write/Edit rules the planning pipeline needs (resolving and writing
+  under `$ODOO_AI_HOME`) to `permissions.allow[]` in the same `$CLAUDE_SETTINGS`.
+  Sibling of `30-permissions`, not folded into it - a distinct, narrower
+  capability. Writes `permissions.allow[]` ONLY (never `deny[]`/`ask[]`/
+  `additionalDirectories`), and its Write/Edit rules cover ONLY
+  `$ODOO_AI_HOME/projects/**` and `$ODOO_AI_HOME/worklog/**` - EXCLUDING
+  `bin/`, `venvs/`, `node_tools/`, `setup-scripts/`, `runtime/`, and
+  `instances.toml` (a `sitecustomize.py` under `venvs/` or an edited
+  `setup-scripts/*.sh` is deferred code execution, not scratch data). Never
+  writes the odoo-semantic-mcp permission prefix - that permission's owner is
+  `plugins/odoo-semantic-mcp/commands/connect.md` step 5; this step's `check`
+  only reports its absence and points there. Honours `ODOO_AI_NO_AUTO_PERMS=1`.
+  Asks [Y/n] itself; after `apply` it prints the exact rules written and
+  instructs ONE restart (permissions are finalized before SessionStart hooks
+  run).
 - **40-instance-profile** - writes `$ODOO_AI_HOME/instances.toml` as
   `[[instance]]` array-of-tables entries from the confirmed spec passed via
   `ODOO_AI_PROFILE_SPEC` (a JSON array of instance objects). Step `40` does
@@ -455,9 +472,9 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
 - **Two different Claude files, never crossed.** `~/.claude.json` is the MCP
   server *registry* - but step 10 deliberately does **not** write there (Claude's
   browser servers come from the plugin's bundled `.mcp.json`).
-  `$CLAUDE_SETTINGS` (`~/.claude/settings.json`) holds *permissions* - step 30
-  writes there. Do not edit either file by hand with `Edit`/`Write`; the step
-  scripts back up, refuse invalid JSON, and stay idempotent.
+  `$CLAUDE_SETTINGS` (`~/.claude/settings.json`) holds *permissions* - steps 30
+  and 32 write there. Do not edit either file by hand with `Edit`/`Write`; the
+  step scripts back up, refuse invalid JSON, and stay idempotent.
 - **Never echo secrets.** No API keys, no DB passwords in any output. DB
   passwords live in `$ODOO_PG_PASSWORD` / a keychain, never in
   `instances.toml`.

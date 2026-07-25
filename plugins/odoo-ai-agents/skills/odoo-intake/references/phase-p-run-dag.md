@@ -46,9 +46,11 @@ open a RUN-DAG.
      already produced the canonical 3-block (it does not serialize `run-<id>.json` itself -
      serialization stays here, in one place).
    - **Trivial single-module path (inline micro-plan):** still delegate 3-block authoring to
-     `odoo-planning` via the **Skill tool** (`plan_mode_active: true`) - there is NO trivial/
-     size/module-count bypass (`planning-gate-contract.md` § Mandatory-planning rule); it emits
-     the minimal `[code, review, integrate]` plan. Once `odoo-planning` returns its plan pointer
+     `odoo-planning` via the **Skill tool** - WITHOUT `plan_mode_active` (never pre-open Plan Mode
+     on its behalf; `odoo-planning` is the sole enterer per `planning-gate-contract.md` § Plan-Mode
+     enter/exit) - there is NO trivial/size/module-count bypass (`planning-gate-contract.md` §
+     Mandatory-planning rule); it emits the minimal `[code, review, integrate]` plan. Once
+     `odoo-planning` returns its plan pointer
      (`<SHARE_DIR>/plans/<slug>-<date>.md`), ingest it BY POINTER and serialize it into `run-<id>.json`
      using the identical "ingest by pointer" procedure as the non-trivial path directly above
      (`phase-p-run-dag.md:43-47`) - never hand-author the plan inline.

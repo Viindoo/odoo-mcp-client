@@ -33,9 +33,10 @@
 #
 # `visual/` is NOT a tier by its top-level name alone (state-root-resolution.md
 # "Note the split inside visual/"): `visual/baselines/` and `visual/doc/` are
-# SHARE; every OTHER immediate child of `visual/` (screenshots/, videos/, a
-# run_id staging dir, ...) is ISOLATE. This helper dispatches visual/'s
-# immediate children individually rather than migrating visual/ as one unit.
+# SHARE; every OTHER immediate child of `visual/` (screenshots/, qa/, debug/,
+# videos/, a run_id staging dir, ...) is ISOLATE. This helper dispatches
+# visual/'s immediate children individually rather than migrating visual/ as
+# one unit.
 #
 # An unrecognized top-level entry (not in either exhaustive table, and not
 # `visual`) is left in place with a stderr note - NEVER guessed into a tier

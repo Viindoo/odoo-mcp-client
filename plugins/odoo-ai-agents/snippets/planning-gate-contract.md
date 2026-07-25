@@ -97,15 +97,20 @@ omitted (treated as `false`).
   but because calling it would violate the single-actor enter/exit ownership this contract pins: the
   caller that set `plan_mode_active: true` is the enterer of record, not the callee.
 - **Exit** - on `approve`, the enterer calls `ExitPlanMode` to surface the plan for human approval.
-- **WHEN - enter BEFORE authoring, not only before presenting.** `EnterPlanMode` MUST be called
-  BEFORE ANY plan-content authoring or any dispatch that produces the plan being reviewed - never
-  after the plan artifact already exists on disk. Exactly ONE actor calls it for a given plan: the
-  plan-authoring skill running in the MAIN context (the lifecycle plan -> `odoo-planning`; a
-  specialized git/upgrade plan -> the self-gating orchestrator that authors it). A caller MUST NOT
-  pre-open Plan Mode on behalf of the plan author and then dispatch it - the author owns its own
-  enter/exit, so the enter cannot be misordered by an upstream caller. `plan_mode_active: true` is
-  passed ONLY by a caller that genuinely already holds Plan Mode open for its OWN reason (not to
-  wrap the plan author); the callee then skips its own enter to avoid a double-enter harness error.
+- **WHEN - enter before the first GIT-TRACKED or otherwise irreversible effect, and ALWAYS before
+  presenting the plan for approval.** Authoring a plan artifact that lives ONLY under the
+  `$ODOO_AI_HOME` state root does NOT require an open Plan Mode window (Plan Mode gates
+  git-TRACKED writes, not state-root writes - `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/SKILL.md`
+  § Plan Mode decision tree). `EnterPlanMode` MUST be called BEFORE any branch, worktree,
+  git-tracked file write, or deletion, and BEFORE the plan is presented - never after an
+  irreversible effect has already happened. "I'll enter Plan Mode after I've already started
+  editing" stays BANNED. Exactly ONE actor calls it for a given plan: the plan-authoring skill
+  running in the MAIN context (the lifecycle plan -> `odoo-planning`; a specialized git/upgrade
+  plan -> the self-gating orchestrator that authors it). A caller MUST NOT pre-open Plan Mode on
+  behalf of the plan author and then dispatch it - the author owns its own enter/exit, so the
+  enter cannot be misordered by an upstream caller. `plan_mode_active: true` is passed ONLY by a
+  caller that genuinely already holds Plan Mode open for its OWN reason (not to wrap the plan
+  author); the callee then skips its own enter to avoid a double-enter harness error.
 - **Enter is conditional and defensive.** The plan-authoring skill enters Plan Mode IFF
   `plan_mode_active` is absent/false AND `return_to` is unset (when a caller requested return
   routing the caller owns the gate) - the two brief-observable conditions; Plan Mode's native

@@ -29,7 +29,7 @@ an isolated process with its own Chromium profile - no shared-DOM risk).
   the bundled `.mcp.json`); the others are OPT-IN and require the odoo-setup wiring step
   (`/odoo-ai-agents:odoo-setup browser`) before their tools exist:
   - **chrome-devtools (default)** - `mcp__plugin_odoo-ai-agents_chrome-devtools__*`: `navigate_page`,
-    `resize_page`, `take_screenshot` (accepts a configurable `path` - stage DIRECTLY, see section 3),
+    `resize_page`, `take_screenshot` (accepts a configurable `filePath` - stage DIRECTLY, see section 3),
     `click` / `fill` / `fill_form` / `hover`, `evaluate_script`. Use for ALL standard capture steps,
     plus any Lighthouse / console-log illustration.
   - **playwright (OPT-IN)** - `mcp__plugin_odoo-ai-agents_playwright__*` (`browser_navigate`,
@@ -62,12 +62,13 @@ literal directly below; do NOT re-resolve. Only when it is absent (standalone di
 skill's pipeline) resolve it yourself via the resolve-capture-substitute protocol in
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`.
 
-- **Default family `chrome-devtools`** accepts a configurable `take_screenshot` `path`, so stage
+- **Default family `chrome-devtools`** accepts a configurable `take_screenshot` `filePath`, so stage
   DIRECTLY - no two-tier dance:
   ```
   <ISOLATE_DIR>/visual/<run_id>/<module>_staging/<scenario_id>-step<NN>.png
   ```
-  Pass that path as `take_screenshot path`; `mkdir -p` its dir first. Read the returned
+  Pass that path as `take_screenshot filePath` (never `path` - the schema accepts unknown keys
+  silently, so the wrong key writes nothing); `mkdir -p` its dir first. Read the returned
   actual path, then Bash `cp`/`mv` (not MCP file tools) to place the image at its final destination
   inside the module dir.
 - **OPT-IN family `playwright`** writes only inside its allowed roots (the MCP process cwd plus
@@ -75,9 +76,11 @@ skill's pipeline) resolve it yourself via the resolve-capture-substitute protoco
   1. Capture with a RELATIVE filename `<run_id>/<module>_staging/<scenario_id>-step<NN>.png`. The tool
      writes to `<cwd>/.playwright-mcp/<run_id>/<module>_staging/...` and RETURNS the actual path.
   2. READ the returned path, then Bash `cp`/`mv` to the final destination inside the module dir.
-  Never pass an absolute filename to a browser tool; never pass `--allow-unrestricted-file-access`
-  (an absolute path outside the allowed roots is REJECTED: `File access denied: ... outside allowed
-  roots`).
+  Never pass an absolute filename to playwright (OPT-IN); never pass
+  `--allow-unrestricted-file-access` (an absolute path outside the allowed roots is REJECTED: `File
+  access denied: ... outside allowed roots`). This absolute-path ban is SCOPED to the playwright/
+  pagecast opt-in families only - chrome-devtools (default) takes an absolute `filePath`, per the
+  bullet above.
 - **OPT-IN family `pagecast`** (GIF/clip only) stages its output dir under the same
   `<ISOLATE_DIR>/visual/<run_id>/<module>_staging/` prefix.
 
@@ -222,7 +225,9 @@ the bound that triggered it, so the caller sees exactly what was produced.
 
 - Image `src` refs inside the assembled artifact MUST be relative (`./file.png`, `../static/...`);
   absolute paths appear ONLY at the Bash write/cp step.
-- Never pass an absolute path as a screenshot filename to any browser tool (rejected by allowed-roots).
+- Never pass an absolute path as a screenshot filename to the playwright/pagecast OPT-IN families
+  (rejected by allowed-roots). This ban does NOT apply to chrome-devtools (default), which requires
+  an absolute `filePath` per section 3.
 - Never use `browser_annotate` (playwright-only; chrome-devtools has no equivalent) in the
   capture loop, on any family; never run concurrently with another browser-driving agent on the
   SAME MCP family (T2) - a distinct family/instance may run in parallel.

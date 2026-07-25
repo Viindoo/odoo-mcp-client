@@ -69,7 +69,7 @@ OSM-ground every API reference for `tgt_version`:
   `lookup_core_api` for test base classes - it indexes core ORM/API symbols only and returns
   not-found). The standard import is `from odoo.tests import TransactionCase`; use
   `find_test_examples(query='TransactionCase setUp', odoo_version='<tgt>')` for a real setUp pattern.
-- **Form helper:** available v13+; `from odoo.tests.common import Form` - verify path via OSM.
+- **Form helper:** available v12+ (see `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md` row 3); `from odoo.tests.common import Form` (relocates to `odoo/tests/form.py` at v17, API unchanged) - verify path via OSM.
 - **`@tagged` decorator:** call `find_examples(query='@tagged post_install at_install',
   odoo_version='<tgt>')` for current convention.
 - **Field names that changed:** call `api_version_diff(symbol='<model>.<field>', from_version='<src>',
