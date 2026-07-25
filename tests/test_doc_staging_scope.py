@@ -98,3 +98,22 @@ def test_writer_agents_use_run_module_staging_template():
 
 def test_doc_staging_is_gitignored():
     assert "doc-staging/" in _read(GITIGNORE), "doc-staging/ must be gitignored (defense-in-depth)"
+
+
+def test_capture_uses_filepath_key_not_path():
+    """The chrome-devtools capture destination key is `filePath` (schema-confirmed) - `path` is
+    accepted silently by `additionalProperties: true` and writes nothing. The doc-capture path
+    carries the same mechanism as odoo-qa-tester/odoo-ui-debugger, so it must use the real key
+    too (P2 fix - see tests/test_qa_evidence_scope.py for the full evidence-scope contract)."""
+    text = _read(CAPTURE)
+    assert "take_screenshot filePath" in text, (
+        "capture-mechanics.md must direct the default chrome-devtools family to pass filePath"
+    )
+    assert "take_screenshot path" not in text, (
+        "the wrong key `path` must not remain as a capture instruction"
+    )
+    for agent in (USER_DOC, MKT_DOC):
+        agent_text = _read(agent)
+        assert "take_screenshot filePath" in agent_text, (
+            f"{agent.name} staging instruction must reference filePath, not path"
+        )

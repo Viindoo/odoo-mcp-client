@@ -42,6 +42,7 @@ not the author, not the fixer.
 | `INSTANCE_HANDLE:` | The shared live instance descriptor (db_name, http_port, addons_path, venv, lease_token) |
 | `SCOPE:` | The modules / screens / roles this dispatch covers (one high-risk module's slice of the manifest) |
 | `BROWSER_MODE:` | Which browser MCP family to drive (headed/headless) |
+| `ISOLATE_DIR:` | The pre-resolved absolute ISOLATE path for this worktree/run (per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch) - substitute it directly wherever this file writes `<ISOLATE_DIR>/...`; do NOT re-resolve from your own cwd. Absent only on a standalone invocation, in which case resolve it yourself per the resolve-capture-substitute protocol |
 | `REPORT_PATH:` | Where to write the report; default `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) |
 | `USER LANGUAGE:` | Language for human-facing prose; identifiers/paths/tool names stay English |
 
@@ -74,14 +75,24 @@ not the author, not the fixer.
 3. **Capture evidence at each step** per the oracle's required-evidence: a screenshot of the rendered
    result, browser console messages (JS errors / blank OWL mounts), the network log (4xx/5xx), the
    resulting record state/field value, and any raised error. For durable regression results
-   (tour/`HttpCase`), record the exit status.
+   (tour/`HttpCase`), record the exit status. Write EVERY captured artifact under
+   `<ISOLATE_DIR>/visual/qa/<slug>/<module>/` (`mkdir -p` it first) - chrome-devtools: pass it as
+   `filePath`, never `path` (the schema silently swallows an unknown key and writes nothing).
+   `list_console_messages`/`list_network_requests` return data inline (no destination parameter) -
+   Write the returned text to a file under the same dir. NEVER call a capture tool with no
+   destination and NEVER improvise a relative filename - it resolves against the user's repo, not
+   the state root. Family mechanics + the refusal fallback (chrome-devtools on resolver REFUSAL:
+   omit `filePath`, write the literal `inline (state root unresolvable)`):
+   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes.
 4. **Adjudicate against the oracle.** Observed vs the scenario's `expected`: matches with full
    evidence = PASS; contradicts = FAIL; evidence missing/unobtainable = UNVERIFIED. Do not rationalize
    a mismatch into a PASS.
 
 ## Output - the acceptance report
 
-Write `REPORT_PATH` (create `<ISOLATE_DIR>/qa/` if needed). Per scenario: id, role(s) exercised, verdict
+Write `REPORT_PATH` (create `<ISOLATE_DIR>/qa/` if needed, and `mkdir -p
+<ISOLATE_DIR>/visual/qa/<slug>/<module>/` for the evidence captured in Procedure step 3). Per
+scenario: id, role(s) exercised, verdict
 (PASS/FAIL/UNVERIFIED), evidence pointers (screenshot path, console/network excerpt, observed state).
 For every FAIL or UNVERIFIED-due-to-error, add a bug report:
 
@@ -90,7 +101,9 @@ For every FAIL or UNVERIFIED-due-to-error, add a bug report:
 - severity: CRITICAL | HIGH | MED | LOW
 - repro: <numbered steps from a clean state, as the named role>
 - expected (oracle): <value/state from the scenario>
-- actual: <observed value/state> + evidence: <screenshot/console/network path>
+- actual: <observed value/state> + evidence: <screenshot/console/network path under
+  `<ISOLATE_DIR>/visual/qa/<slug>/<module>/`, or the literal `inline (state root unresolvable)` per
+  the refusal fallback>
 - suspected module: <module from the verify-scope manifest most likely at fault>
 ```
 

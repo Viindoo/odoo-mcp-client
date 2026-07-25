@@ -64,7 +64,16 @@ hand.
 
 ### Round 0 - Load context
 
-READ the cross-agent decision log (`<ISOLATE_DIR>/worklog/<run-or-slug>/*.md`, oldest-first; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) to inherit upstream decisions. APPEND your diagnosis at the end (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
+**State dir resolution.** When your dispatch brief carries an `ISOLATE_DIR:` field (a dispatcher
+such as `odoo-debug` or `odoo-modules-upgrade` resolves it once and threads it per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch), use that
+literal directly for every Read/Write/Bash in this file - do NOT re-resolve. Only when it is ABSENT
+(a standalone invocation) resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` yourself per the
+resolve-capture-substitute protocol in that same snippet, from your own cwd.
+
+READ the cross-agent decision log (`<ISOLATE_DIR>/worklog/<run-or-slug>/*.md`, oldest-first;
+substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
+Read/Write/Edit) to inherit upstream decisions. APPEND your diagnosis at the end (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 
 **MANDATORY HARD RULE: do NOT write a finding for a given file type until you have read the By-task-mapped guideline file + `odoo-version-pivots.md` section for that file type.** Before diagnosing any frontend symptom, open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and consult the "By task" table to read per-version JS/SCSS conventions (the JavaScript and SCSS rows of the By-task table). Then read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` as the cross-version JS quality and web-tooling (ESLint/Prettier, asset-bundle, lint rules) reference. This grounding is mandatory - it lets you correctly classify whether a root cause is a build/format/lint/JS-quality issue versus a pure runtime state bug, and it avoids false-positive or missed findings in those categories. When handing the fix off to `odoo-coding`, explicitly instruct the coder to apply the same rule and emit a "**VERSION RULES APPLIED**" self-citation block before the first code block.
 
@@ -72,7 +81,8 @@ Read `<SHARE_DIR>/context.md` if present (Markdown bullets, `- **key**: value` f
 - `odoo_version` - determines OWL vs legacy era and which selectors/registries apply.
 - `instance_base_url` - the running instance root URL.
 - `instance_login` - login identifier and agreed credential source.
-- `screenshot_baseline_dir` - default: `<SHARE_DIR>/visual/baselines/`.
+- `screenshot_baseline_dir` - default: `<SHARE_DIR>/visual/baselines/` (read ONLY to reuse a
+  cached login session; never a destination for your own evidence).
 
 **Fallback resolution order** (do not ask the user for a value resolvable here):
 1. `odoo_version`: from request or `<SHARE_DIR>/context.md`; STOP if absent (note reason; this agent has no version-listing tool).
@@ -83,16 +93,30 @@ Once `odoo_version` is concrete, pin it: `set_active_version(odoo_version=<concr
 
 ### Round 1 - Reproduce + collect runtime evidence (browser)
 
+**Evidence destination.** Every artifact this round captures is written under
+`<ISOLATE_DIR>/visual/debug/<slug>/` (resolve `<ISOLATE_DIR>` once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; `mkdir -p` it first). NEVER call a
+capture tool with no destination and NEVER improvise a relative filename - it resolves against the
+user's repo, not the state root. Family mechanics + the refusal fallback (chrome-devtools on
+resolver REFUSAL: omit `filePath`, write the literal `inline (state root unresolvable)` into the
+Output Contract's Observation field instead of a path): `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`
+§ Where a captured artifact goes.
+
 Authenticate first, reusing a saved session to avoid re-login: if
 `${screenshot_baseline_dir}/storageState-admin.json` exists, load that session; otherwise
 fill the login form at `<instance_base_url>/web/login`. Then:
 
 1. `navigate_page` to the failing screen and reproduce the symptom.
 2. `list_console_messages` - capture every error and warning; note any `Missing template`,
-   `TypeError`, `RPC error`, or registry warning.
+   `TypeError`, `RPC error`, or registry warning. This tool has no destination parameter - Write the
+   captured messages verbatim to `<ISOLATE_DIR>/visual/debug/<slug>/console.log` so the Observation
+   field cites a real path, not an inline paraphrase.
 3. `take_snapshot` - confirm whether the expected OWL node / widget rendered at all (empty
-   render vs render-then-throw are distinct root causes with different fixes).
-4. `take_screenshot` - visual evidence of the symptom state.
+   render vs render-then-throw are distinct root causes with different fixes); pass
+   `filePath: <ISOLATE_DIR>/visual/debug/<slug>/snapshot-<step>.txt` (the key is `filePath`, never
+   `path`).
+4. `take_screenshot` - visual evidence of the symptom state; pass
+   `filePath: <ISOLATE_DIR>/visual/debug/<slug>/screenshot-<step>.png`.
 5. `evaluate_script` - probe live state when the above leaves ambiguity:
    - Is the OWL root mounted? (`document.querySelector('.o_web_client').__owl__`)
    - Is a registry entry present? (`odoo.registries.fields.get('my_widget')`)

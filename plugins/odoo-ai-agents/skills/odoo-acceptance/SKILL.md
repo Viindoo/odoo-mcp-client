@@ -141,15 +141,17 @@ overlap Phase 2a, which uses no browser).
 
 - **High-tier screens (deep):** for each High-tier module dispatch ONE `odoo-qa-tester` with
   `ORACLE_PATH`, the `INSTANCE_HANDLE`, that module's `SCOPE` (screens from the manifest; roles from
-  the oracle scenarios' `role:` field), `BROWSER_MODE`, and
-  `REPORT_PATH: <ISOLATE_DIR>/qa/<slug>-acceptance-report.md`. It drives real CRUD + at least two roles +
-  state transitions + search on each in-scope screen and adjudicates PASS/FAIL/UNVERIFIED with
-  evidence. Optionally, in the same serial slot, dispatch `odoo-ui-reviewer` for that module's screens
-  for the read-only one-screen quality verdict (distinct from the tester's behavior verdict; do not
-  duplicate).
+  the oracle scenarios' `role:` field), `BROWSER_MODE`, the SAME `ISOLATE_DIR:` captured in Phase 0
+  (the tester composes `<ISOLATE_DIR>/visual/qa/<slug>/<module>/` for its own captured evidence - do
+  NOT re-resolve), and `REPORT_PATH: <ISOLATE_DIR>/qa/<slug>-acceptance-report.md`. It drives real
+  CRUD + at least two roles + state transitions + search on each in-scope screen and adjudicates
+  PASS/FAIL/UNVERIFIED with evidence. Optionally, in the same serial slot, dispatch `odoo-ui-reviewer`
+  for that module's screens for the read-only one-screen quality verdict (distinct from the tester's
+  behavior verdict; do not duplicate).
 - **Med/Low-tier screens (smoke):** cover the rest of `render_check_set` with a smoke pass - open each
   screen and assert it renders with NO console error and NO 4xx/5xx (a lightweight `odoo-qa-tester`
-  smoke dispatch) - so P0's "smoke on Low" is actually executed, not just computed. Med-tier here is
+  smoke dispatch, ALSO passing the same `ISOLATE_DIR:`) - so P0's "smoke on Low" is actually executed,
+  not just computed. Med-tier here is
   the smoke half of its depth (it already got the deep durable regression in Phase 2a above); Med
   getting BOTH is by design, not double-work - full definition + rationale (SSOT, do not restate):
   `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md` (tier-assignment section) and

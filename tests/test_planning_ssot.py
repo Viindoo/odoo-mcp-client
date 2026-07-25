@@ -142,17 +142,29 @@ def test_specialist_orchestrators_point_at_gate_contract_not_restate_plan_mode_a
 
 
 def test_enter_precedes_authoring_invariant():
-    """P4 (plan mode ownership + timing): the SSOT states the temporal invariant - `EnterPlanMode`
-    is called BEFORE authoring, not merely before presenting the plan - and both odoo-planning
-    (the sole enterer, hoisted above its planner dispatch) and odoo-intake (which enters Plan Mode
-    on NO path) comply with it in their own prose. Root cause this guards: odoo-planning used to
-    enter AFTER its planners already wrote the plan file, and odoo-intake pre-opened Plan Mode on
-    the author's behalf - both are now excised."""
+    """P4 (plan mode ownership + timing), AMENDED by P3: `EnterPlanMode` is called before the
+    first GIT-TRACKED or otherwise irreversible effect, and ALWAYS before presenting the plan -
+    NOT necessarily before the planners' own state-root-only authoring. odoo-planning's guard now
+    sits AFTER both planner dispatches (P1a/P1b) and BEFORE the approval gate: the planners write
+    ONLY under the `$ODOO_AI_HOME` state root, which Plan Mode does not gate, so entering earlier
+    bought nothing but extra prompting (the over-prompting bug P3 fixes). odoo-intake (which
+    enters Plan Mode on NO path) still complies in its own prose. Root cause this guards:
+    odoo-planning used to enter BEFORE dispatching its planners while they wrote only
+    state-root plan files - triggering Plan Mode for a non-git-tracked write - and odoo-intake
+    pre-opened Plan Mode on the author's behalf; both stay excised."""
     gate = GATE.read_text(encoding="utf-8")
     low = " ".join(gate.lower().split())  # normalize whitespace - prose line-wraps
-    assert "enter before authoring" in low, (
-        "planning-gate-contract.md must state the WHEN invariant: EnterPlanMode is called BEFORE "
-        "authoring, not only before presenting the plan."
+    assert "enter before the first git-tracked" in low, (
+        "planning-gate-contract.md must state the amended WHEN invariant: EnterPlanMode is "
+        "called before the first GIT-TRACKED or otherwise irreversible effect."
+    )
+    assert "always before presenting" in low, (
+        "planning-gate-contract.md must state EnterPlanMode is ALWAYS called before presenting "
+        "the plan for approval."
+    )
+    assert "does not require an open plan mode window" in low, (
+        "planning-gate-contract.md must state that state-root-only plan authoring does NOT "
+        "require an open Plan Mode window."
     )
     assert "exactly one actor calls it" in low, (
         "planning-gate-contract.md must pin exactly ONE actor as the enterer for a given plan."
@@ -163,16 +175,22 @@ def test_enter_precedes_authoring_invariant():
     )
 
     planning = PLANNING.read_text(encoding="utf-8")
-    plow = " ".join(planning.lower().split())
-    assert "before dispatching either planner" in plow, (
-        "odoo-planning/SKILL.md must enter Plan Mode BEFORE dispatching either planner (P1a/P1b), "
-        "not after they return."
-    )
     guard_idx = planning.find("Plan Mode guard")
     p1a_idx = planning.find("### P1a - Code plan")
-    assert guard_idx != -1 and p1a_idx != -1 and guard_idx < p1a_idx, (
-        "odoo-planning's Plan Mode guard must be positioned BEFORE the P1a planner dispatch - "
-        "the enter must precede authoring, not follow it."
+    p1b_idx = planning.find("### P1b - Doc plan")
+    gate_idx = planning.find("## Plan-approval gate")
+    assert -1 not in (guard_idx, p1a_idx, p1b_idx, gate_idx), (
+        "odoo-planning/SKILL.md must carry a 'Plan Mode guard' section, both P1a/P1b planner "
+        "dispatch sections, and the 'Plan-approval gate' section."
+    )
+    assert guard_idx > p1a_idx and guard_idx > p1b_idx, (
+        "odoo-planning's Plan Mode guard must sit AFTER BOTH planner dispatches (P1a and P1b) - "
+        "state-root plan authoring does not require an open Plan Mode window, so the enter no "
+        "longer precedes it."
+    )
+    assert guard_idx < gate_idx, (
+        "odoo-planning's Plan Mode guard must sit BEFORE the approval gate - ExitPlanMode stays "
+        "there, and the guard's ENTER must still precede presenting the plan for approval."
     )
 
     intake = INTAKE.read_text(encoding="utf-8")
@@ -184,4 +202,33 @@ def test_enter_precedes_authoring_invariant():
     assert "main agent calls **`enterplanmode`**" not in ilow, (
         "odoo-intake/SKILL.md must NOT instruct the main agent to call EnterPlanMode directly - "
         "that call belongs solely to the plan-authoring skill it dispatches."
+    )
+
+
+PHASE_P_RUN_DAG = PLUGIN / "skills" / "odoo-intake" / "references" / "phase-p-run-dag.md"
+
+
+def test_no_caller_pre_opens_plan_mode():
+    """P3 item 28: NO intake-side REFERENCE/procedure file may pass `plan_mode_active: true` to
+    odoo-planning on a dispatch - that would pre-open Plan Mode on the author's behalf and
+    silently defeat its own guard (odoo-planning reads the flag and skips its own EnterPlanMode).
+    Verified bug this guards: phase-p-run-dag.md's trivial single-module path used to pass
+    `plan_mode_active: true` on its Skill-tool dispatch. `odoo-intake/SKILL.md` itself is exempt
+    from the blanket scan below - it legitimately DOCUMENTS the ban in negated prose ('never
+    passes `plan_mode_active: true`'), which is not a dispatch; every OTHER file under
+    skills/odoo-intake/ (its references/) must not contain the literal token at all."""
+    offenders = [
+        str(p.relative_to(PLUGIN))
+        for p, t in _tree_texts()
+        if str(p.relative_to(PLUGIN)).startswith("skills/odoo-intake/")
+        and str(p.relative_to(PLUGIN)) != "skills/odoo-intake/SKILL.md"
+        and "plan_mode_active: true" in t
+    ]
+    assert not offenders, (
+        f"No file under skills/odoo-intake/ (other than SKILL.md's own rule-documenting prose) "
+        f"may pass `plan_mode_active: true` to odoo-planning - found in: {offenders}"
+    )
+    assert "plan_mode_active: true" not in PHASE_P_RUN_DAG.read_text(encoding="utf-8"), (
+        "phase-p-run-dag.md must not pre-open Plan Mode on odoo-planning's behalf via "
+        "`plan_mode_active: true` - it is the sole enterer of its own Plan Mode window."
     )

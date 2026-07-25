@@ -129,12 +129,26 @@ prompt with text the running agent cannot act on. Banned by `tests/test_agent_bo
 Genuine runtime constraints (read-only, one SHA per instance, never spawn subagents) belong in the
 role intro or a constraints section of the body, not under a routing heading.
 
-**No `tools:` allowlist.** Repo convention: agents omit the frontmatter `tools:` key so they
-inherit the full (drift-proof) tool surface; the harness depth cap is the only nesting net.
-Enforced by `tests/test_skill_format.py` (`test_agent_frontmatter`). This is intentionally
-stricter than the generic Anthropic option to allowlist tools. (Generic background: Anthropic lets
-you omit `Agent` from `tools`/`disallowedTools` to stop an agent spawning subagents; here you
-state that as a body constraint instead.)
+**No `tools:` allowlist (scoped to `plugins/odoo-ai-agents/agents/`).** Repo convention there:
+agents omit the frontmatter `tools:` key so they inherit the full (drift-proof) tool surface; the
+harness depth cap is the only nesting net. Enforced by `tests/test_skill_format.py`
+(`test_agent_frontmatter`, scoped to that plugin). This is intentionally stricter than the generic
+Anthropic option to allowlist tools. (Generic background: Anthropic lets you omit `Agent` from
+`tools`/`disallowedTools` to stop an agent spawning subagents; here you state that as a body
+constraint instead.) `git-toolkit`'s three execution agents - `git-operator`, `git-surveyor`,
+`github-operator` - are DELIBERATE exceptions: each declares an explicit `tools:` array
+(least-privilege over git/GitHub operations) and sits outside the odoo-ai-agents-scoped
+convention above.
+
+**Platform fact - `permissionMode`/`hooks`/`mcpServers` are ignored for plugin agents.** A plugin
+agent's frontmatter `permissionMode`, `hooks`, and `mcpServers` keys are read by the build ONLY to
+emit a warning ("Plugin agent file `<path>` sets `<key>`, which is ignored for plugin agents. Use
+`.claude/agents/` for this level of control.") and are then discarded - they never reach the
+running agent. These fields take effect only for agents under user/project `.claude/agents/`, not
+under any plugin's `agents/` directory. Do not add `permissionMode` to an agent under
+`plugins/*/agents/` expecting it to change enforcement - it is a dead field there; the only
+platform lever for this level of control is `.claude/agents/`, outside any plugin. Enforced by
+`tests/test_plugin_agent_ignored_fields.py`.
 
 **Leaf/spawner status is SSOT'd, not just prose.** Every agent's `role` (`leaf` | `spawner` |
 `coordinator`) is declared in `generator/skill_tool_deps.json` `agents.<name>.role` and

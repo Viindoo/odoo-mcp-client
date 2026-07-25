@@ -157,7 +157,7 @@
       ],
       "min_server_version": "0.15.0",
       "deprecated_tools_used": [],
-      "notes": "set_active_profile scopes find_deprecated_usage(profile_name) to the customer's modules instead of default Odoo CE scope. test_base_classes detects deprecated test base class usage (SavepointCase v8-v15 alias); js_test_inspect surfaces deprecated QUnit patterns in v18+ modules. min_server 0.15.0 for test tools."
+      "notes": "set_active_profile scopes find_deprecated_usage(profile_name) to the customer's modules instead of default Odoo CE scope. test_base_classes detects deprecated/removed test base class usage across the framework's version windows; js_test_inspect surfaces deprecated QUnit patterns in v18+ modules. min_server 0.15.0 for test tools."
     },
     "odoo-discovery-summary": {
       "mcp_tools": [

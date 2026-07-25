@@ -205,8 +205,10 @@ All four skills read `<SHARE_DIR>/context.md` (Markdown bullets `- **key**: valu
   before/after diff; when absent, `odoo-visual-regression` treats state B as `instance_base_url`
   re-navigated post-change.
 - `instance_login` - login identifier + agreed credential source.
-- `screenshot_baseline_dir` - where baselines/evidence screenshots are written; videos default to
-  `<ISOLATE_DIR>/visual/videos/`.
+- `screenshot_baseline_dir` - the SHARE-tier root holding `baselines/`, the `current/` comparison
+  set, and the cached login `storageState`. Per-run acceptance/debug/review evidence goes to the
+  ISOLATE subpaths, NOT here - see `state-root-resolution.md` § Where a captured artifact goes;
+  videos default to `<ISOLATE_DIR>/visual/videos/`.
 - `brand_tokens_source` - (optional) path to a consumer-declared JSON map `token -> expected color`
   (e.g. `{"--primary": "#1E88E5"}`). When present, `odoo-ui-review` Step 4b ΔE-diffs the resolved
   `getComputedStyle(:root)` brand tokens against it (runtime brand fidelity, `odoo-frontend-fidelity.md`

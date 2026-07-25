@@ -324,8 +324,9 @@ Business-logic and data-flow edges come from Opus cluster reasoning.
 ### 4.1 Plan mode and skills - what is and isn't possible
 
 Skills, commands, and hooks **cannot declaratively set** `permission_mode=plan` in
-their frontmatter or configuration. User-initiated plan mode (Shift+Tab, `/plan`, CLI
-flag, `defaultMode` in settings) is separate from anything a skill can declare.
+their frontmatter or configuration - and neither can plugin agents (see the platform fact below).
+User-initiated plan mode (Shift+Tab, `/plan`, CLI flag, `defaultMode` in settings) is separate
+from anything a skill or agent can declare.
 
 However, this does **not** mean plan mode is unreachable from within a skill-driven
 flow:
@@ -333,13 +334,16 @@ flow:
 - **The orchestrating context CAN call `EnterPlanMode` / `ExitPlanMode`** - these are
   platform tools available to the main context. A skill running in the orchestrating
   context (e.g., `odoo-planning`, the plan-authoring skill) may instruct the main agent
-  to invoke `EnterPlanMode` before it authors the plan, producing genuine UI-approved
-  Plan Mode - a stronger enforcement than a text gate. Exactly one skill enters for a
-  given plan - the author - never the dispatching front door (see § Planning-initiated
-  Plan Mode pattern below).
-- **Subagents cannot call `EnterPlanMode`** - the tool is only reachable from the
-  main context. `ExitPlanMode` is only available to a subagent whose `permissionMode`
-  is already `plan`.
+  to invoke `EnterPlanMode` - AFTER its planners have authored the plan under the state
+  root (a write Plan Mode does not gate) and BEFORE presenting that plan for approval -
+  producing genuine UI-approved Plan Mode - a stronger enforcement than a text gate.
+  Exactly one skill enters for a given plan - the author - never the dispatching front
+  door (see § Planning-initiated Plan Mode pattern below).
+- **Subagents INHERIT the caller's permission mode.** Frontmatter `permissionMode`/`hooks`/
+  `mcpServers` are IGNORED for PLUGIN agents (the build warns and discards them); they take
+  effect only in user/project `.claude/agents/`. Every agent this plugin ships always runs in
+  the caller's mode. A subagent still cannot call `EnterPlanMode` - the tool is only reachable
+  from the main context.
 
 #### Plan Mode decision tree
 
@@ -374,19 +378,23 @@ Run this before any execute-skill dispatch. Intake reads the chosen Approach's
 When `output_mode = writes-files`, `odoo-intake` (running in the orchestrating context) reaches
 the execute phase after the user approves a Proposed Plan and dispatches the mandatory
 `odoo-planning` (Skill tool) - WITHOUT pre-opening Plan Mode and WITHOUT passing
-`plan_mode_active: true`. `odoo-planning` is the SOLE enterer: it calls `EnterPlanMode` itself,
-BEFORE it authors the plan (never after), writes the implementation plan (see §4.6 Content
-Schema) for UI review, receives user approval via `ExitPlanMode` itself, then hands control back
-to intake (Continuation Contract `next: odoo-intake`), which then dispatches the file-touching
-specialist. This is a first-class enforcement option, not a workaround. Intake never calls
-`EnterPlanMode`/`ExitPlanMode` on this or any other path - see `skills/odoo-intake/SKILL.md` §
-Plan Mode - harness-level pre-execute gate.
+`plan_mode_active: true`. `odoo-planning` is the SOLE enterer: it dispatches its two planners
+(`odoo-planner` then `odoo-doc-planner`), both of which write ONLY under the `$ODOO_AI_HOME`
+state root - a write Plan Mode does not gate. Once BOTH return, `odoo-planning` calls
+`EnterPlanMode` itself, BEFORE presenting the already-authored plan for approval (never after a
+git-tracked or otherwise irreversible effect), receives user approval via `ExitPlanMode` itself,
+then hands control back to intake (Continuation Contract `next: odoo-intake`), which then
+dispatches the file-touching specialist. This is a first-class enforcement option, not a
+workaround. Intake never calls `EnterPlanMode`/`ExitPlanMode` on this or any other path - see
+`skills/odoo-intake/SKILL.md` § Plan Mode - harness-level pre-execute gate.
 
 Intake does not author the plan content itself: per the authoring split (§4.6), it ALWAYS
 delegates authoring to `odoo-planning`. SSOT for the enter/skip decision `odoo-planning`'s own
 guard drives: `skills/odoo-planning/SKILL.md` § Plan Mode guard, which in turn points at
 `snippets/planning-gate-contract.md` § Plan-Mode enter/exit for the `plan_mode_active` definition
-and the enter-before-authoring invariant.
+and the amended enter-timing invariant (enter before the first GIT-TRACKED or otherwise
+irreversible effect, and ALWAYS before presenting - state-root-only planner authoring does not
+require an open window).
 
 There is **no platform write-block** behind the gate: `odoo-intake` does not declare
 `disallowed-tools: Write Edit`, and the coders (`odoo-coding`) DO write/apply code - that is
@@ -964,7 +972,7 @@ ever applied to a **subagent/executor** as a quality gate, e.g. `enforce-groundi
 └────────────────────────────────────────────────────────────────────────────────────────┘
   HOOKS (self-gate to pass when no active run; NONE hard-blocks MAIN):
    • PreToolUse  remind-delegate  → main Write/Edit/Bash during active run ⇒ additionalContext
-                 nudge "consider delegating" (permissionDecision=allow, never deny)
+                 nudge "consider delegating" (permissionDecision=defer, never allow/deny/ask)
    • SubagentStop parse-continuation → subagent Contract NEEDS_NEXT ⇒ systemMessage nudge advance
                  (block applies ONLY to subagents as a quality gate, never to main)
    • Stop        drive-continuation → main ends turn while RUN==NEEDS_NEXT ⇒ systemMessage

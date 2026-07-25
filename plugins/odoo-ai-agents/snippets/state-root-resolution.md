@@ -108,7 +108,9 @@ trees named individually (never "...").
 | `reviews/<slug>-<date>/` | a review is tied to one diff/branch/PR - not cross-worktree reusable (two worktrees reviewing different branches must never share this dir) |
 | `followups/<slug>.md` | terminal per-deal deliverable, no downstream reader - one-off sales output, same class as `pr-monitoring/`/`support/` |
 | `visual/<run_id>/<module>_staging/` | run-scoped transient staging (follows the run; note the actual on-disk form is module-prefixed `_staging`, not a bare `_staging/`) |
-| `visual/screenshots/<slug>/` | UI-review evidence staged for ONE review run (P9) - transient, same reasoning as `visual/<run_id>/<module>_staging/` |
+| `visual/screenshots/<slug>/` | UI-review evidence staged for ONE review run (P9) - transient, same reasoning as `visual/<run_id>/<module>_staging/`; owned by `odoo-ui-reviewer` |
+| `visual/qa/<slug>/<module>/` | acceptance evidence for ONE module of ONE acceptance run - `odoo-acceptance/SKILL.md:142` dispatches one `odoo-qa-tester` per High-tier module and `:135-140` allows distinct browser families to run in parallel, so the path is per-module, not per-run; RETAINED because it is the cited evidence behind each PASS/FAIL/UNVERIFIED verdict in `qa/<slug>-acceptance-report.md`; owned by `odoo-qa-tester` |
+| `visual/debug/<slug>/` | symptom evidence for ONE `odoo-debug` (or `odoo-modules-upgrade` P5) diagnosis - RETAINED because the Output Contract's Observation field cites it; correlated to `debug/` notes and `worklog/<run-or-slug>/` by the same `<slug>`; owned by `odoo-ui-debugger` |
 | `visual/videos/<feature>-<timestamp>/` | terminal demo-recording deliverable, no downstream reader in any other skill - run-scoped, same class as `followups/` |
 | `i18n/<slug>-<date>/` (`glossary-tm-<lang>.json`, `<module>.pot`, `translation-report-<lang>.json`, `consistency-audit-<lang>.md`) | the i18n recipe MANDATES a fresh `.pot`/TM re-export on every invocation and forbids reusing a prior run's artifacts on disk - ephemeral per-run output tied to one worktree's current code state, not reusable knowledge (contrast with `glossary.yml` above, which IS meant to persist and be reused) |
 | `bids/` | workflow `output_dir` (`odoo-respond-bid.workflow.yaml`) |
@@ -130,9 +132,12 @@ resume state) that two concurrent runs must never clobber - verified exactly 13,
 `output_dir:` line across `workflows/*.workflow.yaml`.
 
 **Note the split inside `visual/`:** `visual/baselines/` and `visual/doc/` are SHARE (reusable
-cross-run assets), while `visual/<run_id>/<module>_staging/`, `visual/screenshots/<slug>/`, and
-`visual/videos/<feature>-<timestamp>/` are ISOLATE (transient or terminal, run-scoped). Classify by
-the FULL subpath, never by the top-level directory name alone - `visual/` itself is not a Tier.
+cross-run assets), while `visual/<run_id>/<module>_staging/`, `visual/screenshots/<slug>/`,
+`visual/qa/<slug>/<module>/`, `visual/debug/<slug>/`, and `visual/videos/<feature>-<timestamp>/` are
+ISOLATE (transient or terminal, run-scoped). Three sibling evidence subpaths, three owners, no
+shared directory: `visual/screenshots/<slug>/` (`odoo-ui-reviewer`), `visual/qa/<slug>/<module>/`
+(`odoo-qa-tester`), `visual/debug/<slug>/` (`odoo-ui-debugger`). Classify by the FULL subpath, never
+by the top-level directory name alone - `visual/` itself is not a Tier.
 
 ## Codemod guards
 
@@ -195,6 +200,55 @@ a continuation hook the same way `run-<id>.json` would):
 If genuinely unsure, treat it as ISOLATE by default (the safer failure mode is two worktrees each
 keeping their own copy, not two worktrees silently overwriting each other's run state) and flag it
 for a maintainer to add to the tables above.
+
+## Where a captured artifact goes (three buckets, keyed on the capture call)
+
+A capture call (screenshot, DOM snapshot, heap snapshot, performance trace, console/network log,
+video/GIF recording) NEVER writes into the target repo's working tree and NEVER runs with no
+destination. Classify the DESTINATION OF THE CAPTURE CALL - not the artifact, and not where it ends
+up later - into exactly one bucket:
+
+1. **Reusable across runs** (visual-regression baselines and their `current/` comparison set, the
+   cached login `storageState`, the doc-illustration screenshot cache) -> `<SHARE_DIR>/visual/...`
+   per `## Tier-2 SHARE list` above.
+2. **Run-scoped** (acceptance evidence, debug symptom evidence, UI-review evidence, demo-video
+   output, and any staging that will LATER be copied into a module tree) -> `<ISOLATE_DIR>/...`
+   per `## Tier-2 ISOLATE list` above. This is the default when in doubt.
+3. **A committed module deliverable** (`<module>/static/description/...`, `<module>/doc/...`) is
+   NEVER a capture destination. It is reached only by an explicit Bash `cp`/`mv` of one named file
+   out of bucket (1) or (2), and committed via `git-toolkit:git-ops`.
+
+Bucket 1 explicitly names `current/` so `odoo-visual-regression/SKILL.md`'s comparison-set tier
+stays sanctioned. Bucket 3 keeps the committed-deliverable pipeline intact: `odoo-icon-designer.md`
+(`icon.png`), `odoo-marketing-writer.md` (`index.html`), `odoo-user-doc-writer.md` (`doc/index.rst`)
+each reach it only by an explicit copy step - never as a direct capture target.
+
+**Family mechanics.** **chrome-devtools** (the eager default): pass the absolute path as
+**`filePath`** (`take_screenshot`, `take_snapshot`, `performance_start_trace`, `take_heapsnapshot`).
+The schema accepts unknown keys silently, so a wrong key name writes NOTHING - the key is
+`filePath`, never `path`. Omitting it attaches the image to the response and writes no file.
+**playwright** (opt-in): absolute paths are REJECTED. Capture with a RELATIVE `filename` under the
+tool's own output root, read the returned path, then Bash `cp`/`mv` into the tier dir. NEVER omit
+`filename` - it defaults to `page-<timestamp>.png` under the cwd-rooted output dir. **pagecast**
+(opt-in): exposes NO destination parameter. Record, `stop_recording`, read the returned `.webm`
+path, then Bash `cp`/`mv` into the tier dir. Do not invent a destination argument for it.
+`list_console_messages` / `list_network_requests` have NO destination parameter either - they
+return data inline; when a scenario's required evidence includes console/network output, Write the
+returned data verbatim to a file under the ISOLATE evidence dir yourself so the report cites a real
+path, never an inline paraphrase.
+
+**The refusal fallback (family-conditional, fail-closed).** On resolver REFUSAL (cwd outside any
+git repo, no `.odoo-ai-root`, no `__manifest__.py` anywhere in the chain):
+- **chrome-devtools**: omit `filePath` entirely - the image/snapshot attaches to the response,
+  nothing is written - and write the literal `inline (state root unresolvable)` into the report's
+  evidence field.
+- **playwright / pagecast**: emit `BLOCKED(state root unresolvable - cannot place evidence)`. Do
+  NOT capture. Both families write by default and neither can be told where; scattering files is
+  the defect this rule exists to prevent. A brief that names an opt-in family in a marker-less cwd
+  is a misconfiguration worth blocking on.
+
+A scenario is not downgraded to UNVERIFIED for this reason alone when the observation itself was
+made.
 
 ## The resolve-capture-substitute protocol (MANDATORY - read this before touching any Tier-2 path)
 

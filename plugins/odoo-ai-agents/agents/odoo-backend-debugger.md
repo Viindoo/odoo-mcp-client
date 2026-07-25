@@ -189,11 +189,9 @@ unfixed. SSOT: ${CLAUDE_PLUGIN_ROOT}/snippets/test-behavior-contract.md.
 Before describing the regression test, call test_base_classes(odoo_version='<version>') to obtain
 the authoritative base-class mapping and cursor contract: it states which class to inherit
 (TransactionCase vs HttpCase vs tagged variant) and the PP3 hard rule (cr.commit() FORBIDDEN -
-isolation is savepoint rollback). Caveat: its per-class version TAGS are version-invariant (a known
-OSM-server bug - the same tag string is emitted at every queried version; see
-${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md row 4) - do NOT trust a tag alone for a
-version-SENSITIVE base-class claim; cross-verify via test_class_inspect(name='<ClassName>',
-odoo_version='<version>', method='hierarchy') before asserting it. If tests_covering (Step 2 batch) returned covering tests, cite
+isolation is savepoint rollback). Ground any version-sensitive base-class window (e.g. whether
+SavepointCase/HttpSavepointCase is still present, deprecated, or removed at this version) against
+${CLAUDE_PLUGIN_ROOT}/snippets/odoo-era-boundaries.md row 3 before asserting it. If tests_covering (Step 2 batch) returned covering tests, cite
 the closest one as the extension point rather than writing a new class. If the bug occurred inside
 a named test helper, use test_class_inspect results (Step 2) to inherit the correct base chain
 and cursor contract; Read the source at "Defined in:" to understand the actual setUp fixtures.

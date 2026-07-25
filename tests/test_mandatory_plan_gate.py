@@ -31,6 +31,7 @@ INTAKE = PLUGIN / "skills" / "odoo-intake" / "SKILL.md"
 BRL = PLUGIN / "skills" / "odoo-brl" / "SKILL.md"
 WORKFLOW = PLUGIN / "workflows" / "odoo-implement-feature.workflow.yaml"
 GATE = PLUGIN / "snippets" / "planning-gate-contract.md"
+PLANNING = PLUGIN / "skills" / "odoo-planning" / "SKILL.md"
 
 
 # --------------------------------------------------------------------------- #
@@ -153,6 +154,28 @@ def test_coding_autonomous_fix_exception_preserved():
     text = CODING.read_text(encoding="utf-8")
     assert "AUTONOMOUS FIX (review-driven)" in text and "AUTONOMOUS FIX (debug-driven)" in text, (
         "The autonomous-fix sentinel handling must remain intact."
+    )
+
+
+def test_planning_owns_the_only_enter_exit_pair():
+    """P3: odoo-planning is the SOLE enterer/exiter of Plan Mode for the lifecycle plan - front
+    doors (odoo-intake) never call EnterPlanMode/ExitPlanMode themselves, they only dispatch
+    odoo-planning, which owns both calls internally (after its planners return, before/at the
+    approval gate)."""
+    planning = PLANNING.read_text(encoding="utf-8")
+    assert "EnterPlanMode" in planning and "ExitPlanMode" in planning, (
+        "odoo-planning/SKILL.md must itself call both EnterPlanMode and ExitPlanMode - it is the "
+        "sole enterer/exiter of the lifecycle plan's Plan Mode window."
+    )
+
+    intake = INTAKE.read_text(encoding="utf-8")
+    ilow = " ".join(intake.lower().split())
+    assert "intake never does" in ilow, (
+        "odoo-intake/SKILL.md must state it enters Plan Mode on NO path - odoo-planning is the "
+        "sole enterer."
+    )
+    assert "main agent calls **`enterplanmode`**" not in ilow, (
+        "odoo-intake/SKILL.md must not instruct the main agent to call EnterPlanMode itself."
     )
 
 

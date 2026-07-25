@@ -686,7 +686,10 @@ CONFIRM: "report per-module test result for this wave"
 
 After each wave: write wave result to `install-test.md` and update `checkpoint.json`
 (set `installed` for each module in the wave that passed). On FAILURE in a wave:
-dispatch `odoo-backend-debugger` or `odoo-ui-debugger` with the traceback + module source.
+dispatch `odoo-backend-debugger` or `odoo-ui-debugger` with the traceback + module source, plus
+`ISOLATE_DIR:` (the SAME literal resolved at P0 intake, per `## Base` above) - `odoo-ui-debugger`
+composes `<ISOLATE_DIR>/visual/debug/<slug>/` for its own captured evidence from this literal and
+MUST NOT re-resolve from its own cwd.
 Receive proven root cause -> feed back to P4 for the affected module only (dispatch
 `odoo-coding` with `AUTONOMOUS FIX` sentinel + root cause). Re-run P5 FROM THE FAILING
 WAVE (skip waves already recorded as `installed` in `checkpoint.json`).

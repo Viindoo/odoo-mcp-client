@@ -263,7 +263,16 @@ drop-in. What it does:
 2. **Browser deps** - checks Node >= 20; pre-installs the 3 pinned browser MCP packages ON
    DISK (npm cache warm - install only, never launched: disk cost, zero RAM cost, and strictly
    separate from step 12's register/run); installs Playwright Chromium; checks `ffmpeg`.
-3. **Permissions** - auto-allows the browser MCP tools in Claude permissions.
+3. **Permissions** - auto-allows the browser MCP tools in Claude permissions
+   (`30-permissions`), plus the narrow set of state-root Bash/Read/Write/Edit
+   rules the planning pipeline needs to resolve and write under `$ODOO_AI_HOME`
+   without a per-call prompt (`32-permissions-state-root`). The state-root
+   write rules cover ONLY `$ODOO_AI_HOME/projects/**` and
+   `$ODOO_AI_HOME/worklog/**` - they exclude `bin/`, `venvs/`, `node_tools/`,
+   `setup-scripts/`, `runtime/`, and `instances.toml` (code-execution-adjacent
+   paths, never auto-granted). Because permissions are finalized before
+   SessionStart hooks run, a first apply needs ONE Claude Code restart (or a
+   new session) to take effect.
 4. **Instance profile** - discovers local Odoo repos and writes the machine-global `$ODOO_AI_HOME/instances.toml` (any agent on this host resolves instances regardless of working directory).
    Also seeds `$ODOO_AI_HOME/i18n.json` (`{"default_languages":["vi_VN"]}`) - the machine-global
    language registry for the odoo-i18n cluster; edit to add or remove target languages.

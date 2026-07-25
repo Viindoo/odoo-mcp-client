@@ -178,8 +178,8 @@ phrase it that way.
 All outputs live in `<SHARE_DIR>/gap-analysis/<slug>-<date>/`. The skill writes state-root
 artifacts (L0/L1, per `${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md` risk tiers) - it
 writes the three artifacts below, then prints a compact summary plus these paths to chat. It still
-**skips Plan Mode**: a state-root-only writer is chat-only for the Plan-Mode gate (Plan Mode gates
-git-TRACKED writes, not state-root writes - see `odoo-intake/SKILL.md` § Plan Mode decision tree).
+**skips Plan Mode** (state-root-only writer exemption - SSOT + rationale:
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/SKILL.md` § Plan Mode decision tree).
 
 ### `gap-matrix.jsonl` (machine SSOT - one JSON object per requirement)
 

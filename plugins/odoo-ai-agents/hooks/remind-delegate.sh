@@ -13,9 +13,15 @@
 #       the deterministic guarantee is the `check_orchestration.py` agent-role lint (build-time);
 #       THIS is only a same-turn reminder, not the enforcement.
 #
-# HARD CONTRACT: this hook NEVER denies a tool call. The main agent (and any subagent) is a
-#   decision-maker; hard-blocking is dangerous (can trap the agent / deadlock). So:
-#   - permissionDecision is ALWAYS "allow"; we only attach `additionalContext` as a reminder.
+# HARD CONTRACT: this hook NEVER decides the tool call - it is advisory only, not enforcement.
+#   The main agent (and any subagent) is a decision-maker; hard-blocking is dangerous (can trap
+#   the agent / deadlock) - but silently auto-approving is equally dangerous: it would bypass
+#   normal permission-rule evaluation (incl. the user's own deny/ask rules) for the exact git
+#   mutation / risky tool call this hook exists to discourage. So:
+#   - permissionDecision is ALWAYS "defer" (the documented no-opinion value for PreToolUse) -
+#     NEVER "allow", "deny", or "ask". "defer" attaches `additionalContext` as a reminder and
+#     lets the tool call fall through to normal permission-rule evaluation, so the user still
+#     sees any prompt/deny they would otherwise see.
 #   - Self-gates: (1) requires an active run (no ISOLATE run-*.json with status NEEDS_NEXT;
 #     resolved per ${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md) → silent pass
 #     otherwise. (2) requires a resolvable role=leaf match → silent pass otherwise (no
@@ -75,7 +81,7 @@ if [[ "$IN_SUBAGENT" == true && -n "$AGENT_TYPE" ]]; then
     if [[ "$RISKY" == true ]]; then
       jq -cn --arg agent "$AGENT_NAME" \
         --arg ctx "You are running as \"$AGENT_NAME\", declared role=leaf in the agent-role SSOT (generator/skill_tool_deps.json). A HARD LEAF never launches another agent and never runs a git mutation or Skill(git-ops) itself - that is the coordinator/orchestrator's job (see snippets/worker-brief.md, snippets/git-delegation.md). This is only a reminder - proceed if you judge this classification does not actually apply to your current dispatch." \
-        '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"allow", additionalContext:$ctx}}'
+        '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"defer", additionalContext:$ctx}}'
       exit 0
     fi
   fi
@@ -111,5 +117,5 @@ shopt -u nullglob
 [[ -n "$active_run" ]] || _pass    # no active run → not in drive-to-done mode → silent
 
 jq -cn --arg ctx "You are mid-run (active drive-to-done run under the namespaced state root - see snippets/state-root-resolution.md). As the orchestrator, prefer delegating this $TOOL to a subagent/specialist so your context stays clean for decisions. This is only a reminder - proceed if you judge it right." \
-  '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"allow", additionalContext:$ctx}}'
+  '{hookSpecificOutput:{hookEventName:"PreToolUse", permissionDecision:"defer", additionalContext:$ctx}}'
 exit 0

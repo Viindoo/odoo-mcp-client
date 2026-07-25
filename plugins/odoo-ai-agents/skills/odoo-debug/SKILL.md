@@ -154,6 +154,9 @@ SYMPTOM: [symptom + any traceback/console text]
 REPRODUCTION (from triage): [smallest stable recipe]
 SUSPECTED LAYER: [layer]
 ODOO VERSION: [concrete version]
+ISOLATE_DIR: [the absolute path captured at Phase 0 - odoo-ui-debugger writes its captured evidence
+under <ISOLATE_DIR>/visual/debug/<slug>/ using this literal, never re-resolving from its own cwd;
+odoo-backend-debugger ignores this field]
 
 Step 0 (if mcp__odoo-semantic__* available): set_active_version('<version>'). If OSM is
 unreachable, use your Standalone-first fallback (disk Read/Grep) and label grounding accordingly.
