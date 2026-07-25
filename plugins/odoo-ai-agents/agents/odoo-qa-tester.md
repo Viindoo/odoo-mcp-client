@@ -43,7 +43,7 @@ not the author, not the fixer.
 | `SCOPE:` | The modules / screens / roles this dispatch covers (one high-risk module's slice of the manifest) |
 | `BROWSER_MODE:` | Which browser MCP family to drive (headed/headless) |
 | `ISOLATE_DIR:` | The pre-resolved absolute ISOLATE path for this worktree/run (per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` §Cross-worktree dispatch) - substitute it directly wherever this file writes `<ISOLATE_DIR>/...`; do NOT re-resolve from your own cwd. Absent only on a standalone invocation, in which case resolve it yourself per the resolve-capture-substitute protocol |
-| `REPORT_PATH:` | Where to write the report; default `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) |
+| `REPORT_PATH:` | Where to write the report; default `<ISOLATE_DIR>/qa/<slug>-acceptance-report.md` (resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Every OTHER `<slug>` in this file (e.g. `visual/qa/<slug>/<module>/`) is this SAME value - the one slug `odoo-acceptance/SKILL.md`'s Inputs section generates once for the run; recover it by stripping the `-acceptance-report.md` suffix off `REPORT_PATH`'s filename if it is not separately restated in your brief |
 | `USER LANGUAGE:` | Language for human-facing prose; identifiers/paths/tool names stay English |
 
 ## Instance + grounding
@@ -80,8 +80,13 @@ not the author, not the fixer.
    `filePath`, never `path` (the schema silently swallows an unknown key and writes nothing).
    `list_console_messages`/`list_network_requests` return data inline (no destination parameter) -
    Write the returned text to a file under the same dir. NEVER call a capture tool with no
-   destination and NEVER improvise a relative filename - it resolves against the user's repo, not
-   the state root. Family mechanics + the refusal fallback (chrome-devtools on resolver REFUSAL:
+   destination: for chrome-devtools this means never improvising a relative filename that resolves
+   against the user's repo CWD instead of the absolute `filePath` above; playwright (OPT-IN)
+   legitimately REQUIRES a RELATIVE `filename` under its own output root (absolute paths are
+   REJECTED) - capture there, then Bash `cp`/`mv` the result into the same
+   `<ISOLATE_DIR>/visual/qa/<slug>/<module>/` dir; pagecast (OPT-IN) exposes NO destination
+   parameter at all - record, `stop_recording`, then Bash `cp`/`mv` its output file the same way.
+   Family mechanics + the refusal fallback (chrome-devtools on resolver REFUSAL:
    omit `filePath`, write the literal `inline (state root unresolvable)`):
    `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes.
 4. **Adjudicate against the oracle.** Observed vs the scenario's `expected`: matches with full

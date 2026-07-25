@@ -102,7 +102,11 @@ Proceed? (yes / refine: [feedback] / cancel)
 This skill writes its run notes under `<ISOLATE_DIR>/debug/` (gate tier L1; resolve `<ISOLATE_DIR>`
 once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
 absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit), so
-confirm before a long run unless the caller already authorized auto-run.
+confirm before a long run unless the caller already authorized auto-run. Generate one `slug` for
+this debug session (short, filesystem-safe - mirror `odoo-acceptance/SKILL.md`'s "Generate one
+`slug` for the run") and reuse it in every artifact path below, including the `SLUG:` field passed
+to `odoo-ui-debugger` in Phase 2 (it composes `<ISOLATE_DIR>/visual/debug/<slug>/` for its own
+captured evidence from that literal, never improvising its own).
 
 ### Phase 1 - Triage (classify + reproduce)
 
@@ -154,6 +158,8 @@ SYMPTOM: [symptom + any traceback/console text]
 REPRODUCTION (from triage): [smallest stable recipe]
 SUSPECTED LAYER: [layer]
 ODOO VERSION: [concrete version]
+SLUG: [the slug generated at Phase 0 for this debug session - odoo-ui-debugger substitutes this
+literal wherever this file's evidence paths say <slug>; odoo-backend-debugger ignores this field]
 ISOLATE_DIR: [the absolute path captured at Phase 0 - odoo-ui-debugger writes its captured evidence
 under <ISOLATE_DIR>/visual/debug/<slug>/ using this literal, never re-resolving from its own cwd;
 odoo-backend-debugger ignores this field]

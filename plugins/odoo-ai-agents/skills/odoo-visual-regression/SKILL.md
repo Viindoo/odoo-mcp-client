@@ -107,14 +107,16 @@ place across every screen/breakpoint - instead of opening a new page per screen.
 For each in-scope screen at each agreed breakpoint:
 1. `navigate_page` to the screen (state A).
 2. `resize_page` to the breakpoint.
-3. `take_screenshot` → `<screenshot_baseline_dir>/baseline/<screen>-<breakpoint>.png`.
+3. `take_screenshot` → `<screenshot_baseline_dir>/baseline/<screen>-<breakpoint>.png` (pass this
+   absolute path as `filePath`, never `path` - the chrome-devtools schema accepts unknown keys
+   silently and writes nothing).
 
 ### Round 3 - Capture current + diff (browser)
 
 Switch to state B's instance URL - `instance_base_url_b` when this is a two-instance comparison,
 otherwise re-navigate the SAME `instance_base_url` after applying the change under test (module
 install/uninstall, theme toggle, in-place upgrade) - then for each screen:
-1. `resize_page` to same breakpoint; `take_screenshot` → `<screenshot_baseline_dir>/current/<screen>-<breakpoint>.png`.
+1. `resize_page` to same breakpoint; `take_screenshot` → `<screenshot_baseline_dir>/current/<screen>-<breakpoint>.png` (`filePath`, never `path`).
 2. Compare pairs. Where pixel diff is ambiguous, use `evaluate_script` to compare DOM structure/text of the region.
 
 ### Round 4 - Report drift + scope
