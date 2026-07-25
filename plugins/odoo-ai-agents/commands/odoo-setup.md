@@ -392,16 +392,19 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
   step 10/12's job.
 - **30-permissions** - appends browser tool prefixes to `permissions.allow[]`
   in `$CLAUDE_SETTINGS` = `~/.claude/settings.json`. Asks [Y/n] itself.
-- **32-permissions-state-root** - appends the 7 narrow state-root
+- **32-permissions-state-root** - appends the 5 narrow state-root
   Bash/Read/Write/Edit rules the planning pipeline needs (resolving and writing
   under `$ODOO_AI_HOME`) to `permissions.allow[]` in the same `$CLAUDE_SETTINGS`.
   Sibling of `30-permissions`, not folded into it - a distinct, narrower
   capability. Writes `permissions.allow[]` ONLY (never `deny[]`/`ask[]`/
   `additionalDirectories`), and its Write/Edit rules cover ONLY
-  `$ODOO_AI_HOME/projects/**` and `$ODOO_AI_HOME/worklog/**` - EXCLUDING
-  `bin/`, `venvs/`, `node_tools/`, `setup-scripts/`, `runtime/`, and
-  `instances.toml` (a `sitecustomize.py` under `venvs/` or an edited
-  `setup-scripts/*.sh` is deferred code execution, not scratch data). Never
+  `$ODOO_AI_HOME/projects/**` - both the plan (SHARE) and the per-worktree
+  worklog (ISOLATE) resolve nested under it (see
+  `snippets/state-root-resolution.md`), so a separate `worklog/**` rule would
+  target a path that never exists - EXCLUDING `bin/`, `venvs/`,
+  `node_tools/`, `setup-scripts/`, `runtime/`, and `instances.toml` (a
+  `sitecustomize.py` under `venvs/` or an edited `setup-scripts/*.sh` is
+  deferred code execution, not scratch data). Never
   writes the odoo-semantic-mcp permission prefix - that permission's owner is
   `plugins/odoo-semantic-mcp/commands/connect.md` step 5; this step's `check`
   only reports its absence and points there. Honours `ODOO_AI_NO_AUTO_PERMS=1`.

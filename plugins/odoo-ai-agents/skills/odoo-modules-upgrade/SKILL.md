@@ -301,7 +301,10 @@ once; then for each wave: dispatch init for that wave's modules, then run-tests 
 wave. Record per-wave green in `checkpoint.json` (status `installed`) and `install-test.md`.
 On failure in a wave, dispatch `odoo-backend-debugger` or `odoo-ui-debugger` to diagnose
 to root cause (pass `ISOLATE_DIR:` - the SAME literal resolved at P0 intake - so `odoo-ui-debugger`
-can place its captured evidence under `<ISOLATE_DIR>/visual/debug/<slug>/` instead of re-resolving);
+can place its captured evidence under `<ISOLATE_DIR>/visual/debug/<cluster>-wave<wave_number>/`
+instead of re-resolving; also pass `SLUG: <cluster>-wave<wave_number>` - reusing this skill's own
+`<cluster>` scope slug (§ The pipeline) plus the failing wave's number, so the debug evidence
+correlates to the failing wave instead of an improvised value);
 feed the diagnosis back to P4 for the affected module. Resume P5 from the
 failing wave (skip already-green waves per `checkpoint.json`). Loop until all waves green.
 Output: `install-test.md` - {per-wave + per-module install ok?, test result, root-cause if red}.

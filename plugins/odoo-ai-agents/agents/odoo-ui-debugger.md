@@ -93,14 +93,25 @@ Once `odoo_version` is concrete, pin it: `set_active_version(odoo_version=<concr
 
 ### Round 1 - Reproduce + collect runtime evidence (browser)
 
+**`<slug>` source.** Use the `SLUG:` value from your dispatch brief (a dispatcher such as
+`odoo-debug` or `odoo-modules-upgrade` generates one stable slug for the run/wave and passes it
+alongside `ISOLATE_DIR:`); substitute it literally wherever this file writes `<slug>`. Only on a
+standalone invocation with no `SLUG:` field, derive one stable value yourself (a short, filesystem-safe
+slug of the symptom text) and reuse that SAME value for every artifact path this round - never
+leave the literal `<slug>` token in a path, and never improvise a fresh one per artifact.
+
 **Evidence destination.** Every artifact this round captures is written under
 `<ISOLATE_DIR>/visual/debug/<slug>/` (resolve `<ISOLATE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; `mkdir -p` it first). NEVER call a
-capture tool with no destination and NEVER improvise a relative filename - it resolves against the
-user's repo, not the state root. Family mechanics + the refusal fallback (chrome-devtools on
-resolver REFUSAL: omit `filePath`, write the literal `inline (state root unresolvable)` into the
-Output Contract's Observation field instead of a path): `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`
-§ Where a captured artifact goes.
+capture tool with no destination: for chrome-devtools this means never improvising a relative
+filename that resolves against the user's repo CWD instead of the absolute `filePath` above;
+playwright (OPT-IN) legitimately REQUIRES a RELATIVE `filename` under its own output root (absolute
+paths are REJECTED) - capture there, then Bash `cp`/`mv` the result into the same
+`<ISOLATE_DIR>/visual/debug/<slug>/` dir; pagecast (OPT-IN) exposes NO destination parameter at
+all - record, `stop_recording`, then Bash `cp`/`mv` its output file the same way. Family mechanics +
+the refusal fallback (chrome-devtools on resolver REFUSAL: omit `filePath`, write the literal
+`inline (state root unresolvable)` into the Output Contract's Observation field instead of a path):
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` § Where a captured artifact goes.
 
 Authenticate first, reusing a saved session to avoid re-login: if
 `${screenshot_baseline_dir}/storageState-admin.json` exists, load that session; otherwise

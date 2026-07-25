@@ -9,10 +9,15 @@ while still passing the excision guard.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SNIPPET = ROOT / "plugins" / "odoo-ai-agents" / "snippets" / "odoo-era-boundaries.md"
+PLUGIN = ROOT / "plugins" / "odoo-ai-agents"
+SNIPPET = PLUGIN / "snippets" / "odoo-era-boundaries.md"
+TEST_WRITING_SKILL = PLUGIN / "skills" / "odoo-test-writing" / "SKILL.md"
+
+_WS = re.compile(r"\s+")
 
 _ALL_EIGHT_TEST_BASE_CLASSES = (
     "TransactionCase",
@@ -87,3 +92,38 @@ def test_row4_carries_the_v8_v9_era1_carveout():
     assert "era1" in row4, "row 4 must carry the v8/v9 era1 carve-out"
     assert "regex best-effort" in row4, "row 4 must quote the era1 caveat text"
     assert "FRAMEWORK" in row4, "row 4 must state the framework base menu stays authoritative"
+
+
+def _count_normalized(phrase: str) -> dict:
+    """Return {relpath: count} for `.md` files under the plugin tree where the
+    whitespace-normalized `phrase` occurs (a full-tree scan, not just the SSOT snippet)."""
+    needle = _WS.sub(" ", phrase)
+    hits = {}
+    for p in PLUGIN.rglob("*.md"):
+        if p.is_file():
+            n = _WS.sub(" ", p.read_text(encoding="utf-8")).count(needle)
+            if n:
+                hits[str(p.relative_to(PLUGIN))] = n
+    return hits
+
+
+def test_form_helper_window_is_v12_everywhere_not_v13():
+    """Issue #177 twin survivor (R3 FIX 1): row 3 above and
+    skills/odoo-test-writing/references/fp-adapt-mode.md both correctly state the Form/O2MForm
+    window as v12+; skills/odoo-test-writing/SKILL.md Round 1 must not restate a divergent v13+
+    window for the identical fact - it must cross-ref this SSOT instead. Guards against the wrong
+    window drifting back in anywhere under plugins/."""
+    for phrase in ("Form` helper (v13+)", "Form (v13"):
+        hits = _count_normalized(phrase)
+        assert sum(hits.values()) == 0, (
+            f"Wrong Form-helper window {phrase!r} must not survive anywhere under plugins/; "
+            f"found: {hits}"
+        )
+    text = TEST_WRITING_SKILL.read_text(encoding="utf-8")
+    assert "Form` helper (v12+" in text, (
+        "odoo-test-writing/SKILL.md Round 1 must state the Form helper window as v12+"
+    )
+    assert "odoo-era-boundaries.md" in text, (
+        "odoo-test-writing/SKILL.md must cross-ref odoo-era-boundaries.md rather than restate "
+        "the Form window inline"
+    )

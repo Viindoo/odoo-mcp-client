@@ -202,13 +202,20 @@ def test_rules_exclude_dangerous_subpaths(settings, odoo_ai_home):
     )
 
 
-def test_rules_scoped_to_projects_and_worklog_only(settings, odoo_ai_home):
+def test_rules_scoped_to_projects_only(settings, odoo_ai_home):
+    """Write/Edit rules cover ONLY `projects/**`. Per state-root-resolution.md, both the plan
+    (SHARE, `<repo-key>/plans/`) and the per-worktree worklog (ISOLATE,
+    `<repo-key>/worktrees/<wt-key>/worklog/`) resolve NESTED under `projects/**` - there is no
+    separate top-level `worklog/` directory, so a rule scoped to it alone (without also matching
+    `/projects/**`) would never cover any real write path."""
     _run("apply", settings, odoo_ai_home)
     allow = _allow(settings)
     write_edit_rules = [a for a in allow if a.startswith("Write(") or a.startswith("Edit(")]
+    assert write_edit_rules, "apply must write at least one Write()/Edit() rule"
     for rule in write_edit_rules:
-        assert "/projects/**" in rule or "/worklog/**" in rule, (
-            f"every Write/Edit rule must scope to projects/** or worklog/**; got {rule!r}"
+        assert "/projects/**" in rule, (
+            f"every Write/Edit rule must scope to projects/** (the plan and worklog both "
+            f"resolve nested under it); got {rule!r}"
         )
 
 
@@ -222,8 +229,15 @@ def test_bash_rules_are_exact_no_wildcard(settings, odoo_ai_home):
         assert "resolve_project_dir.sh" in rule, f"Bash rule must invoke resolve_project_dir.sh: {rule!r}"
 
 
-def test_seven_exact_rules_written(settings, odoo_ai_home):
-    """Anti-drift: exactly the 7 rules named in the P3 design, no more, no fewer."""
+def test_five_exact_rules_written(settings, odoo_ai_home):
+    """Anti-drift: exactly the 5 rules that cover a REAL write path, no more, no fewer.
+
+    A prior version of this test asserted a 7-rule set that included a separate
+    `Write/Edit(/${ODOO_AI_HOME}/worklog/**)` pair. That pair was dead weight: per
+    state-root-resolution.md, the per-worktree worklog resolves at
+    `<repo-key>/worktrees/<wt-key>/worklog/` - NESTED under `projects/**`, never at a bare
+    top-level `worklog/`. The corrected 5-rule set drops those two rules; `projects/**` alone
+    already covers both the plan (SHARE) and the worklog (ISOLATE)."""
     _run("apply", settings, odoo_ai_home)
     allow = set(_allow(settings))
     expected = {
@@ -234,7 +248,5 @@ def test_seven_exact_rules_written(settings, odoo_ai_home):
         f"Read(/{odoo_ai_home}/**)",
         f"Write(/{odoo_ai_home}/projects/**)",
         f"Edit(/{odoo_ai_home}/projects/**)",
-        f"Write(/{odoo_ai_home}/worklog/**)",
-        f"Edit(/{odoo_ai_home}/worklog/**)",
     }
     assert allow == expected, f"expected exactly {expected}, got {allow}"

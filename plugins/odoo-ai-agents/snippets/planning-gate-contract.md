@@ -118,9 +118,9 @@ omitted (treated as `false`).
   skills, so it is never a third condition to check. The author calls `EnterPlanMode` to ENSURE Plan
   Mode is open, not to detect whether it already is: if the session is already in Plan Mode, the
   call is treated as a harmless no-op by the harness. Skills cannot and need not detect Plan Mode
-  state themselves - defaulting to skip the call on an unsure state would defeat the
-  enter-before-authoring guarantee above, so the call is unconditional whenever the two brief fields
-  say to make it.
+  state themselves - defaulting to skip the call on an unsure state would defeat the WHEN guarantee
+  above (enter before the first git-tracked or otherwise irreversible effect, and always before
+  presenting), so the call is unconditional whenever the two brief fields say to make it.
 
 **Reused by the self-driving front doors.** The dispatched-once orchestrators `odoo-forward-port`
 (P4), `odoo-git-rebase` (P6), and `odoo-modules-upgrade` (P3) reuse THESE same

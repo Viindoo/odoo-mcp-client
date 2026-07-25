@@ -6,6 +6,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.18.0] - 2026-07-25
+
+### Changed
+
+- `odoo-ai-agents` - the advisory git-delegation reminder hook (`remind-delegate.sh`) no longer
+  returns `permissionDecision: "allow"`; it now returns `"defer"` so the tool call falls through to
+  normal permission evaluation while still attaching its reminder. The old value silently
+  AUTO-APPROVED the exact git mutation the hook exists to discourage, defeating the repo's strongest
+  stated boundary. BEHAVIOUR CHANGE: this INCREASES main-agent permission prompting mid-run - that
+  is the correct behaviour (the hook was suppressing prompts it had no business suppressing). The
+  new optional setup step below pre-allows the narrow state-root traffic that made up most of them.
+- `odoo-ai-agents` - `odoo-planning` now calls `EnterPlanMode` AFTER both planners
+  (`odoo-planner` + `odoo-doc-planner`) return and immediately before presenting the plan, instead
+  of before dispatching them. Subagents inherit the caller's permission mode, so opening Plan Mode
+  first blocked/prompted the planners' state-root writes on every run. The
+  `planning-gate-contract.md` WHEN clause is amended accordingly: enter before the first
+  git-TRACKED or otherwise irreversible effect and always before presenting, NOT before authoring a
+  plan artifact that lives only under the state root. This reverses the timing half of a prior fix
+  while preserving its other two invariants (exactly one enterer; no caller may pre-open). The three
+  sibling orchestrators (`odoo-forward-port`, `odoo-git-rebase`, `odoo-modules-upgrade`) already used
+  this shape and are unchanged.
+
+### Added
+
+- `odoo-ai-agents` - optional setup step `32-permissions-state-root` (and its SessionStart wrapper
+  `ensure-state-root-permissions.sh`) that pre-allows exactly the narrow `~/.odoo-ai` state-root
+  traffic executor agents need (the two `resolve_project_dir.sh` argument forms plus reads/writes
+  under `projects/**`). It NEVER grants write access to `bin/`, `venvs/`, `node_tools/`,
+  `setup-scripts/`, `runtime/`, or `instances.toml`, never writes `deny`/`ask`/
+  `additionalDirectories`, and never touches `mcp__odoo-semantic` (owned by the connect command).
+  It is honoured by `ODOO_AI_NO_AUTO_PERMS` and instructs a single restart, mirroring the browser
+  permission step. Plugin-agent frontmatter cannot reduce prompting on its own: the build IGNORES
+  `permissionMode`/`hooks`/`mcpServers` on plugin agents (contract docs corrected to say so).
+
+### Fixed
+
+- `odoo-ai-agents` - browser QA and debug evidence is no longer written into the executor's current
+  working directory (where it created untracked files that were committed by accident).
+  `odoo-qa-tester` and `odoo-ui-debugger` now write every screenshot/snapshot under
+  `<ISOLATE_DIR>/visual/qa|debug/<slug>/` inside the `~/.odoo-ai` state root. Root cause was
+  twofold: the capture instructions named no destination, and where they did the key was wrong - the
+  chrome-devtools key is `filePath`, not `path`/`filename`, and its schema silently ignores unknown
+  keys, so nothing was written and the agent improvised a cwd-relative name. `ISOLATE_DIR` is now
+  threaded through all five dispatch paths; a three-bucket capture-destination rule keeps committed
+  deliverables (`static/description/`, `doc/index.rst`) reachable only by an explicit copy; the
+  refusal fallback fails closed (inline for chrome-devtools, BLOCK for playwright/pagecast).
+- `odoo-ai-agents` - corrected the Odoo test base-class version windows (Fixes #177). `SavepointCase`
+  exists v8-v16 (not "absent v8-v11"), had its class-level savepoint absorbed into `TransactionCase`
+  at v15, and is REMOVED at v17 - so a surviving import on a v17+ target is BREAKING, not a warning.
+  Adds the `TreeCase` (v11-v14), `HttpCaseCommon` (v14), `HttpSavepointCase` (v14-v16), and
+  `Form`/`O2MForm` (v12+, relocated to `odoo/tests/form.py` at v17) windows. Retired the now-stale
+  "distrust `test_base_classes`" directive: the OSM-server annotation bug it worked around was fixed
+  upstream (`odoo-semantic-server#363`), and the tool is version-scoped and authoritative again. The
+  facts now live once in `snippets/odoo-era-boundaries.md`; twelve inline restatements across skills
+  and agents were replaced with cross-references.
+- `odoo-ai-agents` - reconciled `odoo-planner`'s description, which claimed it "writes only the
+  plan", against its own mandated worklog append, and removed a stale `plan_mode_active: true` on
+  intake's single-module path that silently skipped the plan gate.
+
+### Removed
+
+- `odoo-ai-agents` - deleted a `SingleTransactionCase` deprecation warning that could never fire
+  (the class is present and non-deprecated v8-v19), and the dead top-level `worklog/**` permission
+  rules (the worklog lives under `projects/**` and is already covered).
+
 ## [4.17.1] - 2026-07-24
 
 A zero-trust hardening sweep of the runtime instructions consumed by executor agents: 7 parallel

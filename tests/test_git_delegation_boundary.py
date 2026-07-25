@@ -553,10 +553,13 @@ def test_remind_delegate_never_allows_risky_git_mutation():
 
     Red-before-green: prior to this fix, both PreToolUse emit sites in remind-delegate.sh hard-
     coded `permissionDecision:"allow"` (unconditionally, regardless of TOOL/RISKY), so this
-    exact assertion (decision must not be "allow") would have FAILED against the pre-fix
+    exact assertion (decision must equal "defer") would have FAILED against the pre-fix
     script - it asserts the opposite of what the script used to always emit, so it is not a
     snapshot of current behavior; it protects the advisory-never-decides contract this whole
-    module guards.
+    module guards. Asserting `== "defer"` (not merely `!= "allow"`) pins the exact documented
+    no-opinion value (HARD CONTRACT header: "permissionDecision is ALWAYS 'defer' ... NEVER
+    'allow', 'deny', or 'ask'") so a future regression to "ask" or "deny" - a lesser but still
+    real bug, silently swallowed by a looser `!= "allow"` check - is caught here too.
     """
     assert REMIND_DELEGATE_HOOK.exists(), f"hook script not found: {REMIND_DELEGATE_HOOK}"
 
@@ -593,8 +596,80 @@ def test_remind_delegate_never_allows_risky_git_mutation():
     )
     output = json.loads(result.stdout)
     decision = output.get("hookSpecificOutput", {}).get("permissionDecision")
-    assert decision != "allow", (
+    assert decision == "defer", (
         f"remind-delegate.sh emitted permissionDecision={decision!r} for a git-mutating Bash "
         f"command dispatched from a role=leaf subagent - an ADVISORY hook must never itself "
-        f"approve the exact git mutation it exists to discourage. Full output: {output!r}"
+        f"decide the tool call; it must always emit the documented no-opinion value 'defer'. "
+        f"Full output: {output!r}"
+    )
+
+
+def test_remind_delegate_never_allows_mid_run_delegate_nudge(tmp_path):
+    """remind-delegate.sh must NOT emit permissionDecision:"allow" for the OTHER PreToolUse emit
+    site - the main-agent mid-run drive-to-done delegate nudge (~line 119), independent of the
+    leaf/spawner RISKY-git-mutation site (~line 84) covered by the test above.
+
+    Business rule: same advisory-only contract as the sibling test, exercised via the OTHER
+    branch of the same file - no agent_id/agent_type (this is the MAIN agent, not a subagent),
+    a heavy/mutating tool (Write/Edit/MultiEdit/Bash), and an active drive-to-done run (a
+    `run-*.json` with `status: "NEEDS_NEXT"`) seeded under the resolved ISOLATE dir. This branch
+    has its own independent self-gates (active-run glob, not the leaf-role SSOT lookup the other
+    branch uses), so a regression that fixed only the RISKY branch and left this one at
+    `"allow"` would NOT be caught by `test_remind_delegate_never_allows_risky_git_mutation`
+    above - that test never populates agent_id/agent_type, so it can never reach this code path.
+
+    Red-before-green: prior to this fix, this emit site (like the sibling one) hard-coded
+    `permissionDecision:"allow"` unconditionally for any Write/Edit/MultiEdit/Bash call from the
+    main agent during an active run - so this exact assertion (decision must equal "defer")
+    would have FAILED against the pre-fix script for the same reason as the sibling test, but by
+    exercising a structurally independent code path (no leaf-role resolution involved at all).
+    """
+    assert REMIND_DELEGATE_HOOK.exists(), f"hook script not found: {REMIND_DELEGATE_HOOK}"
+
+    # Seed an active run (status NEEDS_NEXT) under an explicit ISOLATE override so this test
+    # never touches the real state root and never depends on git/marker resolution.
+    isolate_dir = tmp_path / "isolate"
+    isolate_dir.mkdir(parents=True, exist_ok=True)
+    (isolate_dir / "run-test123.json").write_text(
+        json.dumps({"status": "NEEDS_NEXT"}), encoding="utf-8"
+    )
+
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Write",
+        "tool_input": {"file_path": "/tmp/whatever.py"},
+        # No agent_id/agent_type: this is the MAIN agent (not a subagent) - the branch the
+        # test_remind_delegate_never_allows_risky_git_mutation test above cannot reach.
+        "cwd": str(REPO_ROOT),
+    }
+
+    env = dict(os.environ)
+    env["CLAUDE_PLUGIN_ROOT"] = str(AGENTS_PLUGIN)
+    env["ODOO_AI_WORKTREE_DIR"] = str(isolate_dir)
+
+    result = subprocess.run(
+        ["bash", str(REMIND_DELEGATE_HOOK)],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, (
+        f"remind-delegate.sh must never hard-fail (exit 0 always); "
+        f"got rc={result.returncode}, stderr={result.stderr!r}"
+    )
+    assert result.stdout.strip(), (
+        "remind-delegate.sh produced no output for a mid-run Write from the main agent with an "
+        "active NEEDS_NEXT run - expected a hookSpecificOutput reminder JSON on stdout"
+    )
+    output = json.loads(result.stdout)
+    decision = output.get("hookSpecificOutput", {}).get("permissionDecision")
+    assert decision == "defer", (
+        f"remind-delegate.sh emitted permissionDecision={decision!r} for a mid-run Write from "
+        f"the main agent (active drive-to-done run) - an ADVISORY hook must never itself decide "
+        f"the tool call; it must always emit the documented no-opinion value 'defer'. "
+        f"Full output: {output!r}"
     )

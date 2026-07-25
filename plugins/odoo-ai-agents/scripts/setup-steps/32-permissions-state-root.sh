@@ -25,10 +25,15 @@
 #     NEVER additionalDirectories (that would widen READ scope across every
 #     project's state tree for every session; Read(//$ODOO_AI_HOME/**) below
 #     already achieves the needed effect with a narrower blast radius).
-#   - The Write/Edit rules cover ONLY `projects/**` and `worklog/**` under the
-#     state root - they EXCLUDE `bin/`, `venvs/`, `node_tools/`, `setup-scripts/`,
-#     `runtime/`, and `instances.toml`. A sitecustomize.py under venvs/ or an
-#     edited setup-scripts/*.sh is deferred code execution, not scratch data -
+#   - The Write/Edit rules cover ONLY `projects/**` under the state root - that
+#     ONE surface is sufficient: the plan (SHARE, `<repo-key>/plans/`) AND the
+#     per-worktree worklog (ISOLATE, `<repo-key>/worktrees/<wt-key>/worklog/`)
+#     both resolve NESTED under `projects/**` (see
+#     snippets/state-root-resolution.md) - there is no separate top-level
+#     `worklog/` directory to grant, so no separate rule is added for one. They
+#     EXCLUDE `bin/`, `venvs/`, `node_tools/`, `setup-scripts/`, `runtime/`, and
+#     `instances.toml`. A sitecustomize.py under venvs/ or an edited
+#     setup-scripts/*.sh is deferred code execution, not scratch data -
 #     granting blanket Write(//$ODOO_AI_HOME/**) would auto-approve that too.
 #   - Never writes `mcp__odoo-semantic` - that permission's owner is
 #     plugins/odoo-semantic-mcp/commands/connect.md step 5; `check` below only
@@ -39,11 +44,11 @@
 #
 # Subcommands:
 #   describe   One-line description.
-#   check      Exit 0 if all 7 rules already in permissions.allow[];
+#   check      Exit 0 if all 5 rules already in permissions.allow[];
 #              exit 1 if any is missing. Also reports (non-blocking) whether
 #              mcp__odoo-semantic is present, pointing at its real owner.
 #   apply      Ask [Y/n] (honors ODOO_AI_NO_AUTO_PERMS=1 opt-out), then
-#              idempotently append the 7 rules via config_merge.py
+#              idempotently append the 5 rules via config_merge.py
 #              json-ensure-allow, print them, instruct one restart, and
 #              self-verify by re-running check.
 #
@@ -79,17 +84,20 @@ fi
 ODOO_AI_HOME="${ODOO_AI_HOME:-$HOME/.odoo-ai}"
 ODOO_AI_HOME="${ODOO_AI_HOME%/}"
 
-# The 7 exact rules (SSOT for this step). Read/Write/Edit use the `//<abs-path>`
+# The 5 exact rules (SSOT for this step). Read/Write/Edit use the `//<abs-path>`
 # form (one extra leading slash over the already-absolute $ODOO_AI_HOME) so the
 # rule matches an ABSOLUTE filesystem path, not a project-relative one.
+# Write/Edit cover ONLY `projects/**` - both the SHARE plan (`<repo-key>/plans/`)
+# and the ISOLATE worklog (`<repo-key>/worktrees/<wt-key>/worklog/`) resolve
+# nested under it (snippets/state-root-resolution.md), so a separate
+# `worklog/**` rule would target a path that never exists - deliberately not
+# added.
 RULES=(
     "Bash(bash ${PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share)"
     "Bash(bash ${PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh isolate)"
     "Read(/${ODOO_AI_HOME}/**)"
     "Write(/${ODOO_AI_HOME}/projects/**)"
     "Edit(/${ODOO_AI_HOME}/projects/**)"
-    "Write(/${ODOO_AI_HOME}/worklog/**)"
-    "Edit(/${ODOO_AI_HOME}/worklog/**)"
 )
 
 # ---------------------------------------------------------------------------

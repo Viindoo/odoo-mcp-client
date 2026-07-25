@@ -532,10 +532,11 @@ before `odoo-coding` writes the override.
 > mandatory for all work - see `snippets/planning-gate-contract.md`. It CONFORMS to the SSOT above
 > - never a second format.
 
-When `output_mode = writes-files` (decision tree §4.1) the plan written inside Plan Mode - entered
-by `odoo-planning`'s own guard, before it authors (see § Planning-initiated Plan Mode pattern
-above; `odoo-planning` is the sole enterer, never intake) - MUST contain three blocks, none
-optional:
+When `output_mode = writes-files` (decision tree §4.1) the plan - already authored by the two
+planners under the `$ODOO_AI_HOME` state root, then presented inside Plan Mode entered by
+`odoo-planning`'s own guard AFTER both planners return and BEFORE the approval gate (see §
+Planning-initiated Plan Mode pattern above; `odoo-planning` is the sole enterer, never intake) -
+MUST contain three blocks, none optional:
 
 - **Block 1 - Module list** - one entry per MODULE (the OUTER unit is the module, never a
   work-item; SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` § Two-tier
