@@ -6,6 +6,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.18.1] - 2026-07-28
+
+### Fixed
+
+- `odoo-ai-agents` - setup step `32-permissions-state-root` no longer emits a `Write(<path>)`
+  permission rule; the `Edit(<path>)` rule it already writes covers every file-editing tool, Write
+  included. Claude Code's file-permission layer matches path rules on `Edit(path)` ONLY, so the
+  `Write(/$ODOO_AI_HOME/projects/**)` entry matched nothing while making the CLI warn at every
+  launch ("Permission allow rule (`.claude/settings.json`): `Write(...)` is not matched by file
+  permission checks - only `Edit(path)` rules are"). The warning was self-healing against the user:
+  `hooks/ensure-state-root-permissions.sh` re-runs this step's `check` on every SessionStart, so
+  deleting the offending entry by hand failed `check`, the hook re-applied it, and the warning came
+  back on the next launch - the reported symptom being a hand-fix that "keeps reverting". The rule
+  set drops from 5 to 4 (`Bash` x2 + `Read` + `Edit`); effective permission coverage is UNCHANGED,
+  since `Edit(/$ODOO_AI_HOME/projects/**)` was already present and is the rule that actually binds.
+  A regression test now fails the moment a `Write(` path rule reappears in the step's rule SSOT.
+
 ## [4.18.0] - 2026-07-25
 
 ### Changed

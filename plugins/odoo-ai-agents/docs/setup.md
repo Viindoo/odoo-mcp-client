@@ -264,7 +264,7 @@ drop-in. What it does:
    DISK (npm cache warm - install only, never launched: disk cost, zero RAM cost, and strictly
    separate from step 12's register/run); installs Playwright Chromium; checks `ffmpeg`.
 3. **Permissions** - auto-allows the browser MCP tools in Claude permissions
-   (`30-permissions`), plus the narrow set of state-root Bash/Read/Write/Edit
+   (`30-permissions`), plus the narrow set of state-root Bash/Read/Edit
    rules the planning pipeline needs to resolve and write under `$ODOO_AI_HOME`
    without a per-call prompt (`32-permissions-state-root`). The state-root
    write rules cover ONLY `$ODOO_AI_HOME/projects/**` - both the plan (SHARE)
