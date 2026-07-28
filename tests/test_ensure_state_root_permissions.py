@@ -3,7 +3,7 @@
 `hooks/ensure-state-root-permissions.sh` is a thin SessionStart wrapper around
 `scripts/setup-steps/32-permissions-state-root.sh` - the ONE machine-level bit that
 cannot ship in the repo: it idempotently self-applies the narrow state-root
-Bash/Read/Write/Edit permission rules to the user's settings.json so the planning
+Bash/Read/Edit permission rules to the user's settings.json so the planning
 pipeline (odoo-planner / odoo-doc-planner / intake Phase P) runs without a per-call
 approval prompt. Modeled on tests/test_ensure_browser_permissions.py (its sibling hook
 for the browser-MCP permission surface) and reuses tests/test_state_root_permissions.py's
@@ -93,15 +93,24 @@ def test_opt_out_writes_nothing(settings, odoo_ai_home):
 
 def test_first_apply_wires_step_32_rules_into_settings(settings, odoo_ai_home):
     """End-to-end wiring, not a mock: invoking the hook against a fresh settings file must
-    actually delegate to step 32's `apply` and land its Write(...) rule in
-    permissions.allow[], plus emit the documented SessionStart context + console nudge."""
+    actually delegate to step 32's `apply` and land its Edit(...) rule in
+    permissions.allow[], plus emit the documented SessionStart context + console nudge.
+
+    Asserting on `Edit(` specifically is load-bearing: Claude Code's path-permission layer
+    matches `Edit(path)` only, so a `Write(<path>)` rule would be inert AND would make the
+    CLI warn at every launch - and because THIS hook re-applies on every SessionStart, such
+    a rule reinstates itself after any manual deletion."""
     r = _run(settings, odoo_ai_home)
     assert r.returncode == 0, f"hook must exit 0 even on first apply; stderr={r.stderr}"
 
     allow = _allow(settings)
-    assert any(a.startswith("Write(") and "/projects/**" in a for a in allow), (
-        f"hook must have delegated to step 32's apply and landed its projects/** Write rule; "
+    assert any(a.startswith("Edit(") and "/projects/**" in a for a in allow), (
+        f"hook must have delegated to step 32's apply and landed its projects/** Edit rule; "
         f"allow={allow}"
+    )
+    assert not any(a.startswith("Write(") for a in allow), (
+        f"hook must never land a Write(<path>) rule - it matches nothing and the CLI warns "
+        f"about it at every launch; allow={allow}"
     )
 
     assert r.stdout.strip(), "first apply must emit a SessionStart additionalContext JSON"

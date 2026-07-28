@@ -26,7 +26,7 @@ What it sets up:
    later real spawn (once step 12 wires it) has no download latency, without
    ever starting a process or paying idle RAM for it.
 3. **Permissions** - auto-allows the browser MCP tools in Claude permissions, plus the
-   narrow set of state-root Bash/Read/Write/Edit rules the planning pipeline needs.
+   narrow set of state-root Bash/Read/Edit rules the planning pipeline needs.
 4. **Instance profile** - discovers local Odoo repos via OSM-grounded propose-then-confirm,
    writes the machine-global `$ODOO_AI_HOME/instances.toml` (resolvable from any cwd by any agent
    on this host; see `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` for the full
@@ -393,7 +393,7 @@ are OPT-IN: wire them on demand with `/odoo-ai-agents:odoo-setup browser` (step
 - **30-permissions** - appends browser tool prefixes to `permissions.allow[]`
   in `$CLAUDE_SETTINGS` = `~/.claude/settings.json`. Asks [Y/n] itself.
 - **32-permissions-state-root** - appends the 5 narrow state-root
-  Bash/Read/Write/Edit rules the planning pipeline needs (resolving and writing
+  Bash/Read/Edit rules the planning pipeline needs (resolving and writing
   under `$ODOO_AI_HOME`) to `permissions.allow[]` in the same `$CLAUDE_SETTINGS`.
   Sibling of `30-permissions`, not folded into it - a distinct, narrower
   capability. Writes `permissions.allow[]` ONLY (never `deny[]`/`ask[]`/

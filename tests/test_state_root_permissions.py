@@ -1,6 +1,6 @@
 """Behavioral + contract tests for `scripts/setup-steps/32-permissions-state-root.sh`.
 
-This is the L2 setup step that auto-allows the narrow set of Bash/Read/Write/Edit
+This is the L2 setup step that auto-allows the narrow set of Bash/Read/Edit
 permission rules the planning pipeline (odoo-planner / odoo-doc-planner / intake
 Phase P) needs to resolve and write under the machine-global state root
 (`$ODOO_AI_HOME`) without a per-call approval prompt.
@@ -182,13 +182,17 @@ def test_never_hardcodes_claude_dot_json():
 
 
 def test_rules_exclude_dangerous_subpaths(settings, odoo_ai_home):
-    """Hard safety boundary: the Write/Edit rules must never grant blanket access to
+    """Hard safety boundary: the file-editing path rules must never grant blanket access to
     bin/, venvs/, node_tools/, setup-scripts/, runtime/, or instances.toml under the state
-    root - each is deferred-code-execution-adjacent, not scratch data."""
+    root - each is deferred-code-execution-adjacent, not scratch data.
+
+    The filter stays deliberately wide (`Write(` OR `Edit(`) so this boundary still binds a
+    stray `Write(<path>)` rule if one is ever re-added - even though the shipped set is
+    Edit-only (see test_no_write_path_rule_is_ever_written)."""
     _run("apply", settings, odoo_ai_home)
     allow = _allow(settings)
     write_edit_rules = [a for a in allow if a.startswith("Write(") or a.startswith("Edit(")]
-    assert write_edit_rules, "apply must write at least one Write()/Edit() rule"
+    assert write_edit_rules, "apply must write at least one file-editing path rule"
     for rule in write_edit_rules:
         for excluded in EXCLUDED_SUBPATHS:
             assert excluded not in rule, (
@@ -203,18 +207,18 @@ def test_rules_exclude_dangerous_subpaths(settings, odoo_ai_home):
 
 
 def test_rules_scoped_to_projects_only(settings, odoo_ai_home):
-    """Write/Edit rules cover ONLY `projects/**`. Per state-root-resolution.md, both the plan
-    (SHARE, `<repo-key>/plans/`) and the per-worktree worklog (ISOLATE,
+    """File-editing path rules cover ONLY `projects/**`. Per state-root-resolution.md, both the
+    plan (SHARE, `<repo-key>/plans/`) and the per-worktree worklog (ISOLATE,
     `<repo-key>/worktrees/<wt-key>/worklog/`) resolve NESTED under `projects/**` - there is no
     separate top-level `worklog/` directory, so a rule scoped to it alone (without also matching
     `/projects/**`) would never cover any real write path."""
     _run("apply", settings, odoo_ai_home)
     allow = _allow(settings)
     write_edit_rules = [a for a in allow if a.startswith("Write(") or a.startswith("Edit(")]
-    assert write_edit_rules, "apply must write at least one Write()/Edit() rule"
+    assert write_edit_rules, "apply must write at least one file-editing path rule"
     for rule in write_edit_rules:
         assert "/projects/**" in rule, (
-            f"every Write/Edit rule must scope to projects/** (the plan and worklog both "
+            f"every file-editing path rule must scope to projects/** (the plan and worklog both "
             f"resolve nested under it); got {rule!r}"
         )
 
@@ -229,15 +233,45 @@ def test_bash_rules_are_exact_no_wildcard(settings, odoo_ai_home):
         assert "resolve_project_dir.sh" in rule, f"Bash rule must invoke resolve_project_dir.sh: {rule!r}"
 
 
-def test_five_exact_rules_written(settings, odoo_ai_home):
-    """Anti-drift: exactly the 5 rules that cover a REAL write path, no more, no fewer.
+def test_no_write_path_rule_is_ever_written(settings, odoo_ai_home):
+    """Regression guard: this step must NEVER emit a `Write(<path>)` rule.
 
-    A prior version of this test asserted a 7-rule set that included a separate
-    `Write/Edit(/${ODOO_AI_HOME}/worklog/**)` pair. That pair was dead weight: per
-    state-root-resolution.md, the per-worktree worklog resolves at
-    `<repo-key>/worktrees/<wt-key>/worklog/` - NESTED under `projects/**`, never at a bare
-    top-level `worklog/`. The corrected 5-rule set drops those two rules; `projects/**` alone
-    already covers both the plan (SHARE) and the worklog (ISOLATE)."""
+    Claude Code's file-permission check matches PATH rules on `Edit(path)` ONLY - an
+    `Edit(path)` rule already covers every file-editing tool, Write included. A
+    `Write(<path>)` rule therefore matches nothing AND makes the CLI print a warning at
+    every launch:
+
+        Permission allow rule (.claude/settings.json): Write(<path>) is not matched by
+        file permission checks - only Edit(path) rules are.
+
+    That warning was self-healing against the user: hooks/ensure-state-root-permissions.sh
+    re-runs this step's `check` on every SessionStart, so deleting the offending entry by
+    hand failed `check`, the hook re-`apply`ed, and the warning came back next launch. The
+    fix is to never write the rule at all - hence this test, which fails the moment a
+    `Write(` path rule reappears in the RULES SSOT."""
+    _run("apply", settings, odoo_ai_home)
+    allow = _allow(settings)
+    offenders = [a for a in allow if a.startswith("Write(")]
+    assert not offenders, (
+        f"step 32 must never write a Write(<path>) rule - Edit(path) already covers every "
+        f"file-editing tool, and Write(path) only earns a per-launch CLI warning. "
+        f"Offenders: {offenders}"
+    )
+
+
+def test_four_exact_rules_written(settings, odoo_ai_home):
+    """Anti-drift: exactly the 4 rules that cover a REAL write path, no more, no fewer.
+
+    History of this set:
+      - A 7-rule version added a separate `Write/Edit(/${ODOO_AI_HOME}/worklog/**)` pair.
+        Dead weight: per state-root-resolution.md the per-worktree worklog resolves at
+        `<repo-key>/worktrees/<wt-key>/worklog/` - NESTED under `projects/**`, never at a
+        bare top-level `worklog/`. Dropped -> 5 rules.
+      - The 5-rule version still paired `Write(...projects/**)` with `Edit(...projects/**)`.
+        The Write half matches nothing in Claude Code's path-permission layer and triggers
+        a per-launch CLI warning (see test_no_write_path_rule_is_ever_written). Dropped ->
+        the 4 rules below; `Edit(...)` alone already covers Write and every other
+        file-editing tool."""
     _run("apply", settings, odoo_ai_home)
     allow = set(_allow(settings))
     expected = {
@@ -246,7 +280,6 @@ def test_five_exact_rules_written(settings, odoo_ai_home):
         # `//<abs-path>` = one extra leading slash over the already-absolute $ODOO_AI_HOME, the
         # Claude Code path-permission marker for an ABSOLUTE (not project-relative) match.
         f"Read(/{odoo_ai_home}/**)",
-        f"Write(/{odoo_ai_home}/projects/**)",
         f"Edit(/{odoo_ai_home}/projects/**)",
     }
     assert allow == expected, f"expected exactly {expected}, got {allow}"
