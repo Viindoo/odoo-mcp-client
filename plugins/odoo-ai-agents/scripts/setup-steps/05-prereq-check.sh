@@ -105,7 +105,7 @@ for it in instances_io.load_instances(toml):
     py = str(it.get("python", ""))
     ap = it.get("addons_path", [])
     if isinstance(ap, list):
-        ap = ":".join(str(x) for x in ap)
+        ap = ",".join(str(x) for x in ap)
     print("\t".join([series, py, str(ap)]))
 PY
 }
@@ -114,7 +114,7 @@ PY
 _find_odoo_bin_in() {
     local addons_path="$1" p
     if [[ -n "${ODOO_BIN:-}" && -x "${ODOO_BIN}" ]]; then echo "$ODOO_BIN"; return 0; fi
-    IFS=':' read -ra _paths <<< "${addons_path}"
+    IFS=',' read -ra _paths <<< "${addons_path}"
     for p in "${_paths[@]}"; do
         [[ -n "$p" ]] || continue
         if [[ -x "$p/odoo-bin" ]]; then echo "$p/odoo-bin"; return 0; fi
