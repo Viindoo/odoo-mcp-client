@@ -64,6 +64,7 @@ When invoked, gather the following from the caller's request:
 | `skip_auto_install` | `true` / `false` (default `false`; forced `true` when `context=doc`) - adds `--skip-auto-install` so `auto_install` modules do not install alongside the target |
 | `context` | `doc` / `default` (default `default`; `doc` auto-sets `demo=on` + `skip_auto_install=true` for a clean documentation instance) |
 | `mode_hint` | `path-incremental` / `default` (default `default`; `path-incremental` signals the agent to keep the EXCLUSIVE lease alive across a sequential delta-install loop on ONE DB - do not release between steps; set by `odoo-doc-planner` / `module-packaging` workflow for dependency-cluster doc; do not set manually unless acting as a doc-planner) |
+| `WORKTREE_PATH` | (optional) absolute path to the worktree whose code this instance must load. When set, the addons list passed to the allocator is re-rooted onto it per § WORKTREE_PATH substitution below, so a verification run cannot silently load the principal checkout. Omit for a catalog-tree instance |
 
 Anything the caller omits that is strictly required for the operation: ask ONE clarifying
 question covering all missing required parameters before dispatching.
@@ -173,7 +174,26 @@ LANGUAGES: <csv locales - ALWAYS unioned with en_US per the build rule above; 'n
 SKIP_AUTO_INSTALL: <true|false>
 CONTEXT: <doc|default>
 MODE_HINT: <path-incremental|default>
+WORKTREE_PATH: <absolute worktree path, or 'none'>   # when set, ALLOCATOR gains --addons-path-override per § WORKTREE_PATH substitution
 ```
+
+### WORKTREE_PATH substitution (mechanical - run before `acquire`, never edit the catalog)
+
+`WORKTREE_PATH: none` -> skip this section entirely; the catalog list is used as-is. Otherwise:
+
+1. `WT=$(cd <WORKTREE_PATH> && pwd -P)` and
+   `PRINCIPAL=$(git -C "$WT" rev-parse --path-format=absolute --git-common-dir)`; strip a trailing
+   `/.git` from `$PRINCIPAL` to get the principal checkout root.
+2. Start from the catalog addons list in `$ALLOC_ADDONS_PATH` order.
+3. DROP every entry whose `pwd -P` equals `$PRINCIPAL` or lies under `$PRINCIPAL/`.
+4. PREPEND one replacement per dropped entry, same relative suffix under `$WT`, same order
+   (a dropped `$PRINCIPAL/addons` becomes `$WT/addons`; a dropped bare `$PRINCIPAL` becomes `$WT`).
+5. Steps 3-4 dropped ZERO entries -> emit
+   `BLOCKED(no catalog addons entry lies under <PRINCIPAL> - this worktree's modules were never on
+   this instance's addons-path; declare the repo's addons dir via /odoo-setup)`. Do NOT proceed: a
+   suite run on an addons path that cannot contain the edited module proves nothing.
+6. Pass the result as `--addons-path-override "<comma-joined>"` on the `acquire` call. Core,
+   enterprise, theme and every other non-repo entry is carried through untouched.
 
 **Memory cap inheritance.** No separate brief field is needed: the dispatched `odoo-instance-ops`
 agent's scripted odoo-bin launches (create/init/update/run-tests) carry the `ulimit -Sv` +

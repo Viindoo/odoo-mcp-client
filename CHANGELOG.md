@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   (`test_addons_path_no_hardcoded_separator.py`) now fails on any new hardcoded separator outside
   the two SSOT homes, and a cross-language parity test proves the Python and bash sides agree on
   the same round trip.
+- `odoo-ai-agents` - a per-module verification instance now loads the worktree the code was written
+  in. `scripts/lib/allocator.py acquire` gains `--addons-path-override`, `odoo-instance` gains a
+  `WORKTREE_PATH` input with a mechanical re-rooting rule, and the instance-handle contract gains a
+  narrowly-worded worktree-addons carve-out plus a single addons-coverage assertion every consumer
+  points at. Previously the instance loaded the CATALOG addons list (the principal checkout), so a
+  per-module test could pass against code the instance never loaded. Also: the allocator now rejects
+  an unknown flag instead of silently ignoring it, and a missing instance catalog produces a named
+  diagnostic pointing at `/odoo-setup` instead of a silently-wrong project-local path.
 
 ## [4.18.1] - 2026-07-28
 

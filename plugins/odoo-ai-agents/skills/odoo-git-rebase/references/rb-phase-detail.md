@@ -714,11 +714,14 @@ Provision ONE instance via the `odoo-instance` skill ONLY when the rebased range
 Skip for pure-frontend (JS/OWL/SCSS), docstring/label/comment-only, or non-DB-stateful ranges.
 The orchestrator decides from `recon.md` commits[].modules[] + P3 comparison metadata.
 
-The `odoo-instance` skill owns provisioning (port allocation + leasing). The orchestrator captures
-its canonical output block ONCE as the run's `INSTANCE_HANDLE` and forwards that handle as an
+The `odoo-instance` skill owns provisioning (port allocation + leasing). The orchestrator captures its
+canonical output block ONCE as the run's `INSTANCE_HANDLE` and forwards that handle as an
 `INSTANCE_HANDLE:` field in EVERY downstream verify / coder / test brief - downstream agents consume
-the provided handle and never self-provision a DB / port / addons_path. One instance per run;
-release it via its `lease_token` at the end. Contract:
+the provided handle, never invent a DB or a port, and never re-derive `addons_path` from the catalog.
+The DISPATCHER owns addons provenance: whenever a brief names a `WORKTREE_PATH`, acquire with
+`--addons-path-override` so the instance loads THAT worktree, or authorize
+`SELF_PROVISION: worktree-addons`. One instance per run; release it via its `lease_token` at the end.
+Contract, including the carve-out and the coverage assertion:
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
 
 Instance lifecycle protocol: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md`.

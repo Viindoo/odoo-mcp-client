@@ -106,17 +106,52 @@ def _lock_path():
     return os.path.join(_runtime_dir(), "registry.lock")
 
 
+def _instances_nonempty(path):
+    """True when `path` is a file declaring at least one [[instance]] table.
+
+    Byte-parity with scripts/lib/resolve_instances.sh `_instances_nonempty`,
+    which greps `^\\[\\[instance\\]\\]` - column-anchored, so a leading-whitespace
+    line does NOT count here either.
+    """
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return any(line.startswith("[[instance]]") for line in fh)
+    except OSError:
+        return False
+
+
 def resolve_instances_path(explicit=None):
-    """instances.toml location: --instances > $ODOO_AI_INSTANCES > global > project."""
+    """instances.toml location: --instances > $ODOO_AI_INSTANCES > global > project.
+
+    The global path wins only when it DECLARES an instance - the same non-empty
+    test resolve_instances.sh applies - so the shell and Python halves can never
+    disagree about which file is authoritative. The project-local fallthrough is
+    TRANSITIONAL: returned only when it is itself non-empty, and it names itself
+    on stderr. A resolution that finds no catalog at all emits a named
+    diagnostic and returns the global path, so the caller fails loud on a
+    missing instance instead of silently reading a wrong file.
+    """
     if explicit:
         return explicit
     env = os.environ.get("ODOO_AI_INSTANCES")
     if env:
         return env
     global_path = os.path.join(_home(), "instances.toml")
-    if os.path.isfile(global_path):
+    if _instances_nonempty(global_path):
         return global_path
-    return os.path.join(os.getcwd(), ".odoo-ai", "instances.toml")
+    project_path = os.path.join(os.getcwd(), ".odoo-ai", "instances.toml")
+    if _instances_nonempty(project_path):
+        sys.stderr.write(
+            "allocator: NO_GLOBAL_INSTANCE_CATALOG - falling through to the "
+            f"transitional project-local catalog {project_path}. Run /odoo-setup "
+            "to declare instances in the machine-global catalog.\n"
+        )
+        return project_path
+    sys.stderr.write(
+        "allocator: NO_INSTANCE_CATALOG - no [[instance]] table in "
+        f"{global_path} or {project_path}. Run /odoo-setup to declare an instance.\n"
+    )
+    return global_path
 
 
 # --------------------------------------------------------------------------- #
@@ -522,9 +557,41 @@ def _resolve_instance(path, series, profile=None):
     return inst, items
 
 
-def _emit_instance_common(inst):
+def _resolve_addons_csv(inst, override):
+    """Return (comma_joined_addons_path, error_or_None) for this acquire.
+
+    With no override the catalog value is returned unchanged (byte-identical to
+    the pre-override behavior), via the SSOT `instances_io.join_addons_path`.
+    An override REPLACES it: accepted comma- OR colon-separated (tolerated by
+    the SSOT `instances_io.split_addons_path`), always re-emitted COMMA-
+    separated via `join_addons_path`, because Odoo's --addons-path parser
+    splits on comma only (see the lease comment below). Every entry must be an
+    existing directory - a non-existent entry is refused loudly, so a mistyped
+    worktree path can never produce a green run against the wrong tree. This
+    function never hand-rolls the separator - both branches go through the
+    instances_io SSOT, the same one every other producer/consumer uses.
+    """
+    if not override:
+        return instances_io.join_addons_path(inst.get("addons_path", [])), None
+    parts = instances_io.split_addons_path(override)
+    if not parts:
+        return None, "--addons-path-override is empty"
+    missing = [p for p in parts if not os.path.isdir(p)]
+    if missing:
+        return None, (
+            "--addons-path-override names non-existent directories: "
+            + ", ".join(missing)
+        )
+    return instances_io.join_addons_path(parts), None
+
+
+def _emit_instance_common(inst, addons_csv=None):
     _emit("ALLOC_PYTHON", inst.get("python", ""))
-    _emit("ALLOC_ADDONS_PATH", instances_io.join_addons_path(inst.get("addons_path", [])))
+    _emit(
+        "ALLOC_ADDONS_PATH",
+        addons_csv if addons_csv is not None
+        else instances_io.join_addons_path(inst.get("addons_path", [])),
+    )
     _emit("ALLOC_DB_HOST", inst.get("db_host", "localhost"))
     _emit("ALLOC_DB_USER", inst.get("db_user", "odoo"))
     # db_port is EMPTY when undeclared (never 5432); the handle forwards it so
@@ -547,6 +614,11 @@ def cmd_acquire(opts):
         )
         return 1
 
+    addons_csv, addons_err = _resolve_addons_csv(inst, opts.get("addons_path_override"))
+    if addons_err:
+        sys.stderr.write(f"allocator: {addons_err}\n")
+        return 2
+
     mode = opts.get("mode", "ephemeral")
     host = inst.get("db_host", "localhost")
     user = inst.get("db_user", "odoo")
@@ -564,7 +636,7 @@ def cmd_acquire(opts):
         _emit("ALLOC_DB_NAME", inst.get("db_name", "odoo"))
         _emit("ALLOC_PORTS", [inst.get("http_port", DEFAULT_HTTP_PORT)])
         _emit("ALLOC_RUN_ID", run_id)
-        _emit_instance_common(inst)
+        _emit_instance_common(inst, addons_csv)
         return 0
 
     # shared: a long-lived, NON-exclusive render-server lease (the visual stack's
@@ -636,7 +708,7 @@ def cmd_acquire(opts):
         _emit("ALLOC_PORTS", ports)
         _emit("ALLOC_ATTACHED", attached)
         _emit("ALLOC_RUN_ID", run_id)
-        _emit_instance_common(inst)
+        _emit_instance_common(inst, addons_csv)
         return 0
 
     if mode not in ("ephemeral", "exclusive"):
@@ -740,7 +812,7 @@ def cmd_acquire(opts):
             # (never colon - that is PATH/PYTHONPATH style, not Odoo's addons-path
             # syntax), matching ALLOC_ADDONS_PATH above - so any future consumer can
             # forward this value to odoo-bin verbatim, with no extra conversion step.
-            "addons_path": instances_io.join_addons_path(inst.get("addons_path", [])),
+            "addons_path": addons_csv,
             "db_host": host,
             "db_user": user,
             # db_port travels top-level beside db_host/db_user; empty when undeclared.
@@ -771,7 +843,7 @@ def cmd_acquire(opts):
     _emit("ALLOC_DB_NAME", db_name)
     _emit("ALLOC_PORTS", ports)
     _emit("ALLOC_RUN_ID", run_id)
-    _emit_instance_common(inst)
+    _emit_instance_common(inst, addons_csv)
     return 0
 
 
@@ -1005,12 +1077,19 @@ _FLAG_KEYS = {
     "--series": "series", "--mode": "mode", "--ports": "ports", "--port": "port",
     "--ttl": "ttl", "--run-id": "run_id", "--session": "session", "--db-name": "db_name",
     "--instances": "instances", "--pid": "pid", "--profile": "profile",
+    "--addons-path-override": "addons_path_override",
 }
 _BOOL_KEYS = {"--no-create": "no_create", "--force": "force", "--show-tokens": "show_tokens"}
 
 
 def _parse(argv):
-    opts, pos = {}, []
+    """Split argv into (opts, positionals, unknown_flags).
+
+    An unrecognised `--flag` is COLLECTED, never dropped into `pos`: the old
+    behavior made a typo'd flag exit 0 having silently ignored it, which is the
+    exact silent-swallow class this tool must not have.
+    """
+    opts, pos, unknown = {}, [], []
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -1020,10 +1099,13 @@ def _parse(argv):
         elif a in _FLAG_KEYS:
             opts[_FLAG_KEYS[a]] = argv[i + 1] if i + 1 < len(argv) else ""
             i += 2
+        elif a.startswith("--"):
+            unknown.append(a)
+            i += 1
         else:
             pos.append(a)
             i += 1
-    return opts, pos
+    return opts, pos, unknown
 
 
 def main(argv):
@@ -1031,7 +1113,13 @@ def main(argv):
         print(__doc__)
         return 0
     cmd, rest = argv[0], argv[1:]
-    opts, pos = _parse(rest)
+    opts, pos, unknown = _parse(rest)
+    if unknown:
+        sys.stderr.write(
+            f"allocator: unknown flag(s) {' '.join(unknown)}. "
+            "Known flags: " + " ".join(sorted(set(_FLAG_KEYS) | set(_BOOL_KEYS))) + "\n"
+        )
+        return 2
     if cmd == "acquire":
         return cmd_acquire(opts)
     if cmd == "release":

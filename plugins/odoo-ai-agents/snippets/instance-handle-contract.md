@@ -44,7 +44,45 @@ process must stay listening - which acquires its own isolated instance UNDER the
 (`en_US` union, Viindoo `to_base`, lint-module install, per-version `cli_help` grounding) per
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § Odoo instance allocation - rather than
 a bare `allocator.py` call, which would bypass those rules. A provided handle always wins (consume,
-never re-provision).
+never re-provision) - with exactly ONE exception, § Worktree-addons carve-out below.
+
+### Worktree-addons carve-out (the ONE sanctioned self-provision under a handle)
+
+A verification instance must load the tree the work was written in. One lease carries ONE
+`addons_path`, so N module worktrees cannot share one handle. Exactly one rule releases the paragraph
+above, and it is DISPATCHER-declared, never receiver-inferred:
+
+- **Dispatcher, per-module coding fan-out.** When you dispatch a per-module coordinator against its
+  own worktree, do NOT forward an `INSTANCE_HANDLE`; instead set the brief field
+  `SELF_PROVISION: worktree-addons`. Never send both - a brief carrying a handle AND the token is
+  malformed, and the receiver treats it as the handle case and returns `NEEDS_CONTEXT`.
+- **Dispatcher, every other receiver.** Acquire the shared lease with `--addons-path-override`
+  covering the ONE target worktree and state the resulting value in the brief as
+  `ADDONS_PATH: <comma-joined dirs>`.
+- **Receiver.** `SELF_PROVISION: worktree-addons` present (and no handle) -> self-provision as
+  authorized. `INSTANCE_HANDLE` present -> use it, after the coverage assertion below.
+  Never self-provision on your own judgment.
+- **The authorized self-provision runs `odoo-instance` INLINE, in your own context** - never by
+  launching the `odoo-instance-ops` agent. This is a MUST, not a preference: the SubagentStop
+  teardown gate correlates a live lease to YOUR dispatch by finding the `allocator.py acquire`
+  call in YOUR transcript, so provisioning through a sub-agent makes your own leak invisible to it
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T1). What you acquire here you
+  release before your terminal status.
+
+### Addons coverage assertion (ONE rule, every consumer points here)
+
+Before any `odoo-bin` run that decides a verdict (`--test-enable`, an i18n export, a doc capture),
+assert the resolved addons list contains a directory `D` such that `D/<module>/__manifest__.py`
+exists AND `D` is inside the tree you were told to work in (`WORKTREE_PATH` when your brief names
+one, else the catalog tree). Compare `pwd -P`-normalized absolute paths; a prefix match is
+sufficient. On a miss, STOP with
+`BLOCKED(verification addons-path does not cover <module> under <WORKTREE_PATH> - a green result here
+would prove nothing)`. Never run the operation "to see what happens": a suite that loads a different
+copy of the module is structurally biased toward green.
+
+This section authorizes worktree-addons provenance and NOTHING else. A receiver still MUST NOT invent
+a `db_name` or a port (the allocator mints both), MUST NOT re-derive `addons_path` from the catalog,
+and MUST NOT self-provision to change the series, add a module, or because a handle looks stale.
 
 ## Prefork (`--workers>0`) needs a second port
 
