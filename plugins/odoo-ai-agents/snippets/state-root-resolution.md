@@ -105,10 +105,12 @@ trees named individually (never "...").
 | `modules-upgrade/<slug>/` (incl. `modules-upgrade/<src>-<tgt>-<cluster>/checkpoint.json`) | branch/run-scoped upgrade working state, same reasoning as `git-rebase/` |
 | `pr-monitoring/` | active-session state (run-scoped, even when it doesn't strictly collide) |
 | `coding/<slug>-<date>/` (`plan.md`) | per-coding-run orchestration state a later review/fix/resume step reads to avoid recomputing the graph - run-scoped state, NOT the reusable `plans/` design cache |
+| `recon/<slug>-<date>/` (`findings.md`) | a scouting pass's findings for ONE run: consumed by the SAME run's later phases and by a resume of that run, never by another worktree - run-scoped state, same class as `coding/<slug>-<date>/`; contract: `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` |
 | `reviews/<slug>-<date>/` | a review is tied to one diff/branch/PR - not cross-worktree reusable (two worktrees reviewing different branches must never share this dir) |
 | `followups/<slug>.md` | terminal per-deal deliverable, no downstream reader - one-off sales output, same class as `pr-monitoring/`/`support/` |
 | `visual/<run_id>/<module>_staging/` | run-scoped transient staging (follows the run; note the actual on-disk form is module-prefixed `_staging`, not a bare `_staging/`) |
 | `visual/screenshots/<slug>/` | UI-review evidence staged for ONE review run (P9) - transient, same reasoning as `visual/<run_id>/<module>_staging/`; owned by `odoo-ui-reviewer` |
+| `visual/current/<slug>/` | the state-B comparison set for ONE visual-regression run (Round 3) - transient, superseded the moment the Round-4 verdict is recorded, and per-run by construction (two concurrent runs comparing different states must never write the same screenshot path); owned by `odoo-visual-regression`, which deletes it after recording the verdict |
 | `visual/qa/<slug>/<module>/` | acceptance evidence for ONE module of ONE acceptance run - `odoo-acceptance/SKILL.md:142` dispatches one `odoo-qa-tester` per High-tier module and `:135-140` allows distinct browser families to run in parallel, so the path is per-module, not per-run; RETAINED because it is the cited evidence behind each PASS/FAIL/UNVERIFIED verdict in `qa/<slug>-acceptance-report.md`; owned by `odoo-qa-tester` |
 | `visual/debug/<slug>/` | symptom evidence for ONE `odoo-debug` (or `odoo-modules-upgrade` P5) diagnosis - RETAINED because the Output Contract's Observation field cites it; correlated to `debug/` notes and `worklog/<run-or-slug>/` by the same `<slug>`; owned by `odoo-ui-debugger` |
 | `visual/videos/<feature>-<timestamp>/` | terminal demo-recording deliverable, no downstream reader in any other skill - run-scoped, same class as `followups/` |
@@ -133,11 +135,13 @@ resume state) that two concurrent runs must never clobber - verified exactly 13,
 
 **Note the split inside `visual/`:** `visual/baselines/` and `visual/doc/` are SHARE (reusable
 cross-run assets), while `visual/<run_id>/<module>_staging/`, `visual/screenshots/<slug>/`,
-`visual/qa/<slug>/<module>/`, `visual/debug/<slug>/`, and `visual/videos/<feature>-<timestamp>/` are
-ISOLATE (transient or terminal, run-scoped). Three sibling evidence subpaths, three owners, no
-shared directory: `visual/screenshots/<slug>/` (`odoo-ui-reviewer`), `visual/qa/<slug>/<module>/`
-(`odoo-qa-tester`), `visual/debug/<slug>/` (`odoo-ui-debugger`). Classify by the FULL subpath, never
-by the top-level directory name alone - `visual/` itself is not a Tier.
+`visual/current/<slug>/`, `visual/qa/<slug>/<module>/`, `visual/debug/<slug>/`, and
+`visual/videos/<feature>-<timestamp>/` are ISOLATE (transient or terminal, run-scoped). FOUR sibling
+evidence subpaths, four owners, no shared directory: `visual/screenshots/<slug>/`
+(`odoo-ui-reviewer`), `visual/current/<slug>/` (`odoo-visual-regression`),
+`visual/qa/<slug>/<module>/` (`odoo-qa-tester`), `visual/debug/<slug>/` (`odoo-ui-debugger`).
+Classify by the FULL subpath, never by the top-level directory name alone - `visual/` itself is not a
+Tier.
 
 ## Codemod guards
 
@@ -208,18 +212,18 @@ video/GIF recording) NEVER writes into the target repo's working tree and NEVER 
 destination. Classify the DESTINATION OF THE CAPTURE CALL - not the artifact, and not where it ends
 up later - into exactly one bucket:
 
-1. **Reusable across runs** (visual-regression baselines and their `current/` comparison set, the
-   cached login `storageState`, the doc-illustration screenshot cache) -> `<SHARE_DIR>/visual/...`
+1. **Reusable across runs** (visual-regression BASELINES, the cached login `storageState`, the
+   doc-illustration screenshot cache) -> `<SHARE_DIR>/visual/...`
    per `## Tier-2 SHARE list` above.
-2. **Run-scoped** (acceptance evidence, debug symptom evidence, UI-review evidence, demo-video
-   output, and any staging that will LATER be copied into a module tree) -> `<ISOLATE_DIR>/...`
-   per `## Tier-2 ISOLATE list` above. This is the default when in doubt.
+2. **Run-scoped** (a visual-regression run's state-B comparison set, acceptance evidence, debug
+   symptom evidence, UI-review evidence, demo-video output, and any staging that will LATER be copied
+   into a module tree) -> `<ISOLATE_DIR>/...` per `## Tier-2 ISOLATE list` above. This is the default
+   when in doubt.
 3. **A committed module deliverable** (`<module>/static/description/...`, `<module>/doc/...`) is
    NEVER a capture destination. It is reached only by an explicit Bash `cp`/`mv` of one named file
    out of bucket (1) or (2), and committed via `git-toolkit:git-ops`.
 
-Bucket 1 explicitly names `current/` so `odoo-visual-regression/SKILL.md`'s comparison-set tier
-stays sanctioned. Bucket 3 keeps the committed-deliverable pipeline intact: `odoo-icon-designer.md`
+Bucket 3 keeps the committed-deliverable pipeline intact: `odoo-icon-designer.md`
 (`icon.png`), `odoo-marketing-writer.md` (`index.html`), `odoo-user-doc-writer.md` (`doc/index.rst`)
 each reach it only by an explicit copy step - never as a direct capture target.
 
@@ -324,8 +328,8 @@ the brief calls out as "the target" - the DISPATCHER (the skill/agent that names
 out leaves against it) resolves `<SHARE_DIR>`/`<ISOLATE_DIR>` ONCE with cwd set to THAT root:
 
 ```
-bash -c "cd <target-root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh share"
-bash -c "cd <target-root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh isolate"
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh --root <target-root> share
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project_dir.sh --root <target-root> isolate
 ```
 
 ...and passes the CAPTURED ABSOLUTE strings to EVERY leaf it dispatches in that pipeline (as
@@ -336,10 +340,13 @@ independently is exactly what causes the divergence this rule exists to prevent.
 WITHOUT these fields (a standalone/direct invocation, not part of a cross-worktree pipeline) falls
 back to the normal resolve-capture-substitute protocol above, resolving from its own cwd as usual.
 
-Equivalently: every leaf in the pipeline resolves `<ISOLATE_DIR>` as if its cwd were the target root
-- whether that happens because the dispatcher captured and passed the literal (preferred: one
-resolver invocation, not N, and no possibility of drift), or because each leaf independently `cd`s
-into the target root before resolving (works but redundant - prefer the dispatcher-capture form).
+Equivalently: every leaf in the pipeline resolves `<ISOLATE_DIR>` as if its cwd were the target root.
+Prefer `--root <target-root>` (one process, no shell nesting) for every new call site; the older
+equivalent `bash -c "cd <target-root> && bash ...resolve_project_dir.sh share"` remains correct for a
+caller that already uses it, but neither form matches the state-root permission allowlist's exact,
+wildcard-free rules (the target path varies per call) - an agent issuing either one directly still
+prompts for approval today. Either way the DISPATCHER resolves ONCE and passes the captured literal -
+one resolver invocation, not N, and no possibility of drift.
 Canonical worked example: `agents/odoo-review-scoper.md` (`review_root`) and the `odoo-code-review`
 skill's Phase 0, which resolves once and threads the captured `SHARE_DIR`/`ISOLATE_DIR` through the
 scoper, every reviewer, the UI reviewer, and synthesis - point here instead of re-deriving this rule
