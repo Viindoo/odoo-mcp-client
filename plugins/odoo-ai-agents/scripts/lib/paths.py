@@ -59,10 +59,25 @@ class ProjectDirError(RuntimeError):
 # internal helpers
 # --------------------------------------------------------------------------- #
 def _home() -> str:
-    """${ODOO_AI_HOME:-$HOME/.odoo-ai} - mirrors allocator.py's _home()."""
-    return os.environ.get("ODOO_AI_HOME") or os.path.join(
-        os.path.expanduser("~"), ".odoo-ai"
-    )
+    """${ODOO_AI_HOME:-$HOME/.odoo-ai}, trailing slashes fully normalised -
+    mirrors allocator.py's `_home()` (same fix, same reason) and the shell
+    convergence point (resolve_project_dir.sh's `_project_dir_home`,
+    resolve_instances.sh's `_odoo_ai_global_instances`/`_odoo_ai_runtime_dir`) -
+    all four are a stated PARITY INVARIANT. A doubled/tripled trailing slash on
+    $ODOO_AI_HOME denotes the SAME directory as a single one (POSIX:
+    "/a/b//" == "/a/b/" == "/a/b"), so it is collapsed HERE, at the source,
+    exactly like share_dir/isolate_dir's override normalisation above - a bare
+    `os.environ.get(...) or ...` (the prior form) left multi-slash input
+    untouched, and `os.path.join` does not re-collapse it on every subsequent
+    join, so an un-normalised $ODOO_AI_HOME with >=2 trailing slashes produced
+    a DIFFERENT projects/<repo-key> string than resolve_project_dir.sh's
+    (partially-stripping) shell chain - measured, see
+    tests/test_project_dir_resolution.py's `odoo_ai_home` trailing-slash cases.
+    An all-slashes $ODOO_AI_HOME (e.g. "/", "///") falls back to "/"."""
+    override = os.environ.get("ODOO_AI_HOME")
+    if override:
+        return override.rstrip("/") or "/"
+    return os.path.join(os.path.expanduser("~"), ".odoo-ai")
 
 
 def _hash12(s: str) -> str:

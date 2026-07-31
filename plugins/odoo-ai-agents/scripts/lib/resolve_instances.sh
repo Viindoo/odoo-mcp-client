@@ -44,12 +44,31 @@ _addons_path_to_array() {
     IFS="$ADDONS_PATH_SEP" read -ra "$1" <<<"$_aptoa_norm"
 }
 
+# Strip ALL trailing "/" from $1 - mirrors resolve_project_dir.sh's
+# `_project_dir_rstrip_slashes` / paths.py's + allocator.py's `_home()`
+# EXACTLY (parity invariant: all four converge on the same $ODOO_AI_HOME
+# root - see the file headers). `${var%/}` alone strips only ONE trailing
+# slash: a doubled/tripled trailing slash on $ODOO_AI_HOME would then survive
+# into the returned path and diverge from the Python side, which fully
+# normalises. Duplicated here (not sourced from resolve_project_dir.sh)
+# because this file is sourced standalone by callers that never load that one.
+_odoo_ai_home_rstrip_slashes() {
+    local s="$1"
+    while [ "${s%/}" != "$s" ]; do
+        s="${s%/}"
+    done
+    printf '%s' "$s"
+}
+
 # Echo the machine-global instances.toml path. Fails (returns 1 + stderr
 # diagnostic) ONLY when HOME, ODOO_AI_HOME and ODOO_AI_INSTANCES are all unset -
 # we refuse to silently target /.odoo-ai.
 _odoo_ai_global_instances() {
     if [ -n "${ODOO_AI_HOME:-}" ]; then
-        printf '%s\n' "${ODOO_AI_HOME%/}/instances.toml"
+        local h
+        h="$(_odoo_ai_home_rstrip_slashes "$ODOO_AI_HOME")"
+        [ -n "$h" ] || h="/"
+        printf '%s\n' "${h%/}/instances.toml"
         return 0
     fi
     if [ -n "${HOME:-}" ]; then
@@ -65,10 +84,15 @@ _odoo_ai_global_instances() {
 # SSOT - ${ODOO_AI_HOME:-$HOME/.odoo-ai}/runtime - and deliberately NOT affected by
 # $ODOO_AI_INSTANCES (that overrides only the catalog file, not the runtime root).
 # Mirrors scripts/lib/allocator.py's _home()/_runtime_dir() so shell and Python
-# resolve the same directory. See docs/reference/INSTANCE-ALLOCATION.md.
+# resolve the same directory (trailing slashes on $ODOO_AI_HOME fully
+# normalised on both sides - see `_odoo_ai_home_rstrip_slashes` above). See
+# docs/reference/INSTANCE-ALLOCATION.md.
 _odoo_ai_runtime_dir() {
     if [ -n "${ODOO_AI_HOME:-}" ]; then
-        printf '%s\n' "${ODOO_AI_HOME%/}/runtime"
+        local h
+        h="$(_odoo_ai_home_rstrip_slashes "$ODOO_AI_HOME")"
+        [ -n "$h" ] || h="/"
+        printf '%s\n' "${h%/}/runtime"
         return 0
     fi
     if [ -n "${HOME:-}" ]; then

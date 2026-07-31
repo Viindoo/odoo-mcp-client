@@ -87,9 +87,18 @@ DEFAULT_HTTP_PORT = instances_io.DEFAULT_HTTP_PORT
 # Paths (mirror resolve_instances.sh precedence)
 # --------------------------------------------------------------------------- #
 def _home():
-    return os.environ.get("ODOO_AI_HOME") or os.path.join(
-        os.path.expanduser("~"), ".odoo-ai"
-    )
+    """${ODOO_AI_HOME:-$HOME/.odoo-ai}, trailing slashes fully normalised -
+    mirrors scripts/lib/paths.py's `_home()` exactly (parity invariant: all of
+    paths.py, resolve_project_dir.sh's `_project_dir_home`, and
+    resolve_instances.sh's `_odoo_ai_global_instances`/`_odoo_ai_runtime_dir`
+    converge on the same root). A doubled/tripled trailing slash denotes the
+    SAME directory as a single one, so it is collapsed here rather than left
+    for a downstream os.path.join to preserve inconsistently with the shell
+    half. An all-slashes $ODOO_AI_HOME (e.g. "/", "///") falls back to "/"."""
+    override = os.environ.get("ODOO_AI_HOME")
+    if override:
+        return override.rstrip("/") or "/"
+    return os.path.join(os.path.expanduser("~"), ".odoo-ai")
 
 
 def _runtime_dir():

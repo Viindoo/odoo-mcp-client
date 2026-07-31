@@ -68,12 +68,28 @@
 # internal helpers
 # ---------------------------------------------------------------------------
 
-# Echo ${ODOO_AI_HOME:-$HOME/.odoo-ai} (Tier-1 root). Mirrors
-# resolve_instances.sh's `_odoo_ai_global_instances` / allocator.py's `_home()`
-# so all three converge on the same root. Fails only when both are unset.
+# Echo ${ODOO_AI_HOME:-$HOME/.odoo-ai} (Tier-1 root), trailing slashes FULLY
+# normalised. Mirrors resolve_instances.sh's `_odoo_ai_global_instances` /
+# allocator.py's + paths.py's `_home()` so all four converge on the same root.
+# Fails only when both HOME and ODOO_AI_HOME are unset.
+#
+# A doubled/tripled trailing slash on $ODOO_AI_HOME denotes the SAME directory
+# as a single one (POSIX: "/a/b//" == "/a/b/" == "/a/b"), so it must
+# canonicalize identically here and in paths.py's `_home()` - the prior form
+# (`${ODOO_AI_HOME%/}`, strips exactly ONE) left a stray slash on a
+# doubled-or-more input, which the caller's OWN trailing `${home%/}` strip
+# only partially cancels (two single-strips, still short for a triple slash),
+# while paths.py's `_home()` did ZERO stripping before `os.path.join` - the two
+# sides diverged on a >=2-trailing-slash $ODOO_AI_HOME. Measured:
+# tests/test_project_dir_resolution.py's `odoo_ai_home` trailing-slash parity
+# cases. Uses `_project_dir_rstrip_slashes` (defined below) - full-rstrip,
+# all-slashes -> "/" fallback, exactly like the override handling above.
 _project_dir_home() {
     if [ -n "${ODOO_AI_HOME:-}" ]; then
-        printf '%s\n' "${ODOO_AI_HOME%/}"
+        local h
+        h="$(_project_dir_rstrip_slashes "$ODOO_AI_HOME")"
+        [ -n "$h" ] || h="/"
+        printf '%s\n' "$h"
         return 0
     fi
     if [ -n "${HOME:-}" ]; then
