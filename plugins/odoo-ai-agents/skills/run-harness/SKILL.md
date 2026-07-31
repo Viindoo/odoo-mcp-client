@@ -233,8 +233,9 @@ waves (there is no separate git-executor skill - run-harness is the sole owner).
 wave-batched **module-DAG** (with `depends_on` edges as the cherry-pick order) + topology +
 `cumulative_modules` + the **Block 2W** worktree dependency graph (SSOT:
 `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/plan-mode-schema.md` § Block 2W). It is
-consume-only: it never self-derives the module-DAG. Full templates (the four topologies, the saga
-pseudocode, the cleanup checklist, the execution-log + squash recipe):
+consume-only: it never self-derives the module-DAG. Full templates (all five topology values: the
+four multi-module topologies plus the `single` collapse case; also the saga pseudocode, the cleanup
+checklist, the execution-log + squash recipe):
 `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`.
 
 **Run start (ONCE, before wave 1).** Fork ONE **run-integration** branch from `base`/principal. This
