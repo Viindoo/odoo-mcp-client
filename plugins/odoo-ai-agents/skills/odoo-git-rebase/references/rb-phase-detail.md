@@ -88,6 +88,11 @@ git-ops to create a dedicated worktree (principal-checkout-lock enforced by git-
 
 ## P1 - Recon (range enumerate)
 
+Read `<ISOLATE_DIR>/git-rebase/<slug>/intake.md` back before enumerating - P0 wrote it and a resumed
+run must take `feature_ref` / `new_base` / `feature_worktree_path` from that file, not from context.
+Absent -> re-dispatch P0. Contract:
+`${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 1.
+
 ```bash
 # Compute old-base (bounded read - git merge-base is in the allowlist; orchestrator runs this inline)
 OLD_BASE=$(git merge-base <new-base> <feature-ref>)

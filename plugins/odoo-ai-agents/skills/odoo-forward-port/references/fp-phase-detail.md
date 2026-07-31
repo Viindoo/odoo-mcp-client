@@ -40,8 +40,11 @@ question, one `find_override_point` probe) per `references/fp-triage-table.md` T
 orchestrator triages the tier itself; never dispatch an agent to decide a dispatch.
 
 This is recon only. There is NO approval gate here, NO `plan.md` written, NO branch, NO worktree -
-the plan gate is P4 (Plan Mode), after intent + classify + design. Carry the per-commit EXTRACT
-tier forward to P1.
+the plan gate is P4 (Plan Mode), after intent + classify + design. Write the per-commit EXTRACT tier
+and the range facts to `<ISOLATE_DIR>/recon/<slug>-<date>/findings.md` per
+`${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md`, then READ that file back at the
+start of P1 rather than relying on this phase's text still being in context - a resumed run must not
+re-triage the range.
 
 ---
 

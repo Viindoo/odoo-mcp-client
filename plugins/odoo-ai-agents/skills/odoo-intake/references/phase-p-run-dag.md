@@ -57,6 +57,11 @@ open a RUN-DAG.
    - **Decision X (node inputs):** each node carries `inputs: {effort, est_agents}` (ADVISORY /
      du kien) and **no binding `model`** - the dispatched specialist skill owns the actual model +
      agent count at runtime; the run-node never pins them.
+   - **Recon pointer (additive, optional).** When Phase R persisted a findings file, add
+     `inputs.recon_findings: <captured ABSOLUTE literal>` to every node that consumes recon. It MUST
+     be the captured absolute path - never a `<ISOLATE_DIR>` placeholder and never a relative path: a
+     leaf in another worktree cannot re-resolve it. Absent key -> the node scouts for itself, as
+     today. This adds a key; it does not change who first writes `run-<id>.json`.
 2. Tag each node's `gate_tier` from the registry `default_gate_tier`
    (`generator/skill_tool_deps.json`), raising it if the node writes outside the `$ODOO_AI_HOME` state root.
    - For each SOURCE-writing node (writes outside the `$ODOO_AI_HOME` state root) that is NOT a self-provisioning

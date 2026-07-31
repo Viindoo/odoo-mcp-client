@@ -276,3 +276,38 @@ def test_parse_continuation_resolver_refusal_falls_back_without_crashing(tmp_pat
     assert rc == 0, "a resolver refusal must never crash or non-zero-exit the hook"
     assert out is not None and out.get("continue") is True
     assert str(proj / ".odoo-ai") in out["systemMessage"]
+
+
+# --------------------------------------------------------------------------- #
+# CS-C4 fence: the new recon/<slug>-<date>/ scouting-persistence subpath (see
+# snippets/scouting-persistence-contract.md) must resolve under the SAME per-worktree ISOLATE
+# dir as every other run-scoped subpath - never a bare project-relative `.odoo-ai/recon`.
+# --------------------------------------------------------------------------- #
+def test_recon_subpath_resolves_under_the_two_axis_isolate_dir(tmp_path):
+    """Fence, not a feature test: guards against a future commit hand-deriving the `recon/`
+    path project-relative (`./.odoo-ai/recon`) instead of composing it under the resolver's
+    two-axis ISOLATE dir. Two linked worktrees of ONE repo must diverge on their `recon/` dir
+    exactly as they already diverge on every other Tier-2 ISOLATE subpath."""
+    home = tmp_path / "home"
+    env = _env(home)
+    repo = tmp_path / "repo"
+    wt2 = tmp_path / "wt2"
+    _init_repo(repo, env)
+    _add_worktree(repo, wt2, env)
+
+    isolate1 = Path(_resolve_isolate(repo, env))
+    isolate2 = Path(_resolve_isolate(wt2, env))
+
+    recon1 = isolate1 / "recon"
+    recon2 = isolate2 / "recon"
+    naive_shared_recon = repo / ".odoo-ai" / "recon"
+
+    assert recon1 != recon2, (
+        "two linked worktrees must diverge on the recon/ dir, same as every other "
+        "Tier-2 ISOLATE subpath - a shared recon/ dir would let one worktree's stale findings "
+        "leak into a sibling worktree's resume."
+    )
+    assert recon1 != naive_shared_recon and recon2 != naive_shared_recon, (
+        "recon/ must resolve under the two-axis ISOLATE dir, never the legacy bare "
+        "project-relative `<repo>/.odoo-ai/recon` path."
+    )

@@ -186,3 +186,40 @@ def test_intake_description_frontmatter_unchanged_by_worktree_default():
             f"Worktree-isolation addition leaked into the description frontmatter ({marker!r}); "
             "this must be a body-only edit."
         )
+
+
+# ---------------------------------------------------------------------------
+# CS-C4: the new Phase-R recon persistence write is a STATE-ROOT write, so it rides the
+# SAME Hard-rule-6 exemption as every other $ODOO_AI_HOME-confined deliverable - it must
+# never become an argument for provisioning a worktree just to persist a findings file.
+# ---------------------------------------------------------------------------
+
+
+def test_recon_persistence_is_a_state_root_write_not_a_git_tracked_write():
+    """Two facts must both hold: (1) intake's Phase-R persist instruction names the resolved
+    `<ISOLATE_DIR>` literal - never a repo-relative path and never a bare `.odoo-ai/` literal -
+    and (2) Hard rule 6's exemption clause still names `$ODOO_AI_HOME` (test_worktree_default_
+    exempts_read_only_work already proves this half independently; re-asserted here as the
+    OTHER half of the same contract so a future edit cannot break the pairing silently)."""
+    text = _text()
+
+    persist_match = re.search(
+        r"write\s+their findings to `([^`]+)`", text,
+    )
+    assert persist_match, (
+        "Could not locate the Phase-R persist-before-propose write instruction naming its "
+        "target path."
+    )
+    target_path = persist_match.group(1)
+    assert target_path.startswith("<ISOLATE_DIR>/"), (
+        f"The Phase-R recon findings write must target the resolved <ISOLATE_DIR> literal, "
+        f"never a repo-relative or bare .odoo-ai/ path; got: {target_path!r}"
+    )
+    assert not target_path.startswith(".odoo-ai/") and not target_path.startswith("./"), (
+        "The Phase-R recon findings write must not use a bare project-relative literal."
+    )
+
+    assert "$ODOO_AI_HOME" in text, (
+        "Hard rule 6's exemption clause must still name $ODOO_AI_HOME - the recon findings "
+        "write rides this existing exemption rather than requiring its own."
+    )
