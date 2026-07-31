@@ -250,9 +250,17 @@ Odoo's exporter left a `fuzzy` flag on an entry, clear it only after confirming 
    lease, or use `--mode exclusive` on a declared DB that already has the module installed.
 
 4. **Export against the adapted code (PR-head / merged tree).** When odoo-i18n is dispatched from a
-   forward-port run, the Odoo instance must run the POST-ADAPT code (PR branch or merged worktree),
-   NOT the source/original branch. Exporting from pre-adapt code yields a `.pot` with the old term
-   inventory, missing new/renamed strings introduced in the port.
+   forward-port or upgrade run, the Odoo instance must run the POST-ADAPT code - the worktree the adapt
+   wrote - NOT the source/original branch and NOT the principal checkout. Exporting from pre-adapt code
+   yields a `.pot` with the old term inventory, missing new/renamed strings introduced in the port.
+   **Mechanism (this is not advice - without it L2 silently under-merges):** pass `WORKTREE_PATH` to
+   `odoo-instance`, which re-roots the instance's addons list onto that worktree
+   (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md` § WORKTREE_PATH substitution ->
+   `allocator.py acquire --addons-path-override`). An instance whose addons path points at the
+   principal checkout makes a worktree-only `msgid` surface as NEITHER a removed nor a changed entry,
+   so the L2 adjudication loop has nothing to rule on and the loss is committed unseen. Before the L1
+   export, apply `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Addons coverage
+   assertion; on a miss, BLOCK - do not export.
 
 5. **`.pot` freshness (always re-export) + `en_US` active.** The `.pot` merged in L2 MUST be the one
    this run exported from the currently-installed code - a committed or prior-run `<module>.pot` on

@@ -202,3 +202,118 @@ def test_git_toolkit_agent_never_references_dispatch_brief(agent):
         "odoo-ai-agents-only snippet - git-toolkit is domain-agnostic and must "
         "not depend on odoo-ai-agents (see tests/test_git_toolkit_independence.py)"
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-C11a prerequisite 1/4: every odoo-ai-agents agent/skill that names a
+# git-tracked write target (a .po/.pot/.py/.xml/.js/.scss/.rst file, or the
+# static/description/ icon path) must carry WORKTREE_PATH (field 5 above) -
+# otherwise a separate agent context that does not inherit the caller's cwd
+# writes to whatever checkout happens to be ambient.
+# ---------------------------------------------------------------------------
+
+ODOO_SKILLS_DIR = REPO_ROOT / "plugins" / "odoo-ai-agents" / "skills"
+ODOO_SKILL_MD_FILES = sorted(ODOO_SKILLS_DIR.glob("*/SKILL.md"))
+
+# Small, declared extension set: a file "names a git-tracked write target" when
+# its FRONTMATTER (the block between the two `---` delimiters - a section
+# boundary, not a bare sentence) names one of these as something it writes.
+_GIT_TRACKED_WRITE_EXT_PATTERN = re.compile(r"\.(?:pot|po|py|xml|js|scss|rst)\b")
+_STATIC_DESCRIPTION_TARGET = "static/description/"
+
+
+def _frontmatter_block(text: str) -> str:
+    """Return the YAML frontmatter body (between the first two `---` lines)."""
+    lines = text.splitlines()
+    delims = [i for i, l in enumerate(lines) if l.strip() == "---"]
+    if len(delims) >= 2:
+        return "\n".join(lines[delims[0] + 1: delims[1]])
+    return ""
+
+
+def _names_git_tracked_write_target(path: Path) -> bool:
+    fm = _frontmatter_block(path.read_text(encoding="utf-8"))
+    return bool(_GIT_TRACKED_WRITE_EXT_PATTERN.search(fm)) or (_STATIC_DESCRIPTION_TARGET in fm)
+
+
+def test_worktree_path_subject_files_discovered():
+    assert len(ODOO_SKILL_MD_FILES) >= 40, (
+        f"expected at least 40 plugins/odoo-ai-agents/skills/*/SKILL.md files, "
+        f"found {len(ODOO_SKILL_MD_FILES)} - glob is wrong or skills went missing"
+    )
+
+
+# Known-red, SHRINK-ONLY. Each entry is a file whose frontmatter names a
+# git-tracked write target (.po/.pot/.py/.xml/.js/.scss/.rst/static/description/)
+# without carrying WORKTREE_PATH (snippets/dispatch-brief.md field 5). This PR
+# fixes odoo-i18n + odoo-translator because the i18n mandate requires it; the
+# rest are the same violation in flows the mandate does not touch. Computed
+# from the actual repo state (ODOO-AI-ETHOS #11 data-driven), not guessed -
+# regenerate by re-running the selection logic below if this ever needs an
+# audit.
+_MISSING_WORKTREE_PATH_ALLOWLIST = {
+    "agents/odoo-feature-cataloger.md",
+    "agents/odoo-icon-designer.md",
+    "agents/odoo-installable-prober.md",
+    "agents/odoo-marketing-writer.md",
+    "agents/odoo-planner.md",
+    "agents/odoo-user-doc-writer.md",
+    "skills/odoo-data-migration/SKILL.md",
+    "skills/odoo-doc-feature-map/SKILL.md",
+    "skills/odoo-doc-illustration/SKILL.md",
+    "skills/odoo-icon-design/SKILL.md",
+    "skills/odoo-onboarding/SKILL.md",
+    "skills/odoo-qa-suite/SKILL.md",
+    "skills/odoo-test-writing/SKILL.md",
+}
+
+_ODOO_AI_AGENTS_ROOT = REPO_ROOT / "plugins" / "odoo-ai-agents"
+
+
+def test_git_tracked_writers_carry_worktree_path():
+    """Every agent/skill whose frontmatter names a git-tracked write target must
+    carry the literal `WORKTREE_PATH` token, unless it is in the shrink-only
+    known-red allowlist below.
+
+    Red today (pre-CS-C11a) on `skills/odoo-i18n/SKILL.md` and
+    `agents/odoo-translator.md` - both verified at ZERO case-insensitive
+    `worktree` occurrences: `.po`/`.pot` files are git-tracked and
+    `odoo-translator` is a separate agent context that does not inherit the
+    caller's cwd, so a translation write silently landed in whatever checkout
+    was ambient.
+    """
+    subjects = ODOO_AGENT_FILES + ODOO_SKILL_MD_FILES
+    failures = []
+    for f in subjects:
+        if not _names_git_tracked_write_target(f):
+            continue
+        rel = str(f.relative_to(_ODOO_AI_AGENTS_ROOT))
+        if "WORKTREE_PATH" in f.read_text(encoding="utf-8"):
+            continue
+        if rel in _MISSING_WORKTREE_PATH_ALLOWLIST:
+            continue
+        failures.append(rel)
+
+    assert not failures, (
+        "these files name a git-tracked write target "
+        "(.po/.pot/.py/.xml/.js/.scss/.rst/static/description/) in their frontmatter "
+        "but do not carry WORKTREE_PATH, and are not in the known-red allowlist - either "
+        "add WORKTREE_PATH per snippets/dispatch-brief.md field 5, or add the file to "
+        f"_MISSING_WORKTREE_PATH_ALLOWLIST with a reason: {failures}"
+    )
+
+    # The allowlist is SHRINK-ONLY BY ASSERTION, not by comment: every entry must
+    # still LACK WORKTREE_PATH. A file that gains the token must be removed from
+    # the list or this reddens - the list can only shrink, never grow silently.
+    for rel in sorted(_MISSING_WORKTREE_PATH_ALLOWLIST):
+        f = _ODOO_AI_AGENTS_ROOT / rel
+        assert f.exists(), f"_MISSING_WORKTREE_PATH_ALLOWLIST entry {rel!r} does not exist on disk"
+        assert "WORKTREE_PATH" not in f.read_text(encoding="utf-8"), (
+            f"{rel} now carries WORKTREE_PATH - remove it from "
+            "_MISSING_WORKTREE_PATH_ALLOWLIST (shrink-only: an entry that gains the token "
+            "must be removed, never silently kept)"
+        )
+
+    # The two files THIS commit fixes can never be quietly re-admitted.
+    assert "skills/odoo-i18n/SKILL.md" not in _MISSING_WORKTREE_PATH_ALLOWLIST
+    assert "agents/odoo-translator.md" not in _MISSING_WORKTREE_PATH_ALLOWLIST

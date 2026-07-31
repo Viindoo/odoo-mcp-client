@@ -10,6 +10,7 @@ Run: python -m pytest tests/test_odoo_i18n.py -v
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -328,4 +329,112 @@ def test_p4_gates_en_us_and_pot_freshness():
     )
     assert "gate 5" in p4 or "re-exported THIS run" in p4, (
         "P4 must verify the .pot consumed was freshly re-exported this run (recipe gate 5)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 7 (CS-C11a) - the i18n-mandate prerequisites: the P0 gate is
+# foldable into the caller's own gate, and the tier-5 vi_VN default becomes
+# unreachable inside a mandated invocation.
+# ---------------------------------------------------------------------------
+
+def _normalize_ws(text: str) -> str:
+    """Collapse all whitespace runs (including Markdown line-wraps) to a single
+    space, so a literal-absence/presence assertion cannot be fooled by a phrase
+    that happens to be line-wrapped across two source lines (one such assertion
+    in this test family was previously a silent tautology for exactly that
+    reason - see test_dispatch_brief.py's _LEAF_STOP_AND_RETURN_NEEDS_CONTEXT)."""
+    return re.sub(r"\s+", " ", text)
+
+
+def test_p0_gate_is_foldable_and_tier5_is_unreachable_inside_a_mandate():
+    """P0's human STOP must fold into the caller's own gate when the caller supplied
+    everything (mandated invocation); standalone tier-5 vi_VN default must be
+    unreachable inside a mandate - it must record `not-applicable` instead.
+
+    Protects ledger rows N2 + N5/N6d: a mandate that always STOPs for a human is a
+    deadlock (RC-4), and a mandate combined with an unqualified tier-5 default would
+    silently generate Vietnamese catalogs for a user who never asked for them.
+    """
+    assert SKILL_MD.exists(), f"SKILL.md not found at {SKILL_MD}"
+    text = SKILL_MD.read_text(encoding="utf-8")
+    normalized = _normalize_ws(text)
+
+    # The mandated/standalone discriminator must name all three field-presence
+    # conditions - a caller supplying anything less falls back to the STOP.
+    for field in ("TARGET LANGUAGES", "INSTANCE_HANDLE", "SELF_PROVISION: worktree-addons", "WORKTREE_PATH"):
+        assert field in normalized, (
+            f"SKILL.md P0 gate-fold paragraph must name {field!r} as one of the "
+            "mandated-invocation discriminator fields"
+        )
+
+    # Both gate destinations must be present and distinguishable.
+    assert "Standalone" in text and "Mandated" in text, (
+        "SKILL.md must distinguish a Standalone STOP from a Mandated fold-into-caller's-gate"
+    )
+    assert "do NOT stop" in normalized or "do not stop" in normalized.lower(), (
+        "SKILL.md must state the mandated path does NOT stop for a human"
+    )
+
+    # Tier 5 must be explicitly qualified as standalone-only.
+    tier5_idx = text.find('Default `["vi_VN"]`')
+    assert tier5_idx != -1, "SKILL.md must still carry the tier-5 `Default [\"vi_VN\"]` line"
+    tier5_line = text[tier5_idx: text.find("\n", tier5_idx)]
+    assert "standalone" in tier5_line.lower(), (
+        "tier 5's `Default [\"vi_VN\"]` line must be qualified 'standalone invocations ONLY' - "
+        "an unqualified default is reachable even inside a mandate"
+    )
+
+    # The not-applicable hatch must be the literal, documented mandated-tier-5 outcome.
+    assert "not-applicable" in text, (
+        "SKILL.md must document the `not-applicable` outcome for a mandated invocation "
+        "that reaches tier 5 (all four resolution tiers empty)"
+    )
+    mandate_idx = text.find("MANDATED invocation")
+    assert mandate_idx != -1, "SKILL.md must carry a 'MANDATED invocation' callout for tier 5"
+
+    # vi_VN must never appear in the same PARAGRAPH as MANDAT* (case-insensitive) -
+    # the mandate path must never resolve to the hardcoded default language. Split
+    # on blank-line paragraph boundaries (robust to Markdown line-wrap AND to `**`
+    # bold markers defeating a period-based sentence splitter - the tier-5 line
+    # ends in "ONLY.**", which a naive `[.!?]\s+` splitter fails to break on).
+    for paragraph in re.split(r"\n\s*\n", text):
+        if re.search(r"mandat", paragraph, re.IGNORECASE):
+            assert "vi_VN" not in paragraph, (
+                f"a MANDATE-describing paragraph must never mention vi_VN directly: {paragraph!r}"
+            )
+
+
+def test_recipe_names_the_addons_mechanism_not_just_the_requirement():
+    """Recipe § Validation item 4 (post-adapt export) must name the MECHANISM
+    (WORKTREE_PATH -> odoo-instance addons re-root), not just restate the
+    requirement - the requirement alone (no mechanism) is what let a
+    worktree-only msgid surface as neither removed nor changed (ledger row N6d).
+    """
+    assert RECIPE.exists(), f"i18n-recipe.md not found at {RECIPE}"
+    text = RECIPE.read_text(encoding="utf-8")
+
+    start = text.find("Export against the adapted code")
+    assert start != -1, (
+        "Recipe must still carry the 'Export against the adapted code' validation item"
+    )
+    end = text.find("\n5.", start)
+    section = text[start: end if end != -1 else len(text)]
+
+    assert "addons" in section, (
+        "Recipe's post-adapt-export item must name the addons-path mechanism, not just the "
+        "requirement (this item named it ZERO times before CS-C11a)"
+    )
+    assert "WORKTREE_PATH" in section, (
+        "Recipe's post-adapt-export item must name WORKTREE_PATH as the mechanism passed "
+        "through to odoo-instance"
+    )
+    # Whitespace-normalized: the phrase legitimately line-wraps in the source
+    # ("... § Addons coverage\n   assertion; ..."), and a literal-absence/presence
+    # assertion over the raw text would be a silent tautology if it searched for
+    # a phrase that can never appear unwrapped (the exact failure mode already
+    # found once in this spec family).
+    assert "Addons coverage assertion" in _normalize_ws(text), (
+        "Recipe must point at the Addons coverage assertion (instance-handle-contract.md) "
+        "before the L1 export - a pointer, not a restatement (CS-C2 declares it once)"
     )
