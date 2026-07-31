@@ -50,7 +50,18 @@ later integrated test.
 
 After ALL your WIs return, verify the WHOLE module together (backend behavior + the frontend that binds to it) on a SINGLE live instance:
 
-- **`INSTANCE_HANDLE` present** -> run the integrated module test against that handed-in instance; do NOT self-provision.
+- **`SELF_PROVISION: worktree-addons` in your brief** -> self-provision an EPHEMERAL instance by
+  invoking `Skill(odoo-instance)` INLINE in your own context (never by launching
+  `odoo-instance-ops`), forwarding your `WORKTREE_PATH` so the instance loads YOUR worktree, and
+  RELEASE it before you report (the release rule below). One lease carries one addons path and cannot
+  be correct for N module worktrees - that is why the dispatcher authorized this
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out).
+- **`INSTANCE_HANDLE` present** -> run the integrated module test against that handed-in instance; do
+  NOT self-provision. First apply
+  `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Addons coverage assertion; if the
+  brief carries no `ADDONS_PATH` field, or it names no directory covering your module's source root,
+  return `NEEDS_CONTEXT(instance handle does not cover the module's worktree)` - never run the suite
+  to see what happens.
 - **No handle -> self-provision via `Skill(odoo-instance)`** (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`). Provision the way that fits your context - inline in your own context, or by launching the `odoo-instance-ops` agent - either way `odoo-instance` applies the instance HARD RULES (`en_US` union, Viindoo `to_base` union, the `/test_lint`+`/test_pylint` install union) and returns the `instance-ops` block (`failed`/`errors`/`warnings`/`findings_path`). Request an isolated ephemeral instance with the module installed + tested (`OPERATION: run-tests`, `SERIES: <version>`, `MODULES: <module>`, `MODE: fresh`). Derive the verdict from the returned block, not a firehose (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`). A `warnings > 0` result is a finding, never swallowed.
 
 **After the integrated test, RELEASE the instance you self-provisioned.** If you self-provisioned

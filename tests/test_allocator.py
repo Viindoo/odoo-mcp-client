@@ -1497,3 +1497,252 @@ def test_legacy_lease_without_pid_releases_without_signalling(tmp_path, monkeypa
     assert called["stop"] is False, "no pid -> _stop_group must never be invoked (no signal sent)"
     reg = json.loads((home / "runtime" / "leases.json").read_text(encoding="utf-8"))
     assert reg["leases"] == [], "the legacy lease must be removed on release"
+
+
+# --------------------------------------------------------------------------- #
+# CS-C2 - worktree-correct addons path: --addons-path-override
+#
+# A per-module verification instance must load the worktree the code was
+# written in, not the catalog's principal-checkout addons list. These tests
+# protect the override CONTRACT (acquire --addons-path-override replaces the
+# catalog value everywhere it is surfaced: ALLOC_ADDONS_PATH + the lease), the
+# fail-loud behavior on a typo'd flag or a non-existent override directory, and
+# the resolve_instances_path fallthrough diagnostics (Q2). All run the real
+# script and assert on its actual stdout/stderr/exit code - not a re-
+# implementation of the code under test.
+# --------------------------------------------------------------------------- #
+def test_addons_path_override_replaces_catalog_in_alloc_output(fixt, tmp_path):
+    env, _, _ = fixt
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    catalog = tmp_path / "catalog"
+    catalog.mkdir()
+    override = f"{wt},{catalog}"
+    p, out = _acquire(
+        env, "--mode", "ephemeral", "--no-create", "--ports", "0",
+        "--addons-path-override", override,
+    )
+    assert p.returncode == 0, p.stderr
+    assert out["ALLOC_ADDONS_PATH"] == override
+
+
+def test_addons_path_override_persists_in_the_lease(fixt, tmp_path):
+    env, _, _ = fixt
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    catalog = tmp_path / "catalog"
+    catalog.mkdir()
+    override = f"{wt},{catalog}"
+    p, _ = _acquire(
+        env, "--mode", "ephemeral", "--no-create", "--ports", "0",
+        "--addons-path-override", override,
+    )
+    assert p.returncode == 0, p.stderr
+    leases = _leases(env)
+    assert len(leases) == 1
+    assert leases[0]["addons_path"] == override
+
+
+def test_no_override_keeps_catalog_addons_byte_for_byte(fixt):
+    """Regression fence - green before AND after the fix: with no override the
+    catalog addons_path must pass through unchanged, byte for byte."""
+    env, _, _ = fixt
+    p, out = _acquire(env, "--mode", "ephemeral", "--no-create", "--ports", "0")
+    assert p.returncode == 0, p.stderr
+    assert out["ALLOC_ADDONS_PATH"] == "/srv/odoo/addons,/srv/custom"
+    leases = _leases(env)
+    assert leases[0]["addons_path"] == "/srv/odoo/addons,/srv/custom"
+
+
+def test_colon_delimited_override_is_normalized_to_commas(fixt, tmp_path):
+    a_dir = tmp_path / "a"
+    a_dir.mkdir()
+    b_dir = tmp_path / "b"
+    b_dir.mkdir()
+    env, _, _ = fixt
+    override = f"{a_dir}:{b_dir}"
+    expected = f"{a_dir},{b_dir}"
+    p, out = _acquire(
+        env, "--mode", "ephemeral", "--no-create", "--ports", "0",
+        "--addons-path-override", override,
+    )
+    assert p.returncode == 0, p.stderr
+    # Asserting the exact expected value (not just "no colon present") matters:
+    # an unrecognized flag falls through to the unrelated catalog value, which
+    # also happens to contain no colon - a weaker assertion would pass
+    # vacuously without the override ever being honored.
+    assert out["ALLOC_ADDONS_PATH"] == expected
+    leases = _leases(env)
+    assert leases[0]["addons_path"] == expected
+
+
+def test_unknown_flag_exits_non_zero(fixt):
+    """The assertion that makes the whole fix falsifiable: a typo'd long flag
+    must never silently fall into positionals and exit 0."""
+    env, _, _ = fixt
+    p = _run(env, "acquire", "--series", "17.0", "--addons-path-overide", "/tmp")
+    assert p.returncode != 0
+    assert "--addons-path-overide" in p.stderr
+
+
+def test_alloc_output_and_lease_agree_under_override(fixt, tmp_path):
+    """ALLOC_ADDONS_PATH (:527) and the lease's addons_path (:743) are separate
+    literals - a one-sided patch must not pass this."""
+    env, _, _ = fixt
+    d = tmp_path / "wt"
+    d.mkdir()
+    p, out = _acquire(
+        env, "--mode", "ephemeral", "--no-create", "--ports", "0",
+        "--addons-path-override", str(d),
+    )
+    assert p.returncode == 0, p.stderr
+    leases = _leases(env)
+    assert out["ALLOC_ADDONS_PATH"] == leases[0]["addons_path"] == str(d)
+
+
+def test_override_does_not_leak_across_leases(fixt, tmp_path):
+    env, _, _ = fixt
+    d = tmp_path / "wt"
+    d.mkdir()
+    p1, _ = _acquire(
+        env, "--mode", "ephemeral", "--no-create", "--ports", "0",
+        "--addons-path-override", str(d),
+    )
+    assert p1.returncode == 0, p1.stderr
+    p2, out2 = _acquire(env, "--mode", "ephemeral", "--no-create", "--ports", "0")
+    assert p2.returncode == 0, p2.stderr
+    assert out2["ALLOC_ADDONS_PATH"] == "/srv/odoo/addons,/srv/custom"
+    leases = _leases(env)
+    assert len(leases) == 2
+    assert sorted(lz["addons_path"] for lz in leases) == sorted(
+        [str(d), "/srv/odoo/addons,/srv/custom"]
+    )
+
+
+def test_readonly_mode_honors_override(fixt, tmp_path):
+    env, _, _ = fixt
+    d = tmp_path / "wt"
+    d.mkdir()
+    p = _run(
+        env, "acquire", "--series", "17.0", "--mode", "readonly",
+        "--addons-path-override", str(d),
+    )
+    assert p.returncode == 0, p.stderr
+    out = _parse_alloc(p.stdout)
+    assert out["ALLOC_ADDONS_PATH"] == str(d)
+
+
+def test_shared_mode_honors_override(fixt, tmp_path):
+    env, _, _ = fixt
+    d = tmp_path / "wt"
+    d.mkdir()
+    p = _run(
+        env, "acquire", "--series", "17.0", "--mode", "shared",
+        "--addons-path-override", str(d),
+    )
+    assert p.returncode == 0, p.stderr
+    out = _parse_alloc(p.stdout)
+    assert out["ALLOC_ADDONS_PATH"] == str(d)
+
+
+def test_nonexistent_override_dir_is_refused_non_zero(fixt, tmp_path):
+    env, _, _ = fixt
+    missing = tmp_path / "does-not-exist"
+    p = _run(
+        env, "acquire", "--series", "17.0", "--mode", "ephemeral",
+        "--no-create", "--ports", "0",
+        "--addons-path-override", str(missing),
+    )
+    assert p.returncode != 0
+    assert str(missing) in p.stderr
+
+
+def test_first_addons_entry_wins_resolves_under_the_worktree(fixt, tmp_path):
+    """The CONTRACT test: Odoo's addons-path is first-wins, so the fix means
+    nothing unless the worktree's copy of the module is the FIRST entry."""
+    env, _, _ = fixt
+    wt = tmp_path / "wt"
+    (wt / "mymod").mkdir(parents=True)
+    (wt / "mymod" / "__manifest__.py").write_text("{}", encoding="utf-8")
+    catalog = tmp_path / "catalog"
+    (catalog / "mymod").mkdir(parents=True)
+    (catalog / "mymod" / "__manifest__.py").write_text("{}", encoding="utf-8")
+    override = f"{wt},{catalog}"
+    p, out = _acquire(
+        env, "--mode", "ephemeral", "--no-create", "--ports", "0",
+        "--addons-path-override", override,
+    )
+    assert p.returncode == 0, p.stderr
+    assert out["ALLOC_ADDONS_PATH"].split(",")[0] == str(wt)
+
+
+def test_no_global_catalog_and_nonempty_project_catalog_emits_named_fallthrough(tmp_path):
+    home = tmp_path / "home"
+    home.mkdir()  # no instances.toml here -> the global catalog is absent
+    project = tmp_path / "project"
+    project_catalog_dir = project / ".odoo-ai"
+    project_catalog_dir.mkdir(parents=True)
+    (project_catalog_dir / "instances.toml").write_text(INSTANCES_TOML, encoding="utf-8")
+    env = dict(os.environ)
+    env["ODOO_AI_HOME"] = str(home)
+    env["HOME"] = str(home)
+    env.pop("ODOO_AI_INSTANCES", None)
+    p = subprocess.run(
+        [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
+         "--mode", "ephemeral", "--no-create", "--ports", "0"],
+        capture_output=True, text=True, env=env, cwd=str(project),
+    )
+    assert p.returncode == 0, p.stderr
+    assert "NO_GLOBAL_INSTANCE_CATALOG" in p.stderr
+    assert "/odoo-setup" in p.stderr
+
+
+def test_no_catalog_anywhere_emits_named_diagnostic(tmp_path):
+    home = tmp_path / "home"
+    home.mkdir()
+    project = tmp_path / "project"
+    project.mkdir()
+    env = dict(os.environ)
+    env["ODOO_AI_HOME"] = str(home)
+    env["HOME"] = str(home)
+    env.pop("ODOO_AI_INSTANCES", None)
+    p = subprocess.run(
+        [sys.executable, str(ALLOC), "acquire", "--series", "17.0",
+         "--mode", "ephemeral", "--no-create", "--ports", "0"],
+        capture_output=True, text=True, env=env, cwd=str(project),
+    )
+    assert p.returncode != 0
+    assert "NO_INSTANCE_CATALOG" in p.stderr
+    assert "/odoo-setup" in p.stderr
+
+
+def test_python_and_shell_agree_on_instances_nonempty(tmp_path):
+    """Byte-parity with resolve_instances.sh's own _instances_nonempty (a
+    column-anchored `grep -qE '^\\[\\[instance\\]\\]'`) - the Python and shell
+    halves must never disagree about which catalog file is authoritative."""
+    alloc = _import_allocator()
+
+    empty_toml = tmp_path / "empty.toml"
+    empty_toml.write_text("# no instance table here\n", encoding="utf-8")
+
+    flush_toml = tmp_path / "flush.toml"
+    flush_toml.write_text("[[instance]]\nseries = \"17.0\"\n", encoding="utf-8")
+
+    indented_toml = tmp_path / "indented.toml"
+    indented_toml.write_text("  [[instance]]\nseries = \"17.0\"\n", encoding="utf-8")
+
+    resolve_sh = ROOT / "plugins" / "odoo-ai-agents" / "scripts" / "lib" / "resolve_instances.sh"
+    for path, expected in (
+        (empty_toml, False),
+        (flush_toml, True),
+        (indented_toml, False),
+    ):
+        py_result = alloc._instances_nonempty(str(path))
+        assert py_result is expected, f"python side for {path.name}"
+        sh = subprocess.run(
+            ["bash", "-c", f'source "{resolve_sh}" && _instances_nonempty "{path}"'],
+            capture_output=True, text=True,
+        )
+        sh_result = sh.returncode == 0
+        assert sh_result is expected, f"shell side for {path.name}: {sh.stderr}"
+        assert py_result == sh_result, f"python/shell disagree for {path.name}"

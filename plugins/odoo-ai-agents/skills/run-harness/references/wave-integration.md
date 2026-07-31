@@ -294,7 +294,9 @@ MODULE-DAG SLICE : <this module's node + in-wave depends_on (already cherry-pick
 TOPOLOGY         : <independent | linear | mixed | diamond - this module's place>
 DESIGN_DOC       : <child TDD for this module | none>
 MASTER_DESIGN_DOC: <master TDD path | none>
-design_index     : <path to <SHARE_DIR>/designs/*/index.yaml | none>
+SHARE_DIR        : <captured absolute path - resolved ONCE by run-harness against the run root>
+ISOLATE_DIR      : <captured absolute path - resolved ONCE by run-harness against the run root>
+design_index     : <absolute path under SHARE_DIR, e.g. <SHARE_DIR-literal>/designs/<slug>/index.yaml | none>
 ODOO VERSION     : <one resolved version for the run>
 REQUEST          : <precise description of what this module implements>
 Repo Capability Card: base=<principal> verify=<command> commit=<convention> confidential=<level>
@@ -487,8 +489,12 @@ the plan.
 **Example 3 - Cross-wave dependency (Block 2W lineage):**
 A wave-2 module depends on a wave-1 module.
 Action: wave-1's cherry-picked code is already on the single run-integration branch, so wave-2's
-module worktree - forked from run-integration - already carries the dependency on its addons-path,
-with NO per-wave PR between the waves and no case-4 BLOCKED.
+module worktree - forked from run-integration - CONTAINS the dependency's source. It is NOT on the
+verification instance's addons-path by default: the allocator emits the CATALOG addons list, which
+points at the principal checkout. The per-module brief therefore carries `WORKTREE_PATH` and
+`SELF_PROVISION: worktree-addons` so the coordinator provisions an instance rooted on its own
+worktree (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out).
+With that in place there is NO per-wave PR between the waves and no case-4 BLOCKED.
 
 **Example 4 - Ownership conflict (safety audit catches a bad plan):**
 The plan maps models.py to two module scopes.

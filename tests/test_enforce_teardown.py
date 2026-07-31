@@ -288,6 +288,33 @@ def test_live_owned_lease_at_done_without_handle_is_blocked(tmp_path):
     )
 
 
+def test_acquire_with_addons_override_still_correlates_a_run_id(tmp_path):
+    """CS-C2's --addons-path-override flag must not break the teardown gate's
+    run-id correlation. HARD CONSTRAINT 1: the hook derives the run-id by
+    grepping the transcript for a literal `allocator.py` + `acquire` CALL line
+    (enforce-teardown.sh :149-151); adding a flag to `acquire` is safe, but
+    wrapping the call in a helper or renaming the verb is not - this test is
+    the fence that makes that constraint testable."""
+    acquire_with_override = _tu(
+        "Bash",
+        command=(
+            "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py acquire "
+            "--series 17.0 --mode ephemeral --ports 1 --run-id run-abc "
+            "--addons-path-override /tmp/wt"
+        ),
+    )
+    lines = [_line(content=[acquire_with_override]), _line(content=[_cont("DONE")])]
+    _, out = _run(tmp_path, lines, leases=[_lease(run_id="run-abc", token="cd" * 16)])
+    assert out is not None and out.get("decision") == "block", (
+        "a live owned lease at a DONE claim must still block even when the "
+        "acquire command carried --addons-path-override - the flag must not "
+        "hide the call from the correlation grep"
+    )
+    reason = out.get("reason", "")
+    assert "cd" * 16 in reason, "the block reason must still name the exact lease token"
+    assert "release" in reason and "--run-id run-abc" in reason
+
+
 def test_all_matching_leases_are_listed_in_the_block_reason(tmp_path):
     """A run holding MORE THAN ONE live lease must get every token + release command, not just one."""
     lines = [_line(content=[_acquire("run-abc")]), _line(content=[_cont("DONE")])]

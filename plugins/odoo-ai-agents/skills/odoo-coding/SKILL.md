@@ -314,11 +314,15 @@ DB) and was handed NO `INSTANCE_HANDLE` self-provisions an ISOLATED instance by 
 db/port. `odoo-test-writer` NEVER self-provisions: when confirming RED needs a live run, it relays
 `NEEDS_NEXT: odoo-instance` up to its launcher (`odoo-coder`), which provisions the instance and
 re-launches it (`agents/odoo-coder.md` § NEEDS_NEXT: odoo-instance). A provided handle always wins
-(consume, never re-provision).
+(consume, never re-provision) - unless the brief carries `SELF_PROVISION: worktree-addons`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out).
 
 **Dispatcher-level invariant.** A module's coding run is not DONE until every instance its
-`odoo-coder` coordinator self-provisioned this run is released by that coordinator - a returned
-module SHA with a still-leased self-provisioned instance is not a clean handoff. Full rule:
+`odoo-coder` coordinator self-provisioned this run is released by that coordinator - whether it
+self-provisioned because no handle was forwarded OR because you authorized
+`SELF_PROVISION: worktree-addons`. A returned module SHA with a still-leased self-provisioned
+instance is not a clean handoff. Under the worktree-addons carve-out this is N leases per wave, so
+the release is per-module and non-negotiable. Full rule:
 `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T0/T1/T3.
 
 ### Dispatch loop - model-weighted batches
@@ -438,6 +442,8 @@ WORKTREE_PATH: <absolute worktree path> - ALWAYS set (odoo-coding self-provision
 NEW MODULE: <yes - ALWAYS scaffold with `odoo-bin scaffold` first; edit only needed keys and KEEP scaffold's commented placeholders; keep its short version default, do NOT rewrite to `<series>.x.y.z` | no>
 ODOO VERSION: <version>
 INSTANCE_HANDLE: <the run's provisioned instance handle from a prior odoo-instance step, when present - db_name/http_port/db_port/addons_path/venv/lease_token/run_id (full field list: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`); omit when the run provisioned none>
+SELF_PROVISION: worktree-addons | none - set `worktree-addons` for EVERY per-module dispatch that names a WORKTREE_PATH (then OMIT INSTANCE_HANDLE above; never send both); `none` only when the forwarded handle's ADDONS_PATH already covers this module's worktree
+ADDONS_PATH: <comma-joined dirs the forwarded instance loads - REQUIRED whenever INSTANCE_HANDLE is set; omit when SELF_PROVISION: worktree-addons>
 DESIGN_DOC: <child TDD path | none> - per-module spec; if present, build to it; do not re-derive.
 MASTER_DESIGN_DOC: <master TDD path | none> - hard constraints (ownership, dep-direction, §10 contracts); `none` in single mode.
 TEST: test-first (universal) - launch `odoo-test-writer` FIRST per WI to author the RED test, then the coder implements to green; the coders do NOT author tests. Forward the coverage pre-flight below to `odoo-test-writer`.
@@ -450,13 +456,19 @@ Follow the Rounds in your system prompt - it owns every procedure; do not re-der
 GUIDELINES: Round 1 owns this - open `coding_guidelines/<version>/INDEX.md` first, consult the "By task" table, read ONLY the mapped files (not the whole directory).
 ```
 
-- When an `INSTANCE_HANDLE` is present in the brief, the instance-touching agent MUST use it and
-  MUST NOT self-provision a DB / port / addons_path. Absent a handle: the `odoo-backend-coder`
-  self-provisions its bounded lint gate via `Skill(odoo-instance)`, and the `odoo-coder`
-  coordinator self-provisions the INTEGRATED module test the same way (never a bare `allocator.py` call -
-  `skills/_shared/concurrency-guard.md` § Odoo instance allocation). The `odoo-frontend-coder` is
-  INSTANCE-FREE: it never self-provisions; its live check is the coordinator's integrated module test.
-  Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`.
+- **Addons provenance is the DISPATCHER's job.** One lease carries one `addons_path`
+  (`scripts/lib/allocator.py`), so a single forwarded handle cannot be worktree-correct for N module
+  worktrees. For every per-module dispatch that names a `WORKTREE_PATH`, set
+  `SELF_PROVISION: worktree-addons` and omit `INSTANCE_HANDLE`; the coordinator then provisions its
+  own ephemeral instance via `Skill(odoo-instance)` (inline) with the worktree re-rooted onto the
+  addons list, and releases it before reporting. When you DO forward a handle, also state its
+  `ADDONS_PATH` so the receiver can run the coverage assertion. A receiver that holds a handle MUST
+  use it and MUST NOT invent a `db_name` or port; it MUST NOT re-derive `addons_path` from the
+  catalog; and it self-provisions ONLY under the authorizing token. Absent both a handle and the
+  token, the `odoo-backend-coder` still self-provisions its bounded lint gate via
+  `Skill(odoo-instance)`, and the `odoo-frontend-coder` remains INSTANCE-FREE. Contract:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` (§ Worktree-addons carve-out,
+  § Addons coverage assertion).
 - To run `odoo-bin` (scaffold, or tests via `--test-enable`), resolve the interpreter per
   `snippets/venv-resolution.md` - never assume system `python3`.
 - Frontend WI only: ground styling tokens against `skills/_shared/odoo-frontend-fidelity.md`

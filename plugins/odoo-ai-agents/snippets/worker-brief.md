@@ -41,12 +41,16 @@ re-commits). See `${CLAUDE_PLUGIN_ROOT}/agents/odoo-coder.md`.
 - **Carve-out - self-provisioning an Odoo instance is permitted for the instance-touching leaves.**
   Unlike git-ops, `odoo-backend-coder` (for its bounded `/test_lint` gate) and the other
   instance-touching leaves MAY invoke `Skill(odoo-instance)` to self-provision a live Odoo instance
-  when handed NO `INSTANCE_HANDLE`. This is allowed because `odoo-instance` applies the instance
-  HARD RULES (`en_US` union, Viindoo `to_base`, lint-module install, per-version `cli_help`
-  grounding); do NOT call `scripts/lib/allocator.py` directly, which would bypass them. A provided
-  `INSTANCE_HANDLE` always wins: consume it, never re-provision. Because you are a declared HARD
-  LEAF, `odoo-instance` runs INLINE for you (never launches `odoo-instance-ops`) - this is a MUST,
-  not a judgment call, per its own binding rule.
+  when handed NO `INSTANCE_HANDLE`, or when your brief carries `SELF_PROVISION: worktree-addons`.
+  This is allowed because `odoo-instance` applies the instance HARD RULES (`en_US` union, Viindoo
+  `to_base`, lint-module install, per-version `cli_help` grounding) AND resolves addons provenance -
+  it re-roots the addons list onto your `WORKTREE_PATH` so the instance loads YOUR code, not the
+  principal checkout; do NOT call `scripts/lib/allocator.py` directly, which would bypass all of
+  that. A provided `INSTANCE_HANDLE` always wins: consume it, never re-provision - unless your brief
+  carries `SELF_PROVISION: worktree-addons`
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out). Because
+  you are a declared HARD LEAF, `odoo-instance` runs INLINE for you (never launches
+  `odoo-instance-ops`) - this is a MUST, not a judgment call, per its own binding rule.
   `odoo-frontend-coder` is INSTANCE-FREE - it never self-provisions; its only gate is the static
   `verify-frontend.sh`, and any live check is owned by the `odoo-coder` coordinator's integrated
   test or a delegated `odoo-instance` run. Contract:

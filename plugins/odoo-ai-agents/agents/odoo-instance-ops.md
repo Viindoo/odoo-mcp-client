@@ -54,6 +54,13 @@ eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/allocator.py acquire \
 # -> $ALLOC_DB_HOST, $ALLOC_DB_USER, $ALLOC_SERIES, $ALLOC_DB_PORT, $ALLOC_RUN_ID
 ```
 
+Add `--addons-path-override "<comma-joined dirs>"` whenever the brief carries a `WORKTREE_PATH`.
+It REPLACES the catalog addons list for this lease only - `$ALLOC_ADDONS_PATH` and the persisted
+lease both carry the override, so every `--addons "$ALLOC_ADDONS_PATH"` below is already correct and
+needs no per-operation change. Build the value per `odoo-instance/SKILL.md` § WORKTREE_PATH
+substitution; never edit `instances.toml`, and never pass the flag on a setup-path spin-up (the
+instance IDENTITY token hashes the addons path - `docs/reference/INSTANCE-ALLOCATION.md:208-211`).
+
 Pass `--run-id <run-id>` whenever the dispatch brief or the run worklog slug identifies the calling
 run - it registers lease ownership and echoes back as `$ALLOC_RUN_ID`; forward that value into every
 later release/drop call so the rightful owner is never blocked from releasing its own lease. Omit it

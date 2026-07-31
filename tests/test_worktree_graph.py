@@ -29,6 +29,7 @@ CODER = PLUGIN / "agents" / "odoo-coder.md"
 RUN_HARNESS = PLUGIN / "skills" / "run-harness" / "SKILL.md"
 LEDGER = PLUGIN / "snippets" / "module-coordination-ledger.md"
 INTEGRATION_LOOP = PLUGIN / "skills" / "_shared" / "integration-loop.md"
+WAVE_INTEGRATION = PLUGIN / "skills" / "run-harness" / "references" / "wave-integration.md"
 
 
 def _text(p: Path) -> str:
@@ -219,4 +220,72 @@ def test_ledger_notes_intra_run_structurally_solved():
     )
     assert "cross-run" in low, (
         "the ledger must state it now backstops ONLY concurrent independent (cross-run) coordination"
+    )
+
+
+# ---------------------------------------------------------------------------
+# CS-C2 - worktree-correct addons path: wave-integration.md fixes
+#
+# Every literal-absence assertion below normalizes whitespace first
+# (the prose is hard-wrapped, so a literal spanning a line-wrap would
+# otherwise false-negative).
+# ---------------------------------------------------------------------------
+
+def _normalize_ws(text: str) -> str:
+    return re.sub(r"\s+", " ", text)
+
+
+def _module_invocation_brief_fence() -> str:
+    """The fenced ``` ... ``` block under '## Per-module Invocation Brief Template'."""
+    text = _text(WAVE_INTEGRATION)
+    marker = "## Per-module Invocation Brief Template"
+    start = text.find(marker)
+    assert start != -1, (
+        "wave-integration.md must carry '## Per-module Invocation Brief Template'"
+    )
+    fence_start = text.find("```", start)
+    assert fence_start != -1, "the brief template must be a fenced block"
+    fence_end = text.find("```", fence_start + 3)
+    assert fence_end != -1, "the brief template fence must close"
+    return text[fence_start: fence_end + 3]
+
+
+def test_per_module_brief_has_no_unresolved_state_root_placeholder():
+    """A (absence): inside the brief fence, no line may contain the literal
+    `<SHARE_DIR>` or `<ISOLATE_DIR>` UNLESS that line is the `SHARE_DIR:` /
+    `ISOLATE_DIR:` field itself (a resolved-path placeholder is fine there;
+    an unresolved one leaking into another field, e.g. design_index, is not)."""
+    fence = _module_invocation_brief_fence()
+    for line in fence.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("SHARE_DIR") or stripped.startswith("ISOLATE_DIR"):
+            continue
+        norm = _normalize_ws(line)
+        assert "<SHARE_DIR>" not in norm and "<ISOLATE_DIR>" not in norm, (
+            f"unresolved state-root placeholder leaked into a non-field brief line: {line!r}"
+        )
+
+
+def test_per_module_brief_carries_share_and_isolate_fields():
+    """A (presence-of-field): the per-module brief fence declares both
+    SHARE_DIR and ISOLATE_DIR as captured-literal fields."""
+    fence = _module_invocation_brief_fence()
+    assert re.search(r"^SHARE_DIR\s*:", fence, re.MULTILINE), (
+        "the per-module brief fence must carry a SHARE_DIR field"
+    )
+    assert re.search(r"^ISOLATE_DIR\s*:", fence, re.MULTILINE), (
+        "the per-module brief fence must carry an ISOLATE_DIR field"
+    )
+
+
+def test_wave_integration_does_not_claim_worktree_carries_addons_path():
+    """A (absence, whitespace-normalized): wave-integration.md must not claim a
+    wave-2 worktree forked from run-integration already carries the dependency
+    on its addons-path by default - the allocator emits the CATALOG addons
+    list (the principal checkout), not the worktree. Deletion-only by
+    construction: the claim is one specific false sentence."""
+    text = _normalize_ws(_text(WAVE_INTEGRATION))
+    assert "already carries the dependency on its addons-path" not in text, (
+        "wave-integration.md must not claim a forked worktree already carries the "
+        "cross-wave dependency on its addons-path - see the Worktree-addons carve-out"
     )
