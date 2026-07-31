@@ -21,6 +21,7 @@ Files under test (all under plugins/odoo-ai-agents/):
   - skills/odoo-git-rebase/references/rb-phase-detail.md
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -35,6 +36,9 @@ INSTALLABLE_FALSE = PLUGIN / "snippets" / "fp-installable-false.md"
 TRIAGE_TABLE = PLUGIN / "skills" / "odoo-forward-port" / "references" / "fp-triage-table.md"
 DEBUG_METHOD = PLUGIN / "skills" / "_shared" / "debug-method.md"
 BACKEND_DEBUGGER = PLUGIN / "agents" / "odoo-backend-debugger.md"
+# CS-C10: odoo-installable-prober is the leaf that resolves the residual
+# category-3 ambiguity; no test in this file opened it before CS-C10.
+PROBER = PLUGIN / "agents" / "odoo-installable-prober.md"
 
 
 # ---------------------------------------------------------------------------
@@ -1126,4 +1130,306 @@ class TestUpgTriageTableNoVersionBump:
         assert "version bump with no logic" not in norm, (
             "upg-triage-table.md must not permit a 'version bump with no logic' change "
             "as an ADAPT scenario - same contradiction as above"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 24 (CS-C10) - `installable` grounding inverted: disk-read is the
+# ONLY path, never OSM. OSM never carries the manifest `installable` flag
+# (established empirically: describe_module / module_inspect(summary) /
+# check_module_exists return identical field sets with no `installable` line,
+# on both a definitely-installable module and a dormant hardware-driver
+# module). The pre-CS-C10 prose framed OSM as PRIMARY and the manifest read
+# as a fallback; since module_inspect always SUCCEEDS, the "OSM MISS" branch
+# never fired and the failure was silent.
+#
+# Every absence assertion below is whitespace-normalized before searching.
+# This is not cosmetic: 'OSM already grounds categories 1-2' is hard-wrapped
+# across two source lines in both SKILL.md and fp-phase-detail.md, so a raw
+# (non-normalized) `in` check on that literal returns False on the un-fixed
+# base commit - a green test that asserts nothing. Verified directly:
+#   "OSM already grounds categories 1-2" in raw text -> False (both files)
+#   "OSM already grounds categories 1-2" in " ".join(text.split())  -> True
+# ---------------------------------------------------------------------------
+
+GENERATOR_DIR = PLUGIN / "generator"
+SKILL_TOOL_DEPS = GENERATOR_DIR / "skill_tool_deps.json"
+FEATURE_CATALOGER = PLUGIN / "agents" / "odoo-feature-cataloger.md"
+FP_ALL_MD = sorted(
+    (PLUGIN / "skills" / "odoo-forward-port").rglob("*.md")
+) + sorted(PLUGIN.glob("snippets/fp-*.md"))
+
+
+def _ws_normalize(text):
+    """Collapse ALL whitespace (including markdown hard-wraps) to single
+    spaces so a literal-phrase search cannot be defeated by line wrapping."""
+    return " ".join(text.split())
+
+
+class TestProberDoesNotGroundInstallableInOSM:
+    """odoo-installable-prober.md must resolve `installable` from the target
+    clean-tip manifest ONLY. Base commit: Step 1 opens with '**OSM primary.**
+    Call `module_inspect`...' and records `target_grounding: osm` on success;
+    the manifest read is framed as the OSM-MISS fallback (:53) and
+    `target_grounding: ungrounded` is a live enum value (:36, :129).
+
+    RED today (verified against the base commit) on:
+      - ':43' contains 'OSM primary.'
+      - ':51' contains 'target_grounding: osm'
+      - ':36' contains 'ungrounded' (as a value the field can take)
+      - the file contains a `module_inspect(` call at all (it is dropped
+        from this agent's `mcp_tools` entirely by CS-C10 edit 10)
+    """
+
+    def setup_method(self):
+        self.text = PROBER.read_text(encoding="utf-8")
+        self.norm = _ws_normalize(self.text)
+
+    def test_no_osm_primary_framing_or_osm_grounding_value(self):
+        assert "OSM primary" not in self.norm, (
+            "odoo-installable-prober.md must not frame OSM as the primary source for "
+            "the installable flag - OSM never exposes the manifest installable flag; "
+            "disk-read of the target clean-tip manifest is the ONLY path"
+        )
+        assert "target_grounding: osm" not in self.norm, (
+            "odoo-installable-prober.md must never record target_grounding: osm - "
+            "grounding is always manifest-file (the only path), never osm"
+        )
+
+    def test_ungrounded_grounding_value_is_gone(self):
+        assert "ungrounded" not in self.norm, (
+            "target_grounding must not offer 'ungrounded' as a value - manifest_path "
+            "is now a REQUIRED input, so its absence is a BLOCK, never a degraded/"
+            "ungrounded verdict a downstream consumer could misread as a fact"
+        )
+
+    def test_no_module_inspect_call_remains(self):
+        """After CS-C10, `module_inspect` is dropped from this agent's `mcp_tools`
+        (SSOT: skill_tool_deps.json) - the prose must not reference it either."""
+        assert "module_inspect" not in self.text, (
+            "odoo-installable-prober.md must not call module_inspect - OSM does not "
+            "carry the manifest installable flag, so this agent has no remaining use "
+            "for it (its mcp_tools list drops it entirely)"
+        )
+
+    def test_manifest_path_required_and_blocked_on_absence(self):
+        """Presence half: the fix must install the REQUIRED/BLOCKED replacement,
+        not just delete the OSM claim and leave nothing in its place."""
+        assert "REQUIRED" in self.norm, (
+            "manifest_path must be documented as REQUIRED input"
+        )
+        assert "manifest_path" in self.norm and "BLOCKED" in self.norm, (
+            "absence of manifest_path must be documented as a BLOCK outcome"
+        )
+
+    def test_absent_key_default_is_stated_explicitly(self):
+        """Finding #5: the rule must state Odoo's own default (absent key =
+        installable) explicitly - an agent must not have to infer it."""
+        assert "absent" in self.norm and "installable" in self.norm.lower(), (
+            "the absent-key case must be covered at all"
+        )
+        # The specific default value must be spelled out next to "absent", not
+        # left for the reader to infer from Odoo trivia.
+        assert (
+            "key is absent" in self.norm or "absent key" in self.norm
+        ) and "True" in self.text, (
+            "odoo-installable-prober.md must explicitly state that an absent "
+            "'installable' key means installable (Odoo's own default is True) - "
+            "never leave this to inference"
+        )
+
+
+class TestForwardPortFilesDoNotClaimOSMGroundsInstallable:
+    """No forward-port prose file may claim OSM grounds/returns the manifest
+    `installable` flag. Glob-derived (not hardcoded) so a future file in
+    skills/odoo-forward-port/ or a new snippets/fp-*.md is covered automatically.
+
+    RED today (verified against the base commit) on 3 files / 5 sites:
+      - SKILL.md: 'OSM returned `installable:True`' + 'OSM already grounds
+        categories 1-2' (P2 prose), and the Model-triage short-circuit's
+        `module_inspect(...)` call on the same line as 'installable'
+      - fp-phase-detail.md: same two P2 phrases, plus the 8c-bis
+        `module_inspect(...)` call carrying a '# read installable' comment
+        (two sites: P2 pre-merge probe, 8c-bis re-probe)
+      - fp-triage-table.md: both SHORT-CIRCUIT GATE blockquotes read
+        'installable' on the line immediately before a `module_inspect(...)` call
+    """
+
+    def test_files_glob_is_non_empty_and_matches_known_set(self):
+        # Guards the glob itself: if the forward-port tree is ever restructured
+        # so this glob silently returns nothing, the two assertions below would
+        # vacuously pass. Pin the count, not the exact names, so a genuinely
+        # new file still gets covered without editing this test.
+        assert len(FP_ALL_MD) >= 3, (
+            "expected the forward-port SKILL.md + references/*.md, at minimum "
+            f"3 files - glob returned {[str(p) for p in FP_ALL_MD]}"
+        )
+
+    def test_no_file_claims_osm_already_grounds_or_osm_returned_installable(self):
+        offenders = []
+        for path in FP_ALL_MD:
+            norm = _ws_normalize(path.read_text(encoding="utf-8"))
+            if "OSM already grounds categories 1-2" in norm:
+                offenders.append(f"{path.relative_to(PLUGIN)}: 'OSM already grounds categories 1-2'")
+            idx = norm.find("OSM returned")
+            if idx != -1 and "installable" in norm[idx:idx + 40]:
+                offenders.append(f"{path.relative_to(PLUGIN)}: 'OSM returned ... installable'")
+        assert not offenders, (
+            "the following forward-port files still claim OSM grounds/returns the "
+            "installable flag:\n" + "\n".join(offenders)
+        )
+
+    def test_no_module_inspect_call_adjacent_to_installable(self):
+        """No line calling `module_inspect(` may have 'installable' on that same
+        line or the line immediately before it - that adjacency is exactly the
+        pattern that presents a non-existent OSM capability as real.
+
+        A 3-line window was tried and rejected: it false-positives on
+        snippets/fp-symbol-survival-check.md:320-321 (two unrelated adjacent
+        SYMBOL-BROKEN record rows, one mentioning 'module_inspect' for an
+        import-resolution check, the next for an installable-flag record) -
+        that file needs no CS-C10 edit. The (previous line, this line) window
+        flags exactly the 3 real files and nothing else.
+        """
+        offenders = []
+        for path in FP_ALL_MD:
+            lines = path.read_text(encoding="utf-8").splitlines()
+            for i, line in enumerate(lines):
+                if "module_inspect(" not in line:
+                    continue
+                window = " ".join(lines[max(0, i - 1): i + 1])
+                if "installable" in window:
+                    offenders.append(f"{path.relative_to(PLUGIN)}:{i + 1}: {line.strip()[:80]!r}")
+        assert not offenders, (
+            "the following lines call module_inspect( adjacent to 'installable' - "
+            "OSM does not expose this flag, so the call must not be presented as a "
+            "way to read it:\n" + "\n".join(offenders)
+        )
+
+
+class TestProberRegistryEntryNamesManifestNotModuleInspect:
+    """skill_tool_deps.json's odoo-installable-prober entry (the SSOT `check_deps.py`
+    validates) must not list module_inspect among its mcp_tools, and its notes must
+    name the manifest read as the mechanism.
+
+    RED today: agents["odoo-installable-prober"]["mcp_tools"] contains
+    "module_inspect" (base commit :707).
+    """
+
+    def setup_method(self):
+        self.deps = json.loads(SKILL_TOOL_DEPS.read_text(encoding="utf-8"))
+        self.entry = self.deps["agents"]["odoo-installable-prober"]
+
+    def test_mcp_tools_does_not_reference_module_inspect(self):
+        assert "module_inspect" not in self.entry.get("mcp_tools", []), (
+            "odoo-installable-prober's mcp_tools must not include module_inspect - "
+            "OSM never carries the manifest installable flag, so this tool has no "
+            "remaining purpose for this agent"
+        )
+
+    def test_notes_name_the_manifest_read(self):
+        assert "manifest" in self.entry.get("notes", ""), (
+            "odoo-installable-prober's notes must name the manifest read as the "
+            "mechanism for resolving installable, not an OSM probe"
+        )
+
+    def test_set_active_version_still_present_and_justifies_the_floor(self):
+        """set_active_version stays as the sanctioned OSM reachability probe
+        (CS-C8) - its version_added is what keeps min_server_version 0.6.0
+        justified by check_deps.py's invariant 3 (needed <= floor)."""
+        assert self.entry.get("mcp_tools") == ["set_active_version"], (
+            "odoo-installable-prober's mcp_tools should be exactly "
+            "['set_active_version'] after dropping module_inspect"
+        )
+        assert self.entry.get("min_server_version") == "0.6.0", (
+            "min_server_version must stay 0.6.0 - satisfied by set_active_version's "
+            "own version_added floor"
+        )
+
+
+class TestInstallableFalseIsTheOnlyFieldConsumersRead:
+    """Finding #3: no consumer parses `target_installable` (the prober's
+    internal, per-manifest-read value); the value actually persisted to
+    merge-log.md - and the only field name any other file references - is
+    `installable_false=yes|no` (the merge_log_line format).
+
+    This binds WRITER (odoo-installable-prober.md's merge_log_line contract)
+    to READER (every other forward-port file that acts on the resolved
+    installable state): the internal fields (`target_installable`,
+    `target_grounding`) must never leak into orchestrator-facing prose, and
+    the orchestrator's OWN direct resolution (categories 1-2, no prober
+    dispatch) must record the SAME `installable_false=` field to merge-log.md
+    that the prober uses - otherwise the majority of modules (which never go
+    through the prober) would be invisible to any later reader keying off
+    that field name.
+    """
+
+    ORCHESTRATOR_FACING = [SKILL_MD, PHASE_DETAIL, TRIAGE_TABLE, INSTALLABLE_FALSE,
+                            PLUGIN / "snippets" / "fp-merge-absorption.md"]
+
+    def test_prober_writes_installable_false_field(self):
+        text = PROBER.read_text(encoding="utf-8")
+        assert "installable_false=" in text, (
+            "odoo-installable-prober.md's merge_log_line example must use the "
+            "installable_false= field - the one durable, cross-agent-readable name"
+        )
+        assert "installable_false:" in text, (
+            "odoo-installable-prober.md's structured verdict block must expose "
+            "installable_false: as a field"
+        )
+
+    def test_internal_fields_never_leak_into_orchestrator_facing_prose(self):
+        offenders = []
+        for path in self.ORCHESTRATOR_FACING:
+            text = path.read_text(encoding="utf-8")
+            for internal_field in ("target_installable", "target_grounding"):
+                if internal_field in text:
+                    offenders.append(f"{path.relative_to(PLUGIN)} contains '{internal_field}'")
+        assert not offenders, (
+            "internal prober-only fields must not appear in orchestrator-facing "
+            "prose - the only field crossing that boundary is installable_false:\n"
+            + "\n".join(offenders)
+        )
+
+    def test_orchestrator_direct_resolution_writes_installable_false_too(self):
+        """Categories 1-2 are resolved by the orchestrator directly (no prober
+        dispatch) - SKILL.md and fp-phase-detail.md must instruct writing the
+        SAME installable_false= field to merge-log.md for those modules, or a
+        later reader keying off that field name would be blind to most modules."""
+        for path in (SKILL_MD, PHASE_DETAIL):
+            text = path.read_text(encoding="utf-8")
+            assert "installable_false=" in text, (
+                f"{path.relative_to(PLUGIN)} must instruct writing installable_false= "
+                "to merge-log.md for the orchestrator's own direct-path modules "
+                "(categories 1-2), the same field the prober's merge_log_line uses"
+            )
+
+
+class TestReadmeAndFeatureCatalogerDoNotClaimOSMGroundsInstallable:
+    """README.md's forward-port P2 description and odoo-feature-cataloger.md's
+    OSM step must not claim OSM supplies the installable flag either - these
+    two files sit outside the glob above (README is prose-only docs, the
+    cataloger is a different pipeline) but state the identical claim."""
+
+    def test_readme_p2_mentions_manifest_not_just_osm(self):
+        readme = (PLUGIN / "README.md").read_text(encoding="utf-8")
+        assert "clean-tip manifest" in readme, (
+            "README.md's P2 description must mention the target clean-tip manifest "
+            "as the installable source, not OSM alone"
+        )
+        assert "probes target clean-tip + source git-history" not in readme, (
+            "README.md's odoo-installable-prober row must not claim it 'probes' "
+            "target clean-tip via OSM - it reads the orchestrator-written manifest"
+        )
+
+    def test_feature_cataloger_does_not_claim_osm_has_installable_state(self):
+        text = FEATURE_CATALOGER.read_text(encoding="utf-8")
+        norm = _ws_normalize(text)
+        assert "note edition (CE/EE) and installable state" not in norm, (
+            "odoo-feature-cataloger.md must not claim check_module_exists/OSM "
+            "supplies installable state - it must read the manifest on disk instead"
+        )
+        assert "__manifest__.py" in text and "installable" in text, (
+            "odoo-feature-cataloger.md must still cover installable state, just "
+            "grounded via the module's __manifest__.py on disk"
         )

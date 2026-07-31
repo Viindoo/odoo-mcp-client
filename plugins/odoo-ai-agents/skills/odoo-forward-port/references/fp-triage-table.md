@@ -14,9 +14,9 @@ tier in `plan.md`; the tier is part of the approved plan, not a runtime improvis
 ## Table 1 - EXTRACT tier (P0 triage -> P1 intent extraction)
 
 > **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row):**
-> If the module's `installable` field is `False` at the TARGET version
-> (confirm via `module_inspect(name='<module>', method='summary', odoo_version='<target>')` or
-> read the target `__manifest__.py`) -> this module is on the **lint-only lane**.
+> If the module's `installable` field is `False` at the TARGET clean tip
+> (read `<module>/__manifest__.py` at the target ref - the value P2 resolved into `manifest_path`;
+> an absent key means installable) -> this module is on the **lint-only lane**.
 > Do NOT walk the tier rows below. Do NOT dispatch extract or adapt logic.
 > Only dispatch a haiku lint-fix agent if CI is red due to a syntax error.
 > See [[fp-installable-false]] for the full lint-only lane specification.
@@ -43,9 +43,9 @@ Constraints:
 ## Table 2 - ADAPT tier (P8 code adapt)
 
 > **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row):**
-> If the module's `installable` field is `False` at the TARGET version
-> (confirm via `module_inspect(name='<module>', method='summary', odoo_version='<target>')` or
-> read the target `__manifest__.py`) -> this module is on the **lint-only lane**.
+> If the module's `installable` field is `False` at the TARGET clean tip
+> (read `<module>/__manifest__.py` at the target ref - the value P2 resolved into `manifest_path`;
+> an absent key means installable) -> this module is on the **lint-only lane**.
 > Do NOT walk the tier rows below. Do NOT dispatch adapt logic or business-logic review.
 > Only dispatch a haiku lint-fix agent if CI is red due to a syntax error.
 > See [[fp-installable-false]] for the full lint-only lane specification.

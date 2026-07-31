@@ -103,6 +103,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   since it already scans skills/snippets/agents/docs and is this repo's single home for English-only
   evasion detection - the Vietnamese counterpart stays in the persona-docs guard, so the rule is not
   duplicated across two files.
+- `odoo-ai-agents` - `installable` is now resolved from the target clean-tip `__manifest__.py`
+  everywhere, not from OSM. The Odoo Semantic index does not carry the manifest flag, but
+  `module_inspect` SUCCEEDS, so the documented "OSM MISS" fallback branch never fired and the
+  forward-port pipeline could classify a module against a value OSM never supplied. The prober's
+  `manifest_path` becomes a REQUIRED orchestrator-produced input (a leaf cannot read a file at a ref
+  under the bounded-read allowlist), its absence is a BLOCK rather than an `ungrounded` verdict, and
+  the same inversion lands in forward-port's P2/P8/model-triage prose, both triage-table
+  short-circuit gates, two snippets, the feature cataloger, the tool registry and the README. The
+  prober's now-unreachable `UNKNOWN` target-state and `(tentative)` verdict branches are removed
+  (the manifest read always resolves `True`/`False`/absent-key-as-`True`/absent-file-as-`ABSENT`, or
+  BLOCKS - there is no remaining ambiguous case). The durable, cross-agent-readable field is
+  `installable_false=yes|no`, written to `merge-log.md` by BOTH the orchestrator's direct
+  resolution (categories 1-2) and the prober's verdict (category 3); the prober's internal
+  `target_installable`/`target_grounding` values are never persisted and no other file parses them.
 
 ## [4.18.1] - 2026-07-28
 
