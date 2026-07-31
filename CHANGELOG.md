@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `root=` in Python). Omitting it is byte-identical to the previous cwd-based behaviour. This removes
   the `cd`-wrapper fragility class for cross-worktree dispatch.
 
+### Fixed
+
+- `odoo-ai-agents` - the addons_path separator (comma, matching Odoo's own `--addons-path`/
+  `addons_path` syntax) now has a single source of truth: `scripts/lib/instances_io.py`'s
+  `join_addons_path`/`split_addons_path` (Python) and `scripts/lib/resolve_instances.sh`'s
+  `_addons_path_to_array` (bash). Every producer (`instances_io.py`, `allocator.py`) and shell
+  consumer (`45-venv.sh`, `47-instance-reset.sh`, `50-instance-spinup.sh`, `55-instance-ops.sh`,
+  `05-prereq-check.sh`) now goes through one of the two homes instead of hand-rolling a join/split,
+  closing two live producer/consumer separator mismatches that only fire with a 2+-entry
+  addons_path: `50-instance-spinup.sh`'s odoo-bin scan (setup path) and `55-instance-ops.sh`'s
+  odoo-bin scan (the path every module init/update/test call goes through). A structural test
+  (`test_addons_path_no_hardcoded_separator.py`) now fails on any new hardcoded separator outside
+  the two SSOT homes, and a cross-language parity test proves the Python and bash sides agree on
+  the same round trip.
+
 ## [4.18.1] - 2026-07-28
 
 ### Fixed

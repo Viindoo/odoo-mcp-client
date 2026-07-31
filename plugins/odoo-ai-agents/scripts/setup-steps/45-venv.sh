@@ -98,7 +98,7 @@ _core_root_for_series() {
     kv="$(python3 "$io" read "$INSTANCES_TOML" "$series" "$profile" 2>/dev/null)" || return 0
     eval "$kv" 2>/dev/null || return 0
     local p
-    IFS=':' read -ra _paths <<<"${INST_ADDONS_PATH:-}"
+    _addons_path_to_array _paths "${INST_ADDONS_PATH:-}"
     for p in "${_paths[@]}"; do
         [[ -n "$p" ]] || continue
         [[ -f "$p/requirements.txt" && -x "$p/odoo-bin" ]] && { echo "$p"; return 0; }
@@ -115,12 +115,13 @@ _core_odoo_bin_for_series() {
     return 0
 }
 
-# Echo absolute path to odoo-bin scanning a colon-separated addons_path string.
-# Used when INST_ADDONS_PATH is already resolved (e.g. from a profiled read).
+# Echo absolute path to odoo-bin scanning an addons_path string (SSOT
+# separator - see resolve_instances.sh's _addons_path_to_array). Used when
+# INST_ADDONS_PATH is already resolved (e.g. from a profiled read).
 _core_odoo_bin_from_addons_path() {
     local addons_path="$1"
     local p up
-    IFS=':' read -ra _bp <<<"${addons_path}"
+    _addons_path_to_array _bp "${addons_path}"
     for p in "${_bp[@]}"; do
         [[ -n "$p" ]] || continue
         [[ -x "$p/odoo-bin" ]] && { echo "$p/odoo-bin"; return 0; }
@@ -236,7 +237,7 @@ PY
             if [[ -n "$kv" ]]; then
                 eval "$kv" 2>/dev/null || true
                 local p
-                IFS=':' read -ra _ap <<<"${INST_ADDONS_PATH:-}"
+                _addons_path_to_array _ap "${INST_ADDONS_PATH:-}"
                 for p in "${_ap[@]}"; do
                     [[ -n "$p" ]] || continue
                     [[ -f "$p/requirements.txt" ]] && reqs_list+=("$p/requirements.txt")
@@ -265,7 +266,7 @@ PY
     if [[ -n "${INST_ADDONS_PATH:-}" ]]; then
         local _missing_repos=()
         local _rp _rp_up
-        IFS=':' read -ra _rcheck <<<"${INST_ADDONS_PATH}"
+        _addons_path_to_array _rcheck "${INST_ADDONS_PATH}"
         for _rp in "${_rcheck[@]}"; do
             [[ -n "$_rp" ]] || continue
             # Accept either the dir itself or its parent (addons subdir pattern)

@@ -24,6 +24,26 @@
 # no mapfile, no ${var,,}, no associative arrays; grep runs on a file, never
 # piped under `set -o pipefail`.
 
+# SSOT mirror of scripts/lib/instances_io.py's ADDONS_PATH_SEP/join_addons_path/
+# split_addons_path - keep the two in lockstep (T/test_addons_path_separator_parity.py
+# enforces this). Odoo's --addons-path CLI flag and its addons_path config-file key
+# are COMMA-separated, uniformly, across every indexed series 8.0-19.0.
+ADDONS_PATH_SEP=','
+
+# Populate the NAMED array $1 by splitting addons-path string $2 on the SSOT
+# separator (tolerates a stray legacy colon so an old caller degrades, never
+# hard-fails). Every setup-step that scans addons_path entries for odoo-bin or
+# a repo dir MUST call this instead of its own `IFS=... read -ra`.
+#
+# $1 is a variable NAME (not a nameref): `read -ra "$1"` assigns into whatever
+# variable that name resolves to in the caller's scope, exactly like the
+# `IFS=... read -ra _paths` lines this replaces - no `local -n` (bash 4.3+),
+# so this stays portable to bash 3.2 like the rest of this file.
+_addons_path_to_array() {
+    local _aptoa_norm="${2//:/,}"
+    IFS="$ADDONS_PATH_SEP" read -ra "$1" <<<"$_aptoa_norm"
+}
+
 # Echo the machine-global instances.toml path. Fails (returns 1 + stderr
 # diagnostic) ONLY when HOME, ODOO_AI_HOME and ODOO_AI_INSTANCES are all unset -
 # we refuse to silently target /.odoo-ai.

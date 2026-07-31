@@ -141,7 +141,7 @@ eval "$(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/lib/instances_io.py read ${ODOO_AI
 - If the command exits non-zero (no matching instance in instances.toml), skip the `## Verify environment` section entirely - do not block onboarding on it.
 - If it exits 0 but `INST_PYTHON` is empty (the `python` field was blank in instances.toml), omit `verify_python` from the section.
 - Only write `verify_python` when `INST_PYTHON` is a non-empty path.
-- `INST_ADDONS_PATH` uses colon-separated paths (`:`) - convert to comma-separated (`,`) before writing `addons_path` (the schema and Odoo `--addons-path` both expect commas).
+- `INST_ADDONS_PATH` is comma-separated (matching Odoo's own `--addons-path`/`addons_path` format) - no conversion needed before writing `addons_path`.
 
 ## Context file schema
 

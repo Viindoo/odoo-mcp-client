@@ -248,9 +248,10 @@ _identity_marker_path() {
 }
 
 _identity_token() {
-    # $1 = addons_path (colon-separated). Deterministic per project checkout -
-    # two different projects/repos never share addons_path, even when they
-    # share series, profile, db_name, and (in the race window) port.
+    # $1 = addons_path (comma-separated - see resolve_instances.sh's
+    # ADDONS_PATH_SEP). Separator-agnostic hash input: deterministic per
+    # project checkout - two different projects/repos never share addons_path,
+    # even when they share series, profile, db_name, and (in the race window) port.
     python3 -c '
 import hashlib, sys
 print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:16])
@@ -301,7 +302,7 @@ _find_odoo_bin() {
         echo "$ODOO_BIN"; return 0
     fi
     local p
-    IFS=',' read -ra _paths <<<"${INST_ADDONS_PATH:-}"
+    _addons_path_to_array _paths "${INST_ADDONS_PATH:-}"
     for p in "${_paths[@]}"; do
         [[ -n "$p" ]] || continue
         if [[ -x "$p/odoo-bin" ]]; then echo "$p/odoo-bin"; return 0; fi
@@ -624,7 +625,9 @@ cmd_apply() {
             conf="$(mktemp "${TMPDIR:-/tmp}/odoo-spinup-XXXXXX")" && mv "$conf" "$conf.conf" && conf="$conf.conf"
             {
                 echo "[options]"
-                echo "addons_path = $(printf '%s' "${INST_ADDONS_PATH:-}" | tr ':' ',')"
+                # INST_ADDONS_PATH is already comma-joined (the SSOT separator -
+                # see resolve_instances.sh's ADDONS_PATH_SEP) - no conversion needed.
+                echo "addons_path = ${INST_ADDONS_PATH:-}"
                 echo "$_port_key = $port"
                 # Second listening port (gevent/longpolling) - emitted when the
                 # agent passed both the port AND its resolved conf key (P5.6).

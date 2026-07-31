@@ -195,7 +195,7 @@ modules_installed: [<list or null>]
 demo: <true|false>
 languages_loaded: [<list or null>]      # load-language: locales verified active in res.lang
 venv_python: <path>
-addons_path: <colon-separated path>
+addons_path: <comma-separated path>
 log_path: <log file path>
 failed: <n or null>            # run-tests only; from TEST_FAILED=
 errors: <n or null>           # run-tests only; from TEST_ERROR=

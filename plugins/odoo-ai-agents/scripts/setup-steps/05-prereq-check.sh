@@ -26,6 +26,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB_DIR="$SCRIPT_DIR/../lib"
 ODOO_GIT_BASE="${ODOO_GIT_BASE:-$HOME/git}"
 SETUP_FILTER="${SETUP_FILTER:-all}"
+# addons_path separator SSOT mirror (_addons_path_to_array) - see
+# scripts/lib/instances_io.py's join_addons_path/split_addons_path docstring.
+# shellcheck source=../lib/resolve_instances.sh
+source "$LIB_DIR/resolve_instances.sh"
 
 cmd_describe() {
     echo "Check host prerequisites setup cannot install for you (Node, PostgreSQL, Odoo repos, Python)"
@@ -105,16 +109,16 @@ for it in instances_io.load_instances(toml):
     py = str(it.get("python", ""))
     ap = it.get("addons_path", [])
     if isinstance(ap, list):
-        ap = ",".join(str(x) for x in ap)
+        ap = instances_io.join_addons_path(ap)
     print("\t".join([series, py, str(ap)]))
 PY
 }
 
-# Locate odoo-bin for a colon-delimited addons_path (ODOO_BIN wins, else scan).
+# Locate odoo-bin for a comma-delimited addons_path (ODOO_BIN wins, else scan).
 _find_odoo_bin_in() {
     local addons_path="$1" p
     if [[ -n "${ODOO_BIN:-}" && -x "${ODOO_BIN}" ]]; then echo "$ODOO_BIN"; return 0; fi
-    IFS=',' read -ra _paths <<< "${addons_path}"
+    _addons_path_to_array _paths "${addons_path}"
     for p in "${_paths[@]}"; do
         [[ -n "$p" ]] || continue
         if [[ -x "$p/odoo-bin" ]]; then echo "$p/odoo-bin"; return 0; fi

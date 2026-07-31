@@ -524,7 +524,7 @@ def _resolve_instance(path, series, profile=None):
 
 def _emit_instance_common(inst):
     _emit("ALLOC_PYTHON", inst.get("python", ""))
-    _emit("ALLOC_ADDONS_PATH", ",".join(str(x) for x in inst.get("addons_path", [])))
+    _emit("ALLOC_ADDONS_PATH", instances_io.join_addons_path(inst.get("addons_path", [])))
     _emit("ALLOC_DB_HOST", inst.get("db_host", "localhost"))
     _emit("ALLOC_DB_USER", inst.get("db_user", "odoo"))
     # db_port is EMPTY when undeclared (never 5432); the handle forwards it so
@@ -740,7 +740,7 @@ def cmd_acquire(opts):
             # (never colon - that is PATH/PYTHONPATH style, not Odoo's addons-path
             # syntax), matching ALLOC_ADDONS_PATH above - so any future consumer can
             # forward this value to odoo-bin verbatim, with no extra conversion step.
-            "addons_path": ",".join(str(x) for x in inst.get("addons_path", [])),
+            "addons_path": instances_io.join_addons_path(inst.get("addons_path", [])),
             "db_host": host,
             "db_user": user,
             # db_port travels top-level beside db_host/db_user; empty when undeclared.
