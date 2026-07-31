@@ -1,8 +1,9 @@
 # Viindoo Upgrade Conventions
 
-> **DISTRIBUTION-SPECIFIC - GATING REQUIRED**
+> **CONVENTIONS 1-2 ARE VIINDOO-DISTRIBUTION-SPECIFIC - GATING REQUIRED**
 >
-> The rules below are Viindoo-distribution-specific. Apply them ONLY when BOTH conditions hold:
+> Conventions 1 and 2 below are Viindoo-distribution-specific. Apply Conventions 1-2 ONLY when
+> BOTH conditions hold:
 >
 > 1. OSM (`odoo-semantic`) is reachable (probe with `list_available_profiles` or `set_active_version`).
 > 2. The active profile resolves to a Viindoo Standard or Viindoo Internal distribution -
@@ -14,11 +15,21 @@
 >    `profile_inspect` / `list_available_profiles` /
 >    the currently active profile.
 >
-> If OSM is unavailable, OR the active profile is not a Viindoo Standard/Internal distribution
-> (e.g. Odoo CE/EE upstream or any other non-Viindoo distribution) - DO NOT apply these
-> rules.
+> If OSM is unavailable, OR the active profile is not a Viindoo Standard/Internal
+> distribution (e.g. Odoo CE/EE upstream or any other non-Viindoo distribution) -
+> DO NOT apply Conventions 1-2.
 
-> Conv-0, Conv-3 and Conv-4 are CORE Odoo rules (not Viindoo-specific); they appear here for upgrade context only and are reachable for ALL profiles via the version INDEX By-task table.
+> Conv-0, Conv-3 and Conv-4 are CORE Odoo rules (not Viindoo-specific); the gate above does NOT
+> apply to them - apply all three on EVERY profile/distribution, OSM-reachable or not. Conv-3's
+> and Conv-4's rule text lives in dedicated CORE files reachable via
+> `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/INDEX.md` § Snippets catalog
+> (`xml-view-conventions.md`, `odoo-version-pivots.md` - both tagged CORE, all distributions).
+> Conv-0 has no such standalone file - it is reached directly, at the point of obedience, not
+> through this file's own gate: every `odoo-modules-upgrade` P4 adapt dispatch brief
+> (`upg-phase-detail.md` § odoo-coding dispatch brief) cites this file by path unconditionally
+> (no profile check on the citation itself), which fires `odoo-backend-coder.md` /
+> `odoo-frontend-coder.md`'s "Modules-upgrade adapt" disposition (also unconditional on profile)
+> and sends the coder to § Convention 0 below - on ANY profile, Viindoo or not.
 
 ---
 

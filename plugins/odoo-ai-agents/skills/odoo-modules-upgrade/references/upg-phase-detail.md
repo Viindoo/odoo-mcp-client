@@ -541,6 +541,11 @@ INPUTS:
 - Breaking-change catalog: ${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-classification-table.md
 - Version delta (Removed + Changed for relevant symbols): version-delta.md
 - Design doc (if P2b produced one): <path or "none">
+- Conventions (CORE, applies on EVERY profile/distribution - never Viindoo-gated; this IS a
+  modules-upgrade adapt): ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md § Convention 0 - no
+  old-series compatibility, no migration script, no version bump, implement any
+  `reuse_candidates[]` target-core mechanism instead of a shim; see INSTRUCTIONS step 0c below
+  for the vendor-currency pass (clause (c)).
 
 ADAPT TIER: <haiku | sonnet | opus | fable> (from upg-triage-table.md)
 
@@ -585,6 +590,12 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
      path as every other change in this module. Leave DEFERRED items untouched in source (a future
      upgrade will pick them up); an UNANCHORED item is NEVER silently resolved here - it stays
      flagged for the P6 human gate.
+  0c. VENDOR-CURRENCY BIAS (Convention 0(c), CORE - apply on every profile): decide the trigger,
+     run the capped WebFetch/WebSearch pass, and ACT on the finding (adapt to the newest upstream
+     API or record a deferral) for any third-party import this module's adapt touches - trigger
+     predicate, THREE-package cap, and the `vendor_api_checked:` outcome set are Convention 0(c)'s
+     own text, not restated here:
+     ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md § Convention 0(c).
   1. Apply all deprecation fix-list items for this module (from deprecation.md).
   2. Apply all breaking-change items that affect this module (from upg-classification-table.md).
   3. For REWRITE(model): update field references, compute methods, search/domain expressions,
@@ -669,6 +680,12 @@ Step 1 - create instance (once), demo=on:
 operation: create
 series: <target_version>
 demo: on   # framework-validation gate REQUIRES demo data (see note above); on v19 -> --with-demo
+WORKTREE_PATH: <path>/upg-integration   # the SAME P4 integration worktree (§ Integration worktree
+                                         # creation above); forwarded verbatim as odoo-instance's
+                                         # own WORKTREE_PATH field (odoo-instance/SKILL.md §
+                                         # WORKTREE_PATH substitution), so ALLOCATOR acquires with
+                                         # --addons-path-override covering it - this is what P5.7
+                                         # depends on ("its addons path MUST cover WORKTREE_PATH")
 ```
 
 For each wave in topo_order (leaves first), run Steps 2-3 before moving to the next wave:
@@ -746,6 +763,7 @@ When it runs (against the P5 instance, demo=on):
 ```
 SKILL: odoo-i18n
 INSTANCE: the P5 ephemeral instance (already up) - its addons path MUST cover WORKTREE_PATH
+          (established at P5 Step 1's own WORKTREE_PATH field, above)
 MODULES: <cluster adapted modules>
 TARGET_VERSION: <target_version>
 MODE: reconcile (non-destructive)
