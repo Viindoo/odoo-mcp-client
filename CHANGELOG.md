@@ -199,6 +199,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `INSTANCE_HANDLE` and `SELF_PROVISION: worktree-addons` would silently take the wrong branch
   instead of being caught. Both the SSOT and `odoo-coder.md` now declare/validate the field with the
   identical token.
+- `odoo-ai-agents` - Convention 0 (`snippets/upg-conventions.md`) was declared but never actually
+  reachable at the moment a real P4 dispatch fires: the only pointer to it lived in `SKILL.md`'s
+  P2-phase aside, two phases upstream of the concrete `upg-phase-detail.md` P4 dispatch-brief
+  template a coder actually receives, so a brief built strictly from that template never named the
+  convention or the coder-disposition marker string (`upg-conventions.md`) the backend/frontend
+  coder's own selector keys on - Convention 0(c)'s vendor-currency bias could never fire. The file's
+  own gating banner also blanket-gated "the rules below" to Viindoo Standard/Internal profiles while
+  a later line claimed Conv-0/3/4 were core and reachable via a "version INDEX By-task table" that
+  does not carry Convention 0 for any profile. Fixed: the P4 brief template now cites Convention 0
+  by literal path (satisfying both the citation and the disposition-selector marker in one field)
+  and wires its vendor-currency pass as an actionable instruction step; the gating banner now scopes
+  the Viindoo-only gate to Conventions 1-2 explicitly and states the real, already-unconditional
+  reachability route for Convention 0 instead of the dead INDEX-table claim. Also fixed: P5's
+  create-instance dispatch never named the addons path P5.7 depends on ("its addons path MUST cover
+  WORKTREE_PATH") - it now passes `WORKTREE_PATH: <path>/upg-integration`, reusing the existing
+  `odoo-instance` WORKTREE_PATH field and its `--addons-path-override` substitution mechanism (no
+  second, bespoke mechanism introduced).
 
 ## [4.18.1] - 2026-07-28
 

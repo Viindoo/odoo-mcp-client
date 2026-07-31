@@ -64,8 +64,12 @@ def _norm(text: str) -> str:
 
     Markdown prose in these skill files hard-wraps at ~90-100 chars, so a literal multi-word
     phrase can legitimately split across a line break. Plain `in` checks on raw text are brittle
-    against that reflow; normalize before any literal multi-word substring assertion.
+    against that reflow; normalize before any literal multi-word substring assertion. Also strips
+    a leading blockquote marker (`>` / `> `) from each line first - a blockquote continuation line
+    (as in upg-conventions.md's gating banner) would otherwise leave a literal `>` glued into the
+    middle of a collapsed phrase, defeating the very substring check this helper exists to protect.
     """
+    text = re.sub(r"(?m)^>\s?", "", text)
     return re.sub(r"\s+", " ", text)
 
 
@@ -345,3 +349,147 @@ def test_vendor_currency_trigger_is_decidable_and_actionable():
             f"Convention 0(c) must not contain the judgment-shaped phrase {phrase!r} - the "
             "trigger must stay decidable, not softened back into prose"
         )
+
+
+# ---------------------------------------------------------------------------
+# Runtime-reachability fixes (PR #189 review findings F1, F2, F5/C2, F6):
+# Convention 0 was declared but never actually became reachable at the moment
+# it must fire - the P2-phase aside that pointed at it was two phases removed
+# from the actual P4 dispatch brief template, the file's own gating banner
+# contradicted its "reachable for ALL profiles" claim, the coder's disposition
+# selector had no guaranteed marker in a template-built brief, and P5's
+# create-instance dispatch never established the addons path P5.7 assumes.
+# ---------------------------------------------------------------------------
+
+def _fenced_block(text: str, anchor: str) -> str:
+    """Return the first ``` … ``` fenced block that starts at or after `anchor`."""
+    start = text.index(anchor)
+    fence_start = text.index("```", start)
+    fence_end = text.index("```", fence_start + 3)
+    return text[fence_start:fence_end]
+
+
+def _p4_brief_block() -> str:
+    """The literal '### odoo-coding dispatch brief' template P4 dispatches from - the
+    ONLY concrete brief template odoo-modules-upgrade gives a real P4 dispatch."""
+    return _fenced_block(_phase_detail_text(), "### odoo-coding dispatch brief")
+
+
+def _p5_step1_block() -> str:
+    """The literal 'Step 1 - create instance' fenced block P5 dispatches from."""
+    return _fenced_block(_phase_detail_text(), "Step 1 - create instance")
+
+
+def test_p4_brief_template_cites_convention_zero_by_literal_path():
+    """The P4 dispatch brief TEMPLATE (not a P2-phase aside two phases upstream) must
+    literally cite upg-conventions.md, so (a) a coder dispatched from a REAL P4 brief
+    learns Convention 0 exists, and (b) the brief guarantees the exact literal string
+    odoo-backend-coder.md / odoo-frontend-coder.md key their 'Modules-upgrade adapt'
+    disposition trigger on ('your brief references ...upg-conventions.md').
+
+    Base commit: the template's INPUTS list names absorption verdict, deferred-work,
+    blockers, deprecation fix list, breaking-change catalog, version delta, and design
+    doc - never upg-conventions.md or 'Convention 0'. RED on that text.
+    """
+    block = _norm(_p4_brief_block())
+    assert "${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md" in block, (
+        "upg-phase-detail.md's P4 '### odoo-coding dispatch brief' template must literally "
+        "contain '${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md' - the exact string "
+        "odoo-backend-coder.md / odoo-frontend-coder.md key their 'Modules-upgrade adapt' "
+        "disposition trigger on."
+    )
+    assert "Convention 0" in block, (
+        "upg-phase-detail.md's P4 brief template must name 'Convention 0' explicitly - a "
+        "coder must learn the CONVENTION exists, not merely see an unlabeled file path."
+    )
+
+
+def test_p4_brief_template_wires_vendor_currency_pass_as_an_instruction_step():
+    """Convention 0(c)'s vendor-currency pass must be wired as an actionable INSTRUCTION
+    step in the P4 brief template (not merely mentioned in passing in INPUTS), so it
+    actually fires for the KEEP/REWRITE/MERGE/SPLIT branch that writes code.
+
+    Base commit: no instruction step references the vendor-currency pass at all. RED.
+    """
+    block = _norm(_p4_brief_block())
+    assert "0c." in block, (
+        "upg-phase-detail.md's P4 brief template must carry a numbered instruction step "
+        "(0c) wiring Convention 0(c)'s vendor-currency pass into the KEEP/REWRITE/MERGE/"
+        "SPLIT instruction list - the branch that actually adapts code."
+    )
+    assert re.search(r"(?i)vendor.currency", block), (
+        "upg-phase-detail.md's P4 brief template step 0c must name the vendor-currency pass."
+    )
+
+
+def test_p5_create_instance_dispatch_names_worktree_path_over_integration_worktree():
+    """P5 Step 1 (create instance) must name a WORKTREE_PATH covering the SAME P4
+    integration worktree - P5.7 asserts 'its addons path MUST cover WORKTREE_PATH', a
+    property the create-instance dispatch never established before this fix. Reuses the
+    EXISTING odoo-instance WORKTREE_PATH field + substitution mechanism (no second,
+    bespoke addons-path mechanism).
+
+    Base commit: Step 1 carries only operation/series/demo - no WORKTREE_PATH field at
+    all. RED.
+    """
+    block = _norm(_p5_step1_block())
+    assert "WORKTREE_PATH" in block, (
+        "upg-phase-detail.md's P5 Step 1 create-instance dispatch must name a "
+        "WORKTREE_PATH field (the existing odoo-instance mechanism) - without it the "
+        "instance's addons path is never established to cover the integration worktree."
+    )
+    assert "upg-integration" in block, (
+        "upg-phase-detail.md's P5 Step 1 WORKTREE_PATH must point at the SAME "
+        "'<path>/upg-integration' literal the P4 integration worktree uses - a different "
+        "or unspecified path would not satisfy P5.7's coverage requirement."
+    )
+
+
+def test_convention_zero_gate_is_explicitly_scoped_off_convention_zero():
+    """The Viindoo-profile gating banner must be scoped to Conventions 1-2 ONLY, and the
+    CORE carve-out must say the gate does NOT apply to Convention 0/3/4 - not merely
+    assert they are core while the banner text still reads as a blanket gate over 'the
+    rules below' (the contradiction review finding F2/F7 identified).
+
+    Base commit: the banner reads 'The rules below are Viindoo-distribution-specific...
+    DO NOT apply these rules' (unscoped - covers Convention 0 too). RED on that text.
+    """
+    text = _upg_conventions_text()
+    norm = _norm(text)
+    assert "Conventions 1 and 2" in norm or "Conventions 1-2" in norm, (
+        "snippets/upg-conventions.md: the gating banner must explicitly scope itself to "
+        "Conventions 1-2, not restate an unscoped 'the rules below'."
+    )
+    assert "DO NOT apply Conventions 1-2" in norm, (
+        "snippets/upg-conventions.md: the banner's DO-NOT-apply clause must name "
+        "Conventions 1-2 specifically, not a blanket 'these rules'."
+    )
+    carve_out_paras = [p for p in _paragraphs(text) if "CORE Odoo rules" in p]
+    assert carve_out_paras and "does NOT apply to them" in _norm(carve_out_paras[0]), (
+        "snippets/upg-conventions.md: the CORE carve-out paragraph must explicitly state "
+        "the Viindoo gate does NOT apply to Conv-0/Conv-3/Conv-4."
+    )
+
+
+def test_convention_zero_reachability_route_is_the_p4_brief_not_a_dead_index_pointer():
+    """The carve-out must point at the REAL reachability route (the P4 dispatch brief
+    citing this file unconditionally + the coder's own unconditional disposition
+    trigger) - not at 'the version INDEX By-task table', which review verification found
+    carries no row for Convention 0 in either the top-level Snippets catalog or any
+    per-version § By task table.
+
+    Base commit: the carve-out claims 'reachable for ALL profiles via the version INDEX
+    By-task table' - a route verification found does not exist for Convention 0. RED.
+    """
+    text = _upg_conventions_text()
+    norm = _norm(text)
+    assert "version INDEX By-task table" not in norm, (
+        "snippets/upg-conventions.md must not re-claim Convention 0 is reachable via 'the "
+        "version INDEX By-task table' - no such row exists for Convention 0 in either the "
+        "top-level Snippets catalog or any per-version § By task table."
+    )
+    assert "upg-phase-detail.md" in norm and "odoo-coding dispatch brief" in norm, (
+        "snippets/upg-conventions.md's carve-out must name the REAL route: the "
+        "odoo-modules-upgrade P4 'odoo-coding dispatch brief' template that cites this "
+        "file unconditionally."
+    )
