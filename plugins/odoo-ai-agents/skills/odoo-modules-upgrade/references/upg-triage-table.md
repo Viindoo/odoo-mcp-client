@@ -16,7 +16,7 @@ The rows below are the UPGRADE-specific instantiations of those same four condit
 |---|-----------|------|
 | 1 | Action=MERGE spanning >=3 modules of the cluster AND full-stack AND estimated >800 LOC of net new code; OR action=SPLIT creating a new cross-module inheritance axis; OR the upgrade involves a domain-specific DSL or formula engine that must be redesigned | **fable** |
 | 2 | Action=REWRITE(model) where >=1 core model's field type changed AND the module has ORM `create`/`write`/`unlink` overrides; OR override chain has >=3 entries at target (`find_override_point`); OR cross-model computed chain or multi-company logic must be restructured; OR action=MERGE with >5 intended files AND full-stack; OR action=SPLIT and the split boundary is ambiguous | **opus** |
-| 3 | Action=DELETE-absorbed (the coder runs the dangling-reference sweep + dep cleanup only - directory removal is delegated to git-toolkit via `git-ops`; no business logic written); OR action=KEEP with only string/label/path fixes (no ORM, no view restructure); OR a single manifest version bump with no logic change | **haiku** |
+| 3 | Action=DELETE-absorbed (the coder runs the dangling-reference sweep + dep cleanup only - directory removal is delegated to git-toolkit via `git-ops`; no business logic written); OR action=KEEP with only string/label/path fixes (no ORM, no view restructure) | **haiku** |
 | 4 | Everything else - action=REWRITE(api) for call-site updates, action=KEEP with field/view additions, normal OWL widget migration (single component), mid-size single-stack adapt, and any case not clearly resolved by rows 1-3 | **sonnet** (default) |
 
 ---

@@ -174,6 +174,8 @@ Confirm currency of every core registry/service/hook API you call at the target 
 
 **Forward-port adapt (your brief references `[[fp-merge-absorption]]`).** On a `__manifest__.py` `version` conflict keep the TARGET file's value - never invent or merge-pick a bump (C1). Retarget a forwarded `migrations/<src-series>.a.b.c/` dir to the target series (C2). If you spot a defect that pre-exists at the source series and is NOT security/safety, carry it FAITHFULLY forward and report it (do not inline-fix); fix only FP-delta defects here (C3). Full rules: `[[fp-merge-absorption]]`.
 
+**Modules-upgrade adapt (your brief references `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`).** Opposite disposition to Forward-port adapt above: this is a CODE upgrade - break old-series compatibility freely, write NO migration script, do NOT bump `version`, implement any `reuse_candidates[]` target-core mechanism instead of a shim, and FIX defects rather than carrying them faithfully. Full rules: that snippet's § Convention 0.
+
 **Round 5 - suggest visual verification (forward-wiring).** Same as the legacy Round 5: add a `next:` entry naming `odoo-ui-review` to your Continuation Contract block. Do NOT invoke any skill yourself.
 
 ---

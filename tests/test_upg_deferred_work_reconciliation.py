@@ -226,3 +226,122 @@ def test_phase_detail_carries_scan_mechanics_and_structured_output():
         "upg-phase-detail.md P4 dispatch brief must carry an explicit instruction step that "
         "implements DUE deferred-work items now (the wiring point into odoo-coding)."
     )
+
+
+# ---------------------------------------------------------------------------
+# Rule 6 (CS-C7): Convention 0 - "a major-series module upgrade is a CODE
+# upgrade, not a data migration" must be declared in upg-conventions.md AND
+# named in the file's own CORE carve-out line. Without the carve-out naming
+# it, the whole section is silently scoped to Viindoo Standard/Internal
+# distributions only and never fires for a plain Odoo CE/EE (or any other
+# non-Viindoo) upgrade - which is exactly the general case the rule exists
+# to cover.
+# ---------------------------------------------------------------------------
+
+UPG_CONVENTIONS = PLUGIN / "snippets" / "upg-conventions.md"
+BACKEND_CODER = PLUGIN / "agents" / "odoo-backend-coder.md"
+FRONTEND_CODER = PLUGIN / "agents" / "odoo-frontend-coder.md"
+
+
+def _upg_conventions_text() -> str:
+    assert UPG_CONVENTIONS.exists(), f"snippets/upg-conventions.md not found at {UPG_CONVENTIONS}"
+    return UPG_CONVENTIONS.read_text(encoding="utf-8")
+
+
+def test_convention_zero_is_core_and_not_viindoo_gated():
+    """Convention 0 must exist, be named in the CORE carve-out, and be marked CORE.
+
+    Fails if: Convention 0 is missing entirely, or the CORE-carve-out paragraph (the
+    line that exempts Conv-3/Conv-4 from the Viindoo-only gate at the top of the file)
+    does not also name Conv-0, or Convention 0's own body omits the same
+    'CORE rule - applies to all distributions' marker Convention 3 and 4 already carry.
+    """
+    text = _upg_conventions_text()
+    assert "## Convention 0" in text, (
+        "snippets/upg-conventions.md must contain a '## Convention 0' heading - the "
+        "CODE-upgrade-not-data-migration rule."
+    )
+    carve_out_paras = [p for p in _paragraphs(text) if "CORE Odoo rules" in p]
+    assert carve_out_paras, (
+        "snippets/upg-conventions.md: no paragraph states the CORE-rules carve-out "
+        "that exempts core conventions from the Viindoo-only gate declared at the top "
+        "of the file."
+    )
+    assert "Conv-0" in carve_out_paras[0], (
+        "snippets/upg-conventions.md: the CORE carve-out line must name 'Conv-0' - "
+        "without it, Convention 0 is silently gated to Viindoo distributions only and "
+        "never reaches a plain (non-Viindoo) upgrade."
+    )
+    convention_0_body = text[text.index("## Convention 0"):]
+    assert "CORE rule - applies to all distributions" in convention_0_body, (
+        "snippets/upg-conventions.md: Convention 0's own body must carry the same "
+        "'CORE rule - applies to all distributions' marker Convention 3 and 4 use."
+    )
+
+
+def _single_line_starting_with(text: str, prefix: str, label: str) -> str:
+    """Return the exactly-one line in text that starts with prefix (after stripping)."""
+    lines = [line for line in text.splitlines() if line.strip().startswith(prefix)]
+    assert lines, f"{label}: no line starts with {prefix!r}"
+    assert len(lines) == 1, (
+        f"{label}: expected exactly ONE line starting with {prefix!r}, found {len(lines)}"
+    )
+    return lines[0]
+
+
+def test_coder_agents_carry_a_byte_identical_modules_upgrade_disposition():
+    """Both coder agents must carry the SAME modules-upgrade adapt disposition line.
+
+    The line sits adjacent to the existing 'Forward-port adapt' line, which states the
+    OPPOSITE disposition (preserve original behavior faithfully). If the backend and
+    frontend copies drifted even by one character, a coder could silently inherit the
+    wrong disposition for an upgrade brief. Fails if either line is missing, or if the
+    two agents' copies differ at all.
+    """
+    backend_text = BACKEND_CODER.read_text(encoding="utf-8")
+    frontend_text = FRONTEND_CODER.read_text(encoding="utf-8")
+    line_a = _single_line_starting_with(
+        backend_text, "**Modules-upgrade adapt", "odoo-backend-coder.md"
+    )
+    line_b = _single_line_starting_with(
+        frontend_text, "**Modules-upgrade adapt", "odoo-frontend-coder.md"
+    )
+    assert line_a == line_b, (
+        "odoo-backend-coder.md and odoo-frontend-coder.md 'Modules-upgrade adapt' lines "
+        "must be byte-identical - they drifted:\n"
+        f"backend:  {line_a!r}\n"
+        f"frontend: {line_b!r}"
+    )
+
+
+def test_vendor_currency_trigger_is_decidable_and_actionable():
+    """Convention 0(c)'s vendor-currency pass must be a decidable trigger + action rule.
+
+    Fails if: the trigger predicate loses either signal (`external_dependencies` or
+    `sys.stdlib_module_names`), the numeric cap on third-party packages is dropped, any
+    of the six enumerated `vendor_api_checked:` outcomes goes missing (the action half -
+    `adapted-to` / `deferred` - is what stops (c) degenerating into a mere record with
+    no decision), or a judgment-shaped phrase ('if it seems', 'when appropriate', 'judge
+    whether') creeps back in, re-introducing an undecidable predicate.
+    """
+    text = _upg_conventions_text()
+    body = text[text.index("## Convention 0"):]
+    norm = _norm(body)
+
+    assert "external_dependencies" in norm, "Convention 0(c) must name `external_dependencies`"
+    assert "sys.stdlib_module_names" in norm, "Convention 0(c) must name `sys.stdlib_module_names`"
+    assert re.search(r"(?i)\bthree\b.{0,20}packages", norm), (
+        "Convention 0(c) must declare a NUMERIC cap (THREE packages) on third-party "
+        "packages checked per module"
+    )
+
+    for outcome in ("adapted-to", "(already current)", "over-cap", "not-triggered", "unreachable", "deferred"):
+        assert outcome in norm, (
+            f"Convention 0(c) must enumerate the `vendor_api_checked:` outcome marker {outcome!r}"
+        )
+
+    for phrase in ("if it seems", "when appropriate", "judge whether"):
+        assert phrase not in norm.lower(), (
+            f"Convention 0(c) must not contain the judgment-shaped phrase {phrase!r} - the "
+            "trigger must stay decidable, not softened back into prose"
+        )
