@@ -256,9 +256,14 @@ Then, per wave N, in module-DAG order:
 1. **Fork module worktrees from run-integration.** Each module's worktree forks from the ONE
    run-integration branch (NOT from `base`/principal, NOT from a per-wave branch) per the planned
    Block-2W lineage. Because run-integration already carries every PRIOR wave's cherry-picked code, a
-   dependent wave's worktrees already hold their dependencies' committed code - this is the
-   fork-from-integrated-parent property that structurally removes the intra-run cross-wave "dependency
-   absent" BLOCKED path (now realized on ONE branch instead of a chain of per-wave forks).
+   dependent wave's worktree already CONTAINS its dependencies' committed source - the
+   fork-from-integrated-parent property, now realized on ONE branch instead of a chain of per-wave
+   forks. That source reaches the verification instance's addons-path only when the per-module brief
+   carries `WORKTREE_PATH` + `SELF_PROVISION: worktree-addons`
+   (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons carve-out), which
+   `odoo-coding` sets on every such dispatch - a POLICY step, not a structural guarantee of the fork
+   itself. Skipping it reopens the intra-run cross-wave "dependency absent" BLOCKED path even though
+   the source already sits in the tree.
 2. **Cherry-pick + saga.** Cherry-pick each module's returned commit (the `odoo-coder` coordinator
    committed it via `git-toolkit:git-ops`) onto the RUN-INTEGRATION branch, in module-DAG topo order,
    with saga rollback / resume-from-checkpoint on failure (SSOT:

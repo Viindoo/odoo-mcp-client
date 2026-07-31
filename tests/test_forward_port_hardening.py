@@ -1307,6 +1307,127 @@ class TestForwardPortFilesDoNotClaimOSMGroundsInstallable:
         )
 
 
+# ---------------------------------------------------------------------------
+# Invariant 24 (widened) - the two checks above are scoped to `FP_ALL_MD`
+# (forward-port SKILL.md + snippets/fp-*.md only) and their patterns require
+# either one exact phrase or a literal `module_inspect(` CALL adjacent to
+# 'installable'. `agents/odoo-doc-scoper.md:185` survived both: it is not a
+# forward-port file, and it names the tools as bare backtick identifiers
+# (`` `module_inspect` ``, no call syntax) in an "optional fallback" framing
+# ("...are optional - use them only if disk reads cannot resolve an ambiguous
+# `installable` state") rather than either previously-known bad phrase.
+#
+# Widened guard: scan EVERY .md file in the plugin (not just forward-port),
+# for EITHER a call or a bare mention of `module_inspect` / `describe_module` /
+# `check_module_exists`, co-occurring with 'installable' in the same logical
+# unit - a markdown block-start (table row / list item / blockquote / heading)
+# or fenced-block line is always its own unit; otherwise a run of hard-wrap
+# continuation lines is one unit, split again on sentence punctuation. That
+# co-occurrence is allowed ONLY when the SAME unit also states the tool does
+# NOT carry/expose the flag (the correct, established framing) - otherwise it
+# is presenting a non-existent OSM capability as usable for `installable`,
+# the exact CS-C10 defect this whole Invariant protects.
+#
+# Line-level (or even 3-line-window) scanning was rejected for the same
+# reason `test_no_module_inspect_call_adjacent_to_installable` above already
+# rejected a 3-line window: `snippets/fp-symbol-survival-check.md` packs
+# multiple unrelated SYMBOL-BROKEN template rows inside one fenced block with
+# no separating blank lines, and `agents/odoo-doc-scoper.md`'s own correct
+# `depends_in_scope` paragraph mentions 'installable' (a backward reference to
+# an earlier, unrelated bullet) far from its own `module_inspect(...)` call on
+# the SAME un-wrapped line. Chunking by markdown block-start + sentence
+# boundary (never merging across a fence line) separates all of these
+# correctly without either false-negativing the forward-port sites the two
+# tests above already pin, or false-positiving on either of those two files.
+#
+# Pre-fix finding count (verified against `git show HEAD:...` for every .md
+# file in the plugin, i.e. the tree before this session's fix): exactly 1 -
+# `agents/odoo-doc-scoper.md:185`. Confirms this guard is scoped to the real
+# defect, not zero (too narrow) and not a pile of unrelated false positives
+# (too loose, would need an allowlist - which this deliberately avoids).
+# ---------------------------------------------------------------------------
+
+_OSM_INSTALLABLE_TOOL_RE = re.compile(
+    r"\b(module_inspect|describe_module|check_module_exists)\b"
+)
+_OSM_INSTALLABLE_NEGATION_RE = re.compile(
+    r"(does not|does n't|never|is not|isn't|n't|omit)\s*[\w\s'`]{0,50}?"
+    r"(carr(?:y|ies)|expos(?:e|es|ed)|osm fact|it\b)",
+    re.IGNORECASE,
+)
+_MD_BLOCK_START_RE = re.compile(r"^\s*(\||[-*+]\s|\d+\.\s|>|#{1,6}\s)")
+_MD_FENCE_RE = re.compile(r"^\s*```")
+
+
+def _osm_installable_chunks(text: str):
+    """Logical units for the co-occurrence scan below: outside a fenced code
+    block, hard-wrap continuation lines merge into one paragraph, split again
+    on sentence-ending punctuation; a markdown block-start (table row, list
+    item, blockquote, heading) always starts a new unit. Inside a fence,
+    every line is its own unit (template/example rows are line-oriented, not
+    prose - merging across them is exactly how the fp-symbol-survival-check.md
+    false positive would happen)."""
+    chunk_lines: list[str] = []
+    prev_ended_sentence = True
+    in_fence = False
+
+    def flush():
+        if not chunk_lines:
+            return
+        merged = " ".join(chunk_lines)
+        chunk_lines.clear()
+        for sentence in re.split(r"(?<=[.!?])\s+", merged):
+            if sentence.strip():
+                yield sentence
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        if _MD_FENCE_RE.match(line):
+            yield from flush()
+            in_fence = not in_fence
+            prev_ended_sentence = True
+            continue
+        if in_fence:
+            yield from flush()
+            if stripped:
+                yield stripped
+            prev_ended_sentence = True
+            continue
+        starts_new = (not stripped) or _MD_BLOCK_START_RE.match(line) or prev_ended_sentence
+        if starts_new:
+            yield from flush()
+        if stripped:
+            chunk_lines.append(stripped)
+        prev_ended_sentence = bool(stripped) and stripped[-1:] in ".!?:"
+    yield from flush()
+
+
+class TestNoFileAnywhereFramesAnOSMToolAsResolvingInstallable:
+    """CLASS guard, widened to the WHOLE plugin tree and to a bare tool-name
+    mention (not just call syntax) - see the module-level comment above for
+    the before/after scope and the false-positive files this was tuned
+    against."""
+
+    def test_no_md_file_frames_module_inspect_or_describe_module_as_resolving_installable(self):
+        offenders = []
+        for path in sorted(PLUGIN.rglob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            for chunk in _osm_installable_chunks(text):
+                if not _OSM_INSTALLABLE_TOOL_RE.search(chunk):
+                    continue
+                if "installable" not in chunk.lower():
+                    continue
+                if _OSM_INSTALLABLE_NEGATION_RE.search(chunk):
+                    continue
+                offenders.append(f"{path.relative_to(PLUGIN)}: {chunk[:200]!r}")
+        assert not offenders, (
+            "the following files frame an OSM tool as usable to resolve `installable` without "
+            "stating OSM does not carry/expose that flag - OSM never carries the manifest "
+            "`installable` flag; disk-read of __manifest__.py is the ONLY path:\n"
+            + "\n".join(offenders)
+        )
+
+
 class TestProberRegistryEntryNamesManifestNotModuleInspect:
     """skill_tool_deps.json's odoo-installable-prober entry (the SSOT `check_deps.py`
     validates) must not list module_inspect among its mcp_tools, and its notes must

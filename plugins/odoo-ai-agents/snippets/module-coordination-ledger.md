@@ -19,11 +19,16 @@ turn that raw BLOCKED into a specific, evidence-backed decision.
 
 **Scope note (Block 2W).** The planned worktree dependency graph's fork-from-integrated-parent
 lineage (every wave's worktrees fork from the ONE `run-integration` branch, which already carries
-all prior waves' cherry-picked code) makes INTRA-run cross-wave dependency-blindness
-**structurally solved** - a dependent wave's worktrees always carry their dependencies' committed
-code by construction. So this ledger and the `odoo-backend-coder` dependency pre-flight now backstop ONLY
-concurrent INDEPENDENT runs (cross-run) + the manifest-crash safety net; the intra-run false BLOCKED
-no longer fires.
+all prior waves' cherry-picked code) means a dependent wave's worktree always CONTAINS its
+dependencies' committed source by construction - but containing the source is NOT the same as that
+source being on the verification instance's addons-path (the allocator emits the CATALOG addons
+list, pointing at the principal checkout, by default). Reaching the addons-path is a POLICY step,
+not a structural one: the per-module brief must carry `WORKTREE_PATH` + `SELF_PROVISION:
+worktree-addons` (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons
+carve-out), which `odoo-coding` sets on EVERY per-module dispatch naming a `WORKTREE_PATH`. With
+that policy step taken, this ledger and the `odoo-backend-coder` dependency pre-flight now backstop
+ONLY concurrent INDEPENDENT runs (cross-run) + the manifest-crash safety net; the intra-run false
+BLOCKED no longer fires.
 
 ## Location and why the SHARE dir
 
@@ -177,8 +182,11 @@ the leaf coder. Evaluate the cases IN ORDER; the first match wins:
    case 6.
 4. **Ledger shows `D` `done` but `D` is NOT on this worktree's addons-path** -> `BLOCKED: dependency
    <D> was built in run <X> - integrate/rebase it onto this worktree before continuing`. This now
-   fires ONLY cross-run: intra-run it is structurally impossible under the Block 2W
-   fork-from-integrated-parent lineage (a dependent wave already carries prior waves' committed code).
+   fires ONLY cross-run: intra-run, the worktree already CONTAINS `D`'s committed source (Block 2W's
+   fork-from-integrated-parent lineage), and `odoo-coding` sets `SELF_PROVISION: worktree-addons` on
+   every per-module dispatch naming `WORKTREE_PATH`, so the verification instance is re-rooted onto
+   that same worktree - a POLICY guarantee enforced at dispatch time (§ Scope note above), not a
+   structural one.
 5. **Ledger shows `D` `failed`** (THIS run's own sibling OR a different run - a terminally failed
    module never completes) -> `BLOCKED: prerequisite module <D> failed in run <X>`.
 6. **`D` absent from the ledger OR its heartbeat is stale (dead run)** ->

@@ -182,7 +182,7 @@ State explicitly: `_scope.md written to: <abs-path>`.
 - The ONLY file write permitted is `_scope.md` under `<SHARE_DIR>/documentation/<slug>-<date>/`.
 - Do NOT review, illustrate, or produce any documentation content.
 - Run Steps 3-5 in parallel across modules to stay fast on large `repo:` scans.
-- OSM tools (`module_inspect`, `describe_module`) are optional - use them only if disk reads cannot resolve an ambiguous `installable` state.
+- OSM tools (`module_inspect`, `describe_module`) never resolve `installable` - OSM does not carry the manifest `installable` flag at all. Step 2's disk read of `__manifest__.py` is the ONLY source for that state, with no ambiguous case (absent or `True` -> include, `False` -> skip).
 - The `doc_layer:` and `LANGUAGES:` caller inputs override disk detection and the tier resolver respectively for ALL modules in the run.
 
 ---

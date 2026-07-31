@@ -253,6 +253,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `fp-installable-false.md` already defines, executable at P0 with no OSM claim; Table 2 (which
   governs P8, after P2) is untouched. 23 new tests across `tests/test_i18n_mandate_reconciliation.py`
   (new) and `tests/test_forward_port_hardening.py`, each proven red against the pre-fix text.
+- `odoo-ai-agents` - a third PR #189 runtime review found that earlier fixes in this same PR left
+  surviving siblings of the exact claims they removed, in files the fixing commits never touched,
+  because three of the PR's own guard tests were scoped to the shape of the instance just fixed
+  rather than the whole claim class. The "worktree already carries the dependency, so cross-wave
+  addons-path resolution is structurally solved/impossible" conflation - the same one `3d9928e`
+  rewrote out of `wave-integration.md` Example 3 - survived in `snippets/module-coordination-ledger.md`
+  (both its scope note and decision-table case 4), `skills/run-harness/SKILL.md`'s own
+  fork-module-worktrees step, and `skills/odoo-intake/references/plan-mode-schema.md`'s Block 2W edge
+  description; all four sites now state the corrected relationship (the worktree CONTAINS the
+  dependency's source by git-fork construction, but reaching the addons-path is a POLICY step -
+  `WORKTREE_PATH` + `SELF_PROVISION: worktree-addons`, set by `odoo-coding` on every such dispatch -
+  not a structural guarantee of the fork itself). `agents/odoo-doc-scoper.md`'s Hard-constraints
+  section still framed `module_inspect`/`describe_module` as a usable fallback for an "ambiguous"
+  `installable` state, a case Step 2's disk-read rule (two paragraphs earlier in the same file) never
+  leaves open - the same OSM-does-not-carry-`installable` fact this PR established elsewhere
+  (`ca80dce`), phrased differently enough to survive that commit's full-repo grep.
+  `skills/odoo-intake/references/maintainers.md` still said "the 4 wave-batch topologies" after the
+  enum grew to 5. `snippets/test-execution-handoff.md` and `agents/odoo-backend-coder.md` (two sites)
+  still stated the pre-carve-out absolute ("a forwarded `INSTANCE_HANDLE` always wins, full stop")
+  with no mention of the `SELF_PROVISION: worktree-addons` carve-out `test-execution-handoff.md`'s own
+  named consumer `odoo-coder`/`odoo-backend-coder` is authorized to use, and
+  `odoo-backend-coder.md`'s bounded `/test_lint` self-provision recipe omitted `WORKTREE_PATH` - the
+  same worktree-correctness defect class `3d9928e` fixed at the sibling `odoo-coder.md` call site,
+  left open here (net zero line delta on this always-loaded file: both edits lengthen existing lines,
+  add none). Three guards are widened from the exact shape they were scoped to, to the whole class:
+  the addons-path-structurally-solved guard now scans every file in the plugin for a 5-pattern family
+  (was: one literal phrase in one file; pre-fix finding count against the whole tree: 5, across the 3
+  files above); the OSM-resolves-`installable` guard now scans every markdown file in the plugin for a
+  bare tool-name mention (not just call syntax) co-occurring with `installable` outside an explicit
+  negation, chunked by markdown block/fence/sentence boundary to avoid both known false-positive
+  shapes (was: forward-port files only, call-syntax only; pre-fix count: 1); the topology count-word
+  guard now scans the whole plugin and accepts a digit token with up to 3 filler words before
+  "topolog" (was: two hardcoded files, spelled-out number words only; pre-fix count: 1). 4 new/widened
+  guard tests added, each proven red against the pre-fix text before being fixed green.
 
 ## [4.18.1] - 2026-07-28
 

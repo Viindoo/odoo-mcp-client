@@ -115,9 +115,11 @@ Edges (three kinds, all symbolic):
   worktree `worktree(m)@wave-N ==> run-integration` - EVERY wave's worktrees fork from the ONE
   run-integration branch, which already holds all PRIOR waves' cherry-picked code. This is the
   fork-from-integrated-parent property (now on ONE branch): a dependent wave builds on its
-  dependencies' already-integrated code, so an intra-run cross-wave `depends` is on the addons-path
-  BY CONSTRUCTION (it structurally removes the cross-wave "dependency absent" BLOCKED path - the
-  ledger's decision-table case 4 no longer fires intra-run).
+  dependencies' already-integrated SOURCE by construction, but that source reaches the addons-path
+  only as a POLICY step - the per-module brief must carry `WORKTREE_PATH` + `SELF_PROVISION:
+  worktree-addons`, which `odoo-coding` sets on every such dispatch (never a structural guarantee of
+  the fork itself). With that step taken, the cross-wave "dependency absent" BLOCKED path (the
+  ledger's decision-table case 4) no longer fires intra-run.
 - **cherry-pick-into** (`-->`): `worktree(m)@wave-N --> run-integration` (the coder's module commit
   is cherry-picked onto the ONE run-integration branch, in module-DAG topo order).
 - **close** (per wave): `run-integration` -> {integrated cross-cutting review, cumulative close-gate}
