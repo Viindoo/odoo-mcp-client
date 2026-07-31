@@ -74,6 +74,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   guard computes the enumerated value count and asserts every count-word reference to
   "topolog(y|ies)" in either file agrees with it (or with count-1 when scoped to "multi-module"), so
   a future sixth value reddens this test instead of leaving a silent inconsistency.
+- `odoo-ai-agents` - the OSM session pin is API-key-scoped, so `odoo_version='auto'` can resolve to a
+  concurrent session's version. The ban is now enforced structurally: a new value-identity assertion
+  rejects the sentinel in every example call, 43 instruction sites now pass a concrete-version
+  placeholder, the guard's own docstring and failure messages no longer prescribe `'auto'`, three
+  lexical evasions it demonstrably missed are covered, and the rule is extended to
+  `set_active_profile` (whose surface description carried no concurrency warning at all). The four
+  sites that quote the sentinel in order to forbid it are asserted to keep doing so.
 
 ## [4.18.1] - 2026-07-28
 

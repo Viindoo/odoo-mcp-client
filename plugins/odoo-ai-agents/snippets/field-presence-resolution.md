@@ -47,8 +47,8 @@ injected field. The base stays dependency-clean; the downstream owns the field i
 # BAD - masks a wrong-model access; returns False, silently drops the value
 total = order.commercial_partner_id.name if hasattr(order, 'commercial_partner_id') else order.partner_id.name
 # WHY: commercial_partner_id is declared on res.partner, NOT on sale.order.
-#      entity_lookup(field, sale.order, commercial_partner_id, odoo_version='auto') -> NOT FOUND
-#      entity_lookup(field, res.partner, commercial_partner_id, odoo_version='auto') -> FOUND (computed, module 'base')
+#      entity_lookup(field, sale.order, commercial_partner_id, odoo_version='<version>') -> NOT FOUND
+#      entity_lookup(field, res.partner, commercial_partner_id, odoo_version='<version>') -> FOUND (computed, module 'base')
 
 # GOOD - use the real ORM path; presence is guaranteed by partner_id's comodel
 total = order.partner_id.commercial_partner_id.name
@@ -60,7 +60,7 @@ total = order.partner_id.commercial_partner_id.name
 # BAD - getattr-default hides that sale_margin isn't in this module's depends
 margin = getattr(order, 'margin', 0.0)
 # WHY: 'margin'/'margin_percent' on sale.order are added by the module 'sale_margin'.
-#      module_inspect(name='<my_module>', method='dependencies', odoo_version='auto') shows sale_margin NOT reachable.
+#      module_inspect(name='<my_module>', method='dependencies', odoo_version='<version>') shows sale_margin NOT reachable.
 
 # GOOD (preferred) - declare the dependency, then access directly
 #   __manifest__.py: 'depends': [..., 'sale_margin'],

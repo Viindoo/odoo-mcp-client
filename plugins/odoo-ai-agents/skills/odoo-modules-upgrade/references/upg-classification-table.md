@@ -24,11 +24,11 @@ gate. NO data-migration content.
 
 Use ALL of the following to confirm DELETE-absorbed. A single signal is insufficient.
 
-1. `check_module_exists(name='<candidate_core_module>', odoo_version='auto')` returns
+1. `check_module_exists(name='<candidate_core_module>', odoo_version='<target_version>')` returns
    `exists: true, edition: CE|EE` - the core module exists at target.
-2. `module_inspect(name='<candidate_core_module>', method='models', odoo_version='auto')`
+2. `module_inspect(name='<candidate_core_module>', method='models', odoo_version='<target_version>')`
    lists a model that covers the custom module's primary domain.
-3. `model_inspect(model='<custom_model>', method='fields', odoo_version='auto')` -
+3. `model_inspect(model='<custom_model>', method='fields', odoo_version='<target_version>')` -
    if the custom model is now an extension of a core model that provides the same fields,
    the custom extension adds zero net behavior.
 4. `api_version_diff` for the custom module's key methods shows them present and unchanged
@@ -36,7 +36,7 @@ Use ALL of the following to confirm DELETE-absorbed. A single signal is insuffic
 5. **Behavioral equivalence (MANDATORY - no DELETE without it).** Enumerate every override
    the custom module adds (`create`/`write`/`unlink`/`_compute_*`/`_constrains`/
    `@api.onchange`/action methods/SQL constraints) via
-   `model_inspect(model='<model>', method='methods', odoo_version='auto')` + grep of the module source. For EACH override,
+   `model_inspect(model='<model>', method='methods', odoo_version='<target_version>')` + grep of the module source. For EACH override,
    prove that the target-version core produces the SAME observable effect, OR that the
    override is now a no-op against core behavior. If ANY override has no core equivalent
    with the same effect, the module is NOT DELETE-absorbed - it is at most REWRITE/MERGE.
@@ -87,7 +87,7 @@ indicative and frozen at v18; new pivots live ONLY in
 | Break | Affected versions | Fix |
 |-------|------------------|-----|
 | `<tree>` tag renamed to `<list>` | **v18+** (at v17 `<tree>` is still canonical; `<list>` is unknown pre-v18) | Replace `<tree>` with `<list>` in all XML views |
-| `<form>` `string=` attribute on groups | check per version | Validate against `model_inspect(model='<model>', method='views', odoo_version='auto')` at target |
+| `<form>` `string=` attribute on groups | check per version | Validate against `model_inspect(model='<model>', method='views', odoo_version='<target_version>')` at target |
 | `<field widget="...">` legacy widgets | v14-v17+ | Check widget availability at target; OWL widgets may need replacing |
 | `attrs` / `states` on form/tree fields | v17+ | Migrate to domain-based `invisible` / `required` / `readonly` attributes |
 | `domain=` referencing removed fields | any | Update domains when fields renamed/removed at target |
@@ -100,7 +100,7 @@ indicative and frozen at v18; new pivots live ONLY in
 | `FieldWidget` / `AbstractField` from web module | v14 (deprecated) - NOT removed at v16; absent from the OSM index by v18 | Route to `odoo-coding` (frontend leg) for OWL rewrite |
 | Legacy asset bundle keys (`web.assets_backend` manifest shape) | v15+ | Update `__manifest__.py` `assets` dict to new bundle format |
 | SCSS `@import "variables"` | v16+ | Replace with `@use "variables" as *` + `math.div()` for division |
-| `@import` for SCSS files that moved | any | Verify import paths against `module_inspect(name='<module>', method='assets', odoo_version='auto')` at target |
+| `@import` for SCSS files that moved | any | Verify import paths against `module_inspect(name='<module>', method='assets', odoo_version='<target_version>')` at target |
 | QUnit tests | v18+ | Migrate to Hoot (`describe/test/expect`) - route to `odoo-coding` (frontend leg) |
 
 ### Manifest breaks

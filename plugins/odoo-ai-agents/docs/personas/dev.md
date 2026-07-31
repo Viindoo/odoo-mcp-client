@@ -4,7 +4,7 @@
 
 > **Get started (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-ai-agents@viindoo-plugins` (auto-pulls `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. For other AI tools, see [client setup](../setup.md).
 
-The full **31-tool arsenal**, optimized for development workflows - understanding inheritance, safely extending core methods, enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS/LESS stylesheet analysis, static ORM validation, and test-surface discovery. The 31 break into six groups, each enumerated with its version era in the sections below: four discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`, plus profile-level `profile_inspect`, v0.13+), four **session-context** tools (pin a version once, pass `odoo_version='auto'`), eleven **base tools**, two **stylesheet tools** (theme/branding), four **ORM-validation tools** (catch hallucinated field-paths, operators, dependencies, relation targets before you ship a domain / `@api.depends` / relational field), and six **test-surface tools** (v0.15+ - discover existing tests, coverage, and base classes before writing new tests).
+The full **31-tool arsenal**, optimized for development workflows - understanding inheritance, safely extending core methods, enumerating fields/methods/views and UI-layer artefacts (OWL, QWeb, JS patches), CSS/SCSS/LESS stylesheet analysis, static ORM validation, and test-surface discovery. The 31 break into six groups, each enumerated with its version era in the sections below: four discriminator-routed **supersets** (`model_inspect`, `module_inspect`, `entity_lookup`, plus profile-level `profile_inspect`, v0.13+), four **session-context** tools (call the setters once at bootstrap as a reachability probe; still pass the concrete `odoo_version=` on every call), eleven **base tools**, two **stylesheet tools** (theme/branding), four **ORM-validation tools** (catch hallucinated field-paths, operators, dependencies, relation targets before you ship a domain / `@api.depends` / relational field), and six **test-surface tools** (v0.15+ - discover existing tests, coverage, and base classes before writing new tests).
 
 ---
 
@@ -23,7 +23,7 @@ The full **31-tool arsenal**, optimized for development workflows - understandin
 
 | Tool | Use case |
 |------|----------|
-| `set_active_version(odoo_version)` | Pin the Odoo version for this session. Subsequent calls without `odoo_version=` fall back to this value. **Use once per debugging/exploration session** to drop ~10 chars of boilerplate from every call. |
+| `set_active_version(odoo_version)` | Pin the Odoo version for this session and probe server reachability. The pin is API-key-scoped and racy under concurrency, so pass the concrete `odoo_version=` on every call anyway - never rely on the pin. **Call it once per session** as the probe. |
 | `set_active_profile(profile_name)` | Pin the tenant profile for cross-profile MCP deployments. |
 | `list_available_versions()` | Discover which Odoo versions the server has indexed. |
 | `list_available_profiles()` | Discover which profiles exist. |
@@ -48,8 +48,8 @@ The full **31-tool arsenal**, optimized for development workflows - understandin
 
 | Tool | Use case |
 |------|----------|
-| `resolve_stylesheet(module, odoo_version="auto")` | Enumerate a module's CSS/SCSS/LESS stylesheet files - language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. LESS covers the legacy pre-SCSS era (~v8-v12). |
-| `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain. Essential for theming/branding work. Covers CSS, SCSS, and LESS (LESS for the legacy pre-SCSS era, ~v8-v12). |
+| `resolve_stylesheet(module, odoo_version="<version>")` | Enumerate a module's CSS/SCSS/LESS stylesheet files - language, selector/variable/mixin/import counts, `@import` chain. Use to audit what a module ships before writing theme overrides. LESS covers the legacy pre-SCSS era (~v8-v12). |
+| `find_style_override(selector_or_variable, odoo_version="<version>", limit=5)` | Find where a CSS selector or SCSS/LESS variable is first defined and which modules override it, with the full override chain. Essential for theming/branding work. Covers CSS, SCSS, and LESS (LESS for the legacy pre-SCSS era, ~v8-v12). |
 
 ### ORM-validation tools (server v0.8.0+)
 
@@ -57,10 +57,10 @@ Static checks against the indexed graph. Run them **before** emitting a domain, 
 
 | Tool | Use case |
 |------|----------|
-| `resolve_orm_chain(model, dotted_path, odoo_version="auto")` | Walk a dotted field path (`partner_id.country_id.code`) hop by hop; returns the terminal field type or a `BROKEN` line naming the first unresolved hop. Use to verify a multi-hop `related=` chain or domain path resolves. |
-| `validate_domain(model, domain, odoo_version="auto")` | Validate every `(field_path, operator, value)` term of a search domain. Operator validity is **version-aware** (`parent_of` v9+, `any`/`not any` v17+). Run before pasting a domain into a view, `ir.rule`, or `search()`. |
-| `validate_depends(model, method, odoo_version="auto")` | Validate an indexed compute method's `@api.depends('a.b', ...)` paths; flags depends on `id` (forbidden) and suggests the closest field for typos - directly catches the "stale compute" failure mode. |
-| `validate_relation(model, field, target_model, odoo_version="auto")` | Assert a field is a many2one/one2many/many2many whose comodel is `target_model` (or a subtype via inheritance). Use before writing a `related=` that hops through a relation. |
+| `resolve_orm_chain(model, dotted_path, odoo_version="<version>")` | Walk a dotted field path (`partner_id.country_id.code`) hop by hop; returns the terminal field type or a `BROKEN` line naming the first unresolved hop. Use to verify a multi-hop `related=` chain or domain path resolves. |
+| `validate_domain(model, domain, odoo_version="<version>")` | Validate every `(field_path, operator, value)` term of a search domain. Operator validity is **version-aware** (`parent_of` v9+, `any`/`not any` v17+). Run before pasting a domain into a view, `ir.rule`, or `search()`. |
+| `validate_depends(model, method, odoo_version="<version>")` | Validate an indexed compute method's `@api.depends('a.b', ...)` paths; flags depends on `id` (forbidden) and suggests the closest field for typos - directly catches the "stale compute" failure mode. |
+| `validate_relation(model, field, target_model, odoo_version="<version>")` | Assert a field is a many2one/one2many/many2many whose comodel is `target_model` (or a subtype via inheritance). Use before writing a `related=` that hops through a relation. |
 
 > Prefer these over `entity_lookup(kind='field', ...)` when you have a *path* (`resolve_orm_chain`), a *full domain* (`validate_domain`), a *declared depends* (`validate_depends`), or a *comodel assertion* (`validate_relation`) - they reason about the whole construct, not one field.
 
@@ -70,12 +70,12 @@ Discover what is already tested before writing new tests - avoid reinventing cov
 
 | Tool | Use case |
 |------|----------|
-| `find_test_examples(query, odoo_version="auto")` | Semantic search over test code only (test methods, test classes, JS tests - never production code). Find existing tests before writing new ones. |
-| `tests_covering(model, odoo_version="auto")` | List test methods with static `COVERS_*` reference edges to a model or field, grouped by assert/setup/body. |
-| `test_class_inspect(name, odoo_version="auto")` | Inspect a TestClass/TestHelper: base chain, `setUpClass` cursor contract, test methods with assert counts, subclassed-by list. |
-| `test_base_classes(odoo_version="auto")` | Menu of official Odoo test framework base classes (TransactionCase, HttpCase, Form, ...) with `test_type` and cursor contract. |
-| `test_coverage_audit(module, odoo_version="auto")` | Audit a module for fields/methods with zero `COVERS_*` edges (never referenced by any test). |
-| `js_test_inspect(module, odoo_version="auto")` | List JS test suites in a module: framework mix (Hoot/QUnit/tour), file paths, suite sizes, tags. |
+| `find_test_examples(query, odoo_version="<version>")` | Semantic search over test code only (test methods, test classes, JS tests - never production code). Find existing tests before writing new ones. |
+| `tests_covering(model, odoo_version="<version>")` | List test methods with static `COVERS_*` reference edges to a model or field, grouped by assert/setup/body. |
+| `test_class_inspect(name, odoo_version="<version>")` | Inspect a TestClass/TestHelper: base chain, `setUpClass` cursor contract, test methods with assert counts, subclassed-by list. |
+| `test_base_classes(odoo_version="<version>")` | Menu of official Odoo test framework base classes (TransactionCase, HttpCase, Form, ...) with `test_type` and cursor contract. |
+| `test_coverage_audit(module, odoo_version="<version>")` | Audit a module for fields/methods with zero `COVERS_*` edges (never referenced by any test). |
+| `js_test_inspect(module, odoo_version="<version>")` | List JS test suites in a module: framework mix (Hoot/QUnit/tour), file paths, suite sizes, tags. |
 
 ### Removed in v0.6
 
@@ -93,7 +93,7 @@ Read-only handles for bookmark-stable access. Use these when you already know th
 
 ### 0. Pin the version once
 
-Before any exploration session, set the version so you can drop `odoo_version=` from every subsequent call:
+Before any exploration session, call `set_active_version` once as the reachability probe. It does NOT license omitting `odoo_version=` afterwards - the pin is API-key-scoped and a concurrent session can overwrite it, so pass the concrete version on every call:
 
 ```
 set_active_version("<version>")

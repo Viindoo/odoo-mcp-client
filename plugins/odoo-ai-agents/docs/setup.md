@@ -570,7 +570,7 @@ The MCP server supports **sticky session context**: run `set_active_version` onc
 2. set_active_version("<version>")   # pin the version for this session (24h TTL)
 3. list_available_profiles()    # see which tenant profiles exist (optional)
 4. set_active_profile("<your profile from step 3>")   # pin tenant profile (optional; do not hardcode - read from <SHARE_DIR>/context.md)
-5. <any tool call with odoo_version omitted>   # falls back to the pinned value
+5. <every later tool call still passes odoo_version='<version>' explicitly>   # the pin is a probe, not a default
 ```
 
 After step 2, pass the concrete pinned version on every call, e.g. `model_inspect(model="sale.order", method="summary", odoo_version='<version>')`. The server also accepts `odoo_version='auto'` to resolve against the sticky pin, but because the pin is per-API-key and racy under concurrency (above), this plugin's skills and agents always pass the concrete version instead.
@@ -631,10 +631,10 @@ Static checks against the indexed graph - run them before an AI client suggests 
 
 | Tool | Use case |
 |------|----------|
-| `resolve_orm_chain(model, dotted_path, odoo_version="auto")` | Walk a dotted field path; return the terminal type or the first broken hop |
-| `validate_domain(model, domain, odoo_version="auto")` | Validate domain field-paths + operators (operators are **version-aware**) |
-| `validate_depends(model, method, odoo_version="auto")` | Validate a compute method's indexed `@api.depends` paths |
-| `validate_relation(model, field, target_model, odoo_version="auto")` | Assert a relational field's comodel matches the expected target |
+| `resolve_orm_chain(model, dotted_path, odoo_version="<version>")` | Walk a dotted field path; return the terminal type or the first broken hop |
+| `validate_domain(model, domain, odoo_version="<version>")` | Validate domain field-paths + operators (operators are **version-aware**) |
+| `validate_depends(model, method, odoo_version="<version>")` | Validate a compute method's indexed `@api.depends` paths |
+| `validate_relation(model, field, target_model, odoo_version="<version>")` | Assert a relational field's comodel matches the expected target |
 
 **Full side-by-side migration guide:** see the server [CHANGELOG](https://odoo-semantic.viindoo.com/changelog).
 
