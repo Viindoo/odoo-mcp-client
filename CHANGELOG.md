@@ -468,6 +468,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   declarative workflows, persona buckets - straight from the filesystem (or, for persona buckets,
   from the README's own enumerating table, since no independent on-disk registry exists) and fails
   naming the exact claimed-vs-computed mismatch.
+- `odoo-ai-agents` - the README count-drift bug had already escaped past the README:
+  `snippets/continuation-contract.md`'s own header comment stated "pasting the block into 31
+  SKILL.md + 4 agent files" - the real counts were 50 and 21, off by roughly 2x and 5x. Separately,
+  `snippets/gemini-gem-instructions.md`, `snippets/openai-gpt-instructions.md`, and
+  `snippets/jetbrains-mcp-config.md` each hardcoded "31 tools + 9 MCP Resources" OUTSIDE their own
+  `<!-- BEGIN/END GENERATED TOOLS -->` markers - numerically correct today, but a count `make gen`
+  never touches, unlike the generated section a few hundred lines below it in the same files. All
+  four now describe scope by what makes a file a member (grep the literal snippet path) or point at
+  the file's own generated section / `generator/server-surface.json` instead of restating a count.
+  A new guard, `tests/test_agent_facing_inventory_counts.py`, extends the README-only check to every
+  snippet/skill/agent/command/workflow file across all plugins so this class cannot resurface there
+  unnoticed again.
 
 ## [4.18.1] - 2026-07-28
 

@@ -1,7 +1,10 @@
 <!-- SSOT snippet. The single source for the Continuation Contract that every skill/agent
      emits at the end of its output so run-harness can advance a drive-to-done run. Referenced
      via ${CLAUDE_PLUGIN_ROOT}/snippets/continuation-contract.md instead of pasting the block
-     into 31 SKILL.md + 4 agent files. Full rationale + schema: docs/reference/workflow-harness.md §8. -->
+     into every SKILL.md and agent file that emits a continuation contract - grep the plugin
+     tree for the literal path `snippets/continuation-contract.md` to enumerate the current set
+     (spans SKILL.md and agents/*.md; the set grows as skills/agents are added, so this comment
+     states no count of its own). Full rationale + schema: docs/reference/workflow-harness.md §8. -->
 
 # Continuation Contract (emit at the very end of your output)
 

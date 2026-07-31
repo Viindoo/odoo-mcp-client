@@ -1,9 +1,10 @@
 # JetBrains AI Assistant - Odoo Semantic MCP
 
 JetBrains AI Assistant (2024.3+) supports connecting to external MCP servers.
-Once configured, the full Odoo Semantic tool surface (31 tools + 9 MCP Resources as of
-server v0.15.0 - see `generator/server-surface.json` for the current count) is available inside
-any JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, etc.).
+Once configured, the full Odoo Semantic tool and MCP Resource surface (see
+`generator/server-surface.json` for the current, authoritative list - not restated here since
+nothing in this file recomputes it) is available inside any JetBrains IDE (IntelliJ IDEA,
+PyCharm, WebStorm, etc.).
 
 ## Server details
 
