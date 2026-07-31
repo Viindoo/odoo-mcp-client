@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.19.0] - 2026-07-31
+
 ### Added
 
 - `odoo-ai-agents` - `scripts/lib/resolve_project_dir.sh` and `scripts/lib/paths.py` accept an
@@ -150,6 +152,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   hard-BLOCKs without one. Six enumerated escapes, each recorded in `install-test.md` /
   `merge-log.md`, none silent. The mandate is NOT provisioning-free: each reconcile pass needs a
   fresh DB even when the P5/P9 server lease is reused.
+- `odoo-ai-agents` - the plugin README's forward-port pipeline diagram and phase table now document
+  the new P9.5 i18n-reconcile phase, and the P8/8e wording is corrected to match (8e COMPUTES the
+  `i18n_due` signal; the `odoo-i18n` dispatch itself happens at P9.5) - the same earlier commit that
+  added P9.5 to SKILL.md correctly updated the sibling modules-upgrade pipeline's README section but
+  left forward-port's stale. A separate, older "12-phase" vs "13-phase" phase-count inconsistency
+  in the README's top-of-file summary, found during the same sweep, is also reconciled. A new test,
+  `tests/test_readme_phase_parity.py`, extracts each pipeline's phase anchors straight from its
+  SKILL.md and asserts the README's matching section (both the mermaid diagram and the phase table)
+  documents exactly that same set, so this class of drift cannot recur silently.
 
 ## [4.18.1] - 2026-07-28
 
@@ -167,6 +178,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   set drops from 5 to 4 (`Bash` x2 + `Read` + `Edit`); effective permission coverage is UNCHANGED,
   since `Edit(/$ODOO_AI_HOME/projects/**)` was already present and is the rule that actually binds.
   A regression test now fails the moment a `Write(` path rule reappears in the step's rule SSOT.
+- `odoo-ai-agents` - `05-prereq-check.sh` (both the Python instance-list join and the bash `IFS`
+  split) and `50-instance-spinup.sh`'s `IFS` split now use comma - the separator Odoo's own
+  `--addons-path`/`addons_path` convention uses - instead of colon, so a 2+-entry addons_path
+  resolves to its actual path list instead of being mis-split into bogus fragments.
 
 ## [4.18.0] - 2026-07-25
 
