@@ -2,7 +2,7 @@
      the wave close-gate (run-harness's between-wave integration close-gate) and any peer that closes a wave on a regression suite.
      Edit here only; consumers point at ${CLAUDE_PLUGIN_ROOT}/skills/_shared/cumulative-test-scope.md.
      This selects WHICH suites run; the saga/rollback of the run itself is integration-loop.md;
-     the OSM version-pin race + ephemeral-DB lease are concurrency-guard.md. -->
+     the OSM API-key-pin race + ephemeral-DB lease are concurrency-guard.md. -->
 
 # Cumulative test-scope selection (SSOT)
 
@@ -10,7 +10,7 @@ Bounded algorithm an execute-agent follows to pick the test suites a wave must r
 may open a PR. The scope is the monotonically-growing regression guard `C_N` plus a capped,
 in-repo-only downstream widening. It NEVER re-runs unchanged Odoo core. Every OSM call passes a
 CONCRETE `odoo_version` (parallel fan-out shares one server pin - `'auto'` is last-write-wins;
-see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` OSM version-pin race).
+see `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` OSM API-key-pin race).
 
 ## C_N - the mandatory regression core
 

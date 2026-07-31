@@ -61,7 +61,7 @@ unless the work needs cross-context reasoning - then pick the higher. A skill MA
 add a domain-specific tier table that refines these rows (e.g. `odoo-coding`
 § Phase 0) but MUST NOT restate the principle - reference this section.
 
-## OSM session-pin race (`set_active_version` and `set_active_profile`)
+## OSM API-key-pin race (`set_active_version` and `set_active_profile`)
 
 Both pins are server-side state scoped to the API KEY, not to the calling agent
 or session. Under ANY concurrency - parallel agents in one run, or two sessions

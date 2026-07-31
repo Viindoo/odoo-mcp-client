@@ -42,7 +42,7 @@ odoo_version='<concrete>')` per module (trust-but-verify), with `check_module_ex
 `describe_module` when a module's presence or manifest is ambiguous. Probe reachability once with
 `set_active_version`. Always pass the CONCRETE resolved version, never `'auto'` (the pin is
 per-API-key and racy - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` "OSM
-version-pin race").
+API-key-pin race").
 
 ## Report language
 

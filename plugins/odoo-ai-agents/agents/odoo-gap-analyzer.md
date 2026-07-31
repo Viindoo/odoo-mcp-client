@@ -57,7 +57,7 @@ set_active_profile(profile_name='<PROFILE>')
 set_active_version(odoo_version='<ODOO_VERSION>')
 ```
 
-Pass the concrete `ODOO_VERSION` on EVERY subsequent OSM call - the version pin is server-side state scoped to the API key and any concurrent agent can overwrite it, so `'auto'` is unsafe (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race). If `set_active_version` errors, OSM is unreachable for the cluster - drop to Tier 2 and label rows `local-source` (or `unknown` when the checkout also misses).
+Pass the concrete `ODOO_VERSION` on EVERY subsequent OSM call - the version pin is server-side state scoped to the API key and any concurrent agent can overwrite it, so `'auto'` is unsafe (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM API-key-pin race). If `set_active_version` errors, OSM is unreachable for the cluster - drop to Tier 2 and label rows `local-source` (or `unknown` when the checkout also misses).
 
 ## Step 1 - Round 1: existence (fire in parallel)
 

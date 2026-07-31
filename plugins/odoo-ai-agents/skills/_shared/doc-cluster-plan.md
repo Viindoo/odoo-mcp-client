@@ -38,7 +38,7 @@ Restrict edges to the in-scope set (`depends_in_scope`); edges to out-of-scope m
 context only, never in-set ordering edges. Compute per `odoo-module-graph.md`. OSM-verify the disk
 edges opportunistically (trust-but-verify) with the CONCRETE Odoo version - never `'auto'` (the pin
 is per-API-key and racy, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` "OSM
-version-pin race").
+API-key-pin race").
 
 ### 2. Connected components = CLUSTERS
 
