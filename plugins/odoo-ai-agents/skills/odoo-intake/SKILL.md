@@ -57,8 +57,11 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
    - Check `<ISOLATE_DIR>/brainstorm/state.json` - if an in-progress brainstorm session exists, resume it (Tier 2).
    - **Check for an active run** - glob `<ISOLATE_DIR>/run-*.json` for any with `status: NEEDS_NEXT`. If one exists, do NOT silently open a second RUN-DAG. Surface it and ask: resume it (hand to `run-harness`), or start fresh? Only proceed to open a new run once the user chooses.
    - **Check for existing recon** - glob `<ISOLATE_DIR>/recon/*/findings.md` for this intent's slug.
-     A match whose recorded target ref still holds -> READ it and SKIP Phase R's dispatch entirely
-     (resume rule: `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 1).
+     A match whose `target_ref:` header line (schema: `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md`
+     clause 2) equals the current ref (`git rev-parse --abbrev-ref HEAD`, or the short SHA when
+     `HEAD` is detached) -> READ it and SKIP Phase R's dispatch entirely (resume rule: clause 1 of
+     the same contract). A mismatch -> STALE - fall through to Phase R, which re-dispatches and
+     overwrites the file per clause 1.
 
    **3b. Detect the working directory (4 branches).** Locate Odoo manifests with:
    ```bash
@@ -107,10 +110,12 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 - Call read-only OSM tools as needed: `model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`.
 - When recon reads a document that IS the requirement SSOT (RFP / contract / spec / requirement list), extract it faithfully per `${CLAUDE_PLUGIN_ROOT}/snippets/ssot-extraction-contract.md` - verbatim/structured, never an interpretive summary that invents specifics.
 - **Persist before you propose (MANDATORY).** After the recon subagents return, YOU (not they) write
-  their findings to `<ISOLATE_DIR>/recon/<slug>-<date>/findings.md` in the capped four-field record
-  shape, then reference that path in the Proposed Plan. Contract:
-  `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md`. The subagents stay write-free.
-  Cannot resolve `<ISOLATE_DIR>` (resolver REFUSAL) -> proceed with the plan and record
+  their findings to `<ISOLATE_DIR>/recon/<slug>-<date>/findings.md`: a `target_ref:` header line
+  (the current `git rev-parse --abbrev-ref HEAD`, or short SHA when detached) followed by the
+  capped four-field record rows, then reference that path in the Proposed Plan. The `target_ref:`
+  header is what Phase 0 3a's staleness read-back (above) checks on resume. Contract (full schema):
+  `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 2. The subagents stay
+  write-free. Cannot resolve `<ISOLATE_DIR>` (resolver REFUSAL) -> proceed with the plan and record
   `Findings (Recon): <bullets> (not persisted - state root unresolvable)`; never block intake on it.
 
 **Inventory discovery (hybrid).** Pull each fact from its SSOT:

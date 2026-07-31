@@ -204,6 +204,102 @@ def test_contract_declares_a_numeric_cap_and_a_fixed_key_set():
 # --------------------------------------------------------------------------- #
 
 
+# --------------------------------------------------------------------------- #
+# 6 (PR #189 final-batch review finding F3, WRONG): the staleness check reads a
+# field the writer never wrote. odoo-intake/SKILL.md:60 told the reader to check
+# "the recorded target ref" but the four-field findings.md schema had no ref
+# field at all - the staleness branch was unexecutable. Fix: the contract's
+# Clause 2 schema gains a `target_ref:` header line, and both the writer
+# (odoo-intake Phase R) and the reader (odoo-intake Phase 0 3a) name that exact
+# field. The four-field record-shape fence (test 4 above) is untouched by this -
+# the header lives OUTSIDE that fence, so it does not count against the cap.
+# --------------------------------------------------------------------------- #
+
+
+def test_contract_declares_a_target_ref_header_outside_the_finding_line_cap():
+    """Genre A (structural). The contract must declare a `target_ref:` header line as its
+    own distinct fenced example, separate from the four-field finding-line fence, and must
+    explicitly state the header does not count against the 20-finding-line cap.
+
+    Fails if: no `target_ref:` header is declared, or the cap paragraph loses the explicit
+    carve-out stating the header does not count against it (in which case the size-cap claim
+    from test 4 would be silently violated the moment a header field exists).
+    """
+    text = CONTRACT.read_text(encoding="utf-8")
+    header_fence = re.search(r"```\ntarget_ref: <ref>\n```", text)
+    assert header_fence, (
+        "scouting-persistence-contract.md must declare a distinct `target_ref: <ref>` header "
+        "fence - the staleness-check anchor the four-field record shape has no room for."
+    )
+    assert re.search(r"NOT.{0,40}finding lines?", text, re.DOTALL) or re.search(
+        r"header lines?.{0,60}(NOT|not) finding lines", text
+    ), (
+        "scouting-persistence-contract.md must explicitly state the target_ref/stale header "
+        "line(s) are NOT finding lines and do not count against the 20-line cap."
+    )
+    # test 4's own fence-locator regex must still find the ORIGINAL 4-field fence unchanged.
+    fence_match = re.search(r"```\n(- <area> \|.*?)\n```", text, re.DOTALL)
+    assert fence_match, "the four-field record-shape fence must remain intact and locatable."
+
+
+def test_staleness_clause_names_target_ref_concretely():
+    """Genre A. Clause 1's staleness rule must name `target_ref:` concretely (not just the
+    vague prose 'recorded target ref') so it is grounded in an actual schema field.
+
+    Fails if: Clause 1 still says only "the recorded target ref/branch" with no pointer to
+    where that field is actually declared.
+    """
+    text = CONTRACT.read_text(encoding="utf-8")
+    clause1 = re.search(r"## Clause 1.*?(?=\n## )", text, re.DOTALL).group(0)
+    assert "target_ref" in clause1, (
+        "Clause 1's staleness bullet must reference the concrete `target_ref` field name, not "
+        "just vague prose about a 'recorded target ref'."
+    )
+
+
+def test_intake_write_and_read_both_name_target_ref():
+    """Genre A. odoo-intake/SKILL.md must both WRITE a `target_ref:` header (Phase R persist
+    step) and READ it back (Phase 0 3a resume check) - using the identical field name, so the
+    staleness branch the reader is told to execute is actually backed by something the writer
+    produces.
+
+    Fails if: either the write step or the read-back step drops the `target_ref` field name,
+    reintroducing the write/read mismatch (F3).
+    """
+    text = INTAKE.read_text(encoding="utf-8")
+    write_section = text[text.index("Persist before you propose"):text.index("**Inventory discovery")]
+    assert "target_ref" in write_section, (
+        "odoo-intake/SKILL.md: the 'Persist before you propose' write step must name "
+        "`target_ref` - the field the Phase 0 3a staleness read-back depends on."
+    )
+    phase0_start = text.index("**3a. Read existing context")
+    phase0_section = text[phase0_start:phase0_start + 1200]
+    assert "target_ref" in phase0_section, (
+        "odoo-intake/SKILL.md Phase 0 3a: the existing-recon staleness check must name "
+        "`target_ref` concretely, not just 'the recorded target ref'."
+    )
+
+
+def test_forward_port_p0_writer_inherits_schema_by_pointer_not_restatement():
+    """Genre A. forward-port P0 must still write findings.md purely BY POINTER to the
+    contract (never restating the four-field-only shape), so it automatically inherits the
+    new `target_ref` header without needing its own edit - proving the SSOT actually is one
+    place.
+
+    Fails if: fp-phase-detail.md hardcodes its own record-shape fence (a restatement that
+    would silently diverge from the contract's schema instead of inheriting it).
+    """
+    text = FP_DETAIL.read_text(encoding="utf-8")
+    assert "scouting-persistence-contract.md" in text, (
+        "fp-phase-detail.md must point at scouting-persistence-contract.md rather than "
+        "restating the findings.md schema inline."
+    )
+    assert "<area> |" not in text, (
+        "fp-phase-detail.md must NOT restate the four-field record-shape fence inline - it "
+        "must inherit the schema from the contract by pointer only."
+    )
+
+
 def test_phase_r_write_precedes_phase_p_serialization():
     """Genre A (order). If 'Persist before you propose' were ever moved after '## Plan Mode',
     the recon pointer could be threaded into a run-DAG node before the file backing it exists."""

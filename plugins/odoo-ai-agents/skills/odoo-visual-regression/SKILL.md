@@ -84,13 +84,36 @@ If absent or key missing, fall back to `$ODOO_AI_HOME/instances.toml` (resolve v
 `list_available_versions` for Odoo version. Ask the user (plus the two states to compare) in a
 single message only if none supply the needed values. Do not guess.
 
-Then resolve `<ISOLATE_DIR>` and mint this run's `<slug>` - both are needed before Round 3 writes any
-comparison screenshot. Resolve once per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (same protocol as `<SHARE_DIR>` above).
-`<slug>`: use the `SLUG:` value from your dispatch brief when present; on a standalone invocation
-derive ONE stable, filesystem-safe slug from the comparison intent and reuse that SAME value for every
-path this run - never improvise a fresh one per screen, and never leave the literal `<slug>` token in
-a path (same convention as `${CLAUDE_PLUGIN_ROOT}/agents/odoo-ui-debugger.md` § Round 1).
+Then resolve `<ISOLATE_DIR>` - needed before Round 3 writes any comparison screenshot, and before
+the orphan sweep below. Resolve once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`
+(same protocol as `<SHARE_DIR>` above).
+
+**Orphan sweep (crash backstop, do this every run, BEFORE minting your own slug below).** No hook
+tracks a filesystem directory the way the allocator ledger tracks an instance lease (T4's ledger-gc
+backstop does not cover `visual/current/`), so a run that crashed, was `-9`'d, or was abandoned
+mid-round leaks its `<slug>/` dir forever unless a later run reaps it. Sweep it opportunistically:
+`find <ISOLATE_DIR>/visual/current/ -mindepth 1 -maxdepth 1 -type d -mmin +1440 -exec rm -rf {} +`
+(any sibling `<slug>/` dir untouched for over 24h is presumed abandoned - a healthy run finishes in
+minutes). Run this BEFORE minting your own slug below so it never touches the dir THIS run is about
+to create. Enforcer: whoever executes `odoo-visual-regression` next, unconditionally, every run -
+not a separate cleanup agent or cron.
+
+Now mint this run's `<slug>`: use the `SLUG:` value from your dispatch brief when
+present; on a standalone invocation derive `<intent-slug>-<YYYYMMDD>-<4 random chars>` from the
+comparison intent - the IDENTICAL suffix mechanism
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md:43` uses for its run id
+("so concurrent runs never collide") - minting the 4 random chars ONCE at Round 0 and reusing that
+SAME value for every path this run: never improvise a fresh one per screen, never re-mint the
+random suffix mid-run, and never leave the literal `<slug>` token in a path (same convention as
+`${CLAUDE_PLUGIN_ROOT}/agents/odoo-ui-debugger.md` § Round 1). The random suffix is the
+disambiguator: `<ISOLATE_DIR>` alone is worktree-keyed, not run-keyed, and this skill is exempt from
+worktree provisioning, so without it two concurrent standalone runs sharing the identical comparison
+intent (a retry, or two callers independently checking the same before/after) would mint the SAME
+slug and collide on `<ISOLATE_DIR>/visual/current/<slug>/` - the defect this section exists to
+close. Example: intent "compare before/after the v17 upgrade" run twice concurrently ->
+`compare-v17-upgrade-20260731-a1b2` and `compare-v17-upgrade-20260731-9f3d` - same intent-slug and
+date, different random suffix, so the two runs write to different directories and neither overwrites
+the other's screenshots.
 
 Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
 and pass that concrete version on every Round 1 OSM call - the pin is per-API-key and racy under
@@ -124,7 +147,7 @@ For each in-scope screen at each agreed breakpoint:
 Switch to state B's instance URL - `instance_base_url_b` when this is a two-instance comparison,
 otherwise re-navigate the SAME `instance_base_url` after applying the change under test (module
 install/uninstall, theme toggle, in-place upgrade) - then for each screen:
-1. `resize_page` to same breakpoint; `take_screenshot` → `<ISOLATE_DIR>/visual/current/<slug>/<screen>-<breakpoint>.png` (`filePath`, never `path`). This run's comparison set is ISOLATE, per-run, and deleted after the Round-4 verdict is recorded (see Notes) - baselines stay SHARE.
+1. `resize_page` to same breakpoint; `take_screenshot` → `<ISOLATE_DIR>/visual/current/<slug>/<screen>-<breakpoint>.png` (`filePath`, never `path`). This run's comparison set is ISOLATE, per-run, and deleted before this run's own terminal status - DONE, BLOCKED, or NEEDS_CONTEXT/NEEDS_NEXT alike (see Notes § Retention) - baselines stay SHARE.
 2. Compare pairs. Where pixel diff is ambiguous, use `evaluate_script` to compare DOM structure/text of the region.
 
 ### Round 4 - Report drift + scope
@@ -186,10 +209,23 @@ Examples (two worked scenarios - upgrade regression + SCSS change drift):
   comparison set is ISOLATE and per-slug, because two concurrent runs comparing different state-B
   builds write the same screen filenames. Classification SSOT:
   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`.
-- **Retention (do this, every run).** After the Round-4 verdict is recorded, delete this run's
-  comparison set: `rm -rf <ISOLATE_DIR>/visual/current/<slug>/`. Scope it to `<slug>` ONLY - never a
-  bare `<ISOLATE_DIR>/visual/current/`. Nothing reads a prior run's comparison set; the baselines it
-  was compared against survive in SHARE.
+- **Retention (do this, every run - ALL terminal paths, not just the happy one).** Before emitting
+  ANY terminal status - `DONE` after the Round-4 verdict, or `BLOCKED` / `NEEDS_CONTEXT` /
+  `NEEDS_NEXT` from an earlier round (OSM/browser/instance unreachable, session interrupted) -
+  delete THIS run's comparison set: `rm -rf <ISOLATE_DIR>/visual/current/<slug>/`. Scope it to
+  `<slug>` ONLY - never a bare `<ISOLATE_DIR>/visual/current/`. Nothing reads a prior run's
+  comparison set; the baselines it was compared against survive in SHARE. Enforcer: the agent
+  executing this skill, at its own terminal-status emission - same posture as
+  `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md` T4 ("BLOCKED / NEEDS_CONTEXT do not
+  waive teardown"), restated here rather than folded into that contract because a disk directory is
+  not one of its two live-process resource classes (browser page / Odoo instance) - see that file's
+  Verb glossary.
+- **TTL backstop for a run that never reaches its own terminal status** (crash, `-9`, a compaction
+  mid-round that is never resumed). The rule above is self-enforced prose, not hook-blocked - no
+  ledger like the allocator's tracks a filesystem directory - so a killed session still leaks one
+  `<slug>/` dir. Round 0's Orphan sweep (above) is the backstop: every future run reaps any sibling
+  `<slug>/` dir older than 24h (by mtime) before minting its own slug, so an abandoned run's
+  directory outlives at most one subsequent invocation of this skill, never forever.
 
 ## Continuation Contract
 

@@ -287,6 +287,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   guard now scans the whole plugin and accepts a digit token with up to 3 filler words before
   "topolog" (was: two hardcoded files, spelled-out number words only; pre-fix count: 1). 4 new/widened
   guard tests added, each proven red against the pre-fix text before being fixed green.
+- `odoo-ai-agents` - a fourth PR #189 runtime review found the batch's remaining fixed-but-wrong
+  claims. `odoo-visual-regression/SKILL.md`'s standalone `<slug>` derivation had no anti-collision
+  component - two concurrent runs sharing the identical comparison intent still derived the
+  identical slug and collided on `<ISOLATE_DIR>/visual/current/<slug>/`, the exact collision the
+  PR's `702dabf` claimed to have closed. It now mints
+  `<intent-slug>-<YYYYMMDD>-<4 random chars>`, reusing the SAME suffix mechanism
+  `odoo-intake/references/phase-p-run-dag.md:43` already uses for its run id, rather than inventing a
+  second one; the sibling `visual/qa/<slug>/`, `visual/debug/<slug>/`, and `visual/screenshots/<slug>/`
+  subpaths share the same underlying weakness (no anti-collision suffix in their own slug generation)
+  but are NOT fixed here - their own "generate one slug" instructions have no derivation algorithm at
+  all to extend with a matching one-line suffix, so they are recorded, not patched, in this change.
+  The comparison-set retention rule fired only "after the Round-4 verdict is recorded," leaking a
+  failed/abandoned/interrupted run's directory forever; it now triggers before ANY terminal status
+  (DONE/BLOCKED/NEEDS_CONTEXT/NEEDS_NEXT alike), backstopped by a 24h-TTL orphan sweep the next run
+  performs at its own Round 0 for the crash case no terminal-status prose can reach. The
+  `scouting-persistence-contract.md` staleness check told the reader to compare against "the
+  recorded target ref," but the four-field `findings.md` schema it names had no ref field at all -
+  the branch was unexecutable; the schema now carries a `target_ref:` header line (outside the
+  capped finding-line count, so the declared 20-line/200-char cap is unaffected), and
+  `odoo-intake/SKILL.md`'s writer and reader both name it. `odoo-modules-upgrade`'s Convention 0(c)
+  told the agent to record a `vendor_api_checked:` value with one of six enumerated forms, but no
+  P2/P4/P5 output schema reserved a field for it; `absorption/<module>.md`'s P2 output FORMAT now
+  reserves the slot, and the P4 dispatch brief's step 0c (the actual write instruction) names the
+  same field and file. Verified `agents/odoo-coder.md`'s "Brief self-check" already validates
+  `SELF_PROVISION: worktree-addons` (landed earlier in this PR, `52225ad`) - no further action needed
+  there. 14 new/widened guard tests added across 3 files (1 new file), each proven red against the
+  pre-fix text (via a targeted stash of the source-only edits) before being fixed green.
 
 ## [4.18.1] - 2026-07-28
 

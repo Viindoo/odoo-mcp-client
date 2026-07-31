@@ -422,6 +422,80 @@ def test_p4_brief_template_wires_vendor_currency_pass_as_an_instruction_step():
     )
 
 
+# --------------------------------------------------------------------------- #
+# PR #189 final-batch review (FIX 4): Convention 0(c) tells the agent to
+# RECORD a `vendor_api_checked:` value with one of six enumerated forms, but no
+# P2/P4/P5 output schema reserved a field for it - the agent was instructed to
+# write into a structure with nowhere to land the value. Fix: the P2 output
+# FORMAT (`absorption/<module>.md`) reserves a `vendor_api_checked:` slot, and
+# the P4 dispatch brief's step 0c (the actual write instruction) names that
+# SAME field + file as its destination.
+# --------------------------------------------------------------------------- #
+
+
+def test_absorption_output_format_reserves_a_vendor_api_checked_slot():
+    """Genre A (structural). The P2 output FORMAT block (absorption/<module>.md schema) must
+    declare a `vendor_api_checked:` field, adjacent to the other per-module verdict fields
+    (data_at_risk, deferred_work) it already reserves slots for.
+
+    Fails if: no `vendor_api_checked:` key exists in the FORMAT block, i.e. Convention 0(c)'s
+    record instruction has nowhere to land.
+    """
+    detail = _phase_detail_text()
+    fmt_start = detail.index("OUTPUT: write to absorption/<module>.md")
+    fmt_end = detail.index("### P2 - odoo-gap-analysis dispatch")
+    fmt_block = detail[fmt_start:fmt_end]
+    assert re.search(r"^\s*vendor_api_checked:", fmt_block, re.MULTILINE), (
+        "upg-phase-detail.md: the P2 output FORMAT block (absorption/<module>.md schema) must "
+        "reserve a `vendor_api_checked:` field - without it, Convention 0(c)'s vendor-currency "
+        "record has no schema slot to land in."
+    )
+
+
+def test_p4_step_0c_names_the_same_field_and_file_as_the_schema():
+    """Genre A. The P4 dispatch brief's step 0c (the ACTUAL write instruction a coder receives)
+    must name the identical `vendor_api_checked:` field AND the identical destination file
+    (`absorption/<module>.md`) the P2 output FORMAT reserves the slot in - proving the writer
+    and the schema agree on where the value lands.
+
+    Fails if: step 0c records the vendor-currency finding without naming a destination field/
+    file, or names a different field/file than the schema declares.
+    """
+    block = _norm(_p4_brief_block())
+    assert "0c." in block, "P4 brief template must retain step 0c (vendor-currency pass)."
+    step_0c_pos = block.index("0c.")
+    next_step_pos = block.find("\n  1.", step_0c_pos)
+    if next_step_pos == -1:
+        next_step_pos = len(block)
+    step_0c_text = block[step_0c_pos:next_step_pos]
+    assert "vendor_api_checked" in step_0c_text, (
+        "P4 brief template step 0c must name the `vendor_api_checked:` field explicitly as "
+        "its write destination."
+    )
+    assert "absorption/<module>.md" in step_0c_text, (
+        "P4 brief template step 0c must name `absorption/<module>.md` as the file "
+        "`vendor_api_checked:` is persisted into - the SAME file the P2 output FORMAT reserves "
+        "the slot in, and the SAME file P6 presents at the human gate."
+    )
+
+
+def test_convention_0c_points_at_the_reserved_slot_not_just_the_bare_field_name():
+    """Genre A. Convention 0(c)'s own text (the canonical definition of the six outcome forms)
+    must point at WHERE `vendor_api_checked:` is recorded (the absorption/<module>.md schema),
+    not merely name the field with no destination - so a reader of the convention alone (not
+    the P4 brief) still learns where the record lands.
+
+    Fails if: Convention 0(c) enumerates the six forms but never names
+    `absorption/<module>.md` as the destination.
+    """
+    text = _upg_conventions_text()
+    body = text[text.index("## Convention 0"):]
+    assert "absorption/<module>.md" in body, (
+        "snippets/upg-conventions.md Convention 0(c) must name `absorption/<module>.md` as the "
+        "reserved destination for the `vendor_api_checked:` record."
+    )
+
+
 def test_p5_create_instance_dispatch_names_worktree_path_over_integration_worktree():
     """P5 Step 1 (create instance) must name a WORKTREE_PATH covering the SAME P4
     integration worktree - P5.7 asserts 'its addons path MUST cover WORKTREE_PATH', a
