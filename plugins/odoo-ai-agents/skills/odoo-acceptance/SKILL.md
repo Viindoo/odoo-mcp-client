@@ -84,17 +84,36 @@ poll TaskList/TaskGet, and read each result from the teammate's SendMessage push
 A change reference (changed modules / diff / design doc), the `odoo_version`, and a way to reach a
 live instance (`INSTANCE_HANDLE` if a run already provisioned one, else resolve per
 `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`, which also yields the `BROWSER_MODE` -
-headed/headless - for the live channel). Generate one `slug` for the run and reuse it in every
-artifact path below.
+headed/headless - for the live channel). This run's `slug` is minted at Phase 0 below (after its
+orphan sweep) and reused in every artifact path from there on - including each dispatched
+`odoo-qa-tester`'s `visual/qa/<slug>/<module>/` evidence dir.
 
 ## Phase 0 - SCOPE (verify-scope manifest)
 
-Build the verify-scope manifest per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`: reverse
-`impact_analysis` closure on the changed set -> rank each dependent module/screen by risk
+Resolve the Tier-2 ISOLATE dir per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`'s
+resolve-capture-substitute protocol (captured path shown as `<ISOLATE_DIR>` below).
+
+**Orphan sweep (do this every run, BEFORE minting this run's slug below).** `visual/qa/<slug>/`
+evidence is RETAINED past its own run (it is the cited evidence behind each PASS/FAIL/UNVERIFIED
+verdict) - nothing else ever deletes it, so it leaks one directory per run forever unless a later
+run reaps it:
+
+`find <ISOLATE_DIR>/visual/qa/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
+
+(any sibling `<slug>/` dir untouched for over 30 days is presumed consumed - its verdict has long
+since been read). Full rule + bound rationale:
+`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 2. Enforcer: whoever
+executes `odoo-acceptance` next, unconditionally, every run - not a separate cleanup agent or cron.
+
+Generate one `slug` for the run per
+`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 1 (collision-proof
+derivation: `<intent-slug>-<YYYYMMDD>-<4 random chars>`, the SAME mechanism `odoo-visual-regression`
+uses) and reuse it in every artifact path below.
+
+Now build the verify-scope manifest per `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`:
+reverse `impact_analysis` closure on the changed set -> rank each dependent module/screen by risk
 (likelihood x impact) -> enumerate the affected screens (views binding a changed symbol) -> emit
-`install_set` / `test_set` / `render_check_set`. Resolve the Tier-2 ISOLATE dir per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`'s resolve-capture-substitute protocol
-(captured path shown as `<ISOLATE_DIR>` below) and write it to `<ISOLATE_DIR>/qa/<slug>-scope.md`.
+`install_set` / `test_set` / `render_check_set`. Write it to `<ISOLATE_DIR>/qa/<slug>-scope.md`.
 This is the scope every later phase obeys - depth on High tier, smoke on Low.
 
 ## Phase 1 - PLAN (independent oracle)

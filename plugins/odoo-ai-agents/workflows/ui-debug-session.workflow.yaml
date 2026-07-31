@@ -32,7 +32,9 @@ phases:
     model_tier: inherit
     # Runner collects: symptom description, Odoo version, affected module/menu,
     # browser and JS console errors (pasted), network request failures (optional),
-    # reproduction steps. Writes a structured symptom card to state.
+    # reproduction steps. Writes .odoo-ai/debug/<slug>-symptom.md - the concrete,
+    # named artifact every later phase reads back from disk rather than trusting
+    # conversation context (this is what makes the resume promise below actually true).
 
   # ------------------------------------------------------------------
   # Phase 1 - Reproduce the symptom (inline)
@@ -56,14 +58,17 @@ phases:
       Follow the scientific method in ${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-method.md
       and the UI rows of ${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-failure-modes.md; fill the
       Output Contract.
-      Investigate the Odoo UI issue collected in the symptom card and confirmed as
-      reproducible in the reproduce phase. Identify the ROOT CAUSE of the misbehavior -
+      Before diagnosing, read back .odoo-ai/debug/<slug>-symptom.md and
+      .odoo-ai/debug/<slug>-reproduce.md from disk - do not rely on this session's own
+      conversation context for their content, since a resumed multi-hour session may
+      continue in a fresh context that never saw the earlier phases run. Investigate the
+      Odoo UI issue recorded in those two artifacts. Identify the ROOT CAUSE of the misbehavior -
       console errors, failed network requests, blank OWL renders, broken widget state,
       wrong computed values, or CSS overrides not applying. Provide: (a) the exact root
       cause with the affected module, view, component, or CSS rule identified, (b) the
       override point or file path where the fix should land, and (c) any secondary
       contributing factors. Do not write the fix yet - focus on diagnosis.
-      This is an inline reasoning phase with NO live browser - diagnose strictly from the evidence captured in the collect/symptom phase; if live runtime capture is required and absent, return cannot-reproduce and recommend the odoo-debug browser agent rather than fabricating browser observations.
+      This is an inline reasoning phase with NO live browser - diagnose strictly from the evidence in the two read-back artifacts above; if live runtime capture is required and absent, return cannot-reproduce and recommend the odoo-debug browser agent rather than fabricating browser observations.
     model_tier: sonnet
     gate: "approve / re-investigate: [feedback] / cancel"
 

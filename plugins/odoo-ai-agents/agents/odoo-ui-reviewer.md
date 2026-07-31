@@ -42,6 +42,13 @@ Read `<SHARE_DIR>/context.md` if present (Markdown bullets, `- **key**: value` f
 
 Once `odoo_version` is resolved, pin it: `set_active_version(odoo_version=<concrete>)` (reachability probe). Pass CONCRETE version on every Step 1/Step 5 OSM call - never `'auto'` (per-API-key pin; a concurrent agent can overwrite it).
 
+**`<slug>` source.** Use the `SLUG:` value from your dispatch brief (the `odoo-ui-review` skill
+mints one collision-proof slug for the review and passes it alongside `ISOLATE_DIR:`); substitute
+it literally wherever this file writes `<slug>`. Only on a standalone invocation with no `SLUG:`
+field, derive one yourself per `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md`
+Clause 1 and reuse that SAME value for every artifact path this review writes - never leave the
+literal `<slug>` token in a path, and never improvise a fresh one per screenshot.
+
 ### Step 0.5 - TDD conformance setup (only when `DESIGN_DOC` is in the brief)
 
 `Read` the design document at the path given in `DESIGN_DOC`. Extract from it the

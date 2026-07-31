@@ -102,10 +102,25 @@ Proceed? (yes / refine: [feedback] / cancel)
 This skill writes its run notes under `<ISOLATE_DIR>/debug/` (gate tier L1; resolve `<ISOLATE_DIR>`
 once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured
 absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit), so
-confirm before a long run unless the caller already authorized auto-run. Generate one `slug` for
-this debug session (short, filesystem-safe - mirror `odoo-acceptance/SKILL.md`'s "Generate one
-`slug` for the run") and reuse it in every artifact path below, including the `SLUG:` field passed
-to `odoo-ui-debugger` in Phase 2 (it composes `<ISOLATE_DIR>/visual/debug/<slug>/` for its own
+confirm before a long run unless the caller already authorized auto-run.
+
+**Orphan sweep (do this every run, BEFORE minting this session's slug below).**
+`visual/debug/<slug>/` evidence is RETAINED past its own run (the Output Contract's Observation
+field cites it) - nothing else ever deletes it, so it leaks one directory per run forever unless a
+later run reaps it:
+
+`find <ISOLATE_DIR>/visual/debug/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
+
+(any sibling `<slug>/` dir untouched for over 30 days is presumed consumed).
+Full rule + bound rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md`
+Clause 2. Enforcer: whoever executes `odoo-debug` next, unconditionally, every run - not a separate
+cleanup agent or cron.
+
+Generate one `slug` for this debug session per
+`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 1 (collision-proof
+derivation: `<intent-slug>-<YYYYMMDD>-<4 random chars>`, the SAME mechanism `odoo-visual-regression`
+uses) and reuse it in every artifact path below, including the `SLUG:` field passed to
+`odoo-ui-debugger` in Phase 2 (it composes `<ISOLATE_DIR>/visual/debug/<slug>/` for its own
 captured evidence from that literal, never improvising its own).
 
 ### Phase 1 - Triage (classify + reproduce)
