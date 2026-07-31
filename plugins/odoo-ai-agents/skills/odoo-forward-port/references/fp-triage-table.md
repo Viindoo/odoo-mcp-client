@@ -13,10 +13,17 @@ tier in `plan.md`; the tier is part of the approved plan, not a runtime improvis
 
 ## Table 1 - EXTRACT tier (P0 triage -> P1 intent extraction)
 
-> **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row):**
-> If the module's `installable` field is `False` at the TARGET clean tip
-> (read `<module>/__manifest__.py` at the target ref - the value P2 resolved into `manifest_path`;
-> an absent key means installable) -> this module is on the **lint-only lane**.
+> **SHORT-CIRCUIT GATE (check FIRST, before walking any tier row - executable AT P0, P2 has not
+> run yet):**
+> If the module's `installable` field is `False` at the TARGET clean tip -> this module is on the
+> **lint-only lane**. Resolve this yourself, right now, via the SAME disk-read Discriminator
+> `[[fp-installable-false]]` § Discriminator defines: read `<module>/__manifest__.py` at the target
+> ref through `git-toolkit:git-ops` (read-only) - an absent key means installable, an absent FILE
+> means the module is not on the clean tip. OSM does NOT carry this flag (`module_inspect` /
+> `describe_module` / `check_module_exists` all omit it) - a disk read is the only path. Do NOT wait
+> for P2's `manifest_path` artifact (a later phase; it independently re-reads the SAME ref into its
+> own file, then records `installable_false` in `merge-log.md` for the module-keyed record - the
+> two reads agree because they read the identical target-ref manifest).
 > Do NOT walk the tier rows below. Do NOT dispatch extract or adapt logic.
 > Only dispatch a haiku lint-fix agent if CI is red due to a syntax error.
 > See [[fp-installable-false]] for the full lint-only lane specification.

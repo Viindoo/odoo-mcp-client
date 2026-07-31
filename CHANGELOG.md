@@ -216,6 +216,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   WORKTREE_PATH") - it now passes `WORKTREE_PATH: <path>/upg-integration`, reusing the existing
   `odoo-instance` WORKTREE_PATH field and its `--addons-path-override` substitution mechanism (no
   second, bespoke mechanism introduced).
+- `odoo-ai-agents` - a second PR #189 runtime review found the i18n mandate self-contradictory and
+  two of its escapes unusable, plus a forward-port verify phase that could go GREEN against
+  un-adapted code. `snippets/i18n-mandate-contract.md` (escape E3: "record + proceed") and
+  `skills/odoo-i18n/SKILL.md`'s own gate ("any of three inputs missing, incl. TARGET LANGUAGES,
+  falls back to a standalone STOP") gave opposite instructions for the same no-language case, and
+  the SAME skill's own P0 tier text separately said the caller "MUST pass explicit TARGET
+  LANGUAGES" - self-contradictory on top of the cross-file one. Resolved in one direction: a
+  MANDATED invocation never opens a fresh interactive STOP for ANY reason. Missing WORKTREE_PATH or
+  INSTANCE_HANDLE/SELF_PROVISION (the two hard preconditions) is a caller-contract violation that
+  returns `status: BLOCKED` to the caller's own gate; TARGET LANGUAGES is best-effort only -
+  `odoo-i18n`'s own P0 tiers 2-4 (registry / `.po`-filename inference / live instance query) still
+  run against whatever the caller could NOT supply, and only once all four tiers are empty does
+  escape E3 fire (record + proceed, translate nothing, never stop) - closing both the deadlock risk
+  and the "silently skip a resolvable language" risk. Escape E2 ("no `i18n/` dir + zero
+  translatable-delta signals") was unreachable for `odoo-modules-upgrade` because its only trigger
+  table was headed "forward-port condition 1 only" and read a forward-port-only artifact path; the
+  table now names a modules-upgrade scan target too (the module's own P4 adapt diff), and a new
+  "Catalog-presence check" section defines - ONCE, mechanically - what "ships no `i18n/` directory"
+  means (a `WORKTREE_PATH` disk read, never OSM, which does not index `.po`/`.pot` at all) so both
+  flows evaluate E2 identically instead of guessing. Forward-port's P9 (RED-then-GREEN verify) named
+  `WORKTREE_PATH` nowhere in the whole skill - only P9.5 (i18n) did, on the unbacked assumption that
+  P9's instance already covered it - so P9 could go GREEN against the principal checkout instead of
+  the adapted `fp-integration` worktree with no error raised (the SAME defect class `3d9928e`
+  already fixed for `odoo-git-rebase`/`odoo-coding`/`odoo-coder`/`worker-brief`; forward-port was
+  simply absent from that commit). P9 now passes `WORKTREE_PATH: <path>/fp-integration` to
+  `odoo-instance` and re-roots the addons path before any verify command, making P9.5's addons-path
+  claim - and the i18n mandate's stated dependency on it - actually true; this also closes a
+  regression-hunt DEGRADES where P9.5 could reintroduce a per-invocation STOP for a module gaining
+  its first-ever translatable string (zero source-side `.po` files to infer a language from) - it
+  now omits TARGET LANGUAGES in that case and defers to `odoo-i18n`'s own tiers/E3. Finally,
+  `fp-triage-table.md` Table 1's P0 short-circuit gate instructed reading a `manifest_path`
+  described as "the value P2 resolved" - P2 runs strictly after P0, so this was unexecutable at the
+  point it governs (confirmed via `git show ca80dce`, which replaced a self-contained, P0-executable
+  check with this forward reference). Table 1 now cites the disk-read Discriminator
+  `fp-installable-false.md` already defines, executable at P0 with no OSM claim; Table 2 (which
+  governs P8, after P2) is untouched. 23 new tests across `tests/test_i18n_mandate_reconciliation.py`
+  (new) and `tests/test_forward_port_hardening.py`, each proven red against the pre-fix text.
 
 ## [4.18.1] - 2026-07-28
 

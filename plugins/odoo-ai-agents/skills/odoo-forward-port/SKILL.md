@@ -461,29 +461,38 @@ handoff contract reserves for the executor: its output is large (test log, trace
 this orchestrator's context, and running it here folds the executor role into the conductor. SSOT:
 `${CLAUDE_PLUGIN_ROOT}/snippets/test-execution-handoff.md`. Dispatch `odoo-instance` (via the Skill tool;
 L2 human gate applies) - the same delegation `odoo-modules-upgrade` P5 and `odoo-git-rebase` P10 use:
-provision the cluster ONCE, then per batch dispatch init for the N affected modules followed by
-run-tests of the target suite, relaying the returned `INSTANCE_HANDLE` so later batches reuse the same
-instance instead of self-provisioning (`odoo-instance-ops` resolves odoo-bin flags per series via
-`cli_help`, performs Odoo create-on-init, and drops the DB through Odoo on release). The executor
-returns a structured result block (per-test pass/fail + the instance log path), NOT the raw firehose.
-From that block THIS skill stays the adjudicator of FP intent: RED-then-GREEN for the whole module +
-confirm-by-toggle for FP-delta tests only, triaging each red test as FP-delta vs pre-existing (re-run it
-on clean target tip via the same executor). Never relax an assertion to hide a pre-existing failure.
-Full per-batch + CREATEDB-role protocol (CREATEDB still required - Odoo create-on-init needs the same
-privilege): `[[fp-merge-absorption]]`. Instance lifecycle and test invocation conventions:
+provision the cluster ONCE, PASSING `WORKTREE_PATH: <path>/fp-integration` (the SAME P4 JOB-tier
+integration worktree the merge/adapt phases wrote to) in that first dispatch, so `odoo-instance`
+re-roots the addons list onto it via `--addons-path-override`
+(`odoo-instance/SKILL.md` § WORKTREE_PATH substitution) instead of loading the principal checkout -
+without this, a "GREEN" result here proves nothing, since it would verify un-adapted code. Then per
+batch dispatch init for the N affected modules followed by run-tests of the target suite, relaying the
+returned `INSTANCE_HANDLE` so later batches reuse the same instance instead of self-provisioning
+(`odoo-instance-ops` resolves odoo-bin flags per series via `cli_help`, performs Odoo create-on-init,
+and drops the DB through Odoo on release). The executor returns a structured result block (per-test
+pass/fail + the instance log path), NOT the raw firehose. From that block THIS skill stays the
+adjudicator of FP intent: RED-then-GREEN for the whole module + confirm-by-toggle for FP-delta tests
+only, triaging each red test as FP-delta vs pre-existing (re-run it on clean target tip via the same
+executor). Never relax an assertion to hide a pre-existing failure. Full per-batch + CREATEDB-role
+protocol (CREATEDB still required - Odoo create-on-init needs the same privilege):
+`[[fp-merge-absorption]]`. Instance lifecycle and test invocation conventions:
 `docs/reference/INSTANCE-LIFECYCLE.md` and `docs/reference/ODOO-TESTING.md`.
 
 **P9.5 - i18n reconcile [MANDATORY, per batch, reuses the P9 instance].** For every module in this
 batch whose 8e record says `i18n_due: yes`, invoke the `odoo-i18n` skill (via the Skill tool) ONCE.
 Pass the four caller obligations from
 `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`: `WORKTREE_PATH` (this batch's integration
-worktree), the P9 `INSTANCE_HANDLE` whose addons path covers it, explicit `TARGET LANGUAGES` (the codes
-inferred from the source-side `<lang>.po` filenames - deliverable languages only, never `en_US`), and
-`GATE: fold into P10`. `odoo-i18n` owns the non-destructive recipe and the isolated-DB export; this
-pipeline forwards only the intent. An `i18n_due: escape:<E-id>` module is skipped with its recorded
-reason. Present every result - reconciled or escaped - at the P10 gate, so the human sees ONE combined
-decision. Note `odoo-i18n` needs a FRESH DB per pass (existing `<lang>.po` loaded before re-export), so
-reusing the P9 server lease does not make this free.
+worktree), the P9 `INSTANCE_HANDLE` (its addons path now genuinely covers that worktree - P9 re-roots
+it via `WORKTREE_PATH`, above), `TARGET LANGUAGES` (best-effort: the codes inferred from the
+source-side `<lang>.po` filenames - deliverable languages only, never `en_US` - when any exist; a
+module gaining its FIRST-EVER translatable string in this batch has none to infer, so OMIT the field
+rather than block on it - `odoo-i18n`'s own P0 still tries tiers 2-4 itself and records escape E3,
+non-blocking, if all four come up empty), and `GATE: fold into P10`. `odoo-i18n` owns the
+non-destructive recipe and the isolated-DB export; this pipeline forwards only the intent. An
+`i18n_due: escape:<E-id>` module is skipped with its recorded reason. Present every result -
+reconciled or escaped - at the P10 gate, so the human sees ONE combined decision. Note `odoo-i18n`
+needs a FRESH DB per pass (existing `<lang>.po` loaded before re-export), so reusing the P9 server
+lease does not make this free.
 
 **P10 - Gate merge [STOP, per batch].** Emit `merge-log.md`, present it, wait for human-confirm.
 On confirm: invoke the `git-toolkit:git-ops` skill (via the Skill tool) to commit the merge (buckets a/d still commit - Hard rule 7), update

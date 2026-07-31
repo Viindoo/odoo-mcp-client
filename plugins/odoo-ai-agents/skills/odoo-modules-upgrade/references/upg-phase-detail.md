@@ -768,7 +768,12 @@ MODULES: <cluster adapted modules>
 TARGET_VERSION: <target_version>
 MODE: reconcile (non-destructive)
 WORKTREE_PATH: <the P4 integration worktree - .po/.pot are git-tracked>
-TARGET LANGUAGES: <explicit list; never leave odoo-i18n to resolve a default>
+TARGET LANGUAGES: <explicit list when this run has one, else omit the field entirely - this
+  orchestrator has no tiered resolver of its own; odoo-i18n's own P0 tiers 2-4 (registry /
+  .po-filename inference / instance query) still attempt resolution from what IS available, and
+  record escape E3 (proceed, no stop) only once all four tiers are empty. Omitting the field is
+  NEVER a licence for odoo-i18n's tier-5 hardcoded default to fire - that stays unreachable inside
+  this mandate regardless (i18n-mandate-contract.md; odoo-i18n/SKILL.md P0)>
 GATE: do NOT stop separately - return the result; it is presented at the P6 sign-off
 STEPS (odoo-i18n owns the detail; do NOT replicate its protocol):
   1. fresh instance with en_US + each existing <lang>.po loaded, then re-export each <lang>.po

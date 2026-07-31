@@ -531,6 +531,20 @@ ADDONS_PATH=/path/repo-a/addons,/path/repo-b,/path/repo-c/addons,/path/repo-d
 # verify each repo dir exists on disk; a missing repo = BLOCKED (NEEDS_CONTEXT), not a test red
 ```
 
+**Worktree re-root (MANDATORY, after the CATALOG baseline above, before it is treated as final).**
+The block above resolves the CATALOG (principal-checkout) baseline only - it is NEVER the addons_path
+this phase actually verifies against. This batch adapted `<path>/fp-integration` (the P4 JOB-tier
+integration worktree), so re-root the baseline onto it via the SAME mechanism every other consumer
+uses - `odoo-instance`'s `WORKTREE_PATH` field (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`
+§ WORKTREE_PATH substitution) plus the allocator's `--addons-path-override`: dispatch `odoo-instance`
+(SKILL.md P9) with `WORKTREE_PATH: <path>/fp-integration`, which drops every catalog entry under the
+principal checkout and prepends the equivalent under `<path>/fp-integration` before `acquire`. Do NOT
+hand-build the override yourself and do NOT verify against the catalog `ADDONS_PATH` built above
+directly - that is exactly the un-adapted-code false-green this re-root exists to prevent. Before trusting any
+result below, assert the resolved addons list contains `<path>/fp-integration/<module>/__manifest__.py`
+for every module in this batch (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` §
+Addons coverage assertion) - on a miss, `BLOCKED`, never a silent run against the wrong tree.
+
 **Install/verify the FULL transitive `depends` closure, not just the module you edited.**
 A forwarded change can break a downstream depender that you never touched. Resolve the closure
 per module, then install/verify its breadth:
