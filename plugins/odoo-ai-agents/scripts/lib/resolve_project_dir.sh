@@ -46,7 +46,9 @@
 #   Source-only:  source resolve_project_dir.sh
 #                 resolve_project_dir_share    # prints the absolute SHARE dir
 #                 resolve_project_dir_isolate  # prints the absolute ISOLATE dir
-#   Runnable:     bash resolve_project_dir.sh share|isolate
+#                 resolve_project_dir_share   "<abs-root>"  # resolve AS IF cwd were <abs-root>
+#                 resolve_project_dir_isolate "<abs-root>"  # same, ISOLATE
+#   Runnable:     bash resolve_project_dir.sh [--root <abs-path>] share|isolate
 #                 (prints ONE absolute path on stdout; exit 0, or non-zero +
 #                 stderr diagnostic on failure)
 #
@@ -172,6 +174,18 @@ _project_dir_wt_key() {
     _project_dir_hash12 "$real"
 }
 
+# Run the cwd-based resolver as if the cwd were $1. $1 = target root (abs path),
+# $2 = share|isolate. Exists so there is exactly ONE resolution algorithm: the
+# root is applied by a subshell `cd`, never by a second key-derivation path.
+_resolve_project_dir_at() {
+    local root="$1" verb="$2"
+    if [ ! -d "$root" ]; then
+        printf 'resolve_project_dir: --root %s is not a directory.\n' "$root" >&2
+        return 1
+    fi
+    ( cd "$root" || exit 1; "resolve_project_dir_${verb}" )
+}
+
 # ---------------------------------------------------------------------------
 # public API
 # ---------------------------------------------------------------------------
@@ -180,6 +194,7 @@ _project_dir_wt_key() {
 # (mkdir -p) first. Honors an explicit $ODOO_AI_PROJECT_DIR override verbatim
 # (still mkdir -p'd, never re-hashed).
 resolve_project_dir_share() {
+    if [ -n "${1:-}" ]; then _resolve_project_dir_at "$1" share; return $?; fi
     if [ -n "${ODOO_AI_PROJECT_DIR:-}" ]; then
         local override="${ODOO_AI_PROJECT_DIR%/}"
         mkdir -p "$override" || return 1
@@ -202,6 +217,7 @@ resolve_project_dir_share() {
 # When unset, resolves the SHARE dir first (so an ODOO_AI_PROJECT_DIR override
 # is respected for the SHARE half of the path too) and nests under it.
 resolve_project_dir_isolate() {
+    if [ -n "${1:-}" ]; then _resolve_project_dir_at "$1" isolate; return $?; fi
     if [ -n "${ODOO_AI_WORKTREE_DIR:-}" ]; then
         local override="${ODOO_AI_WORKTREE_DIR%/}"
         mkdir -p "$override" || return 1
@@ -224,11 +240,20 @@ resolve_project_dir_isolate() {
 # ---------------------------------------------------------------------------
 if [ "${BASH_SOURCE[0]:-$0}" = "$0" ]; then
     set -euo pipefail
+    _rpd_root=""
+    if [ "${1:-}" = "--root" ]; then
+        _rpd_root="${2:-}"
+        if [ -z "$_rpd_root" ]; then
+            printf 'resolve_project_dir: --root needs an absolute path\n' >&2
+            exit 2
+        fi
+        shift 2
+    fi
     case "${1:-}" in
-        share)   resolve_project_dir_share ;;
-        isolate) resolve_project_dir_isolate ;;
+        share)   resolve_project_dir_share "$_rpd_root" ;;
+        isolate) resolve_project_dir_isolate "$_rpd_root" ;;
         *)
-            printf 'Usage: resolve_project_dir.sh share|isolate\n' >&2
+            printf 'Usage: resolve_project_dir.sh [--root <abs-path>] share|isolate\n' >&2
             exit 2
             ;;
     esac

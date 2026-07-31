@@ -108,24 +108,34 @@ def _marker_root(start_dir: str) -> str | None:
         d = parent
 
 
-def _nongit_key() -> str | None:
-    marker = _marker_root(os.getcwd())
+def _nongit_key(cwd: str | None = None) -> str | None:
+    marker = _marker_root(cwd or os.getcwd())
     if marker is None:
         return None
     return _hash12(marker)
 
 
-def _repo_key() -> str | None:
-    common = _git(["rev-parse", "--git-common-dir"])
+def _repo_key(cwd: str | None = None) -> str | None:
+    common = _git(["rev-parse", "--git-common-dir"], cwd=cwd)
     if common is None:
-        return _nongit_key()
+        return _nongit_key(cwd)
+    # `--git-common-dir` is CWD-RELATIVE from a main-checkout root/subdir (".git",
+    # "../.git") and only absolute from some worktree layouts - anchor a relative
+    # result on `cwd` (the directory git actually ran in), never on this process's
+    # own os.getcwd(), which can differ once a caller passes an explicit `cwd`.
+    if not os.path.isabs(common):
+        common = os.path.join(cwd or os.getcwd(), common)
     return _hash12(os.path.realpath(common))
 
 
-def _wt_key() -> str | None:
-    top = _git(["rev-parse", "--show-toplevel"])
+def _wt_key(cwd: str | None = None) -> str | None:
+    top = _git(["rev-parse", "--show-toplevel"], cwd=cwd)
     if top is None:
-        return _nongit_key()
+        return _nongit_key(cwd)
+    # --show-toplevel is documented-absolute, but anchor defensively for the
+    # same reason as _repo_key above - keeps both helpers symmetric.
+    if not os.path.isabs(top):
+        top = os.path.join(cwd or os.getcwd(), top)
     return _hash12(os.path.realpath(top))
 
 
@@ -140,15 +150,21 @@ def _no_marker_message(var: str) -> str:
 # --------------------------------------------------------------------------- #
 # public API
 # --------------------------------------------------------------------------- #
-def share_dir() -> str:
+def share_dir(root: str | None = None) -> str:
     """Return the absolute SHARE dir, creating it first. Honors an explicit
-    $ODOO_AI_PROJECT_DIR override verbatim (still created, never re-hashed)."""
+    $ODOO_AI_PROJECT_DIR override verbatim (still created, never re-hashed).
+
+    `root` (optional): resolve as if the cwd were this directory. None = cwd,
+    byte-identical to the pre-`root` behavior. Mirrors the shell's
+    `resolve_project_dir.sh --root <abs-path> share`."""
     override = os.environ.get("ODOO_AI_PROJECT_DIR")
     if override:
         d = override.rstrip("/") or "/"
         os.makedirs(d, exist_ok=True)
         return d
-    key = _repo_key()
+    if root is not None and not os.path.isdir(root):
+        raise ProjectDirError(f"resolve_project_dir: --root {root} is not a directory.")
+    key = _repo_key(root)
     if key is None:
         raise ProjectDirError(_no_marker_message("ODOO_AI_PROJECT_DIR"))
     d = os.path.join(_home(), "projects", key)
@@ -156,18 +172,20 @@ def share_dir() -> str:
     return d
 
 
-def isolate_dir() -> str:
+def isolate_dir(root: str | None = None) -> str:
     """Return the absolute ISOLATE dir, creating it first. Honors an explicit
     $ODOO_AI_WORKTREE_DIR override verbatim. When unset, resolves the SHARE dir
     first (so an $ODOO_AI_PROJECT_DIR override is respected for the SHARE half
-    of the path too) and nests <SHARE>/worktrees/<wt-key>/ under it."""
+    of the path too) and nests <SHARE>/worktrees/<wt-key>/ under it.
+
+    `root` (optional): as in share_dir - forwarded to BOTH halves."""
     override = os.environ.get("ODOO_AI_WORKTREE_DIR")
     if override:
         d = override.rstrip("/") or "/"
         os.makedirs(d, exist_ok=True)
         return d
-    share = share_dir()
-    key = _wt_key()
+    share = share_dir(root)
+    key = _wt_key(root)
     if key is None:
         raise ProjectDirError(_no_marker_message("ODOO_AI_WORKTREE_DIR"))
     d = os.path.join(share, "worktrees", key)
@@ -179,11 +197,17 @@ def isolate_dir() -> str:
 # CLI
 # --------------------------------------------------------------------------- #
 def _main(argv: list) -> int:
+    root = None
+    if argv[:1] == ["--root"]:
+        if len(argv) < 2 or not argv[1]:
+            print("paths.py: --root needs an absolute path", file=sys.stderr)
+            return 2
+        root, argv = argv[1], argv[2:]
     if len(argv) != 1 or argv[0] not in ("share", "isolate"):
-        print("Usage: paths.py share|isolate", file=sys.stderr)
+        print("Usage: paths.py [--root <abs-path>] share|isolate", file=sys.stderr)
         return 2
     try:
-        print(share_dir() if argv[0] == "share" else isolate_dir())
+        print(share_dir(root) if argv[0] == "share" else isolate_dir(root))
     except ProjectDirError as exc:
         print(f"paths.py: {exc}", file=sys.stderr)
         return 1

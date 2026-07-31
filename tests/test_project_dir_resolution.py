@@ -501,3 +501,144 @@ def test_pwd_instability_never_changes_the_key(tmp_path):
     assert from_root.returncode == 0, from_root.stderr
     assert from_sub.returncode == 0, from_sub.stderr
     assert from_root.stdout.strip() == from_sub.stdout.strip()
+
+
+# --------------------------------------------------------------------------- #
+# explicit-root parameter: resolve AS IF cwd were a named target root,
+# regardless of the caller's ACTUAL cwd (`--root` on the CLI, a positional arg
+# when sourced, `root=` in Python). Omitting it must stay byte-identical to
+# the pre-`--root` behavior - see the regression fence below.
+# --------------------------------------------------------------------------- #
+@requires_bash
+@requires_git
+def test_root_flag_equals_cwd_invocation_for_share_and_isolate(tmp_path):
+    """--root <path> must resolve IDENTICALLY to invoking with cwd=<path> and
+    no flag at all: there is exactly ONE resolution algorithm, and --root only
+    changes which directory it treats as the starting point. Red today:
+    --root is unparsed, so the shell `case` falls to `*)` and exits 2 with the
+    usage string before any comparison is possible; `paths.py` similarly has
+    no `--root` handling and rejects the extra argv."""
+    home = tmp_path / "home"
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    env = _env(home)
+
+    for mode in ("share", "isolate"):
+        baseline_sh = _sh_resolve(mode, repo, env)
+        baseline_py = _py_resolve(mode, repo, env)
+        assert baseline_sh.returncode == 0, baseline_sh.stderr
+        assert baseline_py.returncode == 0, baseline_py.stderr
+
+        rooted_sh = subprocess.run(
+            ["bash", str(SH), "--root", str(repo), mode],
+            cwd=elsewhere, capture_output=True, text=True, env=env,
+        )
+        rooted_py = subprocess.run(
+            [sys.executable, str(PY), "--root", str(repo), mode],
+            cwd=elsewhere, capture_output=True, text=True, env=env,
+        )
+        assert rooted_sh.returncode == 0, rooted_sh.stderr
+        assert rooted_py.returncode == 0, rooted_py.stderr
+        assert rooted_sh.stdout.strip() == baseline_sh.stdout.strip(), (
+            f"{mode}: --root shell={rooted_sh.stdout.strip()!r} "
+            f"cwd-baseline shell={baseline_sh.stdout.strip()!r}"
+        )
+        assert rooted_py.stdout.strip() == baseline_py.stdout.strip(), (
+            f"{mode}: --root python={rooted_py.stdout.strip()!r} "
+            f"cwd-baseline python={baseline_py.stdout.strip()!r}"
+        )
+
+
+@requires_bash
+@requires_git
+def test_root_flag_from_linked_worktree_share_converges_isolate_diverges(tmp_path):
+    """--root <worktree> must preserve the SHARE/ISOLATE split that makes this
+    resolver useful: SHARE converges to the principal's SHARE dir (same
+    `--git-common-dir`), ISOLATE stays distinct (different `--show-toplevel`).
+    Guards the `--git-common-dir` / `--show-toplevel` split surviving the new
+    parameter - the exact property `state-root-resolution.md` rests on.
+    Red today for the same reason as the sibling test above."""
+    home = tmp_path / "home"
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    wt = tmp_path / "repo-wt"
+    _add_worktree(repo, wt)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    env = _env(home)
+
+    share_main = _sh_resolve("share", repo, env)
+    iso_main = _sh_resolve("isolate", repo, env)
+    assert share_main.returncode == 0, share_main.stderr
+    assert iso_main.returncode == 0, iso_main.stderr
+
+    rooted_share = subprocess.run(
+        ["bash", str(SH), "--root", str(wt), "share"],
+        cwd=elsewhere, capture_output=True, text=True, env=env,
+    )
+    rooted_isolate = subprocess.run(
+        ["bash", str(SH), "--root", str(wt), "isolate"],
+        cwd=elsewhere, capture_output=True, text=True, env=env,
+    )
+    assert rooted_share.returncode == 0, rooted_share.stderr
+    assert rooted_isolate.returncode == 0, rooted_isolate.stderr
+    assert rooted_share.stdout.strip() == share_main.stdout.strip(), (
+        "SHARE must converge: --root <worktree> should resolve the SAME "
+        "SHARE dir as the principal checkout"
+    )
+    assert rooted_isolate.stdout.strip() != iso_main.stdout.strip(), (
+        "ISOLATE must diverge: --root <worktree> should NOT resolve the "
+        "same ISOLATE dir as the principal checkout"
+    )
+
+
+@requires_bash
+def test_root_flag_on_nonexistent_dir_exits_nonzero_with_named_diagnostic(tmp_path):
+    """--root <path> where <path> is not a directory must fail loudly and
+    NAME the flag in the diagnostic (not fall through to a generic usage
+    string) - the escape hatch a caller relies on to return
+    BLOCKED(state root unresolvable for the named target root). Red today:
+    the shell exits 2 with the usage text (no mention of `--root`), and
+    `paths.py` similarly has no such check."""
+    home = tmp_path / "home"
+    bogus = tmp_path / "does-not-exist"
+    env = _env(home)
+
+    sh = subprocess.run(
+        ["bash", str(SH), "--root", str(bogus), "share"],
+        capture_output=True, text=True, env=env,
+    )
+    py = subprocess.run(
+        [sys.executable, str(PY), "--root", str(bogus), "share"],
+        capture_output=True, text=True, env=env,
+    )
+
+    assert sh.returncode != 0
+    assert sh.stdout.strip() == ""
+    assert "--root" in sh.stderr, sh.stderr
+
+    assert py.returncode != 0
+    assert py.stdout.strip() == ""
+    assert "--root" in py.stderr, py.stderr
+
+
+@requires_bash
+@requires_git
+def test_no_root_flag_is_byte_identical_regression_fence(tmp_path):
+    """Fence, not a new-behavior test: omitting --root must remain
+    byte-identical to what share/isolate returned before this parameter
+    existed. Green before and after this change - it is the proof that
+    --root is purely additive, never a change to the no-flag path."""
+    home = tmp_path / "home"
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    env = _env(home)
+
+    for mode in ("share", "isolate"):
+        sh = _sh_resolve(mode, repo, env)
+        py = _py_resolve(mode, repo, env)
+        assert sh.returncode == 0, sh.stderr
+        assert py.returncode == 0, py.stderr
+        assert sh.stdout.strip() == py.stdout.strip()

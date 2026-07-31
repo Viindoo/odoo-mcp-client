@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `odoo-ai-agents` - `scripts/lib/resolve_project_dir.sh` and `scripts/lib/paths.py` accept an
+  optional explicit root (`--root <abs-path>` on the CLI, a positional argument when sourced,
+  `root=` in Python). Omitting it is byte-identical to the previous cwd-based behaviour. This removes
+  the `cd`-wrapper fragility class for cross-worktree dispatch.
+
 ## [4.18.1] - 2026-07-28
 
 ### Fixed
