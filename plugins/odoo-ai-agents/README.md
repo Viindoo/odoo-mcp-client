@@ -836,7 +836,7 @@ flowchart TD
     WTKEY["wt-key = sha256(realpath(show-toplevel))[:12]"] -.-> WT
 ```
 
-### Skills (53)
+### Skills (52)
 
 Quick-start guides for a curated subset of the personas above live in
 [`docs/personas/`](docs/personas/) - see [`docs/setup.md`](docs/setup.md) for exactly which ones
