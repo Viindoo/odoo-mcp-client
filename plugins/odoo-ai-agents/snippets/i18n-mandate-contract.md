@@ -26,7 +26,13 @@ Dispatch the `odoo-i18n` skill ONCE per surviving unit. This is NOT opt-in. The 
    (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Addons coverage assertion). An
    instance on the principal checkout makes a worktree-only `msgid` surface as nothing and the loss is
    committed unseen.
-3. Pass explicit `TARGET LANGUAGES`, so `odoo-i18n` P0's tier-5 locale default is unreachable.
+3. Pass explicit `TARGET LANGUAGES` whenever you already have one - never withhold a resolvable list.
+   When you genuinely have none (nothing configured, nothing inferable on your side), OMIT the field
+   rather than fabricate one: `odoo-i18n` P0 still runs its OWN tiers 2-4 (machine-global registry,
+   `.po`-filename inference, live `res.lang` query) against whatever IS available, and only records
+   escape E3 once ALL of tiers 1-4 come up empty. Omitting the field is never a licence for
+   `odoo-i18n`'s hardcoded standalone-only default to fire - that tier stays unreachable inside a
+   mandate regardless (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-i18n/SKILL.md` P0).
 4. Present the returned result at YOUR OWN existing human gate - do NOT let `odoo-i18n` open a separate
    STOP per invocation. A mandated step that always stops is a deadlock.
 
@@ -35,14 +41,41 @@ Dispatch the `odoo-i18n` skill ONCE per surviving unit. This is NOT opt-in. The 
 | # | condition (mechanical) | record verbatim | status |
 |---|---|---|---|
 | E1 | the unit's verdict is DELETE-absorbed or OBSOLETE | `i18n: n/a (module deleted)` | proceed |
-| E2 | the module ships no `i18n/` directory AND the trigger table below fires ZERO signals | `i18n: n/a (no catalog, no translatable delta)` | proceed |
-| E3 | tiers 1-4 of language resolution all empty (caller passed none and none inferable) | `i18n: not-applicable (no target language resolvable from tiers 1-4)` | proceed |
+| E2 | the module ships no `i18n/` directory (§ Catalog-presence check) AND the trigger table below fires ZERO signals - decidable in BOTH flows | `i18n: n/a (no catalog, no translatable delta)` | proceed |
+| E3 | tiers 1-4 of language resolution all empty (caller passed none and `odoo-i18n` itself could infer none) | `i18n: not-applicable (no target language resolvable from tiers 1-4)` | proceed |
 | E4 | forward-port only: `installable_false == yes` for this module (the lint-only lane) | `i18n: n/a (installable:False at target - lint-only lane)` | proceed |
 | E5 | no instance can be provisioned | `i18n: blocked (no instance)` | **BLOCKED** |
 | E6 | the instance's addons path does not cover `WORKTREE_PATH` | `i18n: blocked (instance addons-path excludes the worktree)` | **BLOCKED** |
 
 Anything not in this table is NOT an escape. "The diff looked label-free" is not an escape - that is
 E2, and E2 requires BOTH conditions.
+
+## Catalog-presence check (E2 clause 1 - mechanical, decidable by BOTH flows)
+
+"Ships an `i18n/` directory" is decided the SAME way regardless of which pipeline is asking - defined
+ONCE here; neither caller restates it.
+
+- **What is read:** whether `<module>/i18n/` exists AND holds at least one `*.po` or `*.pot` file. An
+  absent directory and a present-but-empty directory both count as "no catalog."
+- **Which tree:** `WORKTREE_PATH` - the SAME worktree caller obligation 1 already requires, at its
+  current on-disk state (this run's adapt has already landed there).
+- **Which ref:** none - a plain FILESYSTEM read of the worktree as it stands, never a git-history read
+  and never Odoo Semantic MCP. OSM does NOT index `i18n/*.po`/`*.pot` (`module_inspect`,
+  `describe_module`, `check_module_exists` return no such listing) - disk read is the only path.
+- **The two outcomes:**
+  - `<module>/i18n/` exists and holds >=1 `.po`/`.pot` file -> catalog PRESENT -> E2 clause 1 FAILS
+    (this module already ships a catalog; the mandate applies regardless of the trigger table).
+  - Directory absent, or present but holding zero `.po`/`.pot` files -> catalog ABSENT -> E2 clause 1
+    SATISFIED - evaluate clause 2 (the trigger table below).
+
+Mechanical form (either flow runs this identically, via `git-toolkit:git-ops`, read-only):
+
+```bash
+test -d "<WORKTREE_PATH>/<module>/i18n" && \
+  find "<WORKTREE_PATH>/<module>/i18n" -maxdepth 1 \( -name '*.po' -o -name '*.pot' \) | grep -q .
+```
+
+Exit 0 -> catalog PRESENT. Non-zero (dir absent, or the `find`/`grep` pipe empty) -> catalog ABSENT.
 
 ## Condition 2 - forward-port's already-upgraded test (decidable, no new probe)
 
@@ -53,12 +86,21 @@ read the same `yes`/`no` it recorded. Neither present -> **BLOCK**; do not guess
 `installable_false` is the ONE field this condition reads - do not substitute any other field name
 (internal-only, prober-side values are never persisted and no consumer parses them by name).
 
-## Trigger table - "touches translatable terms" (forward-port condition 1 only)
+## Trigger table - "touches translatable terms" (E2 clause 2 / condition 1 - BOTH flows)
 
-Scan the ALREADY-MATERIALIZED per-commit dumps for this batch -
-`<ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump` (full patch: message + diff). Consider only
-CHANGED lines (leading `+` or `-`, excluding the `+++`/`---` file headers). A signal HITS on ANY match;
-record the fired set as a FIELD, never as raw grep output (discipline:
+Scan the diff THIS RUN's own adapt produced for the module - never the module's whole history, only
+what this run changed. The scan target resolves per caller (same signal table, different source):
+
+- **forward-port:** the ALREADY-MATERIALIZED per-commit dumps for this batch -
+  `<ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump` (full patch: message + diff).
+- **modules-upgrade:** the module's own P4 adapt diff - invoke `git-toolkit:git-ops` (read-only) for
+  a full-patch diff of `<module>/` between `<work-base>` and `HEAD`, inside the module's worktree
+  (`<path>/upg-<module>` when a child worktree was used, else `<path>/upg-integration` under the
+  collapse-first `n<=1` rule). No new dump file is needed; this reuses the SAME worktree + base already tracked for
+  the module's own commit.
+
+Consider only CHANGED lines (leading `+` or `-`, excluding the `+++`/`---` file headers). A signal HITS
+on ANY match; record the fired set as a FIELD, never as raw grep output (discipline:
 `${CLAUDE_PLUGIN_ROOT}/agents/odoo-diff-comparator.md`, whose `deferred_work_due` /
 `deferred_work_unanchored` fields are the shape to copy).
 

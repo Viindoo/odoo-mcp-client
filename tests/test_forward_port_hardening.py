@@ -1484,3 +1484,152 @@ class TestI18nMandateComputeDispatchSplit:
             "8e must NOT dispatch odoo-i18n inline anymore - the dispatch moved to P9.5, after "
             "the P9 instance exists (odoo-i18n hard-BLOCKs without one)"
         )
+
+
+# ---------------------------------------------------------------------------
+# PR #189 runtime-review fixes F1 (secondary BLOCKS) and F5:
+#
+# F1 - P9 (RED-then-GREEN verification) never named WORKTREE_PATH anywhere in the
+# skill; only P9.5 (i18n) did, and P9.5's own text ASSUMED "the P9 INSTANCE_HANDLE
+# whose addons path covers it" - a guarantee P9 never established. odoo-instance's
+# WORKTREE_PATH field is optional and silently defaults to a catalog-tree instance
+# (per odoo-instance/SKILL.md), so P9 could go GREEN against un-adapted code with
+# no error raised. Fix: P9 now passes WORKTREE_PATH: <path>/fp-integration when it
+# dispatches odoo-instance, and fp-phase-detail.md's P9 env-bootstrap re-roots the
+# CATALOG addons baseline onto that worktree before any odoo-bin call - reusing the
+# EXISTING odoo-instance WORKTREE_PATH substitution + allocator --addons-path-override
+# mechanism (the same one 3d9928e already wired for odoo-git-rebase/odoo-coding/
+# odoo-coder/worker-brief; forward-port was absent from that commit's file list).
+#
+# F5 - fp-triage-table.md Table 1's short-circuit gate (governs P0, which runs
+# BEFORE P2) instructed reading a `manifest_path` described as "the value P2
+# resolved" - unexecutable at P0 (`git show ca80dce` proves this forward reference
+# replaced a self-contained, P0-executable check). Table 2 (governs P8, after P2)
+# keeps the identical phrasing correctly - only Table 1 is wrong. Fix: Table 1's
+# gate now cites the SAME disk-read Discriminator fp-installable-false.md already
+# defines (mechanically executable at P0, no OSM claim), instead of forward-
+# referencing manifest_path.
+# ---------------------------------------------------------------------------
+
+class TestP9WorktreeReroot:
+    """FIX 4 (F1 secondary BLOCKS): P9 must name WORKTREE_PATH and re-root the
+    verify instance's addons path onto the fp-integration worktree, so P9.5's
+    'the P9 INSTANCE_HANDLE whose addons path covers it' claim is finally true."""
+
+    def _p9_block(self, text: str, end_anchor: str) -> str:
+        start = text.index("**P9 - Verify by behavior")
+        end = text.index(end_anchor, start)
+        return text[start:end]
+
+    def test_skill_md_p9_passes_worktree_path_to_odoo_instance(self):
+        """RED on base commit: SKILL.md's P9 paragraph never mentions WORKTREE_PATH at all -
+        grepping the whole skill found it exactly once, inside P9.5, never in P9."""
+        text = SKILL_MD.read_text(encoding="utf-8")
+        block = _ws_normalize(self._p9_block(text, "**P9.5 - i18n reconcile"))
+        assert "WORKTREE_PATH: <path>/fp-integration" in block, (
+            "SKILL.md's P9 paragraph must pass WORKTREE_PATH: <path>/fp-integration when "
+            "dispatching odoo-instance - without this, odoo-instance silently defaults to a "
+            "catalog-tree instance (odoo-instance/SKILL.md: 'Omit for a catalog-tree instance') "
+            "and P9 verifies un-adapted code with no error raised"
+        )
+        assert "--addons-path-override" in block, (
+            "SKILL.md's P9 paragraph must name --addons-path-override as the mechanism "
+            "WORKTREE_PATH triggers (odoo-instance/SKILL.md § WORKTREE_PATH substitution) - "
+            "reusing the existing mechanism, not inventing a second one"
+        )
+
+    def test_fp_phase_detail_p9_reroots_before_any_odoo_bin_call(self):
+        """RED on base commit: fp-phase-detail.md's P9 'Env-bootstrap' resolved addons_path only
+        from <SHARE_DIR>/context.md (the principal-checkout catalog default) and never re-rooted
+        it onto the fp-integration worktree - confirmed unchanged by this PR before this fix."""
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        start = text.index("## P9 - Verify by behavior")
+        end = text.index("## P10 - Gate merge", start)
+        block = text[start:end]
+        norm = _ws_normalize(block)
+
+        assert "Worktree re-root" in block, (
+            "fp-phase-detail.md's P9 section must carry a named re-root step - the CATALOG "
+            "baseline read from context.md is never the final addons_path used to verify"
+        )
+        assert "WORKTREE_PATH: <path>/fp-integration" in norm, (
+            "the re-root step must name WORKTREE_PATH: <path>/fp-integration explicitly - the "
+            "SAME P4 JOB-tier integration worktree the merge/adapt phases wrote to"
+        )
+        assert "Addons coverage assertion" in norm, (
+            "the re-root step must point at instance-handle-contract.md's Addons coverage "
+            "assertion so a miss BLOCKs instead of silently verifying the wrong tree"
+        )
+        # Ordering: the re-root instruction must appear BEFORE the allocator/odoo-bin commands
+        # that actually consume the addons path, not as an afterthought below them.
+        assert block.index("Worktree re-root") < block.index("allocator.py acquire"), (
+            "the worktree re-root instruction must precede the allocator acquire call in P9's "
+            "text - a re-root documented after the commands that need it is easy to miss"
+        )
+
+    def test_p95_addons_coverage_claim_is_backed_by_p9(self):
+        """P9.5 says 'the P9 INSTANCE_HANDLE whose addons path covers it' - this assertion is
+        only true once P9 itself re-roots via WORKTREE_PATH (this test pins the dependency both
+        ways: P9.5 still makes the claim, and P9 now backs it)."""
+        text = SKILL_MD.read_text(encoding="utf-8")
+        p95_start = text.index("**P9.5 - i18n reconcile")
+        p95_end = text.index("**P10 - Gate merge", p95_start)
+        p95_block = _ws_normalize(text[p95_start:p95_end])
+        assert "addons path" in p95_block, (
+            "P9.5 must still assert the P9 INSTANCE_HANDLE's addons path covers the worktree"
+        )
+        p9_block = _ws_normalize(self._p9_block(text, "**P9.5 - i18n reconcile"))
+        assert "WORKTREE_PATH: <path>/fp-integration" in p9_block, (
+            "P9 must itself pass WORKTREE_PATH so P9.5's addons-path claim is actually true, not "
+            "an unbacked assumption"
+        )
+
+
+class TestTable1GateIsP0Executable:
+    """FIX 5: Table 1's short-circuit gate (governs P0) must be executable AT P0 - it must not
+    forward-reference manifest_path, a P2 artifact that does not exist yet when P0 runs."""
+
+    def _table(self, name_start: str, name_end: str) -> str:
+        text = TRIAGE_TABLE.read_text(encoding="utf-8")
+        start = text.index(name_start)
+        end = text.index(name_end, start)
+        return text[start:end]
+
+    def test_table1_gate_does_not_forward_reference_p2_manifest_path(self):
+        """RED on base commit: Table 1's blockquote reads '...the value P2 resolved into
+        `manifest_path`...' - P2 runs strictly AFTER P0/P1 in the documented phase order, so this
+        instruction is unexecutable at the point it governs (git show ca80dce proves this
+        replaced a self-contained, P0-executable check)."""
+        t1 = _ws_normalize(self._table("## Table 1", "## Table 2"))
+        assert "the value p2 resolved into" not in t1.lower(), (
+            "Table 1's SHORT-CIRCUIT GATE must not forward-reference 'the value P2 resolved into "
+            "manifest_path' - P0 (which Table 1 governs) runs before P2; this instruction was "
+            "unexecutable at the point it governs"
+        )
+
+    def test_table1_gate_is_p0_executable_and_cites_the_discriminator(self):
+        t1 = _ws_normalize(self._table("## Table 1", "## Table 2"))
+        assert "executable AT P0" in t1 or "P2 has not run yet" in t1, (
+            "Table 1's gate must explicitly state it is executable at P0, not deferred to a "
+            "later phase's artifact"
+        )
+        assert "[[fp-installable-false]]" in t1 and "Discriminator" in t1, (
+            "Table 1's gate must cite fp-installable-false.md's own Discriminator section (the "
+            "SAME disk-read mechanism, already self-contained and P0-executable) rather than "
+            "restating or re-inventing a separate check"
+        )
+        assert "git-toolkit:git-ops" in t1, (
+            "Table 1's gate must name the read-only git-toolkit:git-ops mechanism for the disk "
+            "read (never OSM - OSM does not carry the installable flag)"
+        )
+
+    def test_table2_gate_is_unchanged_and_still_references_manifest_path(self):
+        """Table 2 governs P8, which runs AFTER P2 - its identical 'value P2 resolved' phrasing
+        is correct there and must NOT be touched by the Table 1 fix (regression guard: this test
+        would catch an over-broad find/replace that also stripped Table 2's valid reference)."""
+        t2 = _ws_normalize(self._table("## Table 2", "## How the two tables interact"))
+        assert "the value p2 resolved into" in t2.lower(), (
+            "Table 2's SHORT-CIRCUIT GATE must still reference 'the value P2 resolved into "
+            "manifest_path' - Table 2 governs P8, which runs AFTER P2, so this phrasing is "
+            "correct there and must not have been removed by the Table 1 fix"
+        )

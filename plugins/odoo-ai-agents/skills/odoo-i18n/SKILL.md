@@ -123,11 +123,14 @@ then echo which source was used:
 5. Default `["vi_VN"]` - **standalone invocations ONLY.**
 
 **Inside a MANDATED invocation, tier 5 is unreachable.** When a caller dispatches this skill as a
-required step of its own pipeline (`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`), the
-caller MUST pass explicit `TARGET LANGUAGES`. Reaching tier 5 there is NOT a licence to default:
-record `i18n: not-applicable (no target language resolvable from tiers 1-4)`, return that verbatim to
-the caller, and translate nothing. A public, global plugin must never generate Vietnamese catalogs for
-a user who did not ask for them.
+required step of its own pipeline (`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`), it
+SHOULD pass explicit `TARGET LANGUAGES` whenever it already has one - but when it has none to give,
+tiers 2-4 above still run, against whatever IS available, before giving up (the caller's silence on
+this field is never a licence for THIS P0 to skip straight past them). Reaching tier 5 is NOT a
+licence to default either: once ALL FOUR tiers are empty, record
+`i18n: not-applicable (no target language resolvable from tiers 1-4)`, return that verbatim to the
+caller, and translate nothing. A public, global plugin must never generate Vietnamese catalogs for a
+user who did not ask for them.
 
 **`en_US` is mandatory, independent of the tiers above.** After resolving the target languages, set
 `activation_languages = {"en_US"} union target_languages`. `en_US` (Odoo's base/source language) is
@@ -145,17 +148,26 @@ target_languages x series + dependency order + language-source tier).
 
 **Then gate - and WHERE the gate lives depends on how you were invoked:**
 
-- **Standalone** (a human asked for a translation) -> STOP for approval in a single turn before any
-  export or DB op, as before.
-- **Mandated** (a caller dispatched you as a required step and supplied explicit `TARGET LANGUAGES`
-  AND an `INSTANCE_HANDLE` or `SELF_PROVISION: worktree-addons` AND `WORKTREE_PATH`) -> do NOT stop.
-  P0 has nothing left to ask, and a human stop per invocation - per BATCH in forward-port's P5->P10
-  loop - turns a mandatory step into a deadlock. RETURN the scope summary to the caller, which presents
-  it at its OWN existing gate alongside its other verdicts (precedent:
+- **Standalone** (a human asked for a translation directly, not as a dispatched pipeline step) ->
+  STOP for approval in a single turn before any export or DB op, as before.
+- **Mandated** (a caller dispatched you as a required step) -> do NOT stop, period - a human stop per
+  invocation, per BATCH in forward-port's P5->P10 loop, turns a mandatory step into a deadlock. What
+  makes a dispatch Mandated is `WORKTREE_PATH` AND (an `INSTANCE_HANDLE` or
+  `SELF_PROVISION: worktree-addons`) - the two inputs the caller can never omit
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md` obligations 1-2). Missing either one is a
+  caller-contract violation, not a language problem: RETURN `status: BLOCKED`
+  (`i18n: blocked (missing <field>)`, the same E5/E6 shape) to the caller's OWN gate - never open a
+  fresh interactive STOP for it either. `TARGET LANGUAGES` is best-effort, never gating: when the
+  caller supplies it, tier 1 resolves immediately; when the caller has none to give, this P0 still
+  runs tiers 2-4 itself (registry / `.po`-filename inference / live instance query) against whatever
+  IS available - an empty `TARGET LANGUAGES` field is never a shortcut past those tiers. Only once
+  tiers 1-4 are ALL empty does tier 5 become reachable in principle, and inside a mandate that
+  reachability is capped at escape E3, never the standalone-only fallback two paragraphs above: RECORD
+  `i18n: not-applicable (no target language resolvable from tiers 1-4)`, RETURN it, and PROCEED -
+  translate nothing, but never stop for it. RETURN the scope summary (or the E3/BLOCKED record) to the
+  caller, which presents it at its OWN existing gate alongside its other verdicts (precedent:
   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/SKILL.md` § P5.8/P6, where the acceptance verdict
-  is presented "ALONGSIDE the P6 sign-off ... so the human sees ONE combined decision"). Any of those
-  three inputs missing -> fall back to the standalone STOP; never proceed with a resolved-by-default
-  language set.
+  is presented "ALONGSIDE the P6 sign-off ... so the human sees ONE combined decision").
 
 **P1 - Glossary build [haiku or sonnet].** Assemble the translation memory the later phases reuse:
 read the already-translated `<lang>.po` of core Odoo and the module's dependency modules, load the
