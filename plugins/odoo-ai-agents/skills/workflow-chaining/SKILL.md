@@ -47,11 +47,23 @@ a user approves a multi-step workflow plan at the soft-plan-gate.
    the generator's `output_dir` must-start-with-`.odoo-ai/` assertion are intentionally
    UNCHANGED; only the runtime resolution moved off a bare project-relative path. Read
    `context.md` under the resolved SHARE dir if it exists (Odoo version, profile defaults).
-3. If `resume: true`, check for `<output_dir>/<slug>-state.json` under the resolved ISOLATE dir
+3. **Orphan sweep (do this every invocation, before the resume check below).** Nothing deletes a
+   prior run's `<output_dir>/<slug>-*` artifacts today, so every one of the 13 workflow
+   `output_dir` trees leaks one directory per run forever: `find <resolved ISOLATE
+   output_dir>/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +` (any sibling
+   `<slug>-*/` or `<slug>-state.json` untouched for over 30 days is presumed consumed; a
+   still-active run keeps writing its own state file/phase artifacts, so its mtime never ages
+   past the threshold). This ONE step covers all 13 `output_dir` trees generically - each
+   workflow's own `output_dir` value is what gets swept, so no per-workflow sweep instruction is
+   needed. Full rule + bound rationale:
+   `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer:
+   whoever invokes this runner next, unconditionally, every run - not a separate cleanup agent or
+   cron.
+4. If `resume: true`, check for `<output_dir>/<slug>-state.json` under the resolved ISOLATE dir
    (the captured absolute path substitutes for the `output_dir` prefix from the YAML); if found,
    load it and determine the last completed phase.
-4. Collect any missing `inputs[]` from the user (one question per missing input).
-5. Emit the **soft-plan-gate** header before any phase runs:
+5. Collect any missing `inputs[]` from the user (one question per missing input).
+6. Emit the **soft-plan-gate** header before any phase runs:
 
 ```
 ## Proposed Plan

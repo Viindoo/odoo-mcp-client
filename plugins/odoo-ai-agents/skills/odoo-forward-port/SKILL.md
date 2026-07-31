@@ -188,6 +188,16 @@ Concurrency for any fan-out follows
 do not restate the weight numbers here. Full per-phase dispatch briefs, git commands, and
 worklog templates: `references/fp-phase-detail.md`.
 
+**Orphan sweep (do this every run, BEFORE P0 below).** `forward-port/<slug>/` evidence
+(checkpoint.json, commit/intent dumps) is never deleted by anything today, so it leaks one
+directory per run forever:
+
+`find <ISOLATE_DIR>/forward-port/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
+
+(any sibling `<slug>/` dir untouched for over 30 days is presumed consumed). Full rule + bound rationale:
+`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer: whoever
+executes `odoo-forward-port` next, unconditionally, every run.
+
 **P0 - Recon & triage [read-only, NO stop].** Parse `$ARGUMENTS` (`source-ref` / `target-branch` /
 `--scope` / `--since` / `--one-shot`); if `source-ref` or `target-branch` is missing, ask once in a
 single brief message before any read or git op. Read any existing worklog

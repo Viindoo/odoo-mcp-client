@@ -121,7 +121,20 @@ EVERY recording round, including a retake. Full rule:
 ### Round 4 - Produce the artifact
 
 `visual/videos/` is Tier-2 ISOLATE; resolve it via the same resolve-capture-substitute protocol
-(captured path shown as `<ISOLATE_DIR>` below). Save the MP4 (or GIF) to
+(captured path shown as `<ISOLATE_DIR>` below).
+
+**Orphan sweep (do this every run, BEFORE saving THIS run's artifact below).** Nothing deletes an
+old recording today, so `visual/videos/` leaks one file per run forever:
+
+`find <ISOLATE_DIR>/visual/videos/ -maxdepth 1 -type f -mmin +43200 -exec rm -rf {} +`
+
+(any sibling
+`<feature>-<timestamp>.{mp4,gif}` untouched for over 30 days is presumed consumed - this run's own
+file cannot match since it does not exist yet). Full rule + bound rationale:
+`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer: whoever
+executes `odoo-demo-recording` next, unconditionally, every run.
+
+Save the MP4 (or GIF) to
 `<ISOLATE_DIR>/visual/videos/<feature>-<timestamp>.{mp4,gif}` and report the
 path, duration, and step list so the take is re-runnable.
 

@@ -364,6 +364,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   the ordering and the mtime bound together mean the sweep can never touch a concurrent run's live
   directory. 12 new guard tests added (3 new files), each proven red against the pre-fix text before
   being fixed green.
+- `odoo-ai-agents` - the prior GC fix covered only three `visual/` evidence subpaths; the state
+  root's garbage-collection gap was repo-wide. `visual-evidence-lifecycle-contract.md` gains a
+  Clause 3 that enumerates and classifies every Tier-2 ISOLATE subpath in
+  `state-root-resolution.md`'s own table (exhaustive, cross-checked by a new structural test):
+  eligible subpaths reuse one of the two existing bounds (a 24h crash-backstop when a subpath
+  ALREADY self-deletes at its own terminal status - `wave/<slug>/`, `visual/<run_id>/<module>_staging/`
+  - or a 30-day deliberate-retention bound otherwise); `recon/<slug>-<date>/` is excluded because a
+  competing, already-tested contract (`scouting-persistence-contract.md`) already states "never
+  delete" for it; `run-<id>.json` is excluded because it can legitimately sit untouched for an
+  unbounded period while a run is merely paused at a human gate, not abandoned - mtime is not a
+  reliable liveness signal there, so sweeping it risks destroying a still-resumable run's
+  blackboard, a known gap recorded rather than papered over; `brainstorm/state.json` is marked
+  not-applicable (a singleton file, not a per-run accumulating path); the SHARE tier is explicitly
+  declared out of scope by design (a reusable cache's whole value is surviving across runs - a
+  staleness check belongs to that cache's own contract, never a TTL delete here). `worklog/` and
+  the 13 workflow `output_dir` trees are swept ONCE each, at the shared chokepoint every consumer
+  already goes through (`worklog-contract.md`, `workflow-chaining/SKILL.md` Phase 0) rather than at
+  every individual consumer; the nine remaining individually-owned subpaths
+  (`git-rebase/`, `forward-port/`, `modules-upgrade/`, `coding/`, `reviews/`, `pr-monitoring/`,
+  `i18n/`, `visual/videos/`, and `visual/<run_id>/<module>_staging/`) each gained their own sweep at
+  their owning skill's Phase/Round 0, citing Clause 3 rather than restating it. Caught during
+  implementation: a naive sweep of `visual/`'s own top level would have deleted the sibling
+  `current/`/`qa/`/`debug/`/`screenshots/`/`videos/`/`baselines/`/`doc/` trees wholesale the moment
+  their own directory mtime went stale - `odoo-doc-illustration`'s crash-backstop now explicitly
+  excludes all seven by name so only an actual abandoned `<run_id>/` directory can match. 10 new
+  guard tests added (1 new file), including a structural cross-file consistency check that reddens
+  if a future ISOLATE subpath is added without a corresponding Clause 3 classification.
 
 ## [4.18.1] - 2026-07-28
 

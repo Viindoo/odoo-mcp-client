@@ -64,6 +64,15 @@ bash -c "cd <review_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_proj
 ```
 Capture both printed absolute paths as `SHARE_DIR` / `ISOLATE_DIR` for the rest of this run. Pass them as explicit `SHARE_DIR:` / `ISOLATE_DIR:` fields into EVERY dispatch brief below (scoper, per-module reviewer, synthesis, ui-reviewer, domain synthesis) - every leaf CONSUMES these literals verbatim and MUST NOT re-resolve from its own cwd.
 
+**Orphan sweep (do this every run, BEFORE dispatching the scoper below).** `reviews/<slug>-<date>/`
+is never deleted by anything today, so it leaks one directory per run forever:
+
+`find <ISOLATE_DIR>/reviews/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
+
+(any sibling `<slug>-<date>/` dir untouched for over 30 days is presumed consumed). Full rule + bound rationale:
+`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer: whoever
+executes `odoo-code-review` next, unconditionally, every run.
+
 Pass `review_root`, `pr_meta`, `pr_changed_files`, `SHARE_DIR`, `ISOLATE_DIR` into the scoper brief.
 
 Dispatch agent `odoo-review-scoper` (sonnet) per the SCOPER I/O CONTRACT (SSOT: `${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Pass:
