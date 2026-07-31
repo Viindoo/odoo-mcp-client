@@ -458,6 +458,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `test_project_dir_resolution.py` (`test_odoo_ai_home_trailing_slashes_normalise_identically_share`/
   `_isolate`) extend the existing none/single/double/triple-slash suffix table to the bare
   `$ODOO_AI_HOME` root, not just the explicit-override case.
+- `odoo-ai-agents` - `README.md`'s `### Skills (53)` section header had drifted from the
+  top-of-file blurb, the `Skills` table's own 52 rows, and the actual `skills/*/SKILL.md` count
+  (52) - `skills/_shared/` is a shared resource library with no `SKILL.md` of its own, not a
+  skill, but the header counted it as one. Fixed the header to 52. This is the fifth hand-fixed
+  count-drift instance in this PR (after two topology values and the forward-port phase set), so
+  instead of a sixth one-off fix, a new guard (`tests/test_readme_inventory_counts.py`) computes
+  every top-level plugin inventory count README.md states as a number - skills, agents, commands,
+  declarative workflows, persona buckets - straight from the filesystem (or, for persona buckets,
+  from the README's own enumerating table, since no independent on-disk registry exists) and fails
+  naming the exact claimed-vs-computed mismatch.
 
 ## [4.18.1] - 2026-07-28
 
