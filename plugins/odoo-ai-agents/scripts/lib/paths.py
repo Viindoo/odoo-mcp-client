@@ -159,6 +159,13 @@ def share_dir(root: str | None = None) -> str:
     `resolve_project_dir.sh --root <abs-path> share`."""
     override = os.environ.get("ODOO_AI_PROJECT_DIR")
     if override:
+        # Strip ALL trailing "/" (a doubled/tripled trailing slash denotes the
+        # SAME directory as a single one - POSIX: "/a/b//" == "/a/b/" ==
+        # "/a/b" - so the state-dir key must canonicalize all of them
+        # identically); an all-slashes input (e.g. "/", "///") falls back to
+        # "/". PARITY INVARIANT: resolve_project_dir.sh's
+        # `_project_dir_rstrip_slashes` + `[ -n ] || override="/"` mirrors this
+        # exactly - `${var%/}` alone strips only ONE and would diverge here.
         d = override.rstrip("/") or "/"
         os.makedirs(d, exist_ok=True)
         return d
@@ -181,6 +188,8 @@ def isolate_dir(root: str | None = None) -> str:
     `root` (optional): as in share_dir - forwarded to BOTH halves."""
     override = os.environ.get("ODOO_AI_WORKTREE_DIR")
     if override:
+        # Same full-rstrip + all-slashes fallback as share_dir above (parity
+        # invariant with resolve_project_dir.sh's `_project_dir_rstrip_slashes`).
         d = override.rstrip("/") or "/"
         os.makedirs(d, exist_ok=True)
         return d

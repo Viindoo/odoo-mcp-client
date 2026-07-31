@@ -115,41 +115,39 @@ commit message should record the bucket and reason so reviewers do not flag it a
 
 ## Verify protocol - per-batch, not per-commit
 
-Running a full `-i <module> --test-enable` install for every absorbed commit is prohibitive.
-Instead, use the reserve-only model: the allocator reserves a unique DB name and ports;
-the DB is created through Odoo by your `-i` run (Odoo create-on-init) and dropped through
-Odoo on release (via `scripts/lib/odoo_db.py`). The CREATEDB role is still required because
-Odoo create-on-init needs it; if the role lacks CREATEDB the allocator degrades ephemeral
-to exclusive (see "Allocator footgun" below).
+Running a full install + test-enable pass for every absorbed commit is prohibitive. Batch
+verification instead: collect every commit in one P10 gate window into a batch, then verify the
+WHOLE batch on ONE ephemeral instance.
 
-1. Collect a batch of merge commits for the same module set (e.g. all commits in one P10 gate window).
-2. **Acquire one ephemeral lease for the batch** (see [[concurrency-guard]] § Odoo
-   instance allocation) - this reserves the DB name and ports but does NOT create the DB:
+**Delegate the instance - never a raw `allocator.py`/`odoo-bin` invocation.** Provisioning,
+install, and test-run all go through the `odoo-instance` skill
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`) via the Skill tool. Only
+`odoo-instance-ops` and the instance-touching HARD LEAVES enumerated in
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` may call `scripts/lib/allocator.py` or
+`odoo-bin` directly (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` § Carve-out) - a bare
+allocator/odoo-bin call from this orchestration layer bypasses the instance HARD RULES `odoo-instance`
+enforces (`en_US` union, Viindoo `to_base`, lint-module install, per-version `cli_help` grounding)
+and, for forward-port specifically, the `WORKTREE_PATH` re-root that keeps verification pointed at
+the adapted worktree instead of the principal checkout.
 
-   ```bash
-   python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral --run-id <id>
-   # emits ALLOC_DB_NAME / ALLOC_PORTS / ALLOC_DB_PORT / ALLOC_RUN_ID / ALLOC_TOKEN
-   ```
+1. Collect the batch (module set = every module touched by the batch's commits).
+2. Dispatch `odoo-instance` ONCE for the batch: `operation: run-tests`, `persist: ephemeral`,
+   `modules: <the batch's affected modules>`, `mode: fresh` (install + test in one pass - Odoo
+   create-on-init builds the DB; the allocator only reserves the DB name/ports, it never runs
+   `createdb` directly). Memory-cap is applied automatically inside `odoo-instance-ops` - no
+   separate field to pass (`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). For the
+   forward-port-specific `WORKTREE_PATH` re-root, see
+   `${CLAUDE_PLUGIN_ROOT}/skills/odoo-forward-port/references/fp-phase-detail.md` P9 for the
+   concrete dispatch brief.
+3. For a subsequent commit in the SAME batch touching only a subset, re-dispatch `odoo-instance`
+   with the SAME returned `INSTANCE_HANDLE` and `mode: reuse` (`-u` semantics) on the changed
+   modules only - skip the full reinstall.
+4. Release the instance when the batch is done: dispatch `odoo-instance` with `operation: drop`,
+   passing the batch's `lease_token`/`run_id`. This stops any bound process first, then drops the
+   DB through Odoo - never a raw `dropdb` or a bare `allocator.py release`.
 
-3. Install the N affected modules ONCE on that DB (Odoo create-on-init creates the DB). Memory-cap
-   policy: `${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`.
-
-   ```
-   [ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
-   odoo-bin -d $ALLOC_DB_NAME -i mod_a,mod_b --test-enable --stop-after-init \
-     --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296}
-   ```
-
-4. For subsequent commits in the same batch that touch only a subset, run `-u <changed_mod>`
-   against the already-installed DB - skip the full `-i` reinstall.
-5. Release the lease when the batch is done (release drops the DB through Odoo):
-
-   ```bash
-   python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN
-   ```
-
-Cache the lease token in the batch's worklog entry (see [[worklog-contract]]) so a crash
-during the batch can release the DB rather than leaving it orphaned.
+Cache the returned `lease_token`/`run_id` in the batch's worklog entry (see [[worklog-contract]])
+so a crash during the batch can release the DB (step 4) rather than leaving it orphaned.
 
 ## RED-then-GREEN + confirm-by-toggle
 
@@ -196,22 +194,24 @@ security/safety); an inherited bug carried faithfully + routed upstream is corre
 
 ## Allocator footgun - CREATEDB role
 
-`allocator.py acquire --mode ephemeral` reserves a unique DB name; the DB is then created
-by the caller's `odoo-bin -i ... --stop-after-init` (Odoo create-on-init). Both the
-allocator probe and Odoo create-on-init require the PostgreSQL `CREATEDB` role. If the OS
-user lacks it, the allocator degrades to `--mode exclusive` silently - it borrows the
-single declared `db_name` without holding a real isolated lease. Under concurrency (another
-session or another agent running at the same time), both may write to the same DB and
-produce undefined test results.
+`odoo-instance`'s `ephemeral` path reserves a unique DB name; the DB is then created via Odoo
+create-on-init. Both the allocator's own probe and Odoo create-on-init require the PostgreSQL
+`CREATEDB` role. If the OS user lacks it, the allocator degrades `ephemeral` to `exclusive`
+SILENTLY - it borrows the single declared `db_name` without holding a real isolated lease. Under
+concurrency (another session or another agent running at the same time), both may write to the
+same DB and produce undefined test results. This probe runs automatically inside every
+`odoo-instance` dispatch - the orchestrator never runs it separately.
 
-Verify the role before starting a parallel batch:
+If the returned `instance-ops` notes flag a degrade (or a batch produces undefined/flaky results
+under concurrency), serialize remaining batches (one at a time) instead of running them in
+parallel, and have a human fix the role grant. A human diagnosing a suspected degrade directly on
+the DB host (outside any agent dispatch) can confirm with:
 
 ```bash
 psql -c "SELECT rolcreatedb FROM pg_roles WHERE rolname = current_user;"
 # must return 't'
 ```
 
-If it returns `f`, serialize the batch (one agent at a time) or fix the role grant.
 Full allocation protocol: `${CLAUDE_PLUGIN_ROOT}/snippets/instance-resolution.md`
 § Allocate and `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-ALLOCATION.md`.
 

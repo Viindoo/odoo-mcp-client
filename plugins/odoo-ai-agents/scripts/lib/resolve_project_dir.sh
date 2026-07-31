@@ -92,6 +92,23 @@ _project_dir_realpath_dir() {
     ( cd "$1" 2>/dev/null && pwd -P )
 }
 
+# Strip ALL trailing "/" from $1 - mirrors paths.py's `override.rstrip("/")`
+# EXACTLY (parity invariant, see file header). A doubled or tripled trailing
+# slash denotes the SAME directory as a single one (POSIX: "/a/b//" == "/a/b/"
+# == "/a/b"), so the state-dir key must canonicalize all of them the same way;
+# collapsing them is not lossy because they were never distinct paths to begin
+# with. `${var%/}` alone strips only ONE, which would leave a stray trailing
+# slash on a doubled-or-more input and diverge from paths.py - hence the loop.
+# An all-slashes input (e.g. "/", "///") reduces to "" here; callers apply the
+# `[ -n ] || override="/"` fallback, mirroring paths.py's `.rstrip("/") or "/"`.
+_project_dir_rstrip_slashes() {
+    local s="$1"
+    while [ "${s%/}" != "$s" ]; do
+        s="${s%/}"
+    done
+    printf '%s' "$s"
+}
+
 # Echo the first 12 hex chars of sha256(<raw bytes of $1>) - NO trailing
 # newline is hashed (must match paths.py's hashlib.sha256(s.encode()) exactly,
 # which hashes the bare string with no added newline).
@@ -196,7 +213,9 @@ _resolve_project_dir_at() {
 resolve_project_dir_share() {
     if [ -n "${1:-}" ]; then _resolve_project_dir_at "$1" share; return $?; fi
     if [ -n "${ODOO_AI_PROJECT_DIR:-}" ]; then
-        local override="${ODOO_AI_PROJECT_DIR%/}"
+        local override
+        override="$(_project_dir_rstrip_slashes "$ODOO_AI_PROJECT_DIR")"
+        [ -n "$override" ] || override="/"
         mkdir -p "$override" || return 1
         printf '%s\n' "$override"
         return 0
@@ -219,7 +238,9 @@ resolve_project_dir_share() {
 resolve_project_dir_isolate() {
     if [ -n "${1:-}" ]; then _resolve_project_dir_at "$1" isolate; return $?; fi
     if [ -n "${ODOO_AI_WORKTREE_DIR:-}" ]; then
-        local override="${ODOO_AI_WORKTREE_DIR%/}"
+        local override
+        override="$(_project_dir_rstrip_slashes "$ODOO_AI_WORKTREE_DIR")"
+        [ -n "$override" ] || override="/"
         mkdir -p "$override" || return 1
         printf '%s\n' "$override"
         return 0

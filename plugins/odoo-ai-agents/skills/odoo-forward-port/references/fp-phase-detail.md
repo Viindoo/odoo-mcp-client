@@ -509,27 +509,30 @@ confirms GREEN - see SKILL.md P8 for the Tier-A worktree-persist rule). Mark `st
 
 ## P9 - Verify by behavior (PER-BATCH, in integration)
 
-Resolve odoo-bin flags for the TARGET series via `cli_help` before invoking - the allocator
+Resolve odoo-bin flags for the TARGET series via `cli_help` before dispatching - the allocator
 returns version-agnostic ports; flags and bootstrap behavior differ per series (e.g. v19
 namespace package changes bootstrap; always pass `odoo_version=<target>` to `cli_help`).
 Instance lifecycle protocol: `docs/reference/INSTANCE-LIFECYCLE.md`. Test invocation
 conventions: `docs/reference/ODOO-TESTING.md`.
 
-**Env-bootstrap (do this FIRST, before any odoo-bin call).** Read `<SHARE_DIR>/context.md`
-`## Verify environment` FIRST: if `verify_python` / `addons_path` are present, treat
-`verify_python` as a non-authoritative HINT only - confirm it via `<verify_python> <odoo-bin>
---version` before relying on it for any mutation, then use the confirmed interpreter and
-`addons_path`. Defer to the full resolution chain (`snippets/venv-resolution.md`) whenever the
-section is absent, a listed repo path no longer exists on disk, or the cached `verify_python`
-fails the `--version` check. A multi-repo stack (e.g. Viindoo Standard spans 4 repos) needs EVERY
-repo on disk and concatenated into `--addons-path` before verify - a module is invisible
-(silent ImportError / "module not found") if its repo is absent. Build the addons-path from
-all stack repos:
+**DELEGATE - never a raw `allocator.py`/`odoo-bin` recipe.** SKILL.md P9's rule is binding here
+too: this orchestrator dispatches the `odoo-instance` skill (via the Skill tool) for every step
+below. Only `odoo-instance-ops` and the instance-touching HARD LEAVES enumerated in
+`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` may call `scripts/lib/allocator.py`
+or `odoo-bin` directly (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md` § Carve-out) - a bare
+allocator/odoo-bin call from this orchestration layer would both bypass the instance HARD RULES
+and skip the `WORKTREE_PATH` re-root below. Everything from here to the P10 gate is CONTENT for
+that dispatch brief and the adjudication this orchestrator performs on the RETURNED `instance-ops`
+block, never a shell recipe run inline.
 
-```bash
-ADDONS_PATH=/path/repo-a/addons,/path/repo-b,/path/repo-c/addons,/path/repo-d
-# verify each repo dir exists on disk; a missing repo = BLOCKED (NEEDS_CONTEXT), not a test red
-```
+**Env-bootstrap (informational, before the first dispatch).** Read `<SHARE_DIR>/context.md`
+`## Verify environment` for the CATALOG (principal-checkout) baseline `odoo-instance` resolves
+against internally - venv/interpreter discovery and addons-path assembly are `odoo-instance-ops`'s
+own job (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md`), never hand-built or hand-verified
+here. A multi-repo stack (e.g. Viindoo Standard spans 4 repos) needs EVERY repo on disk - a missing
+repo makes a module invisible (silent ImportError / "module not found") to the dispatched instance.
+Confirm each stack repo listed in `context.md` exists on disk before dispatching; a missing repo is
+`BLOCKED` (NEEDS_CONTEXT), not a test red.
 
 **Worktree re-root (MANDATORY, after the CATALOG baseline above, before it is treated as final).**
 The block above resolves the CATALOG (principal-checkout) baseline only - it is NEVER the addons_path
@@ -553,75 +556,63 @@ per module, then install/verify its breadth:
 module_inspect(name='account_accountant', method='dependencies', odoo_version='18.0')
 ```
 
-Union the closures of every directly-touched module and feed that whole set to `-i` below.
+Union the closures of every directly-touched module and pass that whole set as `modules` in the
+dispatch below.
 
 **Lint toolchain present BEFORE the lint gate.** The verify venv must have flake8 / ruff
 (and eslint / prettier for frontend) installed, or the P11 lint gate silently no-ops. Confirm
 `flake8 --version` and `ruff --version` resolve in the verify env before relying on a green lint.
 
-```bash
-# one ephemeral DB per BATCH, not per commit
-python3 <plugin>/scripts/lib/allocator.py acquire --series <X.Y> --mode ephemeral --run-id <run-id>
-#   -> ALLOC_DB_NAME (unique reserved name) / ALLOC_PORTS / ALLOC_DB_PORT / ALLOC_RUN_ID / ALLOC_TOKEN
-#   (cache TOKEN in the batch worklog)
-#   ALLOC_RUN_ID echoes the --run-id passed above - the lease's ownership key; forward it to release.
-#   ALLOC_PORTS includes a free HTTP port -> export it as ALLOC_HTTP_PORT
-#
-#   The allocator reserves the DB name + ports but does NOT create the DB.
-#   The -i run below performs Odoo create-on-init, which builds the DB.
-#   On release/gc the allocator drops it through Odoo (raw dropdb only as fallback).
-#   CREATEDB-role probe still degrades ephemeral -> exclusive when the role lacks it,
-#   because Odoo create-on-init also requires CREATEDB (same invariant as before).
+**Dispatch `odoo-instance` (via the Skill tool) - ONE ephemeral instance per BATCH, not per
+commit.** First commit in the batch (fresh DB; install + test in one pass - Odoo create-on-init
+builds the DB, the allocator only reserves the name/ports):
 
-# install the full closure once. --skip-auto-install ISOLATES auto_install modules that
-# would otherwise be pulled in silently and mask (or fabricate) a break. --http-port binds the
-# allocator-issued free port: --no-http does NOT prevent the bind a running HttpCase performs,
-# so two parallel batches collide on the default 8069 - always pin the allocated port.
-# Memory-cap policy: ${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md
-[ -z "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" ] || [ "${ODOO_AI_LIMIT_MEMORY_HARD-4294967296}" = "0" ] || ulimit -Sv "$(( ${ODOO_AI_LIMIT_MEMORY_HARD-4294967296} / 1024 ))" 2>/dev/null || true
-odoo-bin -d $ALLOC_DB_NAME -i mod_a,mod_b --test-enable --stop-after-init \
-  --skip-auto-install --http-port=$ALLOC_HTTP_PORT \
-  --limit-memory-hard=${ODOO_AI_LIMIT_MEMORY_HARD:-4294967296} 2>&1 | tee install.log
-# The closure suite can be very large. MAY narrow with --test-tags to touched modules +
-# direct dependers (/mod_a,/mod_b), but NEVER narrow to only the edited module - a
-# forwarded change can break tests in a downstream depender, and a module-only tag would
-# hide that. Default: no --test-tags (run full closure); narrow only when the untagged
-# run is prohibitively large, and record the tag used in merge-log.md.
-# subsequent same-batch commits touching a subset: -u <changed_mod> (skip full -i),
-# keep --skip-auto-install --http-port=$ALLOC_HTTP_PORT.
-#   Behavior rule: once a module is installed in this DB, re-running its tests MUST use -u;
-#   -i on an already-installed module is a no-op (illustrative - confirm flags via cli_help).
-#   Full rule: ${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md
-
-python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN --run-id $ALLOC_RUN_ID
+```
+operation: run-tests
+series: <target>
+persist: ephemeral
+RUN_ID: <this run's id>
+WORKTREE_PATH: <path>/fp-integration   # re-root per the Worktree re-root note above
+modules: <union of the touched modules' full transitive depends closure, comma-separated>
+mode: fresh
+skip_auto_install: true   # ISOLATES auto_install modules that would otherwise be pulled in
+                          # silently and mask (or fabricate) a break
+CONFIRM: "confirm each module in this closure emits a Loading line before reading any test count -
+          Odoo silent-skips an installable:False or skip_auto_install-excluded module with NO
+          error line, so a green run alone is not proof it installed; report per-module install
+          status in modules_installed and the test result in findings_path"
 ```
 
-**Confirm EACH module actually loaded; Odoo silent-skips, it does not error.** An
-`installable: False` module (or one excluded by `--skip-auto-install`) is skipped with NO error
-line - a green run is NOT proof it installed. Parse the log for a `Loading module <X>` line per
-module in the closure:
+Capture the returned `instance-ops` block as this batch's `INSTANCE_HANDLE` (`dbname`,
+`lease_token`, `run_id`, `addons_path`) - memory-cap is applied automatically inside
+`odoo-instance-ops`, no separate field to pass
+(`${CLAUDE_PLUGIN_ROOT}/snippets/odoo-bin-resource-limits.md`). The closure suite can be very
+large. MAY narrow with `test_tags` to the touched modules + direct dependers, but NEVER narrow to
+only the edited module - a forwarded change can break tests in a downstream depender, and a
+module-only tag would hide that. Default: no narrowing (run the full closure); narrow only when
+the untagged run is prohibitively large, and record the tag used in `merge-log.md`.
 
-```bash
-for m in mod_a mod_b mod_c; do
-  grep -q "Loading module $m" install.log || echo "NOT LOADED: $m"   # absent = never installed
-done
-```
+For a SUBSEQUENT commit in the SAME batch touching only a subset, re-dispatch `odoo-instance` with
+the SAME `INSTANCE_HANDLE` forwarded and `mode: reuse` (`-u` semantics) on the changed modules only
+- skip re-running the full closure. Behavior rule: once a module is installed in this DB,
+re-running its tests MUST use `reuse`; `fresh`/`-i` on an already-installed module is a no-op
+(confirm flags via `cli_help`). Full rule: `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
 
-Reconcile the NOT-LOADED set against the installable scan (`[[fp-symbol-survival-check]]`
-section 2.5f): a module that is `installable: False` at the target is EXPECTED not to load -
-route it to the 8c-bis lint-only lane and do NOT count its absence as a break. A module that is
-installable AND missing its Loading line is a real failure - investigate before reading any test
-count.
+Relay the returned `instance-ops` block (`log_path`, `findings_path`, `modules_installed`,
+`failed`/`errors`/`warnings`/`skipped`) into `merge-log.md` verbatim - never trust a bare "tests
+passed" summary in its place (Hard rule 8: verify the result yourself). Reconcile
+`modules_installed` against the installable scan (`[[fp-symbol-survival-check]]` section 2.5f): a
+module that is `installable: False` at the target is EXPECTED to be absent from
+`modules_installed` - route it to the 8c-bis lint-only lane and do NOT count its absence as a
+break. A module that IS installable and absent from `modules_installed` is a real failure -
+investigate via `log_path` before reading any test count.
 
-**Recover an orphaned odoo-bin before re-running.** A crashed/killed batch can leave an
-odoo-bin process holding the DB and port. Kill ONLY the process bound to this batch's DB (match
-the unique `$ALLOC_DB_NAME`, never a bare `odoo-bin` that would self-match this very command or a
-sibling batch), then release the lease so the allocator can reclaim the port:
-
-```bash
-pkill -f "odoo-bin.*$ALLOC_DB_NAME"   # narrow match - never `pkill -f odoo-bin`
-python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN --run-id $ALLOC_RUN_ID
-```
+**Recover a batch stuck mid-run.** Do NOT `pkill` an `odoo-bin` process or call
+`allocator.py release` directly. Dispatch `odoo-instance` with `operation: drop`, passing the
+batch's cached `lease_token`/`run_id` - it stops the bound process group FIRST, then drops the DB
+through Odoo (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-instance-ops.md` § drop-instance); a bare `pkill`
+risks matching the wrong process or a sibling batch's server. Re-dispatch the Step above for a
+clean retry.
 
 - **RED-then-GREEN (whole module):** target suite must be green.
 - **Confirm-by-toggle (FP-delta tests only):** disable each newly-forwarded adapt -> that test
@@ -629,22 +620,26 @@ python3 <plugin>/scripts/lib/allocator.py release $ALLOC_TOKEN --run-id $ALLOC_R
   suite.
 - **Triage red:** Triage EVERY red against a clean-tip baseline before calling it a
   regression - whether the red is in the edited module or in a co-installed dependency pulled
-  in by the closure. Run the red test on a clean target tip (no absorption, full closure
-  installed the same way). Red there too = pre-existing (record in merge-log.md, do not fix,
-  do not block). Green on clean / red only after absorption = FP-delta (fix before committing).
-  A red in a co-installed dep you never touched is almost always pre-existing - prove it with
-  the clean-tip baseline, do not assume. Never widen an assertion to hide a pre-existing failure.
-  For source-series follow-through on a pre-existing red, apply C3 - carry faithfully + open a
-  source issue (resolvable remote) or record it; see `[[fp-merge-absorption]]` § Triage / C3.
-- **Baseline a failed INSTALL the same way.** If a module fails to install, re-run its `-i`
-  on clean `origin/<target-branch>` (no absorption, no merge). Fails there too = a PRE-EXISTING
-  break in the target series, NOT FP-introduced - record it in `merge-log.md` and do NOT block
-  the forward-port on it. Only an install that is green on clean origin/target and red after
-  absorption is an FP-delta to fix.
-- **CREATEDB-role footgun:** verify `SELECT rolcreatedb FROM pg_roles WHERE rolname =
-  current_user;` returns `t` before a parallel batch; if `f`, serialize the batch.
+  in by the closure. Re-dispatch `odoo-instance` (same shape as above) against a clean checkout of
+  the target tip - no `WORKTREE_PATH` override, no absorption - running the SAME closure. Red
+  there too = pre-existing (record in merge-log.md, do not fix, do not block). Green on clean /
+  red only after absorption = FP-delta (fix before committing). A red in a co-installed dep you
+  never touched is almost always pre-existing - prove it with the clean-tip dispatch, do not
+  assume. Never widen an assertion to hide a pre-existing failure. For source-series
+  follow-through on a pre-existing red, apply C3 - carry faithfully + open a source issue
+  (resolvable remote) or record it; see `[[fp-merge-absorption]]` § Triage / C3.
+- **Baseline a failed INSTALL the same way.** If a module fails to install, re-dispatch
+  `odoo-instance` against clean `origin/<target-branch>` (no `WORKTREE_PATH`, no absorption).
+  Fails there too = a PRE-EXISTING break in the target series, NOT FP-introduced - record it in
+  `merge-log.md` and do NOT block the forward-port on it. Only an install that is green on clean
+  origin/target and red after absorption is an FP-delta to fix.
+- **CREATEDB-role footgun:** the allocator probes this automatically inside every `odoo-instance`
+  dispatch and degrades `ephemeral` -> `exclusive` when the role lacks it - a degrade means two
+  parallel batches can collide on the same DB. If the returned `instance-ops` notes flag a
+  degrade, serialize remaining batches rather than run them concurrently. Full mechanism:
+  `[[fp-merge-absorption]]` § Allocator footgun.
 
-Full per-batch + allocator protocol: `[[fp-merge-absorption]]`. Mark `status=verified`.
+Full per-batch protocol: `[[fp-merge-absorption]]`. Mark `status=verified`.
 
 ---
 

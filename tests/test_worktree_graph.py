@@ -175,6 +175,14 @@ def test_run_harness_owns_between_wave_integration():
     )
 
 
+# A bare `"one pr" in low` substring is satisfied by policy-INVERTING text such as "one PR per
+# wave" (asserts a per-wave cadence - the opposite of the single-run-PR rule), since "one pr" is a
+# literal substring of "one PR per wave" too. Anchor on the CARDINALITY claim and reject the
+# per-wave inversion explicitly (mirrors test_run_harness_wave_hardrules.py's fix for the same bug).
+_SINGLE_RUN_PR_RE = re.compile(r"(?i)(exactly\s+one\s+pr\b|single[\s-]run(?:-level)?\s+pr\b)")
+_PER_WAVE_PR_INVERSION_RE = re.compile(r"(?i)one\s+pr\s+per\s+wave")
+
+
 def test_run_harness_cumulative_close_gate_and_single_pr():
     text = _text(RUN_HARNESS)
     low = text.lower()
@@ -187,8 +195,13 @@ def test_run_harness_cumulative_close_gate_and_single_pr():
     assert "saga" in low, "run-harness cherry-pick must use saga rollback (integration-loop.md)"
     # Single-run-PR model: NO per-wave PR; exactly ONE run-level PR via the terminal integrate land-tail.
     assert "no per-wave pr" in low, "run-harness must state there is NO per-wave PR (waves auto-advance)"
-    assert "one pr" in low and "integrate" in low, (
-        "run-harness must open exactly ONE run-level PR via the terminal `integrate` land-tail"
+    assert _SINGLE_RUN_PR_RE.search(low) and "integrate" in low, (
+        "run-harness must open exactly ONE run-level PR via the terminal `integrate` land-tail - "
+        "not merely mention \"PR\" in passing"
+    )
+    assert not _PER_WAVE_PR_INVERSION_RE.search(low), (
+        "run-harness text asserts a PER-WAVE PR policy (\"one PR per wave\"), which INVERTS the "
+        "single-run-PR rule"
     )
     assert "l2-merge-gate" in low, (
         "the outward MERGE of the single run PR stays odoo-pr-monitoring's (L2-merge-gate)"

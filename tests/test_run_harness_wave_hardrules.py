@@ -82,6 +82,16 @@ def test_human_confirm_merge_present():
     )
 
 
+# The rule: the WHOLE RUN lands as exactly ONE PR, opened once after the final wave - never one PR
+# per wave. A bare `"one pr" in low` substring check names this rule without protecting it: it is
+# equally satisfied by policy-INVERTING text such as "one PR per wave" (asserts the OPPOSITE - a
+# per-wave PR cadence), since "one pr" is a literal substring of "one PR per wave" too. Anchor on
+# the actual CARDINALITY claim ("exactly one PR" / "single run(-level) PR") and explicitly reject
+# the per-wave-PR inversion so the two phrasings can never both pass.
+_SINGLE_RUN_PR_RE = re.compile(r"(?i)(exactly\s+one\s+pr\b|single[\s-]run(?:-level)?\s+pr\b)")
+_PER_WAVE_PR_INVERSION_RE = re.compile(r"(?i)one\s+pr\s+per\s+wave")
+
+
 def test_between_wave_auto_advances_and_never_merges():
     """Rule 4 (companion): each wave AUTO-ADVANCES on a green cumulative close-gate with NO per-wave
     PR; the whole run lands as exactly ONE PR whose outward MERGE stays odoo-pr-monitoring's -
@@ -91,9 +101,17 @@ def test_between_wave_auto_advances_and_never_merges():
     assert "no per-wave pr" in low, (
         "run-harness between-wave integration must AUTO-ADVANCE with NO per-wave PR (single-run-PR model)."
     )
-    assert "one pr" in low, (
-        "run-harness must land the whole run as exactly ONE PR (opened once after the final wave)."
+    assert _SINGLE_RUN_PR_RE.search(low), (
+        "run-harness must state the whole run lands as EXACTLY one PR (e.g. 'single run-level PR', "
+        "'opens exactly ONE PR after the final wave') - not merely mention \"PR\" in passing."
     )
-    assert "odoo-pr-monitoring" in low and "merge" in low, (
-        "the outward merge must stay odoo-pr-monitoring's (run-harness's between-wave integration never merges)."
+    assert not _PER_WAVE_PR_INVERSION_RE.search(low), (
+        "run-harness text asserts a PER-WAVE PR policy (\"one PR per wave\"), which INVERTS the "
+        "single-run-PR rule - each wave auto-advances with NO per-wave PR; only the whole run opens "
+        "ONE PR, after the final wave."
+    )
+    assert "odoo-pr-monitoring" in low and "l2-merge-gate" in low, (
+        "the outward merge must stay odoo-pr-monitoring's L2-merge-gate (run-harness's between-wave "
+        "integration never merges) - a bare \"merge\" mention anywhere in the doc is not proof of this; "
+        "the specific 'l2-merge-gate' token is."
     )
