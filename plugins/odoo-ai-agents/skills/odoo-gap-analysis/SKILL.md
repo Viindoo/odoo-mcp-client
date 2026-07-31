@@ -113,7 +113,7 @@ Read `<SHARE_DIR>/context.md`; extract `odoo_version` and `viindoo_profile` (nev
 `standard_viindoo_17`); derive the version from on-disk manifests if the file is absent. The
 requirement list is already in context - do not ask for it. Call `set_active_version` once as the
 reachability probe (concrete version only - `'auto'` is unsafe under fan-out, per the
-concurrency-guard OSM version-pin race). Pick the slug (reuse any feature slug already in play);
+concurrency-guard OSM API-key-pin race). Pick the slug (reuse any feature slug already in play);
 the artifact dir is `<SHARE_DIR>/gap-analysis/<slug>-<date>/`.
 
 **Cluster.** Partition the requirements by functional area (§ When to invoke). Assign each

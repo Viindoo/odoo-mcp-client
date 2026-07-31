@@ -9,7 +9,7 @@ possibly a concurrent session's. This plugin therefore forbids BOTH forms:
 guidance that lets an agent omit ``odoo_version``, and guidance that tells it to
 pass ``'auto'``. Every example call carries a CONCRETE version. SSOT for the
 rule: plugins/odoo-ai-agents/skills/_shared/concurrency-guard.md
-section "OSM session-pin race".
+section "OSM API-key-pin race".
 
 ``make gen`` only refreshes content between ``<!-- BEGIN/END GENERATED ... -->``
 markers (all derived from ``generator/server-surface.json``). Hand-maintained prose
@@ -574,19 +574,81 @@ def _section_short_forms(guard_text: str) -> list[str]:
     return forms
 
 
-def test_every_session_pin_pointer_resolves_to_a_real_heading():
-    """A pointer at concurrency-guard.md's pin section must name a heading that
-    exists there. No existing test guards that heading text (test_concurrency_guard_ssot.py
-    asserts only the filename substring), so a rename would otherwise leave every
-    pointer dangling silently.
+def _race_core(name: str) -> str:
+    """Strip an optional leading 'OSM ' and lowercase, so 'OSM API-key-pin race' and a
+    bare 'API-key-pin race' mention compare equal regardless of the OSM prefix."""
+    name = name.strip()
+    if name[:4].upper() == "OSM ":
+        name = name[4:].strip()
+    return name.lower()
+
+
+_WS_RE = re.compile(r"\s+")
+
+
+def _normalize_ws(text: str) -> str:
+    """Collapse all whitespace, including newlines, to single spaces.
+
+    A pointer sentence can wrap across a line break (e.g. a quoted heading name split as
+    `"OSM\\nAPI-key-pin race"`); a line-anchored regex silently drops the wrapped half of
+    the sentence - the same class of bug as the three line-wrap tautologies already fixed
+    elsewhere in this file. Matching against whitespace-normalized text closes it for good.
+    """
+    return _WS_RE.sub(" ", text)
+
+
+# A concurrency-guard.md section gets cited in two structurally different ways, and BOTH
+# must be recognised or a rename leaves silent dangling pointers - which is exactly what
+# happened: nine "version-pin race" references survived an earlier rename to
+# "session-pin race" because the old guard recognised only ONE syntactic shape
+# (filename -> "section"/"§" keyword -> name) and never scanned docs/.
+#
+# Form 1 - keyword-anchored: works for ANY heading name (e.g. "Odoo instance allocation"),
+# filename (".md" optional) followed by "section"/"§" then the name, quoted or bare.
+_KEYWORD_POINTER_RE = re.compile(
+    r"concurrency-guard(?:\.md)?`?\s+(?:section|§)\s*[\"'“]?([^\n]{1,150})"
+)
+
+# Form 2 - a bare "<qualifier>-pin race" phrase (optional "OSM " prefix), with NO
+# requirement that a filename appear nearby. This compound is coined specifically for the
+# one concurrency-guard.md heading shaped this way and is never used for anything else on
+# this tree (every other "race" mention here is "race window/race-free/write race/
+# bootstrap-race" - none contain "-pin race"), so the phrase alone is an unambiguous
+# reference. Dropping the filename-adjacency requirement is what catches the bare,
+# reversed-word-order, and missing-".md" dangling forms that Form 1 structurally cannot:
+# a proximity rule would have to pick an arbitrary window size, and the real dangling
+# reference in INSTANCE-ALLOCATION.md sits in a different paragraph from its nearest
+# "concurrency-guard.md" mention, so no window would catch it while a term-currency check
+# does, cleanly.
+_RACE_PHRASE_RE = re.compile(r"\b(?:OSM\s+)?([A-Za-z][\w-]*-pin\s+race)\b")
+
+
+def test_every_concurrency_guard_section_pointer_resolves_to_a_real_heading():
+    """Every reference to a concurrency-guard.md section - however phrased - must name a
+    heading that actually exists there today.
+
+    No existing test guards heading TEXT (test_concurrency_guard_ssot.py asserts only the
+    filename substring), so a rename would otherwise leave every pointer dangling silently.
+    This test reads the CURRENT heading dynamically (never a hardcoded name), so it doubles
+    as the guard against a future rename: if pointers are not updated in the same change,
+    this fails - no separate heading-text assertion is needed.
+
+    Scans the WHOLE plugin tree, not a curated subdir list: a real pointer has been found
+    living in skills/, snippets/, agents/, docs/reference/, workflows/, and the plugin
+    README, so scoping this to a shorter directory list would repeat the exact "one
+    location, one syntactic shape" mistake this test exists to catch.
     """
     guard = (PLUGIN / "skills" / "_shared" / "concurrency-guard.md").read_text(encoding="utf-8")
     short_forms = _section_short_forms(guard)
+    valid_race_cores = {_race_core(sf) for sf in short_forms if _race_core(sf).endswith("race")}
     offenders = []
-    for f in _md_files("skills", "snippets", "agents"):
-        text = f.read_text(encoding="utf-8")
-        for m in re.finditer(r"concurrency-guard\.md`?\s+(?:section|§)\s*([^\n]+)", text):
-            tail = m.group(1).strip().lstrip("`\"'")
+    for f in sorted(PLUGIN.rglob("*.md")):
+        text = _normalize_ws(f.read_text(encoding="utf-8"))
+        for m in _KEYWORD_POINTER_RE.finditer(text):
+            tail = m.group(1).strip().lstrip("`\"'“")
             if not any(tail.startswith(sf) for sf in short_forms):
                 offenders.append(f"{f.relative_to(REPO_ROOT)}: points at absent section '{tail[:60]}'")
+        for m in _RACE_PHRASE_RE.finditer(text):
+            if _race_core(m.group(1)) not in valid_race_cores:
+                offenders.append(f"{f.relative_to(REPO_ROOT)}: names stale race-phrase '{m.group(0)}'")
     assert not offenders, "dangling concurrency-guard.md section pointers:\n" + "\n".join(offenders)

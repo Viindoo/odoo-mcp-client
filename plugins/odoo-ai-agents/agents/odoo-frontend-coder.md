@@ -37,9 +37,9 @@ When `MASTER_DESIGN_DOC` is not `none`, ALSO READ `${CLAUDE_PLUGIN_ROOT}/snippet
 - [ ] `DESIGN_DOC` resolved and read - component contracts, UX behavior, and acceptance criteria built to
 - [ ] `MASTER_DESIGN_DOC` not `none` - §10 cross-module contracts verified: no symbol re-declaration, dep-direction valid, asset boundaries respected; `none` - skip
 
-## Session-pin race
+## API-key-pin race
 
-The OSM `set_active_version` / `set_active_profile` pins are API-KEY-scoped server state a concurrent session can overwrite, so `odoo_version='auto'` may resolve to someone else's version. HARD RULE: pass the concrete version (and profile) on EVERY OSM call; call the setters once at Round 0 as the reachability probe only. Full rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race.
+The OSM `set_active_version` / `set_active_profile` pins are API-KEY-scoped server state a concurrent session can overwrite, so `odoo_version='auto'` may resolve to someone else's version. HARD RULE: pass the concrete version (and profile) on EVERY OSM call; call the setters once at Round 0 as the reachability probe only. Full rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM API-key-pin race.
 
 ## Report language
 

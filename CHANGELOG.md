@@ -161,6 +161,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `tests/test_readme_phase_parity.py`, extracts each pipeline's phase anchors straight from its
   SKILL.md and asserts the README's matching section (both the mermaid diagram and the phase table)
   documents exactly that same set, so this class of drift cannot recur silently.
+- `odoo-ai-agents` - `concurrency-guard.md`'s OSM pin-race heading named the wrong scope: it read
+  "session-pin race" while its own body states the pin is scoped to the API KEY, not to the calling
+  session - the exact conclusion a reader must not draw. Renamed to "OSM API-key-pin race" (keeping
+  both `set_active_version` and `set_active_profile` named, per the earlier widening). Nine pointers
+  left dangling by an earlier rename (a mix of quoted-no-keyword, bare-no-`.md`, and reversed-word-
+  order phrasings, one of them in `docs/` where the old guard never looked) are corrected to the new
+  name, along with two local section headings that had drifted to the same stale term. The pointer
+  guard in `tests/test_agent_facing_guidance.py` recognised only one syntactic shape and skipped
+  `docs/` entirely - both defects are why the nine survived unnoticed. It now scans every markdown
+  file in the plugin and recognises a stale reference regardless of phrasing or filename proximity,
+  and reads the heading text dynamically so a future rename cannot silently leave pointers behind
+  again.
 
 ## [4.18.1] - 2026-07-28
 
