@@ -22,6 +22,11 @@ node_modules/
 .claude/settings.local.json
 .claude/*.local.json
 
+# Claude Code agent worktrees (per-branch isolated checkouts under .claude/worktrees/) - never
+# commit; without this, a fresh clone or CI sees worktree contents in git status --porcelain,
+# which make gen-check judges the whole tree by.
+.claude/worktrees/
+
 # AI workflow runtime artifacts (project context, BRL jobs, brainstorm state) — never commit (may contain customer data)
 .odoo-ai/
 
