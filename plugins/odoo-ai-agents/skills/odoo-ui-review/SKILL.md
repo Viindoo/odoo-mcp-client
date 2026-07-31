@@ -57,12 +57,29 @@ When composing the dispatch prompt for any specialist agent you dispatch, fill t
 skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief.
 
-**Resolve and thread `ISOLATE_DIR`.** This skill is the `odoo-ui-reviewer` agent's dedicated front
-door - the reviewer writes its own captured evidence to `<ISOLATE_DIR>/visual/screenshots/<slug>/`
-(never the repo working tree). Resolve `<ISOLATE_DIR>` once per
-`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (resolve-capture-substitute protocol) and
-pass the captured absolute path as `ISOLATE_DIR:` in the dispatch brief below - the agent consumes
-this literal directly and does not re-resolve.
+**Resolve `ISOLATE_DIR`, sweep, then mint `SLUG`.** This skill is the `odoo-ui-reviewer` agent's
+dedicated front door - the reviewer writes its own captured evidence to
+`<ISOLATE_DIR>/visual/screenshots/<slug>/` (never the repo working tree). Resolve `<ISOLATE_DIR>`
+once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (resolve-capture-substitute
+protocol).
+
+**Orphan sweep (do this every run, BEFORE minting this review's slug below).**
+`visual/screenshots/<slug>/` evidence is RETAINED past its own run - nothing else ever deletes it,
+so it leaks one directory per run forever unless a later run reaps it:
+
+`find <ISOLATE_DIR>/visual/screenshots/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
+
+(any sibling `<slug>/` dir untouched for over 30 days is presumed consumed). Full rule + bound
+rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 2.
+Enforcer: whoever executes `odoo-ui-review` next, unconditionally, every run - not a separate
+cleanup agent or cron.
+
+Generate one `slug` for this review per
+`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 1 (collision-proof
+derivation: `<intent-slug>-<YYYYMMDD>-<4 random chars>`, the SAME mechanism `odoo-visual-regression`
+uses) and pass both the captured absolute `ISOLATE_DIR` and this slug as `ISOLATE_DIR:` / `SLUG:`
+in the dispatch brief below - the agent substitutes both literals directly and does not re-resolve
+or improvise its own.
 
 **Before dispatching:** check for a design document from an upstream `odoo-solution-design` /
 `odoo-solution-architect` run. List `<SHARE_DIR>/designs/` (resolve `<SHARE_DIR>` once per

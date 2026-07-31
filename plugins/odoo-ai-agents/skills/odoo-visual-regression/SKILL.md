@@ -115,6 +115,12 @@ close. Example: intent "compare before/after the v17 upgrade" run twice concurre
 date, different random suffix, so the two runs write to different directories and neither overwrites
 the other's screenshots.
 
+This mint-then-sweep pattern (the derivation formula above plus the orphan sweep before it) is the
+shared home the other `visual/*/<slug>/` evidence consumers reuse instead of restating or inventing
+a second one: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` cites this
+section and is cited BY `odoo-acceptance` (`visual/qa/<slug>/`), `odoo-debug`
+(`visual/debug/<slug>/`), and `odoo-ui-review` (`visual/screenshots/<slug>/`).
+
 Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
 and pass that concrete version on every Round 1 OSM call - the pin is per-API-key and racy under
 concurrency, so passing it explicitly avoids scoping against the wrong version.

@@ -340,6 +340,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   worktree" step; Run start now carries the same explicit step, and `wave-integration.md` § Single
   points back at it. 11 new guard tests added (1 new file), each proven red against the pre-fix text
   (via a targeted stash of the source-only edits) before being fixed green.
+- `odoo-ai-agents` - three more pre-existing runtime-contract gaps closed. (1) The run-scoped
+  `visual/qa/<slug>/`, `visual/debug/<slug>/`, and `visual/screenshots/<slug>/` sibling subpaths
+  (unlike `visual/current/<slug>/`, fixed earlier in this PR) had no collision-proof slug-derivation
+  rule - `odoo-ui-review` had no slug instruction at all - so two concurrent same-intent runs could
+  mint the identical slug and overwrite each other's evidence. New
+  `snippets/visual-evidence-lifecycle-contract.md` states the
+  `<intent-slug>-<YYYYMMDD>-<4 random chars>` derivation once (the same mechanism
+  `phase-p-run-dag.md:43` and `odoo-visual-regression` already use); `odoo-acceptance`, `odoo-debug`,
+  and `odoo-ui-review` (plus `odoo-ui-reviewer`) now cite it instead of restating or omitting the
+  rule. (2) `ui-debug-session.workflow.yaml` promised each phase writes state so a multi-hour
+  session can resume, but the `inspect` phase diagnosed from conversation context and never read
+  back the `collect-symptom`/`reproduce` phases' own persisted artifacts - a session resumed in a
+  fresh context would silently diagnose from nothing. `collect-symptom` now names its artifact
+  explicitly (`.odoo-ai/debug/<slug>-symptom.md`) and `inspect`'s `nl_trigger` now instructs an
+  explicit read-back of both prior artifacts from disk before diagnosing, making the resume promise
+  true. (3) Neither state tier had any garbage collection - `visual/qa/`, `visual/debug/`, and
+  `visual/screenshots/` evidence is deliberately RETAINED past its own run (it is the cited evidence
+  behind a verdict/diagnosis/review) but nothing ever swept it, leaking one directory per run
+  forever. `visual-evidence-lifecycle-contract.md` Clause 2 adds a 30-day (43200-minute) orphan
+  sweep each owning skill runs at its own Phase/Round 0, BEFORE minting its own slug, scoped only to
+  ISOLATE run-scoped evidence (never a SHARE reusable cache or a committed module deliverable) -
+  the ordering and the mtime bound together mean the sweep can never touch a concurrent run's live
+  directory. 12 new guard tests added (3 new files), each proven red against the pre-fix text before
+  being fixed green.
 
 ## [4.18.1] - 2026-07-28
 
