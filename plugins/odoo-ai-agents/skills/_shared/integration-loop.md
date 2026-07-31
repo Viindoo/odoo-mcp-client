@@ -41,16 +41,20 @@ unrecoverable failure unwinds to a known-clean point:
    The most recent entry is the resume anchor.
 3. **On an unrecoverable failure** - a cherry-pick that cannot be resolved to intent, or a
    post-pick verify that cannot be made to pass within the loop's bound - do EXACTLY ONE of:
-   - **Clean abort:** reset the integration branch HARD to the pre-wave SHA (step 1). The wave
-     made no net change; report the failing WI and why.
-   - **Resume from checkpoint:** reset the integration branch HARD to the last PASSING checkpoint
-     SHA (step 2), keeping the work that already integrated cleanly; report the failing WI and stop
-     before it.
+   - **Clean abort:** abandon the run-integration WORKTREE (git-ops `worktree remove`) and
+     re-provision a fresh one, re-forking the run-integration branch at the pre-wave SHA (step 1).
+     The wave made no net change; report the failing WI and why.
+   - **Resume from checkpoint:** abandon the run-integration worktree and re-provision a fresh one,
+     re-forking the branch at the last PASSING checkpoint SHA (step 2), keeping the work that
+     already integrated cleanly; report the failing WI and stop before it.
 
-   Never leave a half-built integration branch (a cherry-pick applied but unverified, or conflict
-   markers in the tree). Always report which WI failed and which outcome (abort | resume) was taken.
+   This is a worktree ABANDON + RE-FORK, never a git reset --hard against a live worktree - see
+   § Git-mutation safety below for why that distinction is load-bearing (it is what keeps the
+   between-wave advance genuinely autonomous). Never leave a half-built integration branch (a
+   cherry-pick applied but unverified, or conflict markers in the tree). Always report which WI
+   failed and which outcome (abort | resume) was taken.
 
-For a wave whose `topology` is `single` (enum owner: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Topology values) the saga reduces to the integration branch's own history: record the pre-wave SHA (step 1), write NO per-module checkpoint (step 2), and clean-abort to that SHA on failure.
+For a wave whose `topology` is `single` (enum owner: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Topology values) the saga reduces to the integration branch's own history: record the pre-wave SHA (step 1), write NO per-module checkpoint (step 2), and clean-abort (worktree abandon + re-fork) to that SHA on failure.
 
 **Wave-closing verify = the CUMULATIVE suite.** The FINAL verify that closes a wave (before the wave
 AUTO-ADVANCES) runs the cumulative run-set (SSOT:
@@ -60,27 +64,42 @@ and NEVER auto-advance (nor open the run's ONE PR) on red.
 
 ## Git-mutation safety - POINT, do not restate (dependency direction)
 
-The reset-hard, the cherry-pick, the branch moves, and the closing squash/push are GIT MUTATIONS.
-Their safety mechanics are owned by git-toolkit's provider contract - this file does NOT restate
-them. The executor (or the git-toolkit operator it delegates to) MUST honor
+The worktree abandon+re-fork, the cherry-pick, the branch moves, and the closing squash/push are
+GIT MUTATIONS. Their safety mechanics are owned by git-toolkit's provider contract - this file does
+NOT restate them. The executor (or the git-toolkit operator it delegates to) MUST honor
 `plugins/git-toolkit/snippets/git-safety-contract.md`:
 
-- **S1 - backup before any destructive op.** The pre-wave SHA above is recorded as / alongside the
-  S1 backup branch, so a reset-hard is always recoverable.
+- **S1 - backup before any destructive op.** The terminal squash (the one rewrite this loop performs)
+  records its S1 backup ref before rewriting (`wave-integration.md` § Squash Tree-Identity Recipe).
+  The saga rollback no longer needs an S1 backup - it is not a destructive op (see below).
 - **S6 - tree-identity verify after a rewrite.** The single terminal squash that closes the RUN (once,
   after the final wave) is proven byte-identical to the integrated tree before the fresh first push
   (the executor's squash gate).
 - **S9 - worktree-lock / principal-checkout-lock.** Every mutation runs in a dedicated worktree;
-  the primary checkout never leaves its principal branch.
+  the primary checkout never leaves its principal branch. The saga rollback's re-provisioned
+  worktree honors this the same as every other mutation.
 
-The reset-hard (saga rollback) is one of that contract's human-confirm-gated destructive ops: the
-executor delegates it through git-toolkit (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`), which
-enforces the S1 backup and the confirm gate as a backstop. The terminal closing push, by contrast, is
-a fresh FIRST push of the never-pushed run-integration branch (non-force, no history rewrite on any
-remote branch) - it is NOT a destructive op and fires no confirm gate; it runs as part of
-drive-to-done. The only human-gated LANDING is the downstream outward MERGE (odoo-pr-monitoring's
-L2-merge-gate). odoo-ai-agents (consumer) pointing at git-toolkit (provider) is the legal direction;
-git-toolkit never names a consumer.
+**Saga rollback fires no destructive-confirm gate, by construction - not by exemption.** The saga
+unwind (clean-abort | resume-from-checkpoint) is a `worktree remove` + a fresh `worktree add` that
+re-forks run-integration at the anchor SHA (the pre-wave SHA, or the last passing checkpoint SHA) -
+it never invokes a git reset --hard against a live worktree. git-toolkit's destructive human-confirm
+gate (`git-safety-contract.md` item 4) names git reset --hard specifically because it can discard
+uncommitted work with no other copy; here there is nothing unique to discard: run-integration is a
+disposable, never-pushed, run-scoped branch, the anchor SHA and every cherry-picked commit up to it
+remain fully reachable (each module's own commits still live independently on that module's own
+branch, untouched by this rollback), and `worktree add`/`worktree remove` is an ordinary, ungated
+mutation verb (`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § No LEAF-worker git lists it among
+the routine git-ops verbs, distinct from the 8-item destructive gate list). This is WHY the
+between-wave advance can stay a genuinely autonomous L1 drive-to-done
+(`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/SKILL.md` § Gate-tier resolution, "NO per-wave stop"): the
+one operation that could have forced an unplanned human stop never reaches a gated op in the first
+place, so there is exactly ONE decidable conclusion for an agent hitting a mid-wave failure - it does
+NOT stop for human confirmation. The terminal closing push is, separately, a fresh FIRST push of the
+never-pushed run-integration branch (non-force, no history rewrite on any remote branch) - also NOT a
+destructive op, also firing no confirm gate; it runs as part of drive-to-done. The only human-gated
+LANDING is the downstream outward MERGE (odoo-pr-monitoring's L2-merge-gate). odoo-ai-agents
+(consumer) pointing at git-toolkit (provider) is the legal direction; git-toolkit never names a
+consumer.
 
 ## Recording
 
