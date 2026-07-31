@@ -1433,3 +1433,54 @@ class TestReadmeAndFeatureCatalogerDoNotClaimOSMGroundsInstallable:
             "odoo-feature-cataloger.md must still cover installable state, just "
             "grounded via the module's __manifest__.py on disk"
         )
+
+
+# ---------------------------------------------------------------------------
+# Invariant (CS-C11b) - the i18n mandate's compute/dispatch split: 8e COMPUTES
+# both conditions from artifacts that already exist (no instance needed) and
+# records them on the module's merge-log.md row; the DISPATCH of odoo-i18n
+# moves to a new P9.5, which runs only after P9 provisions the instance
+# (odoo-i18n hard-BLOCKs without one - dispatching at 8e/P8 would risk a
+# redundant second provision).
+# ---------------------------------------------------------------------------
+
+class TestI18nMandateComputeDispatchSplit:
+    def test_i18n_dispatch_comes_after_the_instance_phase(self):
+        """SKILL.md must order P9 (instance provisioned) -> P9.5 (i18n dispatch) -> P10
+        (gate). Asserting presence of all three anchors FIRST makes a missing P9.5 a clean
+        assertion failure rather than a ValueError from .index() on a not-found substring."""
+        text = SKILL_MD.read_text(encoding="utf-8")
+        for anchor in ("**P9 - Verify by behavior", "**P9.5 - i18n", "**P10 - Gate merge"):
+            assert anchor in text, f"SKILL.md must contain the phase anchor {anchor!r}"
+        assert (
+            text.index("**P9 - Verify by behavior")
+            < text.index("**P9.5 - i18n")
+            < text.index("**P10 - Gate merge")
+        ), (
+            "SKILL.md must order P9 (instance exists) before P9.5 (i18n dispatch) before P10 "
+            "(gate) - odoo-i18n hard-BLOCKs without an instance (odoo-i18n/SKILL.md § "
+            "Standalone-first fallback), so dispatching it before P9 risks a redundant second "
+            "provision"
+        )
+
+    def test_8e_computes_and_does_not_dispatch(self):
+        """fp-phase-detail.md's 8e block must record i18n_signals + i18n_due and must NOT
+        dispatch odoo-i18n inline - the dispatch moved to P9.5, after the P9 instance exists."""
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        start = text.find("**8e - i18n")
+        assert start != -1, "fp-phase-detail.md must still carry an 8e i18n block"
+        end = text.find("\n\nConverge each child worktree", start)
+        assert end != -1, "8e block must be followed by the converge-back paragraph"
+        block = text[start:end]
+        normalized_block = _ws_normalize(block)
+
+        assert "i18n_signals" in normalized_block, (
+            "8e must record i18n_signals on the module's merge-log.md row"
+        )
+        assert "i18n_due" in normalized_block, (
+            "8e must record i18n_due on the module's merge-log.md row"
+        )
+        assert "DISPATCH: odoo-i18n" not in normalized_block, (
+            "8e must NOT dispatch odoo-i18n inline anymore - the dispatch moved to P9.5, after "
+            "the P9 instance exists (odoo-i18n hard-BLOCKs without one)"
+        )

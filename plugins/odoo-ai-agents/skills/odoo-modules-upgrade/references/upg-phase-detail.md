@@ -728,25 +728,30 @@ overall: green | red
 
 ---
 
-## P5.7 - i18n reconcile (gated-on by default; auto-SKIP)
+## P5.7 - i18n reconcile (MANDATORY; narrow escape only)
 
 Wires the EXISTING `odoo-i18n` skill as a post-install phase - no new i18n logic. Non-destructive
 is load-bearing: re-exporting a `.po` from a fresh DB with NO load step destroys 40-90% of existing
 `msgstr`, so translation MEMORY is always forwarded by loading the existing `.po` into a fresh
 instance before re-export, then diff-reviewed - never blind-regenerated.
 
-SKIP gate (evaluate first): SKIP this phase when the cluster changed NO translatable surface -
-no add/remove/rename of a translatable field, view label/string, selection value, help text, or
-report label across the adapted modules (diff the P4 commits for translatable tokens). Record
-`i18n: skipped (no translatable-surface change)` and proceed to P6.
+MANDATORY for every SURVIVING module of the cluster - KEEP, REWRITE(api), REWRITE(model), MERGE, SPLIT
+and RECONCILE all pass through the target series' export/reconcile path once. A content diff is NOT the
+gate: the `.pot`/`.po` TOOLING changes across a major series independently of whether this module's own
+strings changed. The ONLY skips are the enumerated escapes in
+`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md` § Escape hatches, and each one is RECORDED in
+`install-test.md` - never silent. DELETE-absorbed and OBSOLETE modules skip via E1.
 
 When it runs (against the P5 instance, demo=on):
 ```
 SKILL: odoo-i18n
-INSTANCE: the P5 ephemeral instance (already up)
+INSTANCE: the P5 ephemeral instance (already up) - its addons path MUST cover WORKTREE_PATH
 MODULES: <cluster adapted modules>
 TARGET_VERSION: <target_version>
 MODE: reconcile (non-destructive)
+WORKTREE_PATH: <the P4 integration worktree - .po/.pot are git-tracked>
+TARGET LANGUAGES: <explicit list; never leave odoo-i18n to resolve a default>
+GATE: do NOT stop separately - return the result; it is presented at the P6 sign-off
 STEPS (odoo-i18n owns the detail; do NOT replicate its protocol):
   1. fresh instance with en_US + each existing <lang>.po loaded, then re-export each <lang>.po
   2. git-ops diff-review each re-exported <lang>.po against its committed version; adjudicate every removed/changed msgid correct (term gone) or wrong (BLOCK) - preserves every existing msgstr except an adjudicated-correct loss
@@ -801,7 +806,9 @@ these three passes before opening the PR, each cross-referencing its owning snip
 - Perf-lens: no per-record `mapped()` aggregate over a high-volume model (`hr.attendance`,
   `stock.move`, `account.move.line`, `account.analytic.line`) in a stored compute - use a grouped
   `_read_group`.
-- i18n: P5.7 ran, or was correctly auto-SKIPPED with the recorded reason.
+- i18n: P5.7 ran for every surviving module, or each skip is a RECORDED enumerated escape
+  (`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md` § Escape hatches) - never a silent
+  content-diff skip.
 
 **PR body construction (pre-render from structured artifacts - not grep of plan.md prose):**
 The orchestrator constructs adapted-modules and deleted-modules lists from the structured

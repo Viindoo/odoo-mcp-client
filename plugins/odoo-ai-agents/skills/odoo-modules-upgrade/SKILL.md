@@ -307,10 +307,12 @@ feed the diagnosis back to P4 for the affected module. Resume P5 from the
 failing wave (skip already-green waves per `checkpoint.json`). Loop until all waves green.
 Output: `install-test.md` - {per-wave + per-module install ok?, test result, root-cause if red}.
 
-**P5.7 - i18n reconcile [gated-on by default; auto-SKIP].**
-Goal: keep translations intact across the upgrade WITHOUT regenerating them. Gated-on by
-default; AUTO-SKIP when the cluster changed no translatable surface (no add/remove/rename of
-a translatable field, label, view string, or selection). When it runs, wire the existing
+**P5.7 - i18n reconcile [MANDATORY, narrow escape only].**
+Goal: keep translations intact across the upgrade WITHOUT regenerating them. MANDATORY for every
+SURVIVING module (KEEP / REWRITE / MERGE / SPLIT / RECONCILE) - a content diff is NOT the gate,
+since the `.pot`/`.po` tooling changes across a major series regardless of whether this module's
+own strings changed. Skip only via an enumerated escape, recorded in `install-test.md`:
+`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`. When it runs, wire the existing
 `odoo-i18n` skill (no new i18n logic) against a fresh instance with the existing `.po` loaded:
 re-export -> git-ops diff-review each `.po` against its committed version + adjudicate every loss
 (NEVER blind-regenerate - a fresh-DB export with no load step destroys existing msgstr) ->
@@ -359,7 +361,7 @@ Pre-PR checklist (extends P6 sign-off): run the Runbot parity gates
 add a convention-compliance pass (manifest version-form + always-invisible XML comment + rename
 via `old_technical_name` - per `${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md`), a perf-lens
 pass (no per-record `mapped()` aggregate on a high-volume model - use grouped `_read_group`), and
-an i18n pass (P5.7 ran or was correctly auto-SKIPPED).
+an i18n pass (P5.7 ran for every surviving module, or each skip is a RECORDED enumerated escape).
 Push branch and open PR: invoke the `git-toolkit:git-ops` skill (via the Skill tool) to push the
 branch, then to create the PR - resolve upstream org/repo and base from `git remote get-url origin`.
 No cluster-squash (per-module consolidation is allowed - see `references/upg-phase-detail.md` § Commit consolidation).
@@ -408,6 +410,12 @@ review modules in dependency order). Wait for human merge.
    gets. This is NOT opt-in: skip it only when `graph.md` proves the cluster is a true dependency
    leaf with zero in-repo dependents and no behavioral surface, and record that proof - never skip
    silently. The upgrade is not DONE without an ACCEPTED verdict or a recorded narrow-escape.
+8. **i18n reconcile is mandatory (narrow escape only).** P5.7 dispatches `odoo-i18n` for EVERY
+   surviving module (KEEP / REWRITE / MERGE / SPLIT / RECONCILE) before the P6 gate. Not opt-in, and
+   NOT gated on whether the diff touched a label - the `.pot`/`.po` tooling changes across a major
+   series regardless. Skip only via an enumerated escape, recorded in `install-test.md`:
+   `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`. The upgrade is not DONE without a
+   per-module i18n result or a recorded escape.
 
 ## Checkpoint / resume
 

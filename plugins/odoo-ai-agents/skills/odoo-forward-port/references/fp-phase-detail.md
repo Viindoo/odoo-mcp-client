@@ -487,25 +487,19 @@ migration body for source-series literals still in log strings or version consta
 grep -rn '<src-series>' migrations/<tgt-series>/   # e.g. grep -rn '17\.0' migrations/18.0/
 ```
 
-**8e - i18n: DISPATCH the `odoo-i18n` cluster, never inline.** When a forwarded commit adds or
-changes translatable strings (new `.po`/`.pot`, new `string=`/labels/help, a new module), hand the
-translation work to the dedicated cluster via a subagent dispatch (or `SUGGESTED_NEXT: odoo-i18n`
-when the run is one-shot):
+**8e - i18n: COMPUTE and RECORD; the dispatch happens at P9.5.** Do NOT dispatch `odoo-i18n` here -
+this phase has no instance, and `odoo-i18n` hard-BLOCKs without one. Evaluate both mandate conditions
+now, from artifacts that already exist, and record them on the module's `merge-log.md` row:
 
-```
-DISPATCH: odoo-i18n
-SOURCE PO PATHS: <source-side .po/.pot files in the merged tree>
-TARGET MODULES: <module name(s) whose translations need forwarding>
-ODOO VERSION: <target>
-SOURCE SERIES: <source-series>
-TARGET LANGUAGES: <language codes inferred from the source .po filenames, e.g. vi_VN fr_FR;
-    list one code per file (<lang>.po -> <lang>); if forwarding only a subset, list that
-    subset explicitly. Deliverable languages ONLY - never includes en_US (Odoo ships no
-    en_US.po); odoo-i18n unions en_US into the DB-activation set itself per recipe KT3>
-```
+1. **Condition 1 - translatable delta.** Run the 8-signal trigger table over this batch's
+   `<ISOLATE_DIR>/forward-port/<slug>/commits/<sha>.dump` files. Record
+   `i18n_signals: [<fired ids>]` or `i18n_signals: none`.
+2. **Condition 2 - already live at the target.** Read `installable_false` from this module's
+   `merge-log.md` row. Record `i18n_due: yes|no|escape:<E-id>`.
 
-`odoo-i18n` owns the non-destructive `.pot`/`.po` recipe and the isolated-DB export; this pipeline
-forwards only the INTENT (which strings, which modules), never the export itself.
+Both conditions and the escape table: `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`.
+Carry `i18n_due` forward to P9.5. Recording it here and dispatching there is deliberate: the decision
+needs the diff (available now), the dispatch needs the instance (available at P9).
 
 Converge each child worktree back to integration (serialized, keep SHA), then invoke git-ops
 to remove the child worktree at `<path>` (only after that module's P9 cycle

@@ -1280,7 +1280,9 @@
         "odoo-test-writer (P8a test-forward adapt mode, RED-first - agent launched for context isolation; invokes the odoo-test-writing skill inline; SendMessage-resumable)",
         "odoo-coding (P8 adapt via the Skill tool; owns the coder fan-out (odoo-coder coordinator / odoo-backend-coder / odoo-frontend-coder) + model; FP-enriched brief carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first; serial per commit via work-tier worktrees)",
         "git-ops (cherry-pick, merge, branch/worktree ops - all local git mutations - plus read-only diff/range map + P5 verify and PR create/review - via git-ops skill - git-toolkit)",
-        "odoo-acceptance (P12 end-to-end acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole batch, gates alongside the human-merge decision)"
+        "odoo-acceptance (P12 end-to-end acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole batch, gates alongside the human-merge decision)",
+        "odoo-instance (P9 per-batch provision + test-run via the Skill tool; owns the odoo-instance-ops fan-out; the handle is forwarded so later batches reuse it)",
+        "odoo-i18n (P9.5 catalog reconcile via the Skill tool; MANDATORY per module whose 8e record says i18n_due: yes, narrow-escape only; reuses the P9 instance, folds its result into the P10 gate)"
       ],
       "stack": "fullstack",
       "instance_touching": true,
@@ -1319,7 +1321,8 @@
         "odoo-coding (P4 adapt via the Skill tool; owns the coder fan-out (odoo-coder coordinator / odoo-backend-coder / odoo-frontend-coder) + model; dep order, per-module worktrees)",
         "odoo-instance skill (P5 install/test via the Skill tool; owns the odoo-instance-ops fan-out) + odoo-backend-debugger / odoo-ui-debugger (failure diagnose)",
         "git-ops (branch, worktree, cherry-pick, squash - all git mutations - plus read-only diff scope + verify and P7 PR review/creation - via git-ops skill - git-toolkit)",
-        "odoo-acceptance (P5.8 acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole cluster, gates alongside the P6 sign-off)"
+        "odoo-acceptance (P5.8 acceptance via the Skill tool; MANDATORY, cluster-wide, narrow-escape only; ONE dispatch for the whole cluster, gates alongside the P6 sign-off)",
+        "odoo-i18n (P5.7 catalog reconcile via the Skill tool; MANDATORY for every surviving module, narrow-escape only; reuses the P5 instance, folds its result into the P6 sign-off)"
       ],
       "stack": "fullstack",
       "instance_touching": true,
