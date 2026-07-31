@@ -393,3 +393,88 @@ def test_consumers_point_at_the_topology_owner():
         assert "Topology values" in text, (
             f"{label} must name the owner's '§ Topology values' section, not just the bare filename"
         )
+
+
+# ---------------------------------------------------------------------------
+# CS-C6 follow-up: a stale "N topologies" count word is a SEPARATE defect from
+# the value-list restatement above - it can drift even in a file that has NO
+# copy of the value list at all (a bare prose reference to "the four
+# topologies"). Guard it by COMPUTING N from the owner's canonical enumeration
+# and asserting every count-word reference to it agrees, rather than
+# hardcoding "five" as a snapshot (ETHOS #8: protect the behavior/invariant -
+# "the count word must track the actual enumeration" - not today's number).
+# ---------------------------------------------------------------------------
+
+_NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+}
+_NUMBER_WORD_ALTERNATION = "|".join(_NUMBER_WORDS)
+
+
+def _topology_value_count() -> int:
+    """N = the number of values in the owner's canonical enumeration (the intro sentence's
+    parenthetical list right under the '## Topology values' heading), computed from the text
+    itself - never hardcoded - so this stays correct when a sixth value is added."""
+    text = _text(WAVE_INTEGRATION)
+    m = re.search(r"Choose from the plan's Block-2 module-DAG \(([^)]+)\)", text)
+    assert m, (
+        "wave-integration.md must carry the canonical topology-values intro sentence "
+        "this count is computed from"
+    )
+    values = [v.strip() for v in m.group(1).split("/")]
+    assert values, "the canonical enumeration must not be empty"
+    return len(values)
+
+
+def _count_word_violations(text: str, n: int) -> list[str]:
+    """Every count-word reference to 'topolog(y|ies)' in `text` must numerically agree with `n`
+    (the ACTUAL enumerated value count) - UNLESS the reference is explicitly scoped to
+    'multi-module' (excluding the `single` collapse case, which has no internal module ordering
+    to describe), in which case it must agree with `n - 1`. Two directions are checked: the count
+    word BEFORE 'topolog' ("four multi-module topologies", "five topology values") and the count
+    word inside a "Topology values (<word>)" heading-style parenthetical (topolog BEFORE the word).
+    Returns violation messages (empty = no violations)."""
+    violations = []
+    for m in re.finditer(
+        rf"\b({_NUMBER_WORD_ALTERNATION})\b(\s+multi-module)?\s+topolog", text, re.IGNORECASE
+    ):
+        word = m.group(1).lower()
+        scoped_to_multi_module = m.group(2) is not None
+        expected = (n - 1) if scoped_to_multi_module else n
+        if _NUMBER_WORDS[word] != expected:
+            violations.append(
+                f"count word {word!r} ({'multi-module-scoped, ' if scoped_to_multi_module else ''}"
+                f"expected {expected}) disagrees with the enumerated value count N={n}: "
+                f"matched {m.group(0)!r}"
+            )
+    for m in re.finditer(r"[Tt]opology values\s*\((\w+)\)", text):
+        word = m.group(1).lower()
+        if word not in _NUMBER_WORDS or _NUMBER_WORDS[word] != n:
+            violations.append(
+                f"heading count word {word!r} disagrees with the enumerated value count N={n}"
+            )
+    return violations
+
+
+def test_owner_file_count_words_agree_with_the_enumerated_value_count():
+    """A stale 'the four topologies' sentence sitting right after a five-value enumeration is a
+    defect this PR exists to remove: a reader cannot tell whether it is stale prose or a
+    deliberate exclusion, and if excluded, which value. This computes N from the owner's own
+    enumeration and asserts every count-word reference to 'topolog...' in the owner file agrees
+    with N (or N - 1 when explicitly scoped to 'multi-module', i.e. excluding the `single`
+    collapse case, which has no internal ordering). Adding a sixth value and forgetting to update
+    one of these count words reddens this test instead of leaving a silent ambiguity for the next
+    reader to puzzle out."""
+    n = _topology_value_count()
+    violations = _count_word_violations(_text(WAVE_INTEGRATION), n)
+    assert not violations, "\n".join(violations)
+
+
+def test_run_harness_skill_count_word_agrees_with_the_enumerated_value_count():
+    """Same guard as above, applied to run-harness/SKILL.md's own 'Full templates (... topology
+    values ...)' cross-reference into the owner - a second site this same follow-up fixed, so it
+    gets the same protection against drifting stale again."""
+    n = _topology_value_count()
+    violations = _count_word_violations(_text(RUN_HARNESS), n)
+    assert not violations, "\n".join(violations)

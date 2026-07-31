@@ -132,7 +132,9 @@ path. Never infer `single` from a missing field.
 
 > Cross-WAVE lineage (Block 2W): there is ONE **run-integration** branch, forked from base/principal
 > ONCE at run start; every wave's module worktrees fork from IT (not from base, not from a per-wave
-> branch). The four topologies above describe the module ordering INSIDE one wave; each wave ends at
+> branch). Of the five topology values above, the four multi-module topologies (independent / linear /
+> mixed / diamond) describe the module ordering INSIDE one wave; `single` collapses the wave to one
+> module and has no internal ordering to describe. Each wave ends at
 > the cumulative close-gate and AUTO-ADVANCES (no per-wave PR - the "close wave" terminal above). The
 > run opens exactly ONE PR after the FINAL wave (the terminal `integrate` land-tail). Because
 > run-integration already carries all PRIOR waves' cherry-picked code, a dependent module's worktree

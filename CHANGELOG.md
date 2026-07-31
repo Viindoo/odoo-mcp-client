@@ -58,6 +58,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   a child worktree for a single module. For `n >= 2` the child worktree is retained for
   poison-containment. An absent `topology` field still takes the fan-out path. A new guard asserts the
   value set has exactly one definer - three files previously restated it.
+- `odoo-ai-agents` - fixed a stale count word left behind by the `single` topology value above:
+  `wave-integration.md` (the enum owner) and `run-harness/SKILL.md` both said "the four topologies"
+  right next to a five-value enumeration, an ambiguity a reader could not resolve (stale prose, or a
+  deliberate exclusion, and if so, which value). Both now say explicitly that four of the five values
+  describe multi-module ordering and `single` collapses the wave with no ordering to describe. A new
+  guard computes the enumerated value count and asserts every count-word reference to
+  "topolog(y|ies)" in either file agrees with it (or with count-1 when scoped to "multi-module"), so
+  a future sixth value reddens this test instead of leaving a silent inconsistency.
 
 ## [4.18.1] - 2026-07-28
 
