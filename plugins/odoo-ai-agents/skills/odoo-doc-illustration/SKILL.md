@@ -58,6 +58,22 @@ Pass these captured literals as `SHARE_DIR:` / `ISOLATE_DIR:` fields in EVERY wr
 resolve call - at the end-of-run staging cleanup step below, so the writers' staging path and the
 cleanup's `rm -rf` target are guaranteed identical.
 
+**Orphan sweep (crash backstop, do this every run, BEFORE any writer dispatch above and BEFORE
+this run's own `<run_id>` exists below).** The end-of-run staging cleanup below only fires on a
+clean finish - a run that crashed, was killed, or was abandoned mid-loop leaks its
+`visual/<run_id>/` dir forever unless a later run reaps it. `visual/` itself is NOT a `<run_id>/`
+directory - it is the shared parent of `baselines/`, `doc/` (SHARE, reusable - NEVER sweep) and
+`current/`, `qa/`, `debug/`, `screenshots/`, `videos/` (other skills' OWN sibling ISOLATE trees -
+NEVER sweep, they are not `<run_id>/` dirs and this skill does not own them), so the sweep MUST
+exclude all seven by name rather than blindly sweeping every `visual/` child:
+
+`find <ISOLATE_DIR>/visual/ -mindepth 1 -maxdepth 1 -type d ! -name baselines ! -name doc ! -name current ! -name qa ! -name debug ! -name screenshots ! -name videos -mmin +1440 -exec rm -rf {} +`
+
+(any remaining child - by construction only a `<run_id>/` dir - untouched for over 24h is
+presumed abandoned; a healthy doc run finishes well inside that window). Full rule + bound
+rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
+Enforcer: whoever executes `odoo-doc-illustration` next, unconditionally, every run.
+
 **Single module.** A single module dir/name keeps the legacy single-module path with no
 scoper/planner hop: provision (or receive an `INSTANCE_HANDLE`), then run the loop body ONCE
 against that module - behavior unchanged.

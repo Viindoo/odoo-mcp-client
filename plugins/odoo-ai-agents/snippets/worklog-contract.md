@@ -78,6 +78,19 @@ read them oldest-first. They tell you what upstream phases decided so you build 
 those decisions (understand intent before acting). If the dir is absent, you are the first
 writer - create it.
 
+**Orphan sweep (the FIRST writer of a run does this, before creating the new dir above).**
+`worklog/<run-or-slug>/` is never deleted by anything today, so a run's decision log leaks one
+directory per run forever. Sweep stale siblings first:
+`find <ISOLATE_DIR>/worklog/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +` (any
+sibling `<run-or-slug>/` dir untouched for over 30 days is presumed consumed - a directory's own
+mtime refreshes every time ANY writer appends a new per-writer file inside it, so a still-active
+run is never touched). Full rule + bound rationale:
+`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer: the
+first agent that would otherwise create a NEW `<run-or-slug>/` dir - not a separate cleanup agent
+or cron. A run resuming into an EXISTING dir (the common case - most runs are not the first
+writer) does not re-run the sweep; only dir CREATION triggers it, so it fires once per run, not
+once per writer.
+
 ## Relation to the blackboard
 
 `run-<id>.json` is the driver-only state machine (only `run-harness` writes it). The worklog is the

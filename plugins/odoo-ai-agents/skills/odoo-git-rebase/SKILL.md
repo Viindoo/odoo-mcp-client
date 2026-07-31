@@ -155,6 +155,16 @@ conflict-resolution coder runs DURING the rebase (P8, after P7 starts it), P5 de
 Mode MUST decide the adapt strategy for every triggered commit BEFORE P7 creates the integration
 worktree.
 
+**Orphan sweep (do this every run, BEFORE P0 below).** `git-rebase/<slug>/` evidence
+(checkpoint.json, commit dumps) is never deleted by anything today, so it leaks one directory per
+run forever:
+
+`find <ISOLATE_DIR>/git-rebase/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
+
+(any sibling `<slug>/` dir untouched for over 30 days is presumed consumed). Full rule +
+bound rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
+Enforcer: whoever executes `odoo-git-rebase` next, unconditionally, every run.
+
 **P0 - Intake / resolve [sonnet subagent - clarify gate if open_questions non-empty].**
 Turn the free-text ask into structured inputs without guessing. Dispatch a sonnet intake
 subagent with the full NL prompt. The subagent: parses the NL request to identify the feature

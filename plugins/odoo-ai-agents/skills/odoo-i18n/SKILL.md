@@ -111,6 +111,17 @@ under the Tier-2 ISOLATE dir; resolve it via the resolve-capture-substitute prot
 below) - `<ISOLATE_DIR>/i18n/<slug>-<date>/`. The full non-destructive recipe (every command, the
 diff-review reconcile, the validation gates, the glossary) lives in `references/i18n-recipe.md`.
 
+**Orphan sweep (do this every run, BEFORE P0 below).** `i18n/<slug>-<date>/` is never deleted by
+anything today, so it leaks one directory per run forever - on top of the recipe's own mandate
+that a prior run's artifacts are never reused, making anything past the very next run already
+dead weight:
+
+`find <ISOLATE_DIR>/i18n/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
+
+(any sibling `<slug>-<date>/` dir untouched for over 30 days is presumed consumed). Full
+rule + bound rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md`
+Clause 3. Enforcer: whoever executes `odoo-i18n` next, unconditionally, every run.
+
 **P0 - Scope gate [sonnet, STOP].** Resolve the target language list by precedence (highest first),
 then echo which source was used:
 

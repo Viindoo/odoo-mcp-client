@@ -74,6 +74,17 @@ coordinator, not here.
 
 ## Phase 0 - Scope + module graph (1-turn gate, mandatory)
 
+**Orphan sweep (do this every run, at the very start of this Phase 0, before anything else
+below).** `coding/<slug>-<date>/plan.md` is never deleted by anything today, so it leaks one
+directory per run forever (resolve `<ISOLATE_DIR>` per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` first if not already captured this turn):
+
+`find <ISOLATE_DIR>/coding/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
+
+(any sibling `<slug>-<date>/` dir untouched for over 30 days is presumed consumed). Full rule + bound rationale:
+`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer: whoever
+executes `odoo-coding` next, unconditionally, every run.
+
 This is the single confirmation checkpoint. It applies even when the request arrived directly
 (e.g. intake bypass) - **unless your brief carries the AUTONOMOUS FIX sentinel (see the exception
 immediately below), in which case you skip this gate entirely.**

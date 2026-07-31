@@ -70,6 +70,16 @@ guess a PR or open a new one.
 
 ## Phase 1 - Attach + choose the poll cadence
 
+**Orphan sweep (do this every run, BEFORE step 1 below).** `pr-monitoring/<id>.md` files are never
+deleted by anything today, so an old PR's poll-state note outlives it forever:
+
+`find <ISOLATE_DIR>/pr-monitoring/ -maxdepth 1 -type f -name '*.md' -mmin +43200 -exec rm -rf {} +`
+
+(any sibling `<id>.md` untouched for over 30 days is presumed consumed - a still-monitored PR is
+rewritten on every poll tick, so its mtime never ages past the threshold). Full rule + bound
+rationale: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3.
+Enforcer: whoever executes `odoo-pr-monitoring` next, unconditionally, every run.
+
 1. Resolve the PR handle (above). Read any existing poll-state note
    (`<ISOLATE_DIR>/pr-monitoring/<id>.md`) and the run worklog
    (`${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`, oldest-first) so a resumed watch builds on

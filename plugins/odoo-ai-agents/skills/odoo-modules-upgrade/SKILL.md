@@ -93,6 +93,16 @@ passes through the gate. Design is conditional; Plan Mode is not.
 
 ---
 
+**Orphan sweep (do this every run, BEFORE P0 below).**
+`modules-upgrade/<src>-<tgt>-<cluster>/` evidence (checkpoint.json) is never deleted by anything
+today, so it leaks one directory per run forever:
+
+`find <ISOLATE_DIR>/modules-upgrade/ -mindepth 1 -maxdepth 1 -type d -mmin +43200 -exec rm -rf {} +`
+
+(any sibling `<src>-<tgt>-<cluster>/` dir untouched for over 30 days is presumed consumed). Full rule + bound rationale:
+`${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer: whoever
+executes `odoo-modules-upgrade` next, unconditionally, every run.
+
 **P0 - Intake / resolve [STOP if open_questions non-empty].**
 Goal: turn the free-text ask into structured inputs - infer series, map to the OSM profile,
 auto-detect candidate modules, propose a cluster, CLARIFY scope. Dispatch 1x intake subagent
