@@ -22,6 +22,7 @@ Run: python -m pytest tests/test_spawner_completion_contract.py -v
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -123,6 +124,13 @@ def test_r2_forbids_done_while_a_child_is_running():
 # ---------------------------------------------------------------------------
 
 
+_EXACTLY_ONE_LEVEL_RE = re.compile(r"(?i)exactly\s+one\s+level")
+# A bare `"one level" in low` is satisfied by policy-INVERTING text such as "the report may skip
+# more than one level" - "one level" is a literal substring of "more than one level" too. Reject
+# that inversion explicitly rather than trust the bare substring alone.
+_MORE_THAN_ONE_LEVEL_INVERSION_RE = re.compile(r"(?i)more\s+than\s+one\s+level")
+
+
 def test_r3_pins_reply_to_as_the_launcher_never_a_guess():
     """R3 must pin REPLY_TO as the launcher-supplied address, gate the literal `main` on main
     being the actual launcher, and forbid skipping a level (reporting past a nested spawner)."""
@@ -130,7 +138,11 @@ def test_r3_pins_reply_to_as_the_launcher_never_a_guess():
     low = text.lower()
     assert "r3" in low, "must have an R3 section"
     assert "reply_to" in low, "R3 must name the REPLY_TO field"
-    assert "one level" in low, "R3 must state the report goes up exactly one level"
+    assert _EXACTLY_ONE_LEVEL_RE.search(low), "R3 must state the report goes up EXACTLY one level"
+    assert not _MORE_THAN_ONE_LEVEL_INVERSION_RE.search(low), (
+        "R3 text asserts the report may skip MORE THAN ONE level, which INVERTS the "
+        "exactly-one-level rule"
+    )
     assert "main` only when" in low, (
         "R3 must gate the literal `main` on main being the actual launcher, never a default"
     )

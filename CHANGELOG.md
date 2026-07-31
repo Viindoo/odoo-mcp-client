@@ -404,6 +404,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   three more (`odoo-feature-cataloger`, `odoo-planner`, `odoo-doc-feature-map`) were frontmatter
   false-positives that write only under the state root and needed no change at all - each closed
   with a cited reason rather than a silent retention.
+- `odoo-ai-agents` - `odoo-forward-port`'s P9 reference detail (`fp-phase-detail.md`) no longer
+  mixes raw `allocator.py`/`odoo-bin` shell with the SKILL.md instruction to delegate to
+  `odoo-instance`. The raw acquire/install/release recipe - and the sibling copy in
+  `fp-merge-absorption.md`'s per-batch verify protocol, which both SKILL.md and fp-phase-detail.md
+  point to as the "full protocol" - is replaced with the same `odoo-instance` dispatch-brief
+  mechanism the sibling `odoo-modules-upgrade`/`odoo-git-rebase` pipelines already use, so an agent
+  can no longer read two contradictory mechanisms for the same phase; only `odoo-instance-ops` (and
+  the instance-touching HARD LEAVES named in `instance-handle-contract.md`) may call the allocator
+  or `odoo-bin` directly. The P9 `WORKTREE_PATH` re-root added earlier in this PR now lands
+  directly on the actual dispatch brief instead of sitting above dead raw-shell text that ignored
+  it.
+- `odoo-ai-agents` - `scripts/lib/resolve_project_dir.sh`'s `ODOO_AI_PROJECT_DIR`/
+  `ODOO_AI_WORKTREE_DIR` override handling now strips ALL trailing slashes (matching `paths.py`'s
+  `.rstrip("/")`), not just one (`${VAR%/}`) - an override ending in a doubled or tripled trailing
+  slash previously resolved to a DIFFERENT state directory in the shell vs the Python resolver, and
+  an override that was only slashes (e.g. `/`) crashed the shell path (`mkdir -p ''`) instead of
+  canonicalizing to `/` like the Python side already did. New table-driven parity tests in
+  `test_project_dir_resolution.py` cover none/single/double/triple trailing slashes and the
+  all-slashes case for both override variables.
+- `odoo-ai-agents` - replaced four substring assertions across `tests/`
+  (`test_run_harness_wave_hardrules.py`, `test_worktree_graph.py`,
+  `test_coder_coordinator_topology.py`, `test_spawner_completion_contract.py`) that named a
+  cardinality rule ("exactly one PR", "one odoo-coder per module", "exactly one level") without
+  protecting it - each was equally satisfied by policy-INVERTING prose (e.g. "one PR per wave",
+  "more than one odoo-coder per module", "more than one level") because the checked phrase was a
+  literal substring of its own inversion. Each now pairs a positive regex anchored on the actual
+  cardinality claim with an explicit rejection of the known inversion phrase.
 
 ## [4.18.1] - 2026-07-28
 

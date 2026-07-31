@@ -1681,11 +1681,14 @@ class TestP9WorktreeReroot:
             "the re-root step must point at instance-handle-contract.md's Addons coverage "
             "assertion so a miss BLOCKs instead of silently verifying the wrong tree"
         )
-        # Ordering: the re-root instruction must appear BEFORE the allocator/odoo-bin commands
-        # that actually consume the addons path, not as an afterthought below them.
-        assert block.index("Worktree re-root") < block.index("allocator.py acquire"), (
-            "the worktree re-root instruction must precede the allocator acquire call in P9's "
-            "text - a re-root documented after the commands that need it is easy to miss"
+        # Ordering: the re-root instruction must appear BEFORE the odoo-instance dispatch that
+        # actually consumes the addons path, not as an afterthought below it. P9 delegates to
+        # odoo-instance (never a raw allocator.py/odoo-bin call - see the DELEGATE rule at the
+        # top of this section); "operation: run-tests" is the dispatch brief field that performs
+        # the addons-path-consuming acquire+install+test.
+        assert block.index("Worktree re-root") < block.index("operation: run-tests"), (
+            "the worktree re-root instruction must precede the odoo-instance dispatch brief in "
+            "P9's text - a re-root documented after the dispatch that needs it is easy to miss"
         )
 
     def test_p95_addons_coverage_claim_is_backed_by_p9(self):

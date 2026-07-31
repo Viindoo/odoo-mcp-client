@@ -236,14 +236,29 @@ def test_workers_are_hard_leaves():
         )
 
 
+_ONE_CODER_PER_MODULE_RE = re.compile(r"(?i)\bone\b.{0,30}?odoo-coder.{0,30}?per\s+module")
+# A bare `"one" in low and "per module" in low` is satisfied by policy-INVERTING text like
+# "odoo-coding may dispatch MORE THAN one odoo-coder per module" (asserts multiple coders per
+# module - the opposite rule) - "one" and "per module" both still appear as substrings. Explicitly
+# reject the cardinality-inverting qualifier.
+_MULTI_CODER_PER_MODULE_INVERSION_RE = re.compile(
+    r"(?i)(more\s+than\s+one|multiple|two\s+or\s+more)\b.{0,40}?odoo-coder.{0,40}?per\s+module"
+)
+
+
 def test_coding_dispatches_one_coder_per_module_for_every_module():
     """odoo-coding launches ONE odoo-coder COORDINATOR per module - for EVERY module, with no
     single-stack direct-to-worker bypass."""
     body = _text(CODING)
     low = body.lower()
     assert "odoo-coder" in body, "odoo-coding must launch the odoo-coder coordinator"
-    assert "one" in low and "per module" in low, (
-        "odoo-coding must dispatch ONE odoo-coder per module"
+    assert _ONE_CODER_PER_MODULE_RE.search(low), (
+        "odoo-coding must dispatch ONE odoo-coder per module - not merely mention \"one\" and "
+        "\"per module\" separately anywhere in the doc"
+    )
+    assert not _MULTI_CODER_PER_MODULE_INVERSION_RE.search(low), (
+        "odoo-coding text asserts MORE THAN ONE odoo-coder per module, which INVERTS the "
+        "one-coordinator-per-module rule"
     )
     assert "every module" in low, (
         "odoo-coding must launch the coordinator for EVERY module (not just full-stack)"

@@ -358,6 +358,92 @@ def test_explicit_worktree_dir_override_wins(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# override trailing-slash normalisation parity (table-driven: add a suffix to
+# _TRAILING_SLASH_SUFFIXES to cover a new input class for free)
+#
+# A doubled/tripled trailing slash on an override denotes the SAME directory
+# as the bare path (POSIX: "/a/b//" == "/a/b/" == "/a/b"), so it must resolve
+# to the IDENTICAL state-dir key as the bare path in BOTH resolvers - never a
+# stray, only-sometimes-present slash that would splinter one directory into
+# two different keys. Regression fence for the divergence where the shell used
+# `${VAR%/}` (strips exactly ONE trailing slash) while paths.py used
+# `.rstrip("/")` (strips ALL) - an override ending in a doubled slash resolved
+# to two DIFFERENT state dirs depending on which half of the pair answered.
+# --------------------------------------------------------------------------- #
+_TRAILING_SLASH_SUFFIXES = ["", "/", "//", "///"]
+_TRAILING_SLASH_IDS = ["none", "single", "double", "triple"]
+
+
+@requires_bash
+@requires_git
+@pytest.mark.parametrize("suffix", _TRAILING_SLASH_SUFFIXES, ids=_TRAILING_SLASH_IDS)
+def test_project_dir_override_trailing_slashes_normalise_identically(tmp_path, suffix):
+    home = tmp_path / "home"
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    override_dir = tmp_path / "explicit-share"
+    expected = str(override_dir)  # canonical form: no trailing slash
+    env = _env(home, ODOO_AI_PROJECT_DIR=expected + suffix)
+
+    sh = _sh_resolve("share", repo, env)
+    assert sh.returncode == 0, sh.stderr
+    py = _py_resolve("share", repo, env)
+    assert py.returncode == 0, py.stderr
+
+    assert sh.stdout.strip() == expected
+    assert py.stdout.strip() == expected
+    assert sh.stdout.strip() == py.stdout.strip()
+
+
+@requires_bash
+@requires_git
+@pytest.mark.parametrize("suffix", _TRAILING_SLASH_SUFFIXES, ids=_TRAILING_SLASH_IDS)
+def test_worktree_dir_override_trailing_slashes_normalise_identically(tmp_path, suffix):
+    home = tmp_path / "home"
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    override_dir = tmp_path / "explicit-isolate"
+    expected = str(override_dir)  # canonical form: no trailing slash
+    env = _env(home, ODOO_AI_WORKTREE_DIR=expected + suffix)
+
+    sh = _sh_resolve("isolate", repo, env)
+    assert sh.returncode == 0, sh.stderr
+    py = _py_resolve("isolate", repo, env)
+    assert py.returncode == 0, py.stderr
+
+    assert sh.stdout.strip() == expected
+    assert py.stdout.strip() == expected
+    assert sh.stdout.strip() == py.stdout.strip()
+
+
+@requires_bash
+@pytest.mark.parametrize(
+    "raw,var,mode",
+    [
+        ("/", "ODOO_AI_PROJECT_DIR", "share"),
+        ("///", "ODOO_AI_PROJECT_DIR", "share"),
+        ("/", "ODOO_AI_WORKTREE_DIR", "isolate"),
+        ("///", "ODOO_AI_WORKTREE_DIR", "isolate"),
+    ],
+    ids=["share-single-slash", "share-all-slashes", "isolate-single-slash", "isolate-all-slashes"],
+)
+def test_all_slashes_override_collapses_to_root_both_langs(tmp_path, raw, var, mode):
+    """An override that is ONLY slashes (e.g. "/", "///") names the filesystem
+    root - both resolvers MUST canonicalize it to "/", never to an empty
+    string (which would break `mkdir -p ""` / `os.makedirs("")`)."""
+    home = tmp_path / "home"
+    env = _env(home, **{var: raw})
+
+    sh = _sh_resolve(mode, tmp_path, env)
+    assert sh.returncode == 0, sh.stderr
+    py = _py_resolve(mode, tmp_path, env)
+    assert py.returncode == 0, py.stderr
+
+    assert sh.stdout.strip() == "/"
+    assert py.stdout.strip() == "/"
+
+
+# --------------------------------------------------------------------------- #
 # non-git fallback: walk-up marker resolves; no marker REFUSES (never $PWD)
 # --------------------------------------------------------------------------- #
 @requires_bash
