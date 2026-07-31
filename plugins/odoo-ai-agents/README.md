@@ -838,7 +838,10 @@ flowchart TD
 
 ### Skills (53)
 
-Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
+Quick-start guides for a curated subset of the personas above live in
+[`docs/personas/`](docs/personas/) - see [`docs/setup.md`](docs/setup.md) for exactly which ones
+and why; every persona is still served through `odoo-intake` routing and the skill table below
+regardless of whether it has a dedicated guide.
 
 | Skill | Persona | Description |
 |-------|---------|-------------|

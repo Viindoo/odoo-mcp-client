@@ -431,6 +431,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   "more than one odoo-coder per module", "more than one level") because the checked phrase was a
   literal substring of its own inversion. Each now pairs a positive regex anchored on the actual
   cardinality claim with an explicit rejection of the known inversion phrase.
+- `odoo-ai-agents` - `README.md`'s "Per-persona quick-start guides live in `docs/personas/`" read as
+  a claim that all 9 persona buckets `odoo-intake` routes to have a guide there; only 5 do
+  (`docs/personas/` is never Read by any skill/agent/snippet/command/workflow/hook at runtime -
+  confirmed a curated, human-facing subset, not a routing dependency). Reworded to state it is a
+  subset and point at `docs/setup.md`'s already-accurate enumeration. `tests/
+  test_persona_docs_consistency.py` gains a structural divergence guard (`PERSONA_DOC_DOMAIN`, an
+  explicit doc-name -> router-domain map): a persona doc added/removed without updating the map, a
+  half-authored language pair, or a mapped domain the router (`workflows/_schema.md`'s 9-value
+  `domain` enum) no longer recognizes now fails 3 new tests instead of drifting silently. The 4
+  existing dev.md/dev.vi.md-only SSOT-consistency tests (enumerated-identifier survival, safety-clause
+  survival, structural-parity, tool-still-exists) are widened to run over every persona pair, not
+  just dev - 0 additional findings today (the other 4 personas use a bare-name tool-listing format
+  the row scan does not match yet), but no longer blind to the same drift if they adopt it later.
+- `odoo-ai-agents` - closed a second, previously-unfixed instance of the shell/Python trailing-slash
+  divergence: `_home()` (`scripts/lib/paths.py`, `scripts/lib/allocator.py`) did not strip ANY
+  trailing slash from `$ODOO_AI_HOME` before joining it with `projects/<repo-key>`, while
+  `resolve_project_dir.sh`'s `_project_dir_home` stripped exactly one (`${ODOO_AI_HOME%/}`, then the
+  caller's own `${home%/}` cancelled a second one) - measured, a bare `$ODOO_AI_HOME` (no explicit
+  override) ending in a doubled or tripled trailing slash resolved to a DIFFERENT SHARE/ISOLATE
+  directory string in the shell vs the Python resolver. `resolve_instances.sh`'s
+  `_odoo_ai_global_instances`/`_odoo_ai_runtime_dir` had the matching single-strip gap (coincidentally
+  non-diverging today only because of how they append the `instances.toml`/`runtime` suffix). All
+  four call sites now fully normalise trailing slashes (all-slashes falls back to `/`), matching the
+  override-handling fix already shipped. New table-driven parity tests in
+  `test_project_dir_resolution.py` (`test_odoo_ai_home_trailing_slashes_normalise_identically_share`/
+  `_isolate`) extend the existing none/single/double/triple-slash suffix table to the bare
+  `$ODOO_AI_HOME` root, not just the explicit-override case.
 
 ## [4.18.1] - 2026-07-28
 

@@ -444,6 +444,64 @@ def test_all_slashes_override_collapses_to_root_both_langs(tmp_path, raw, var, m
 
 
 # --------------------------------------------------------------------------- #
+# $ODOO_AI_HOME root trailing-slash normalisation parity (sibling of the
+# override fence above - SAME table, DIFFERENT call site: the home ROOT
+# itself, resolved with NO ODOO_AI_PROJECT_DIR/ODOO_AI_WORKTREE_DIR override).
+#
+# A doubled/tripled trailing slash on $ODOO_AI_HOME denotes the SAME directory
+# as a single one, so it must still resolve to the IDENTICAL
+# projects/<repo-key> (share) / projects/<repo-key>/worktrees/<wt-key>
+# (isolate) string in BOTH resolvers. Regression fence for a DIFFERENT call
+# site of the SAME bug class the override fence above guards:
+# resolve_project_dir.sh's `_project_dir_home` used `${ODOO_AI_HOME%/}`
+# (strips exactly ONE trailing slash) and the caller's own `${home%/}` strip
+# cancels only one MORE (two single-strips total - still short for a triple
+# slash), while paths.py's `_home()` did ZERO stripping before `os.path.join`
+# - an $ODOO_AI_HOME ending in a doubled-or-more slash resolved to a
+# DIFFERENT projects/<repo-key> string depending on which half of the pair
+# answered.
+# --------------------------------------------------------------------------- #
+@requires_bash
+@requires_git
+@pytest.mark.parametrize("suffix", _TRAILING_SLASH_SUFFIXES, ids=_TRAILING_SLASH_IDS)
+def test_odoo_ai_home_trailing_slashes_normalise_identically_share(tmp_path, suffix):
+    home = tmp_path / "home"
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    env = _env(home, ODOO_AI_HOME=str(home) + suffix)
+
+    sh = _sh_resolve("share", repo, env)
+    assert sh.returncode == 0, sh.stderr
+    py = _py_resolve("share", repo, env)
+    assert py.returncode == 0, py.stderr
+
+    assert sh.stdout.strip() == py.stdout.strip(), (
+        f"ODOO_AI_HOME={str(home) + suffix!r}: "
+        f"shell={sh.stdout.strip()!r} python={py.stdout.strip()!r}"
+    )
+
+
+@requires_bash
+@requires_git
+@pytest.mark.parametrize("suffix", _TRAILING_SLASH_SUFFIXES, ids=_TRAILING_SLASH_IDS)
+def test_odoo_ai_home_trailing_slashes_normalise_identically_isolate(tmp_path, suffix):
+    home = tmp_path / "home"
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    env = _env(home, ODOO_AI_HOME=str(home) + suffix)
+
+    sh = _sh_resolve("isolate", repo, env)
+    assert sh.returncode == 0, sh.stderr
+    py = _py_resolve("isolate", repo, env)
+    assert py.returncode == 0, py.stderr
+
+    assert sh.stdout.strip() == py.stdout.strip(), (
+        f"ODOO_AI_HOME={str(home) + suffix!r}: "
+        f"shell={sh.stdout.strip()!r} python={py.stdout.strip()!r}"
+    )
+
+
+# --------------------------------------------------------------------------- #
 # non-git fallback: walk-up marker resolves; no marker REFUSES (never $PWD)
 # --------------------------------------------------------------------------- #
 @requires_bash
