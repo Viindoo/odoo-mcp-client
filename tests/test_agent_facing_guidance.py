@@ -50,8 +50,18 @@ _DEFAULT_AUTO_RE = re.compile(r"odoo_version[^,\n]{0,30}default\s+\"auto\"", re.
 _WITHOUT_VER_RE = re.compile(r"without\s+[`'\"]?odoo_version", re.I)
 _DROP_VER_RE = re.compile(r"\bdrop\s+[`'\"]?odoo_version", re.I)
 _VER_OMITTED_RE = re.compile(r"odoo_version\s+(?:is\s+)?omitted", re.I)
+# A further evasion the seven above miss: framing the pin as removing the need to
+# REPEAT the version, rather than saying "omit"/"optional"/"without". Two surface
+# forms were live false-negatives on the pre-fix tree: "no need to repeat the
+# version on follow-up calls" (docs/personas/dev.md:177) and, scoped to a line that
+# already names odoo_version so it cannot false-positive on an unrelated use of
+# "repeating it", "...odoo_version='<version>' instead of repeating it"
+# (snippets/gemini-gem-instructions.md:17).
+_REPEAT_VER_RE = re.compile(r"repeat(?:ing)?\s+(?:the\s+)?version", re.I)
+_REPEATING_IT_RE = re.compile(r"odoo_version[^\n]{0,80}\brepeating it\b", re.I)
 _PATTERNS = (_OMIT_RE, _CAN_OMIT_RE, _OPTIONAL_VER_RE, _DEFAULT_AUTO_RE,
-             _WITHOUT_VER_RE, _DROP_VER_RE, _VER_OMITTED_RE)
+             _WITHOUT_VER_RE, _DROP_VER_RE, _VER_OMITTED_RE,
+             _REPEAT_VER_RE, _REPEATING_IT_RE)
 
 
 def test_no_omittable_odoo_version_guidance():

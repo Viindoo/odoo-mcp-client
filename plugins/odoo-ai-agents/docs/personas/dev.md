@@ -174,7 +174,7 @@ Example invocations (an AI agent can run these directly as NL dispatch; a human 
    > "Using odoo-semantic, entity_lookup kind=view xmlid=sale.view_order_form in Odoo 17.0. Show the full XPath chain so I know exactly where to inject my override."
 
 6. **Session pin:**
-   > "Using odoo-semantic, set_active_version 17.0 for this session. Then inspect sale.order method=summary - no need to repeat the version on follow-up calls."
+   > "Using odoo-semantic, set_active_version 17.0 for this session as a reachability probe. Then inspect sale.order method=summary with odoo_version=17.0 explicitly - the pin never replaces passing it on every call."
 
 7. **ORM validation (before shipping a domain / depends):**
    > "Using odoo-semantic, validate_domain on sale.order for `[('partner_id.country_id.code', '=', 'US'), ('state', 'any', ...)]` in Odoo 16 - are the field-paths and operators valid for that version?" (and: "validate_depends for _compute_amount_total on sale.order - are all @api.depends paths real?")

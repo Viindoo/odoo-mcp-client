@@ -174,7 +174,7 @@ Các ví dụ invocation (một AI agent có thể chạy trực tiếp dưới 
    > "Using odoo-semantic, entity_lookup kind=view xmlid=sale.view_order_form trong Odoo 17.0. Hiển thị toàn bộ XPath chain để tôi biết chính xác chỗ chèn override của mình."
 
 6. **Pin session:**
-   > "Using odoo-semantic, set_active_version 17.0 cho session này. Sau đó inspect sale.order method=summary - không cần lặp lại phiên bản ở các lời gọi tiếp theo."
+   > "Using odoo-semantic, set_active_version 17.0 cho session này như một probe khả năng kết nối. Sau đó inspect sale.order method=summary kèm odoo_version=17.0 - luôn truyền phiên bản cụ thể trên mọi lời gọi, pin không thay thế việc đó."
 
 7. **ORM validation (trước khi ship một domain / depends):**
    > "Using odoo-semantic, validate_domain trên sale.order cho `[('partner_id.country_id.code', '=', 'US'), ('state', 'any', ...)]` trong Odoo 16 - các field-path và operator có hợp lệ cho phiên bản đó không?" (và: "validate_depends cho _compute_amount_total trên sale.order - tất cả các path @api.depends có thật không?")
