@@ -179,48 +179,54 @@ def test_every_persona_tool_still_exists_in_the_surface():
 # and racy under concurrency - see skills/_shared/concurrency-guard.md, "OSM
 # session-pin race"). That file's own docstring says the Vietnamese mirror "is
 # covered structurally" here. It is not, for arbitrary prose (a paraphrase can
-# reorder around any fixed set of English regexes) - but the reported live defect
-# was literal Vietnamese phrasing ("không có `odoo_version=`") in a TABLE ROW, and
-# that axis is covered: the fix landed in dev.vi.md's set_active_version row (see
-# git history), and this test guards every table row in dev.vi.md against the same
-# phrasing being reintroduced, in either language, without needing English regexes
-# at all.
+# reorder around any fixed set of English regexes) - but the two known evasions
+# ("khong co odoo_version=", "khong can lap lai phien ban") are covered: SCOPE IS
+# THE WHOLE FILE, not just table rows. An earlier version of this test scanned
+# table rows only, via `_rows(VI)`; that scoping was itself a live gap - the exact
+# forbidden claim ("khong can lap lai phien ban o cac loi goi tiep theo") survived,
+# uncaught, in the free-text "Sample Developer Questions" section (not a `_ROW_RE`
+# table row) until it was found and fixed. Restricting a structural assertion to
+# one syntactic shape is precisely how the original drift AND this evasion both
+# went unnoticed, so this scans every line of the file, in either section.
 _VI_VERSION_OMISSION_RE = re.compile(
     r"không\s+(?:có|cần|phải)\s+[`'\"]?odoo_version"  # "without/no need for/must not odoo_version"
     r"|bỏ\s+[`'\"]?odoo_version"  # "drop odoo_version"
-    r"|odoo_version[^\n]{0,40}\bfallback\b",  # "odoo_version ... falls back"
+    r"|odoo_version[^\n]{0,40}\bfallback\b"  # "odoo_version ... falls back"
+    r"|(?:không\s+cần|không\s+phải)\s+lặp\s+lại\s+phiên\s+bản",  # "no need to repeat the version"
     re.IGNORECASE,
 )
+# A line that PROHIBITS the omission necessarily names the same words the pattern
+# above matches on ("... KHONG CHO PHEP bo `odoo_version=` ..." - dev.vi.md:96's
+# correct, already-shipped wording) - measured as a live false positive when this
+# guard was widened to whole-file scope. Excluding a line that carries one of these
+# negation markers is a tighter rule than the bare keyword match above, not a
+# broader allowlist: it does not name a specific line or tool, only a closed set of
+# Vietnamese negation verbs that make "drop/bo odoo_version" the STATED rule rather
+# than a licensed evasion of it.
+_VI_NEGATION_MARKERS = ("không cho phép", "không được", "cấm")
 
 
-def test_vietnamese_rows_do_not_license_omitting_odoo_version():
-    """No dev.vi.md tool row may claim odoo_version can be dropped once a version is
-    pinned - the Vietnamese-language counterpart of test_agent_facing_guidance.py's
-    English-only guard, scoped to the rows this file already parses.
+def _vi_line_is_a_prohibition(line: str) -> bool:
+    lowered = line.lower()
+    return any(marker in lowered for marker in _VI_NEGATION_MARKERS)
 
-    Residual gap, reported rather than silently left open: this scans table ROWS
-    only. The same forbidden claim ("khong can lap lai phien ban o cac loi goi tiep
-    theo") also appears in dev.vi.md's free-text "Sample Developer Questions"
-    section (and its English counterpart in dev.md, in the same section) - neither
-    is a `_ROW_RE` table row, so neither is scanned by this test or by
-    test_agent_facing_guidance.py's existing English patterns. That is a live,
-    currently-uncaught instance of the same rule the OSM session-pin race
-    prohibits, outside this commit's four-cell scope (a different location than
-    the reported drift), reported here rather than fixed silently."""
-    tools = _tools()
+
+def test_vietnamese_prose_does_not_license_omitting_odoo_version():
+    """No line in dev.vi.md - a table row OR free-running prose - may claim
+    odoo_version can be dropped, or that the version need not be repeated, once a
+    session is pinned. This is the Vietnamese-language counterpart of
+    test_agent_facing_guidance.py's English-only guard: SSOT split by language, not
+    duplicated. English coverage lives in test_agent_facing_guidance.py (it already
+    whole-file-scans skills/snippets/agents/docs, so it needs only a matching
+    pattern, not a second scanner); Vietnamese coverage lives here because nothing
+    else in the suite reads Vietnamese."""
     offenders = []
-    for lineno, name, line in _rows(VI):
-        if name not in tools:
-            continue
-        if _VI_VERSION_OMISSION_RE.search(line):
-            offenders.append(
-                f"{VI.relative_to(ROOT)}:{lineno}: {name} row licenses omitting "
-                f"odoo_version after a session pin (Vietnamese evasion of the rule in "
-                f"skills/_shared/concurrency-guard.md, 'OSM session-pin race') - "
-                f"rewrite to require the concrete odoo_version on every call"
-            )
+    for i, line in enumerate(VI.read_text(encoding="utf-8").splitlines(), 1):
+        if _VI_VERSION_OMISSION_RE.search(line) and not _vi_line_is_a_prohibition(line):
+            offenders.append(f"{VI.relative_to(ROOT)}:{i}: {line.strip()}")
     assert not offenders, (
-        "dev.vi.md table row(s) license omitting odoo_version after set_active_version - "
-        "the pin is API-key-scoped and racy under concurrency, so every call must still "
-        "carry a concrete odoo_version:\n" + "\n".join(offenders)
+        "dev.vi.md licenses omitting odoo_version, or not repeating it, after a "
+        "set_active_version pin - the pin is API-key-scoped and racy under "
+        "concurrency, so every call must still carry a concrete odoo_version:\n"
+        + "\n".join(offenders)
     )

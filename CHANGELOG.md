@@ -90,6 +90,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `generator/server-surface.json` so the mirrors cannot drift again, plus a Vietnamese-language guard
   against reintroducing the "pin once, then omit `odoo_version`" claim in a table row. The persona
   tables stay hand-maintained by design; translation wording is explicitly out of the guard's scope.
+- `odoo-ai-agents` - `docs/personas/dev.md` and `dev.vi.md` each taught the exact pattern the OSM
+  session-pin rule forbids, in a worked example rather than a table row: "no need to repeat the
+  version on follow-up calls" / "khong can lap lai phien ban o cac loi goi tiep theo". A live example
+  contradicting the rule stated one section earlier is the most persuasive kind of wrong prose, so
+  both are rewritten to require the concrete version on every call. The same defect, in a different
+  wording, was also found and fixed in `snippets/gemini-gem-instructions.md`'s hand-written bootstrap
+  paragraph ("...instead of repeating it"). The persona-docs guard is widened from table rows to the
+  whole file in both languages (a table row was only one syntactic shape prose can take, and scoping
+  the earlier guard to that one shape is exactly how this evasion survived); the English-language
+  evasion guard in `tests/test_agent_facing_guidance.py` gains a matching "repeat...version" pattern,
+  since it already scans skills/snippets/agents/docs and is this repo's single home for English-only
+  evasion detection - the Vietnamese counterpart stays in the persona-docs guard, so the rule is not
+  duplicated across two files.
 
 ## [4.18.1] - 2026-07-28
 
