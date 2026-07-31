@@ -134,6 +134,12 @@ For an upgrade plan (risk + deprecation + diff) instead of an actual port, use `
    never skip silently. The forward-port is not DONE without an ACCEPTED verdict or a recorded
    narrow-escape.
 
+10. **i18n reconcile is mandatory (narrow escape only)** - 8e COMPUTES the two conditions and P9.5
+    DISPATCHES `odoo-i18n` per batch, after the P9 instance exists and before the P10 gate. This is NOT
+    opt-in: skip only via an enumerated escape recorded on the module's `merge-log.md` row
+    (`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`). The forward-port is not DONE without an
+    i18n result or a recorded escape for every module whose row says `i18n_due: yes`.
+
 ## Git topology - two tiers of worktree
 
 Forward-port never touches B directly and parallelizes through worktree isolation.
@@ -467,6 +473,18 @@ Full per-batch + CREATEDB-role protocol (CREATEDB still required - Odoo create-o
 privilege): `[[fp-merge-absorption]]`. Instance lifecycle and test invocation conventions:
 `docs/reference/INSTANCE-LIFECYCLE.md` and `docs/reference/ODOO-TESTING.md`.
 
+**P9.5 - i18n reconcile [MANDATORY, per batch, reuses the P9 instance].** For every module in this
+batch whose 8e record says `i18n_due: yes`, invoke the `odoo-i18n` skill (via the Skill tool) ONCE.
+Pass the four caller obligations from
+`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`: `WORKTREE_PATH` (this batch's integration
+worktree), the P9 `INSTANCE_HANDLE` whose addons path covers it, explicit `TARGET LANGUAGES` (the codes
+inferred from the source-side `<lang>.po` filenames - deliverable languages only, never `en_US`), and
+`GATE: fold into P10`. `odoo-i18n` owns the non-destructive recipe and the isolated-DB export; this
+pipeline forwards only the intent. An `i18n_due: escape:<E-id>` module is skipped with its recorded
+reason. Present every result - reconciled or escaped - at the P10 gate, so the human sees ONE combined
+decision. Note `odoo-i18n` needs a FRESH DB per pass (existing `<lang>.po` loaded before re-export), so
+reusing the P9 server lease does not make this free.
+
 **P10 - Gate merge [STOP, per batch].** Emit `merge-log.md`, present it, wait for human-confirm.
 On confirm: invoke the `git-toolkit:git-ops` skill (via the Skill tool) to commit the merge (buckets a/d still commit - Hard rule 7), update
 `checkpoint.json` `{<sha>: done}`. More commits/batches remain -> LOOP to P5: each subsequent
@@ -617,11 +635,11 @@ Forward-port adds platform-drift classes a pure-Python port misses - flag and ro
   `web.Widget` / `odoo.define()` era to OWL 2.x `patch()` / `useState` / `useService`. Route a
   frontend adapt commit to `odoo-coding` (its frontend leg owns both eras) - never hand-translate
   OWL from memory.
-- **i18n (.pot / .po).** Do NOT hand-port or re-export translation files in this pipeline. When a
-  forwarded commit touches `.po`/`.pot` or adds translatable strings, DISPATCH the `odoo-i18n`
-  skill after the code adapt - it owns the non-destructive `.pot`/`.po` recipe and validates the
-  result. Pass it the source `.po` paths, the target modules, the target `odoo_version`, and the
-  source series. Full dispatch wiring: `references/fp-phase-detail.md`.
+- **i18n (.pot / .po).** Do NOT hand-port or re-export translation files in this pipeline. The i18n
+  reconcile is MANDATORY, narrow-escape only, per `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`:
+  8e COMPUTES the trigger + already-upgraded conditions per module, P9.5 DISPATCHES `odoo-i18n` once
+  the P9 instance exists - it owns the non-destructive `.pot`/`.po` recipe and validates the result.
+  Full wiring: `references/fp-phase-detail.md` § 8e, SKILL.md § P9.5.
 - **Data XML (`noupdate` records).** A source data record may reference an external-id that does
   not resolve at the target. After merge, verify every external-id in touched data XML resolves
   on the target (P6 covers `ref()` / `xml_id`); a `noupdate="1"` record will not be

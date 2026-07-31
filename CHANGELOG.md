@@ -135,6 +135,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   opening a second human stop per invocation. Inside such an invocation the tier-5 `["vi_VN"]`
   language default is unreachable - it records `i18n: not-applicable` instead, so a mandated pass can
   never silently generate Vietnamese catalogs for a user who did not ask.
+- `odoo-ai-agents` - the i18n reconcile is now MANDATORY, with an enumerated escape, declared ONCE in
+  a new `snippets/i18n-mandate-contract.md` that both callers point at. `odoo-modules-upgrade` P5.7
+  runs it for every SURVIVING module (KEEP / REWRITE / MERGE / SPLIT / RECONCILE) - only
+  DELETE-absorbed and OBSOLETE skip - instead of auto-skipping when a content diff found no
+  translatable token: the `.pot`/`.po` tooling changes across a major series regardless of whether a
+  module's own strings did. `odoo-forward-port` splits the decision from the dispatch: 8e now
+  COMPUTES and records two decidable conditions on the module's `merge-log.md` row (an 8-signal
+  trigger over the already-materialized commit dumps, biased toward a HIT since a false negative
+  ships a broken catalog and a false positive only costs one no-op reconcile; and
+  `installable_false == no`, the same field forward-port's manifest-grounding fix already
+  standardized on), and a new P9.5 DISPATCHES `odoo-i18n` after the P9 instance exists - 8e used to
+  dispatch inline before any instance existed, risking a redundant second provision since `odoo-i18n`
+  hard-BLOCKs without one. Six enumerated escapes, each recorded in `install-test.md` /
+  `merge-log.md`, none silent. The mandate is NOT provisioning-free: each reconcile pass needs a
+  fresh DB even when the P5/P9 server lease is reused.
 
 ## [4.18.1] - 2026-07-28
 

@@ -536,7 +536,7 @@ flowchart TD
 
     RV -->|"clean: no CRITICAL/HIGH (all modules)"| P5["P5 - Install + test gate<br/>(ephemeral instance, wave-by-wave, demo=on)"]
     P5 -->|"red wave -> debugger -> back to P4"| P4
-    P5 -->|"all waves green"| P57["P5.7 - i18n reconcile<br/>(gated-on; auto-SKIP if no translatable surface change)"]
+    P5 -->|"all waves green"| P57["P5.7 - i18n reconcile<br/>(MANDATORY, narrow escape only)"]
     P57 --> P58["P5.8 - Acceptance (odoo-acceptance)<br/>MANDATORY, cluster-wide, narrow-escape only"]
     P58 --> P6["P6 - Gate (STOP, human sign-off)"]
     P6 -->|"STOP - human confirm"| P7["P7 - PR + FINAL dep-order review (human merge; no cluster-squash)"]
@@ -558,7 +558,7 @@ PR review** (pre-merge). This is intentionally more rigorous than forward-port (
 | P4 Adapt | Per module in dep order; child worktrees; odoo-coding; P1d blockers[] prepended as preemptive fix list; manifest bump profile-gated | Serial per module | - |
 | P4b Code-review loop | In-pipeline per module dep order: odoo-code-review -> odoo-code-reviewer scoped to each module's adapt diff; fix via odoo-coding on CRITICAL/HIGH; cap 3 iterations per module; automated fix-until-clean | Serial per module | - |
 | P5 Install + test gate | Ephemeral instance; wave-by-wave green with demo=on (no separate framework-validation phase); red wave loops back to P4 via debugger | Per wave | - |
-| P5.7 i18n reconcile | GATED-ON; auto-SKIP when no translatable surface changed; when active: load existing .po into a fresh instance + re-export + git-ops diff-review (never blind-regenerate) | - | - |
+| P5.7 i18n reconcile | MANDATORY for every surviving module, narrow escape only (not gated on content diff - the `.pot`/`.po` tooling changes across a major series regardless); load existing .po into a fresh instance + re-export + git-ops diff-review (never blind-regenerate) | - | - |
 | P5.8 Acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole cluster; MANDATORY, cluster-wide, narrow-escape only; verdict presented alongside the P6 sign-off | - | L2 (human) - combined with P6 sign-off |
 | P6 Gate | Human sign-off after all waves green | - | STOP - human confirm |
 | P7 PR + FINAL dep-order review | Open PR; Runbot parity gates + convention-compliance pass; mandatory final dep-order code-review; no cluster-squash (per-module consolidation to 1 clean commit per module allowed) | - | - |

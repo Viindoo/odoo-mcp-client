@@ -438,3 +438,92 @@ def test_recipe_names_the_addons_mechanism_not_just_the_requirement():
         "Recipe must point at the Addons coverage assertion (instance-handle-contract.md) "
         "before the L1 export - a pointer, not a restatement (CS-C2 declares it once)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 8 (CS-C11b) - the i18n mandate: MANDATORY reconcile with an
+# enumerated escape, declared ONCE in snippets/i18n-mandate-contract.md, and
+# odoo-modules-upgrade's P5.7 no longer auto-SKIPs on a content-diff predicate.
+# ---------------------------------------------------------------------------
+
+UPG_PHASE_DETAIL = (
+    PLUGIN / "skills" / "odoo-modules-upgrade" / "references" / "upg-phase-detail.md"
+)
+MANDATE_CONTRACT = PLUGIN / "snippets" / "i18n-mandate-contract.md"
+
+
+def _tree_texts():
+    """Every text artifact under the plugin (md/yaml/json/txt/sh/py) - mirrors
+    test_planning_ssot.py's `_tree_texts` glob so a "declared exactly once"
+    check has the same reach across the whole plugin tree."""
+    exts = {".md", ".yaml", ".yml", ".json", ".txt", ".sh", ".py"}
+    for p in PLUGIN.rglob("*"):
+        if p.is_file() and p.suffix in exts:
+            yield p, p.read_text(encoding="utf-8")
+
+
+def test_upgrade_i18n_gate_has_no_content_diff_skip():
+    """upg-phase-detail.md's P5.7 must no longer auto-SKIP on a content-diff predicate.
+
+    RC-4: a CONTENT predicate ("did the diff touch a label?") guards a FORMAT concern (the
+    `.pot`/`.po` tooling changes across a major series independently of content). Both literals
+    below were the auto-SKIP wording this replaces; their presence means the mandate regressed
+    back to a silent content-diff skip. Whitespace-normalized so a hard-wrapped reintroduction of
+    either phrase cannot slip past a raw substring search.
+    """
+    assert UPG_PHASE_DETAIL.exists(), f"upg-phase-detail.md not found at {UPG_PHASE_DETAIL}"
+    norm = _normalize_ws(UPG_PHASE_DETAIL.read_text(encoding="utf-8"))
+    for literal in ("no translatable-surface change", "diff the P4 commits for translatable tokens"):
+        assert literal not in norm, (
+            f"upg-phase-detail.md P5.7 must NOT contain {literal!r} - the i18n reconcile is "
+            "MANDATORY for every surviving module, not auto-skipped on a content-diff read"
+        )
+
+
+def test_i18n_mandate_contract_is_the_single_definer():
+    """The mandate's definitional phrase must be declared in EXACTLY ONE file: the new
+    snippets/i18n-mandate-contract.md SSOT. Any other file carrying it would be a 2nd,
+    driftable definition instead of a pointer."""
+    assert MANDATE_CONTRACT.exists(), f"i18n-mandate-contract.md not found at {MANDATE_CONTRACT}"
+    text = MANDATE_CONTRACT.read_text(encoding="utf-8")
+    assert "The run is not DONE until" in text and "a per-module result or a RECORDED escape" in text, (
+        "i18n-mandate-contract.md must carry the authoritative mandate definition"
+    )
+    definers = sorted(
+        str(p.relative_to(PLUGIN))
+        for p, t in _tree_texts()
+        if "The run is not DONE until" in t and "a per-module result or a RECORDED escape" in t
+    )
+    assert definers == ["snippets/i18n-mandate-contract.md"], (
+        f"The i18n mandate definition must exist in exactly ONE place; found in: {definers}"
+    )
+
+
+def test_mandate_contract_enumerates_escapes_and_the_right_predicate():
+    """The mandate contract must enumerate all six escapes + all eight trigger signals and the
+    `installable_false` predicate, and must NOT let the falsified `target_installable` /
+    `target_grounding` predicate creep back in (the two-sided form is what gives this teeth)."""
+    assert MANDATE_CONTRACT.exists()
+    text = MANDATE_CONTRACT.read_text(encoding="utf-8")
+
+    for escape_id in ("E1", "E2", "E3", "E4", "E5", "E6"):
+        assert escape_id in text, f"i18n-mandate-contract.md must enumerate escape {escape_id}"
+    for signal_id in ("S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"):
+        assert signal_id in text, f"i18n-mandate-contract.md must enumerate trigger signal {signal_id}"
+
+    assert "installable_false" in text, (
+        "i18n-mandate-contract.md condition 2 must read the `installable_false` field"
+    )
+    assert "Ambiguity counts as a HIT" in text, (
+        "i18n-mandate-contract.md must state the trigger's HIT-biased ambiguity rule explicitly"
+    )
+    assert "not-applicable" in text, (
+        "i18n-mandate-contract.md must document the tier-5 `not-applicable` escape wording"
+    )
+
+    normalized = _normalize_ws(text)
+    for banned in ("target_installable", "target_grounding"):
+        assert banned not in normalized, (
+            f"i18n-mandate-contract.md must NOT reference {banned!r} - the falsified predicate "
+            "must not creep back; installable_false is the ONE field any consumer reads"
+        )
