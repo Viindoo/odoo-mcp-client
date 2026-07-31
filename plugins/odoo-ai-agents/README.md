@@ -38,11 +38,12 @@ You control how hands-off this is with one optional flag (`--auto` is the defaul
 plan, and the main agent is never forced or trapped - the stops are real human checkpoints, the
 nudges are advisory.
 
-A first-class **forward-port pipeline** (`/odoo-forward-port`) is also included: a 12-phase
-orchestration that ports commits across Odoo series using intent-first extraction (not raw
-code carry-over), merge-keep-SHA strategy, symbol-survival checking, pre-adapt drift scan,
-adaptive test forwarding, and verify-by-behavior per batch. It runs alongside coding, code
-review, and upgrade planning as a core engineering capability.
+A first-class **forward-port pipeline** (`/odoo-forward-port`) is also included: a 13-phase
+orchestration (P0-P12, with a mandatory P9.5 i18n sub-phase) that ports commits across Odoo
+series using intent-first extraction (not raw code carry-over), merge-keep-SHA strategy,
+symbol-survival checking, pre-adapt drift scan, adaptive test forwarding, and
+verify-by-behavior per batch. It runs alongside coding, code review, and upgrade planning as
+a core engineering capability.
 
 > **Counts at a glance:** this plugin ships **52 skills + 26 agents + 8 commands**, grouped into
 > **9 persona buckets** for navigation, plus **13 declarative workflows** driven by
@@ -371,9 +372,10 @@ flowchart TD
 
 ### Forward-port pipeline (`/odoo-forward-port`)
 
-A 13-phase orchestration (P0-P12) that ports commits across Odoo series using intent-first extraction
-(not raw code carry-over), merge-keep-SHA strategy, symbol-survival checking, pre-adapt drift
-scan, adaptive test forwarding, and verify-by-behavior per batch. Two human STOP-gates bound the automation.
+A 13-phase orchestration (P0-P12, with a mandatory P9.5 i18n sub-phase) that ports commits
+across Odoo series using intent-first extraction (not raw code carry-over), merge-keep-SHA
+strategy, symbol-survival checking, pre-adapt drift scan, adaptive test forwarding, and
+verify-by-behavior per batch. Two human STOP-gates bound the automation.
 
 ```mermaid
 flowchart TD
@@ -399,11 +401,12 @@ flowchart TD
     subgraph P8_grp["P8 - Adapt (serial per commit, test-first)"]
         P7 --> PA["forward tests RED-on-target"]
         PA --> PB["adapt by bucket<br/>a=skip / b=3-way / c=reimplement / d=skip"]
-        PB --> PC["migration rename gate + i18n dispatch"]
+        PB --> PC["migration rename gate + i18n compute<br/>(8e records i18n_due; no dispatch here)"]
     end
 
     PC --> P9["P9 - Verify by behavior<br/>(ephemeral instance, RED then GREEN,<br/>confirm-by-toggle per batch)"]
-    P9 -->|"STOP - human confirm"| P10["P10 - Gate merge<br/>(commit + checkpoint;<br/>loop to P5 for next commit)"]
+    P9 --> P95["P9.5 - i18n reconcile<br/>(MANDATORY, narrow escape only;<br/>reuses the P9 instance)"]
+    P95 -->|"STOP - human confirm"| P10["P10 - Gate merge<br/>(commit + checkpoint;<br/>loop to P5 for next commit)"]
     P10 --> P11["P11 - PR + code-review<br/>(mandatory for new engines)"]
     P11 --> P12["P12 - End-to-end acceptance<br/>(odoo-acceptance) - MANDATORY<br/>cluster-wide, narrow-escape only<br/>gates ALONGSIDE human-merge decision"]
     P12 --> DONE(["Done - <ISOLATE_DIR>/forward-port/"])
@@ -419,8 +422,9 @@ flowchart TD
 | P5 Git merge --no-commit | Merge source commit onto target branch, keep SHA | Serial per commit | - |
 | P6 Symbol-survival check | 7 classes (field/method/model/test-base/import/installable/orm-field-key) + test-survival sub-check | Serial per commit | - |
 | P7 Pre-adapt drift scan | Lane 1: ALL .py (import+pyflakes+orm-field-key); Lane 2: tests-only collect gate | Serial per commit | - |
-| P8 Adapt | Test-first per module; adapt by bucket (a=skip/b=3-way/c=reimplement/d=skip); migration dir retarget (C2) + i18n dispatch; C1 no-bump / C3 source-bug gate | Serial per commit | - |
+| P8 Adapt | Test-first per module; adapt by bucket (a=skip/b=3-way/c=reimplement/d=skip); migration dir retarget (C2) + i18n compute (8e records `i18n_due`, dispatch happens at P9.5); C1 no-bump / C3 source-bug gate | Serial per commit | - |
 | P9 Verify by behavior | Ephemeral instance, RED then GREEN, confirm-by-toggle per batch | Per-batch | - |
+| P9.5 i18n reconcile | MANDATORY per batch for every module whose 8e record says `i18n_due: yes`, narrow escape only; reuses the P9 instance; dispatches `odoo-i18n` once (non-destructive: existing `.po` loaded before re-export, never blind-regenerate); gate folded into P10 | - | - |
 | P10 Gate merge | STOP then commit + checkpoint; loop to P5 for next commit | - | STOP - human confirm |
 | P11 PR + code-review | Open PR; mandatory code-review for new engines | - | - |
 | P12 End-to-end acceptance | Dispatch odoo-acceptance (Skill tool) ONCE for the whole batch; MANDATORY, cluster-wide, narrow-escape only; verdict presented alongside the human-merge decision | - | L2 (human) - combined with merge decision |
