@@ -359,6 +359,12 @@ FORMAT:
   data_at_risk: true | false
     # true if: module is currently installable:True AND (defines stored non-computed fields
     # OR has noupdate="1" records). Flag before applying any REWRITE(model) or DELETE verdict.
+  vendor_api_checked: <pkg>@<found> -> adapted-to <newest> | <pkg>@<found> (newer <newest> deferred - <reason>) | <pkg>@<version-found> | over-cap (<n> packages) | not-triggered | unreachable
+    # Populated at P4 adapt time (Convention 0(c) vendor-currency pass), NOT at this P2 comparator
+    # emission - absent/omitted here until P4 records it (P4 step 0c writes/updates this field on
+    # this SAME file). One of exactly the six forms Convention 0(c) enumerates:
+    # ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md § Convention 0(c). This is the field P6
+    # presents (P6 shows "absorption/* summaries") - no separate surfacing step needed.
   deferred_work:
     # Version-anchored TODO/FIXME/XXX/HACK reconciliation (step 2b). items: [] if none found -
     # emit the key regardless, so an empty sweep is a recorded fact, not a silent omission.
@@ -595,7 +601,10 @@ If ACTION=KEEP/REWRITE(api)/REWRITE(model)/MERGE/SPLIT:
      API or record a deferral) for any third-party import this module's adapt touches - trigger
      predicate, THREE-package cap, and the `vendor_api_checked:` outcome set are Convention 0(c)'s
      own text, not restated here:
-     ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md § Convention 0(c).
+     ${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md § Convention 0(c). Persist the outcome as the
+     `vendor_api_checked:` field in THIS module's `absorption/<module>.md` (reserved slot: § P2
+     output FORMAT above) - the SAME file P6 presents, so the human sign-off sees it without a
+     separate surfacing step.
   1. Apply all deprecation fix-list items for this module (from deprecation.md).
   2. Apply all breaking-change items that affect this module (from upg-classification-table.md).
   3. For REWRITE(model): update field references, compute methods, search/domain expressions,

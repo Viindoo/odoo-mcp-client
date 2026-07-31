@@ -130,7 +130,11 @@ behavior change beyond this upgrade's scope, keep the current call, record
 line at the P6 gate. Never silently keep a superseded call. Other outcomes, one of exactly these:
 `vendor_api_checked: <pkg>@<version-found>` (already current);
 `vendor_api_checked: over-cap (<n> packages)`; `vendor_api_checked: not-triggered`;
-`vendor_api_checked: unreachable`. This pass is ADVISORY and never blocks the adapt.
+`vendor_api_checked: unreachable`. This pass is ADVISORY and never blocks the adapt. Record it as the
+reserved `vendor_api_checked:` field of THIS module's `absorption/<module>.md` (schema:
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/references/upg-phase-detail.md` § P2 output
+FORMAT) - the same file the P6 gate presents, satisfying the "surface at P6" rule above without a
+separate step.
 
 **(d) Data at risk routes out.** A module the P2 comparator flagged `data_at_risk: true` that receives
 REWRITE(model) or DELETE is already an escalation (`odoo-modules-upgrade/SKILL.md` § Hard rules). Do
