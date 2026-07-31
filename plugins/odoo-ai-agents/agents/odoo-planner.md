@@ -82,7 +82,8 @@ Apply these SSOTs by pointer:
   design's already-computed `dag_layers` into integration WAVES (a wave = modules with no unmet
   cross-wave dependency, shipped then integrated together).
 - **Wave topologies** - `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
-  (`independent | linear | mixed | diamond`); pick the one matching the design DAG.
+  § Topology values (the ONE owner of the value set - do not restate it here). **MUST:** a wave that
+  dispatches `n <= 1` modules gets `topology: single`; otherwise pick the value matching the design DAG.
 - **Integration loop** - the per-wave cadence is executed at runtime by `run-harness`'s between-wave
   integration (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md`); the plan carries
   wave ordering via `depends_on` **AND the symbolic worktree TOPOLOGY/LIFECYCLE** (fork-from lineage -

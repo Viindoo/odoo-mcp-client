@@ -149,13 +149,15 @@ git-toolkit via `git-ops`) + branch off integration - a private git index for sa
 no `index.lock` race. When a child finishes, merge it back into integration (keeping SHA), then
 remove it. The next phase recreates child worktrees from the updated integration. LOOP until done.
 
-**Per-commit vs absorb-all.** The child-worktree fan-out above assumes integration HEAD
-is COMMITTED between units (per-commit continuous, or one-shot) so a child forks from a clean
-tree. For an **absorb-all** run that merges every source commit in ONE no-commit merge,
-the conflicts are materialized in the integration worktree's WORKING TREE (uncommitted) - a child
-worktree off the uncommitted integration HEAD cannot see them. In that mode do NOT fan out child
-worktrees for conflict resolution: resolve serially, per module, DIRECTLY in the integration
-worktree; child-worktree isolation resumes only once the absorbed merge is committed.
+**Collapse and absorb-all - two reasons NOT to fan out.** `n` = the number of parallel units in THIS
+phase, read from the P4 bucket table. Fan out child worktrees only when `n >= 2` AND integration HEAD
+is COMMITTED between units (per-commit continuous, or one-shot) so a child forks from a clean tree.
+- `n <= 1` -> resolve directly in the integration worktree. Semantics:
+  `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Topology values.
+- **absorb-all** (every source commit merged in ONE no-commit merge, at any `n`) -> the conflicts are
+  materialized in the integration worktree's WORKING TREE (uncommitted), which a child worktree off
+  the uncommitted HEAD cannot see. Resolve serially, per module, DIRECTLY in the integration
+  worktree; child-worktree isolation resumes only once the absorbed merge is committed.
 
 The only serialized point is converging children into integration + writing the source-merge
 commit. Worktrees are filesystem isolation, not a second agent-dispatch level.

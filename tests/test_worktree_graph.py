@@ -30,6 +30,11 @@ RUN_HARNESS = PLUGIN / "skills" / "run-harness" / "SKILL.md"
 LEDGER = PLUGIN / "snippets" / "module-coordination-ledger.md"
 INTEGRATION_LOOP = PLUGIN / "skills" / "_shared" / "integration-loop.md"
 WAVE_INTEGRATION = PLUGIN / "skills" / "run-harness" / "references" / "wave-integration.md"
+PLAN_MODE_SCHEMA = SCHEMA
+WORKFLOW_HARNESS = PLUGIN / "docs" / "reference" / "workflow-harness.md"
+PHASE_P_RUN_DAG = PLUGIN / "skills" / "odoo-intake" / "references" / "phase-p-run-dag.md"
+UPG_PHASE_DETAIL = PLUGIN / "skills" / "odoo-modules-upgrade" / "references" / "upg-phase-detail.md"
+FORWARD_PORT_SKILL = PLUGIN / "skills" / "odoo-forward-port" / "SKILL.md"
 
 
 def _text(p: Path) -> str:
@@ -289,3 +294,102 @@ def test_wave_integration_does_not_claim_worktree_carries_addons_path():
         "wave-integration.md must not claim a forked worktree already carries the "
         "cross-wave dependency on its addons-path - see the Worktree-addons carve-out"
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-C6 - topology: single. The enum owner is wave-integration.md; every other
+# site restating the topology value list must become a pointer.
+# ---------------------------------------------------------------------------
+
+def _tree_texts():
+    """Every text artifact under the plugin (md/yaml/json/txt/sh/py).
+
+    Same pattern as test_planning_ssot.py:34-39 - reused here rather than
+    imported so this file stays independently runnable (repo convention: no
+    cross-test-module imports).
+    """
+    exts = {".md", ".yaml", ".yml", ".json", ".txt", ".sh", ".py"}
+    for p in PLUGIN.rglob("*"):
+        if p.is_file() and p.suffix in exts:
+            yield p, p.read_text(encoding="utf-8")
+
+
+_TOPOLOGY_ENUM_LINE = re.compile(r"independent\s*[/|]")
+
+
+def _is_topology_enum_line(line: str) -> bool:
+    """True when `line` restates the topology value list as a DELIMITED enumeration
+    (`independent / ...` or `independent | ...`) AND names `diamond`.
+
+    Requiring the pipe/slash delimiter (not just co-occurrence of the two words)
+    is deliberate: a bare `"independent" in line and "diamond" in line` check
+    false-positives on `skills/_shared/doc-cluster-plan.md:73` ("Deeper trees /
+    diamonds recurse: one instance per independent leaf-path...") - unrelated
+    doc-instance-topology prose that happens to share two common English words
+    with the wave-topology enum, not a restatement of its value list. Requiring
+    the enumeration-style delimiter keeps the loose 2-word intent (still catches
+    a surviving partial-value fork, not just an exact five-value match) while
+    excluding that homonym.
+    """
+    return bool(_TOPOLOGY_ENUM_LINE.search(line)) and "diamond" in line
+
+
+def test_topology_value_set_has_exactly_one_definer():
+    """A (count == 1): the topology enum's value LIST (independent/linear/mixed/diamond/single)
+    must be textually restated in exactly one file - wave-integration.md, the enum's SSOT owner.
+    Scans for any DELIMITED enumeration line carrying 'independent' and 'diamond' (not all five
+    values together), so it also catches a surviving FOUR-value fork - a scan for all five values
+    on one line would be blind to that fork, which is the exact defect this guards against."""
+    definer_files = set()
+    for path, text in _tree_texts():
+        for line in text.splitlines():
+            if _is_topology_enum_line(line):
+                definer_files.add(str(path.relative_to(PLUGIN)))
+    owner = "skills/run-harness/references/wave-integration.md"
+    assert definer_files == {owner}, (
+        f"the topology value list must be restated in exactly {{'{owner}'}}; "
+        f"found it also in: {sorted(definer_files - {owner})}"
+    )
+
+
+def test_owner_file_lists_single_in_every_value_enumeration():
+    """A (completeness): every line inside wave-integration.md (the owner) that restates the
+    topology value list (a delimited 'independent /|' enumeration naming 'diamond') must also
+    carry 'single' - guards against updating the heading/intro sentence but forgetting the
+    log-template (:145) or the per-module-brief (:294) copies of the same list."""
+    text = _text(WAVE_INTEGRATION)
+    offending = [
+        line for line in text.splitlines()
+        if _is_topology_enum_line(line) and "single" not in line
+    ]
+    assert not offending, (
+        f"wave-integration.md value-enumeration line(s) missing 'single': {offending}"
+    )
+
+
+_TOPOLOGY_CONSUMERS = {
+    "plan-mode-schema.md": PLAN_MODE_SCHEMA,
+    "integration-loop.md": INTEGRATION_LOOP,
+    "phase-p-run-dag.md": PHASE_P_RUN_DAG,
+    "run-harness/SKILL.md": RUN_HARNESS,
+    "upg-phase-detail.md": UPG_PHASE_DETAIL,
+    "odoo-forward-port/SKILL.md": FORWARD_PORT_SKILL,
+    "odoo-planner.md": PLANNER,
+    "workflow-harness.md": WORKFLOW_HARNESS,
+}
+
+
+def test_consumers_point_at_the_topology_owner():
+    """A (glob) - a WEAK pointer-presence guard: it only proves each consumer NAMES the owner, not
+    that it stopped restating values (test_topology_value_set_has_exactly_one_definer above is the
+    test with real teeth - it reddens if the enum forks). Each of the eight consumer files must
+    contain the literal pointer 'wave-integration.md' somewhere in a context naming the owner's
+    '§ Topology values' section."""
+    for label, path in _TOPOLOGY_CONSUMERS.items():
+        text = _text(path)
+        assert "wave-integration.md" in text, (
+            f"{label} must point at wave-integration.md (the topology enum's ONE owner)"
+        )
+        assert "Topology values" in text, (
+            f"{label} must name the owner's '§ Topology values' section, not just the bare filename"
+        )

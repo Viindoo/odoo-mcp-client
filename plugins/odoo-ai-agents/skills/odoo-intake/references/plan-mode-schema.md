@@ -31,8 +31,13 @@ delivery also note worktree + branch + verify command per module (Repo Capabilit
 (~lines 316-385): `nodes` (= modules) + `edges` where each edge has a `type` of
 `technical | business-logic | data-flow` and a `reason`; a `topological_order` (Kahn's
 algorithm), a `critical_path`, and `cycles` (empty `[]` for a valid DAG - a cycle is reported,
-never silently dropped). For only a few modules, instead pick one of the four topologies in
-`run-harness/references/wave-integration.md`: **independent | linear | mixed | diamond**.
+never silently dropped). For only a few modules, instead set the wave's `topology` to one of the values declared in
+`run-harness/references/wave-integration.md` § Topology values (that file is the enum's ONE owner - do
+not restate the value list here). **Operative MUST:** when a wave dispatches `n <= 1` modules,
+`topology` is `single` - the wave collapses to a direct dispatch into the integration worktree, with no
+child worktree and no cherry-pick. `n` is `len(this wave's modules)`; `cumulative_modules` is a
+regression-scope union and is NEVER the count. This governs the single-module plan too: the minimal
+`[code, review, integrate]` plan is a `single`-topology wave.
 
 **REQUIRED - module-DAG ASCII dependency-graph block.** Every `writes-files` plan MUST render Block
 2 with a fenced ```` ```text ```` ASCII dependency-graph of the module-DAG (NOT mermaid - mermaid

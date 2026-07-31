@@ -503,6 +503,15 @@ Invoke the `git-toolkit:git-ops` skill (via the Skill tool; see `${CLAUDE_PLUGIN
 
 For each module, delegate all mutations to git-toolkit via the `git-ops` skill (see `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`):
 
+**Collapse first (`n <= 1`).** `n` = the number of modules requiring a P4 dispatch in THIS cluster,
+read from `plan.md`'s P3 classification table (count the rows whose action is KEEP, REWRITE(api),
+REWRITE(model), MERGE, SPLIT or RECONCILE; DELETE-absorbed and OBSOLETE rows need no coder and do not
+count). `n <= 1` -> SKIP steps 1-3 below: dispatch the one module DIRECTLY into
+`<path>/upg-integration`. `n >= 2` -> steps 1-3 as written; the child worktree is there for
+poison-containment, not for an `index.lock` race (P4 is "Per module in dep order" - sequential - so
+that race never occurs here). Semantics:
+`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Topology values.
+
 1. Create child worktree - invoke `git-toolkit:git-ops` to add a worktree (branch
    `upg/<src>-<tgt>-<cluster>-<module>`, worktree `<path>/upg-<module>`,
    base `upg/<src>-<tgt>-<cluster>`).
