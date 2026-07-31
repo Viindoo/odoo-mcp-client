@@ -117,6 +117,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `installable_false=yes|no`, written to `merge-log.md` by BOTH the orchestrator's direct
   resolution (categories 1-2) and the prober's verdict (category 3); the prober's internal
   `target_installable`/`target_grounding` values are never persisted and no other file parses them.
+- `odoo-ai-agents` - `odoo-i18n` and `odoo-translator` now carry `WORKTREE_PATH`. `.po`/`.pot` files
+  are git-tracked and `odoo-translator` is a separate agent context that does not inherit the caller's
+  cwd, so a translation write previously landed in whatever checkout was ambient. The i18n recipe's
+  "export against the adapted code" requirement now names its MECHANISM (pass `WORKTREE_PATH` through
+  to `odoo-instance`, which re-roots the addons list via the existing `--addons-path-override`) plus a
+  pointer to the addons-coverage assertion - without them the non-destructive diff-review had nothing
+  to adjudicate and a worktree-only msgid was lost unseen. Also fixed: `odoo-translator.md` told the
+  leaf to validate via `polib`, a library the rest of that same file (and several other places in the
+  plugin) forbids and that is not in `requirements.txt` - a leaf told to use an absent library
+  improvises. A new structural test (`test_git_tracked_writers_carry_worktree_path`) asserts every
+  agent/skill that names a git-tracked write target in its frontmatter carries `WORKTREE_PATH`,
+  against a shrink-only known-red allowlist.
+- `odoo-ai-agents` - `odoo-i18n` P0's approval STOP is now foldable: when a caller dispatches it as a
+  required step and supplies explicit target languages, an instance handle (or a worktree-addons
+  self-provision), and a worktree, P0 returns its scope summary for the caller's own gate instead of
+  opening a second human stop per invocation. Inside such an invocation the tier-5 `["vi_VN"]`
+  language default is unreachable - it records `i18n: not-applicable` instead, so a mandated pass can
+  never silently generate Vietnamese catalogs for a user who did not ask.
 
 ## [4.18.1] - 2026-07-28
 

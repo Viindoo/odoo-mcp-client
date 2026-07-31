@@ -39,6 +39,16 @@ Skill tool instead of spawning the agent itself, so the non-destructive merge co
 per-language leaf scoping (P1-P5) are enforced in one place. A live instance is provisioned by
 invoking the `odoo-instance` skill (never the raw `odoo-instance-ops` agent).
 
+**`WORKTREE_PATH` is required whenever this skill runs.** `.po` / `.pot` files are git-tracked, so per
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5 the write happens in a dedicated worktree -
+never the principal checkout. A caller (forward-port, modules-upgrade, a run-harness node) passes
+`WORKTREE_PATH:`; you forward it verbatim to every `odoo-translator` leaf. Invoked with no
+`WORKTREE_PATH` and no worktree of your own -> provision one via `git-toolkit:git-ops` before P2, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`. The verification instance must load THAT tree, not
+the principal checkout: pass `WORKTREE_PATH` through to `odoo-instance`
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-instance/SKILL.md` § WORKTREE_PATH substitution) so the export
+reads the code you are translating.
+
 ## Out of Scope
 
 - A single user-facing label or `string=` added while writing code -> use `odoo-coding` (it
@@ -110,7 +120,14 @@ then echo which source was used:
 3. Infer from existing `<lang>.po` filenames in each module's `i18n/` directory
    (`<module>/i18n/<lang>.po`); skip this tier when no `i18n/` dir exists.
 4. Query the confirmed instance: `res.lang` records with `active = True` (codes).
-5. Default `["vi_VN"]`.
+5. Default `["vi_VN"]` - **standalone invocations ONLY.**
+
+**Inside a MANDATED invocation, tier 5 is unreachable.** When a caller dispatches this skill as a
+required step of its own pipeline (`${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`), the
+caller MUST pass explicit `TARGET LANGUAGES`. Reaching tier 5 there is NOT a licence to default:
+record `i18n: not-applicable (no target language resolvable from tiers 1-4)`, return that verbatim to
+the caller, and translate nothing. A public, global plugin must never generate Vietnamese catalogs for
+a user who did not ask for them.
 
 **`en_US` is mandatory, independent of the tiers above.** After resolving the target languages, set
 `activation_languages = {"en_US"} union target_languages`. `en_US` (Odoo's base/source language) is
@@ -119,13 +136,26 @@ produce it (Odoo ships no `en_US.po`), so it MUST be added here. This governs th
 passed to every `--load-language`/`loadlang` call ONLY; it does NOT add `en_US` as a translation
 deliverable (no `en_US.po` is exported or merged).
 
-Echo the resolved language list (target languages + the `activation_languages` set) AND the source
-tier that produced it in the scope summary, then STOP for approval before any export or DB op.
+Echo the resolved language list (target languages + the `activation_languages` set) AND the source tier
+that produced it in the scope summary.
 
-Also in P0: confirm an instance is available (else BLOCK per `## Standalone-first fallback`).
-Resolve each module name to its directory and dependency closure. Emit a one-line scope summary
-(modules x target_languages x series + dependency order + language-source tier) and STOP for
-approval in a single turn before any export or DB op.
+Also in P0: confirm an instance is available (else BLOCK per `## Standalone-first fallback`). Resolve
+each module name to its directory and dependency closure. Emit a one-line scope summary (modules x
+target_languages x series + dependency order + language-source tier).
+
+**Then gate - and WHERE the gate lives depends on how you were invoked:**
+
+- **Standalone** (a human asked for a translation) -> STOP for approval in a single turn before any
+  export or DB op, as before.
+- **Mandated** (a caller dispatched you as a required step and supplied explicit `TARGET LANGUAGES`
+  AND an `INSTANCE_HANDLE` or `SELF_PROVISION: worktree-addons` AND `WORKTREE_PATH`) -> do NOT stop.
+  P0 has nothing left to ask, and a human stop per invocation - per BATCH in forward-port's P5->P10
+  loop - turns a mandatory step into a deadlock. RETURN the scope summary to the caller, which presents
+  it at its OWN existing gate alongside its other verdicts (precedent:
+  `${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/SKILL.md` § P5.8/P6, where the acceptance verdict
+  is presented "ALONGSIDE the P6 sign-off ... so the human sees ONE combined decision"). Any of those
+  three inputs missing -> fall back to the standalone STOP; never proceed with a resolved-by-default
+  language set.
 
 **P1 - Glossary build [haiku or sonnet].** Assemble the translation memory the later phases reuse:
 read the already-translated `<lang>.po` of core Odoo and the module's dependency modules, load the
@@ -191,11 +221,13 @@ skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path)
 agent's family delta; never inline that file verbatim into a hard-leaf brief.
 
 P3 dispatches the `odoo-translator` agent as a subagent launch - one leaf per (module-cluster ×
-language) pair. Each leaf is scoped to exactly ONE language. Carry a brief with: the target
-module(s), the single target language, series; the glossary TM path for that language
-(`glossary-tm-<lang>.json`) from P1; the maintained `<lang>.po` and fresh `<module>.pot` paths;
-and the validation gates the leaf must self-check. Pass the model both as a `DISPATCH MODEL:`
-line in the brief and as the Agent `model` parameter:
+language) pair. Each leaf is scoped to exactly ONE language. Carry a brief with: `WORKTREE_PATH` (the
+absolute worktree the `.po`/`.pot` writes land in - MANDATORY, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5, because the leaf is a separate agent
+context that does NOT inherit your cwd); the target module(s), the single target language, series; the
+glossary TM path for that language (`glossary-tm-<lang>.json`) from P1; the maintained `<lang>.po` and
+fresh `<module>.pot` paths; and the validation gates the leaf must self-check. Pass the model both as a
+`DISPATCH MODEL:` line in the brief and as the Agent `model` parameter:
 
 - **sonnet** (default) for a plain module translation.
 - **opus** when the scope carries domain / legal / regulatory terminology (e.g. accounting

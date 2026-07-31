@@ -158,6 +158,15 @@ ALLOWLIST: dict[str, str] = {
         "close_page/browser_close step is owned once by each consuming agent's own "
         "Step 4.5/4.6 (dedup D2), not duplicated in this shared reference."
     ),
+    "skills/odoo-i18n/references/i18n-recipe.md": (
+        "reference doc for the non-destructive i18n recipe (read by odoo-i18n/SKILL.md and "
+        "odoo-forward-port's P4 step) - not itself a dispatched agent/skill body. The "
+        "'allocator.py acquire --addons-path-override' mention (CS-C11a) CITES the "
+        "WORKTREE_PATH substitution mechanism odoo-instance/SKILL.md implements; it does not "
+        "instruct this recipe's reader to acquire an instance directly. Acquisition/release "
+        "ownership stays with odoo-i18n/SKILL.md (Standalone-first fallback -> the odoo-instance "
+        "skill) and its callers."
+    ),
     "skills/odoo-git-rebase/references/rb-phase-detail.md": (
         "never self-provisions - consumes the orchestrator-forwarded INSTANCE_HANDLE "
         "and releases via its lease_token at run end; L2.3 unchanged exclusion."
