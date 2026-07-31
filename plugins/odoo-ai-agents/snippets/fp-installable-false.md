@@ -27,8 +27,9 @@ branch BEFORE the forward-port merge is applied. Do NOT read the manifest
 post-merge; after merge the source-side `installable: True` is already present
 and masks the gap.
 
-- OSM lookup (static index of target series): `module_inspect(name='<module>', method='summary', odoo_version='<target>')`
-- OR checkout the target branch and read `<module>/__manifest__.py` BEFORE merging.
+- Read `<module>/__manifest__.py` at the target ref via the `git-toolkit:git-ops` skill (read-only) -
+  an absent `installable` key means installable, an absent FILE means the module is not on the
+  clean tip. (Same read mechanism the "Recognition" step below re-applies for category 2/3.)
 
 Decision:
 - Target clean-tip: module ABSENT or `installable: False` -> forward as

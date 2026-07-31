@@ -84,8 +84,9 @@ disk-only grounding (`local-source`) and prefix the output:
 Call in order, passing `ODOO_VERSION` on each:
 
 1. `check_module_exists(name=MODULE, odoo_version=ODOO_VERSION)` - confirm the module is indexed
-   and note edition (CE/EE) and installable state. If not found in OSM, note and continue with
-   disk fallback for all subsequent steps.
+   and note edition (CE/EE). If not found in OSM, note and continue with disk fallback for all
+   subsequent steps. The `installable` flag is NOT an OSM fact: read it from the module's
+   `__manifest__.py` on disk (an absent key means installable).
 
 2. `describe_module(name=MODULE, odoo_version=ODOO_VERSION)` - yields manifest summary, defined
    model list, menu count, action count, and view/JS inventory. This is the anchor call; record

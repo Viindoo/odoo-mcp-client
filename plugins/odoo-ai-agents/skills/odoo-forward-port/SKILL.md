@@ -233,29 +233,37 @@ defer-or-do line in the plan. A `(b) do now` cluster that ALSO meets the P3 non-
 proceeds to P3 design before P4 (the upgrade-scale gate decides WHETHER to proceed; P3 decides
 HOW to design it).
 
-In the same phase, determine each touched module's `installable` status using the TARGET
-CLEAN-TIP rule (read the module's `installable` at the target BEFORE the merge, never
-post-merge). DISPATCH the read-only sonnet leaf `odoo-installable-prober` ONLY when category-3 is
-AMBIGUOUS - OSM returned `installable:True` at the target AND the module manifest was NOT touched
-by the cherry-pick range, OR OSM was unreachable. Do NOT blanket-sweep every module: OSM already
-grounds categories 1-2, so a probe there is wasted. Pre-step before dispatch: invoke the
-`git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files - the clean-tip manifest (`<module>/__manifest__.py`
+In the same phase, resolve each touched module's `installable` status from the TARGET CLEAN-TIP
+`__manifest__.py` - the state of the target branch BEFORE the merge, never post-merge. Invoke the
+`git-toolkit:git-ops` skill (read-only) to write that file, then read it: an absent key means
+installable (Odoo convention), an absent FILE means the module is not on the clean tip. **Produce
+`manifest_path` for EVERY touched module, unconditionally** - it is the prober's required input, and
+the prober is a `role: leaf` that cannot fetch it. DISPATCH the read-only sonnet leaf
+`odoo-installable-prober` only when the SOURCE HISTORY must ALSO be read to disambiguate category 3 -
+the module's manifest was NOT touched by the cherry-pick range yet its target state is unclear. Do NOT
+blanket-dispatch: for categories 1-2 the orchestrator's own clean-tip read is sufficient and a probe
+adds only the history pass.
+
+Pre-step (now unconditional, for EVERY touched module - not only before a prober dispatch):
+invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files - the
+clean-tip manifest (`<module>/__manifest__.py`
 at `target_ref`) to `manifest_path = <ISOLATE_DIR>/forward-port/<slug>/installable/<module>/manifest.py`,
 and the patched manifest history (log-with-patch of manifest modifications against `source_ref`) to
 `history_dump_path = <ISOLATE_DIR>/forward-port/<slug>/installable/<module>/history.diff`. Include
 `repo: <main-checkout-root>` in the git-ops dispatch for cross-repo ports. Dispatcher inputs
-(canonical contract, pass exactly):
+(canonical contract, pass exactly, when the prober IS dispatched for category-3 disambiguation):
 `{ module, repo_root, source_ref, target_ref, target_version, manifest_path, history_dump_path }`.
 `repo_root` is the MAIN checkout root where git runs - the integration worktree does NOT exist at
 P2 (it is created at P4); never reference it here. `source_ref` / `target_ref` are the source /
 target git refs. `manifest_path` / `history_dump_path` are absolute paths to the surveyor-written
-files (see pre-step above); the prober mandates both and never runs git itself.
-The prober returns a `merge_log_line:` (logged VERBATIM to `merge-log.md`) PLUS a structured
-verdict block; the verdict is its OWN row in `merge-log.md` keyed by module, distinct from the
-per-commit intent/bucket/reason/evidence rows. A `tentative` verdict is carried to the P4 plan
-gate as a FLAGGED row requiring human confirmation before that module's merge - NEVER silently
-coerced to yes/no. Keep the installable:False short-circuit (`## Model triage`) and its lint-only
-lane unchanged. Do not restate the rule here - SSOT: `[[fp-installable-false]]`.
+files (see pre-step above); the prober mandates both, never runs git itself, and BLOCKs if
+`manifest_path` is missing.
+Whether resolved directly (categories 1-2) or via the prober (category 3), record
+`installable_false=yes|no` as the module's OWN row in `merge-log.md`, keyed by module, distinct
+from the per-commit intent/bucket/reason/evidence rows - this is the ONE field any later phase
+reads for a module's installable state; no other field name is persisted for it. Keep the
+installable:False short-circuit (`## Model triage`) and its lint-only lane unchanged. Do not
+restate the rule here - SSOT: `[[fp-installable-false]]`.
 
 **P3 - Design [conditional route-out].** When a bucket-(c) "do now" commit touches a NON-TRIVIAL
 module (reuse the non-trivial criterion from `skills/odoo-solution-design/SKILL.md` § When to
@@ -544,9 +552,9 @@ Wait for human merge.
 
 ## Model triage - two tier tables
 
-**installable:False short-circuit.** Before assigning ANY tier, check each touched
-module's `installable` flag at the target (`module_inspect(name='<module>', method='summary',
-odoo_version='<target>')` or read the target `__manifest__.py`). A module that is
+**installable:False short-circuit.** Before assigning ANY tier, resolve each touched module's
+`installable` flag at the target clean tip by reading `<module>/__manifest__.py` at `target_ref` (the
+file P2 already wrote to `manifest_path`; an absent key means installable). A module that is
 `installable:False` at the target - a brand-new module not yet landed, OR a pre-existing dormant
 one - is NOT forward-ported for behavior: route it to the **lint-only lane** (flake8 / pylint /
 eslint / prettier / ruff to green CI, minimum fix only) and SKIP the extract/adapt/review logic

@@ -103,19 +103,20 @@ no blank Reason or Evidence cell). C3 escalations use the canonical row
 bucket suggestion when the diff is large. Refine the commit's ADAPT tier now that the bucket is
 known (bucket a/d -> haiku, test-only).
 
-**Installable-probe (TARGET CLEAN-TIP rule).** For each touched module, read its `installable`
-flag at the target clean-tip (BEFORE merge), via OSM or the target manifest:
+**Installable-probe (TARGET CLEAN-TIP rule).** For each touched module, resolve its `installable` flag
+at the target clean-tip (BEFORE merge) by reading `<module>/__manifest__.py` at `target_ref` - written
+by git-ops (read-only) to `manifest_path` in the pre-step below, which now runs for EVERY touched
+module, not only before a dispatch. An absent `installable` key means installable (Odoo convention);
+an absent FILE means the module is not on the clean tip.
 
-```python
-module_inspect(name='l10n_vn_edi', method='summary', odoo_version='18.0')   # read installable
-```
+DISPATCH the read-only sonnet leaf `odoo-installable-prober` only when the SOURCE HISTORY is also
+needed to disambiguate category 3 - the module's manifest was NOT touched by the cherry-pick range and
+its target state is unclear. The prober reads the manifest you wrote plus the history dump; it never
+runs git and never calls OSM for this fact. Whether resolved directly (categories 1-2) or via the
+prober (category 3), record `installable_false=yes|no` in `merge-log.md` for the module - the ONE
+field any later phase reads for its installable state.
 
-DISPATCH the read-only sonnet leaf `odoo-installable-prober` ONLY when category-3 is AMBIGUOUS -
-OSM returned `installable:True` at the target AND the module manifest was NOT touched by the
-cherry-pick range, OR OSM was unreachable. Do NOT blanket-sweep every module: OSM already grounds
-categories 1-2, so a probe there is wasted.
-
-Pre-step before dispatch: invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files. For
+Pre-step (unconditional - runs for EVERY touched module, not only before a dispatch): invoke the `git-toolkit:git-ops` skill (via the Skill tool; read-only) to write two files. For
 cross-repo ports include `repo: <main-checkout-root>` (source commits live only in the main
 checkout after P0 bootstrap):
 
@@ -460,14 +461,10 @@ re-set to False + re-comment `auto_install`/`application` with `# TODO: Uncommen
 module to production-ready status` breadcrumb - then lint-fix only. SSOT: `[[fp-installable-false]]`.
 
 **8c-bis - installable:False at target = LINT-ONLY lane.** BEFORE dispatching the coder/reviewer
-for any module (new or pre-existing), confirm its target installable flag (already probed at P2 -
-re-confirm here only if the manifest was touched by the merge):
-
-```python
-module_inspect(name='l10n_vn_edi', method='summary', odoo_version='18.0')   # read installable
-```
-
-(or read the target manifest's `installable` key). If `installable: False` at the target, brief
+for any module (new or pre-existing), confirm its target installable flag. Re-read
+`<module>/__manifest__.py` at `target_ref` (via git-ops, read-only) only if the manifest was touched
+by the merge; otherwise reuse the value P2 already resolved from `manifest_path`. If
+`installable: False` at the target, brief
 the coder in **lint-only mode**: run flake8 / eslint / prettier / ruff and fix ONLY syntax/lint
 breakage to keep CI green - do NOT adapt business logic, do NOT upgrade content. Pass
 `LINT-ONLY: yes` in the 8b brief and the pointer `[[fp-installable-false]]`. The single exception

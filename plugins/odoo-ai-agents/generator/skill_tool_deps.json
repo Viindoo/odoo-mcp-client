@@ -704,12 +704,11 @@
     "odoo-installable-prober": {
       "role": "leaf",
       "mcp_tools": [
-        "module_inspect",
         "set_active_version"
       ],
       "min_server_version": "0.6.0",
       "deprecated_tools_used": [],
-      "notes": "Read-only forward-port pipeline leaf: probes the target-series installable state for a single module via module_inspect(summary, odoo_version) before cherry-pick / merge. Falls back to direct file read when OSM misses. No writes, no further spawns."
+      "notes": "Read-only forward-port pipeline leaf: resolves the target-series installable state for a single module by reading the target clean-tip __manifest__.py the orchestrator wrote (manifest_path, REQUIRED - the flag is a per-file manifest fact, not an indexed-graph fact), plus the source manifest history dump for the category-3 transition. OSM is used only as a reachability probe. No writes, no further spawns."
     },
     "odoo-translator": {
       "role": "leaf"
@@ -1277,7 +1276,7 @@
       "handoff": "send-message",
       "spawns": [
         "odoo-intent-extractor (read-only per-commit; model per complexity)",
-        "odoo-installable-prober (read-only per-module installable-state probe in P2; model per complexity / sonnet)",
+        "odoo-installable-prober (read-only per-module category-3 disambiguation in P2: reads the orchestrator-written target clean-tip manifest + the source manifest history dump; model per complexity / sonnet)",
         "odoo-test-writer (P8a test-forward adapt mode, RED-first - agent launched for context isolation; invokes the odoo-test-writing skill inline; SendMessage-resumable)",
         "odoo-coding (P8 adapt via the Skill tool; owns the coder fan-out (odoo-coder coordinator / odoo-backend-coder / odoo-frontend-coder) + model; FP-enriched brief carries C1 no-manifest-bump, C2 migration-dir series-retarget, C3 fix-old-version-first; serial per commit via work-tier worktrees)",
         "git-ops (cherry-pick, merge, branch/worktree ops - all local git mutations - plus read-only diff/range map + P5 verify and PR create/review - via git-ops skill - git-toolkit)",

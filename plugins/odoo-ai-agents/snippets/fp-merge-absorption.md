@@ -78,8 +78,8 @@ Decision criterion: **does the fix need to apply to native-target-series data?**
 4. Dir name is always FULL `<tgt-series>.x.y.z` (Viindoo convention; FULL compare lets a target-series dir
    exceed a native-target DB's installed version). Migrations must be idempotent: a fully-updated source DB
    jumping the major re-runs a retargeted tip migration.
-5. Module that is `installable:False` at target = lint-only lane ([[fp-installable-false]]) - do NOT
-   retarget; its migrations are never run.
+5. Module that is `installable:False` at target = lint-only lane - do NOT retarget its migrations.
+   Rule and the clean-tip read: `[[fp-installable-false]]`.
 
 ### WHY (verified against Odoo source - module.py + migration.py, byte-identical v17/v18)
 

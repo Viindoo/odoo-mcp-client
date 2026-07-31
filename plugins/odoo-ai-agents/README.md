@@ -385,7 +385,7 @@ flowchart TD
         P0 --> IE2["odoo-intent-extractor<br/>commit B...N"]
     end
 
-    IE1 --> P2["P2 - Classify + installable-probe<br/>(4-outcome bucket via OSM;<br/>odoo-installable-prober for ambiguous cat-3)"]
+    IE1 --> P2["P2 - Classify + installable-probe<br/>(4-outcome bucket via OSM; installable from the<br/>target clean-tip manifest; prober for ambiguous cat-3)"]
     IE2 --> P2
 
     P2 -->|"bucket (c) complex"| P3["P3 - Design<br/>(route-out to odoo-solution-design;<br/>returns to forward-port)"]
@@ -413,7 +413,7 @@ flowchart TD
 |-------|-------------|-----------|-------------|
 | P0 Recon + triage | Enumerate commits; inline-triage model tier; read-only | - | - |
 | P1 Intent extract | Dispatch odoo-intent-extractor per commit | Yes (N commits) | - |
-| P2 Classify + installable-probe | 4-outcome bucket via OSM; odoo-installable-prober for ambiguous cat-3 | Serial per commit | - |
+| P2 Classify + installable-probe | 4-outcome bucket via OSM; installable read from the target clean-tip manifest; odoo-installable-prober for ambiguous cat-3 | Serial per commit | - |
 | P3 Design | CONDITIONAL: route-out to odoo-solution-design for complex bucket-(c) modules; returns to forward-port | Serial per commit | - |
 | P4 Plan gate | EnterPlanMode / ExitPlanMode; plan.md written as resume record after approval | - | STOP - human approve |
 | P5 Git merge --no-commit | Merge source commit onto target branch, keep SHA | Serial per commit | - |
@@ -907,7 +907,7 @@ Per-persona quick-start guides live in [`docs/personas/`](docs/personas/).
 | `odoo-backend-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes Python/ORM/server runtime failures via the scientific method, OSM-only (no browser); assesses bidirectional impact (could the bug originate upstream? what downstream does the fix touch?) |
 | `odoo-ui-debugger` | Sonnet | Debug specialist dispatched by `odoo-debug` - root-causes OWL/JS/QWeb/SCSS runtime failures from live browser evidence + OSM grounding (serial-exclusive browser use); assesses impact along the template / asset-inheritance axis |
 | `odoo-intent-extractor` | Sonnet | Read-only pre-analysis specialist dispatched by `odoo-forward-port` (P1, parallel) - extracts the business intent and behavioral contract from a single source commit, separating purpose from implementation details; suitable for parallel dispatch over many commits before any git merge or adapt work begins |
-| `odoo-installable-prober` | Sonnet | Read-only forward-port P2 leaf - probes target clean-tip + source git-history to decide installable:False category-3 outcome for modules where static classify is ambiguous; returns a binary verdict (keep-installable-False / promote-to-True) with evidence; dispatched by `odoo-forward-port` at P2 for ambiguous cat-3 decisions |
+| `odoo-installable-prober` | Sonnet | Read-only forward-port P2 leaf - reads the orchestrator-written target clean-tip manifest + source manifest-history dump (it runs no git itself) to decide installable:False category-3 outcome for modules where static classify is ambiguous; returns a 2-valued verdict (`installable_false: yes \| no`) with evidence; dispatched by `odoo-forward-port` at P2 for ambiguous cat-3 decisions |
 | `odoo-translator` | Sonnet | Leaf translation worker dispatched by `odoo-i18n` (Phase 3) - translates one module (or module-cluster) for one language by re-exporting from a fresh instance with the existing .po loaded, then the skill's git-ops diff-review adjudicates losses (forwards translation MEMORY, never regenerates blind; no polib), hand-translates only the new/changed residual, and self-validates with an Odoo `-u` reload; never destroys existing human translation |
 | `odoo-instance-ops` | Sonnet | Instance lifecycle specialist launched by the `odoo-instance` skill - provisions, drives, and tears down Odoo instances for any series (v8+); learns each version's CLI at runtime via OSM `cli_help`; prefers creating and dropping databases through Odoo (`odoo_db.py` / `odoo-bin db drop`) over raw `createdb`/`dropdb`; a leased DB is dropped by releasing its lease (ownership-checked, race-free), never by bare name; returns structured metadata (db name, log path, ports, `db_port`, lease token, owning run id) so callers keep clean context |
 | `odoo-user-doc-writer` | Sonnet | Browser-exclusive leaf dispatched by `odoo-doc-illustration` - captures end-user guide screenshots + assembles `doc/index.rst` (and per-locale variants); audience = end user, task-guidance tone; never spawns |
