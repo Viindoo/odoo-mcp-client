@@ -246,6 +246,12 @@ Then, per wave N, in module-DAG order:
 0. **Safety audit (trust-but-verify).** Run the disjoint file-ownership audit over the consumed
    module-DAG (no source file owned by two module scopes) + a plan-staleness check before creating
    any worktree. A file in two scopes ⇒ STOP BLOCKED and route back to `odoo-planning` to re-partition.
+0b. **Topology collapse (read, never re-derive).** `topology: single` on this wave node -> SKIP steps
+   1-2 entirely: dispatch the one module DIRECTLY into the run-integration worktree, let it commit
+   there, and go to step 3. No child worktree, no cherry-pick, no per-module checkpoint. Semantics +
+   the `n <= 1` predicate:
+   `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Topology values.
+   Field ABSENT -> steps 1-2 as written.
 1. **Fork module worktrees from run-integration.** Each module's worktree forks from the ONE
    run-integration branch (NOT from `base`/principal, NOT from a per-wave branch) per the planned
    Block-2W lineage. Because run-integration already carries every PRIOR wave's cherry-picked code, a

@@ -35,9 +35,9 @@ Notes:
 
 ---
 
-## Four Topology Patterns
+## Topology values (five)
 
-Choose from the plan's Block-2 module-DAG (independent / linear / mixed / diamond). run-harness does
+Choose from the plan's Block-2 module-DAG (independent / linear / mixed / diamond / single). run-harness does
 NOT re-derive the topology - `odoo-planning` produces it; this is the reference for reading it. The
 nodes are MODULES (the outer unit); the intra-module work-item split is `odoo-coder`'s PRIVATE
 concern and never a topology node here.
@@ -103,6 +103,33 @@ base ─────────────────────────
                               └─► mod-C ──► commit-C   (parallel after A)
 ```
 
+### Single (the collapse case)
+
+`n <= 1`, where `n` is the number of modules THIS wave dispatches. There is nothing to integrate
+against a sibling, so the WORK tier buys nothing: dispatch the one module DIRECTLY into the
+already-provisioned JOB-tier integration worktree.
+
+- NO child worktree, NO branch, NO cherry-pick, NO converge, NO per-module saga checkpoint.
+- The commit lands on the integration branch itself; the wave's close-gate and AUTO-ADVANCE are
+  unchanged.
+- The saga reduces to the integration branch's own history - record the pre-wave SHA, skip the
+  per-module checkpoint (`${CLAUDE_PLUGIN_ROOT}/skills/_shared/integration-loop.md` § Saga / rollback).
+
+```
+base --------------------------------------------------> (unchanged)
+             |
+             +--> run-integration --- mod-A committed in place --> close wave
+```
+
+**Why the threshold is 1 and not "when parallelism is low".** For `n >= 2` the child worktree buys
+POISON-CONTAINMENT: a module whose adapt fails leaves its partial edits in its own tree, so prior
+no-ff merges on integration stay clean and the wave can abort to the pre-wave SHA without unpicking a
+half-written sibling. That is the reason even where dispatch is SEQUENTIAL - do NOT justify the WORK
+tier as an `index.lock` race, which does not exist when modules are dispatched one at a time.
+
+**Absent field -> today's fan-out.** A wave node with no `topology` value takes the child-worktree
+path. Never infer `single` from a missing field.
+
 > Cross-WAVE lineage (Block 2W): there is ONE **run-integration** branch, forked from base/principal
 > ONCE at run start; every wave's module worktrees fork from IT (not from base, not from a per-wave
 > branch). The four topologies above describe the module ordering INSIDE one wave; each wave ends at
@@ -142,7 +169,7 @@ Run-integration branch: run-integration-<slug>
 
 ## Topology
 
-<independent | linear | mixed | diamond>
+<independent | linear | mixed | diamond | single>
 
 <Paste the relevant ASCII diagram from above, filled in with module names>
 
@@ -291,7 +318,7 @@ STACK            : <backend | frontend | fullstack - this module's stack split, 
                    plan did not tag it, then odoo-coding infers from files). The intra-module work-item
                    split is odoo-coder's job, not a run-harness input.>
 MODULE-DAG SLICE : <this module's node + in-wave depends_on (already cherry-picked) + downstream impact>
-TOPOLOGY         : <independent | linear | mixed | diamond - this module's place>
+TOPOLOGY         : <independent | linear | mixed | diamond | single - this module's place>
 DESIGN_DOC       : <child TDD for this module | none>
 MASTER_DESIGN_DOC: <master TDD path | none>
 SHARE_DIR        : <captured absolute path - resolved ONCE by run-harness against the run root>

@@ -50,6 +50,8 @@ unrecoverable failure unwinds to a known-clean point:
    Never leave a half-built integration branch (a cherry-pick applied but unverified, or conflict
    markers in the tree). Always report which WI failed and which outcome (abort | resume) was taken.
 
+For a wave whose `topology` is `single` (enum owner: `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Topology values) the saga reduces to the integration branch's own history: record the pre-wave SHA (step 1), write NO per-module checkpoint (step 2), and clean-abort to that SHA on failure.
+
 **Wave-closing verify = the CUMULATIVE suite.** The FINAL verify that closes a wave (before the wave
 AUTO-ADVANCES) runs the cumulative run-set (SSOT:
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/cumulative-test-scope.md`), not just the touched module; a red

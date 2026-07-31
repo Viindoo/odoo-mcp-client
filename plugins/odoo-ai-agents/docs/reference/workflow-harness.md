@@ -546,8 +546,9 @@ MUST contain three blocks, none optional:
   never expanded into its internal phases.
 - **Block 2 - Dependency graph** - a typed-edge DAG over MODULES (`type: technical | business-logic |
   data-flow` + `reason`, plus `topological_order`, `critical_path`, `cycles: []`); for a few modules
-  pick one of the four `run-harness/references/wave-integration.md` topologies
-  (`independent | linear | mixed | diamond`). A REQUIRED ASCII module-DAG block is rendered per
+  pick the wave `topology` from the values declared in
+  `run-harness/references/wave-integration.md` § Topology values (that file is the enum's one owner;
+  `single` when the wave dispatches `n <= 1` modules). A REQUIRED ASCII module-DAG block is rendered per
   plan-mode-schema.md Block 2 (NOT mermaid - it does not render in the plan file / terminal).
 - **Block 3 - Assignment** - one line per module/node: `module -> skill | command | agent`, plus
   per-node acceptance criteria + a verify command. Estimates ONLY: `effort` (S/M/L/XL) and, for a

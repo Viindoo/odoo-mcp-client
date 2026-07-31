@@ -32,7 +32,9 @@ open a RUN-DAG.
    one `nodes[]` entry per plan node, with `depends_on` from the dependency graph and
    `approach`/`approach_kind` from the assignment. **PRESERVE the Block 2 `Wave N` grouping:** the
    coding modules within one `Wave N` are grouped into a SINGLE wave node (`approach_kind: wave`)
-   that carries the wave's MODULES + their module-DAG + topology + `cumulative_modules` + the
+   that carries the wave's MODULES + their module-DAG + `topology` (value set and the `n <= 1`
+   collapse rule are owned by `run-harness/references/wave-integration.md` § Topology values - not
+   restated here) + `cumulative_modules` (regression scope, NEVER the topology count) + the
    Block-2W lineage slice - this is the wave node `run-harness` drives via its § Between-wave
    integration (it iterates the wave's modules and invokes `odoo-coding` per module; there is no
    separate git-executor skill). A terminal lifecycle stage (doc / i18n /

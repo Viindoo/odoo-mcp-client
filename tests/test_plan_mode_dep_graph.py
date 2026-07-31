@@ -108,3 +108,51 @@ def test_planner_references_dep_graph_as_required_not_encouraged():
     assert "plan-mode-schema.md" in text, (
         "odoo-planner.md must point at plan-mode-schema.md Block 2 for the dep-graph spec."
     )
+
+
+# ---------------------------------------------------------------------------
+# CS-C6 - topology: single. The n <= 1 collapse rule is an operative MUST in
+# the SAME paragraph as the Block 2 few-modules topology pick, and the schema
+# does NOT enumerate the topology value list (wave-integration.md owns it).
+# ---------------------------------------------------------------------------
+
+def _block2_dependency_graph_paragraph() -> str:
+    """The '**Block 2 - Dependency graph.**' paragraph, up to the next
+    '**REQUIRED - module-DAG ASCII dependency-graph block.**' marker. Distinct
+    from _block2_spec() above, which starts AT that REQUIRED marker - the n <=
+    1 collapse rule lives in the paragraph BEFORE it."""
+    text = _schema()
+    start = text.find("**Block 2 - Dependency graph.**")
+    assert start != -1, (
+        "plan-mode-schema.md must carry a '**Block 2 - Dependency graph.**' paragraph."
+    )
+    end = text.find("**REQUIRED - module-DAG ASCII dependency-graph block.**", start)
+    assert end != -1
+    return text[start:end]
+
+
+def test_schema_states_the_single_topology_collapse_as_an_operative_must():
+    """A (structural + absence): plan-mode-schema.md's Block-2 paragraph must state the `n <= 1`
+    topology collapse as an operative MUST in the SAME paragraph as the threshold, must name
+    `cumulative_modules` as EXCLUDED from that count, and must NOT enumerate the topology value
+    list here (wave-integration.md is the enum's ONE owner - restating the list here would fork
+    it). Before this lands, the schema states the single-module case only as illustrative prose in
+    the terminal land-node section (~:167-175) - it is not an operative MUST tied to `n <= 1` in
+    the Block 2 paragraph, and the RC-3b inconsistency this closes is that the unconditional
+    "one wave node per wave" rule elsewhere (phase-p-run-dag.md) never accounted for it."""
+    para = _block2_dependency_graph_paragraph()
+    assert "MUST" in para, (
+        "The n <= 1 topology collapse must be stated as an operative MUST in the Block 2 paragraph."
+    )
+    assert "n <= 1" in para, "The paragraph must state the exact `n <= 1` threshold."
+    low = para.lower()
+    assert "cumulative_modules" in low and (
+        "never the count" in low or "not the count" in low or "never a count" in low
+    ), "cumulative_modules must be named and explicitly EXCLUDED from being read as the count."
+    assert "diamond" not in low, (
+        "plan-mode-schema.md must NOT enumerate the topology value list in the Block 2 paragraph - "
+        "wave-integration.md is the enum's ONE owner (point at it, do not restate it)."
+    )
+    assert "wave-integration.md" in para, (
+        "The paragraph must point at wave-integration.md (the topology enum's owner)."
+    )

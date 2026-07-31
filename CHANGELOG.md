@@ -52,6 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   migration now dispatches `visual/baselines/`'s own children so a nested legacy `current/` is
   discarded with a printed line instead of riding into SHARE - the first `visual/` case that migration
   helper has ever had a test for.
+- `odoo-ai-agents` - wave topology gains a fifth value, `single`, declared at its one owner
+  (`run-harness/references/wave-integration.md`). A wave that dispatches `n <= 1` modules now
+  dispatches directly into the integration worktree instead of forking, cherry-picking and converging
+  a child worktree for a single module. For `n >= 2` the child worktree is retained for
+  poison-containment. An absent `topology` field still takes the fan-out path. A new guard asserts the
+  value set has exactly one definer - three files previously restated it.
 
 ## [4.18.1] - 2026-07-28
 
