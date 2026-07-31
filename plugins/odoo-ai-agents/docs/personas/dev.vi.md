@@ -4,7 +4,7 @@
 
 > **Bắt đầu (Claude Code):** `claude plugin marketplace add Viindoo/claude-plugins` -> `claude plugin install odoo-ai-agents@viindoo-plugins` (tự kéo theo `odoo-semantic-mcp`) -> `/odoo-semantic-mcp:connect`. Với các công cụ AI khác, xem [client setup](../setup.md).
 
-Toàn bộ **31-tool arsenal**, tối ưu cho các quy trình phát triển - hiểu inheritance, mở rộng an toàn các method lõi, liệt kê field/method/view và các artefact tầng UI (OWL, QWeb, JS patches), phân tích stylesheet CSS/SCSS/LESS, static ORM validation, và khám phá bề mặt test. 31 tool chia thành sáu nhóm, mỗi nhóm được liệt kê kèm version era ở các mục bên dưới: bốn **supersets** định tuyến theo discriminator (`model_inspect`, `module_inspect`, `entity_lookup`, cộng `profile_inspect` cấp profile, v0.13+), bốn **session-context** tools (pin một phiên bản một lần, truyền `odoo_version='auto'`), mười một **base tools**, hai **stylesheet tools** (theme/branding), bốn **ORM-validation tools** (bắt field-path, operator, dependency, relation target bị ảo giác trước khi ship một domain / `@api.depends` / relational field), và sáu **test-surface tools** (v0.15+ - khám phá test hiện có, độ phủ, và base class trước khi viết test mới).
+Toàn bộ **31-tool arsenal**, tối ưu cho các quy trình phát triển - hiểu inheritance, mở rộng an toàn các method lõi, liệt kê field/method/view và các artefact tầng UI (OWL, QWeb, JS patches), phân tích stylesheet CSS/SCSS/LESS, static ORM validation, và khám phá bề mặt test. 31 tool chia thành sáu nhóm, mỗi nhóm được liệt kê kèm version era ở các mục bên dưới: bốn **supersets** định tuyến theo discriminator (`model_inspect`, `module_inspect`, `entity_lookup`, cộng `profile_inspect` cấp profile, v0.13+), bốn **session-context** tools (gọi các setter một lần ở bootstrap như một probe khả năng kết nối; vẫn phải truyền `odoo_version=` cụ thể trên mọi lời gọi), mười một **base tools**, hai **stylesheet tools** (theme/branding), bốn **ORM-validation tools** (bắt field-path, operator, dependency, relation target bị ảo giác trước khi ship một domain / `@api.depends` / relational field), và sáu **test-surface tools** (v0.15+ - khám phá test hiện có, độ phủ, và base class trước khi viết test mới).
 
 ---
 
@@ -23,7 +23,7 @@ Toàn bộ **31-tool arsenal**, tối ưu cho các quy trình phát triển - hi
 
 | Tool | Trường hợp dùng |
 |------|----------|
-| `set_active_version(odoo_version)` | Pin phiên bản Odoo cho session này. Các lời gọi tiếp theo không có `odoo_version=` sẽ fallback về giá trị này. **Dùng một lần mỗi session debug/khám phá** để bỏ ~10 ký tự boilerplate khỏi mọi lời gọi. |
+| `set_active_version(odoo_version)` | Pin phiên bản Odoo cho session này và đồng thời probe khả năng kết nối tới server. Pin được scope theo API-key và racy khi concurrency, nên vẫn phải truyền `odoo_version=` cụ thể trên mọi lời gọi - không bao giờ dựa vào pin. **Gọi một lần mỗi session** như một probe. |
 | `set_active_profile(profile_name)` | Pin tenant profile cho các deployment MCP cross-profile. |
 | `list_available_versions()` | Khám phá xem server đã index những phiên bản Odoo nào. |
 | `list_available_profiles()` | Khám phá xem có những profile nào tồn tại. |
@@ -48,8 +48,8 @@ Toàn bộ **31-tool arsenal**, tối ưu cho các quy trình phát triển - hi
 
 | Tool | Trường hợp dùng |
 |------|----------|
-| `resolve_stylesheet(module, odoo_version="auto")` | Liệt kê các file stylesheet CSS/SCSS/LESS của module - ngôn ngữ, số lượng selector/variable/mixin/import, chuỗi `@import`. Dùng để rà soát những gì một module ship trước khi viết theme override. LESS bao phủ kỷ nguyên cũ tiền-SCSS (~v8-v12). |
-| `find_style_override(selector_or_variable, odoo_version="auto", limit=5)` | Tìm nơi một CSS selector hoặc SCSS/LESS variable được định nghĩa lần đầu và những module nào override nó, kèm toàn bộ override chain. Thiết yếu cho công việc theming/branding. Bao phủ CSS, SCSS, và LESS (LESS cho kỷ nguyên cũ tiền-SCSS, ~v8-v12). |
+| `resolve_stylesheet(module, odoo_version="<version>")` | Liệt kê các file stylesheet CSS/SCSS/LESS của module - ngôn ngữ, số lượng selector/variable/mixin/import, chuỗi `@import`. Dùng để rà soát những gì một module ship trước khi viết theme override. LESS bao phủ kỷ nguyên cũ tiền-SCSS (~v8-v12). |
+| `find_style_override(selector_or_variable, odoo_version="<version>", limit=5)` | Tìm nơi một CSS selector hoặc SCSS/LESS variable được định nghĩa lần đầu và những module nào override nó, kèm toàn bộ override chain. Thiết yếu cho công việc theming/branding. Bao phủ CSS, SCSS, và LESS (LESS cho kỷ nguyên cũ tiền-SCSS, ~v8-v12). |
 
 ### ORM-validation tools (server v0.8.0+)
 
@@ -57,10 +57,10 @@ Các kiểm tra tĩnh dựa trên graph đã index. Chạy chúng **trước khi
 
 | Tool | Trường hợp dùng |
 |------|----------|
-| `resolve_orm_chain(model, dotted_path, odoo_version="auto")` | Đi qua một dotted field path (`partner_id.country_id.code`) từng hop một; trả về kiểu của field cuối hoặc một dòng `BROKEN` nêu tên hop đầu tiên không resolve được. Dùng để xác minh một chuỗi `related=` đa hop hoặc domain path có resolve hay không. |
-| `validate_domain(model, domain, odoo_version="auto")` | Validate mọi term `(field_path, operator, value)` của một search domain. Tính hợp lệ của operator là **version-aware** (`parent_of` v9+, `any`/`not any` v17+). Chạy trước khi dán một domain vào view, `ir.rule`, hoặc `search()`. |
-| `validate_depends(model, method, odoo_version="auto")` | Validate các path `@api.depends('a.b', ...)` của một compute method đã index; cờ depends trên `id` (bị cấm) và gợi ý field gần nhất cho các lỗi typo - bắt trực tiếp failure mode "stale compute". |
-| `validate_relation(model, field, target_model, odoo_version="auto")` | Khẳng định một field là many2one/one2many/many2many có comodel là `target_model` (hoặc một subtype qua inheritance). Dùng trước khi viết một `related=` hop qua một relation. |
+| `resolve_orm_chain(model, dotted_path, odoo_version="<version>")` | Đi qua một dotted field path (`partner_id.country_id.code`) từng hop một; trả về kiểu của field cuối hoặc một dòng `BROKEN` nêu tên hop đầu tiên không resolve được. Dùng để xác minh một chuỗi `related=` đa hop hoặc domain path có resolve hay không. |
+| `validate_domain(model, domain, odoo_version="<version>")` | Validate mọi term `(field_path, operator, value)` của một search domain. Tính hợp lệ của operator là **version-aware** (`parent_of` v9+, `any`/`not any` v17+). Chạy trước khi dán một domain vào view, `ir.rule`, hoặc `search()`. |
+| `validate_depends(model, method, odoo_version="<version>")` | Validate các path `@api.depends('a.b', ...)` của một compute method đã index; cờ depends trên `id` (bị cấm) và gợi ý field gần nhất cho các lỗi typo - bắt trực tiếp failure mode "stale compute". |
+| `validate_relation(model, field, target_model, odoo_version="<version>")` | Khẳng định một field là many2one/one2many/many2many có comodel là `target_model` (hoặc một subtype qua inheritance). Dùng trước khi viết một `related=` hop qua một relation. |
 
 > Ưu tiên những công cụ này hơn `entity_lookup(kind='field', ...)` khi bạn có một *path* (`resolve_orm_chain`), một *full domain* (`validate_domain`), một *declared depends* (`validate_depends`), hoặc một *comodel assertion* (`validate_relation`) - chúng suy luận về toàn bộ cấu trúc, không phải một field đơn lẻ.
 
@@ -70,12 +70,12 @@ Khám phá những gì đã được test trước khi viết test mới - trán
 
 | Tool | Trường hợp dùng |
 |------|----------|
-| `find_test_examples(query, odoo_version="auto")` | Tìm kiếm ngữ nghĩa chỉ trên code test (test method, test class, JS test - không bao giờ trả về production code). Tìm test hiện có trước khi viết test mới. |
-| `tests_covering(model, odoo_version="auto")` | Liệt kê các test method có cạnh tham chiếu tĩnh `COVERS_*` tới một model hoặc field, nhóm theo assert/setup/body. |
-| `test_class_inspect(name, odoo_version="auto")` | Kiểm tra một TestClass/TestHelper: base chain, hợp đồng cursor `setUpClass`, các test method kèm số lượng assert, danh sách subclassed-by. |
-| `test_base_classes(odoo_version="auto")` | Menu các base class của framework test Odoo chính thức (TransactionCase, HttpCase, Form, ...) kèm `test_type` và hợp đồng cursor. |
-| `test_coverage_audit(module, odoo_version="auto")` | Rà soát một module tìm field/method có zero cạnh `COVERS_*` (chưa bao giờ được test nào tham chiếu). |
-| `js_test_inspect(module, odoo_version="auto")` | Liệt kê các test suite JS trong một module: mix framework (Hoot/QUnit/tour), đường dẫn file, kích thước suite, tag. |
+| `find_test_examples(query, odoo_version="<version>")` | Tìm kiếm ngữ nghĩa chỉ trên code test (test method, test class, JS test - không bao giờ trả về production code). Tìm test hiện có trước khi viết test mới. |
+| `tests_covering(model, odoo_version="<version>")` | Liệt kê các test method có cạnh tham chiếu tĩnh `COVERS_*` tới một model hoặc field, nhóm theo assert/setup/body. |
+| `test_class_inspect(name, odoo_version="<version>")` | Kiểm tra một TestClass/TestHelper: base chain, hợp đồng cursor `setUpClass`, các test method kèm số lượng assert, danh sách subclassed-by. |
+| `test_base_classes(odoo_version="<version>")` | Menu các base class của framework test Odoo chính thức (TransactionCase, HttpCase, Form, ...) kèm `test_type` và hợp đồng cursor. |
+| `test_coverage_audit(module, odoo_version="<version>")` | Rà soát một module tìm field/method có zero cạnh `COVERS_*` (chưa bao giờ được test nào tham chiếu). |
+| `js_test_inspect(module, odoo_version="<version>")` | Liệt kê các test suite JS trong một module: mix framework (Hoot/QUnit/tour), đường dẫn file, kích thước suite, tag. |
 
 ### Removed in v0.6
 
@@ -93,7 +93,7 @@ Các handle chỉ-đọc cho truy cập ổn định kiểu bookmark. Dùng nh�
 
 ### 0. Pin phiên bản một lần
 
-Trước bất kỳ session khám phá nào, đặt phiên bản để bạn có thể bỏ `odoo_version=` khỏi mọi lời gọi tiếp theo:
+Trước bất kỳ session khám phá nào, gọi `set_active_version` một lần như một probe khả năng kết nối. Điều đó KHÔNG cho phép bỏ `odoo_version=` ở các lời gọi sau - pin được scope theo API-key và một session khác có thể ghi đè, nên hãy truyền phiên bản cụ thể trên mọi lời gọi:
 
 ```
 set_active_version("<version>")

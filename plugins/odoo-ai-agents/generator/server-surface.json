@@ -530,7 +530,7 @@
       "name": "set_active_profile",
       "version_added": "0.6.0",
       "version_removed": null,
-      "description": "Pin tenant profile for the session so subsequent calls scope to one customer profile.",
+      "description": "Pin tenant profile for the session so subsequent calls scope to one customer profile. The pin is server-side state scoped to the API KEY - a concurrent agent or session sharing the key can overwrite it, so pass profile_name explicitly on every call.",
       "persona_tags": [
         "dev",
         "CEO",

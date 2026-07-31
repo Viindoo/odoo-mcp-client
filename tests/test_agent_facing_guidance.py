@@ -3,11 +3,13 @@
 The real consumers of skills/snippets/agents are AI agents - Claude Code reads
 SKILL.md; Gemini / OpenAI / Cursor read the snippets as their system prompt. The
 server hard-requires ``odoo_version`` on 19 tools: omitting it raises a
-ValidationError *before* the handler runs, and a pinned session can only be reused
-by passing ``odoo_version='auto'`` explicitly (never by omitting it). So any
-guidance telling an agent it may *omit* ``odoo_version``, or that ``odoo_version``
-is *optional / defaults to "auto"*, makes the agent emit a failing tool call -
-the exact opposite of what these artifacts are for.
+ValidationError *before* the handler runs. The session pin is API-KEY-scoped, so
+the sentinel ``'auto'`` resolves against whatever pin the key currently holds -
+possibly a concurrent session's. This plugin therefore forbids BOTH forms:
+guidance that lets an agent omit ``odoo_version``, and guidance that tells it to
+pass ``'auto'``. Every example call carries a CONCRETE version. SSOT for the
+rule: plugins/odoo-ai-agents/skills/_shared/concurrency-guard.md
+section "OSM session-pin race".
 
 ``make gen`` only refreshes content between ``<!-- BEGIN/END GENERATED ... -->``
 markers (all derived from ``generator/server-surface.json``). Hand-maintained prose
@@ -41,7 +43,15 @@ _OMIT_RE = re.compile(r"omit\s+(?:the\s+)?[`'\"]?odoo_version", re.I)
 _CAN_OMIT_RE = re.compile(r"can\s+omit\b[^\n]*odoo_version", re.I)
 _OPTIONAL_VER_RE = re.compile(r"odoo_version[^,\n]{0,30}\(optional", re.I)
 _DEFAULT_AUTO_RE = re.compile(r"odoo_version[^,\n]{0,30}default\s+\"auto\"", re.I)
-_PATTERNS = (_OMIT_RE, _CAN_OMIT_RE, _OPTIONAL_VER_RE, _DEFAULT_AUTO_RE)
+# Evasions the four above miss by word order or verb choice - each was a live
+# false-negative on the pre-fix tree (docs/personas/dev.md:26 and :96,
+# docs/setup.md:573). Lexical, English-only: the Vietnamese mirror is covered
+# structurally by tests/test_persona_docs_consistency.py, not here.
+_WITHOUT_VER_RE = re.compile(r"without\s+[`'\"]?odoo_version", re.I)
+_DROP_VER_RE = re.compile(r"\bdrop\s+[`'\"]?odoo_version", re.I)
+_VER_OMITTED_RE = re.compile(r"odoo_version\s+(?:is\s+)?omitted", re.I)
+_PATTERNS = (_OMIT_RE, _CAN_OMIT_RE, _OPTIONAL_VER_RE, _DEFAULT_AUTO_RE,
+             _WITHOUT_VER_RE, _DROP_VER_RE, _VER_OMITTED_RE)
 
 
 def test_no_omittable_odoo_version_guidance():
@@ -53,8 +63,9 @@ def test_no_omittable_odoo_version_guidance():
                 offenders.append(f"{f.relative_to(REPO_ROOT)}:{i}: {line.strip()}")
     assert not offenders, (
         "Agent-facing prose still claims odoo_version is omittable/optional. "
-        "The server hard-requires it; agents must pass odoo_version='auto' to reuse "
-        "a pinned session. Offending lines:\n" + "\n".join(offenders)
+        "The server hard-requires it and the session pin is API-key-scoped, so "
+        "every example and instruction must carry a CONCRETE version. "
+        "Offending lines:\n" + "\n".join(offenders)
     )
 
 
@@ -285,8 +296,9 @@ def test_example_tool_calls_pass_required_odoo_version():
             offenders.append(f"{f.relative_to(REPO_ROOT)}:{line_no}: {snippet}")
     assert not offenders, (
         "Example tool calls omit the now-required odoo_version (agents copy these verbatim "
-        "and the server rejects the call; pass odoo_version='auto' to reuse the pinned "
-        "session, or supply all required params positionally):\n" + "\n".join(offenders)
+        "and the server rejects the call; pass a CONCRETE version, e.g. odoo_version='17.0' "
+        "or the placeholder odoo_version='<version>', or supply all required params "
+        "positionally):\n" + "\n".join(offenders)
     )
 
 
@@ -466,3 +478,105 @@ def test_agents_do_not_instruct_ungranted_osm_tools():
         "a failing call). Add the tool to the agent's tools: allowlist, or stop "
         "referencing it in the body:\n" + "\n".join(offenders)
     )
+
+
+_AUTO_VALUE_RE = re.compile(r"^\s*['\"]auto['\"]\s*$")
+
+
+def test_example_tool_calls_reject_the_auto_sentinel():
+    """No example call may pass odoo_version='auto'.
+
+    The pin is API-KEY-scoped, so 'auto' resolves against whatever pin the key
+    holds - under fan-out that is another agent's version, and the call SUCCEEDS
+    with the WRONG version rather than erroring. The companion
+    test_example_tool_calls_pass_required_odoo_version is value-BLIND (it accepts
+    any span containing `odoo_version`), so this is the assertion that makes the
+    ban in concurrency-guard.md enforceable.
+
+    Scoped to argument SPANS, so a line that quotes 'auto' in order to BAN it stays
+    green; the four such warning sites are asserted separately below.
+    """
+    offenders: list[str] = []
+    for f in _md_files("skills", "snippets", "agents", "docs"):
+        text = f.read_text(encoding="utf-8")
+        for m in _ANY_TOOL_CALL_RE.finditer(text):
+            span = _arg_span(text, m.end() - 1)
+            inner = span[1:-1] if span.startswith("(") and span.endswith(")") else span
+            for arg in _top_level_args(inner):
+                nm = _NAMED_ARG_RE.match(arg)
+                if nm and nm.group(1) == "odoo_version":
+                    value = arg[nm.end():]
+                    if _AUTO_VALUE_RE.match(value):
+                        line_no = text.count("\n", 0, m.start()) + 1
+                        offenders.append(
+                            f"{f.relative_to(REPO_ROOT)}:{line_no}: "
+                            f"{m.group(1)}(... odoo_version={value.strip()} ...)"
+                        )
+    assert not offenders, (
+        "Example calls pass the 'auto' sentinel. Pass a CONCRETE version or the "
+        "placeholder odoo_version='<version>'. SSOT: skills/_shared/"
+        "concurrency-guard.md. Offending calls:\n" + "\n".join(offenders)
+    )
+
+
+def test_auto_is_still_named_in_the_four_warning_sites():
+    """The ban must be TAUGHT, not just enforced: exactly the four sites that quote
+    'auto' in order to forbid it must keep doing so, each in a sentence that also
+    carries a prohibition token.
+
+    Fence: green today and after. Without it, a naive "delete every auto" fix would
+    also delete the four places that teach the ban.
+    """
+    prohibition = ("HARD RULE", "never", "rejected", "racy", "may resolve to someone else")
+    sites = [
+        PLUGIN / "agents" / "odoo-backend-coder.md",
+        PLUGIN / "agents" / "odoo-frontend-coder.md",
+        PLUGIN / "docs" / "setup.md",
+        PLUGIN / "generator" / "server-surface.json",
+    ]
+    for p in sites:
+        text = p.read_text(encoding="utf-8")
+        assert "auto" in text, f"{p.name} must still name the 'auto' sentinel to ban it"
+        for line in text.splitlines():
+            if "auto'" in line or 'auto"' in line:
+                assert any(tok in line for tok in prohibition), (
+                    f"{p.name} mentions the 'auto' sentinel without a prohibition token: "
+                    f"{line.strip()[:160]}"
+                )
+
+
+def _section_short_forms(guard_text: str) -> list[str]:
+    """Each '## Heading' reduced to its lead phrase, cut at the first ' (' or ' - '.
+
+    Pointer prose in this repo quotes only the lead phrase of a heading (e.g. "§ Browser
+    exclusivity" for "## Browser exclusivity (orthogonal)") and then keeps writing the
+    surrounding sentence with no fixed terminator - a real citation and a full paragraph
+    are lexically indistinguishable past that point. A prefix check against the short form
+    (rather than demanding the pointer's trailing prose be a verbatim substring of the whole
+    heading) accepts every legitimate citation style on this tree while still failing a
+    reference to a heading that was renamed or never existed.
+    """
+    forms = []
+    for ln in guard_text.splitlines():
+        if ln.startswith("## "):
+            heading = ln[3:].strip()
+            forms.append(re.split(r"\s\(|\s-\s", heading, maxsplit=1)[0].strip())
+    return forms
+
+
+def test_every_session_pin_pointer_resolves_to_a_real_heading():
+    """A pointer at concurrency-guard.md's pin section must name a heading that
+    exists there. No existing test guards that heading text (test_concurrency_guard_ssot.py
+    asserts only the filename substring), so a rename would otherwise leave every
+    pointer dangling silently.
+    """
+    guard = (PLUGIN / "skills" / "_shared" / "concurrency-guard.md").read_text(encoding="utf-8")
+    short_forms = _section_short_forms(guard)
+    offenders = []
+    for f in _md_files("skills", "snippets", "agents"):
+        text = f.read_text(encoding="utf-8")
+        for m in re.finditer(r"concurrency-guard\.md`?\s+(?:section|§)\s*([^\n]+)", text):
+            tail = m.group(1).strip().lstrip("`\"'")
+            if not any(tail.startswith(sf) for sf in short_forms):
+                offenders.append(f"{f.relative_to(REPO_ROOT)}: points at absent section '{tail[:60]}'")
+    assert not offenders, "dangling concurrency-guard.md section pointers:\n" + "\n".join(offenders)

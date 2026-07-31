@@ -61,18 +61,23 @@ unless the work needs cross-context reasoning - then pick the higher. A skill MA
 add a domain-specific tier table that refines these rows (e.g. `odoo-coding`
 § Phase 0) but MUST NOT restate the principle - reference this section.
 
-## OSM version-pin race
+## OSM session-pin race (`set_active_version` and `set_active_profile`)
 
-`set_active_version` is server-side state scoped to the API KEY, not to the
-calling agent or session. Under ANY concurrency - parallel agents in one run,
-or two sessions sharing the key - `'auto'` may resolve to someone else's pin.
+Both pins are server-side state scoped to the API KEY, not to the calling agent
+or session. Under ANY concurrency - parallel agents in one run, or two sessions
+sharing the key - the pin you read is not necessarily the pin you set.
 
-Rule for every agent and skill in this plugin: pass the CONCRETE Odoo version
-on every OSM call; treat `'auto'` as unsafe and never instruct it. Still call
-`set_active_version` once at bootstrap - it is the reachability probe and keeps
-the server-side default sane - but never rely on its ambient state. Multi-version
-flows (migrations, cross-version diffs) pass the explicit concrete version per
-call - never the pin.
+Rule for every agent and skill in this plugin, stated as a BAN so it is
+checkable: in every example call and every instruction, `odoo_version` carries a
+CONCRETE version and `profile_name` carries a concrete profile. The sentinel
+`'auto'` and a bare omission are BOTH forbidden - not discouraged. Still call
+`set_active_version` (and `set_active_profile` where a tenant profile applies)
+once at bootstrap: they are the reachability probe and keep the server-side
+default sane, and that is their ONLY sanctioned use. Never rely on their ambient
+state afterwards. Multi-version and multi-profile flows (migrations,
+cross-version diffs, cross-profile deployments) pass the explicit concrete value
+per call - never the pin. A genuinely unknown version is a `NEEDS_CONTEXT`, never
+a licence to pass `'auto'`.
 
 ## Odoo instance allocation (DB / port)
 

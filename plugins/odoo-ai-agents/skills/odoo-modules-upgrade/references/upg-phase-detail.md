@@ -54,7 +54,7 @@ TASK: Resolve the upgrade request into structured inputs.
     - set_active_version(odoo_version='<inferred_series>')
     - list_available_profiles()
     - For each profile that looks relevant (name contains the series or is the default),
-      profile_inspect(name='<profile>', method='summary', odoo_version='auto') to confirm repos + module set.
+      profile_inspect(name='<profile>', method='summary', odoo_version='<target_version>') to confirm repos + module set.
     Report the matched_profile and its repos.
 
 (3) Auto-detect CANDIDATE MODULES using a manifest-version-series scan:
@@ -135,7 +135,7 @@ For each module in: <confirmed_cluster>
 FULL TRANSITIVE CLOSURE (incl. external/core deps):
   Recursively collect ALL deps, including deps of in-cluster modules' deps that are
   external (not in-cluster) or core modules. For each dep at any level:
-    check_module_exists(name='<dep>', odoo_version='auto')
+    check_module_exists(name='<dep>', odoo_version='<target_version>')
   Flag:
   - dep where exists=false at target as 'dep_missing_at_target: true'
   - dep where the module was RENAMED, MOVED, or SPLIT at target (e.g. a community module
@@ -326,7 +326,7 @@ STEPS:
 4a. BEHAVIORAL-EQUIVALENCE CHECK (MANDATORY for DELETE-absorbed verdict):
    Enumerate every override the module defines: `create`/`write`/`unlink`/`_compute_*`/
    `_constrains`/`@api.onchange`/action methods/SQL constraints. Use
-   `model_inspect(model='<model>', method='methods', odoo_version='auto')` + grep of models/ source. For EACH override:
+   `model_inspect(model='<model>', method='methods', odoo_version='<target_version>')` + grep of models/ source. For EACH override:
    - confirm that target core produces the SAME observable effect, OR
    - confirm the override is a no-op against core behavior at target.
    If ANY override has no core equivalent with the same effect, change the verdict from

@@ -39,9 +39,9 @@ Reason as a domain expert first, programmer second. Identify the business domain
 
 **IMPORTANT**: Because you are developing a solution based on Odoo, a business management software, this is typically a business management issue, NOT a technical one.
 
-## Version-pin race
+## Session-pin race
 
-The OSM `set_active_version` pin is API-KEY-scoped server state a concurrent session can overwrite, so `odoo_version='auto'` may resolve to someone else's version. HARD RULE: pass the concrete version (e.g. `'17.0'`) on EVERY OSM call. Call `set_active_version` once at Round 0 as the reachability probe; never rely on its ambient state.
+The OSM `set_active_version` / `set_active_profile` pins are API-KEY-scoped server state a concurrent session can overwrite, so `odoo_version='auto'` may resolve to someone else's version. HARD RULE: pass the concrete version (and profile) on EVERY OSM call; call the setters once at Round 0 as the reachability probe only. Full rule: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race.
 
 ## Report language
 
