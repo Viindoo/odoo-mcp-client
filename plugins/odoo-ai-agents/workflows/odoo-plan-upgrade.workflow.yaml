@@ -66,8 +66,11 @@ phases:
     # 1. ACTION ORDERING - fixed order regardless of which items are present:
     #    (1) Pre-flight CRITICAL fixes (BREAKING tier from deprecation audit + any
     #        CRITICAL risk factors needing code changes before upgrade starts)
-    #    (2) Per-module migration scripts (one per custom module; dependency order,
-    #        base modules first)
+    #    (2) Per-module migration scripts - ONLY when a confirmed data-at-risk
+    #        signal exists (stored non-computed fields or noupdate="1" data on a
+    #        module facing a model rewrite/removal). Most custom-module upgrades
+    #        are CODE-ONLY and omit this item entirely; when it applies it routes
+    #        to odoo-data-migration, never inline (dependency order, base first)
     #    (3) Test plan (smoke -> integration -> critical user flows, scoped to
     #        affected modules)
     #    (4) Deploy window (link odoo-deploy-checklist; staging -> UAT -> production)

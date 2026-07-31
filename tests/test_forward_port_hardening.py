@@ -525,6 +525,7 @@ CODER = PLUGIN / "agents" / "odoo-backend-coder.md"
 UPG_SKILL = PLUGIN / "skills" / "odoo-modules-upgrade" / "SKILL.md"
 UPG_PHASE_DETAIL = PLUGIN / "skills" / "odoo-modules-upgrade" / "references" / "upg-phase-detail.md"
 RB_PHASE_DETAIL = PLUGIN / "skills" / "odoo-git-rebase" / "references" / "rb-phase-detail.md"
+UPG_TRIAGE_TABLE = PLUGIN / "skills" / "odoo-modules-upgrade" / "references" / "upg-triage-table.md"
 
 
 # ---------------------------------------------------------------------------
@@ -1087,4 +1088,42 @@ class TestRebaseAnalogue:
         assert "same-series" in self.text.lower() or "Same-series" in self.text, (
             "rb-phase-detail.md must qualify the keep-base-version rule as same-series only, "
             "distinguishing it from the cross-series FP C1/C2 mechanics"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant 23 (CS-C7) - upg-triage-table.md must not permit a manifest version
+# bump as an ADAPT scenario. Three other files (odoo-modules-upgrade SKILL.md,
+# upg-conventions.md Convention 1, upg-classification-table.md) forbid any
+# version bump unconditionally; test_modules_upgrade_skill_no_series_prefix_bump
+# (above) only catches the "series-prefix bump" phrasing, so a differently
+# worded manifest-version-bump permission slips past it - this test closes
+# that specific hole.
+#
+# RED-before-green evidence: both literals verified present as raw substrings
+# in upg-triage-table.md row 3 (:19) on the base commit.
+# ---------------------------------------------------------------------------
+
+class TestUpgTriageTableNoVersionBump:
+    """upg-triage-table.md must not list a manifest version bump as an ADAPT scenario."""
+
+    def test_upg_triage_table_does_not_list_a_manifest_version_bump_as_adapt(self):
+        """upg-triage-table.md must contain neither 'manifest version bump' nor
+        'version bump with no logic' (whitespace-normalized).
+
+        Base commit row 3 permitted 'a single manifest version bump with no logic
+        change' as a haiku-tier ADAPT scenario - contradicting the unconditional
+        no-version-bump rule stated in odoo-modules-upgrade SKILL.md,
+        upg-conventions.md Convention 1, and upg-classification-table.md.
+        """
+        text = UPG_TRIAGE_TABLE.read_text(encoding="utf-8")
+        norm = " ".join(text.split())
+        assert "manifest version bump" not in norm, (
+            "upg-triage-table.md must not permit 'a manifest version bump' as an ADAPT "
+            "scenario - it contradicts the unconditional no-version-bump rule in "
+            "SKILL.md, upg-conventions.md Convention 1, and upg-classification-table.md"
+        )
+        assert "version bump with no logic" not in norm, (
+            "upg-triage-table.md must not permit a 'version bump with no logic' change "
+            "as an ADAPT scenario - same contradiction as above"
         )

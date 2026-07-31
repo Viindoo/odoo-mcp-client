@@ -133,11 +133,9 @@ hard-fail - cycles exist in real custom clusters and require human resolution).
 Assert all dependencies exist at the target.
 
 **P2 - Core-absorption comparison [per module, dep order, parallel within waves].**
-Principle: Upgrading a module to a newer version of Odoo mean code / docs upgrading. It should be considered
-a new feature development without requiring:
-- any backward compatibility with previous Odoo version or the module itself
-- any migration script.
-- any version bump.
+Principle: a major-series module upgrade is a CODE upgrade - no old-series compatibility, no
+migration script, no version bump. Full rule + the P4-time dispositions:
+`${CLAUDE_PLUGIN_ROOT}/snippets/upg-conventions.md` § Convention 0.
 
 Goal: for each module in dep order, decide DELETE-absorbed / KEEP / REWRITE(api) /
 REWRITE(model) / MERGE / SPLIT by comparing custom behavior vs target-version core.

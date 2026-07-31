@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Phase 0, forward-port P0/P1, the code-review and doc-illustration scopers, and the rebase intake.
   Previously each of these produced findings that lived only in the orchestrator's context, so a
   resumed run re-scouted from zero.
+- `odoo-ai-agents` - new `snippets/upg-conventions.md` § Convention 0: a major-series module upgrade
+  is a CODE upgrade. It states the P4-time dispositions (no old-series compatibility, no migration
+  script, no version bump; implement a recorded `reuse_candidates[]` target-core mechanism instead of
+  a shim; a decidable vendor-currency trigger with an explicit cap AND an action rule). Both coder
+  agents gain a one-line, byte-identical pointer naming their triggering brief, so a coder can no
+  longer inherit only forward-port's opposite disposition.
 
 ### Fixed
 
@@ -52,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   migration now dispatches `visual/baselines/`'s own children so a nested legacy `current/` is
   discarded with a printed line instead of riding into SHARE - the first `visual/` case that migration
   helper has ever had a test for.
+- `odoo-ai-agents` - `upg-triage-table.md` no longer lists "a single manifest version bump" as an
+  ADAPT scenario; three other files forbid what it permitted.
 - `odoo-ai-agents` - wave topology gains a fifth value, `single`, declared at its one owner
   (`run-harness/references/wave-integration.md`). A wave that dispatches `n <= 1` modules now
   dispatches directly into the integration worktree instead of forking, cherry-picking and converging
