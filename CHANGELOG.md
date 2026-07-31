@@ -45,6 +45,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `recon/<slug>-<date>/` and `visual/current/<slug>/`, drops the visual-regression comparison set from
   the reusable-across-runs bucket (it is per-run by construction), and documents the resolver's new
   explicit-root form. A new guard asserts both rows land in the ISOLATE table, not the SHARE one.
+- `odoo-ai-agents` - `odoo-visual-regression`'s state-B comparison set moves from the SHARE tier to
+  per-run ISOLATE (`<ISOLATE_DIR>/visual/current/<slug>/`) and is deleted after the Round-4 verdict is
+  recorded. Two concurrent runs comparing different builds previously wrote the same screenshot paths
+  in a cross-run directory. Baselines stay SHARE (they are reused across runs). The legacy-state
+  migration now dispatches `visual/baselines/`'s own children so a nested legacy `current/` is
+  discarded with a printed line instead of riding into SHARE - the first `visual/` case that migration
+  helper has ever had a test for.
 
 ## [4.18.1] - 2026-07-28
 

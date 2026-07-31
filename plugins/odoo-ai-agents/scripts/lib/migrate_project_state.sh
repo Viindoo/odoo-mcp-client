@@ -33,10 +33,11 @@
 #
 # `visual/` is NOT a tier by its top-level name alone (state-root-resolution.md
 # "Note the split inside visual/"): `visual/baselines/` and `visual/doc/` are
-# SHARE; every OTHER immediate child of `visual/` (screenshots/, qa/, debug/,
-# videos/, a run_id staging dir, ...) is ISOLATE. This helper dispatches
-# visual/'s immediate children individually rather than migrating visual/ as
-# one unit.
+# SHARE; every OTHER immediate child of `visual/` (screenshots/, current/, qa/,
+# debug/, videos/, a run_id staging dir, ...) is ISOLATE. This helper dispatches
+# visual/'s immediate children individually rather than migrating visual/ as one
+# unit, and dispatches `baselines/`'s OWN children too, because a legacy
+# `baselines/current/` is a per-run comparison set that must not ride into SHARE.
 #
 # An unrecognized top-level entry (not in either exhaustive table, and not
 # `visual`) is left in place with a stderr note - NEVER guessed into a tier
@@ -160,6 +161,27 @@ _tier2_copy_one() {
     printf '  Migrated .odoo-ai/%s -> %s (%s)\n' "$rel" "$dest" "$label"
 }
 
+# Dispatch every immediate child of a legacy visual/baselines/ dir. baseline/ and
+# storageState-*.json are reusable across runs -> SHARE. A nested legacy current/
+# is a PER-RUN comparison set (state-root-resolution.md: visual/current/<slug>/ is
+# ISOLATE) with no per-run slug recoverable from the legacy flat layout, so it is
+# DISCARDED with a printed line rather than mis-migrated into SHARE. Nothing reads
+# a prior run's comparison set. $1 = legacy baselines/ abs path, $2 = SHARE
+# baselines dest.
+_tier2_migrate_baselines() {
+    local legacy_baselines="$1" dest="$2" bchild bname
+    for bchild in "$legacy_baselines"/*; do
+        [ -e "$bchild" ] || continue
+        bname="$(basename "$bchild")"
+        case "$bname" in
+            current)
+                printf '  Discarded legacy .odoo-ai/visual/baselines/current/ (per-run comparison set; no run slug recoverable - re-capture on the next run)\n' ;;
+            *)
+                _tier2_copy_one "$bchild" "$dest/$bname" "visual/baselines/$bname" "SHARE" ;;
+        esac
+    done
+}
+
 # Dispatch every immediate child of a legacy visual/ dir individually (Tier
 # depends on the FULL subpath, not the visual/ top-level name alone - see the
 # file header). $1 = legacy visual/ abs path, $2 = SHARE dir, $3 = ISOLATE dir.
@@ -169,7 +191,9 @@ _tier2_migrate_visual() {
         [ -e "$vchild" ] || continue
         vname="$(basename "$vchild")"
         case "$vname" in
-            baselines | doc)
+            baselines)
+                _tier2_migrate_baselines "$vchild" "$share_dir/visual/baselines" ;;
+            doc)
                 _tier2_copy_one "$vchild" "$share_dir/visual/$vname" "visual/$vname" "SHARE" ;;
             *)
                 _tier2_copy_one "$vchild" "$isolate_dir/visual/$vname" "visual/$vname" "ISOLATE" ;;

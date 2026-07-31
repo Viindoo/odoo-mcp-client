@@ -363,3 +363,89 @@ def test_no_legacy_dir_is_a_fast_noop(tmp_path):
         "no legacy .odoo-ai/ means nothing to migrate - no Tier-2 project dir "
         "should be created at all"
     )
+
+
+# --------------------------------------------------------------------------- #
+# visual/ split (CS-C5 - visual/current/<slug>/ moved to ISOLATE)
+#
+# The file exercised no `visual/` case at all before these two tests (grep for
+# "visual" returned zero hits) - the 2-arm top-level split (share/isolate) was
+# completely unguarded for visual/'s own nested SHARE-vs-ISOLATE rule.
+# --------------------------------------------------------------------------- #
+
+def test_visual_children_split_share_and_isolate_by_full_subpath(tmp_path):
+    """`visual/` is classified by the FULL subpath, never the top-level name
+    alone (state-root-resolution.md "Note the split inside visual/"):
+    `baselines/` and `doc/` land under SHARE; every other immediate child
+    (e.g. `screenshots/`) lands under ISOLATE. Asserts where BYTES end up,
+    not what a doc says."""
+    repo = _init_repo(tmp_path)
+    home = tmp_path / "home"
+    home.mkdir()
+
+    legacy_visual = repo / ".odoo-ai" / "visual"
+    (legacy_visual / "baselines" / "baseline").mkdir(parents=True)
+    (legacy_visual / "baselines" / "baseline" / "a.png").write_text("baseline-a", encoding="utf-8")
+    (legacy_visual / "baselines" / "storageState-x.json").write_text("{}\n", encoding="utf-8")
+    (legacy_visual / "doc").mkdir(parents=True)
+    (legacy_visual / "doc" / "b.png").write_text("doc-b", encoding="utf-8")
+    (legacy_visual / "screenshots" / "s").mkdir(parents=True)
+    (legacy_visual / "screenshots" / "s" / "c.png").write_text("screenshot-c", encoding="utf-8")
+
+    proc = _run_migration(repo, home)
+    assert proc.returncode == 0, f"migration failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+
+    share_dir, isolate_dir = _expected_dirs(repo, home)
+
+    assert (share_dir / "visual" / "baselines" / "baseline" / "a.png").read_text(encoding="utf-8") == "baseline-a", (
+        f"visual/baselines/baseline/ must land under SHARE.\nstdout: {proc.stdout}"
+    )
+    assert (share_dir / "visual" / "baselines" / "storageState-x.json").read_text(encoding="utf-8") == "{}\n", (
+        f"visual/baselines/storageState-*.json must land under SHARE.\nstdout: {proc.stdout}"
+    )
+    assert (share_dir / "visual" / "doc" / "b.png").read_text(encoding="utf-8") == "doc-b", (
+        f"visual/doc/ must land under SHARE.\nstdout: {proc.stdout}"
+    )
+    assert (isolate_dir / "visual" / "screenshots" / "s" / "c.png").read_text(encoding="utf-8") == "screenshot-c", (
+        f"visual/screenshots/ (not baselines/ or doc/) must land under ISOLATE.\nstdout: {proc.stdout}"
+    )
+    # Never cross-classified.
+    assert not (isolate_dir / "visual" / "baselines").exists()
+    assert not (isolate_dir / "visual" / "doc").exists()
+    assert not (share_dir / "visual" / "screenshots").exists()
+
+
+def test_legacy_baselines_current_is_discarded_not_migrated_to_share(tmp_path):
+    """A legacy `visual/baselines/current/` (the pre-fix, SHARE-tier, cross-run
+    location a visual-regression run's comparison set used to be written to)
+    is a PER-RUN artifact with no run slug recoverable from the flat legacy
+    layout - it must be DISCARDED, not copied wholesale into SHARE along with
+    the rest of `baselines/`. Red today: the un-split `baselines | doc)` arm
+    copies `baselines` wholesale, so the nested `current/` rides along into
+    SHARE."""
+    repo = _init_repo(tmp_path)
+    home = tmp_path / "home"
+    home.mkdir()
+
+    legacy_current = repo / ".odoo-ai" / "visual" / "baselines" / "current"
+    legacy_current.mkdir(parents=True)
+    (legacy_current / "home-1280.png").write_text("stale-comparison-set", encoding="utf-8")
+
+    proc = _run_migration(repo, home)
+    assert proc.returncode == 0, f"migration failed.\nstdout: {proc.stdout}\nstderr: {proc.stderr}"
+
+    share_dir, isolate_dir = _expected_dirs(repo, home)
+
+    assert not (share_dir / "visual" / "baselines" / "current").exists(), (
+        f"legacy visual/baselines/current/ must NOT be migrated into SHARE.\n"
+        f"stdout: {proc.stdout}"
+    )
+    assert not (isolate_dir / "visual" / "current").exists(), (
+        "legacy visual/baselines/current/ has no recoverable run slug - it must "
+        "be discarded, not guessed into an ISOLATE per-slug path either.\n"
+        f"stdout: {proc.stdout}"
+    )
+    assert "Discarded" in proc.stdout and "baselines/current" in proc.stdout, (
+        f"expected a printed line naming the discarded legacy comparison set.\n"
+        f"stdout: {proc.stdout}"
+    )

@@ -84,6 +84,14 @@ If absent or key missing, fall back to `$ODOO_AI_HOME/instances.toml` (resolve v
 `list_available_versions` for Odoo version. Ask the user (plus the two states to compare) in a
 single message only if none supply the needed values. Do not guess.
 
+Then resolve `<ISOLATE_DIR>` and mint this run's `<slug>` - both are needed before Round 3 writes any
+comparison screenshot. Resolve once per
+`${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` (same protocol as `<SHARE_DIR>` above).
+`<slug>`: use the `SLUG:` value from your dispatch brief when present; on a standalone invocation
+derive ONE stable, filesystem-safe slug from the comparison intent and reuse that SAME value for every
+path this run - never improvise a fresh one per screen, and never leave the literal `<slug>` token in
+a path (same convention as `${CLAUDE_PLUGIN_ROOT}/agents/odoo-ui-debugger.md` § Round 1).
+
 Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
 and pass that concrete version on every Round 1 OSM call - the pin is per-API-key and racy under
 concurrency, so passing it explicitly avoids scoping against the wrong version.
@@ -116,7 +124,7 @@ For each in-scope screen at each agreed breakpoint:
 Switch to state B's instance URL - `instance_base_url_b` when this is a two-instance comparison,
 otherwise re-navigate the SAME `instance_base_url` after applying the change under test (module
 install/uninstall, theme toggle, in-place upgrade) - then for each screen:
-1. `resize_page` to same breakpoint; `take_screenshot` → `<screenshot_baseline_dir>/current/<screen>-<breakpoint>.png` (`filePath`, never `path`).
+1. `resize_page` to same breakpoint; `take_screenshot` → `<ISOLATE_DIR>/visual/current/<slug>/<screen>-<breakpoint>.png` (`filePath`, never `path`). This run's comparison set is ISOLATE, per-run, and deleted after the Round-4 verdict is recorded (see Notes) - baselines stay SHARE.
 2. Compare pairs. Where pixel diff is ambiguous, use `evaluate_script` to compare DOM structure/text of the region.
 
 ### Round 4 - Report drift + scope
@@ -162,7 +170,8 @@ reused. This step is unconditional: run it even when Round 2/3 stayed on one pag
 - <screen> drifted but was NOT in the predicted blast radius - investigate.
 
 ### Baseline location
-- <screenshot_baseline_dir>/baseline/ and /current/
+- Baselines (SHARE, reusable): <screenshot_baseline_dir>/baseline/
+- This run's comparison set (ISOLATE, deleted after this verdict): <ISOLATE_DIR>/visual/current/<slug>/
 ```
 
 Examples (two worked scenarios - upgrade regression + SCSS change drift):
@@ -173,6 +182,14 @@ Examples (two worked scenarios - upgrade regression + SCSS change drift):
 - Determinism matters: same login, data, breakpoint, scroll position for both captures or the diff is noise.
 - Baselines are written under `screenshot_baseline_dir` from `<SHARE_DIR>/context.md`.
 - This skill detects drift only; hand fixes to `odoo-coding`.
+- **Tier split (do not merge them).** Baselines are SHARE (reusable across runs); this run's
+  comparison set is ISOLATE and per-slug, because two concurrent runs comparing different state-B
+  builds write the same screen filenames. Classification SSOT:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`.
+- **Retention (do this, every run).** After the Round-4 verdict is recorded, delete this run's
+  comparison set: `rm -rf <ISOLATE_DIR>/visual/current/<slug>/`. Scope it to `<slug>` ONLY - never a
+  bare `<ISOLATE_DIR>/visual/current/`. Nothing reads a prior run's comparison set; the baselines it
+  was compared against survive in SHARE.
 
 ## Continuation Contract
 
