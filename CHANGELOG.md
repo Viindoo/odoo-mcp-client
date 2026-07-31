@@ -81,6 +81,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   lexical evasions it demonstrably missed are covered, and the rule is extended to
   `set_active_profile` (whose surface description carried no concurrency warning at all). The four
   sites that quote the sentinel in order to forbid it are asserted to keep doing so.
+- `odoo-ai-agents` - `docs/personas/dev.md` and `dev.vi.md` had drifted from the generated tool
+  surface: the `test_base_classes` row dropped `SavepointCase` and "for the given version" (the clause
+  that stops an agent recommending a base class on a series where it no longer exists), and the
+  `test_coverage_audit` row dropped the whole-module framing and the "static reference coverage only,
+  not runtime executed" caveat. All four cells are corrected, and a new guard
+  (`tests/test_persona_docs_consistency.py`) computes the required identifiers and safety clauses from
+  `generator/server-surface.json` so the mirrors cannot drift again, plus a Vietnamese-language guard
+  against reintroducing the "pin once, then omit `odoo_version`" claim in a table row. The persona
+  tables stay hand-maintained by design; translation wording is explicitly out of the guard's scope.
 
 ## [4.18.1] - 2026-07-28
 

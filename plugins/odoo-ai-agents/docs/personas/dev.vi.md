@@ -73,8 +73,8 @@ Khám phá những gì đã được test trước khi viết test mới - trán
 | `find_test_examples(query, odoo_version="<version>")` | Tìm kiếm ngữ nghĩa chỉ trên code test (test method, test class, JS test - không bao giờ trả về production code). Tìm test hiện có trước khi viết test mới. |
 | `tests_covering(model, odoo_version="<version>")` | Liệt kê các test method có cạnh tham chiếu tĩnh `COVERS_*` tới một model hoặc field, nhóm theo assert/setup/body. |
 | `test_class_inspect(name, odoo_version="<version>")` | Kiểm tra một TestClass/TestHelper: base chain, hợp đồng cursor `setUpClass`, các test method kèm số lượng assert, danh sách subclassed-by. |
-| `test_base_classes(odoo_version="<version>")` | Menu các base class của framework test Odoo chính thức (TransactionCase, HttpCase, Form, ...) kèm `test_type` và hợp đồng cursor. |
-| `test_coverage_audit(module, odoo_version="<version>")` | Rà soát một module tìm field/method có zero cạnh `COVERS_*` (chưa bao giờ được test nào tham chiếu). |
+| `test_base_classes(odoo_version="<version>")` | Menu các base class của framework test Odoo chính thức (TransactionCase, HttpCase, SavepointCase, Form, v.v.) **cho đúng phiên bản được truyền vào**, kèm `test_type` và hợp đồng cursor. Luôn nêu rõ: `cr.commit()` bị CẤM - cô lập là savepoint rollback. |
+| `test_coverage_audit(module, odoo_version="<version>")` | Rà soát TOÀN BỘ một module tìm khoảng trống độ phủ test: liệt kê field/method có zero cạnh `COVERS_*` (chưa bao giờ được test nào tham chiếu). **Chỉ là độ phủ tham chiếu tĩnh, không phải độ phủ thực thi lúc chạy.** |
 | `js_test_inspect(module, odoo_version="<version>")` | Liệt kê các test suite JS trong một module: mix framework (Hoot/QUnit/tour), đường dẫn file, kích thước suite, tag. |
 
 ### Removed in v0.6

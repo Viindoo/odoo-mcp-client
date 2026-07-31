@@ -73,8 +73,8 @@ Discover what is already tested before writing new tests - avoid reinventing cov
 | `find_test_examples(query, odoo_version="<version>")` | Semantic search over test code only (test methods, test classes, JS tests - never production code). Find existing tests before writing new ones. |
 | `tests_covering(model, odoo_version="<version>")` | List test methods with static `COVERS_*` reference edges to a model or field, grouped by assert/setup/body. |
 | `test_class_inspect(name, odoo_version="<version>")` | Inspect a TestClass/TestHelper: base chain, `setUpClass` cursor contract, test methods with assert counts, subclassed-by list. |
-| `test_base_classes(odoo_version="<version>")` | Menu of official Odoo test framework base classes (TransactionCase, HttpCase, Form, ...) with `test_type` and cursor contract. |
-| `test_coverage_audit(module, odoo_version="<version>")` | Audit a module for fields/methods with zero `COVERS_*` edges (never referenced by any test). |
+| `test_base_classes(odoo_version="<version>")` | Menu of official Odoo test framework base classes (TransactionCase, HttpCase, SavepointCase, Form, etc.) **for the given version**, with `test_type` and cursor contract. Always surfaces: `cr.commit()` FORBIDDEN - isolation is savepoint rollback. |
+| `test_coverage_audit(module, odoo_version="<version>")` | Audit an entire module for test coverage gaps: lists fields/methods with zero `COVERS_*` edges (never referenced by any test). **Static reference coverage only, not runtime executed coverage.** |
 | `js_test_inspect(module, odoo_version="<version>")` | List JS test suites in a module: framework mix (Hoot/QUnit/tour), file paths, suite sizes, tags. |
 
 ### Removed in v0.6
