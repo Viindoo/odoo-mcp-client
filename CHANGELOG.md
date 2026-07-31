@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   per-module test could pass against code the instance never loaded. Also: the allocator now rejects
   an unknown flag instead of silently ignoring it, and a missing instance catalog produces a named
   diagnostic pointing at `/odoo-setup` instead of a silently-wrong project-local path.
+- `odoo-ai-agents` - `snippets/state-root-resolution.md` gains ISOLATE rows for
+  `recon/<slug>-<date>/` and `visual/current/<slug>/`, drops the visual-regression comparison set from
+  the reusable-across-runs bucket (it is per-run by construction), and documents the resolver's new
+  explicit-root form. A new guard asserts both rows land in the ISOLATE table, not the SHARE one.
 
 ## [4.18.1] - 2026-07-28
 
