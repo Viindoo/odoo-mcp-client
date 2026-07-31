@@ -73,6 +73,13 @@ Migration is needed when a module version bump introduces any of: field rename, 
 
 ## Method
 
+**`WORKTREE_PATH` is required whenever this skill writes a script.** The migration file is
+git-tracked, so per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5 the write happens in
+a dedicated worktree - never the principal checkout. A caller (forward-port, modules-upgrade, a
+run-harness node) passes `WORKTREE_PATH:`; resolve `<module>` under it, never under your own cwd.
+Invoked with no `WORKTREE_PATH` and no worktree already in scope -> provision one via
+`git-toolkit:git-ops` before Round 3, per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+
 ### Round 0 - Load context
 
 Read `<SHARE_DIR>/context.md` if present (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Extract `odoo_version`, `modules`, and any migration history. If absent, ask for target version and module name in a single message.
@@ -112,7 +119,7 @@ For relational fields, call `validate_relation` for each. For openupgradelib hel
 
 ### Round 3 - Write the script(s)
 
-Path: `<module>/migrations/<module_version>/pre-migrate.py` (before ORM load) and/or `post-migrate.py` (after ORM load). `<module_version>` matches the NEW version string in `__manifest__.py`.
+Path: `<WORKTREE_PATH>/<module>/migrations/<module_version>/pre-migrate.py` (before ORM load) and/or `post-migrate.py` (after ORM load). `<module_version>` matches the NEW version string in `__manifest__.py`.
 
 Script rules and code templates: `${CLAUDE_PLUGIN_ROOT}/skills/odoo-data-migration/references/script-rules.md`
 

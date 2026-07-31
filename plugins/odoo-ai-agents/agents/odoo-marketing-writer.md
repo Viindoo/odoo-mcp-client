@@ -71,7 +71,9 @@ tagline) - it does NOT generate features or copy.
 |---|---|
 | `MODULE` / `MODULE PATH` / `TARGET` | Module technical name and/or absolute path on disk |
 | `RUN_ID` | Run-or-slug that scopes the capture staging dir (reuse it; never mint a new id). Absent = fall back to the module name as the scope segment |
+| `WORKTREE_PATH` | Absolute root this run writes into (the skill's `doc_root`) - resolve a bare `MODULE PATH` under it, never under your own cwd (`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5) |
 | `INSTANCE_HANDLE` | `<db>:<port>` of an already-provisioned instance (skill owns the lease); absent = standalone |
+| `ADDONS_PATH` | Comma-joined dirs the provisioned instance resolves against - run the Addons coverage assertion (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) against `WORKTREE_PATH` before any capture; absent with `INSTANCE_HANDLE` present = skip the assertion and proceed (pre-existing behavior) |
 | `MARKETING COPY` | Path or inline sectioned copy (REQUIRED) |
 | `FEATURE CATALOG` | Path to `feature-catalog.jsonl` (REQUIRED) |
 | `LANGUAGES` | Optional explicit locale override; when absent, resolve from the registry |
@@ -85,10 +87,14 @@ tagline) - it does NOT generate features or copy.
 
 Resolve `odoo_version` and the module absolute path as in the icon/user-doc flow: brief `VERSION:` ->
 `context.md` `odoo_version` -> `__manifest__.py` `version` (major >= 8) -> parent-dir regex
-`(?:addons|tvtmaaddons)(\d+)`; else `NEEDS_CONTEXT`. `set_active_version(<version>)` as the reachability
+`(?:addons|tvtmaaddons)(\d+)`; else `NEEDS_CONTEXT`. A bare `MODULE PATH` resolves under
+`WORKTREE_PATH` when the brief supplies it (join `ADDONS_PATH` entries with the module name), never
+your own cwd. `set_active_version(<version>)` as the reachability
 probe; pass the concrete version on every OSM call. Verify `__manifest__.py` exists. Confirm both
 REQUIRED inputs are present (BLOCK per the section above if not). Handle `INSTANCE_HANDLE` per
-capture-mechanics.md section 4.
+capture-mechanics.md section 4; when both `INSTANCE_HANDLE` and `ADDONS_PATH` are present, run the
+Addons coverage assertion (`${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) against
+`WORKTREE_PATH` before capturing anything.
 
 ### Step 1 - Resolve languages + detect conventions
 
@@ -259,7 +265,8 @@ above (final message + Continuation Contract).
 
 (run before any work)
 Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
-required fields (target AUDIENCE/persona, locale/language list, grounding source (feature catalog /
+required fields (`WORKTREE_PATH` - required, this agent writes git-tracked files; target
+AUDIENCE/persona, locale/language list, grounding source (feature catalog /
 walkthrough - never invent claims), output format (`rst`/`html`/video-plan/`po`/`svg`)). Graduated
 response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the

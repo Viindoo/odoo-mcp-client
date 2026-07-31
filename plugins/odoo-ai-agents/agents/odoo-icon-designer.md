@@ -44,8 +44,11 @@ the reachability probe (OSM optional; if it fails, proceed in disk-only mode wit
 **Resolve MODULE_PATH:**
 1. From `MODULE_PATH:` in the dispatch brief (use directly).
 2. From `addons_path` in `context.md` + `MODULE:` name -> `<addons_path>/<module_name>/`.
-3. Disk scan: `find . -maxdepth 6 -name __manifest__.py -path "*/<module_name>/*"` to derive the
-   absolute path.
+3. Disk scan rooted at `WORKTREE_PATH` when the brief supplies it (never bare `.` - a separate
+   agent context does not inherit the dispatcher's cwd, per
+   `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5):
+   `find <WORKTREE_PATH> -maxdepth 6 -name __manifest__.py -path "*/<module_name>/*"`. With no
+   `WORKTREE_PATH` either, fall back to `.` (standalone dispatch only).
 4. If still unresolvable: `status: NEEDS_CONTEXT` requesting the absolute path.
 
 Verify `__manifest__.py` exists at MODULE_PATH. Read it now to extract `name`, `category`,
@@ -286,9 +289,10 @@ your icon artifacts and worklog to files as usual. If `SendMessage` is absent, b
 
 (run before any work)
 Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
-required fields (`MODULE_PATH` - the absolute module path; `BRIEF` palette hex values (`BG`/`FG`)
-when a brand differs from the category-hue default; `odoo_version` - drives the era-correct visual
-style and the PNG-only (v8-v18) vs PNG+SVG+manifest-key (v19) gate). Graduated response, per
+required fields (`WORKTREE_PATH` - required, this agent writes git-tracked files; `MODULE_PATH` -
+the absolute module path; `BRIEF` palette hex values (`BG`/`FG`) when a brand differs from the
+category-hue default; `odoo_version` - drives the era-correct visual style and the PNG-only
+(v8-v18) vs PNG+SVG+manifest-key (v19) gate). Graduated response, per
 ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.

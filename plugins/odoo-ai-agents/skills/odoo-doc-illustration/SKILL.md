@@ -56,7 +56,10 @@ bash -c "cd <doc_root> && bash ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve_project
 Pass these captured literals as `SHARE_DIR:` / `ISOLATE_DIR:` fields in EVERY writer dispatch brief
 (§Writer dispatch briefs below) and reuse the SAME captured `ISOLATE_DIR` value - never a fresh
 resolve call - at the end-of-run staging cleanup step below, so the writers' staging path and the
-cleanup's `rm -rf` target are guaranteed identical.
+cleanup's `rm -rf` target are guaranteed identical. `doc_root` is ALSO this run's `WORKTREE_PATH`
+(`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5 - each writer is a separate agent context
+and does not inherit this skill's cwd) - pass it verbatim as `WORKTREE_PATH:` in every writer brief
+alongside `SHARE_DIR:`/`ISOLATE_DIR:`; never let a writer re-derive its module root from its own cwd.
 
 **Orphan sweep (crash backstop, do this every run, BEFORE any writer dispatch above and BEFORE
 this run's own `<run_id>` exists below).** The end-of-run staging cleanup below only fires on a
@@ -105,7 +108,10 @@ PARALLEL across independent instance-paths up to
 1. **Provision once at the leaf.** Dispatch `odoo-instance` (`odoo-instance-ops`,
    `CONTEXT: doc, MODE: path-incremental`, `--skip-auto-install --with-demo --load-language=<csv>`,
    EXCLUSIVE lease, `--ports 1`). THIS SKILL (not instance-ops) reads back
-   `INSTANCE_HANDLE = <db>:<port>` from the returned instance-ops block.
+   `INSTANCE_HANDLE = <db>:<port>` PLUS `addons_path` from the returned instance-ops block (the full
+   descriptor per `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md`) and forwards
+   `addons_path` as `ADDONS_PATH:` to every writer (§Writer dispatch briefs) so each can run the
+   Addons coverage assertion against `WORKTREE_PATH` instead of trusting an unverified handle.
 2. **Walk `install_doc_sequence[]`** (each module M, leaf-dependency-first). For `M.doc == true`:
    1. **Marketing copy pre-fetch (TONE: marketing only).** If copy is not already supplied (the
       `module-packaging` workflow Phase 4 supplies it; a standalone run does not): first GUARANTEE
@@ -181,8 +187,10 @@ skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path)
 agent's Doc-writer family delta; never inline that file verbatim into a hard-leaf brief.
 
 The skill launches each writer with a self-contained brief. `MODULE PATH` may be a bare module name
-when `addons_path` is unknown - the writer resolves the absolute path from `context.md` or by
-scanning disk. Omitting an axis field preserves today's behavior (see Documentation axes). Shared
+- the writer resolves the absolute path under `WORKTREE_PATH` (never its own cwd - a dispatched
+agent does not inherit this skill's cwd, per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md`
+field 5) using `ADDONS_PATH`/`context.md` before falling back to a disk scan. Omitting an axis field
+preserves today's behavior (see Documentation axes). Shared
 browser-capture mechanics (2-tier write, headless/headed, on-theme check per
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-frontend-fidelity.md` - a screen with an empty or
 self-referential token resolves off-theme and must be skipped, never embedded in shipped docs -
@@ -190,9 +198,11 @@ per-locale loop, `CAPTURE MODE` step-drive) live in `references/capture-mechanic
 does not restate them.
 
 Both briefs carry `RUN_ID: <run-or-slug>` - REUSE the run's worklog run-or-slug (the id used for
-`doc-run-<run_id>/index.jsonl`); do NOT mint a new id. Both briefs ALSO carry `SHARE_DIR:` /
-`ISOLATE_DIR:` - the SAME absolute paths captured ONCE at §State dir resolution above; writers use
-them literally per `references/capture-mechanics.md` section 3, never re-resolving. The writers
+`doc-run-<run_id>/index.jsonl`); do NOT mint a new id. Both briefs ALSO carry `WORKTREE_PATH:` /
+`SHARE_DIR:` / `ISOLATE_DIR:` - the SAME absolute paths captured ONCE at §State dir resolution
+above; writers use them literally per `references/capture-mechanics.md` section 3, never
+re-resolving (WORKTREE_PATH is the cwd that section's Branch selection assumes - `cd` there first
+if the agent's shell cwd differs). The writers
 stage captures under `<ISOLATE_DIR>/visual/<run_id>/<module>_staging/...` (using the passed
 `ISOLATE_DIR` literal), so two modules or concurrent runs never clobber each other, and the
 end-of-run cleanup (which reuses the same literal) always finds the real staging tree.
@@ -201,9 +211,11 @@ end-of-run cleanup (which reuses the same literal) always finds the real staging
 ```
 MODULE PATH: <abs path to module dir | module name>
 RUN_ID: <run-or-slug>                 # reuse the worklog run-or-slug; scopes the staging dir
+WORKTREE_PATH: <abs-path captured at State dir resolution (doc_root)>
 SHARE_DIR: <abs-path captured at State dir resolution>
 ISOLATE_DIR: <abs-path captured at State dir resolution>   # use directly - do NOT re-resolve
 INSTANCE_HANDLE: <db>:<port>          # from provision-once; absent = writer self-checks install
+ADDONS_PATH: <comma-joined dirs read back with INSTANCE_HANDLE>   # lets the writer run the Addons coverage assertion (snippets/instance-handle-contract.md) against WORKTREE_PATH
 WALKTHROUGH: <abs path to walkthrough.jsonl from odoo-doc-scenarist>   # required for CAPTURE MODE: scenarios - skill pre-fetches via odoo-doc-walkthrough (§ per-instance loop step 2.2) when not already supplied
 FEATURE CATALOG: <abs path to feature-catalog.jsonl>                   # optional; feeds Usage + feature list
 LANGUAGES: <resolved locale list, English-first>
@@ -217,9 +229,11 @@ BROWSER MODE: headless | headed
 ```
 MODULE PATH: <abs path to module dir | module name>
 RUN_ID: <run-or-slug>                 # reuse the worklog run-or-slug; scopes the staging dir
+WORKTREE_PATH: <abs-path captured at State dir resolution (doc_root)>
 SHARE_DIR: <abs-path captured at State dir resolution>
 ISOLATE_DIR: <abs-path captured at State dir resolution>   # use directly - do NOT re-resolve
 INSTANCE_HANDLE: <db>:<port>
+ADDONS_PATH: <comma-joined dirs read back with INSTANCE_HANDLE>   # lets the writer run the Addons coverage assertion (snippets/instance-handle-contract.md) against WORKTREE_PATH
 MARKETING COPY: <abs path or inline sectioned copy from odoo-content-draft>   # REQUIRED - skill pre-fetches it
 FEATURE CATALOG: <abs path to feature-catalog.jsonl>                          # REQUIRED - absent -> writer BLOCKS
 LANGUAGES: <resolved locale list, English-first>
@@ -362,8 +376,9 @@ step; English first and in full) - see `references/capture-mechanics.md`.
 ## INSTANCE_HANDLE + cross-reference
 
 **INSTANCE_HANDLE (path-incremental).** In the per-instance loop the skill provisions once, reads
-back `INSTANCE_HANDLE = <db>:<port>` from the instance-ops block, and passes it to each writer. A
-writer with `INSTANCE_HANDLE` uses that DB/port directly and does NOT self-provision; after its
+back `INSTANCE_HANDLE = <db>:<port>` plus `addons_path` from the instance-ops block, and passes both
+(the latter as `ADDONS_PATH:`) to each writer. A writer with `INSTANCE_HANDLE` uses that DB/port
+directly and does NOT self-provision; after its
 writes it emits a path-incremental completion block so the skill can verify, commit, and advance to
 the next module delta on the same live DB. A writer with NO `INSTANCE_HANDLE` (standalone dispatch)
 self-checks that the module is installed and behaves as today.

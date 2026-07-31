@@ -76,6 +76,15 @@ Trigger when the user wants: coverage for a model/computed field/constraint/onch
 
 ## Method
 
+**`WORKTREE_PATH`.** The test file(s) are git-tracked, so per
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5 Round 4 writes into a dedicated worktree -
+never the principal checkout. When invoked via the `odoo-test-writer` agent, that agent already `cd`s
+into its `WORKTREE_PATH` before invoking this skill inline (`agents/odoo-test-writer.md`) - the paths
+below are relative to that cwd. Invoked standalone (no wrapping agent), require `WORKTREE_PATH`
+yourself and resolve `<addon>` under it; with none supplied and no worktree already in scope,
+provision one via `git-toolkit:git-ops` before Round 4, per
+`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
+
 ### Round 0 - version pin + context
 
 Call `set_active_version('<version>')`. Resolve from `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit) first; fall back to manifest `version` field; default to v17 only when both absent.
@@ -112,7 +121,7 @@ Call `find_test_examples(query='test <model or feature> TransactionCase', odoo_v
 
 ### Round 4 - write tests
 
-Write `tests/test_<feature>.py` (or `static/tests/test_<feature>.js` for JS). Apply these rules without exception:
+Write `<addon>/tests/test_<feature>.py` (or `<addon>/static/tests/test_<feature>.js` for JS), `<addon>` resolved under `WORKTREE_PATH` per the Method preamble above. Apply these rules without exception:
 
 **Business-rule naming.** Every test method name states the rule being protected: `test_discount_cannot_exceed_20pct`, `test_confirmed_order_locks_price`, `test_access_denied_for_portal_user`. Not: `test_sale_order_field`, `test_write_method`.
 

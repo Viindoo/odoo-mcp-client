@@ -245,27 +245,16 @@ def test_worktree_path_subject_files_discovered():
 
 # Known-red, SHRINK-ONLY. Each entry is a file whose frontmatter names a
 # git-tracked write target (.po/.pot/.py/.xml/.js/.scss/.rst/static/description/)
-# without carrying WORKTREE_PATH (snippets/dispatch-brief.md field 5). This PR
-# fixes odoo-i18n + odoo-translator because the i18n mandate requires it; the
-# rest are the same violation in flows the mandate does not touch. Computed
-# from the actual repo state (ODOO-AI-ETHOS #11 data-driven), not guessed -
-# regenerate by re-running the selection logic below if this ever needs an
-# audit.
-_MISSING_WORKTREE_PATH_ALLOWLIST = {
-    "agents/odoo-feature-cataloger.md",
-    "agents/odoo-icon-designer.md",
-    "agents/odoo-installable-prober.md",
-    "agents/odoo-marketing-writer.md",
-    "agents/odoo-planner.md",
-    "agents/odoo-user-doc-writer.md",
-    "skills/odoo-data-migration/SKILL.md",
-    "skills/odoo-doc-feature-map/SKILL.md",
-    "skills/odoo-doc-illustration/SKILL.md",
-    "skills/odoo-icon-design/SKILL.md",
-    "skills/odoo-onboarding/SKILL.md",
-    "skills/odoo-qa-suite/SKILL.md",
-    "skills/odoo-test-writing/SKILL.md",
-}
+# without carrying WORKTREE_PATH (snippets/dispatch-brief.md field 5). odoo-i18n +
+# odoo-translator were fixed first because the i18n mandate required it; every
+# remaining entry (the same violation in flows the mandate did not touch) has
+# since been threaded through and closed - see each file's own WORKTREE_PATH
+# wiring for the receiving dispatcher and, where a file merely NAMED a target in
+# prose without writing one (a frontmatter false-positive), the citation
+# explaining why no field applies. Stays EMPTY: a future git-tracked writer
+# that ships without WORKTREE_PATH must fail test_git_tracked_writers_carry_worktree_path
+# rather than being silently re-added here.
+_MISSING_WORKTREE_PATH_ALLOWLIST = set()
 
 _ODOO_AI_AGENTS_ROOT = REPO_ROOT / "plugins" / "odoo-ai-agents"
 
