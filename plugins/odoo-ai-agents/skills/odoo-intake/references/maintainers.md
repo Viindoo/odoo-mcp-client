@@ -16,7 +16,7 @@ when changing intake's structure, the routing table, or the harness wiring.
   registered.
 - **Plan Mode Content Schema**: a `writes-files` Approach requires 3 blocks in the Plan-Mode
   plan - Module list (naturally disjoint files), Dependency graph (DAG edge-types + topology, or one of
-  the 4 wave-batch topologies for few modules), and Assignment (module → skill/agent + effort + est_agents
+  the 5 wave-batch topologies for few modules), and Assignment (module → skill/agent + effort + est_agents
   (advisory) + verify - model/count owned by the dispatched skill at runtime, never bound by the plan).
   The work-item is `odoo-coder`'s INTERNAL intra-module unit and never a plan block.
   A chat-only Approach skips Plan Mode (decision tree at the top of § Plan Mode). Full schema:

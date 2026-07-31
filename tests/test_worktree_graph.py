@@ -213,15 +213,33 @@ def test_integration_loop_names_run_harness_as_canonical_consumer():
 
 
 # ---------------------------------------------------------------------------
-# Ledger scope note: intra-run structurally solved; ledger backstops cross-run only
+# Ledger scope note: intra-run backstopped by a POLICY step (SELF_PROVISION:
+# worktree-addons), NOT a structural guarantee of the git-fork lineage alone.
+#
+# Was: test_ledger_notes_intra_run_structurally_solved, which REQUIRED the
+# literal phrase "structurally solved" - i.e. it enforced the presence of the
+# very conflation this fix removes (a worktree CONTAINING a dependency's
+# source is not the same as that source being on the addons-path). Inverted
+# below: the ledger must state the corrected POLICY framing and must NOT
+# regress to the structurally-solved/impossible claim.
 # ---------------------------------------------------------------------------
 
-def test_ledger_notes_intra_run_structurally_solved():
+def test_ledger_notes_intra_run_backstopped_by_policy_not_structure():
     text = _text(LEDGER)
     low = text.lower()
     assert "block 2w" in low, "the ledger must reference Block 2W's fork-from-integrated-parent lineage"
-    assert "structurally solved" in low, (
-        "the ledger must state intra-run dependency-blindness is STRUCTURALLY SOLVED under Block 2W"
+    assert "contains" in low and "addons-path" in low, (
+        "the ledger must distinguish the worktree CONTAINING the dependency's source from that "
+        "source being on the addons-path"
+    )
+    assert "policy" in low, (
+        "the ledger must frame reaching the addons-path as a POLICY step (SELF_PROVISION: "
+        "worktree-addons, set by odoo-coding), never a structural guarantee of the fork itself"
+    )
+    assert "structurally solved" not in low and "structurally impossible" not in low, (
+        "the ledger must NOT claim the addons-path guarantee is 'structurally solved/impossible' - "
+        "see test_no_file_anywhere_claims_worktree_structurally_solves_addons_path for the "
+        "whole-plugin version of this guard"
     )
     assert "cross-run" in low, (
         "the ledger must state it now backstops ONLY concurrent independent (cross-run) coordination"
@@ -283,16 +301,45 @@ def test_per_module_brief_carries_share_and_isolate_fields():
     )
 
 
-def test_wave_integration_does_not_claim_worktree_carries_addons_path():
-    """A (absence, whitespace-normalized): wave-integration.md must not claim a
-    wave-2 worktree forked from run-integration already carries the dependency
-    on its addons-path by default - the allocator emits the CATALOG addons
-    list (the principal checkout), not the worktree. Deletion-only by
-    construction: the claim is one specific false sentence."""
-    text = _normalize_ws(_text(WAVE_INTEGRATION))
-    assert "already carries the dependency on its addons-path" not in text, (
-        "wave-integration.md must not claim a forked worktree already carries the "
-        "cross-wave dependency on its addons-path - see the Worktree-addons carve-out"
+_ADDONS_STRUCTURAL_CLAIM_PATTERNS = [
+    re.compile(r"already\s+carr\w*\s+the\s+dependenc\w*\s+on\s+its\s+addons-path", re.IGNORECASE),
+    re.compile(r"structurally\s+solved", re.IGNORECASE),
+    re.compile(r"structurally\s+impossible", re.IGNORECASE),
+    re.compile(r"structurally\s+remov\w*\s+the[^.]*blocked", re.IGNORECASE),
+    re.compile(r"\b(?:is|are)\s+on\s+the\s+addons-path\s+by\s+construction", re.IGNORECASE),
+]
+
+
+def test_no_file_anywhere_claims_worktree_structurally_solves_addons_path():
+    """CLASS guard (widened from a single literal phrase scoped to ONE file).
+
+    BEFORE: `"already carries the dependency on its addons-path" not in
+    <wave-integration.md's text alone>` - one file, one exact phrase.
+
+    AFTER: the same conflation - "a worktree CONTAINS the dependency's source
+    (true, by git-fork lineage)" presented as "therefore that source is on the
+    verification instance's addons-path" (false by default: the allocator
+    emits the CATALOG list, rooted at the principal checkout, until
+    `SELF_PROVISION: worktree-addons` re-roots it) - is a CLASS of claim with
+    several phrasings ("structurally solved", "structurally impossible",
+    "structurally removes the ... BLOCKED path", "on the addons-path BY
+    CONSTRUCTION"). It survived, unfixed, in THREE files the single-file/
+    single-phrase check could not see: snippets/module-coordination-ledger.md
+    (x2), skills/run-harness/SKILL.md, and
+    skills/odoo-intake/references/plan-mode-schema.md. Scan the WHOLE plugin
+    tree (`_tree_texts()`, the same helper the topology-count guards below
+    use) for the whole pattern family, not one file for one sentence.
+    """
+    offenders = []
+    for path, text in _tree_texts():
+        norm = _normalize_ws(text)
+        for pattern in _ADDONS_STRUCTURAL_CLAIM_PATTERNS:
+            if pattern.search(norm):
+                offenders.append(f"{path.relative_to(PLUGIN)}: matched {pattern.pattern!r}")
+    assert not offenders, (
+        "the following files conflate 'worktree contains the dependency's source' with 'source is "
+        "on the addons-path' - see snippets/instance-handle-contract.md § Worktree-addons "
+        "carve-out:\n" + "\n".join(offenders)
     )
 
 
@@ -432,19 +479,32 @@ def _count_word_violations(text: str, n: int) -> list[str]:
     (the ACTUAL enumerated value count) - UNLESS the reference is explicitly scoped to
     'multi-module' (excluding the `single` collapse case, which has no internal module ordering
     to describe), in which case it must agree with `n - 1`. Two directions are checked: the count
-    word BEFORE 'topolog' ("four multi-module topologies", "five topology values") and the count
-    word inside a "Topology values (<word>)" heading-style parenthetical (topolog BEFORE the word).
-    Returns violation messages (empty = no violations)."""
+    word BEFORE 'topolog' ("four multi-module topologies", "five topology values",
+    "the 4 wave-batch topologies") and the count word inside a "Topology values (<word>)"
+    heading-style parenthetical (topolog BEFORE the word).
+
+    Widened (was word-only: `\\b(one|two|...)\\b(\\s+multi-module)?\\s+topolog`, so it was blind to
+    a DIGIT count and to any filler word other than the literal "multi-module" between the count
+    and "topolog"): the count token now also accepts a bare digit (`4`, not just `four`), and up to
+    3 filler words of any kind may sit between the count and "topolog" (`wave-batch`,
+    `multi-module`, or a future adjective) - only "multi-module" (anywhere in that filler span)
+    still switches the expectation to `n - 1`. This is what makes
+    `skills/odoo-intake/references/maintainers.md`'s "the **4** wave-batch topologies" (a digit,
+    with the filler word "wave-batch" the old regex could not skip past) visible to this guard at
+    all. Returns violation messages (empty = no violations)."""
     violations = []
     for m in re.finditer(
-        rf"\b({_NUMBER_WORD_ALTERNATION})\b(\s+multi-module)?\s+topolog", text, re.IGNORECASE
+        rf"\b(\d{{1,2}}|{_NUMBER_WORD_ALTERNATION})\b((?:\s+[A-Za-z][A-Za-z-]*){{0,3}})\s+topolog",
+        text, re.IGNORECASE,
     ):
         word = m.group(1).lower()
-        scoped_to_multi_module = m.group(2) is not None
+        filler = (m.group(2) or "").lower()
+        scoped_to_multi_module = "multi-module" in filler
         expected = (n - 1) if scoped_to_multi_module else n
-        if _NUMBER_WORDS[word] != expected:
+        value = int(word) if word.isdigit() else _NUMBER_WORDS[word]
+        if value != expected:
             violations.append(
-                f"count word {word!r} ({'multi-module-scoped, ' if scoped_to_multi_module else ''}"
+                f"count token {word!r} ({'multi-module-scoped, ' if scoped_to_multi_module else ''}"
                 f"expected {expected}) disagrees with the enumerated value count N={n}: "
                 f"matched {m.group(0)!r}"
             )
@@ -478,3 +538,41 @@ def test_run_harness_skill_count_word_agrees_with_the_enumerated_value_count():
     n = _topology_value_count()
     violations = _count_word_violations(_text(RUN_HARNESS), n)
     assert not violations, "\n".join(violations)
+
+
+def test_every_file_stating_a_topology_count_agrees_with_the_owner():
+    """CLASS guard (widened from 2 hardcoded files to the WHOLE plugin tree).
+
+    BEFORE: the two tests above only ever read `WAVE_INTEGRATION` and
+    `RUN_HARNESS` - any THIRD file stating a topology count was invisible to
+    both, no matter how stale. `skills/odoo-intake/references/maintainers.md`
+    said "the 4 wave-batch topologies" (a DIGIT, with the filler word
+    "wave-batch") after the enum grew to 5 values, and neither test could see
+    it: it isn't one of the two files, and even if it were, the old regex
+    only matched a spelled-out number word immediately followed by
+    "multi-module" or "topolog" - not a digit, and not with an arbitrary
+    filler word in between.
+
+    AFTER: scan every text file in the plugin (`_tree_texts()`, the same
+    whole-tree helper `test_topology_value_set_has_exactly_one_definer` uses)
+    with the widened `_count_word_violations` (digit-or-word count token, up
+    to 3 filler words before "topolog").
+
+    Pre-fix finding count on this exact check (verified against
+    `git show HEAD:...maintainers.md`): exactly 1 -
+    `skills/odoo-intake/references/maintainers.md` ("the 4 wave-batch
+    topologies"). WAVE_INTEGRATION and RUN_HARNESS themselves are already
+    covered (and green) by the two dedicated tests above; this one exists to
+    catch every OTHER file, present or future.
+    """
+    n = _topology_value_count()
+    offenders = []
+    for path, text in _tree_texts():
+        violations = _count_word_violations(text, n)
+        if violations:
+            offenders.append(f"{path.relative_to(PLUGIN)}: " + "; ".join(violations))
+    assert not offenders, (
+        "the following files state a topology count that disagrees with the enumerated value "
+        f"count N={n} (owner: skills/run-harness/references/wave-integration.md):\n"
+        + "\n".join(offenders)
+    )
