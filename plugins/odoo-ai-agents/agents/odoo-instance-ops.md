@@ -744,7 +744,7 @@ modules_installed: [mod_a, mod_b]
 languages_loaded: [<active locales - ALWAYS includes en_US for create-instance / init-modules / run-tests(fresh) / load-language>]
 demo: true | false
 venv_python: <path>
-addons_path: <colon-separated path>
+addons_path: <comma-separated path>
 log_path: <captured verbatim from LOG_PATH= line emitted by the script>
 server_pid: <pid or null>    # the server's process-GROUP id under setsid (pgid == server_pid); null for --stop-after-init builds, which self-terminate after the job completes
 failed: <n or null>          # run-tests only; from TEST_FAILED=

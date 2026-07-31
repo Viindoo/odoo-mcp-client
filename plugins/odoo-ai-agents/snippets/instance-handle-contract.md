@@ -12,7 +12,7 @@ multi-agent run shares. It carries exactly:
 - `http_port` - the bound HTTP port (null for `--stop-after-init` runs)
 - `db_port` - the Postgres port the instance's cluster is bound to (empty when the catalog/lease
   omits it - never assume `5432`)
-- `addons_path` - the colon-separated addons path
+- `addons_path` - the comma-separated addons path (Odoo's own `--addons-path`/`addons_path` format)
 - `venv` - the Python interpreter / venv for the target series
 - `lease_token` - the allocator lease that owns the instance lifecycle
 - `run_id` - the run/session id that owns the lease, forwarded back at release as `--run-id`

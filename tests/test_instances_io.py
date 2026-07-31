@@ -232,6 +232,32 @@ def test_cmd_read_db_port_empty_when_absent_not_5432(tmp_path):
     assert out["INST_DB_PORT"] != "5432", "must NOT fabricate the libpq default 5432"
 
 
+def test_cmd_read_emits_inst_addons_path_comma_joined_for_two_entries(tmp_path):
+    """INST_ADDONS_PATH must be comma-joined for a 2+-entry addons_path -
+    matching Odoo's own --addons-path/addons_path syntax (never colon; see
+    scripts/lib/instances_io.py's join_addons_path SSOT). The mechanical
+    reason this bug survived is that no fixture exercised 2+ entries - this
+    is that fixture."""
+    toml = _make_toml(tmp_path, textwrap.dedent("""\
+        [[instance]]
+        series = "17.0"
+        db_name = "odoo_17"
+        http_port = 8069
+        db_host = "localhost"
+        db_user = "odoo"
+        run_mode = "source"
+        addons_path = ["/repos/core", "/repos/custom"]
+    """))
+    out = _run_read(toml, "17.0")
+    assert out.get("INST_ADDONS_PATH") == "/repos/core,/repos/custom", (
+        f"INST_ADDONS_PATH must be comma-joined for 2+ entries; "
+        f"got {out.get('INST_ADDONS_PATH')!r}"
+    )
+    assert ":" not in out.get("INST_ADDONS_PATH", ""), (
+        "INST_ADDONS_PATH must never use colon as the directory separator"
+    )
+
+
 def test_cmd_read_profile_arg_selects_correct_item_among_two(tmp_path):
     """With two [[instance]] blocks of the same series but different profile,
     the third CLI arg [profile] must select the right one."""

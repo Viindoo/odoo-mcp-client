@@ -42,6 +42,36 @@ import sys
 # instead of repeating the literal (P5.9 8069-fallback consolidation).
 DEFAULT_HTTP_PORT = 8069
 
+# SSOT for the addons_path wire format. Odoo's --addons-path CLI flag and its
+# addons_path config-file key are COMMA-separated, uniformly, across every
+# indexed series 8.0-19.0 (verified via cli_help). This repo historically also
+# produced a COLON-joined form in places (shell PATH convention) - that
+# divergence is why the separator bug recurred. Every producer AND consumer
+# of a flattened addons_path string, Python or shell, must go through
+# join_addons_path()/split_addons_path() (or the shell mirror
+# _addons_path_to_array() in resolve_instances.sh) instead of hand-rolling
+# ",".join(...)/":".join(...)/IFS=<literal>.
+ADDONS_PATH_SEP = ","
+
+
+def join_addons_path(paths):
+    """list[str] -> the ONE flattened wire format (comma-joined)."""
+    return ADDONS_PATH_SEP.join(str(p) for p in paths)
+
+
+def split_addons_path(value):
+    """Flattened addons_path string -> list[str].
+
+    Tolerates a legacy colon-joined value (an old INST_ADDONS_PATH caller, a
+    hand-typed override) transparently, so a stale caller degrades gracefully
+    instead of silently mis-splitting; always PRODUCE comma going forward via
+    join_addons_path - this function is read-tolerant, not an invitation to
+    keep emitting colon anywhere.
+    """
+    if not value:
+        return []
+    return [p.strip() for p in value.replace(":", ",").split(",") if p.strip()]
+
 
 def _load_tomllib(path):
     import tomllib  # py3.11+; ImportError -> caller falls back to text scan
@@ -190,7 +220,7 @@ def select_instance(items, want=None, profile=None):
 
 def _emit(name, value):
     if isinstance(value, list):
-        value = ":".join(str(x) for x in value)
+        value = join_addons_path(value)
     print(f"{name}={shlex.quote(str(value))}")
 
 

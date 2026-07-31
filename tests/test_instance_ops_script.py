@@ -1621,3 +1621,93 @@ def test_init_preflight_fails_loud_on_bad_python(tmp_path):
     call_log = tmp_path / "odoo-bin-calls.log"
     content = call_log.read_text(encoding="utf-8") if call_log.exists() else ""
     assert " -i " not in content, f"init must NOT run odoo-bin -i after preflight failure: {content}"
+
+
+# ---------------------------------------------------------------------------
+# Separator SSOT: _find_odoo_bin must resolve a REAL 2-entry, comma-joined
+# --addons value (the format allocator.py's ALLOC_ADDONS_PATH actually emits,
+# fed here via agents/odoo-instance-ops.md's `--addons "$ALLOC_ADDONS_PATH"`)
+# - not colon. This is the first test of 55-instance-ops.sh to exercise a
+# 2+-entry addons_path; every existing test above sets ODOO_BIN directly,
+# bypassing the _find_odoo_bin scan entirely.
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_find_odoo_bin_locates_across_two_entry_addons_path(tmp_path):
+    """_find_odoo_bin must locate odoo-bin when --addons carries 2 comma-joined
+    entries (today's REAL ALLOC_ADDONS_PATH format - allocator.py has emitted
+    comma since it was fixed to match Odoo's own --addons-path syntax) with
+    odoo-bin present only under the SECOND entry.
+
+    No ODOO_BIN override: the scan itself must split the comma-joined value.
+    This is the live, previously-undocumented regression at
+    55-instance-ops.sh:167 (hardcoded IFS=':' against a value that has been
+    comma-joined for weeks) - it fires on every init/update/test call the
+    odoo-instance-ops agent makes with a real (2+-repo) addons_path.
+    """
+    repo_a = tmp_path / "repo-a"
+    repo_a.mkdir()
+    repo_b = tmp_path / "repo-b"
+    repo_b.mkdir()
+    fake_bin = _make_fake_odoo_bin(repo_b, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+
+    env = _base_env(tmp_path)
+    env.pop("ODOO_BIN", None)
+
+    res = _run(
+        "init",
+        "--db", "mydb2",
+        "--python", str(fake_py),
+        "--addons", f"{repo_a},{repo_b}",
+        "--modules", "sale",
+        env=env,
+    )
+    out = res.stdout + res.stderr
+
+    assert res.returncode == 0, (
+        f"init failed to resolve odoo-bin across a real 2-entry comma-joined "
+        f"addons path.\nstdout={res.stdout}\nstderr={res.stderr}"
+    )
+    assert "STATUS=ok" in res.stdout, f"Expected STATUS=ok.\nstdout:\n{res.stdout}"
+    call_log = repo_b / "odoo-bin-calls.log"
+    assert call_log.exists(), (
+        f"odoo-bin stub (under the SECOND addons_path entry) was never "
+        f"invoked - the scan did not reach it.\n{out}"
+    )
+
+
+@requires_bash
+def test_addons_csv_passed_to_odoo_bin_is_never_double_converted(tmp_path):
+    """The --addons-path value odoo-bin actually receives, for a comma-joined
+    2-entry --addons input, must be byte-identical to the input - guards
+    against the old normalize idiom (`${arg_addons//:/, }`) reappearing and
+    silently injecting a space once every producer emits comma-only."""
+    repo_a = tmp_path / "repo-a"
+    repo_a.mkdir()
+    repo_b = tmp_path / "repo-b"
+    repo_b.mkdir()
+    fake_bin = _make_fake_odoo_bin(repo_b, extra_output='echo "Modules loaded."')
+    fake_py = _make_fake_python(tmp_path, odoo_bin_path=fake_bin)
+
+    env = _base_env(tmp_path)
+    env.pop("ODOO_BIN", None)
+    addons_value = f"{repo_a},{repo_b}"
+
+    res = _run(
+        "init",
+        "--db", "mydb3",
+        "--python", str(fake_py),
+        "--addons", addons_value,
+        "--modules", "sale",
+        env=env,
+    )
+    assert res.returncode == 0, f"init failed:\nstdout={res.stdout}\nstderr={res.stderr}"
+
+    call_log = repo_b / "odoo-bin-calls.log"
+    content = call_log.read_text(encoding="utf-8")
+    assert f"--addons-path {addons_value}" in content, (
+        f"Expected the odoo-bin invocation to receive the addons-path value "
+        f"byte-identical to the input (no injected spaces / double-conversion); "
+        f"got: {content!r}"
+    )

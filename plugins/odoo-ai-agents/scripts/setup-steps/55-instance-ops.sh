@@ -139,6 +139,10 @@ ODOO_DB_PY="$LIB_DIR/odoo_db.py"
 # Policy: snippets/odoo-bin-resource-limits.md. Values: scripts/lib/resource_limits.sh.
 # shellcheck source=../lib/resource_limits.sh
 source "$LIB_DIR/resource_limits.sh"
+# addons_path separator SSOT mirror (_addons_path_to_array) - see
+# scripts/lib/instances_io.py's join_addons_path/split_addons_path docstring.
+# shellcheck source=../lib/resolve_instances.sh
+source "$LIB_DIR/resolve_instances.sh"
 
 # ---------------------------------------------------------------------------
 # describe
@@ -164,13 +168,27 @@ _find_odoo_bin() {
         return 0
     fi
     local p
-    IFS=':' read -ra _paths <<< "${addons_path}"
+    _addons_path_to_array _paths "${addons_path}"
     for p in "${_paths[@]}"; do
         [[ -n "$p" ]] || continue
         if [[ -x "$p/odoo-bin" ]]; then echo "$p/odoo-bin"; return 0; fi
         if [[ -x "$(dirname "$p")/odoo-bin" ]]; then echo "$(dirname "$p")/odoo-bin"; return 0; fi
     done
     return 1
+}
+
+# ---------------------------------------------------------------------------
+# _addons_csv_from - the addons-path value handed to odoo-bin's --addons-path
+#   flag: SSOT-normalized (tolerates a stray legacy colon in $1, always
+#   returns comma-joined, no injected whitespace). Every real producer
+#   (allocator.py's ALLOC_ADDONS_PATH) already emits pure comma, so this is a
+#   no-op passthrough in the common case - it exists only so a hand-typed or
+#   legacy caller degrades gracefully instead of reaching odoo-bin malformed.
+# ---------------------------------------------------------------------------
+_addons_csv_from() {
+    local -a _acf_arr
+    _addons_path_to_array _acf_arr "$1"
+    (IFS="$ADDONS_PATH_SEP"; echo "${_acf_arr[*]}")
 }
 
 # ---------------------------------------------------------------------------
@@ -650,12 +668,10 @@ cmd_init() {
     local logf
     _open_log "$arg_db"
 
-    # Odoo expects comma-separated addons paths; the allocator/instances_io
-    # hands them over as colon-delimited (shell PATH convention).  Convert here.
-    local addons_csv="${arg_addons//:/, }"
-    # Normalise: remove spaces after commas for Odoo's option parser.
-    addons_csv="${addons_csv//,  /,}"
-    addons_csv="${addons_csv//,  /,}"  # second pass for edge-case double spaces
+    # arg_addons is SSOT-normalized (tolerates a stray legacy colon; every
+    # real producer already emits pure comma) - see _addons_csv_from.
+    local addons_csv
+    addons_csv="$(_addons_csv_from "$arg_addons")"
 
     local DB_CONN_ARGS
     _build_db_conn_args
@@ -744,10 +760,10 @@ cmd_update() {
     local logf
     _open_log "$arg_db"
 
-    # Odoo expects comma-separated addons paths; convert from colon-delimited.
-    local addons_csv="${arg_addons//:/, }"
-    addons_csv="${addons_csv//,  /,}"
-    addons_csv="${addons_csv//,  /,}"
+    # arg_addons is SSOT-normalized (tolerates a stray legacy colon; every
+    # real producer already emits pure comma) - see _addons_csv_from.
+    local addons_csv
+    addons_csv="$(_addons_csv_from "$arg_addons")"
 
     local DB_CONN_ARGS
     _build_db_conn_args
@@ -826,10 +842,10 @@ cmd_test() {
         test_tags_args=("--test-tags" "$arg_test_tags")
     fi
 
-    # Odoo expects comma-separated addons paths; convert from colon-delimited.
-    local addons_csv="${arg_addons//:/, }"
-    addons_csv="${addons_csv//,  /,}"
-    addons_csv="${addons_csv//,  /,}"
+    # arg_addons is SSOT-normalized (tolerates a stray legacy colon; every
+    # real producer already emits pure comma) - see _addons_csv_from.
+    local addons_csv
+    addons_csv="$(_addons_csv_from "$arg_addons")"
 
     # mode: fresh (default) -> -i (new DB / modules not yet installed; init+test in
     # one pass); reuse -> -u (DB already has the modules; re-running tests, where -i

@@ -60,9 +60,9 @@ _backup_toml() {
 # _all_paths_exist - return 0 if every addons_path entry exists on disk
 # ---------------------------------------------------------------------------
 _all_paths_exist() {
-    local paths_colon="$1"
+    local paths_joined="$1"
     local p
-    IFS=':' read -ra _chk_paths <<< "$paths_colon"
+    _addons_path_to_array _chk_paths "$paths_joined"
     for p in "${_chk_paths[@]}"; do
         [[ -n "$p" ]] || continue
         [[ -d "$p" ]] || return 1
@@ -120,14 +120,14 @@ for it in instances:
     paths = it.get("addons_path", [])
     if isinstance(paths, str):
         paths = [paths]
-    paths_str = ":".join(str(p) for p in paths)
+    paths_str = instances_io.join_addons_path(paths)
     print(f"{series}\t{paths_str}")
 PY
 )"
         if [[ -n "$series_list" ]]; then
-            while IFS=$'\t' read -r series paths_colon; do
+            while IFS=$'\t' read -r series paths_joined; do
                 existing_count=$((existing_count + 1))
-                if _all_paths_exist "$paths_colon"; then
+                if _all_paths_exist "$paths_joined"; then
                     kept_count=$((kept_count + 1))
                     echo "  keep   [[instance]] series=$series (paths ok)"
                 else

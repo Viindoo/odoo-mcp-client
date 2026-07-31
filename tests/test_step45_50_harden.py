@@ -871,6 +871,86 @@ def test_step50_gate_uses_odoo_bin_version_not_import(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# step 50 <-> instances_io: a REAL 2-entry addons_path must resolve odoo-bin -
+# _find_odoo_bin's split must match what instances_io.py's join_addons_path
+# actually emits, not a value that only happens to be right for a
+# single-entry addons_path.
+# ---------------------------------------------------------------------------
+
+@requires_bash
+def test_step50_finds_odoo_bin_across_a_real_two_entry_addons_path(tmp_path):
+    """_find_odoo_bin must locate odoo-bin when INST_ADDONS_PATH carries 2+
+    entries produced by the ACTUAL instances_io.py pipeline (a genuine TOML
+    array -> join_addons_path -> INST_ADDONS_PATH), not a hand-joined string.
+
+    No ODOO_BIN override here: the addons_path SCAN itself must resolve the
+    odoo-bin location by finding it under the SECOND entry - the exact
+    dimension (2+ real entries) that was absent from every other fixture and
+    let a producer/consumer separator mismatch (IFS=',' against a
+    colon-joined INST_ADDONS_PATH) ship silently.
+    """
+    # Entry 1: a plain custom-addons repo - no odoo-bin here.
+    custom_dir = tmp_path / "custom-addons"
+    custom_dir.mkdir(parents=True)
+
+    # Entry 2: the real Odoo core dir (has odoo-bin under it).
+    core = _make_core_dir(tmp_path)
+    core_addons = str(core / "addons")
+
+    # A python stub that FAILS the `<py> <odoo-bin> --version` preflight gate -
+    # this lets the test stop cheaply and deterministically right after
+    # odoo-bin resolution, without needing curl/pg_isready/poll machinery.
+    fake_py = _make_step50_fake_py(tmp_path, odoo_importable=False)
+
+    toml = tmp_path / "instances50-2entry.toml"
+    toml.write_text(
+        textwrap.dedent(f"""\
+            [[instance]]
+            series = "17.0"
+            python = "{fake_py}"
+            http_port = 18071
+            db_name = "odoo_test_2entry"
+            db_host = "localhost"
+            db_user = "odoo"
+            run_mode = "source"
+            addons_path = ["{custom_dir}", "{core_addons}"]
+        """),
+        encoding="utf-8",
+    )
+
+    bind = tmp_path / "bin50-2entry"
+    bind.mkdir(exist_ok=True)
+    _write_stub(bind / "curl", 'echo "000"\n')
+
+    env = dict(os.environ)
+    env["PATH"] = f"{bind}:{env.get('PATH', '')}"
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["ODOO_AI_HOME"] = str(tmp_path / "odoo-ai-home")
+    env["SPINUP_TIMEOUT"] = "3"
+    env.pop("ODOO_PG_PASSWORD", None)
+    env.pop("ODOO_BIN", None)  # the scan itself must find odoo-bin - no override
+
+    res = subprocess.run(
+        ["bash", str(STEP50), "apply", "--version", "17.0"],
+        capture_output=True, text=True, env=env, timeout=30,
+    )
+    out = res.stdout + res.stderr
+
+    # Must NOT report "Could not locate odoo-bin" - that would mean the scan
+    # failed to split the 2-entry INST_ADDONS_PATH correctly.
+    assert "Could not locate odoo-bin" not in out, (
+        f"_find_odoo_bin failed to resolve odoo-bin across a real 2-entry "
+        f"addons_path (producer/consumer separator mismatch).\nOutput:\n{out}"
+    )
+    # Must have reached the (deliberately failing) PREFLIGHT gate - proof
+    # odoo-bin WAS found and execution proceeded past the lookup.
+    assert "PREFLIGHT FAILED" in out, (
+        f"Expected to reach the PREFLIGHT gate (odoo-bin found, python stub "
+        f"rejects --version).\nOutput:\n{out}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # step 50 <-> allocator: shared-lease registration of the live render target
 # (no Postgres / no network; the 'odoo-bin' launch is faked by the py stub).
 # ---------------------------------------------------------------------------
