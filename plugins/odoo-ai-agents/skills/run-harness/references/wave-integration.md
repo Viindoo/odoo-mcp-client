@@ -44,8 +44,18 @@ concern and never a topology node here.
 
 ### Independent (most common)
 
-All modules touch disjoint files with no ordering dependency.
-Cherry-pick in any order. Maximum parallelism.
+All modules touch disjoint files with no ordering dependency: cherry-pick in ANY order - the build
+ORDER is unconstrained.
+
+**Does mean:** dispatch order is free - the loop below may pick mod-A, mod-B, mod-C in any sequence
+without violating a dependency.
+**Does NOT mean:** concurrent execution. The between-wave loop dispatches modules ONE AT A TIME via
+a synchronous `Skill("odoo-coding", ...)` call per module (§ Per-module Integration Loop
+(Pseudocode) below) - a Skill invocation runs IN the caller's own context
+(`${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Nesting), so run-harness never has two
+`odoo-coding` invocations in flight at once, `independent` topology or not. The only real
+concurrency inside a wave is the intra-module work-item fan-out INSIDE each `odoo-coder`
+coordinator - a PRIVATE concern of that one module's own build, invisible at this layer.
 
 ```
 base ────────────────────────────────────────────► (unchanged)
@@ -53,7 +63,7 @@ base ─────────────────────────
              └─► run-integration ─── cherry-pick A ─── cherry-pick B ─── cherry-pick C ──► close wave
                      │
                  mod-A ──► commit-A
-                 mod-B ──► commit-B    (all parallel)
+                 mod-B ──► commit-B    (order unconstrained - dispatched ONE AT A TIME, sequentially)
                  mod-C ──► commit-C
 ```
 
@@ -107,7 +117,8 @@ base ─────────────────────────
 
 `n <= 1`, where `n` is the number of modules THIS wave dispatches. There is nothing to integrate
 against a sibling, so the WORK tier buys nothing: dispatch the one module DIRECTLY into the
-already-provisioned JOB-tier integration worktree.
+already-provisioned JOB-tier integration worktree - created ONCE, by an explicit step, at
+`run-harness/SKILL.md` § Between-wave integration's "Run start" (never inferred here).
 
 - NO child worktree, NO branch, NO cherry-pick, NO converge, NO per-module saga checkpoint.
 - The commit lands on the integration branch itself; the wave's close-gate and AUTO-ADVANCE are
@@ -349,7 +360,8 @@ context, MODULES are processed SEQUENTIALLY in module-DAG order; the parallel fa
 intra-module work-item split) lives INSIDE each `odoo-coding` invocation.
 
 ```text
-# Run start (ONCE): run_integration = fork(base). Then per wave N, per module: ensure worktree ->
+# Run start (ONCE): create the JOB-tier run_integration worktree via git-toolkit:git-ops
+# (worktree add, branch forked from base). Then per wave N, per module: ensure worktree ->
 # INVOKE odoo-coding -> cherry-pick onto run_integration (saga). Sequential.
 # SSOT for the saga/rollback + checkpoint contract: skills/_shared/integration-loop.md (do not restate).
 # SSOT for the coder fan-out + Mode-B OOM budget: odoo-coding + skills/_shared/concurrency-guard.md.
@@ -403,8 +415,10 @@ for mod in topological_order(modules):      # module-DAG / wave order; dependent
 # run_integration branch (now carrying this wave's code). After the FINAL wave: the terminal
 # `integrate` land-tail squashes run_integration + fresh FIRST-push + opens ONE PR (drive-to-done).
 #
-# apply_saga_rollback(): clean-abort (reset-hard to pre_wave_sha) OR resume from last passing
-# checkpoint; never leave a half-built run_integration branch. Full contract: integration-loop.md.
+# apply_saga_rollback(): clean-abort (worktree abandon + re-fork at pre_wave_sha) OR resume from
+# last passing checkpoint; never a reset --hard against a live worktree (fires no destructive
+# gate, by construction); never leave a half-built run_integration branch. Full contract:
+# integration-loop.md.
 # `return` ends the wave loop entirely (matches integration-loop.md clean-abort): a failed/blocked module
 # is never recorded PASS and the loop never continues onto a rolled-back run_integration branch.
 ```
@@ -544,5 +558,7 @@ re-invokes git-ops (cherry-pick --continue). Re-run verify, checkpoint, continue
 
 **Example 7 - Mid-wave failure (saga rollback):**
 A cherry-pick verify cannot be made green within the loop's bound. Apply the
-`integration-loop.md` saga: clean-abort (reset-hard to the pre-wave SHA) or resume from the last
-passing checkpoint; report the failing module. Never leave a half-built run-integration branch.
+`integration-loop.md` saga: clean-abort (abandon the run-integration worktree and re-fork it at the
+pre-wave SHA) or resume from the last passing checkpoint; report the failing module. Never a
+`reset --hard` against a live worktree, and never leave a half-built run-integration branch - this
+is why the mid-wave stop stays autonomous (no destructive-confirm gate fires).

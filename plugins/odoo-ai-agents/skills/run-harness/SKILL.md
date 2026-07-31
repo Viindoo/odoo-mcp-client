@@ -238,9 +238,12 @@ four multi-module topologies plus the `single` collapse case; also the saga pseu
 checklist, the execution-log + squash recipe):
 `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`.
 
-**Run start (ONCE, before wave 1).** Fork ONE **run-integration** branch from `base`/principal. This
-single branch is the cherry-pick target for EVERY wave and is the branch the terminal `integrate`
-land-tail eventually squashes + pushes as the run's ONE PR. There is NO per-wave integration branch.
+**Run start (ONCE, before wave 1).** Create the JOB-tier integration worktree: invoke the
+`git-toolkit:git-ops` skill (via the Skill tool) to add a worktree (branch
+`run-integration-<slug>`, worktree `<worktree_root>/run-integration`, base `base`/principal). This
+single branch+worktree pair is the cherry-pick target for EVERY wave and is the branch the terminal
+`integrate` land-tail eventually squashes + pushes as the run's ONE PR. There is NO per-wave
+integration branch or worktree.
 
 Then, per wave N, in module-DAG order:
 

@@ -54,7 +54,8 @@ list (`X --> Y` = Y depends on X, X builds first). ASCII only (ETHOS rule 0): us
 ```text
 Module dependency graph
   Legend: [module] (NEW|existing) [skill: <execute-skill>] ; "X --> Y" = Y depends on X (X builds first)
-  Waves run top-to-bottom; modules within a wave are independent (built in parallel).
+  Waves run top-to-bottom; modules within a wave are independent - build ORDER is unconstrained
+  (run-harness still dispatches them SEQUENTIALLY, ONE AT A TIME - not concurrently).
 
   Wave 1
     [viin_fleet_billing] (NEW) [skill: odoo-coding]
@@ -197,8 +198,9 @@ workflow-chaining (model per-phase in YAML, effort = total) → verify: artifact
   one module node.
 - Three disjoint fixes in three modules (bug + test + docs) → three module nodes: `mod-A odoo-coding`,
   `mod-B odoo-coding`, `mod-C` docs edit; DAG: **independent** (no edges) → `run-harness`'s
-  between-wave integration iterates the wave's modules in parallel-eligible order (from the
-  approved plan; the user never drives it directly).
+  between-wave integration iterates the wave's modules SEQUENTIALLY, in any order (no edge
+  constrains which one goes first - NOT concurrently; from the approved plan; the user never
+  drives it directly).
 
 ## Rejection flow
 

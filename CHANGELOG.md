@@ -314,6 +314,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `SELF_PROVISION: worktree-addons` (landed earlier in this PR, `52225ad`) - no further action needed
   there. 14 new/widened guard tests added across 3 files (1 new file), each proven red against the
   pre-fix text (via a targeted stash of the source-only edits) before being fixed green.
+- `odoo-ai-agents` - a fifth PR #189 runtime review (a read-only role-play as the executing
+  run-harness agent) found three more pre-existing runtime-contract gaps in the between-wave
+  integration loop. (1) The saga rollback (`skills/_shared/integration-loop.md`) was a literal
+  `git reset --hard` of the run-integration branch - one of git-toolkit's 8 destructive
+  human-confirm-gated ops - while `run-harness/SKILL.md` bills the entire between-wave advance as
+  autonomous L1 drive-to-done with "NO per-wave stop" and no carve-out for the rollback, so a real
+  mid-wave failure would BLOCK unexpectedly on a run the agent was told never stops. The rollback is
+  now a worktree ABANDON + RE-FORK at the anchor SHA (never a live-tree `reset --hard`), with the
+  reasoning stated inline: run-integration is a disposable, never-pushed, run-scoped branch, so
+  nothing unique is discarded (the anchor SHA and every module's own commits stay reachable off
+  their own branch) - the rollback therefore fires no destructive-confirm gate by construction, not
+  by exemption, keeping the between-wave advance genuinely autonomous. No `git-toolkit/**` file was
+  touched. (2) `wave-integration.md`'s `independent` topology was labeled "(all parallel)" /
+  "Maximum parallelism", but the between-wave loop it describes dispatches modules SEQUENTIALLY (one
+  blocking `Skill("odoo-coding", ...)` call at a time) - an identical "built in parallel" claim was
+  also found in `plan-mode-schema.md`'s Block 2 template and worked example (a differently-shaped
+  sibling of the same defect). Both are fixed: the label now states plainly what `independent` DOES
+  mean (module build ORDER is unconstrained) versus what it does NOT mean (concurrent dispatch -
+  only the intra-module work-item fan-out inside `odoo-coder` is real concurrency). (3)
+  `topology: single`'s "already-provisioned JOB-tier integration worktree" was never created by a
+  named step - `run-harness/SKILL.md`'s "Run start" only forked a branch, unlike sibling skills
+  (`odoo-modules-upgrade`, `odoo-forward-port`) which each spell out an explicit
+  "Create the JOB-tier integration worktree: invoke the `git-toolkit:git-ops` skill ... to add a
+  worktree" step; Run start now carries the same explicit step, and `wave-integration.md` § Single
+  points back at it. 11 new guard tests added (1 new file), each proven red against the pre-fix text
+  (via a targeted stash of the source-only edits) before being fixed green.
 
 ## [4.18.1] - 2026-07-28
 
