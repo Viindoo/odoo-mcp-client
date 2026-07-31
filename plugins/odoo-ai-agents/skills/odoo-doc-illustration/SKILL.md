@@ -65,6 +65,11 @@ against that module - behavior unchanged.
 **Multi-module** (TARGET is `local`, `worktree:<abs-path>`, or `repo:<abs-path>` with >1 module):
 1. **Scope** - dispatch `odoo-doc-scoper` FIRST to enumerate `modules[]` with per-module
    `{abs_path, languages, doc_layer, has_demo, version, depends_in_scope, has_ondisk_doc}`.
+   **Resume: read `_scope.md` back, do not re-scope.** The scoper writes `_scope.md` under
+   `<SHARE_DIR>/documentation/<slug>-<date>/` (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-doc-scoper.md`).
+   Glob that dir for this slug first; a match is READ and used verbatim - skip the dispatch. The
+   per-instance loop reads any scope field it needs from that file, never from a re-dispatch.
+   Contract: `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 1.
 2. **Plan** - dispatch `odoo-doc-planner` (`plan_source: scope`) to emit `doc-plan.yaml` -
    dependency clusters + branch-aware instance allocation + per-instance topological
    `install_doc_sequence` + dedup + parallelism schedule. Algorithm SSOT:

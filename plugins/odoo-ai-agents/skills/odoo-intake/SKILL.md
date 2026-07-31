@@ -48,7 +48,7 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
 1. **Gate before execution.** Intake MAY write planning/design artifacts (brainstorm notes, design docs, `state.json`) during the plan turn. What it MUST NOT do before the Proposed Plan is approved: produce the routed deliverable (production code, generated proposals) or dispatch a `writes-files` specialist.
 2. **No `writes-files` specialist before Plan Mode is approved.** Three points, none optional:
    - (a) Never run `odoo-coding`, `odoo-brl`, `workflow-chaining`, or any `output_mode = writes-files` skill before approval - only describe it in the Proposed Plan. (Per-wave coding integration is owned by `run-harness`'s between-wave integration, driven from the approved plan - there is no user-invocable git-executor skill.) This clause governs mid-plan `writes-files` SPECIALISTS dispatched out of an already-approved plan. `odoo-brl` is itself a front-door plan-establisher (`planning-gate-contract.md` names it a FRONT DOOR alongside `odoo-intake`): it is STILL dispatched only after intake's own Proposed-Plan is approved - never speculatively - but, being self-gating (its own GATE 0/GATE E, not the harness Plan Mode), it is NOT additionally gated behind a separate pre-BRL `odoo-planning` dispatch (see § Plan Mode decision tree exceptions).
-   - (b) Phase R MAY launch a READ-ONLY recon subagent (`Explore` or an anonymous recon agent) to survey state; a read-only **leaf skill** (e.g. `odoo-feature-check`, `odoo-override-finding`) is invoked via the **Skill tool** instead (a skill name is not an agentType). The recon agent MUST NOT write a file or spawn further (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`); read-only agent types may lack the Write tool, so it returns findings in chat - if they must persist, the PARENT skill resolves the tier (SHARE vs ISOLATE) for the concrete subpath per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` and writes them under the resolved dir (e.g. `<SHARE_DIR>/<subdir>/<findings>.md`) after the agent returns. Read-only OSM calls (`model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`) are allowed.
+   - (b) Phase R MAY launch a READ-ONLY recon subagent (`Explore` or an anonymous recon agent) to survey state; a read-only **leaf skill** (e.g. `odoo-feature-check`, `odoo-override-finding`) is invoked via the **Skill tool** instead (a skill name is not an agentType). The recon agent MUST NOT write a file or spawn further (`${CLAUDE_PLUGIN_ROOT}/snippets/worker-brief.md`); read-only agent types may lack the Write tool, so it returns findings in chat; the PARENT skill then ALWAYS persists them - for Phase R this is not conditional - per `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 2, resolving the tier per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`. Read-only OSM calls (`model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`) are allowed.
    - (c) A `writes-files` specialist is dispatched ONLY after Plan Mode approval, by the main agent via the **Skill tool** (not a direct agent launch - see § Dispatch mechanism, § Plan Mode).
 3. **Phase 0 - Context, Detect & Clarify (mandatory).** Runs at the start of every invocation. Closes the **intent gate** before anything else proceeds.
 
@@ -56,6 +56,9 @@ Mirroring applies to CHAT ONLY. The ARTIFACTS the routed skills ship - reports, 
    - Read `<SHARE_DIR>/context.md` if it exists (version, edition, module list, instance URL) - resolve `<SHARE_DIR>` (and `<ISOLATE_DIR>` where noted below) via the resolve-capture-substitute protocol in `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` before the first Read/Write/Edit of any state-root path in this skill.
    - Check `<ISOLATE_DIR>/brainstorm/state.json` - if an in-progress brainstorm session exists, resume it (Tier 2).
    - **Check for an active run** - glob `<ISOLATE_DIR>/run-*.json` for any with `status: NEEDS_NEXT`. If one exists, do NOT silently open a second RUN-DAG. Surface it and ask: resume it (hand to `run-harness`), or start fresh? Only proceed to open a new run once the user chooses.
+   - **Check for existing recon** - glob `<ISOLATE_DIR>/recon/*/findings.md` for this intent's slug.
+     A match whose recorded target ref still holds -> READ it and SKIP Phase R's dispatch entirely
+     (resume rule: `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 1).
 
    **3b. Detect the working directory (4 branches).** Locate Odoo manifests with:
    ```bash
@@ -103,6 +106,12 @@ Two enforcement layers, both required: the **text gate** (Proposed Plan block; u
 - Launch **≤1-2 READ-ONLY recon subagents** (`Explore`, or an anonymous recon agent) to map code/modules relevant to the stated intent; a read-only leaf skill (e.g. `odoo-feature-check`) is instead invoked via the Skill tool. These agents do not write files and do not spawn. When the CHP capability probe is positive (Agent Team mode on), TaskCreate one task per dispatched work-item, inject TASK_ID + REPLY_TO: <this skill's current orchestrating context> (`main` when the main-context driver invoked this skill; do NOT hardcode a literal `main` if running nested inside a non-lead agent) + NOTIFY: <dependent names> into each teammate brief, poll TaskList/TaskGet for status, and read each result from the teammate's SendMessage push (NEVER from the .output transcript) - per `${CLAUDE_PLUGIN_ROOT}/snippets/agent-team-protocol.md`. When off, dispatch + collect as today.
 - Call read-only OSM tools as needed: `model_inspect`, `check_module_exists`, `find_override_point`, `impact_analysis`.
 - When recon reads a document that IS the requirement SSOT (RFP / contract / spec / requirement list), extract it faithfully per `${CLAUDE_PLUGIN_ROOT}/snippets/ssot-extraction-contract.md` - verbatim/structured, never an interpretive summary that invents specifics.
+- **Persist before you propose (MANDATORY).** After the recon subagents return, YOU (not they) write
+  their findings to `<ISOLATE_DIR>/recon/<slug>-<date>/findings.md` in the capped four-field record
+  shape, then reference that path in the Proposed Plan. Contract:
+  `${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md`. The subagents stay write-free.
+  Cannot resolve `<ISOLATE_DIR>` (resolver REFUSAL) -> proceed with the plan and record
+  `Findings (Recon): <bullets> (not persisted - state root unresolvable)`; never block intake on it.
 
 **Inventory discovery (hybrid).** Pull each fact from its SSOT:
 
@@ -250,6 +259,7 @@ Domain:         <one of 9 persona buckets>
 Approach:       <skill name | workflow name | command>
 Chain:          <skill> → <skill> ...   (for multi-step; "single turn" for atomic asks)
 Findings (Recon): <1-3 bullets from Phase R: what already exists / hook points / impact>
+Findings file:  <ISOLATE_DIR>/recon/<slug>-<date>/findings.md   (or "not persisted - state root unresolvable")
 Survey:         none | <SHARE_DIR>/survey/<slug>-<date>/synthesis.md   (deep-survey synthesis path, if a deep survey was run)
 Modules (preview): <module-A …, module-B … - disjoint; "single module" for atomic asks>
 Assignment (skill/agent + effort + est_agents): <module → skill|agent (effort S/M/L/XL, est_agents N - ADVISORY/du kien; model + count owned by the dispatched skill at runtime, never bound here)>

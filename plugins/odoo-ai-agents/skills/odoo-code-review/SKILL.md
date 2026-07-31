@@ -75,6 +75,12 @@ Dispatch agent `odoo-review-scoper` (sonnet) per the SCOPER I/O CONTRACT (SSOT: 
 
 The scoper writes `<ISOLATE_DIR>/reviews/<slug>-<date>/_scope.md` and returns the compact scope. Do NOT run git diff inline, map `__manifest__.py`, or call `test_coverage_audit` in main context - the scoper handles all of it.
 
+**Resume: read `_scope.md` back, do not re-scope.** Before dispatching the scoper, glob
+`<ISOLATE_DIR>/reviews/*/_scope.md` for this slug; a match whose recorded BASE ref still holds is
+READ and used verbatim - skip the scoper dispatch. Any later phase that needs a scope field it no
+longer holds in context reads it from that file, never from a re-dispatch. Contract:
+`${CLAUDE_PLUGIN_ROOT}/snippets/scouting-persistence-contract.md` clause 1.
+
 **Handle scoper terminals first, before reading `fanout`.** If the scoper returns `status: BLOCKED` or `status: NEEDS_CONTEXT` (e.g. an empty diff, an unresolvable `TARGET`, or a PR it could not map to modules), surface that status and its reason immediately and STOP - do NOT read `fanout` and do NOT dispatch any reviewer. A `BLOCKED`/`NEEDS_CONTEXT` scope has no reliable module list to fan out over.
 
 Scope output fields used by main (once the scoper's status is neither `BLOCKED` nor `NEEDS_CONTEXT`): full field schema per Step 6 of the scoper I/O contract (`${CLAUDE_PLUGIN_ROOT}/agents/odoo-review-scoper.md`). Key dispatch behaviors:

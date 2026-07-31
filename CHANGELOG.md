@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   optional explicit root (`--root <abs-path>` on the CLI, a positional argument when sourced,
   `root=` in Python). Omitting it is byte-identical to the previous cwd-based behaviour. This removes
   the `cd`-wrapper fragility class for cross-worktree dispatch.
+- `odoo-ai-agents` - new `snippets/scouting-persistence-contract.md`: a scouting phase writes its
+  findings to a tier-correct file and the consuming phase READS them back, with a resume rule that
+  skips a re-dispatch when a fresh artifact for the slug exists. Wired into intake Phase R and
+  Phase 0, forward-port P0/P1, the code-review and doc-illustration scopers, and the rebase intake.
+  Previously each of these produced findings that lived only in the orchestrator's context, so a
+  resumed run re-scouted from zero.
 
 ### Fixed
 
