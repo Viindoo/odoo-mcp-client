@@ -236,6 +236,14 @@ _probe_ready_fallback() {
 #   reattach until a fresh spin-up rewrites it" - i.e. it fails CLOSED
 #   (refuses to treat a mismatched live server as attachable), which is the
 #   safe direction for a collision-detection backstop.
+#
+#   Separator-independence: the token is a hash of a CANONICALIZED addons_path
+#   (see _identity_token), so the same real path list always hashes the same
+#   regardless of which separator character produced the string - a future
+#   wire-format change cannot recur this bug. A marker written before this fix
+#   (when this function hashed the raw string with no canonicalization) is
+#   still recognised via _identity_token_legacy, a one-time backward-compat
+#   bridge _identity_ok checks after the canonical token - see both functions.
 # ---------------------------------------------------------------------------
 _identity_marker_path() {
     # $1 = port. Lives under the SAME machine-global runtime root the
@@ -248,33 +256,71 @@ _identity_marker_path() {
 }
 
 _identity_token() {
-    # $1 = addons_path (comma-separated - see resolve_instances.sh's
-    # ADDONS_PATH_SEP). Separator-agnostic hash input: deterministic per
-    # project checkout - two different projects/repos never share addons_path,
-    # even when they share series, profile, db_name, and (in the race window) port.
+    # $1 = addons_path (any separator format). CANONICALIZED before hashing via
+    # _addons_path_to_array (resolve_instances.sh - folds a stray legacy colon
+    # to the SSOT comma) and rejoined on the fixed $ADDONS_PATH_SEP: the SAME
+    # real path list always hashes to the SAME token no matter which separator
+    # character produced the string. This is what makes identity
+    # separator-INDEPENDENT for good - a future producer flipping the wire
+    # format again (comma<->colon) cannot change any instance's recorded
+    # identity, because both forms canonicalize to one string before the hash
+    # ever sees it. (A prior version of this function hashed $1 raw, with no
+    # canonicalization, which is exactly how instances_io.py's _emit switching
+    # from colon- to comma-joining silently changed every recorded token - see
+    # _identity_token_legacy below for the one-time bridge that covers markers
+    # already written under that raw-hash behavior.)
+    local _idtok_paths canon
+    _addons_path_to_array _idtok_paths "$1"
+    canon="$(IFS="$ADDONS_PATH_SEP"; echo "${_idtok_paths[*]}")"
     python3 -c '
 import hashlib, sys
 print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:16])
-' "$1"
+' "$canon"
+}
+
+_identity_token_legacy() {
+    # $1 = addons_path (any separator format). Reproduces the PRE-FIX token: a
+    # raw colon-joined string hashed WITHOUT canonicalization - exactly what
+    # this script computed before instances_io.py's _emit silently switched
+    # from colon- to comma-joining the value it writes as INST_ADDONS_PATH.
+    # Used ONLY by _identity_ok, as a one-time backward-compat bridge so a
+    # marker file written by an older checkout of this script is still
+    # recognised as the SAME instance instead of a false COLLISION. Every
+    # marker _write_identity_marker writes from now on carries the canonical
+    # token above, so this legacy path fades out on its own as instances get
+    # re-spun-up (same self-healing shape as the rest of this guard).
+    local _idtok_paths legacy
+    _addons_path_to_array _idtok_paths "$1"
+    legacy="$(IFS=':'; echo "${_idtok_paths[*]}")"
+    python3 -c '
+import hashlib, sys
+print(hashlib.sha256(sys.argv[1].encode()).hexdigest()[:16])
+' "$legacy"
 }
 
 _write_identity_marker() {
-    # $1 = port, $2 = expected token, $3 = db_name (debug context only).
+    # $1 = port, $2 = expected (canonical) token, $3 = db_name (debug context only).
     local path
     path="$(_identity_marker_path "$1")" || return 0
     { printf '%s\n%s\n' "$2" "$3" >"$path"; } 2>/dev/null || true
 }
 
 _identity_ok() {
-    # $1 = port, $2 = this invocation's expected token. Returns 0 (pass) when
-    # no marker is recorded yet (cannot disprove - see the docstring above) OR
-    # the recorded token matches; returns 1 on a CONFIRMED mismatch (a live
+    # $1 = port, $2 = this invocation's expected (canonical) token, $3 = the
+    # addons_path this invocation resolved (used ONLY to recompute the LEGACY
+    # token below - see _identity_token_legacy). Returns 0 (pass) when no
+    # marker is recorded yet (cannot disprove - see the docstring above), the
+    # recorded token matches the canonical expected token, OR it matches the
+    # legacy (pre-separator-fix) token for the SAME addons_path - a marker
+    # written before this fix must not read as a false COLLISION for an
+    # unchanged real instance. Returns 1 only on a CONFIRMED mismatch (a live
     # server on this port was launched by this guard for a DIFFERENT project).
-    local port="$1" expected="$2" path have
+    local port="$1" expected="$2" addons_path="$3" path have
     path="$(_identity_marker_path "$port")" || return 0
     [[ -f "$path" ]] || return 0
     have="$(head -n1 "$path" 2>/dev/null || true)"
-    [[ -z "$have" || "$have" == "$expected" ]]
+    [[ -z "$have" || "$have" == "$expected" ]] && return 0
+    [[ "$have" == "$(_identity_token_legacy "$addons_path")" ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -289,7 +335,7 @@ cmd_check() {
     eval "$kv"
     port="${INST_HTTP_PORT:-$DEFAULT_HTTP_PORT}"
     _probe_ready "$port" || return 1
-    _identity_ok "$port" "$(_identity_token "${INST_ADDONS_PATH:-}")"
+    _identity_ok "$port" "$(_identity_token "${INST_ADDONS_PATH:-}")" "${INST_ADDONS_PATH:-}"
 }
 
 # ---------------------------------------------------------------------------
@@ -487,7 +533,7 @@ cmd_apply() {
     local _id_expected
     _id_expected="$(_identity_token "${INST_ADDONS_PATH:-}")"
     if _probe_ready "$port"; then
-        if _identity_ok "$port" "$_id_expected"; then
+        if _identity_ok "$port" "$_id_expected" "${INST_ADDONS_PATH:-}"; then
             [[ "$ARG_EXCLUSIVE" != "1" ]] && _register_shared
             echo "ok Instance ${INST_VERSION} already up at http://localhost:$port$_last_ready_path"
             return 0

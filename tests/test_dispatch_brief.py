@@ -317,3 +317,78 @@ def test_git_tracked_writers_carry_worktree_path():
     # The two files THIS commit fixes can never be quietly re-admitted.
     assert "skills/odoo-i18n/SKILL.md" not in _MISSING_WORKTREE_PATH_ALLOWLIST
     assert "agents/odoo-translator.md" not in _MISSING_WORKTREE_PATH_ALLOWLIST
+
+
+# ---------------------------------------------------------------------------
+# SELF_PROVISION: worktree-addons carve-out field.
+#
+# instance-handle-contract.md's Worktree-addons carve-out treats
+# `SELF_PROVISION: worktree-addons` as load-bearing: a brief carrying it
+# authorizes the per-module coordinator (odoo-coder) to self-provision even
+# though it may look like it "received no handle"; a brief carrying BOTH
+# `INSTANCE_HANDLE` and the token is explicitly "malformed" per that contract.
+# dispatch-brief.md brands itself the SSOT for the CALLER-side brief - a
+# caller reading only the SSOT must be told to emit this field, and
+# odoo-coder's own self-check (copied from the SSOT's SPAWNER template) must
+# validate it before dispatching a leaf on a brief whose SELF_PROVISION/
+# INSTANCE_HANDLE combination is malformed - otherwise the coordinator
+# silently takes the wrong branch instead of surfacing the gap.
+# ---------------------------------------------------------------------------
+
+_SELF_PROVISION_TOKEN = "SELF_PROVISION: worktree-addons"
+
+
+def _section(text, start_heading, end_heading=None):
+    """Return text from start_heading (inclusive) up to end_heading (exclusive),
+    or to EOF when end_heading is None/not found after start_heading."""
+    start = text.index(start_heading)
+    if end_heading is not None:
+        try:
+            end = text.index(end_heading, start + len(start_heading))
+            return text[start:end]
+        except ValueError:
+            pass
+    return text[start:]
+
+
+def test_dispatch_brief_coder_family_declares_self_provision():
+    text = DISPATCH_BRIEF.read_text(encoding="utf-8")
+    coder_section = _section(text, "### Coder", "### Reviewer / auditor")
+    # Whitespace-normalize before the literal-presence check so a line-wrap
+    # inside the token cannot produce a false pass/fail on either side.
+    normalized = " ".join(coder_section.split())
+    assert _SELF_PROVISION_TOKEN in normalized, (
+        "dispatch-brief.md's Coder family delta (the file brands itself THE "
+        f"SSOT for the caller-side brief) must declare the exact token "
+        f"{_SELF_PROVISION_TOKEN!r} - a caller reading only the SSOT would "
+        "not otherwise know to emit it (see instance-handle-contract.md "
+        "§ Worktree-addons carve-out)"
+    )
+
+
+def test_dispatch_brief_spawner_self_check_validates_self_provision():
+    text = DISPATCH_BRIEF.read_text(encoding="utf-8")
+    spawner_section = _section(text, "### SPAWNER variant", "## How a caller uses it")
+    normalized = " ".join(spawner_section.split())
+    assert "SELF_PROVISION" in normalized, (
+        "dispatch-brief.md's SPAWNER self-check template (copied verbatim into "
+        "odoo-coder.md's own '## Brief self-check') must validate "
+        "SELF_PROVISION alongside INSTANCE_HANDLE - otherwise a brief carrying "
+        "BOTH fields (malformed per instance-handle-contract.md) is never "
+        "caught by the template's own gate"
+    )
+
+
+def test_odoo_coder_brief_self_check_validates_self_provision():
+    odoo_coder = ODOO_AGENTS_DIR / "odoo-coder.md"
+    text = odoo_coder.read_text(encoding="utf-8")
+    self_check_section = _section(text, "## Brief self-check")
+    normalized = " ".join(self_check_section.split())
+    assert _SELF_PROVISION_TOKEN in normalized, (
+        "odoo-coder.md's OWN '## Brief self-check' section must validate the "
+        f"exact token {_SELF_PROVISION_TOKEN!r} - its 'Own the integrated "
+        "module verification' section a few lines earlier in the SAME file "
+        "keys directly on this field as load-bearing logic, so a malformed "
+        "brief must be caught by this self-check gate, not silently take the "
+        "wrong branch"
+    )

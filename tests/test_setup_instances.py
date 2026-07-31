@@ -891,3 +891,64 @@ def test_attach_guard_allows_a_live_port_with_matching_recorded_identity(tmp_pat
         f"a matching recorded identity must be treated as 'up', not a "
         f"collision; stdout={proc.stdout!r} stderr={proc.stderr!r}"
     )
+
+
+def _identity_token_legacy_py(addons_path_colon_joined: str) -> str:
+    """Mirror of 50-instance-spinup.sh's `_identity_token_legacy` - i.e. the
+    PRE-FIX `_identity_token` behavior: sha256[:16] of the RAW colon-joined
+    string, with NO canonicalization. Used ONLY to seed a marker file that
+    looks like one written by a checkout of this script from BEFORE the
+    separator-independence fix (back when instances_io.py's `_emit` still
+    colon-joined `addons_path` and `_identity_token` hashed its input as-is)."""
+    return hashlib.sha256(addons_path_colon_joined.encode()).hexdigest()[:16]
+
+
+@pytest.mark.skipif(which("bash") is None, reason="bash not available")
+def test_attach_guard_recognizes_a_pre_fix_colon_joined_identity_marker(tmp_path):
+    """Regression guard for the separator-format identity-hash break: a marker
+    written under the OLD colon-joined `_identity_token` (before
+    instances_io.py's `_emit` switched from colon- to comma-joining
+    `addons_path`, and before `_identity_token` canonicalized its input) must
+    still be recognised as the SAME instance after the fix - not read as a
+    false COLLISION - even though the current pipeline now hands
+    `_identity_token` a comma-joined string for this SAME real addons_path.
+
+    A single-entry addons_path (as used by the sibling tests above) cannot
+    exercise this: with no separator character present, the colon-joined and
+    comma-joined forms are byte-identical strings, so the separator-format
+    regression (and this regression guard) is invisible with only one path."""
+    home = tmp_path / "home"
+    home.mkdir()
+    identity_dir = home / "runtime" / "identity"
+    identity_dir.mkdir(parents=True)
+    legacy_token = _identity_token_legacy_py("/repos/custom:/repos/core/addons")
+    (identity_dir / "8069.token").write_text(
+        f"{legacy_token}\nodoo_17_0_mine\n", encoding="utf-8"
+    )
+
+    toml = tmp_path / "instances.toml"
+    toml.write_text(
+        '[[instance]]\nseries = "17.0"\n'
+        'addons_path = ["/repos/custom", "/repos/core/addons"]\n'
+        'http_port = 8069\ndb_name = "odoo_17_0_mine"\n',
+        encoding="utf-8",
+    )
+
+    bindir = tmp_path / "fakebin"
+    _write_curl_stub_always_200(bindir)
+
+    env = dict(os.environ)
+    env["ODOO_AI_HOME"] = str(home)
+    env["ODOO_AI_INSTANCES"] = str(toml)
+    env["PATH"] = f"{bindir}{os.pathsep}{env.get('PATH', '')}"
+
+    proc = subprocess.run(
+        ["bash", str(STEP50), "check", "--version", "17.0"],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc.returncode == 0, (
+        "a marker written under the PRE-FIX colon-joined hash format must "
+        "still be recognised as the SAME instance after the separator-"
+        "independence fix - a real, unchanged instance must not see a false "
+        f"COLLISION on upgrade; stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    )

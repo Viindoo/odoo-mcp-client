@@ -173,6 +173,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   file in the plugin and recognises a stale reference regardless of phrasing or filename proximity,
   and reads the heading text dynamically so a future rename cannot silently leave pointers behind
   again.
+- `odoo-ai-agents` - the instance-identity attach guard's `_identity_token` (`50-instance-spinup.sh`)
+  hashed its addons_path argument RAW: the same PR's `instances_io.py` `_emit` unification from
+  colon- to comma-joined addons_path (see above) silently changed every recorded token's input
+  format too, so a machine that had already spun up an instance under the pre-upgrade checkout would
+  see a false `COLLISION` on its next "already up" check for a real, unchanged, 2+-entry addons_path.
+  `_identity_token` now canonicalizes its input (via `resolve_instances.sh`'s
+  `_addons_path_to_array`) before hashing, so the same real addons_path always hashes to the same
+  token regardless of which separator produced the string - this class of regression cannot recur. A
+  new `_identity_token_legacy` reproduces the pre-fix raw-hash behavior, and `_identity_ok` now
+  accepts either token, so a marker already on disk from before this fix is still recognised as the
+  same instance instead of a false collision.
+- `odoo-ai-agents` - `upg-phase-detail.md`'s P0 step (2) `profile_inspect` call referenced
+  `<target_version>`, a variable step (4) - several steps later - is the first to bind; the earlier
+  'auto'-sentinel-ban sweep mechanically substituted every `odoo_version='auto'` with a
+  concrete-version placeholder without checking whether that variable was actually in scope at each
+  call site. Fixed to reference `<inferred_series>`, the series step (1) already binds one line
+  above. Every other placeholder the sweep introduced (44 occurrences across 14 files) was checked
+  and confirmed resolvable at its point of use.
+- `odoo-ai-agents` - the `SELF_PROVISION: worktree-addons` per-module worktree-addons carve-out field
+  is load-bearing in `odoo-coder.md`'s own dispatch logic but was undeclared in
+  `snippets/dispatch-brief.md` (the caller-side dispatch-brief SSOT) and unvalidated by
+  `odoo-coder.md`'s own `## Brief self-check` (copied from that SSOT's SPAWNER template) - a caller
+  reading only the SSOT would not know to emit the field, and a brief malformed by carrying both
+  `INSTANCE_HANDLE` and `SELF_PROVISION: worktree-addons` would silently take the wrong branch
+  instead of being caught. Both the SSOT and `odoo-coder.md` now declare/validate the field with the
+  identical token.
 
 ## [4.18.1] - 2026-07-28
 

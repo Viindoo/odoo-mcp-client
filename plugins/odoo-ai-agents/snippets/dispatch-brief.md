@@ -68,6 +68,11 @@ pointer back to this file - never the full skeleton table.
   test, not a spec).
 - The module/disjoint file-set boundary.
 - `INSTANCE_HANDLE`, or the explicit value `none provisioned`.
+- `SELF_PROVISION: worktree-addons` or `none` - `odoo-coder`'s INBOUND brief only (the dispatcher's
+  per-module worktree-addons carve-out decision; never a separate field on the leaf coders' own
+  briefs - see `${CLAUDE_PLUGIN_ROOT}/snippets/instance-handle-contract.md` § Worktree-addons
+  carve-out). MUTUALLY EXCLUSIVE with `INSTANCE_HANDLE`: a brief carrying BOTH is malformed - the
+  receiver treats it as the handle case and returns `NEEDS_CONTEXT`.
 - `DESIGN_DOC` to follow STRUCTURALLY - never inlined pseudocode.
 - `WORKTREE_PATH` mandatory; `BASE` CONDITIONAL (only when the coder must know the base ref for a
   rebase/adapt mode - a normal build's worktree already encodes the base).
@@ -203,13 +208,17 @@ re-brief.
 (run before dispatching any leaf)
 Validate your OWN inbound dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and the
 Coder family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
-`DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `RED_TEST_PATH` is PRODUCED by this
-coordinator (you launch `odoo-test-writer` to author it) - it is NOT required inbound; never
-self-block looking for it in your own brief.
+`SELF_PROVISION: worktree-addons` or `none`, `DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt
+mode]). `RED_TEST_PATH` is PRODUCED by this coordinator (you launch `odoo-test-writer` to author it)
+- it is NOT required inbound; never self-block looking for it in your own brief.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
 - Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing field with no safe default: surface the gap
   to your own caller before dispatching any leaf - do not silently guess or degrade, and do not
   dispatch a leaf on an unresolved brief.
+- Brief carries BOTH `INSTANCE_HANDLE` and `SELF_PROVISION: worktree-addons`: malformed, never a
+  safe default - surface the gap to your own caller before dispatching any leaf or running the
+  integrated verification; do not silently pick one and proceed (this is the exact field your
+  worktree-addons branch keys on).
 
 Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
 `odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target
