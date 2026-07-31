@@ -62,11 +62,16 @@ When composing the dispatch prompt for any specialist agent you dispatch, fill t
 skeleton in `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` (read it by path) plus the target
 agent's family delta; never inline that file verbatim into a hard-leaf brief.
 
-Dispatch `odoo-icon-designer` with a brief:
+`icon.png`/`icon.svg` and the `__manifest__.py` edit are git-tracked writes, so per
+`${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5 resolve `WORKTREE_PATH` BEFORE this
+dispatch: reuse the worktree already in scope, else provision one via `git-toolkit:git-ops` - never
+the principal checkout (S9, see § Verify then commit below) - then dispatch `odoo-icon-designer`
+with a brief:
 
 ```
 MODULE: <module name>
-MODULE_PATH: <absolute path to module dir, or omit to let agent resolve>
+MODULE_PATH: <absolute path to module dir, or omit to let agent resolve under WORKTREE_PATH>
+WORKTREE_PATH: <abs path resolved above>
 VERSION: <Odoo series, e.g. 17.0 - or omit to let agent resolve from manifest/context>
 BRIEF: <palette hints, symbol hint, or additional context; omit for brand-agnostic defaults>
 ```
@@ -120,11 +125,10 @@ fills, not with design-system token references.
 ## Verify then commit (git-delegation)
 
 **Verify then commit.** Verify the `odoo-icon-designer` agent's returned artifacts against its
-Output block (files exist at the reported paths - `icon.png`, plus `icon.svg` and the
-`__manifest__.py` `icon` key on v19), then COMMIT `icon.png`/`icon.svg`/the manifest `icon` key via
-git-toolkit `git-ops` (one-way git; the skill never runs raw git mutations). If dispatched
-standalone with no worktree in scope, FIRST invoke `git-toolkit:git-ops` to provision one - never
-the principal checkout (S9) - then author and commit inside it. Full contract:
+Output block (files exist at the reported paths under the `WORKTREE_PATH` resolved above -
+`icon.png`, plus `icon.svg` and the `__manifest__.py` `icon` key on v19), then COMMIT
+`icon.png`/`icon.svg`/the manifest `icon` key via git-toolkit `git-ops` (one-way git; the skill
+never runs raw git mutations) - never the principal checkout (S9). Full contract:
 `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md`.
 
 ## Continuation Contract

@@ -36,8 +36,16 @@ Check `<SHARE_DIR>/context.md` (resolve `<SHARE_DIR>` via the resolve-capture-su
 
 ### Step 1 - Detect project root
 
+When the dispatch brief carries `WORKTREE_PATH` (a caller - `odoo-intake`, `odoo-brl`, a run-harness
+node - already resolved a target root, per `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field
+5), root every `find` probe in this skill (here and Steps 4-5) at that absolute path instead of cwd -
+every bare `.` below is shorthand for `<WORKTREE_PATH:-.>`, substituted consistently so module
+discovery and the Step 8 `.gitignore` write never diverge onto two different roots. A
+direct/standalone invocation (the common case - a human running this skill in their own terminal)
+has no caller to supply it and falls back to cwd exactly as today.
+
 ```bash
-find . -maxdepth 3 -name "__manifest__.py" 2>/dev/null | head -20
+find <WORKTREE_PATH:-.> -maxdepth 3 -name "__manifest__.py" 2>/dev/null | head -20
 ```
 
 0 results → "No `__manifest__.py` found. Is this an Odoo repo? Provide the project root path." Wait for user.
@@ -126,7 +134,7 @@ Write `<SHARE_DIR>/context.md` (substitute the absolute path captured above; nev
 
 ### Step 8 - Update `.gitignore`
 
-Grep for `.odoo-ai/`; if absent, append (with leading newline if needed) as a defensive guard against a stray project-local state dir (all current agent state lives under the machine-global `$ODOO_AI_HOME`, never here). If `.gitignore` missing, create it. Idempotent.
+At `<WORKTREE_PATH:-.>/.gitignore` (the SAME root resolved at Step 1): grep for `.odoo-ai/`; if absent, append (with leading newline if needed) as a defensive guard against a stray project-local state dir (all current agent state lives under the machine-global `$ODOO_AI_HOME`, never here). If `.gitignore` missing, create it. Idempotent.
 
 ### Step 9 - Verify + suggest next
 

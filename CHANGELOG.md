@@ -391,6 +391,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   excludes all seven by name so only an actual abandoned `<run_id>/` directory can match. 10 new
   guard tests added (1 new file), including a structural cross-file consistency check that reddens
   if a future ISOLATE subpath is added without a corresponding Clause 3 classification.
+- `odoo-ai-agents` - closed the remaining 13-entry `WORKTREE_PATH` shrink-only allowlist in
+  `test_dispatch_brief.py` (now empty): `odoo-icon-designer`/`odoo-icon-design`,
+  `odoo-marketing-writer`/`odoo-user-doc-writer`/`odoo-doc-illustration`, `odoo-data-migration`,
+  `odoo-test-writing`, and `odoo-onboarding` now receive an explicit `WORKTREE_PATH` from their
+  dispatcher instead of inferring their write location from ambient cwd; `odoo-doc-illustration`
+  also stops truncating its `INSTANCE_HANDLE` to `<db>:<port>` and forwards `addons_path` as
+  `ADDONS_PATH` so `odoo-marketing-writer`/`odoo-user-doc-writer` can run the Addons coverage
+  assertion (`instance-handle-contract.md`) before capturing. `odoo-installable-prober` and
+  `odoo-qa-suite` needed no `WORKTREE_PATH` field (P2 predates worktree creation; the phase writes
+  only a state-root test-case table, never the executable test files) and gained a citation instead;
+  three more (`odoo-feature-cataloger`, `odoo-planner`, `odoo-doc-feature-map`) were frontmatter
+  false-positives that write only under the state root and needed no change at all - each closed
+  with a cited reason rather than a silent retention.
 
 ## [4.18.1] - 2026-07-28
 

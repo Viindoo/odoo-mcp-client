@@ -129,7 +129,10 @@ Rules:
 - Ground test mechanics in the TARGET version - test classes, tag syntax, and JS framework (QUnit vs Hoot) differ across versions. Resolve via OSM (`set_active_version` + `cli_help`) and follow `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`; never assume one version's command line applies to another.
 - **Python test class grounding:** call `test_base_classes` before specifying any TransactionCase/HttpCase in the table - it returns the `cr.commit() FORBIDDEN - isolation is savepoint rollback` contract plus the authoritative base-class menu (e.g. `test_base_classes(odoo_version='17.0')`). For runnable tests, route to `odoo-test-writing` (see frontmatter `description`) - this phase only records the base-class menu in the table.
 - **JS test framework grounding:** for any frontend module, call `js_test_inspect` (e.g. `js_test_inspect(module='web', odoo_version='17.0')`) to discover the framework (hoot/qunit/tour) and existing suites. Never assume Hoot vs QUnit from version alone - some modules pin an older framework during a transitional release.
-- Output file: `<ISOLATE_DIR>/qa/<slug>-test-cases.md`
+- Output file: `<ISOLATE_DIR>/qa/<slug>-test-cases.md` (state-root cache, never git-tracked - no
+  `WORKTREE_PATH` applies to this phase; the executable `.py`/`.js` test files themselves are
+  written by `odoo-test-writing`, which carries its own `WORKTREE_PATH` contract per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/dispatch-brief.md` field 5)
 
 ---
 
