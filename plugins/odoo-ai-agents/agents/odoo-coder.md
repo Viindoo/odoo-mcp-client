@@ -110,15 +110,19 @@ Your turn's terminal action is the completion-report push to your launcher (`REP
 (run before dispatching any leaf)
 Validate your OWN inbound dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and the
 Coder family's required fields (module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
-`DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). `RED_TEST_PATH` is PRODUCED by you
-(you launch `odoo-test-writer` to author it) - it is NOT required inbound; never self-block looking
-for it in your own brief.
+`SELF_PROVISION: worktree-addons` or `none`, `DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt
+mode]). `RED_TEST_PATH` is PRODUCED by you (you launch `odoo-test-writer` to author it) - it is NOT
+required inbound; never self-block looking for it in your own brief.
 - Missing a field with a safe default: PROCEED and state the assumption as your first output line.
 - Missing `OBJECTIVE`, `ACCEPTANCE`, `WORKTREE_PATH`, or another load-bearing field with no safe
   default: surface the gap to your own caller before dispatching any leaf - do not silently guess
   or degrade, and do not dispatch a leaf on an unresolved brief. `WORKTREE_PATH` in particular has
   NO safe default: an absent value is never read as "current checkout" (S9 forbids writing to the
   principal checkout) - it is always a load-bearing gap to surface, never a silent fallback.
+- Brief carries BOTH `INSTANCE_HANDLE` and `SELF_PROVISION: worktree-addons`: malformed, never a
+  safe default - surface the gap to your own caller before dispatching any leaf or running the
+  integrated verification (§ Own the integrated module verification above keys directly on
+  `SELF_PROVISION`); do not silently pick one and proceed.
 
 Then RE-BRIEF each leaf you dispatch (`odoo-test-writer`, `odoo-backend-coder`,
 `odoo-frontend-coder`): read `dispatch-brief.md` BY PATH, fill the universal skeleton + the target

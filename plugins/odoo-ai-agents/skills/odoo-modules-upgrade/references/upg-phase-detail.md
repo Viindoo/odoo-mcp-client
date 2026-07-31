@@ -54,7 +54,7 @@ TASK: Resolve the upgrade request into structured inputs.
     - set_active_version(odoo_version='<inferred_series>')
     - list_available_profiles()
     - For each profile that looks relevant (name contains the series or is the default),
-      profile_inspect(name='<profile>', method='summary', odoo_version='<target_version>') to confirm repos + module set.
+      profile_inspect(name='<profile>', method='summary', odoo_version='<inferred_series>') to confirm repos + module set.
     Report the matched_profile and its repos.
 
 (3) Auto-detect CANDIDATE MODULES using a manifest-version-series scan:
