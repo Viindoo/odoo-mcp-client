@@ -27,7 +27,7 @@ mutual-exclusion primitive** (`flock`/`fcntl`/`.lock`/pidfile = 0 occurrences in
 `concurrency-guard.md` governs only agent fan-out (OOM / model-weighted budget) - it says nothing
 about DB or port ownership.
 
-**Concurrency gap (verified):** OSM reads are safe (the API-key-pin race was neutralised by passing
+**Concurrency gap (verified):** OSM reads are safe (the session-pin race was neutralised by passing
 the concrete version every call). But every live-instance mutation is unsafe under concurrency:
 two agents/sessions resolve the SAME single `db_name`+`http_port`, so concurrent `--test-enable`,
 `-i`/`-u`, or spin-up collide on the port or corrupt each other's database. Nothing serialises them.
@@ -375,7 +375,7 @@ stale lease remains droppable with no `--force`, unchanged. Covered by
   is INSTANCE-FREE (static gate only - no allocator). This is also where `venv-resolution` belongs
   long-term (see the open item the brief slim-down surfaced).
 - `skills/_shared/concurrency-guard.md` - add an "Odoo instance allocation" section (sibling to the
-  OSM API-key-pin race) so the rule is discoverable where the other concurrency rules live.
+  OSM session-pin race) so the rule is discoverable where the other concurrency rules live.
 - `odoo-doctor` / setup - expose `allocator gc` + `allocator list`.
 
 **Wired:** the coding agents that touch a DB (`odoo-backend-coder`'s lint gate + the `odoo-coder`

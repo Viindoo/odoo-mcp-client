@@ -503,7 +503,7 @@
       "name": "set_active_version",
       "version_added": "0.6.0",
       "version_removed": null,
-      "description": "Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL). The pin is server-side state scoped to the API KEY - any concurrent agent or session sharing the key can overwrite it, so odoo_version='auto' may resolve to someone else's pin. Pass the concrete version on every subsequent call (multi-version flows like migrations and cross-version comparisons included); omitting odoo_version raises a validation error.",
+      "description": "Pin a CONCRETE Odoo version (sentinels like 'auto' are rejected; the call doubles as a cheap reachability probe; 24h idle TTL). The pin is server-side state shared per (api_key_id, mcp_session_id) - i.e. per MCP session, last-write-wins - so a concurrent actor SHARING this session (e.g. a dispatched subagent) can overwrite it; independent sessions never interfere. Pass the concrete version on every subsequent call (multi-version flows like migrations and cross-version comparisons included); omitting odoo_version raises a validation error.",
       "persona_tags": [
         "dev",
         "CEO",
@@ -530,7 +530,7 @@
       "name": "set_active_profile",
       "version_added": "0.6.0",
       "version_removed": null,
-      "description": "Pin tenant profile for the session so subsequent calls scope to one customer profile. The pin is server-side state scoped to the API KEY - a concurrent agent or session sharing the key can overwrite it, so pass profile_name explicitly on every call.",
+      "description": "Pin tenant profile for the session so subsequent calls scope to one customer profile. The pin is server-side state shared per (api_key_id, mcp_session_id) - i.e. per MCP session, last-write-wins - so a concurrent actor SHARING this session can overwrite it; independent sessions never interfere. The clobber is authz-safe: the pinned profile is re-validated at read time through a narrowing-only, fail-closed tenant check, so it can only narrow a view, never widen or leak it. Pass profile_name explicitly on every call regardless.",
       "persona_tags": [
         "dev",
         "CEO",

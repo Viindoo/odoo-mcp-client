@@ -61,23 +61,36 @@ unless the work needs cross-context reasoning - then pick the higher. A skill MA
 add a domain-specific tier table that refines these rows (e.g. `odoo-coding`
 § Phase 0) but MUST NOT restate the principle - reference this section.
 
-## OSM API-key-pin race (`set_active_version` and `set_active_profile`)
+## OSM session-pin race (`set_active_version` and `set_active_profile`)
 
-Both pins are server-side state scoped to the API KEY, not to the calling agent
-or session. Under ANY concurrency - parallel agents in one run, or two sessions
-sharing the key - the pin you read is not necessarily the pin you set.
+Both pins are server-side state shared per **(api_key_id, mcp_session_id)** - i.e. per MCP
+session, last-write-wins. Two INDEPENDENT sessions never interfere with each other. The hazard
+is MULTIPLE ACTORS inside ONE session: a parent agent and any subagent it dispatches share that
+same session, so one actor's pin silently clobbers another's - confirmed empirically (a
+dispatched subagent's `odoo_version='auto'` resolved to the parent's already-set pin, then the
+subagent's own pin silently overrode the parent's - no error, no warning either way).
 
-Rule for every agent and skill in this plugin, stated as a BAN so it is
-checkable: in every example call and every instruction, `odoo_version` carries a
-CONCRETE version and `profile_name` carries a concrete profile. The sentinel
-`'auto'` and a bare omission are BOTH forbidden - not discouraged. Still call
-`set_active_version` (and `set_active_profile` where a tenant profile applies)
-once at bootstrap: they are the reachability probe and keep the server-side
-default sane, and that is their ONLY sanctioned use. Never rely on their ambient
-state afterwards. Multi-version and multi-profile flows (migrations,
-cross-version diffs, cross-profile deployments) pass the explicit concrete value
-per call - never the pin. A genuinely unknown version is a `NEEDS_CONTEXT`, never
-a licence to pass `'auto'`.
+Rule for every agent and skill in this plugin, stated as a BAN so it is checkable: in every
+example call and every instruction, `odoo_version` carries a CONCRETE version and
+`profile_name` carries a concrete profile. The sentinel `'auto'` and a bare omission are BOTH
+forbidden - not discouraged. This ban is a POLICY STRICTER than the server's own contract: the
+server itself lets a single-actor session pass `'auto'` to reuse its own pin (ADR-0029) - that
+is a legitimate server feature, not a defect, and this plugin is not working around a bug. The
+ban exists because an agent can never prove at call time that it is the session's only actor: a
+parent may dispatch a subagent at any moment after the pin, silently turning a single-actor
+session into a multi-actor one. "`'auto'` is fine when you are alone" is therefore undecidable
+from inside a single call; "always pass a concrete value" is decidable and costs nothing extra.
+Still call `set_active_version` (and `set_active_profile` where a tenant profile applies) once
+at bootstrap: they are the reachability probe and keep the server-side default sane, and that is
+their ONLY sanctioned use. Never rely on their ambient state afterwards. Multi-version and
+multi-profile flows (migrations, cross-version diffs, cross-profile deployments) pass the
+explicit concrete value per call - never the pin. A genuinely unknown version is a
+`NEEDS_CONTEXT`, never a licence to pass `'auto'`.
+
+A `set_active_profile` clobber is authz-safe regardless of the above: the pinned profile is
+re-validated at read time through a narrowing-only, fail-closed tenant check, so a clobber can
+only narrow a view - never widen it or leak data - though it can still silently return a
+narrower-than-intended result, which is reason enough to keep passing `profile_name` explicitly.
 
 ## Odoo instance allocation (DB / port)
 

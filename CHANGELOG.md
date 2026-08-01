@@ -76,8 +76,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   guard computes the enumerated value count and asserts every count-word reference to
   "topolog(y|ies)" in either file agrees with it (or with count-1 when scoped to "multi-module"), so
   a future sixth value reddens this test instead of leaving a silent inconsistency.
-- `odoo-ai-agents` - the OSM session pin is API-key-scoped, so `odoo_version='auto'` can resolve to a
-  concurrent session's version. The ban is now enforced structurally: a new value-identity assertion
+- `odoo-ai-agents` - the OSM session pin is scoped per MCP session, so `odoo_version='auto'` can
+  resolve to another actor's version if one shares that session. The ban is now enforced
+  structurally: a new value-identity assertion
   rejects the sentinel in every example call, 43 instruction sites now pass a concrete-version
   placeholder, the guard's own docstring and failure messages no longer prescribe `'auto'`, three
   lexical evasions it demonstrably missed are covered, and the rule is extended to
@@ -161,18 +162,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   `tests/test_readme_phase_parity.py`, extracts each pipeline's phase anchors straight from its
   SKILL.md and asserts the README's matching section (both the mermaid diagram and the phase table)
   documents exactly that same set, so this class of drift cannot recur silently.
-- `odoo-ai-agents` - `concurrency-guard.md`'s OSM pin-race heading named the wrong scope: it read
-  "session-pin race" while its own body states the pin is scoped to the API KEY, not to the calling
-  session - the exact conclusion a reader must not draw. Renamed to "OSM API-key-pin race" (keeping
-  both `set_active_version` and `set_active_profile` named, per the earlier widening). Nine pointers
-  left dangling by an earlier rename (a mix of quoted-no-keyword, bare-no-`.md`, and reversed-word-
-  order phrasings, one of them in `docs/` where the old guard never looked) are corrected to the new
-  name, along with two local section headings that had drifted to the same stale term. The pointer
-  guard in `tests/test_agent_facing_guidance.py` recognised only one syntactic shape and skipped
-  `docs/` entirely - both defects are why the nine survived unnoticed. It now scans every markdown
-  file in the plugin and recognises a stale reference regardless of phrasing or filename proximity,
-  and reads the heading text dynamically so a future rename cannot silently leave pointers behind
-  again.
+- `odoo-ai-agents` - `concurrency-guard.md`'s OSM pin-race section is renamed "OSM session-pin
+  race" (covering both `set_active_version` and `set_active_profile`, per an earlier widening).
+  Nine pointers left dangling by that earlier rename (a mix of quoted-no-keyword, bare-no-`.md`,
+  and reversed-word-order phrasings, one of them in `docs/` where the old guard never looked) are
+  corrected to the current name, along with two local section headings that had drifted to a
+  stale term. The pointer guard in `tests/test_agent_facing_guidance.py` recognised only one
+  syntactic shape and skipped `docs/` entirely - both defects are why the nine survived unnoticed.
+  It now scans every markdown file in the plugin and recognises a stale reference regardless of
+  phrasing or filename proximity, and reads the heading text dynamically so a future rename
+  cannot silently leave pointers behind again.
+- `odoo-ai-agents` - the same section's scope claim was itself wrong: it said the
+  `set_active_version` / `set_active_profile` pins are scoped to the API key alone, so two
+  independent sessions sharing a key would clobber each other - the server actually shares each
+  pin per `(api_key_id, mcp_session_id)`, i.e. per MCP session; two independent sessions never
+  interfere, and the real hazard is multiple actors (a parent plus any subagent it dispatches)
+  sharing ONE session, confirmed empirically. Corrected the claim, reworded the `'auto'` ban's
+  rationale to the decidable one (an agent can never prove at call time that it is its session's
+  only actor), stated plainly that the ban is a policy stricter than the server's own contract
+  (the server itself permits a single-actor session to reuse `'auto'` per ADR-0029), and noted the
+  `set_active_profile` clobber is authz-safe (narrowing-only, fail-closed - it can only narrow a
+  view, never widen or leak). `generator/server-surface.json`'s descriptions for both tools are
+  corrected to state the same per-session scope (first sentence unchanged, so `make gen` produces
+  no diff), and a new test binds the section's scope claim to that SSOT so the two cannot drift
+  apart again.
 - `odoo-ai-agents` - the instance-identity attach guard's `_identity_token` (`50-instance-spinup.sh`)
   hashed its addons_path argument RAW: the same PR's `instances_io.py` `_emit` unification from
   colon- to comma-joined addons_path (see above) silently changed every recorded token's input

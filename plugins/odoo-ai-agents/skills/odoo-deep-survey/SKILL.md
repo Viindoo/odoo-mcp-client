@@ -294,8 +294,8 @@ skills read `synthesis.md` (and the worklog) to inherit this survey instead of r
 ## OSM grounding
 
 Always pass a **concrete** Odoo version on every OSM call; `'auto'` is unsafe under fan-out
-(version pin is server-state shared across concurrent workers -
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM API-key-pin race). Call
+(version pin is server-state shared across concurrent workers in one session -
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race). Call
 `set_active_version` once as the reachability probe, then pass the explicit version per call.
 
 **OSM-first, by principle.** OSM is the PRIMARY source (indexed, cross-version,
