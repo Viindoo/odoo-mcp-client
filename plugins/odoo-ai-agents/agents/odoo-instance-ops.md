@@ -37,7 +37,7 @@ cli_help(command='server', odoo_version='<series>')
 cli_help(command='db', odoo_version='<series>')
 ```
 
-The OSM `set_active_version` pin is server-side state scoped to the API key. A concurrent agent can overwrite it. HARD RULE: pass the CONCRETE version on EVERY subsequent OSM call - never rely on the ambient pin.
+The OSM `set_active_version` pin is session-scoped server state; any other actor sharing this session can overwrite it (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race). HARD RULE: pass the CONCRETE version on EVERY subsequent OSM call - never rely on the ambient pin.
 
 **Step C - Resolve venv.** Follow `${CLAUDE_PLUGIN_ROOT}/snippets/venv-resolution.md`. If `ALLOC_PYTHON` is already in scope AND non-empty (from an allocator acquire), use it directly - an empty `ALLOC_PYTHON` does NOT count as "in scope" and routes to the "build one first" branch below, never to a guessed system `python3`. If no suitable venv exists, build one first:
 

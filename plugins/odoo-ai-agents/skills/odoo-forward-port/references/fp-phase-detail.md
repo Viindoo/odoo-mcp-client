@@ -9,7 +9,9 @@ source/target series (`<source-series>-to-<target-series>`). Artifacts live unde
 `<ISOLATE_DIR>/forward-port/<slug>/` (gitignored; resolve `<SHARE_DIR>`/`<ISOLATE_DIR>` once per
 `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`; substitute the captured absolute path -
 never write the placeholder or a bare `.odoo-ai/` into a Read/Write/Edit). Every Odoo Semantic call passes a concrete
-`odoo_version=` (never a default; the pin is per-API-key state any concurrent agent can overwrite).
+`odoo_version=` (never a default; the pin is session-scoped state any other actor sharing this
+session can overwrite - SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` §
+OSM session-pin race).
 
 ---
 

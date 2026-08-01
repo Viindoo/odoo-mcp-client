@@ -493,6 +493,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   A new guard, `tests/test_agent_facing_inventory_counts.py`, extends the README-only check to every
   snippet/skill/agent/command/workflow file across all plugins so this class cannot resurface there
   unnoticed again.
+- `odoo-ai-agents` - the "OSM session-pin race" false-scope claim - pins scoped to the API key
+  alone, not the calling agent or session, when the server actually shares each pin per
+  `(api_key_id, mcp_session_id)`, i.e. per MCP session - that `e107561` corrected in
+  `concurrency-guard.md` had the SAME wrong wording surviving, unchanged, in 15 other files it
+  never touched: 6 agents
+  (`odoo-backend-debugger`, `odoo-instance-ops`, `odoo-intent-extractor`, `odoo-translator`,
+  `odoo-ui-debugger`, `odoo-ui-reviewer`), 4 skill/reference files (`odoo-debug/SKILL.md`,
+  `odoo-demo-recording/SKILL.md`, `odoo-visual-regression/SKILL.md`,
+  `odoo-git-rebase`/`odoo-forward-port`'s `*-phase-detail.md`), 3 IDE snippets
+  (`cursor-rules.md`, `gemini-gem-instructions.md`, `openai-gpt-instructions.md` - all hand-authored
+  prose outside their `<!-- BEGIN/END GENERATED TOOLS -->` markers), and `docs/setup.md` plus BOTH
+  `docs/personas/dev.md` and its Vietnamese mirror `dev.vi.md`. This is the SAME claim
+  `CHANGELOG` already recorded fixing once before (#253, v2.6.0, "per API key" -> "per live MCP
+  session") - it regressed a second time because every prior guard bound only the ONE file it was
+  written against, not the claim itself. Most sites now POINT at
+  `concurrency-guard.md`'s "OSM session-pin race" section instead of restating the scope (agent
+  files shrank or held flat - no restatement grew); `docs/setup.md` and the two persona docs, whose
+  audience is not Claude-Code-only, restate the correct `(api_key_id, mcp_session_id)` per-session
+  scope instead of pointing at a Claude-plugin-internal file path. A new repo-wide guard,
+  `tests/test_no_api_key_only_scope_claim_anywhere_in_repo` in
+  `tests/test_agent_facing_guidance.py`, structurally matches the CLAIM (an "API key" token
+  within a tight window of scope vocabulary - `per`/`scoped`/`keyed`/`alone`/`state`/`racy`/`pin`/
+  Vietnamese `theo` - with no genuine session-scope proof, e.g. `mcp_session_id`/`MCP session`/
+  `session-scoped`, within 300 characters either side) across every markdown file in the repo, not
+  one file or one sentence, so this class cannot resurface unnoticed a third time. Proven red
+  against the pre-fix tree first: 28 findings, one per site above (a table row or heading counts
+  once per file it recurs in).
 
 ## [4.18.1] - 2026-07-28
 

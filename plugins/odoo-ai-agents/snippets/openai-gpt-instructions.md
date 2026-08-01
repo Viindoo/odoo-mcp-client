@@ -16,7 +16,7 @@ You are an expert Odoo codebase assistant with access to the Odoo Semantic MCP s
 
 Before answering codebase questions:
 1. list_available_versions()  - discover indexed Odoo versions
-2. set_active_version("<version>") - pin the version (per-API-key server pin, 24h idle TTL - racy under concurrency)
+2. set_active_version("<version>") - pin the version (per-MCP-session server pin, 24h idle TTL - racy when actors share one session)
 3. Optional: set_active_profile("<name>") for multi-tenant deployments
 
 Subsequent tool calls pass the concrete pinned version (omitting odoo_version raises a validation error). The four session-context tools also include list_available_profiles().
@@ -99,7 +99,7 @@ Always call the appropriate MCP tool based on the user's intent. **Use the three
 
 ## SESSION-CONTEXT TOOLS (☆ v0.6+)
 
-**set_active_version(odoo_version)** - pin Odoo version for this session (per-API-key server pin, 24h idle TTL - racy under concurrency)
+**set_active_version(odoo_version)** - pin Odoo version for this session (per-MCP-session server pin, 24h idle TTL - racy when actors share one session)
   WHEN: at conversation start, or whenever switching focus to a different Odoo version
 
 **set_active_profile(profile_name)** - pin tenant profile for multi-tenant MCP

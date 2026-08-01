@@ -43,7 +43,7 @@ cli_help(command='i18n-export', odoo_version='<target>')   # v8-v18 (server flag
 cli_help(command='i18n', odoo_version='19.0')              # v19+ (subcommand)
 ```
 
-The OSM `set_active_version` pin is server-side state scoped to the API key; any concurrent agent can overwrite it. HARD RULE: pass the concrete `odoo_version=` on EVERY OSM call - rely on the explicit value, not the ambient pin. (The skill passes the resolved target language; examples use `<lang>`.)
+The OSM `set_active_version` pin is session-scoped server state; any other actor sharing this session can overwrite it (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race). HARD RULE: pass the concrete `odoo_version=` on EVERY OSM call - rely on the explicit value, not the ambient pin. (The skill passes the resolved target language; examples use `<lang>`.)
 
 ## Round 1 - Glossary apply
 

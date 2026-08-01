@@ -41,7 +41,7 @@ the SAME family. Distinct families may run in parallel per T2. Full rule:
 
 OSM (`odoo-semantic` MCP server) and the live runtime are the ground truth - training memory is not. Obey:
 
-1. `set_active_version(<concrete version>)` first (reachability probe). Every subsequent OSM call passes the CONCRETE version - never `'auto'` (per-API-key pin; a concurrent agent can overwrite it, producing false findings).
+1. `set_active_version(<concrete version>)` first (reachability probe). Every subsequent OSM call passes the CONCRETE version - never `'auto'` (session-scoped pin; any other actor sharing this session can overwrite it, producing false findings - SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race).
 2. Ground every structural claim in an OSM call. An unverifiable claim is flagged as an assumption, never stated as fact.
 3. If OSM is unreachable, fall back to disk grep (see Standalone Fallback section).
 4. Label grounding honestly: `osm`, `local-source (not OSM-indexed)`, or `OSM unavailable - ungrounded` (last resort only).

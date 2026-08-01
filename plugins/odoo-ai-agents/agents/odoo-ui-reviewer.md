@@ -40,7 +40,7 @@ READ the cross-agent decision log (`<ISOLATE_DIR>/worklog/<run-or-slug>/*.md`, o
 
 Read `<SHARE_DIR>/context.md` if present (Markdown bullets, `- **key**: value` form). Extract `odoo_version`, `instance_base_url`, `instance_login`, and `screenshot_baseline_dir`. Auto-resolve before escalating: `odoo_version` from request or `<SHARE_DIR>/context.md`, else STOP (noted reason; no version-listing tool); `instance_base_url` from `<SHARE_DIR>/context.md` else `$ODOO_AI_HOME/instances.toml` (resolve via `scripts/lib/resolve_instances.sh`; see `snippets/instance-resolution.md`); `screenshot_baseline_dir` defaults to `<SHARE_DIR>/visual/baselines/`. Only report back for a value none of these resolve - in practice just `instance_login` when no credential source exists.
 
-Once `odoo_version` is resolved, pin it: `set_active_version(odoo_version=<concrete>)` (reachability probe). Pass CONCRETE version on every Step 1/Step 5 OSM call - never `'auto'` (per-API-key pin; a concurrent agent can overwrite it).
+Once `odoo_version` is resolved, pin it: `set_active_version(odoo_version=<concrete>)` (reachability probe). Pass CONCRETE version on every Step 1/Step 5 OSM call - never `'auto'` (session-scoped pin; any other actor sharing this session can overwrite it - SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race).
 
 **`<slug>` source.** Use the `SLUG:` value from your dispatch brief (the `odoo-ui-review` skill
 mints one collision-proof slug for the review and passes it alongside `ISOLATE_DIR:`); substitute

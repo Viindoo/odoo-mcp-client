@@ -90,9 +90,10 @@ If a key is missing, fall back to the machine-global `$ODOO_AI_HOME/instances.to
 format MP4/GIF, and length) in a single message. Do not guess.
 
 Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)` and
-pass that concrete version on every Round 1 OSM call - the pin is per-API-key and racy under
-concurrency; without explicit passing the click path may target the wrong version's view names and
-URL scheme (`/odoo` vs `/web`, which differ by version).
+pass that concrete version on every Round 1 OSM call - the pin is session-scoped and racy when
+actors share a session (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM
+session-pin race); without explicit passing the click path may target the wrong version's view
+names and URL scheme (`/odoo` vs `/web`, which differ by version).
 
 ### Round 1 - Plan the click path (parallel, OSM)
 

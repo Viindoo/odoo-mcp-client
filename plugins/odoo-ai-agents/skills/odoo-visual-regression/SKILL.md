@@ -122,8 +122,9 @@ section and is cited BY `odoo-acceptance` (`visual/qa/<slug>/`), `odoo-debug`
 (`visual/debug/<slug>/`), and `odoo-ui-review` (`visual/screenshots/<slug>/`).
 
 Once `odoo_version` is resolved, **pin it** with `set_active_version(odoo_version=<concrete>)`
-and pass that concrete version on every Round 1 OSM call - the pin is per-API-key and racy under
-concurrency, so passing it explicitly avoids scoping against the wrong version.
+and pass that concrete version on every Round 1 OSM call - the pin is session-scoped and racy
+when actors share a session (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`
+§ OSM session-pin race), so passing it explicitly avoids scoping against the wrong version.
 
 ### Round 1 - Scope the comparison set (parallel, OSM)
 

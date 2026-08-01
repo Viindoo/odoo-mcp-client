@@ -709,3 +709,141 @@ def test_session_pin_race_scope_claim_matches_ssot():
         "two independent sessions never interfere, the hazard is multiple actors sharing "
         "ONE session"
     )
+
+
+# --- Repo-wide guard: the false "scoped to the API key" claim, in ANY phrasing, ANY file --
+# The two tests above bind ONE file (concurrency-guard.md) to the SSOT. This regressed
+# TWICE regardless: it was already fixed once (CHANGELOG #253, v2.6.0, "per API key" ->
+# "per live MCP session") and came back in >=15 more sites across agents/, skills/,
+# snippets/, and docs/ (both languages) - a single-file guard cannot catch a claim that
+# spreads by copy-paste into files the guard never reads. This test scans EVERY markdown
+# file in the whole repo (not just the plugin) and matches the CLAIM structurally, not one
+# hardcoded sentence, so a new phrasing or a new site cannot slip through the same gap
+# twice.
+#
+# Structural approach (two-stage, no allowlist):
+#   1. Candidate: an "API key" token (any casing/hyphenation: `api key`, `api-key`,
+#      `API-Key`; NOT `api_key_id` - the trailing `_id` breaks the `\b` word boundary after
+#      "key" on purpose, so the SSOT's own `(api_key_id, mcp_session_id)` tuple can never
+#      match here) sitting within a tight 20-char window of scope vocabulary (`per`,
+#      `scope(d)`, `keyed`, `alone`, `state`, `racy`, `pin(ned)`, or Vietnamese `theo`). This
+#      is what separates a genuine scope assertion ("the pin is per-API-key state") from an
+#      unrelated mention ("sign up for an API key") - measured: the only near-miss on this
+#      tree, commands/odoo-setup.md's "session-load state ... API key" (an unrelated
+#      credential-masking note), sits outside this window (the connective tissue between
+#      "state" and "API key" there runs ~28 chars, this window is 20).
+#   2. Once a candidate is found, it is a violation UNLESS a genuine session-scope phrase
+#      appears within 300 characters either side: `mcp_session_id`, `MCP session`,
+#      `session-scoped`, `scoped to {this,the,one} session`, `keyed to {this,the} session`,
+#      or Vietnamese `phien MCP` / `theo (tung) phien`. Deliberately NOT a bare "session" or
+#      "per session" - "Call it once per session" (a cadence instruction) and "Session
+#      context" (a heading label) both contain "session" yet assert nothing about the PIN's
+#      scope; a bare-word check would have let the pre-fix dev.md:26 row survive (it
+#      contains both "API-key-scoped" AND "once per session" in the same cell). The 300-char
+#      radius (vs. the 20-char candidate window) exists because a correction can be several
+#      wrapped lines away from the claim it corrects - CHANGELOG.md's own history of this
+#      exact bug narrates the false claim and its fix in the same paragraph, and must be
+#      able to keep doing that without tripping this guard.
+_API_KEY_TOKEN_RE = re.compile(r"\bapi[\s_-]*key\b", re.IGNORECASE)
+_SCOPE_VOCAB_NEAR_RE = re.compile(
+    r"\b(?:per|scope|scoped|keyed|alone|state|racy|pin|pinned|theo)\b", re.IGNORECASE
+)
+_SESSION_SCOPE_PROOF_RE = re.compile(
+    r"mcp_session_id"
+    r"|\bsession[\s-]scoped\b"
+    r"|\bscoped\s+to\s+(?:this|the|one)\s+session\b"
+    r"|\bkeyed\s+to\s+(?:this|the)\s+session\b"
+    r"|\bMCP\s+session\b"
+    r"|phi[eê]n\s+MCP\b"
+    r"|theo\s+(?:t[uừ]ng\s+)?phi[eê]n\b",
+    re.IGNORECASE,
+)
+_CANDIDATE_VOCAB_WINDOW = 20
+_SESSION_PROOF_WINDOW = 300
+# Reuses the exact marker syntax generator/gen_surface.py emits (see also
+# tests/test_git_delegation_boundary.py's identical pattern) - generated tool descriptions
+# are already bound to the SSOT by test_session_pin_race_scope_claim_matches_ssot above and
+# must never be hand-scored by this structural scan.
+_GENERATED_BLOCK_RE = re.compile(
+    r"<!--\s*BEGIN GENERATED\b.*?-->.*?<!--\s*END GENERATED\b.*?-->",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def _blank_generated_regions(text: str) -> str:
+    """Replace generated-marker spans with whitespace (newlines kept) so line numbers for
+    the rest of the file stay accurate and no generated content can ever match."""
+
+    def _blank(m: re.Match) -> str:
+        return "".join(c if c == "\n" else " " for c in m.group(0))
+
+    return _GENERATED_BLOCK_RE.sub(_blank, text)
+
+
+def _normalize_with_linemap(text: str) -> tuple[str, list[int]]:
+    """Collapse all whitespace runs (including newlines) to a single space, returning the
+    normalized string plus a parallel array mapping each output index back to its 1-based
+    source line - needed because a false-claim sentence can wrap across physical lines
+    (CHANGELOG.md hard-wraps at ~90 columns; this file's own docstring already documents the
+    identical problem for pointer-matching above)."""
+    norm_chars: list[str] = []
+    linemap: list[int] = []
+    line = 1
+    prev_was_space = False
+    for ch in text:
+        if ch == "\n":
+            line += 1
+        if ch.isspace():
+            if not prev_was_space:
+                norm_chars.append(" ")
+                linemap.append(line)
+            prev_was_space = True
+        else:
+            norm_chars.append(ch)
+            linemap.append(line)
+            prev_was_space = False
+    return "".join(norm_chars), linemap
+
+
+def _api_key_scope_offenders(text: str) -> list[tuple[int, str]]:
+    """Return (line, context) for every place `text` asserts the pin's scope is the API key
+    without also naming the MCP session - see the two-stage algorithm documented above."""
+    norm, linemap = _normalize_with_linemap(_blank_generated_regions(text))
+    offenders: list[tuple[int, str]] = []
+    for m in _API_KEY_TOKEN_RE.finditer(norm):
+        start, end = m.start(), m.end()
+        vocab_window = norm[max(0, start - _CANDIDATE_VOCAB_WINDOW):end + _CANDIDATE_VOCAB_WINDOW]
+        if not _SCOPE_VOCAB_NEAR_RE.search(vocab_window):
+            continue  # not a scope assertion at all (e.g. "sign up for an API key")
+        proof_window = norm[max(0, start - _SESSION_PROOF_WINDOW):end + _SESSION_PROOF_WINDOW]
+        if _SESSION_SCOPE_PROOF_RE.search(proof_window):
+            continue  # correctly (or historically, in the same breath) names the session
+        lineno = linemap[start] if start < len(linemap) else (linemap[-1] if linemap else 1)
+        context = norm[max(0, start - 60):end + 60].strip()
+        offenders.append((lineno, context))
+    return offenders
+
+
+def test_no_api_key_only_scope_claim_anywhere_in_repo():
+    """No markdown file anywhere in the repo may claim the set_active_version /
+    set_active_profile pin is scoped to the API key without also naming the MCP session -
+    in ANY phrasing, English or Vietnamese. This is the repo-wide counterpart of
+    test_session_pin_race_scope_claim_matches_ssot (which binds ONLY concurrency-guard.md):
+    the same false claim was fixed once before (CHANGELOG #253, v2.6.0) and regressed into
+    more than a dozen other files a single-file guard could never see coming. Scans every
+    ``*.md`` in the repo (not just the plugin), generated-marker regions excluded (those are
+    covered separately by the SSOT-bound test above)."""
+    offenders: list[str] = []
+    for f in sorted(REPO_ROOT.rglob("*.md")):
+        if ".git" in f.parts:
+            continue
+        for lineno, context in _api_key_scope_offenders(f.read_text(encoding="utf-8")):
+            offenders.append(f"{f.relative_to(REPO_ROOT)}:{lineno}: ...{context}...")
+    assert not offenders, (
+        "Prose states (or restates) the debunked 'pin is scoped to the API key' claim "
+        "somewhere in the repo. The server scopes each pin per (api_key_id, mcp_session_id) "
+        "- i.e. per MCP session, last-write-wins; two independent sessions never interfere, "
+        "the hazard is multiple actors sharing ONE session. Either state that scope exactly "
+        "(matching concurrency-guard.md's 'OSM session-pin race' section) or, better, point "
+        "at it instead of restating it. Offending lines:\n" + "\n".join(offenders)
+    )

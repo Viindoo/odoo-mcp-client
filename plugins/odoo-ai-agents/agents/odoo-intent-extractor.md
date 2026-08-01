@@ -114,7 +114,7 @@ entity_lookup(kind='method', model='account.move', method_name='_post', odoo_ver
 api_version_diff(symbol='account.move._post', from_version='16.0', to_version='17.0')
 ```
 
-`odoo_version=` is mandatory in every odoo-semantic-mcp call - never omit it, never rely on a default. The pin is per-API-key state that any concurrent agent can overwrite.
+`odoo_version=` is mandatory in every odoo-semantic-mcp call - never omit it, never rely on a default. The pin is session-scoped state that any other actor sharing this session can overwrite (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race).
 
 **When the diff contains test changes:** If Step 1 found added or modified test methods, ground
 the test class alongside the production symbols. Fire in parallel with the production-symbol

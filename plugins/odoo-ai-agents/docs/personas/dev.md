@@ -19,11 +19,11 @@ The full **31-tool arsenal**, optimized for development workflows - understandin
 | `entity_lookup(kind='field'\|'method'\|'view', ...)` | One entity drill-down by ID. **Replaces** `resolve_field` + `resolve_method` + `resolve_view`. |
 | `profile_inspect(profile, method='summary'\|'repos'\|'modules', ...)` | Profile-level introspection: inheritance chain + repos + module inventory (method=summary\|repos\|modules). |
 
-### Session context (per-API-key pin, 24h idle TTL - racy under concurrency)
+### Session context (per-MCP-session pin, 24h idle TTL - racy when actors share a session)
 
 | Tool | Use case |
 |------|----------|
-| `set_active_version(odoo_version)` | Pin the Odoo version for this session and probe server reachability. The pin is API-key-scoped and racy under concurrency, so pass the concrete `odoo_version=` on every call anyway - never rely on the pin. **Call it once per session** as the probe. |
+| `set_active_version(odoo_version)` | Pin the Odoo version for this session and probe server reachability. The pin is scoped per `(api_key_id, mcp_session_id)` - i.e. per MCP session - and racy when multiple actors share one session, so pass the concrete `odoo_version=` on every call anyway - never rely on the pin. **Call it once per session** as the probe. |
 | `set_active_profile(profile_name)` | Pin the tenant profile for cross-profile MCP deployments. |
 | `list_available_versions()` | Discover which Odoo versions the server has indexed. |
 | `list_available_profiles()` | Discover which profiles exist. |
@@ -93,13 +93,13 @@ Read-only handles for bookmark-stable access. Use these when you already know th
 
 ### 0. Pin the version once
 
-Before any exploration session, call `set_active_version` once as the reachability probe. It does NOT license omitting `odoo_version=` afterwards - the pin is API-key-scoped and a concurrent session can overwrite it, so pass the concrete version on every call:
+Before any exploration session, call `set_active_version` once as the reachability probe. It does NOT license omitting `odoo_version=` afterwards - the pin is scoped per MCP session and another actor sharing that session can overwrite it, so pass the concrete version on every call:
 
 ```
 set_active_version("<version>")
 ```
 
-TTL is 24h idle and the pin is per-API-key server state - any concurrent agent or session sharing the key can overwrite it, so pass the concrete version on every call under concurrency. Run `list_available_versions()` first if you are not sure which versions are indexed.
+TTL is 24h idle and the pin is scoped per `(api_key_id, mcp_session_id)`, i.e. per MCP session - two independent sessions never interfere, but another actor sharing THIS session can overwrite it - so pass the concrete version on every call under concurrency. Run `list_available_versions()` first if you are not sure which versions are indexed.
 
 ### 1. Understand before touching
 

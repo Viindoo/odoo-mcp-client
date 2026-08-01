@@ -561,7 +561,7 @@ Commit or `.gitignore` the file as appropriate for your team (the key is sensiti
 
 ## Session Context Setup (v0.5+) - `set_active_version` / `set_active_profile`
 
-The MCP server supports **sticky session context**: run `set_active_version` once and the value is remembered (24h idle TTL). CAUTION: the pin is per-API-key server state - concurrent agents or parallel sessions sharing the key overwrite each other, so under any concurrency pass the concrete `odoo_version` on every call instead of relying on the pin. Similarly `set_active_profile` pins the tenant profile.
+The MCP server supports **sticky session context**: run `set_active_version` once and the value is remembered (24h idle TTL). CAUTION: the pin is scoped per `(api_key_id, mcp_session_id)` - i.e. per MCP session, last-write-wins. Two independent sessions never interfere, but multiple actors sharing ONE session (e.g. a client and any process it dispatches) silently overwrite each other - so under any concurrency pass the concrete `odoo_version` on every call instead of relying on the pin. Similarly `set_active_profile` pins the tenant profile.
 
 **Recommended startup flow** for any AI client (Claude Code, Codex, Gemini, VS Code, Antigravity):
 
@@ -573,7 +573,7 @@ The MCP server supports **sticky session context**: run `set_active_version` onc
 5. <every later tool call still passes odoo_version='<version>' explicitly>   # the pin is a probe, not a default
 ```
 
-After step 2, pass the concrete pinned version on every call, e.g. `model_inspect(model="sale.order", method="summary", odoo_version='<version>')`. The server also accepts `odoo_version='auto'` to resolve against the sticky pin, but because the pin is per-API-key and racy under concurrency (above), this plugin's skills and agents always pass the concrete version instead.
+After step 2, pass the concrete pinned version on every call, e.g. `model_inspect(model="sale.order", method="summary", odoo_version='<version>')`. The server also accepts `odoo_version='auto'` to resolve against the sticky pin, but because the pin is per-session and racy when actors share one (above), this plugin's skills and agents always pass the concrete version instead.
 
 > See the [implicit session context docs](https://odoo-semantic.viindoo.com/docs/adr/0029-implicit-session-context) for the TTL behavior and pin-keying details.
 

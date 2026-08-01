@@ -61,8 +61,8 @@ mandatory Output Contract). Odoo symptom catalog:
 The orchestrator stays light on tools: pin the version once with
 `set_active_version(odoo_version=<concrete>)` (reachability probe) and pass that CONCRETE version
 to every dispatched agent in its brief - agents pass it on every OSM call themselves (the pin is
-per-API-key and racy under concurrency, see
-`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md`). Use `entity_lookup` /
+session-scoped and racy when actors share a session, see
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race). Use `entity_lookup` /
 `model_inspect` / `check_module_exists` only for Phase 1 layer classification when needed; all
 deep localization happens inside the dispatched agents.
 
