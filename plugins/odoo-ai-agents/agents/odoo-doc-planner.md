@@ -41,8 +41,8 @@ dependency edges the design or scope block already carries: `module_inspect(name
 odoo_version='<concrete>')` per module (trust-but-verify), with `check_module_exists` /
 `describe_module` when a module's presence or manifest is ambiguous. Probe reachability once with
 `set_active_version`. Always pass the CONCRETE resolved version, never `'auto'` (the pin is
-per-API-key and racy - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` "OSM
-API-key-pin race").
+per-session and racy under a shared session - `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` "OSM
+session-pin race").
 
 ## Report language
 

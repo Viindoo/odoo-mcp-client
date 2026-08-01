@@ -46,8 +46,8 @@ For a target set of modules `M`:
 
 1. For each module `m` in `M`, call
    `module_inspect(name=<m>, method='dependencies', odoo_version='<concrete>')`. Pass the CONCRETE
-   resolved version, never `'auto'` (the pin is per-API-key and racy - see
-   `concurrency-guard.md` "OSM API-key-pin race").
+   resolved version, never `'auto'` (the pin is per-session and racy under a shared session - see
+   `concurrency-guard.md` "OSM session-pin race").
 2. Build the sub-graph **restricted to `M`** (edges to modules outside `M` are recorded as
    *upstream context*, not as in-set ordering edges).
 3. Topologically order it: modules that do not depend on each other within `M` are **independent**

@@ -16,7 +16,7 @@ sentence verbatim - "assert containment of the canonical sentence" is therefore
 not implementable). What IS checkable in both files is (1) code identifiers,
 which are never translated, (2) the structural parity of the two tables, and
 (3) a small, explicit list of known evasion phrasings for one specific rule (the
-OSM API-key-pin race - see skills/_shared/concurrency-guard.md) that already has
+OSM session-pin race - see skills/_shared/concurrency-guard.md) that already has
 an English-only guard in tests/test_agent_facing_guidance.py. Do not generalize
 these tests into a translation-quality gate.
 
@@ -261,11 +261,11 @@ def test_every_persona_tool_still_exists_in_the_surface():
     )
 
 
-# --- Vietnamese counterpart of the OSM API-key-pin evasion guard -----------------
+# --- Vietnamese counterpart of the OSM session-pin evasion guard -----------------
 # tests/test_agent_facing_guidance.py bans, in English only, prose that licenses
-# omitting odoo_version after a set_active_version pin (the pin is API-key-scoped
-# and racy under concurrency - see skills/_shared/concurrency-guard.md, "OSM
-# API-key-pin race"). That file's own docstring says the Vietnamese mirror "is
+# omitting odoo_version after a set_active_version pin (the pin is scoped per MCP
+# session and racy when actors share one - see skills/_shared/concurrency-guard.md,
+# "OSM session-pin race"). That file's own docstring says the Vietnamese mirror "is
 # covered structurally" here. It is not, for arbitrary prose (a paraphrase can
 # reorder around any fixed set of English regexes) - but the two known evasions
 # ("khong co odoo_version=", "khong can lap lai phien ban") are covered: SCOPE IS
@@ -317,8 +317,8 @@ def test_vietnamese_prose_does_not_license_omitting_odoo_version():
                 offenders.append(f"{vi.relative_to(ROOT)}:{i}: {line.strip()}")
     assert not offenders, (
         "A docs/personas/*.vi.md licenses omitting odoo_version, or not repeating "
-        "it, after a set_active_version pin - the pin is API-key-scoped and racy "
-        "under concurrency, so every call must still carry a concrete "
+        "it, after a set_active_version pin - the pin is scoped per MCP session and "
+        "racy when actors share one, so every call must still carry a concrete "
         "odoo_version:\n" + "\n".join(offenders)
     )
 

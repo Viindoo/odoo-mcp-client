@@ -3,13 +3,13 @@
 The real consumers of skills/snippets/agents are AI agents - Claude Code reads
 SKILL.md; Gemini / OpenAI / Cursor read the snippets as their system prompt. The
 server hard-requires ``odoo_version`` on 19 tools: omitting it raises a
-ValidationError *before* the handler runs. The session pin is API-KEY-scoped, so
-the sentinel ``'auto'`` resolves against whatever pin the key currently holds -
-possibly a concurrent session's. This plugin therefore forbids BOTH forms:
-guidance that lets an agent omit ``odoo_version``, and guidance that tells it to
-pass ``'auto'``. Every example call carries a CONCRETE version. SSOT for the
-rule: plugins/odoo-ai-agents/skills/_shared/concurrency-guard.md
-section "OSM API-key-pin race".
+ValidationError *before* the handler runs. The pin is scoped per MCP session, so
+the sentinel ``'auto'`` resolves against whatever pin the session currently
+holds - possibly a subagent's, if one shares this session. This plugin therefore
+forbids BOTH forms: guidance that lets an agent omit ``odoo_version``, and
+guidance that tells it to pass ``'auto'``. Every example call carries a CONCRETE
+version. SSOT for the rule: plugins/odoo-ai-agents/skills/_shared/concurrency-guard.md
+section "OSM session-pin race".
 
 ``make gen`` only refreshes content between ``<!-- BEGIN/END GENERATED ... -->``
 markers (all derived from ``generator/server-surface.json``). Hand-maintained prose
@@ -73,7 +73,7 @@ def test_no_omittable_odoo_version_guidance():
                 offenders.append(f"{f.relative_to(REPO_ROOT)}:{i}: {line.strip()}")
     assert not offenders, (
         "Agent-facing prose still claims odoo_version is omittable/optional. "
-        "The server hard-requires it and the session pin is API-key-scoped, so "
+        "The server hard-requires it and the pin is scoped per MCP session, so "
         "every example and instruction must carry a CONCRETE version. "
         "Offending lines:\n" + "\n".join(offenders)
     )
@@ -496,9 +496,10 @@ _AUTO_VALUE_RE = re.compile(r"^\s*['\"]auto['\"]\s*$")
 def test_example_tool_calls_reject_the_auto_sentinel():
     """No example call may pass odoo_version='auto'.
 
-    The pin is API-KEY-scoped, so 'auto' resolves against whatever pin the key
-    holds - under fan-out that is another agent's version, and the call SUCCEEDS
-    with the WRONG version rather than erroring. The companion
+    The pin is scoped per MCP session, so 'auto' resolves against whatever pin the
+    session holds - under fan-out that is another actor SHARING the session's
+    version, and the call SUCCEEDS with the WRONG version rather than erroring.
+    The companion
     test_example_tool_calls_pass_required_odoo_version is value-BLIND (it accepts
     any span containing `odoo_version`), so this is the assertion that makes the
     ban in concurrency-guard.md enforceable.
@@ -575,8 +576,8 @@ def _section_short_forms(guard_text: str) -> list[str]:
 
 
 def _race_core(name: str) -> str:
-    """Strip an optional leading 'OSM ' and lowercase, so 'OSM API-key-pin race' and a
-    bare 'API-key-pin race' mention compare equal regardless of the OSM prefix."""
+    """Strip an optional leading 'OSM ' and lowercase, so 'OSM session-pin race' and a
+    bare 'session-pin race' mention compare equal regardless of the OSM prefix."""
     name = name.strip()
     if name[:4].upper() == "OSM ":
         name = name[4:].strip()
@@ -590,7 +591,7 @@ def _normalize_ws(text: str) -> str:
     """Collapse all whitespace, including newlines, to single spaces.
 
     A pointer sentence can wrap across a line break (e.g. a quoted heading name split as
-    `"OSM\\nAPI-key-pin race"`); a line-anchored regex silently drops the wrapped half of
+    `"OSM\\nsession-pin race"`); a line-anchored regex silently drops the wrapped half of
     the sentence - the same class of bug as the three line-wrap tautologies already fixed
     elsewhere in this file. Matching against whitespace-normalized text closes it for good.
     """
@@ -598,10 +599,9 @@ def _normalize_ws(text: str) -> str:
 
 
 # A concurrency-guard.md section gets cited in two structurally different ways, and BOTH
-# must be recognised or a rename leaves silent dangling pointers - which is exactly what
-# happened: nine "version-pin race" references survived an earlier rename to
-# "session-pin race" because the old guard recognised only ONE syntactic shape
-# (filename -> "section"/"§" keyword -> name) and never scanned docs/.
+# must be recognised or a rename leaves silent dangling pointers - a past heading rename
+# once left several references dangling because the guard at the time recognised only ONE
+# syntactic shape (filename -> "section"/"§" keyword -> name) and never scanned docs/.
 #
 # Form 1 - keyword-anchored: works for ANY heading name (e.g. "Odoo instance allocation"),
 # filename (".md" optional) followed by "section"/"§" then the name, quoted or bare.
@@ -652,3 +652,60 @@ def test_every_concurrency_guard_section_pointer_resolves_to_a_real_heading():
             if _race_core(m.group(1)) not in valid_race_cores:
                 offenders.append(f"{f.relative_to(REPO_ROOT)}: names stale race-phrase '{m.group(0)}'")
     assert not offenders, "dangling concurrency-guard.md section pointers:\n" + "\n".join(offenders)
+
+
+# --- SSOT-bound guard: concurrency-guard.md's session-pin race claim must match, not
+# contradict, generator/server-surface.json - the in-repo mirror of the live server's own
+# set_active_version / set_active_profile descriptions ----------------------------------
+# Defect class this guards against: agent-facing prose asserted a fact about the external
+# OSM server (the pin is "scoped to the API key, not the calling agent or session") that
+# nobody ever checked against the server's own tool descriptions. It was false - the live
+# server shares each pin per (api_key_id, mcp_session_id), i.e. per MCP session, not per
+# API key alone - and the false claim briefly drove a wrong-direction heading rename before
+# being caught and reverted. Every prior review of that rename compared the heading to the
+# body and the body to itself; none compared the body to the source of truth. This test does,
+# in both directions: it fails if the SSOT mirror itself stops carrying the scope fact (so
+# the prose is never left citing a mirror that has gone stale), and it fails if either file
+# restates the debunked claim.
+_FALSE_SCOPE_PHRASE_RE = re.compile(
+    r"scoped\s+to\s+the\s+api\s*key\b|api[- ]key[- ]scoped\b",
+    re.IGNORECASE,
+)
+
+
+def test_session_pin_race_scope_claim_matches_ssot():
+    """concurrency-guard.md must state the SAME scope generator/server-surface.json's own
+    set_active_version / set_active_profile descriptions state, and must never restate the
+    debunked 'scoped to the API key (not the calling agent or session)' claim.
+
+    generator/server-surface.json is the in-repo mirror of the live server's tool surface.
+    If ITS descriptions ever stop carrying the per-session scope fact, this fails loudly
+    instead of letting the prose silently trust a stale mirror - the "consider whether the
+    SSOT itself needs it" case this guard exists for.
+    """
+    surface_by_name = {t["name"]: t for t in _SURFACE["tools"]}
+    for tool_name in ("set_active_version", "set_active_profile"):
+        desc = surface_by_name[tool_name]["description"]
+        assert "mcp_session_id" in desc, (
+            f"generator/server-surface.json's {tool_name} description no longer states "
+            "the (api_key_id, mcp_session_id) scope - concurrency-guard.md cites this "
+            "SSOT for that fact; update the SSOT (re-derived from the live server's own "
+            "tool description) before the prose can cite it again"
+        )
+        assert not _FALSE_SCOPE_PHRASE_RE.search(desc), (
+            f"generator/server-surface.json's {tool_name} description restates the "
+            "debunked 'scoped to the API key' claim"
+        )
+
+    guard = (PLUGIN / "skills" / "_shared" / "concurrency-guard.md").read_text(encoding="utf-8")
+    assert "api_key_id" in guard and "mcp_session_id" in guard, (
+        "concurrency-guard.md no longer states the SSOT's (api_key_id, mcp_session_id) "
+        "scope for the session-pin race - it must be grounded in generator/server-surface"
+        ".json's tool descriptions, not restated from memory"
+    )
+    assert not _FALSE_SCOPE_PHRASE_RE.search(guard), (
+        "concurrency-guard.md restates the debunked 'scoped to the API key' claim - the "
+        "server scopes each pin per (api_key_id, mcp_session_id), i.e. per MCP session; "
+        "two independent sessions never interfere, the hazard is multiple actors sharing "
+        "ONE session"
+    )

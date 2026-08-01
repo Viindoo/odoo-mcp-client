@@ -194,8 +194,8 @@ design doc when it already splits the work; otherwise infer: touching `models/` 
 `${CLAUDE_PLUGIN_ROOT}/skills/_shared/odoo-module-graph.md` - the SSOT for the module DAG, shared
 with `run-harness`'s between-wave integration so both order work the same way. In short: call
 `module_inspect(name=<m>, method='dependencies', odoo_version='[resolved version]')` per target
-module (concrete version - the pin is per-API-key and racy, see
-`skills/_shared/concurrency-guard.md` "OSM API-key-pin race"), build the sub-graph restricted to the
+module (concrete version - the pin is per-session and racy under a shared session, see
+`skills/_shared/concurrency-guard.md` "OSM session-pin race"), build the sub-graph restricted to the
 target set, and topologically order it - independent modules share a **wave** (parallel), a
 dependent module runs in a **later wave**. The disk fallback (haiku reader of each
 `__manifest__.py` `depends` + `static/src` scan, labelled "graph from disk (OSM unavailable)")

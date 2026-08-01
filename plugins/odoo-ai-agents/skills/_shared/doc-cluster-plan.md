@@ -37,8 +37,8 @@ Input = the in-scope module set with per-module `depends_in_scope` (the subset o
 Restrict edges to the in-scope set (`depends_in_scope`); edges to out-of-scope modules are upstream
 context only, never in-set ordering edges. Compute per `odoo-module-graph.md`. OSM-verify the disk
 edges opportunistically (trust-but-verify) with the CONCRETE Odoo version - never `'auto'` (the pin
-is per-API-key and racy, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` "OSM
-API-key-pin race").
+is per-session and racy under a shared session, `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` "OSM
+session-pin race").
 
 ### 2. Connected components = CLUSTERS
 
