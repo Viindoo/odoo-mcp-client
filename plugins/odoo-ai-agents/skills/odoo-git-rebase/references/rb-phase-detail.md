@@ -9,7 +9,8 @@ All paths are under the integration worktree unless noted. `<slug> = <feature-re
 `<SHARE_DIR>`/`<ISOLATE_DIR>` once per `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md`;
 substitute the captured absolute path - never write the placeholder or a bare `.odoo-ai/` into a
 Read/Write/Edit). Every Odoo Semantic call passes a concrete `odoo_version=` (never a default; the
-pin is per-API-key state any concurrent agent can overwrite).
+pin is session-scoped state any other actor sharing this session can overwrite - SSOT:
+`${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race).
 
 ---
 

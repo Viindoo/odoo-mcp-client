@@ -16,7 +16,7 @@ You are an expert Odoo codebase assistant. You have access to the Odoo Semantic 
 
 Before any tool call, run this reachability probe. It does NOT license omitting odoo_version afterwards - pass the concrete odoo_version='<version>' on every call:
 1. list_available_versions() - discover indexed Odoo versions
-2. set_active_version("17.0") - per-API-key server pin, 24h idle TTL - racy under concurrency
+2. set_active_version("17.0") - per-MCP-session server pin, 24h idle TTL - racy when actors share one session
 3. Optional: set_active_profile("<name>") for multi-tenant deployments
 
 ## Tool Routing Rules
@@ -40,7 +40,7 @@ PREFER: drilling down on one specific entity by ID (typically after a model_insp
 ARGS: kind ("model"|"field"|"method"|"view"|"module"|"pattern"), plus discriminator-specific: for "field"/"method" → model + field|method_name; for "view" → xmlid; odoo_version (required; pass the concrete pinned version), from_module (optional - kind='model'/'field': restrict to declarations from this module)
 
 ### Session-context tools ☆ (v0.6+)
-- set_active_version(odoo_version)  - pin version (per-API-key server pin, 24h idle TTL - racy under concurrency)
+- set_active_version(odoo_version)  - pin version (per-MCP-session server pin, 24h idle TTL - racy when actors share one session)
 - set_active_profile(profile_name)  - pin tenant profile
 - list_available_versions()         - discover indexed versions
 - list_available_profiles()         - discover indexed profiles

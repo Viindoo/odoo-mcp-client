@@ -14,8 +14,8 @@ These rules configure Cursor IDE to automatically route Odoo-related questions t
 
 ## Session bootstrap (run once per chat session)
 - At session start, call list_available_versions() to discover indexed versions
-- Pin the version with set_active_version("17.0") - the pin is per-API-key server state (24h idle TTL); racy under concurrency
-- Pass the concrete version on every call - the pin is per-API-key and racy under concurrency (omitting odoo_version raises a validation error)
+- Pin the version with set_active_version("17.0") - the pin is per-MCP-session server state (24h idle TTL); racy when multiple actors share one session
+- Pass the concrete version on every call - the pin is per-MCP-session and racy when actors share one session (omitting odoo_version raises a validation error)
 - Pin tenant with set_active_profile("<name>") if multi-tenant MCP
 
 ## When to call Odoo Semantic tools
@@ -144,7 +144,7 @@ When working with Odoo Python or XML files, use the odoo-semantic MCP tools:
 Session bootstrap (once per chat):
 - list_available_versions() / list_available_profiles()
 - set_active_version("17.0") / set_active_profile("<name>")
-Pass the concrete version on every call - the pin is per-API-key server state (24h idle TTL) and racy under concurrency.
+Pass the concrete version on every call - the pin is per-MCP-session server state (24h idle TTL) and racy when actors share one session.
 
 Superset tools (use these for all model/module/entity queries):
 - Model questions (structure / fields / methods / views) → model_inspect(model=<name>, method="summary"|"fields"|"methods"|"views", odoo_version='<version>')

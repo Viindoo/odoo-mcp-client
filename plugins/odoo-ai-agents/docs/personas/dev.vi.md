@@ -19,11 +19,11 @@ Toàn bộ **31-tool arsenal**, tối ưu cho các quy trình phát triển - hi
 | `entity_lookup(kind='field'\|'method'\|'view', ...)` | Drill-down một entity theo ID. **Thay thế** `resolve_field` + `resolve_method` + `resolve_view`. |
 | `profile_inspect(profile, method='summary'\|'repos'\|'modules', ...)` | Introspection cấp profile: inheritance chain + repos + kiểm kê module (method=summary\|repos\|modules). |
 
-### Session context (pin theo từng API-key, idle TTL 24h - racy khi concurrency)
+### Session context (pin theo từng phiên MCP, idle TTL 24h - racy khi nhiều actor dùng chung một phiên)
 
 | Tool | Trường hợp dùng |
 |------|----------|
-| `set_active_version(odoo_version)` | Pin phiên bản Odoo cho session này và đồng thời probe khả năng kết nối tới server. Pin được scope theo API-key và racy khi concurrency, nên vẫn phải truyền `odoo_version=` cụ thể trên mọi lời gọi - không bao giờ dựa vào pin. **Gọi một lần mỗi session** như một probe. |
+| `set_active_version(odoo_version)` | Pin phiên bản Odoo cho session này và đồng thời probe khả năng kết nối tới server. Pin được scope theo `(api_key_id, mcp_session_id)` - tức theo từng phiên MCP - và racy khi nhiều actor dùng chung một phiên, nên vẫn phải truyền `odoo_version=` cụ thể trên mọi lời gọi - không bao giờ dựa vào pin. **Gọi một lần mỗi session** như một probe. |
 | `set_active_profile(profile_name)` | Pin tenant profile cho các deployment MCP cross-profile. |
 | `list_available_versions()` | Khám phá xem server đã index những phiên bản Odoo nào. |
 | `list_available_profiles()` | Khám phá xem có những profile nào tồn tại. |
@@ -93,13 +93,13 @@ Các handle chỉ-đọc cho truy cập ổn định kiểu bookmark. Dùng nh�
 
 ### 0. Pin phiên bản một lần
 
-Trước bất kỳ session khám phá nào, gọi `set_active_version` một lần như một probe khả năng kết nối. Điều đó KHÔNG cho phép bỏ `odoo_version=` ở các lời gọi sau - pin được scope theo API-key và một session khác có thể ghi đè, nên hãy truyền phiên bản cụ thể trên mọi lời gọi:
+Trước bất kỳ session khám phá nào, gọi `set_active_version` một lần như một probe khả năng kết nối. Điều đó KHÔNG cho phép bỏ `odoo_version=` ở các lời gọi sau - pin được scope theo phiên MCP và một actor khác dùng chung phiên đó có thể ghi đè, nên hãy truyền phiên bản cụ thể trên mọi lời gọi:
 
 ```
 set_active_version("<version>")
 ```
 
-TTL là idle 24h và pin là server state theo từng API-key - bất kỳ agent hoặc session đồng thời nào dùng chung key đều có thể ghi đè nó, vì vậy hãy truyền phiên bản cụ thể trên mọi lời gọi khi có concurrency. Chạy `list_available_versions()` trước nếu bạn không chắc những phiên bản nào đã được index.
+TTL là idle 24h và pin được scope theo `(api_key_id, mcp_session_id)` - tức theo từng phiên MCP; hai phiên độc lập không bao giờ ảnh hưởng lẫn nhau, nhưng một actor khác dùng chung phiên NÀY có thể ghi đè nó - vì vậy hãy truyền phiên bản cụ thể trên mọi lời gọi khi có concurrency. Chạy `list_available_versions()` trước nếu bạn không chắc những phiên bản nào đã được index.
 
 ### 1. Hiểu trước khi đụng vào
 

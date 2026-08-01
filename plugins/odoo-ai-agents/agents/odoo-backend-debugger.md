@@ -50,7 +50,7 @@ Before calling any MCP tool, probe reachability with one cheap call (`set_active
 
 ## Step 0 - Pin the version (once per session)
 
-Call `set_active_version(odoo_version='<version>')` (or the version the user/context states; doubles as reachability probe). Every subsequent OSM call must pass the CONCRETE version (`odoo_version='<version>'`) - never `'auto'`: the pin is per-API-key state any concurrent agent can overwrite. Skip if already pinned this session.
+Call `set_active_version(odoo_version='<version>')` (or the version the user/context states; doubles as reachability probe). Every subsequent OSM call must pass the CONCRETE version (`odoo_version='<version>'`) - never `'auto'`: the pin is session-scoped state any other actor sharing this session can overwrite (SSOT: `${CLAUDE_PLUGIN_ROOT}/skills/_shared/concurrency-guard.md` § OSM session-pin race). Skip if already pinned this session.
 
 > **OSM-First Grounding Contract** (full text: `${CLAUDE_PLUGIN_ROOT}/snippets/osm-first-contract.md`): When OSM is reachable, every structural claim about a model/field/method MUST be backed by an OSM call - never asserted from memory. When OSM is unreachable, state `OSM unavailable - ungrounded` at the top so the caveat survives.
 
