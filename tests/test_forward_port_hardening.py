@@ -1757,3 +1757,431 @@ class TestTable1GateIsP0Executable:
             "manifest_path' - Table 2 governs P8, which runs AFTER P2, so this phrasing is "
             "correct there and must not have been removed by the Table 1 fix"
         )
+
+
+# ---------------------------------------------------------------------------
+# Invariant (R2) - forward-port groups by MODULE first, then by commit within
+# that module (R2a); at most ONE odoo-intent-extractor instance per module
+# across the whole run (R2b); EXTRACT tier prefers sonnet/haiku and gates opus
+# on explicit human confirmation (R2c/R2d).
+#
+# Scope note (GT1): scanned across the WHOLE `skills/` + `agents/` tree (rglob,
+# no allowlist) PLUS `README.md`, because the same agent is also dispatched by
+# odoo-git-rebase in rebase mode - a future per-commit dispatch regression
+# could equally appear there, and the plugin's own hand-maintained README is
+# just as capable of drifting stale as any skill/agent file.
+#
+# WIDENED (group C2): `README.md` was previously OUT of scope - it was
+# hand-maintained architecture documentation outside the R2 fix's original
+# ownership, found stale (still describing per-commit odoo-intent-extractor
+# dispatch with no per-module cap) but reported separately rather than fixed
+# or silently allowlisted. Group C2 corrected README.md's stale forward-port
+# description (module-first P1/P8, the `at most one`/`ONE instance per
+# module` cap) and it is now IN SCOPE below. This does NOT false-positive on
+# odoo-git-rebase's own, still-legitimate, per-commit rebase-mode dispatch
+# mention in the SAME file: README.md now also states the per-module cap (for
+# forward-port), which satisfies this file-level pairing check exactly as it
+# already does for any other file that legitimately mixes a qualified
+# per-commit mention with an unrelated cap phrase.
+#
+# `docs/reference/ORCHESTRATION-MAP.md` stays OUT of this scan's scope: it is
+# 100% generated from `generator/skill_tool_deps.json` (never hand-edited) and
+# self-resolves on the next `make gen` pass, which this fix already made
+# correct at the JSON SSOT.
+#
+# RED-before-green evidence (measured via `git show HEAD:<path>` against this
+# same detection logic, before this fix landed):
+#   - GT1 (per-commit odoo-intent-extractor dispatch with no per-module cap,
+#     skills/+agents/ scope): 2 offenders - SKILL.md, fp-phase-detail.md.
+#   - GT2 (agent frontmatter still claims 'one SHA per instance'): 1 offender -
+#     agents/odoo-intent-extractor.md.
+#   - GT3 (plan.md template has no Module heading before its SHA table): 1
+#     offender - fp-phase-detail.md P4 template.
+#   - GT4 (Table 1 section has no human-confirm gate phrase): 1 offender -
+#     fp-triage-table.md Table 1.
+#   - GT1 widened to README.md (group C2, measured via `git show HEAD:
+#     plugins/odoo-ai-agents/README.md` against this same detection logic):
+#     1 offender - HEAD's README.md states the P1 per-commit dispatch
+#     (mermaid + phase table: "Dispatch odoo-intent-extractor per commit")
+#     with zero per-module cap phrase ('at most one') anywhere in the file.
+# ---------------------------------------------------------------------------
+
+AGENTS_DIR = PLUGIN / "agents"
+SKILLS_DIR = PLUGIN / "skills"
+README_MD = PLUGIN / "README.md"
+INTENT_EXTRACTOR_AGENT = AGENTS_DIR / "odoo-intent-extractor.md"
+
+
+class TestModuleFirstAgentCardinalityCap:
+    """R2b: nowhere in the skills/ or agents/ tree - OR the plugin README - may an
+    unqualified per-commit odoo-intent-extractor dispatch instruction exist without the
+    per-module cap sitting in the SAME file. A guard matching only the ONE known phrasing
+    (SKILL.md's own wording) would leave every other phrasing unguarded while staying
+    green - so this scans the whole subtree (+ README.md) instead of grepping one file
+    for one string."""
+
+    def _offenders(self):
+        offenders = []
+        for path in sorted(SKILLS_DIR.rglob("*.md")) + sorted(AGENTS_DIR.rglob("*.md")) + [README_MD]:
+            raw = path.read_text(encoding="utf-8")
+            text = _ws_normalize(raw)
+            if "odoo-intent-extractor" not in text:
+                continue
+            has_percommit_dispatch = bool(
+                re.search(r"odoo-intent-extractor[^.]{0,160}per[- ]commit", text, re.I)
+            )
+            has_module_cap = "at most one" in text.lower()
+            if has_percommit_dispatch and not has_module_cap:
+                offenders.append(str(path.relative_to(PLUGIN)))
+        return offenders
+
+    def test_no_unqualified_per_commit_dispatch_anywhere_in_skills_or_agents(self):
+        """Any file describing an odoo-intent-extractor per-commit dispatch must also
+        state the per-module cap ('at most one') in the SAME file - never a bare
+        per-commit instruction with no module-cap qualifier anywhere nearby."""
+        offenders = self._offenders()
+        assert not offenders, (
+            "Unqualified per-commit odoo-intent-extractor dispatch (no per-module cap "
+            f"phrase in the same file) found in: {offenders}"
+        )
+
+
+class TestIntentExtractorAgentIsModuleScoped:
+    """R2b: the agent's OWN frontmatter routing metadata must not regress back to a
+    one-SHA-only contract - the caller-side cap (above) and the agent's own
+    self-description must never drift apart."""
+
+    def test_frontmatter_does_not_claim_one_sha_per_instance(self):
+        text = _ws_normalize(INTENT_EXTRACTOR_AGENT.read_text(encoding="utf-8"))
+        assert "one SHA per instance" not in text, (
+            "agents/odoo-intent-extractor.md frontmatter must not claim 'one SHA per "
+            "instance' - the P1 bulk sweep now dispatches one instance per MODULE "
+            "(its ordered commit list), not one instance per commit"
+        )
+
+    def test_frontmatter_states_one_module_per_instance(self):
+        text = _ws_normalize(INTENT_EXTRACTOR_AGENT.read_text(encoding="utf-8"))
+        assert re.search(r"one module per instance", text, re.I), (
+            "agents/odoo-intent-extractor.md frontmatter must state the module-scoped "
+            "cardinality contract ('one MODULE per instance')"
+        )
+
+    def test_agent_accepts_ordered_commit_dump_paths(self):
+        """The agent must accept an ORDERED per-module map (commit_dump_paths), not
+        only the single-SHA commit_dump_path field, so one instance can read a whole
+        module's commit bundle in one turn."""
+        text = INTENT_EXTRACTOR_AGENT.read_text(encoding="utf-8")
+        assert "commit_dump_paths" in text, (
+            "agents/odoo-intent-extractor.md must document the commit_dump_paths "
+            "(ordered module-bundle) brief field alongside the single-SHA commit_dump_path"
+        )
+
+
+class TestPlanRecordIsModuleFirst:
+    """R2a: the P4 plan.md record - the one artifact the human sees before approving -
+    must be grouped by MODULE first, with that module's commits nested inside it, not
+    a flat SHA-keyed table with no module grouping at all."""
+
+    def _p4_markdown_block(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        match = re.search(r"## P4 - Plan gate.*?```markdown(.*?)```", text, re.S)
+        assert match, "fp-phase-detail.md must contain a P4 plan.md markdown template block"
+        return match.group(1)
+
+    def test_plan_template_has_a_module_heading(self):
+        block = self._p4_markdown_block()
+        assert "## Module:" in block, (
+            "fp-phase-detail.md P4 plan.md template must contain a '## Module:' heading - "
+            "the plan record must be grouped by module, not a flat commit-only table"
+        )
+
+    def test_module_heading_precedes_the_sha_table_in_the_template(self):
+        block = self._p4_markdown_block()
+        sha_idx = block.find("| SHA")
+        module_idx = block.find("## Module:")
+        assert sha_idx != -1 and module_idx != -1, (
+            "fp-phase-detail.md P4 template must contain both a Module heading and a SHA table"
+        )
+        assert module_idx < sha_idx, (
+            "fp-phase-detail.md P4 template must present the '## Module:' heading BEFORE "
+            "the '| SHA' table header - each module's commits are nested under its own "
+            "heading, never a flat SHA-keyed table with modules absent"
+        )
+
+
+class TestExtractTierOpusHumanConfirmGate:
+    """R2d: opus is the only tier Table 1 (EXTRACT) can reach above sonnet/haiku, and it
+    must never be a silent auto-assign - the P4 Plan Mode gate must call it out and get
+    explicit human confirmation, the same mechanism Table 2 already uses for fable."""
+
+    def _table1_section(self):
+        text = TRIAGE_TABLE.read_text(encoding="utf-8")
+        start = text.index("## Table 1")
+        end = text.index("## Table 2", start)
+        return text[start:end]
+
+    def test_table1_section_has_a_human_confirm_gate(self):
+        section = self._table1_section()
+        assert re.search(r"human confirm|human-confirm|explicit human", section, re.I), (
+            "fp-triage-table.md Table 1 section must contain a human-confirm gate for "
+            "opus - Table 1 has no fable band, so opus is the only tier this table can "
+            "resolve above sonnet/haiku, and R2d requires explicit human approval for it"
+        )
+
+    def test_table1_gate_names_the_module_bundle_unit(self):
+        section = self._table1_section()
+        assert "module bundle" in section.lower() or "MODULE BUNDLE" in section, (
+            "fp-triage-table.md Table 1 must resolve the tier per MODULE BUNDLE "
+            "(every commit touching that module), not per individual commit"
+        )
+
+    def test_table1_gate_has_a_decidable_downgrade_and_suppressed_path(self):
+        """The gate must not deadlock when no human is available (an active run-<id> /
+        WORKTREE_PATH context) - it must auto-downgrade and record the reason, mirroring
+        odoo-coding's own suppressed-gate pattern (reused by pointer, not re-derived)."""
+        section = self._table1_section()
+        assert "opus declined" in section, (
+            "Table 1's gate must record a decline downgrade ('<module>: sonnet (opus "
+            "declined)') when the human declines opus"
+        )
+        assert "gate suppressed" in section, (
+            "Table 1's gate must record a suppressed-gate auto-downgrade ('opus "
+            "auto-downgraded - gate suppressed') for the no-human-available case - "
+            "it must never silently proceed at opus nor deadlock waiting on a human"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant (R2b, 8b leg) - the P8 CODE-adapt leg is no longer a silently
+# unqualified "N coders per module" exception. `agents/odoo-coder.md` states its
+# per-round lifecycle is resumable (CHP Tier-A), the SAME mechanism already
+# proven for the 8a odoo-test-writer leg; SKILL.md and fp-phase-detail.md name a
+# stable per-module coder-resume identity (`fp-adapt-<slug>-<module>-coder`) and
+# carry it via a `WORKER NAME` brief field so a later commit can ask
+# `odoo-coding` to resume the SAME coordinator instead of cold-spawning -
+# DELIBERATELY the SAME field label the 8a `odoo-test-writer` leg already uses
+# (never a second, differently-shaped field for the same purpose - see
+# TestBothLegsUseTheSameResumeFieldShape below). The remaining wiring -
+# `odoo-coding` accepting/honoring `WORKER NAME` - is a separate, out-of-
+# ownership change (handed off, not landed here); until it lands this leg
+# safely falls back to today's per-commit dispatch, and the prose says so
+# explicitly - a named, bounded gap, never a silent "sometimes N agents".
+#
+# RED-before-green evidence (measured via `git show HEAD:<path>` - the true
+# pre-this-round baseline; the working tree carries many concurrent uncommitted
+# edits from other groups, so HEAD, not the working tree, is the honest diff
+# base):
+#   - agents/odoo-coder.md: 'Cross-round resume' -> 0 occurrences; 'does not
+#     itself terminate you or preclude a later resume' -> 0.
+#   - SKILL.md: 'fp-adapt-<slug>-<module>-coder' -> 0; 'WORKER NAME:' inside
+#     the 8b paragraph -> 0; 'a named, bounded gap' -> 0. (The OLD "EXCLUDED
+#     from the R2b cap" framing this fix replaces was itself uncommitted
+#     Group-C working-tree prose, not present at this same HEAD baseline -
+#     confirmed absent by the same measure - so its own regression guard below
+#     is read-verified against the pre-edit working tree directly, not
+#     `git show HEAD`. The intermediate `RESUME_CODER` field shape this round
+#     also tried and then dropped never reached HEAD either - see the
+#     same-shape guard's own RED count below, measured against the pre-fix
+#     working tree, not HEAD.)
+#   - fp-phase-detail.md: 'WORKER NAME' inside the 8b paragraph -> 0;
+#     'fp-adapt-<slug>-<module>-coder' -> 0.
+# ---------------------------------------------------------------------------
+
+CODER_COORDINATOR = AGENTS_DIR / "odoo-coder.md"
+CODING_SKILL_MD = PLUGIN / "skills" / "odoo-coding" / "SKILL.md"
+
+
+class TestCoderCoordinatorIsResumableAcrossRounds:
+    """agents/odoo-coder.md must state its one-commit-then-report lifecycle is ROUND-scoped, not
+    single-shot-forever - a caller MAY resume the SAME named coordinator (CHP Tier-A) for a later
+    round instead of cold-spawning a fresh one."""
+
+    def test_coder_states_cross_round_resume_is_permitted(self):
+        text = _ws_normalize(CODER_COORDINATOR.read_text(encoding="utf-8"))
+        assert "Cross-round resume" in text, (
+            "agents/odoo-coder.md must contain a 'Cross-round resume' section stating the "
+            "coordinator is round-scoped and may be resumed via SendMessage across rounds"
+        )
+
+    def test_coder_states_done_does_not_preclude_a_later_resume(self):
+        text = _ws_normalize(CODER_COORDINATOR.read_text(encoding="utf-8"))
+        assert "does not itself terminate you or preclude a later resume" in text, (
+            "agents/odoo-coder.md must state that a per-round 'status: DONE' report does not "
+            "itself end the coordinator's addressability for a later Tier-A resume"
+        )
+
+    def test_coder_default_behavior_is_unchanged_absent_a_resume(self):
+        text = _ws_normalize(CODER_COORDINATOR.read_text(encoding="utf-8")).lower()
+        assert "this round's" in text and "was your last" in text, (
+            "agents/odoo-coder.md must state that absent a SendMessage resume, a round's DONE "
+            "is terminal exactly as today - the resume path must be purely additive"
+        )
+
+
+class TestForwardPort8bNamesAndResumesTheCoder:
+    """SKILL.md and fp-phase-detail.md must name the module's odoo-coder coordinator once and
+    carry a WORKER NAME field for later commits, replacing the old blanket 'excluded from the R2b
+    cap' framing that treated N-coders-per-module as unavoidable."""
+
+    def test_skill_md_no_longer_claims_the_leg_is_unconditionally_excluded(self):
+        text = SKILL_MD.read_text(encoding="utf-8")
+        assert "EXCLUDED from the R2b cap" not in text, (
+            "SKILL.md must not claim the 8b leg is unconditionally EXCLUDED from the R2b cap - "
+            "the coordinator is resumable (agents/odoo-coder.md); the gap is narrower and named"
+        )
+
+    def test_skill_md_names_a_stable_coder_resume_identity(self):
+        text = SKILL_MD.read_text(encoding="utf-8")
+        assert "fp-adapt-<slug>-<module>-coder" in text, (
+            "SKILL.md P8 8b must name a stable per-module coder-resume identity distinct from "
+            "the 8a test-writer's fp-adapt-<slug>-<module> name"
+        )
+
+    def test_skill_md_carries_worker_name_field(self):
+        text = SKILL_MD.read_text(encoding="utf-8")
+        assert "WORKER NAME:" in text and "fp-adapt-<slug>-<module>-coder" in text, (
+            "SKILL.md P8 8b must document the WORKER NAME brief field carried into odoo-coding - "
+            "the SAME field label the 8a odoo-test-writer leg already uses, never a differently "
+            "shaped field (e.g. an agentId) for the same cross-invocation resume purpose"
+        )
+
+    def test_skill_md_states_r2b_is_closed_at_8b_not_a_lingering_gap(self):
+        """`skills/odoo-coding/SKILL.md` now recognizes WORKER NAME (the receiving side landed),
+        so the OLD interim 'named, bounded gap' / 'does NOT yet satisfy R2b' fallback framing is
+        stale and must be replaced by a plain closure statement - an accurate description must
+        not overstate a gap that no longer exists."""
+        text = _ws_normalize(SKILL_MD.read_text(encoding="utf-8"))
+        assert "is CLOSED at the 8b leg" in text, (
+            "SKILL.md must state plainly that R2b is now CLOSED at the 8b leg, now that "
+            "skills/odoo-coding/SKILL.md's receiving side recognizes WORKER NAME"
+        )
+        assert "a named, bounded gap" not in text and "does NOT yet satisfy R2b" not in text, (
+            "SKILL.md must not still claim the old interim fallback framing ('a named, bounded "
+            "gap' / 'does NOT yet satisfy R2b') now that the odoo-coding receiving side actually "
+            "recognizes WORKER NAME and resumes the named coordinator"
+        )
+
+    def test_phase_detail_p8b_carries_worker_name_field(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        assert "WORKER NAME:" in text and "fp-adapt-<slug>-<module>-coder" in text, (
+            "fp-phase-detail.md P8b coder brief template must carry the WORKER NAME field - the "
+            "SAME field label 8a's odoo-test-writer template already uses"
+        )
+
+    def test_phase_detail_names_the_same_stable_coder_resume_identity(self):
+        text = PHASE_DETAIL.read_text(encoding="utf-8")
+        assert "fp-adapt-<slug>-<module>-coder" in text, (
+            "fp-phase-detail.md P8 8b must name the same stable coder-resume identity as SKILL.md"
+        )
+
+    def test_phase_detail_states_r2b_is_closed_at_8b_not_a_lingering_gap(self):
+        """Same closure requirement as SKILL.md above, mirrored in fp-phase-detail.md."""
+        text = _ws_normalize(PHASE_DETAIL.read_text(encoding="utf-8"))
+        assert "is CLOSED" in text and "8b" in text, (
+            "fp-phase-detail.md must state plainly that R2b is now closed at the 8b leg"
+        )
+        assert "a named, bounded gap" not in text and "does NOT yet satisfy R2b" not in text, (
+            "fp-phase-detail.md must not still claim the old interim fallback framing now that "
+            "the odoo-coding receiving side actually recognizes WORKER NAME"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Invariant (drift guard) - the 8a (odoo-test-writer) and 8b (odoo-coder) cross-
+# invocation resume legs MUST use the IDENTICAL field shape - a NAME, never an
+# agentId, and never two differently-labeled fields for the same purpose. This
+# is the specific defect class the main agent flagged mid-round: an earlier
+# draft of the 8b fix used `RESUME_CODER: <agentId> | none` while 8a used
+# `WORKER NAME: <name>` - two shapes for one job, the same pattern as this
+# repo's own INST_ADDONS_PATH/ALLOC_ADDONS_PATH incident. Structural (not just
+# "mentioned somewhere in the file") - it checks each leg's OWN field/value
+# pairing, not just that both strings appear anywhere in the document.
+#
+# RED-before-green evidence (measured directly against the pre-unification
+# text this same round produced, before the drop-agentId fix below - not
+# `git show HEAD`, since neither the RESUME_CODER draft nor its predecessor
+# ever reached a commit): checking `WORKER NAME:\s*fp-adapt-<slug>-<module>`
+# (8a shape, no `-coder` suffix) and `WORKER NAME:\s*fp-adapt-<slug>-<module>-coder`
+# (8b shape) against the pre-fix text - SKILL.md: 8a-shape found=False (its 8a
+# bullet did not carry a literal `WORKER NAME:` field before this fix either),
+# 8b-shape found=False (8b carried `RESUME_CODER` instead) - MISMATCH.
+# fp-phase-detail.md: 8a-shape found=True, 8b-shape found=False (8b carried
+# `RESUME_CODER` instead) - MISMATCH. Both files RED (same-shape check failed)
+# before this fix; both GREEN after.
+#
+# This guard was later EXTENDED to the RECEIVING side (`skills/odoo-coding/SKILL.md`)
+# rather than duplicated into a second guard class: the sending side (above) is only
+# half the contract - the receiving side must accept the IDENTICAL field shape (a
+# caller-supplied NAME, never an agentId) or the two sides silently drift apart, the
+# same INST_ADDONS_PATH/ALLOC_ADDONS_PATH failure class. RED-before-green (measured
+# against `git show HEAD:plugins/odoo-ai-agents/skills/odoo-coding/SKILL.md`, the true
+# pre-this-round baseline, since the working tree carries other groups' concurrent
+# uncommitted edits): 'WORKER NAME' occurrences at HEAD = 0; 'a NAME, never an
+# agentId' occurrences at HEAD = 0 - both assertions below RED at HEAD, GREEN in the
+# current tree once the receiving side landed.
+# ---------------------------------------------------------------------------
+
+_WORKER_NAME_8A_SHAPE_RE = re.compile(r"WORKER NAME:\s*fp-adapt-<slug>-<module>(?!-coder)")
+_WORKER_NAME_8B_SHAPE_RE = re.compile(r"WORKER NAME:\s*fp-adapt-<slug>-<module>-coder")
+
+
+class TestBothLegsUseTheSameResumeFieldShape:
+    """The 8a odoo-test-writer leg and the 8b odoo-coder leg must both carry their cross-invocation
+    resume identity as a `WORKER NAME: <name>` field with the SAME label - never a second,
+    differently-shaped field (e.g. an agentId) reintroduced for one leg only. Extended to the
+    RECEIVING side (`skills/odoo-coding/SKILL.md`): it must accept that IDENTICAL field shape,
+    not a second, differently-shaped acceptance point."""
+
+    @pytest.mark.parametrize("path,label", [
+        (SKILL_MD, "SKILL.md"),
+        (PHASE_DETAIL, "fp-phase-detail.md"),
+    ])
+    def test_8a_and_8b_both_use_the_worker_name_field_shape(self, path, label):
+        text = _ws_normalize(path.read_text(encoding="utf-8"))
+        has_8a_shape = bool(_WORKER_NAME_8A_SHAPE_RE.search(text))
+        has_8b_shape = bool(_WORKER_NAME_8B_SHAPE_RE.search(text))
+        assert has_8a_shape and has_8b_shape, (
+            f"{label}: the 8a leg (fp-adapt-<slug>-<module>) and the 8b leg "
+            f"(fp-adapt-<slug>-<module>-coder) must BOTH carry their resume identity via the "
+            f"literal 'WORKER NAME:' field label - found 8a-shape={has_8a_shape}, "
+            f"8b-shape={has_8b_shape}; a mismatch means the two legs have drifted onto "
+            f"differently-shaped resume fields"
+        )
+
+    def test_receiving_side_declares_the_same_worker_name_field(self):
+        """The receiving side (skills/odoo-coding/SKILL.md Coder-brief schema) must declare the
+        literal `WORKER NAME:` field label - the SAME label the sending side (8a/8b, above)
+        emits - not a differently-named or differently-shaped acceptance point."""
+        text = CODING_SKILL_MD.read_text(encoding="utf-8")
+        assert "WORKER NAME:" in text, (
+            "skills/odoo-coding/SKILL.md must declare a 'WORKER NAME:' field in its Coder brief "
+            "schema - the receiving side of the field forward-port's sending side already emits; "
+            "a missing or differently-labeled field here would strand the sending side's resume"
+        )
+
+    def test_receiving_side_documents_the_field_as_a_name_never_an_agentid(self):
+        """Structural pairing (not just 'mentioned somewhere'): the receiving side must document
+        WORKER NAME with the SAME 'a NAME, never an agentId' shape declaration the sending side
+        uses, so a future reader cannot silently redefine it as agentId-shaped on this side only."""
+        text = _ws_normalize(CODING_SKILL_MD.read_text(encoding="utf-8"))
+        assert "a NAME, never an agentId" in text, (
+            "skills/odoo-coding/SKILL.md must document its WORKER NAME field as 'a NAME, never an "
+            "agentId' - the identical shape declaration the sending side "
+            "(SKILL.md/fp-phase-detail.md) uses for the same field, so both sides of R2b's 8b leg "
+            "agree on the shape"
+        )
+
+    def test_resume_coder_agent_id_field_never_reintroduced(self):
+        """Regression guard: the abandoned `RESUME_CODER` (agentId-shaped) field must never
+        reappear anywhere in the plugin tree - it was deliberately dropped in favor of the
+        WORKER NAME field shape 8a already uses. This scan already covers the receiving side
+        (skills/odoo-coding/SKILL.md sits under PLUGIN too) - no separate receiving-side
+        regression guard is needed for this specific check."""
+        offenders = []
+        for path in sorted(PLUGIN.rglob("*.md")) + sorted(PLUGIN.rglob("*.json")):
+            if "RESUME_CODER" in path.read_text(encoding="utf-8"):
+                offenders.append(str(path.relative_to(PLUGIN)))
+        assert not offenders, (
+            f"'RESUME_CODER' must not appear anywhere in the plugin tree (dropped in favor of the "
+            f"WORKER NAME field shape); found in: {offenders}"
+        )
