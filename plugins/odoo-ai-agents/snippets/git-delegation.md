@@ -47,6 +47,49 @@ The full inline-OK set for odoo-ai-agents is the UNION of both lists above:
 
 Anything beyond this union (full diff content, unbounded log range, blame, large range) -> route through git-ops.
 
+## Base-branch resolution (the version-named main branch)
+
+Per `git-toolkit`'s explicit-start-point rule (`git-safety-contract.md` S9 addendum), every
+worktree/branch created to receive new coding-wave, upgrade, or self-provisioned work resolves its
+start point by RESOLVING the branch below - never by inheriting whatever the invoking checkout's
+HEAD/current branch happens to be. `git branch --show-current` (allowlisted above) stays legitimate
+for diagnostic reads and source-series INFERENCE (e.g. cross-checking what a human is currently on
+against a manifest-derived series) - it MUST NEVER be the value assigned to a `base` / `work-base` /
+Repo Capability Card `base` field. A `base` resolved from the invoking checkout's ambient branch
+reproduces the exact defect this section exists to close.
+
+**Input.** The run's already-resolved `odoo_version` (the Run-header field required on every
+`writes-files` plan - SSOT `${CLAUDE_PLUGIN_ROOT}/snippets/context-bootstrap.md` - resolved BEFORE
+this algorithm runs; never re-derived from a branch name here).
+
+**Candidate enumeration.** Listing branches by name pattern is NOT on the bounded-read allowlist
+above (only `branch --show-current` is), so ask `git-toolkit:git-ops` to report the local and
+remote-tracking branches matching the candidates below, in the SAME request that also compares
+tips and fetches if needed (enumerate + compare + fetch-if-needed is one op request, detailed in
+the table below). A candidate branch name must EXACTLY equal `<odoo_version>` (e.g. `17.0`),
+`saas-<odoo_version>` (when `odoo_version` is itself a SaaS series), or a vendor-prefixed form
+ONLY IF that prefix is already recorded in `<SHARE_DIR>/context.md` (never invented at resolution
+time). **EXACT branch-name match only - never a substring/contains match.** A substring match
+(e.g. matching `17.0-feat-x` because it contains `17.0`) reintroduces the exact confusion this
+rule exists to prevent: a human's feature branch would qualify as a "candidate" purely for
+containing the series number.
+
+**Resolution table - a decidable action, and a terminal status where one applies:**
+
+| Case | Decidable action | Terminal status |
+|---|---|---|
+| Zero candidate names | Never invent one, never fall back to HEAD | `NEEDS_CONTEXT(base_branch)` - ask which branch is this series' main branch |
+| Exactly one candidate name, no remote-tracking ref for it | Use the local branch's tip; STATE the assumption ("no remote-tracking ref found; using local `<name>` as-is") in the plan/report | none - proceeds with a stated assumption |
+| Exactly one candidate name, remote-tracking ref exists, tips equal (`git rev-parse <name>` == `git rev-parse origin/<name>`, both bounded reads on the allowlist above once the name is known) | Use `origin/<name>` (prefer the remote-tracking ref on principle even when already in sync) | none - proceeds |
+| Exactly one candidate name, remote-tracking ref exists, tips diverge (local behind OR ahead) | Ask `git-toolkit:git-ops` to `fetch` and re-compare (fetch is not a bounded read - see the Universal rule above); still diverged after fetch | `open_question` - a human decides whether to build on `origin/<name>` or the local tip; never silently pick either side |
+| More than one distinct candidate name (e.g. both `17.0` and `viindoo-17.0` exist) | Never silently prefer one | `open_question` listing every candidate |
+| Detached HEAD on the invoking checkout | No effect - this algorithm never reads the invoking checkout's HEAD/branch as an input, only `odoo_version` and the repo's branch list | none - irrelevant by construction |
+| Dirty tree on the invoking checkout | No effect on base resolution - dirty-tree preconditions for the MUTATION itself are S4's job (`git-safety-contract.md`), not this rule's | none - irrelevant by construction |
+
+Enumerating candidates and fetching are both routed through `git-toolkit:git-ops` - neither is on
+the bounded-read allowlist above; only the tip comparison (`git rev-parse`) is a bounded inline
+read once the candidate name is known. No actor resolves a stale `base` by fetching inline.
+
 ## No LEAF-worker git - the orchestrator (or a spawner coordinator) commits via git-ops
 
 A dispatched HARD-LEAF worker (`odoo-backend-coder`, `odoo-frontend-coder`, `odoo-test-writer`, or

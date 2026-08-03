@@ -144,6 +144,26 @@ git worktree list                                                      # confirm
 git worktree remove ../worktree-<branch>-<ts>                         # clean up after verify
 ```
 
+### S9 addendum - explicit start point, the four branch-creating forms
+
+`git worktree add <path> -b <branch> <ref>`, `git branch <branch> <ref>`, `git checkout -b
+<branch> <ref>`, and `git switch -c <branch> <ref>` are the four command forms that create a NEW
+branch to receive work. All four SILENTLY resolve the new branch's start point to HEAD - whatever
+the invoking checkout currently has checked out - when `<ref>` is omitted. Omitting `<ref>` is
+forbidden for any of these four forms whenever the branch/worktree is meant to fork from a NAMED
+ancestor: name the ancestor explicitly, every time, rather than relying on the invoking checkout's
+ambient position.
+
+This does NOT apply to two forms that are intentionally anchored to the op's own current
+position, not to a named ancestor: the S1 backup-anchor (`git branch backup/$(git rev-parse
+--abbrev-ref HEAD)-<timestamp>`, deliberately the branch about to be rewritten) and the S7
+recovery form (`git checkout -b recovered HEAD@{N}`, deliberately a reflog entry). Both are
+backup/recovery tags, not new work forked from an ancestor, so the current position IS their
+correct ancestor by definition.
+
+A brief that requests one of the four forms without naming `<ref>` fails the Brief self-check's
+BASE-ref requirement - a missing-field STOP, never a silent HEAD substitution.
+
 ## S8 - filter-repo requires a FRESH clone
 
 `git filter-repo` refuses to run in-place and rewrites EVERY commit SHA permanently. Run it only on
