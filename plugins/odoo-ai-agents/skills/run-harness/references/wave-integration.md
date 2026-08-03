@@ -28,6 +28,8 @@ Repo Capability Card
 ```
 
 Notes:
+- `base` is resolved per `${CLAUDE_PLUGIN_ROOT}/snippets/git-delegation.md` § Base-branch
+  resolution - never inherited from the invoking checkout's HEAD/current branch.
 - Discover `verify` from Makefile targets, CI config, or README. If multiple commands
   are required, chain them with `&&`.
 - `confidential: restricted` triggers the 8-group ban check on every artifact.
@@ -483,27 +485,100 @@ Fix findings inline or via a targeted subagent (Tier-C fresh spawn is always cor
 module's worktree path. Re-run verify after any fix. Only once this review is clean does the
 cumulative regression close-gate (SKILL.md step 3) run.
 
-**Acceptance hand-off (opt-in, L2).** When the blast-radius render-check above reaches BEYOND the
-wave's own modules (the wave changed a UI/behavior surface whose `render_check_set` binds
-dependents), surface a recommended acceptance pass over the affected cluster instead of letting
-dependent UI go unverified - the SAME condition and shape `odoo-code-review` uses for its acceptance
-hand-off (`${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/SKILL.md` § Emit the acceptance hand-off;
-shared render_check_set SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`). Do NOT auto-run
-acceptance and do NOT auto-merge/auto-block on it: materialize an `odoo-acceptance` node in the
-RUN-DAG (a `next` entry run-harness's driver loop picks up) at `gate_tier: L2` (human), depending on
-the run's PR so the cluster is verified before merge:
+## Pre-PR tail (mandatory sequence, after the final wave closes green)
+
+After the LAST wave's cumulative regression close-gate is GREEN (`SKILL.md` § Between-wave
+integration step 3) and BEFORE the terminal `integrate` land-tail dispatches, run-harness drives
+three tail stages IN THIS ORDER - i18n reconcile, then acceptance, then the pre-PR lint-class gate.
+This order is a real data dependency, not an arbitrary sequence: i18n reconcile MUTATES what the
+live UI renders (translated labels/messages, per `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md`
+"The mandate"), and acceptance's evidence (screenshots, asserted UI text) must reflect that FINAL,
+translated state - running acceptance first would capture pre-i18n evidence that i18n then
+invalidates. The SAME relative order (i18n before acceptance) is already established and shipping in
+`${CLAUDE_PLUGIN_ROOT}/skills/odoo-modules-upgrade/SKILL.md` (i18n reconcile precedes its Acceptance
+stage) and `${CLAUDE_PLUGIN_ROOT}/skills/odoo-forward-port/SKILL.md` (i18n reconcile precedes its
+later Acceptance stage) - this section composes with both, not a third, diverging convention.
+
+**1 - i18n reconcile (MANDATORY, narrow-escape only, ONCE for the whole run).** Dispatch the
+`odoo-i18n` skill exactly ONCE, over the run-integration branch's aggregate diff (every module,
+every wave) - never per module. Mandate wording, the four caller obligations, and the enumerated
+escape hatches (E1-E6) are owned by `${CLAUDE_PLUGIN_ROOT}/snippets/i18n-mandate-contract.md` - not
+restated here; run-harness is a THIRD caller of that contract alongside `odoo-modules-upgrade` and
+`odoo-forward-port`. `gate_tier: L2` per the registry (`generator/skill_tool_deps.json`
+`orchestration.odoo-i18n` - `instance_touching: true`); this is a DECLARED human gate (the
+ENUMERATED stop conditions in `SKILL.md` Hard rule 2), not an incidental pause. `odoo-coding`'s own
+per-module Continuation Contract does NOT also suggest `odoo-i18n` - that would fire once per module
+per wave for the same run-level obligation; see `${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md`
+§ Continuation Contract.
+
+**2 - Acceptance (conditional, L2, ONCE for the whole run - fires BEFORE the PR, not after it).**
+When ANY wave's blast-radius render-check (§ Review Escalation above) reached BEYOND that wave's own
+modules (the `render_check_set` binds dependents), materialize an `odoo-acceptance` node - the SAME
+condition and shape `odoo-code-review` uses for its own acceptance hand-off
+(`${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/SKILL.md` § Emit the acceptance hand-off; shared
+render_check_set SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/acceptance-scope.md`) - but depending on
+stage 1 above (i18n) and the FINAL wave's close-gate, NEVER on the run's PR. Do NOT auto-run
+acceptance and do NOT auto-merge/auto-block on it; do NOT dispatch it once per triggering wave -
+coalesce every wave's trigger into ONE cluster-wide `odoo-acceptance` invocation covering the UNION
+of every wave's widened `render_check_set`, mirroring `odoo-modules-upgrade`'s "ONCE for the whole
+cluster, never per module":
 
 ```
 next:
   - skill: odoo-acceptance
-    reason: wave changed a UI/behavior surface with dependents (render_check_set beyond the changed modules); run blast-radius acceptance over the affected cluster before merge
+    reason: one or more waves changed a UI/behavior surface with dependents (render_check_set beyond the changed modules); run blast-radius acceptance over the affected cluster BEFORE the PR opens
     inputs: {changed_set: [<modules|model.field|model.method>], scope_hint: "<ISOLATE_DIR>/qa/<slug>-scope.md", odoo_version: "<version>"}
     confidence: 0.7
     risk_level: L2
 ```
 
 `scope_hint` is advisory - `odoo-acceptance` Phase 0 regenerates the verify-scope manifest from the
-changed set.
+changed set. When no wave ever widened its `render_check_set`, this stage does not fire and the tail
+proceeds straight to stage 3.
+
+**3 - Pre-PR lint-class gate (L0/L1 - ephemeral instance, not a SHARED-instance L2 case).** Run the
+FULL CI-parity lint-class suite ONCE, over the run-integration branch's aggregate diff (every
+module, every wave): `/test_lint` (+ `/test_pylint` on v16+ Viindoo profiles) and the Tier-1 eslint
+leg of `verify-frontend.sh`. Invocation mechanics (commands, flags, PASS/CANNOT-VERIFY semantics)
+are owned by `${CLAUDE_PLUGIN_ROOT}/docs/reference/odoo-code-quality.md` +
+`${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md` - not restated here. This REPLACES every
+per-work-item / per-module lint-class self-check and re-verification that used to run inside each
+wave (moved here per the owner's instruction) - see `${CLAUDE_PLUGIN_ROOT}/skills/odoo-coding/SKILL.md`
+and its per-module hard-leaf workers for what stays per-module instead (OSM-grounded ORM validation,
+inline review, zero-toolchain static OWL/SCSS checks - none of these are lint-class and none moved).
+
+**Containment for tail-only lint (mandatory prose, not optional).** Moving lint to the tail trades
+"catch it while the wave's context is warm" for "catch it once, cheaply, over the full diff" - this
+trade is intentional (the owner's instruction), but it must not become a worse failure than what it
+replaces:
+- **On a FAILURE, do not flat-BLOCK the run.** The lint tool's own output names the exact
+  file/line; re-invoke `odoo-coding` targeted at ONLY the failing module's worktree slice, handing it
+  the concrete lint output as evidence (a fresh, narrowly-scoped fix dispatch - the SAME "AUTONOMOUS
+  FIX (review-driven)" sentinel pattern `odoo-code-review` already uses,
+  `${CLAUDE_PLUGIN_ROOT}/skills/odoo-code-review/SKILL.md` § Autonomous fix loop) rather than
+  requiring the original (long-gone) per-module context to still be live.
+- **Bound the fix-loop to 3 iterations** (the SAME bounded-iteration convention as every other chain
+  in this file - `${CLAUDE_PLUGIN_ROOT}/snippets/test-first-contract.md` § The loop, bounded). Still
+  red after 3 -> BLOCKED with the failure evidence - one of the ENUMERATED, legitimate stop
+  conditions (`SKILL.md` Hard rule 2), not an incidental pause.
+- **The single full-diff pass is also a net gain, not only a cost:** because every module across
+  every wave has already landed on the ONE `run-integration` branch by this point, this ONE pass
+  sees the FULL aggregate diff and catches CROSS-MODULE lint issues (two modules that individually
+  pass but jointly trip a repo-wide rule) that per-module lint structurally could never see.
+- **Teardown, unchanged contract.** Whoever runs this gate (run-harness inline, or a dispatched
+  bounded subagent) self-provisions its OWN ephemeral instance and RELEASES it before the `integrate`
+  node's own terminal signal, per `${CLAUDE_PLUGIN_ROOT}/snippets/resource-teardown-contract.md`
+  T0-T4 - the SAME contract every other self-provisioning step in this file already follows.
+  Removing the per-work-item lint self-checks does not orphan anything: each was a self-contained
+  acquire-run-release cycle (`agents/odoo-backend-coder.md` "Backend code-quality gate"), so removing
+  the call removes the acquisition and its paired release together - no lease is left dangling, and
+  the `odoo-coder` coordinator's OWN integrated-module-test instance cycle (a DIFFERENT, non-lint-class
+  obligation) is untouched and continues exactly as before. Net effect across a run is FEWER
+  acquire/release cycles overall, not a wash.
+
+**4 - Terminal land-tail PR.** Only after stages 1-3 above clear does run-harness dispatch the
+`integrate` node (`SKILL.md` § `integrate` node dispatch): squash `run-integration`, fresh
+FIRST-push, open ONE PR. Unchanged from before this section.
 
 ---
 

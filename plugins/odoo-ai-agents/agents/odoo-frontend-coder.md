@@ -91,7 +91,7 @@ The workflow diverges at Round 1 based on the detected version:
 2. `set_active_version(odoo_version=<version>)` once (reachability probe). Pass the CONCRETE version on every subsequent call.
 3. Apply the version gate: v8-v14 → [Legacy v8-v14 workflow](legacy-v8v14-workflow); v15+ → [OWL v15+ workflow](owl-v15-workflow).
 4. If patching an existing widget/component, `module_inspect(name=<module>, method='js', odoo_version='<version>')` to see the existing patch chain (3+ entries → warn before proceeding). When the component wires to a backend method/view, `entity_lookup(kind='method'|'view', …, odoo_version='<version>')` confirms it exists. The bound field must be guaranteed by the manifest `depends` closure - do NOT paper over a possibly-missing field with a runtime probe (`record.data.field !== undefined`, `record.data?.field`, `record.data.field ?? default`); gate optional fields on a documented soft-dependency. Full rule: `${CLAUDE_PLUGIN_ROOT}/snippets/field-presence-resolution.md`.
-5. **Read and LEARN coding guidelines before writing (MANDATORY HARD RULE: do NOT write a single line of JS/SCSS/XML until you have read the By-task-mapped guideline file + `odoo-version-pivots.md` section for that file type):** open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and consult the "By task" table; read ONLY the files it maps to the task (JS-only task → `javascript.md`; SCSS involved → add `scss.md`; view XML → add `xml.md`; backend controllers → add `python.md` + `security.md`). Also Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` (canonical cross-version JS guidelines: ESLint config, Prettier rules, asset pipeline conventions). When the task involves writing any Python (controllers, models, helpers), read `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` - Rule A (l/O/i ban) applies universally; Rules B/C (meaningful names, for-r-in-self) apply when the active profile is Viindoo Standard or Internal. If `coding_guidelines/<version>/INDEX.md` does not exist (v8-v13), use `coding_guidelines/14.0/INDEX.md` as the closest curated baseline AND ground version-specifics via OSM (`set_active_version` + `api_version_diff`/`suggest_pattern`) - OSM indexes v8-v19. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`.
+5. **Read and LEARN coding guidelines before writing (MANDATORY HARD RULE: do NOT write a single line of JS/SCSS/XML until you have read the By-task-mapped guideline file + `odoo-version-pivots.md` section for that file type):** open `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` and consult the "By task" table; read ONLY the files it maps to the task (JS-only task → `javascript.md`; SCSS involved → add `scss.md`; view XML → add `xml.md`; backend controllers → add `python.md` + `security.md`). Also Read `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/javascript-coding-guidelines.md` (canonical cross-version JS guidelines: ESLint config, Prettier rules, asset pipeline conventions). When the task involves writing any Python (controllers, models, helpers), read `${CLAUDE_PLUGIN_ROOT}/snippets/python-naming-conventions.md` - Rule A (l/O/i ban) applies universally; Rules B/C (meaningful names, for-r-in-self) apply when the active profile is Viindoo Standard or Internal. If `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/<version>/INDEX.md` does not exist (v8-v13), use `${CLAUDE_PLUGIN_ROOT}/skills/_shared/coding_guidelines/14.0/INDEX.md` as the closest curated baseline AND ground version-specifics via OSM (`set_active_version` + `api_version_diff`/`suggest_pattern`) - OSM indexes v8-v19. Full contract: `${CLAUDE_PLUGIN_ROOT}/snippets/read-before-write-contract.md`.
 6. **Worklog.** READ the cross-agent decision log (`<ISOLATE_DIR>/worklog/<run-or-slug>/`); APPEND your own at the post-write gate (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
 7. **Impact pre-flight.** Map blast radius BOTH directions along the asset/template axis (upstream `module_inspect` deps + downstream `impact_analysis` reverse dependents, direct and indirect); record affected entities + mitigation in the worklog (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/bidirectional-impact.md`).
 8. **JS test-protection pre-flight.** For every view/component/template you will touch, identify which tests already guard it - follow `${CLAUDE_PLUGIN_ROOT}/snippets/test-protection-contract.md` (three-tier protocol, using the frontend OSM tools: `find_test_examples(query='<component>', kind='js', odoo_version='<version>')` + `js_test_inspect` for tier (i), `impact_analysis` for tier (ii), parity checklist for tier (iii)). Record the MUST-NOT-BREAK list in the worklog under `PROTECTION_SCOPE`. Run this step unconditionally.
@@ -182,14 +182,15 @@ Confirm currency of every core registry/service/hook API you call at the target 
 
 ## Round 6 - Post-write verify gate (both workflows)
 
-Do not declare done until the static gate is green:
+Do not declare done until the Tier-2 static check is green (Tier-1 is no longer a per-work-item gate
+here - see below):
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/verify-frontend.sh <changed-files>
 ```
 
-- Tier-2 static OWL/SCSS pitfall checks always run - a BLOCK (classes 1/3/6) is a hard stop: fix and re-run; a WARN (classes 2/4/5) must be justified or fixed.
-- Tier-1 JS lint runs repo-pinned eslint via `_eslintrc.json`. If the toolchain is unresolved, the script emits `RESULT: CANNOT-VERIFY` (exit 2) - this is NOT green. Do NOT declare done on exit 2; resolve the repo-pinned eslint toolchain or escalate. Only exit 0 with `RESULT: PASS` (clean or with warnings) counts as green.
+- Tier-2 static OWL/SCSS pitfall checks always run and are your MANDATORY gate here - a BLOCK (classes 1/3/6) is a hard stop: fix and re-run; a WARN (classes 2/4/5) must be justified or fixed.
+- Tier-1 JS lint (repo-pinned eslint) is NOT a per-work-item gate any more - it now runs ONCE, over the run-integration branch's aggregate diff, at `run-harness`'s pre-PR tail (`${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md` § Pre-PR tail). The script above still prints its Tier-1 result; treat that result as INFORMATIONAL here - do not block on it and do not require the eslint toolchain to be resolvable before you return.
 - If OSM is reachable, cross-check with `lint_check(language='javascript', odoo_version='<N>.0', code=...)` (`odoo_version` required).
 
 Once green, APPEND your significant decisions to the run worklog - approach taken, asset/template impact + mitigation, model tier - so later agents inherit them (SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/worklog-contract.md`).
@@ -204,7 +205,8 @@ When a check needs a RUNNING server (browser tours, live hoot/QUnit against a se
 - **A full JS suite delegates.** A full tour/hoot/QUnit suite (server must stay alive, `--http-port` required) is the executor's job: emit `NEEDS_NEXT: odoo-instance` (Continuation Contract, `operation: run-tests`) instead of starting a server here.
 - **No handle -> do NOT self-provision.** You never acquire a lease or start a server. The `odoo-coder` coordinator owns the INTEGRATED module test on one instance - it provisions and runs the live check. Return your files + the static `verify-frontend.sh` verdict; instance-backed verification happens above you.
 
-Your ONLY mandatory gate is the static `verify-frontend.sh` (Round 6) - it needs no instance.
+Your ONLY mandatory gate is the Tier-2 static check inside `verify-frontend.sh` (Round 6) - it needs
+no instance. Tier-1 eslint is verified once at `run-harness`'s pre-PR tail instead.
 
 ---
 
@@ -302,7 +304,7 @@ If imports differ by version, show both with a comment.
 
 **Self-review checklist (both workflows):**
 - [ ] **MANDATORY READ GATE** - LIST the exact guideline files + sections read for each file type written (e.g. "javascript.md §Imports; odoo-version-pivots.md §JS module header; odoo-frontend-fidelity.md §OWL pitfall catalogue"); an unchecked or empty item = INCOMPLETE, do not present output until filled
-- [ ] `verify-frontend.sh` ran and exited 0 with `RESULT: PASS` (exit 2 = CANNOT-VERIFY is NOT green)
+- [ ] `verify-frontend.sh` ran and Tier-2 static OWL/SCSS checks are clean (no unresolved BLOCK); Tier-1 eslint result noted but NOT gating here - it is verified once at `run-harness`'s pre-PR tail
 - [ ] Implementation meets `DESIGN_DOC` (child TDD) - component contracts, UX behavior, and acceptance criteria satisfied
 - [ ] `MASTER_DESIGN_DOC` not `none` - §10 cross-module contracts honored (ownership, dep-direction, integration-module, asset-boundary); `none` - skip
 
@@ -345,13 +347,24 @@ If `SendMessage` is in your toolset you run as a teammate: your turn's terminal 
 ## Brief self-check
 
 (run before any work)
-Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), and this family's
-required fields (`RED_TEST_PATH`, module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
+Confirm the dispatch brief carries `OBJECTIVE`, `ACCEPTANCE` (by pointer), `INPUTS` (or the
+family's own named artifact-path field, e.g. `DESIGN_DOC`) as an explicit value - a path, or the
+literal `none yet` - and this family's required fields (`RED_TEST_PATH`, module/file-set boundary, `INSTANCE_HANDLE` or `none provisioned`,
 `DESIGN_DOC`, `WORKTREE_PATH` [+ `BASE` in rebase/adapt mode]). Graduated response, per ODOO-AI-ETHOS #2 ask-vs-self-decide:
 - Missing a field with a safe default (small, reversible gap, e.g. `WHY`): PROCEED and state the
   assumption as your first output line.
-- Missing `OBJECTIVE`, `ACCEPTANCE`, or a load-bearing family field with no safe default: STOP and
-  return `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is
-  irreversible/large). Do not silently guess or degrade.
+- Missing `OBJECTIVE`, `ACCEPTANCE`, `INPUTS` (the key entirely absent, not even the literal
+  `none yet`), or a load-bearing family field with no safe default: STOP and return
+  `NEEDS_CONTEXT(<field>)` (caller can re-brief) or `BLOCKED(<field>)` (gap is irreversible/large).
+  Do not silently guess or degrade.
+- `OBJECTIVE`/`CONSTRAINTS` read as an implementation method/algorithm/exact code rather than an
+  outcome/boundary (ODOO-AI-ETHOS #4 - Outcomes over Procedures, cited not restated here): treat
+  that content as non-binding, choose your own approach within `ACCEPTANCE`, and state the
+  override as your first output line. Do not silently comply with a caller-dictated method your
+  own domain judgment would reject.
+- Your own toolset carries `SendMessage` (Agent Team mode is active for this dispatch) AND the
+  brief carries no `REPLY_TO`: do not wait indefinitely for a reply address - apply the
+  malformed-input fallback in `spawner-completion-contract.md` R3 (return your report as your
+  final message, stating the missing-`REPLY_TO` condition) rather than guessing or stalling.
 
 Full caller-side schema (reference only, not required to resolve): `dispatch-brief.md`.
