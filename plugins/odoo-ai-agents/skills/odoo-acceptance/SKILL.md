@@ -136,7 +136,11 @@ Provisioning and the test-run lifecycle are NOT owned here - `odoo-instance` (th
 `odoo-instance-ops` agent) owns create/init/run-tests/drop
 and grounds per-series odoo-bin flags via `cli_help`; this skill stays conductor/adjudicator.
 Lifecycle + test-invocation conventions: `${CLAUDE_PLUGIN_ROOT}/docs/reference/INSTANCE-LIFECYCLE.md`
-and `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`.
+and `${CLAUDE_PLUGIN_ROOT}/docs/reference/ODOO-TESTING.md`. This skill does NOT independently
+re-derive a worktree root: when the dispatching caller's brief carries a `worktree_path` /
+`WORKTREE_PATH` (e.g. `run-harness`'s pre-PR tail, `${CLAUDE_PLUGIN_ROOT}/skills/run-harness/references/wave-integration.md`
+§ Pre-PR tail stage 2), thread it into this Phase 2 `odoo-instance` dispatch as `WORKTREE_PATH`
+verbatim - never default to the catalog/principal checkout when one was supplied.
 
 ## Phase 2a - DURABLE channel (parallelizable, no browser)
 

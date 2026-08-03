@@ -253,6 +253,236 @@ def test_lint_class_gate_containment_prose_is_present():
     )
 
 
+def _section(text: str, start_marker: str, end_marker: str) -> str:
+    """Slice `text` from `start_marker` up to (not including) `end_marker`. Asserts both markers
+    are actually found, so a rename of either heading fails loudly instead of silently scoping to
+    an empty/whole-file range."""
+    start = text.find(start_marker)
+    assert start != -1, f"start marker not found: {start_marker!r}"
+    end = text.find(end_marker, start)
+    assert end != -1, f"end marker not found after start: {end_marker!r}"
+    return text[start:end]
+
+
+def test_pre_pr_lint_gate_threads_worktree_path_never_relies_on_cwd():
+    """Behavior protected (R12 F1, BREAKS): the pre-PR lint-class gate self-provisions an
+    instance over 'the run-integration branch's aggregate diff' - but `run-integration` is a
+    SEPARATE git worktree from the principal checkout. Without an explicit `WORKTREE_PATH`, this
+    either silently lints the wrong (catalog/principal) tree - a false-green regardless of what
+    run-integration actually contains - or trips the allocator's `_addons_path_worktree_mismatch`
+    guard and hard-blocks every run, depending on the dispatching agent's cwd. Neither outcome is
+    acceptable, and cwd-dependence is itself the defect class this test guards against.
+
+    Fails if stage 3 ("Pre-PR lint-class gate") does not explicitly state WORKTREE_PATH (rooted on
+    run-integration), the SELF_PROVISION: worktree-addons carve-out, and the addons-path-override
+    mechanism that satisfies the allocator's mismatch guard - mirroring the SAME shape this file's
+    own Example 3 and § Per-module Invocation Brief Template already use.
+    """
+    text = _read(WAVE_INTEGRATION)
+    section = _section(
+        text,
+        "**3 - Pre-PR lint-class gate",
+        "**4 - Terminal land-tail PR",
+    )
+    norm = _norm_ws(section)
+
+    assert "worktree_path: <path>/run-integration" in norm, (
+        "the pre-PR lint-class gate must state WORKTREE_PATH: <path>/run-integration explicitly - "
+        "never inferred from the dispatching agent's cwd."
+    )
+    assert "self_provision: worktree-addons" in norm, (
+        "the pre-PR lint-class gate must carry SELF_PROVISION: worktree-addons for a dispatched "
+        "bounded subagent, the SAME field § Per-module Invocation Brief Template / Example 3 use."
+    )
+    assert "addons-path-override" in norm, (
+        "the fix must explain that WORKTREE_PATH is what makes the acquire call carry "
+        "--addons-path-override."
+    )
+    assert "_addons_path_worktree_mismatch" in norm, (
+        "the fix must name the allocator guard (scripts/lib/allocator.py) that a missing "
+        "--addons-path-override either fails to engage (false-green) or refuses against (hard "
+        "block)."
+    )
+    assert "instance-handle-contract.md" in section, (
+        "the fix must point at snippets/instance-handle-contract.md's Worktree-addons carve-out "
+        "as the SSOT for this mechanism, not restate it inline."
+    )
+    assert "never inferred from cwd" in norm or "never relies on cwd" in norm or (
+        "dispatching agent's cwd" in norm
+    ), (
+        "the fix must explicitly disclaim cwd-dependence - the defect class this gate must not "
+        "reproduce."
+    )
+
+
+def test_pre_pr_lint_fix_reaches_run_integration_and_is_reverified_there():
+    """Behavior protected (R12 waves finding #1, BREAKS): a lint fix authored at the pre-PR tail
+    must actually reach the shipped PR. The pre-fix text said to re-invoke odoo-coding at 'the
+    failing module's worktree slice' (an undefined term reading naturally as the STALE, already
+    cherry-picked per-module worktree from that module's wave) with no step bringing the resulting
+    commit back onto `run-integration` - the ONLY branch the terminal land-tail squashes and
+    pushes. Without that step the fix either never reaches the PR (if the loop trusts a bare DONE)
+    or the loop re-lints unchanged run-integration content and falsely exhausts to BLOCKED.
+
+    Fails if the containment section does not (a) disambiguate the fix's target worktree, (b)
+    mandate a cherry-pick of the fix back onto run-integration via git-toolkit:git-ops (never a raw
+    git command), and (c) mandate re-running the lint-class suite against run-integration's OWN new
+    tip rather than trusting the coder's self-reported DONE.
+    """
+    text = _read(WAVE_INTEGRATION)
+    section = _section(
+        text,
+        "**Containment for tail-only lint",
+        "**4 - Terminal land-tail PR",
+    )
+    norm = _norm_ws(section)
+
+    assert "worktree slice" not in norm, (
+        "the undefined 'worktree slice' phrasing must be replaced with a decidable target "
+        "(the module's own per-wave worktree, named consistently with § Per-module Integration "
+        "Loop's `mod.worktree`)."
+    )
+    assert "cherry-pick the fix back onto" in norm and "run-integration" in norm, (
+        "the containment section must mandate cherry-picking the fix commit back onto "
+        "run-integration - a fix left on the module's own worktree branch never reaches the PR."
+    )
+    assert "git-toolkit:git-ops" in section, (
+        "the cherry-pick-back step must route through the git-toolkit:git-ops skill, never a raw "
+        "git command run inline (this repo's git-delegation rule binds this fix loop too)."
+    )
+    assert "re-run the lint-class suite against" in norm and "run-integration" in norm, (
+        "the fix-loop must explicitly re-run the lint-class suite against run-integration's own "
+        "new tip after the cherry-pick - not just once, upfront."
+    )
+    assert "never trust the coder's own" in norm or "does not prove" in norm, (
+        "the fix-loop must explicitly refuse to trust the coder's bare DONE self-report as proof "
+        "that run-integration (the tree that actually ships) is clean."
+    )
+
+
+def test_review_escalation_fix_reaches_run_integration_and_is_reverified_there():
+    """Behavior protected: the SAME defect as the pre-PR lint-gate fix loop (see the previous
+    test), one section up. Review Escalation ("close-the-wave cross-cutting review") runs over
+    the whole `run-integration` worktree, but its fix-dispatch paragraph could re-invoke
+    `odoo-coding` against 'that module's worktree path' (the module's OWN per-wave worktree, a
+    SEPARATE tree from run-integration) with no stated cherry-pick-back step and no stated
+    re-verification target - the fix could land on the module's own branch and never reach
+    run-integration, or the loop could trust a bare DONE without re-checking run-integration
+    itself.
+
+    Fails if the paragraph does not (a) disambiguate the fix's target tree (run-integration
+    directly for the inline/subagent paths, the module's own worktree - named, not an undefined
+    "slice" - for the odoo-coding path), (b) mandate cherry-picking that third path's result back
+    onto run-integration via git-toolkit:git-ops (never a raw git command), and (c) mandate
+    re-verifying against run-integration's own tip specifically.
+    """
+    text = _read(WAVE_INTEGRATION)
+    section = _section(
+        text,
+        "## Review Escalation",
+        "## Pre-PR tail",
+    )
+    norm = _norm_ws(section)
+
+    assert "run-integration" in norm, (
+        "the Review Escalation fix-dispatch paragraph must name run-integration explicitly - "
+        "'the whole integration worktree' alone does not pin the SAME tree a re-invoked "
+        "odoo-coding dispatch (scoped to the module's own worktree) must return to."
+    )
+    assert "cherry-picked back onto" in norm or "cherry-pick" in norm, (
+        "the paragraph must mandate cherry-picking a fix authored on the module's own worktree "
+        "back onto run-integration - the SAME step § Per-module Integration Loop already performs "
+        "for every module SHA."
+    )
+    assert "git-toolkit:git-ops" in section, (
+        "the cherry-pick-back step must route through git-toolkit:git-ops, never a raw git command "
+        "run inline."
+    )
+    assert "re-run verify against" in norm and "run-integration" in norm, (
+        "the paragraph must mandate re-running verify against run-integration's current tip "
+        "specifically, not the module's own worktree and not a bare worker DONE."
+    )
+
+
+def test_conflict_resolver_names_the_worktree_it_edits_and_continues_against():
+    """Behavior protected: the SAME shape one more time. The Conflict Resolver's worker brief told
+    a freshly-dispatched (context-isolated) subagent to edit 'the conflicting files in the
+    worktree' with no path, and the follow-up 're-invoke git-toolkit:git-ops ... op=cherry-pick-
+    continue' named no worktree/branch either - both instructions are actionable only if the tree
+    is stated, since a fresh subagent context does not inherit cwd (the SAME reasoning
+    instance-handle-contract.md already applies to every other worktree-scoped dispatch in this
+    plugin).
+
+    Fails if the worker-brief sentence or the cherry-pick-continue sentence does not name
+    run-integration (or its `<path>/run-integration` form) explicitly.
+    """
+    text = _read(WAVE_INTEGRATION)
+    section = _section(
+        text,
+        "## Conflict Resolver",
+        "## Review Escalation",
+    )
+    norm = _norm_ws(section)
+
+    assert "editing the conflicting files in the" in norm and "run-integration" in norm, (
+        "the worker brief must name run-integration as the worktree the resolver edits in - a "
+        "fresh subagent context has no cwd to infer it from."
+    )
+    assert norm.count("run-integration") >= 2, (
+        "both the worker-brief sentence AND the re-invoke git-toolkit:git-ops "
+        "(op=cherry-pick-continue) sentence must each name run-integration - one mention covering "
+        "only the first half leaves the second half's target undefined again."
+    )
+
+
+def test_run_harness_has_no_untargeted_reverify_reinvoke_instruction_whole_class_scan():
+    """Whole-CLASS structural guard (R12 F1 + waves-finding-#1 pattern): ANY instruction anywhere
+    in `skills/run-harness/**` that says re-run / re-verify / re-invoke MUST name its target tree
+    (`run-integration`, `run_integration`, or `WORKTREE_PATH`) in the SAME block - not merely
+    somewhere else in the same document section. This is the class the three sites fixed above
+    (the pre-PR lint gate, Review Escalation, Conflict Resolver) all belong to; this test exists so
+    a FOURTH site is caught structurally instead of needing a human to notice the same shape again.
+
+    Granularity is deliberately FINE (each bullet / each blank-line paragraph is its own block, not
+    the whole enclosing `##` section) - a coarse whole-section check would have MISSED the original
+    pre-PR lint-gate bug, because a SIBLING bullet three lines away already mentions
+    `run-integration` for an unrelated reason while the violating bullet itself names nothing
+    (verified while building this guard: the section-level version of this check gave a false
+    'OK' on the pre-fix tree for exactly that reason).
+
+    Structural exclusion (not a per-file/per-site allowlist): the `## Examples` section is dropped
+    entirely - it is a compressed, deliberately terse restatement of mechanics already defined
+    earlier in the SAME file (see its own preamble: "these examples start from run-harness picking
+    a coding wave node..."), the same way Example 1 does not re-restate WORKTREE_PATH/
+    SELF_PROVISION either. Any OTHER file added under run-harness/** in the future is included
+    automatically (whole-tree glob, not a name list).
+    """
+    verb_re = re.compile(r"\b(re-run|re-verify|re-invoke)\b", re.IGNORECASE)
+    tree_re = re.compile(r"run-integration|run_integration|worktree_path", re.IGNORECASE)
+
+    def blocks(text: str):
+        examples_at = text.find("\n## Examples")
+        if examples_at != -1:
+            text = text[:examples_at]
+        return [p for p in re.split(r"\n\s*\n|\n(?=- )", text) if p.strip()]
+
+    run_harness_dir = PLUGIN / "skills" / "run-harness"
+    offenders = []
+    for f in sorted(run_harness_dir.rglob("*.md")):
+        text = _read(f)
+        for block in blocks(text):
+            verbs = verb_re.findall(block)
+            if verbs and not tree_re.search(block):
+                snippet = re.sub(r"\s+", " ", block.strip())[:100]
+                offenders.append(f"{f.relative_to(REPO_ROOT)}: {verbs} in {snippet!r}...")
+
+    assert not offenders, (
+        "found a re-run/re-verify/re-invoke instruction with no target tree named in its own "
+        "block (the false-green / lost-fix defect class) - name run-integration, run_integration, "
+        "or WORKTREE_PATH in the SAME bullet/paragraph as the instruction:\n" + "\n".join(offenders)
+    )
+
+
 # ---------------------------------------------------------------------------
 # R7a - lint-class names are gone from per-module/per-wave gate sites, present ONLY at the
 # designated pre-PR tail location. Whole-tree scan (structural exclusions only, never a
