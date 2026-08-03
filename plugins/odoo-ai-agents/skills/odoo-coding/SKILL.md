@@ -111,8 +111,12 @@ caller hands you a PLAN's already-computed inter-module results - via the Contin
 `inputs` on a `run-harness` or `odoo-planning` handoff (`run-harness`'s between-wave integration
 INVOKES this skill per MODULE from its orchestrating context, passing one module's slice + that module's
 worktree path - see WORKTREE_PATH below): the **target module set**, the **wave-batched module-DAG**,
-the **wave / topology**, and the **design pointers** (`design_index` / `design_doc` / `design_docs`,
-carrying the per-module stack split + effort) - CONSUME them verbatim
+the **wave / topology**, the **design pointers** (`design_index` / `design_doc` / `design_docs`,
+carrying the per-module stack split + effort), and, when present, the **survey pointer**
+(`inputs.survey` / the brief's `SURVEY:` field - a deep-survey synthesis path for additional
+hotspot/impact grounding, per `${CLAUDE_PLUGIN_ROOT}/skills/odoo-intake/references/phase-p-run-dag.md`
+§ Survey pointer; the literal `none` means no deep survey ran this session, never a missing/gap
+condition) - CONSUME them verbatim
 and SKIP the self-derivation steps that would recompute them: the design-doc resolution (step 1),
 the module-set step (2), and the dependency-order +
 wave derivation (step 4). **Stack tag (step 3) - consume, else infer (never silently skip):** take
@@ -483,6 +487,10 @@ SELF_PROVISION: worktree-addons | none - set `worktree-addons` for EVERY per-mod
 ADDONS_PATH: <comma-joined dirs the forwarded instance loads - REQUIRED whenever INSTANCE_HANDLE is set; omit when SELF_PROVISION: worktree-addons>
 DESIGN_DOC: <child TDD path | none> - per-module spec; if present, build to it; do not re-derive.
 MASTER_DESIGN_DOC: <master TDD path | none> - hard constraints (ownership, dep-direction, §10 contracts); `none` in single mode.
+SURVEY: <deep-survey synthesis.md path | none> - additional hotspot/impact grounding from an
+  opted-in deep survey (`inputs.survey` on the run-dag node, `phase-p-run-dag.md` § Survey
+  pointer); read it once for grounding before authoring if present. ALWAYS state a value - `none`
+  when no deep survey ran this session, never omit the field.
 TEST: test-first (universal) - launch `odoo-test-writer` FIRST per WI to author the RED test, then the coder implements to green; the coders do NOT author tests. Forward the coverage pre-flight below to `odoo-test-writer`.
 EXISTING COVERAGE: <tests_covering(model='<primary_model>', odoo_version='<version>') output - TestMethods already covering this model; author ADDITIVE tests only>
 COVERAGE GAPS: <test_coverage_audit(module='<module>', odoo_version='<version>') output - fields with zero/partial static-reference coverage (field-level only); prioritise these gaps>

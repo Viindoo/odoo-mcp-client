@@ -73,6 +73,12 @@ these pointers, each authoritative:
    case), the plan RESERVES the acceptance stage against the design's §9 Acceptance Criteria
    (module-level AC blocks authored at design time - see `agents/odoo-solution-architect.md` §9).
    When already present (e.g. a re-plan), wire the review/acceptance lifecycle stages to it directly.
+4. **SURVEY (OPTIONAL - your brief states it explicitly, one value or the other, never omits it)** -
+   when the dispatch brief's `SURVEY:` field names a path
+   (`<SHARE_DIR>/survey/<slug>-<date>/synthesis.md`), read it for additional hotspot/impact
+   grounding when batching waves and setting effort tiers. When the brief's `SURVEY:` field is the
+   literal `none`, proceed without it - this is NOT a missing input and never triggers
+   `NEEDS_CONTEXT`.
 
 ## Round 1 - Compute the wave-batched plan (consume by pointer, do not restate)
 

@@ -9,9 +9,11 @@ Prompt: "Record a 30-second demo of creating and confirming a sales order in Odo
 - Round 2: log in, navigate to Sales, set clean state.
 - Round 3: record click path: New → pick customer → add line → Confirm; `stop_recording`, then
   `close_page` the driven page before Round 4.
-- Round 4: save to the Tier-2 ISOLATE dir resolved per
+- Round 4: mint the slug once (`sale-order-20260803-a1b2`, per
+  `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 1), then save to
+  the Tier-2 ISOLATE dir resolved per
   `${CLAUDE_PLUGIN_ROOT}/snippets/state-root-resolution.md` -
-  `<ISOLATE_DIR>/visual/videos/sale-order-<timestamp>.mp4`, report path + duration.
+  `<ISOLATE_DIR>/visual/videos/sale-order-20260803-a1b2.mp4`, report path + duration.
 
 ## Example 2 - website portal GIF, recorder unavailable
 
@@ -33,7 +35,10 @@ co-loader as vendor - fix is already merged - `--label before`, then `--label af
   `LABEL=after` (second run), `VERDICT_STATUS=bug` / `fixed`, `VERDICT_EXPECTED='vendor shows the
   chosen co-loader'`, `VERDICT_OBSERVED='vendor field is empty'` (before) / `'vendor shows the
   chosen co-loader'` (after). `COMMIT_SHA` not supplied by the caller → resolve inline with
-  `git rev-parse --short HEAD` in the repo under demonstration.
+  `git rev-parse --short HEAD` in the repo under demonstration. Mint the pair's slug ONCE, shared by
+  both runs: `lcl-coloader-vendor-20260803-a1b2` (per `visual-evidence-lifecycle-contract.md`
+  Clause 1 - a bare date alone would collide with any other same-day recording of a
+  similarly-named feature).
 - Round 1: unchanged - `module_inspect` / `model_inspect` / `find_examples` for the freight sale
   order flow, producing the step list (open order → add LCL ocean line → pick co-loader → save).
 - Round 2: only chrome-devtools is reachable this run (playwright not wired) → first
@@ -50,6 +55,7 @@ co-loader as vendor - fix is already merged - `--label before`, then `--label af
   mechanism).
 - Round 4: no frame-to-clip assembler configured in this deployment → the ordered PNG sequence is
   the deliverable for each label; report `DONE_WITH_CONCERNS` naming the missing assembler, with
-  paths `<ISOLATE_DIR>/visual/videos/lcl-coloader-vendor-20260803-before/` and
-  `.../lcl-coloader-vendor-20260803-after/` (frame sequences, same `<feature>-<timestamp>`, `-before`/
-  `-after` suffix).
+  paths `<ISOLATE_DIR>/visual/videos/lcl-coloader-vendor-20260803-a1b2-before/` and
+  `.../lcl-coloader-vendor-20260803-a1b2-after/` (frame sequences, same minted slug from Round 0,
+  `-before`/`-after` suffix - the random suffix is what keeps this pair from colliding with any
+  other same-day `lcl-coloader-vendor` recording).

@@ -84,6 +84,21 @@ This section authorizes worktree-addons provenance and NOTHING else. A receiver 
 a `db_name` or a port (the allocator mints both), MUST NOT re-derive `addons_path` from the catalog,
 and MUST NOT self-provision to change the series, add a module, or because a handle looks stale.
 
+**Structural backstop (belt-and-braces, not the sole protection for every case).**
+`scripts/lib/allocator.py`'s `_addons_path_worktree_mismatch` guard (`cmd_acquire`) independently
+REFUSES (exit 5) an acquire in `shared`/`ephemeral`/`exclusive` mode whenever the caller's cwd is a
+linked git worktree of the SAME repository as a catalog `addons_path` entry at a DIFFERENT
+checkout path AND no `--addons-path-override` was passed - the exact "silently defaults to the
+principal checkout" shape this carve-out exists to prevent (`readonly` mode is exempt: it never
+builds, so there is nothing to mis-verify). The guard's scope stops there: it never inspects an
+override's CONTENT, so once ANY `--addons-path-override` is present the guard trusts it
+unconditionally and never re-checks it against cwd. For that one residual shape - a dispatcher
+that passes an override naming the WRONG worktree, or drops `SELF_PROVISION: worktree-addons` on
+one dispatch branch while still forwarding some override - this POLICY step (the dispatcher
+correctly computing the override value and setting the flag, per this section) remains the SOLE
+protection; no structural guard can verify a caller's true intent from a value it was simply
+handed. Do not restate the guard's mechanics elsewhere - point back here.
+
 ## Prefork (`--workers>0`) needs a second port
 
 The default THREADED mode (`workers=0`, what `odoo-instance` provisions unless told otherwise)

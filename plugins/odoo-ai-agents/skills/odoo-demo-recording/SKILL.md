@@ -128,19 +128,26 @@ EVERY recording round, including a retake. Full rule:
 `visual/videos/` is Tier-2 ISOLATE; resolve it via the same resolve-capture-substitute protocol
 (captured path shown as `<ISOLATE_DIR>` below).
 
+**Mint the filename slug ONCE, before the orphan sweep below.** `<feature>-<YYYYMMDD>-<4 random
+chars>` - the IDENTICAL collision-proof suffix mechanism the four sibling `visual/*/<slug>/`
+evidence directories use, applied here to a filename instead of a directory (`<feature>` plays the
+role of `<intent-slug>`); SSOT: `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md`
+Clause 1. Reuse the SAME minted value for every artifact path this run touches - see
+`## Narrated evidence mode` § Matched-pair filenames below for the before/after case.
+
 **Orphan sweep (do this every run, BEFORE saving THIS run's artifact below).** Nothing deletes an
 old recording today, so `visual/videos/` leaks one file per run forever:
 
 `find <ISOLATE_DIR>/visual/videos/ -maxdepth 1 -type f -mmin +43200 -exec rm -rf {} +`
 
 (any sibling
-`<feature>-<timestamp>.{mp4,gif}` untouched for over 30 days is presumed consumed - this run's own
-file cannot match since it does not exist yet). Full rule + bound rationale:
+`<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}` untouched for over 30 days is presumed consumed -
+this run's own file cannot match since it does not exist yet). Full rule + bound rationale:
 `${CLAUDE_PLUGIN_ROOT}/snippets/visual-evidence-lifecycle-contract.md` Clause 3. Enforcer: whoever
 executes `odoo-demo-recording` next, unconditionally, every run.
 
 Save the MP4 (or GIF) to
-`<ISOLATE_DIR>/visual/videos/<feature>-<timestamp>.{mp4,gif}` and report the
+`<ISOLATE_DIR>/visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}` and report the
 path, duration, and step list so the take is re-runnable.
 
 ## Narrated evidence mode
@@ -226,14 +233,15 @@ the field stays empty) is the exact defect this mode exists to make visible.
 
 ### Matched-pair filenames
 
-Both takes of a before/after pair share the SAME `<feature>-<timestamp>` (mint the timestamp
-once and reuse it for both invocations) plus the `LABEL` suffix, landing in the SAME
-`visual/videos/` path Round 4 already uses - no new directory, no new retention row; the existing
-orphan sweep and 30-day bound (Round 4, above) already cover any file here regardless of suffix:
+Both takes of a before/after pair share the SAME `<feature>-<YYYYMMDD>-<4 random chars>` slug
+(mint it ONCE, per Round 4's slug-mint step above, and reuse it for both invocations) plus the
+`LABEL` suffix, landing in the SAME `visual/videos/` path Round 4 already uses - no new directory,
+no new retention row; the existing orphan sweep and 30-day bound (Round 4, above) already cover
+any file here regardless of suffix:
 
 ```
-<ISOLATE_DIR>/visual/videos/<feature>-<timestamp>-before.{mp4,gif}
-<ISOLATE_DIR>/visual/videos/<feature>-<timestamp>-after.{mp4,gif}
+<ISOLATE_DIR>/visual/videos/<feature>-<YYYYMMDD>-<4 random chars>-before.{mp4,gif}
+<ISOLATE_DIR>/visual/videos/<feature>-<YYYYMMDD>-<4 random chars>-after.{mp4,gif}
 ```
 
 ### When the capability is not available
@@ -274,7 +282,7 @@ orphan sweep and 30-day bound (Round 4, above) already cover any file here regar
 1. Navigate <url> → 2. Click <menu> → 3. Fill <field>=<value> → 4. Click <action> …
 
 ### Artifact
-- File: <ISOLATE_DIR>/visual/videos/<feature>-<timestamp>.mp4 (or .gif)
+- File: <ISOLATE_DIR>/visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.mp4 (or .gif)
 - Duration: <s> · Resolution: <WxH> · Poster: <screenshot path>
 
 ### Notes
@@ -288,7 +296,7 @@ Narrated evidence mode adds, to the same report:
 - Badge: <BEFORE (unfixed)|AFTER (fixed)> <COMMIT_SHA>
 - Captions: <N> steps, 1 line each (see Click path above for the matching step text)
 - End-card verdict: <bug|fixed> - Expected: <VERDICT_EXPECTED> · Observed: <VERDICT_OBSERVED>
-- Paired file: <ISOLATE_DIR>/visual/videos/<feature>-<timestamp>-<before|after>.{mp4,gif}
+- Paired file: <ISOLATE_DIR>/visual/videos/<feature>-<YYYYMMDD>-<4 random chars>-<before|after>.{mp4,gif}
 ```
 
 Examples (sales order MP4 + portal GIF with recorder unavailable, plus a narrated before/after

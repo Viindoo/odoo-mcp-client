@@ -64,6 +64,17 @@ open a RUN-DAG.
      be the captured absolute path - never a `<ISOLATE_DIR>` placeholder and never a relative path: a
      leaf in another worktree cannot re-resolve it. Absent key -> the node scouts for itself, as
      today. This adds a key; it does not change who first writes `run-<id>.json`.
+   - **Survey pointer (opt-in, ALWAYS an explicit key - never omitted, unlike Recon above).**
+     When the Proposed Plan's `Survey:` field (`SKILL.md` § Deep survey) resolved to a synthesis
+     path this session, add `inputs.survey: <captured ABSOLUTE literal>` to every coding-wave node
+     and the review node. When no deep survey was opted into, set `inputs.survey: "none"`
+     explicitly on those same nodes instead of omitting the key: `inputs.recon_findings` is safe to
+     omit because the mandatory recon step always scouts for itself when absent, but a downstream
+     per-module brief (`odoo-coding`'s `SURVEY:` field) treats an OMITTED artifact-path key as a
+     load-bearing gap (`dispatch-brief.md`'s self-check) rather than "nobody asked" - so this key is
+     always present, one explicit value or the other. Threaded onward exactly like `design_index`
+     above: the receiving skill (`odoo-planner`'s `SURVEY:` field, `odoo-coding`'s per-module
+     `SURVEY:` field) reads it by pointer, never re-derives a survey.
 2. Tag each node's `gate_tier` from the registry `default_gate_tier`
    (`generator/skill_tool_deps.json`), raising it if the node writes outside the `$ODOO_AI_HOME` state root.
    - For each SOURCE-writing node (writes outside the `$ODOO_AI_HOME` state root) that is NOT a self-provisioning

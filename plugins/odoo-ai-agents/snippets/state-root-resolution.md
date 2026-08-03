@@ -113,7 +113,7 @@ trees named individually (never "...").
 | `visual/current/<slug>/` | the state-B comparison set for ONE visual-regression run (Round 3) - transient, superseded the moment the Round-4 verdict is recorded, and per-run by construction (`<slug>` carries a random suffix, same mechanism as `run-<id>.json`'s id, so two concurrent runs on the identical comparison intent never write the same screenshot path); owned by `odoo-visual-regression`, which deletes it before ANY terminal status (DONE/BLOCKED/NEEDS_CONTEXT alike), backstopped by a 24h-TTL orphan sweep the next run performs |
 | `visual/qa/<slug>/<module>/` | acceptance evidence for ONE module of ONE acceptance run - `odoo-acceptance/SKILL.md:142` dispatches one `odoo-qa-tester` per High-tier module and `:135-140` allows distinct browser families to run in parallel, so the path is per-module, not per-run; RETAINED because it is the cited evidence behind each PASS/FAIL/UNVERIFIED verdict in `qa/<slug>-acceptance-report.md`; owned by `odoo-qa-tester` |
 | `visual/debug/<slug>/` | symptom evidence for ONE `odoo-debug` (or `odoo-modules-upgrade` P5) diagnosis - RETAINED because the Output Contract's Observation field cites it; correlated to `debug/` notes and `worklog/<run-or-slug>/` by the same `<slug>`; owned by `odoo-ui-debugger` |
-| `visual/videos/<feature>-<timestamp>/` | terminal demo-recording deliverable, no downstream reader in any other skill - run-scoped, same class as `followups/` |
+| `visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}` | terminal demo-recording deliverable, no downstream reader in any other skill - run-scoped, same class as `followups/`; the filename carries the SAME collision-proof suffix mechanism as the four sibling `visual/*/<slug>/` directories below (SSOT + rationale: `visual-evidence-lifecycle-contract.md` Clause 1's fifth-consumer rule) - never a bare `<feature>-<timestamp>` |
 | `i18n/<slug>-<date>/` (`glossary-tm-<lang>.json`, `<module>.pot`, `translation-report-<lang>.json`, `consistency-audit-<lang>.md`) | the i18n recipe MANDATES a fresh `.pot`/TM re-export on every invocation and forbids reusing a prior run's artifacts on disk - ephemeral per-run output tied to one worktree's current code state, not reusable knowledge (contrast with `glossary.yml` above, which IS meant to persist and be reused) |
 | `bids/` | workflow `output_dir` (`odoo-respond-bid.workflow.yaml`) |
 | `content/` | workflow `output_dir` (`content-production.workflow.yaml`) |
@@ -136,12 +136,16 @@ resume state) that two concurrent runs must never clobber - verified exactly 13,
 **Note the split inside `visual/`:** `visual/baselines/` and `visual/doc/` are SHARE (reusable
 cross-run assets), while `visual/<run_id>/<module>_staging/`, `visual/screenshots/<slug>/`,
 `visual/current/<slug>/`, `visual/qa/<slug>/<module>/`, `visual/debug/<slug>/`, and
-`visual/videos/<feature>-<timestamp>/` are ISOLATE (transient or terminal, run-scoped). FOUR sibling
-evidence subpaths, four owners, no shared directory: `visual/screenshots/<slug>/`
+`visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}` are ISOLATE (transient or terminal,
+run-scoped). FOUR sibling evidence subpaths, four owners, no shared directory: `visual/screenshots/<slug>/`
 (`odoo-ui-reviewer`), `visual/current/<slug>/` (`odoo-visual-regression`),
 `visual/qa/<slug>/<module>/` (`odoo-qa-tester`), `visual/debug/<slug>/` (`odoo-ui-debugger`).
-Classify by the FULL subpath, never by the top-level directory name alone - `visual/` itself is not a
-Tier.
+A fifth sibling evidence path lives in the same `visual/` root - the demo-recording video filename
+`visual/videos/<feature>-<YYYYMMDD>-<4 random chars>.{mp4,gif}`, owned by odoo-demo-recording and
+collision-proofed by the identical Clause 1 mechanism as the four above - a FILENAME rather than a
+`<slug>/` directory, so it sits outside this note's FOUR-directory count while following the same
+rule. Classify by the FULL subpath, never by the top-level directory name alone - `visual/` itself
+is not a Tier.
 
 ## Codemod guards
 
