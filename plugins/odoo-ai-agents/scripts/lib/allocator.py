@@ -36,8 +36,16 @@ CLI:
     allocator.py acquire --series <X.Y> --mode <readonly|ephemeral|exclusive|shared>
                  [--ports N] [--port P] [--ttl <s>] [--run-id <id>] [--db-name <name>]
                  [--pid <pid>] [--no-create] [--instances <path>]
+                 [--addons-path-override <csv-or-colon-paths>]
                  # --run-id is the canonical ownership key; --session is a back-compat
                  # alias. acquire echoes ALLOC_RUN_ID + ALLOC_DB_PORT.
+                 # With NO --addons-path-override, acquire refuses (non-zero) instead
+                 # of silently defaulting ALLOC_ADDONS_PATH when the caller's cwd is a
+                 # git worktree of the SAME repo as a catalog addons_path entry but at
+                 # a DIFFERENT checkout - the false-green shape where a fix living in a
+                 # worktree gets silently verified against the principal checkout's
+                 # (pre-fix) code instead. Pass --addons-path-override to state the
+                 # tree explicitly (see _addons_path_worktree_mismatch).
     allocator.py query --series <X.Y>     # the live shared render server for a series, if any
     allocator.py release <token> [--run-id <id>] [--force] [--instances <path>]
                  # refuses only when the caller's run differs from a non-empty
@@ -54,6 +62,16 @@ CLI:
                  # whole process GROUP before dropping the DB.
     allocator.py heartbeat <token>
     allocator.py gc [--instances <path>]
+    allocator.py reap-orphans [--min-age-s <s>] [--yes] [--instances <path>]
+                 # lists (default) or drops (--yes) ephemeral-shaped databases
+                 # (<prefix>_t_<hex8>, never a named/declared instance) that carry
+                 # NO lease reference at all - live or stale - across every
+                 # declared cluster. Ownership predicate (see _reap_candidates):
+                 # naming shape + zero lease reference + a POSITIVELY PROVEN age
+                 # >= --min-age-s (default 24h; an unmeasurable age is treated as
+                 # NOT old enough, fail-closed). A DB referenced by any lease -
+                 # even stale - is release/gc's job, never this one's. Emits
+                 # REAP_CANDIDATE / REAP_SKIPPED / REAP_DROPPED lines.
     allocator.py list [--show-tokens]     # tokens are fingerprinted unless --show-tokens
 
 All commands emit shell-eval-able KEY=VALUE lines (shlex.quote'd), mirroring
@@ -77,6 +95,12 @@ import instances_io  # noqa: E402  (sibling lib; resolves via the path insert ab
 
 DEFAULT_POOL_SIZE = 10
 DEFAULT_TTL_S = 7200  # 2h; long runs call `heartbeat` to extend
+# reap-orphans default minimum PROVABLE age (seconds) before a lease-free
+# ephemeral-shaped DB is even proposed as a candidate. Conservative on purpose:
+# a DB that appeared moments ago (a narrow acquire-then-crash race, or a lease
+# write still in flight) must never be mistaken for an abandoned orphan just
+# because a reap-orphans sweep happened to run at the wrong instant.
+DEFAULT_REAP_MIN_AGE_S = 24 * 3600
 # SSOT for the "no declared port" fallback (Odoo's own stock default). Also
 # referenced by instances_io.py's INST_HTTP_PORT fallback so both Python
 # consumers converge on one literal (P5.9 8069-fallback consolidation).
@@ -594,6 +618,65 @@ def _resolve_addons_csv(inst, override):
     return instances_io.join_addons_path(parts), None
 
 
+def _git_rc_out(argv):
+    rc, out, _ = _run(argv)
+    return rc, out.strip()
+
+
+def _git_common_dir(path):
+    """Absolute git-common-dir for `path`, or "" when `path` is not inside a
+    git working tree (or `git` is unavailable).
+
+    git-common-dir is IDENTICAL across every worktree of one repository (the
+    principal checkout and every `git worktree add` linked off it all share
+    ONE `.git` directory), while `--show-toplevel` differs per checkout - that
+    pairing is the fingerprint `_addons_path_worktree_mismatch` uses below."""
+    rc, out = _git_rc_out(["git", "-C", path, "rev-parse", "--git-common-dir"])
+    if rc != 0 or not out:
+        return ""
+    return out if os.path.isabs(out) else os.path.realpath(os.path.join(path, out))
+
+
+def _git_toplevel(path):
+    """Absolute worktree root for `path`, or "" when not inside a git working
+    tree (or `git` is unavailable)."""
+    rc, out = _git_rc_out(["git", "-C", path, "rev-parse", "--show-toplevel"])
+    if rc != 0 or not out:
+        return ""
+    return os.path.realpath(out)
+
+
+def _addons_path_worktree_mismatch(addons_entries):
+    """Detect the false-green shape: the caller's cwd is a git worktree of the
+    SAME repository as one of the (unoverridden) catalog `addons_path` entries,
+    but at a DIFFERENT checkout path than the one the catalog declares - e.g.
+    the caller sits in a linked worktree carrying a fix while the catalog still
+    points at the principal checkout (the pre-fix code), so a build driven by
+    the catalog default would silently install and verify the wrong tree.
+
+    Returns (mismatched_catalog_entry, cwd_toplevel) when detected, else
+    (None, None) - which covers every benign case: cwd is not a git repo (or
+    git is unavailable), the caller genuinely IS standing in the checkout the
+    catalog declares (entry_top == cwd_top), or no addons_path entry shares
+    cwd's repository at all (an unrelated project - never this check's
+    business). A non-existent or non-directory entry is skipped outright."""
+    cwd = os.getcwd()
+    cwd_common = _git_common_dir(cwd)
+    if not cwd_common:
+        return None, None
+    cwd_top = _git_toplevel(cwd)
+    for entry in addons_entries:
+        if not entry or not os.path.isdir(entry):
+            continue
+        entry_common = _git_common_dir(entry)
+        if not entry_common or entry_common != cwd_common:
+            continue
+        entry_top = _git_toplevel(entry)
+        if entry_top and entry_top != cwd_top:
+            return entry, cwd_top
+    return None, None
+
+
 def _emit_instance_common(inst, addons_csv=None):
     _emit("ALLOC_PYTHON", inst.get("python", ""))
     _emit(
@@ -647,6 +730,30 @@ def cmd_acquire(opts):
         _emit("ALLOC_RUN_ID", run_id)
         _emit_instance_common(inst, addons_csv)
         return 0
+
+    # False-green guard (issue class: a wrong-tree default silently verified):
+    # only engages when the caller did NOT pass --addons-path-override - an
+    # explicit override already IS the caller stating the tree, which is the
+    # whole fix, so this never re-litigates it. Skipped for readonly above
+    # (nothing is built there); applies to shared/ephemeral/exclusive alike.
+    if not opts.get("addons_path_override"):
+        mismatched_entry, cwd_top = _addons_path_worktree_mismatch(
+            instances_io.split_addons_path(addons_csv)
+        )
+        if mismatched_entry:
+            sys.stderr.write(
+                "allocator: refusing to default ALLOC_ADDONS_PATH - this "
+                f"directory ({cwd_top}) is a git worktree of the SAME "
+                f"repository as catalog entry {mismatched_entry!r}, but the "
+                "catalog still points at THAT OTHER checkout. Building "
+                "against the catalog default here would silently install "
+                "and verify a different checkout of your own repo (a "
+                "false-green generator). Pass --addons-path-override "
+                f"{cwd_top!r} to build against THIS worktree, or pass "
+                "--addons-path-override naming the checkout you actually "
+                "intend, explicitly.\n"
+            )
+            return 5
 
     # shared: a long-lived, NON-exclusive render-server lease (the visual stack's
     # live target). Attach to the existing lease for (series, db_name) when one is
@@ -983,6 +1090,216 @@ def cmd_gc(opts):
     return 0
 
 
+# --------------------------------------------------------------------------- #
+# reap-orphans: DB-side sweep INDEPENDENT of the lease registry.
+#
+# `gc` (above) only ever reclaims a DB that a LEASE still references (it drops
+# the DB attached to a stale lease). It has no path for a DB that exists with
+# ZERO lease reference at all - a lease-write that never happened (a registry
+# quarantine after corruption, an ancient pre-B2 allocator, a process that
+# died in the single narrow window between reserving a db_name and the lease
+# write reaching disk). Such a DB is invisible to every registry-driven path
+# and, before this command existed, had NO reaping path whatsoever.
+#
+# Ownership predicate a candidate must satisfy on ALL THREE axes before it is
+# even LISTED (never mind dropped) - see _reap_candidates:
+#   1. name matches the ephemeral shape for a KNOWN catalog prefix
+#      (<prefix>_t_<8-hex>) - a named/declared instance's DB can NEVER match
+#      this shape, so it can never be a candidate, full stop.
+#   2. NO lease references the db_name at all - live OR stale. A leased DB,
+#      even a stale one, is `gc`'s/`release`'s job exclusively; reap-orphans
+#      never competes with the registry-driven path.
+#   3. Age is POSITIVELY PROVEN (via pg_stat_file's mtime proxy - Postgres
+#      records no creation time) and >= --min-age-s. An age this process
+#      CANNOT measure (missing privilege, connection hiccup) is treated as
+#      NOT proven old enough - fail-closed, never "assume it's fine".
+#
+# Any cluster this process cannot reach is SKIPPED (never assumed empty), and
+# --yes is required to actually drop anything: the default is list-only, so a
+# sweep is always a visible, auditable read before it is ever destructive.
+# --------------------------------------------------------------------------- #
+def _is_ephemeral_shaped(db_name, prefixes):
+    """True iff `db_name` matches `<prefix>_t_<8-hex>` for ANY prefix in
+    `prefixes` (every catalog instance's db_name_prefix/db_name) - the SAME
+    shape `cmd_acquire` mints ephemeral DBs under. A named/declared instance's
+    db_name can never satisfy this (it has no `_t_<hex8>` suffix), which is
+    what keeps reap-orphans from ever touching one."""
+    import re
+
+    for prefix in prefixes:
+        if not prefix:
+            continue
+        if re.fullmatch(re.escape(prefix) + r"_t_[0-9a-f]{8}", db_name):
+            return True
+    return False
+
+
+def _reap_candidates(dbs, leased_names, prefixes, min_age_s):
+    """Pure decision function (no I/O) implementing the ownership predicate
+    above. `dbs` is an iterable of {"name", "age_s" (float|None), ...} dicts
+    already filtered to ONE cluster's non-template databases. Returns
+    (candidates, skipped) - `candidates` are the dicts eligible to reap;
+    `skipped` is a list of (name, reason) for every ephemeral-shaped, unleased
+    db this pass did NOT propose, so a caller sees what was excluded and why,
+    never silently. A db that is not even ephemeral-shaped, or IS leased, is
+    not our business at all and appears in neither list (this command has
+    nothing to say about it)."""
+    candidates, skipped = [], []
+    for db in dbs:
+        name = db["name"]
+        if not _is_ephemeral_shaped(name, prefixes):
+            continue
+        if name in leased_names:
+            continue
+        age = db.get("age_s")
+        if age is None:
+            skipped.append((name, "age unknown (could not measure) - skipped, not reaped"))
+            continue
+        if age < min_age_s:
+            skipped.append((name, f"age {age:.0f}s < min-age {min_age_s:.0f}s - too young to reap"))
+            continue
+        candidates.append(db)
+    return candidates, skipped
+
+
+def _list_cluster_databases(host, user, port):
+    """Non-template datnames on this cluster, or None on ANY psql failure
+    (connection refused, auth failure, missing psql binary). None means
+    "could not enumerate" - NEVER conflated with an empty list, so a cluster
+    this process cannot currently reach is skipped, not silently treated as
+    having zero orphans."""
+    cmd = ["psql", "-h", host, "-U", user]
+    if port:
+        cmd += ["-p", str(port)]
+    cmd += ["-d", "postgres", "-tAc", "SELECT datname FROM pg_database WHERE datistemplate = false"]
+    rc, out, _ = _run(cmd, env=_pg_env())
+    if rc != 0:
+        return None
+    return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+def _db_age_s(host, user, port, db_name):
+    """Best-effort DB age in seconds via pg_stat_file's mtime on PG_VERSION -
+    the same proxy a human operator uses to eyeball this by hand, since
+    Postgres itself records no database creation time. Returns None on ANY
+    failure (pg_stat_file needs elevated privilege on many Postgres builds;
+    a connection error; a db that vanished between enumeration and this call) -
+    callers MUST treat None as unknown, never as "0 / just created"."""
+    cmd = ["psql", "-h", host, "-U", user]
+    if port:
+        cmd += ["-p", str(port)]
+    cmd += ["-d", "postgres", "-tAc",
+            "SELECT extract(epoch FROM (now() - "
+            "(pg_stat_file('base/'||oid||'/PG_VERSION')).modification)) "
+            f"FROM pg_database WHERE datname = '{db_name}'"]
+    rc, out, _ = _run(cmd, env=_pg_env())
+    out = out.strip()
+    if rc != 0 or not out:
+        return None
+    try:
+        return float(out)
+    except ValueError:
+        return None
+
+
+def _db_size_bytes(host, user, port, db_name):
+    """Best-effort size via pg_database_size; None on any failure. Reporting-
+    only - it never gates the reap decision."""
+    cmd = ["psql", "-h", host, "-U", user]
+    if port:
+        cmd += ["-p", str(port)]
+    cmd += ["-d", "postgres", "-tAc", f"SELECT pg_database_size('{db_name}')"]
+    rc, out, _ = _run(cmd, env=_pg_env())
+    out = out.strip()
+    if rc != 0 or not out:
+        return None
+    try:
+        return int(out)
+    except ValueError:
+        return None
+
+
+def cmd_reap_orphans(opts):
+    path = resolve_instances_path(opts.get("instances"))
+    items = instances_io.load_instances(path)
+    if not items:
+        sys.stderr.write(f"allocator: no instances declared in {path}; nothing to reap.\n")
+        return 0
+
+    min_age_s = float(opts.get("min_age_s") or DEFAULT_REAP_MIN_AGE_S)
+    yes = bool(opts.get("yes"))
+
+    # Every prefix ANY declared instance could mint an ephemeral DB under - a
+    # db from a series other than what a future caller happens to name here
+    # must still be recognisable as an orphan of ITS OWN series' pool.
+    prefixes = sorted({
+        str(it.get("db_name_prefix") or it.get("db_name", "odoo")) for it in items
+    })
+
+    # Leased db_names, live OR stale: reap-orphans must NEVER compete with the
+    # registry-driven gc/release path - a leased DB, even a stale one, is that
+    # path's job exclusively (read-only peek; no lock needed since we never
+    # write the registry from here).
+    reg = _read_registry()
+    leased_names = {lz.get("db_name") for lz in reg.get("leases", []) if lz.get("db_name")}
+
+    # Dedup clusters by connection identity so a multi-series catalog on one
+    # Postgres cluster is queried once, not once per declared instance.
+    clusters = {}
+    for it in items:
+        key = (it.get("db_host", "localhost"), it.get("db_user", "odoo"), it.get("db_port", ""))
+        clusters[key] = True
+
+    all_candidates, all_skipped, unreachable = [], [], []
+    for host, user, port in clusters:
+        names = _list_cluster_databases(host, user, port)
+        if names is None:
+            unreachable.append(f"{user}@{host}:{port or 'default'}")
+            continue
+        dbs = []
+        for name in names:
+            if not _is_ephemeral_shaped(name, prefixes):
+                continue  # cheap pre-filter before any per-db psql round-trip
+            if name in leased_names:
+                continue
+            dbs.append({
+                "name": name,
+                "age_s": _db_age_s(host, user, port, name),
+                "size_bytes": _db_size_bytes(host, user, port, name),
+                "host": host, "user": user, "port": port,
+            })
+        cands, skipped = _reap_candidates(dbs, leased_names, prefixes, min_age_s)
+        all_candidates.extend(cands)
+        all_skipped.extend(skipped)
+
+    for cluster in unreachable:
+        sys.stderr.write(f"allocator: reap-orphans could not reach {cluster}; skipped.\n")
+
+    for name, reason in all_skipped:
+        _emit("REAP_SKIPPED", f"{name}: {reason}")
+
+    dropped, failed = [], []
+    for db in all_candidates:
+        age_h = (db["age_s"] or 0) / 3600
+        size_mb = (db["size_bytes"] or 0) / (1024 * 1024)
+        _emit("REAP_CANDIDATE", f"{db['name']} age_h={age_h:.1f} size_mb={size_mb:.1f}")
+        if yes:
+            if _dropdb(db["host"], db["user"], db["name"], db["port"]):
+                _drop_filestore(db["name"])
+                dropped.append(db["name"])
+            else:
+                failed.append(db["name"])
+
+    if yes:
+        for name in dropped:
+            _emit("REAP_DROPPED", name)
+        print(f"# reaped {len(dropped)} orphan(s), {len(failed)} failure(s)")
+        return 1 if failed else 0
+
+    print(f"# {len(all_candidates)} orphan candidate(s) found (list-only - pass --yes to drop)")
+    return 0
+
+
 def cmd_query(opts):
     """Read-only cross-session discovery: emit the live `shared` lease for a
     series (the running render server's actual port + db), or exit 1 if none.
@@ -1086,9 +1403,12 @@ _FLAG_KEYS = {
     "--series": "series", "--mode": "mode", "--ports": "ports", "--port": "port",
     "--ttl": "ttl", "--run-id": "run_id", "--session": "session", "--db-name": "db_name",
     "--instances": "instances", "--pid": "pid", "--profile": "profile",
-    "--addons-path-override": "addons_path_override",
+    "--addons-path-override": "addons_path_override", "--min-age-s": "min_age_s",
 }
-_BOOL_KEYS = {"--no-create": "no_create", "--force": "force", "--show-tokens": "show_tokens"}
+_BOOL_KEYS = {
+    "--no-create": "no_create", "--force": "force", "--show-tokens": "show_tokens",
+    "--yes": "yes",
+}
 
 
 def _parse(argv):
@@ -1142,6 +1462,8 @@ def main(argv):
         return cmd_bind(opts)
     if cmd == "gc":
         return cmd_gc(opts)
+    if cmd == "reap-orphans":
+        return cmd_reap_orphans(opts)
     if cmd == "list":
         return cmd_list(opts)
     if cmd == "query":
@@ -1150,7 +1472,7 @@ def main(argv):
         return cmd_assert_droppable(opts)
     sys.stderr.write(
         f"Unknown subcommand: {cmd!r}. "
-        "Use acquire|release|bind|heartbeat|gc|list|query|assert-droppable.\n"
+        "Use acquire|release|bind|heartbeat|gc|reap-orphans|list|query|assert-droppable.\n"
     )
     return 2
 

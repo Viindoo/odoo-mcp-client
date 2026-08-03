@@ -715,6 +715,12 @@ cmd_init() {
     # (Odoo's arg parser takes the last occurrence).
     (
         resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
+        # Positive proof of the resolved tree (issue class: Odoo's own module-
+        # loading log records only RELATIVE module paths, so a verifier can
+        # never grep an absolute addons-path line to confirm which checkout
+        # loaded - the ABSENCE of a wrong path is the only signal otherwise).
+        # This line makes the RESOLVED addons-path greppable in the log itself.
+        echo "allocator: ADDONS_PATH_USED=$addons_csv"
         "$arg_python" "$odoo_bin" \
             -d "$arg_db" \
             -i "$arg_modules" \
@@ -792,6 +798,9 @@ cmd_update() {
     # ${arg_extra} so a caller-supplied override in --extra still wins.
     (
         resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
+        # Positive proof of the resolved tree - see the identical comment in
+        # cmd_init above.
+        echo "allocator: ADDONS_PATH_USED=$addons_csv"
         "$arg_python" "$odoo_bin" \
             -d "$arg_db" \
             -u "$arg_modules" \
@@ -880,6 +889,9 @@ cmd_test() {
     # ${arg_extra} so a caller-supplied override in --extra still wins.
     (
         resource_limit_is_uncapped || ulimit -Sv "$_lim_kib" 2>/dev/null || true
+        # Positive proof of the resolved tree - see the identical comment in
+        # cmd_init above.
+        echo "allocator: ADDONS_PATH_USED=$addons_csv"
         "$arg_python" "$odoo_bin" \
             -d "$arg_db" \
             "$mode_flag" "$arg_modules" \
